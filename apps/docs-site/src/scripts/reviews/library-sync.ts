@@ -15,6 +15,7 @@ import {
 import { dismissStaleFrom, guardrail, type BranchRuleLike, type CompareLike, type Guardrail } from '../../lib/library-sync';
 import { reviewTokenChange } from '../../lib/token-review';
 import { ghGet, studioClient } from '../github-session';
+import { siteConfig } from '../repo-context';
 
 export interface SyncPull {
   number: number;
@@ -25,7 +26,7 @@ export interface SyncPull {
 
 const siteRoot = (): string | undefined => {
   try {
-    return (JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { tokensRoot?: string }).tokensRoot;
+    return (siteConfig() as { tokensRoot?: string }).tokensRoot;
   } catch {
     return undefined;
   }

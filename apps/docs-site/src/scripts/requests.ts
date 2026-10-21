@@ -31,6 +31,7 @@ import { rateLimitedLine } from '../lib/gh-wording';
 import { attrUrl, safeUrl } from '../lib/html';
 import { owners } from './pr-status';
 import { ASSIGN_EVENT, DECLINE_EVENT, type AssignAskDetail, type DeclineAskDetail } from '../components/ds/studio/RequestDecide';
+import { siteConfig } from './repo-context';
 
 const repo = readRepo();
 const REPO_KEY = `${repo.owner}/${repo.repo}`;
@@ -38,7 +39,7 @@ const R = `/repos/${repo.owner}/${repo.repo}`;
 
 export const integrations = (): IntegrationsConfig => {
   try {
-    return (JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { integrations?: IntegrationsConfig }).integrations ?? {};
+    return (siteConfig() as { integrations?: IntegrationsConfig }).integrations ?? {};
   } catch {
     return {};
   }

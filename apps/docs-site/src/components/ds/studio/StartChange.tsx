@@ -31,6 +31,7 @@ import {
 import { CHANGE_INTENTS, type ChangeIntent } from '../../../lib/change-intent';
 import { startChangeHref } from '../../../lib/overview-board';
 import { claudePrompt, featureHref, featureName, featureProblems, featureProducts, firstStep, initialProduct, KIND_CHOICES, productParam, type WorkKind } from '../../../lib/create-branch';
+import { siteConfig } from '../../../scripts/repo-context';
 
 export interface StartChangeProps {
   components: { name: string; slug: string; family?: string }[];
@@ -64,10 +65,10 @@ function pageLook(): StartChangeLook {
   return { variant: d?.startVariant === 'secondary' ? 'secondary' : 'primary', hidden: d?.startHidden === 'true' };
 }
 
-/** The products the layout embeds (#bridge-repo, from bridge.config.json), else the defaults. */
+/** The repository's products (bridge.config.json, via repo-context siteConfig), else the defaults. */
 function pageProducts(): ProductConfig[] {
   try {
-    return productsOf(JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { products?: ProductConfig[] });
+    return productsOf(siteConfig() as { products?: ProductConfig[] });
   } catch {
     return productsOf(null);
   }

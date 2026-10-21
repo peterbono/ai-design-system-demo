@@ -53,11 +53,18 @@ describe('sign-in config', () => {
     });
   });
 
-  it('signs in with the read-only Bridge app by default, and with Bridge Direct in direct mode', () => {
+  it('signs in with the read-only Bridge app for identity, and with Bridge Direct only to write in direct mode', () => {
     const both = { GITHUB_APP_CLIENT_ID: 'Iv23liDirect', GITHUB_APP_SUGGEST_CLIENT_ID: 'Iv23liSuggest' };
     expect(pickSignInApp(both)).toEqual({ clientId: 'Iv23liSuggest', app: 'suggest' });
     expect(pickSignInApp(both, 'suggest')).toEqual({ clientId: 'Iv23liSuggest', app: 'suggest' });
-    expect(pickSignInApp(both, 'direct')).toEqual({ clientId: 'Iv23liDirect', app: 'direct' });
+    // Identity first, whatever the repository's mode (plan 3.2).
+    expect(pickSignInApp(both, 'direct')).toEqual({ clientId: 'Iv23liSuggest', app: 'suggest' });
+    expect(pickSignInApp(both, 'direct', 'identity')).toEqual({ clientId: 'Iv23liSuggest', app: 'suggest' });
+    // Direct when a write needs it, and only in direct mode.
+    expect(pickSignInApp(both, 'direct', 'write')).toEqual({ clientId: 'Iv23liDirect', app: 'direct' });
+    expect(pickSignInApp(both, 'suggest', 'write')).toEqual({ clientId: 'Iv23liSuggest', app: 'suggest' });
+    // The self-hosted site (one repository) keeps signing in with Direct in direct mode.
+    expect(signInConfigFrom(both, PREVIEWS, 'suggest')).toMatchObject({ clientId: 'Iv23liSuggest', app: 'suggest' });
     expect(signInConfigFrom(both, PREVIEWS, 'direct')).toMatchObject({ clientId: 'Iv23liDirect', app: 'direct', productionOrigin: PROD });
     // Settings needs the app suggest mode would use, whatever the mode in force today.
     expect(signInConfigFrom(both, PREVIEWS, 'direct')?.suggestApp).toBe('suggest');
@@ -68,7 +75,7 @@ describe('sign-in config', () => {
     // Without the suggest app the site signs in as it always did, whatever the mode.
     expect(pickSignInApp({ GITHUB_APP_CLIENT_ID: 'Iv23liDirect' }, 'suggest')).toEqual({ clientId: 'Iv23liDirect', app: 'direct' });
     // Direct mode without a Direct app: the read-only app still signs people in.
-    expect(pickSignInApp({ GITHUB_APP_SUGGEST_CLIENT_ID: 'Iv23liSuggest' }, 'direct')).toEqual({ clientId: 'Iv23liSuggest', app: 'suggest' });
+    expect(pickSignInApp({ GITHUB_APP_SUGGEST_CLIENT_ID: 'Iv23liSuggest' }, 'direct', 'write')).toEqual({ clientId: 'Iv23liSuggest', app: 'suggest' });
     expect(pickSignInApp({ GITHUB_APP_CLIENT_ID: 'Iv23liDirect', GITHUB_APP_SUGGEST_CLIENT_ID: 'bad id' })).toEqual({ clientId: 'Iv23liDirect', app: 'direct' });
     expect(pickSignInApp({})).toBeNull();
   });
@@ -270,10 +277,20 @@ describe('token slots per app', () => {
     expect(planSlots({ '': signIn('Iv23liDirect') }, 'direct', 'Iv23liDirect')).toEqual({ move: '', clear: [], switched: false });
   });
 
-  it('removes a sign-in of the other app and asks to sign in again', () => {
+  it('removes an old one-app sign-in on a suggest page and asks to sign in again', () => {
     expect(planSlots({ '': signIn() }, 'suggest', 'Iv23liSuggest')).toEqual({ move: null, clear: [''], switched: true });
-    expect(planSlots({ direct: signIn('Iv23liDirect') }, 'suggest', 'Iv23liSuggest')).toEqual({ move: null, clear: ['direct'], switched: true });
-    expect(planSlots({ suggest: signIn('Iv23liSuggest') }, 'direct', 'Iv23liDirect')).toEqual({ move: null, clear: ['suggest'], switched: true });
+  });
+
+  it("keeps the other app's sign-in: token slots are global, one repository's mode never clears them", () => {
+    // The current slot is empty: say why the visitor looks signed out, but keep the other app's token for its pages.
+    expect(planSlots({ direct: signIn('Iv23liDirect') }, 'suggest', 'Iv23liSuggest')).toEqual({ move: null, clear: [], switched: true });
+    expect(planSlots({ suggest: signIn('Iv23liSuggest') }, 'direct', 'Iv23liDirect')).toEqual({ move: null, clear: [], switched: true });
+    // Signed in with both apps: nothing to do on either page.
+    const both = { suggest: signIn('Iv23liSuggest'), direct: signIn('Iv23liDirect') };
+    expect(planSlots(both, 'suggest', 'Iv23liSuggest')).toEqual({ move: null, clear: [], switched: false });
+    expect(planSlots(both, 'direct', 'Iv23liDirect')).toEqual({ move: null, clear: [], switched: false });
+    // A pasted token kept in the other app's slot stays there too.
+    expect(planSlots({ suggest: signIn('Iv23liSuggest'), direct: pasted }, 'suggest', 'Iv23liSuggest')).toEqual({ move: null, clear: [], switched: false });
   });
 
   it('removes the current sign-in when the app behind it was replaced', () => {

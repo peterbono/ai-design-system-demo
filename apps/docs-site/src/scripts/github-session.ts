@@ -6,7 +6,10 @@
 // this site's own /api/github/token), and is never part of the build.
 
 import { attrUrl, escapeHtml } from '../lib/html';
-import { classifyAuth, type FetchLike, GitHubClient, GitHubError, type ClientOptions, friendlyMessage } from '@bridge-ds/core';
+import { classifyAuth, type FetchLike, GitHubClient, GitHubError, type ClientOptions, friendlyMessage, resolveRepoAccess } from '@bridge-ds/core';
+import { accessFromCheck, accessLabel, accessStorageKey, accessView, freshAccess, type RepoAccess, type RepoAccessState } from '../lib/access';
+import { repoContext } from './repo-context';
+import { clearPrivateRepoCaches, clearRepoCache } from './repo-cache';
 import {
   authFailure,
   type AuthFailure,
@@ -29,8 +32,6 @@ import {
   canRefresh,
   encodeState,
   exchangeErrorText,
-  installationFor,
-  type InstallationLike,
   needsRefresh,
   noReachText,
   type PendingSignIn,
@@ -141,14 +142,10 @@ export const PENDING_KEY = 'bridge.github.signin';
 const CACHE_PREFIX = 'bridge.gh.cache:';
 export const API = 'https://api.github.com';
 
+/** The repository this page works on (scripts/repo-context.ts: the team address, else #bridge-repo). */
 export function readRepo(): RepoRef {
-  const el = document.getElementById('bridge-repo');
-  const fallback = { owner: 'peterbono', repo: 'ai-design-system-demo', defaultBranch: 'main' };
-  try {
-    return el ? { ...fallback, ...(JSON.parse(el.textContent || '{}') as Partial<RepoRef>) } : fallback;
-  } catch {
-    return fallback;
-  }
+  const { owner, repo, defaultBranch } = repoContext();
+  return { owner, repo, defaultBranch };
 }
 
 export function getToken(): string | null {
@@ -267,7 +264,7 @@ export function saveSignIn(r: TokenResponse, opts: { refresh?: boolean; clientId
   writeAppSession(sessionFrom(r, Date.now(), opts.clientId));
   // A refresh keeps the account: carry the last good check over to the new token (no extra call to GitHub). A new
   // sign-in may be another account: it is checked again.
-  writeCheck(previous?.ok && previous.viewer ? { ...okCheck(r.access_token, previous.viewer, Date.now(), previous.write), ...(typeof previous.reach === 'boolean' ? { reach: previous.reach } : {}) } : null);
+  writeCheck(previous?.ok && previous.viewer ? { ...okCheck(r.access_token, previous.viewer, Date.now(), previous.write), ...(typeof previous.reach === 'boolean' ? { reach: previous.reach } : {}), ...(previous.access ? { access: previous.access } : {}) } : null);
   setToken(r.access_token);
 }
 
@@ -725,7 +722,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       const v = await check();
       if (!v) throw new Error('GitHub did not accept this token. Check that you copied all of it, then try again.');
       viewer = v;
-      access = null;
+      forgetAccess();
       closeDialog(dialog);
       paint();
       notify(viewer);
@@ -744,7 +741,9 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     writeCheck(null);
     writeAppSession(null);
     viewer = null;
-    access = null;
+    forgetAccess();
+    // Bodies and models of private repositories read with this account must not outlive its session.
+    void clearPrivateRepoCaches();
     closeDialog(dialog);
     paint();
     paintAccess();
@@ -772,7 +771,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
   // Any call that gets a 401 later on lands here: same state as a failed check.
   onRejected = () => {
     viewer = null;
-    access = null;
+    forgetAccess();
     checked = true;
     paint();
     paintAccess();
@@ -807,7 +806,8 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     if (token && !needsCheck(last, token, Date.now())) {
       // Checked less than an hour ago: no call to GitHub.
       viewer = last?.ok && last.viewer ? last.viewer : null;
-      if (last?.ok && typeof last.write === 'boolean') access = { write: last.write, ...(typeof last.reach === 'boolean' ? { reach: last.reach } : {}) };
+      const seen = last?.ok ? accessFromCheck(last, repoName(readRepo()), repoContext().hosted) : null;
+      if (seen) accessByRepo.set(repoName(readRepo()), seen);
       done();
     } else {
       paint();
@@ -835,76 +835,97 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
   } else boot();
 }
 
-/**
- * What the signed-in account may do on this repository: null until known, or without a token. `reach` is false when
- * a Sign in with GitHub account cannot reach the repository through the app (not installed there, or the account
- * has no access: often the wrong account).
- */
-export interface RepoAccess {
-  write: boolean;
-  reach?: boolean;
-}
-let access: RepoAccess | null = null;
-const accessListeners: ((a: RepoAccess | null) => void)[] = [];
+export type { RepoAccess, RepoAccessState };
 
-/** Calls `fn` each time the token's access to the repository is read (after connect) or cleared (disconnect). */
+/**
+ * What the visitor may do, per repository ("owner/repo", lower case), once read. Kept for the page in memory and for
+ * ACCESS_MAX_AGE_MS in sessionStorage; the token check also remembers the last one so a page paints it at once.
+ */
+const accessByRepo = new Map<string, RepoAccess>();
+const accessListeners: ((a: RepoAccess | null) => void)[] = [];
+const repoName = (r: { owner: string; repo: string }) => `${r.owner}/${r.repo}`.toLowerCase();
+
+/** The access to this page's repository, null until known (or signed out on the self-hosted site). */
+export const currentAccess = (): RepoAccess | null => accessByRepo.get(repoName(readRepo())) ?? null;
+
+/** Forgets every access read on this page and in this tab (sign-out, another token, a rejected token). */
+function forgetAccess() {
+  accessByRepo.clear();
+  try {
+    for (const k of Object.keys(sessionStorage)) if (k.startsWith('bridge.github.access:')) sessionStorage.removeItem(k);
+  } catch {
+    /* storage blocked */
+  }
+}
+
+/** Calls `fn` each time the access to this page's repository is read (after connect) or cleared (disconnect). */
 export function onAccess(fn: (a: RepoAccess | null) => void) {
   accessListeners.push(fn);
-  if (access) fn(access);
+  const a = currentAccess();
+  if (a) fn(a);
 }
 
-/** Signed in with the app: true when an installation covers the repository, false when none does, null if unknown. */
-async function readReach(owner: string, repo: string): Promise<boolean | null> {
+/**
+ * What the visitor may do on `repo` (multi-team plan 3.3, core resolveRepoAccess): one of eight states, with the
+ * write and reach flags the Studio acts on. Signed out it is null, unless `anonymous` asks for the public read state
+ * (team shells). Reused for ACCESS_MAX_AGE_MS; a rejected token or an unreachable GitHub gives null.
+ */
+export async function resolveAccess(repo: { owner: string; repo: string } = readRepo(), opts: { anonymous?: boolean } = {}): Promise<RepoAccess | null> {
+  const token = getToken();
+  const signedIn = Boolean(viewer && token && !tokenRejected());
+  if (!signedIn && !opts.anonymous) return null;
+  const name = repoName(repo);
+  const held = accessByRepo.get(name);
+  if (held) return held;
+  const app = signedIn && sessionMode() === 'app';
+  const storageKey = signedIn && viewer ? accessStorageKey(pageSlot() ?? '', viewer.login, name) : `bridge.github.access:anonymous:${name}`;
   try {
-    const res = await fetch(`${API}/user/installations?per_page=100`, { headers: authHeaders() });
-    if (!res.ok) return null;
-    const list = ((await res.json()) as { installations?: InstallationLike[] }).installations ?? [];
-    const found = installationFor(list, owner);
-    if (found.reach !== 'check') return found.reach === 'yes';
-    const r2 = await fetch(`${API}/user/installations/${found.id}/repositories?per_page=100`, { headers: authHeaders() });
-    if (!r2.ok) return null;
-    const repos = ((await r2.json()) as { repositories?: { name?: string }[] }).repositories ?? [];
-    return repos.some((x) => x.name?.toLowerCase() === repo.toLowerCase());
+    const kept = freshAccess(sessionStorage.getItem(storageKey), Date.now());
+    if (kept) {
+      accessByRepo.set(name, kept);
+      return kept;
+    }
+  } catch {
+    /* storage blocked: ask GitHub */
+  }
+  try {
+    const client = studioClient(`${repo.owner}/${repo.repo}`, signedIn ? token : null);
+    const read = accessView(await resolveRepoAccess(client, { app }), app);
+    // The token may have been refused while reading (studioFetch marks it): nothing to keep then.
+    if (signedIn && tokenRejected()) return null;
+    // A repository this visitor can no longer see: drop what this browser kept of it.
+    if (read.state === 'no-access' || read.state === 'anonymous-unknown') void clearRepoCache(name);
+    accessByRepo.set(name, read);
+    try {
+      sessionStorage.setItem(storageKey, JSON.stringify({ at: Date.now(), access: read }));
+    } catch {
+      /* storage blocked: memory only */
+    }
+    const last = signedIn ? currentCheck() : null;
+    if (last?.ok) {
+      writeCheck({ ...last, write: read.write, reach: typeof read.reach === 'boolean' ? read.reach : null, access: { repo: name, state: read.state } });
+    }
+    return read;
   } catch {
     return null;
   }
 }
 
-async function readAccess(): Promise<RepoAccess | null> {
-  const token = getToken();
-  if (!viewer || !token || tokenRejected()) return (access = null);
-  if (access) return access;
-  try {
-    const r = readRepo();
-    const res = await fetch(`${API}/repos/${r.owner}/${r.repo}`, { headers: authHeaders() });
-    if (res.status === 401) {
-      markTokenRejected();
-      return (access = null);
-    }
-    if (!res.ok) return (access = null);
-    const info = (await res.json()) as { permissions?: { admin?: boolean; maintain?: boolean; push?: boolean } };
-    const p = info.permissions;
-    const write = Boolean(p && (p.admin || p.maintain || p.push));
-    const reach = sessionMode() === 'app' ? await readReach(r.owner, r.repo) : null;
-    access = reach === false ? { write: false, reach: false } : { write, ...(reach === true ? { reach } : {}) };
-    const last = currentCheck();
-    if (last?.ok) writeCheck({ ...last, write: access.write, ...(typeof access.reach === 'boolean' ? { reach: access.reach } : {}) });
-    return access;
-  } catch {
-    return (access = null);
-  }
-}
+/** This page's repository: signed in always, signed out only on a team shell (public read state). */
+const readAccess = () => resolveAccess(readRepo(), { anonymous: repoContext().hosted });
 
 function paintAccess() {
   const r = readRepo();
   const app = sessionMode() === 'app';
+  const access = currentAccess();
+  const shown = viewer ? access : null;
   document.querySelectorAll<HTMLElement>('[data-gh-perm]').forEach((el) => {
-    el.textContent = !viewer ? '' : !access ? 'Unknown' : access.reach === false ? 'No access' : access.write ? 'Read and write' : 'Read only';
-    el.className = `gh-perm${access ? (access.write ? ' is-write' : ' is-read') : ''}`;
+    el.textContent = accessLabel(Boolean(viewer), shown);
+    el.className = `gh-perm${shown ? (shown.write ? ' is-write' : ' is-read') : ''}`;
   });
   document.querySelectorAll<HTMLElement>('[data-gh-perm-help]').forEach((el) => {
-    el.hidden = !viewer || !access || access.write;
-    if (viewer && access && !access.write) el.textContent = access.reach === false ? noReachText(viewer.login, `${r.owner}/${r.repo}`) : readOnlyText(viewer.login, `${r.owner}/${r.repo}`, app);
+    el.hidden = !viewer || !shown || shown.write;
+    if (viewer && shown && !shown.write) el.textContent = shown.reach === false ? noReachText(viewer.login, `${r.owner}/${r.repo}`) : readOnlyText(viewer.login, `${r.owner}/${r.repo}`, app);
   });
   accessListeners.forEach((fn) => fn(access));
 }

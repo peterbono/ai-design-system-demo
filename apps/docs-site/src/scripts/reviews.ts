@@ -105,6 +105,7 @@ import { conflictLine, conflictRows, freshness, libraryLine, nextSteps, resolveL
 import { bringInLatest, checkGuardrail, commitResolution, readCompare, readConflicts, readDismissStale, waitForNewHead } from './reviews/library-sync';
 import { AGENT_NAME, isClaudeLogin } from '../lib/people';
 import { safeUrl } from '../lib/html';
+import { siteConfig } from './repo-context';
 
 interface User {
   login: string;
@@ -156,7 +157,7 @@ const REPO_KEY = `${repo.owner}/${repo.repo}`;
 const R = `/repos/${repo.owner}/${repo.repo}`;
 const SITE = (() => {
   try {
-    return JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: { design: string[]; tech: string[] }; override?: OverridePolicy; rights?: Rights | null; products?: ProductConfig[] };
+    return siteConfig() as { owners?: { design: string[]; tech: string[] }; override?: OverridePolicy; rights?: Rights | null; products?: ProductConfig[] };
   } catch {
     return {};
   }
