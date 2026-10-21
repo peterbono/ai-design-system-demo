@@ -1,5 +1,13 @@
 # @bridge-ds/docs-site
 
+## 0.16.1
+
+### Patch Changes
+
+- 6ca43c0: The Content-Security-Policy is enforced (`Content-Security-Policy` instead of `Content-Security-Policy-Report-Only`). Violations are still reported to `/api/csp-report`. The site has its own not-found page, replacing Vercel's platform 404 page, whose inline scripts the policy blocks.
+- 4c76db7: Team Libraries are noindex on the server: every `/library/<owner>/<repo>/` address answers `X-Robots-Tag: noindex`, except the teams in the committed allow-list `hosted/public-libraries.json`. The build fails when `vercel.json` falls behind the list and prints the rules to paste.
+- ff21200: The bridge-data workflow template pins @bridge-ds/cli ^0.11.0, the first published version with bridge snapshot.
+
 ## 0.16.0
 
 ### Minor Changes
