@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ghAction, ghButton, ghVerb, notSentLine, rateLimitedLine, SEE_SUGGESTION, sendButton, sendDialogTitle, sendGoal, sendingLine, SUGGEST_NEXT, suggestionSentLine, SUGGESTION_SENT, suggestOnlyLine } from './gh-wording';
+import { askDirectInstallMessage, DIRECT_CONSENT, DIRECT_SETUP, directSetupLine, ghAction, ghButton, ghVerb, notSentLine, rateLimitedLine, SEE_SUGGESTION, sendButton, sendDialogTitle, sendGoal, sendingLine, SUGGEST_NEXT, suggestionSentLine, SUGGESTION_SENT, suggestOnlyLine } from './gh-wording';
 
 describe('gh-wording', () => {
   it('says Sign in when the site has a GitHub App', () => {
@@ -55,5 +55,30 @@ describe('send words per mode', () => {
   it('says why a branch action is not offered', () => {
     expect(suggestOnlyLine('add to branches')).toBe('This design system takes suggestions, so Bridge does not add to branches here.');
     expect(suggestOnlyLine('add to branches', 'Send your edits as a suggestion instead.')).toBe('This design system takes suggestions, so Bridge does not add to branches here. Send your edits as a suggestion instead.');
+  });
+});
+
+describe('saving to branches on a team page (Bridge Direct)', () => {
+  const all = [...Object.values(DIRECT_CONSENT).filter((v) => typeof v === 'string'), ...DIRECT_CONSENT.can, ...Object.values(DIRECT_SETUP), DIRECT_CONSENT.otherAccount('ann', 'bob'), directSetupLine('acme/ds', true), directSetupLine('acme/ds', false)];
+
+  it('speaks to designers: no jargon, no em dash', () => {
+    for (const line of all) {
+      expect(line).not.toMatch(/\u2014|oauth|token|scope|pull request|permission|repositor/i);
+    }
+  });
+
+  it('tells admins to install it and everyone else to ask their lead', () => {
+    expect(directSetupLine('acme/ds', true)).toMatch(/Install Bridge Direct on GitHub, pick ds/);
+    expect(directSetupLine('acme/ds', false)).toMatch(/^Your lead needs/);
+    expect(DIRECT_SETUP.installLabel).toBe('Install Bridge Direct');
+    expect(DIRECT_SETUP.askLabel).toBe('Ask your lead');
+  });
+
+  it('writes the message for the lead with the install link and the team link', () => {
+    const m = askDirectInstallMessage('acme/ds', 'https://github.com/apps/bridge-direct/installations/new', 'https://bridge.example.com/studio/acme/ds/');
+    expect(m).toContain('github.com/acme/ds');
+    expect(m).toContain('https://github.com/apps/bridge-direct/installations/new (pick ds)');
+    expect(m).toContain('https://bridge.example.com/studio/acme/ds/');
+    expect(m).not.toMatch(/\u2014/);
   });
 });

@@ -19,8 +19,11 @@ that you, the owner, create once, and their environment variables on Vercel.
   the Bridge app keeps working exactly as before). In suggest mode with only Bridge Direct, Bridge still keeps to
   suggestions in software, but the app itself could write code.
 - Tokens of each app are stored apart in the browser (`bridge.github.token.suggest`, `bridge.github.token.direct`).
-  When the mode changes, Studio removes a sign-in made with the other app at the next page load and asks to
-  "Sign in again". A token pasted by hand belongs to no app and is kept.
+  A token is valid on every repository its app reaches, so a page never removes the other app's sign-in; a page whose
+  own app has no sign-in yet asks to "Sign in again". A token pasted by hand belongs to no app and is kept.
+- The self-hosted Studio (one repository) signs in with the app its mode needs, up front. Team pages
+  (`/studio/<owner>/<repo>/`) always sign in with **Bridge** and ask for **Bridge Direct** only when a team in direct
+  mode saves code for the first time (see "Saving to branches on a team page" below).
 
 Once the Client ID is set at build time, Sign in with GitHub is the only way into Studio: the sign-in dialog, Settings,
 the account menu and the side nav offer no token paste. Developers keep their own token for the CLI and the MCP
@@ -106,6 +109,7 @@ In the Vercel project that deploys Bridge (`bridge-docs`): **Settings**, **Envir
 | `GITHUB_APP_SUGGEST_CLIENT_SECRET` | Bridge's client secret                  | Mark it **Sensitive**. Server only   |
 | `GITHUB_APP_CLIENT_ID`             | Bridge Direct's Client ID (step 1.6)    | Public: it is written into the pages |
 | `GITHUB_APP_CLIENT_SECRET`         | Bridge Direct's client secret           | Mark it **Sensitive**. Server only   |
+| `GITHUB_APP_DIRECT_SLUG`           | Bridge Direct's slug (optional)         | The end of `github.com/apps/<slug>`. Default `bridge-direct`. Team pages link admins to `github.com/apps/<slug>/installations/new` |
 
 The Client IDs are read at build time by the pages (no `PUBLIC_` prefix needed) and both pairs by the token function,
 which accepts only those two Client IDs and adds the matching secret.
@@ -148,6 +152,32 @@ What each person sees, from what GitHub says:
 | Bridge not set up on the repository | A banner: admins get **Install Bridge**, everyone else **Ask your lead to install Bridge** |
 | Public repository, not on the team | Read only; they can still send suggestions for the team to review |
 | Read, write or admin | The Studio as usual; the team chip says "Can suggest", "Can edit" or "Admin" |
+
+### Saving to branches on a team page
+
+Signing in on a team page always uses **Bridge** (`bridge-ds`): it reads the design system and sends suggestions, and
+cannot write code. When the team's `bridge.config.json` says `"changes": "direct"`, the first action that writes code
+(start a branch, save to a branch, ship or merge, review, mark ready for review) opens **Allow Bridge to save to
+branches** first, before anything is sent:
+
+- One sentence on why ("This team saves changes on branches. To start one for you, Bridge needs one more OK from
+  GitHub. You only give it once."), what the OK allows (start a branch and save edits to it; ask for review and ship
+  once approved), and the limit ("never more than your own access on GitHub").
+- **Continue on GitHub** runs the same sign-in (state, PKCE, the same callback) with Bridge Direct's Client ID. GitHub
+  shows its consent screen once; after that the redirect is silent. The token goes to its own slot
+  (`bridge.github.token.direct`), next to Bridge's, and the visitor lands back on the page they were on, where they
+  do the action again. **Not now** closes the dialog; nothing was sent.
+- Suggestions, comments and labels keep going out with Bridge. Only code writes use Bridge Direct.
+- Before the first write on each repository (then every 10 minutes), Studio checks that the OK belongs to the account
+  signed in to Bridge and that Bridge Direct is installed on the repository. If the OK expired or GitHub refuses it,
+  Studio forgets it and asks again.
+- Bridge Direct not installed on the repository: the dialog says saving to branches is not set up yet. Admins of the
+  repository get **Install Bridge Direct** (`github.com/apps/<GITHUB_APP_DIRECT_SLUG>/installations/new`); everyone
+  else gets **Ask your lead**, which copies a message with that link and the team's Bridge address.
+- Signing out on a team page also removes Bridge Direct's OK from the browser.
+
+Teams in suggest mode, and sites with only one of the two apps, never see this dialog. The self-hosted Studio is
+unchanged: in direct mode it signs in with Bridge Direct from the start.
 
 ## What people see when something is off
 

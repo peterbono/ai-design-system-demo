@@ -97,6 +97,6 @@ const previews = hosted ? [] : loadComponents().flatMap((c) => (c.docs?.preview 
     </Fragment>
   </ScriptDialog>
 
-  <GitHubDialog />
+  <GitHubDialog hosted={hosted} />
   <HistoryPlanner />
 </div>

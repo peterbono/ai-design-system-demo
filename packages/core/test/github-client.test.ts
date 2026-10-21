@@ -234,3 +234,15 @@ test('token-less reads use the raw host; commitToNewBranch creates a branch, nev
   assert.ok(!calls.some((x) => x.method === 'PATCH'));
   assert.deepEqual(parseRepo('https://github.com/acme/ds.git'), { owner: 'acme', name: 'ds' });
 });
+
+test('a fetch that answers with its own GitHubError keeps it; any other throw is a network error', async () => {
+  const own: FetchLike = async () => {
+    throw new GitHubError(403, 'Allow the app first, then try again.', 'app-consent');
+  };
+  const c = new GitHubClient('o/r', 'tok', own);
+  await assert.rejects(c.createBranch('feature/x', 'abc'), (e: unknown) => e instanceof GitHubError && e.status === 403 && e.detail === 'app-consent' && e.message === 'Allow the app first, then try again.');
+  const offline: FetchLike = async () => {
+    throw new TypeError('Failed to fetch');
+  };
+  await assert.rejects(new GitHubClient('o/r', 'tok', offline).createBranch('feature/x', 'abc'), (e: unknown) => e instanceof GitHubError && e.status === 0 && /Could not reach GitHub/.test(e.message));
+});

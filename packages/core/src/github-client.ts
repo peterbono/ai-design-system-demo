@@ -602,6 +602,8 @@ export class GitHubClient {
     try {
       res = await this.fetchImpl(`${this.api}${path}`, { method, headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
     } catch (err) {
+      // A fetch that answers for GitHub with its own GitHubError (the Studio waiting for an app's OK) keeps it.
+      if (err instanceof GitHubError) throw err;
       throw new GitHubError(0, 'Could not reach GitHub. Check your connection, then try again.', (err as Error).message);
     }
     this.noteRateLimit(res.headers);
