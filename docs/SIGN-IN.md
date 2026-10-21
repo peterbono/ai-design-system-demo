@@ -146,7 +146,7 @@ What each person sees, from what GitHub says:
 
 | Situation | Studio |
 | --- | --- |
-| Signed out, public repository | The Studio, read only, with "Sign in with GitHub to review changes and send suggestions" |
+| Signed out, public repository | The Studio, read only, with "Sign in with GitHub to review changes and send suggestions"; the team chip says "Guest" ("Explore freely" on the demo) |
 | Signed out, private or unknown repository | "Sign in with GitHub to open owner/repo" (GitHub does not say which) |
 | Signed in, GitHub does not show the repository | "You do not have access to owner/repo yet", with **Ask your lead for access** (copies a message with the link and their GitHub name), **Sign in with another account**, and the invitation page for people already invited |
 | Bridge not set up on the repository | A banner: admins get **Install Bridge**, everyone else **Ask your lead to install Bridge** |

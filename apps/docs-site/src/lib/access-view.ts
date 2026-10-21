@@ -147,9 +147,12 @@ export function accessScreen(state: RepoAccessState, f: AccessScreenInput): Acce
 
 export type ChipTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
-/** The access words on the team chip and in Settings, with their badge tone. Null state: still checking. */
+/**
+ * The access words on the team chip and in Settings, with their badge tone. Null state: still checking. Signed out is
+ * never a word here: the account block at the bottom of the nav says it. A visitor without an account is a guest.
+ */
 export function accessBadge(state: RepoAccessState | null, signedIn: boolean): { label: string; tone: ChipTone } {
-  if (!state) return signedIn ? { label: 'Checking', tone: 'neutral' } : { label: 'Signed out', tone: 'neutral' };
+  if (!state) return signedIn ? { label: 'Checking', tone: 'neutral' } : { label: 'Guest', tone: 'neutral' };
   switch (state) {
     case 'admin':
       return { label: 'Admin', tone: 'success' };
@@ -164,8 +167,41 @@ export function accessBadge(state: RepoAccessState | null, signedIn: boolean): {
     case 'no-access':
       return { label: 'No access', tone: 'danger' };
     default:
-      return { label: 'Signed out', tone: 'neutral' };
+      return { label: 'Guest', tone: 'neutral' };
   }
+}
+
+/** The design system the self-hosted site shows to everyone: Bridge's own demo. */
+export const DEMO_TEAM = 'peterbono/ai-design-system-demo';
+
+/** The demo is the self-hosted site's own repository, never a team page (a team page of it is that team's). */
+export const isDemoTeam = (team: string | null | undefined, hosted: boolean) => !hosted && (team ?? '').toLowerCase() === DEMO_TEAM;
+
+/** What the team chip shows: the design system being viewed, and what the visitor can do on it. */
+export interface ChipIdentity {
+  /** demo: the Bridge mark and a friendly name; team: the owner's avatar and owner/repo. */
+  kind: 'demo' | 'team';
+  /** The name on the chip. */
+  name: string;
+  /** The full name, in the tooltip. */
+  title: string;
+  badge: { label: string; tone: ChipTone };
+}
+
+/**
+ * The chip of `team` ("owner/repo", null while unknown). On the demo a visitor without an account explores freely:
+ * nothing they do there reaches the repository. Signed in, the demo shows their real access like any team.
+ */
+export function chipIdentity(team: string | null, f: { demo: boolean; state: RepoAccessState | null; signedIn: boolean }): ChipIdentity {
+  if (f.demo) {
+    return {
+      kind: 'demo',
+      name: 'Bridge demo',
+      title: team ? `Bridge demo design system, ${team}` : 'Bridge demo design system',
+      badge: f.signedIn ? accessBadge(f.state, true) : { label: 'Explore freely', tone: 'info' },
+    };
+  }
+  return { kind: 'team', name: team ?? 'Your team', title: team ?? 'Your team', badge: accessBadge(f.state, f.signedIn) };
 }
 
 /** One sentence for Settings: what the viewer can do here. */
