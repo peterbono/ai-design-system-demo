@@ -129,6 +129,11 @@
             ]
           }
         },
+        "usage": {
+          "type": "string",
+          "description": "Optional notes per token group ({ \"color.action\": \"Buttons and links\" }), relative to root. Bridge reads usage.json under root when this is not set.",
+          "minLength": 1
+        },
         "primitives": {
           "type": "string",
           "description": "Flat form: primitive tier directory."

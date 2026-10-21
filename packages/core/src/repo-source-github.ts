@@ -5,19 +5,7 @@
 // request, no API quota). Blobs are content-addressed: cached forever, never revalidated.
 
 import { GitHubClient, GitHubError } from './github-client';
-
-/**
- * The read interface every data path goes through (multi-team plan, section 1). PR 1a owns the canonical
- * `RepoSource` in `repo-source.ts`; this local copy has the same shape so `gitHubSource` can land in parallel.
- * Reconcile after 1a merges: replace this declaration with `import type { RepoSource } from './repo-source'`.
- */
-export interface GitHubRepoSource {
-  ref: { owner: string; repo: string; sha: string };
-  /** Every file path (blobs only), optionally under a folder prefix ("packages/tokens/src"). */
-  list(prefix?: string): Promise<string[]>;
-  /** The text of a file, or null when the commit has no such file. */
-  text(path: string): Promise<string | null>;
-}
+import { isUnder, normalizeRepoPath, type RepoSource } from './repo-source';
 
 /** Where blob bodies are kept between sources (IndexedDB in the browser). Keyed by blob sha; may be async. */
 export interface BlobCache {
@@ -40,15 +28,12 @@ export interface GitHubSourceOptions {
 /** How bodies are read: the blobs API with the token, or the raw host without one. */
 export type GitHubSourceMode = 'api' | 'raw';
 
-export interface GitHubSource extends GitHubRepoSource {
+export interface GitHubSource extends RepoSource {
   /** Where body reads go: 'api' when the client has a token, 'raw' otherwise. */
   readonly mode: GitHubSourceMode;
 }
 
 const FULL_SHA = /^[0-9a-f]{40}$/i;
-
-/** "./a/b", "/a/b" -> "a/b". */
-const normalizePath = (p: string) => p.replace(/^(\.\/)+/, '').replace(/^\/+/, '');
 
 /** A concurrency limiter: at most `n` tasks run at once, the rest wait in order. */
 function limiter(n: number) {
@@ -115,13 +100,11 @@ export function gitHubSource(client: GitHubClient, sha: string, opts: GitHubSour
     ref: { owner: client.owner, repo: client.name, sha },
     mode,
     async list(prefix?: string) {
-      const files = [...(await readTree()).keys()];
-      const p = normalizePath(prefix ?? '').replace(/\/+$/, '');
-      if (!p) return files;
-      return files.filter((f) => f === p || f.startsWith(`${p}/`));
+      // Sorted, like every RepoSource.
+      return [...(await readTree()).keys()].filter((f) => isUnder(f, prefix)).sort();
     },
     async text(path: string) {
-      const p = normalizePath(path);
+      const p = normalizeRepoPath(path);
       const entry = (await readTree()).get(p);
       if (!entry) return null;
       if (entry.size !== undefined && entry.size > maxBytes) {
