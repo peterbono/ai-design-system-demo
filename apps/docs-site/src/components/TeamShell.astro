@@ -20,14 +20,16 @@ interface Props {
   /** What the page holds, said as "your <what>": "tokens", "changes in review". */
   what: string;
   description: string;
+  /** One short muted line under the title, when the title alone does not say what the page does. */
+  subtitle?: string;
   wide?: boolean;
 }
-const { route, title, what, description, wide = true } = Astro.props;
+const { route, title, what, description, subtitle, wide = true } = Astro.props;
 ---
 
 <Layout title={title} description={description} hosted wide={wide}>
   <div class="ts" data-team-shell={route || 'home'}>
-    <StudioHeader title={title}>
+    <StudioHeader title={title} subtitle={subtitle}>
       <p class="ts-repo"><span class="mono" data-team-name>owner/repo</span></p>
       {Astro.slots.has('actions') && <Fragment slot="actions"><slot name="actions" /></Fragment>}
     </StudioHeader>

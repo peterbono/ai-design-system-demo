@@ -1,6 +1,69 @@
 ---
-// Team shell of Studio Review (lib/team-shells.ts): served for /studio/<owner>/<repo>/review/ by the vercel.json rewrite.
+// Team shell of Studio Review (lib/team-shells.ts): served for /studio/<owner>/<repo>/review/ by the vercel.json
+// rewrite. The self-hosted review queue (pages/studio/review.astro, scripts/review-queue-page.ts) for the team: its
+// branches and suggestions that wait on you, each reviewed in place. The repo facts the self-hosted page embeds at build
+// time (contrast failures, guidance drafts, the branches config) come from the team's repo model, read in the browser
+// by scripts/team-review.ts before the queue starts.
+import '../../styles/reviews.css';
+import '../../styles/branch-review.css';
+import '../../styles/product-branch.css';
+import '../../styles/motion-changes.css';
+import '../../styles/history.css';
+import '../../styles/changes.css';
+import '../../styles/studio-home.css';
+import '../../styles/branch-thumb.css';
+import '../../styles/review-queue.css';
+import '../../styles/suggestion-review.css';
+import '../../styles/load-progress.css';
 import TeamShell from '../../components/TeamShell.astro';
+import ScriptDialog from '../../components/ds/ScriptDialog.astro';
+import PromoteToReview from '../../components/ds/studio/PromoteToReview';
+import RequestDecide from '../../components/ds/studio/RequestDecide';
+import { Alert, Button, ButtonGroup, Skeleton, Textarea } from '@bridge-ds/react';
 ---
 
-<TeamShell route="review/" title="Review" what="reviews waiting on you" description="The reviews waiting on you, for this team's design system." />
+<TeamShell route="review/" title="Review" what="reviews waiting on you" description="The reviews waiting on you, for this team's design system.">
+  <div class="lp-wait" data-tr-state aria-busy="true" aria-label="Reading this team's reviews"></div>
+  <div class="rv rq" data-review-queue hidden>
+    <p class="rv-notice" id="rv-notice" role="status" hidden></p>
+    <div class="rq-layout" data-rq-layout>
+      <div class="rq-side" data-rq-side>
+        <Skeleton variant="rect" className="sh-skel" />
+      </div>
+      <div class="rq-pick" data-rq-pick></div>
+      <section class="rq-main" aria-label="Selected item">
+        <div class="rq-card" data-rq-card></div>
+        <div class="rq-sg" data-rq-sg hidden></div>
+        <div id="rv-detail" class="rv-detail rq-detail" hidden></div>
+        <div class="rq-foot" data-rq-foot hidden></div>
+      </section>
+    </div>
+    <div class="rq-empty" data-rq-empty hidden></div>
+    <div data-rq-toasts></div>
+  </div>
+
+  {/* The owner override confirmation, as on the self-hosted queue (scripts/reviews.ts wireOverride fills and opens it). */}
+  <ScriptDialog id="rv-ov" title="Merge as owner override?" closeLabel="Close" disablePointerDismissal popup={{ role: 'alertdialog', 'aria-describedby': 'rv-ov-desc' }}>
+    <div class="gh-dialog-body">
+      <div id="rv-ov-desc" class="rv-ov-desc">
+        <p>This merges the branch into main without:</p>
+        <ul class="rv-ov-missing" data-rv-ov="missing"></ul>
+        <p>Your reason is posted on the branch and shown in History.</p>
+      </div>
+      <Textarea label="Reason" data-rv-ov="reason" rows={3} hint="Shown on the branch." placeholder="Solo maintainer, tests pass, I reviewed the token diff and contrast." />
+      <Alert tone="danger" className="st-hideable" data-rv-ov="error" hidden><span data-rv-ov="error-text"></span></Alert>
+    </div>
+    <Fragment slot="footer">
+      <ButtonGroup align="end">
+        <Button variant="secondary" data-dialog-close>Cancel</Button>
+        <Button variant="primary" data-rv-ov="go">Post reason and merge</Button>
+      </ButtonGroup>
+    </Fragment>
+  </ScriptDialog>
+  <PromoteToReview client:only="react" />
+  <RequestDecide client:only="react" />
+  <script>
+    import { initTeamReview } from '../../scripts/team-review';
+    void initTeamReview();
+  </script>
+</TeamShell>
