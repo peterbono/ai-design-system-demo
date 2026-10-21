@@ -1,6 +1,6 @@
 // The bridge CLI, run as a real process.
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -189,5 +189,47 @@ describe('bridge CLI', () => {
     expect(git(dir, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe('main');
     expect(git(dir, 'show', 'bridge/brand-acme:packages/tokens/src/brands/acme.tokens.json')).toContain('"name": "Acme"');
     expect(bridge(dir, 'brand', 'nope').code).toBe(2);
+  });
+});
+
+describe('bridge snapshot', () => {
+  const APPS = 'packages/core/test/fixtures/audit';
+  it('writes snapshot.json and the audits for the bridge-data branch', () => {
+    const out = mkdtempSync(join(tmpdir(), 'bridge-test-snapshot-'));
+    const r = bridge(REPO, 'snapshot', '--out', out, '--audit', `${APPS}/clean-app=Clean app`, '--audit-report', 'apps/docs-site/src/data/audits/admin-after.json', '--json');
+    expect(r.code, r.err).toBe(0);
+    const res = JSON.parse(r.out) as { written: string[]; bytes: number; sourceSha: string; summary: { tokens: number; components: number; contrast: { failing: number }; figma: { inFigma: number } | null } };
+    expect(res.written).toEqual(['snapshot.json', 'audits/admin-after.json', 'audits/clean-app.json']);
+    // component-specs.json is over 1 MB; the snapshot carries its coverage only.
+    expect(res.bytes).toBeLessThan(1_000_000);
+    expect(res.summary.contrast.failing).toBe(0);
+    expect(res.summary.components).toBeGreaterThan(20);
+    expect(res.summary.figma?.inFigma).toBeGreaterThan(20);
+    const snap = JSON.parse(readFileSync(join(out, 'snapshot.json'), 'utf8')) as { kind: string; sourceSha: string; repo: { owner: string; name: string }; files: Record<string, string>; audits: { id: string; label?: string; path: string }[] };
+    expect(snap.kind).toBe('bridge-snapshot');
+    expect(snap.sourceSha).toBe(res.sourceSha);
+    expect(snap.repo.name).toBe('ai-design-system-demo');
+    expect(Object.keys(snap.files)).toContain('bridge.config.json');
+    expect(Object.keys(snap.files)).not.toContain('packages/react/component-specs.json');
+    expect(snap.audits.map((a) => [a.id, a.label])).toEqual([
+      ['admin-after', 'Bridge admin, after migration'],
+      ['clean-app', 'Clean app'],
+    ]);
+    const report = JSON.parse(readFileSync(join(out, 'audits/clean-app.json'), 'utf8')) as { schemaVersion: number; label: string };
+    expect(report).toMatchObject({ schemaVersion: 1, label: 'Clean app' });
+
+    // Text mode, and a second run leaves no stale audit behind.
+    const t = bridge(REPO, 'snapshot', '--out', out);
+    expect(t.code, t.err).toBe(0);
+    expect(t.out).toMatch(/^Wrote .*snapshot\.json \(\d+ KB\) for peterbono\/ai-design-system-demo at [0-9a-f]{7}/);
+    expect(t.out).toMatch(/contrast\s+\d+ checks over \d+ pairs, 0 failing/);
+    expect(existsSync(join(out, 'audits'))).toBe(false);
+  });
+
+  it('exit 2 when a folder to audit does not exist', () => {
+    const out = mkdtempSync(join(tmpdir(), 'bridge-test-snapshot-'));
+    const r = bridge(REPO, 'snapshot', '--out', out, '--audit', 'no/such/app');
+    expect(r.code).toBe(2);
+    expect(r.err).toMatch(/No such file or folder to audit: no\/such\/app/);
   });
 });

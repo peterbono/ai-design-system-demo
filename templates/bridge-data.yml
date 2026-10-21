@@ -1,0 +1,81 @@
+# Bridge data: copy this file to .github/workflows/bridge-data.yml in your design system repository.
+#
+# On every push to the default branch, it writes the Bridge snapshot of the repository (`bridge snapshot`) and
+# publishes it to the orphan branch `bridge-data`: snapshot.json (the token, contrast and component files Bridge
+# reads, Figma coverage, contrast results) and audits/<id>.json (adoption audits, when you ask for them below).
+# Hosted Bridge (https://bridge.floriangouloubi.com/studio/<owner>/<repo>/) reads it from raw.githubusercontent.com:
+# pages open faster, visitors spend no GitHub API quota, and the adoption band shows your audits.
+# Bridge works without it; it reads your repository live when the snapshot is missing or older than the head.
+#
+# Token: only the GITHUB_TOKEN of this run, with `contents: write` to push the bridge-data branch. No secret to add.
+# The branch is never merged; delete it to start over. Docs: https://github.com/peterbono/ai-design-system-demo/blob/main/docs/HOSTED.md
+
+name: Bridge data
+
+on:
+  push:
+    branches: [main] # your default branch
+  workflow_dispatch:
+
+concurrency:
+  group: bridge-data
+  cancel-in-progress: false
+
+permissions:
+  contents: write # push to the bridge-data branch, nothing else
+
+env:
+  DATA_BRANCH: bridge-data
+  # bridge snapshot needs @bridge-ds/cli 0.10.0 or later.
+  BRIDGE_CLI: '@bridge-ds/cli@^0.10.0'
+
+jobs:
+  snapshot:
+    name: Publish the Bridge snapshot
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Snapshot
+        # Adoption audits (optional): add one --audit per app folder that uses the design system, in this
+        # repository, with an optional label: --audit "apps/web/src=Web app". Reports already written by
+        # `bridge audit --json` can be carried with --audit-report <file or folder>.
+        run: npx --yes "$BRIDGE_CLI" snapshot --out "$RUNNER_TEMP/bridge-data" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish to the bridge-data branch
+        env:
+          OUT: ${{ runner.temp }}/bridge-data
+        run: |
+          set -euo pipefail
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          dir="$RUNNER_TEMP/bridge-data-branch"
+          publish() {
+            rm -rf "$dir"
+            git worktree prune
+            if git ls-remote --exit-code --heads origin "$DATA_BRANCH" > /dev/null; then
+              git fetch -q --depth 1 origin "$DATA_BRANCH"
+              git worktree add -q --detach "$dir" FETCH_HEAD
+            else
+              git worktree add -q --detach "$dir" HEAD
+              git -C "$dir" checkout -q --orphan "$DATA_BRANCH"
+            fi
+            # The branch holds the latest snapshot only: replace everything.
+            git -C "$dir" rm -rfq --ignore-unmatch .
+            cp -R "$OUT/." "$dir/"
+            printf '# bridge-data\n\nBridge snapshot of %s at %s, written by .github/workflows/bridge-data.yml.\n' "$GITHUB_REPOSITORY" "${GITHUB_SHA:0:7}" > "$dir/README.md"
+            git -C "$dir" add -A
+            git -C "$dir" commit -qm "bridge data: ${GITHUB_SHA:0:7}" || { echo "Nothing new to publish"; return 0; }
+            git -C "$dir" push -q origin "HEAD:refs/heads/$DATA_BRANCH"
+          }
+          for i in 1 2 3; do
+            if publish; then exit 0; fi
+            sleep $((i * 3))
+          done
+          exit 1

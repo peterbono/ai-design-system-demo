@@ -75,3 +75,4 @@ export * from './component-scan';
 export * from './repo-model';
 export * from './repo-source-github';
 export * from './repo-access';
+export * from './snapshot';
