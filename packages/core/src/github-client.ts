@@ -132,7 +132,7 @@ export interface RepoInfo {
   fullName: string;
   defaultBranch: string;
   private: boolean;
-  permissions: { admin?: boolean; push?: boolean; pull?: boolean } | undefined;
+  permissions: { admin?: boolean; maintain?: boolean; push?: boolean; triage?: boolean; pull?: boolean } | undefined;
 }
 
 export interface TreeEntry {
@@ -140,6 +140,8 @@ export interface TreeEntry {
   type: 'blob' | 'tree' | 'commit';
   sha: string;
   mode: string;
+  /** Bytes, for blobs (GitHub sends it in tree listings). */
+  size?: number | undefined;
 }
 
 export interface CompareResult {
@@ -196,7 +198,192 @@ export interface ClientOptions {
    * the MCP server config"). Default: "add a GitHub token".
    */
   tokenHint?: string;
+  /**
+   * Where conditional GET responses are kept (ETag + body). Default: one in-memory store shared by every client in
+   * this process or page, keyed by the token's fingerprint, so two accounts never share an entry. `false` turns
+   * conditional requests off. A 304 answer does not count against GitHub's primary rate limit.
+   */
+  etags?: EtagStore | false;
+  /**
+   * Who the cached responses belong to, when a stable name is known (the signed-in login). Default: a fingerprint of
+   * the token, which changes when the token is refreshed.
+   */
+  etagScope?: string;
+  /**
+   * When GitHub's hourly limit is used up and a cached response exists for that request, return it instead of
+   * throwing. Off by default: the caller then knows the data may be stale only from `rateLimit`.
+   */
+  serveStaleOnRateLimit?: boolean;
 }
+
+/** One cached conditional response: what GitHub sent with this ETag. */
+export interface EtagEntry {
+  etag: string;
+  body: unknown;
+  /** When it was stored or last confirmed by a 304 (ms since epoch). */
+  at: number;
+}
+
+/** Storage for conditional requests. Keys never contain the token. */
+export interface EtagStore {
+  get(key: string): EtagEntry | undefined;
+  set(key: string, entry: EtagEntry): void;
+  /** Forgets every entry (sign-out). */
+  clear(): void;
+}
+
+/** An in-memory ETag store that keeps the `max` most recently used entries. */
+export function memoryEtagStore(max = 500): EtagStore {
+  const map = new Map<string, EtagEntry>();
+  return {
+    get(key) {
+      const e = map.get(key);
+      if (e) {
+        map.delete(key);
+        map.set(key, e);
+      }
+      return e;
+    },
+    set(key, entry) {
+      map.delete(key);
+      map.set(key, entry);
+      while (map.size > max) map.delete(map.keys().next().value!);
+    },
+    clear: () => map.clear(),
+  };
+}
+
+/** The subset of the Web Storage API (localStorage, sessionStorage) an ETag store needs. */
+export interface StorageLike {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+  key(index: number): string | null;
+  readonly length: number;
+}
+
+/**
+ * An ETag store over Web Storage, so conditional requests survive a page load. Every access is guarded: private
+ * windows, quota errors and blocked storage turn into cache misses, never into failures. Entries live under
+ * `prefix` (default "bridge.gh.etag:"); `clear()` removes only those. Bodies of private repositories land here
+ * too, so a sign-out must call `clear()`.
+ */
+export function webStorageEtagStore(storage: StorageLike, opts: { prefix?: string; maxEntryBytes?: number } = {}): EtagStore {
+  const prefix = opts.prefix ?? 'bridge.gh.etag:';
+  const maxBytes = opts.maxEntryBytes ?? 512_000;
+  return {
+    get(key) {
+      try {
+        const raw = storage.getItem(prefix + key);
+        if (!raw) return undefined;
+        const e = JSON.parse(raw) as EtagEntry;
+        return typeof e?.etag === 'string' ? e : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    set(key, entry) {
+      try {
+        const raw = JSON.stringify(entry);
+        if (raw.length > maxBytes) return;
+        storage.setItem(prefix + key, raw);
+      } catch {
+        // Quota or blocked storage: the next request is simply unconditional.
+      }
+    },
+    clear() {
+      try {
+        const keys: string[] = [];
+        for (let i = 0; i < storage.length; i++) {
+          const k = storage.key(i);
+          if (k?.startsWith(prefix)) keys.push(k);
+        }
+        for (const k of keys) storage.removeItem(k);
+      } catch {
+        // Nothing to clear when storage is unavailable.
+      }
+    },
+  };
+}
+
+const sharedEtags = memoryEtagStore();
+
+/** Clears the default in-memory ETag store every client shares (sign-out, account switch). */
+export function clearSharedEtags(): void {
+  sharedEtags.clear();
+}
+
+/** A short, non-reversible name for a token, used in cache keys instead of the token itself (two FNV-1a passes). */
+export function tokenFingerprint(token: string): string {
+  if (!token) return 'anon';
+  let a = 0x811c9dc5;
+  let b = 0x01000193 ^ token.length;
+  for (let i = 0; i < token.length; i++) {
+    const c = token.charCodeAt(i);
+    a = Math.imul(a ^ c, 0x01000193) >>> 0;
+    b = Math.imul(b ^ c ^ (i & 0xff), 0x5bd1e995) >>> 0;
+  }
+  return a.toString(16).padStart(8, '0') + b.toString(16).padStart(8, '0');
+}
+
+/** GitHub's rate-limit headers from the last API response. */
+export interface RateLimitInfo {
+  limit: number | undefined;
+  remaining: number | undefined;
+  resetsAt: Date | undefined;
+  /** "core", "search", "graphql"... */
+  resource: string | undefined;
+}
+
+/** What the conditional request cache did, for tests and diagnostics. */
+export interface EtagStats {
+  /** Requests sent with If-None-Match. */
+  conditional: number;
+  /** 304 answers served from the cache (free for the primary rate limit). */
+  notModified: number;
+  /** Cached bodies returned because the hourly limit was used up (serveStaleOnRateLimit). */
+  stale: number;
+}
+
+/** An installation of a GitHub App the signed-in user can reach (GET /user/installations). */
+export interface Installation {
+  id: number;
+  account: { login: string; type: string } | null;
+  /** "all" repositories of the account, or "selected" ones. */
+  repositorySelection: 'all' | 'selected' | string;
+  appSlug: string | undefined;
+}
+
+/** One repository of an installation (GET /user/installations/{id}/repositories). */
+export interface InstallationRepo {
+  owner: string;
+  name: string;
+  fullName: string;
+  private: boolean;
+}
+
+/** One installation of the GitHub App, as GET /user/installations lists it (raw or mapped). */
+export interface InstallationLike {
+  id: number;
+  account?: { login?: string } | null;
+  repository_selection?: 'all' | 'selected' | string;
+  repositorySelection?: 'all' | 'selected' | string;
+}
+
+/**
+ * Whether the signed-in account reaches a repository of `owner` through the app: 'yes' when an installation on the
+ * owner covers all its repositories, 'check' (with its id) when it covers selected ones (list them to know), 'no'
+ * when there is none. Same contract as the site's `installationFor` (lib/github-signin.ts).
+ */
+export function installationFor(list: InstallationLike[], owner: string): { reach: 'yes'; id: number } | { reach: 'check'; id: number } | { reach: 'no' } {
+  const inst = list.find((i) => i.account?.login?.toLowerCase() === owner.toLowerCase());
+  if (!inst) return { reach: 'no' };
+  const selection = inst.repositorySelection ?? inst.repository_selection;
+  return selection === 'all' ? { reach: 'yes', id: inst.id } : { reach: 'check', id: inst.id };
+}
+
+/** Pages read at most by the paged listings (100 items each). */
+const MAX_PAGES = 10;
 
 /**
  * The sentence for GitHub's exhausted hourly limit. With a token, the token's own limit is used up: wait. Without one,
@@ -261,9 +448,24 @@ export interface RetryPolicy {
 const DEFAULT_RETRY: RetryPolicy = { attempts: 3, baseDelayMs: 600, sleep: (ms) => new Promise((r) => setTimeout(r, ms)) };
 
 /** Transient failures worth retrying: network errors, 5xx, and secondary rate limits. */
+/** Errors for an exhausted hourly limit: waiting seconds will not help, so they are never retried. */
+const hourlyLimitErrors = new WeakSet<GitHubError>();
+
 const isTransient = (status: number, detail: string) => status === 0 || status >= 500 || status === 429 || (status === 403 && /secondary rate limit/i.test(detail));
 
 const API = 'https://api.github.com';
+const ACCEPT_JSON = 'application/vnd.github+json';
+/** Contents and blobs APIs: the file's bytes as the body, no base64 and no 1 MB JSON limit. */
+const ACCEPT_RAW = 'application/vnd.github.raw';
+
+interface RequestOptions {
+  /** Accept header (default the JSON media type). */
+  accept?: string;
+  /** Read the body as text instead of JSON. */
+  text?: boolean;
+  /** False: never conditional and never cached (immutable resources the caller caches by sha). */
+  etag?: boolean;
+}
 const RAW = 'https://raw.githubusercontent.com';
 
 /** "owner/name", a github.com URL or an SSH remote. */
@@ -287,6 +489,9 @@ export function base64ToUtf8(b64: string): string {
   return new TextDecoder('utf-8').decode(bytes);
 }
 
+/** A deep copy, so a caller that edits a response never edits the cached one. */
+const copy = <T>(value: T): T => (value === null || typeof value !== 'object' ? value : typeof structuredClone === 'function' ? structuredClone(value) : (JSON.parse(JSON.stringify(value)) as T));
+
 const encodeRef = (ref: string) => ref.split('/').map(encodeURIComponent).join('/');
 
 export class GitHubClient {
@@ -295,6 +500,11 @@ export class GitHubClient {
   private readonly blobCache = new Map<string, string>();
   private readonly api: string;
   private readonly protectedBranches: string[];
+  private readonly etags: EtagStore | undefined;
+  private readonly etagScope: string;
+  private rate: RateLimitInfo | undefined;
+  /** What the conditional request cache did for this client. */
+  readonly etagStats: EtagStats = { conditional: 0, notModified: 0, stale: 0 };
 
   constructor(
     repo: string,
@@ -308,6 +518,13 @@ export class GitHubClient {
     this.name = r.name;
     this.api = (options.apiUrl ?? API).replace(/\/$/, '');
     this.protectedBranches = options.protectedBranches ?? DEFAULT_PROTECTED_BRANCHES;
+    this.etags = options.etags === false ? undefined : (options.etags ?? sharedEtags);
+    this.etagScope = options.etagScope ?? tokenFingerprint(token);
+  }
+
+  /** GitHub's rate-limit headers from the last API response, or undefined before any response carried them. */
+  get rateLimit(): RateLimitInfo | undefined {
+    return this.rate;
   }
 
   /** "owner/name". */
@@ -338,31 +555,60 @@ export class GitHubClient {
     return `/repos/${this.owner}/${this.name}`;
   }
 
-  private async request<T>(method: string, path: string, body?: unknown, retryable = method === 'GET'): Promise<T> {
+  private async request<T>(method: string, path: string, body?: unknown, retryable = method === 'GET', opts: RequestOptions = {}): Promise<T> {
     const attempts = retryable ? Math.max(1, this.retry.attempts) : 1;
     for (let attempt = 1; ; attempt++) {
       try {
-        return await this.once<T>(method, path, body);
+        return await this.once<T>(method, path, body, opts);
       } catch (err) {
         const e = err as GitHubError;
-        if (attempt >= attempts || !(e instanceof GitHubError) || !isTransient(e.status, e.detail ?? '')) throw err;
+        if (attempt >= attempts || !(e instanceof GitHubError) || hourlyLimitErrors.has(e) || !isTransient(e.status, e.detail ?? '')) throw err;
         await this.retry.sleep(this.retry.baseDelayMs * 2 ** (attempt - 1));
       }
     }
   }
 
-  private async once<T>(method: string, path: string, body?: unknown): Promise<T> {
+  private noteRateLimit(headers: { get(name: string): string | null } | undefined): void {
+    const remaining = headers?.get('x-ratelimit-remaining');
+    if (remaining == null) return;
+    const limit = headers?.get('x-ratelimit-limit');
+    const reset = headers?.get('x-ratelimit-reset');
+    this.rate = {
+      limit: limit != null ? Number(limit) : undefined,
+      remaining: Number(remaining),
+      resetsAt: reset ? new Date(Number(reset) * 1000) : undefined,
+      resource: headers?.get('x-ratelimit-resource') ?? undefined,
+    };
+  }
+
+  private async once<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
+    const accept = opts.accept ?? ACCEPT_JSON;
     const headers: Record<string, string> = {
-      Accept: 'application/vnd.github+json',
+      Accept: accept,
       'X-GitHub-Api-Version': '2022-11-28',
     };
     if (this.token) headers.Authorization = `Bearer ${this.token}`;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
+    // Conditional GET: the key names the account (fingerprint or scope), the media type and the URL, never the token.
+    // If-None-Match is sent only with a token: GitHub does not count a 304 against the primary limit only when the
+    // request is authorized. Anonymous responses are still kept, for serveStaleOnRateLimit.
+    const key = method === 'GET' && this.etags && opts.etag !== false ? `${this.etagScope} ${accept} ${this.api}${path}` : undefined;
+    const cached = key ? this.etags!.get(key) : undefined;
+    if (cached && this.token) {
+      headers['If-None-Match'] = cached.etag;
+      this.etagStats.conditional++;
+    }
     let res: Awaited<ReturnType<FetchLike>>;
     try {
       res = await this.fetchImpl(`${this.api}${path}`, { method, headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
     } catch (err) {
       throw new GitHubError(0, 'Could not reach GitHub. Check your connection, then try again.', (err as Error).message);
+    }
+    this.noteRateLimit(res.headers);
+    if (res.status === 304 && cached && key && this.token) {
+      this.etagStats.notModified++;
+      this.etags!.set(key, { ...cached, at: Date.now() });
+      return copy(cached.body) as T;
     }
     if (res.status === 204) return undefined as T;
     if (!res.ok) {
@@ -376,8 +622,14 @@ export class GitHubClient {
       const remaining = res.headers?.get('x-ratelimit-remaining');
       const reset = res.headers?.get('x-ratelimit-reset');
       if ((res.status === 403 || res.status === 429) && remaining === '0') {
+        if (cached && this.options.serveStaleOnRateLimit) {
+          this.etagStats.stale++;
+          return copy(cached.body) as T;
+        }
         const resetsAt = reset ? new Date(Number(reset) * 1000) : undefined;
-        throw new GitHubError(429, rateLimitMessage({ withToken: Boolean(this.token), resetsAt, tokenHint: this.options.tokenHint }), detail);
+        const limited = new GitHubError(429, rateLimitMessage({ withToken: Boolean(this.token), resetsAt, tokenHint: this.options.tokenHint }), detail);
+        hourlyLimitErrors.add(limited);
+        throw limited;
       }
       const info = classifyAuth(res.status, detail, {
         path,
@@ -386,7 +638,25 @@ export class GitHubClient {
       });
       throw new GitHubError(res.status, friendlyMessage(res.status, detail, info), detail, info);
     }
-    return (await res.json()) as T;
+    const data = opts.text ? await res.text() : await res.json();
+    const etag = key ? res.headers?.get('etag') : null;
+    if (key && etag) this.etags!.set(key, { etag, body: copy(data), at: Date.now() });
+    return data as T;
+  }
+
+  /**
+   * Every item of a paged listing (`per_page=100`), at most 10 pages. `pick` takes the items out of one page (the
+   * installation endpoints wrap them in an object with `total_count`).
+   */
+  private async paged<R, I>(path: string, pick: (page: R) => { items: I[]; total?: number | undefined }): Promise<I[]> {
+    const out: I[] = [];
+    const sep = path.includes('?') ? '&' : '?';
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const { items, total } = pick(await this.request<R>('GET', `${path}${sep}per_page=100&page=${page}`));
+      out.push(...items);
+      if (items.length < 100 || (total !== undefined && out.length >= total)) break;
+    }
+    return out;
   }
 
   async getRepo(): Promise<RepoInfo> {
@@ -820,6 +1090,15 @@ export class GitHubClient {
    */
   async readFile(path: string, ref: string): Promise<string | undefined> {
     if (this.token) return this.getFileText(path, ref);
+    return this.readRawFile(path, ref);
+  }
+
+  /**
+   * Text of a file from the raw host (raw.githubusercontent.com), sent without any header so the browser makes a
+   * simple CORS request (no preflight) and nothing counts against the API limit. Works for public repositories only:
+   * a private file answers 404 there, like a missing one. Undefined on 404.
+   */
+  async readRawFile(path: string, ref: string): Promise<string | undefined> {
     const url = `${(this.options.rawUrl ?? RAW).replace(/\/$/, '')}/${this.owner}/${this.name}/${encodeRef(ref)}/${encodeRef(path)}`;
     let res: Awaited<ReturnType<FetchLike>>;
     try {
@@ -830,6 +1109,84 @@ export class GitHubClient {
     if (res.status === 404) return undefined;
     if (!res.ok) throw new GitHubError(res.status, friendlyMessage(res.status, ''), `raw ${path}@${ref}`);
     return res.text();
+  }
+
+  /**
+   * Text of a file at a ref through the contents API with the raw media type: the way to read a private file (the raw
+   * host cannot take the token without a preflight). Counts against the API limit; conditional when cached.
+   * Undefined when the file does not exist.
+   */
+  async getRawText(path: string, ref: string): Promise<string | undefined> {
+    try {
+      return await this.request<string>('GET', `${this.repoPath}/contents/${encodeRef(path)}?ref=${encodeURIComponent(ref)}`, undefined, true, { accept: ACCEPT_RAW, text: true });
+    } catch (err) {
+      if (err instanceof GitHubError && err.status === 404) return undefined;
+      throw err;
+    }
+  }
+
+  /**
+   * Text of a blob by its sha through the git blobs API with the raw media type: how a signed-in reader loads a file
+   * listed by a tree (the raw host refuses any request that carries a token). A blob sha names its content, so the
+   * answer is cached for the client's life and never revalidated. Undefined on 404.
+   */
+  async getBlobRaw(sha: string): Promise<string | undefined> {
+    const cached = this.blobCache.get(sha);
+    if (cached !== undefined) return cached;
+    try {
+      const text = await this.request<string>('GET', `${this.repoPath}/git/blobs/${encodeURIComponent(sha)}`, undefined, true, { accept: ACCEPT_RAW, text: true, etag: false });
+      this.blobCache.set(sha, text);
+      return text;
+    } catch (err) {
+      if (err instanceof GitHubError && err.status === 404) return undefined;
+      throw err;
+    }
+  }
+
+  // --- GitHub App installations (user-to-server tokens) ---------------------------------------
+
+  /**
+   * Installations of the signing-in GitHub App that the signed-in user can reach (GET /user/installations, every
+   * page). Needs a user-to-server token of that same App: a personal or OAuth token is refused (403), and each App
+   * sees only its own installations. GitHub lists only installations on accounts and repositories the user has
+   * explicit permission on: a public repository where the user is not a collaborator is never listed, installed or
+   * not. (GET /repos/{o}/{r}/installation would say, but it needs the App's private key, which Bridge never holds.)
+   */
+  async listUserInstallations(): Promise<Installation[]> {
+    this.assertToken('Reading where Bridge is installed');
+    type Raw = { id: number; account?: { login?: string; type?: string } | null; repository_selection?: string; app_slug?: string };
+    const list = await this.paged<{ total_count?: number; installations?: Raw[] }, Raw>('/user/installations', (p) => ({ items: p.installations ?? [], total: p.total_count }));
+    return list.map((i) => ({
+      id: i.id,
+      account: i.account?.login ? { login: i.account.login, type: i.account.type ?? 'User' } : null,
+      repositorySelection: i.repository_selection ?? 'selected',
+      appSlug: i.app_slug,
+    }));
+  }
+
+  /** Repositories of one installation the signed-in user can reach (GET /user/installations/{id}/repositories, every page). */
+  async listInstallationRepos(installationId: number): Promise<InstallationRepo[]> {
+    this.assertToken('Reading where Bridge is installed');
+    type Raw = { name: string; full_name: string; private?: boolean; owner?: { login?: string } };
+    const list = await this.paged<{ total_count?: number; repositories?: Raw[] }, Raw>(`/user/installations/${encodeURIComponent(String(installationId))}/repositories`, (p) => ({
+      items: p.repositories ?? [],
+      total: p.total_count,
+    }));
+    return list.map((r) => ({ owner: r.owner?.login ?? r.full_name.split('/')[0]!, name: r.name, fullName: r.full_name, private: Boolean(r.private) }));
+  }
+
+  /**
+   * The App installation that gives the signed-in user this repository (this client's by default): its id, or null
+   * when the App is not installed there or the user cannot reach it. One call when the installation covers all of
+   * the owner's repositories, two (paged) when it covers selected ones.
+   */
+  async findInstallation(owner: string = this.owner, repo: string = this.name): Promise<{ id: number; selection: 'all' | 'selected' } | null> {
+    const found = installationFor(await this.listUserInstallations(), owner);
+    if (found.reach === 'no') return null;
+    if (found.reach === 'yes') return { id: found.id, selection: 'all' };
+    const repos = await this.listInstallationRepos(found.id);
+    const hit = repos.some((r) => r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === repo.toLowerCase());
+    return hit ? { id: found.id, selection: 'selected' } : null;
   }
 
   /** The repository's default branch. */
