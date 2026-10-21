@@ -1,0 +1,239 @@
+/* "How Bridge compares." on the homepage (components/home/HpCompare.astro). Mobile first; wide from 900px like the rest
+   of the page. The DS Table draws the card and scrolls sideways inside it; the feature column stays put. Only our own
+   elements and the className roots of DS components are styled here. */
+
+.hp-cmp {
+  /* Column widths: the feature column, then one per tool. The table never gets narrower than their sum. */
+  --_feat: calc(var(--size-40) - var(--space-1));
+  --_col: calc(var(--size-20) + var(--space-2));
+  --_t13: calc(var(--font-size-200) - var(--border-width-1));
+  --_t15: calc(var(--font-size-300) - var(--border-width-1));
+  --_t18: calc(var(--font-size-300) + var(--space-0-5));
+  --_inset: var(--space-4);
+
+  padding-top: calc(var(--space-16) + var(--space-2));
+}
+
+/* ---------- heading ---------- */
+.hp-cmp-head {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-3) + var(--space-0-5));
+  max-width: var(--size-160);
+  margin: 0 0 var(--space-7);
+}
+
+.hp-cmp-h {
+  --_size: clamp(calc(var(--font-size-700) - var(--space-0-5)), 3.6vw, calc(var(--font-size-900) + var(--space-0-5)));
+
+  margin: 0;
+  color: var(--color-text-default);
+  font-family: var(--typography-display-family);
+  font-size: var(--_size);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--font-tracking-tight);
+  line-height: var(--font-line-height-tight);
+  font-variation-settings: "SOFT" 100;
+  text-wrap: wrap;
+}
+
+.hp-cmp-p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--_t18);
+  line-height: var(--font-leading-28);
+}
+
+.hp-cmp-swipe {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--_t13);
+  line-height: var(--font-line-height-snug);
+}
+
+/* ---------- tables (DS Table root and cells, by their className) ---------- */
+.hp-cmp-table {
+  min-width: calc(var(--_feat) + 6 * var(--_col));
+  font-size: var(--_t15);
+  line-height: var(--font-line-height-normal);
+}
+
+.hp-cmp .hp-cmp-c {
+  height: auto;
+  padding: var(--space-3) var(--space-2);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  border-bottom: 0;
+  background-color: var(--color-surface-default);
+  color: var(--color-text-default);
+  text-align: center;
+  vertical-align: middle;
+  white-space: normal;
+}
+
+.hp-cmp .hp-cmp-tool,
+.hp-cmp .hp-cmp-h0 {
+  width: var(--_col);
+  padding-block: calc(var(--space-4) + var(--space-0-5)) calc(var(--space-3) + var(--space-0-5));
+  border-top: 0;
+  font-size: var(--_t13);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: normal;
+  line-height: var(--font-line-height-snug);
+  vertical-align: bottom;
+}
+
+/* The feature column: sticky while the tools scroll under it, with a hairline on its edge. */
+.hp-cmp .hp-cmp-feat {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  padding-inline-start: var(--_inset);
+  border-inline-end: var(--border-width-default) solid var(--color-border-default);
+  font-weight: var(--font-weight-medium);
+  text-align: start;
+}
+
+.hp-cmp .hp-cmp-h0 {
+  width: var(--_feat);
+  color: var(--color-text-muted);
+}
+
+.hp-cmp-detail {
+  display: none;
+  margin-top: var(--space-0-5);
+  color: var(--color-text-muted);
+  font-size: var(--_t13);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--font-line-height-snug);
+}
+
+/* Bridge's column, tinted top to bottom. */
+.hp-cmp .hp-cmp-b {
+  background-color: var(--color-surface-selected);
+}
+
+.hp-cmp .hp-cmp-bh {
+  background-color: var(--color-bg-zone);
+  color: var(--color-text-link);
+}
+
+/* Group headings in the full table, and no rule right under them. */
+.hp-cmp .hp-cmp-gh {
+  padding-block: calc(var(--space-5) + var(--space-0-5)) var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--_t13);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--font-line-height-snug);
+}
+
+.hp-cmp .hp-cmp-group + .hp-cmp-row > .hp-cmp-c {
+  border-top: 0;
+}
+
+/* ---------- marks ---------- */
+.hp-cmp-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: var(--size-6);
+  color: var(--color-text-link);
+}
+
+.hp-cmp-mark[data-state="no"] {
+  color: var(--color-text-disabled);
+}
+
+/* ---------- legend and date ---------- */
+.hp-cmp-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+  margin-top: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--_t13);
+  line-height: var(--font-line-height-snug);
+}
+
+.hp-cmp-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hp-cmp-key .hp-cmp-mark {
+  gap: var(--space-1-5);
+  min-height: 0;
+}
+
+.hp-cmp-keyl {
+  color: var(--color-text-muted);
+}
+
+/* ---------- every feature (DS Accordion root) ---------- */
+.hp-cmp-more {
+  margin-top: var(--space-6);
+  border-block: var(--border-width-default) solid var(--color-border-default);
+}
+
+.hp-cmp-full {
+  padding-top: var(--space-2);
+}
+
+/* ---------- link to /compare/ ---------- */
+.hp-cmp-after {
+  margin: var(--space-5) 0 0;
+  font-size: var(--_t15);
+  line-height: var(--font-line-height-normal);
+}
+
+a.hp-cmp-link {
+  color: var(--color-text-link);
+  font-weight: var(--font-weight-medium);
+}
+
+@media (min-width: 900px) {
+  .hp-cmp {
+    --_feat: calc(var(--size-80) + var(--space-4));
+    --_col: calc(var(--size-20) + var(--space-8));
+    --_inset: var(--space-6);
+
+    padding-top: calc(var(--space-24) + var(--space-4));
+  }
+
+  .hp-cmp-head {
+    margin-bottom: var(--space-10);
+  }
+
+  .hp-cmp-swipe {
+    display: none;
+  }
+
+  .hp-cmp .hp-cmp-c {
+    padding: calc(var(--space-3) + var(--space-0-5)) var(--space-3);
+  }
+
+  .hp-cmp .hp-cmp-tool,
+  .hp-cmp .hp-cmp-h0 {
+    padding-block: calc(var(--space-4) + var(--space-0-5)) calc(var(--space-3) + var(--space-0-5));
+    font-size: var(--font-size-200);
+    line-height: var(--font-leading-20);
+  }
+
+  .hp-cmp .hp-cmp-feat {
+    padding-inline-start: var(--_inset);
+  }
+
+  .hp-cmp .hp-cmp-gh {
+    padding-block: calc(var(--space-5) + var(--space-0-5)) var(--space-2);
+  }
+
+  .hp-cmp-detail {
+    display: block;
+  }
+}

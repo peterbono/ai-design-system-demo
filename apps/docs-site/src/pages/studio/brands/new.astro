@@ -10,14 +10,17 @@ import { readText } from '../../../lib/repo';
 import { CONTRAST_FILE } from '../../../lib/contrast';
 import { PAGE_SOURCES, freshness } from '../../../lib/sources';
 import { signInConfig } from '../../../lib/signin-config';
+import { siteRepo } from '../../../lib/config';
 
 const sources = ['bridge.config.json', 'packages/tokens/src/brands', 'packages/core/src/brand.ts', CONTRAST_FILE];
 const updated = freshness(sources);
 void PAGE_SOURCES;
 import '../../../styles/new-brand.css';
+// How changes reach the code (bridge.config.json "changes"): a suggestion, or a branch for review.
+const suggest = siteRepo().changes === 'suggest';
 ---
 
 <Layout title="New brand" description="Draft a brand in this browser, check it with real components in light and dark, then create a branch for review." sources={sources} updated={updated} wide>
-  <StudioHeader title="New brand" subtitle="Draft it in this browser, check it with real components, then propose it for review." />
+  <StudioHeader title="New brand" subtitle={`Draft it in this browser, check it with real components, then ${suggest ? 'send it as a suggestion' : 'propose it for review'}.`} />
   <NewBrandFlow client:load files={tokenFiles()} configText={readText('bridge.config.json')} contrastText={readText(CONTRAST_FILE)} signIn={Boolean(signInConfig())} />
 </Layout>

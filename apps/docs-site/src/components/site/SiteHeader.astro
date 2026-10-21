@@ -1,0 +1,92 @@
+---
+// The product site header (layouts/Landing.astro): the logo on the left, Product, Resources and About centred, one
+// "Sign in" on the right. Product and Resources are disclosure menus (a button with aria-expanded and a list of
+// links, not an ARIA menu: they navigate); under 900px everything moves into one sheet behind a Menu button.
+// Behaviour: scripts/site-nav.ts. Validated on the homepage test page (2026-10-21).
+import { Button, IconButton, Link } from '@bridge-ds/react';
+import { ChevronDown, Menu, X } from 'lucide-react';
+import Logo from '../Logo.astro';
+import ButtonLink from '../ds/ButtonLink';
+import SiteNavItem, { type Props as Item } from './SiteNavItem.astro';
+import { ABOUT, DOCS_FIGMA_PLUGIN, DOCS_HOME, LANDING, STUDIO_HOME } from '../../lib/nav';
+
+interface Props {
+  /** The current path, for aria-current. */
+  path: string;
+}
+const { path } = Astro.props;
+const here = (href: string) => (path === href ? 'page' : undefined);
+
+const groups: { id: string; label: string; items: Item[] }[] = [
+  {
+    id: 'product',
+    label: 'Product',
+    items: [
+      { href: STUDIO_HOME, title: 'Bridge', text: 'Review and keep design system changes', icon: 'bridge' },
+      { href: DOCS_FIGMA_PLUGIN, title: 'Figma plugin', text: 'Your Figma kit, generated from code', icon: 'plugin' },
+    ],
+  },
+  {
+    id: 'resources',
+    label: 'Resources',
+    items: [
+      { href: DOCS_HOME, title: 'Bridge docs', text: 'Learn how to use Bridge', icon: 'book' },
+      { href: DOCS_FIGMA_PLUGIN, title: 'Plugin docs', text: 'How the Figma plugin works, and how to install it', icon: 'book' },
+    ],
+  },
+];
+---
+
+<header class="nv" data-nav>
+  <div class="nv-row">
+    <Link variant="subtle" className="nv-logo" href={LANDING} aria-label="Bridge home" aria-current={here(LANDING)}>
+      <Logo />
+    </Link>
+    <nav class="nv-main" aria-label="Main">
+      <ul class="nv-list">
+        {
+          groups.map((g) => (
+            <li class="nv-mi" data-menu>
+              <Button variant="ghost" iconEnd={ChevronDown} className="nv-btn" id={`nv-b-${g.id}`} aria-expanded="false" aria-controls={`nv-p-${g.id}`}>
+                {g.label}
+              </Button>
+              <div class="nv-panel" id={`nv-p-${g.id}`}>
+                <ul>
+                  {g.items.map((it) => (
+                    <li>
+                      <SiteNavItem {...it} current={path === it.href} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </li>
+          ))
+        }
+        <li class="nv-mi">
+          <Link variant="subtle" className="nv-top" href={ABOUT} aria-current={here(ABOUT)}>About</Link>
+        </li>
+      </ul>
+      <ButtonLink variant="primary" href={STUDIO_HOME} className="nv-signin">Sign in</ButtonLink>
+      <IconButton icon={Menu} label="Open menu" className="nv-toggle" data-sheet-open aria-expanded="false" aria-controls="nv-sheet" />
+      <IconButton icon={X} label="Close menu" className="nv-toggle" data-sheet-close aria-expanded="true" aria-controls="nv-sheet" hidden />
+    </nav>
+  </div>
+  <div class="nv-sheet" id="nv-sheet" data-sheet>
+    {
+      groups.map((g) => (
+        <>
+          <p class="nv-gh" id={`nv-g-${g.id}`}>{g.label}</p>
+          <ul aria-labelledby={`nv-g-${g.id}`}>
+            {g.items.map((it) => (
+              <li>
+                <SiteNavItem {...it} current={path === it.href} />
+              </li>
+            ))}
+          </ul>
+        </>
+      ))
+    }
+    <Link variant="subtle" className="nv-about" href={ABOUT} aria-current={here(ABOUT)}>About</Link>
+    <ButtonLink variant="primary" size="lg" href={STUDIO_HOME} className="nv-signin-full">Sign in</ButtonLink>
+  </div>
+</header>

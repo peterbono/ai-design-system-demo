@@ -10,7 +10,8 @@ import { swatchLabel } from '../../lib/explorer/swatch-ramp';
 import { isAlias, aliasTarget } from '@bridge-ds/core';
 import type { DraftEdit } from '../../lib/editor-model';
 import { initGitHubConnect, prefersSignIn, setButtonLabel } from '../github-session';
-import { ghAction } from '../../lib/gh-wording';
+import { ghAction, sendGoal } from '../../lib/gh-wording';
+import { changesModeOnPage } from '../changes-mode';
 import { currentScope } from '../shell';
 import { destinationNote, discardDraft, draftOverrides, editorSnapshot, sendLabel, undoEdit } from '../token-editor';
 import type { ExplorerData } from './types';
@@ -43,7 +44,7 @@ export function initReview(d: ExplorerData) {
   let signedIn = false;
   const paintFoot = () => {
     if (propose) {
-      setButtonLabel(propose, signedIn ? sendLabel() : ghAction('request review', prefersSignIn()));
+      setButtonLabel(propose, signedIn ? sendLabel() : ghAction(sendGoal('tokens', changesModeOnPage()), prefersSignIn()));
       propose.toggleAttribute('data-gh-open', !signedIn);
     }
     if (!note) return;
