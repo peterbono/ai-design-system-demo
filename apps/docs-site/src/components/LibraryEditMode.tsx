@@ -12,6 +12,8 @@ import type { ExampleNode } from '../lib/components';
 import { cleanDocs, docsEdits, docsFileText, setDocsEdit, validateDocs, type DocsEdit } from '../lib/docs-draft-model';
 import type { Draft } from '../lib/editor-model';
 import { parseJiraKey, VOCAB } from '../lib/vocabulary';
+import { SEE_SUGGESTION, sendButton as sendWords, SUGGESTION_SENT, suggestionSentLine } from '../lib/gh-wording';
+import { changesModeOnPage } from '../scripts/changes-mode';
 import {
   SECTIONS,
   applyDraft,
@@ -632,7 +634,10 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   const [setupOpen, setSetupOpen] = useState(false);
   const [confirm, setConfirm] = useState<'cancel' | 'rewrite' | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
-  const [sent, setSent] = useState<{ pr: number | null; title: string; continued?: boolean } | null>(null);
+  const [sent, setSent] = useState<{ pr: number | null; title: string; continued?: boolean; suggestion?: string } | null>(null);
+  // How changes reach the code (bridge.config.json "changes"): a suggestion, or a branch in review.
+  const mode = useMemo(() => changesModeOnPage(), []);
+  const suggest = mode === 'suggest';
   const [title, setTitle] = useState(sendTitle(p.name));
   const [message, setMessage] = useState('');
   const [jira, setJira] = useState('');
@@ -1054,13 +1059,18 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
         const r = await docsCommit.proposeDocs([edit], changeTitle(p.slug, title || sendTitle(p.name)), message, parseJiraKey(jira), authorLine);
         continued = r.continued;
         forgetLocal();
-        setSent({ pr: r.number, title: title.trim() || sendTitle(p.name), continued: r.continued });
+        // A suggestion links to its page; a branch opens in Studio.
+        setSent({ pr: r.number, title: title.trim() || sendTitle(p.name), continued: r.continued, ...(r.kind === 'suggestion' ? { suggestion: r.url } : {}) });
+        if (r.kind === 'suggestion') {
+          announce(`${SUGGESTION_SENT}.`);
+          return;
+        }
       }
       announce(branch || continued ? 'Update sent.' : 'Review requested.');
     } catch (err) {
       // The session's words: sign-in or token, and the site's way in.
       const { ghAuthFailure } = await import('../scripts/github-session');
-      setSendError(ghAuthFailure(err, branch ? 'send this update' : 'request review')?.text ?? `Not sent: ${(err as Error).message}`);
+      setSendError(ghAuthFailure(err, branch ? 'send this update' : suggest ? 'send suggestions' : 'request review')?.text ?? `Not sent: ${(err as Error).message}`);
     } finally {
       setBusy(false);
     }
@@ -1097,7 +1107,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   );
   const keepAll = keepAllLabel(pending.length);
   const barState = editBarState({ dirty, sent: Boolean(sent), savesLocally: !branch });
-  const sendLabel = branch ? 'Send update' : VOCAB.requestReview;
+  const sendLabel = branch ? 'Send update' : sendWords('docs', mode);
   const stateText = barState !== 'sent' && sendBlock ? sendBlock : editBarLabel(barState, Boolean(branch?.continues));
   const sendButton = (
     <Button variant="primary" disabled={Boolean(sendBlock)} aria-describedby="le-bar-state" onClick={() => void openSend()}>
@@ -1329,13 +1339,15 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
         <Dialog open={sendOpen} onOpenChange={(o) => (o ? setSendOpen(true) : sent ? doneSent() : setSendOpen(false))}>
           <DialogContent
             size="md"
-            title={sent ? (sent.continued || branch ? 'Update sent' : 'Review requested') : branch ? 'Send your update' : 'Send for review'}
+            title={sent ? (sent.suggestion ? SUGGESTION_SENT : sent.continued || branch ? 'Update sent' : 'Review requested') : branch ? 'Send your update' : suggest ? sendWords('docs', mode) : 'Send for review'}
             description={
               sent
                 ? undefined
                 : branch?.continues && branch.author
                   ? `Your update joins ${branch.author === viewer ? 'your open proposal' : `the open proposal by @${branch.author}`}. Your team reviews it in Studio before it reaches the Library.`
-                  : 'Your team reviews the new guidance in Studio before it reaches the Library.'
+                  : suggest
+                    ? 'Your DS lead reviews the new guidance. Once approved, a developer applies it to the Library.'
+                    : 'Your team reviews the new guidance in Studio before it reaches the Library.'
             }
             footer={
               sent ? (
@@ -1350,13 +1362,20 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
                     Cancel
                   </Button>
                   <Button variant="primary" loading={busy} disabled={busy || issues.length > 0} onClick={() => void send()}>
-                    {branch ? 'Send update' : VOCAB.requestReview}
+                    {sendLabel}
                   </Button>
                 </div>
               )
             }
           >
-            {sent ? (
+            {sent?.suggestion ? (
+              <p className="le-sent">
+                {suggestionSentLine(sent.pr ?? 0)}{' '}
+                <Link href={sent.suggestion} external>
+                  {SEE_SUGGESTION}
+                </Link>
+              </p>
+            ) : sent ? (
               <p className="le-sent">
                 {sent.continued ? 'Added to the open proposal. ' : ''}Your team can review it in Studio: <Link href={sent.pr ? `/studio/changes/?pr=${sent.pr}` : '/studio/changes/'}>{sent.title}</Link>.
               </p>

@@ -4,6 +4,9 @@
 // visual impact. Actions (open a library branch, use its preview, switch to the published version, send for review,
 // close) write with the viewer's token through the same core functions. The missing pieces themselves come from the
 // branch description, where Claude or `bridge pieces --record` saved them: the audit does not run in the browser.
+// In suggest mode (bridge.config.json "changes") a missing piece goes to the library as a suggestion (a token) or a
+// request (a component), never a branch, and the branch actions (switch, use a preview, send for review, close) are
+// not offered: suggest mode is a Bridge rule until the read-only GitHub App ships.
 import {
   closeExplorationOnGitHub,
   DEFAULT_PRODUCTS,
@@ -17,11 +20,14 @@ import {
   productBranchSentence,
   productBranchViewOnGitHub,
   promoteExplorationOnGitHub,
+  suggestTokenProposalOnGitHub,
   switchToPublishedOnGitHub,
   tryInProductUrl,
   useLibraryPreviewOnGitHub,
   writeTokenProposalOnGitHub,
   type BranchPreviewSources,
+  type ChangesMode,
+  type LibraryTokenWrite,
   type LibraryBranchPlan,
   type ProductBranchView,
   type ProductConfig,
@@ -29,7 +35,8 @@ import {
 import { ASK_CLAUDE, developerLines, pieceRows, productCrumbs, whyItShows, type PieceActionKind, type PieceRowView } from '../lib/product-branch';
 import { explorationPreviews, openRequestNumbers, promoteAsk, type ExplorationPullLike, type ExplorationRow } from '../lib/explorations-view';
 import { touchesVisuals } from '../lib/visual-impact';
-import { ghAction } from '../lib/gh-wording';
+import { ghAction, sendButton, suggestionSentLine } from '../lib/gh-wording';
+import { assertBranchWrites, changesModeOnPage } from './changes-mode';
 import { jiraKeyOf } from '../lib/vocabulary';
 import type { Tier } from '../lib/review-rules';
 import type { PromoteAskDetail } from '../components/ds/studio/PromoteToReview';
@@ -56,9 +63,12 @@ async function namesOf(logins: string[]): Promise<Record<string, string>> {
   return Object.fromEntries(people.filter((p): p is NonNullable<typeof p> => Boolean(p)).map((p) => [p.login, p.name]));
 }
 
-/** Studio's token change for a token piece: the library's token files on main, the shared plan and write. */
+/**
+ * Studio's token change for a token piece: the library's token files on main, the shared plan, then the write core
+ * asks for. Direct: a branch and a pull request. Suggest: a suggestion that says which product branch needs it.
+ */
 function tokenWriter(gh: ReturnType<typeof client>) {
-  return async (plan: Extract<LibraryBranchPlan, { kind: 'token-change' }>) => {
+  return async (plan: Extract<LibraryBranchPlan, { kind: 'token-change' }>, ctx: { mode: ChangesMode }): Promise<LibraryTokenWrite> => {
     const mainSha = await gh.getBranchSha(CFG.defaultBranch);
     if (!mainSha) throw new Error(`Branch ${CFG.defaultBranch} not found.`);
     const latest = await loadRepoFiles(gh, mainSha, 'packages/tokens/src');
@@ -66,6 +76,11 @@ function tokenWriter(gh: ReturnType<typeof client>) {
     const before = new LayeredTokenSet(latest.config, new Map(Object.entries(latest.files)));
     const p = planTokenProposal({ before, pairs: parseContrastChecks(latest.contrastChecks), edits: plan.edits, title: plan.title, summary: plan.summary, config: latest.config, tool: 'Bridge Studio' });
     if (!p) throw new Error('The library already has this token with that value.');
+    if (ctx.mode === 'suggest') {
+      if (p.blocked) throw new Error(`Not sent to the library: ${p.blocked}. Ask Claude to pick another value.`);
+      const r = await suggestTokenProposalOnGitHub(gh, p, { base: CFG.defaultBranch, baseSha: mainSha, source: 'studio', suggestedBy: currentViewer()?.login, neededBy: plan.neededBy, labelsAfter: [NEEDED_BY_LABEL] });
+      return { status: 'suggested', number: r.number, url: r.url };
+    }
     if (p.blocked) throw new Error(`The library branch was not opened: ${p.blocked}. Ask Claude to pick another value.`);
     const opened = await writeTokenProposalOnGitHub(gh, p, { base: CFG.defaultBranch, branchPrefix: latest.config.governance.branchPrefix, labels: ['source: bridge-web'], labelsAfter: [NEEDED_BY_LABEL], tool: 'Bridge Studio' });
     return { number: opened.pr, url: opened.url, branch: opened.branch };
@@ -133,10 +148,13 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
   const jira = jiraKeyOf(pull.title);
   const gh = client();
   let lastView: ProductBranchView | null = null;
+  const mode = changesModeOnPage();
   const act = async (row: PieceRowView, kind: PieceActionKind): Promise<string | void> => {
     const viewer = currentViewer()?.login;
     if (kind === 'open') {
       const res = await openLibraryBranchOnGitHub(gh, {
+        // Core opens a branch when the mode is left out: Studio always says which one this repo uses.
+        mode,
         pr: r.number,
         piece: row.id,
         base: CFG.defaultBranch,
@@ -147,9 +165,13 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
         source: 'studio',
       });
       void refresh();
+      if (res.status === 'suggested') return `${suggestionSentLine(res.link?.number ?? 0)}${res.warnings.length ? ` ${res.warnings.join(' ')}` : ''}`;
+      if (mode === 'suggest') return `Sent to the library as a request for ${row.title}. Your DS lead decides on it.${res.warnings.length ? ` ${res.warnings.join(' ')}` : ''}`;
       const what = res.plan.kind === 'token-change' ? 'token change' : res.plan.kind === 'exploration' ? 'library branch' : 'request';
       return `Opened a ${what} for ${row.title}.${res.preview?.status === 'merged' ? ' Your branch uses its preview now.' : ''}${res.warnings.length ? ` ${res.warnings.join(' ')}` : ''}`;
     }
+    // Suggest mode: the product branch is not written from Studio (a developer switches it or uses a preview).
+    assertBranchWrites(kind === 'switch' ? 'switch branches to the published version' : 'change branches');
     if (kind === 'switch') {
       const res = await switchToPublishedOnGitHub(gh, r.number);
       void refresh();
@@ -166,7 +188,7 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
     if (current?.n !== r.number) return;
     if (!read) return repaint(d, { rows: [] });
     lastView = read.view;
-    const rows = pieceRows({ record: read.view.record, linked: read.view.linked, names: read.names });
+    const rows = pieceActions(pieceRows({ record: read.view.record, linked: read.view.linked, names: read.names }), mode);
     const sentence = productBranchSentence(read.view.record, { viewer: currentViewer()?.login ?? null });
     repaint(d, {
       rows,
@@ -196,7 +218,8 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
     };
     document.dispatchEvent(new CustomEvent('bridge:promote-ask', { detail }));
   };
-  const writable = connected() && r.status === 'active';
+  // Suggest mode: send for review and close are branch writes, so they are not offered.
+  const writable = connected() && r.status === 'active' && mode === 'direct';
   current = {
     n: r.number,
     props: {
@@ -231,6 +254,15 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
   void previewSources(r).then((s) => current?.n === r.number && repaint(d, { tryUrl: tryUrlOf(r, s) }));
   void paintVisual(d, r);
   if (record) void refresh();
+}
+
+/**
+ * The piece actions in the repo's mode: in suggest mode a missing piece is suggested to the library ("Suggest to the
+ * library"), and a linked suggestion offers no branch action (no preview to use, nothing to switch).
+ */
+function pieceActions(rows: PieceRowView[], mode: ChangesMode): PieceRowView[] {
+  if (mode === 'direct') return rows;
+  return rows.map((row) => (row.action?.kind === 'open' ? { ...row, action: { ...row.action, label: sendButton('piece', mode) } } : row.action ? { ...row, action: null } : row));
 }
 
 /** bridge.config.json products, embedded by the layout (#bridge-repo); the defaults when absent. */

@@ -1,21 +1,28 @@
-// Proposing a new brand from the Studio: re-plan the draft on main as it is now (so the PR applies cleanly),
-// refuse when the gate fails, then a new bridge/brand-<slug> branch and a draft Tier 3 pull request. The token
-// stays in this browser (scripts/github-session.ts); nothing here runs without it.
-import { composeNewBrandBody, loadRepoFiles, planNewBrand } from '@bridge-ds/core';
+// Proposing a new brand from the Studio: re-plan the draft on main as it is now (so the change applies cleanly),
+// refuse when the gate fails, then a new bridge/brand-<slug> branch and a draft Tier 3 pull request; in suggest mode
+// (bridge.config.json "changes") one suggestion with the brand files instead, no branch. The token stays in this
+// browser (scripts/github-session.ts); nothing here runs without it.
+import { composeNewBrandBody, loadRepoFiles, planNewBrand, type ChangesMode } from '@bridge-ds/core';
 import { type BrandDraft, draftInput } from '../lib/new-brand';
 import { getToken, prefersSignIn, studioClient } from './github-session';
-import { ghAction } from '../lib/gh-wording';
+import { ghAction, sendGoal } from '../lib/gh-wording';
+import { changesModeOnPage } from './changes-mode';
+import { suggestFilesOnGitHub } from './suggest-files';
 import { branchWithJiraKey, titleWithJiraKey } from '../lib/vocabulary';
 
 export interface ProposedBrand {
   number: number;
   url: string;
-  branch: string;
+  /** The branch it opened (direct mode); null for a suggestion. */
+  branch: string | null;
+  /** True when it was sent as a suggestion (suggest mode). */
+  suggestion?: boolean;
+  warnings?: string[];
 }
 
-export async function proposeBrand(draft: BrandDraft, repo: { owner: string; name: string; defaultBranch: string }, configTokensRoot: string, jira: string | null = null): Promise<ProposedBrand> {
+export async function proposeBrand(draft: BrandDraft, repo: { owner: string; name: string; defaultBranch: string }, configTokensRoot: string, jira: string | null = null, mode: ChangesMode = changesModeOnPage()): Promise<ProposedBrand> {
   const token = getToken();
-  if (!token) throw new Error(`${ghAction('create this branch', prefersSignIn())}.`);
+  if (!token) throw new Error(`${ghAction(mode === 'suggest' ? sendGoal('brand', mode) : 'create this branch', prefersSignIn())}.`);
   const probe = studioClient(`${repo.owner}/${repo.name}`, token);
   const mainSha = await probe.getBranchSha(repo.defaultBranch);
   if (!mainSha) throw new Error(`Branch ${repo.defaultBranch} was not found in ${repo.owner}/${repo.name}.`);
@@ -25,6 +32,21 @@ export async function proposeBrand(draft: BrandDraft, repo: { owner: string; nam
   const errors = plan.issues.filter((i) => i.level === 'error');
   if (errors.length) throw new Error(`${errors[0]!.message} Fix it in the draft, then try again.`);
   if (plan.contrast.failing.length) throw new Error(`${plan.contrast.failing.length} contrast pairs fail on main. Adjust the colors, then try again.`);
+  const body = composeNewBrandBody(plan, { tool: 'the Bridge Studio', notes: 'Drafted in the Studio new brand flow, checked with real components in light and dark.' });
+  if (mode === 'suggest') {
+    const summary = `New brand "${plan.slug}", started from ${plan.from}. Drafted in the Studio new brand flow, checked with real components in light and dark.`;
+    const r = await suggestFilesOnGitHub(probe, latest.config, {
+      kind: 'brand',
+      title: titleWithJiraKey(plan.title, jira),
+      summary,
+      files: plan.files.map((f) => ({ path: f.path, content: f.content })),
+      tier: { tier: plan.risk.tier, bump: plan.risk.bump },
+      base: { ref: repo.defaultBranch, sha: mainSha },
+      labels: ['tokens', 'new brand', `tier: ${plan.risk.tier}`],
+      details: body,
+    });
+    return { number: r.number, url: r.url, branch: null, suggestion: true, warnings: r.warnings };
+  }
   const gov = latest.config.governance;
   const client = studioClient(`${repo.owner}/${repo.name}`, token, { protectedBranches: [...new Set([...gov.protectedBranches, 'main', 'master', repo.defaultBranch])], branchPrefix: gov.branchPrefix });
   // The Jira key goes first in the branch name and the title, so Jira's GitHub integration links them.
@@ -33,9 +55,8 @@ export async function proposeBrand(draft: BrandDraft, repo: { owner: string; nam
   for (let i = 2; await client.getBranchSha(branch); i++) branch = `${base}-${i}`;
   const message = `${jira ? `${jira} ` : ''}feat(tokens): add the ${plan.name} brand\n\nStarted from ${plan.from}. Tier 3. Proposed with the Bridge Studio.`;
   await client.commitToNewBranch({ base: repo.defaultBranch, branch, message, files: plan.files.map((f) => ({ path: f.path, content: f.content })) });
-  const body = composeNewBrandBody(plan, { tool: 'the Bridge Studio', notes: 'Drafted in the Studio new brand flow, checked with real components in light and dark.' });
   // Tier 3 opens as a draft until design review (docs/GOVERNANCE.md).
   const pr = await client.createPullRequest({ title: titleWithJiraKey(`feat(tokens): ${plan.title}`, jira), head: branch, base: repo.defaultBranch, body, draft: true });
-  await client.addLabels(pr.number, ['tokens', 'source: bridge-web', 'tier-3', 'new brand']).catch(() => false);
+  await client.addLabels(pr.number, ['tokens', 'source: bridge-web', 'tier: 3', 'new brand']).catch(() => false);
   return { number: pr.number, url: pr.url, branch };
 }
