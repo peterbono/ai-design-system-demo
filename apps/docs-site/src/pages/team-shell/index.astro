@@ -5,20 +5,16 @@
 import '../../styles/studio-home.css';
 import '../../styles/branch-thumb.css';
 import '../../styles/team-pages.css';
+import '../../styles/load-progress.css';
 import Layout from '../../layouts/Layout.astro';
-import { Skeleton } from '@bridge-ds/react';
 ---
 
 <Layout title="Home" description="What needs you now and your branches, for this team's design system." hosted wide>
   <div class="sh-root">
     <div data-team-source class="sh-team-source"></div>
+    {/* scripts/team-home.ts: how far the read has gone (LoadProgress), then the home. */}
     <div data-studio-home>
-      <div class="sh">
-        <section class="zone sh-zone" aria-busy="true" aria-label="Loading what needs you">
-          <Skeleton variant="text" className="sh-skel-line" />
-          <Skeleton variant="rect" className="sh-skel" />
-        </section>
-      </div>
+      <div class="lp-wait" aria-busy="true" aria-label="Reading this team's design system"></div>
     </div>
   </div>
   <script>

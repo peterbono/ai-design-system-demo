@@ -9,7 +9,7 @@ import { ExternalLink, Layers } from 'lucide-react';
 import { Badge, Button, ButtonGroup, Drawer, DrawerContent, EmptyState, Input, Link, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
 import { GitHubMark } from './brand-icons';
-import { TeamLoadError, TeamSkeleton, TeamSourceNote, useTeamData } from './TeamState';
+import { TeamLoadError, TeamLoadProgress, TeamSourceNote, useTeamData } from './TeamState';
 import TokenSpecimens from './TokenSpecimens';
 import { filterTeamRows, pickStorybook, rowExceptions, storyPreview, teamComponentRows, teamComponentsLead, teamFamilies, type TeamComponentRow } from '../../../lib/team-components';
 import { tokenSpecimens } from '../../../lib/token-specimens';
@@ -222,7 +222,7 @@ const ALL = '__all__';
 
 export default function TeamComponents() {
   const { load, retry } = useTeamData();
-  if (load.status === 'loading') return <TeamSkeleton rows={8} label="Reading the components" />;
+  if (load.status === 'loading') return <TeamLoadProgress label="Reading the components" />;
   if (load.status === 'error') return <TeamLoadError failure={load.failure} onRetry={retry} />;
   return <Ready data={load.data} refreshing={load.refreshing} onRefresh={retry} />;
 }

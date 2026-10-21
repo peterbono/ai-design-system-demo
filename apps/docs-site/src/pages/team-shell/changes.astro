@@ -1,6 +1,42 @@
 ---
-// Team shell of Studio Changes (lib/team-shells.ts): served for /studio/<owner>/<repo>/changes/ by the vercel.json rewrite.
+// Team shell of Studio Branches (lib/team-shells.ts): served for /studio/<owner>/<repo>/changes/ by the vercel.json
+// rewrite. The team's open branches (the self-hosted list, components/ds/studio/BranchesList) and its suggestions
+// (components/ds/studio/TeamSuggestions), each opened in place, read in the browser by scripts/team-branches.ts.
+import '../../styles/reviews.css';
+import '../../styles/branch-review.css';
+import '../../styles/motion-changes.css';
+import '../../styles/changes.css';
+import '../../styles/product-branch.css';
+import '../../styles/studio-home.css';
+import '../../styles/branch-thumb.css';
+import '../../styles/suggestion-review.css';
+import '../../styles/load-progress.css';
 import TeamShell from '../../components/TeamShell.astro';
+import Illustration from '../../components/Illustration.astro';
+import { VOCAB } from '../../lib/vocabulary';
 ---
 
-<TeamShell route="changes/" title="Changes" what="changes in review and their history" description="Changes in review and the history of merged token changes, for this team's design system." />
+<TeamShell route="changes/" title="Branches" what="branches" description="The open branches and suggestions of this team's design system, each reviewed in place.">
+  <div class="rv cg tb">
+    <div class="lp-wait" data-tb-state aria-busy="true" aria-label="Reading this team's branches"></div>
+    <p class="rv-notice" id="rv-notice" role="status" hidden></p>
+    <div id="cg-main" hidden>
+      <section class="cg-panel" id="cg-review" aria-label={VOCAB.Branches}>
+        <p class="cg-muted" id="cg-asof" role="status" hidden></p>
+        <div class="cg-list-mount" id="cg-list"></div>
+        <div class="cg-empty" id="cg-empty" hidden>
+          <Illustration name="review" width={200} />
+          <p class="cg-empty-title">No open {VOCAB.branch}.</p>
+          <p class="cg-muted">Every {VOCAB.branch} in progress lands here, ready for review.</p>
+        </div>
+        <div id="tb-suggestions" hidden></div>
+      </section>
+    </div>
+    <div id="rv-detail" class="rv-detail" hidden></div>
+    <div id="sg-detail" class="rv-detail" hidden></div>
+  </div>
+  <script>
+    import { initTeamBranches } from '../../scripts/team-branches';
+    void initTeamBranches();
+  </script>
+</TeamShell>

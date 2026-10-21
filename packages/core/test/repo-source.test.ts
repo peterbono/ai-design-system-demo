@@ -90,3 +90,14 @@ test('readRepoTexts reads each path once with a bounded pool', async () => {
   assert.equal(out.get('README.md'), '# hi');
   assert.equal(out.get('missing'), null);
 });
+
+test('readRepoTexts reports real counts: 0 of n first, then one step per settled file', async () => {
+  const seen: [number, number][] = [];
+  await readRepoTexts(memorySource(FILES), ['README.md', 'README.md', 'missing', 'bridge.config.json'], 2, undefined, (d, t) => seen.push([d, t]));
+  assert.deepEqual(seen, [
+    [0, 3],
+    [1, 3],
+    [2, 3],
+    [3, 3],
+  ]);
+});

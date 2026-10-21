@@ -23,7 +23,15 @@ export interface GitHubSourceOptions {
    * scopes it per repository and account and clears it on sign-out (plan 6.8).
    */
   blobCache?: BlobCache;
+  /**
+   * Hears what the source does: the tree once it is read (how many files the commit holds), then each body as it
+   * lands, saying whether it came from the blob cache (no request) or from GitHub.
+   */
+  onProgress?: (event: GitHubSourceProgress) => void;
 }
+
+/** What a GitHub source reports through `onProgress`. */
+export type GitHubSourceProgress = { kind: 'tree'; files: number } | { kind: 'file'; path: string; cached: boolean };
 
 /** How bodies are read: the blobs API with the token, or the raw host without one. */
 export type GitHubSourceMode = 'api' | 'raw';
@@ -68,6 +76,7 @@ export function gitHubSource(client: GitHubClient, sha: string, opts: GitHubSour
         if (truncated) throw new GitHubError(413, 'The repository tree is too large to read in one request.');
         const files = new Map<string, { sha: string; size: number | undefined }>();
         for (const e of entries) if (e.type === 'blob') files.set(e.path, { sha: e.sha, size: e.size });
+        opts.onProgress?.({ kind: 'tree', files: files.size });
         return files;
       },
       (err: unknown) => {
@@ -82,7 +91,10 @@ export function gitHubSource(client: GitHubClient, sha: string, opts: GitHubSour
 
   const readBody = async (path: string, blobSha: string): Promise<string> => {
     const kept = await opts.blobCache?.get(blobSha);
-    if (kept !== undefined) return kept;
+    if (kept !== undefined) {
+      opts.onProgress?.({ kind: 'file', path, cached: true });
+      return kept;
+    }
     const text = mode === 'api' ? await client.getBlobRaw(blobSha) : await client.readRawFile(path, sha);
     if (text === undefined) {
       const hint = mode === 'raw' ? ' Sign in with GitHub to read a private repository.' : '';
@@ -93,6 +105,7 @@ export function gitHubSource(client: GitHubClient, sha: string, opts: GitHubSour
     } catch {
       // A full or blocked cache only costs a read next time.
     }
+    opts.onProgress?.({ kind: 'file', path, cached: false });
     return text;
   };
 

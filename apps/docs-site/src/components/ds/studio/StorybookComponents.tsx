@@ -17,7 +17,6 @@ import {
   Input,
   Link,
   Select,
-  Skeleton,
   Table,
   TableBody,
   TableCell,
@@ -28,6 +27,8 @@ import {
 } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
 import { Drawing } from './Drawing';
+import { LoadProgress } from './LoadProgress';
+import { storybookProgressView } from '../../../lib/load-progress';
 import { StorybookField, toWorkspace } from './StorybookField';
 import { loadStorybook, StorybookLoadError, type LoadedStorybook } from '../../../scripts/storybook-source';
 import { onWorkspaceChange, readWorkspace, saveStorybook } from '../../../scripts/workspace';
@@ -49,7 +50,12 @@ import {
 } from '../../../lib/storybook-view';
 import { storybookHost, type Workspace } from '../../../lib/workspace';
 
-type Load = { state: 'idle' } | { state: 'loading' } | { state: 'ready'; sb: LoadedStorybook } | { state: 'error'; code: string };
+// 'arrived': read, with "Ready" on screen a moment before the list replaces it (only after a read the visitor watched).
+type Load = { state: 'idle' } | { state: 'loading' } | { state: 'arrived'; sb: LoadedStorybook } | { state: 'ready'; sb: LoadedStorybook } | { state: 'error'; code: string };
+
+/** A read that settles within this (kept for this page view) never shows its progress; after one that did, Ready stays this long. */
+const SHOW_AFTER_MS = 300;
+const READY_HOLD_MS = 400;
 
 /** One calm line for what quick start cannot do, with the way to connect the repository. */
 export function LockedLine({ className }: { className?: string }) {
@@ -208,11 +214,16 @@ export default function StorybookComponents({ suggestion }: StorybookComponentsP
       return;
     }
     const ctl = new AbortController();
+    const started = Date.now();
+    let hold: ReturnType<typeof setTimeout> | undefined;
     setLoad({ state: 'loading' });
     loadStorybook(url, { signal: ctl.signal, fresh: attempt > 0 })
       .then((sb) => {
         if (ctl.signal.aborted) return;
-        setLoad({ state: 'ready', sb });
+        if (Date.now() - started > SHOW_AFTER_MS) {
+          setLoad({ state: 'arrived', sb });
+          hold = setTimeout(() => setLoad({ state: 'ready', sb }), READY_HOLD_MS);
+        } else setLoad({ state: 'ready', sb });
         // Keep the counts on the onboarding step in step with what the Storybook holds today.
         const fresh = toWorkspace(sb);
         if (fresh.components !== ws.storybook?.components || fresh.stories !== ws.storybook?.stories) saveStorybook(fresh);
@@ -221,9 +232,19 @@ export default function StorybookComponents({ suggestion }: StorybookComponentsP
         if (ctl.signal.aborted) return;
         setLoad({ state: 'error', code: err instanceof StorybookLoadError ? err.code : 'network' });
       });
-    return () => ctl.abort();
+    return () => {
+      ctl.abort();
+      clearTimeout(hold);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, attempt]);
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    if (load.state !== 'loading') return;
+    setWaited(false);
+    const t = setTimeout(() => setWaited(true), SHOW_AFTER_MS);
+    return () => clearTimeout(t);
+  }, [load.state]);
 
   const rows = useMemo(() => (load.state === 'ready' ? storybookRows(load.sb.index) : []), [load]);
   const families = useMemo(() => storybookFamilies(rows), [rows]);
@@ -308,10 +329,12 @@ export default function StorybookComponents({ suggestion }: StorybookComponentsP
   }
 
   if (load.state !== 'ready') {
+    // Reading index.json: one request of unknown size, so the bar is indeterminate until the count is in.
+    const view = load.state === 'arrived' ? storybookProgressView({ step: 'ready', components: load.sb.index.components.length }) : storybookProgressView({ step: 'storybook' });
     return (
-      <div className="cm sbq" aria-busy="true">
-        {head(<Skeleton variant="text" width="28ch" />)}
-        <Skeleton variant="rect" height="var(--size-80)" />
+      <div className="cm sbq">
+        {head('See the components of any published Storybook, without the repository.')}
+        {load.state === 'arrived' || waited ? <LoadProgress view={view} label="Reading your Storybook" /> : <div className="lp-wait" aria-busy="true" aria-label="Reading your Storybook" />}
       </div>
     );
   }

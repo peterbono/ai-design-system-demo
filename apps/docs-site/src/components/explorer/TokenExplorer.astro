@@ -16,7 +16,7 @@ import '../../styles/preview-frames.css';
 import { siteIcon } from '../../brand/site-icons';
 import SummaryButton from '../ds/studio/SummaryButton';
 import ButtonLink from '../ds/ButtonLink';
-import { Button, Checkbox, EmptyState, Icon, SegmentedControl, Skeleton, Switch } from '@bridge-ds/react';
+import { Button, Checkbox, EmptyState, Icon, SegmentedControl, Switch } from '@bridge-ds/react';
 import BridgedSelect from '../ds/BridgedSelect';
 import TokenSearch from '../ds/TokenSearch';
 import UsageRadios from '../ds/UsageRadios';
@@ -55,11 +55,8 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
   hosted && (
     <div class="xp-team-wrap" data-xp-team-wrap>
       <h1 class="st-title">Tokens</h1>
-      <div class="tp-skel" data-xp-team-state aria-busy="true" aria-label="Loading the team's tokens">
-        <Skeleton variant="text" width="30%" />
-        <Skeleton variant="rect" className="tp-skel-row" />
-        {Array.from({ length: 8 }, () => <Skeleton variant="rect" className="tp-skel-row" />)}
-      </div>
+      {/* Filled by scripts/explorer/team-bootstrap.ts: how far the read has gone (LoadProgress), then an error or nothing. */}
+      <div class="lp-wait" data-xp-team-state aria-busy="true" aria-label="Reading the team's tokens"></div>
     </div>
   )
 }

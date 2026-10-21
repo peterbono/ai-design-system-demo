@@ -59,10 +59,14 @@ export function memorySource(files: Record<string, string>, ref: Partial<RepoSou
   };
 }
 
+/** How far a readRepoTexts call has gone: files settled (read, missing or skipped) out of the distinct paths asked. */
+export type ReadProgress = (done: number, total: number) => void;
+
 /**
  * Reads many files with a few requests in flight (4 by default, like loadRepoFiles), keyed by the path asked for.
  * A missing file maps to null. `onError` decides about a read that throws: return null to skip the file, or throw
- * (the default) to fail the whole read.
+ * (the default) to fail the whole read. `onProgress` hears (0, total) first, then once per settled file: real counts,
+ * so a progress bar never runs ahead of the reads.
  */
 export async function readRepoTexts(
   source: RepoSource,
@@ -71,9 +75,11 @@ export async function readRepoTexts(
   onError: (path: string, err: unknown) => null = (_path, err) => {
     throw err;
   },
+  onProgress?: ReadProgress,
 ): Promise<Map<string, string | null>> {
   const unique = [...new Set(paths)];
   const out = new Map<string, string | null>();
+  onProgress?.(0, unique.length);
   let next = 0;
   const worker = async () => {
     while (next < unique.length) {
@@ -85,6 +91,7 @@ export async function readRepoTexts(
         body = onError(path, err);
       }
       out.set(path, body);
+      onProgress?.(out.size, unique.length);
     }
   };
   await Promise.all(Array.from({ length: Math.max(1, Math.min(concurrency, unique.length)) }, worker));

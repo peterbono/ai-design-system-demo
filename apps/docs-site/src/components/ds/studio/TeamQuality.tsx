@@ -10,7 +10,7 @@ import { siteIcon } from '../../../brand/site-icons';
 import ContrastFailTable from './ContrastFailTable';
 import ButtonLink from '../ButtonLink';
 import { QualityShare } from './QualityShare';
-import { TeamLoadError, TeamSkeleton, TeamSourceNote, useTeamData } from './TeamState';
+import { TeamLoadError, TeamLoadProgress, TeamSourceNote, useTeamData } from './TeamState';
 import { loadTeamSnapshot } from '../../../scripts/team-data';
 import { teamQuality, guidanceLead, pctLabel, type TeamQuality as Quality } from '../../../lib/team-quality';
 import { ADOPTION_MEANING, cleanupTitle, type Finding } from '../../../lib/quality';
@@ -281,7 +281,7 @@ export default function TeamQuality() {
     };
   }, [sha]);
 
-  if (load.status === 'loading') return <TeamSkeleton rows={5} label="Reading the quality of this design system" />;
+  if (load.status === 'loading') return <TeamLoadProgress label="Reading the quality of this design system" />;
   if (load.status === 'error') return <TeamLoadError failure={load.failure} onRetry={retry} />;
   const { data, refreshing } = load;
   const q = teamQuality({ model: data.model, owner: data.owner, repo: data.repo, sha: data.sha, audits: audits ?? null });
