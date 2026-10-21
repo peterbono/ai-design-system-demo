@@ -24,14 +24,18 @@ import {
 } from '../lib/token-session';
 import { closeDialog, isDialogOpen, openDialog as openDsDialog } from '@bridge-ds/react/dom';
 import { paintAvatar } from './avatar';
-import { ghAction, ghButton, ghVerb } from '../lib/gh-wording';
+import { askDirectInstallMessage, DIRECT_CONSENT, DIRECT_SETUP, directSetupLine, ghAction, ghButton, ghVerb } from '../lib/gh-wording';
+import { installUrl } from '../lib/access-view';
+import { changesModeOnPage } from './changes-mode';
 import {
   type AppSession,
+  type DirectApp,
   authorizeUrl,
   callbackUrl,
   canRefresh,
   encodeState,
   exchangeErrorText,
+  needsDirectApp,
   needsRefresh,
   noReachText,
   type PendingSignIn,
@@ -42,6 +46,7 @@ import {
   refreshDelay,
   safeReturnTo,
   sessionFrom,
+  type SignInApp,
   type SignInConfig,
   SIGNIN_TEXT,
   type SlotContent,
@@ -218,9 +223,10 @@ export class SignInError extends Error {
 
 /**
  * Starts Sign in with GitHub: keeps a state and a PKCE verifier for this tab, then goes to GitHub. `returnTo` is the
- * Studio page to land on afterwards (this one by default).
+ * Studio page to land on afterwards (this one by default). `as`: another app than the page's (Bridge Direct, asked
+ * for by a team in direct mode); its token goes to that app's slot.
  */
-export async function startSignIn(returnTo = location.pathname + location.search + location.hash): Promise<void> {
+export async function startSignIn(returnTo = location.pathname + location.search + location.hash, as?: { app: SignInApp; clientId: string }): Promise<void> {
   const cfg = readSignInConfig();
   if (!cfg) throw new SignInError('Sign in with GitHub is not set up on this site. Connect with a token from Settings instead.');
   if (!globalThis.crypto?.subtle) throw new SignInError('This browser cannot sign in safely here (no Web Crypto). Open Studio over https and sign in again.');
@@ -229,13 +235,14 @@ export async function startSignIn(returnTo = location.pathname + location.search
   const state = encodeState(randomString(24, fill), location.origin);
   const redirectUri = callbackUrl(location.origin, cfg);
   const challenge = await pkceChallenge(verifier, (d) => crypto.subtle.digest('SHA-256', d as Uint8Array<ArrayBuffer>));
-  const pending: PendingSignIn = { state, verifier, redirectUri, returnTo: safeReturnTo(returnTo), at: Date.now() };
+  const app = as ?? { app: cfg.app, clientId: cfg.clientId };
+  const pending: PendingSignIn = { state, verifier, redirectUri, returnTo: safeReturnTo(returnTo), at: Date.now(), app: app.app, clientId: app.clientId };
   try {
     sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending));
   } catch {
     throw new SignInError('This browser blocks site storage, so the sign-in could not finish. Allow site data for this site, then sign in again.');
   }
-  location.assign(authorizeUrl({ clientId: cfg.clientId, redirectUri, state, challenge }));
+  location.assign(authorizeUrl({ clientId: app.clientId, redirectUri, state, challenge }));
 }
 
 /** POSTs to this site's token function. Throws a SignInError with the sentence to show. */
@@ -258,8 +265,17 @@ export async function postToken(
   return data as TokenResponse;
 }
 
-/** Saves a finished sign-in: the token like a pasted one, plus its expiry, refresh token and the app's client ID. */
-export function saveSignIn(r: TokenResponse, opts: { refresh?: boolean; clientId?: string } = {}) {
+/**
+ * Saves a finished sign-in: the token like a pasted one, plus its expiry, refresh token and the app's client ID.
+ * `slot`: the app the sign-in was for, when it is not this page's (the callback page saves a team page's sign-in, or
+ * Bridge Direct's OK, into that app's own slot; the other slots are left as they are).
+ */
+export function saveSignIn(r: TokenResponse, opts: { refresh?: boolean; clientId?: string; slot?: StorageSlot } = {}) {
+  if (opts.slot !== undefined && opts.slot !== pageSlot()) {
+    saveToSlot(opts.slot, r, opts.clientId);
+    if (!opts.refresh) clearSwitched();
+    return;
+  }
   const previous = opts.refresh ? currentCheck() : null;
   if (!opts.refresh) clearSwitched();
   writeAppSession(sessionFrom(r, Date.now(), opts.clientId));
@@ -288,6 +304,235 @@ export function refreshSignIn(): Promise<boolean> {
       refreshing = null;
     });
   return refreshing;
+}
+
+/** Writes a sign-in into one app's slot, without touching this page's (its check is made where it is used). */
+function saveToSlot(slot: StorageSlot, r: TokenResponse, clientId?: string) {
+  try {
+    localStorage.setItem(slotKey(TOKEN_BASE, slot), r.access_token.trim());
+    localStorage.setItem(slotKey(APP_BASE, slot), JSON.stringify(sessionFrom(r, Date.now(), clientId)));
+    localStorage.removeItem(slotKey(CHECK_BASE, slot));
+  } catch {
+    /* storage blocked: the sign-in cannot be kept */
+  }
+}
+
+// --- Bridge Direct on team pages (multi-team plan 3.2, PR 3d) -----------------------------------------------------
+// A team page signs in with Bridge (read code, send suggestions). When the team's bridge.config.json says
+// "changes": "direct", code writes (branches, saves, merges, reviews) go out with Bridge Direct instead: the first one
+// asks for its OK in the "Allow Bridge to save to branches" dialog (components/GitHubDialog.astro), then GitHub
+// brings the visitor back to the same page. Its token lives in its own slot ('direct'), next to Bridge's. The
+// self-hosted site never takes this path: it signs in with the app its mode needs up front.
+
+const DIRECT_SLOT: StorageSlot = 'direct';
+/** Per account and repository: Bridge Direct reaches it (sessionStorage, ACCESS_MAX_AGE_MS like the access). */
+const DIRECT_OK_PREFIX = 'bridge.github.direct-ok:';
+const DIRECT_OK_MAX_AGE_MS = 10 * 60 * 1000;
+
+/** Bridge Direct, when this page's code writes need it: a team page in direct mode, both apps set up. Else null. */
+export function directApp(): DirectApp | null {
+  const cfg = readSignInConfig();
+  if (!cfg?.direct || cfg.app === 'direct' || pageSlot() === DIRECT_SLOT) return null;
+  if (!repoContext().hosted || changesModeOnPage() !== 'direct') return null;
+  return cfg.direct;
+}
+
+function readDirect(): { token: string | null; session: AppSession | null } {
+  try {
+    const raw = localStorage.getItem(slotKey(APP_BASE, DIRECT_SLOT));
+    const session = raw ? (JSON.parse(raw) as AppSession) : null;
+    return { token: localStorage.getItem(slotKey(TOKEN_BASE, DIRECT_SLOT)), session: session?.kind === 'app' ? session : null };
+  } catch {
+    return { token: null, session: null };
+  }
+}
+
+/** Bridge Direct's OK, as far as this browser knows: saved and not past its expiry without a way to renew it. */
+export function hasDirectOk(): boolean {
+  const { token, session } = readDirect();
+  return Boolean(token) && !(session && session.expiresAt !== null && session.expiresAt <= Date.now() && !canRefresh(session, Date.now()));
+}
+
+/** Forgets Bridge Direct's OK in this browser (sign-out, refused by GitHub, another account). */
+function forgetDirect() {
+  try {
+    for (const base of [TOKEN_BASE, CHECK_BASE, APP_BASE]) localStorage.removeItem(slotKey(base, DIRECT_SLOT));
+    for (const k of Object.keys(sessionStorage)) if (k.startsWith(DIRECT_OK_PREFIX)) sessionStorage.removeItem(k);
+  } catch {
+    /* storage blocked */
+  }
+}
+
+let refreshingDirect: Promise<boolean> | null = null;
+/** Renews Bridge Direct's token with its refresh token, into its own slot. True when a fresh one is saved. */
+function refreshDirect(clientId: string): Promise<boolean> {
+  if (refreshingDirect) return refreshingDirect;
+  const { session } = readDirect();
+  if (!session?.refreshToken || !canRefresh(session, Date.now())) return Promise.resolve(false);
+  const id = session.clientId ?? clientId;
+  refreshingDirect = postToken({ grant: 'refresh', refresh_token: session.refreshToken, client_id: id })
+    .then((r) => {
+      saveToSlot(DIRECT_SLOT, r, id);
+      return true;
+    })
+    .catch(() => false)
+    .finally(() => {
+      refreshingDirect = null;
+    });
+  return refreshingDirect;
+}
+
+/** Thrown before a code write that cannot go out yet. The dialog is already open; the message goes under the action. */
+const directError = (message: string, why: 'direct-consent' | 'direct-not-installed') => new GitHubError(403, message, why);
+
+/** True for the error a write throws while it waits for Bridge Direct (its OK, or its setup on the repository). */
+export const isDirectWait = (err: unknown) => err instanceof GitHubError && (err.detail === 'direct-consent' || err.detail === 'direct-not-installed');
+
+/**
+ * The token a code write goes out with on this page: Bridge Direct's on a team page in direct mode (renewed when it
+ * is about to expire, checked once per repository), null elsewhere (the page's own token, as always). Without its OK,
+ * or when it is not set up on the repository, it opens the dialog and throws (nothing was sent).
+ */
+async function directTokenForWrite(): Promise<string | null> {
+  const app = directApp();
+  // Signed out, or the sign-in itself stopped working: the usual "Sign in" path says so.
+  if (!app || !getToken() || tokenRejected()) return null;
+  let { token, session } = readDirect();
+  const now = Date.now();
+  if (token && session && needsRefresh(session, now)) {
+    const ok = await refreshDirect(app.clientId);
+    if (!ok && session.expiresAt !== null && session.expiresAt <= now) forgetDirect();
+    ({ token, session } = readDirect());
+  }
+  if (!token) {
+    openDirectDialog('consent');
+    throw directError(DIRECT_CONSENT.needed, 'direct-consent');
+  }
+  const repo = readRepo();
+  const login = viewer?.login ?? '';
+  const okKey = `${DIRECT_OK_PREFIX}${login.toLowerCase()}:${repoName(repo)}`;
+  try {
+    const at = Number(sessionStorage.getItem(okKey));
+    if (at && now - at < DIRECT_OK_MAX_AGE_MS) return token;
+  } catch {
+    /* storage blocked: check again */
+  }
+  // Plain fetch: a refusal here is about Bridge Direct's OK, never about the page's own sign-in.
+  const client = new GitHubClient(`${repo.owner}/${repo.repo}`, token, (url, init) => fetch(url, init), undefined, { etags: false });
+  const refused = (err: unknown) => err instanceof GitHubError && err.status === 401;
+  let who: string | null = null;
+  try {
+    who = (await client.getViewer()).login;
+  } catch (err) {
+    if (refused(err)) {
+      forgetDirect();
+      openDirectDialog('consent', DIRECT_CONSENT.expired);
+      throw directError(DIRECT_CONSENT.needed, 'direct-consent');
+    }
+  }
+  // The OK must come from the account signed in to Bridge: changes are made in its name.
+  if (who && login && who.toLowerCase() !== login.toLowerCase()) {
+    forgetDirect();
+    openDirectDialog('consent', DIRECT_CONSENT.otherAccount(who, login));
+    throw directError(DIRECT_CONSENT.needed, 'direct-consent');
+  }
+  let found: boolean | null = null;
+  try {
+    found = Boolean(await client.findInstallation());
+  } catch (err) {
+    if (refused(err)) {
+      forgetDirect();
+      openDirectDialog('consent', DIRECT_CONSENT.expired);
+      throw directError(DIRECT_CONSENT.needed, 'direct-consent');
+    }
+    found = null;
+  }
+  if (found === false) {
+    openDirectDialog('setup');
+    throw directError(DIRECT_SETUP.needed, 'direct-not-installed');
+  }
+  // Found (or GitHub would not say): send it, GitHub has the last word.
+  if (found)
+    try {
+      sessionStorage.setItem(okKey, String(now));
+    } catch {
+      /* storage blocked: checked again next time */
+    }
+  return token;
+}
+
+/** A code write GitHub refused with Bridge Direct's token: forget it and ask for the OK again. */
+function directRefused(): GitHubError {
+  forgetDirect();
+  openDirectDialog('consent', DIRECT_CONSENT.expired);
+  return directError(DIRECT_CONSENT.needed, 'direct-consent');
+}
+
+let directWired = false;
+/**
+ * Opens "Allow Bridge to save to branches" (components/GitHubDialog.astro): `consent` explains the OK and continues
+ * on GitHub, back to this page; `setup` says Bridge Direct is not on the repository (admins install it, everyone else
+ * copies a message for their lead). `note`: one line on top, when an earlier OK stopped working.
+ */
+export function openDirectDialog(view: 'consent' | 'setup', note?: string) {
+  const dialog = document.getElementById('gh-direct-dialog');
+  const app = readSignInConfig()?.direct;
+  if (!dialog || !app) return;
+  const { owner, repo } = readRepo();
+  const full = `${owner}/${repo}`;
+  const admin = Boolean(currentAccess()?.admin || currentAccess()?.repoAdmin);
+  dialog.querySelectorAll<HTMLElement>('[data-gh-direct-view]').forEach((el) => (el.hidden = el.dataset.ghDirectView !== view));
+  const title = dialog.querySelector<HTMLElement>('#gh-direct-dialog-title');
+  if (title) title.textContent = view === 'consent' ? DIRECT_CONSENT.title : DIRECT_SETUP.title;
+  const setupText = dialog.querySelector<HTMLElement>('[data-gh-direct-setup-text]');
+  if (setupText) setupText.textContent = directSetupLine(full, admin);
+  const noteBox = dialog.querySelector<HTMLElement>('[data-gh-direct-note]');
+  const noteText = dialog.querySelector<HTMLElement>('[data-gh-direct-note-text]');
+  if (noteBox && noteText) {
+    noteText.textContent = note ?? '';
+    noteBox.hidden = !note;
+  }
+  const cont = dialog.querySelector<HTMLButtonElement>('[data-gh-direct-continue]');
+  const install = dialog.querySelector<HTMLAnchorElement>('[data-gh-direct-install]');
+  const ask = dialog.querySelector<HTMLButtonElement>('[data-gh-direct-ask]');
+  if (cont) {
+    cont.hidden = view !== 'consent';
+    setButtonBusy(cont, false, DIRECT_CONSENT.continueLabel);
+  }
+  if (install) {
+    install.hidden = view !== 'setup' || !admin;
+    install.href = installUrl(app.slug);
+  }
+  if (ask) {
+    ask.hidden = view !== 'setup' || admin;
+    setButtonLabel(ask, DIRECT_SETUP.askLabel);
+  }
+  if (!directWired) {
+    directWired = true;
+    cont?.addEventListener('click', () => {
+      const direct = readSignInConfig()?.direct;
+      if (!direct) return;
+      setButtonBusy(cont, true, 'Opening GitHub');
+      startSignIn(undefined, { app: 'direct', clientId: direct.clientId }).catch((err: Error) => {
+        setButtonBusy(cont, false, DIRECT_CONSENT.continueLabel);
+        if (noteBox && noteText) {
+          noteText.textContent = err.message;
+          noteBox.hidden = false;
+        }
+      });
+    });
+    // Ask your lead: the message, with the install link and this team's Studio, on the clipboard.
+    ask?.addEventListener('click', () => {
+      const r = readRepo();
+      const direct = readSignInConfig()?.direct;
+      const text = askDirectInstallMessage(`${r.owner}/${r.repo}`, installUrl(direct?.slug), `${location.origin}${studioHref()}`);
+      void navigator.clipboard?.writeText(text).then(
+        () => setButtonLabel(ask, DIRECT_SETUP.copied),
+        () => undefined,
+      );
+    });
+  }
+  if (!isDialogOpen(dialog)) openDsDialog(dialog);
 }
 
 function readCheck(): TokenCheck | null {
@@ -357,6 +602,15 @@ export const studioFetch: FetchLike = async (url, init = {}) => {
     const { Authorization: _drop, ...rest } = headers;
     headers = rest;
   }
+  // A code write on a team page in direct mode goes out with Bridge Direct (or waits for its OK: this throws).
+  if (headers.Authorization && needsDirectApp(method, url)) {
+    const direct = await directTokenForWrite();
+    if (direct) {
+      const res = await fetch(url, { ...init, headers: { ...headers, Authorization: `Bearer ${direct}` } });
+      if (res.status === 401) throw directRefused();
+      return res;
+    }
+  }
   const res = await fetch(url, { ...init, headers });
   if (res.status === 401 && headers.Authorization) {
     markTokenRejected();
@@ -383,6 +637,11 @@ export function ghAuthFailure(err: unknown, action?: string): AuthFailure | null
  * missing permission the permission to add with a link to the token settings, else `fallback`.
  */
 export function showGhError(el: HTMLElement, err: unknown, fallback: string, action?: string) {
+  // Waiting for Bridge Direct: its dialog is open; the line says what to do, then try again.
+  if (isDirectWait(err)) {
+    el.textContent = (err as Error).message;
+    return;
+  }
   const mode = sessionMode();
   const a = authFailure(err, action, mode, prefersSignIn());
   if (!a) {
@@ -506,11 +765,16 @@ async function ghGetOnce<T>(url: string, path: string, key: string, opts: { acce
 export async function ghWrite<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
   if (!getToken()) throw new GitHubError(401, `${ghVerb(prefersSignIn())} first.`, 'no-token');
   if (tokenRejected()) throw new GitHubError(401, rejectedText(sessionMode(), prefersSignIn()), 'Bad credentials', { auth: 'rejected' });
+  // A code write on a team page in direct mode goes out with Bridge Direct (or waits for its OK: this throws).
+  const direct = needsDirectApp(method, `${API}${path}`) ? await directTokenForWrite() : null;
+  const headers = authHeaders({ 'Content-Type': 'application/json' });
+  if (direct) headers.Authorization = `Bearer ${direct}`;
   const res = await fetch(`${API}${path}`, {
     method,
-    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+  if (direct && res.status === 401) throw directRefused();
   if (!res.ok) {
     let message = `GitHub answered ${res.status}`;
     try {
@@ -741,6 +1005,8 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     setToken(null);
     writeCheck(null);
     writeAppSession(null);
+    // On a team page, signing out also takes back Bridge Direct's OK in this browser.
+    if (readSignInConfig()?.direct) forgetDirect();
     viewer = null;
     forgetAccess();
     // Bodies and models of private repositories read with this account must not outlive its session.

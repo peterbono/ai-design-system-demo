@@ -10,7 +10,9 @@ import {
   decodeState,
   encodeState,
   exchangeErrorText,
+  DIRECT_APP_SLUG,
   installationFor,
+  needsDirectApp,
   needsRefresh,
   noReachText,
   originAllowed,
@@ -78,6 +80,27 @@ describe('sign-in config', () => {
     expect(pickSignInApp({ GITHUB_APP_SUGGEST_CLIENT_ID: 'Iv23liSuggest' }, 'direct', 'write')).toEqual({ clientId: 'Iv23liSuggest', app: 'suggest' });
     expect(pickSignInApp({ GITHUB_APP_CLIENT_ID: 'Iv23liDirect', GITHUB_APP_SUGGEST_CLIENT_ID: 'bad id' })).toEqual({ clientId: 'Iv23liDirect', app: 'direct' });
     expect(pickSignInApp({})).toBeNull();
+  });
+
+  it('signs team pages in with Bridge and carries Bridge Direct for the one-time OK (PR 3d)', () => {
+    const both = { GITHUB_APP_CLIENT_ID: 'Iv23liDirect', GITHUB_APP_SUGGEST_CLIENT_ID: 'Iv23liSuggest' };
+    // Whatever the build's own mode: a team's mode is only known in the browser.
+    for (const changes of ['direct', 'suggest', undefined]) {
+      expect(signInConfigFrom(both, PREVIEWS, changes, { hosted: true })).toMatchObject({
+        clientId: 'Iv23liSuggest',
+        app: 'suggest',
+        direct: { clientId: 'Iv23liDirect', slug: DIRECT_APP_SLUG },
+      });
+    }
+    expect(signInConfigFrom({ ...both, GITHUB_APP_DIRECT_SLUG: 'acme-bridge-direct' }, PREVIEWS, 'direct', { hosted: true })?.direct?.slug).toBe('acme-bridge-direct');
+    expect(signInConfigFrom({ ...both, GITHUB_APP_DIRECT_SLUG: 'bad slug/<x>' }, PREVIEWS, 'direct', { hosted: true })?.direct?.slug).toBe(DIRECT_APP_SLUG);
+    // One app only: nothing to ask for on top (that app is the sign-in).
+    expect(signInConfigFrom({ GITHUB_APP_CLIENT_ID: 'Iv23liDirect' }, PREVIEWS, 'direct', { hosted: true })).toMatchObject({ app: 'direct' });
+    expect(signInConfigFrom({ GITHUB_APP_CLIENT_ID: 'Iv23liDirect' }, PREVIEWS, 'direct', { hosted: true })?.direct).toBeUndefined();
+    expect(signInConfigFrom({ GITHUB_APP_SUGGEST_CLIENT_ID: 'Iv23liSuggest' }, PREVIEWS, 'direct', { hosted: true })?.direct).toBeUndefined();
+    // The self-hosted site is unchanged: no Direct entry, Direct up front in direct mode.
+    expect(signInConfigFrom(both, PREVIEWS, 'direct')).not.toHaveProperty('direct');
+    expect(signInConfigFrom(both, PREVIEWS, 'direct')).toEqual(signInConfigFrom(both, PREVIEWS, 'direct', { hosted: false }));
   });
 
   it('keeps the server and the browser on the same callback path', () => {
@@ -172,6 +195,17 @@ describe('callback step', () => {
       redirectUri: pending.redirectUri,
       returnTo: '/studio/settings/',
     });
+  });
+
+  it('trades the code for the app the tab asked for, and only a well-formed one', () => {
+    const asked = { ...pending, app: 'direct' as const, clientId: 'Iv23liDirect' };
+    expect(callbackStep(q({ code: 'abc123def456', state }), here, asked, cfg, now)).toMatchObject({ kind: 'exchange', app: 'direct', clientId: 'Iv23liDirect' });
+    const bad = callbackStep(q({ code: 'abc123def456', state }), here, { ...asked, clientId: 'x y<' }, cfg, now);
+    expect(bad).toMatchObject({ kind: 'exchange' });
+    expect(bad).not.toHaveProperty('app');
+    expect(bad).not.toHaveProperty('clientId');
+    const odd = callbackStep(q({ code: 'abc123def456', state }), here, { ...asked, app: 'admin' as unknown as 'direct' }, cfg, now);
+    expect(odd).not.toHaveProperty('app');
   });
 
   it('forwards a preview sign-in to the preview, with the code and state only', () => {
@@ -306,5 +340,31 @@ describe('token slots per app', () => {
   it('never prompts for a sign-in on a site without a GitHub App', () => {
     expect(planSlots({ direct: signIn('Iv23liDirect') }, '', null)).toEqual({ move: null, clear: ['direct'], switched: false });
     expect(planSlots({ suggest: pasted }, '', null)).toEqual({ move: 'suggest', clear: [], switched: false });
+  });
+});
+
+describe('code writes that need Bridge Direct on a team page', () => {
+  const api = 'https://api.github.com';
+  it('sends branches, saves, merges, reviews and ready for review with Bridge Direct', () => {
+    expect(needsDirectApp('POST', `${api}/repos/acme/ds/git/refs`)).toBe(true);
+    expect(needsDirectApp('PATCH', `${api}/repos/acme/ds/git/refs/heads/bridge/x`)).toBe(true);
+    expect(needsDirectApp('PUT', `${api}/repos/acme/ds/contents/tokens/a.json`)).toBe(true);
+    expect(needsDirectApp('PUT', `${api}/repos/acme/ds/pulls/3/merge`)).toBe(true);
+    expect(needsDirectApp('POST', `${api}/repos/acme/ds/pulls/3/reviews`)).toBe(true);
+    expect(needsDirectApp('POST', `${api}/repos/acme/ds/merges`)).toBe(true);
+    expect(needsDirectApp('POST', `${api}/graphql`)).toBe(true);
+    expect(needsDirectApp('post', '/repos/acme/ds/pulls')).toBe(true);
+  });
+
+  it('keeps reads, suggestions and comments on Bridge', () => {
+    expect(needsDirectApp('GET', `${api}/repos/acme/ds/git/refs`)).toBe(false);
+    expect(needsDirectApp(undefined, `${api}/repos/acme/ds/pulls`)).toBe(false);
+    expect(needsDirectApp('HEAD', `${api}/repos/acme/ds`)).toBe(false);
+    expect(needsDirectApp('POST', `${api}/repos/acme/ds/issues`)).toBe(false);
+    expect(needsDirectApp('POST', `${api}/repos/acme/ds/issues/4/comments`)).toBe(false);
+    expect(needsDirectApp('PATCH', `${api}/repos/acme/ds/issues/comments/9`)).toBe(false);
+    expect(needsDirectApp('POST', `${api}/repos/acme/ds/issues/4/labels`)).toBe(false);
+    expect(needsDirectApp('POST', '/api/github/token')).toBe(false);
+    expect(needsDirectApp('PATCH', `${api}/user`)).toBe(false);
   });
 });

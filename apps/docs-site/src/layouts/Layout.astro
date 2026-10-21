@@ -88,7 +88,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
 ---
 
 <!doctype html>
-<html lang="en" data-hosted={hosted ? '' : undefined} data-shell={shell} data-theme="light" data-brand="bridge" data-density="comfortable" data-space={space} data-gh-app={signInConfig()?.app ?? ''} data-brands={[DEFAULT_BRAND, ...BRANDS.filter((b) => b !== DEFAULT_BRAND)].join(' ')}>
+<html lang="en" data-hosted={hosted ? '' : undefined} data-shell={shell} data-theme="light" data-brand="bridge" data-density="comfortable" data-space={space} data-gh-app={signInConfig(hosted)?.app ?? ''} data-brands={[DEFAULT_BRAND, ...BRANDS.filter((b) => b !== DEFAULT_BRAND)].join(' ')}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -349,7 +349,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
       </p>
     </ScriptDialog>
 
-    {isStudio && <GitHubDialog />}
+    {isStudio && <GitHubDialog hosted={hosted} />}
     <p class="sr-only" role="status" aria-live="polite" id="live"></p>
     {/* A team shell carries no repository of its own: scripts/repo-context.ts reads the team from the address. */}
     <script type="application/json" id="bridge-repo" set:html={hosted ? '{}' : siteRepoJson()} />

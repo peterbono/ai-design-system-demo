@@ -44,6 +44,30 @@ export interface SignInConfig {
   productionOrigin: string | null;
   /** Preview origin pattern with {branch} (bridge.config.json previews.apps.docs). Null: no previews. */
   previewPattern: string | null;
+  /**
+   * Team pages only (multi-team plan 3.2, PR 3d), when both apps are set up: Bridge Direct, asked for once when a
+   * team in direct mode starts writing code. Its token lives in its own slot ('direct'). Absent on the self-hosted
+   * site, which signs in with the app its mode needs up front.
+   */
+  direct?: DirectApp;
+}
+
+/** Bridge Direct as a team page asks for it: its client ID (public) and the slug of its GitHub page. */
+export interface DirectApp {
+  clientId: string;
+  /** github.com/apps/<slug>: where an admin installs it on the team's repository. */
+  slug: string;
+}
+
+/** Bridge Direct's slug on GitHub when GITHUB_APP_DIRECT_SLUG is not set. */
+export const DIRECT_APP_SLUG = 'bridge-direct';
+
+/** The env vars Sign in with GitHub reads at build time. */
+export interface SignInEnv {
+  GITHUB_APP_CLIENT_ID?: string | undefined;
+  GITHUB_APP_SUGGEST_CLIENT_ID?: string | undefined;
+  /** Bridge Direct's slug (github.com/apps/<slug>), for the install link on team pages. */
+  GITHUB_APP_DIRECT_SLUG?: string | undefined;
 }
 
 const trimSlash = (s: string) => s.replace(/\/+$/, '');
@@ -61,7 +85,7 @@ const validId = (id: string | undefined) => {
  * suggest app keeps signing in as before).
  */
 export function pickSignInApp(
-  env: { GITHUB_APP_CLIENT_ID?: string | undefined; GITHUB_APP_SUGGEST_CLIENT_ID?: string | undefined },
+  env: SignInEnv,
   changes?: string | null,
   need: 'identity' | 'write' = 'identity',
 ): { clientId: string; app: SignInApp } | null {
@@ -75,25 +99,50 @@ export function pickSignInApp(
 
 /**
  * The config from build-time env vars and bridge.config.json (previews, changes). Null without a client ID.
- * `changes` is bridge.config.json "changes" ("suggest" when absent).
+ * `changes` is bridge.config.json "changes" ("suggest" when absent). `hosted`: a team page, whose repository and mode
+ * are only known in the browser.
  */
 export function signInConfigFrom(
-  env: { GITHUB_APP_CLIENT_ID?: string | undefined; GITHUB_APP_SUGGEST_CLIENT_ID?: string | undefined },
+  env: SignInEnv,
   previews?: { apps?: { docs?: string }; production?: { docs?: string } } | null,
   changes?: string | null,
+  opts: { hosted?: boolean } = {},
 ): SignInConfig | null {
   // The self-hosted site has one repository and signs in once: in direct mode its Studio writes code, so it asks for
-  // Bridge Direct up front, as before. Team shells sign in for identity and ask for Direct on demand (plan 3.2).
-  const picked = pickSignInApp(env, changes, 'write');
+  // Bridge Direct up front, as before. Team pages sign in for identity with Bridge and ask for Bridge Direct the first
+  // time a team in direct mode writes code (plan 3.2).
+  const picked = opts.hosted ? pickSignInApp(env) : pickSignInApp(env, changes, 'write');
   if (!picked) return null;
   const prod = previews?.production?.docs?.trim();
   const preview = previews?.apps?.docs?.trim();
+  const directId = validId(env.GITHUB_APP_CLIENT_ID);
+  const slug = env.GITHUB_APP_DIRECT_SLUG?.trim();
   return {
     ...picked,
     suggestApp: pickSignInApp(env)!.app,
     productionOrigin: prod && /^https:\/\/[^/]+\/?$/.test(prod) ? trimSlash(prod) : null,
     previewPattern: preview && preview.includes('{branch}') && preview.startsWith('https://') ? trimSlash(preview) : null,
+    ...(opts.hosted && picked.app === 'suggest' && directId ? { direct: { clientId: directId, slug: slug && /^[a-z0-9-]{1,100}$/.test(slug) ? slug : DIRECT_APP_SLUG } } : {}),
   };
+}
+
+/**
+ * True for a call that changes code: branches, files, merges, reviews, ready for review (GraphQL mutations). On a
+ * team page in direct mode it goes out with Bridge Direct. Reads, and issues with their comments and labels (which
+ * Bridge itself may write), stay on the sign-in app.
+ */
+export function needsDirectApp(method: string | undefined, url: string): boolean {
+  const m = (method ?? 'GET').toUpperCase();
+  if (m === 'GET' || m === 'HEAD' || m === 'OPTIONS') return false;
+  let path: string;
+  try {
+    path = new URL(url, 'https://api.github.com').pathname;
+  } catch {
+    return false;
+  }
+  if (path === '/graphql') return true;
+  if (!/^\/repos\/[^/]+\/[^/]+\//.test(path)) return false;
+  return !/^\/repos\/[^/]+\/[^/]+\/issues(\/|$)/.test(path);
 }
 
 /** Base64url without padding (RFC 4648 section 5). */
@@ -195,6 +244,9 @@ export interface PendingSignIn {
   returnTo: string;
   /** Epoch ms when it started. */
   at: number;
+  /** The app this sign-in asks for, and its client ID: the token goes to that app's slot. Absent: the page's app. */
+  app?: SignInApp;
+  clientId?: string;
 }
 
 /** The plain sentences of the sign-in. Each one says how to fix it. */
@@ -217,7 +269,7 @@ export const SIGNIN_TEXT = {
 
 export type CallbackStep =
   | { kind: 'relay'; url: string }
-  | { kind: 'exchange'; code: string; verifier: string; redirectUri: string; returnTo: string }
+  | { kind: 'exchange'; code: string; verifier: string; redirectUri: string; returnTo: string; app?: SignInApp; clientId?: string }
   | { kind: 'error'; message: string; returnTo: string };
 
 /**
@@ -245,7 +297,9 @@ export function callbackStep(params: URLSearchParams, here: string, pending: Pen
   if (error) return { kind: 'error', message: SIGNIN_TEXT.failed, returnTo };
   const code = params.get('code');
   if (!code) return { kind: 'error', message: SIGNIN_TEXT.noCode, returnTo };
-  return { kind: 'exchange', code, verifier: pending.verifier, redirectUri: pending.redirectUri, returnTo };
+  // The app this tab asked for (Bridge Direct on a team page): only a well-formed pair, else the page's own app.
+  const asked = (pending.app === 'suggest' || pending.app === 'direct') && validId(pending.clientId) ? { app: pending.app, clientId: validId(pending.clientId)! } : {};
+  return { kind: 'exchange', code, verifier: pending.verifier, redirectUri: pending.redirectUri, returnTo, ...asked };
 }
 
 /** The token function's answer (GitHub's fields, nothing else). */

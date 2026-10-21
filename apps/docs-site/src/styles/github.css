@@ -158,3 +158,19 @@
   display: none;
 }
 
+/* The "Allow Bridge to save to branches" dialog of team pages (components/GitHubDialog.astro): what the OK allows, as a
+   short muted list under a small heading, then the one limit in muted text. */
+.gh-direct-can {
+  display: grid;
+  gap: var(--space-1-5);
+}
+
+.gh-dialog-body .gh-direct-can-title {
+  font-weight: var(--font-weight-medium);
+}
+
+.gh-dialog-body .gh-direct-limit {
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+}
+
