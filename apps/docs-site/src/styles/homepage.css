@@ -1235,8 +1235,8 @@ a.hp-demo {
   height: calc(var(--_u) * 13);
 }
 
-/* Start 2 and 3: the sieve (Field Guide). Known pieces fall through Bridge, the new one stays; then Dana and Leo
-   tick it off. Same 5.2 s loop for every moving part, delays in units of the slow duration. */
+/* Start 2 and 3 (Field Guide): the sieve, then Dana and Leo tick the kept piece off (5.2 s loop, delays in units of
+   the slow duration). */
 .hp-k4fg {
   display: block;
   width: min(calc(var(--size-96) + var(--size-14)), 100%);
@@ -1275,18 +1275,6 @@ a.hp-demo {
   font-weight: var(--font-weight-semibold);
 }
 
-.hp-ui.hp-on .hp-k4fa {
-  animation: hp-k4fall calc(var(--motion-duration-moderate) * 26) var(--motion-easing-standard) infinite backwards;
-}
-
-.hp-ui.hp-on .hp-k4ca {
-  animation: hp-k4catch calc(var(--motion-duration-moderate) * 26) var(--motion-easing-standard) infinite backwards;
-}
-
-.hp-ui.hp-on .hp-k4tn {
-  animation: hp-k4tint calc(var(--motion-duration-moderate) * 26) var(--motion-easing-standard) infinite backwards;
-}
-
 .hp-ui.hp-on .hp-k4ri {
   animation: hp-k4rise calc(var(--motion-duration-moderate) * 26) var(--motion-easing-standard) infinite backwards;
 }
@@ -1303,59 +1291,6 @@ a.hp-demo {
 
 .hp-ui.hp-on .hp-k4d2 {
   animation-delay: calc(var(--motion-duration-slow) * 2.3333);
-}
-
-@keyframes hp-k4fall {
-  0% {
-    opacity: 0;
-    transform: translateY(calc(var(--_u) * -320));
-  }
-
-  12% {
-    opacity: 1;
-  }
-
-  46%,
-  100% {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes hp-k4catch {
-  0% {
-    opacity: 0;
-    transform: translateY(calc(var(--_u) * -150));
-  }
-
-  30% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-
-  35% {
-    transform: translateY(calc(var(--space-2) * -1));
-  }
-
-  40%,
-  100% {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes hp-k4tint {
-  0%,
-  40% {
-    fill: var(--_page);
-    stroke: var(--color-text-default);
-  }
-
-  50%,
-  100% {
-    fill: var(--color-bg-zone);
-    stroke: var(--_deep);
-  }
 }
 
 @keyframes hp-k4tick {
@@ -1383,6 +1318,486 @@ a.hp-demo {
   100% {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* Start 2: the sieve (hp-k4sv). Your exploration pours its pieces into Bridge; the known ones slip through to your
+   library, the new one stays. One 6 s loop while the step is shown; without motion, the drawing is its end state. */
+.hp-k4sv .hp-k4src {
+  transform-box: fill-box;
+  transform-origin: 100% 100%;
+}
+
+.hp-k4sv .hp-k4shake {
+  transform-box: fill-box;
+  transform-origin: 50% 30%;
+}
+
+.hp-k4sv .hp-k4p1,
+.hp-k4sv .hp-k4p2,
+.hp-k4sv .hp-k4p3,
+.hp-k4sv .hp-k4new,
+.hp-k4sv .hp-k4t1,
+.hp-k4sv .hp-k4t2,
+.hp-k4sv .hp-k4t3,
+.hp-k4sv .hp-k4dot {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.hp-k4sv .hp-k4pour {
+  opacity: 0;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4src {
+  animation: hp-k4src calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4pour {
+  animation: hp-k4pour calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4p1 {
+  animation: hp-k4p1 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4p2 {
+  animation: hp-k4p2 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4p3 {
+  animation: hp-k4p3 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4new {
+  animation: hp-k4new calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4shake {
+  animation: hp-k4shake calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4sift {
+  animation: hp-k4sift calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4tint {
+  animation: hp-k4tint calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4t1 {
+  animation: hp-k4t1 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4t2 {
+  animation: hp-k4t2 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4t3 {
+  animation: hp-k4t3 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4lead {
+  animation: hp-k4lead calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4dot {
+  animation: hp-k4dot calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4lbl {
+  animation: hp-k4lbl calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+@keyframes hp-k4src {
+  0% {
+    transform: rotate(-8deg);
+  }
+
+  5.00% {
+    transform: none;
+  }
+
+  25.00% {
+    transform: none;
+    animation-timing-function: var(--motion-easing-enter);
+  }
+
+  31.67%,
+  100% {
+    transform: rotate(-8deg);
+  }
+}
+
+@keyframes hp-k4pour {
+  0%,
+  4.17% {
+    opacity: 0;
+  }
+
+  7.50%,
+  24.17% {
+    opacity: 1;
+  }
+
+  28.33%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes hp-k4p1 {
+  0%,
+  10.83% {
+    opacity: 0;
+    transform: translate(calc(var(--_u) * 58), calc(var(--_u) * -270)) scale(0.55);
+  }
+
+  12.83% {
+    opacity: 1;
+    animation-timing-function: var(--motion-easing-enter);
+  }
+
+  17.83% {
+    transform: translate(calc(var(--_u) * -22), calc(var(--_u) * -168)) scale(1);
+  }
+
+  40.83% {
+    opacity: 1;
+    transform: translate(calc(var(--_u) * -22), calc(var(--_u) * -168));
+    animation-timing-function: var(--motion-easing-exit);
+  }
+
+  45.83% {
+    transform: translate(0, calc(var(--_u) * -10));
+    animation-timing-function: var(--motion-easing-enter);
+  }
+
+  49.17%,
+  96.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-k4p2 {
+  0%,
+  14.17% {
+    opacity: 0;
+    transform: translate(calc(var(--_u) * -14), calc(var(--_u) * -272)) scale(0.55);
+  }
+
+  16.17% {
+    opacity: 1;
+    animation-timing-function: var(--motion-easing-enter);
+  }
+
+  21.17% {
+    transform: translate(calc(var(--_u) * -42), calc(var(--_u) * -172)) scale(1);
+  }
+
+  43.33% {
+    opacity: 1;
+    transform: translate(calc(var(--_u) * -42), calc(var(--_u) * -172));
+    animation-timing-function: var(--motion-easing-exit);
+  }
+
+  48.33% {
+    transform: translate(0, calc(var(--_u) * -10));
+    animation-timing-function: var(--motion-easing-enter);
+  }
+
+  51.67%,
+  96.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-k4p3 {
+  0%,
+  17.50% {
+    opacity: 0;
+    transform: translate(calc(var(--_u) * -86), calc(var(--_u) * -277)) scale(0.55);
+  }
+
+  19.50% {
+    opacity: 1;
+    animation-timing-function: var(--motion-easing-enter);
+  }
+
+  24.50% {
+    transform: translate(calc(var(--_u) * 20), calc(var(--_u) * -171)) scale(1);
+  }
+
+  45.83% {
+    opacity: 1;
+    transform: translate(calc(var(--_u) * 20), calc(var(--_u) * -171));
+    animation-timing-function: var(--motion-easing-exit);
+  }
+
+  50.83% {
+    transform: translate(0, calc(var(--_u) * -10));
+    animation-timing-function: var(--motion-easing-enter);
+  }
+
+  54.17%,
+  96.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-k4new {
+  0%,
+  4.17% {
+    opacity: 0;
+    transform: translate(calc(var(--_u) * -30), calc(var(--_u) * -90)) scale(0.55);
+  }
+
+  6.17% {
+    opacity: 1;
+    animation-timing-function: var(--motion-easing-exit);
+  }
+
+  11.67% {
+    transform: none;
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  14.17% {
+    transform: translateY(calc(var(--_u) * -7));
+    animation-timing-function: var(--motion-easing-exit);
+  }
+
+  16.67% {
+    transform: none;
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  18.33% {
+    transform: translateY(calc(var(--_u) * -2));
+    animation-timing-function: var(--motion-easing-exit);
+  }
+
+  20.00%,
+  96.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-k4shake {
+  0%,
+  30.00% {
+    transform: none;
+  }
+
+  31.67% {
+    transform: translateX(calc(var(--_u) * 6)) rotate(1.2deg);
+  }
+
+  33.33% {
+    transform: translateX(calc(var(--_u) * -5)) rotate(-1deg);
+  }
+
+  35.00% {
+    transform: translateX(calc(var(--_u) * 3.5)) rotate(0.7deg);
+  }
+
+  36.67% {
+    transform: translateX(calc(var(--_u) * -2)) rotate(-0.4deg);
+  }
+
+  38.33% {
+    transform: translateX(calc(var(--_u) * 1));
+  }
+
+  40.00%,
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes hp-k4sift {
+  0%,
+  30.83% {
+    opacity: 0;
+    transform: none;
+  }
+
+  33.33% {
+    opacity: 0.6;
+  }
+
+  40.83% {
+    opacity: 0;
+    transform: translateY(calc(var(--_u) * 14));
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(calc(var(--_u) * 14));
+  }
+}
+
+@keyframes hp-k4tint {
+  0%,
+  58.33% {
+    fill: var(--_page);
+    stroke: var(--color-text-default);
+  }
+
+  63.33%,
+  100% {
+    fill: var(--color-bg-zone);
+    stroke: var(--_deep);
+  }
+}
+
+@keyframes hp-k4t1 {
+  0%,
+  49.17% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+
+  51.67% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+
+  54.17%,
+  96.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-k4t2 {
+  0%,
+  51.67% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+
+  54.17% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+
+  56.67%,
+  96.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-k4t3 {
+  0%,
+  54.17% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+
+  56.67% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+
+  59.17%,
+  96.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-k4lead {
+  0%,
+  61.67% {
+    stroke-dashoffset: 1;
+  }
+
+  66.67%,
+  96.00% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+
+@keyframes hp-k4dot {
+  0%,
+  60.00% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+
+  63.33%,
+  96.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes hp-k4lbl {
+  0%,
+  64.17% {
+    opacity: 0;
+    transform: translateX(calc(var(--_u) * -6));
+  }
+
+  69.17%,
+  96.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
   }
 }
 
@@ -2410,6 +2825,49 @@ button.hp-qrow {
   }
 }
 
+/* ---------- questions teams ask ---------- */
+.hp-faq {
+  padding-top: var(--space-20);
+}
+
+.hp-faqgrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.hp-faqh {
+  --_size: clamp(calc(var(--font-size-700) - var(--space-0-5)), 3.6vw, calc(var(--font-size-900) + var(--space-0-5)));
+
+  margin: 0;
+  font-family: var(--typography-display-family);
+  font-size: var(--_size);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--font-tracking-tight);
+  line-height: var(--font-line-height-tight);
+  font-variation-settings: "SOFT" 100;
+  text-wrap: wrap;
+}
+
+.hp-faq-answer {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-300);
+  line-height: var(--font-leading-26);
+}
+
+@media (min-width: 900px) {
+  .hp-faq {
+    padding-top: calc(var(--space-24) + var(--space-4));
+  }
+
+  .hp-faqgrid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: var(--space-16);
+  }
+}
+
 /* ---------- closing: Horizon ---------- */
 .hp-closing {
   padding-top: calc(var(--space-24) + var(--space-4));
@@ -2666,7 +3124,8 @@ a.hp-connect {
   .hp-ui.hp-on .hp-pick,
   .hp-ui.hp-on .hp-ring,
   .hp-ui.hp-on .hp-qbar i,
-  .hp-ui.hp-on .hp-k4an {
+  .hp-ui.hp-on .hp-k4an,
+  .hp-ui.hp-on .hp-k4sv .hp-k4an {
     animation: none;
   }
 

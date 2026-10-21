@@ -56,6 +56,27 @@ export function panoramaFit(width: number): { x: number; scale: number; height: 
   return { x: (width - 1440 * scale) / 2, scale, height: 292 * scale + 40 };
 }
 
+/** "Questions teams ask.": only what is true today. */
+export const FAQ: { id: string; question: string; answer: string }[] = [
+  {
+    id: 'code-connect',
+    question: 'We already use Figma Code Connect. Why Bridge?',
+    answer: 'Code Connect links Figma components to code that already exists. Bridge brings what your explorations create into the design system, reviewed in the product, then the code and your Figma kit follow.',
+  },
+  { id: 'git', question: 'Do I need to know Git?', answer: 'No. Studio speaks Figma words: branch, review, merge. Claude AI and your developers handle the rest.' },
+  {
+    id: 'developers',
+    question: 'Do our developers have to change how they work?',
+    answer: 'No. They keep GitHub, their editor and their tools. Changes from Bridge reach them as regular pull requests, with the checks already run.',
+  },
+  {
+    id: 'existing',
+    question: 'Does it work with our existing design system?',
+    answer: 'Bridge reads a design system that lives in code on GitHub, with DTCG tokens. Run npx @bridge-ds/cli init in your repo to set it up.',
+  },
+  { id: 'open-source', question: 'Is Bridge open source?', answer: 'Yes. MIT licensed and free. The code is on GitHub and contributions are welcome.' },
+];
+
 export interface QueueItem {
   id: string;
   title: string;

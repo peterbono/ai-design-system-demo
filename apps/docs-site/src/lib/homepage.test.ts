@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ROOT } from './repo';
-import { QUEUE, STEP_MS, approveInQueue, fitScale, heroKeyTarget, heroSnap, heroValueText, panoramaFit, stepForKey, stepTick, undoInQueue } from './homepage';
+import { FAQ, QUEUE, STEP_MS, approveInQueue, fitScale, heroKeyTarget, heroSnap, heroValueText, panoramaFit, stepForKey, stepTick, undoInQueue } from './homepage';
 
 describe('hero bridge', () => {
   it('says where the bridge is', () => {
@@ -80,6 +80,21 @@ describe('review queue', () => {
   });
 });
 
+describe('questions teams ask', () => {
+  it('asks five questions, promises nothing planned, no em dash', () => {
+    expect(FAQ.map((f) => f.question)).toEqual([
+      'We already use Figma Code Connect. Why Bridge?',
+      'Do I need to know Git?',
+      'Do our developers have to change how they work?',
+      'Does it work with our existing design system?',
+      'Is Bridge open source?',
+    ]);
+    const all = JSON.stringify(FAQ);
+    expect(all).not.toMatch(/planned|coming soon|\u2014/i);
+    expect(all).toContain('npx @bridge-ds/cli init');
+  });
+});
+
 describe('homepage sections', () => {
   const page = readFileSync(join(ROOT, 'apps/docs-site/src/pages/index.astro'), 'utf8');
   const footer = readFileSync(join(ROOT, 'apps/docs-site/src/components/site/SiteFooter.astro'), 'utf8');
@@ -104,6 +119,12 @@ describe('homepage sections', () => {
       expect(src).not.toMatch(/hp-obtn|<Button|<button/);
       expect(src).not.toMatch(/#[0-9a-f]{6}/i);
     }
+  });
+
+  it('puts the questions right before the closing', () => {
+    const faq = page.indexOf('<HpFaq client:visible');
+    expect(faq).toBeGreaterThan(page.indexOf('data-queue') === -1 ? page.indexOf('<HpQueue') : page.indexOf('data-queue'));
+    expect(faq).toBeLessThan(page.indexOf('class="hp-closing"'));
   });
 
   it('keeps the footer About column to About Bridge and GitHub', () => {
