@@ -141,12 +141,6 @@
 }
 
 /* ---------- hero ---------- */
-@property --hp-x {
-  syntax: "<percentage>";
-  inherits: true;
-  initial-value: 50%;
-}
-
 .hp-hero {
   position: relative;
   z-index: 1;
@@ -155,7 +149,7 @@
   gap: var(--space-6);
   align-items: center;
   padding-top: var(--space-10);
-  padding-bottom: calc(var(--space-24) + var(--space-3) + var(--space-0-5));
+  padding-bottom: var(--space-16);
 }
 
 .hp-hero-text {
@@ -247,384 +241,27 @@
   line-height: var(--font-line-height-normal);
 }
 
+/* The drawing (components/home/HpHeroScene.astro): under the text on phones and tablets, full width up to its
+   drawn size (680, size.160 + space.10); beside the text from 900 px, centred on it. */
 .hp-hero-vis {
   position: relative;
   width: 100%;
-  max-width: calc(var(--size-140) - var(--space-5));
+  max-width: calc(var(--size-160) + var(--space-10));
   margin-inline: auto;
-  padding-top: var(--space-10);
-}
-
-.hp-fit {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 540 / 340;
-}
-
-.hp-stage {
-  --hp-x: 50%;
-
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: calc(var(--_u) * 540);
-  height: calc(var(--_u) * 340);
-  transform: scale(var(--hp-s, 1));
-  transform-origin: 0 0;
-}
-
-.hp-stage.hp-hint {
-  animation: hp-hint calc(var(--motion-duration-moderate) * 42.5) var(--motion-easing-linear) infinite;
-}
-
-.hp-stage.hp-hint:hover {
-  animation-play-state: paused;
-}
-
-.hp-stage.hp-snap {
-  transition: --hp-x var(--motion-duration-slow) var(--motion-easing-enter);
-}
-
-@keyframes hp-hint {
-  0% {
-    --hp-x: 50%;
-  }
-
-  14.12% {
-    --hp-x: 50%;
-    animation-timing-function: var(--motion-easing-standard);
-  }
-
-  21.18% {
-    --hp-x: 62%;
-    animation-timing-function: var(--motion-easing-standard);
-  }
-
-  35.29% {
-    --hp-x: 38%;
-    animation-timing-function: var(--motion-easing-standard);
-  }
-
-  42.35% {
-    --hp-x: 50%;
-    animation-timing-function: var(--motion-easing-standard);
-  }
-
-  49.41% {
-    --hp-x: 62%;
-    animation-timing-function: var(--motion-easing-standard);
-  }
-
-  63.53% {
-    --hp-x: 38%;
-    animation-timing-function: var(--motion-easing-standard);
-  }
-
-  70.59% {
-    --hp-x: 50%;
-  }
-
-  100% {
-    --hp-x: 50%;
-  }
-}
-
-.hp-skl {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  clip-path: inset(calc(var(--_u) * -60) calc(100% - var(--hp-x)) calc(var(--_u) * -60) calc(var(--_u) * -60));
-}
-
-.hp-skl,
-.hp-skl * {
-  fill: transparent;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.hp-crr {
-  position: absolute;
-  inset: 0;
-  clip-path: inset(calc(var(--_u) * -60) calc(var(--_u) * -60) calc(var(--_u) * -60) var(--hp-x));
-}
-
-.hp-ghost {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.hp-ph.hp-stage-card {
-  position: absolute;
-  left: calc(var(--_u) * 166);
-  top: calc(var(--_u) * 42);
-}
-
-.hp-hsel {
-  position: absolute;
-  left: calc(var(--_u) * 160);
-  top: calc(var(--_u) * 36);
-  width: calc(var(--_u) * 220);
-  height: calc(var(--_u) * 100);
-  border: calc(var(--_u) * 1.5) solid var(--_deep);
-  border-radius: calc(var(--_u) * 18);
-}
-
-.hp-hh {
-  position: absolute;
-  left: calc(var(--_u) * var(--l));
-  top: calc(var(--_u) * var(--t));
-  width: calc(var(--_u) * 7);
-  height: calc(var(--_u) * 7);
-  border: calc(var(--_u) * 1.5) solid var(--_deep);
-  background-color: var(--_page);
-}
-
-.hp-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  height: var(--size-5);
-  padding: 0 var(--space-1-5);
-  border-radius: var(--radius-md);
-  background-color: var(--_deep);
-  color: var(--_on-deep);
-  font-size: var(--font-size-100);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--font-leading-20);
-  white-space: nowrap;
-}
-
-.hp-tag svg {
-  width: calc(var(--_u) * 10);
-  height: calc(var(--_u) * 10);
-}
-
-.hp-htag {
-  position: absolute;
-  left: calc(var(--_u) * 160);
-  top: calc(var(--_u) * 10);
-}
-
-.hp-hlib {
-  position: absolute;
-  left: calc(var(--_u) * 404);
-  top: calc(var(--_u) * 78);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-100);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--font-leading-16);
-}
-
-.hp-hlib svg {
-  width: var(--size-3);
-  height: var(--size-3);
-}
-
-.hp-stamp {
-  position: absolute;
-  left: calc(var(--_u) * 318);
-  top: var(--space-4);
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  height: calc(var(--space-7) + var(--space-0-5));
-  padding: 0 var(--space-3) 0 calc(var(--space-2) + var(--space-1));
-  border-radius: var(--radius-pill);
-  background-color: var(--_deep);
-  color: var(--_on-deep);
-  font-size: var(--font-size-300);
-  font-weight: var(--font-weight-semibold);
-  box-shadow: var(--elevation-overlay);
-  opacity: 0;
-  transform: rotate(-6deg) scale(0.96);
-  transition:
-    opacity var(--motion-duration-fast) var(--motion-easing-exit),
-    transform var(--motion-duration-fast) var(--motion-easing-exit);
-  pointer-events: none;
-}
-
-.hp-stamp svg {
-  width: calc(var(--_u) * 15);
-  height: calc(var(--_u) * 15);
-}
-
-.hp-stage.hp-kept .hp-stamp {
-  opacity: 1;
-  transform: rotate(-6deg) scale(1);
-  transition:
-    opacity var(--motion-duration-slow) var(--motion-easing-enter),
-    transform var(--motion-duration-slow) var(--motion-easing-enter);
-}
-
-.hp-handle {
-  position: absolute;
-  top: calc(var(--_u) * -36);
-  bottom: calc(var(--_u) * -36);
-  left: var(--hp-x);
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: var(--size-11);
-  margin-left: calc(var(--size-11) / -2);
-  pointer-events: none;
-}
-
-.hp-ln {
-  flex: 1;
-  width: var(--border-width-2);
-  background-color: var(--_deep);
-}
-
-.hp-kn {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: var(--size-11);
-  height: var(--size-11);
-  border: var(--border-width-2) solid var(--_deep);
-  border-radius: var(--radius-pill);
-  background-color: var(--_page);
-  color: var(--_deep);
-  transition:
-    background-color var(--motion-duration-instant) var(--motion-easing-standard),
-    color var(--motion-duration-instant) var(--motion-easing-standard),
-    transform var(--motion-duration-fast) var(--motion-easing-standard);
-}
-
-.hp-kn svg {
-  width: var(--size-5);
-  height: var(--size-5);
-  fill: transparent;
-  stroke: currentcolor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-@media (hover: hover) {
-  .hp-stage:hover .hp-kn {
-    background-color: var(--color-bg-zone);
-  }
-}
-
-.hp-stage.hp-drag .hp-kn {
-  background-color: var(--_deep);
-  color: var(--_on-deep);
-  transform: scale(1.08);
-}
-
-.hp-stage:has(.hp-rng:focus-visible) .hp-kn {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--space-1);
-}
-
-.hp-rng {
-  position: absolute;
-  z-index: 1;
-  left: calc(var(--size-11) / -2);
-  top: calc(var(--_u) * -36);
-  width: calc(100% + var(--size-11));
-  height: calc(100% + var(--_u) * 72);
-  margin: 0;
-  background: transparent;
-  opacity: 0;
-  cursor: ew-resize;
-  appearance: none;
-  touch-action: none;
-}
-
-.hp-rng::-webkit-slider-runnable-track {
-  height: 100%;
-}
-
-.hp-rng::-webkit-slider-thumb {
-  width: var(--size-11);
-  height: calc(var(--size-96) + var(--space-4));
-  cursor: ew-resize;
-  appearance: none;
-}
-
-.hp-rng::-moz-range-thumb {
-  width: var(--size-11);
-  height: calc(var(--size-96) + var(--space-4));
-  border: 0;
-  cursor: ew-resize;
-}
-
-.hp-hcap {
-  min-height: var(--size-6);
-  margin: calc(var(--space-10) + var(--space-1)) 0 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-300);
-  font-weight: var(--font-weight-medium);
-  line-height: var(--font-leading-26);
-  text-align: center;
-}
-
-.hp-k {
-  display: none;
-  color: var(--color-text-link);
-  font-weight: var(--font-weight-semibold);
-}
-
-.hp-hero.hp-kept .hp-k {
-  display: inline;
-}
-
-.hp-hero.hp-kept .hp-d {
-  display: none;
-}
-
-.hp-kline {
-  position: absolute;
-  z-index: 1;
-  width: var(--border-width-2);
-  margin-left: calc(var(--border-width-1) * -1);
-  background-color: var(--_deep);
-  clip-path: inset(0 calc(var(--space-3) * -1) 100% calc(var(--space-3) * -1));
-  transition: clip-path var(--motion-duration-fast) var(--motion-easing-exit);
-  pointer-events: none;
-}
-
-.hp-kline::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: calc(var(--space-1-5) * -1);
-  width: var(--size-3);
-  height: var(--size-3);
-  margin-left: calc(var(--space-1-5) * -1);
-  border-radius: var(--radius-pill);
-  background-color: var(--_deep);
-  box-shadow: 0 0 0 var(--border-width-3) var(--color-bg-zone);
-}
-
-.hp-hero.hp-kept .hp-kline {
-  clip-path: inset(0 calc(var(--space-3) * -1) calc(var(--space-3) * -1) calc(var(--space-3) * -1));
-  transition: clip-path var(--motion-duration-slow) var(--motion-easing-enter);
+  padding-top: var(--space-6);
 }
 
 @media (min-width: 900px) {
   .hp-hero {
-    grid-template-columns: minmax(0, 1fr) minmax(0, min(calc(var(--size-140) - var(--space-5)), 44%));
-    gap: var(--space-16);
+    grid-template-columns: minmax(0, 1fr) minmax(0, min(calc(var(--size-160) + var(--space-10)), 52%));
+    gap: var(--space-10);
     padding-top: calc(var(--space-20) + var(--space-2));
-    padding-bottom: calc(var(--space-24) + var(--space-8) + var(--space-1));
+    padding-bottom: var(--space-24);
   }
 
   .hp-h1 {
-    --_size: min(calc(var(--font-size-1000) - var(--space-1)), 9.8cqi);
+    /* The longest line ("in your design system.") is about 9.8 em at these sizes: it fills the text column. */
+    --_size: min(calc(var(--font-size-1000) - var(--space-1)), 9.9cqi);
 
     line-height: var(--font-line-height-none);
   }
@@ -640,10 +277,14 @@
 
   .hp-hero-vis {
     margin-inline: 0;
+    padding-top: 0;
   }
+}
 
-  .hp-hcap {
-    margin-top: var(--space-12);
+/* Wide screens: the headline stays big beside the 680 px drawing (about 57 px at 1440). */
+@media (min-width: 1200px) {
+  .hp-h1 {
+    --_size: min(calc(var(--font-size-1000) - var(--space-1)), 10.2cqi);
   }
 }
 
@@ -956,24 +597,7 @@
   background-color: var(--_paper);
 }
 
-/* The profile header: one drawing reused everywhere. */
-.hp-ph {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: calc(var(--space-3) + var(--space-0-5));
-  border-radius: var(--radius-lg);
-  background-color: var(--_paper);
-  color: var(--color-text-default);
-  text-align: left;
-}
-
-.hp-ph .hp-av {
-  width: var(--size-11);
-  height: var(--size-11);
-}
-
+/* A person's name and role (the closing card). */
 .hp-pt {
   display: flex;
   flex-direction: column;
@@ -993,29 +617,6 @@
   font-size: var(--font-size-200);
   line-height: var(--font-leading-20);
   white-space: nowrap;
-}
-
-.hp-fol {
-  display: inline-flex;
-  align-items: center;
-  height: calc(var(--size-6) + var(--space-0-5));
-  margin-top: var(--space-1-5);
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-md);
-  background-color: var(--_deep);
-  color: var(--_on-deep);
-  font-size: var(--font-size-200);
-  font-weight: var(--font-weight-medium);
-}
-
-.hp-ph-card {
-  box-sizing: border-box;
-  width: calc(var(--_u) * 208);
-  height: calc(var(--_u) * 88);
-  padding: 0 var(--space-4);
-  border: var(--border-width-default) solid var(--_line);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--elevation-raised);
 }
 
 /* A panel's drawing, centred in its column. */
@@ -2121,7 +1722,6 @@ a.hp-connect {
 
 /* ---------- reduced motion: everything rests ---------- */
 @media (prefers-reduced-motion: reduce) {
-  .hp-stage.hp-hint,
   .hp-ul path,
   .hp-wv,
   .hp-birds,

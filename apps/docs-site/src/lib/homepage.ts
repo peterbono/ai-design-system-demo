@@ -1,29 +1,6 @@
 // The homepage ("/", pages/index.astro): the pure parts of its behaviour (scripts/homepage.ts), so they are tested.
-//   - Hero: a 0-100 "bridge" position between the exploration (100) and the design system (0). Releasing it snaps
-//     to one side; 0 means the piece is kept.
 //   - Step tabs: three steps per section, arrow keys move between them, the active one advances on its own.
-//   - Fixed-size drawings scaled to their column.
-
-/** Spoken value of the hero slider. */
-export function heroValueText(v: number): string {
-  if (v <= 0) return 'Kept in your design system';
-  if (v >= 100) return 'All exploration';
-  if (v < 50) return 'Mostly design system';
-  if (v > 50) return 'Mostly exploration';
-  return 'Half exploration, half design system';
-}
-
-/** Where the bridge settles when released: the side it is closer to (the middle goes back to the exploration). */
-export function heroSnap(v: number): 0 | 100 {
-  return v < 50 ? 0 : 100;
-}
-
-/** Keys move the bridge all the way, as one decision: left or down keeps the piece, right or up gives it back. */
-export function heroKeyTarget(key: string): 0 | 100 | null {
-  if (['ArrowLeft', 'ArrowDown', 'Home', 'PageDown'].includes(key)) return 0;
-  if (['ArrowRight', 'ArrowUp', 'End', 'PageUp'].includes(key)) return 100;
-  return null;
-}
+//   - The closing panorama scaled to its band.
 
 /** The step a key moves to in a vertical tab list of `count` steps (wrapping), or null for other keys. */
 export function stepForKey(key: string, current: number, count = 3): number | null {
@@ -42,11 +19,6 @@ export function stepTick(elapsed: number, dt: number, current: number, paused: b
   if (paused) return { elapsed, step: current };
   const next = elapsed + Math.min(64, Math.max(0, dt));
   return next >= STEP_MS ? { elapsed: 0, step: (current + 1) % count } : { elapsed: next, step: current };
-}
-
-/** Scale of a fixed-size drawing (`base` px wide) in a column `width` px wide. */
-export function fitScale(width: number, base: number): number {
-  return width > 0 && base > 0 ? Number((width / base).toFixed(4)) : 1;
 }
 
 /** The closing panorama (1440 x 292) centred in a band `width` px wide, never smaller than 62%. */
