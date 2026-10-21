@@ -1,6 +1,6 @@
-// POST /api/csp-report: where browsers send Content-Security-Policy-Report-Only violations (vercel.json, report-uri
-// and report-to). Each report is logged as one compact line (Vercel function logs) so the policy can be checked
-// before it is enforced. Nothing is stored; no cookie or token is read.
+// POST /api/csp-report: where browsers send Content-Security-Policy violations (vercel.json, report-uri). Each
+// report is logged as one compact line (Vercel function logs), so a page the policy blocks shows up there.
+// Nothing is stored; no cookie or token is read.
 // Self-contained on purpose (no imports), so Vercel bundles it as is.
 
 export const MAX_REPORT_BYTES = 16 * 1024;

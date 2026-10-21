@@ -1,5 +1,6 @@
-// The site's Content-Security-Policy, in one place. Shipped as Content-Security-Policy-Report-Only first (vercel.json
-// headers, checked against this file by csp.test.ts); enforced once the reports on /api/csp-report stay clean.
+// The site's Content-Security-Policy, in one place. Enforced (vercel.json headers, checked against this file by
+// csp.test.ts) after a Report-Only period and a crawl of every page type with zero violations; browsers still send
+// each violation to /api/csp-report, which logs it.
 // No dependencies: astro.config.mjs reads it while Astro loads its config, to check the built pages.
 //
 // Why each source is there:
