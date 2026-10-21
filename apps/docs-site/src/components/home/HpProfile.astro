@@ -1,0 +1,16 @@
+---
+// The one drawing the homepage reuses everywhere: Ann Leroy's profile header (avatar, name, role, Follow).
+// `card` draws it as a free-standing component; without it, it is the head of the member profile screen and takes
+// what is pinned to it (selection, callout) as children.
+interface Props {
+  card?: boolean;
+  class?: string;
+}
+const { card = false, class: cls } = Astro.props;
+---
+
+<div class:list={['hp-ph', card && 'hp-ph-card', cls]}>
+  <span class="hp-av">AL</span>
+  <span class="hp-pt"><strong>Ann Leroy</strong><small>Product designer</small><span class="hp-fol">Follow</span></span>
+  <slot />
+</div>

@@ -47,7 +47,14 @@ export interface NavEntry {
 export const LIBRARY_HOME = '/library/';
 export const LANDING = '/';
 export const COMPARE = '/compare/';
+/** The product pages around the landing, with the same light header (layouts/Landing.astro). */
+export const ABOUT = '/about/';
+/** The product documentation (layouts/Docs.astro): an early version, to grow into a full guide. */
+export const DOCS_HOME = '/docs/';
+export const DOCS_FIGMA_PLUGIN = '/docs/figma-plugin/';
 export const STUDIO_HOME = '/studio/';
+/** TODO: move to /demo/ once it exists. The read-only demo the landing points to; Studio already reads the public repo without sign-in. */
+export const DEMO = STUDIO_HOME;
 export const SETTINGS_HOME = '/studio/settings/';
 
 export const FOUNDATIONS: NavItem[] = [
