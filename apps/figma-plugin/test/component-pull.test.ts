@@ -655,7 +655,7 @@ test('coverage sets: every generated set binds variables in every variant; state
   assert.equal(track('true').primaryAxisAlignItems, 'MAX');
   // Avatar: the initials cover the circle (and the photo, when shown).
   assert.equal(partOf(variantOf(set('Avatar'), 'Size=md, Fallback=initials, Kind=person'), 'fallback').layoutPositioning, 'ABSOLUTE');
-  // Avatar agent: the Bridge agent mark (a drawn line, no vendor logo) in Deep Harbor on the agent tile.
+  // Avatar agent: the Bridge agent mark (the Field Guide robot, a drawn line, no vendor logo) in Deep Harbor on the agent tile.
   const agent = variantOf(set('Avatar'), 'Size=xs, Fallback=initials, Kind=agent');
   assert.equal(boundName(sim, agent, 'fills'), 'Component:avatar/agent-bg');
   const mark = partOf(agent, 'mark');

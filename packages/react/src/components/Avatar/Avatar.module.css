@@ -91,7 +91,7 @@
 }
 
 /*
- * Agent: the Bridge agent mark, a Deep Harbor line on a Harbor tile. A rounded square, not a circle, so an agent
+ * Agent: the Bridge agent mark (the Field Guide robot), a Deep Harbor line on a Harbor tile. A rounded square, not a circle, so an agent
  * never reads as a person at a glance (GitHub draws apps and bots the same way).
  */
 .agent {
@@ -101,7 +101,7 @@
   color: var(--color-action-primary-bg);
 }
 
-/* The mark box per size: 16, 20, 24 and 28px, so its line stays between 1.5 and 2.5px. */
+/* The mark box per size: 16, 20, 24 and 28px, so the robot line stays between 1.2 and 2.1px. */
 .mark {
   flex: none;
   width: var(--_mark);
@@ -111,7 +111,7 @@
 /* The Field Guide line: ink stroke, round ends (AGENT_MARK.strokeWidth). */
 .line {
   stroke: currentcolor;
-  stroke-width: 2.2;
+  stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
 }

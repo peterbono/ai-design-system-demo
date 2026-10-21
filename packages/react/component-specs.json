@@ -2252,7 +2252,7 @@
     },
     {
       "name": "Avatar",
-      "hash": "91a32982",
+      "hash": "37f28722",
       "source": [
         "packages/react/src/components/Avatar/Avatar.tsx",
         "packages/react/src/components/Avatar/Avatar.module.css"
@@ -2438,7 +2438,7 @@
           ],
           "vectors": {
             "mark": {
-              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M4.4 6.2Q7.6 9.1 10.8 12Q7.7 15 4.6 17.8M13.3 17.8Q16.7 17.5 19.8 17.8\" fill=\"none\" stroke=\"#000000\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 -0.8 24 24\" fill=\"none\"><path d=\"M11.4 2.4a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M12 3V6.1M6.2 6.4C9.6 5.9 14.6 6 17.9 6.5C19.1 6.7 19.6 7.6 19.6 8.9L19.4 15.6C19.3 17 18.6 17.7 17.3 17.8C13.9 18.1 9.8 18.1 6.6 17.8C5.3 17.7 4.6 17 4.5 15.6L4.4 8.9C4.4 7.5 5 6.6 6.2 6.4ZM8.6 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M14.2 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M9.6 14.6Q12 15.8 14.4 14.6M4.4 10.6H2.9M19.6 10.6H21.1M8.6 18V20.6M15.4 18V20.6\" fill=\"none\" stroke=\"#000000\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
               "strokes": [
                 "color.action.primary.bg"
               ]
@@ -2501,7 +2501,7 @@
           ],
           "vectors": {
             "mark": {
-              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M4.4 6.2Q7.6 9.1 10.8 12Q7.7 15 4.6 17.8M13.3 17.8Q16.7 17.5 19.8 17.8\" fill=\"none\" stroke=\"#000000\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 -0.8 24 24\" fill=\"none\"><path d=\"M11.4 2.4a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M12 3V6.1M6.2 6.4C9.6 5.9 14.6 6 17.9 6.5C19.1 6.7 19.6 7.6 19.6 8.9L19.4 15.6C19.3 17 18.6 17.7 17.3 17.8C13.9 18.1 9.8 18.1 6.6 17.8C5.3 17.7 4.6 17 4.5 15.6L4.4 8.9C4.4 7.5 5 6.6 6.2 6.4ZM8.6 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M14.2 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M9.6 14.6Q12 15.8 14.4 14.6M4.4 10.6H2.9M19.6 10.6H21.1M8.6 18V20.6M15.4 18V20.6\" fill=\"none\" stroke=\"#000000\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
               "strokes": [
                 "color.action.primary.bg"
               ]
@@ -2570,7 +2570,7 @@
           ],
           "vectors": {
             "mark": {
-              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M4.4 6.2Q7.6 9.1 10.8 12Q7.7 15 4.6 17.8M13.3 17.8Q16.7 17.5 19.8 17.8\" fill=\"none\" stroke=\"#000000\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 -0.8 24 24\" fill=\"none\"><path d=\"M11.4 2.4a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M12 3V6.1M6.2 6.4C9.6 5.9 14.6 6 17.9 6.5C19.1 6.7 19.6 7.6 19.6 8.9L19.4 15.6C19.3 17 18.6 17.7 17.3 17.8C13.9 18.1 9.8 18.1 6.6 17.8C5.3 17.7 4.6 17 4.5 15.6L4.4 8.9C4.4 7.5 5 6.6 6.2 6.4ZM8.6 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M14.2 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M9.6 14.6Q12 15.8 14.4 14.6M4.4 10.6H2.9M19.6 10.6H21.1M8.6 18V20.6M15.4 18V20.6\" fill=\"none\" stroke=\"#000000\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
               "strokes": [
                 "color.action.primary.bg"
               ]
@@ -2633,7 +2633,7 @@
           ],
           "vectors": {
             "mark": {
-              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M4.4 6.2Q7.6 9.1 10.8 12Q7.7 15 4.6 17.8M13.3 17.8Q16.7 17.5 19.8 17.8\" fill=\"none\" stroke=\"#000000\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 -0.8 24 24\" fill=\"none\"><path d=\"M11.4 2.4a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M12 3V6.1M6.2 6.4C9.6 5.9 14.6 6 17.9 6.5C19.1 6.7 19.6 7.6 19.6 8.9L19.4 15.6C19.3 17 18.6 17.7 17.3 17.8C13.9 18.1 9.8 18.1 6.6 17.8C5.3 17.7 4.6 17 4.5 15.6L4.4 8.9C4.4 7.5 5 6.6 6.2 6.4ZM8.6 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M14.2 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M9.6 14.6Q12 15.8 14.4 14.6M4.4 10.6H2.9M19.6 10.6H21.1M8.6 18V20.6M15.4 18V20.6\" fill=\"none\" stroke=\"#000000\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
               "strokes": [
                 "color.action.primary.bg"
               ]
@@ -2702,7 +2702,7 @@
           ],
           "vectors": {
             "mark": {
-              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M4.4 6.2Q7.6 9.1 10.8 12Q7.7 15 4.6 17.8M13.3 17.8Q16.7 17.5 19.8 17.8\" fill=\"none\" stroke=\"#000000\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 -0.8 24 24\" fill=\"none\"><path d=\"M11.4 2.4a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M12 3V6.1M6.2 6.4C9.6 5.9 14.6 6 17.9 6.5C19.1 6.7 19.6 7.6 19.6 8.9L19.4 15.6C19.3 17 18.6 17.7 17.3 17.8C13.9 18.1 9.8 18.1 6.6 17.8C5.3 17.7 4.6 17 4.5 15.6L4.4 8.9C4.4 7.5 5 6.6 6.2 6.4ZM8.6 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M14.2 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M9.6 14.6Q12 15.8 14.4 14.6M4.4 10.6H2.9M19.6 10.6H21.1M8.6 18V20.6M15.4 18V20.6\" fill=\"none\" stroke=\"#000000\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
               "strokes": [
                 "color.action.primary.bg"
               ]
@@ -2765,7 +2765,7 @@
           ],
           "vectors": {
             "mark": {
-              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M4.4 6.2Q7.6 9.1 10.8 12Q7.7 15 4.6 17.8M13.3 17.8Q16.7 17.5 19.8 17.8\" fill=\"none\" stroke=\"#000000\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 -0.8 24 24\" fill=\"none\"><path d=\"M11.4 2.4a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M12 3V6.1M6.2 6.4C9.6 5.9 14.6 6 17.9 6.5C19.1 6.7 19.6 7.6 19.6 8.9L19.4 15.6C19.3 17 18.6 17.7 17.3 17.8C13.9 18.1 9.8 18.1 6.6 17.8C5.3 17.7 4.6 17 4.5 15.6L4.4 8.9C4.4 7.5 5 6.6 6.2 6.4ZM8.6 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M14.2 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M9.6 14.6Q12 15.8 14.4 14.6M4.4 10.6H2.9M19.6 10.6H21.1M8.6 18V20.6M15.4 18V20.6\" fill=\"none\" stroke=\"#000000\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
               "strokes": [
                 "color.action.primary.bg"
               ]
@@ -2834,7 +2834,7 @@
           ],
           "vectors": {
             "mark": {
-              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M4.4 6.2Q7.6 9.1 10.8 12Q7.7 15 4.6 17.8M13.3 17.8Q16.7 17.5 19.8 17.8\" fill=\"none\" stroke=\"#000000\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 -0.8 24 24\" fill=\"none\"><path d=\"M11.4 2.4a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M12 3V6.1M6.2 6.4C9.6 5.9 14.6 6 17.9 6.5C19.1 6.7 19.6 7.6 19.6 8.9L19.4 15.6C19.3 17 18.6 17.7 17.3 17.8C13.9 18.1 9.8 18.1 6.6 17.8C5.3 17.7 4.6 17 4.5 15.6L4.4 8.9C4.4 7.5 5 6.6 6.2 6.4ZM8.6 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M14.2 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M9.6 14.6Q12 15.8 14.4 14.6M4.4 10.6H2.9M19.6 10.6H21.1M8.6 18V20.6M15.4 18V20.6\" fill=\"none\" stroke=\"#000000\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
               "strokes": [
                 "color.action.primary.bg"
               ]
@@ -2897,7 +2897,7 @@
           ],
           "vectors": {
             "mark": {
-              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M4.4 6.2Q7.6 9.1 10.8 12Q7.7 15 4.6 17.8M13.3 17.8Q16.7 17.5 19.8 17.8\" fill=\"none\" stroke=\"#000000\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 -0.8 24 24\" fill=\"none\"><path d=\"M11.4 2.4a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M12 3V6.1M6.2 6.4C9.6 5.9 14.6 6 17.9 6.5C19.1 6.7 19.6 7.6 19.6 8.9L19.4 15.6C19.3 17 18.6 17.7 17.3 17.8C13.9 18.1 9.8 18.1 6.6 17.8C5.3 17.7 4.6 17 4.5 15.6L4.4 8.9C4.4 7.5 5 6.6 6.2 6.4ZM8.6 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M14.2 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M9.6 14.6Q12 15.8 14.4 14.6M4.4 10.6H2.9M19.6 10.6H21.1M8.6 18V20.6M15.4 18V20.6\" fill=\"none\" stroke=\"#000000\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
               "strokes": [
                 "color.action.primary.bg"
               ]
