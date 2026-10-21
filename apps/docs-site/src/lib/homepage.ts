@@ -2,7 +2,6 @@
 //   - Hero: a 0-100 "bridge" position between the exploration (100) and the design system (0). Releasing it snaps
 //     to one side; 0 means the piece is kept.
 //   - Step tabs: three steps per section, arrow keys move between them, the active one advances on its own.
-//   - The review queue of the design system lead: approve, undo, pick the next change.
 //   - Fixed-size drawings scaled to their column.
 
 /** Spoken value of the hero slider. */
@@ -76,31 +75,3 @@ export const FAQ: { id: string; question: string; answer: string }[] = [
   },
   { id: 'open-source', question: 'Is Bridge open source?', answer: 'Yes. MIT licensed and free. The code is on GitHub and contributions are welcome.' },
 ];
-
-export interface QueueItem {
-  id: string;
-  title: string;
-  who: string;
-  kind: string;
-}
-
-/** The three changes waiting on the design system lead in the demo queue. */
-export const QUEUE: QueueItem[] = [
-  { id: 'bg', title: 'Darker default background', who: 'Claude AI', kind: 'Token change' },
-  { id: 'ph', title: 'Profile header', who: 'Ann', kind: 'New component' },
-  { id: 'fr', title: 'Focus ring offset', who: 'Claude AI', kind: 'Token change' },
-];
-
-/** The queue after approving `id`: what is still waiting and which change to show next (null when none is left). */
-export function approveInQueue(items: QueueItem[], done: ReadonlySet<string>, id: string): { done: Set<string>; selected: string | null } {
-  const next = new Set(done).add(id);
-  const left = items.filter((q) => !next.has(q.id));
-  return { done: next, selected: left[0]?.id ?? null };
-}
-
-/** The queue after undoing the approval of `id`: it waits again and is shown. */
-export function undoInQueue(done: ReadonlySet<string>, id: string): { done: Set<string>; selected: string } {
-  const next = new Set(done);
-  next.delete(id);
-  return { done: next, selected: id };
-}

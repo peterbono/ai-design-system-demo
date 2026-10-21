@@ -5,9 +5,8 @@
 //     visitor touches it (never under reduced motion).
 //   - Step tabs: click or arrows; the active step advances every 4.5 s while its section is on screen, and pauses on
 //     hover or focus. Under reduced motion nothing advances on its own.
-//   - The queue: pick, approve (toast with Undo for 8 s), suggest changes (a note to the author).
 // Without this script the page is complete: the first step of each section shows, the hero rests in the middle.
-import { QUEUE, approveInQueue, fitScale, heroKeyTarget, heroSnap, heroValueText, panoramaFit, stepForKey, stepTick, undoInQueue } from '../lib/homepage';
+import { fitScale, heroKeyTarget, heroSnap, heroValueText, panoramaFit, stepForKey, stepTick } from '../lib/homepage';
 
 const $ = <T extends Element = HTMLElement>(s: string, r: ParentNode = document) => r.querySelector<T>(s);
 const $$ = <T extends Element = HTMLElement>(s: string, r: ParentNode = document) => [...r.querySelectorAll<T>(s)];
@@ -189,82 +188,6 @@ export function initHomepage() {
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
-
-  /* ---------- the queue ---------- */
-  const queue = $('[data-queue]');
-  if (queue) {
-    let done = new Set<string>();
-    let selected: string | null = 'ph';
-    let lastApproved: string | null = null;
-    let toastTimer = 0;
-    const toast = $('[data-q-toast]', queue)!;
-    const toastText = $('[data-q-toast-text]', queue)!;
-    const undo = $<HTMLButtonElement>('[data-q-undo]', queue)!;
-    const render = (focusApprove = false) => {
-      const left = QUEUE.filter((q) => !done.has(q.id));
-      $('[data-q-count]', queue)!.textContent = String(left.length);
-      for (const q of QUEUE) {
-        $(`[data-q-row="${q.id}"]`, queue)!.hidden = done.has(q.id);
-        $(`[data-q-pick="${q.id}"]`, queue)!.setAttribute('aria-pressed', String(q.id === selected));
-        $(`[data-q-pane="${q.id}"]`, queue)!.hidden = q.id !== selected;
-      }
-      $('[data-q-empty]', queue)!.hidden = left.length > 0;
-      $('[data-q-pane="done"]', queue)!.hidden = selected !== null;
-      if (focusApprove && selected) $<HTMLButtonElement>(`[data-q-approve="${selected}"]`, queue)?.focus();
-    };
-    const showToast = (text: string, withUndo: boolean) => {
-      toastText.textContent = text;
-      undo.hidden = !withUndo;
-      toast.classList.add('hp-show');
-      clearTimeout(toastTimer);
-      toastTimer = window.setTimeout(() => {
-        toast.classList.remove('hp-show');
-        lastApproved = null;
-      }, 8000);
-    };
-    for (const b of $$<HTMLButtonElement>('[data-q-pick]', queue)) {
-      b.addEventListener('click', () => {
-        selected = b.dataset.qPick!;
-        render();
-      });
-    }
-    for (const b of $$<HTMLButtonElement>('[data-q-approve]', queue)) {
-      b.addEventListener('click', () => {
-        const id = b.dataset.qApprove!;
-        const r = approveInQueue(QUEUE, done, id);
-        done = r.done;
-        selected = r.selected;
-        lastApproved = id;
-        render(true);
-        showToast(`Approved ${QUEUE.find((q) => q.id === id)!.title}`, true);
-      });
-    }
-    for (const b of $$<HTMLButtonElement>('[data-q-suggest]', queue)) {
-      const note = document.getElementById(b.getAttribute('aria-controls')!)!;
-      b.addEventListener('click', () => {
-        const open = note.hidden;
-        note.hidden = !open;
-        b.setAttribute('aria-expanded', String(open));
-        if (open) note.querySelector('textarea')?.focus();
-      });
-      note.querySelector<HTMLButtonElement>('[data-q-send]')?.addEventListener('click', (e) => {
-        note.hidden = true;
-        b.setAttribute('aria-expanded', 'false');
-        showToast(`Suggestion sent to ${(e.currentTarget as HTMLElement).dataset.qSend}`, false);
-      });
-    }
-    undo.addEventListener('click', () => {
-      if (!lastApproved) return;
-      const r = undoInQueue(done, lastApproved);
-      done = r.done;
-      selected = r.selected;
-      lastApproved = null;
-      toast.classList.remove('hp-show');
-      clearTimeout(toastTimer);
-      render(true);
-    });
-    render();
-  }
 
   /* ---------- init ---------- */
   const refit = () => {

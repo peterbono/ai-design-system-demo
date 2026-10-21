@@ -6,6 +6,8 @@
 // hero range input and the step tabs (see their audit comments). Behaviour: scripts/homepage.ts, pure parts in
 // lib/homepage.ts. The Library home is at /library/ (lib/nav LIBRARY_HOME).
 import '../styles/homepage.css';
+import '../styles/home-illus.css';
+import '../styles/home-compare.css';
 import Landing from '../layouts/Landing.astro';
 import ButtonLink from '../components/ds/ButtonLink';
 import { Link } from '@bridge-ds/react';
@@ -14,10 +16,17 @@ import HpSprite from '../components/home/HpSprite.astro';
 import HpPencil from '../components/home/HpPencil.astro';
 import HpGhost from '../components/home/HpGhost.astro';
 import HpProfile from '../components/home/HpProfile.astro';
+import HpShipMerge from '../components/home/HpShipMerge.astro';
+import HpShipCode from '../components/home/HpShipCode.astro';
+import HpShipPlugin from '../components/home/HpShipPlugin.astro';
+import HpTrustLib from '../components/home/HpTrustLib.astro';
+import HpTrustTwin from '../components/home/HpTrustTwin.astro';
+import HpTrustQuality from '../components/home/HpTrustQuality.astro';
 import HpStepSection from '../components/home/HpStepSection.astro';
 import HpSieve from '../components/home/HpSieve.astro';
 import HpSignoff from '../components/home/HpSignoff.astro';
-import HpQueue from '../components/home/HpQueue.astro';
+import HpLead from '../components/home/HpLead.astro';
+import HpCompare from '../components/home/HpCompare.astro';
 import HpFaq from '../components/home/HpFaq';
 import HpFaqArt from '../components/home/HpFaqArt.astro';
 import HpPanorama from '../components/home/HpPanorama.astro';
@@ -30,7 +39,6 @@ const handles = [
   [157, 132],
   [376, 132],
 ];
-const code = '<s>import</s> { <em>ProfileHeader</em> }\n  <s>from</s> "@bridge-ds/react";\n\n&lt;<em>ProfileHeader</em>\n  name="Ann Leroy"\n  role="Product designer"\n/&gt;';
 ---
 
 <Landing
@@ -93,7 +101,7 @@ const code = '<s>import</s> { <em>ProfileHeader</em> }\n  <s>from</s> "@bridge-d
         labels={[
           'Create branch dialog: A feature in a product is selected, with a field to link a Jira ticket and a Start with Claude AI button',
           'A sieve labelled Bridge: the pieces your library already has, an avatar, text and a Follow button, fall through; the new Profile header is caught on top. New, Bridge keeps it',
-          'The new Profile header, contrast passing in light and dark, and two people ticking it off: Dana for design, Leo for code',
+          'Drawing: the kept Profile header is clipped onto a review easel; Dana, design, then Leo, code, tick their checklists, the swatch flips between light and dark, and it is approved',
         ]}
       >
         <div slot="p0" class="hp-card hp-dlg">
@@ -119,35 +127,14 @@ const code = '<s>import</s> { <em>ProfileHeader</em> }\n  <s>from</s> "@bridge-d
           { title: 'Your Figma kit follows', text: 'One Pull in the DS Bridge plugin brings it into the Figma kit.' },
         ]}
         labels={[
-          'Library branch Profile header, contrast checked and approved by Dana and Leo; Merge is pressed and the branch shows Merged',
-          'The Profile header component page: its preview, the import from @bridge-ds/react and the code ProfileHeader name Ann Leroy role Product designer',
-          'DS Bridge plugin in Figma, Pull tab: Profile header, new component, is pulled and marked Added; the fidelity check confirms the Figma kit matches the code',
+          'Drawing: the approved Profile header drops once into a funnel marked Merge, tagged Bridge; it flows down three pipes and lands in code, the Figma kit and the docs at once',
+          'Drawing: a parcel addressed @bridge-ds/react, to your developers, opens; the Profile header rises out of it, ready to import, and the line import ProfileHeader from @bridge-ds/react writes itself. Delivered as code, no handoff',
+          'Drawing: a Pull crank draws the Profile header along a line from the code post into the Figma kit toolbox; a tracing of the code lands exactly on it, and a check confirms it matches the code',
         ]}
       >
-        <div slot="p0" class="hp-card hp-mcard">
-          <div class="hp-mtop"><span class="hp-xs hp-muted">Library branch</span><span class="hp-state"><span class="hp-s-open">Open</span><span class="hp-s-mrg"><svg aria-hidden="true"><use href="#hp-check" /></svg>Merged</span></span></div>
-          <strong class="hp-mt">Profile header</strong>
-          <div class="hp-thumb"><HpProfile card /></div>
-          <ul class="hp-checks">
-            <li><svg aria-hidden="true"><use href="#hp-check" /></svg>Contrast passes in light and dark</li>
-            <li><span class="hp-avs"><span class="hp-av hp-av-xs hp-grey">D</span><span class="hp-av hp-av-xs hp-grey">L</span></span>Design and code approved</li>
-          </ul>
-          <span class="hp-obtn hp-press"><span class="hp-a">Merge</span><span class="hp-b"><svg aria-hidden="true"><use href="#hp-check" /></svg>Merged</span></span>
-        </div>
-        <div slot="p1" class="hp-card hp-cpage">
-          <div class="hp-row hp-wrap-row"><strong class="hp-mt">Profile header</strong><span class="hp-flag">Published</span><span class="hp-sp"></span><span class="hp-mono hp-pkg">@bridge-ds/react</span></div>
-          <div class="hp-thumb"><HpProfile card /></div>
-          <pre class="hp-code hp-mono" set:html={code} />
-        </div>
-        <div slot="p2" class="hp-card hp-plug">
-          <div class="hp-plugbar"><svg class="hp-lg" aria-hidden="true"><use href="#hp-logo" /></svg>DS Bridge<span class="hp-x" aria-hidden="true">×</span></div>
-          <div class="hp-ptabs2"><span class="hp-on">Pull</span><span>Push</span></div>
-          <div class="hp-plugbody">
-            <div class="hp-plugrow"><span class="hp-mini"><HpProfile card /></span><span class="hp-t"><strong>Profile header</strong><small>New component</small></span><span class="hp-added"><svg aria-hidden="true"><use href="#hp-check" /></svg>Added</span></div>
-            <span class="hp-obtn hp-press"><span class="hp-a">Pull</span><span class="hp-b"><svg aria-hidden="true"><use href="#hp-check" /></svg>Pulled</span></span>
-            <span class="hp-kitn"><span class="hp-k1">1 new component from the code</span><span class="hp-k2"><svg aria-hidden="true"><use href="#hp-check" /></svg>Fidelity check: Figma kit matches the code</span></span>
-          </div>
-        </div>
+        <div slot="p0" class="hp-sc hp-sc-center"><HpShipMerge /></div>
+        <div slot="p1" class="hp-sc hp-sc-center"><HpShipCode /></div>
+        <div slot="p2" class="hp-sc hp-sc-center"><HpShipPlugin /></div>
       </HpStepSection>
 
       <HpStepSection
@@ -160,53 +147,22 @@ const code = '<s>import</s> { <em>ProfileHeader</em> }\n  <s>from</s> "@bridge-d
           { title: 'Know how much your products use it', text: 'An audit per product measures how much of it runs on your components and tokens.' },
         ]}
         labels={[
-          'The public Library page of the Profile header: its preview and usage guidance, tagged Drafted by Claude AI, reviewed by Dana',
-          'The same Profile header in two windows, Figma kit and Storybook, joined by a Matches check',
-          'Quality view, adoption by product: Docs site at 100 percent, was 81.7 percent before the audit; Admin demo audited',
+          'Drawing: the Profile header page of your library, an open book; a pencil ridden by the AI robot writes the usage guidance line by line, drafted by AI, then Dana, DS lead, ticks it as reviewed',
+          'Drawing: a balance standing on a post marked code, with the same Profile header on each pan, Figma kit and Storybook; it tips, then settles level, and a check says Matches',
+          'Drawing: the Docs site jar of components and tokens in use; pieces drop in and the level rises from 81.7 percent, before the audit, to 100 percent. Next to it, the Admin demo jar, audited',
         ]}
       >
-        <div slot="p0" class="hp-card hp-lib">
-          <div class="hp-row"><span class="hp-xs hp-muted">Library</span><span class="hp-xs hp-muted" aria-hidden="true">/</span><span class="hp-xs hp-muted">Components</span><span class="hp-sp"></span><span class="hp-flag">Public</span></div>
-          <strong class="hp-mt">Profile header</strong>
-          <div class="hp-thumb"><HpProfile card /></div>
-          <div class="hp-guide hp-asm" style="--d: 1"><strong>Usage</strong><p>Open a member profile with it.</p><p>Keep one Follow button per header.</p></div>
-          <span class="hp-drafted"><span class="hp-ai hp-ai-sm"><svg aria-hidden="true"><use href="#hp-robot" /></svg></span>Drafted by Claude AI <i aria-hidden="true">·</i> reviewed by Dana</span>
-        </div>
-        <div slot="p1" class="hp-twin">
-          <div class="hp-pair">
-            <div class="hp-mwin hp-fg hp-asm" style="--d: 0"><div class="hp-mbar"><span class="hp-dots"><i></i><i></i><i></i></span><strong>Figma kit</strong></div><div class="hp-mcv"><HpProfile card /></div></div>
-            <div class="hp-mwin hp-asm" style="--d: 1"><div class="hp-mbar"><span class="hp-dots"><i></i><i></i><i></i></span><strong>Storybook</strong></div><div class="hp-mcv"><HpProfile card /></div></div>
-            <span class="hp-match"><svg aria-hidden="true"><use href="#hp-check" /></svg>Matches</span>
-          </div>
-          <p class="hp-tnote"><svg aria-hidden="true"><use href="#hp-check" /></svg>Fidelity check on every component</p>
-        </div>
-        <div slot="p2" class="hp-card hp-qual">
-          <div class="hp-row"><span class="hp-xs hp-muted">Quality</span></div>
-          <strong class="hp-mt">Design system adoption</strong>
-          <p class="hp-qsub">Components and tokens in use, per product</p>
-          <div class="hp-adrow">
-            <div class="hp-adhd"><strong>Docs site</strong><span class="hp-qnum"><span class="hp-n1">81.7%</span><span class="hp-n2">100%</span></span></div>
-            <span class="hp-qbar"><i></i></span>
-            <small class="hp-was">Was 81.7% before the audit</small>
-          </div>
-          <div class="hp-adrow hp-q2">
-            <div class="hp-adhd"><strong>Admin demo</strong><span class="hp-aud"><svg aria-hidden="true"><use href="#hp-check" /></svg>Audited</span></div>
-          </div>
-        </div>
+        <div slot="p0" class="hp-sc hp-sc-center"><HpTrustLib /></div>
+        <div slot="p1" class="hp-sc hp-sc-center"><HpTrustTwin /></div>
+        <div slot="p2" class="hp-sc hp-sc-center"><HpTrustQuality /></div>
       </HpStepSection>
     </div>
 
-    <!-- The design system lead: the queue, played for real. -->
-    <section class="hp-lead" aria-labelledby="hp-lead-t">
-      <div class="hp-wrap hp-leadg">
-        <div class="hp-leadt">
-          <p class="hp-who"><span class="hp-av hp-av-sm hp-grey" aria-hidden="true">D</span>For the design system lead</p>
-          <h2 id="hp-lead-t" class="hp-st-h">Stop reviewing screenshots in Slack.</h2>
-          <p class="hp-st-p">Every change from designers and Claude AI waits in one queue, shown as the real change with its checks already run. 304&nbsp;contrast checks and accessibility tests run on every change.</p>
-        </div>
-        <HpQueue />
-      </div>
-    </section>
+    <!-- The design system lead: decide in seconds. -->
+    <HpLead />
+
+    <!-- How Bridge compares: the short table, the full one on demand, sources as notes. -->
+    <HpCompare />
 
     <!-- Questions teams ask: the DS Accordion, one open at a time. -->
     <section class="hp-faq" aria-labelledby="hp-faq-t">

@@ -1,0 +1,43 @@
+---
+// "How Bridge compares." on the homepage: the seven differences that matter most (DS Table, static), the legend and the
+// date, then "Compare every feature" (HpCompareMore, the DS Accordion, hydrated) and the link to /compare/, where the
+// nuances and sources live. Data and words: lib/compare-home.ts. Styles: styles/home-compare.css.
+import { Icon, Link } from '@bridge-ds/react';
+import HpCompareTable, { markIcon } from './HpCompareTable';
+import HpCompareMore from './HpCompareMore';
+import { AS_OF_LINE, DETAIL_LINK, HEADING, HEAD_LINE, KEY_NO, KEY_YES, SHORT, SHORT_CAPTION, SHORT_FIRST_HEAD, SWIPE_HINT } from '../../lib/compare-home';
+import { COMPARE } from '../../lib/nav';
+
+const KEY = [
+  { yes: true, label: KEY_YES },
+  { yes: false, label: KEY_NO },
+];
+---
+
+<section class="hp-cmp" aria-labelledby="hp-cmp-t">
+  <div class="hp-wrap">
+    <div class="hp-cmp-head">
+      <h2 id="hp-cmp-t" class="hp-cmp-h">{HEADING}</h2>
+      <p class="hp-cmp-p">{HEAD_LINE}</p>
+    </div>
+    <p class="hp-cmp-swipe" aria-hidden="true">{SWIPE_HINT}</p>
+    <HpCompareTable label={SHORT_CAPTION} firstHead={SHORT_FIRST_HEAD} rows={SHORT} />
+    <div class="hp-cmp-foot">
+      <ul class="hp-cmp-key" aria-hidden="true">
+        {
+          KEY.map((k) => (
+            <li class="hp-cmp-mark" data-state={k.yes ? 'yes' : 'no'}>
+              <Icon icon={markIcon(k.yes)} size="sm" className="hp-cmp-icon" />
+              <span class="hp-cmp-keyl">{k.label}</span>
+            </li>
+          ))
+        }
+      </ul>
+      <span>{AS_OF_LINE}</span>
+    </div>
+    <HpCompareMore client:visible />
+    <p class="hp-cmp-after">
+      <Link href={COMPARE} variant="standalone" className="hp-cmp-link">{DETAIL_LINK}</Link>
+    </p>
+  </div>
+</section>

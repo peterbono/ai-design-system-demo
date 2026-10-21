@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ROOT } from './repo';
-import { FAQ, QUEUE, STEP_MS, approveInQueue, fitScale, heroKeyTarget, heroSnap, heroValueText, panoramaFit, stepForKey, stepTick, undoInQueue } from './homepage';
+import { FAQ, STEP_MS, fitScale, heroKeyTarget, heroSnap, heroValueText, panoramaFit, stepForKey, stepTick } from './homepage';
 
 describe('hero bridge', () => {
   it('says where the bridge is', () => {
@@ -59,27 +59,6 @@ describe('drawings', () => {
   });
 });
 
-describe('review queue', () => {
-  it('approves, shows the next change, then nothing when all are done', () => {
-    let s = approveInQueue(QUEUE, new Set(), 'ph');
-    expect(s.selected).toBe('bg');
-    s = approveInQueue(QUEUE, s.done, 'bg');
-    s = approveInQueue(QUEUE, s.done, 'fr');
-    expect(s.selected).toBeNull();
-    expect(s.done.size).toBe(3);
-  });
-
-  it('undo puts the change back and shows it', () => {
-    const s = undoInQueue(new Set(['ph', 'bg']), 'ph');
-    expect([...s.done]).toEqual(['bg']);
-    expect(s.selected).toBe('ph');
-  });
-
-  it('has no em dash in its words', () => {
-    expect(JSON.stringify(QUEUE)).not.toMatch(/—/);
-  });
-});
-
 describe('questions teams ask', () => {
   it('asks five questions, promises nothing planned, no em dash', () => {
     expect(FAQ.map((f) => f.question)).toEqual([
@@ -121,10 +100,19 @@ describe('homepage sections', () => {
     }
   });
 
-  it('puts the questions right before the closing', () => {
+  it('puts the lead board, then the comparison and the questions, right before the closing', () => {
+    const lead = page.indexOf('<HpLead');
     const faq = page.indexOf('<HpFaq client:visible');
-    expect(faq).toBeGreaterThan(page.indexOf('data-queue') === -1 ? page.indexOf('<HpQueue') : page.indexOf('data-queue'));
+    expect(lead).toBeGreaterThan(0);
+    const cmp = page.indexOf('<HpCompare');
+    expect(cmp).toBeGreaterThan(lead);
+    expect(faq).toBeGreaterThan(cmp);
     expect(faq).toBeLessThan(page.indexOf('class="hp-closing"'));
+  });
+
+  it('draws Ship and Trust as Field Guide illustrations, with no interface mock-ups left', () => {
+    for (const c of ['HpShipMerge', 'HpShipCode', 'HpShipPlugin', 'HpTrustLib', 'HpTrustTwin', 'HpTrustQuality']) expect(page).toContain(`<${c} />`);
+    expect(page).not.toMatch(/hp-mcard|hp-cpage|hp-plug|hp-qual|HpQueue/);
   });
 
   it('keeps the footer About column to About Bridge and GitHub', () => {
