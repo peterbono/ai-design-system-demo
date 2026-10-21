@@ -20,8 +20,8 @@ import {
   Switch,
   TokenValue,
 } from '@bridge-ds/react';
-import { ArrowLeft, ArrowRight, CircleAlert, CircleCheck, GitBranch } from 'lucide-react';
-import { BRAND_FONTS, RADIUS_PRESETS, type BrandSource, brandPreviewVariables, checkBrandSlug, listBrands, loadConfig } from '@bridge-ds/core';
+import { ArrowLeft, ArrowRight, CircleAlert, CircleCheck, GitBranch, Send } from 'lucide-react';
+import { BRAND_FONTS, RADIUS_PRESETS, type BrandSource, brandPreviewVariables, changesMode, checkBrandSlug, listBrands, loadConfig } from '@bridge-ds/core';
 import {
   type BrandDraft,
   STEPS,
@@ -40,7 +40,7 @@ import {
 } from '../../../lib/new-brand';
 import { ghAuthFailure, hasWorkingToken, tokenRejected } from '../../../scripts/github-session';
 import { type ProposedBrand, proposeBrand } from '../../../scripts/new-brand';
-import { ghAction } from '../../../lib/gh-wording';
+import { ghAction, SEE_SUGGESTION, sendButton, sendGoal, SUGGEST_NEXT, SUGGESTION_SENT, suggestionSentLine } from '../../../lib/gh-wording';
 import { parseJiraKey, VOCAB } from '../../../lib/vocabulary';
 
 export interface NewBrandFlowProps {
@@ -58,6 +58,9 @@ const ROLE_LABEL = { inset: 'Inset (checkboxes, tags)', control: 'Controls (butt
 export default function NewBrandFlow({ files, configText, contrastText, signIn = false }: NewBrandFlowProps) {
   const source = useMemo<BrandSource>(() => ({ config: loadConfig(configText), configText, files, contrastText }), [files, configText, contrastText]);
   const brands = useMemo(() => listBrands(source), [source]);
+  // How changes reach the code (bridge.config.json "changes"): a suggestion, or a draft branch in review.
+  const mode = changesMode(source.config);
+  const suggest = mode === 'suggest';
   const facts = useMemo(() => Object.fromEntries(brands.map((b) => [b.slug, brandFacts(source, b.slug)])), [brands, source]);
   const defaultBrand = brands.find((b) => b.default)?.slug ?? brands[0]?.slug ?? 'bridge';
   const [draft, setDraft] = useState<BrandDraft>(() => emptyDraft(defaultBrand, facts[defaultBrand]));
@@ -117,11 +120,11 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
     setError(null);
     try {
       const repo = source.config.repo ?? { owner: 'peterbono', name: 'ai-design-system-demo', defaultBranch: 'main' };
-      const pr = await proposeBrand(draft, repo, source.config.tokens.root, parseJiraKey(jira));
+      const pr = await proposeBrand(draft, repo, source.config.tokens.root, parseJiraKey(jira), mode);
       setDone(pr);
       saveDraft(null);
     } catch (e) {
-      const auth = ghAuthFailure(e, 'create branches');
+      const auth = ghAuthFailure(e, suggest ? 'send suggestions' : 'create branches');
       setError(auth?.text ?? (e as Error).message);
       setErrorHref(auth?.href ?? null);
     } finally {
@@ -161,6 +164,26 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
       )}
     </div>
   );
+
+  if (done?.suggestion) {
+    return (
+      <section className="nb" aria-labelledby={headingId}>
+        <div className="nb-done">
+          <h2 className="nb-step-title" id={headingId} tabIndex={-1}>
+            {SUGGESTION_SENT}
+          </h2>
+          <p className="nb-lead">
+            {suggestionSentLine(done.number)} The Library shows {draft.name} once it is applied.
+          </p>
+          <div className="nb-actions">
+            <Button variant="primary" iconStart={Send} render={<a href={done.url} target="_blank" rel="noopener" />}>
+              {SEE_SUGGESTION}
+            </Button>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   if (done) {
     return (
@@ -378,12 +401,12 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
               <dt>Review</dt>
               <dd className="nb-tier">
                 <Badge tone="neutral">Tier 3</Badge>
-                <span>Needs design and tech approval. Starts as a draft branch.</span>
+                <span>{suggest ? `Needs design and tech approval. ${SUGGEST_NEXT}` : 'Needs design and tech approval. Starts as a draft branch.'}</span>
               </dd>
             </div>
           </dl>
           <div className="nb-jira">
-            <Input label="Jira ticket" value={jira} onChange={(e) => setJira(e.currentTarget.value)} placeholder="DS-42" hint="Optional. Links this branch to the ticket in Jira." spellCheck={false} autoComplete="off" />
+            <Input label="Jira ticket" value={jira} onChange={(e) => setJira(e.currentTarget.value)} placeholder="DS-42" hint={`Optional. Links this ${suggest ? 'suggestion' : 'branch'} to the ticket in Jira.`} spellCheck={false} autoComplete="off" />
           </div>
           {(errors.length > 0 || slugIssues.length > 0) && (
             <Alert tone="danger" title="Fix these first">
@@ -395,7 +418,7 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
             </Alert>
           )}
           {error && (
-            <Alert tone="danger" title="The branch was not created">
+            <Alert tone="danger" title={suggest ? 'The suggestion was not sent' : 'The branch was not created'}>
               {error}
               {errorHref && (
                 <>
@@ -426,16 +449,16 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
             Continue
           </Button>
         ) : connected ? (
-          <Button key="propose" variant="primary" iconStart={GitBranch} loading={busy} disabled={!ready} onClick={propose}>
-            {VOCAB.createBranch}
+          <Button key="propose" variant="primary" iconStart={suggest ? Send : GitBranch} loading={busy} disabled={!ready} onClick={propose}>
+            {suggest ? sendButton('brand', mode) : VOCAB.createBranch}
           </Button>
         ) : (
           <Button key="connect" variant="primary" data-gh-open="">
-            {ghAction('create the branch', signIn, rejected)}
+            {ghAction(sendGoal('brand', mode), signIn, rejected)}
           </Button>
         )}
-        {draft.step === 3 && !ready && <span className="nb-actions-note">{plan.contrast.failing.length ? 'Creating the branch needs every contrast pair to pass.' : 'Fix the problems above to create the branch.'}</span>}
-        {draft.step === 3 && ready && !connected && <span className="nb-actions-note">The draft stays in this browser until you create the branch.</span>}
+        {draft.step === 3 && !ready && <span className="nb-actions-note">{plan.contrast.failing.length ? `${suggest ? 'Sending it' : 'Creating the branch'} needs every contrast pair to pass.` : `Fix the problems above to ${suggest ? 'send it' : 'create the branch'}.`}</span>}
+        {draft.step === 3 && ready && !connected && <span className="nb-actions-note">The draft stays in this browser until you {suggest ? 'send it' : 'create the branch'}.</span>}
       </div>
     </section>
   );

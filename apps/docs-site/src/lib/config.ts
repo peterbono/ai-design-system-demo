@@ -1,6 +1,6 @@
 // Which repository this Bridge workspace documents and reviews. Read from bridge.config.json at the repo root, so
 // the same site works on any design system repo; the demo repo is only the default.
-import { DEFAULT_PRODUCTS, normalizeRights, productProblems, type IntegrationsConfig, type ProductConfig, type Rights, type VisualImpactMode } from '@bridge-ds/core';
+import { DEFAULT_CHANGES_MODE, DEFAULT_PRODUCTS, normalizeRights, productProblems, type ChangesMode, type IntegrationsConfig, type ProductConfig, type Rights, type VisualImpactMode } from '@bridge-ds/core';
 import { exists, readJson } from './repo';
 
 export interface SiteRepo {
@@ -21,9 +21,15 @@ export interface SiteRepo {
   integrations: IntegrationsConfig;
   /** The apps that consume the design system (bridge.config.json products), the library being the default. */
   products: ProductConfig[];
+  /**
+   * How changes reach the code (bridge.config.json "changes"): "suggest" (the default) files a suggestion for a
+   * developer to apply, "direct" opens branches and pull requests. Until the read-only GitHub App ships, suggest mode
+   * is a Bridge rule: Studio never writes a branch or a pull request in it.
+   */
+  changes: ChangesMode;
 }
 
-const DEFAULT: SiteRepo = { owner: 'peterbono', repo: 'ai-design-system-demo', defaultBranch: 'main', owners: { design: [], tech: [] }, override: { allowed: [], requireReason: true, minReasonLength: 20 }, rights: null, visualImpact: { mode: 'auto' }, tokensRoot: 'packages/tokens/src', integrations: {}, products: DEFAULT_PRODUCTS };
+const DEFAULT: SiteRepo = { owner: 'peterbono', repo: 'ai-design-system-demo', defaultBranch: 'main', owners: { design: [], tech: [] }, override: { allowed: [], requireReason: true, minReasonLength: 20 }, rights: null, visualImpact: { mode: 'auto' }, tokensRoot: 'packages/tokens/src', integrations: {}, products: DEFAULT_PRODUCTS, changes: DEFAULT_CHANGES_MODE };
 
 interface RawConfig {
   repo?: string | { owner?: string; name?: string; repo?: string; defaultBranch?: string; branch?: string };
@@ -39,6 +45,7 @@ interface RawConfig {
   owners?: { design?: string[]; tech?: string[] };
   integrations?: IntegrationsConfig;
   products?: unknown;
+  changes?: unknown;
 }
 
 let cache: SiteRepo | null = null;
@@ -74,6 +81,7 @@ export function siteRepo(): SiteRepo {
       };
     if (c.governance?.rights) out.rights = normalizeRights(c.governance.rights);
     if (c.visualImpact?.mode === 'on-demand') out.visualImpact = { mode: 'on-demand' };
+    out.changes = c.changes === 'direct' ? 'direct' : DEFAULT_CHANGES_MODE;
     if (Array.isArray(c.products) && c.products.length && !productProblems(c.products).length) out.products = c.products as ProductConfig[];
   }
   cache = out;

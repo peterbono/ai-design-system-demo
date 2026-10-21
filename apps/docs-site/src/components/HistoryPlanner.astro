@@ -4,11 +4,14 @@
 // top, the edits, contrast pairs collapsed with their count, and one primary action pinned in the footer.
 import { Alert, Button } from '@bridge-ds/react';
 import ScriptDialog from './ds/ScriptDialog.astro';
-import { ghAction } from '../lib/gh-wording';
+import { ghAction, sendButton, sendGoal } from '../lib/gh-wording';
+import { siteRepo } from '../lib/config';
 import { signInConfig } from '../lib/signin-config';
 import { VOCAB } from '../lib/vocabulary';
 
 const signIn = Boolean(signInConfig());
+// How changes reach the code (bridge.config.json "changes"): a suggestion, or a branch in review.
+const mode = siteRepo().changes;
 ---
 
 <ScriptDialog id="hp-dialog" title="Undo this change" size="lg" closeLabel="Close the planner">
@@ -19,7 +22,7 @@ const signIn = Boolean(signInConfig());
   <div class="hp-foot" slot="footer">
     <p class="hp-status" id="hp-status" role="status" aria-live="polite"></p>
     <Button variant="secondary" data-dialog-close>Cancel</Button>
-    <Button variant="primary" className="st-hideable" data-gh-open id="hp-connect" hidden>{ghAction('request review', signIn)}</Button>
-    <Button variant="primary" className="st-hideable" id="hp-propose">{VOCAB.requestReview}</Button>
+    <Button variant="primary" className="st-hideable" data-gh-open id="hp-connect" hidden>{ghAction(sendGoal('revert', mode), signIn)}</Button>
+    <Button variant="primary" className="st-hideable" id="hp-propose">{mode === 'suggest' ? sendButton('revert', mode) : VOCAB.requestReview}</Button>
   </div>
 </ScriptDialog>
