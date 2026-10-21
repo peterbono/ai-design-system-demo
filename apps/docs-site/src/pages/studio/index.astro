@@ -34,7 +34,6 @@ import TeamLauncher from '../../components/ds/studio/TeamLauncher';
 import '../../styles/team-launcher.css';
 import '../../styles/demo-home.css';
 import { isDemoRepo } from '../../lib/demo';
-import { glanceFigures } from '../../lib/demo-home';
 
 // The hosted deployment (one site for every team, multi-team plan 4.3) opens other teams from here. A self-hosted
 // build leaves it out: its Studio is its own repository.
@@ -64,8 +63,7 @@ const homeStatic = {
   components: comps.map((c) => ({ name: c.name, slug: c.slug, family: c.category })).sort((a, b) => a.name.localeCompare(b.name)),
   startHrefs: { tokens: startChangeHref('look'), component: startChangeHref('variant'), guidance: firstMissing ? docsEditHref(firstMissing.slug) : studioHref('components/') },
   signIn: Boolean(signInConfig()),
-  // The demo, for a visitor who cannot change it (components/ds/studio/DemoHome.tsx): the library at a glance.
-  glance: glanceFigures({ components: comps.length, tokens: s.total, contrast: { total: s.contrast.total, fail: s.contrast.fail }, adoption: adoption?.now ?? null }),
+  // The launcher on the hosted site, hidden while a visitor explores the demo (components/ds/studio/DemoHome.tsx).
   launcher: hostedSite,
 };
 // Create branch > A feature in a product starts an exploration: its preview settings, as the Branches page embeds them.
@@ -81,7 +79,7 @@ try {
   rawCfg = {};
 }
 const repoName = `${repo.owner}/${repo.repo}`;
-// The demo opens on its own home for visitors (lib/demo.ts): the launcher moves into its greeting.
+// The demo opens on its own home for visitors (lib/demo.ts): the launcher waits behind its banner.
 const demo = isDemoRepo(repoName);
 const onboarding = {
   changes: changesInConfig(rawCfg),
@@ -142,17 +140,14 @@ const onboarding = {
     import { proposeChangesMode } from '../../scripts/roles';
     import { onWorkspaceChange, readWorkspace } from '../../scripts/workspace';
     import { exploresDemo } from '../../lib/demo';
-    import type { GlanceFigure } from '../../lib/demo-home';
     import { loadDemoHome, type DemoHomeData } from '../../scripts/demo-home';
     import { paintDemoHome } from '../../components/ds/studio/DemoHome';
-    import { openMakeItYours } from '../../scripts/demo-gate';
 
     interface Static extends HomeStatic {
       adoptionDrop: number | null;
       components: HomeComponent[];
       startHrefs: StudioHomeProps['startHrefs'];
       signIn: boolean;
-      glance: GlanceFigure[];
       launcher: boolean;
     }
     const read = <T,>(id: string): T | null => {
@@ -238,12 +233,14 @@ const onboarding = {
           el,
           {
             loading: !demoData || demoData.loading,
-            waiting: demoData?.waiting ?? [],
-            recent: demoData?.recent ?? [],
-            figures: stat.glance,
+            needs: demoData?.needs ?? [],
+            branches: demoData?.branches ?? [],
+            health: health(),
             failed: demoData?.failed ?? null,
-            launcher: stat.launcher,
-            onConnect: () => void openMakeItYours(null),
+            lead: demoData?.lead ?? null,
+            now,
+            components: stat.components,
+            startHrefs: stat.startHrefs,
           },
           root,
         );
@@ -336,7 +333,7 @@ const onboarding = {
     const readDemo = () => {
       if (demoRead) return;
       demoRead = true;
-      void loadDemoHome(stat.guidance, (d) => {
+      void loadDemoHome(stat, (d) => {
         demoData = d;
         paint();
       });

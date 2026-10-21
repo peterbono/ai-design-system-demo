@@ -10,14 +10,10 @@ import { currentAccess, currentViewer, getToken, initGitHubConnect, onAccess, pr
 import { setReviewCount } from './shell';
 import { rememberMine } from './needs-you';
 import { loadHome, type HomeData, type HomeStatic } from './home-data';
-import { loadTeamData, loadTeamSnapshot, resetTeamData, teamOfPage, type TeamData } from './team-data';
+import { loadTeamData, resetTeamData, teamOfPage, type TeamData } from './team-data';
 import { loadDemoHome, type DemoHomeData } from './demo-home';
-import { openMakeItYours } from './demo-gate';
 import { paintDemoHome } from '../components/ds/studio/DemoHome';
 import { exploresDemo } from '../lib/demo';
-import { glanceFigures, type GlanceFigure } from '../lib/demo-home';
-import { combinedAdoption } from '../lib/overview-board';
-import { adoptionPerProduct } from '../lib/team-quality';
 import { paintStudioHome, type HealthLine, type HomeComponent, type StudioHomeProps } from '../components/ds/studio/StudioHome';
 import { TeamLoadError, TeamLoadProgress, TeamSourceNote } from '../components/ds/studio/TeamState';
 import { greeting, homeState } from '../lib/home-model';
@@ -26,7 +22,7 @@ import { signedOutLine } from '../lib/overview-todo';
 import { ghButton } from '../lib/gh-wording';
 import { studioHref } from '../lib/team-path';
 import { fileUrl, teamFailure } from '../lib/team-load';
-import { contrastFailures, contrastTotals, teamGuidance } from '../lib/team-facts';
+import { contrastFailures, teamGuidance } from '../lib/team-facts';
 
 export interface TeamHomeStatic extends HomeStatic {
   components: HomeComponent[];
@@ -53,19 +49,6 @@ export function teamHomeStatic(data: Pick<TeamData, 'owner' | 'repo' | 'sha' | '
   };
 }
 
-/** The library at a glance of a team's demo home: counts and contrast from the model, adoption from its snapshot. */
-export function teamGlance(data: Pick<TeamData, 'model'>, audits: Parameters<typeof adoptionPerProduct>[0] | null): GlanceFigure[] {
-  const rows = data.model.tokens.rows;
-  const adoption = audits ? combinedAdoption(adoptionPerProduct(audits)) : null;
-  const contrast = contrastTotals(data.model);
-  return glanceFigures({
-    components: data.model.components?.list.length ?? 0,
-    tokens: rows.primitives.length + rows.all.length,
-    contrast: contrast.total ? contrast : null,
-    adoption: adoption?.now ?? null,
-  });
-}
-
 /** Paints the team home into `el` (the [data-studio-home] mount), and the source line into `sourceEl`. */
 export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
   let root: Root | null = null;
@@ -76,8 +59,6 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
   let run = 0;
   const signIn = prefersSignIn();
   // The demo team, for a visitor who cannot change it (lib/demo.ts): its own home, read-only.
-  let team: TeamData | null = null;
-  let glance: GlanceFigure[] = [];
   let demoData: DemoHomeData | null = null;
   let demoRead = false;
   const exploring = () => {
@@ -89,17 +70,11 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
   const readDemo = () => {
     if (demoRead || !stat) return;
     demoRead = true;
-    void loadDemoHome(stat.guidance, (d) => {
+    const t = teamOfPage();
+    void loadDemoHome(stat, (d) => {
       demoData = d;
       paint();
     });
-    if (team) {
-      const t = team;
-      void loadTeamSnapshot().then((snap) => {
-        glance = teamGlance(t, snap ? snap.audits : null);
-        paint();
-      });
-    }
   };
 
   function health(): HealthLine | null {
@@ -115,12 +90,14 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
         el,
         {
           loading: !demoData || demoData.loading,
-          waiting: demoData?.waiting ?? [],
-          recent: demoData?.recent ?? [],
-          figures: glance,
+          needs: demoData?.needs ?? [],
+          branches: demoData?.branches ?? [],
+          health: health(),
           failed: demoData?.failed ?? null,
-          launcher: true,
-          onConnect: () => void openMakeItYours(null),
+            lead: demoData?.lead ?? null,
+          now: Date.now(),
+          components: stat.components,
+          startHrefs: stat.startHrefs,
         },
         root,
       );
@@ -178,9 +155,7 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
     }
     loadTeamData().then(
       (loaded) => {
-        team = loaded;
         stat = teamHomeStatic(loaded);
-        glance = teamGlance(loaded, null);
         sourceRoot ??= sourceEl ? createRoot(sourceEl) : null;
         sourceRoot?.render(createElement(TeamSourceNote, { data: loaded, refreshing: false, onRefresh: () => (resetTeamData(), start()) }));
         paint();

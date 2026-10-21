@@ -1,96 +1,54 @@
-/* The demo's Studio home for a visitor (components/ds/studio/DemoHome.tsx) and "Make it yours" (MakeItYours.tsx).
-   Built on the signed-in home (studio-home.css: the zone, the rows, the sections); only what is new lives here. */
+/* The demo for a visitor (boards D1, D1b, D2): the "Demo workspace" banner (DemoBanner.tsx), the tour of the home
+   (DemoHome.tsx) and the write-action dialog (MakeItYours.tsx). The home itself is the signed-in home
+   (studio-home.css); only what is new lives here. */
 
-/* The greeting's actions: the one primary, Create branch beside it, then the launcher toggle as a quiet link. */
-.dh-actions {
+/* --- The banner: a full-width strip under the app header, on every Studio page -------------------------------- */
+
+.demo-strip > .demo-banner {
+  border-inline: 0;
+  border-radius: 0;
+}
+
+.demo-banner-text {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+}
+
+/* --- The tour: a DS Popover anchored under what each step points at ------------------------------------------- */
+
+/* The anchor: a line across the bottom of what the step points at, no height of its own. */
+.dh-tour-anchor {
+  display: block;
+  height: 0;
+  /* Takes no room: cancels the gap the zone puts before it. */
+  margin-block-start: calc(var(--space-5) * -1);
+  margin-inline-start: var(--space-6);
+  pointer-events: none;
+}
+
+.dh-tour {
+  max-width: var(--size-96);
+}
+
+.dh-tour-foot {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
-  margin-block-start: var(--space-2);
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-block-start: var(--space-3);
 }
 
-/* The team launcher, revealed in the zone on demand: a plain plate, no margin of its own. */
-.dh-launcher .tl {
-  margin: 0;
+.dh-tour-actions {
+  display: inline-flex;
+  gap: var(--space-2);
 }
 
-/* --- The library at a glance ------------------------------------------------------------------------------- */
+/* --- The write-action dialog (board D2): its title in the display face --------------------------------------- */
 
-.dh-figs {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(var(--size-40), 1fr));
-  gap: var(--space-4);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.dh-figs > li {
-  display: grid;
-  margin: 0;
-}
-
-.dh-fig {
-  display: grid;
-  align-content: start;
-  gap: var(--space-0-5);
-}
-
-.dh-fig-value {
+.miy-title {
   font-family: var(--typography-h2-family);
   font-size: var(--typography-h2-size);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--typography-h2-weight);
   line-height: var(--typography-h2-line-height);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: var(--typography-h2-tracking);
-}
-
-.dh-fig.is-fail .dh-fig-value {
-  color: var(--color-feedback-danger-text);
-}
-
-.dh-fig-label {
-  font-weight: var(--font-weight-semibold);
-}
-
-/* --- Make it yours ------------------------------------------------------------------------------------------ */
-
-.miy-steps {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-/* One step per row: its mark, what it is, and its action on the same line (proximity). */
-.miy-step {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: var(--control-height-lg);
-  padding: var(--space-3);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-control);
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
-}
-
-.miy-signin {
-  flex: none;
-}
-
-@media (max-width: 640px) {
-  .dh-actions > * {
-    flex: 1 1 100%;
-  }
-
-  .miy-step {
-    flex-wrap: wrap;
-  }
-
-  .miy-signin {
-    flex: 1 1 100%;
-  }
 }

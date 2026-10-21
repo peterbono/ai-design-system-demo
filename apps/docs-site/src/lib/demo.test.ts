@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEMO_REPOS, demoWaitingLine, exploresDemo, isDemoRepo, makeItYoursLead } from './demo';
+import { DEMO_REPOS, DEMO_WORDS, demoWaiting, exploresDemo, isDemoRepo, tourSteps } from './demo';
 
 describe('the demo', () => {
   it('is the self-hosted repository and the hosted demo team, any case', () => {
@@ -20,17 +20,23 @@ describe('the demo', () => {
     expect(exploresDemo({ repo: 'acme/ds', signedIn: false, write: null })).toBe(false);
   });
 
-  it('says what the action needs, in designer words', () => {
-    expect(makeItYoursLead('create branches')).toBe('In the demo you can look around and try everything. To create branches, connect your own design system: it takes two steps.');
-    expect(makeItYoursLead(null)).toMatch(/^Bring your own design system into Bridge in two steps\./);
-    for (const s of [makeItYoursLead('x'), makeItYoursLead(null)]) expect(s).not.toMatch(/\u2014|pull request|repository access|token/);
+  it('says the demo saves nothing, in designer words (board D2)', () => {
+    expect(DEMO_WORDS.dialogTitle).toBe('Sign in with GitHub to do this for real.');
+    for (const t of Object.values(DEMO_WORDS)) expect(t).not.toMatch(/\u2014|pull request|token/);
   });
 
-  it('counts what waits for a review', () => {
-    expect(demoWaitingLine(0)).toBe('Nothing waits for a review right now.');
-    expect(demoWaitingLine(1)).toBe('1 change waits for a review.');
-    expect(demoWaitingLine(16)).toBe('16 changes wait for a review.');
-    expect(demoWaitingLine(0, 1)).toBe('1 usage draft waits for a review.');
-    expect(demoWaitingLine(3, 2)).toBe('3 changes and 2 usage drafts wait for a review.');
+  it("frames the waiting line from the lead's seat (board D1b)", () => {
+    expect(demoWaiting(8, { names: 'Ann, Leo and Claude AI', rest: ' are waiting on you.' }, 'Dana')).toEqual({
+      count: '8 changes need your review.',
+      rest: ' Ann, Leo and Claude AI are waiting on Dana, who leads this design system.',
+    });
+    expect(demoWaiting(1, { names: 'Ann', rest: ' is waiting on you.' }, null).rest).toBe(' Ann is waiting on the lead of this design system.');
+    expect(demoWaiting(2, null, 'Dana')).toEqual({ count: '2 changes need your review.', rest: ' Dana leads this design system.' });
   });
+
+  it('tours what the page shows, in order', () => {
+    expect(tourSteps({ rows: true, more: true, branches: true })).toEqual(['rows', 'more', 'branches']);
+    expect(tourSteps({ rows: true, more: false, branches: true })).toEqual(['rows', 'branches']);
+  });
+
 });

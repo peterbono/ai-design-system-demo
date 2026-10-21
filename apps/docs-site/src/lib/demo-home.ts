@@ -1,15 +1,17 @@
-// The demo's Studio home for a visitor (components/ds/studio/DemoHome.tsx): the rows it shows, from what GitHub says
-// about the demo repository without an account (scripts/demo-home.ts reads it). Nothing here is "yours": rows say
-// who waits for a review, never "waits on you", and nothing is made up. Pure, covered by demo-home.test.ts.
-import { CLAUDE, ago, person, waitingLabel, type NeedRow, type Person } from './home-model';
+// The demo's Studio home for a visitor (components/ds/studio/DemoHome.tsx): the visitor steps into the DS lead's
+// seat, so the home shows the lead's day as the signed-in home words it ("Ann asks for your review"), from the demo
+// repository's activity (scripts/demo-home.ts readDemoActivity). Nothing is made up. Pure, covered by
+// demo-home.test.ts.
+import { CLAUDE, changeNeed, person, type BranchCard, type NeedRow, type Person } from './home-model';
+import { isGuidanceChange } from './overview-todo';
 import { oneLineTitle } from './markdown';
 import { humanTitle } from './pr-title';
 import { agentMade } from './work-nature';
-import { suggestionHref, suggestionKey, shortTitle } from './suggestions-view';
+import { shortTitle, suggestionNeed } from './suggestions-view';
 import { studioHref } from './team-path';
 import type { ThumbSpec } from './branch-thumb';
 
-/** The fields of a pull request the demo home reads (GET /repos/{o}/{r}/pulls). */
+/** The fields of a pull request the demo home reads (GET /repos/{o}/{r}/pulls, or the activity snapshot). */
 export interface DemoPull {
   number: number;
   title: string;
@@ -17,9 +19,9 @@ export interface DemoPull {
   draft?: boolean;
   created_at: string;
   updated_at: string;
-  merged_at?: string | null;
   body?: string | null;
   labels?: { name: string }[] | null;
+  requested_reviewers?: { login: string }[] | null;
   head?: { ref: string; sha?: string };
   base?: { ref: string; sha?: string };
 }
@@ -37,113 +39,91 @@ export interface DemoSuggestion {
 export const isBotPull = (p: Pick<DemoPull, 'user'>): boolean => !p.user || p.user.type === 'Bot' || /\[bot\]$|^app\//i.test(p.user.login);
 
 const avatar = (u: { login: string; avatar_url?: string }) => u.avatar_url ?? `https://github.com/${u.login}.png?size=64`;
+const title = (t: string) => oneLineTitle(humanTitle(t));
+/** A usage guidance branch (docs/<component>-...): the lead checks the guidance, not a design. */
+const guidanceBranch = (p: DemoPull) => isGuidanceChange(p.head?.ref ?? '', undefined);
+const labelNames = (p: DemoPull) => (p.labels ?? []).map((l) => l.name.toLowerCase());
+/** An exploration (labelled, or on an explore/ branch): a product screen tried with Claude AI, never merged as is. */
+export const isExploration = (p: DemoPull) => labelNames(p).includes('exploration') || /^explore\//.test(p.head?.ref ?? '');
+/** The product a branch belongs to, from its "product: account" label: "Account". */
+export function productOf(p: DemoPull): string | null {
+  const l = labelNames(p).find((x) => x.startsWith('product:'));
+  const name = l?.slice('product:'.length).trim();
+  return name ? name.charAt(0).toUpperCase() + name.slice(1) : null;
+}
+
+export interface LeadOptions {
+  /** Before/after of the branches read so far. */
+  thumbs?: Map<number, ThumbSpec>;
+  /** Display names (GitHub profiles), by lower-case login. */
+  people?: Map<string, Person>;
+}
+
+function who(u: { login: string; avatar_url?: string } | null, people?: Map<string, Person>): Person {
+  return u ? (people?.get(u.login.toLowerCase()) ?? person(u.login, null, avatar(u))) : person('ghost', null, null);
+}
 
 /** Who made a change: Claude AI for agent work, else the GitHub account. */
-export function authorOf(p: Pick<DemoPull, 'user' | 'body' | 'labels'>): Person {
-  if (agentMade({ body: p.body ?? null, labels: p.labels ?? null })) return CLAUDE;
-  return p.user ? person(p.user.login, null, avatar(p.user)) : person('ghost', null, null);
-}
-
-const title = (t: string) => oneLineTitle(humanTitle(t));
-
-/** One open branch waiting for a review, as a row: "Ann asks for a review", "Draft by Ann". */
-export function demoPullRow(p: DemoPull, now: number, thumb?: ThumbSpec | null): NeedRow {
-  const who = authorOf(p);
-  const draft = Boolean(p.draft);
-  return {
-    key: `change-${p.number}`,
-    kind: 'review',
-    title: title(p.title),
-    href: studioHref(`changes/?pr=${p.number}`),
-    number: p.number,
-    person: who,
-    line: draft ? `Draft by ${who.name}` : `${who.name} asks for a review`,
-    since: draft ? null : p.created_at,
-    waitsOnYou: false,
-    pill: draft ? { label: 'Draft', tone: 'neutral' } : { label: waitingLabel(p.created_at, now), tone: 'warning' },
-    thumb: thumb ?? { kind: 'icon', icon: 'branch' },
-  };
-}
-
-/** One suggestion waiting for a review, as a row. */
-export function demoSuggestionRow(s: DemoSuggestion, now: number): NeedRow {
-  const who = s.user ? person(s.user.login, null, avatar(s.user)) : person('ghost', null, null);
-  return {
-    key: suggestionKey(s.number),
-    kind: 'review',
-    title: shortTitle(s.title),
-    href: suggestionHref(s.number),
-    number: s.number,
-    person: who,
-    line: `${who.name} suggests a change`,
-    since: s.created_at,
-    waitsOnYou: false,
-    pill: { label: waitingLabel(s.created_at, now), tone: 'warning' },
-    thumb: { kind: 'icon', icon: 'token' },
-  };
+export function authorOf(p: Pick<DemoPull, 'user' | 'body' | 'labels'>, people?: Map<string, Person>): Person {
+  return agentMade({ body: p.body ?? null, labels: p.labels ?? null }) ? CLAUDE : who(p.user, people);
 }
 
 /**
- * Everything waiting for a review: ready branches and suggestions first (oldest first), drafts after them, automation
- * left out. Issues that are pull requests are left out of the suggestions.
+ * The queue a DS lead sees on the demo, the visitor in their seat: every branch ready for review (drafts and
+ * automation left out) and every open suggestion, as the Needs you rows of the signed-in home (changeNeed,
+ * suggestionNeed).
  */
-export function demoWaitingRows(pulls: DemoPull[], suggestions: DemoSuggestion[], now: number, thumbs: Map<number, ThumbSpec> = new Map()): NeedRow[] {
-  const ready = pulls.filter((p) => !isBotPull(p));
-  const rows = [
-    ...ready.map((p) => demoPullRow(p, now, thumbs.get(p.number))),
-    ...suggestions.filter((s) => !s.pull_request).map((s) => demoSuggestionRow(s, now)),
-  ];
-  const t = (r: NeedRow) => (r.since ? new Date(r.since).getTime() : Number.POSITIVE_INFINITY);
-  return rows.sort((a, b) => t(a) - t(b));
-}
-
-/** One merged change, as a recent-changes row. */
-export interface RecentChange {
-  number: number;
-  title: string;
-  href: string;
-  person: Person;
-  line: string;
-}
-
-/** The latest merged changes, newest first, automation left out, at most `max`. */
-export function recentChanges(closed: DemoPull[], now: number, max = 5): RecentChange[] {
-  return closed
-    .filter((p) => p.merged_at && !isBotPull(p))
-    .sort((a, b) => b.merged_at!.localeCompare(a.merged_at!))
-    .slice(0, max)
+export function leadQueue(pulls: DemoPull[], suggestions: DemoSuggestion[], now: number, opts: LeadOptions = {}): NeedRow[] {
+  const changes = pulls
+    .filter((p) => !p.draft && !isBotPull(p))
     .map((p) => {
-      const who = authorOf(p);
-      return { number: p.number, title: title(p.title), href: studioHref(`changes/?pr=${p.number}`), person: who, line: `Merged ${ago(p.merged_at!, now)} · ${who.name}` };
+      const author = authorOf(p, opts.people);
+      const guidance = guidanceBranch(p);
+      // The asker is whoever opened it: Claude AI for agent work, the author otherwise.
+      return changeNeed(
+        {
+          number: p.number,
+          title: title(p.title),
+          author,
+          asker: author,
+          since: p.created_at,
+          task: guidance ? 'guidance' : 'requested',
+          thumb: opts.thumbs?.get(p.number) ?? { kind: 'icon', icon: guidance ? 'guidance' : 'branch' },
+        },
+        now,
+      );
+    });
+  const asked = suggestions.filter((s) => !s.pull_request).map((s) => suggestionNeed({ number: s.number, title: shortTitle(s.title), createdAt: s.created_at }, who(s.user, opts.people), now));
+  return [...changes, ...asked];
+}
+
+/**
+ * The team's explorations and branches, as the home's branch cards (board D1 "Explorations and branches"): drafts
+ * being edited and branches in review. A visitor has no branch of their own; these are the demo team's.
+ */
+export function teamBranches(pulls: DemoPull[], opts: LeadOptions = {}): BranchCard[] {
+  return pulls
+    .filter((p) => !isBotPull(p))
+    .map((p) => {
+      const reviewer = p.requested_reviewers?.[0];
+      return {
+        number: p.number,
+        title: title(p.title),
+        href: studioHref(`changes/?pr=${p.number}`),
+        stage: p.draft ? 'draft' : 'ready',
+        updated: p.updated_at,
+        reviewer: reviewer ? who(reviewer, opts.people) : null,
+        thumb: opts.thumbs?.get(p.number) ?? { kind: 'icon', icon: guidanceBranch(p) ? 'guidance' : 'branch' },
+        // Board D1: "Exploration in Admin demo · Ann", "Library branch · in review", "Library branch · draft".
+        statusLine: isExploration(p)
+          ? { stage: productOf(p) ? `Exploration in ${productOf(p)}` : 'Exploration', detail: authorOf(p, opts.people).name }
+          : { stage: 'Library branch', detail: p.draft ? 'draft' : 'in review' },
+      } satisfies BranchCard;
     });
 }
 
-/** The library figures of the demo home: counts and the two quality figures, each a link to where it comes from. */
-export interface GlanceFigure {
-  id: 'components' | 'tokens' | 'contrast' | 'adoption';
-  value: string;
-  label: string;
-  href: string;
-  /** Danger only when something fails. */
-  tone: 'fail' | null;
-}
-
-const pct = (v: number) => `${Math.round(v * 10) / 10}%`;
-
-/**
- * Components, tokens, contrast and adoption, in that order. Adoption is left out when no product was audited;
- * contrast when the repository names no checks.
- */
-export function glanceFigures(x: { components: number; tokens: number; contrast: { total: number; fail: number } | null; adoption: number | null }): GlanceFigure[] {
-  const out: GlanceFigure[] = [
-    { id: 'components', value: String(x.components), label: x.components === 1 ? 'component' : 'components', href: studioHref('components/'), tone: null },
-    { id: 'tokens', value: String(x.tokens), label: x.tokens === 1 ? 'token' : 'tokens', href: studioHref('tokens/'), tone: null },
-  ];
-  if (x.contrast && x.contrast.total) {
-    // As Quality says it: every check passing, else how many fail.
-    const fail = x.contrast.fail;
-    out.push({ id: 'contrast', value: String(fail || x.contrast.total), label: fail ? `of ${x.contrast.total} contrast checks fail` : 'contrast checks pass', href: studioHref('quality/#ql-contrast'), tone: fail ? 'fail' : null });
-  }
-  if (x.adoption !== null) out.push({ id: 'adoption', value: pct(x.adoption), label: 'adoption in products', href: studioHref('quality/#ql-adoption'), tone: null });
-  return out;
+/** The logins the home names, to read their display names once (GET /users/{login}). */
+export function demoLogins(pulls: DemoPull[], suggestions: DemoSuggestion[]): string[] {
+  const all = [...pulls.filter((p) => !isBotPull(p)).flatMap((p) => [p.user?.login, ...(p.requested_reviewers ?? []).map((r) => r.login)]), ...suggestions.map((s) => s.user?.login)];
+  return [...new Set(all.filter((l): l is string => Boolean(l)).map((l) => l.toLowerCase()))];
 }

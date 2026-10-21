@@ -29,40 +29,56 @@ export function exploresDemo(x: { repo: string | null | undefined; signedIn: boo
 // The words
 
 export const DEMO_WORDS = {
-  hello: "You're exploring the Bridge demo",
-  line: 'Browse everything and try the editor. Saving a change needs your own design system.',
-  connect: 'Connect your design system',
-  launcherToggle: "Already on Bridge? Open your team's",
-  waitingNone: 'Nothing waits for a review right now.',
-  glance: 'The library at a glance',
-  recent: 'Recent changes',
-  recentSub: 'What the team merged lately.',
-  seeAll: 'See all branches',
-  dialogTitle: 'Make it yours',
+  /** The banner over every Studio page of the demo (board D1). */
+  bannerTitle: 'Demo workspace.',
+  bannerText: 'Read-only, sample data from our open-source design system.',
+  seeOnGitHub: 'See it on GitHub',
+  useOwn: 'Use your own repo',
+  /** The home's branches (board D1). */
+  branches: 'Explorations and branches',
+  /** A write action in the demo (board D2). */
+  dialogTitle: 'Sign in with GitHub to do this for real.',
+  dialogLead: 'In the demo, nothing is saved.',
+  dialogNote: 'You pick the repos Bridge can see. It starts read-only and asks again before it writes anything.',
   keepExploring: 'Keep exploring',
-  stepSignIn: 'Sign in with GitHub',
-  stepSignInLine: 'Bridge works as you on GitHub. Your sign-in stays in this browser.',
-  stepConnect: 'Connect your design system',
-  stepConnectLine: 'Point Bridge at its GitHub repository. Your team opens the same link.',
-  noDs: 'No design system yet? Keep exploring the demo.',
 } as const;
 
-/** What the visitor tried to do, as "to <verb>" reads it, when a gated action does not say. */
+/** What a write action in the demo does, as its data-demo-write says it, when it does not say ("save changes"). */
 export const DEFAULT_WRITE = 'save changes';
 
 /**
- * The dialog's lead. From an action (`action`, "create branches"): what the demo allows, and what that action needs.
- * From "Connect your design system" (no action): the two steps ahead.
+ * The waiting line of the demo (board D1b), the visitor in the DS lead's seat: "8 changes need your review." then
+ * who waits, on whom: "Ann and Claude AI are waiting on Dana, who leads this design system." `people` is
+ * home-model waitingSentence over everyone but the lead.
  */
-export function makeItYoursLead(action?: string | null): string {
-  const verb = (action ?? '').trim();
-  if (!verb) return 'Bring your own design system into Bridge in two steps. The demo stays here whenever you want to look around.';
-  return `In the demo you can look around and try everything. To ${verb}, connect your own design system: it takes two steps.`;
+export function demoWaiting(n: number, people: { names: string; rest: string } | null, lead: string | null): { count: string; rest: string } {
+  const count = `${n} ${n === 1 ? 'change needs' : 'changes need'} your review.`;
+  const on = lead ? `on ${lead}, who leads this design system.` : 'on the lead of this design system.';
+  if (!people) return { count, rest: lead ? ` ${lead} leads this design system.` : '' };
+  return { count, rest: ` ${people.names}${people.rest.replace(/on you\.$/, on)}` };
 }
 
-/** "3 changes and 1 usage draft wait for a review." over the rows of the demo's zone. */
-export function demoWaitingLine(changes: number, drafts = 0): string {
-  const parts = [changes ? `${changes} ${changes === 1 ? 'change' : 'changes'}` : '', drafts ? `${drafts} usage ${drafts === 1 ? 'draft' : 'drafts'}` : ''].filter(Boolean);
-  if (!parts.length) return DEMO_WORDS.waitingNone;
-  return `${parts.join(' and ')} ${changes + drafts === 1 ? 'waits' : 'wait'} for a review.`;
+// ---------------------------------------------------------------------------------------------------------------
+// The tour of the demo home (board D1): three steps, each anchored where it points
+
+export type TourAt = 'rows' | 'more' | 'branches';
+
+export const DEMO_TOUR: Record<TourAt, { title: string; text: string }> = {
+  rows: {
+    title: 'Changes wait for the lead',
+    text: 'Each row is a change a teammate or Claude AI opened. Bridge shows it before and after, so the lead reviews the look, not the code.',
+  },
+  more: {
+    title: 'The whole queue, one by one',
+    text: 'Review all opens every change in turn: approve, ask for changes, and move on to the next.',
+  },
+  branches: {
+    title: 'Work in progress stays apart',
+    text: 'Explorations try a product screen with Claude AI; branches change the library. Nothing reaches it until it is reviewed and merged.',
+  },
+};
+
+/** The steps the page can point at, in order: the grouped row only when there is one. */
+export function tourSteps(x: { rows: boolean; more: boolean; branches: boolean }): TourAt[] {
+  return (['rows', 'more', 'branches'] as const).filter((s) => x[s]);
 }

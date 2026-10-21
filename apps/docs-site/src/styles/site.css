@@ -466,6 +466,17 @@ a.topbar-brand {
   background-color: var(--color-bg-subtle);
 }
 
+/* The rail is sticky and one screen tall: on a long page the shell paints its column (ground and edge) down to the
+   foot, so the soft ground never stops under it. Wide screens only; narrower, the rail is a sheet over the page. */
+@media (min-width: 961px) {
+  :root[data-space="studio"] .shell {
+    background-image: linear-gradient(var(--color-border-default), var(--color-border-default)), linear-gradient(var(--color-bg-subtle), var(--color-bg-subtle));
+    background-repeat: no-repeat;
+    background-position: calc(var(--layout-sidebar-width) - var(--border-width-default)) 0, 0 0;
+    background-size: var(--border-width-default) 100%, var(--layout-sidebar-width) 100%;
+  }
+}
+
 :root[data-space="studio"] .topbar .shell-search {
   --_bg: var(--color-surface-default);
   --_bg-hover: var(--color-surface-default);

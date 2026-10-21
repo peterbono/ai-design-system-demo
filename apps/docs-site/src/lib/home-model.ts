@@ -373,6 +373,8 @@ export interface BranchCard {
   thumb: ThumbSpec;
   /** In review: the status pill its row shows in Branches (lib/changes statusPill), once read. */
   status?: string | null;
+  /** The status line in other words than branchStatus (the demo's team branches: "Exploration in Account · Ann"). */
+  statusLine?: { stage: string; detail: string };
 }
 
 export type BranchFilter = 'all' | 'draft' | 'ready';

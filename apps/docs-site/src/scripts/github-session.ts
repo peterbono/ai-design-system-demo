@@ -826,14 +826,18 @@ const notify = (v: Viewer | null) => listeners.forEach((fn) => fn(v));
  * call in between marks it as stopped working.
  */
 export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
-  // On the demo, write actions open "Make it yours" for visitors who cannot write (scripts/demo-gate.ts). First, so
-  // its capture listener runs before the gated-action one below.
+  // On the demo, a visitor who cannot write sees the demo banner, and write actions open the demo dialog
+  // (scripts/demo-gate.ts). First, so its capture listener runs before the gated-action one below.
   bindDemoGate({
     repo: () => repoName(readRepo()),
     login: () => viewer?.login ?? null,
     write: () => currentAccess()?.write ?? null,
     signIn: prefersSignIn,
     known: () => checked || !getToken(),
+    subscribe: (fn) => {
+      listeners.push(() => fn());
+      onAccess(() => fn());
+    },
   });
   if (onChange) listeners.push(onChange);
   if (wired) {

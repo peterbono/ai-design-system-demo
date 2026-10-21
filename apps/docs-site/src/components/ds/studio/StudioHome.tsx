@@ -36,6 +36,7 @@ import {
 } from '../../../lib/home-model';
 import { VOCAB } from '../../../lib/vocabulary';
 import { studioHref } from '../../../lib/team-path';
+import { demoWaiting } from '../../../lib/demo';
 
 /** One Needs you row: before/after, who, what and why, the status on the right (the shared BranchRow). */
 export function NeedRowItem({ row, selected, onSelect, action }: { row: NeedRow; selected?: boolean; onSelect?: (row: NeedRow) => void; action?: 'primary' | 'secondary' }) {
@@ -77,23 +78,37 @@ export function NeedList({ rows, selectedKey, onSelect, label = 'Needs you', act
   );
 }
 
-/** "Ann, Dana, Claude AI and 6 others are waiting on you." with their avatars and the oldest wait. */
-function Waiting({ needs, now }: { needs: NeedRow[]; now: number }) {
-  const people = uniquePeople(needs.filter((r) => r.waitsOnYou).map((r) => r.person));
+/**
+ * "Ann, Dana, Claude AI and 6 others are waiting on you." with their avatars and the oldest wait. On the demo (`lead`),
+ * the visitor sits in the lead's seat: "8 changes need your review. Ann and Claude AI are waiting on Dana, who leads
+ * this design system." (lib/demo.ts demoWaiting), the lead left out of the people.
+ */
+function Waiting({ needs, now, lead }: { needs: NeedRow[]; now: number; lead?: Person | null }) {
+  const people = uniquePeople(needs.filter((r) => r.waitsOnYou).map((r) => r.person)).filter((p) => !lead || p.agent || p.login.toLowerCase() !== lead.login.toLowerCase());
   const s = waitingSentence(people);
   const oldest = oldestLabel(needs, now);
-  if (!s) return null;
+  const demo = lead !== undefined ? demoWaiting(needs.filter((r) => r.waitsOnYou).length, s, lead?.name ?? null) : null;
+  if (!s && !demo) return null;
   return (
     <p className="t-body sh-waiting">
-      <AvatarGroup aria-label="Waiting on you" max={AVATARS_SHOWN} size="md" className="sh-stack">
-        {people.map((p) => (
-          <Who key={p.agent ? '#agent' : p.login} p={p} name={p.name} decorative={false} />
-        ))}
-      </AvatarGroup>
-      <span>
-        <b className="sh-strong">{s.names}</b>
-        {s.rest}
-      </span>
+      {people.length > 0 && (
+        <AvatarGroup aria-label="Waiting on you" max={AVATARS_SHOWN} size="md" className="sh-stack">
+          {people.map((p) => (
+            <Who key={p.agent ? '#agent' : p.login} p={p} name={p.name} decorative={false} />
+          ))}
+        </AvatarGroup>
+      )}
+      {demo ? (
+        <span>
+          <b className="sh-strong">{demo.count}</b>
+          {demo.rest}
+        </span>
+      ) : (
+        <span>
+          <b className="sh-strong">{s!.names}</b>
+          {s!.rest}
+        </span>
+      )}
       {oldest && (
         <Badge tone="warning" size="md">
           {oldest}
@@ -137,12 +152,14 @@ function OnlyReviewerHint({ needs, snoozed }: { needs: NeedRow[]; snoozed: boole
   );
 }
 
-function Needs({ needs, now, snoozed }: { needs: NeedRow[]; now: number; snoozed: boolean }) {
+function Needs({ needs, now, snoozed, demo, tour }: { needs: NeedRow[]; now: number; snoozed: boolean; demo?: boolean; tour?: StudioHomeProps['tour'] }) {
   const { shown, more } = splitNeeds(needs);
   return (
     <>
-      {/* One item: its button is the page's primary. Two or three: secondary buttons. More: no row buttons, "Review all" acts. */}
-      <NeedList rows={shown} action={more ? undefined : shown.length === 1 ? 'primary' : 'secondary'} />
+      {/* One item: its button is the page's primary. Two or three: secondary buttons. More: no row buttons, "Review all"
+          acts. The demo (board D1b) keeps a Review button on each row, beside "Review all (N)". */}
+      <NeedList rows={shown} action={demo ? 'secondary' : more ? undefined : shown.length === 1 ? 'primary' : 'secondary'} />
+      {tour?.('rows')}
       {more && (
         <div className="sh-more">
           <p className="t-body sh-more-text">
@@ -150,17 +167,18 @@ function Needs({ needs, now, snoozed }: { needs: NeedRow[]; now: number; snoozed
             {more.parts && <span className="t-muted"> · {more.parts}</span>}
           </p>
           <ButtonLink variant="primary" href={studioHref('review/')} className="sh-more-btn">
-            Review all
+            {demo ? `Review all (${needs.length})` : 'Review all'}
           </ButtonLink>
         </div>
       )}
-      <OnlyReviewerHint needs={needs} snoozed={snoozed} />
+      {more && tour?.('more')}
+      {!demo && <OnlyReviewerHint needs={needs} snoozed={snoozed} />}
     </>
   );
 }
 
 function BranchCardItem({ b, now }: { b: BranchCard; now: number }) {
-  const s = branchStatus(b, now);
+  const s = b.statusLine ?? branchStatus(b, now);
   return (
     <li className="sh-card-item">
       <Card interactive padding="none" className="sh-card">
@@ -171,7 +189,7 @@ function BranchCardItem({ b, now }: { b: BranchCard; now: number }) {
           </Link>
           <span className="t-ui t-muted sh-card-status">
             <span className="sh-card-stage">{s.stage}</span> ·{' '}
-            {b.stage === 'ready' && b.reviewer && !b.status ? (
+            {b.stage === 'ready' && b.reviewer && !b.status && !b.statusLine ? (
               <>
                 <Who p={b.reviewer} size="xs" /> {s.detail}
               </>
@@ -191,25 +209,50 @@ export interface HomeComponent {
   family?: string;
 }
 
-function Branches({ branches, now, components }: { branches: BranchCard[]; now: number; components: HomeComponent[] }) {
+function Branches({
+  branches,
+  now,
+  components,
+  title = `Your ${VOCAB.branches}`,
+  sub = "Your changes, kept apart from the library until they're merged.",
+  create = true,
+  max,
+  tour,
+}: {
+  branches: BranchCard[];
+  now: number;
+  components: HomeComponent[];
+  title?: string;
+  sub?: string | null;
+  create?: boolean;
+  /** Show the first `max` only, with "See all N" by the title (the demo, board D1: one row of cards). */
+  max?: number;
+  tour?: StudioHomeProps['tour'];
+}) {
   const [filter, setFilter] = useState<BranchFilter>('all');
-  const shown = sortBranches(branches).filter((b) => showsBranch(filter, b.stage));
+  const sorted = sortBranches(branches).filter((b) => showsBranch(filter, b.stage));
+  const shown = max ? sorted.slice(0, max) : sorted;
   return (
     <section className="sh-section" aria-labelledby="sh-branches">
       <header className="sh-section-head">
         <div className="sh-section-title">
           <h2 id="sh-branches" className="sh-h2">
-            Your {VOCAB.branches}
+            {title}
           </h2>
-          <p className="t-body t-muted sh-section-sub">Your changes, kept apart from the library until they're merged.</p>
+          {sub && <p className="t-body t-muted sh-section-sub">{sub}</p>}
         </div>
-        {branches.length >= 4 && <SegmentedControl label={`Show ${VOCAB.branches}`} size="md" value={filter} onValueChange={(v) => setFilter(v as BranchFilter)} items={BRANCH_FILTERS} />}
+        {max ? (
+          branches.length > max && <Link href={studioHref('changes/')}>See all {branches.length}</Link>
+        ) : branches.length >= 4 && <SegmentedControl label={`Show ${VOCAB.branches}`} size="md" value={filter} onValueChange={(v) => setFilter(v as BranchFilter)} items={BRANCH_FILTERS} />}
       </header>
+      {tour?.('branches')}
       <ul className="sh-cards">
         {/* Create first, like "+ New" in Figma's file browser: the slot never moves as branches come and go. */}
-        <li className="sh-card-item sh-create">
-          <StartChange components={components} appearance="card" />
-        </li>
+        {create && (
+          <li className="sh-card-item sh-create">
+            <StartChange components={components} appearance="card" />
+          </li>
+        )}
         {shown.map((b) => (
           <BranchCardItem key={b.number} b={b} now={now} />
         ))}
@@ -277,6 +320,14 @@ export interface StudioHomeProps {
   startHrefs: Record<'tokens' | 'component' | 'guidance', string>;
   /** Signed in with setup steps left: "4 of 6 connected" and its checklist (Onboarding.tsx), by the greeting. */
   setup?: ReactNode;
+  /**
+   * The demo for a visitor (DemoHome.tsx, boards D1 and D1b): the same home from the DS lead's seat. `lead` names
+   * them in the waiting line; each row keeps its Review button; "Review all (N)"; the team's branches under their own
+   * title, without Create branch. Always the busy layout.
+   */
+  demo?: { lead: Person | null; branchesTitle: string; branchesMax: number };
+  /** The demo tour's popovers, anchored where each step points: under the rows, the grouped row, the branches. */
+  tour?: (at: 'rows' | 'more' | 'branches') => ReactNode;
 }
 
 /** The review drawing without its empty sky: the scene only, so it never makes the greeting taller than its text. */
@@ -284,7 +335,7 @@ const REVIEW_CROP = '0 98 232 86';
 
 export function StudioHome(p: StudioHomeProps) {
   const snoozed = hintSnoozed(readSnooze(), p.now);
-  if (p.state === 'signed-out') {
+  if (p.state === 'signed-out' && !p.demo) {
     return (
       <div className="sh">
         <section className="zone sh-zone" aria-labelledby="sh-hello">
@@ -306,7 +357,7 @@ export function StudioHome(p: StudioHomeProps) {
       </div>
     );
   }
-  if (p.state === 'empty') {
+  if (p.state === 'empty' && !p.demo) {
     return (
       <div className="sh">
         <section className="zone sh-zone sh-zone-empty" aria-labelledby="sh-hello">
@@ -338,7 +389,7 @@ export function StudioHome(p: StudioHomeProps) {
               </h1>
               {p.setup && <div className="sh-setup">{p.setup}</div>}
             </div>
-            {loading ? <p className="t-body">Checking what needs you.</p> : p.needs.some((r) => r.waitsOnYou) ? <Waiting needs={p.needs} now={p.now} /> : <p className="t-body">{p.needs.length ? 'Your branches need you.' : 'Nothing needs you.'}</p>}
+            {loading ? <p className="t-body">Checking what needs you.</p> : p.needs.some((r) => r.waitsOnYou) ? <Waiting needs={p.needs} now={p.now} lead={p.demo ? p.demo.lead : undefined} /> : <p className="t-body">{p.needs.length ? 'Your branches need you.' : 'Nothing needs you.'}</p>}
           </div>
           <Drawing name="review" width={220} crop={REVIEW_CROP} className="sh-art" />
         </div>
@@ -349,12 +400,12 @@ export function StudioHome(p: StudioHomeProps) {
             </li>
           </ul>
         ) : (
-          p.needs.length > 0 && <Needs needs={p.needs} now={p.now} snoozed={snoozed} />
+          p.needs.length > 0 && <Needs needs={p.needs} now={p.now} snoozed={snoozed} demo={Boolean(p.demo)} tour={p.tour} />
         )}
       </section>
       {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}
       {p.health && <Health h={p.health} />}
-      {(p.branches.length > 0 || !loading) && <Branches branches={p.branches} now={p.now} components={p.components} />}
+      {(p.branches.length > 0 || !loading) && <Branches branches={p.branches} now={p.now} components={p.components} title={p.demo?.branchesTitle} sub={p.demo ? null : undefined} create={!p.demo} max={p.demo?.branchesMax} tour={p.tour} />}
     </div>
   );
 }

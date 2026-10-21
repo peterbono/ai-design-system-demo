@@ -15,16 +15,6 @@ export function contrastFailures(model: Pick<RepoModel, 'contrast'>): number {
   return fail;
 }
 
-/** Every contrast check of a model and how many fail, counted as contrastFailures counts them. */
-export function contrastTotals(model: Pick<RepoModel, 'contrast'>): { total: number; fail: number } {
-  let total = 0;
-  for (const p of model.contrast.pairs) {
-    const brands = Object.values(p.brands);
-    total += (brands.length ? brands.flatMap((b) => Object.values(b)) : Object.values(p.modes)).length;
-  }
-  return { total, fail: contrastFailures(model) };
-}
-
 /** Drafted guidance waiting for review: each row opens the draft on GitHub (the docs editor is the demo Library's). */
 export function teamGuidance(data: { owner: string; repo: string; sha: string; model: Pick<RepoModel, 'components'> }): { name: string; href: string; since: string | null }[] {
   return (data.model.components?.list ?? []).filter((c) => c.docs?.needsReview).map((c) => ({ name: c.name, href: fileUrl(data.owner, data.repo, data.sha, c.files.docs), since: null }));
