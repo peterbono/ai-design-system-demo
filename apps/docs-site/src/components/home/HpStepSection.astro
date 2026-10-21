@@ -1,0 +1,60 @@
+---
+// One "how it works" section of the homepage: a heading, one sentence, three step tabs (vertical, numbered, each
+// with its own sentence and a progress bar) and one panel that shows the step's drawing. The step advances on its
+// own while the section is on screen, and pauses on hover or focus (scripts/homepage.ts). Slots p0, p1, p2: the
+// three drawings; `labels`: what each drawing shows, for screen readers.
+interface Step {
+  title: string;
+  text: string;
+}
+interface Props {
+  id: string;
+  title: string;
+  lede: string;
+  steps: [Step, Step, Step];
+  labels: [string, string, string];
+  flip?: boolean;
+}
+const { id, title, lede, steps, labels, flip = false } = Astro.props;
+const panels = await Promise.all((['p0', 'p1', 'p2'] as const).map((p) => Astro.slots.render(p)));
+---
+
+<section class="hp-tabsec" aria-labelledby={id} data-steps>
+  <div class:list={['hp-wrap', 'hp-tabgrid', flip && 'hp-flip']}>
+    <div class="hp-tabtext">
+      <h2 id={id} class="hp-st-h">{title}</h2>
+      <p class="hp-st-p">{lede}</p>
+      <div class="hp-tablist" role="tablist" aria-orientation="vertical" aria-labelledby={id}>
+        {
+          steps.map((s, j) => (
+            <div class:list={['hp-tabitem', j === 0 && 'hp-on']}>
+              {/* bridge-audit-ignore-next-line: a vertical step tab (number, title, then its sentence and progress bar expand under it); DS Tabs is a horizontal strip with an indicator, so a Tabs "steps" appearance is requested in the PR */}
+              <button class="hp-tab" role="tab" type="button" id={`${id}-t${j}`} aria-controls={`${id}-panel`} aria-selected={j === 0 ? 'true' : 'false'} tabindex={j === 0 ? 0 : -1}>
+                <span class="hp-n">{j + 1}</span>
+                <span class="hp-tt">{s.title}</span>
+              </button>
+              <div class="hp-more">
+                <div>
+                  <p>{s.text}</p>
+                  <div class="hp-prog" aria-hidden="true">
+                    <span class="hp-bar"><i /></span>
+                    <span class="hp-cnt">{j + 1} of 3</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+    <div class="hp-panel" role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-t0`} tabindex="-1">
+      {
+        panels.map((p, j) => (
+          <div class:list={['hp-ui', j === 0 && 'hp-on']} role="img" aria-label={labels[j]} aria-hidden={j === 0 ? undefined : 'true'}>
+            <Fragment set:html={p} />
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>

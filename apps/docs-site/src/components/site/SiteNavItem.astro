@@ -1,0 +1,33 @@
+---
+// One link of the header's Product and Resources lists (components/site/SiteHeader.astro): an icon tile, a title and
+// one line saying what is behind it. Same row in the desktop panels and the phone sheet.
+import { Link } from '@bridge-ds/react';
+import { BookOpen } from 'lucide-react';
+
+export interface Props {
+  href: string;
+  title: string;
+  text: string;
+  icon: 'bridge' | 'plugin' | 'book';
+  current?: boolean;
+}
+const { href, title, text, icon, current } = Astro.props;
+---
+
+<Link variant="subtle" className="nv-item" href={href} aria-current={current ? 'page' : undefined}>
+  <span class="nv-ico" aria-hidden="true">
+    {
+      icon === 'book' ? (
+        <BookOpen size={20} strokeWidth={1.75} />
+      ) : (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          {icon === 'bridge' ? <path d="M3 16Q12 4 21 16M2 16h20M7.5 16v-3.6M12 16v-6M16.5 16v-3.6M5 19.5h14" /> : <path d="M8 3v18M16 3v18M3 8h18M3 16h18" />}
+        </svg>
+      )
+    }
+  </span>
+  <span class="nv-tx">
+    <strong>{title}</strong>
+    <small>{text}</small>
+  </span>
+</Link>
