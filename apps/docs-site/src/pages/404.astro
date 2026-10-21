@@ -4,9 +4,13 @@
 // scripts the enforced Content-Security-Policy blocks, and keeps the visitor inside Bridge.
 import Layout from '../layouts/Layout.astro';
 import ButtonLink from '../components/ds/ButtonLink';
+import { freshness } from '../lib/sources';
+
+const sources = ['apps/docs-site/src/pages/404.astro'];
+const updated = freshness(sources);
 ---
 
-<Layout title="Page not found" description="This address does not match any page of Bridge." crumbs={false}>
+<Layout title="Page not found" description="This address does not match any page of Bridge." crumbs={false} sources={sources} updated={updated}>
   <h1>Page not found</h1>
   <p>This address does not match any page. It may have moved, or the link has a typo.</p>
   <p>
