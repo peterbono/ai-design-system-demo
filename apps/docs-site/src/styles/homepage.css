@@ -2833,8 +2833,35 @@ button.hp-qrow {
 .hp-faqgrid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-8);
-  align-items: start;
+  gap: var(--space-6);
+  align-items: center;
+}
+
+.hp-faqside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+}
+
+.hp-faqart {
+  width: min(calc(var(--size-64) + var(--space-1)), 70%);
+  height: auto;
+  overflow: hidden;
+}
+
+.hp-faqb {
+  animation: hp-faqbob calc(var(--motion-duration-moderate) * 16) var(--motion-easing-standard) infinite;
+}
+
+@keyframes hp-faqbob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(calc(var(--space-1) * -1));
+  }
 }
 
 .hp-faqh {
@@ -2850,8 +2877,12 @@ button.hp-qrow {
   text-wrap: wrap;
 }
 
+/* The DS Accordion's content starts right under its trigger; the answer brings its own space above (component request:
+   a top padding on the Accordion content). */
 .hp-faq-answer {
+  max-width: 60ch;
   margin: 0;
+  padding-top: var(--space-3);
   color: var(--color-text-muted);
   font-size: var(--font-size-300);
   line-height: var(--font-leading-26);
@@ -3125,7 +3156,8 @@ a.hp-connect {
   .hp-ui.hp-on .hp-ring,
   .hp-ui.hp-on .hp-qbar i,
   .hp-ui.hp-on .hp-k4an,
-  .hp-ui.hp-on .hp-k4sv .hp-k4an {
+  .hp-ui.hp-on .hp-k4sv .hp-k4an,
+  .hp-faqb {
     animation: none;
   }
 

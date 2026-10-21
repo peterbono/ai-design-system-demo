@@ -19,6 +19,7 @@ import HpSieve from '../components/home/HpSieve.astro';
 import HpSignoff from '../components/home/HpSignoff.astro';
 import HpQueue from '../components/home/HpQueue.astro';
 import HpFaq from '../components/home/HpFaq';
+import HpFaqArt from '../components/home/HpFaqArt.astro';
 import HpPanorama from '../components/home/HpPanorama.astro';
 import HpWalkers from '../components/home/HpWalkers.astro';
 import { DEMO, STUDIO_HOME } from '../lib/nav';
@@ -210,7 +211,10 @@ const code = '<s>import</s> { <em>ProfileHeader</em> }\n  <s>from</s> "@bridge-d
     <!-- Questions teams ask: the DS Accordion, one open at a time. -->
     <section class="hp-faq" aria-labelledby="hp-faq-t">
       <div class="hp-wrap hp-faqgrid">
-        <h2 id="hp-faq-t" class="hp-faqh">Questions teams ask.</h2>
+        <div class="hp-faqside">
+          <h2 id="hp-faq-t" class="hp-faqh">Questions teams ask.</h2>
+          <HpFaqArt />
+        </div>
         <HpFaq client:visible />
       </div>
     </section>
