@@ -1,5 +1,16 @@
 # @bridge-ds/docs-site
 
+## 0.19.0
+
+### Minor Changes
+
+- 66374cd: Studio: "Create a new team" in the team chip menu now opens a dialog over the page instead of leaving for the launcher on Studio home, so you keep your place. Paste owner/repo or a GitHub address; after a short pause a calm line says what you will find there (Ready, Read only, Bridge is not installed yet with "Install Bridge" for admins, Not found or private, or Sign in to check). The dialog and the Studio home launcher share one parser, the same error words and the same team address (lib/team-open.ts).
+
+### Patch Changes
+
+- a1825f7: Homepage hero: one call to action. Get started stands alone, with "Or explore the demo, no account needed." under it.
+- 09f9912: Homepage hero: the drag slider is replaced by the approved illustration. Dana unpins the Profile header sketch from her AI exploration board and drops it in the Bridge machine; the known pieces go back to their twins in the design system, the new one is clipped into it, then code and the Figma kit follow (a 9.6 s loop, the final frame under reduced motion). The drawing column is wider (up to 680 px) and the headline stays about 57 px at 1440.
+
 ## 0.18.0
 
 ### Minor Changes
