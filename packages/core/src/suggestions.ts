@@ -390,7 +390,12 @@ export interface ComposeSuggestionOptions {
    * and impact sections of composeProposalBody). Cut to fit the readable budget.
    */
   details?: string | undefined;
+  /** "owner/name", for the Claude Code install line in "How to apply". Absent: a placeholder. */
+  repo?: string | undefined;
 }
+
+/** The one-time command that gives Claude Code the Bridge MCP server for a repository. */
+export const bridgeMcpInstallCommand = (repo?: string | null) => `claude mcp add bridge -s user -- npx -y @bridge-ds/mcp --repo ${repo?.trim() || '<owner/name>'}`;
 
 const MARK = 'bridge-suggestion';
 const PART_SCHEMA = 'bridge.suggestion-part/1';
@@ -460,7 +465,7 @@ function linksSection(p: SuggestionPayloadV1): string[] {
   return out.length ? ['## Previews and links', '', ...out, ''] : [];
 }
 
-function humanPart(p: SuggestionPayloadV1, details: string | undefined, max: number): string {
+function humanPart(p: SuggestionPayloadV1, details: string | undefined, max: number, repo: string | undefined): string {
   return [
     `## Suggested change: ${safeText(p.title.trim())}`,
     '',
@@ -473,7 +478,8 @@ function humanPart(p: SuggestionPayloadV1, details: string | undefined, max: num
     '## How to apply',
     '',
     '- CLI: `bridge apply <this issue number>` (add `--dry-run` to check it first, `--patch` for a patch file)',
-    '- Claude: "Apply Bridge suggestion #<this issue number>" (MCP tool `bridge_apply_suggestion`)',
+    '- Claude Code with the Bridge MCP server: ask "Apply Bridge suggestion #<this issue number>" (tool `bridge_apply_suggestion`).',
+    `  One-time install: \`${bridgeMcpInstallCommand(repo)}\``,
     '',
     'The pull request that applies it must say `Closes #<this issue number>`, so this suggestion closes when it merges.',
     '',
@@ -482,12 +488,12 @@ function humanPart(p: SuggestionPayloadV1, details: string | undefined, max: num
 }
 
 /** The readable part within the budget: fewer table rows first, then the text cut with a note. */
-function fitHuman(p: SuggestionPayloadV1, details: string | undefined): string {
+function fitHuman(p: SuggestionPayloadV1, details: string | undefined, repo: string | undefined): string {
   for (const max of [50, 20, 8, 3]) {
-    const h = humanPart(p, details, max);
+    const h = humanPart(p, details, max, repo);
     if (h.length <= SUGGESTION_LIMITS.human) return h;
   }
-  const h = humanPart(p, undefined, 3);
+  const h = humanPart(p, undefined, 3, repo);
   if (h.length <= SUGGESTION_LIMITS.human) return h;
   const note = '\n\n_The description is cut here: the full change is in the machine-readable block below._';
   return h.slice(0, SUGGESTION_LIMITS.human - note.length) + note;
@@ -560,7 +566,7 @@ export function composeSuggestionIssue(payload: SuggestionPayloadV1, opts: Compo
   if (payload.checks.blocked) throw new SuggestionError('invalid', `This change cannot be suggested: ${payload.checks.blocked}`);
   const full = shaForm(payload);
   const sha = suggestionPayloadSha(full);
-  const human = fitHuman(full, opts.details);
+  const human = fitHuman(full, opts.details, opts.repo);
   const base = { title: suggestionIssueTitle(full), labels: suggestionLabels(full, { state: opts.state, labels: opts.labels }), assignees: opts.assignees ?? [], sha };
 
   const inline = fit(full);
