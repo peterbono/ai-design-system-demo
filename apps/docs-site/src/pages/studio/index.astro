@@ -4,10 +4,14 @@
 //      (the whole row is the link), the rest grouped behind "Review all" (the review queue, /studio/review/).
 //   2. Your branches: open branches as cards, "Create branch" as the first one.
 //   3. Nothing waits and nothing is open: three ways to start.
+// Signed in, the setup steps (lib/onboarding.ts, components/ds/studio/Onboarding.tsx): the first run takes the page
+// while bridge.config.json does not say how changes reach the code; after that, "N of 6 connected" by the greeting
+// opens what is left.
 // Repo facts are read here at build time (usage guidance Claude drafted, contrast on main, adoption, the changelog);
 // GitHub facts in the browser (scripts/home-data.ts).
 import '../../styles/studio-home.css';
 import '../../styles/branch-thumb.css';
+import '../../styles/onboarding.css';
 import Layout from '../../layouts/Layout.astro';
 import { Skeleton } from '@bridge-ds/react';
 import { docsEditHref, guidanceState, loadComponents } from '../../lib/components';
@@ -19,7 +23,9 @@ import { combinedAdoption, startChangeHref } from '../../lib/overview-board';
 import { adoptionDrop } from '../../lib/home-model';
 import { signInConfig } from '../../lib/signin-config';
 import { siteRepo } from '../../lib/config';
-import { PREVIEW_APPS, PREVIEW_PACKAGES } from '../../lib/repo';
+import { exists, GITHUB_URL, PREVIEW_APPS, PREVIEW_PACKAGES, PRODUCTION_APPS, readJson } from '../../lib/repo';
+import { bridgeMcpInstallCommand } from '@bridge-ds/core';
+import { changesInConfig } from '../../lib/settings-view';
 import type { BranchesConfig } from '../../lib/branches';
 
 const s = dashboard();
@@ -51,6 +57,29 @@ const homeStatic = {
 const repo = siteRepo();
 const branchesCfg: BranchesConfig = { owner: repo.owner, repo: repo.repo, defaultBranch: repo.defaultBranch, apps: PREVIEW_APPS, packages: PREVIEW_PACKAGES };
 const json = JSON.stringify(homeStatic).replace(/</g, '\\u003c');
+
+// Setup steps: facts from bridge.config.json as it is on this build (the repository stays the source of truth).
+let rawCfg: Record<string, any> = {};
+try {
+  rawCfg = exists('bridge.config.json') ? readJson<Record<string, any>>('bridge.config.json') : {};
+} catch {
+  rawCfg = {};
+}
+const repoName = `${repo.owner}/${repo.repo}`;
+const onboarding = {
+  changes: changesInConfig(rawCfg),
+  prefix: rawCfg.governance?.branchPrefix ?? '',
+  protectedBranches: rawCfg.governance?.protectedBranches ?? ['main', 'master'],
+  ctx: {
+    repo: repoName,
+    repoUrl: GITHUB_URL,
+    storybook: rawCfg.storybook?.url ?? PRODUCTION_APPS.storybook ?? null,
+    products: (Array.isArray(rawCfg.products) ? rawCfg.products : []).filter((p: any) => p && typeof p.name === 'string').map((p: any) => ({ name: p.name, path: typeof p.path === 'string' ? p.path : undefined })),
+    mcpCommand: bridgeMcpInstallCommand(repoName),
+    figmaHref: '/install/#figma-plugin',
+    claudeHref: '/agents/#claude-code',
+  },
+};
 ---
 
 <Layout
@@ -70,10 +99,11 @@ const json = JSON.stringify(homeStatic).replace(/</g, '\\u003c');
   </div>
   <script type="application/json" id="home-static" set:html={json} />
   <script type="application/json" id="bridge-branches" set:html={JSON.stringify(branchesCfg).replace(/</g, '\\u003c')} />
+  <script type="application/json" id="home-onboarding" set:html={JSON.stringify(onboarding).replace(/</g, '\\u003c')} />
   <script type="application/json" id="home-guidance" set:html={JSON.stringify({ drafted: guidance }).replace(/</g, '\\u003c')} />
 
   <script>
-    import type { Root } from 'react-dom/client';
+    import { createRoot, type Root } from 'react-dom/client';
     import { currentViewer, getToken, initGitHubConnect, prefersSignIn } from '../../scripts/github-session';
     import { setReviewCount } from '../../scripts/shell';
     import { rememberMine } from '../../scripts/needs-you';
@@ -82,6 +112,12 @@ const json = JSON.stringify(homeStatic).replace(/</g, '\\u003c');
     import { adoptionDropLine, greeting, homeState } from '../../lib/home-model';
     import { signedOutLine } from '../../lib/overview-todo';
     import { ghButton } from '../../lib/gh-wording';
+    import { createElement } from 'react';
+    import type { ChangesMode } from '@bridge-ds/core';
+    import { FinishConnecting, Onboarding, type OnboardingContext } from '../../components/ds/studio/Onboarding';
+    import { ONBOARDING_KEY, onboardingSteps, parseMemory, showsChecklist, showsFirstRun, type OnboardingMemory, type StepId } from '../../lib/onboarding';
+    import { shortName } from '../../lib/home-model';
+    import { proposeChangesMode } from '../../scripts/roles';
 
     interface Static extends HomeStatic {
       adoptionDrop: number | null;
@@ -105,6 +141,30 @@ const json = JSON.stringify(homeStatic).replace(/</g, '\\u003c');
     let known = false;
     let run = 0;
 
+    // Setup steps: the facts of this build, and what this browser remembers (Do this later, Hide, marked steps).
+    const onb = read<{ changes: ChangesMode | null; prefix: string; protectedBranches: string[]; ctx: OnboardingContext }>('home-onboarding')!;
+    const loadMemory = (): OnboardingMemory => {
+      try {
+        return parseMemory(localStorage.getItem(ONBOARDING_KEY));
+      } catch {
+        return parseMemory(null);
+      }
+    };
+    let memory = loadMemory();
+    const remember = (next: Partial<OnboardingMemory>) => {
+      memory = { ...memory, ...next };
+      try {
+        localStorage.setItem(ONBOARDING_KEY, JSON.stringify(memory));
+      } catch {
+        /* private mode: kept for this visit only */
+      }
+      paint();
+    };
+    // The steps open over the home: on the first run, or from "N of 6 connected" at the step picked there.
+    let stepsAt: StepId | null = null;
+    // Once open, the steps stay until the viewer leaves them (a proposal sent on step 4 must not close them).
+    let stepsOpen = false;
+
     function health(): HealthLine | null {
       if (stat.adoptionDrop) return { text: adoptionDropLine(stat.adoptionDrop), tone: 'drop', href: '/studio/quality/#ql-adoption', link: 'Open Quality' };
       // A failing contrast check is a Needs you row; otherwise one quiet line.
@@ -116,6 +176,67 @@ const json = JSON.stringify(homeStatic).replace(/</g, '\\u003c');
       const v = currentViewer();
       const signedIn = Boolean(v) || (!known && Boolean(getToken()));
       const d = data;
+      const steps = onboardingSteps({
+        login: v?.login ?? null,
+        repo: onb.ctx.repo,
+        storybook: onb.ctx.storybook,
+        products: onb.ctx.products.map((p) => p.name),
+        changes: onb.changes,
+        // A proposal stays waiting until the file says it.
+        proposed: onb.changes ? null : memory.proposed,
+        marked: memory.marked,
+      });
+      if (v && (stepsOpen || stepsAt || showsFirstRun(steps, { later: memory.later }))) {
+        stepsOpen = true;
+        root = root ?? createRoot(el);
+        root.render(
+          createElement(Onboarding, {
+            key: stepsAt ?? 'first-run',
+            steps,
+            name: shortName(v.name) ?? v.login,
+            initial: stepsAt ?? undefined,
+            ctx: onb.ctx,
+            actions: {
+              propose: async (mode: ChangesMode) => {
+                const pr = await proposeChangesMode(mode, { prefix: onb.prefix, protectedBranches: onb.protectedBranches });
+                memory = { ...memory, proposed: { pr: pr.number, mode } };
+                try {
+                  localStorage.setItem(ONBOARDING_KEY, JSON.stringify(memory));
+                } catch {
+                  /* kept for this visit only */
+                }
+                return pr;
+              },
+              mark: (id: StepId) => {
+                memory = { ...memory, marked: [...new Set([...memory.marked, id])] };
+                try {
+                  localStorage.setItem(ONBOARDING_KEY, JSON.stringify(memory));
+                } catch {
+                  /* kept for this visit only */
+                }
+              },
+              later: () => {
+                stepsAt = null;
+                stepsOpen = false;
+                remember({ later: true });
+                window.scrollTo({ top: 0 });
+              },
+            },
+          }),
+        );
+        return;
+      }
+      const setup =
+        v && showsChecklist(steps, { hidden: memory.hidden })
+          ? createElement(FinishConnecting, {
+              steps,
+              onOpen: (id: StepId) => {
+                stepsAt = id;
+                paint();
+              },
+              onHide: () => remember({ hidden: true }),
+            })
+          : undefined;
       const state = homeState({ signedIn, loading: !d || d.loading, needs: d?.needs.length ?? 0, branches: d?.branches.length ?? 0 });
       root = paintStudioHome(
         el,
@@ -130,6 +251,7 @@ const json = JSON.stringify(homeStatic).replace(/</g, '\\u003c');
           signedOut: { line: signedOutLine(prefersSignIn()), button: ghButton(stat.signIn), signIn: stat.signIn },
           failed: d?.failed ?? null,
           startHrefs: stat.startHrefs,
+          setup,
         },
         root,
       );

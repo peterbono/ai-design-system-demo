@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { prTitleFrom, proposalTitle, reviewSentence, tokenNoun } from './propose-copy';
+import { prTitleFrom, proposalTitle, reviewSentence, suggestionTitleFrom, tokenNoun } from './propose-copy';
 
 describe('tokenNoun', () => {
   it('names what a color token paints', () => {
@@ -80,5 +80,19 @@ describe('reviewSentence', () => {
 
   it('asks one approval for a description change', () => {
     expect(reviewSentence(1)).toBe('One reviewer approves it before it is merged into main.');
+  });
+});
+
+describe('suggest mode words', () => {
+  it('says a developer applies it instead of the merge', () => {
+    expect(reviewSentence(3, null, 'suggest')).toBe('A design owner and a tech owner approve it, then a developer applies it to the code.');
+    expect(reviewSentence(1, null, 'suggest')).toBe('One reviewer approves it, then a developer applies it to the code.');
+    expect(reviewSentence(3, null, 'direct')).toBe(reviewSentence(3));
+  });
+
+  it('titles a suggestion in plain words, without the tokens: prefix', () => {
+    expect(suggestionTitleFrom('tokens: darker primary action fill')).toBe('Darker primary action fill');
+    expect(suggestionTitleFrom('  Darker primary action fill ')).toBe('Darker primary action fill');
+    expect(suggestionTitleFrom('')).toBe('');
   });
 });

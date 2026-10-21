@@ -6,11 +6,16 @@
 // file is read from the default branch as it is now and only `governance.owners`, `governance.rights` and `visualImpact` change
 // (withRoles keeps the rest byte for byte). The tier comes from the shared classifier: bridge.config.json is a
 // guardrail file.
+// It also writes `changes` (how changes reach the code: suggestions or pull requests) the same way, for the Settings
+// band and the onboarding step (proposeChangesMode), and reads what the GitHub App may do on the repository.
 import { classifyRisk, DEFAULT_RIGHTS, type Owners, type Rights, type VisualImpactMode } from '@bridge-ds/core';
 import { choiceOf, groupsOf, roleRows, rolesProposal, sameOwners, withRoles, type RightChoice } from '../lib/roles-view';
 import { selectSegment } from './shell';
-import { esc, getToken, prefersSignIn, readRepo, setButtonBusy, setButtonDisabled, showGhError, studioClient } from './github-session';
+import { esc, getToken, ghGet, prefersSignIn, readRepo, readSignInConfig, sessionMode, setButtonBusy, setButtonDisabled, showGhError, studioClient } from './github-session';
 import { ghAction } from '../lib/gh-wording';
+import { changesProposal, withChanges, type AppPermissions } from '../lib/settings-view';
+import { installationFor, type InstallationLike } from '../lib/github-signin';
+import type { ChangesMode } from '@bridge-ds/core';
 
 const FILE = 'bridge.config.json';
 
@@ -150,4 +155,44 @@ function initForm(form: HTMLFormElement) {
       setButtonDisabled(submit, !changed());
     }
   });
+}
+
+/**
+ * Opens the pull request that sets `changes` in bridge.config.json, with the reader's own token, and returns it.
+ * Throws with a sentence when there is nothing to change or GitHub refuses.
+ */
+export async function proposeChangesMode(mode: ChangesMode, opts: { prefix?: string; protectedBranches?: string[] } = {}): Promise<{ number: number; url: string }> {
+  const token = getToken();
+  if (!token) throw new Error(`${ghAction('request a review', prefersSignIn())}.`);
+  const repo = readRepo();
+  const gh = studioClient(`${repo.owner}/${repo.repo}`, token, {
+    protectedBranches: [...new Set([...(opts.protectedBranches ?? []), 'main', 'master', repo.defaultBranch])],
+    branchPrefix: opts.prefix || undefined,
+  });
+  const current = await gh.getFileText(FILE, repo.defaultBranch);
+  if (current === undefined) throw new Error('The repository has no Bridge settings file yet.');
+  const next = withChanges(current, mode);
+  if (next === current) throw new Error('This is already the current setting. Nothing to review.');
+  const risk = classifyRisk({ files: [{ path: FILE, status: 'modified' }] });
+  const p = changesProposal(mode, { date: new Date(), prefix: opts.prefix, suggestApp: readSignInConfig()?.suggestApp ?? null, tierLabel: `Tier ${risk.tier}${risk.reasons[0] ? ` (${risk.reasons[0]})` : ''}` });
+  let branch = p.branch;
+  for (let i = 2; await gh.getBranchSha(branch); i++) branch = `${p.branch}-${i}`;
+  await gh.commitToNewBranch({ base: repo.defaultBranch, branch, message: p.message, files: [{ path: FILE, content: next }] });
+  const pr = await gh.createPullRequest({ title: p.title, head: branch, base: repo.defaultBranch, body: p.body, draft: false });
+  await gh.addLabels(pr.number, ['config', 'source: bridge-web', `tier: ${risk.tier}`]).catch(() => false);
+  return { number: pr.number, url: pr.url };
+}
+
+/** Signed in with the GitHub App: the permissions of its installation on the repository owner. Null when unknown. */
+export async function readAppPermissions(): Promise<AppPermissions | null> {
+  if (!getToken() || sessionMode() !== 'app') return null;
+  try {
+    const { data } = await ghGet<{ installations?: (InstallationLike & { permissions?: AppPermissions })[] }>('/user/installations?per_page=100');
+    const list = data.installations ?? [];
+    const found = installationFor(list, readRepo().owner);
+    if (found.reach === 'no') return null;
+    return list.find((i) => i.account?.login?.toLowerCase() === readRepo().owner.toLowerCase())?.permissions ?? null;
+  } catch {
+    return null;
+  }
 }

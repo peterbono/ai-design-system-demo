@@ -119,14 +119,22 @@ function who(groups: readonly OwnerGroup[]): string {
  * Who approves a change sent from Studio, from its risk tier and `governance.rights`. Tier 3 (every token value,
  * add, rename or delete): a design and a tech approval, "A design owner and a tech owner approve it before it is
  * merged into main." Tier 2 (new component, variant or prop) too. Tier 1 (a description only): one approval.
+ * In suggest mode the end says who applies it: "..., then a developer applies it to the code."
  */
-export function reviewSentence(tier: 1 | 2 | 3, rights?: Rights | null): string {
-  if (tier === 1) return 'One reviewer approves it before it is merged into main.';
+export function reviewSentence(tier: 1 | 2 | 3, rights?: Rights | null, mode: 'suggest' | 'direct' = 'direct'): string {
+  const end = mode === 'suggest' ? ', then a developer applies it to the code.' : ' before it is merged into main.';
+  if (tier === 1) return `One reviewer approves it${end}`;
   const designGroups = rights?.approveDesign ?? ['design'];
   const techGroups = rights?.approveTech ?? ['tech'];
   const design = who(designGroups);
   const tech = who(techGroups);
-  if (design === tech) return `${cap(design)} approves the design and the code before it is merged into main.`;
-  if (designGroups.length > 1 || techGroups.length > 1) return `${cap(design)} approves the design and ${tech} the code before it is merged into main.`;
-  return `${cap(design)} and ${tech} approve it before it is merged into main.`;
+  if (design === tech) return `${cap(design)} approves the design and the code${end}`;
+  if (designGroups.length > 1 || techGroups.length > 1) return `${cap(design)} approves the design and ${tech} the code${end}`;
+  return `${cap(design)} and ${tech} approve it${end}`;
+}
+
+/** The suggestion title: the plain title as the designer wrote it, without a conventional "tokens:" prefix. */
+export function suggestionTitleFrom(title: string): string {
+  const t = title.trim().replace(/^[a-z]+(\([^)]*\))?!?:\s+/i, '');
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : '';
 }

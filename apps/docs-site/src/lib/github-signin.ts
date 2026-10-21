@@ -21,10 +21,24 @@ export const PENDING_MAX_AGE_MS = 10 * 60 * 1000;
 /** A user access token is refreshed when it expires within this margin. */
 export const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
+/**
+ * The two GitHub Apps (docs/SIGN-IN.md). 'suggest': "Bridge", read only on code (Contents read, Issues write), the
+ * default. 'direct': "Bridge Direct" (the original "Bridge Studio" app), writes branches and pull requests; Studio
+ * signs in with it only when bridge.config.json says `"changes": "direct"`.
+ */
+export type SignInApp = 'suggest' | 'direct';
+
 /** What the browser needs to start a sign-in. Built at build time; null when the GitHub App is not set up. */
 export interface SignInConfig {
   /** The GitHub App client ID (public). */
   clientId: string;
+  /** Which of the two apps that client ID belongs to. Token storage keys carry it. */
+  app: SignInApp;
+  /**
+   * The app Studio signs in with once `changes` is "suggest": 'suggest' when the read-only app is configured, else
+   * 'direct' (the one app this site has). Settings uses it to say whether suggest mode is enforced by GitHub.
+   */
+  suggestApp: SignInApp;
   /** Production origin, whose callback is the one registered on GitHub. Null: the current origin's callback. */
   productionOrigin: string | null;
   /** Preview origin pattern with {branch} (bridge.config.json previews.apps.docs). Null: no previews. */
@@ -33,17 +47,43 @@ export interface SignInConfig {
 
 const trimSlash = (s: string) => s.replace(/\/+$/, '');
 
-/** The config from build-time env vars and bridge.config.json previews. Null without a client ID. */
+const validId = (id: string | undefined) => {
+  const v = id?.trim();
+  return v && /^[A-Za-z0-9._-]{4,64}$/.test(v) ? v : null;
+};
+
+/**
+ * Which app Studio signs in with: Direct when the repo's `changes` is "direct", else the read-only Bridge app. When
+ * only one app is configured, that one (a site that never set up the suggest app keeps signing in as before).
+ */
+export function pickSignInApp(
+  env: { GITHUB_APP_CLIENT_ID?: string | undefined; GITHUB_APP_SUGGEST_CLIENT_ID?: string | undefined },
+  changes?: string | null,
+): { clientId: string; app: SignInApp } | null {
+  const direct = validId(env.GITHUB_APP_CLIENT_ID);
+  const suggest = validId(env.GITHUB_APP_SUGGEST_CLIENT_ID);
+  if (changes === 'direct' && direct) return { clientId: direct, app: 'direct' };
+  if (suggest) return { clientId: suggest, app: 'suggest' };
+  if (direct) return { clientId: direct, app: 'direct' };
+  return null;
+}
+
+/**
+ * The config from build-time env vars and bridge.config.json (previews, changes). Null without a client ID.
+ * `changes` is bridge.config.json "changes" ("suggest" when absent).
+ */
 export function signInConfigFrom(
-  env: { GITHUB_APP_CLIENT_ID?: string | undefined },
+  env: { GITHUB_APP_CLIENT_ID?: string | undefined; GITHUB_APP_SUGGEST_CLIENT_ID?: string | undefined },
   previews?: { apps?: { docs?: string }; production?: { docs?: string } } | null,
+  changes?: string | null,
 ): SignInConfig | null {
-  const clientId = env.GITHUB_APP_CLIENT_ID?.trim();
-  if (!clientId || !/^[A-Za-z0-9._-]{4,64}$/.test(clientId)) return null;
+  const picked = pickSignInApp(env, changes);
+  if (!picked) return null;
   const prod = previews?.production?.docs?.trim();
   const preview = previews?.apps?.docs?.trim();
   return {
-    clientId,
+    ...picked,
+    suggestApp: pickSignInApp(env, 'suggest')!.app,
     productionOrigin: prod && /^https:\/\/[^/]+\/?$/.test(prod) ? trimSlash(prod) : null,
     previewPattern: preview && preview.includes('{branch}') && preview.startsWith('https://') ? trimSlash(preview) : null,
   };
@@ -163,6 +203,8 @@ export const SIGNIN_TEXT = {
   redirectMismatch: 'This site address is not registered on the Bridge GitHub App. Ask the site owner to add the callback URL, then sign in again.',
   unreachable: 'Studio could not reach its sign-in service. Check your connection, then sign in again.',
   expired: 'Your GitHub sign-in expired. Sign in again to keep editing.',
+  switched: 'Bridge now signs in to GitHub with a different app, so your previous sign-in was removed. Sign in again to keep editing.',
+  unknownClient: 'This site no longer signs in with that GitHub App. Sign in again.',
   failed: 'GitHub could not finish the sign-in. Sign in again.',
 } as const;
 
@@ -211,15 +253,18 @@ export interface TokenResponse {
 /** A signed-in session, kept in localStorage next to the token. Expiry fields are null for tokens that never expire. */
 export interface AppSession {
   kind: 'app';
+  /** The client ID of the app that issued the token (refreshes go to the same app). Absent on older sessions. */
+  clientId?: string;
   expiresAt: number | null;
   refreshToken: string | null;
   refreshExpiresAt: number | null;
 }
 
-export function sessionFrom(r: TokenResponse, now: number): AppSession {
+export function sessionFrom(r: TokenResponse, now: number, clientId?: string): AppSession {
   const secs = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) && n > 0 ? now + n * 1000 : null);
   return {
     kind: 'app',
+    ...(clientId ? { clientId } : {}),
     expiresAt: secs(r.expires_in),
     refreshToken: typeof r.refresh_token === 'string' && r.refresh_token ? r.refresh_token : null,
     refreshExpiresAt: secs(r.refresh_token_expires_in),
@@ -246,6 +291,7 @@ export function exchangeErrorText(status: number, error?: string | null): string
   if (status === 503 || status === 404 || error === 'not_configured') return SIGNIN_TEXT.notConfigured;
   if (error === 'bad_code') return SIGNIN_TEXT.badCode;
   if (error === 'bad_refresh_token') return SIGNIN_TEXT.expired;
+  if (error === 'unknown_client') return SIGNIN_TEXT.unknownClient;
   if (error === 'redirect_uri_mismatch') return SIGNIN_TEXT.redirectMismatch;
   if (status === 0) return SIGNIN_TEXT.unreachable;
   return SIGNIN_TEXT.failed;
@@ -277,3 +323,64 @@ export const readOnlyText = (login: string, repo: string, app: boolean) =>
   app
     ? `@${login} can read ${repo} but not edit it. Ask an owner for write access, or sign out and sign in with another GitHub account.`
     : 'This token can read but not write. Reviews and token proposals need Contents and Pull requests write access.';
+
+/**
+ * Where a token lives in localStorage: one slot per app ('suggest', 'direct'), so a token of one app is never used as
+ * the other's. '' is the slot without an app: a pasted token on a site with no GitHub App, and every token saved
+ * before the two apps existed.
+ */
+export type StorageSlot = SignInApp | '';
+export const STORAGE_SLOTS: readonly StorageSlot[] = ['', 'suggest', 'direct'];
+
+/** A storage key with its slot suffix: 'bridge.github.token' + 'suggest' -> 'bridge.github.token.suggest'. */
+export const slotKey = (base: string, slot: StorageSlot) => (slot ? `${base}.${slot}` : base);
+
+/** What one slot holds, as far as the switch cares. */
+export interface SlotContent {
+  token: boolean;
+  /** The sign-in session next to the token: present for Sign in with GitHub, absent for a pasted token. */
+  session: Pick<AppSession, 'clientId'> | null;
+}
+
+export interface SlotPlan {
+  /** Slots whose token goes to the current slot (a pasted token, or a sign-in of the same app). At most one. */
+  move: StorageSlot | null;
+  /** Slots to empty: sign-ins of another app (their token belongs to an app this site no longer signs in with). */
+  clear: StorageSlot[];
+  /** A sign-in was removed: say so, and offer to sign in again. */
+  switched: boolean;
+}
+
+/**
+ * What to do with tokens saved by another app when the page loads (the repo moved between suggest and direct, or the
+ * site got its second app). The current slot is the app this page signs in with ('' without a GitHub App).
+ * - A sign-in of another app is removed, with a prompt to sign in again (only when this site signs in at all).
+ * - A sign-in saved before the apps had slots ('') was made with today's Direct app: it moves to 'direct' when that is
+ *   the current app and its client ID still matches.
+ * - A pasted token belongs to no app: it moves to the current slot when that one is empty.
+ * - The current slot's own sign-in is removed when its client ID is not the current one (the app was replaced).
+ */
+export function planSlots(slots: Partial<Record<StorageSlot, SlotContent>>, current: StorageSlot, clientId: string | null): SlotPlan {
+  const plan: SlotPlan = { move: null, clear: [], switched: false };
+  const here = slots[current];
+  let filled = Boolean(here?.token);
+  if (here?.token && here.session?.clientId && clientId && here.session.clientId !== clientId) {
+    plan.clear.push(current);
+    plan.switched = true;
+    filled = false;
+  }
+  for (const slot of STORAGE_SLOTS) {
+    if (slot === current) continue;
+    const c = slots[slot];
+    if (!c?.token) continue;
+    const sameApp = c.session && slot === '' && current === 'direct' && (!c.session.clientId || c.session.clientId === clientId);
+    if (!filled && (!c.session || sameApp)) {
+      plan.move = slot;
+      filled = true;
+      continue;
+    }
+    plan.clear.push(slot);
+    if (c.session && current) plan.switched = true;
+  }
+  return plan;
+}

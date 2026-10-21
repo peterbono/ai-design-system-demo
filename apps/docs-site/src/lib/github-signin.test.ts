@@ -15,7 +15,9 @@ import {
   noReachText,
   originAllowed,
   type PendingSignIn,
+  pickSignInApp,
   pkceChallenge,
+  planSlots,
   randomString,
   readOnlyText,
   refreshDelay,
@@ -24,6 +26,7 @@ import {
   sessionFrom,
   SIGNIN_TEXT,
   signInConfigFrom,
+  slotKey,
 } from './github-signin';
 import { CALLBACK_PATH as SERVER_CALLBACK_PATH } from '../../api/github/token';
 
@@ -40,12 +43,34 @@ describe('sign-in config', () => {
   });
 
   it('reads the production origin and the preview pattern from bridge.config.json previews', () => {
-    expect(cfg).toEqual({ clientId: 'Iv23liAbCdEf', productionOrigin: PROD, previewPattern: 'https://bridge-docs-git-{branch}-acme.vercel.app' });
+    expect(cfg).toEqual({ clientId: 'Iv23liAbCdEf', app: 'direct', suggestApp: 'direct', productionOrigin: PROD, previewPattern: 'https://bridge-docs-git-{branch}-acme.vercel.app' });
     expect(signInConfigFrom({ GITHUB_APP_CLIENT_ID: 'Iv23liAbCdEf' }, null)).toEqual({
       clientId: 'Iv23liAbCdEf',
+      app: 'direct',
+      suggestApp: 'direct',
       productionOrigin: null,
       previewPattern: null,
     });
+  });
+
+  it('signs in with the read-only Bridge app by default, and with Bridge Direct in direct mode', () => {
+    const both = { GITHUB_APP_CLIENT_ID: 'Iv23liDirect', GITHUB_APP_SUGGEST_CLIENT_ID: 'Iv23liSuggest' };
+    expect(pickSignInApp(both)).toEqual({ clientId: 'Iv23liSuggest', app: 'suggest' });
+    expect(pickSignInApp(both, 'suggest')).toEqual({ clientId: 'Iv23liSuggest', app: 'suggest' });
+    expect(pickSignInApp(both, 'direct')).toEqual({ clientId: 'Iv23liDirect', app: 'direct' });
+    expect(signInConfigFrom(both, PREVIEWS, 'direct')).toMatchObject({ clientId: 'Iv23liDirect', app: 'direct', productionOrigin: PROD });
+    // Settings needs the app suggest mode would use, whatever the mode in force today.
+    expect(signInConfigFrom(both, PREVIEWS, 'direct')?.suggestApp).toBe('suggest');
+    expect(signInConfigFrom({ GITHUB_APP_CLIENT_ID: 'Iv23liDirect' }, PREVIEWS, 'direct')?.suggestApp).toBe('direct');
+  });
+
+  it('falls back to the one configured app', () => {
+    // Without the suggest app the site signs in as it always did, whatever the mode.
+    expect(pickSignInApp({ GITHUB_APP_CLIENT_ID: 'Iv23liDirect' }, 'suggest')).toEqual({ clientId: 'Iv23liDirect', app: 'direct' });
+    // Direct mode without a Direct app: the read-only app still signs people in.
+    expect(pickSignInApp({ GITHUB_APP_SUGGEST_CLIENT_ID: 'Iv23liSuggest' }, 'direct')).toEqual({ clientId: 'Iv23liSuggest', app: 'suggest' });
+    expect(pickSignInApp({ GITHUB_APP_CLIENT_ID: 'Iv23liDirect', GITHUB_APP_SUGGEST_CLIENT_ID: 'bad id' })).toEqual({ clientId: 'Iv23liDirect', app: 'direct' });
+    expect(pickSignInApp({})).toBeNull();
   });
 
   it('keeps the server and the browser on the same callback path', () => {
@@ -177,6 +202,7 @@ describe('session and refresh', () => {
     expect(s).toEqual({ kind: 'app', expiresAt: now + 28800 * 1000, refreshToken: 'ghr_y', refreshExpiresAt: now + 15811200 * 1000 });
     expect(JSON.stringify(s)).not.toContain('ghu_x');
     expect(sessionFrom({ access_token: 'ghu_x' }, now)).toEqual({ kind: 'app', expiresAt: null, refreshToken: null, refreshExpiresAt: null });
+    expect(sessionFrom({ access_token: 'ghu_x' }, now, 'Iv23liSuggest')).toMatchObject({ clientId: 'Iv23liSuggest' });
   });
 
   it('refreshes within the margin before expiry, and only with a valid refresh token', () => {
@@ -221,5 +247,47 @@ describe('repository reach', () => {
 
   it('never uses an em dash', () => {
     for (const t of [...Object.values(SIGNIN_TEXT), noReachText('a', 'b/c'), readOnlyText('a', 'b/c', true)]) expect(t).not.toMatch(/\u2014/);
+  });
+});
+
+describe('token slots per app', () => {
+  const signIn = (clientId?: string) => ({ token: true, session: clientId ? { clientId } : {} });
+  const pasted = { token: true, session: null };
+
+  it('suffixes storage keys with the app', () => {
+    expect(slotKey('bridge.github.token', 'suggest')).toBe('bridge.github.token.suggest');
+    expect(slotKey('bridge.github.token', 'direct')).toBe('bridge.github.token.direct');
+    expect(slotKey('bridge.github.token', '')).toBe('bridge.github.token');
+  });
+
+  it('leaves a browser alone when its token is already in the current slot', () => {
+    expect(planSlots({ suggest: signIn('Iv23liSuggest') }, 'suggest', 'Iv23liSuggest')).toEqual({ move: null, clear: [], switched: false });
+    expect(planSlots({}, 'suggest', 'Iv23liSuggest')).toEqual({ move: null, clear: [], switched: false });
+  });
+
+  it('keeps an old one-app sign-in when the site still signs in with that app (direct)', () => {
+    expect(planSlots({ '': signIn() }, 'direct', 'Iv23liDirect')).toEqual({ move: '', clear: [], switched: false });
+    expect(planSlots({ '': signIn('Iv23liDirect') }, 'direct', 'Iv23liDirect')).toEqual({ move: '', clear: [], switched: false });
+  });
+
+  it('removes a sign-in of the other app and asks to sign in again', () => {
+    expect(planSlots({ '': signIn() }, 'suggest', 'Iv23liSuggest')).toEqual({ move: null, clear: [''], switched: true });
+    expect(planSlots({ direct: signIn('Iv23liDirect') }, 'suggest', 'Iv23liSuggest')).toEqual({ move: null, clear: ['direct'], switched: true });
+    expect(planSlots({ suggest: signIn('Iv23liSuggest') }, 'direct', 'Iv23liDirect')).toEqual({ move: null, clear: ['suggest'], switched: true });
+  });
+
+  it('removes the current sign-in when the app behind it was replaced', () => {
+    expect(planSlots({ suggest: signIn('Iv23liOld') }, 'suggest', 'Iv23liSuggest')).toEqual({ move: null, clear: ['suggest'], switched: true });
+    expect(planSlots({ '': signIn('Iv23liOld') }, 'direct', 'Iv23liDirect')).toEqual({ move: null, clear: [''], switched: true });
+  });
+
+  it('moves a pasted token, which belongs to no app, into an empty current slot', () => {
+    expect(planSlots({ '': pasted }, 'suggest', 'Iv23liSuggest')).toEqual({ move: '', clear: [], switched: false });
+    expect(planSlots({ '': pasted, suggest: signIn('Iv23liSuggest') }, 'suggest', 'Iv23liSuggest')).toEqual({ move: null, clear: [''], switched: false });
+  });
+
+  it('never prompts for a sign-in on a site without a GitHub App', () => {
+    expect(planSlots({ direct: signIn('Iv23liDirect') }, '', null)).toEqual({ move: null, clear: ['direct'], switched: false });
+    expect(planSlots({ suggest: pasted }, '', null)).toEqual({ move: 'suggest', clear: [], switched: false });
   });
 });

@@ -90,6 +90,6 @@ export function initMaintainer() {
   void refresh();
   document.addEventListener('bridge:auth', () => void refresh(true));
   window.addEventListener('storage', (e) => {
-    if (e.key === KEY || e.key === 'bridge.github.token') void refresh();
+    if (e.key === KEY || e.key?.startsWith('bridge.github.token')) void refresh();
   });
 }

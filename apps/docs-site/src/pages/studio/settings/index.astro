@@ -4,6 +4,9 @@
 // label; the page stops at 1200px so nothing stretches across a wide monitor. In order:
 //   Account       the GitHub connection: a compact row once connected, the page's one Harbor zone (with a Field
 //                 Guide drawing and Connect GitHub) while Studio is read only.
+//   How changes reach your code  suggestions (a GitHub issue developers apply) or pull requests Bridge opens, from
+//                 `changes` in bridge.config.json; what Bridge's GitHub App may do on the repo; the switch, sent for review
+//                 as a pull request (components/ds/studio/ChangesMode.tsx, scripts/roles.ts).
 //   Review rules  who the design and tech owners are (people or GitHub teams, read from GitHub), who approves design,
 //                 who approves tech and who merges (edited in place, a review is requested on a branch that edits
 //                 bridge.config.json), what each kind of branch needs (plain rules from docs/GOVERNANCE.md, no tier
@@ -16,6 +19,7 @@
 // the former developer section (#developer, #tiers-and-modes, #mcp...) land on the section that now says it.
 import '../../../styles/settings.css';
 import '../../../styles/requests.css';
+import '../../../styles/onboarding.css';
 import Layout from '../../../layouts/Layout.astro';
 import StudioHeader from '../../../components/StudioHeader.astro';
 import ProtectionRow from '../../../components/ds/studio/ProtectionRow';
@@ -32,7 +36,8 @@ import { exists, GITHUB_URL, lastUpdated, readText } from '../../../lib/repo';
 import { VOCAB } from '../../../lib/vocabulary';
 import { CHOICE_LABEL, OWNER_GROUP_HELP, OWNER_GROUP_LABEL, roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL, type RightChoice } from '../../../lib/roles-view';
 import OwnersField from '../../../components/ds/studio/OwnersField';
-import { approvalRules, overrideText } from '../../../lib/settings-view';
+import { approvalRules, changesInConfig, overrideText } from '../../../lib/settings-view';
+import ChangesModeSetting from '../../../components/ds/studio/ChangesMode';
 
 const r = siteRepo();
 const repoName = `${r.owner}/${r.repo}`;
@@ -83,9 +88,10 @@ const intData = JSON.stringify({
   secretsUrl,
 }).replace(/</g, '\\u003c');
 const signIn = Boolean(signInConfig());
+const changes = changesInConfig(config);
 ---
 
-<Layout title="Settings" description="Your GitHub connection, who approves what, how the library stays safe, and the tools that work on it." sources={sources} updated={lastUpdated(sources)} wide>
+<Layout title="Settings" description="Your GitHub connection, how changes reach your code, who approves what, how the library stays safe, and the tools that work on it." sources={sources} updated={lastUpdated(sources)} wide>
   <div class="set-page">
     <StudioHeader title="Settings" />
 
@@ -102,6 +108,23 @@ const signIn = Boolean(signInConfig());
           <span>Library <span class="mono">{repoName}</span>, branch <span class="mono">{r.defaultBranch}</span></span>
           <Link href={GITHUB_URL} external>{VOCAB.openOnGitHub}</Link>
         </p>
+      </div>
+    </section>
+
+    <section class="set-band" id="changes" aria-labelledby="set-changes">
+      <div class="set-band-intro">
+        <h2 id="set-changes" class="set-h">How changes reach your code</h2>
+        <p class="set-intro">When your team keeps a change, Bridge hands it to your developers as a suggestion, or opens a pull request itself.</p>
+      </div>
+      <div class="set-band-body">
+        <ChangesModeSetting
+          client:load
+          set={changes}
+          repo={repoName}
+          prefix={config.governance?.branchPrefix ?? ''}
+          protectedBranches={config.governance?.protectedBranches ?? ['main', 'master']}
+          suggestApp={signInConfig()?.suggestApp ?? null}
+        />
       </div>
     </section>
 

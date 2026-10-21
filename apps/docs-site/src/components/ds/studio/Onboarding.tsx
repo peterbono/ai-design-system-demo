@@ -1,0 +1,418 @@
+// Studio onboarding (rules and words in lib/onboarding.ts), mounted by pages/studio/index.astro:
+//   - Onboarding: the first run. The six steps on the left (the open one highlighted, any row opens its step), the
+//     open step in one card on the right. Opens on "How changes reach your code" while bridge.config.json does not
+//     say it. Every step after sign-in can wait: "Do this later" goes to the home.
+//   - FinishConnecting: on the home once the first run is behind, "4 of 6 connected" opens the steps left as a
+//     compact checklist. "Hide checklist" puts it away for this browser.
+// Step 2 (your design system): this Studio is built for one repository, so it is connected from the start. The
+// Storybook quick start is shown as coming, with its field disabled: nothing pretends to read a Storybook yet.
+import { useState, type ReactNode } from 'react';
+import { Check, ChevronDown, Eye } from 'lucide-react';
+import type { ChangesMode } from '@bridge-ds/core';
+import { Badge, Button, Card, CardBody, CodeBlock, Icon, Input, Link, Popover, PopoverContent, PopoverTrigger, Progress } from '@bridge-ds/react';
+import { Drawing } from './Drawing';
+import ButtonLink from '../ButtonLink';
+import { ChangesChoices, DevelopersGet } from './ChangesMode';
+import { doneCount, doneSummary, firstRunTitle, progressLabel, STEP_TITLE, type Step, type StepId } from '../../../lib/onboarding';
+import { CHANGES_CHOICE } from '../../../lib/settings-view';
+import { VOCAB } from '../../../lib/vocabulary';
+
+export interface OnboardingContext {
+  repo: string;
+  repoUrl: string;
+  storybook: string | null;
+  products: { name: string; path?: string }[];
+  /** The one-time command that adds the Bridge MCP to Claude Code for this repository. */
+  mcpCommand: string;
+  /** Where the Figma plugin is installed from, and the Claude set-up page. */
+  figmaHref: string;
+  claudeHref: string;
+}
+
+export interface OnboardingActions {
+  /** Opens the pull request that sets `changes`; resolves with it, rejects with a sentence. */
+  propose: (mode: ChangesMode) => Promise<{ number: number; url: string }>;
+  /** Marks the Figma plugin or Claude AI step done in this browser. */
+  mark: (id: StepId) => void;
+  /** Leaves the steps for the home. */
+  later: () => void;
+}
+
+function StepMark({ s }: { s: Step }) {
+  return (
+    <span className="onb-mark" data-state={s.state} aria-hidden="true">
+      {s.state === 'done' ? <Icon icon={Check} size="xs" /> : s.n}
+    </span>
+  );
+}
+
+function StepText({ s }: { s: Step }) {
+  return (
+    <span className="onb-step-text">
+      <span className="onb-step-title">{s.title}</span>
+      <span className="onb-step-detail">
+        {s.detail}
+        {s.code && (
+          <>
+            {' '}
+            <span className="mono">{s.code}</span>
+          </>
+        )}
+      </span>
+    </span>
+  );
+}
+
+/** The steps as a list; every row opens its step. */
+function StepList({ steps, open, onOpen }: { steps: Step[]; open: StepId; onOpen: (id: StepId) => void }) {
+  return (
+    <ol className="onb-steps" aria-label="Setup steps">
+      {steps.map((s) => (
+        <li key={s.id}>
+          {/* bridge-audit-ignore-next-line: the whole step row (mark, title, detail, status) is one target that opens the step, like the review queue rows; the DS has no row button and Button would truncate it to one label */}
+          <button type="button" className="onb-step" data-state={s.state} aria-current={s.id === open ? 'step' : undefined} onClick={() => onOpen(s.id)}>
+            <StepMark s={s} />
+            <StepText s={s} />
+            <span className="onb-step-status">{s.status}</span>
+          </button>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function Panel({ step, total, title, lead, children, footer }: { step: Step; total: number; title: string; lead: ReactNode; children?: ReactNode; footer: ReactNode }) {
+  return (
+    <Card className="onb-panel" aria-labelledby="onb-panel-title">
+      <CardBody className="onb-panel-body">
+        <div className="onb-panel-head">
+          <p className="onb-quiet">
+            Step {step.n} of {total}
+          </p>
+          <h2 id="onb-panel-title" className="onb-h2">
+            {title}
+          </h2>
+          <p className="onb-lead">{lead}</p>
+        </div>
+        {children}
+        <div className="onb-foot">{footer}</div>
+      </CardBody>
+    </Card>
+  );
+}
+
+function Feature({ children }: { children: ReactNode }) {
+  return (
+    <li>
+      <Icon icon={Check} size="sm" />
+      <span>{children}</span>
+    </li>
+  );
+}
+
+/** Step 2: the Storybook quick start (coming) and the repository this Studio reads. */
+function LibraryStep({ ctx }: { ctx: OnboardingContext }) {
+  return (
+    <div className="onb-ways">
+      <section className="onb-way" aria-labelledby="onb-way-sb">
+        <p className="onb-way-tags">
+          <Badge size="sm">Coming soon</Badge>
+          <span className="onb-quiet">Quick start</span>
+        </p>
+        <h3 id="onb-way-sb" className="onb-h3">
+          Paste your Storybook URL
+        </h3>
+        <p className="onb-quiet">See your components in Bridge in about 2 minutes, without the repository.</p>
+        <Input label="Storybook URL" type="url" placeholder="https://storybook.your-company.com" disabled hint="Not available yet. Until then, Bridge reads the repository." />
+        <p className="onb-note">
+          <Icon icon={Eye} size="sm" />
+          Read only. No access to your code.
+        </p>
+      </section>
+      <section className="onb-way" aria-labelledby="onb-way-repo" data-selected="">
+        <p className="onb-way-tags">
+          <Badge tone="success" size="sm" dot>
+            Connected
+          </Badge>
+        </p>
+        <h3 id="onb-way-repo" className="onb-h3">
+          The repository
+        </h3>
+        <p className="onb-repo">
+          <span className="mono">{ctx.repo}</span>
+          <Link href={ctx.repoUrl} external>
+            {VOCAB.openOnGitHub}
+          </Link>
+        </p>
+        <p className="onb-quiet">{ctx.storybook ? 'Everything in your Storybook, plus' : 'Bridge reads from it'}</p>
+        <ul className="onb-features">
+          <Feature>Tokens and contrast checks</Feature>
+          <Feature>The Figma fidelity check</Feature>
+          <Feature>Adoption across your products</Feature>
+          <Feature>Tracking what explorations change</Feature>
+        </ul>
+      </section>
+    </div>
+  );
+}
+
+export interface OnboardingProps {
+  steps: Step[];
+  /** The viewer's first name, for the title. */
+  name: string | null;
+  /** The step to open first; the current one when absent. */
+  initial?: StepId;
+  ctx: OnboardingContext;
+  actions: OnboardingActions;
+}
+
+export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingProps) {
+  const first = initial ?? steps.find((s) => s.state === 'current')?.id ?? steps.find((s) => s.state !== 'done')?.id ?? 'signin';
+  const [open, setOpen] = useState<StepId>(first);
+  const [mode, setMode] = useState<ChangesMode>('suggest');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState<{ number: number; url: string } | null>(null);
+  const step = steps.find((s) => s.id === open)!;
+  const total = steps.length;
+  const next = () => {
+    const i = steps.findIndex((s) => s.id === open);
+    const after = steps.slice(i + 1).find((s) => s.state !== 'done') ?? steps[i + 1];
+    if (after) setOpen(after.id);
+    else actions.later();
+  };
+  const back = () => {
+    const i = steps.findIndex((s) => s.id === open);
+    if (i > 0) setOpen(steps[i - 1]!.id);
+  };
+  const later = (
+    <Button variant="ghost" onClick={actions.later}>
+      Do this later
+    </Button>
+  );
+  const backLink =
+    step.n > 1 ? (
+      <Button variant="link" onClick={back} className="onb-back">
+        Back
+      </Button>
+    ) : (
+      <span />
+    );
+  const nav = (primary: ReactNode = <Button onClick={next}>Continue</Button>) => (
+    <>
+      {backLink}
+      <span className="onb-foot-end">
+        {later}
+        {primary}
+      </span>
+    </>
+  );
+
+  let panel: ReactNode;
+  switch (open) {
+    case 'signin':
+      panel = (
+        <Panel step={step} total={total} title="Sign in with GitHub" lead={step.state === 'done' ? `${step.detail}. Your sign-in stays in this browser.` : 'Bridge works as you on GitHub.'} footer={nav()} />
+      );
+      break;
+    case 'library':
+      panel = (
+        <Panel step={step} total={total} title="Connect your design system" lead="Two ways in. Storybook is the quick start; the repository unlocks the checks." footer={nav()}>
+          <LibraryStep ctx={ctx} />
+        </Panel>
+      );
+      break;
+    case 'products':
+      panel = (
+        <Panel step={step} total={total} title="Products" lead="The apps that use your library, found in the repository's Bridge settings." footer={nav()}>
+          {ctx.products.length ? (
+            <ul className="onb-list">
+              {ctx.products.map((p) => (
+                <li key={p.name}>
+                  <span className="onb-strong">{p.name}</span>
+                  {p.path && <span className="mono onb-quiet">{p.path}</span>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="onb-quiet">No product is listed yet. Add them to bridge.config.json under products.</p>
+          )}
+        </Panel>
+      );
+      break;
+    case 'changes': {
+      const chosen = step.state === 'done';
+      panel = (
+        <Panel
+          step={step}
+          total={total}
+          title="How changes reach your code"
+          lead="When your team keeps an exploration, Bridge hands the change to your developers. Pick how."
+          footer={
+            sent || chosen || step.state === 'waiting'
+              ? nav()
+              : nav(
+                  <Button
+                    loading={busy}
+                    disabled={busy}
+                    onClick={async () => {
+                      setBusy(true);
+                      setError(null);
+                      try {
+                        setSent(await actions.propose(mode));
+                      } catch (err) {
+                        setError((err as Error).message);
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                  >
+                    Continue
+                  </Button>,
+                )
+          }
+        >
+          {chosen ? (
+            <p className="onb-done">
+              <Icon icon={Check} size="sm" />
+              <span>
+                Chosen: <b className="onb-strong">{step.detail}</b>. <Link href="/studio/settings/#changes">Change it in Settings</Link>
+              </span>
+            </p>
+          ) : sent || step.state === 'waiting' ? (
+            <div className="rq-done" role="status">
+              <p>
+                <strong>Review requested{sent ? `, #${sent.number}` : ''}.</strong> {sent ? CHANGES_CHOICE[mode].title : step.detail}. It applies once your team approves and merges the branch.
+              </p>
+              <p>
+                <Link href={`/studio/changes/?pr=${sent?.number ?? step.pr ?? ''}`}>See the branch</Link>
+              </p>
+            </div>
+          ) : (
+            <>
+              <ChangesChoices value={mode} onChange={setMode} />
+              {mode === 'suggest' && <DevelopersGet repo={ctx.repo} />}
+              <p className="onb-quiet">Change this later in Settings. Continue asks your team to review the choice.</p>
+              {error && (
+                <p className="rq-error" role="alert">
+                  {error}
+                </p>
+              )}
+            </>
+          )}
+        </Panel>
+      );
+      break;
+    }
+    case 'figma':
+    case 'claude': {
+      const figma = open === 'figma';
+      const done = step.state === 'done';
+      panel = (
+        <Panel
+          step={step}
+          total={total}
+          title={STEP_TITLE[open]}
+          lead={figma ? 'The plugin brings your tokens into Figma Variables and sends your variable edits for review.' : 'Your own Claude gets Bridge tools on this design system, and can apply suggestions in the repo.'}
+          footer={nav(
+            done ? (
+              <Button onClick={next}>Continue</Button>
+            ) : (
+              <Button
+                onClick={() => {
+                  actions.mark(open);
+                  next();
+                }}
+              >
+                Mark as done
+              </Button>
+            ),
+          )}
+        >
+          {figma ? (
+            <p>
+              <ButtonLink variant="secondary" href={ctx.figmaHref}>
+                Install the plugin
+              </ButtonLink>
+            </p>
+          ) : (
+            <>
+              <CodeBlock code={ctx.mcpCommand} label="Add Bridge to Claude Code once" />
+              <p className="onb-quiet">
+                Then ask it to <q>Apply Bridge suggestion</q> with the issue number, or anything about the library. <Link href={ctx.claudeHref}>Other Claude apps</Link>
+              </p>
+            </>
+          )}
+        </Panel>
+      );
+      break;
+    }
+  }
+
+  return (
+    <div className="onb">
+      <aside className="onb-side" aria-labelledby="onb-title">
+        <Drawing name="hero" width={126} className="onb-art" />
+        <h1 id="onb-title" className="onb-h1">
+          {firstRunTitle(name, open === 'changes' ? 'changes' : 'library')}
+        </h1>
+        <div className="onb-progress">
+          <p className="onb-progress-text">
+            <b className="onb-strong">{progressLabel(steps)}</b> <span className="onb-quiet">Every step after sign-in can wait.</span>
+          </p>
+          <Progress value={doneCount(steps)} max={total} size="sm" aria-label={progressLabel(steps)} />
+        </div>
+        <StepList steps={steps} open={open} onOpen={setOpen} />
+      </aside>
+      <div className="onb-main">{panel}</div>
+    </div>
+  );
+}
+
+export interface FinishConnectingProps {
+  steps: Step[];
+  /** Opens the steps at one of them. */
+  onOpen: (id: StepId) => void;
+  onHide: () => void;
+}
+
+/** "4 of 6 connected": the steps left, behind one button on the home. */
+export function FinishConnecting({ steps, onOpen, onHide }: FinishConnectingProps) {
+  const left = steps.filter((s) => s.state !== 'done');
+  const summary = doneSummary(steps);
+  return (
+    <Popover>
+      <PopoverTrigger render={<Button variant="secondary" iconEnd={ChevronDown} className="onb-trigger" />}>
+        <Progress variant="circular" size="sm" value={doneCount(steps)} max={steps.length} aria-hidden="true" />
+        {progressLabel(steps)}
+      </PopoverTrigger>
+      <PopoverContent side="bottom" align="end" arrow={false} title="Finish connecting" description="Your workspace already works. These add more, whenever you like." className="onb-pop">
+        <Progress value={doneCount(steps)} max={steps.length} size="sm" aria-label={progressLabel(steps)} />
+        <ul className="onb-pop-list">
+          {summary && (
+            <li className="onb-pop-row">
+              <span className="onb-mark" data-state="done" aria-hidden="true">
+                <Icon icon={Check} size="xs" />
+              </span>
+              <span className="onb-step-detail">{summary}</span>
+            </li>
+          )}
+          {left.map((s) => (
+            <li key={s.id} className="onb-pop-row">
+              <StepMark s={s} />
+              <StepText s={s} />
+              <Button variant="link" onClick={() => onOpen(s.id)} aria-label={`${s.id === 'changes' ? 'Choose' : 'Set up'}: ${s.title}`}>
+                {s.state === 'waiting' ? 'See' : s.id === 'changes' ? 'Choose' : 'Set up'}
+              </Button>
+            </li>
+          ))}
+        </ul>
+        <div className="onb-pop-foot">
+          <Button variant="ghost" size="sm" onClick={onHide}>
+            Hide checklist
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}

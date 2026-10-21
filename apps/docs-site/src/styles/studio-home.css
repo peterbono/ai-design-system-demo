@@ -34,6 +34,20 @@
   margin: 0;
 }
 
+/* The greeting and, while setup steps are left, "N of 6 connected" on its line (the checklist opens from it). */
+.sh-hello-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+}
+
+.sh-setup {
+  display: flex;
+  flex: none;
+}
+
 .sh-hello {
   margin: 0;
   font-family: var(--typography-h1-family);

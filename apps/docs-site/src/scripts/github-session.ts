@@ -34,12 +34,18 @@ import {
   noReachText,
   type PendingSignIn,
   pkceChallenge,
+  planSlots,
   randomString,
   readOnlyText,
   refreshDelay,
   safeReturnTo,
   sessionFrom,
   type SignInConfig,
+  SIGNIN_TEXT,
+  type SlotContent,
+  slotKey,
+  STORAGE_SLOTS,
+  type StorageSlot,
   TOKEN_ENDPOINT,
   type TokenResponse,
 } from '../lib/github-signin';
@@ -52,10 +58,83 @@ export interface RepoRef {
   defaultBranch: string;
 }
 
-const TOKEN_KEY = 'bridge.github.token';
-const CHECK_KEY = 'bridge.github.check';
+// The token, its check and its sign-in session live in one slot per GitHub App (lib/github-signin.ts slotKey):
+// 'bridge.github.token.suggest' for "Bridge", '.direct' for "Bridge Direct", no suffix without a GitHub App.
+const TOKEN_BASE = 'bridge.github.token';
+const CHECK_BASE = 'bridge.github.check';
 /** The sign-in session (expiry, refresh token) next to its token. Absent for a pasted token. */
-const APP_KEY = 'bridge.github.app';
+const APP_BASE = 'bridge.github.app';
+/** Set when a sign-in of another app was removed: the account block and the dialog ask to sign in again. */
+const SWITCHED_KEY = 'bridge.github.switched';
+
+/**
+ * The app this site signs in with, written at build time on <html data-gh-app> by the layout ('' without a GitHub
+ * App). Null on a page without the attribute: nothing is moved or cleared there.
+ */
+function pageSlot(): StorageSlot | null {
+  const v = document.documentElement.getAttribute('data-gh-app');
+  return v === null ? null : v === 'suggest' || v === 'direct' ? v : '';
+}
+
+let slotsReady = false;
+/**
+ * Once per page: tokens saved by another app are moved here (a pasted token, or the old one-app sign-in when this is
+ * still that app) or removed with a prompt to sign in again (planSlots).
+ */
+function settleSlots(slot: StorageSlot) {
+  if (slotsReady) return;
+  slotsReady = true;
+  try {
+    const read = (s: StorageSlot): SlotContent => {
+      let session: AppSession | null = null;
+      try {
+        session = JSON.parse(localStorage.getItem(slotKey(APP_BASE, s)) ?? 'null') as AppSession | null;
+      } catch {
+        session = null;
+      }
+      return { token: Boolean(localStorage.getItem(slotKey(TOKEN_BASE, s))), session: session && session.kind === 'app' ? session : null };
+    };
+    const slots: Partial<Record<StorageSlot, SlotContent>> = {};
+    for (const s of STORAGE_SLOTS) slots[s] = read(s);
+    const plan = planSlots(slots, slot, readSignInConfig()?.clientId ?? null);
+    for (const s of plan.clear) for (const base of [TOKEN_BASE, CHECK_BASE, APP_BASE]) localStorage.removeItem(slotKey(base, s));
+    if (plan.move !== null) {
+      for (const base of [TOKEN_BASE, CHECK_BASE, APP_BASE]) {
+        const v = localStorage.getItem(slotKey(base, plan.move));
+        if (v !== null) localStorage.setItem(slotKey(base, slot), v);
+        localStorage.removeItem(slotKey(base, plan.move));
+      }
+    }
+    if (plan.switched) localStorage.setItem(SWITCHED_KEY, '1');
+  } catch {
+    /* storage blocked: nothing to move */
+  }
+}
+
+/** The storage key of `base` for this page's app, after settling the other apps' tokens. */
+function key(base: string): string {
+  const slot = pageSlot();
+  if (slot === null) return base;
+  settleSlots(slot);
+  return slotKey(base, slot);
+}
+
+/** A sign-in of another app was removed on this browser and nobody has signed in since. */
+export function signInSwitched(): boolean {
+  try {
+    return localStorage.getItem(SWITCHED_KEY) === '1' && !getToken();
+  } catch {
+    return false;
+  }
+}
+
+function clearSwitched() {
+  try {
+    localStorage.removeItem(SWITCHED_KEY);
+  } catch {
+    /* storage blocked */
+  }
+}
 /** The sign-in this tab started, until GitHub sends it back (sessionStorage). */
 export const PENDING_KEY = 'bridge.github.signin';
 const CACHE_PREFIX = 'bridge.gh.cache:';
@@ -73,7 +152,7 @@ export function readRepo(): RepoRef {
 
 export function getToken(): string | null {
   try {
-    return localStorage.getItem(TOKEN_KEY);
+    return localStorage.getItem(key(TOKEN_BASE));
   } catch {
     return null;
   }
@@ -81,8 +160,8 @@ export function getToken(): string | null {
 
 export function setToken(token: string | null) {
   try {
-    if (token) localStorage.setItem(TOKEN_KEY, token.trim());
-    else localStorage.removeItem(TOKEN_KEY);
+    if (token) localStorage.setItem(key(TOKEN_BASE), token.trim());
+    else localStorage.removeItem(key(TOKEN_BASE));
   } catch {
     /* private mode: token lives for this page only */
   }
@@ -91,7 +170,7 @@ export function setToken(token: string | null) {
 
 export function readAppSession(): AppSession | null {
   try {
-    const raw = localStorage.getItem(APP_KEY);
+    const raw = localStorage.getItem(key(APP_BASE));
     const s = raw ? (JSON.parse(raw) as AppSession) : null;
     return s && s.kind === 'app' ? s : null;
   } catch {
@@ -101,8 +180,8 @@ export function readAppSession(): AppSession | null {
 
 function writeAppSession(s: AppSession | null) {
   try {
-    if (s) localStorage.setItem(APP_KEY, JSON.stringify(s));
-    else localStorage.removeItem(APP_KEY);
+    if (s) localStorage.setItem(key(APP_BASE), JSON.stringify(s));
+    else localStorage.removeItem(key(APP_BASE));
   } catch {
     /* private mode: the session lives for this page only */
   }
@@ -162,7 +241,7 @@ export async function startSignIn(returnTo = location.pathname + location.search
 
 /** POSTs to this site's token function. Throws a SignInError with the sentence to show. */
 export async function postToken(
-  body: { grant: 'code'; code: string; code_verifier: string; redirect_uri: string } | { grant: 'refresh'; refresh_token: string },
+  body: ({ grant: 'code'; code: string; code_verifier: string; redirect_uri: string } | { grant: 'refresh'; refresh_token: string }) & { client_id?: string },
 ): Promise<TokenResponse> {
   let res: Response;
   try {
@@ -180,10 +259,11 @@ export async function postToken(
   return data as TokenResponse;
 }
 
-/** Saves a finished sign-in: the token like a pasted one, plus its expiry and refresh token. */
-export function saveSignIn(r: TokenResponse, opts: { refresh?: boolean } = {}) {
+/** Saves a finished sign-in: the token like a pasted one, plus its expiry, refresh token and the app's client ID. */
+export function saveSignIn(r: TokenResponse, opts: { refresh?: boolean; clientId?: string } = {}) {
   const previous = opts.refresh ? currentCheck() : null;
-  writeAppSession(sessionFrom(r, Date.now()));
+  if (!opts.refresh) clearSwitched();
+  writeAppSession(sessionFrom(r, Date.now(), opts.clientId));
   // A refresh keeps the account: carry the last good check over to the new token (no extra call to GitHub). A new
   // sign-in may be another account: it is checked again.
   writeCheck(previous?.ok && previous.viewer ? { ...okCheck(r.access_token, previous.viewer, Date.now(), previous.write), ...(typeof previous.reach === 'boolean' ? { reach: previous.reach } : {}) } : null);
@@ -197,9 +277,11 @@ export function refreshSignIn(): Promise<boolean> {
   if (refreshing) return refreshing;
   const s = readAppSession();
   if (!s || !s.refreshToken || !canRefresh(s, Date.now())) return Promise.resolve(false);
-  refreshing = postToken({ grant: 'refresh', refresh_token: s.refreshToken })
+  // The app that issued the token renews it (sessions saved before the two apps: the site's app).
+  const clientId = s.clientId ?? readSignInConfig()?.clientId;
+  refreshing = postToken({ grant: 'refresh', refresh_token: s.refreshToken, ...(clientId ? { client_id: clientId } : {}) })
     .then((r) => {
-      saveSignIn(r, { refresh: true });
+      saveSignIn(r, { refresh: true, ...(clientId ? { clientId } : {}) });
       return true;
     })
     .catch(() => false)
@@ -211,7 +293,7 @@ export function refreshSignIn(): Promise<boolean> {
 
 function readCheck(): TokenCheck | null {
   try {
-    const raw = localStorage.getItem(CHECK_KEY);
+    const raw = localStorage.getItem(key(CHECK_BASE));
     return raw ? (JSON.parse(raw) as TokenCheck) : null;
   } catch {
     return null;
@@ -222,8 +304,8 @@ let memoryCheck: TokenCheck | null = null;
 function writeCheck(check: TokenCheck | null) {
   memoryCheck = check;
   try {
-    if (check) localStorage.setItem(CHECK_KEY, JSON.stringify(check));
-    else localStorage.removeItem(CHECK_KEY);
+    if (check) localStorage.setItem(key(CHECK_BASE), JSON.stringify(check));
+    else localStorage.removeItem(key(CHECK_BASE));
   } catch {
     /* private mode: the check lives for this page only */
   }
@@ -519,16 +601,19 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     const rejected = tokenRejected();
     const app = sessionMode() === 'app';
     const signIn = prefersSignIn();
-    const state = viewer ? 'connected' : rejected ? 'rejected' : !checked && getToken() ? 'checking' : 'readonly';
+    // The site moved to another GitHub App and removed the old sign-in: ask for a new one, like an expired sign-in.
+    const switched = !viewer && !rejected && signIn && signInSwitched();
+    // Same block as a refused token: the alert line and a Sign in again button.
+    const state = viewer ? 'connected' : rejected || switched ? 'rejected' : !checked && getToken() ? 'checking' : 'readonly';
     document.querySelectorAll<HTMLElement>('[data-gh-connect]').forEach((block) => {
       block.dataset.state = state;
       block.dataset.mode = app ? 'app' : 'token';
       const text = block.querySelector('[data-gh-status-text]');
-      if (text) text.textContent = viewer ? `Connected as @${viewer.login}` : rejected ? (app ? 'Sign-in expired' : 'Token stopped working') : 'Read only';
+      if (text) text.textContent = viewer ? `Connected as @${viewer.login}` : rejected ? (app ? 'Sign-in expired' : 'Token stopped working') : switched ? 'Signed out' : 'Read only';
       const label = block.querySelector('[data-gh-open-label]');
-      if (label) label.textContent = viewer ? (app ? 'Account' : 'Token') : rejected ? (app || signIn ? 'Sign in again' : 'Reconnect') : ghButton(signIn);
-      block.querySelectorAll<HTMLElement>('[data-gh-rejected-text]').forEach((el) => (el.textContent = app ? 'Your GitHub sign-in expired' : 'Your GitHub token stopped working'));
-      block.querySelectorAll<HTMLElement>('[data-gh-reconnect-label]').forEach((el) => (el.textContent = app ? 'Sign in again' : signIn ? 'Sign in with GitHub' : 'Reconnect'));
+      if (label) label.textContent = viewer ? (app ? 'Account' : 'Token') : rejected || switched ? (app || signIn ? 'Sign in again' : 'Reconnect') : ghButton(signIn);
+      block.querySelectorAll<HTMLElement>('[data-gh-rejected-text]').forEach((el) => (el.textContent = switched ? 'Bridge changed its GitHub app' : app ? 'Your GitHub sign-in expired' : 'Your GitHub token stopped working'));
+      block.querySelectorAll<HTMLElement>('[data-gh-reconnect-label]').forEach((el) => (el.textContent = app || switched ? 'Sign in again' : signIn ? 'Sign in with GitHub' : 'Reconnect'));
       // Change token only for a pasted token on a site without Sign in with GitHub.
       block.querySelectorAll<HTMLElement>('[data-gh-token-only]').forEach((el) => (el.hidden = app || signIn));
       block.querySelectorAll<HTMLElement>('[data-gh-forget-label]').forEach((el) => (el.textContent = app ? 'Sign out' : 'Disconnect'));
@@ -571,12 +656,15 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
   const openDialog = () => {
     const rejected = tokenRejected();
     const app = sessionMode() === 'app';
+    const switched = !viewer && !rejected && Boolean(signInView) && signInSwitched();
     if (input) input.value = '';
     // Opened from Change token while connected: say so, the saved token stays until the new one is checked.
-    if (title) title.textContent = rejected ? (app || signInView ? 'Sign in again' : 'Reconnect GitHub') : viewer && !app && !signInView ? 'Change GitHub token' : ghButton(Boolean(signInView));
-    if (rejectedNote) rejectedNote.hidden = !rejected;
+    if (title) title.textContent = rejected || switched ? (app || signInView ? 'Sign in again' : 'Reconnect GitHub') : viewer && !app && !signInView ? 'Change GitHub token' : ghButton(Boolean(signInView));
+    if (rejectedNote) rejectedNote.hidden = !rejected && !switched;
     if (rejectedNoteText) {
-      rejectedNoteText.textContent = app
+      rejectedNoteText.textContent = switched
+        ? SIGNIN_TEXT.switched
+        : app
         ? 'Your GitHub sign-in expired and could not be renewed. Sign in again to keep editing.'
         : signInView
           ? 'GitHub no longer accepts the saved token. Sign in with GitHub to keep editing.'
@@ -644,6 +732,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     }
   });
   const disconnect = () => {
+    clearSwitched();
     setToken(null);
     writeCheck(null);
     writeAppSession(null);
@@ -825,10 +914,12 @@ export function paintGates(root: ParentNode = document) {
   root.querySelectorAll<HTMLElement>('[data-gh-gate]').forEach((el) => {
     if (on) {
       el.removeAttribute('aria-disabled');
-      if (/^(Connect GitHub|Sign in|Your GitHub)/.test(el.dataset.tooltip ?? '')) delete el.dataset.tooltip;
+      if (/^(Connect GitHub|Sign in|Your GitHub|Bridge now signs in)/.test(el.dataset.tooltip ?? '')) delete el.dataset.tooltip;
     } else {
       el.setAttribute('aria-disabled', 'true');
-      el.dataset.tooltip = rejected
+      el.dataset.tooltip = !rejected && signIn && signInSwitched()
+        ? `Bridge now signs in with a different GitHub App. Sign in again to ${el.dataset.ghGate}.`
+        : rejected
         ? app
           ? `Your GitHub sign-in expired. Sign in again to ${el.dataset.ghGate}.`
           : signIn
