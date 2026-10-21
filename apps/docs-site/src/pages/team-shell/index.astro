@@ -1,6 +1,29 @@
 ---
 // Team shell of Studio Home (lib/team-shells.ts): served for /studio/<owner>/<repo>/ by the vercel.json rewrite.
-import TeamShell from '../../components/TeamShell.astro';
+// The same home as /studio/ (StudioHome: what needs you, your branches, ways to start), with its repo facts read in
+// the browser from the team's repository (scripts/team-home.ts) instead of embedded at build time.
+import '../../styles/studio-home.css';
+import '../../styles/branch-thumb.css';
+import '../../styles/team-pages.css';
+import Layout from '../../layouts/Layout.astro';
+import { Skeleton } from '@bridge-ds/react';
 ---
 
-<TeamShell route="" title="Home" what="changes in review and your branches" description="What needs you now and your branches, for this team's design system." />
+<Layout title="Home" description="What needs you now and your branches, for this team's design system." hosted wide>
+  <div class="sh-root">
+    <div data-team-source class="sh-team-source"></div>
+    <div data-studio-home>
+      <div class="sh">
+        <section class="zone sh-zone" aria-busy="true" aria-label="Loading what needs you">
+          <Skeleton variant="text" className="sh-skel-line" />
+          <Skeleton variant="rect" className="sh-skel" />
+        </section>
+      </div>
+    </div>
+  </div>
+  <script>
+    import { initTeamHome } from '../../scripts/team-home';
+    const el = document.querySelector<HTMLElement>('[data-studio-home]');
+    if (el) initTeamHome(el, document.querySelector<HTMLElement>('[data-team-source]'));
+  </script>
+</Layout>

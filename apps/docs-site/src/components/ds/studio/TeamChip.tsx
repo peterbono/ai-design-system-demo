@@ -1,21 +1,21 @@
 // The team chip at the top of the Studio side nav (multi-team plan 7.1): where you are. The owner's avatar, owner/repo
 // in mono and your access on it as a badge ("Can edit", "Can suggest", "No access"), then a chevron. It is the nav's
-// first focus stop and a full-width target. Its menu: Invite your team, View on GitHub, and on the hosted site the
-// teams opened in this browser (max 5) and "Open another repository". Who you are stays at the bottom of the nav
+// first focus stop and a full-width target. The name stays on one line (ellipsis, the full name in its title). Its
+// menu: Invite your team, then on the hosted site the teams opened in this browser (max 5) and "Create a new team",
+// which opens the launcher to connect another design system. Who you are stays at the bottom of the nav
 // (components/GitHubAccount.astro): proximity keeps the team at the top and the account at the bottom.
 // Mounted by layouts/Layout.astro on every Studio page, both modes: a self-hosted Studio is its own one team.
 import { useEffect, useState } from 'react';
-import { ChevronsUpDown, FolderOpen, UserPlus } from 'lucide-react';
+import { ChevronsUpDown, Plus, UserPlus } from 'lucide-react';
 import { Avatar, Badge, Button, Icon, Menu, MenuContent, MenuGroup, MenuItem, MenuSeparator, MenuTrigger } from '@bridge-ds/react';
 import type { RepoAccessState } from '@bridge-ds/core';
-import { GitHubMark } from './brand-icons';
-import { accessBadge, ownerAvatarUrl, parseRecentTeams, pushRecentTeam, RECENT_TEAMS_KEY, repoUrl } from '../../../lib/access-view';
+import { accessBadge, ownerAvatarUrl, parseRecentTeams, pushRecentTeam, RECENT_TEAMS_KEY } from '../../../lib/access-view';
 import { STUDIO_ROOT, studioHref, teamHref } from '../../../lib/team-path';
 
 export interface TeamChipProps {
   /** owner/repo known at build time (self-hosted). Null on a team shell: read from the address. */
   repo?: string | null;
-  /** The hosted site: offer the other teams of this browser and "Open another repository". */
+  /** The hosted site: offer the other teams of this browser and "Create a new team". */
   launcher?: boolean;
 }
 
@@ -76,7 +76,7 @@ export default function TeamChip({ repo: built = null, launcher = false }: TeamC
       >
         <Avatar name={owner || 'Team'} src={owner ? ownerAvatarUrl(owner) : undefined} size="sm" decorative className="tc-avatar" />
         <span className="tc-text">
-          <span className="tc-name mono">
+          <span className="tc-name mono" title={name ?? undefined}>
             {name ?? 'Your team'}
           </span>
           <Badge size="sm" tone={badge.tone} dot className="tc-badge">
@@ -89,28 +89,27 @@ export default function TeamChip({ repo: built = null, launcher = false }: TeamC
         <MenuItem icon={UserPlus} onClick={() => go(studioHref('?setup=team'))}>
           Invite your team
         </MenuItem>
-        {owner && (
-          <MenuItem icon={GitHubMark} onClick={() => window.open(repoUrl(owner, repo), '_blank', 'noopener,noreferrer')}>
-            View on GitHub
-          </MenuItem>
-        )}
         {(launcher || hosted) && (
           <>
-            <MenuSeparator />
             {recent.length > 0 && (
-              <MenuGroup label="Recent teams">
-                {recent.map((t) => {
-                  const [o = '', r = ''] = t.split('/');
-                  return (
-                    <MenuItem key={t} icon={<Avatar name={o} src={ownerAvatarUrl(o, 32)} size="xs" decorative />} onClick={() => go(teamHref(o, r, null))}>
-                      <span className="mono">{t}</span>
-                    </MenuItem>
-                  );
-                })}
-              </MenuGroup>
+              <>
+                <MenuSeparator />
+                <MenuGroup label="Recent teams">
+                  {recent.map((t) => {
+                    const [o = '', r = ''] = t.split('/');
+                    return (
+                      <MenuItem key={t} icon={<Avatar name={o} src={ownerAvatarUrl(o, 32)} size="xs" decorative />} onClick={() => go(teamHref(o, r, null))}>
+                        <span className="mono">{t}</span>
+                      </MenuItem>
+                    );
+                  })}
+                </MenuGroup>
+              </>
             )}
-            <MenuItem icon={FolderOpen} onClick={() => go(STUDIO_ROOT)}>
-              Open another repository
+            <MenuSeparator />
+            {/* The launcher on the hosted Studio home: connect another design system by its repository. */}
+            <MenuItem icon={Plus} onClick={() => go(STUDIO_ROOT)}>
+              Create a new team
             </MenuItem>
           </>
         )}

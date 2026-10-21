@@ -35,20 +35,22 @@
   min-width: 0;
 }
 
-/* The whole owner/repo stays readable: it wraps at any character, on two lines at most. */
+/* One line: the full owner/repo is in the title (tooltip) when it does not fit. */
 .tc-name {
-  display: -webkit-box;
   max-width: 100%;
   overflow: hidden;
   color: var(--color-text-default);
   font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-medium);
   line-height: var(--typography-ui-line-height);
-  white-space: normal;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The chip menu floats clearly above the nav under it: the modal step of the elevation ramp and a small gap. */
+.tc-menu {
+  --popup-shadow: var(--elevation-modal);
+  margin-top: var(--space-1);
 }
 
 .tc-avatar {

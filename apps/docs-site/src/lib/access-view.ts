@@ -15,9 +15,6 @@ export const installUrl = (slug = BRIDGE_APP_SLUG) => `https://github.com/apps/$
 
 const gh = (owner: string, repo: string) => `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
 
-/** The repository on GitHub. */
-export const repoUrl = (owner: string, repo: string) => gh(owner, repo);
-
 /** Where someone the lead invited accepts the invitation. */
 export const invitationsUrl = (owner: string, repo: string) => `${gh(owner, repo)}/invitations`;
 

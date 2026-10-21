@@ -149,9 +149,6 @@ function HostedRepo({ ctx, step }: { ctx: OnboardingContext; step: Step }) {
       </h3>
       <p className="onb-repo">
         <span className="mono">{ctx.repo}</span>
-        <Link href={ctx.repoUrl} external>
-          {VOCAB.openOnGitHub}
-        </Link>
       </p>
       {access === 'not-installed' ? (
         ctx.hosted?.admin ? (
@@ -190,7 +187,7 @@ function HostedRepo({ ctx, step }: { ctx: OnboardingContext; step: Step }) {
         </>
       )}
       <p className="onb-quiet">
-        Not this one? <Link href={STUDIO_ROOT}>Open another repository</Link>
+        Not this one? <Link href={STUDIO_ROOT}>Create a new team</Link>
       </p>
     </section>
   );

@@ -14,16 +14,24 @@ import { ghAction, ghVerb, sendButton, sendDialogTitle, sendGoal, SUGGEST_NEXT }
 import { siteRepo } from '../../lib/config';
 import { signInConfig } from '../../lib/signin-config';
 
+interface Props {
+  /** A team shell (multi-team PR 3b): no build-time palette or component previews (the demo's components are not the
+   *  team's); the palette list is filled in the browser from the team's tokens. */
+  hosted?: boolean;
+}
+const { hosted = false } = Astro.props;
 const signIn = Boolean(signInConfig());
 // How changes reach the code (bridge.config.json "changes"): the send words follow it. The script repaints them live.
 const mode = siteRepo().changes;
 const suggest = mode === 'suggest';
 
-const palette = explorerTokens()
-  .filter((t) => t.layer === 'brand' && t.type === 'color')
-  .map((t) => t.path);
+const palette = hosted
+  ? []
+  : explorerTokens()
+      .filter((t) => t.layer === 'brand' && t.type === 'color')
+      .map((t) => t.path);
 // Library previews of every component, so the popover and the review can show any component that uses a token.
-const previews = loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.name, node: c.docs.preview }] : []));
+const previews = hosted ? [] : loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.name, node: c.docs.preview }] : []));
 ---
 
 <div class="xp-kit" data-xp-kit>
