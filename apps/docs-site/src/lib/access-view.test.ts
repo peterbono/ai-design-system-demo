@@ -11,8 +11,12 @@ import {
   askInstallMessage,
   installUrl,
   manageAccessUrl,
+  forgetsTeam,
+  isRecentTeamName,
   parseRecentTeams,
   pushRecentTeam,
+  remembersTeam,
+  removeRecentTeam,
   teamLink,
   viewerRow,
   whoCanDoWhat,
@@ -119,6 +123,30 @@ describe('the team chip', () => {
     expect(list).toEqual(['A/1', 'f/6', 'e/5', 'd/4', 'c/3']);
     expect(parseRecentTeams(JSON.stringify(['ok/repo', 'nope', 3, '../x/y']))).toEqual(['ok/repo']);
     expect(parseRecentTeams('{bad')).toEqual([]);
+  });
+
+  it('drops placeholders and invalid names from the recent teams', () => {
+    for (const t of ['owner/repo', 'owner/design', 'Owner/anything', 'OWNER/ds']) expect(isRecentTeamName(t)).toBe(false);
+    for (const t of ['acme', 'acme/', '/ds', 'acme/ds/x', '-acme/ds', 'acme-/ds', 'ac--me/ds', 'acme/.', 'acme/..', 'ac me/ds']) {
+      expect(isRecentTeamName(t)).toBe(false);
+    }
+    for (const t of ['acme/ds', 'peterbono/ai-design-system-demo', 'a/1', 'owners/ds', 'acme/owner']) expect(isRecentTeamName(t)).toBe(true);
+    const stored = JSON.stringify(['owner/design', 'acme/ds', 'owner/repo', 'ACME/ds', 'acme-/x', 'globex/tokens']);
+    expect(parseRecentTeams(stored)).toEqual(['acme/ds', 'globex/tokens']);
+    expect(pushRecentTeam(['acme/ds'], 'owner/design')).toEqual(['acme/ds']);
+  });
+
+  it('removes one recent team, whatever its case', () => {
+    expect(removeRecentTeam(['acme/ds', 'globex/tokens'], 'ACME/DS')).toEqual(['globex/tokens']);
+    expect(removeRecentTeam(['acme/ds'], 'other/x')).toEqual(['acme/ds']);
+  });
+
+  it('remembers a team only once its page read the repository', () => {
+    const states: RepoAccessState[] = ['anonymous-public', 'anonymous-unknown', 'no-access', 'not-installed', 'outside-contributor', 'reader', 'writer', 'admin'];
+    expect(states.filter((s) => remembersTeam(s))).toEqual(['anonymous-public', 'outside-contributor', 'reader', 'writer', 'admin']);
+    expect(states.filter((s) => forgetsTeam(s))).toEqual(['anonymous-unknown', 'no-access']);
+    expect(remembersTeam(null)).toBe(false);
+    expect(forgetsTeam(undefined)).toBe(false);
   });
 });
 

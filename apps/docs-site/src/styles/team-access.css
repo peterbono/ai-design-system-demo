@@ -57,6 +57,31 @@
   flex: none;
 }
 
+/* A recent team and its remove action share one row: two DS menu items side by side, the team takes the width. */
+.tc-recent {
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-5);
+}
+
+.tc-recent-open {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Icon only, square at the menu item height: the empty label slot takes no room. */
+.tc-recent-remove {
+  flex: none;
+  justify-content: center;
+  gap: 0;
+  min-width: var(--menu-item-height);
+  padding-inline: 0;
+}
+
+.tc-recent-remove > * {
+  flex: none;
+}
+
 /* The demo's mark: the Bridge drawing on a quiet tile the size of the avatar it replaces. Square corners say "a design
    system", not a person. */
 .tc-mark {
