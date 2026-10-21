@@ -3,6 +3,9 @@
 // QueueList), and opens the selected one in the main area:
 //   - a branch row opens the branch review of Branches in place (scripts/reviews.ts openPr into #rv-detail), without
 //     its own bar: the queue's bar replaces it;
+//   - a suggestion row (a change a developer applies once owners approve it) opens the suggestion review in place
+//     (scripts/suggestions.ts openSuggestion into [data-rq-sg]), with its own decision on the card: the queue bar is for
+//     branches; A and S press its Approve and Suggest changes, an approval waits for Undo the same way;
 //   - usage guidance drafts, library health and setup rows show a short card with the link that handles them.
 // The bar is about the item on screen only: comment, Suggest changes, Approve, More actions (Ask someone else to
 // review, Copy link, Open the full review). After a decision the queue moves on: the list mark changes, the next item
@@ -20,6 +23,8 @@ import { currentViewer, initGitHubConnect, prefersSignIn } from './github-sessio
 import { setReviewCount } from './shell';
 import { loadHome, type HomeStatic } from './home-data';
 import { approveBranch, askSomeoneElse, closePr, openPr, suggestChanges } from './reviews';
+import { closeSuggestion, forgetSuggestions, openSuggestion, type OpenedSuggestion } from './suggestions';
+import { suggestionOfKey } from '../lib/suggestions-view';
 import { branchOf, keyDecision, keyFromSearch, keyMove, moveIndex, nextOpen, outcomeLine, positionLabel, searchFor, UNDO_MS, type QueueOutcome } from '../lib/queue-nav';
 import { reviewLink } from '../lib/review-page';
 import { ghAction, ghButton } from '../lib/gh-wording';
@@ -70,6 +75,7 @@ export function initReviewQueue() {
   const footEl = el('[data-rq-foot]');
   const emptyEl = el('[data-rq-empty]');
   const toastEl = el('[data-rq-toasts]');
+  const sgEl = el('[data-rq-sg]');
   const detail = document.getElementById('rv-detail')!;
   const roots = new Map<HTMLElement, Root>();
   const render = (host: HTMLElement, node: Parameters<Root['render']>[0]) => {
@@ -89,11 +95,14 @@ export function initReviewQueue() {
   let selected: string | null = keyFromSearch(location.search);
   /** The branch open in #rv-detail. */
   let opened: number | null = null;
+  /** The suggestion open in [data-rq-sg], and what it allows once read. */
+  let openedSg: number | null = null;
+  let sgState: OpenedSuggestion | null = null;
   /** What the viewer did here: decided rows stay listed and marked, even when a later read drops them. */
   const outcomes = new Map<string, QueueOutcome>();
   const decided = new Map<string, NeedRow>();
   /** Approvals waiting for Undo: sent when their time is up, or when the viewer leaves. */
-  const waiting = new Map<string, { n: number; text: string; timer: ReturnType<typeof setTimeout> }>();
+  const waiting = new Map<string, { go: () => Promise<unknown>; timer: ReturnType<typeof setTimeout> }>();
   let canApprove = false;
   let canSuggest = false;
   let busy: 'approve' | 'suggest' | 'ask' | null = null;
@@ -109,11 +118,54 @@ export function initReviewQueue() {
   const index = () => rows.findIndex((r) => r.key === selected);
   const rowOf = (key: string | null) => rows.find((r) => r.key === key) ?? null;
 
+  /** The rows waiting after the current one, drawn stacked behind the suggestion card. */
+  const nextCards = () => {
+    const i = index();
+    return rows
+      .slice(i + 1)
+      .filter((r) => !outcomes.has(r.key))
+      .slice(0, 3)
+      .map((r) => ({ key: r.key, title: r.title, person: r.person }));
+  };
+
+  function showSuggestionRow(sg: number | null) {
+    if (sg === openedSg) return;
+    openedSg = sg;
+    sgState = null;
+    if (sg === null) {
+      closeSuggestion(sgEl);
+      return;
+    }
+    void openSuggestion(sg, {
+      el: sgEl,
+      inQueue: true,
+      next: nextCards(),
+      approve: (_s, go) => approveLater(go),
+      decided: (s, event) => {
+        // An approval moved on when it was pressed (it waited for Undo); the others move on once GitHub has them.
+        if (event === 'approve') return;
+        const d = decide(event === 'decline' ? 'declined' : 'suggested');
+        if (!d) return;
+        toasts?.add({ title: outcomeLine(event === 'decline' ? 'declined' : 'suggested', s.title), tone: 'success' });
+        advance(d.i);
+      },
+      opened: (s) => {
+        sgState = s;
+        if (s && focusTitle) {
+          focusTitle = false;
+          requestAnimationFrame(() => sgEl.querySelector<HTMLElement>('.sg-title')?.focus());
+        }
+      },
+    });
+  }
+
   function show(key: string | null) {
     selected = key;
     const row = rowOf(key);
     const n = branchNumber(row, key);
+    const sg = suggestionOfKey(row?.key ?? key);
     if (row) history.replaceState(history.state, '', `${location.pathname}${searchFor(row)}`);
+    showSuggestionRow(sg);
     if (n) {
       if (opened !== n) {
         opened = n;
@@ -128,7 +180,7 @@ export function initReviewQueue() {
       closePr();
     }
     paint();
-    if (focusTitle && !n) {
+    if (focusTitle && !n && !sg) {
       focusTitle = false;
       requestAnimationFrame(() => cardEl.querySelector<HTMLElement>('.rq-item-title')?.focus());
     }
@@ -150,6 +202,7 @@ export function initReviewQueue() {
     if (to === null) {
       if (opened !== null) closePr();
       opened = null;
+      showSuggestionRow(null);
       selected = null;
       history.replaceState(history.state, '', location.pathname);
       said = 'Nothing else waits on you.';
@@ -164,7 +217,7 @@ export function initReviewQueue() {
     if (!w) return;
     waiting.delete(key);
     clearTimeout(w.timer);
-    approveBranch(w.n, w.text).catch((err: Error) => {
+    w.go().catch((err: Error) => {
       outcomes.delete(key);
       toasts?.error(`Not approved: ${rowOf(key)?.title ?? 'the branch'}`, { description: `${err.message}. Open it and approve again.` });
       paint();
@@ -186,9 +239,25 @@ export function initReviewQueue() {
     const n = opened;
     const d = decide('approved');
     if (!d) return;
+    later(d, () => approveBranch(n, text));
+  }
+
+  /** A suggestion's Approve: the same Undo window as a branch, then scripts/suggestions.ts posts the review. */
+  function approveLater(go: () => Promise<void>) {
+    if (busy) return;
+    const d = decide('approved');
+    if (!d) return;
+    later(d, async () => {
+      await go();
+      forgetSuggestions();
+    });
+  }
+
+  /** Waits UNDO_MS with an Undo toast, then sends; the queue moves on at once. */
+  function later(d: { i: number; row: NeedRow }, go: () => Promise<unknown>) {
     const key = d.row.key;
     // Nothing is sent before the toast closes: Undo only cancels.
-    waiting.set(key, { n, text, timer: setTimeout(() => send(key), UNDO_MS) });
+    waiting.set(key, { go, timer: setTimeout(() => send(key), UNDO_MS) });
     const toastId = toasts?.add({
       title: outcomeLine('approved', d.row.title),
       tone: 'success',
@@ -291,11 +360,13 @@ export function initReviewQueue() {
         : null,
     );
 
-    // Not a branch: what it is and the link that handles it.
-    cardEl.hidden = Boolean(branch) || !row;
+    // Not a branch nor a suggestion: what it is and the link that handles it.
+    const sg = suggestionOfKey(row?.key ?? selected);
+    sgEl.hidden = !sg;
+    cardEl.hidden = Boolean(branch) || Boolean(sg) || !row;
     render(
       cardEl,
-      !branch && row
+      !branch && !sg && row
         ? h(
             Card,
             { className: 'rq-item' },
@@ -360,6 +431,14 @@ export function initReviewQueue() {
       return;
     }
     const decision = keyDecision(e);
+    if (decision && openedSg && sgState) {
+      // A suggestion: its own buttons, when the viewer may press them.
+      const btn = sgEl.querySelector<HTMLButtonElement>(decision === 'approve' ? '[data-sg-approve]' : '[data-sg-suggest]');
+      if (!btn || btn.disabled) return;
+      e.preventDefault();
+      btn.click();
+      return;
+    }
     if (!decision || !opened) return;
     e.preventDefault();
     if (decision === 'approve') approve('');
@@ -373,8 +452,8 @@ export function initReviewQueue() {
   // Leaving the page sends what waits for Undo: an approval is never lost silently.
   window.addEventListener('pagehide', () => [...waiting.keys()].forEach(send));
 
-  // A deep link to a branch opens at once, before the list is read.
-  if (selected && branchNumber(null, selected)) show(selected);
+  // A deep link to a branch or a suggestion opens at once, before the list is read.
+  if (selected && (branchNumber(null, selected) || suggestionOfKey(selected))) show(selected);
   else paint();
 
   let lastLogin: string | null | undefined;
@@ -384,6 +463,11 @@ export function initReviewQueue() {
     if (opened && login !== (lastLogin ?? null)) {
       canApprove = false;
       void openPr(opened, false);
+    }
+    if (openedSg && lastLogin !== undefined && login !== lastLogin) {
+      const n = openedSg;
+      openedSg = null;
+      showSuggestionRow(n);
     }
     lastLogin = login;
     const mine = ++run;
@@ -404,8 +488,9 @@ export function initReviewQueue() {
       if (!loading && !rows.length) {
         if (opened !== null) closePr();
         opened = null;
+        showSuggestionRow(null);
         selected = null;
-      } else if (d.settled && !rowOf(selected) && !(selected && branchNumber(null, selected))) {
+      } else if (d.settled && !rowOf(selected) && !(selected && (branchNumber(null, selected) || suggestionOfKey(selected)))) {
         // The first row once the list is read and its order settled, unless the URL names a listed row or a branch.
         const first = rows.findIndex((r) => !outcomes.has(r.key));
         show(rows[first < 0 ? 0 : first]!.key);

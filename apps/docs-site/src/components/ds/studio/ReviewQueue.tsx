@@ -3,7 +3,7 @@
 // bottom, about the item on screen only: comment, Suggest changes, Approve, More actions. The queue moves on after a
 // decision; a toast says what was done, with Undo. Rules: lib/queue-nav.ts.
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronLeft, Circle, CircleAlert, CircleDot, Ellipsis, UserRoundPlus } from 'lucide-react';
+import { Check, ChevronLeft, Circle, CircleAlert, CircleDot, CircleX, Ellipsis, UserRoundPlus } from 'lucide-react';
 import { Button, Icon, IconButton, Input, Kbd, Link, Menu, MenuContent, MenuItem, MenuSubmenu, MenuTrigger, Progress, SidebarNav, SidebarNavItem, SidebarNavSection, ToastProvider, Tooltip, useToast, type UseToastReturn } from '@bridge-ds/react';
 import { positionLabel, queueWindow, type QueueOutcome } from '../../../lib/queue-nav';
 import { Who, type Face } from './faces';
@@ -26,6 +26,7 @@ const MARK: Record<QueueOutcome | 'current' | 'todo', { icon: typeof Check; labe
   approved: { icon: Check, label: 'Approved' },
   suggested: { icon: CircleAlert, label: 'Changes suggested' },
   asked: { icon: UserRoundPlus, label: 'Asked someone else' },
+  declined: { icon: CircleX, label: 'Declined' },
   current: { icon: CircleDot, label: 'Open now' },
   todo: { icon: Circle, label: 'To review' },
 };

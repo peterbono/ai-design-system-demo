@@ -20,6 +20,7 @@ describe('the list with outcomes', () => {
   it('says what happened', () => {
     expect(outcomeLine('approved', 'Darker background')).toBe('Approved Darker background');
     expect(outcomeLine('suggested', 'X')).toBe('Suggested changes on X');
+    expect(outcomeLine('declined', 'X')).toBe('Declined X');
     expect(outcomeLine('asked', 'X')).toBe('Asked someone else to review X');
   });
   it('reads A and S, never with a modifier', () => {

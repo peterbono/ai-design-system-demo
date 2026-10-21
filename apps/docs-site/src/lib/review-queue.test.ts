@@ -92,6 +92,15 @@ describe('queue sentence', () => {
     expect(queueSentence(['ready'])).toBe('1 branch is ready to merge.');
   });
 
+  it('counts suggestions in the same buckets, with their own two steps', () => {
+    expect(queueBuckets(['needs-design', 'ready-to-apply', 'applying', 'ready-to-apply'])).toEqual([
+      { bucket: 'design', n: 1 },
+      { bucket: 'apply', n: 2 },
+      { bucket: 'applying', n: 1 },
+    ]);
+    expect(queueSentence(['ready-to-apply'])).toBe('1 branch is approved and ready to apply.');
+  });
+
   it('counts unread statuses as still being checked', () => {
     expect(queueSentence(['needs-approval', null, 'unknown'])).toBe('1 branch waits for one approval. 2 are still being checked.');
   });

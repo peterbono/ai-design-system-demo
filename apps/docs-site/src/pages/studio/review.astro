@@ -4,6 +4,8 @@
 // selected item in the main area, and one bar about that item: comment, Suggest changes, Approve, More actions. A branch opens
 // in place with the branch review of Branches (scripts/reviews.ts openPr into #rv-detail), so this page carries what
 // that review needs: the notice, the owner override dialog, the promote dialog and the contrast and branches data.
+// A suggestion row (a change a developer applies once owners approve it) opens the suggestion review in place
+// (components/ds/studio/SuggestionReview), with its own Approve and Suggest changes; Decline uses RequestDecide.
 // Usage guidance drafts, library health and setup rows show a short card with the link that handles them.
 // Script: scripts/review-queue-page.ts. Moves: lib/queue-nav.ts.
 import '../../styles/reviews.css';
@@ -15,9 +17,11 @@ import '../../styles/changes.css';
 import '../../styles/studio-home.css';
 import '../../styles/branch-thumb.css';
 import '../../styles/review-queue.css';
+import '../../styles/suggestion-review.css';
 import Layout from '../../layouts/Layout.astro';
 import ScriptDialog from '../../components/ds/ScriptDialog.astro';
 import PromoteToReview from '../../components/ds/studio/PromoteToReview';
+import RequestDecide from '../../components/ds/studio/RequestDecide';
 import { Alert, Button, ButtonGroup, Skeleton, Textarea } from '@bridge-ds/react';
 import { docsEditHref, guidanceState, loadComponents } from '../../lib/components';
 import { git, PREVIEW_APPS, PREVIEW_PACKAGES, readText } from '../../lib/repo';
@@ -58,6 +62,7 @@ const cfg: BranchesConfig = { owner: r.owner, repo: r.repo, defaultBranch: r.def
       <div class="rq-pick" data-rq-pick></div>
       <section class="rq-main" aria-label="Selected item">
         <div class="rq-card" data-rq-card></div>
+        <div class="rq-sg" data-rq-sg hidden></div>
         <div id="rv-detail" class="rv-detail rq-detail" hidden></div>
         <div class="rq-foot" data-rq-foot hidden></div>
       </section>
@@ -85,6 +90,7 @@ const cfg: BranchesConfig = { owner: r.owner, repo: r.repo, defaultBranch: r.def
     </Fragment>
   </ScriptDialog>
   <PromoteToReview client:only="react" />
+  <RequestDecide client:only="react" />
   <script type="application/json" id="home-static" set:html={JSON.stringify(homeStatic)} />
   <script type="application/json" id="home-guidance" set:html={JSON.stringify({ drafted: guidance }).replace(/</g, '\\u003c')} />
   <script type="application/json" id="bridge-contrast" set:html={checks} />

@@ -10,6 +10,7 @@ import { reviewQueue } from '../lib/review-queue';
 import { currentViewer, hasWorkingToken } from './github-session';
 import { loadStatuses, owners, shippers, teamPeople, type PullForStatus, type PullStatus } from './pr-status';
 import { loadTeams } from './teams';
+import { loadSuggestionNeeds } from './suggestions';
 import { agentMade, workNature, type VisualSignal } from '../lib/work-nature';
 import { rowLifecycle } from '../lib/change-status';
 
@@ -98,15 +99,19 @@ export function rememberedMine(viewer?: string | null): number | null {
   }
 }
 
-/** Reads the statuses of the queue and counts what waits on the viewer. 0 signed out (nothing is read then). */
+/**
+ * Reads the statuses of the queue and counts what waits on the viewer, suggestions included (the same list as Home
+ * and the review queue, scripts/suggestions.ts). 0 signed out (nothing is read then).
+ */
 export async function loadReviewNeedsYou(pulls: QueuePullFull[]): Promise<number> {
   const viewer = currentViewer()?.login ?? null;
   if (!viewer || !hasWorkingToken()) return 0;
   await loadTeams();
   const queue = reviewQueue(pulls);
   const statuses = new Map<number, PullStatus | null>();
+  const suggestions = loadSuggestionNeeds().catch(() => []);
   await loadStatuses(queue, (p, st) => statuses.set(p.number, st));
-  const n = reviewNeedsYou({ changes: queue.map((p) => todoChange(p, statuses.get(p.number))), viewer, owners: siteOwners() });
+  const n = reviewNeedsYou({ changes: queue.map((p) => todoChange(p, statuses.get(p.number))), viewer, owners: siteOwners() }) + (await suggestions).length;
   rememberMine(n);
   return n;
 }

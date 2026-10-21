@@ -5,7 +5,9 @@
 // their own status, grouped by product, with one segmented control (Mine, Waiting on me, All), a checkbox on token
 // branches to preview them together (the floating bar) and the merged ones behind one muted line. Views that stay
 // reachable by address, each with the same header: History (?view=history, merged token changes by release, with
-// undo), a branch in place (?pr=N), an exploration in place (?exploration=N) and its start form
+// undo), a branch in place (?pr=N), a suggestion in place (?suggestion=N: a change filed as a GitHub issue that a
+// developer applies once owners approve it, components/ds/studio/SuggestionReview in #sg-detail, declined with
+// RequestDecide), an exploration in place (?exploration=N) and its start form
 // (?view=explorations&start=new, from Create branch > New component), and component change requests (?view=requests,
 // only when request triage is on in Studio, lib/studio-flags). Old ?status= and ?tier= links keep working
 // (lib/branches-page finishedParam). Designer words only (lib/vocabulary, Figma branching); developer details stay on
@@ -21,6 +23,7 @@ import '../../styles/explorations.css';
 import '../../styles/product-branch.css';
 import '../../styles/studio-home.css';
 import '../../styles/branch-thumb.css';
+import '../../styles/suggestion-review.css';
 import Layout from '../../layouts/Layout.astro';
 import StudioHeader from '../../components/StudioHeader.astro';
 import HistoryPlanner from '../../components/HistoryPlanner.astro';
@@ -270,6 +273,7 @@ const signIn = Boolean(signInConfig());
       </section>
     </div>
     <div id="rv-detail" class="rv-detail" hidden></div>
+    <div id="sg-detail" class="rv-detail" hidden></div>
   </div>
 
   <HistoryPlanner />
