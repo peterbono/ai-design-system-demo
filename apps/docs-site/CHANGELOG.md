@@ -1,5 +1,83 @@
 # @bridge-ds/docs-site
 
+## 0.15.0
+
+### Minor Changes
+
+- 440f717: Team pages always sign in with the read-only Bridge app. When a team in direct mode saves code for the first time
+  (start a branch, save to it, ship, review), Studio explains why in "Allow Bridge to save to branches" and asks for
+  Bridge Direct's OK once, then lands back on the same page. Its token lives in its own slot next to Bridge's;
+  suggestions and comments keep going out with Bridge. When Bridge Direct is not on the team's repository, admins get
+  "Install Bridge Direct" and everyone else "Ask your lead". New optional `GITHUB_APP_DIRECT_SLUG`. The self-hosted
+  Studio is unchanged. Core: a `fetch` that throws its own `GitHubError` keeps it instead of turning into "Could not
+  reach GitHub".
+- 79650d3: A team's Bridge says who gets in: one screen per GitHub access state (sign in first, no access with "Ask your lead for access", Bridge not set up with the install link for admins only, read only outside the team), a team chip at the top of the Studio side nav with your access, and "Invite your team" (the team link, "Who can do what", Manage access on GitHub for admins) as an onboarding step and in Settings. Onboarding is remembered per repository, and step 2 shows the hosted states.
+- bad4f0a: Studio team context in the browser (multi-team PR 2b). `scripts/repo-context.ts` names the repository a page works on
+  (the team address `/studio/<owner>/<repo>/` on a team shell, else `#bridge-repo` as before) and its settings
+  (`siteConfig`), and loads a team's repo model from GitHub with core `loadRepoModel` and `gitHubSource`, cached in
+  IndexedDB by repository and head sha (`scripts/repo-cache.ts`). Access is now read per repository with core
+  `resolveRepoAccess` and its eight states (`resolveAccess`, `lib/access.ts`); a read-only outside contributor is no
+  longer told that Bridge is not installed. Sign-out removes cached private repositories. Signing in with one GitHub App
+  no longer removes the other App's sign-in, and `pickSignInApp` signs in for identity with the read-only app first,
+  with Bridge Direct only to write in direct mode. The self-hosted site behaves as before.
+- 0986099: Show how far Bridge has gone reading a design system, and open Branches for teams.
+
+  - Core: `loadRepoModel` takes `onProgress` and reads in three phases (tokens, components, docs) with an exact file
+    total from the first report; `readRepoTexts` takes an `onProgress(done, total)` callback; `gitHubSource` takes
+    `onProgress` (the tree once read, then each body and whether it came from the blob cache).
+  - Team pages (Home, Components, Quality, Tokens) replace the loading skeleton with a calm progress view: "Finding your
+    design system", then "Using the saved snapshot" or "Reading N files" with a bar filled from real file counts
+    ("Reading tokens 12 of 48", then components, then docs), then "Ready". Unknown totals stay indeterminate, a cache
+    hit shows nothing. The Storybook quick start shows "Reading your Storybook" and the component count it found.
+  - Team Branches lists the team's open branches (the same list as the demo) and its open suggestions, each reviewed
+    in place. Review and New brand keep one calm line and "See it on the demo"; "View on GitHub" is gone.
+
+- 55a0992: Team pages for the hosted Studio (multi-team PR 3b). Home, Components, Quality and Tokens on
+  /studio/<owner>/<repo>/ now render in the browser from the team's repository: this browser's cache for the default
+  branch head first, then the team's Bridge snapshot when it was computed from that head, else a live read from GitHub.
+  Components lists the team's components with one Storybook preview in the drawer, or token specimens without a
+  Storybook. Quality shows the contrast gate, token findings, docs completeness and adoption audits from the snapshot
+  (or how to publish them). Tokens starts the same explorer and token editor from the team's files, with history read
+  through GitHub when signed in. Loading skeletons, calm empty states and errors with Try again (rate limit, repository
+  not found, too large to read).
+- 6b95bfb: Team addresses for the hosted Studio (multi-team PR 3a). Every Studio page is also built as an empty team shell at
+  `/team-shell/...` (`<html data-hosted data-shell>`, `noindex`), and `vercel.json` rewrites `/studio/<owner>/<repo>/...`
+  and the escape form `/studio/~/<owner>/<repo>/...` to it, two rules per form with the trailing slash one first. Static
+  files still win, so every existing `/studio/` page and deep link is unchanged. On a shell, the build-time Studio links
+  follow the team (`scripts/team-links.ts`), and the page says team pages open there soon, with the same page on the
+  demo. The build writes the paths a team can never take, read from the built Studio folder, to
+  `/team-shell/reserved.json`, and fails on a missing or malformed shell or on a link to a Studio path no file serves.
+  Team addresses and shells answer `X-Robots-Tag: noindex`. With `BRIDGE_HOSTED=1`, Studio home shows "Open your team's
+  Bridge": a field that takes `owner/repo` or a GitHub address. `scripts/hosted-smoke.mjs` checks a deployment.
+
+### Patch Changes
+
+- 1c7c87d: The Install Bridge Direct link on team pages points to the real app, bridge-design-studio, by default.
+- 9d40c77: Harden every HTML sink against repo and GitHub content, and ship a report-only Content-Security-Policy. Markdown links allow only http, https, mailto and relative targets, JSON embedded in pages can no longer close its script element, PR, preview, Figma, Jira and image URLs go through one URL allow-list, token values in inline styles drop `url()` and declaration breakouts, and docs.json example props lose raw HTML, handlers and unsafe URLs. A test lists every file that writes HTML with what makes it safe. `tryInProductUrl` returns an empty string for a preview that is not http or https. The docs site sends `Content-Security-Policy-Report-Only` (inline scripts allowed by hash, checked at build time), `X-Content-Type-Options` and `Referrer-Policy`, and collects violations on `/api/csp-report`.
+- 662fb55: The docs site builds from the repo model: `loadRepoModel(fsSource(root))` runs once per build (`lib/model.ts`) and
+  the token, component, contrast, explorer, history, Figma coverage, config and sign-in libs read it instead of their
+  own parsers and hardcoded paths. `bridge.config.json` is parsed once; the site's settings come from core
+  `siteRepoFromConfig`. A model problem (invalid config, unresolved alias, contrast pair on a missing token, docs.json
+  that does not parse) fails the build, as before. Core fix: a component's description is the JSDoc right before the
+  component, no longer everything from the first JSDoc of the file (a documented props interface leaked into it). The
+  `href` option of `loadRepoModel` also receives the token path.
+- 24b0db5: Every Studio link, redirect and Studio file fetch goes through `studioHref(path)` (`lib/team-path.ts`, also exported
+  from `lib/nav.ts`), multi-team PR 2d. In self-hosted mode and at build time it returns `/studio/<path>` unchanged; on a
+  team shell (`<html data-hosted>`) it keeps the team, `/studio/<owner>/<repo>/<path>` (or the `/studio/~/` escape form).
+  The address parsing (`repoFromPath`, `isHosted`) moved there from `scripts/repo-context.ts`, which re-exports it. The
+  explorer's token link helper is now `tokenFocusHref`. A new test, `no-studio-literals`, fails on any new literal
+  `/studio/` path outside `team-path.ts`, `nav.ts` and `redirects.ts`; the three fixed exceptions (the OAuth callback in
+  the sign-in lib and the token API, and an inline script on the Library tokens page) are listed with their reason. The
+  built site is unchanged apart from chunk hashes and one new shared chunk.
+- Updated dependencies [1a560aa]
+- Updated dependencies [440f717]
+- Updated dependencies [a797699]
+- Updated dependencies [9d40c77]
+- Updated dependencies [4fb3153]
+- Updated dependencies [662fb55]
+- Updated dependencies [0986099]
+  - @bridge-ds/core@0.14.0
+
 ## 0.14.0
 
 ### Minor Changes

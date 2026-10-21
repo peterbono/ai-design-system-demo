@@ -1,5 +1,59 @@
 # @bridge-ds/core
 
+## 0.14.0
+
+### Minor Changes
+
+- 1a560aa: New `bridge snapshot`: writes the repo model of a checkout for hosted Bridge (`snapshot.json`: the token, contrast and
+  component files the model reads, Figma coverage without the 1 MB specs, contrast results, counts) plus
+  `audits/<id>.json` (`--audit <folder>[=label]` runs `bridge audit`, `--audit-report` carries existing reports). Core
+  gets the snapshot schema: `parseSnapshot`, `buildSnapshot`, `snapshotSource` (a `RepoSource`, so `loadRepoModel`
+  reads a snapshot like a repository), `recordingSource`, `snapshotIsFresh`. The `bridge-data` workflow publishes it
+  to the orphan `bridge-data` branch; `templates/bridge-data.yml` is the copy for other teams (docs/HOSTED.md).
+- a797699: GitHub client: conditional requests (ETag and If-None-Match, sent only with a token since only then is a 304 free) with
+  a shared in-memory store or a Web Storage store, `rateLimit` from the response headers, optional stale answers when the
+  hourly limit is used up, and no more retries of an exhausted hourly limit. New `getBlobRaw`, `getRawText`,
+  `readRawFile`, the App installation endpoints (`listUserInstallations`, `listInstallationRepos`, `findInstallation`,
+  `installationFor`), `gitHubSource` (one tree call, bodies by blob sha) and the repo access states
+  (`accessState`, `resolveRepoAccess`).
+- 4fb3153: Add the repo model: `RepoSource` (`list`, `text`) with `memorySource` and, in `@bridge-ds/core/node`, `fsSource` over a
+  local checkout, and `loadRepoModel(source)`, which parses `bridge.config.json` once and computes the token rows,
+  contrast results, component scan (props, CSS tokens, stories, docs.json) and Figma coverage from it. The parsers move
+  from the docs site into core (`buildTokenRows`, `evaluateContrastPairs`, `scanComponents` and friends), browser-safe,
+  with every path taken from the config (defaults: the paths this repo used before). New optional config key
+  `tokens.usage` (token group notes, relative to `tokens.root`). `gitHubSource` now implements
+  the shared `RepoSource` interface and lists paths sorted; `repo-source-github` and `repo-access` are exported from
+  the main entry.
+- 0986099: Show how far Bridge has gone reading a design system, and open Branches for teams.
+
+  - Core: `loadRepoModel` takes `onProgress` and reads in three phases (tokens, components, docs) with an exact file
+    total from the first report; `readRepoTexts` takes an `onProgress(done, total)` callback; `gitHubSource` takes
+    `onProgress` (the tree once read, then each body and whether it came from the blob cache).
+  - Team pages (Home, Components, Quality, Tokens) replace the loading skeleton with a calm progress view: "Finding your
+    design system", then "Using the saved snapshot" or "Reading N files" with a bar filled from real file counts
+    ("Reading tokens 12 of 48", then components, then docs), then "Ready". Unknown totals stay indeterminate, a cache
+    hit shows nothing. The Storybook quick start shows "Reading your Storybook" and the component count it found.
+  - Team Branches lists the team's open branches (the same list as the demo) and its open suggestions, each reviewed
+    in place. Review and New brand keep one calm line and "See it on the demo"; "View on GitHub" is gone.
+
+### Patch Changes
+
+- 440f717: Team pages always sign in with the read-only Bridge app. When a team in direct mode saves code for the first time
+  (start a branch, save to it, ship, review), Studio explains why in "Allow Bridge to save to branches" and asks for
+  Bridge Direct's OK once, then lands back on the same page. Its token lives in its own slot next to Bridge's;
+  suggestions and comments keep going out with Bridge. When Bridge Direct is not on the team's repository, admins get
+  "Install Bridge Direct" and everyone else "Ask your lead". New optional `GITHUB_APP_DIRECT_SLUG`. The self-hosted
+  Studio is unchanged. Core: a `fetch` that throws its own `GitHubError` keeps it instead of turning into "Could not
+  reach GitHub".
+- 9d40c77: Harden every HTML sink against repo and GitHub content, and ship a report-only Content-Security-Policy. Markdown links allow only http, https, mailto and relative targets, JSON embedded in pages can no longer close its script element, PR, preview, Figma, Jira and image URLs go through one URL allow-list, token values in inline styles drop `url()` and declaration breakouts, and docs.json example props lose raw HTML, handlers and unsafe URLs. A test lists every file that writes HTML with what makes it safe. `tryInProductUrl` returns an empty string for a preview that is not http or https. The docs site sends `Content-Security-Policy-Report-Only` (inline scripts allowed by hash, checked at build time), `X-Content-Type-Options` and `Referrer-Policy`, and collects violations on `/api/csp-report`.
+- 662fb55: The docs site builds from the repo model: `loadRepoModel(fsSource(root))` runs once per build (`lib/model.ts`) and
+  the token, component, contrast, explorer, history, Figma coverage, config and sign-in libs read it instead of their
+  own parsers and hardcoded paths. `bridge.config.json` is parsed once; the site's settings come from core
+  `siteRepoFromConfig`. A model problem (invalid config, unresolved alias, contrast pair on a missing token, docs.json
+  that does not parse) fails the build, as before. Core fix: a component's description is the JSDoc right before the
+  component, no longer everything from the first JSDoc of the file (a documented props interface leaked into it). The
+  `href` option of `loadRepoModel` also receives the token path.
+
 ## 0.13.0
 
 ### Minor Changes
