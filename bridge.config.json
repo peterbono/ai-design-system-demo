@@ -64,6 +64,7 @@
     "rights": { "approveDesign": ["design"], "approveTech": ["tech"], "ship": ["tech"] },
     "override": { "allowed": ["peterbono"], "requireReason": true, "minReasonLength": 20 }
   },
+  "changes": "direct",
   "previews": {
     "packages": ["@bridge-ds/tokens", "@bridge-ds/core", "@bridge-ds/react"],
     "apps": {
