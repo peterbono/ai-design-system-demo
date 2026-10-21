@@ -61,6 +61,22 @@ describe('bridge_push_figma_component', () => {
     expect(file).toMatch(/"bg": \{\s*"\$value": "\{color\.action\.primary\.bg-active\}"/);
   });
 
+  it('suggest mode: the exact swap is a token suggestion from Figma, a code change a component spec suggestion; no branch', async () => {
+    const { gh, rw } = setup();
+    const refs = [...gh.refs.keys()];
+    const r = await figma.pushFigmaComponentOp(await rw(), { diff: diff(), changes: 'suggest' });
+    expect(r).toMatchObject({ status: 'suggested', changesMode: 'suggest', suggestion: { route: 'token-change' } });
+    const tokenIssue = gh.issues.find((i) => i.number === r.suggestion!.number)!;
+    expect(labels(tokenIssue)).toEqual(expect.arrayContaining(['bridge-suggestion', 'suggestion: token-change', 'from-figma', 'source: mcp']));
+    expect(r.next).toMatch(/bridge_apply_suggestion/);
+    const lg = diff({ kind: 'new-variant', title: 'Add an xl size', needsCode: true, rebinds: [], changes: [{ field: 'Variant Size', before: 'lg, md, sm', after: 'lg, md, sm, xl' }], variantAxes: { Size: ['lg', 'md', 'sm', 'xl'] } });
+    const spec = await figma.pushFigmaComponentOp(await rw(), { diff: lg, changes: 'suggest' });
+    expect(spec).toMatchObject({ status: 'suggested', suggestion: { route: 'claude-draft' } });
+    expect(labels(gh.issues.find((i) => i.number === spec.suggestion!.number)!)).toEqual(expect.arrayContaining(['suggestion: component-spec', 'waiting-for-claude']));
+    expect(gh.pulls).toHaveLength(0);
+    expect([...gh.refs.keys()]).toEqual(refs);
+  });
+
   it('the component contrast pairs gate it: a swap that breaks text contrast is not sent', async () => {
     const { gh, rw } = setup();
     const bad = diff({ rebinds: [{ kind: 'fill', variants: KEYS, allVariants: false, before: ['button.primary.bg'], after: ['color.action.primary.text'] }] });

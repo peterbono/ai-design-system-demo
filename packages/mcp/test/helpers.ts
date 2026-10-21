@@ -81,7 +81,8 @@ interface Commit {
 
 export function fakeGitHub(owner: string, repo: string, initial: Record<string, string>) {
   let n = 0;
-  const id = () => `sha${(++n).toString().padStart(6, '0')}`;
+  // Hex like a real git sha (suggestions check the base commit's shape); the counter sits at the end.
+  const id = () => `5ba${(++n).toString(16).padStart(37, '0')}`;
   const commits = new Map<string, Commit>();
   const trees = new Map<string, Map<string, string>>();
   const refs = new Map<string, string>();
@@ -94,6 +95,10 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
   // Issues share GitHub's numbering with pull requests; here they start at 100 so tests read clearly.
   const issues: Record<string, any>[] = [];
   const comments = new Map<number, string[]>();
+  // Who posted each comment through the API (the viewer then), when, and its id; comments a test seeds have none.
+  const commentMeta = new Map<number, { id: number; author: string; at: string }[]>();
+  // GitHub's author_association per login (default MEMBER), for suggestion reviews.
+  const associations = new Map<string, string>();
   // Commit statuses by sha (Vercel reports each project as "Vercel – <project>").
   const statuses = new Map<string, { context: string; state: string; target_url?: string }[]>();
   const issueAt = (k: number) => issues.find((i) => i.number === k);
@@ -375,7 +380,15 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
       return issue ? json(200, issue) : json(404, { message: 'Not Found' });
     }
     if (method === 'GET' && (m = /^\/issues\/(\d+)\/comments$/.exec(path))) {
-      return json(200, (comments.get(Number(m[1])) ?? []).map((b, i) => ({ id: i + 1, body: b, user: { login: 'bot' }, updated_at: '' })));
+      const k = Number(m[1]);
+      return json(
+        200,
+        (comments.get(k) ?? []).map((b, i) => {
+          const meta = commentMeta.get(k)?.[i];
+          const login = meta?.author ?? 'bot';
+          return { id: meta?.id ?? i + 1, body: b, user: { login }, updated_at: meta?.at ?? '', created_at: meta?.at ?? '', author_association: associations.get(login) ?? 'MEMBER' };
+        }),
+      );
     }
     if (method === 'GET' && (m = /^\/commits\/([^/]+)\/statuses$/.exec(path))) return json(200, statuses.get(m[1]!) ?? []);
     if (method === 'GET' && path === '/deployments') return json(200, []);
@@ -384,6 +397,9 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
       comments.set(k, [...(comments.get(k) ?? []), body.body]);
       const cid = 7000 + ++commentSeq;
       commentIds.set(cid, { issue: k, index: comments.get(k)!.length - 1 });
+      const meta = commentMeta.get(k) ?? [];
+      meta[comments.get(k)!.length - 1] = { id: cid, author: viewer.login, at: new Date(Date.UTC(2026, 9, 20, 0, 0, commentSeq)).toISOString() };
+      commentMeta.set(k, meta);
       return json(201, { id: cid, body: body.body, html_url: `https://github.com/${owner}/${repo}/pull/${k}#issuecomment-${cid}` });
     }
     if ((m = /^\/issues\/(\d+)\/labels$/.exec(path)) && method === 'POST' && issueAt(Number(m[1]))) {
@@ -406,5 +422,5 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
     }
     return json(404, { message: `fake GitHub: no route ${method} ${path}` });
   };
-  return { fetch: f as typeof fetch, refs, commits, pulls, reviews, issues, comments, statuses, log, viewer, lineComments, id, fileAt: (ref: string, p: string) => commits.get(resolveRef(ref)!)?.files.get(p) };
+  return { fetch: f as typeof fetch, refs, commits, pulls, reviews, issues, comments, commentMeta, associations, statuses, log, viewer, lineComments, id, fileAt: (ref: string, p: string) => commits.get(resolveRef(ref)!)?.files.get(p) };
 }

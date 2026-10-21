@@ -8,6 +8,7 @@ import { MCP_DIST, REPO } from './helpers.js';
 import pkg from '../package.json' with { type: 'json' };
 
 const TOOLS = [
+  'bridge_apply_suggestion',
   'bridge_ask_someone_else',
   'bridge_audit',
   'bridge_back_to_draft',
@@ -18,6 +19,7 @@ const TOOLS = [
   'bridge_combine_branches',
   'bridge_comment',
   'bridge_create_request',
+  'bridge_create_suggestion',
   'bridge_draft_docs',
   'bridge_figma_changes',
   'bridge_figma_coverage',
@@ -30,8 +32,10 @@ const TOOLS = [
   'bridge_get_request',
   'bridge_get_review',
   'bridge_get_settings',
+  'bridge_get_suggestion',
   'bridge_get_token',
   'bridge_get_token_history',
+  'bridge_link_suggestion',
   'bridge_list_brands',
   'bridge_list_comments',
   'bridge_list_components',
@@ -39,6 +43,7 @@ const TOOLS = [
   'bridge_list_products',
   'bridge_list_requests',
   'bridge_list_reviews',
+  'bridge_list_suggestions',
   'bridge_list_tokens',
   'bridge_mark_figma_change_drafted',
   'bridge_merge_branch',
@@ -56,6 +61,7 @@ const TOOLS = [
   'bridge_reopen_branch',
   'bridge_review_branch',
   'bridge_review_pr',
+  'bridge_review_suggestion',
   'bridge_save_docs',
   'bridge_scaffold_component',
   'bridge_search_tokens',
@@ -90,7 +96,7 @@ describe('MCP over stdio', () => {
     expect(client.getInstructions()).toMatch(/Every write goes through a branch and a pull request, never straight to the default branch/);
   });
 
-  it('lists the 61 tools with JSON schemas and read-only hints', async () => {
+  it('lists the 67 tools with JSON schemas and read-only hints', async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(TOOLS);
     const getToken = tools.find((t) => t.name === 'bridge_get_token')!;
@@ -113,6 +119,13 @@ describe('MCP over stdio', () => {
     for (const n of writes) expect(tools.find((t) => t.name === n)!.annotations?.readOnlyHint, n).toBe(false);
     for (const n of ['bridge_propose_token_change', 'bridge_start_exploration', 'bridge_create_request', 'bridge_save_docs']) expect(Object.keys((tools.find((t) => t.name === n)!.inputSchema.properties ?? {}) as object), n).toContain('product');
     expect(tools.find((t) => t.name === 'bridge_merge_branch')!.description).toMatch(/explicitly asked to merge/);
+    // Suggestions: reads are read-only, the rest are writes; every tool that changes the code takes "changes".
+    for (const n of ['bridge_list_suggestions', 'bridge_get_suggestion']) expect(tools.find((t) => t.name === n)!.annotations?.readOnlyHint, n).toBe(true);
+    for (const n of ['bridge_create_suggestion', 'bridge_review_suggestion', 'bridge_apply_suggestion', 'bridge_link_suggestion']) expect(tools.find((t) => t.name === n)!.annotations?.readOnlyHint, n).toBe(false);
+    for (const n of ['bridge_propose_token_change', 'bridge_propose_brand', 'bridge_propose_revert', 'bridge_open_library_branch', 'bridge_push_figma_component', 'bridge_save_docs'])
+      expect(Object.keys((tools.find((t) => t.name === n)!.inputSchema.properties ?? {}) as object), n).toContain('changes');
+    // The issue's "How to apply" names this tool and this phrase.
+    expect(tools.find((t) => t.name === 'bridge_apply_suggestion')!.description).toMatch(/Apply Bridge suggestion #42/);
   });
 
   it('calls bridge_get_token', async () => {
