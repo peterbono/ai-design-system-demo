@@ -240,28 +240,11 @@
   margin-top: var(--space-10);
 }
 
-a.hp-demo {
-  display: inline-flex;
-  flex-direction: column;
-  gap: var(--space-0-5);
-  color: var(--color-text-link);
-  font-size: var(--_t17);
-  font-weight: var(--font-weight-medium);
-  text-decoration-line: none;
-}
-
-.hp-dc {
+.hp-alt {
+  margin: var(--space-4) 0 0;
   color: var(--color-text-muted);
-  font-size: var(--font-size-200);
-  font-weight: var(--font-weight-regular);
-}
-
-@media (hover: hover) {
-  a.hp-demo:hover .hp-dl {
-    text-decoration-line: underline;
-    text-decoration-color: currentcolor;
-    text-underline-offset: 0.25em;
-  }
+  font-size: var(--font-size-300);
+  line-height: var(--font-line-height-normal);
 }
 
 .hp-hero-vis {
