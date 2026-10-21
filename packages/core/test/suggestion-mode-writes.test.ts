@@ -398,12 +398,29 @@ describe('a component pushed from Figma', () => {
     if (!parsed.ok) throw new Error(parsed.message);
     const p = parsed.payload;
     expect(p).toMatchObject({ kind: 'component-spec', source: 'figma', suggestedBy: 'dana', base: { ref: 'main', sha: 'abc1234' }, tier: { tier: 2, bump: 'minor' } });
-    expect(p.links?.figma).toEqual({ fileKey: 'F', nodeId: '1:1', url: 'https://www.figma.com/design/F/?node-id=1-1' });
+    expect(p.links?.figma).toEqual({ fileKey: 'F', nodeId: '1:1', url: 'https://www.figma.com/design/F/?node-id=1-1', nodes: [{ nodeId: '1:1', state: 'after', url: 'https://www.figma.com/design/F/?node-id=1-1' }] });
+    expect(p.previews).toBeUndefined();
+    expect(issue.body).toContain('Claude Code reads this design straight from Figma');
+    expect(p.componentSpec!.brief).toContain('Figma MCP get_design_context { fileKey: "F", nodeId: "1:1" }');
     expect(p.componentSpec).toMatchObject({ component: 'Button', specPath: '.bridge/figma/button-add-a-lg-size.json' });
     expect(p.componentSpec!.spec).toMatchObject({ component: 'Button', reasons: ['A new size needs code.'], variantAxes: { Size: ['lg', 'md'] } });
     expect(p.componentSpec!.brief).toMatch(/^Draft the code for a component change made in Figma, sent as a Bridge suggestion \(this issue\)\./);
     expect(p.componentSpec!.brief).toContain('Closes #<this issue number>');
     expect(p.componentSpec!.brief).not.toMatch(/bridge_mark_figma_change_drafted|\u2014/);
+  });
+
+  it('suggest: screenshots stored by the sender become previews; a before node is linked when the file keeps one', async () => {
+    const f = fakeGitHub();
+    const d = diff({ images: ['https://github.com/o/r/blob/bridge-requests/x.png?raw=true'], figma: { fileKey: 'F', nodeId: '1:1', before: { nodeId: '7:7', nodeName: 'Button (code)' } } });
+    await openComponentPushOnGitHub(f.gh, { ...pushInput, diff: d, plan: draftPlan, mode: 'suggest' });
+    expect(f.codeWrites()).toEqual([]);
+    const parsed = parseSuggestionIssue(f.issues.get(50)!.body);
+    if (!parsed.ok) throw new Error(parsed.message);
+    expect(parsed.payload.previews).toEqual([{ label: 'Button in Figma', url: 'https://github.com/o/r/blob/bridge-requests/x.png?raw=true' }]);
+    expect(parsed.payload.links?.figma?.nodes).toEqual([
+      { nodeId: '7:7', state: 'before', name: 'Button (code)', url: 'https://www.figma.com/design/F/?node-id=7-7' },
+      { nodeId: '1:1', state: 'after', url: 'https://www.figma.com/design/F/?node-id=1-1' },
+    ]);
   });
 
   it('routes an exact token change through writeTokens, which knows the mode and the Figma link', async () => {
@@ -421,7 +438,7 @@ describe('a component pushed from Figma', () => {
           return input.mode === 'suggest' ? { status: 'suggested', number: 80, url: 'u80' } : { number: 80, url: 'u80', branch: 'bridge/x' };
         },
       });
-      expect(seen).toEqual([{ mode, figma: { fileKey: 'F', nodeId: '1:1', url: 'https://www.figma.com/design/F/?node-id=1-1' } }]);
+      expect(seen).toEqual([{ mode, figma: { fileKey: 'F', nodeId: '1:1', url: 'https://www.figma.com/design/F/?node-id=1-1', nodes: [{ nodeId: '1:1', state: 'after', url: 'https://www.figma.com/design/F/?node-id=1-1' }] } }]);
       if (mode === 'direct') expect(r).toMatchObject({ status: 'opened', link: { route: 'token-change', number: 80, branch: 'bridge/x' } });
       else expect(r).toMatchObject({ status: 'suggested', link: null, suggestion: { route: 'token-change', number: 80, url: 'u80' } });
       expect(f.issues.get(80)!.labels.map((l: any) => l.name)).toEqual(['from-figma']);

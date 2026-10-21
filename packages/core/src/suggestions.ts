@@ -67,6 +67,20 @@ export interface SuggestionContrastCheck {
 
 export type SuggestionTokenChange = Pick<LayeredChange, 'kind' | 'path' | 'from' | 'file' | 'before' | 'after' | 'beforeCss' | 'afterCss'>;
 
+/**
+ * A Figma node a suggestion is about: what Claude Code (Figma MCP get_design_context) or the Figma REST API reads the
+ * design from, so a suggestion needs no hosted image. `state`: the design before the change or as it is now (after).
+ */
+export interface SuggestionFigmaNode {
+  nodeId: string;
+  url?: string | undefined;
+  name?: string | undefined;
+  state?: 'before' | 'after' | undefined;
+}
+
+/** The Figma design URL of a node: what a person opens and what the Figma MCP server reads. */
+export const figmaNodeUrl = (fileKey: string, nodeId: string) => `https://www.figma.com/design/${fileKey}/?node-id=${encodeURIComponent(nodeId.replace(/:/g, '-'))}`;
+
 export interface SuggestionPayloadV1 {
   schema: typeof SUGGESTION_SCHEMA;
   kind: SuggestionKind;
@@ -98,7 +112,15 @@ export interface SuggestionPayloadV1 {
   links?:
     | {
         neededBy?: NeededBy | undefined;
-        figma?: { fileKey?: string | undefined; nodeId?: string | undefined; url?: string | undefined } | undefined;
+        figma?:
+          | {
+              fileKey?: string | undefined;
+              nodeId?: string | undefined;
+              url?: string | undefined;
+              /** Figma nodes of the change (optional, added in 0.x: older payloads omit it). Claude reads them from Figma. */
+              nodes?: SuggestionFigmaNode[] | undefined;
+            }
+          | undefined;
         /** explore/<slug> */
         exploration?: string | undefined;
         /** A previous suggestion this one replaces. */
@@ -459,6 +481,19 @@ function linksSection(p: SuggestionPayloadV1): string[] {
   const out: string[] = [];
   if (l.neededBy) out.push(`- Needed by ${l.neededBy.productName}: [#${l.neededBy.pr} ${cell(l.neededBy.title)}](${l.neededBy.url})`);
   if (l.figma?.url) out.push(`- Design: [Open in Figma](${l.figma.url})`);
+  const key = l.figma?.fileKey;
+  const nodes = (l.figma?.nodes ?? []).filter((n) => n && typeof n.nodeId === 'string');
+  for (const n of nodes) {
+    const url = n.url ?? (key ? figmaNodeUrl(key, n.nodeId) : undefined);
+    const what = `${n.state === 'before' ? 'Before' : n.state === 'after' ? 'After' : 'Node'}${n.name ? ` (${cell(n.name)})` : ''}`;
+    out.push(`- ${what}: ${url ? `[node ${n.nodeId}](${url})` : `node ${n.nodeId}`}`);
+  }
+  if (key && (nodes.length || l.figma?.nodeId)) {
+    const ids = nodes.length ? nodes.map((n) => n.nodeId) : [l.figma!.nodeId!];
+    out.push(
+      `- Claude Code reads this design straight from Figma: the Figma MCP server (\`get_design_context\` with file key \`${key}\` and node ${ids.map((i) => `\`${i}\``).join(', ')}) or the REST API (\`GET https://api.figma.com/v1/files/${key}/nodes?ids=${ids.map(encodeURIComponent).join(',')}\`). No image hosting is needed.`,
+    );
+  }
   if (l.exploration) out.push(`- Exploration: \`${l.exploration}\``);
   if (l.supersedes) out.push(`- Replaces suggestion #${l.supersedes}`);
   for (const v of p.previews ?? []) out.push(`- ${cell(v.label)}: ${v.url}`);
@@ -754,6 +789,8 @@ export function suggestionShapeProblems(raw: unknown): string[] {
   if (p.docs !== undefined && !(Array.isArray(p.docs) && p.docs.every((d) => d && typeof d.component === 'string' && typeof d.path === 'string'))) out.push('"docs" must be a list of { "component", "path", "after" }.');
   const spec = p.componentSpec as Record<string, unknown> | undefined;
   if (spec !== undefined && (!spec || typeof spec.component !== 'string' || typeof spec.specPath !== 'string' || typeof spec.brief !== 'string')) out.push('"componentSpec" must be { "component", "specPath", "spec", "brief" }.');
+  const nodes = (p.links as { figma?: { nodes?: unknown } } | undefined)?.figma?.nodes;
+  if (nodes !== undefined && !(Array.isArray(nodes) && nodes.every((n) => n && typeof n.nodeId === 'string'))) out.push('"links.figma.nodes" must be a list of { "nodeId", "url"?, "name"?, "state"? }.');
   if (p.files !== undefined) {
     if (!Array.isArray(p.files)) out.push('"files" must be a list.');
     else {

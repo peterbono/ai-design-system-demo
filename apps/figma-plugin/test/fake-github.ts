@@ -26,6 +26,20 @@ export class FakeGitHub {
   failAll: GitHubError | undefined;
   /** Calls by method name that fail with an error (a token missing one permission). */
   failures = new Map<string, GitHubError>();
+  /** Calls that write git data, refs, files or pull requests, in order (method names), including refused ones. */
+  gitWrites: string[] = [];
+
+  /** Calls that need Contents or Pull requests write: what suggest mode must never make (or only tries, for images). */
+  static readonly GIT_WRITES = ['createBlob', 'createTree', 'createCommit', 'createBranch', 'updateBranch', 'commitToNewBranch', 'commitToBranch', 'putFile', 'putBase64File', 'deleteFile', 'createPullRequest', 'updatePullRequest', 'markReadyForReview', 'convertToDraft'];
+
+  /**
+   * A suggest-only fine-grained token: Contents Read, Issues Read and write, Pull requests Read. Every git or pull
+   * request write fails like GitHub answers it (403, missing permission); issues still work.
+   */
+  readOnly(): this {
+    for (const m of FakeGitHub.GIT_WRITES) this.failures.set(m, FakeGitHub.httpError(403, 'Resource not accessible by personal access token', m === 'createPullRequest' ? '/repos/o/r/pulls' : '/repos/o/r/git/refs'));
+    return this;
+  }
 
   /** The GitHubError the real client throws for this answer (status, GitHub's message, the endpoint). */
   static httpError(status: number, message: string, path: string): GitHubError {
@@ -174,8 +188,14 @@ export class FakeGitHub {
         return self.prs.find((p) => p.headRef === branch);
       },
       async addLabels(n: number, labels: string[]) {
-        self.prs[n - 1]!.labels.push(...labels);
+        const target = self.prs.find((p) => p.number === n) ?? self.issues.find((i) => i.number === n);
+        if (!target) throw Object.assign(new Error('not found'), { status: 404 });
+        target.labels.push(...labels);
         return true;
+      },
+      async createIssueComment(n: number, body: string) {
+        self.comments.push({ number: n, body });
+        return { id: self.comments.length };
       },
       async addComment(n: number, body: string) {
         self.comments.push({ number: n, body });
@@ -225,6 +245,16 @@ export class FakeGitHub {
       get(target, prop, receiver) {
         const value = Reflect.get(target, prop, receiver) as unknown;
         if (typeof value !== 'function' || typeof prop !== 'string') return value;
+        if (FakeGitHub.GIT_WRITES.includes(prop)) {
+          // Logged when called, so a refused write still counts as an attempt.
+          const fn = value as (...args: unknown[]) => unknown;
+          const err = self.failAll ?? self.failures.get(prop);
+          return async (...args: unknown[]) => {
+            self.gitWrites.push(prop);
+            if (err) throw err;
+            return fn.apply(receiver, args);
+          };
+        }
         const err = self.failAll ?? self.failures.get(prop);
         return err ? async () => Promise.reject(err) : value;
       },

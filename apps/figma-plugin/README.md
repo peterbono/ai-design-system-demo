@@ -36,8 +36,13 @@ DS Bridge needs a fine-grained personal access token limited to this repository:
 
 1. GitHub **Settings > Developer settings > Personal access tokens > Fine-grained tokens > Generate new token**.
 2. **Repository access**: "Only select repositories", pick this repository.
-3. **Repository permissions**: **Contents: Read and write**, **Pull requests: Read and write**,
-   **Issues: Read and write** (component change requests). Metadata (read-only) is added automatically.
+3. **Repository permissions**, by how the repo takes changes (`"changes"` in `bridge.config.json`):
+   - **Suggestions** (`"suggest"`, the default): **Issues: Read and write**, **Contents: Read**,
+     **Pull requests: Read**. Add **Contents: Read and write** to attach screenshots (they go to the
+     `bridge-requests` branch); without it the suggestion links the Figma nodes instead.
+   - **Branches and pull requests** (`"direct"`): **Contents: Read and write**, **Pull requests: Read and write**,
+     **Issues: Read and write** (component change requests).
+   Metadata (read-only) is added automatically.
 4. Paste it in the plugin's **Settings** tab and save.
 
 Repository, branch and tokens path are prefilled from `bridge.config.json` at the root of this repo.
@@ -47,7 +52,7 @@ tokens path in Settings. Without one, the plugin uses the Settings path with the
 and writes no changeset.
 
 On save the plugin checks the token with `GET /repos/{owner}/{repo}` and refuses it if it cannot write
-to the repository. The token is stored with `figma.clientStorage`, which is local to this computer and
+to the repository, unless the repository takes suggestions (then read access to the code is enough). The token is stored with `figma.clientStorage`, which is local to this computer and
 this plugin; it is not stored in the Figma file and is never displayed again (the field stays empty,
 showing only that a token is saved). Repository, base branch (`main`) and tokens path
 (`packages/tokens/src`) are stored in the file's shared plugin data so the whole team uses the same ones.
@@ -329,6 +334,22 @@ side, and the other variants that differ under a disclosure. Nothing in the file
    contrast before -> after), the guardrail checklist and the risk tier
    ("Tier 3: token change, needs design + tech approval"). If the PR from your last push is still
    open, you can add the commit to it instead of opening a new one.
+
+**Suggest mode** (`"changes": "suggest"` in `bridge.config.json`, the default when the key is absent; a repo with
+no `bridge.config.json` keeps the branch flow). The button reads **Send suggestion** and nothing is written to git:
+
+- The checked variable edits become one token suggestion: a GitHub issue (`bridge-suggestion`,
+  `bridge.suggestion/1`) holding the exact token edits (set, add, remove, rename per token file), the contrast and
+  validation checks and the tier. A new brand is a brand suggestion with its whole files. A developer applies it
+  with `bridge apply <n>` or the `bridge_apply_suggestion` MCP tool once owners approve.
+- A component change is a token suggestion (exact swap) or a component spec suggestion (`from-figma`, waiting for
+  Claude). Its payload links the Figma file key and node ids (`links.figma.nodes`, before and after when the file
+  keeps a before node): Claude Code reads the design straight from Figma through the Figma MCP server or the REST
+  API, so no image hosting is needed.
+- Screenshots still go to the `bridge-requests` branch when the token can write contents, and are linked in the
+  suggestion. With a suggest-only token the plugin says screenshots need write access and sends the node links.
+- Explorations (branches) and "add to your open branch" are not offered; the result reads
+  "Suggestion #N sent to your DS lead".
 
 Each changed value is written back to the file of its tier and mode: a palette edit in the Ocean mode
 of Brand goes to `brands/ocean.tokens.json`, a Dark edit in Semantic to `semantic/dark.tokens.json`, a

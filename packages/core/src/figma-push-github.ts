@@ -8,7 +8,7 @@ import type { ChangesMode } from './config';
 import { GitHubError, type GitHubClient } from './github-client';
 import { REQUEST_LABEL, type RequestSource } from './requests';
 import { createSuggestionOnGitHub } from './suggestions-github';
-import { SUGGESTION_SCHEMA, type SuggestionPayloadV1 } from './suggestions';
+import { figmaNodeUrl, SUGGESTION_SCHEMA, type SuggestionFigmaNode, type SuggestionPayloadV1 } from './suggestions';
 import type { TokenEdit } from './token-edits';
 import {
   DRAFTED_BY_CLAUDE_LABEL,
@@ -46,7 +46,7 @@ export type FigmaTokenWriter = (input: {
   bodyExtra: string[];
   mode: ChangesMode;
   /** The Figma component, for the suggestion's links. */
-  figma: { fileKey?: string | undefined; nodeId?: string | undefined; url?: string | undefined };
+  figma: { fileKey?: string | undefined; nodeId?: string | undefined; url?: string | undefined; nodes?: SuggestionFigmaNode[] | undefined };
 }) => Promise<{ number: number; url: string; branch: string; status?: undefined } | { status: 'suggested'; number: number; url: string }>;
 
 export interface OpenComponentPushInput {
@@ -101,7 +101,9 @@ export function componentSpecSuggestionPayload(
   const spec = JSON.parse(formatFigmaSpec(d, plan)) as unknown;
   const brief = figmaDraftBrief({ ...d, tokenEdits: plan.edits, reasons: plan.reasons }, { suggestion: true, specPath, componentsDir: ctx.componentsDir });
   const by = (ctx.suggestedBy ?? d.requestedBy)?.replace(/^@/, '');
-  const figma = d.figma?.fileKey || d.figma?.nodeId || d.figma?.url ? { ...(d.figma.fileKey ? { fileKey: d.figma.fileKey } : {}), ...(d.figma.nodeId ? { nodeId: d.figma.nodeId } : {}), ...(d.figma.url ? { url: d.figma.url } : {}) } : undefined;
+  const figma = d.figma?.fileKey || d.figma?.nodeId || d.figma?.url ? { ...(d.figma.fileKey ? { fileKey: d.figma.fileKey } : {}), ...(d.figma.nodeId ? { nodeId: d.figma.nodeId } : {}), ...(d.figma.url ? { url: d.figma.url } : {}), ...figmaNodes(d) } : undefined;
+  // Screenshots, when the sender could store them (a token with contents write): links next to the Figma nodes.
+  const previews = (d.images ?? []).map((url, i) => ({ label: `${d.component} in Figma${(d.images?.length ?? 0) > 1 ? ` ${i + 1}` : ''}`, url }));
   return {
     schema: SUGGESTION_SCHEMA,
     kind: 'component-spec',
@@ -115,7 +117,19 @@ export function componentSpecSuggestionPayload(
     componentSpec: { component: d.component, specPath, spec, brief },
     checks: { newErrors: 0, contrast: [], blocked: null, impact: 0 },
     ...(figma ? { links: { figma } } : {}),
+    ...(previews.length ? { previews } : {}),
   };
+}
+
+/** The Figma nodes of a push for a suggestion's links: the component as it is now (after), and before when known. */
+export function figmaNodes(d: Pick<ComponentPushDiff, 'figma'>): { nodes?: SuggestionFigmaNode[] } {
+  const f = d.figma;
+  if (!f) return {};
+  const url = (id: string, given?: string) => given ?? (f.fileKey ? figmaNodeUrl(f.fileKey, id) : undefined);
+  const nodes: SuggestionFigmaNode[] = [];
+  if (f.before?.nodeId) nodes.push({ nodeId: f.before.nodeId, state: 'before', ...(url(f.before.nodeId, f.before.url) ? { url: url(f.before.nodeId, f.before.url) } : {}), ...(f.before.nodeName ? { name: f.before.nodeName } : {}) });
+  if (f.nodeId) nodes.push({ nodeId: f.nodeId, state: 'after', ...(url(f.nodeId, f.url) ? { url: url(f.nodeId, f.url) } : {}), ...(f.nodeName ? { name: f.nodeName } : {}) });
+  return nodes.length ? { nodes } : {};
 }
 
 /**
@@ -146,7 +160,7 @@ export async function openComponentPushOnGitHub(gh: GitHubClient, input: OpenCom
   };
   if (plan.route === 'token-change') {
     if (!input.writeTokens) throw new GitHubError(422, 'This change is a token change: send it where the token files are read (the DS Bridge plugin, bridge_push_figma_component or `bridge figma push`).');
-    const figma = { ...(origin.fileKey ? { fileKey: origin.fileKey } : {}), ...(origin.nodeId ? { nodeId: origin.nodeId } : {}), ...(origin.url ? { url: origin.url } : {}) };
+    const figma = { ...(origin.fileKey ? { fileKey: origin.fileKey } : {}), ...(origin.nodeId ? { nodeId: origin.nodeId } : {}), ...(origin.url ? { url: origin.url } : {}), ...figmaNodes(d) };
     const r = await input.writeTokens({ edits: plan.edits, title: figmaBranchTitle(d), summary: d.summary.trim() || d.title, bodyExtra: [figmaOriginSection(origin)], mode, figma });
     await gh.addLabels(r.number, [FROM_FIGMA_LABEL]);
     if (r.status === 'suggested') return { status: 'suggested', plan, link: null, suggestion: { route: 'token-change', number: r.number, url: r.url } };
