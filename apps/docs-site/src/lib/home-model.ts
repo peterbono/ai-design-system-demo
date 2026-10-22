@@ -196,12 +196,55 @@ export interface NeedRow {
   onlyReviewer?: boolean;
   /** Sample data of the demo: the row says so ("Sample"), so a visitor never takes it for real work. */
   sample?: boolean;
+  /** The verb on its button when it is not the kind's (rowAction): "Update" on a branch a reviewer sent back. */
+  action?: string;
 }
 
-/** The verb on a Needs you row's button. */
-export function rowAction(kind: NeedKind): string {
-  return { review: 'Review', health: 'Fix', own: 'Open', guidance: 'Review', setup: 'Set up' }[kind];
+/** The verb on a Needs you row's button: the row's own, else the kind's. */
+export function rowAction(kind: NeedKind, action?: string): string {
+  return action ?? { review: 'Review', health: 'Fix', own: 'Open', guidance: 'Review', setup: 'Set up' }[kind];
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Reviewers and contributors
+
+/**
+ * Whether the viewer holds a review right (core rights.ts: approve design, approve tech or ship), so the home shows
+ * them the review queue. An email contributor never does. A GitHub account does when the approver or ship lists
+ * (owners through governance.rights, teams expanded) name them; when the team names nobody yet, anyone who can write
+ * reviews, as the review rules allow then (`write` null: not read yet, counted as able).
+ */
+export function holdsReviewRight(x: { viewer: string | null; contributor: boolean; approvers: string[]; shippers?: string[]; write: boolean | null }): boolean {
+  if (!x.viewer || x.contributor) return false;
+  const named = [...x.approvers, ...(x.shippers ?? [])].map((l) => l.trim().toLowerCase().replace(/^@/, '')).filter(Boolean);
+  if (!named.length) return x.write !== false;
+  return named.includes(x.viewer.trim().toLowerCase());
+}
+
+/**
+ * What lands in the home of someone without a review right: only the work that waits on them, their own branches a
+ * reviewer sent back with changes to make. Reviews, usage guidance drafts, suggestions and library checks belong to
+ * the reviewers' queue.
+ */
+export const waitsOnContributor = (task: ChangeFacts['task'] | null): boolean => task === 'own-changes';
+
+/** The contributor's tour (components/ds/studio/HomeTour.tsx): where their work lives, then how to start some. */
+export type ContributorTourAt = 'branches' | 'start';
+
+export const CONTRIBUTOR_TOUR_STEPS: readonly ContributorTourAt[] = ['branches', 'start'];
+
+const CONTRIBUTOR_TOUR: Record<ContributorTourAt, { title: string; text: string }> = {
+  branches: {
+    title: `Your ${VOCAB.branches}`,
+    text: 'Your changes stay apart from the library until a reviewer merges them. When a reviewer asks for changes, the branch shows up here.',
+  },
+  start: {
+    title: 'Start a change',
+    text: 'Pick what you want to change. Bridge keeps it on its own branch, so you can try things without touching the library.',
+  },
+};
+
+export const contributorTour = (at: ContributorTourAt): { title: string; text: string } => CONTRIBUTOR_TOUR[at];
 
 const RANK: Record<NeedKind, number> = { review: 0, health: 1, own: 2, guidance: 3, setup: 4 };
 
@@ -285,7 +328,7 @@ export function changeNeed(c: ChangeFacts, now: number): NeedRow {
       return { ...base, kind: 'review', person: c.asker, line: `${c.asker.name} asks for your review`, waitsOnYou: true, pill: waiting };
     case 'own-changes': {
       const by = c.changesBy?.length ? c.changesBy.map((p) => p.name).join(' and ') : 'A reviewer';
-      return { ...base, kind: 'own', person: c.changesBy?.[0] ?? null, line: `${by} asked for changes`, waitsOnYou: false, pill: { label: 'Changes requested', tone: 'warning' } };
+      return { ...base, kind: 'own', person: c.changesBy?.[0] ?? null, line: `${by} asked for changes`, waitsOnYou: false, pill: { label: 'Changes requested', tone: 'warning' }, action: 'Update' };
     }
     case 'own-blocked':
       return { ...base, kind: 'own', person: null, line: `Your ${VOCAB.branch} cannot be merged yet`, waitsOnYou: false, pill: { label: c.blocker ? capitalize(c.blocker) : 'Blocked', tone: 'danger' } };

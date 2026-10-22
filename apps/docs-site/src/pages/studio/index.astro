@@ -326,6 +326,8 @@ const onboarding = {
           failed: d?.failed ?? null,
           startHrefs: stat.startHrefs,
           setup,
+          // No review right: only what waits on them, and their tour (once the owner teams are read).
+          contributor: Boolean(d && !d.loading && !d.reviewer),
         },
         root,
       );

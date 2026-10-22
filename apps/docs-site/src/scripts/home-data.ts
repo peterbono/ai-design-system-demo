@@ -5,8 +5,8 @@
 // the before/after (the token diff, else the visual impact run). Paints progressively through `onUpdate`. The rules
 // are pure in lib/home-model.ts and lib/branch-thumb.ts.
 import { requesterOf } from '@bridge-ds/core';
-import { currentViewer, ghGet, hasWorkingToken, readRepo, RateLimitError } from './github-session';
-import { loadStatuses, owners, rowWho, type PullStatus } from './pr-status';
+import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, readRepo, RateLimitError } from './github-session';
+import { loadStatuses, owners, rowWho, shippers, type PullStatus } from './pr-status';
 import { loadTeams } from './teams';
 import { loadSuggestionNeeds } from './suggestions';
 import { siteOwners, todoChange, type QueuePullFull } from './needs-you';
@@ -22,11 +22,13 @@ import {
   changeNeed,
   contrastNeed,
   guidanceNeed,
+  holdsReviewRight,
   isOnlyReviewer,
   person,
   requesterPerson,
   sortNeeds,
   waitingSince,
+  waitsOnContributor,
   type BranchCard,
   type ChangeFacts,
   type NeedRow,
@@ -62,6 +64,11 @@ export interface HomeData {
   branches: BranchCard[];
   /** Review decisions among the needs, for the Branches nav badge. */
   decisions: number;
+  /**
+   * The viewer holds a review right (home-model holdsReviewRight). Without one, the needs are only what waits on them
+   * (their branches sent back with changes), never the review queue, and the home tells them how their work moves.
+   */
+  reviewer: boolean;
 }
 
 const theme = (): 'light' | 'dark' => (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
@@ -163,8 +170,13 @@ interface Classified {
 export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void): Promise<void> {
   const viewer = currentViewer()?.login ?? null;
   const now = Date.now();
-  const staticNeeds = (): NeedRow[] => [...(contrastNeed(stat.contrastFail) ? [contrastNeed(stat.contrastFail)!] : []), ...stat.guidance.map((g) => guidanceNeed(g, now))];
-  const empty: HomeData = { viewer, loading: true, settled: false, failed: null, needs: [], branches: [], decisions: 0 };
+  // An email contributor is known at once; a GitHub account once the owner teams are read (below).
+  const contributor = Boolean(currentContributor()) || currentAccess()?.contributor === true;
+  const rightNow = () => holdsReviewRight({ viewer, contributor, approvers: [...owners().design, ...owners().tech], shippers: shippers(), write: currentAccess()?.write ?? null });
+  let reviewer = rightNow();
+  // Library checks and guidance drafts wait on the reviewers, not on someone who cannot approve them.
+  const staticNeeds = (): NeedRow[] => (reviewer ? [...(contrastNeed(stat.contrastFail) ? [contrastNeed(stat.contrastFail)!] : []), ...stat.guidance.map((g) => guidanceNeed(g, now))] : []);
+  const empty: HomeData = { viewer, loading: true, settled: false, failed: null, needs: [], branches: [], decisions: 0, reviewer };
   if (!viewer || !hasWorkingToken()) {
     onUpdate({ ...empty, loading: false, settled: true });
     return;
@@ -180,11 +192,13 @@ export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void
       loading: false,
       settled: true,
       needs: sortNeeds(staticNeeds()),
+      reviewer,
       failed: err instanceof RateLimitError ? 'GitHub is busy right now. Your branches come back in a few minutes.' : 'GitHub could not be reached. Reload the page to try again.',
     });
     return;
   }
   await loadTeams();
+  reviewer = rightNow();
   // Suggestions wait next to branches: read in parallel, painted when they land.
   let suggestions: NeedRow[] = [];
   const suggestionsRead = loadSuggestionNeeds(personOf)
@@ -208,7 +222,7 @@ export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void
     const todo = overviewTodo({ changes: changes.map((x) => x.c), requests: [], viewer, owners: siteOwners(), loading });
     const mine = new Map(todo.mine.map((r) => [r.key, r]));
     const design = owners().design;
-    return changes.map(({ pull, c }) => {
+    return changes.map(({ pull, c }): Classified => {
       const row = mine.get(`change-${pull.number}`);
       const author = same(pull.user.login, viewer);
       const requested = (pull.requested_reviewers ?? []).map((r) => r.login);
@@ -221,7 +235,7 @@ export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void
       if (author && (c.who.action === 'fix-checks' || c.who.action === 'resolve-conflict')) return { ...base, task: 'own-blocked', blocker: blockerOf(c, c.who, viewer)?.what };
       if (!author && !pull.draft && requested.some((l) => same(l, viewer))) return { ...base, task: 'requested', onlyReviewer: only };
       return base;
-    });
+    }).map((x): Classified => (reviewer || waitsOnContributor(x.task) ? x : { ...x, task: null }));
   };
 
   const pick = (login: string | null | undefined): Person | null => (login ? (persons.get(login.toLowerCase()) ?? person(login, null, `https://github.com/${login}.png?size=64`)) : null);
@@ -265,9 +279,10 @@ export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void
         const status = st && stage === 'ready' ? statusPill(st.kind, rowWho(st.kind, { author: p.user.login, approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing, failingChecks: st.failingChecks, pending: st.pending })).label : null;
         return { number: p.number, title: c.title, href: studioHref(`changes/?pr=${p.number}`), stage, updated: p.updated_at, reviewer: pick(reviewerLogin(p, st)), thumb: resolved.get(p.number) ?? { kind: 'icon', icon: 'branch' }, status };
       });
-    needs.push(...suggestions);
+    // Suggestions wait on their reviewers only.
+    if (reviewer) needs.push(...suggestions);
     const sorted = sortNeeds(needs);
-    onUpdate({ viewer, loading, settled, failed: null, needs: sorted, branches, decisions: sorted.filter((r) => r.kind === 'review').length });
+    onUpdate({ viewer, loading, settled, failed: null, needs: sorted, branches, decisions: sorted.filter((r) => r.kind === 'review').length, reviewer });
   };
 
   paint();

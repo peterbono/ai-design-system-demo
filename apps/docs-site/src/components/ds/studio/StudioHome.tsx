@@ -4,6 +4,8 @@
 //   - One muted health line under the zone.
 //   - Your branches: open branches as cards, a status filter, "Create branch" as the first card.
 //   - Nothing at all: three ways to start, each with its drawing.
+//   - Someone without a review right (`contributor`): only what waits on them (their branches sent back with changes),
+//     never the review queue, and on the first visit a two-step tour of their branches and how to start (HomeTour.tsx).
 // NeedList is shared with the review queue (pages/studio/review.astro), so a row reads the same in both places.
 import { createRoot, type Root } from 'react-dom/client';
 import { useState, type MouseEvent, type ReactNode } from 'react';
@@ -17,6 +19,9 @@ import StartChange from './StartChange';
 import ButtonLink from '../ButtonLink';
 import {
   AVATARS_SHOWN,
+  CONTRIBUTOR_TOUR_STEPS,
+  contributorTour,
+  type ContributorTourAt,
   BRANCH_FILTERS,
   branchStatus,
   hintSnoozed,
@@ -36,7 +41,8 @@ import {
 } from '../../../lib/home-model';
 import { VOCAB } from '../../../lib/vocabulary';
 import { studioHref } from '../../../lib/team-path';
-import { demoWaiting } from '../../../lib/demo';
+import { demoWaiting, type TourAt } from '../../../lib/demo';
+import { useTour } from './HomeTour';
 
 /** One Needs you row: before/after, who, what and why, the status on the right (the shared BranchRow). */
 export function NeedRowItem({ row, selected, onSelect, action, compact }: { row: NeedRow; selected?: boolean; onSelect?: (row: NeedRow) => void; action?: 'primary' | 'secondary'; compact?: boolean }) {
@@ -61,7 +67,7 @@ export function NeedRowItem({ row, selected, onSelect, action, compact }: { row:
       end={
         action && (
           <ButtonLink variant={action} href={row.href} className="sh-row-action" tabIndex={-1} aria-hidden="true">
-            {rowAction(row.kind)}
+            {rowAction(row.kind, row.action)}
           </ButtonLink>
         )
       }
@@ -271,6 +277,7 @@ function Branches({
           <BranchCardItem key={b.number} b={b} now={now} />
         ))}
       </ul>
+      {create && tour?.('start')}
     </section>
   );
 }
@@ -341,14 +348,26 @@ export interface StudioHomeProps {
    */
   demo?: { lead: Person | null; branchesTitle: string; branchesMax: number };
   /** The demo tour's popovers, anchored where each step points: under the rows, the grouped row, the branches. */
-  tour?: (at: 'rows' | 'more' | 'branches') => ReactNode;
+  tour?: (at: HomeTourAt) => ReactNode;
+  /**
+   * The viewer holds no review right (an email contributor, or a member no owner list names): the needs are only
+   * their branches sent back with changes, and the contributor tour runs on the first visit.
+   */
+  contributor?: boolean;
 }
+
+/** Where a tour step can point: the demo's (lib/demo TourAt) and the contributor's ("start", the ways to start). */
+export type HomeTourAt = TourAt | ContributorTourAt;
+
+const CONTRIBUTOR_TOUR_KEY = 'bridge.home.contributor-tour';
 
 /** The review drawing without its empty sky: the scene only, so it never makes the greeting taller than its text. */
 const REVIEW_CROP = '0 98 232 86';
 
 export function StudioHome(p: StudioHomeProps) {
   const snoozed = hintSnoozed(readSnooze(), p.now);
+  const own = useTour<ContributorTourAt>(CONTRIBUTOR_TOUR_KEY, [...CONTRIBUTOR_TOUR_STEPS], contributorTour, Boolean(p.contributor) && !p.demo && (p.state === 'busy' || p.state === 'empty'));
+  const tour: StudioHomeProps['tour'] = p.tour ?? (p.contributor ? (at) => (at === 'branches' || at === 'start' ? own(at) : null) : undefined);
   if (p.state === 'signed-out' && !p.demo) {
     return (
       <div className="sh">
@@ -384,7 +403,9 @@ export function StudioHome(p: StudioHomeProps) {
               What do you want to change?
             </h1>
           </div>
+          {tour?.('branches')}
           <Start hrefs={p.startHrefs} />
+          {tour?.('start')}
         </section>
         {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}
         {p.health && <Health h={p.health} />}
@@ -413,12 +434,12 @@ export function StudioHome(p: StudioHomeProps) {
             </li>
           </ul>
         ) : (
-          p.needs.length > 0 && <Needs needs={p.needs} now={p.now} snoozed={snoozed} demo={Boolean(p.demo)} tour={p.tour} />
+          p.needs.length > 0 && <Needs needs={p.needs} now={p.now} snoozed={snoozed} demo={Boolean(p.demo)} tour={tour} />
         )}
       </section>
       {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}
       {p.health && <Health h={p.health} />}
-      {(p.branches.length > 0 || !loading) && <Branches branches={p.branches} now={p.now} components={p.components} title={p.demo?.branchesTitle} sub={p.demo ? null : undefined} create={!p.demo} max={p.demo?.branchesMax} tour={p.tour} />}
+      {(p.branches.length > 0 || !loading) && <Branches branches={p.branches} now={p.now} components={p.components} title={p.demo?.branchesTitle} sub={p.demo ? null : undefined} create={!p.demo} max={p.demo?.branchesMax} tour={tour} />}
     </div>
   );
 }

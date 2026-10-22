@@ -75,7 +75,8 @@ import { canShare, shareState, showShare, type ShareState } from '../lib/share-c
 import { addedNotice, canAddTo, dismissedApprovals, dismissedSentence, editInChangeHref, isTokenChange } from '../lib/continue-change';
 import { backToDraft, detailStatus, statusActionFor, takeSaid, type StatusActionRun } from './change-status';
 import { ACTION_LABEL } from '../lib/change-status';
-import { PRODUCTS } from '../lib/branches-page';
+import { contributorTurn, ownedBy, PRODUCTS } from '../lib/branches-page';
+import { contributeMine, type Mine } from './contribute-session';
 import {
   checksLine,
   conversation,
@@ -319,8 +320,27 @@ export function setWaitingExtras(extras: WaitingExtra[]) {
   if (listMount) paintRows(openRows, listLoading);
 }
 
+/** Who the list is for: the GitHub account, else the email contributor (their email is their login in Studio). */
+const listViewer = (): string | null => currentViewer()?.login ?? currentContributor()?.email ?? null;
+
+/** What the email contributor made (branch names, pull request numbers), read once a page: Mine and Waiting on me. */
+let contribMine: Mine | null = null;
+let contribMineAsked = false;
+function readContribMine() {
+  if (contribMineAsked || !currentContributor()) return;
+  contribMineAsked = true;
+  void contributeMine(`${repo.owner}/${repo.repo}`).then((m) => {
+    contribMine = m;
+    if (listMount) paintRows(openRows, listLoading);
+  });
+}
+
 function listRow(r: Row): ListRow {
   const lifecycle: Lifecycle | 'exploration' = r.exploration ? 'exploration' : lifecycleOfRow(r);
+  // An email contributor reviews nothing: their own branches are the server's list, and only those sent back with
+  // changes requested wait on them.
+  const contributor = Boolean(currentContributor());
+  const own = contributor ? ownedBy({ author: r.user.login, number: r.number, headRef: r.head?.ref ?? null }, listViewer(), contribMine) : undefined;
   // In the lead's seat on the demo, every branch in review waits on them (drafts are still being made), as on its home.
   const seat = demoSeat() !== null;
   const waitsOnSeat = seat && !r.exploration && !r.draft && lifecycle !== 'draft' && lifecycle !== 'shipped' && lifecycle !== 'closed';
@@ -334,7 +354,12 @@ function listRow(r: Row): ListRow {
     // The lead's rows on the demo carry the home's status for the same change ("New today", "Waiting 2 days").
     pill: waitsOnSeat && r.created_at ? { label: waitingLabel(r.created_at, Date.now()), tone: 'warning' } : pillOf(r, lifecycle),
     lifecycle,
-    yourTurn: !r.exploration && lifecycle !== 'shipped' && lifecycle !== 'closed' && (seat ? waitsOnSeat : turnOf(r).yourTurn),
+    yourTurn:
+      !r.exploration &&
+      lifecycle !== 'shipped' &&
+      lifecycle !== 'closed' &&
+      (seat ? waitsOnSeat : contributor ? contributorTurn({ own: Boolean(own), changesRequested: r.changesRequested, open: !r.merged_at }) : turnOf(r).yourTurn),
+    ...(own !== undefined ? { mine: own } : {}),
     behindBy: r.behindBy ?? null,
     signals: r.signals ?? null,
     guidance: Boolean(r.guidance),
@@ -355,6 +380,7 @@ function paintRows(rows: Row[], loading: boolean) {
   listLoading = loading;
   const el = (listMount ??= document.getElementById('cg-list'));
   if (!el) return;
+  readContribMine();
   const tier = tierParam(location.search);
   // Most urgent first, then waiting for code, then drafts (lib/change-status byLifecycle); explorations last.
   const sorted = byLifecycle(filterByTier(byUrgency(rows), tier).map((r) => ({ r, lifecycle: lifecycleOfRow(r) }))).map((x) => x.r);
@@ -364,7 +390,7 @@ function paintRows(rows: Row[], loading: boolean) {
     closed: closed ? closed.map(listRow) : null,
     closedLimit: CLOSED_LIMIT,
     loading,
-    viewer: currentViewer()?.login ?? null,
+    viewer: listViewer(),
     connected: hasWorkingToken(),
     admin: el.dataset.admin || null,
     tokensRoot: el.dataset.tokensRoot || 'packages/tokens/src',

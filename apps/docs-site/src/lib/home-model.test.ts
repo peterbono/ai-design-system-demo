@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   rowAction,
+  holdsReviewRight,
+  waitsOnContributor,
+  CONTRIBUTOR_TOUR_STEPS,
+  contributorTour,
   CLAUDE,
   adoptionDrop,
   ago,
@@ -135,6 +139,7 @@ describe('rows', () => {
   it('own branches: changes requested, blocked with what failed, ready to merge', () => {
     expect(changeNeed(facts({ task: 'own-changes', changesBy: [dana] }), NOW)).toMatchObject({ kind: 'own', line: 'Dana asked for changes', waitsOnYou: false, pill: { tone: 'warning' } });
     expect(changeNeed(facts({ task: 'own-changes' }), NOW).line).toBe('A reviewer asked for changes');
+    expect(changeNeed(facts({ task: 'own-changes', changesBy: [dana] }), NOW).action).toBe('Update');
     expect(changeNeed(facts({ task: 'own-blocked', blocker: '2 tests fail' }), NOW).pill).toEqual({ label: '2 tests fail', tone: 'danger' });
     expect(changeNeed(facts({ task: 'own-ship' }), NOW).pill).toEqual({ label: 'Ready to merge', tone: 'success' });
   });
@@ -236,5 +241,45 @@ describe('rowAction', () => {
     expect(rowAction('review')).toBe('Review');
     expect(rowAction('guidance')).toBe('Review');
     expect(rowAction('health')).toBe('Fix');
+  });
+});
+
+describe('contributors: what waits on someone without a review right', () => {
+  it('never gives an email contributor the review queue', () => {
+    expect(holdsReviewRight({ viewer: 'leo@acme.design', contributor: true, approvers: ['leo@acme.design'], write: true })).toBe(false);
+    expect(holdsReviewRight({ viewer: 'leo@acme.design', contributor: true, approvers: [], write: true })).toBe(false);
+  });
+
+  it('gives it to the people the approver or ship lists name, nobody else', () => {
+    expect(holdsReviewRight({ viewer: 'Dana', contributor: false, approvers: ['dana'], write: true })).toBe(true);
+    expect(holdsReviewRight({ viewer: 'ops', contributor: false, approvers: ['dana'], shippers: ['@ops'], write: true })).toBe(true);
+    expect(holdsReviewRight({ viewer: 'ann', contributor: false, approvers: ['dana'], shippers: ['ops'], write: true })).toBe(false);
+    // A team not read yet matches nobody.
+    expect(holdsReviewRight({ viewer: 'ann', contributor: false, approvers: ['@acme/design'], write: true })).toBe(false);
+    expect(holdsReviewRight({ viewer: null, contributor: false, approvers: [], write: true })).toBe(false);
+  });
+
+  it('lets anyone who writes review while the team names no owner', () => {
+    expect(holdsReviewRight({ viewer: 'ann', contributor: false, approvers: [], write: true })).toBe(true);
+    expect(holdsReviewRight({ viewer: 'ann', contributor: false, approvers: [], write: null })).toBe(true);
+    expect(holdsReviewRight({ viewer: 'ann', contributor: false, approvers: [], write: false })).toBe(false);
+  });
+
+  it('keeps only their branches sent back with changes', () => {
+    expect(waitsOnContributor('own-changes')).toBe(true);
+    for (const t of ['design', 'ship', 'guidance', 'requested', 'own-blocked', 'own-ship', null] as const) expect(waitsOnContributor(t)).toBe(false);
+  });
+
+  it('tours their branches, then how to start', () => {
+    expect(CONTRIBUTOR_TOUR_STEPS).toEqual(['branches', 'start']);
+    expect(contributorTour('branches').title).toBe('Your branches');
+    expect(contributorTour('branches').text).toMatch(/until a reviewer merges them/);
+    expect(contributorTour('start').title).toBe('Start a change');
+    for (const at of CONTRIBUTOR_TOUR_STEPS) expect(JSON.stringify(contributorTour(at))).not.toMatch(/\u2014|lead/);
+  });
+
+  it('names the row verb, the row first', () => {
+    expect(rowAction('own', 'Update')).toBe('Update');
+    expect(rowAction('own')).toBe('Open');
   });
 });

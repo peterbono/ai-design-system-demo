@@ -124,6 +124,8 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
         signedOut: { line: signedOutLine(signIn), button: ghButton(signIn), signIn },
         failed: d?.failed ?? null,
         startHrefs: stat.startHrefs,
+        // No review right: only what waits on them, and their tour (once the owner teams are read).
+        contributor: Boolean(d && !d.loading && !d.reviewer),
       },
       root,
     );

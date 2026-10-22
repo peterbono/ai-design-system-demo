@@ -5,13 +5,12 @@
 //     its Review button, and beyond them the grouped row with its one primary "Review all (8)" (the review queue, which
 //     a visitor browses read-only).
 //   - The library health line, then "Explorations and branches": the team's work as the home's cards.
-//   - A three-step tour on the first visit (TourStep), anchored under the rows, the grouped row and the branches.
+//   - A three-step tour on the first visit (HomeTour.tsx), anchored under the rows, the grouped row and the branches.
 // The demo banner over every Studio page is DemoBanner.tsx. Data: scripts/demo-home.ts.
 import { createRoot, type Root } from 'react-dom/client';
-import { useState, type ReactNode } from 'react';
-import { Button, Popover, PopoverContent, PopoverTrigger } from '@bridge-ds/react';
 import { StudioHome, type HealthLine, type HomeComponent, type StudioHomeProps } from './StudioHome';
 import { DEMO_WORDS, demoTour, tourSteps, type TourAt } from '../../../lib/demo';
+import { useTour } from './HomeTour';
 import { greeting, shortName, splitNeeds, type BranchCard, type NeedRow, type Person } from '../../../lib/home-model';
 import '../../../styles/demo-home.css';
 
@@ -35,56 +34,10 @@ const TOUR_KEY = 'bridge.demo.tour';
 /** One row of cards on a wide screen (board D1); "See all" opens Branches. */
 export const BRANCH_CARDS = 4;
 
-function tourDone(): boolean {
-  try {
-    return localStorage.getItem(TOUR_KEY) === 'done';
-  } catch {
-    return false;
-  }
-}
-
-/** One step of the tour: a DS Popover anchored where the step points. */
-function TourStep({ n, total, at, role, onNext, onFinish, onClose }: { n: number; total: number; at: TourAt; role: string | null; onNext: () => void; onFinish: () => void; onClose: () => void }) {
-  const words = demoTour(at, role);
-  const last = n === total;
-  return (
-    <Popover open onOpenChange={(o) => !o && onClose()}>
-      <PopoverTrigger render={<span className="dh-tour-anchor" aria-hidden="true" tabIndex={-1} />} />
-      <PopoverContent side="bottom" align="start" className="dh-tour" title={words.title} description={words.text}>
-        <div className="dh-tour-foot">
-          <span className="t-ui t-muted">
-            {n} of {total}
-          </span>
-          <span className="dh-tour-actions">
-            {!last && (
-              <Button variant="ghost" size="sm" onClick={onFinish}>
-                Skip tour
-              </Button>
-            )}
-            <Button variant="primary" size="sm" onClick={last ? onFinish : onNext}>
-              {last ? 'Done' : 'Next'}
-            </Button>
-          </span>
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 export function DemoHome(p: DemoHomeProps) {
-  const [step, setStep] = useState<number | null>(() => (tourDone() ? null : 0));
   const { more } = splitNeeds(p.needs);
   const steps = tourSteps({ rows: p.needs.length > 0, more: Boolean(more), branches: p.branches.length > 0 });
-  const finish = () => {
-    try {
-      localStorage.setItem(TOUR_KEY, 'done');
-    } catch {
-      /* private mode: the tour comes back on the next visit */
-    }
-    setStep(null);
-  };
-  const tour = (at: TourAt): ReactNode =>
-    !p.loading && step !== null && steps[step] === at ? <TourStep key={at} n={step + 1} total={steps.length} at={at} role={p.role} onNext={() => setStep(step + 1)} onFinish={finish} onClose={() => setStep(null)} /> : null;
+  const tour = useTour<TourAt>(TOUR_KEY, steps, (at) => demoTour(at, p.role), !p.loading);
   const leadName = p.lead ? (shortName(p.lead.name) ?? p.lead.name) : null;
   // "Good morning, Dana." with a persona; "Good morning." without one.
   return (
@@ -100,7 +53,7 @@ export function DemoHome(p: DemoHomeProps) {
       failed={p.failed}
       startHrefs={p.startHrefs}
       demo={{ lead: p.lead && { ...p.lead, name: leadName ?? p.lead.name }, branchesTitle: DEMO_WORDS.branches, branchesMax: BRANCH_CARDS }}
-      tour={tour}
+      tour={(at) => (at === 'start' ? null : tour(at))}
     />
   );
 }

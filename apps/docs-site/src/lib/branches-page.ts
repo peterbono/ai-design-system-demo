@@ -33,6 +33,8 @@ export interface WhoFacts {
   author: string;
   /** The status read says the next step is the viewer's (scripts/pr-status rowWho yourTurn). */
   yourTurn: boolean;
+  /** The viewer made it, when the page knows it otherwise than by the author (an email contributor's own, ownedBy). */
+  mine?: boolean;
 }
 
 const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && a.replace(/^@/, '').toLowerCase() === b.replace(/^@/, '').toLowerCase());
@@ -41,8 +43,25 @@ const same = (a: string | null | undefined, b: string | null | undefined) => Boo
 export function showsForWho(filter: WhoFilter, row: WhoFacts, viewer: string | null): boolean {
   if (filter === 'all') return true;
   if (!viewer) return false;
-  return filter === 'mine' ? same(row.author, viewer) : row.yourTurn;
+  return filter === 'mine' ? (row.mine ?? same(row.author, viewer)) : row.yourTurn;
 }
+
+/**
+ * What an email contributor made: GitHub names Bridge's app as the author, so their own branches are the ones the
+ * server lists as theirs (contribute-session contributeMine: branch names and pull request numbers), or the ones
+ * already written as theirs (author = their email).
+ */
+export function ownedBy(row: { author: string; number: number; headRef?: string | null }, viewer: string | null, mine: { branches: string[]; issues: number[] } | null): boolean {
+  if (same(row.author, viewer)) return true;
+  if (!mine) return false;
+  return mine.issues.includes(row.number) || Boolean(row.headRef && mine.branches.includes(row.headRef));
+}
+
+/**
+ * Waiting on me for an email contributor: they approve nothing, so only their own branches a reviewer sent back with
+ * changes to make wait on them.
+ */
+export const contributorTurn = (row: { own: boolean; changesRequested?: string[] | null; open: boolean }): boolean => row.own && row.open && Boolean(row.changesRequested?.length);
 
 /** The quiet line when the filter leaves nothing. */
 export function emptyWhoLine(filter: WhoFilter, signedIn: boolean): string {
@@ -155,4 +174,19 @@ export function barCopy(n: number): BarCopy | null {
     return { title: `1 ${VOCAB.branch} selected`, hint: `Select up to ${more} more to preview them together`, action: 'alone', label: 'Try it alone' };
   }
   return { title: `${n} ${VOCAB.branches} selected`, hint: null, action: 'together', label: 'Preview together' };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The kind and designer filters: one bar on every tab
+
+/** The designer filter shows on Waiting on me and All; Mine is the viewer's own work, so it has none. */
+export const showsDesignerFilter = (filter: WhoFilter): boolean => filter !== 'mine';
+
+/**
+ * The filters a tab applies, from the ones picked (kept across tabs): the kind always, the designer where the tab
+ * shows it and only while someone listed matches it (an address naming nobody listed keeps everyone).
+ */
+export function tabFilters<F extends { kind: string; by: string | null }>(filter: WhoFilter, picked: F, designers: readonly string[]): F {
+  const by = showsDesignerFilter(filter) && picked.by && designers.includes(picked.by) ? picked.by : null;
+  return { ...picked, by };
 }

@@ -11,6 +11,10 @@ import {
   productOf,
   selectable,
   showsForWho,
+  ownedBy,
+  showsDesignerFilter,
+  tabFilters,
+  contributorTurn,
   whoFilterParam,
 } from './branches-page';
 import { jargonIn } from './vocabulary';
@@ -137,5 +141,43 @@ describe('selection', () => {
       const c = barCopy(n)!;
       expect(jargonIn(`${c.title} ${c.hint ?? ''} ${c.label}`)).toEqual([]);
     }
+  });
+});
+
+describe('email contributors on Branches', () => {
+  const mine = { branches: ['bridge/leo-spacing'], issues: [42] };
+  it('knows their own branches from the server list, not the author', () => {
+    expect(ownedBy({ author: 'bridge-app[bot]', number: 42, headRef: 'x' }, 'leo@acme.design', mine)).toBe(true);
+    expect(ownedBy({ author: 'bridge-app[bot]', number: 7, headRef: 'bridge/leo-spacing' }, 'leo@acme.design', mine)).toBe(true);
+    expect(ownedBy({ author: 'leo@acme.design', number: 8, headRef: 'y' }, 'leo@acme.design', null)).toBe(true);
+    expect(ownedBy({ author: 'bridge-app[bot]', number: 9, headRef: 'bridge/ann' }, 'leo@acme.design', mine)).toBe(false);
+    expect(ownedBy({ author: 'bridge-app[bot]', number: 42, headRef: 'x' }, 'leo@acme.design', null)).toBe(false);
+  });
+
+  it('shows Mine from that list', () => {
+    expect(showsForWho('mine', { author: 'bridge-app[bot]', yourTurn: false, mine: true }, 'leo@acme.design')).toBe(true);
+    expect(showsForWho('mine', { author: 'leo@acme.design', yourTurn: false, mine: false }, 'leo@acme.design')).toBe(false);
+  });
+
+  it('waits on them only for their branches sent back with changes', () => {
+    expect(contributorTurn({ own: true, changesRequested: ['dana'], open: true })).toBe(true);
+    expect(contributorTurn({ own: true, changesRequested: [], open: true })).toBe(false);
+    expect(contributorTurn({ own: false, changesRequested: ['dana'], open: true })).toBe(false);
+    expect(contributorTurn({ own: true, changesRequested: ['dana'], open: false })).toBe(false);
+  });
+});
+
+describe('the filter bar on every tab', () => {
+  it('shows the designer filter on Waiting on me and All, not on Mine', () => {
+    expect(showsDesignerFilter('waiting')).toBe(true);
+    expect(showsDesignerFilter('all')).toBe(true);
+    expect(showsDesignerFilter('mine')).toBe(false);
+  });
+
+  it('keeps the picks across tabs and applies what each tab can', () => {
+    const picked = { kind: 'library', by: 'ann' };
+    expect(tabFilters('all', picked, ['ann', 'dana'])).toEqual({ kind: 'library', by: 'ann' });
+    expect(tabFilters('mine', picked, ['ann'])).toEqual({ kind: 'library', by: null });
+    expect(tabFilters('waiting', picked, ['dana'])).toEqual({ kind: 'library', by: null });
   });
 });
