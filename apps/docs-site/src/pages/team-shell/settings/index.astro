@@ -1,13 +1,12 @@
 ---
 // Team shell of Studio Settings (lib/team-shells.ts): served for /studio/<owner>/<repo>/settings/ by the vercel.json rewrite.
-// Your team (the team link and who can do what) reads the team from the address and GitHub; the team's rules (how
+// Members (who is in the team, invites and roles, MembersSection.tsx) reads the team from the address and GitHub; the team's rules (how
 // changes reach the code, review rules, safety) render read only from its repository model in the browser
 // (components/ds/studio/TeamSettings.tsx). On the demo, that is the demo's sample team. Appearance (light, dark or
 // System) is this browser's own choice, there for everyone whatever the team read gives (AppearanceSetting.tsx).
 import '../../../styles/settings.css';
 import TeamShell from '../../../components/TeamShell.astro';
-import { Card, CardBody } from '@bridge-ds/react';
-import { TeamLinkLive } from '../../../components/ds/studio/TeamLink';
+import MembersSection from '../../../components/ds/studio/MembersSection';
 import TeamSettings from '../../../components/ds/studio/TeamSettings';
 import AppearanceSetting from '../../../components/ds/studio/AppearanceSetting';
 import { tierSummaries } from '../../../lib/governance';
@@ -19,14 +18,8 @@ const rules = approvalRules(tierSummaries()).map((x) => ({ what: x.what, who: ca
 ---
 
 <TeamShell route="settings/" title="Settings" what="settings and roles" description="GitHub connection, roles and approvals for this team's design system.">
-  <section class="ts-band" id="team" aria-labelledby="ts-team">
-    <h2 id="ts-team" class="ts-h">Your team</h2>
-    <p class="ts-intro">Share one link. GitHub decides who gets in and what each person can do.</p>
-    <Card>
-      <CardBody>
-        <TeamLinkLive client:only="react" />
-      </CardBody>
-    </Card>
+  <section class="ts-band" id="team" aria-labelledby="set-members">
+    <MembersSection client:only="react" />
   </section>
   <TeamSettings client:load rules={rules} />
   <section class="ts-band" id="appearance" aria-labelledby="ts-appearance">

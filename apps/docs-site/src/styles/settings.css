@@ -30,6 +30,13 @@
   }
 }
 
+/* Members (boards I3, I4): its title, sentence and Invite action sit on one line above the table, the full band wide. */
+@media (min-width: 1280px) {
+  .set-band[data-full] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .set-band-intro {
   display: grid;
   align-content: start;

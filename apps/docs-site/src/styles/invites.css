@@ -1,0 +1,361 @@
+/* Invite collaborators (components/ds/studio/InviteDialog.tsx), the role picker (RolePicker.tsx) and Settings >
+   Members (MembersSection.tsx), boards I1 to I4. Four sizes: the dialog and band titles, ui text, the muted caption
+   lines, and the count. Deep Harbor only on the one primary action and the chosen role. */
+
+/* --- A person: the same block in the table and the dialog --------------------------------------------------- */
+
+.mem-person {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.mem-person-text {
+  display: grid;
+  min-width: 0;
+}
+
+.mem-name {
+  overflow-wrap: anywhere;
+  font-weight: var(--font-weight-medium);
+}
+
+.mem-you,
+.mem-count {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+}
+
+.mem-line {
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+/* Not joined yet: a dashed ring around the initials, and the words say it too. */
+.mem-avatar-pending {
+  outline: var(--border-width-default) dashed var(--color-border-strong);
+  outline-offset: calc(-1 * var(--border-width-default));
+  background-color: transparent;
+}
+
+.mem-role-text {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.mem-notice {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.mem-notice:empty {
+  display: none;
+}
+
+.mem-notice[data-tone='success'] {
+  color: var(--color-feedback-success-text);
+}
+
+.mem-notice[data-tone='danger'] {
+  color: var(--color-feedback-danger-text);
+}
+
+/* --- Settings > Members ------------------------------------------------------------------------------------- */
+
+.mem {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* The title and its one sentence, the primary action on the same line (proximity). */
+.mem-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+}
+
+.mem-head-text {
+  display: grid;
+  flex: 1 1 var(--size-80);
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.mem-title {
+  margin: 0;
+  font-family: var(--typography-h3-family);
+  font-size: var(--typography-h3-size);
+  font-weight: var(--typography-h3-weight);
+  letter-spacing: var(--typography-h3-tracking);
+  line-height: var(--typography-h3-line-height);
+}
+
+.mem-intro {
+  max-width: 70ch;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.mem-loading {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.mem-role-head {
+  text-align: end;
+}
+
+.mem-role-cell {
+  width: 1%;
+}
+
+/* On a phone each person is a card: the person, then their role and menu under it, at the start. */
+@container (max-width: 30em) {
+  .mem-role {
+    justify-content: flex-start;
+  }
+
+  .mem-role-cell .mem-role-text {
+    font-weight: var(--font-weight-regular);
+  }
+}
+
+/* The role and its "More" menu on one line, at the row's end. */
+.mem-role {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+/* Keeps the role column aligned on rows without a menu (the admin's own row). */
+.mem-more-space {
+  width: var(--control-height-md);
+  flex: none;
+}
+
+.mem-resend {
+  vertical-align: baseline;
+}
+
+.mem-confirm-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+/* --- The dialog ----------------------------------------------------------------------------------------------- */
+
+.inv-loading,
+.inv-form {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.inv-label {
+  font-weight: var(--font-weight-medium);
+}
+
+/* The emails and the role they get on one line: the role acts on the emails beside it. */
+.inv-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.inv-row > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.inv-hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+.inv-access {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-4);
+}
+
+.inv-access-title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+}
+
+.inv-access-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inv-access-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--size-12);
+}
+
+.inv-access-row > :first-child {
+  flex: 1;
+}
+
+/* Who may invite on the left, the two actions on the right (board I1). */
+.inv-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.inv-footer-note {
+  flex: 1 1 auto;
+  margin-right: auto;
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+}
+
+/* On a phone: the emails get the whole line, the role goes under; the actions share the bar. */
+@media (max-width: 480px) {
+  .inv-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .inv-footer > :last-child {
+    width: 100%;
+  }
+
+  .inv-footer > :last-child > * {
+    flex: 1;
+  }
+}
+
+/* --- The role picker ---------------------------------------------------------------------------------------- */
+
+.rp-trigger {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* Wide enough for the two "They review as" cards side by side (the DS popover stops at a narrower size). */
+.rp-pop.rp-pop {
+  width: var(--size-96);
+  max-width: var(--available-width);
+}
+
+.rp-roles {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.rp-role {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+}
+
+.rp-role[data-selected] {
+  background-color: var(--color-surface-selected);
+}
+
+/* "They review as": under Reviewer only, indented to its text. */
+.rp-review {
+  padding-inline-start: var(--space-7);
+}
+
+.rp-review-cards [role='radiogroup'] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.rp-review-title {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+}
+
+.rp-review-face {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-7);
+  height: var(--size-7);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-feedback-info-bg);
+  color: var(--color-feedback-info-text);
+}
+
+.rp-note {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+/* --- The page an invitation email opens (pages/studio/invite.astro) ------------------------------------------ */
+
+.inv-accept {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-6);
+  max-width: calc(var(--size-64) * 3);
+  margin: var(--space-10) auto;
+  padding: var(--space-6) var(--space-7);
+}
+
+.inv-accept-art {
+  display: flex;
+  flex: none;
+  color: var(--color-text-default);
+}
+
+.inv-accept-text {
+  display: grid;
+  flex: 1 1 var(--size-60);
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.inv-accept-title {
+  margin: 0;
+  font-family: var(--typography-h2-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--typography-h2-weight);
+  letter-spacing: var(--typography-h2-tracking);
+  line-height: var(--typography-h2-line-height);
+}
+
+.inv-accept-sub {
+  margin: 0;
+  color: var(--color-text-muted);
+  line-height: var(--typography-ui-line-height);
+}
+
+.inv-accept-sub:empty {
+  display: none;
+}
+
+.inv-accept-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}

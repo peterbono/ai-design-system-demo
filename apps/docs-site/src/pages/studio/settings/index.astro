@@ -4,8 +4,8 @@
 // label; the page stops at 1200px so nothing stretches across a wide monitor. In order:
 //   Account       the GitHub connection: a compact row once connected, the page's one Harbor zone (with a Field
 //                 Guide drawing and Connect GitHub) while Studio is read only.
-//   Your team     the team link to share, what the viewer can do here, and "Who can do what" folded
-//                 (components/ds/studio/TeamLink.tsx, the same block as onboarding step Invite your team).
+//   Members       who is in the team and what each person can do, with Invite collaborators for an admin
+//                 (components/ds/studio/MembersSection.tsx, boards I3 and I4; anchor #team kept for old links).
 //   How changes reach your code  suggestions (a GitHub issue developers apply) or pull requests Bridge opens, from
 //                 `changes` in bridge.config.json; what Bridge's GitHub App may do on the repo; the switch, sent for review
 //                 as a pull request (components/ds/studio/ChangesMode.tsx, scripts/roles.ts).
@@ -44,7 +44,7 @@ import { CHOICE_LABEL, OWNER_GROUP_HELP, OWNER_GROUP_LABEL, roleRows, VISUAL_MOD
 import OwnersField from '../../../components/ds/studio/OwnersField';
 import { approvalRules, changesInConfig, overrideText, soloOwnerRow } from '../../../lib/settings-view';
 import ChangesModeSetting from '../../../components/ds/studio/ChangesMode';
-import { TeamLinkLive } from '../../../components/ds/studio/TeamLink';
+import MembersSection from '../../../components/ds/studio/MembersSection';
 import '../../../styles/team-access.css';
 
 const r = siteRepo();
@@ -120,18 +120,8 @@ const changes = changesInConfig(config);
       </div>
     </section>
 
-    <section class="set-band" id="team" aria-labelledby="set-team">
-      <div class="set-band-intro">
-        <h2 id="set-team" class="set-h">Your team</h2>
-        <p class="set-intro">Share one link. GitHub decides who gets in and what each person can do.</p>
-      </div>
-      <div class="set-band-body">
-        <Card>
-          <CardBody>
-            <TeamLinkLive client:only="react" owner={r.owner} repo={r.repo} changes={changes} owners={r.owners} />
-          </CardBody>
-        </Card>
-      </div>
+    <section class="set-band" id="team" aria-labelledby="set-members" data-full>
+      <MembersSection client:only="react" />
     </section>
 
     <section class="set-band" id="changes" aria-labelledby="set-changes">
