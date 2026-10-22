@@ -825,8 +825,40 @@ details[open] > summary .cg-sec-chev {
 
 .bl-note,
 .bl-none,
-.bl-merged {
+.bl-merged,
+.bl-summary,
+.bl-reach {
   margin: 0;
+}
+
+/* Waiting on me: the kind and designer filters sit on the same line as the whose-work control, at its height, wide
+   enough for the longest kind and its count. */
+.bl-narrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  max-inline-size: 100%;
+}
+
+.bl-narrow > :first-child {
+  inline-size: var(--size-72);
+  max-inline-size: 100%;
+}
+
+.bl-narrow > :last-child {
+  inline-size: var(--size-60);
+  max-inline-size: 100%;
+}
+
+/* A kind heading with its muted line ("Can reach Account app.") right under it. */
+.bl-head {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* Waiting on me lists the suggestions that wait under their kind: the full Suggestions section steps aside. */
+.cg-panel:has(.bl.is-waiting) #tb-suggestions {
+  display: none;
 }
 
 .bl-group {

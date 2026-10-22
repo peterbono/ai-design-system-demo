@@ -176,7 +176,8 @@ function Needs({ needs, now, snoozed, demo, tour }: { needs: NeedRow[]; now: num
             <b className="sh-strong">{more.label}</b>
             {more.parts && <span className="t-muted"> · {more.parts}</span>}
           </p>
-          <ButtonLink variant="primary" href={studioHref('review/')} className="sh-more-btn">
+          {/* The demo opens Branches on Waiting on me: every change that waits on the lead, by kind and designer. */}
+          <ButtonLink variant="primary" href={studioHref(demo ? 'changes/?who=waiting' : 'review/')} className="sh-more-btn">
             {demo ? `Review all (${needs.length})` : 'Review all'}
           </ButtonLink>
         </div>

@@ -11,6 +11,7 @@ import {
   getSuggestionOnGitHub,
   listSuggestionsOnGitHub,
   loadConfig,
+  requesterOf,
   reviewSuggestionOnGitHub,
   stalenessStatus,
   suggestionStalenessOnGitHub,
@@ -18,6 +19,7 @@ import {
   type BridgeConfig,
   type GitHubClient,
   type PullRequestSummary,
+  type Requester,
   type SuggestionDetail,
   type SuggestionListItem,
   type SuggestionStaleness,
@@ -27,7 +29,7 @@ import {
 import { currentViewer, getToken, hasWorkingToken, initGitHubConnect, onAccess, prefersSignIn, readRepo, studioClient, ghGet } from './github-session';
 import { loadTeams, siteApprovers, siteRoles, siteSoloOwner } from './teams';
 import { ghAction } from '../lib/gh-wording';
-import { person, type NeedRow, type Person } from '../lib/home-model';
+import { person, requesterPerson, type NeedRow, type Person } from '../lib/home-model';
 import {
   applyLines,
   approvalRows,
@@ -72,7 +74,7 @@ async function governance(): Promise<SuggestionGovernance> {
 // ---------------------------------------------------------------------------------------------------------------
 // What waits on the viewer: one list for Home, the queue and the badge
 
-const NEEDS_KEY = 'bridge.suggestions.needs';
+const NEEDS_KEY = 'bridge.suggestions.needs.v2';
 const NEEDS_TTL = 2 * 60 * 1000;
 const MAX_READ = 20;
 
@@ -82,6 +84,10 @@ interface Waiting {
   author: string;
   createdAt: string;
   thumb: NeedRow['thumb'];
+  /** The issue labels (its kind, a product): Branches > Waiting on me sorts by them. */
+  labels?: string[];
+  /** Who asked for it, as Bridge records it in the body ("Requested by Ann Leroy."). */
+  requester?: Requester | null;
 }
 
 let needs: { viewer: string; at: number; rows: Promise<Waiting[]> } | null = null;
@@ -107,7 +113,7 @@ async function readWaiting(viewer: string): Promise<Waiting[]> {
   // The label is a cache: only the ones it says need a review, by someone else, are read for their real approvals.
   const maybe = items.filter((i) => waitsOnViewer({ status: i.status, missing: [], viewer, author: i.author, owners, collaborator: write })).slice(0, MAX_READ);
   const read = await Promise.all(
-    maybe.map(async (i) => {
+    maybe.map(async (i): Promise<Waiting | null> => {
       try {
         const d = await getSuggestionOnGitHub(gh, i.number, gov, { pulls });
         if (!d.parsed.ok) return null;
@@ -116,7 +122,15 @@ async function readWaiting(viewer: string): Promise<Waiting[]> {
         // An outdated one waits on its author to send it again, not on a review (the status its page shows).
         const stale = await stalenessOnMain(gh, d);
         if (!waitsOnViewer({ status: stalenessStatus(d.status, stale), missing: missingRoles(tier, d.approvals), viewer, author: d.issue.author, owners, collaborator: write, reviewed })) return null;
-        return { number: i.number, title: shortTitle(d.parsed.payload.title || i.title), author: d.issue.author, createdAt: d.issue.createdAt, thumb: suggestionThumb(d.parsed.payload, theme()) };
+        return {
+          number: i.number,
+          title: shortTitle(d.parsed.payload.title || i.title),
+          author: d.issue.author,
+          createdAt: d.issue.createdAt,
+          thumb: suggestionThumb(d.parsed.payload, theme()),
+          labels: d.issue.labels,
+          requester: requesterOf(d.issue.body),
+        };
       } catch {
         return null;
       }
@@ -130,6 +144,28 @@ async function readWaiting(viewer: string): Promise<Waiting[]> {
  * minutes in this browser, so Home, the queue and the badge agree. Empty signed out or when GitHub cannot be read.
  */
 export async function loadSuggestionNeeds(personOf: (login: string) => Promise<Person> = async (l) => person(l, null, `https://github.com/${l}.png?size=64`)): Promise<NeedRow[]> {
+  const now = Date.now();
+  const rows = await readNeeds();
+  return Promise.all(rows.map(async (w) => suggestionNeed(w, await personOf(w.author), now)));
+}
+
+/**
+ * The same suggestions for Branches > Waiting on me: each row names who asked for it (the requester, else the
+ * author) and keeps the issue labels, which say its kind and product.
+ */
+export async function loadSuggestionQueue(personOf: (login: string) => Promise<Person> = async (l) => person(l, null, `https://github.com/${l}.png?size=64`)): Promise<{ need: NeedRow; labels: string[] }[]> {
+  const now = Date.now();
+  const rows = await readNeeds();
+  return Promise.all(
+    rows.map(async (w) => {
+      const asker = (w.requester && requesterPerson(w.requester, (l) => person(l, null, `https://github.com/${l}.png?size=64`))) ?? (await personOf(w.author));
+      return { need: { ...suggestionNeed(w, asker, now), number: w.number }, labels: w.labels ?? [] };
+    }),
+  );
+}
+
+/** What waits on the signed-in viewer, read once per page and kept two minutes. Empty signed out. */
+async function readNeeds(): Promise<Waiting[]> {
   const viewer = currentViewer()?.login ?? null;
   if (!viewer || !hasWorkingToken()) return [];
   if (!needs || needs.viewer !== viewer || Date.now() - needs.at > NEEDS_TTL) {
@@ -153,9 +189,7 @@ export async function loadSuggestionNeeds(personOf: (login: string) => Promise<P
         });
     needs = { viewer, at, rows: rows.catch(() => [] as Waiting[]) };
   }
-  const now = Date.now();
-  const rows = await needs.rows;
-  return Promise.all(rows.map(async (w) => suggestionNeed(w, await personOf(w.author), now)));
+  return needs.rows;
 }
 
 // ---------------------------------------------------------------------------------------------------------------

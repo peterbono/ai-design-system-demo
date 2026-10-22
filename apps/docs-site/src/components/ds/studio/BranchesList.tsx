@@ -4,19 +4,40 @@
 //     (lib/branches-page productOf, bridge.config.json products), each group a heading with its count. Rows are the home row (BranchRow).
 //   - Token branches carry a checkbox to preview them together; the floating bar (CombineChanges SelectionBar) acts.
 //   - Merged and closed branches stay behind one muted line at the end: "12 merged this month. Show merged" (?status=).
+//   - Waiting on me (what "Review all" opens on the demo) is the lead's review list: one summary sentence, every change
+//     that waits (branches, suggestions, usage guidance drafts) under three kinds (lib/review-categories: In a product,
+//     Library components and tokens, Documentation), and two DS Selects to narrow it by kind and by designer
+//     (?kind=, ?by=). The designer is who asked for the change (the requester line), Claude AI's work included.
 // Mounted and repainted by scripts/reviews.ts (loadList), which reads GitHub; this file only enriches what is shown
 // (display names, before/after thumbnails and changed files, with a working token only: anonymous visitors have 60
 // GitHub reads an hour, kept for the statuses).
 import { createRoot, type Root } from 'react-dom/client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Checkbox, Link, SegmentedControl, Skeleton, Tooltip, VisuallyHidden } from '@bridge-ds/react';
+import { Badge, Button, Checkbox, Link, SegmentedControl, Select, Skeleton, Tooltip, VisuallyHidden } from '@bridge-ds/react';
 import { BranchRow } from './BranchRow';
 import { Who } from './faces';
 import { SelectionBar, type ListedBranch } from './CombineChanges';
 import { boxDisabled, emptyWhoLine, finishedParam, FULL_TIP, groupByProduct, mergedLine, mergedThisMonth, onlyLine, productOf, selectable, showsForWho, WHO_FILTERS, whoFilterParam, type WhoFilter } from '../../../lib/branches-page';
 import { onlyTokens, toggleChange } from '../../../lib/combine-changes';
 import { childLine, nestLinked } from '../../../lib/product-branch';
-import { CLAUDE, person, type Person, type PillTone } from '../../../lib/home-model';
+import { CLAUDE, person, requesterPerson, type Person, type PillTone } from '../../../lib/home-model';
+import {
+  categoryOf,
+  designerKey,
+  designerOptions,
+  groupByCategory,
+  kindOptions,
+  passes,
+  queueFiltersParam as readQueueFilters,
+  queueSummary,
+  reachLine,
+  withQueueFilters,
+  type KindFilter,
+  type QueueFilters,
+  EVERYONE,
+  type WaitingExtra,
+} from '../../../lib/review-categories';
+import { DEFAULT_PRODUCTS } from '@bridge-ds/core';
 import type { ThumbSpec } from '../../../lib/branch-thumb';
 import type { FileSignals } from '../../../lib/work-nature';
 import type { Lifecycle } from '../../../lib/change-status';
@@ -48,6 +69,8 @@ export interface ListRow {
   labels?: { name: string }[] | null;
   /** The product branch this library branch is needed by (its "Needed by" block): listed under it. */
   neededBy?: number | null;
+  /** Who asked for it, as Bridge records it in the body ("Requested by Ann Leroy."): the designer of the change. */
+  requester?: { name: string | null; login: string | null } | null;
 }
 
 export interface BranchesListProps {
@@ -69,6 +92,13 @@ export interface BranchesListProps {
   failure: (err: unknown) => string;
   /** Asks scripts/reviews.ts for the closed list (when the line is pressed before it was read). */
   readClosed: () => void;
+  /**
+   * The demo persona whose seat a visitor without an account takes ("Dana", lib/demo.ts): Waiting on me then lists
+   * what waits on them. Null everywhere else.
+   */
+  seat?: string | null;
+  /** What waits on the viewer besides branches: suggestions and usage guidance drafts (Waiting on me only). */
+  waiting?: WaitingExtra[];
 }
 
 const avatarOf = (login: string) => `https://github.com/${encodeURIComponent(login)}.png?size=64`;
@@ -122,14 +152,17 @@ export function BranchesList(p: BranchesListProps) {
   const [who, setWho] = useState<WhoFilter>(() => whoFilterParam(location.search));
   const [finished, setFinished] = useState(() => finishedParam(location.search));
   const [selected, setSelected] = useState<number[]>([]);
+  const [filters, setFilters] = useState<QueueFilters>(() => readQueueFilters(location.search));
+  const viewer = p.viewer ?? (p.seat ? `~${p.seat.toLowerCase()}` : null);
   const all = useMemo(() => [...p.rows, ...(finished.finished ? (p.closed ?? []) : [])], [p.rows, p.closed, finished.finished]);
   const extras = useExtras(all, p.connected);
 
-  const shown = all.filter((r) => showsForWho(who, { author: r.author, yourTurn: r.yourTurn }, p.viewer) && (!finished.only || r.lifecycle === finished.only));
+  const shown = all.filter((r) => showsForWho(who, { author: r.author, yourTurn: r.yourTurn }, viewer) && (!finished.only || r.lifecycle === finished.only));
   const rows = shown.map((r) => {
     const e = extras.get(r.number);
     return { r, e, product: productOf(e?.files ?? null, p.products, r.labels), tokenOnly: tokenOnly(r, e, p.tokensRoot) };
   });
+  const waitingView = who === 'waiting' && !finished.only && Boolean(viewer);
   // Library branches a listed product branch needs follow it, one step in (lib/product-branch nestLinked).
   const groups = nestLinked(groupByProduct(rows, p.products));
 
@@ -162,6 +195,17 @@ export function BranchesList(p: BranchesListProps) {
     const next = v as WhoFilter;
     setWho(next);
     setParam('who', next === 'all' ? null : next);
+    // The kind and designer filters belong to Waiting on me: they leave the address with it.
+    if (next !== 'waiting') {
+      setParam('kind', null);
+      setParam('by', null);
+    }
+  };
+  const pickFilters = (f: QueueFilters) => {
+    setFilters(f);
+    const url = new URL(location.href);
+    url.search = withQueueFilters(url.search, f);
+    history.replaceState(history.state, '', url);
   };
   const showFinished = () => {
     setFinished({ finished: true, only: null });
@@ -173,16 +217,166 @@ export function BranchesList(p: BranchesListProps) {
     setParam('status', null);
   };
 
-  const whoNode = (r: ListRow, e: Extra | undefined) => {
-    const pp = r.agent ? CLAUDE : (e?.person ?? person(r.author, null, avatarOf(r.author)));
-    return <Who p={pp} size="md" />;
+  // The person of a row: who asked for it when Bridge recorded it, else Claude AI for its own work, else the author.
+  const personOf = (r: ListRow, e: Extra | undefined): Person =>
+    (r.requester && requesterPerson(r.requester, (l) => (l.toLowerCase() === r.author.toLowerCase() && e?.person) || person(l, null, avatarOf(l)))) ??
+    (r.agent ? CLAUDE : (e?.person ?? person(r.author, null, avatarOf(r.author))));
+  const whoNode = (r: ListRow, e: Extra | undefined) => <Who p={personOf(r, e)} size="md" />;
+  const nameOf = (r: ListRow, e: Extra | undefined) => personOf(r, e).name;
+
+  const branchRow = ({ r, e, tokenOnly: tok, child }: (typeof rows)[number] & { child: boolean }, line?: string) => {
+                const href = r.opens === 'pr' ? `?pr=${r.number}` : `?exploration=${r.number}`;
+                const checked = selected.includes(r.number);
+                const full = boxDisabled(selected, r.number);
+                const box = (
+                  <Checkbox
+                    className="bl-pick"
+                    label={<VisuallyHidden>Select {r.title} to preview it</VisuallyHidden>}
+                    checked={checked}
+                    disabled={full}
+                    onCheckedChange={(on) => toggle(r.number, on)}
+                  />
+                );
+                const behind = r.behindBy && r.behindBy > 0 && r.lifecycle !== 'shipped' && r.lifecycle !== 'closed';
+                return (
+                  <BranchRow
+                    key={r.number}
+                    className={`bl-row${tok ? ' is-pickable' : ''}${child ? ' is-linked' : ''}`}
+                    selected={checked}
+                    lead={tok ? (full ? <Tooltip content={FULL_TIP}>{box}</Tooltip> : box) : undefined}
+                    thumb={e?.thumb ?? { kind: 'icon', icon: r.guidance ? 'guidance' : 'branch' }}
+                    who={whoNode(r, e)}
+                    title={r.title}
+                    jira={r.jira}
+                    line={child ? childLine(nameOf(r, e)) : (line ?? nameOf(r, e))}
+                    href={href}
+                    linkAttributes={r.opens === 'pr' ? { 'data-open-pr': r.number } : { 'data-open-exploration': r.number }}
+                    pill={r.pill}
+                    end={
+                      behind ? (
+                        <span className="t-ui bl-behind">
+                          <span className="t-muted">
+                            {r.behindBy} {r.behindBy === 1 ? 'update' : 'updates'} on {VOCAB.main}
+                          </span>
+                          <span className="t-muted" aria-hidden="true">
+                            {' · '}
+                          </span>
+                          <Link href={href} className="bl-update" data-open-pr={r.number}>
+                            {VOCAB.updateFromMain}
+                            <VisuallyHidden>: {r.title}</VisuallyHidden>
+                          </Link>
+                        </span>
+                      ) : null
+                    }
+                  />
+                );
   };
-  const nameOf = (r: ListRow, e: Extra | undefined) => (r.agent ? CLAUDE.name : (e?.person ?? person(r.author)).name);
+
+  // Waiting on me: every change that waits on the viewer, branches and the rest, by kind and by designer.
+  const products = p.products ?? DEFAULT_PRODUCTS;
+  const queueBranches = waitingView
+    ? rows.map((x) => {
+        const c = categoryOf({ files: x.e?.files ?? null, labels: x.r.labels, headRef: x.r.head.ref, signals: x.r.signals, guidanceOnly: x.r.guidance }, products);
+        const pp = personOf(x.r, x.e);
+        return { kind: 'branch' as const, x, category: c.category, productName: c.product?.name ?? null, designer: { key: designerKey(pp), name: pp.name } };
+      })
+    : [];
+  const queueExtras = waitingView
+    ? (p.waiting ?? []).map((w) => {
+        const pp = w.need.person ?? CLAUDE;
+        return { kind: 'extra' as const, w, category: w.category, productName: w.product?.name ?? null, designer: { key: designerKey(pp), name: pp.name } };
+      })
+    : [];
+  const queue = [...queueBranches, ...queueExtras];
+  // An address naming nobody who waits keeps everyone, rather than an empty list.
+  const by = filters.by && queue.some((q) => q.designer.key === filters.by) ? filters.by : null;
+  const active: QueueFilters = { kind: filters.kind, by };
+  const filtered = active.kind !== 'all' || Boolean(active.by);
+  const kept = queue.filter((q) => passes(q, active));
+  const kinds = kindOptions(queue, by);
+  const designers = designerOptions(queue, active.kind);
+  const reach = reachLine(products);
+  const count = (n: number) => (
+    <Badge tone="neutral" size="sm">
+      {n}
+    </Badge>
+  );
+
+  const extraRow = ({ w, productName }: (typeof queueExtras)[number]) => {
+    const pp = w.need.person ?? CLAUDE;
+    const s = w.suggestion;
+    const line = s ? `${productName ? `${productName} · ` : ''}${pp.name} · Suggestion` : w.need.line;
+    return (
+      <BranchRow
+        key={w.need.key}
+        thumb={w.need.thumb}
+        who={<Who p={pp} size="md" />}
+        title={w.need.title}
+        line={line}
+        href={w.need.href}
+        linkAttributes={s ? { 'data-open-suggestion': s } : undefined}
+        pill={s ? { label: 'Needs review', tone: 'warning' } : w.need.pill}
+      />
+    );
+  };
+
+  const waitingList = (
+    <>
+      <p className="t-body bl-summary">
+        {queueSummary(kept.length, queue.length, filtered)}
+        {filtered && (
+          <>
+            {' '}
+            <Button variant="link" onClick={() => pickFilters({ kind: 'all', by: null })}>
+              Clear filters
+            </Button>
+          </>
+        )}
+      </p>
+      {groupByCategory(kept)
+        .filter((g) => g.rows.length > 0 || !filtered)
+        .map((g) => (
+          <section className="bl-group" key={g.key} aria-labelledby={`bl-${g.key}`}>
+            <div className="bl-head">
+              <h2 className="bl-h2" id={`bl-${g.key}`}>
+                {g.label} <span className="bl-count">{g.rows.length}</span>
+              </h2>
+              {g.key === 'library' && reach && <p className="t-ui t-muted bl-reach">{reach}</p>}
+            </div>
+            {g.rows.length ? (
+              <ul className="sh-rows" aria-labelledby={`bl-${g.key}`}>
+                {g.rows.map((q) => (q.kind === 'extra' ? extraRow(q) : branchRow({ ...q.x, child: false }, q.productName ? `${q.productName} · ${q.designer.name}` : undefined)))}
+              </ul>
+            ) : (
+              <p className="t-ui t-muted bl-none">Nothing of this kind waits on you.</p>
+            )}
+          </section>
+        ))}
+    </>
+  );
 
   return (
-    <div className="bl">
+    <div className={waitingView ? 'bl is-waiting' : 'bl'}>
       <div className="bl-filters">
         <SegmentedControl label={`Whose ${VOCAB.branches}`} value={who} onValueChange={pickWho} items={WHO_FILTERS} />
+        {waitingView && queue.length > 0 && (
+          <span className="bl-narrow">
+            <Select
+              label="Kind of change"
+              hideLabel
+              value={active.kind}
+              onValueChange={(v) => pickFilters({ ...active, kind: (v ?? 'all') as KindFilter })}
+              options={kinds.map((k) => ({ value: k.value, label: k.label, badge: count(k.count), disabled: k.count === 0 && k.value !== active.kind }))}
+            />
+            <Select
+              label="Designer"
+              hideLabel
+              value={active.by ?? EVERYONE}
+              onValueChange={(v) => pickFilters({ ...active, by: !v || v === EVERYONE ? null : v })}
+              options={designers.map((d) => ({ value: d.value, label: d.label, badge: count(d.count), disabled: d.count === 0 && d.value !== (active.by ?? EVERYONE) }))}
+            />
+          </span>
+        )}
       </div>
       {(p.tierLabel || finished.only) && (
         <p className="t-ui t-muted bl-note">
@@ -208,8 +402,10 @@ export function BranchesList(p: BranchesListProps) {
             <Skeleton variant="rect" className="sh-skel" />
           </li>
         </ul>
-      ) : groups.length === 0 ? (
-        <p className="t-body t-muted bl-none">{emptyWhoLine(who, Boolean(p.viewer))}</p>
+      ) : waitingView && queue.length > 0 ? (
+        waitingList
+      ) : groups.length === 0 || waitingView ? (
+        <p className="t-body t-muted bl-none">{emptyWhoLine(who, Boolean(viewer))}</p>
       ) : (
         groups.map((g) => (
           <section className="bl-group" key={g.key} aria-labelledby={`bl-${g.key}`}>
@@ -217,58 +413,12 @@ export function BranchesList(p: BranchesListProps) {
               {g.label} <span className="bl-count">{g.count}</span>
             </h2>
             <ul className="sh-rows" aria-labelledby={`bl-${g.key}`}>
-              {g.rows.map(({ r, e, tokenOnly: tok, child }) => {
-                const href = r.opens === 'pr' ? `?pr=${r.number}` : `?exploration=${r.number}`;
-                const checked = selected.includes(r.number);
-                const full = boxDisabled(selected, r.number);
-                const box = (
-                  <Checkbox
-                    className="bl-pick"
-                    label={<VisuallyHidden>Select {r.title} to preview it</VisuallyHidden>}
-                    checked={checked}
-                    disabled={full}
-                    onCheckedChange={(on) => toggle(r.number, on)}
-                  />
-                );
-                const behind = r.behindBy && r.behindBy > 0 && r.lifecycle !== 'shipped' && r.lifecycle !== 'closed';
-                return (
-                  <BranchRow
-                    key={r.number}
-                    className={`bl-row${tok ? ' is-pickable' : ''}${child ? ' is-linked' : ''}`}
-                    selected={checked}
-                    lead={tok ? (full ? <Tooltip content={FULL_TIP}>{box}</Tooltip> : box) : undefined}
-                    thumb={e?.thumb ?? { kind: 'icon', icon: r.guidance ? 'guidance' : 'branch' }}
-                    who={whoNode(r, e)}
-                    title={r.title}
-                    jira={r.jira}
-                    line={child ? childLine(nameOf(r, e)) : nameOf(r, e)}
-                    href={href}
-                    linkAttributes={r.opens === 'pr' ? { 'data-open-pr': r.number } : { 'data-open-exploration': r.number }}
-                    pill={r.pill}
-                    end={
-                      behind ? (
-                        <span className="t-ui bl-behind">
-                          <span className="t-muted">
-                            {r.behindBy} {r.behindBy === 1 ? 'update' : 'updates'} on {VOCAB.main}
-                          </span>
-                          <span className="t-muted" aria-hidden="true">
-                            {' · '}
-                          </span>
-                          <Link href={href} className="bl-update" data-open-pr={r.number}>
-                            {VOCAB.updateFromMain}
-                            <VisuallyHidden>: {r.title}</VisuallyHidden>
-                          </Link>
-                        </span>
-                      ) : null
-                    }
-                  />
-                );
-              })}
+              {g.rows.map((x) => branchRow(x))}
             </ul>
           </section>
         ))
       )}
-      {!finished.only && (merged !== null || finished.finished) && (
+      {!finished.only && !waitingView && (merged !== null || finished.finished) && (
         <p className="t-ui t-muted bl-merged">
           {finished.finished ? (
             <>
