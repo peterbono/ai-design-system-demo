@@ -125,6 +125,16 @@ describe('TeamChip teams to switch to (board EmptyB)', () => {
     await expectNoAxeViolations(menu);
   });
 
+  it('on the sample team, offers Invite collaborators even signed out, and opens the dialog over the page', async () => {
+    page.team = { owner: 'peterbono', repo: 'bridge-demo-ds' };
+    const user = userEvent.setup();
+    render(createElement(TeamChip, { launcher: true }));
+    await user.click(await screen.findByRole('button', { name: /Acme Design/ }));
+    const menu = await screen.findByRole('menu');
+    await user.click(within(menu).getByRole('menuitem', { name: 'Invite collaborators' }));
+    expect(await screen.findByRole('dialog', { name: 'Invite collaborators' })).toBeInTheDocument();
+  });
+
   it('on a team, lists it under "Your team" once, not again in the recent teams', async () => {
     localStorage.setItem(RECENT_TEAMS_KEY, JSON.stringify(['acme/ds', 'globex/tokens']));
     const { menu } = await openMenu();

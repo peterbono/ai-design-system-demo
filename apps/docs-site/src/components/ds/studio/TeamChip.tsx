@@ -4,7 +4,8 @@
 // mark and "Bridge" instead of the owner's photo, and a visitor without an account reads "Explore freely". On the
 // sample team it reads "Acme Design" with its initials and a "Demo" tag (lib/demo.ts). It is the nav's
 // first focus stop and a full-width target. The name stays on one line (ellipsis, the full name in its title). Its
-// menu: Invite collaborators (signed in, the main action) or Sign in with GitHub (signed out: there is nobody to invite yet), then on the hosted site the teams opened in this browser (max 5) and "Create a new team" (secondary, muted),
+// menu: Invite collaborators (signed in, the main action; it opens InviteDialog over the page, and on the sample team it is
+// there for everyone, with its sample people) or Sign in with GitHub (signed out), then on the hosted site the teams opened in this browser (max 5) and "Create a new team" (secondary, muted),
 // which opens a dialog over the page (NewTeamDialog.tsx) to connect another design system: the person keeps their
 // place. Who you are stays at the bottom of the nav (components/GitHubAccount.astro): proximity keeps the team at the
 // top and the account at the bottom.
@@ -12,20 +13,23 @@
 // workspace you came from (lib/start.ts), and "Try it" with Acme Design, the sample team. The browser workspace (no repository yet,
 // pages/studio/workspace.astro) names itself on the chip: "Ann's workspace", kept in this browser.
 // Mounted by layouts/Layout.astro on every Studio page, both modes: a self-hosted Studio is its own one team.
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { ChevronsUpDown, Plus, UserPlus, X } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
 import { Avatar, Badge, Button, Icon, Menu, MenuContent, MenuGroup, MenuItem, MenuSeparator, MenuTrigger } from '@bridge-ds/react';
 import type { RepoAccessState } from '@bridge-ds/core';
 import { chipIdentity, isDemoTeam, ownerAvatarUrl } from '../../../lib/access-view';
 import { forgetRecentTeam, loadRecentTeams, noteTeamAccess } from '../../../lib/recent-teams';
-import { studioHref, teamHref } from '../../../lib/team-path';
+import { teamHref } from '../../../lib/team-path';
 import { ghButton } from '../../../lib/gh-wording';
 import NewTeamDialog, { type TeamAccessCheck } from './NewTeamDialog';
+
+// Loaded on first use: most pages never open it.
+const InviteDialog = lazy(() => import('./InviteDialog'));
 import { GitHubMark } from './brand-icons';
 import { Drawing } from './Drawing';
 import { shortName } from '../../../lib/home-model';
-import { demoTeamName } from '../../../lib/demo';
+import { demoTeamName, isSampleTeam } from '../../../lib/demo';
 import { DEMO_HOME, MENU_WORDS, ownTeams, WORKSPACE_HOME, WORKSPACE_WORDS, workspaceHref, workspaceName, type StartFacts } from '../../../lib/start';
 
 export interface TeamChipProps {
@@ -70,6 +74,8 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   const [recent, setRecent] = useState<string[]>([]);
   const [hosted, setHosted] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [invitedOnce, setInvitedOnce] = useState(false);
   const [signInApp, setSignInApp] = useState(false);
 
   useEffect(() => {
@@ -164,11 +170,27 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     </>
   );
   if (yours || (offerTeams && chip.kind !== 'demo')) blocks.push({ key: 'teams', node: teams });
+  // Invite collaborators opens the dialog over the page (board I1). The sample team shows it to everyone, with its
+  // sample people: sending opens the demo dialog. The browser workspace has no repository, so nobody to invite yet.
+  const sample = chip.kind === 'demo' && Boolean(chip.sample) && isSampleTeam(name);
+  const inviteItem = (
+    <MenuItem
+      icon={UserPlus}
+      className="tc-invite"
+      onClick={() => {
+        setInvitedOnce(true);
+        setInviting(true);
+      }}
+    >
+      Invite collaborators
+    </MenuItem>
+  );
   if (!signedIn)
     blocks.push({
       key: 'actions',
       node: (
         <>
+          {sample && inviteItem}
           {/* Signed out the next steps come first: start a team of your own, or sign in to do more here. */}
           {offerTeams && createItem}
           {/* The shared session listens for these attributes (scripts/github-session.ts): sign in, or the dialog. */}
@@ -178,16 +200,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
         </>
       ),
     });
-  // Inviting needs a team link: the browser workspace has no repository yet.
-  else if (chip.kind !== 'workspace')
-    blocks.push({
-      key: 'actions',
-      node: (
-        <MenuItem icon={UserPlus} className="tc-invite" onClick={() => go(studioHref('?setup=team'))}>
-          Invite collaborators
-        </MenuItem>
-      ),
-    });
+  else if (chip.kind !== 'workspace') blocks.push({ key: 'actions', node: inviteItem });
   if (offerTeams && listed.length > 0)
     blocks.push({
       key: 'recent',
@@ -256,6 +269,11 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
         </MenuContent>
       </Menu>
       {offerTeams && <NewTeamDialog open={creating} onOpenChange={setCreating} signedIn={signedIn} check={check} />}
+      {invitedOnce && (
+        <Suspense fallback={null}>
+          <InviteDialog open={inviting} onOpenChange={setInviting} />
+        </Suspense>
+      )}
     </>
   );
 }
