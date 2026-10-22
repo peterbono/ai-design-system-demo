@@ -91,11 +91,11 @@ function PieceRow({ row, p, busy, run }: { row: PieceRowView; p: ProductBranchPr
           </span>
           {a &&
             (p.connected ? (
-              <Button variant="secondary" size="md" className="pb-row-act" loading={busy === `${row.id}:${a.kind}`} onClick={() => run(row, a.kind)}>
+              <Button variant="secondary" size="md" className="pb-row-act" loading={busy === `${row.id}:${a.kind}`} onClick={() => run(row, a.kind)} data-demo-write="change this branch">
                 {a.label}
               </Button>
             ) : (
-              <Button variant="secondary" size="md" className="pb-row-act" data-gh-open="">
+              <Button variant="secondary" size="md" className="pb-row-act" data-gh-open="" data-demo-write="change this branch">
                 {p.connectLabel(a.label.charAt(0).toLowerCase() + a.label.slice(1))}
               </Button>
             ))}

@@ -700,6 +700,16 @@
         }
       }
     },
+    "demo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["viewer"],
+      "description": "A public demo's persona, read by Bridge's own demo repositories only: who a visitor without an account stands in for on the demo home (\"Good morning, Dana.\"). Ignored on any other repository.",
+      "properties": {
+        "viewer": { "type": "string", "minLength": 1, "description": "The persona's first name, for example \"Dana\"." },
+        "role": { "type": "string", "description": "What they do, for example \"DS lead\"." }
+      }
+    },
     "visualImpact": {
       "type": "object",
       "additionalProperties": false,

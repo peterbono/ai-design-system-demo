@@ -31,9 +31,50 @@ export interface BranchRowProps {
   lead?: ReactNode;
   end?: ReactNode;
   className?: string;
+  /**
+   * One line (the home's Needs you, boards D20 and D1b): the title, then " · " and the line, muted, on the same line;
+   * `tags` and the pill on the right, before `end`. Default: the two lines every other list uses.
+   */
+  compact?: boolean;
+  /** Chips before the pill ("Sample" on the demo). */
+  tags?: ReactNode;
 }
 
-export function BranchRow({ thumb, who, title, href, onClick, linkAttributes, selected, jira, line, pill, lead, end, className }: BranchRowProps) {
+export function BranchRow({ thumb, who, title, href, onClick, linkAttributes, selected, jira, line, pill, lead, end, className, compact, tags }: BranchRowProps) {
+  const chip = pill && (
+    <Badge tone={TONE[pill.tone]} size="md" className="sh-row-pill">
+      {pill.label}
+    </Badge>
+  );
+  if (compact) {
+    return (
+      <li className={className ? `sh-row-item ${className}` : 'sh-row-item'}>
+        <Card interactive padding="compact" className={selected ? 'sh-row sh-row-compact is-selected' : 'sh-row sh-row-compact'}>
+          <CardBody className="sh-row-body">
+            {lead}
+            <BranchThumb spec={thumb} size="row" />
+            <span className="sh-row-who" aria-hidden="true">
+              {who}
+            </span>
+            <span className="sh-row-text">
+              <Link href={href} variant="subtle" className="t-body sh-row-title" title={line ? `${title} · ${line}` : title} data-card-primary onClick={onClick} aria-current={selected ? 'true' : undefined} {...linkAttributes}>
+                <span className="sh-strong">{title}</span>
+                {jira && <span className="t-ui t-muted sh-mono"> {jira}</span>}
+                {line && <span className="t-ui t-muted"> · {line}</span>}
+              </Link>
+            </span>
+            {(tags || chip) && (
+              <span className="sh-row-chips">
+                {tags}
+                {chip}
+              </span>
+            )}
+            {end}
+          </CardBody>
+        </Card>
+      </li>
+    );
+  }
   return (
     <li className={className ? `sh-row-item ${className}` : 'sh-row-item'}>
       <Card interactive padding="compact" className={selected ? 'sh-row is-selected' : 'sh-row'}>
@@ -47,15 +88,12 @@ export function BranchRow({ thumb, who, title, href, onClick, linkAttributes, se
             <Link href={href} variant="subtle" className="t-body sh-row-title" title={title} data-card-primary onClick={onClick} aria-current={selected ? 'true' : undefined} {...linkAttributes}>
               <span className="sh-strong">{title}</span>
             </Link>
-            {(jira || line || pill) && (
+            {(jira || line || pill || tags) && (
               <span className="sh-row-sub">
                 {jira && <span className="t-ui t-muted sh-mono sh-row-jira">{jira}</span>}
                 {line && <span className="t-ui t-muted sh-row-line">{line}</span>}
-                {pill && (
-                  <Badge tone={TONE[pill.tone]} size="md" className="sh-row-pill">
-                    {pill.label}
-                  </Badge>
-                )}
+                {tags}
+                {chip}
               </span>
             )}
           </span>

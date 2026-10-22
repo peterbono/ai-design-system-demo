@@ -27,6 +27,7 @@ import { paintAvatar } from './avatar';
 import { askDirectInstallMessage, DIRECT_CONSENT, DIRECT_SETUP, directSetupLine, ghAction, ghButton, ghVerb } from '../lib/gh-wording';
 import { installUrl } from '../lib/access-view';
 import { changesModeOnPage } from './changes-mode';
+import { bindDemoGate } from './demo-gate';
 import {
   type AppSession,
   type DirectApp,
@@ -834,6 +835,19 @@ const notify = (v: Viewer | null) => listeners.forEach((fn) => fn(v));
  * call in between marks it as stopped working.
  */
 export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
+  // On the demo, a visitor who cannot write sees the demo banner, and write actions open the demo dialog
+  // (scripts/demo-gate.ts). First, so its capture listener runs before the gated-action one below.
+  bindDemoGate({
+    repo: () => repoName(readRepo()),
+    login: () => viewer?.login ?? null,
+    write: () => currentAccess()?.write ?? null,
+    signIn: prefersSignIn,
+    known: () => checked || !getToken(),
+    subscribe: (fn) => {
+      listeners.push(() => fn());
+      onAccess(() => fn());
+    },
+  });
   if (onChange) listeners.push(onChange);
   if (wired) {
     if (checked) onChange?.(viewer);

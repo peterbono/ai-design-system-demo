@@ -107,7 +107,7 @@ export function ConflictNotice({ text, paths, href, onKeepMine, onKeepTheirs }: 
 /** "Edit tokens in this branch" on a change page: opens the token editor scoped to it. */
 export function EditInChange({ href, label = 'Edit tokens in this branch' }: { href: string; label?: string }) {
   return (
-    <ButtonLink href={href} iconStart={PenLine}>
+    <ButtonLink href={href} iconStart={PenLine} data-demo-write="edit tokens in a branch">
       {label}
     </ButtonLink>
   );

@@ -113,7 +113,8 @@ describe('the team chip', () => {
     expect(chipIdentity('acme/ds', { demo: false, state: 'anonymous-public', signedIn: false })).toMatchObject({ kind: 'team', name: 'acme/ds', badge: { label: 'Guest' } });
     expect(chipIdentity('acme/ds', { demo: false, state: 'writer', signedIn: true }).badge.label).toBe('Can edit');
     expect(isDemoTeam('Peterbono/AI-design-system-demo', false)).toBe(true);
-    expect(isDemoTeam('peterbono/ai-design-system-demo', true)).toBe(false);
+    expect(isDemoTeam('peterbono/ai-design-system-demo', true)).toBe(true);
+    expect(isDemoTeam('peterbono/bridge-demo-ds', true)).toBe(true);
     expect(isDemoTeam('acme/ds', false)).toBe(false);
   });
 

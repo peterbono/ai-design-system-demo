@@ -173,6 +173,9 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
         <span class="rail-toggle-slot"><IconButton icon={MenuIcon} size="sm" label="Open navigation" id="rail-toggle" aria-controls="rail" aria-expanded="false" /></span>
       </div>
     </header>
+    {/* The demo, for a visitor who cannot change it: the "Demo workspace" banner (scripts/demo-gate.ts mounts
+        components/ds/studio/DemoBanner.tsx here once the session knows who is visiting). */}
+    {isStudio && <div class="demo-strip" data-demo-strip hidden />}
 
     <div class="shell">
       <nav class="rail" id="rail" aria-label={isStudio ? 'Studio navigation' : 'Library navigation'}>

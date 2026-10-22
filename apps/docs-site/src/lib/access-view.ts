@@ -6,6 +6,7 @@
 // "set up", never collaborator, installation, permission scopes or tokens.
 
 import type { ChangesMode, RepoAccessState } from '@bridge-ds/core';
+import { isDemoRepo } from './demo';
 
 /** The public GitHub App people sign in with (docs/SIGN-IN.md). Its page lists it at github.com/apps/<slug>. */
 export const BRIDGE_APP_SLUG = 'bridge-ds';
@@ -174,8 +175,11 @@ export function accessBadge(state: RepoAccessState | null, signedIn: boolean): {
 /** The design system the self-hosted site shows to everyone: Bridge's own demo. */
 export const DEMO_TEAM = 'peterbono/ai-design-system-demo';
 
-/** The demo is the self-hosted site's own repository, never a team page (a team page of it is that team's). */
-export const isDemoTeam = (team: string | null | undefined, hosted: boolean) => !hosted && (team ?? '').toLowerCase() === DEMO_TEAM;
+/**
+ * A demo design system (lib/demo.ts DEMO_REPOS): the self-hosted site's own repository, or the demo team on the
+ * hosted site. `hosted` is kept for callers; both kinds of page show a demo the same way.
+ */
+export const isDemoTeam = (team: string | null | undefined, _hosted?: boolean) => isDemoRepo(team);
 
 /** What the team chip shows: the design system being viewed, and what the visitor can do on it. */
 export interface ChipIdentity {

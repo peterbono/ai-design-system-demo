@@ -39,6 +39,17 @@ export interface StorybookConfig {
   url: string;
 }
 
+/**
+ * A public demo's persona (Bridge's own demo repositories only): who a visitor without an account stands in for,
+ * so the demo home greets them as that person ("Good morning, Dana.") and names their role. Ignored elsewhere.
+ */
+export interface DemoConfig {
+  /** The persona's first name: "Dana". */
+  viewer: string;
+  /** What they do: "DS lead". */
+  role?: string;
+}
+
 /** The team's hosted Library (/library/<owner>/<repo>/). */
 export interface LibraryConfig {
   /** True lets search engines index the hosted Library of a public repository. Default false: noindex. */
@@ -206,6 +217,8 @@ export interface BridgeConfig {
   storybook?: StorybookConfig | undefined;
   /** The hosted Library. Read it through libraryIsPublic(). */
   library?: LibraryConfig | undefined;
+  /** A public demo's persona (see DemoConfig). */
+  demo?: DemoConfig | undefined;
 }
 
 type Partialish<T> = { [K in keyof T]?: T[K] | undefined };
@@ -242,6 +255,7 @@ export interface BridgeConfigInput {
   changes?: ChangesMode;
   storybook?: { url: string };
   library?: LibraryConfig;
+  demo?: DemoConfig;
 }
 
 export const DEFAULT_TOKEN_PATHS: TokenPaths = {
@@ -404,6 +418,7 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
     changes: input.changes === 'direct' ? 'direct' : DEFAULT_CHANGES_MODE,
     ...(input.storybook?.url ? { storybook: { url: input.storybook.url.trim().replace(/\/+$/, '') } } : {}),
     ...(input.library?.public === true ? { library: { public: true } } : {}),
+    ...(input.demo?.viewer?.trim() ? { demo: { viewer: input.demo.viewer.trim(), ...(input.demo.role?.trim() ? { role: input.demo.role.trim() } : {}) } } : {}),
     ...(input.audit ? { audit: { ...input.audit } } : {}),
     ...(input.visualImpact ? { visualImpact: { mode: input.visualImpact.mode === 'on-demand' ? 'on-demand' : 'auto' } } : {}),
     ...(input.integrations ? { integrations: { ...input.integrations } } : {}),
@@ -552,6 +567,14 @@ export function loadConfig(source: string | unknown): BridgeConfig {
       for (const k of Object.keys(lib)) if (k !== 'public') problems.push(`"library.${k}" is not a known key`);
     }
   }
+  const demo = d.demo;
+  if (demo !== undefined) {
+    if (!isObj(demo) || !isStr(demo.viewer) || !demo.viewer.trim()) problems.push('"demo" must be { "viewer" }, for example { "viewer": "Dana", "role": "DS lead" }');
+    else {
+      if (demo.role !== undefined && !isStr(demo.role)) problems.push('"demo.role" must be a string, for example "DS lead"');
+      for (const k of Object.keys(demo)) if (k !== 'viewer' && k !== 'role') problems.push(`"demo.${k}" is not a known key`);
+    }
+  }
   problems.push(...productProblems(d.products));
   const audit = d.audit;
   if (audit !== undefined) {
@@ -632,6 +655,7 @@ export function toConfigJson(config: BridgeConfig, schema = './packages/core/bri
     changes: changesMode(config),
     ...(config.storybook ? { storybook: config.storybook } : {}),
     ...(config.library ? { library: config.library } : {}),
+    ...(config.demo ? { demo: config.demo } : {}),
     ...(config.products && !sameProducts(config.products, DEFAULT_PRODUCTS) ? { products: config.products } : {}),
   };
 }

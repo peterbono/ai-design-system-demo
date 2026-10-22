@@ -1,0 +1,54 @@
+/* The demo for a visitor (boards D1, D1b, D2): the "Demo workspace" banner (DemoBanner.tsx), the tour of the home
+   (DemoHome.tsx) and the write-action dialog (MakeItYours.tsx). The home itself is the signed-in home
+   (studio-home.css); only what is new lives here. */
+
+/* --- The banner: a full-width strip under the app header, on every Studio page -------------------------------- */
+
+.demo-strip > .demo-banner {
+  border-inline: 0;
+  border-radius: 0;
+}
+
+.demo-banner-text {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+}
+
+/* --- The tour: a DS Popover anchored under what each step points at ------------------------------------------- */
+
+/* The anchor: a line across the bottom of what the step points at, no height of its own. */
+.dh-tour-anchor {
+  display: block;
+  height: 0;
+  /* Takes no room: cancels the gap the zone puts before it. */
+  margin-block-start: calc(var(--space-5) * -1);
+  margin-inline-start: var(--space-6);
+  pointer-events: none;
+}
+
+.dh-tour {
+  max-width: var(--size-96);
+}
+
+.dh-tour-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-block-start: var(--space-3);
+}
+
+.dh-tour-actions {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+/* --- The write-action dialog (board D2): its title in the display face --------------------------------------- */
+
+.miy-title {
+  font-family: var(--typography-h2-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--typography-h2-weight);
+  line-height: var(--typography-h2-line-height);
+}

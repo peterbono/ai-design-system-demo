@@ -4,6 +4,7 @@
 // wait on the viewer who asked and since when (the timeline), the display names (GET /users), and for what is shown
 // the before/after (the token diff, else the visual impact run). Paints progressively through `onUpdate`. The rules
 // are pure in lib/home-model.ts and lib/branch-thumb.ts.
+import { requesterOf } from '@bridge-ds/core';
 import { currentViewer, ghGet, hasWorkingToken, readRepo, RateLimitError } from './github-session';
 import { loadStatuses, owners, rowWho, type PullStatus } from './pr-status';
 import { loadTeams } from './teams';
@@ -23,6 +24,7 @@ import {
   guidanceNeed,
   isOnlyReviewer,
   person,
+  requesterPerson,
   sortNeeds,
   waitingSince,
   type BranchCard,
@@ -233,7 +235,11 @@ export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void
       const tl = timelines.get(p.number);
       const w = x.task.startsWith('own') ? null : waitingSince(tl, p, viewer);
       const authorP = x.agent ? CLAUDE : pick(p.user.login)!;
-      const askerP = !w || same(w.asker, p.user.login) ? authorP : pick(w.asker)!;
+      // Who asked, as Bridge recorded it in the body ("Requested by Ann Leroy."), before the GitHub author: the
+      // account that opened it is often an agent or a lead acting for someone.
+      const requested = requesterOf(p.body);
+      const requesterP = requested ? requesterPerson(requested, (l) => pick(l)!) : null;
+      const askerP = !w || same(w.asker, p.user.login) ? (requesterP ?? authorP) : pick(w.asker)!;
       const facts: ChangeFacts = {
         number: p.number,
         title: todoChange(p, statuses.get(p.number)).title,
@@ -288,6 +294,8 @@ export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void
   for (const x of cls) {
     if (!x.task && !same(x.pull.user.login, viewer)) continue;
     logins.add(x.pull.user.login);
+    const req = requesterOf(x.pull.body)?.login;
+    if (req) logins.add(req);
     for (const l of x.changesBy ?? []) logins.add(l);
     const r = reviewerLogin(x.pull, statuses.get(x.pull.number));
     if (r) logins.add(r);

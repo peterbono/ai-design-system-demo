@@ -110,6 +110,8 @@ function openConnect() {
   b.type = 'button';
   b.hidden = true;
   b.setAttribute('data-gh-open', '');
+  // On the demo, a visitor who cannot write sees "Make it yours" instead (scripts/demo-gate.ts).
+  b.setAttribute('data-demo-write', 'save usage guidance');
   document.body.appendChild(b);
   b.click();
   b.remove();

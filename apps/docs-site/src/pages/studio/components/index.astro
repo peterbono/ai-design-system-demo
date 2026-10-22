@@ -224,8 +224,8 @@ const signIn = Boolean(signInConfig());
         </fieldset>
         <p class="rq-error" role="alert" data-rq-error hidden></p>
         <div class="rq-actions">
-          <Button variant="primary" type="submit" data-rq-submit data-gh-only hidden>Start exploration</Button>
-          <Button variant="primary" iconStart={GitHubMark} data-gh-open data-no-gh data-cm-connect>{ghAction('start', signIn)}</Button>
+          <Button variant="primary" type="submit" data-rq-submit data-gh-only data-demo-write="start an exploration" hidden>Start exploration</Button>
+          <Button variant="primary" iconStart={GitHubMark} data-gh-open data-no-gh data-cm-connect data-demo-write="start an exploration">{ghAction('start', signIn)}</Button>
           <Button variant="ghost" data-cm-chg-cancel>Cancel</Button>
         </div>
         <Button variant="ghost" size="sm" className="cm-req-start" data-cm-ask>Ask a developer instead</Button>

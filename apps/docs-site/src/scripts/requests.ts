@@ -254,7 +254,7 @@ export function detailContext(): DetailContext {
  */
 function primaryAction(r: RequestRow, decide: boolean): string {
   if (decide)
-    return `<a class="btn btn-primary btn-lg" href="?view=explorations&amp;for=${r.number}" data-start-for="${r.number}">Start an exploration</a><button type="button" class="btn btn-secondary btn-lg" data-rq-assign="${r.number}">Assign someone</button><button type="button" class="btn btn-secondary btn-lg" data-rq-decline="${r.number}">Decline</button>`;
+    return `<a class="btn btn-primary btn-lg" href="?view=explorations&amp;for=${r.number}" data-start-for="${r.number}" data-demo-write="start an exploration">Start an exploration</a><button type="button" class="btn btn-secondary btn-lg" data-rq-assign="${r.number}" data-demo-write="assign requests">Assign someone</button><button type="button" class="btn btn-secondary btn-lg" data-rq-decline="${r.number}" data-demo-write="decline requests">Decline</button>`;
   const open = r.prs.find((p) => p.state === 'open');
   const pr = open ?? r.prs.find((p) => p.merged);
   if (!pr) return '';

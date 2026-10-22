@@ -194,6 +194,8 @@ export interface NeedRow {
   number?: number;
   /** The viewer is the only person who can review it. */
   onlyReviewer?: boolean;
+  /** Sample data of the demo: the row says so ("Sample"), so a visitor never takes it for real work. */
+  sample?: boolean;
 }
 
 /** The verb on a Needs you row's button. */
@@ -373,6 +375,10 @@ export interface BranchCard {
   thumb: ThumbSpec;
   /** In review: the status pill its row shows in Branches (lib/changes statusPill), once read. */
   status?: string | null;
+  /** The status line in other words than branchStatus (the demo's team branches: "Exploration in Account · Ann"). */
+  statusLine?: { stage: string; detail: string };
+  /** Sample data of the demo: the card says so ("Sample"). */
+  sample?: boolean;
 }
 
 export type BranchFilter = 'all' | 'draft' | 'ready';
@@ -424,4 +430,22 @@ export function homeState(x: { signedIn: boolean; loading: boolean; needs: numbe
   if (!x.signedIn) return 'signed-out';
   if (x.loading && !x.needs && !x.branches) return 'loading';
   return x.needs || x.branches ? 'busy' : 'empty';
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Who asked: the requester Bridge records in a body (core requesterOf), shown instead of the GitHub author
+
+/**
+ * The person a requester is, for the rows and avatars. A login reads through `pick` (display names, avatars already
+ * read), a name keeps its first word ("Ann Leroy" gives "Ann"); without a login the avatar is the illustrated
+ * fallback, seeded by the name.
+ */
+export function requesterPerson(r: { name: string | null; login: string | null }, pick: (login: string) => Person = (l) => person(l, null, `https://github.com/${l}.png?size=64`)): Person | null {
+  if (r.login) {
+    const p = pick(r.login);
+    return r.name ? { ...p, name: displayName(r.login, r.name) } : p;
+  }
+  if (!r.name) return null;
+  const slug = r.name.toLowerCase().normalize('NFD').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
+  return { login: `~${slug}`, name: displayName(slug, r.name), avatar: null };
 }

@@ -6,11 +6,14 @@
 // onboarding of hosted teams, multi-team PR 3c).
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { currentViewer, getToken, initGitHubConnect, prefersSignIn } from './github-session';
+import { currentAccess, currentViewer, getToken, initGitHubConnect, onAccess, prefersSignIn } from './github-session';
 import { setReviewCount } from './shell';
 import { rememberMine } from './needs-you';
 import { loadHome, type HomeData, type HomeStatic } from './home-data';
 import { loadTeamData, resetTeamData, teamOfPage, type TeamData } from './team-data';
+import { loadDemoHome, type DemoHomeData } from './demo-home';
+import { paintDemoHome } from '../components/ds/studio/DemoHome';
+import { exploresDemo } from '../lib/demo';
 import { paintStudioHome, type HealthLine, type HomeComponent, type StudioHomeProps } from '../components/ds/studio/StudioHome';
 import { TeamLoadError, TeamLoadProgress, TeamSourceNote } from '../components/ds/studio/TeamState';
 import { greeting, homeState } from '../lib/home-model';
@@ -55,6 +58,24 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
   let known = false;
   let run = 0;
   const signIn = prefersSignIn();
+  // The demo team, for a visitor who cannot change it (lib/demo.ts): its own home, read-only.
+  let demoData: DemoHomeData | null = null;
+  let demoRead = false;
+  const exploring = () => {
+    const t = teamOfPage();
+    if (!t || (!known && getToken())) return false;
+    const v = currentViewer();
+    return exploresDemo({ repo: `${t.owner}/${t.repo}`, signedIn: Boolean(v), write: v ? (currentAccess()?.write ?? null) : false });
+  };
+  const readDemo = () => {
+    if (demoRead || !stat) return;
+    demoRead = true;
+    const t = teamOfPage();
+    void loadDemoHome(stat, (d) => {
+      demoData = d;
+      paint();
+    });
+  };
 
   function health(): HealthLine | null {
     if (!stat) return null;
@@ -63,6 +84,26 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
 
   function paint() {
     if (!stat) return;
+    if (exploring()) {
+      readDemo();
+      root = paintDemoHome(
+        el,
+        {
+          loading: !demoData || demoData.loading,
+          needs: demoData?.needs ?? [],
+          branches: demoData?.branches ?? [],
+          health: health(),
+          failed: demoData?.failed ?? null,
+            lead: demoData?.lead ?? null,
+            role: demoData?.role ?? null,
+          now: Date.now(),
+          components: stat.components,
+          startHrefs: stat.startHrefs,
+        },
+        root,
+      );
+      return;
+    }
     const now = Date.now();
     const v = currentViewer();
     const signedIn = Boolean(v) || (!known && Boolean(getToken()));
@@ -88,6 +129,10 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
 
   function reload() {
     if (!stat) return;
+    if (exploring()) {
+      paint();
+      return;
+    }
     data = null;
     const mine = ++run;
     paint();
@@ -110,10 +155,10 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
       root.render(createElement(TeamLoadProgress, { label: "Reading this team's design system" }));
     }
     loadTeamData().then(
-      (team) => {
-        stat = teamHomeStatic(team);
+      (loaded) => {
+        stat = teamHomeStatic(loaded);
         sourceRoot ??= sourceEl ? createRoot(sourceEl) : null;
-        sourceRoot?.render(createElement(TeamSourceNote, { data: team, refreshing: false, onRefresh: () => (resetTeamData(), start()) }));
+        sourceRoot?.render(createElement(TeamSourceNote, { data: loaded, refreshing: false, onRefresh: () => (resetTeamData(), start()) }));
         paint();
         if (known) reload();
       },
@@ -126,6 +171,7 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
   }
 
   start();
+  onAccess(() => paint());
   initGitHubConnect(() => {
     known = true;
     reload();

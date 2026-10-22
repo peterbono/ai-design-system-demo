@@ -56,7 +56,7 @@ const previews = hosted ? [] : loadComponents().flatMap((c) => (c.docs?.preview 
       <p class="xe-sheet-note" data-xe-note>Your draft is kept in this browser. {ghVerb(signIn)} once, then {suggest ? 'send it as a suggestion' : 'request review'}.</p>
       <Button variant="secondary" data-xe-discard>Discard</Button>
       <span class="xe-grow"></span>
-      <Button variant="primary" iconStart={Send} id="ed-propose" data-gh-open disabled>{ghAction(sendGoal('tokens', mode), signIn)}</Button>
+      <Button variant="primary" iconStart={Send} id="ed-propose" data-gh-open data-demo-write="send changes for review" disabled>{ghAction(sendGoal('tokens', mode), signIn)}</Button>
     </footer>
   </aside>
 
