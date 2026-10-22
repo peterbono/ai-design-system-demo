@@ -369,6 +369,10 @@ function unknownShape(value: unknown): string {
  * a token path, a calc(), a number or null is a problem for that field, never a throw that hides every component.
  */
 export function planValue(field: SpecField, value: unknown, head: TokenSet): PlannedValue | { problem: string } {
+  return planValueOf(field, value, head);
+}
+
+function planValueOf(field: SpecField, value: unknown, head: TokenSet): PlannedValue | { problem: string } {
   if (value === null) return COLOR_FIELDS.has(field) ? { kind: 'none' } : { problem: 'no value' };
   if (field === 'textDecoration') return typeof value === 'string' && /^(UNDERLINE|STRIKETHROUGH|NONE)$/.test(value) ? { kind: 'keyword', value } : { problem: `${String(value)} is not a text decoration` };
   if (typeof value === 'number') {
@@ -449,6 +453,17 @@ export function buildComponentPlan(
     seen.add(k);
     problems.push(p);
   };
+  // The same token in the same field resolves the same way everywhere: planned once (a big system repeats them a lot).
+  const memo = new Map<string, PlannedValue | { problem: string }>();
+  const planValue = (field: SpecField, value: unknown, set: TokenSet): PlannedValue | { problem: string } => {
+    const key = `${field}\u0000${typeof value}\u0000${typeof value === 'object' ? JSON.stringify(value) : String(value)}`;
+    let hit = memo.get(key);
+    if (!hit) {
+      hit = planValueOf(field, value, set);
+      memo.set(key, hit);
+    }
+    return hit;
+  };
   const plannedFields = (owner: string, part: string, values: Partial<Record<SpecField, SpecValue>>, text: boolean): PlannedField[] => {
     const fields: PlannedField[] = [];
     for (const [field, value] of Object.entries(values) as [SpecField, SpecValue][]) {
@@ -486,6 +501,8 @@ export function buildComponentPlan(
     };
   });
   const slotByName = new Map(slots.map((sl) => [sl.name, sl]));
+  const generatedById = new Map<string, GeneratedSet>();
+  for (const g of generated) if (!generatedById.has(g.componentId)) generatedById.set(g.componentId, g);
   const components: PlannedComponent[] = [];
   for (const spec of specs.components) {
     for (const u of spec.unmapped) problem({ component: spec.name, part: u.part, property: u.property, reason: u.reason });
@@ -565,7 +582,7 @@ export function buildComponentPlan(
           : {}),
       };
     });
-    const existing = generated.find((g) => g.componentId === spec.name);
+    const existing = generatedById.get(spec.name);
     const keys = new Set(variants.map((v) => v.key));
     const have = new Set(existing?.variants ?? []);
     const addedVariants = existing ? variants.map((v) => v.key).filter((k) => !have.has(k)) : [];
