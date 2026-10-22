@@ -69,17 +69,14 @@ export const DEMO_WORDS = {
   /** The banner over every Studio page of the demo (board D1); demoBanner() picks the words for the repository. */
   bannerTitle: `${SAMPLE_TEAM}, a sample team.`,
   bannerText: 'Read-only, sample data from our open-source design system.',
-  /** The same banner on Bridge's own design system: real data, read only for a visitor. */
-  ownTitle: `${OWN_TEAM}, our own design system.`,
-  ownText: 'Read-only, the real repository behind this site.',
   seeOnGitHub: 'See it on GitHub',
   useOwn: 'Use your own repo',
   /** The banner for a visitor with a workspace, or who came through the start screen (board EmptyA2). */
   sampleTitle: 'Sample data.',
   sampleText: `You're looking at ${SAMPLE_TEAM}, read only. Nothing here touches your repository.`,
-  /** The same banner on Bridge's own design system: its data is real, so it is not called sample data. */
-  ownSampleTitle: 'Read only.',
-  ownSampleText: `You're looking at ${OWN_TEAM}, our own design system. Nothing here touches your repository.`,
+  /** The same banner on Bridge's own design system, for a guest: its data is real, so it is not called sample data. */
+  ownSampleTitle: `${OWN_TEAM}, read only.`,
+  ownSampleText: "You're looking at the design system behind Bridge. Nothing here touches your repository.",
   backToWorkspace: 'Back to your workspace',
   /** The same banner for someone who chose the demo on the start screen and has no workspace yet. */
   connectOwn: 'Connect your design system',
@@ -92,13 +89,19 @@ export const DEMO_WORDS = {
   keepExploring: 'Keep exploring',
 } as const;
 
-/** The banner's words for a demo repository: the sample team's, or Bridge's own. */
+/**
+ * The banner's words for a demo repository: the sample team's, or Bridge's own. Bridge's own team only ever shows the
+ * one-action banner (board EmptyA2), so it has no title and text for the two-action one.
+ */
 export function demoBanner(repo: string | null | undefined): { title: string; text: string; sampleTitle: string; sampleText: string } {
   const w = DEMO_WORDS;
-  return isSampleTeam(repo) || !isDemoRepo(repo)
-    ? { title: w.bannerTitle, text: w.bannerText, sampleTitle: w.sampleTitle, sampleText: w.sampleText }
-    : { title: w.ownTitle, text: w.ownText, sampleTitle: w.ownSampleTitle, sampleText: w.ownSampleText };
+  return isOwnTeam(repo)
+    ? { title: w.ownSampleTitle, text: w.ownSampleText, sampleTitle: w.ownSampleTitle, sampleText: w.ownSampleText }
+    : { title: w.bannerTitle, text: w.bannerText, sampleTitle: w.sampleTitle, sampleText: w.sampleText };
 }
+
+/** Bridge's own design system: a demo repository that is not the sample team. */
+export const isOwnTeam = (repo: string | null | undefined): boolean => isDemoRepo(repo) && !isSampleTeam(repo);
 
 /** What a write action in the demo does, as its data-demo-write says it, when it does not say ("save changes"). */
 export const DEFAULT_WRITE = 'save changes';

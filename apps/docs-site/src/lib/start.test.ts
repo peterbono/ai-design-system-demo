@@ -79,6 +79,7 @@ describe('where "Get started" goes', () => {
 describe('the demo banner and "Back to your workspace"', () => {
   it('keeps the visitor banner for someone who came straight to the demo', () => {
     expect(demoBannerKind(facts())).toBe('visitor');
+    expect(demoBannerKind(facts(), true)).toBe('workspace');
   });
 
   it('after the start screen with no workspace yet, offers to connect the design system instead of a "back"', () => {

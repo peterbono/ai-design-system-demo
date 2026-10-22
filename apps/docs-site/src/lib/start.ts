@@ -97,9 +97,10 @@ export const demoBack = (f: StartFacts, reserved: ReservedPaths | null = null): 
 /**
  * Which banner the demo shows a visitor (board EmptyA2): "Sample data" with "Back to your workspace" for someone who
  * came through the start screen or has a workspace; the demo banner with "Use your own repo" for a visitor
- * who came straight to the demo.
+ * who came straight to the sample team. A guest on Bridge's own team (`own`) always gets the one-action banner.
  */
-export const demoBannerKind = (f: StartFacts): 'workspace' | 'visitor' => (hasWorkspace(f) || f.memory.demo ? 'workspace' : 'visitor');
+export const demoBannerKind = (f: StartFacts, own = false): 'workspace' | 'visitor' =>
+  own || hasWorkspace(f) || f.memory.demo ? 'workspace' : 'visitor';
 
 /** Where "Connect my design system" leads: the browser workspace, on the step that picks the design system. */
 export const CONNECT_HREF = `${WORKSPACE_HOME}?setup=library`;
