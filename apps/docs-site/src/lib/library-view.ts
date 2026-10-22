@@ -5,7 +5,7 @@
 import { SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, type RepoModel, type TokenRow } from '@bridge-ds/core';
 import { safeSpecimenValue, tokenSpecimens, type SpecimenSet } from './token-specimens';
 import { teamComponentRows, type TeamComponentRow } from './team-components';
-import { LIBRARY_TEAM_NAV, libraryHref } from './library-shells';
+import { libraryHref, libraryTeamPages } from './library-shells';
 import type { SearchItem } from './search';
 
 const gh = (s: string) => encodeURIComponent(s);
@@ -189,13 +189,13 @@ export const tokenFromQuery = (search: string): string => new URLSearchParams(se
 // --- Search ----------------------------------------------------------------------------------------------------------
 
 /**
- * The header search of a team's Library (Cmd+K, scripts/shell.ts): its four places, every component and every token,
+ * The header search of a team's Library (Cmd+K, scripts/shell.ts): its pages, every component and every token,
  * from the model the page already read (no extra request). Same shape as Bridge's own /search-index.json, so the
  * palette ranks and paints both the same way. Swatches come from libraryTokenRows (safeSpecimenValue).
  */
 export function librarySearchIndex(model: Pick<RepoModel, 'tokens' | 'components'>, owner: string, repo: string): SearchItem[] {
   const href = (route: string) => libraryHref(owner, repo, route);
-  const pages: SearchItem[] = LIBRARY_TEAM_NAV.map((e) => ({ kind: 'page', title: e.label, href: href(e.route), meta: e.meta, keys: 'library' }));
+  const pages: SearchItem[] = libraryTeamPages().map((e) => ({ kind: 'page', title: e.label, href: href(e.route), meta: e.meta, keys: 'library' }));
   const components: SearchItem[] = libraryComponents(model).map((c) => ({
     kind: 'component',
     title: c.name,

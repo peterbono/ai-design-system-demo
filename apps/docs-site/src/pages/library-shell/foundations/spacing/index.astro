@@ -1,0 +1,13 @@
+---
+// Library shell, Spacing (lib/library-shells.ts): served for
+// /library/<owner>/<repo>/foundations/spacing/. The same view as Bridge's own page, with the team's model
+// (components/ds/library/LibraryTeamPage.tsx).
+import LibraryShell from '../../../../components/LibraryShell.astro';
+import LibraryShellKit from '../../../../components/foundations/LibraryShellKit.astro';
+import LibraryTeamPage from '../../../../components/ds/library/LibraryTeamPage';
+---
+
+<LibraryShell title="Spacing" description="A team's spacing scale and the density tokens built on it, shown in a real layout." reading>
+  <LibraryTeamPage page="spacing" client:load />
+  <LibraryShellKit />
+</LibraryShell>

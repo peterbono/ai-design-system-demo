@@ -1,22 +1,20 @@
-// A team's Library, Home (multi-team PR 4a): one sentence on what the design system holds, the one way in (Browse
-// components), then the three places as cards with their counts, and the line for AI agents (the team's llms.txt).
-// The cards mirror Bridge's own Library home, so a reader of both finds the same layout.
+// A team's Library, Home: the same view as Bridge's own Library home (views/LandingView.tsx: one sentence on what the
+// design system holds, Browse components, the three places as cards with their counts), then the line for AI agents
+// (the team's llms.txt) and where the page was read from.
 import { useEffect, useState } from 'react';
 import { Bot, ExternalLink } from 'lucide-react';
-import { Icon, Link } from '@bridge-ds/react';
+import { Icon } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
 import { Drawing } from '../studio/Drawing';
 import { LibraryPage, LibrarySourceNote, usePageTeam } from './LibraryState';
-import { libraryHome, llmsTxtUrl } from '../../../lib/library-view';
-import { libraryHref } from '../../../lib/library-shells';
+import { llmsTxtUrl } from '../../../lib/library-view';
+import LandingView from './views/LandingView';
+import { teamLibraryData } from './library-data';
 import { SNAPSHOT_TEMPLATE_URL } from '../../../lib/team-load';
 import { loadTeamLlms, type TeamData } from '../../../scripts/team-data';
 import { libraryFileUrl } from '../../../scripts/library-access-api';
-import type { IllustrationName } from '../../../brand/illustrations';
 import '../../../styles/home.css';
 import { teamDisplayName } from '../../../lib/demo';
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** Whether the team published an llms.txt (with its snapshot), once known. */
 function useHasLlms(): boolean | null {
@@ -59,24 +57,11 @@ function Agents({ data }: { data: TeamData }) {
 }
 
 function Ready({ data, refreshing, onRefresh }: { data: TeamData; refreshing: boolean; onRefresh: () => void }) {
-  const home = libraryHome(data.model);
-  const href = (route: string) => libraryHref(data.owner, data.repo, route);
-  const topics: { art: IllustrationName; title: string; text: string; route: string }[] = [
-    { art: 'foundations', title: 'Foundations', text: 'Color, type, space, radius and shadow, drawn from the tokens.', route: 'foundations/' },
-    { art: 'tokens', title: 'Tokens', text: home.semantic ? `${plural(home.semantic, 'semantic token')} with their values per theme.` : `${plural(home.tokens, 'token')} with their values.`, route: 'tokens/' },
-    { art: 'components', title: 'Components', text: home.components ? `${plural(home.components, 'component')}, ${home.documented} with usage guidance.` : 'No components found yet.', route: 'components/' },
-  ];
   return (
     <>
-      <section className="hm-topics ltm-topics" aria-label="In this Library">
-        {topics.map((t) => (
-          <Link key={t.route} variant="subtle" className="fg-card hm-topic" href={href(t.route)}>
-            <h2 className="t-h3">{t.title}</h2>
-            <p className="t-body t-muted">{t.text}</p>
-            <Drawing name={t.art} width={104} className="hm-topic-art" />
-          </Link>
-        ))}
-      </section>
+      <div>
+        <LandingView data={teamLibraryData(data)} />
+      </div>
       <Agents data={data} />
       <LibrarySourceNote data={data} refreshing={refreshing} onRefresh={onRefresh} />
     </>
@@ -88,27 +73,25 @@ export default function LibraryHome() {
   return (
     <LibraryPage
       label="Reading the Library"
-      header={(data) => (
-        <section className="zone hm-hero ltm-hero" aria-labelledby="ltm-hero-title">
-          <div className="hm-hero-copy">
-            <p className="ltm-eyebrow">Design system library</p>
-            <h1 id="ltm-hero-title" className="t-display">
-              {team ? `The ${teamDisplayName(`${team.owner}/${team.repo}`, data?.model.site)} design system` : 'Design system'}
-            </h1>
-            <p className="t-body">{data ? `${libraryHome(data.model).lead} Tokens, components and how to use them, published from the repository.` : 'Tokens, components and how to use them, published from the repository.'}</p>
-            {team && (
-              <ButtonLink variant="primary" href={libraryHref(team.owner, team.repo, 'components/')}>
-                Browse components
-              </ButtonLink>
-            )}
-          </div>
-          <div className="hm-hero-art">
-            <Drawing name="hero" width={400} />
-          </div>
-        </section>
-      )}
+      // The home's hero comes with the view (views/LandingView.tsx, as on Bridge's own home); while it reads, the
+      // team's name holds its place.
+      header={(data) =>
+        data ? null : (
+          <section className="zone hm-hero ltm-hero" aria-labelledby="hero-title">
+            <div className="hm-hero-copy">
+              <p className="ltm-eyebrow">Design system library</p>
+              <h1 id="hero-title" className="t-display">
+                {team ? `The ${teamDisplayName(`${team.owner}/${team.repo}`)} design system` : 'Design system'}
+              </h1>
+              <p className="t-body">Tokens, components and how to use them, published from the repository.</p>
+            </div>
+            <div className="hm-hero-art">
+              <Drawing name="hero" width={400} />
+            </div>
+          </section>
+        )
+      }
       ready={(data, r) => <Ready data={data} {...r} />}
     />
   );
 }
-

@@ -1,0 +1,13 @@
+---
+// Library shell, Elevation (lib/library-shells.ts): served for
+// /library/<owner>/<repo>/foundations/elevation/. The same view as Bridge's own page, with the team's model
+// (components/ds/library/LibraryTeamPage.tsx).
+import LibraryShell from '../../../../components/LibraryShell.astro';
+import LibraryShellKit from '../../../../components/foundations/LibraryShellKit.astro';
+import LibraryTeamPage from '../../../../components/ds/library/LibraryTeamPage';
+---
+
+<LibraryShell title="Elevation" description="A team's elevation levels on real surfaces in light and dark, and the shadow primitives behind them." reading>
+  <LibraryTeamPage page="elevation" client:load />
+  <LibraryShellKit />
+</LibraryShell>

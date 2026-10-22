@@ -13,21 +13,56 @@ export const LIBRARY_ROOT = '/library/';
 /** Where the Library shells are built. Not under a folder starting with "_": Astro does not build those. */
 export const LIBRARY_SHELL_ROOT = '/library-shell/';
 
-/** The Library routes a team has, relative to its Library root ('' is Home). Each has a shell page. */
-export const LIBRARY_SHELL_ROUTES = ['', 'foundations/', 'components/', 'tokens/'] as const;
+/** A page of a Library, at its route relative to the Library root ('' is Home). */
+export interface LibraryPage {
+  route: string;
+  label: string;
+  icon: string;
+  meta: string;
+  /** Sits slightly apart from the pages above it (All tokens under the foundations). */
+  apart?: boolean;
+}
 
-export type LibraryShellRoute = (typeof LIBRARY_SHELL_ROUTES)[number];
+/**
+ * The Foundations pages, in nav order: the same for Bridge's own Library (lib/nav.ts FOUNDATIONS, at /<route>) and
+ * for every team's (/library/<owner>/<repo>/<route>).
+ */
+export const LIBRARY_FOUNDATION_PAGES: LibraryPage[] = [
+  { route: 'foundations/color/', label: 'Color', icon: 'palette', meta: 'Palette ramps and the semantic roles in both themes' },
+  { route: 'foundations/typography/', label: 'Typography', icon: 'type', meta: 'Type roles, the scale and samples' },
+  { route: 'foundations/spacing/', label: 'Spacing', icon: 'spacing', meta: 'The space scale' },
+  { route: 'foundations/radius/', label: 'Radius and borders', icon: 'radius', meta: 'Radius roles and border widths' },
+  { route: 'foundations/elevation/', label: 'Elevation', icon: 'elevation', meta: 'Shadows for floating layers' },
+  { route: 'foundations/accessibility/', label: 'Accessibility', icon: 'contrast', meta: 'Contrast grid of every gated color pair, in every brand and theme' },
+  { route: 'tokens/', label: 'All tokens', icon: 'grid', apart: true, meta: 'Every semantic token with its light and dark value, ready to copy' },
+];
+
+/** A top-level entry of a team's Library side nav: a page, or a group of pages (Foundations). */
+export type LibraryNavEntry = (LibraryPage & { children?: undefined }) | { label: string; icon: string; children: LibraryPage[] };
+
+/**
+ * The side nav of a team's Library: the same structure as Bridge's own Library (lib/nav.ts libraryNav), Home,
+ * Foundations and its pages, Components. Layout.astro renders both with the same markup.
+ */
+export const LIBRARY_TEAM_NAV: LibraryNavEntry[] = [
+  { route: '', label: 'Home', icon: 'home', meta: 'What this design system holds and where to start' },
+  { label: 'Foundations', icon: 'layers', children: LIBRARY_FOUNDATION_PAGES },
+  { route: 'components/', label: 'Components', icon: 'diamonds', meta: 'Every component with its guidance and live stories' },
+];
+
+/** Every page of a team's Library nav, groups opened, in nav order. */
+export const libraryTeamPages = (): LibraryPage[] => LIBRARY_TEAM_NAV.flatMap((e) => e.children ?? [e]);
+
+/**
+ * The Library routes a team has, relative to its Library root ('' is Home). Each has a shell page. 'foundations/'
+ * opens Color (as on Bridge's own Library), for links made before Foundations had a page per topic.
+ */
+export const LIBRARY_SHELL_ROUTES = ['', ...LIBRARY_FOUNDATION_PAGES.map((p) => p.route).filter((r) => r !== 'tokens/'), 'foundations/', 'components/', 'tokens/'] as const;
+
+export type LibraryShellRoute = string;
 
 /** The marker a shell carries on <html data-library-shell="...">: its route without slashes ('home' for ''). */
 export const libraryShellMarker = (route: string): string => route.replace(/\/$/, '').replace(/\//g, '-') || 'home';
-
-/** The side nav of a team's Library: the same four places on every team, labelled as on Bridge's own Library. */
-export const LIBRARY_TEAM_NAV: { route: LibraryShellRoute; label: string; icon: string; meta: string }[] = [
-  { route: '', label: 'Home', icon: 'home', meta: 'What this design system holds and where to start' },
-  { route: 'foundations/', label: 'Foundations', icon: 'layers', meta: 'Color, type, space, radius and shadow, drawn from the tokens' },
-  { route: 'components/', label: 'Components', icon: 'diamonds', meta: 'Every component with its guidance and live stories' },
-  { route: 'tokens/', label: 'Tokens', icon: 'grid', meta: 'Every token with its value per theme' },
-];
 
 const OWNER = new RegExp(`^${OWNER_PATTERN}$`);
 const REPO = new RegExp(`^${REPO_PATTERN}$`);
@@ -64,18 +99,19 @@ export const sameTeam = (a: TeamPair, b: TeamPair | null | undefined): boolean =
 
 /**
  * The page of the site's own Library that stands for a team Library route: the same Library for every visitor of
- * that team (guest, GitHub or email). Foundations opens on Color (the own Library has a page per foundation), a
+ * that team (guest, GitHub or email). Each foundation page (and its anchor) on its own, Foundations on Color, a
  * component (?c=button) on its page, anything else on the Library home.
  */
 export function ownLibraryPath(route = ''): string {
   const [path = '', query = ''] = route.replace(/^\/+/, '').split(/[?#]/);
+  const hash = /#([A-Za-z0-9_-]+)$/.exec(route)?.[1];
   const p = path.replace(/\/?$/, '/');
   if (p === 'components/') {
     const slug = new URLSearchParams(query).get('c');
     return slug && /^[a-z0-9][a-z0-9-]*$/i.test(slug) ? `/components/${slug.toLowerCase()}/` : '/components/';
   }
   if (p === 'foundations/') return '/foundations/color/';
-  if (p === 'tokens/') return '/tokens/';
+  if (LIBRARY_FOUNDATION_PAGES.some((f) => f.route === p)) return `/${p}${hash ? `#${hash}` : ''}`;
   return LIBRARY_ROOT;
 }
 
@@ -101,7 +137,7 @@ export function ownLibraryRedirects(own: TeamPair): { source: string; destinatio
     { source: `${base}/components/`, has: [{ type: 'query', key: 'c', value: '(?<slug>[a-z0-9][a-z0-9-]*)' }], destination: '/components/:slug/', permanent: false },
     ...pair('/components', '/components/'),
     ...pair('/foundations', '/foundations/color/'),
-    ...pair('/tokens', '/tokens/'),
+    ...LIBRARY_FOUNDATION_PAGES.flatMap((p) => pair(`/${p.route.replace(/\/$/, '')}`, `/${p.route}`)),
     ...pair('/:path*', LIBRARY_ROOT),
   ];
 }

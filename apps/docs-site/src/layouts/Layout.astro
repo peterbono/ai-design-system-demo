@@ -21,7 +21,8 @@ import { switchTarget } from '../lib/space-switch';
 import { loadComponents } from '../lib/components';
 import { shellMarker, studioPathOfShell } from '../lib/team-shells';
 import { LIBRARY_SHELL_ROOT, LIBRARY_TEAM_NAV, libraryShellMarker, routeOfShell } from '../lib/library-shells';
-import { COMPARE, LANDING, LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, type Space } from '../lib/nav';
+import { COMPARE, LANDING, LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, type NavEntry, type Space } from '../lib/nav';
+import type { IconName } from '../brand/icons';
 import { PRIVACY_PAGE } from '../lib/account';
 import { siteRepo, siteRepoJson } from '../lib/config';
 import TeamChip from '../components/ds/studio/TeamChip';
@@ -84,9 +85,17 @@ const path = studioPathOfShell(Astro.url.pathname.replace(/\/?$/, '/'));
 const shell = hosted ? shellMarker(Astro.url.pathname.replace(/^\/team-shell\/?/, '').replace(/\/?$/, '/').replace(/^\/$/, '')) : undefined;
 const here = locate(path);
 const space: Space = bare ? 'studio' : here.space;
-// A team's Library: its own four places, at the shell paths (scripts/library-team.ts points them at the team).
+// A team's Library: the same nav as Bridge's own Library, at the shell paths (scripts/library-team.ts points them at
+// the team).
 const libraryRoute = library ? routeOfShell(Astro.url.pathname.replace(/\/?$/, '/')) : undefined;
-const nav = library ? LIBRARY_TEAM_NAV.map((e) => ({ href: `${LIBRARY_SHELL_ROOT}${e.route}`, label: e.label, icon: e.icon, meta: e.meta })) : navFor(space);
+const shellHref = (route: string) => `${LIBRARY_SHELL_ROOT}${route}`;
+const nav: NavEntry[] = library
+  ? LIBRARY_TEAM_NAV.map((e) =>
+      e.children
+        ? { label: e.label, icon: e.icon as IconName, children: e.children.map((c) => ({ href: shellHref(c.route), label: c.label, icon: c.icon as IconName, apart: c.apart, meta: c.meta })) }
+        : { href: shellHref(e.route), label: e.label, icon: e.icon as IconName, meta: e.meta },
+    )
+  : navFor(space);
 const isStudio = space === 'studio';
 const isHome = path === LIBRARY_HOME || path === STUDIO_HOME;
 // Tokens, Components and Quality can show the library as an open change (lib/view-scope): the selector and the banner.
@@ -241,7 +250,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
               }
               // Every group renders open, the same for every visitor; scripts/shell.ts applies this tab's toggles
               // to the other groups (lib/nav-groups.ts) and never closes the one holding the current page.
-              const current = here.entry?.label === entry.label;
+              const current = library ? entry.children!.some((c) => isCurrent(c.href)) : here.entry?.label === entry.label;
               const id = `nav-group-${n}`;
               return (
                 <li class="nav-group">

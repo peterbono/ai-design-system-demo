@@ -1,0 +1,15 @@
+---
+// What a foundation page of a team's Library shell needs once, like LibraryKit.astro on Bridge's own pages: the copy
+// toast and the token detail drawer's markup and styles. The island (components/ds/library/LibraryTeamPage.tsx) writes
+// the drawer's data from the team's model and starts the page scripts once the view is in the page.
+import '../../styles/foundations.css';
+import '../../styles/reviews.css';
+import '../../styles/history.css';
+import '../../styles/token-explorer.css';
+---
+
+<div class="fd-toast" id="fd-toast" role="status" aria-live="polite" hidden></div>
+<div class="fd-drawer-root" data-fd-drawer>
+  <div class="xp-scrim fd-scrim" data-fd-scrim hidden></div>
+  <aside class="xp-detail fd-drawer" role="dialog" aria-modal="true" aria-labelledby="xp-d-title" tabindex="-1" data-fd-detail hidden></aside>
+</div>

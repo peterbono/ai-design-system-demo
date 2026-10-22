@@ -1,0 +1,13 @@
+---
+// Library shell, Radius and borders (lib/library-shells.ts): served for
+// /library/<owner>/<repo>/foundations/radius/. The same view as Bridge's own page, with the team's model
+// (components/ds/library/LibraryTeamPage.tsx).
+import LibraryShell from '../../../../components/LibraryShell.astro';
+import LibraryShellKit from '../../../../components/foundations/LibraryShellKit.astro';
+import LibraryTeamPage from '../../../../components/ds/library/LibraryTeamPage';
+---
+
+<LibraryShell title="Radius and borders" description="A team's radius roles, radius scale, border widths and focus ring width." reading>
+  <LibraryTeamPage page="radius" client:load />
+  <LibraryShellKit />
+</LibraryShell>

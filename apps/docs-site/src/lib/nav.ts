@@ -14,6 +14,7 @@ import type { IconName } from '../brand/icons';
 import { loadComponents } from './components';
 import { VOCAB } from './vocabulary';
 import { START_PAGE, WORKSPACE_HOME } from './start';
+import { LIBRARY_FOUNDATION_PAGES } from './library-shells';
 
 // Studio links in both modes (self-hosted /studio/, team shells /studio/<owner>/<repo>/). Browser code imports it from
 // lib/team-path directly: this module reads the repository at build time.
@@ -66,15 +67,8 @@ export const START = START_PAGE;
 export const WORKSPACE = WORKSPACE_HOME;
 export const SETTINGS_HOME = '/studio/settings/';
 
-export const FOUNDATIONS: NavItem[] = [
-  { href: '/foundations/color/', label: 'Color', icon: 'palette', meta: 'Palette ramps and the semantic roles in both themes' },
-  { href: '/foundations/typography/', label: 'Typography', icon: 'type', meta: 'Type roles, the scale and samples' },
-  { href: '/foundations/spacing/', label: 'Spacing', icon: 'spacing', meta: 'The space scale' },
-  { href: '/foundations/radius/', label: 'Radius and borders', icon: 'radius', meta: 'Radius roles and border widths' },
-  { href: '/foundations/elevation/', label: 'Elevation', icon: 'elevation', meta: 'Shadows for floating layers' },
-  { href: '/foundations/accessibility/', label: 'Accessibility', icon: 'contrast', meta: 'Contrast grid of every gated color pair, in every brand and theme' },
-  { href: '/tokens/', label: 'All tokens', icon: 'grid', apart: true, meta: 'Every semantic token with its light and dark value, ready to copy' },
-];
+/** The Foundations pages: one list with a team's Library (lib/library-shells.ts), at this site's root. */
+export const FOUNDATIONS: NavItem[] = LIBRARY_FOUNDATION_PAGES.map((p) => ({ href: `/${p.route}`, label: p.label, icon: p.icon as IconName, ...(p.apart ? { apart: true } : {}), meta: p.meta }));
 
 export const LIBRARY_USE: NavItem[] = [
   { href: '/install/', label: 'Install', icon: 'box', meta: 'Packages, fonts and the DS Bridge Figma plugin' },

@@ -52,6 +52,8 @@ describe('switchTarget from the Library', () => {
     });
     expect(switchTarget({ space: 'library', pathname: '/library/acme/ds/', libraryRoute: '', team, studioRoot: '/studio/~/acme/ds/' }).href).toBe('/studio/~/acme/ds/');
     expect(switchTarget({ space: 'library', pathname: '/library-shell/tokens/', libraryRoute: 'tokens/' }).href).toBe('/studio/tokens/');
+    expect(switchTarget({ space: 'library', pathname: '/library/acme/ds/foundations/color/', libraryRoute: 'foundations/color/', team, studioRoot: '/studio/acme/ds/' })).toEqual({ href: '/studio/acme/ds/tokens/?focus=color', item: 'Color' });
+    expect(switchTarget({ space: 'library', pathname: '/library/acme/ds/foundations/accessibility/', libraryRoute: 'foundations/accessibility/', team, studioRoot: '/studio/acme/ds/' }).href).toBe('/studio/acme/ds/quality/');
   });
 });
 
@@ -76,7 +78,9 @@ describe('switchTarget from Studio', () => {
     const team = { owner: 'acme', repo: 'ds' };
     const t = (pathname: string, search = '', studioRoot = '/studio/acme/ds/') => switchTarget({ space: 'studio', pathname, search, team, studioRoot, nameOf });
     expect(t('/studio/acme/ds/components/', '?c=button')).toEqual({ href: '/library/acme/ds/components/?c=button', item: 'Button' });
-    expect(t('/studio/acme/ds/tokens/', '?focus=color').href).toBe('/library/acme/ds/tokens/');
+    expect(t('/studio/acme/ds/tokens/', '?focus=color')).toEqual({ href: '/library/acme/ds/foundations/color/', item: 'Color' });
+    expect(t('/studio/acme/ds/tokens/').href).toBe('/library/acme/ds/tokens/');
+    expect(t('/studio/acme/ds/quality/').href).toBe('/library/acme/ds/foundations/accessibility/');
     expect(t('/studio/acme/ds/settings/').href).toBe('/library/acme/ds/');
     expect(t('/studio/~/acme/ds/components/', '', '/studio/~/acme/ds/').href).toBe('/library/acme/ds/components/');
   });
