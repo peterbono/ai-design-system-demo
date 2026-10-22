@@ -13,6 +13,11 @@
       "const": 1,
       "description": "Config format version."
     },
+    "name": {
+      "type": "string",
+      "description": "The team's display name, shown on invites and in Bridge instead of owner/repo.",
+      "minLength": 1
+    },
     "repo": {
       "description": "GitHub repository. Pull requests target defaultBranch; Bridge never writes to it.",
       "oneOf": [

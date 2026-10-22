@@ -68,6 +68,7 @@ import { githubApp as sharedGithubApp, type AppTokens } from '../_lib/github-app
 import { b64url, clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody as readJsonBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin as originOf, type FetchLike } from '../_lib/http.js';
 import { memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
+import { teamDisplayName } from '../../src/lib/demo.js';
 
 export { appJwt } from '../_lib/github-app.js';
 export { resendSender, sameOrigin };
@@ -396,15 +397,16 @@ export function memoryStore(now: () => number = Date.now): InviteStore & { keys(
 // ---------------------------------------------------------------------------------------------------------------
 // Email: Resend
 
-/** The invite email: who invited, the role in words, the one link. */
-export function inviteEmail(x: { to: string; inviter: string; repo: string; role: Role; reviewAs?: ReviewAs; link: string }): EmailMessage {
+/** The invite email: who invited, the team by its name (`team`, else teamDisplayName), the role in words, the one link. */
+export function inviteEmail(x: { to: string; inviter: string; repo: string; team?: string; role: Role; reviewAs?: ReviewAs; link: string }): EmailMessage {
   const w = ROLE_WORDS[x.role];
   const roleLabel = x.role === 'reviewer' && x.reviewAs ? `${w.label}: ${REVIEW_AS_WORDS[x.reviewAs]}` : w.label;
-  const subject = `${x.inviter} invited you to ${x.repo} on Bridge`;
+  const team = x.team ?? teamDisplayName(x.repo);
+  const subject = `${x.inviter} invited you to ${team} on Bridge`;
   // "Can edit" joins with the email alone (api/contribute); reviewers and admins approve on GitHub.
   const how = x.role === 'edit' ? 'You join with this email, no GitHub account needed.' : 'You sign in with GitHub.';
   const lines = [
-    `${x.inviter} invited you to the ${x.repo} design system on Bridge.`,
+    `${x.inviter} invited you to the ${team} design system on Bridge.`,
     '',
     `Your role: ${roleLabel}. ${w.text}`,
     '',
@@ -414,7 +416,7 @@ export function inviteEmail(x: { to: string; inviter: string; repo: string; role
     "If you did not expect this email, you can ignore it.",
   ];
   const html = [
-    `<p>${escHtml(x.inviter)} invited you to the <strong>${escHtml(x.repo)}</strong> design system on Bridge.</p>`,
+    `<p>${escHtml(x.inviter)} invited you to the <strong>${escHtml(team)}</strong> design system on Bridge.</p>`,
     `<p>Your role: <strong>${escHtml(roleLabel)}</strong>. ${escHtml(w.text)}</p>`,
     `<p><a href="${escHtml(x.link)}">Join the team</a></p>`,
     `<p>${how} The link works once and expires in 7 days.</p>`,
@@ -766,6 +768,28 @@ interface Ctx {
   limits: Record<LimitKind, number>;
 }
 
+/**
+ * The name a team goes by on the invite page and in the invite email: bridge.config.json `name` on the default branch
+ * (read with the installation token), else teamDisplayName (a demo's name, else the repository part). Never fails:
+ * anything GitHub does not answer falls back.
+ */
+async function teamNameOf(ctx: Ctx, full: string): Promise<string> {
+  try {
+    const [owner, repo] = full.split('/');
+    const token = owner && repo ? await ctx.svc.app.installationToken(owner, repo) : null;
+    if (token) {
+      const file = await gh(ctx.f, token, 'GET', `/repos/${owner}/${repo}/contents/${CONFIG_FILE}`);
+      if (file.status === 200 && typeof file.data?.content === 'string') {
+        const name = JSON.parse(Buffer.from(file.data.content, 'base64').toString('utf8'))?.name;
+        if (typeof name === 'string' && name.trim()) return name.trim().slice(0, 80);
+      }
+    }
+  } catch {
+    // Fall back below.
+  }
+  return teamDisplayName(full);
+}
+
 async function appFor(ctx: Ctx, owner: string, repo: string): Promise<string> {
   const t = await ctx.svc.app.installationToken(owner, repo);
   if (!t) throw new HttpError(409, 'app_missing', APP_MISSING);
@@ -812,7 +836,7 @@ async function storeAndSend(ctx: Ctx, inv: Omit<StoredInvite, 'tokenHash' | 'sen
   const full: StoredInvite = { ...inv, tokenHash: hash, sentAt: new Date(now).toISOString(), expiresAt: new Date(now + INVITE_TTL_MS).toISOString() };
   await ctx.svc.store.put(full, Math.ceil(INVITE_TTL_MS / 1000));
   try {
-    await ctx.svc.email.send(inviteEmail({ to: inv.email, inviter, repo: inv.repo, role: inv.role, ...(inv.reviewAs ? { reviewAs: inv.reviewAs } : {}), link: `${origin}${INVITE_PATH}#t=${token}` }));
+    await ctx.svc.email.send(inviteEmail({ to: inv.email, inviter, repo: inv.repo, team: await teamNameOf(ctx, inv.repo), role: inv.role, ...(inv.reviewAs ? { reviewAs: inv.reviewAs } : {}), link: `${origin}${INVITE_PATH}#t=${token}` }));
   } catch {
     // Never leave an invite nobody received.
     await ctx.svc.store.remove(full);
@@ -1047,7 +1071,7 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
       if (typeof body.token !== 'string' || !TOKEN.test(body.token)) return fail(410, 'expired', EXPIRED);
       const inv = await ctx.svc.store.byTokenHash(sha256(body.token));
       if (!inv || !alive(inv, ctx.now())) return fail(410, 'expired', EXPIRED);
-      return json(200, { team: inv.repo, repo: inv.repo, role: inv.role, sentTo: maskEmail(inv.email) });
+      return json(200, { team: await teamNameOf(ctx, inv.repo), repo: inv.repo, role: inv.role, sentTo: maskEmail(inv.email) });
     }
     case 'accept': {
       const userToken = bearer(req);

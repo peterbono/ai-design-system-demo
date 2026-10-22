@@ -227,6 +227,8 @@ type Partialish<T> = { [K in keyof T]?: T[K] | undefined };
 export interface BridgeConfigInput {
   $schema?: string;
   version?: number;
+  /** The team's display name, shown on invites instead of owner/repo. */
+  name?: string;
   repo?: (Partial<RepoRef> & { owner: string; name: string }) | string;
   /** Flat form: base branch. */
   branch?: string;

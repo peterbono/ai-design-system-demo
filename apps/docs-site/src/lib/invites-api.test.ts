@@ -53,6 +53,8 @@ interface World {
   ownerType: 'User' | 'Organization';
   orgMembers: string[];
   acceptStatus: number;
+  /** bridge.config.json on GitHub; defaults to CONFIG. */
+  config?: string;
   calls: { method: string; path: string; auth: string; body?: any }[];
 }
 
@@ -101,7 +103,7 @@ function github(w: World): FetchLike {
     }
     if (m === 'DELETE' && /^\/repos\/acme\/design\/collaborators\//.test(path)) return res(204);
     if (m === 'PATCH' && path === '/user/repository_invitations/77') return res(w.acceptStatus);
-    if (m === 'GET' && path === '/repos/acme/design/contents/bridge.config.json') return res(200, { content: Buffer.from(CONFIG).toString('base64'), sha: 'filesha' });
+    if (m === 'GET' && path === '/repos/acme/design/contents/bridge.config.json') return res(200, { content: Buffer.from(w.config ?? CONFIG).toString('base64'), sha: 'filesha' });
     if (m === 'GET' && path === '/repos/acme/design/git/ref/heads/main') return res(200, { object: { sha: 'headsha' } });
     if (m === 'POST' && path === '/repos/acme/design/git/refs') return res(201, {});
     if (m === 'PUT' && path === '/repos/acme/design/contents/bridge.config.json') return res(200, {});
@@ -235,7 +237,7 @@ describe('admin checks on the server', () => {
     const r = await handleInvites(anon({ action: 'peek', token }), {}, deps);
     expect(r.status).toBe(200);
     const body = await r.json();
-    expect(body).toEqual({ team: REPO, repo: REPO, role: 'edit', sentTo: 's•••@acme.design' });
+    expect(body).toEqual({ team: 'design', repo: REPO, role: 'edit', sentTo: 's•••@acme.design' });
     expect(JSON.stringify(body)).not.toContain('sofia@');
     expect((await handleInvites(anon({ action: 'peek', token: 'q'.repeat(43) }), {}, deps)).status).toBe(410);
     expect((await handleInvites(anon({ action: 'peek', token: 'bad' }), {}, deps)).status).toBe(410);
@@ -268,7 +270,7 @@ describe('invite token lifecycle', () => {
     expect(await r.json()).toEqual({ results: [{ email: 'sofia@acme.design', status: 'sent' }] });
     expect(sent).toHaveLength(1);
     expect(sent[0]!.to).toBe('sofia@acme.design');
-    expect(sent[0]!.subject).toBe('Dana invited you to acme/design on Bridge');
+    expect(sent[0]!.subject).toBe('Dana invited you to design on Bridge');
     expect(sent[0]!.text).toContain(`${ORIGIN}/studio/invite/#t=`);
     const token = tokenOf(sent[0]!);
     expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
@@ -810,6 +812,23 @@ describe('email contributors in Members', () => {
     expect(edit.text).toContain('You join with this email, no GitHub account needed.');
     const reviewer = inviteEmail({ to: 'a@b.co', inviter: 'Dana', repo: REPO, role: 'reviewer', reviewAs: 'design', link: 'https://x/#t=1' });
     expect(reviewer.text).toContain('You sign in with GitHub.');
+  });
+
+  it('peek and the email use bridge.config.json name when the team set one', async () => {
+    const { deps, sent } = setup({ config: CONFIG.replace('"version": 1,', '"version": 1,\n  "name": "Acme Studio",') });
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
+    expect(sent[0]!.subject).toBe('Dana invited you to Acme Studio on Bridge');
+    const r = await handleInvites(post({ action: 'peek', token: tokenOf(sent[0]!) }), {}, deps);
+    expect((await r.json()).team).toBe('Acme Studio');
+  });
+
+  it("the email names the team, not its repository: Bridge's own design system reads Bridge", () => {
+    const own = inviteEmail({ to: 'a@b.co', inviter: 'Dana', repo: 'peterbono/ai-design-system-demo', role: 'edit', link: 'https://x/#t=1' });
+    expect(own.subject).toBe('Dana invited you to Bridge on Bridge');
+    expect(`${own.text}${own.html}`).not.toContain('peterbono/');
+    const other = inviteEmail({ to: 'a@b.co', inviter: 'Dana', repo: REPO, role: 'edit', link: 'https://x/#t=1' });
+    expect(other.subject).toBe('Dana invited you to design on Bridge');
+    expect(other.text).toContain('the design design system');
   });
 
   it('joining with GitHub drops an email membership of the same address', async () => {
