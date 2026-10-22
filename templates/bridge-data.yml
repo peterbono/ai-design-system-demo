@@ -73,7 +73,10 @@ jobs:
         # `bridge audit --json` can be carried with --audit-report <file or folder>.
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: npx --yes "$BRIDGE_CLI" snapshot --activity --out "$RUNNER_TEMP/bridge-data" | tee -a "$GITHUB_STEP_SUMMARY"
+        # pipefail: a failed snapshot must stop the run, never publish an empty bridge-data branch.
+        run: |
+          set -o pipefail
+          npx --yes "$BRIDGE_CLI" snapshot --activity --out "$RUNNER_TEMP/bridge-data" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Publish to the bridge-data branch
         env:
