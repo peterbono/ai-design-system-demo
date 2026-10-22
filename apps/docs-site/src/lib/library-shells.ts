@@ -47,8 +47,64 @@ export function libraryFromPath(pathname: string): { owner: string; repo: string
   return OWNER.test(owner) && REPO.test(repo) && isTeamName(owner, repo) ? { owner, repo } : null;
 }
 
-/** The Library address of a team, at `route` ('' is Home; a query or hash may follow the route). */
-export const libraryHref = (owner: string, repo: string, route = ''): string => `${LIBRARY_ROOT}${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${route.replace(/^\/+/, '')}`;
+export type TeamPair = { owner: string; repo: string };
+
+/**
+ * The repository this site documents (bridge.config.json), whose Library is the site's own at /library/ and its
+ * pages. Carried on <html data-own-library="owner/repo"> by the layout; null outside a browser or when absent.
+ */
+export function ownLibrary(doc: Document | undefined = typeof document === 'undefined' ? undefined : document): TeamPair | null {
+  const [owner, repo] = (doc?.documentElement.dataset.ownLibrary ?? '').split('/');
+  return owner && repo ? { owner, repo } : null;
+}
+
+/** GitHub names are case-insensitive. */
+export const sameTeam = (a: TeamPair, b: TeamPair | null | undefined): boolean =>
+  Boolean(b) && a.owner.toLowerCase() === b!.owner.toLowerCase() && a.repo.toLowerCase() === b!.repo.toLowerCase();
+
+/**
+ * The page of the site's own Library that stands for a team Library route: the same Library for every visitor of
+ * that team (guest, GitHub or email). Foundations opens on Color (the own Library has a page per foundation), a
+ * component (?c=button) on its page, anything else on the Library home.
+ */
+export function ownLibraryPath(route = ''): string {
+  const [path = '', query = ''] = route.replace(/^\/+/, '').split(/[?#]/);
+  const p = path.replace(/\/?$/, '/');
+  if (p === 'components/') {
+    const slug = new URLSearchParams(query).get('c');
+    return slug && /^[a-z0-9][a-z0-9-]*$/i.test(slug) ? `/components/${slug.toLowerCase()}/` : '/components/';
+  }
+  if (p === 'foundations/') return '/foundations/color/';
+  if (p === 'tokens/') return '/tokens/';
+  return LIBRARY_ROOT;
+}
+
+/**
+ * The Library address of a team, at `route` ('' is Home; a query or hash may follow the route). The repository this
+ * site documents (`own`) has one Library, the site's own: its address is that page, whoever asks.
+ */
+export const libraryHref = (owner: string, repo: string, route = '', own: TeamPair | null = ownLibrary()): string =>
+  sameTeam({ owner, repo }, own) ? ownLibraryPath(route) : `${LIBRARY_ROOT}${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${route.replace(/^\/+/, '')}`;
+
+/**
+ * The redirects vercel.json carries ahead of the team rewrites: the team address of the repository this site documents
+ * goes to the site's own Library (ownLibraryPath), so its readers never land on the generic team shell.
+ */
+export function ownLibraryRedirects(own: TeamPair): { source: string; destination: string; permanent: false; has?: { type: 'query'; key: string; value: string }[] }[] {
+  const base = `${LIBRARY_ROOT}${own.owner}/${own.repo}`;
+  // Two rules per address, the trailing slash one first, as for the rewrites (`:path*` does not match it).
+  const pair = (path: string, destination: string) => [
+    { source: `${base}${path}/`, destination, permanent: false as const },
+    { source: `${base}${path}`, destination, permanent: false as const },
+  ];
+  return [
+    { source: `${base}/components/`, has: [{ type: 'query', key: 'c', value: '(?<slug>[a-z0-9][a-z0-9-]*)' }], destination: '/components/:slug/', permanent: false },
+    ...pair('/components', '/components/'),
+    ...pair('/foundations', '/foundations/color/'),
+    ...pair('/tokens', '/tokens/'),
+    ...pair('/:path*', LIBRARY_ROOT),
+  ];
+}
 
 /** The route a shell page stands for, from its built path (/library-shell/tokens/ -> 'tokens/'). */
 export const routeOfShell = (path: string): string => (path.startsWith(LIBRARY_SHELL_ROOT) ? path.slice(LIBRARY_SHELL_ROOT.length).replace(/\/?$/, '/').replace(/^\/$/, '') : '');
