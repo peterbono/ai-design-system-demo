@@ -6,9 +6,9 @@
 // When GitHub refuses the saved token (revoked, regenerated or expired), the block says so with a Reconnect button
 // instead of the account. Painted by scripts/github-session.ts (every [data-gh-connect] block gets data-state
 // readonly|checking|connected|rejected).
-// With a GitHub App (docs/SIGN-IN.md) the button is "Sign in" with a neutral sign-in icon, since a team may also let
-// people in with their email: on such a team it opens the team's sign-in screen (both ways in, components/ds/studio/
-// NoAccess.tsx), elsewhere (the sample team, a site without email sign-in) it goes straight to GitHub. The menu has
+// With a GitHub App (docs/SIGN-IN.md) the button is "Sign in" with a neutral sign-in icon: it opens the one sign-in
+// screen of Bridge (pages/signin.astro, GitHub or email) and comes back to this page. Signed in with a Bridge account,
+// this block steps aside for the account row (components/ds/account/AccountMenu.tsx). The menu has
 // no "Change token" then: the designer UI never offers a token paste. The rejected and menu wording follows the
 // session kind. The account row's second line is the team's name (lib/demo.ts teamDisplayName), never owner/repo.
 // An email contributor (lib/contribute.ts, real teams only) gets the same account row, never a sign-in button: the DS
@@ -25,6 +25,7 @@ import { teamDisplayName } from '../lib/demo';
 import { signInConfig } from '../lib/signin-config';
 import { ghVerb } from '../lib/gh-wording';
 import { studioHref } from '../lib/team-path';
+import { SIGNIN_PAGE } from '../lib/account';
 
 interface Props {
   /** The browser workspace (pages/studio/workspace.astro): no repository yet, and it signs in like a team page. */
@@ -38,9 +39,16 @@ const signIn = Boolean(signInConfig(workspace));
 
 <div class="gh-acct" data-gh-connect data-gh-acct data-state="checking">
   <div class="gh-acct-connect">
-    <Button variant="primary" iconStart={signIn ? LogIn : GitHubMark} fullWidth data-gh-open data-gh-signin={signIn ? '' : undefined} data-gh-signin-screen={signIn ? '' : undefined} aria-describedby="gh-acct-note">
-      {ghVerb(signIn)}
-    </Button>
+    {signIn ? (
+      // The one sign-in screen of Bridge, back to this page afterwards (scripts/signin-links.ts fills ?next).
+      <ButtonLink variant="primary" iconStart={LogIn} fullWidth href={SIGNIN_PAGE} data-signin-next aria-describedby="gh-acct-note">
+        {ghVerb(signIn)}
+      </ButtonLink>
+    ) : (
+      <Button variant="primary" iconStart={GitHubMark} fullWidth data-gh-open aria-describedby="gh-acct-note">
+        {ghVerb(signIn)}
+      </Button>
+    )}
     <p class="gh-acct-note" id="gh-acct-note">{signIn ? 'Read only until you sign in' : 'Read only until connected'}</p>
   </div>
   <div class="gh-acct-rejected" role="status">

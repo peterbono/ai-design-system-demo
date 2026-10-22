@@ -1,0 +1,268 @@
+/* Bridge accounts: the sign-in screen (components/ds/account/SignIn.tsx), the account menu and Settings > Account
+   (AccountMenu.tsx, AccountSettings.tsx), the privacy page. One Harbor zone per screen (the sign-in card); the account
+   blocks are quiet rows. Four type sizes: h1, body, ui, caption. */
+
+/* --- Sign-in screen ------------------------------------------------------------------------------------------- */
+
+.acc {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: var(--size-120);
+  margin: var(--space-10) auto;
+  padding: var(--space-10) var(--space-8) var(--space-8);
+  text-align: center;
+}
+
+.acc-art {
+  display: flex;
+  color: var(--color-text-default);
+}
+
+.acc-title {
+  margin: 0;
+  font-family: var(--typography-h1-family);
+  font-size: var(--typography-h1-size);
+  font-weight: var(--typography-h1-weight);
+  line-height: var(--typography-h1-line-height);
+  letter-spacing: var(--typography-h1-tracking);
+  text-wrap: balance;
+}
+
+.acc-lead {
+  margin: 0;
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+  overflow-wrap: anywhere;
+}
+
+.acc-alert,
+.acc-ways,
+.acc-form {
+  width: 100%;
+  text-align: start;
+}
+
+.acc-ways,
+.acc-form {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+/* The code: wide, spaced digits, like the email it came from. */
+.acc-code input {
+  font-family: var(--font-family-mono);
+  letter-spacing: var(--typography-h2-tracking);
+}
+
+.acc-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.acc-foot {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.acc-quiet {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+@media (max-width: 640px) {
+  .acc {
+    margin: var(--space-4) auto;
+    padding: var(--space-8) var(--space-5) var(--space-6);
+  }
+
+  .acc-title {
+    font-size: var(--typography-h2-size);
+    line-height: var(--typography-h2-line-height);
+  }
+}
+
+/* --- Account everywhere --------------------------------------------------------------------------------------- */
+
+/* Signed in with a Bridge account, the account row replaces the GitHub-only block at the foot of the nav and the
+   GitHub avatar of the top bar (scripts/account-session.ts sets the attribute). */
+:root[data-account] .rail-foot .gh-acct,
+:root[data-account] .topbar-who {
+  display: none;
+}
+
+.acc-menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  text-align: start;
+}
+
+.acc-menu-text {
+  display: grid;
+  min-width: 0;
+}
+
+.acc-menu-name,
+.acc-menu-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acc-menu-name {
+  font-weight: var(--font-weight-semibold);
+}
+
+.acc-menu-line {
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+.acc-menu-head {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+/* --- Settings > Account --------------------------------------------------------------------------------------- */
+
+.acc-set {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.acc-set-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+}
+
+.acc-set-text {
+  display: grid;
+  flex: 1 1 var(--size-60);
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.acc-set-title {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.acc-set-sub {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+  overflow-wrap: anywhere;
+}
+
+.acc-set-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.acc-set-form > :first-child {
+  flex: 1 1 var(--size-60);
+}
+
+.acc-set-teams {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.acc-set-team {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.acc-set-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* --- Privacy -------------------------------------------------------------------------------------------------- */
+
+.pv {
+  display: grid;
+  gap: var(--space-8);
+  max-width: var(--size-180);
+  margin: var(--space-6) auto var(--space-16);
+}
+
+.pv-head {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-10) var(--space-8);
+}
+
+.pv-title {
+  margin: 0;
+  font-family: var(--typography-h1-family);
+  font-size: var(--typography-h1-size);
+  font-weight: var(--typography-h1-weight);
+  line-height: var(--typography-h1-line-height);
+  letter-spacing: var(--typography-h1-tracking);
+}
+
+.pv-lead,
+.pv p,
+.pv li {
+  margin: 0;
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
+.pv-section {
+  display: grid;
+  gap: var(--space-3);
+  padding-inline: var(--space-8);
+}
+
+.pv-h {
+  margin: 0;
+  font-family: var(--typography-h2-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--typography-h2-weight);
+  line-height: var(--typography-h2-line-height);
+  letter-spacing: var(--typography-h2-tracking);
+}
+
+.pv ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-inline-start: var(--space-6);
+}
+
+@media (max-width: 640px) {
+  .pv-head {
+    padding: var(--space-8) var(--space-5);
+  }
+
+  .pv-section {
+    padding-inline: 0;
+  }
+}

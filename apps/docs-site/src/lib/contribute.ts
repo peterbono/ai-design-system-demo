@@ -104,10 +104,8 @@ export const CONTRIBUTE_WORDS = {
   addEmail: (login: string) => `Add this email to @${login} on GitHub`,
   // Team pages, signed out.
   invitedWithEmail: 'Invited with your email?',
-  getLink: 'Get a sign-in link',
-  emailSignInTitle: 'Get a sign-in link',
-  emailSignInLead: 'Enter the email your invitation went to. Bridge sends you a link.',
-  useGitHubInstead: 'Use GitHub instead',
+  // Opens the one sign-in screen of Bridge (pages/signin.astro, lib/account.ts ACCOUNT_WORDS.email).
+  continueWithEmail: 'Continue with email',
   emailLabel: 'Work email',
   emailPlaceholder: 'name@company.com',
   send: 'Send me a link',

@@ -15,7 +15,7 @@ import { accountView, type AccountState } from '../../../lib/settings-view';
 import { currentViewer, getToken, initGitHubConnect, onAccess, sessionMode, tokenRejected, type Viewer } from '../../../scripts/github-session';
 import { safeUrl } from '../../../lib/html';
 import { ROLE_WORDS } from '../../../lib/invites';
-import { SIGN_IN_PARAM } from '../../../lib/access-view';
+import { signInHref } from '../../../lib/account';
 import { studioBase } from '../../../lib/team-path';
 
 /** An email contributor's account row: drawn face, name and role, email, Sign out. */
@@ -36,8 +36,8 @@ function ContributorRow({ viewer, repo }: { viewer: Viewer; repo: string }) {
     try {
       await signOutEmail(repo);
     } finally {
-      // The team's sign-in screen (components/ds/studio/NoAccess.tsx), both ways in.
-      location.assign(`${studioBase(location.pathname, true)}?${SIGN_IN_PARAM}=`);
+      // The one sign-in screen of Bridge, back to the team afterwards.
+      location.assign(signInHref(studioBase(location.pathname, true)));
     }
   };
   return (

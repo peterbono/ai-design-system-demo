@@ -30,7 +30,9 @@ import HpFaqArt from '../components/home/HpFaqArt.astro';
 import HpPanorama from '../components/home/HpPanorama.astro';
 import HpWalkers from '../components/home/HpWalkers.astro';
 import HpConnectCard from '../components/home/HpConnectCard';
-import { START } from '../lib/nav';
+import { signInHref } from '../lib/account';
+// Get started opens the sign-in screen with sign-up words; a new account then lands on /start/.
+const GET_STARTED = signInHref(null, true);
 
 ---
 
@@ -49,7 +51,7 @@ import { START } from '../lib/nav';
         </h1>
         <p class="hp-lede"><span class="hp-hs">Bridge finds what your exploration added. </span><span class="hp-hs">You review it, then the code and Figma kit follow.</span></p>
         <div class="hp-go">
-          <ButtonLink variant="primary" size="lg" iconEnd={ArrowRight} href={START}>Get started</ButtonLink>
+          <ButtonLink variant="primary" size="lg" iconEnd={ArrowRight} href={GET_STARTED}>Get started</ButtonLink>
         </div>
       </div>
       <div class="hp-hero-vis">
@@ -150,7 +152,7 @@ import { START } from '../lib/nav';
         <p class="hp-eyebrow">Open source · MIT</p>
         <h2 id="hp-close-t" class="hp-hz-h">Explore freely. <span class="hp-keep">Keep<svg class="hp-ul hp-ul-late" viewBox="0 0 150 18" preserveAspectRatio="none" aria-hidden="true"><path d="M3 12C28 6 66 3.5 104 6.5S140 11 147 7" pathLength="1"></path></svg></span> what works.</h2>
         <p class="hp-hz-p">Your next exploration is one branch away.</p>
-        <div class="hp-hz-cta"><ButtonLink variant="primary" size="lg" iconEnd={ArrowRight} href={START}>Get started</ButtonLink></div>
+        <div class="hp-hz-cta"><ButtonLink variant="primary" size="lg" iconEnd={ArrowRight} href={GET_STARTED}>Get started</ButtonLink></div>
       </div>
       <div class="hp-pano" data-pano>
         <div class="hp-hz-stage" data-pano-stage>
