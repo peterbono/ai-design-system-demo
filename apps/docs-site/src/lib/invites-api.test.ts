@@ -146,7 +146,7 @@ describe('not configured', () => {
   });
 
   it('answers 503 for every action, never a fake success, and calls nobody', async () => {
-    for (const action of ['invite', 'resend', 'cancel', 'set-role', 'remove', 'accept']) {
+    for (const action of ['invite', 'resend', 'invite-role', 'cancel', 'set-role', 'remove', 'accept']) {
       const r = await handleInvites(post({ action, repo: REPO }), {}, bare);
       expect(r.status).toBe(503);
       expect(await r.json()).toEqual({ error: 'not_configured', message: NOT_CONFIGURED });
@@ -260,6 +260,20 @@ describe('invite token lifecycle', () => {
     expect(tokenOf(sent[1]!)).not.toBe(tokenOf(sent[0]!));
     expect((await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps)).status).toBe(410);
     expect((await handleInvites(post({ action: 'accept', token: tokenOf(sent[1]!) }, 'ghu_sofia'), {}, deps)).status).toBe(200);
+  });
+
+  it('changes the role of a pending invite without a new email, and the same link grants it', async () => {
+    const { deps, sent, store, w } = setup();
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
+    const [inv] = await store.list(REPO);
+    const r = await handleInvites(post({ action: 'invite-role', repo: REPO, id: inv!.id, role: 'reviewer', reviewAs: 'tech' }), {}, deps);
+    expect((await r.json()).invite).toMatchObject({ id: inv!.id, role: 'reviewer', reviewAs: 'tech' });
+    expect(sent).toHaveLength(1);
+    const [after] = await store.list(REPO);
+    expect(after).toMatchObject({ role: 'reviewer', reviewAs: 'tech', tokenHash: inv!.tokenHash });
+    expect((await handleInvites(post({ action: 'invite-role', repo: REPO, id: inv!.id, role: 'edit' }, 'ghu_leo01'), {}, deps)).status).toBe(403);
+    expect((await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps)).status).toBe(200);
+    expect(w.calls.find((c) => c.method === 'PUT' && c.path === '/repos/acme/design/collaborators/sofia')!.body).toEqual({ permission: 'push' });
   });
 
   it('cancel removes the invite and its link', async () => {

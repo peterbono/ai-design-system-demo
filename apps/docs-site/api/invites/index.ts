@@ -28,7 +28,7 @@
 // Endpoints (JSON, errors are { error, message } in Studio words):
 //   GET  /api/invites                       { available }  storage, email and the app are all configured
 //   GET  /api/invites?repo=owner/name       { invites, personal }  caller can push
-//   POST /api/invites { action: 'invite' | 'resend' | 'cancel' | 'set-role' | 'remove' }  caller is admin
+//   POST /api/invites { action: 'invite' | 'resend' | 'invite-role' | 'cancel' | 'set-role' | 'remove' }  caller is admin
 //   POST /api/invites { action: 'accept', token }  caller is the invitee, any GitHub account
 // Requests carry `Authorization: Bearer <GitHub user token>` (Studio's Sign in with GitHub). POSTs must come from a
 // page of this site.
@@ -874,6 +874,17 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
         await ctx.svc.store.put(inv, Math.ceil((Date.parse(inv.expiresAt) - ctx.now()) / 1000));
         throw e;
       }
+    }
+
+    case 'invite-role': {
+      // The role a pending invite will get once accepted. Same link, no new email.
+      const { facts } = await authorize(ctx, req, body.repo, 'admin');
+      const inv = await findInvite(ctx, facts.full, body.id);
+      const { role, reviewAs } = parseRole(body.role, body.reviewAs);
+      const { reviewAs: _old, ...rest } = inv;
+      const next = { ...rest, role, ...(reviewAs ? { reviewAs } : {}) };
+      await ctx.svc.store.put(next, Math.max(1, Math.ceil((Date.parse(inv.expiresAt) - ctx.now()) / 1000)));
+      return json(200, { invite: publicInvite(next) });
     }
 
     case 'cancel': {
