@@ -120,7 +120,7 @@ describe('TeamChip teams to switch to (board EmptyB)', () => {
     expect(within(tryIt).getByRole('menuitem', { name: /^Acme Design/ })).toBeInTheDocument();
     expect(within(tryIt).getByText('Sample data, read only')).toBeInTheDocument();
     // No team link without a repository: nothing to invite to yet.
-    expect(within(menu).queryByRole('menuitem', { name: 'Invite your team' })).toBeNull();
+    expect(within(menu).queryByRole('menuitem', { name: 'Invite collaborators' })).toBeNull();
     expect(within(menu).getByRole('menuitem', { name: 'Create a new team' })).toBeInTheDocument();
     await expectNoAxeViolations(menu);
   });

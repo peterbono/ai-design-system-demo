@@ -4,7 +4,7 @@
 // mark and "Bridge" instead of the owner's photo, and a visitor without an account reads "Explore freely". On the
 // sample team it reads "Acme Design" with its initials and a "Demo" tag (lib/demo.ts). It is the nav's
 // first focus stop and a full-width target. The name stays on one line (ellipsis, the full name in its title). Its
-// menu: Invite your team (signed in) or Sign in with GitHub (signed out: there is nobody to invite yet), then on the hosted site the teams opened in this browser (max 5) and "Create a new team",
+// menu: Invite collaborators (signed in, the main action) or Sign in with GitHub (signed out: there is nobody to invite yet), then on the hosted site the teams opened in this browser (max 5) and "Create a new team" (secondary, muted),
 // which opens a dialog over the page (NewTeamDialog.tsx) to connect another design system: the person keeps their
 // place. Who you are stays at the bottom of the nav (components/GitHubAccount.astro): proximity keeps the team at the
 // top and the account at the bottom.
@@ -134,7 +134,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   const listed = recent.filter((t) => t.toLowerCase() !== yours?.key.toLowerCase());
   const createItem = (
     // A dialog over the page: connect another design system by its repository, without leaving this one.
-    <MenuItem icon={Plus} onClick={() => setCreating(true)}>
+    <MenuItem icon={Plus} className="tc-create" onClick={() => setCreating(true)}>
       Create a new team
     </MenuItem>
   );
@@ -183,8 +183,8 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     blocks.push({
       key: 'actions',
       node: (
-        <MenuItem icon={UserPlus} onClick={() => go(studioHref('?setup=team'))}>
-          Invite your team
+        <MenuItem icon={UserPlus} className="tc-invite" onClick={() => go(studioHref('?setup=team'))}>
+          Invite collaborators
         </MenuItem>
       ),
     });
