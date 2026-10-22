@@ -407,12 +407,6 @@
   max-width: var(--size-80);
 }
 
-/* "You're signed in as @login": who GitHub said, said once above the fixes. */
-.inv-accept-who {
-  margin: 0;
-  font-weight: var(--font-weight-medium);
-}
-
 /* The quiet line under the actions: the GitHub way, a free account, how to switch accounts. */
 .inv-accept-more {
   margin: 0;

@@ -365,3 +365,8 @@
   margin: 0 0 var(--space-2);
   color: var(--color-text-muted);
 }
+
+/* A sign-in card on the page: the side nav's own Connect GitHub would be a second call to action. */
+:root[data-signin-card] [data-gh-acct][data-state='readonly'] {
+  display: none;
+}

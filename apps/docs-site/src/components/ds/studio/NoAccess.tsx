@@ -98,12 +98,19 @@ export interface NoAccessProps {
 /** One access screen: the full block or the banner. */
 export function NoAccess({ screen, updatedAt, repo = '', emailExpired = false }: NoAccessProps) {
   const { copied, said, copy } = useCopy(3000);
-  // Sign in with your email: on the block, the form unfolds under the actions; on the banner, it opens in a dialog.
-  const [emailOpen, setEmailOpen] = useState(emailExpired);
+  // "Invited with your email? Get a sign-in link": on the block, the form replaces Sign in with GitHub in place (its
+  // Send me a link becomes the primary, "Use GitHub instead" goes back); on the banner, it opens in a dialog.
+  const emailLink = repo ? screen.links?.find((l) => l.action.kind === 'email') : undefined;
+  const [emailOpen, setEmailOpen] = useState(emailExpired && Boolean(emailLink));
   const [sent, setSent] = useState(false);
-  const email = screen.secondary?.kind === 'email' && repo ? (
-    <EmailSignIn repo={repo} expired={emailExpired} autoFocus={!emailExpired} onSent={setSent} />
-  ) : null;
+  const email = emailLink ? <EmailSignIn repo={repo} expired={emailExpired} autoFocus={!emailExpired} onSent={setSent} /> : null;
+  // While this screen asks to sign in, the side nav's own "Connect GitHub" would be a second call to action: hidden.
+  const asksSignIn = screen.layout === 'block' && screen.primary.kind === 'signin';
+  useEffect(() => {
+    const root = document.documentElement;
+    root.toggleAttribute('data-signin-card', asksSignIn);
+    return () => root.removeAttribute('data-signin-card');
+  }, [asksSignIn]);
   const run = (text: string, done: string) => void copy(text, done);
   const live = (
     <p className="sr-only" role="status" aria-live="polite">
@@ -122,7 +129,11 @@ export function NoAccess({ screen, updatedAt, repo = '', emailExpired = false }:
         actions={
           <>
             <ActionButton action={screen.primary} variant="secondary" copy={run} copied={copied} />
-            {screen.secondary && <ActionButton action={screen.secondary} variant="secondary" copy={run} copied={copied} onEmail={() => setEmailOpen(true)} />}
+            {emailLink && (
+              <Button variant="link" size="sm" onClick={() => setEmailOpen(true)}>
+                {emailLink.action.label}
+              </Button>
+            )}
           </>
         }
       >
@@ -149,6 +160,7 @@ export function NoAccess({ screen, updatedAt, repo = '', emailExpired = false }:
     );
   }
 
+  const inEmail = Boolean(email && emailOpen);
   return (
     <section className="zone na" aria-labelledby="na-title">
       <div className="na-art" aria-hidden="true">
@@ -158,20 +170,20 @@ export function NoAccess({ screen, updatedAt, repo = '', emailExpired = false }:
         <h1 id="na-title" className="na-title">
           {sent ? CONTRIBUTE_WORDS.sentTitle : screen.title}
         </h1>
-        {!sent && <p className="na-body">{screen.body}</p>}
-        {!(email && emailOpen) && (
+        {!inEmail && <p className="na-body">{screen.body}</p>}
+        {!inEmail && (
           <div className="na-actions">
             <ActionButton action={screen.primary} variant="primary" copy={run} copied={copied} />
-            {screen.secondary && <ActionButton action={screen.secondary} variant="secondary" copy={run} copied={copied} onEmail={() => setEmailOpen(true)} />}
+            {screen.secondary && <ActionButton action={screen.secondary} variant="secondary" copy={run} copied={copied} />}
           </div>
         )}
-        {email && emailOpen && (
+        {inEmail && (
           <div className="na-email">
             {email}
             {!sent && (
               <p className="na-link">
-                <Button variant="link" size="sm" iconStart={GitHubMark} {...SESSION_ATTRS.signin}>
-                  Sign in with GitHub instead
+                <Button variant="link" size="sm" iconStart={GitHubMark} onClick={() => setEmailOpen(false)}>
+                  {CONTRIBUTE_WORDS.useGitHubInstead}
                 </Button>
               </p>
             )}
@@ -179,16 +191,24 @@ export function NoAccess({ screen, updatedAt, repo = '', emailExpired = false }:
         )}
         {live}
         {fallback}
-        {screen.links?.map((l) =>
-          l.action.kind === 'link' ? (
-            <p key={l.action.href} className="na-link">
-              {l.lead && <span>{l.lead} </span>}
-              <Link href={l.action.href} external={l.action.external}>
-                {l.action.label}
-              </Link>
-            </p>
-          ) : null,
-        )}
+        {!inEmail &&
+          screen.links?.map((l) =>
+            l.action.kind === 'link' ? (
+              <p key={l.action.href} className="na-link">
+                {l.lead && <span>{l.lead} </span>}
+                <Link href={l.action.href} external={l.action.external}>
+                  {l.action.label}
+                </Link>
+              </p>
+            ) : l.action.kind === 'email' && email ? (
+              <p key="email" className="na-link">
+                {l.lead && <span>{l.lead} </span>}
+                <Button variant="link" size="sm" onClick={() => setEmailOpen(true)}>
+                  {l.action.label}
+                </Button>
+              </p>
+            ) : null,
+          )}
         {screen.note && <p className="na-quiet">{screen.note}</p>}
       </div>
     </section>

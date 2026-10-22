@@ -81,11 +81,15 @@ describe('what an email contributor may do', () => {
 });
 
 describe('signed-out screens', () => {
-  it('offer Sign in with your email second, only when the site has it', () => {
+  it('offer a quiet email link under Sign in with GitHub, only when the site has it', () => {
     const f = { owner: 'acme', repo: 'ds', link: 'https://x/studio/acme/ds/' };
-    expect(accessScreen('anonymous-unknown', { ...f, email: true })?.secondary).toEqual({ kind: 'email', label: 'Sign in with your email' });
-    expect(accessScreen('anonymous-public', { ...f, email: true })?.secondary?.kind).toBe('email');
-    expect(accessScreen('anonymous-unknown', f)?.secondary).toBeUndefined();
+    const withEmail = accessScreen('anonymous-unknown', { ...f, email: true })!;
+    expect(withEmail.title).toBe('Sign in to open acme/ds');
+    expect(withEmail.primary.kind).toBe('signin');
+    expect(withEmail.links).toEqual([{ lead: 'Invited with your email?', action: { kind: 'email', label: 'Get a sign-in link' } }]);
+    expect(accessScreen('anonymous-public', { ...f, email: true })?.links?.[0]?.action.kind).toBe('email');
+    expect(accessScreen('anonymous-unknown', f)?.title).toBe('Sign in with GitHub to open acme/ds');
+    expect(accessScreen('anonymous-unknown', f)?.links).toBeUndefined();
   });
 });
 

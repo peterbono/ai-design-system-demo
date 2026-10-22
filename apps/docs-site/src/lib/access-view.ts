@@ -91,20 +91,30 @@ export interface AccessScreenInput {
   email?: boolean;
 }
 
-const EMAIL_ACTION: AccessAction = { kind: 'email', label: CONTRIBUTE_WORDS.emailSignIn };
+const EMAIL_ACTION: AccessAction = { kind: 'email', label: CONTRIBUTE_WORDS.getLink };
+/** The quiet way in for people invited with their email, under Sign in with GitHub. */
+const EMAIL_LINK = { lead: CONTRIBUTE_WORDS.invitedWithEmail, action: EMAIL_ACTION };
 
 /** The screen of one state, null when the Studio opens as usual (reader, writer, admin). */
 export function accessScreen(state: RepoAccessState, f: AccessScreenInput): AccessScreen | null {
   const repo = `${f.owner}/${f.repo}`;
   switch (state) {
     case 'anonymous-unknown':
-      return {
-        layout: 'block',
-        title: `Sign in with GitHub to open ${repo}`,
-        body: 'This design system may be private. Once you sign in, GitHub tells Bridge what you can see.',
-        primary: { kind: 'signin', label: 'Sign in with GitHub' },
-        ...(f.email ? { secondary: EMAIL_ACTION } : {}),
-      };
+      // With email sign-in the title names no provider: GitHub stays the main way, the email link a quiet one under it.
+      return f.email
+        ? {
+            layout: 'block',
+            title: `Sign in to open ${repo}`,
+            body: 'This design system may be private. Sign in to see it.',
+            primary: { kind: 'signin', label: 'Sign in with GitHub' },
+            links: [EMAIL_LINK],
+          }
+        : {
+            layout: 'block',
+            title: `Sign in with GitHub to open ${repo}`,
+            body: 'This design system may be private. Once you sign in, GitHub tells Bridge what you can see.',
+            primary: { kind: 'signin', label: 'Sign in with GitHub' },
+          };
     case 'no-access':
       return {
         layout: 'block',
@@ -122,7 +132,7 @@ export function accessScreen(state: RepoAccessState, f: AccessScreenInput): Acce
         title: 'You are viewing as a guest',
         body: 'Sign in with GitHub to review changes and send suggestions.',
         primary: { kind: 'signin', label: 'Sign in with GitHub' },
-        ...(f.email ? { secondary: EMAIL_ACTION } : {}),
+        ...(f.email ? { links: [EMAIL_LINK] } : {}),
       };
     case 'not-installed':
       return f.admin

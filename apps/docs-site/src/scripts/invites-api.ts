@@ -5,6 +5,7 @@
 // fails with InvitesUnavailable and the screens say "Invites are not available yet on this site." Never a fake success.
 import type { MemberRole, PendingInvite, ReviewAs } from '../lib/invites';
 import { MEMBERS_WORDS } from '../lib/invites';
+import type { InvitePeek } from '../lib/contribute';
 import { getToken } from './github-session';
 
 export const INVITES_API = '/api/invites';
@@ -135,3 +136,19 @@ export interface AcceptResult {
 }
 
 export const acceptInvite = (token: string) => call<AcceptResult>('POST', '', { action: 'accept', token });
+
+/**
+ * What an invite link is before it is accepted (no sign-in): its team, role and the address it went to, masked. Null
+ * when the site cannot say (the page then offers both ways); throws an InvitesError 410 when the link is spent.
+ */
+export async function peekInvite(token: string): Promise<InvitePeek | null> {
+  try {
+    const r = await call<Record<string, unknown>>('POST', '', { action: 'peek', token }, false);
+    const role = r.role;
+    if (typeof r.repo !== 'string' || (role !== 'view' && role !== 'edit' && role !== 'reviewer' && role !== 'admin')) return null;
+    return { repo: r.repo, role, ...(typeof r.team === 'string' ? { team: r.team } : {}), ...(typeof r.sentTo === 'string' ? { sentTo: r.sentTo } : {}) };
+  } catch (err) {
+    if (err instanceof InvitesError && err.status === 410) throw err;
+    return null;
+  }
+}

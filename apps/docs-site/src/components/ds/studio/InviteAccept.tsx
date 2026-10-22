@@ -8,10 +8,11 @@
 //   Reviewer, Admin  Sign in with GitHub, as before (they approve and merge on GitHub), with "New to GitHub? Create a
 //                    free account with this email" under it. Signed in, Bridge accepts the invitation on the server
 //                    (scripts/invites-api.ts acceptInvite), which adds this GitHub account to the team.
-// When the server cannot say the invite's role before it is accepted, the email way is offered first and a reviewer or
-// admin invite answers "sign in with GitHub" (409 github-required). Every failure says how to fix it. Only the invited
-// person joins: when the GitHub account does not have the invited email, verified, the page says so with "You're
-// signed in as @login", "Use another GitHub account" and "Add this email to @login on GitHub"; the link stays valid.
+// The invite's role comes first from the invites server (scripts/invites-api.ts peekInvite: team, role, masked email);
+// when it cannot say, the email way is offered first and a reviewer or admin invite answers "sign in with GitHub"
+// (409 github-required). Every failure says how to fix it. Only the invited person joins: when the GitHub account
+// does not have the invited email, verified, the page says where it was sent and which account is signed in, with
+// "Use another GitHub account" and "Add this email to @login on GitHub"; it checks again when the tab comes back.
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowRight, ExternalLink, LogOut } from 'lucide-react';
 import { Button, ButtonGroup, Input, Link } from '@bridge-ds/react';
@@ -27,7 +28,7 @@ export const INVITE_TOKEN_KEY = 'bridge.invite.token';
 export const INVITE_VIA_KEY = 'bridge.invite.via';
 
 /** The note under "Use another GitHub account" (the same words as the access screens). */
-const SWITCH_NOTE = 'GitHub signs you in with the account open in this browser. To use another one, switch accounts on github.com first.';
+const SWITCH_NOTE = 'GitHub uses the account open in this browser. Switch accounts on github.com first if needed.';
 
 /** Where the page goes once joined with an email (tests replace it). */
 export const navigate = { to: (href: string) => location.assign(href) };
@@ -100,10 +101,10 @@ export default function InviteAccept() {
     if (!t) return setView({ kind: 'missing' });
     let live = true;
     void (async () => {
-      const [session, contribute] = await Promise.all([import('../../../scripts/github-session'), import('../../../scripts/contribute-session')]);
+      const [session, invites] = await Promise.all([import('../../../scripts/github-session'), import('../../../scripts/invites-api')]);
       let p: InvitePeek | null = null;
       try {
-        p = await contribute.peekInvite(t);
+        p = await invites.peekInvite(t);
       } catch {
         // The server says the link is spent or expired: the same screen as a failed accept.
         if (!live) return;
@@ -128,6 +129,17 @@ export default function InviteAccept() {
       live = false;
     };
   }, []);
+
+  // Back from GitHub's email settings (another tab): the page checks again on its own, no Try again to find.
+  const mismatch = view.kind === 'email' && view.code === 'email_mismatch';
+  useEffect(() => {
+    if (!mismatch) return;
+    const again = () => {
+      if (document.visibilityState === 'visible') setRun((n) => n + 1);
+    };
+    document.addEventListener('visibilitychange', again);
+    return () => document.removeEventListener('visibilitychange', again);
+  }, [mismatch]);
 
   useEffect(() => {
     if (!run || !token) return;
@@ -220,19 +232,7 @@ export default function InviteAccept() {
       );
     if (view.code === 'email_mismatch' && view.login)
       return (
-        <Shell
-          title={w.title}
-          sub={w.sub}
-          lead={<p className="inv-accept-who">{CONTRIBUTE_WORDS.signedInAs(view.login)}</p>}
-          foot={
-            <>
-              {SWITCH_NOTE}{' '}
-              <Button variant="link" size="sm" onClick={() => setRun((n) => n + 1)}>
-                Try again
-              </Button>
-            </>
-          }
-        >
+        <Shell title={w.title} sub={CONTRIBUTE_WORDS.mismatch(view.sentTo, view.login)} foot={SWITCH_NOTE}>
           <ButtonGroup>
             <Button
               variant="primary"

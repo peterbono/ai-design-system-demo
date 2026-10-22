@@ -23,7 +23,7 @@ const api = vi.hoisted(() => {
       super(message);
     }
   }
-  return { InvitesUnavailable, InvitesError, acceptInvite: vi.fn() };
+  return { InvitesUnavailable, InvitesError, acceptInvite: vi.fn(), peekInvite: vi.fn() };
 });
 
 const contribute = vi.hoisted(() => {
@@ -36,7 +36,7 @@ const contribute = vi.hoisted(() => {
       super(message);
     }
   }
-  return { ContributeError, peekInvite: vi.fn(), acceptEmailInvite: vi.fn() };
+  return { ContributeError, acceptEmailInvite: vi.fn() };
 });
 
 const gh = vi.hoisted(() => ({ viewer: { login: 'leo' } as { login: string } | null, startSignIn: vi.fn() }));
@@ -50,24 +50,26 @@ const TOKEN = 'T'.repeat(43);
 beforeEach(() => {
   vi.clearAllMocks();
   gh.viewer = { login: 'leo' };
-  contribute.peekInvite.mockResolvedValue({ repo: 'acme/ds', team: 'Acme Design', role: 'reviewer', sentTo: 'm•••@acme.design' });
+  api.peekInvite.mockResolvedValue({ repo: 'acme/ds', team: 'Acme Design', role: 'reviewer', sentTo: 'm•••@acme.design' });
   sessionStorage.clear();
   history.replaceState(null, '', `/studio/invite/#t=${TOKEN}`);
 });
 
 describe('invite page, another email', () => {
-  it('names the masked address and the fix, and tries again with the same link', async () => {
+  it('names the masked address and the signed-in account, and checks again when the tab comes back', async () => {
     api.acceptInvite.mockRejectedValueOnce(new api.InvitesError('x', 'email_mismatch', 403, { sentTo: 'm•••@acme.design', login: 'leo' }));
     api.acceptInvite.mockResolvedValueOnce({ status: 'joined', repo: 'acme/ds', role: 'edit' });
     render(createElement(InviteAccept));
     expect(await screen.findByRole('heading', { name: 'This invitation is for another email' })).toBeInTheDocument();
-    expect(screen.getByText(/It was sent to m•••@acme\.design, which is not an email of your GitHub account @leo\./)).toBeInTheDocument();
-    expect(screen.getByText("You're signed in as @leo")).toBeInTheDocument();
+    expect(screen.getByText("It was sent to m•••@acme.design. You're signed in to GitHub as @leo.")).toBeInTheDocument();
+    expect(screen.getByText('GitHub uses the account open in this browser. Switch accounts on github.com first if needed.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Use another GitHub account' })).toHaveAttribute('data-gh-forget');
     expect(screen.getByRole('link', { name: /Add this email to @leo on GitHub/ })).toHaveAttribute('href', 'https://github.com/settings/emails');
     expect(sessionStorage.getItem(INVITE_TOKEN_KEY)).toBe(TOKEN);
     await expectNoAxeViolations(document.body);
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Try again' }));
+    // Back from GitHub's email settings in another tab: the page checks again on its own.
+    document.dispatchEvent(new Event('visibilitychange'));
     await waitFor(() => expect(api.acceptInvite).toHaveBeenCalledTimes(2));
     expect(api.acceptInvite).toHaveBeenLastCalledWith(TOKEN);
     expect(await screen.findByRole('heading', { name: "You're in Acme Design" })).toBeInTheDocument();
@@ -89,7 +91,7 @@ describe('invite page, another email', () => {
 describe('invite page, Can edit', () => {
   it('joins with an email and a name, then opens the team signed in', async () => {
     gh.viewer = null;
-    contribute.peekInvite.mockResolvedValue({ repo: 'acme/ds', team: 'Acme Design', role: 'edit', sentTo: 'l•••@acme.design' });
+    api.peekInvite.mockResolvedValue({ repo: 'acme/ds', team: 'Acme Design', role: 'edit', sentTo: 'l•••@acme.design' });
     contribute.acceptEmailInvite.mockResolvedValue({ repo: 'acme/ds', member: { email: 'leo@acme.design', name: 'Leo', role: 'edit' } });
     const assign = vi.spyOn(navigate, 'to').mockImplementation(() => {});
     render(createElement(InviteAccept));
@@ -110,7 +112,7 @@ describe('invite page, Can edit', () => {
 
   it('sends a reviewer invite the server could not name to GitHub', async () => {
     gh.viewer = null;
-    contribute.peekInvite.mockResolvedValue(null);
+    api.peekInvite.mockResolvedValue(null);
     contribute.acceptEmailInvite.mockRejectedValue(new contribute.ContributeError('x', 'github-required', 409));
     render(createElement(InviteAccept));
     expect(await screen.findByRole('heading', { name: 'Join the team on Bridge' })).toBeInTheDocument();

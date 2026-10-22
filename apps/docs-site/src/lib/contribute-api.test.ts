@@ -480,6 +480,21 @@ describe('proxy: what is allowed', () => {
     }
   });
 
+  it('GET ?mine=1: the branches and pull requests the member made and still owns; signed out, 401', async () => {
+    const { s, cookie, call, branch } = await ready();
+    await branch('bridge/mia-1');
+    expect((await call('POST', `${P}/pulls`, { title: 'Ocean brand', head: 'bridge/mia-1', base: 'main' })).r.status).toBe(201);
+    const mine = (c: string) => handleContribute(new Request(`${ORIGIN}/api/contribute?repo=${REPO}&mine=1`, { headers: { host: HOST, ...(c ? { cookie: c } : {}) } }), ENV, s.deps);
+    const r = await mine(cookie);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ branches: ['bridge/mia-1'], issues: [40] });
+    expect(await s.redis.cmd('SMEMBERS', `bridge:contrib:mine:${REPO}:mia@acme.design`)).toEqual(expect.arrayContaining(['b:bridge/mia-1', 'i:40']));
+    // A branch that changed hands is no longer theirs.
+    await s.redis.cmd('SET', `bridge:contrib:branch:${REPO}:bridge/mia-1`, 'leo@acme.design');
+    expect(await (await mine(cookie)).json()).toEqual({ branches: [], issues: [40] });
+    expect((await mine('')).status).toBe(401);
+  });
+
   it('PATCH pulls/<n>: their pull request only, only title, body, state, draft (never base)', async () => {
     const { call, branch } = await ready();
     await branch('bridge/mia-1');

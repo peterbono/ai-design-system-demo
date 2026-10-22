@@ -7,7 +7,7 @@
 // scripts/github-session.ts uses it: getToken() gives the stand-in token (lib/contribute CONTRIB_TOKEN) to every
 // feature, and the session's fetch sends each call that carries it here (contributeFetch). No feature changes.
 import { GitHubError } from '@bridge-ds/core';
-import { CONTRIB_REFUSAL, CONTRIBUTE_API, CONTRIBUTE_HEADER, CONTRIBUTE_WORDS, contributeHashToken, parseMember, proxyUrl, type ContributeMember, type InvitePeek } from '../lib/contribute';
+import { CONTRIB_REFUSAL, CONTRIBUTE_API, GITHUB_API, CONTRIBUTE_HEADER, CONTRIBUTE_WORDS, contributeHashToken, parseMember, proxyUrl, type ContributeMember } from '../lib/contribute';
 
 /** The site cannot sign in with an email (no server piece, or not set up). */
 export class ContributeUnavailable extends Error {
@@ -36,6 +36,7 @@ let fetchImpl: Fetch = (input, init) => fetch(input, init);
 export function setContributeFetch(f: Fetch | null) {
   fetchImpl = f ?? ((input, init) => fetch(input, init));
   infos.clear();
+  mines.clear();
 }
 
 const HINT_PREFIX = 'bridge.contribute.member:';
@@ -148,19 +149,6 @@ export function endedEmailSession(repo: string) {
   remember(repo, null);
 }
 
-/** What an invite link is before it is accepted, or null when the server cannot say (the page then offers both ways). */
-export async function peekInvite(token: string): Promise<InvitePeek | null> {
-  try {
-    const r = await call<Record<string, unknown>>('POST', '', { action: 'peek', token });
-    const role = r.role;
-    if (typeof r.repo !== 'string' || (role !== 'view' && role !== 'edit' && role !== 'reviewer' && role !== 'admin')) return null;
-    return { repo: r.repo, role, ...(typeof r.team === 'string' ? { team: r.team } : {}), ...(typeof r.sentTo === 'string' ? { sentTo: r.sentTo } : {}) };
-  } catch (err) {
-    if (err instanceof ContributeError && err.status === 410) throw err;
-    return null;
-  }
-}
-
 /** Accepts a "Can edit" invite with a name: no GitHub. 409 github-required for a reviewer or admin invite. */
 export async function acceptEmailInvite(token: string, name: string): Promise<{ repo: string; member: ContributeMember }> {
   const r = await call<{ repo?: unknown; member?: unknown }>('POST', '', { action: 'accept', token, name: name.trim() });
@@ -178,6 +166,53 @@ export function takeContributeHash(): string | null {
   return token;
 }
 
+export interface Mine {
+  branches: string[];
+  issues: number[];
+}
+
+const mines = new Map<string, Promise<Mine>>();
+
+/** What the signed-in member made through Bridge on `repo` and still owns (one GET per team and page). */
+export function contributeMine(repo: string): Promise<Mine> {
+  const k = key(repo);
+  const held = mines.get(k);
+  if (held) return held;
+  const p = call<{ branches?: unknown; issues?: unknown }>('GET', `?repo=${encodeURIComponent(repo)}&mine=1`).then(
+    (r) => ({
+      branches: Array.isArray(r.branches) ? r.branches.filter((b): b is string => typeof b === 'string') : [],
+      issues: Array.isArray(r.issues) ? r.issues.filter((n): n is number => typeof n === 'number') : [],
+    }),
+    () => ({ branches: [], issues: [] }),
+  );
+  mines.set(k, p);
+  return p;
+}
+
+/** Forgets what was read about "mine" on this page (a new branch or pull request was just made). */
+const forgetMine = (repo: string) => mines.delete(key(repo));
+
+type Authored = { number?: unknown; user?: { login?: unknown; avatar_url?: unknown } | null; head?: { ref?: unknown } | null };
+
+/**
+ * The member's own pull requests and issues, written as theirs: GitHub shows Bridge's app as their author, so every
+ * "mine" in Studio (author compared with the viewer: Request review on a draft, your branches, your turn) would miss
+ * them. The author becomes the member's login, their email, which is what the session gives as the viewer's login.
+ */
+export function asMine<T>(data: T, mine: Mine, login: string): T {
+  const own = (x: Authored) => (typeof x.number === 'number' && mine.issues.includes(x.number)) || (typeof x.head?.ref === 'string' && mine.branches.includes(x.head.ref));
+  const fix = (x: unknown) => {
+    if (!x || typeof x !== 'object') return x;
+    const a = x as Authored;
+    if (!own(a)) return x;
+    return { ...a, user: { ...(a.user ?? {}), login, avatar_url: '' } };
+  };
+  return (Array.isArray(data) ? data.map(fix) : fix(data)) as T;
+}
+
+/** Calls whose answer holds pull requests or issues: their authors may be the member's. */
+const AUTHORED = /^\/repos\/[^/]+\/[^/]+\/(pulls|issues)(\/\d+)?(\?|$)/;
+
 /** Strips the stand-in Authorization header (any case) from a header record. */
 function withoutAuth(h: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {};
@@ -194,8 +229,24 @@ export async function contributeFetch(repo: string, url: string, init: RequestIn
   const headers = withoutAuth((init.headers ?? {}) as Record<string, string>);
   const target = proxyUrl(url, repo);
   if (!target) return fetchImpl(url, { ...init, headers });
-  const res = await fetchImpl(target, { ...init, headers: { ...headers, [CONTRIBUTE_HEADER]: '1' }, credentials: 'same-origin' });
+  const method = (init.method ?? 'GET').toUpperCase();
+  const path = url.slice(GITHUB_API.length);
+  const authored = method === 'GET' && AUTHORED.test(path);
+  // A new branch, pull request or issue: "mine" is read again next time.
+  if (method === 'POST' && /\/(git\/refs|pulls|issues)(\?|$)/.test(path)) forgetMine(repo);
+  const [res, mine] = await Promise.all([
+    fetchImpl(target, { ...init, headers: { ...headers, [CONTRIBUTE_HEADER]: '1' }, credentials: 'same-origin' }),
+    authored ? contributeMine(repo) : Promise.resolve(null),
+  ]);
   if (res.status === 401) endedEmailSession(repo);
+  const login = contributorFor(repo)?.email;
+  if (res.ok && mine && login && (mine.issues.length || mine.branches.length)) {
+    const data = (await res
+      .clone()
+      .json()
+      .catch(() => undefined)) as unknown;
+    if (data !== undefined) return new Response(JSON.stringify(asMine(data, mine, login)), { status: res.status, statusText: res.statusText, headers: res.headers });
+  }
   // Bridge's own refusals ({ error, message }: a file outside design files, the app missing a permission, the daily
   // limit, an ended session) are said in the server's words, as they are: a GitHubError the core client keeps, so no
   // GitHub wording replaces them.

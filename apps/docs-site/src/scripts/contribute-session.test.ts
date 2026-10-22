@@ -110,4 +110,20 @@ describe("Studio's GitHub calls for an email contributor", () => {
       .catch((e: unknown) => e);
     expect(errorText(err, 'fallback')).toBe(message);
   });
+
+  it("write the member's own pull requests as theirs, so Studio counts them as mine", async () => {
+    signIn();
+    answer = (url) =>
+      url.includes('mine=1')
+        ? json(200, { branches: ['leo/blue'], issues: [7] })
+        : json(200, [
+            { number: 7, user: { login: 'bridge-design-studio[bot]' }, head: { ref: 'leo/blue' } },
+            { number: 8, user: { login: 'bridge-design-studio[bot]' }, head: { ref: 'leo/other' } },
+            { number: 9, user: { login: 'ann' }, head: { ref: 'ann/x' } },
+          ]);
+    const r = await studioFetch('https://api.github.com/repos/acme/ds/pulls?state=open', { headers: { Authorization: `Bearer ${CONTRIB_TOKEN}` } });
+    const pulls = (await r.json()) as { number: number; user: { login: string } }[];
+    expect(pulls.map((p) => p.user.login)).toEqual(['leo@acme.design', 'bridge-design-studio[bot]', 'ann']);
+    expect(calls.some((c) => c.url === '/api/contribute?repo=acme%2Fds&mine=1')).toBe(true);
+  });
 });
