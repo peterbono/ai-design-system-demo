@@ -14,7 +14,9 @@
 //                 bridge.config.json), what each kind of branch needs (plain rules from docs/GOVERNANCE.md, no tier
 //                 numbers) and the owner override as a fold.
 //   Safety        protection of the library and when the visual before and after runs, each with its action.
-//   Figma and Claude, then Integrations (Jira). Settings speak designer words (lib/vocabulary): no developer section;
+//   Figma and Claude, then Integrations (Jira), then Appearance: light, dark or System, a preference of this browser,
+//   not a team rule (components/ds/studio/AppearanceSetting.tsx).
+//   Settings speak designer words (lib/vocabulary): no developer section;
 //   a setting with GitHub machinery behind it carries one "How it works on GitHub" link, the library itself one
 //   "Open on GitHub" link on its Account line.
 // The old Repository, Governance and Integrations pages redirect to these anchors (lib/redirects.ts); the anchors of
@@ -28,6 +30,7 @@ import StudioHeader from '../../../components/StudioHeader.astro';
 import ProtectionRow from '../../../components/ds/studio/ProtectionRow';
 import ChangeRules from '../../../components/ds/studio/ChangeRules';
 import SettingsAccount from '../../../components/ds/studio/SettingsAccount';
+import AppearanceSetting from '../../../components/ds/studio/AppearanceSetting';
 import { signInConfig } from '../../../lib/signin-config';
 import Illustration from '../../../components/Illustration.astro';
 import { Badge, Button, Card, CardBody, CardHeader, Input, Link, SegmentedControl } from '@bridge-ds/react';
@@ -367,6 +370,15 @@ const changes = changesInConfig(config);
             </details>
           </CardBody>
         </Card>
+      </div>
+    </section>
+    <section class="set-band" id="appearance" aria-labelledby="set-appearance">
+      <div class="set-band-intro">
+        <h2 id="set-appearance" class="set-h">Appearance</h2>
+        <p class="set-intro">How Bridge looks for you, only in this browser. It changes nothing for your team.</p>
+      </div>
+      <div class="set-band-body">
+        <AppearanceSetting client:load />
       </div>
     </section>
   </div>

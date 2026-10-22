@@ -1,5 +1,5 @@
 // App shell behaviour, shipped on every page (small, no framework):
-// theme toggle, copy buttons, the mobile navigation sheet, the Cmd+K command palette, header menus, the "On this
+// the theme (light, dark or System, picked in Settings), copy buttons, the mobile navigation sheet, the Cmd+K command palette, header menus, the "On this
 // page" rail and, in the Studio, the view of a change (scripts/view-change), the nav counts and the GitHub connection.
 import { bindCodeBlocks, bindDialogs, bindTooltips, closeDialog, isDialogOpen, openDialog } from '@bridge-ds/react/dom';
 import { getToken, initGitHubConnect } from './github-session';
@@ -8,6 +8,7 @@ import { initMaintainer } from './maintainer';
 import { pointLinksAtTeam } from './team-links';
 import { initVanillaControls } from './vanilla-controls';
 import { initViewChange, readOpenPulls } from './view-change';
+import { followThemePref } from '../lib/theme-pref';
 
 interface SearchItem {
   kind: 'page' | 'component' | 'token';
@@ -29,26 +30,9 @@ export function announce(text: string) {
   }, 1500);
 }
 
+/** The theme follows this browser's choice (Settings, Appearance): the OS while it is System, and other tabs. */
 function initTheme() {
-  const root = document.documentElement;
-  // One toggle in the top bar, one in the mobile navigation sheet: both stay in step.
-  const btns = [...document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]')];
-  if (!btns.length) return;
-  const sync = () => btns.forEach((b) => b.setAttribute('aria-pressed', String(root.getAttribute('data-theme') === 'dark')));
-  sync();
-  btns.forEach((btn) =>
-    btn.addEventListener('click', () => {
-      const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-      root.setAttribute('data-theme', next);
-      try {
-        localStorage.setItem('ds-theme', next);
-      } catch {
-        /* private mode: theme still applies for this page */
-      }
-      sync();
-      document.dispatchEvent(new CustomEvent('bridge:theme', { detail: next }));
-    }),
-  );
+  followThemePref();
 }
 
 /**

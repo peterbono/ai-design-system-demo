@@ -2,12 +2,14 @@
 // Team shell of Studio Settings (lib/team-shells.ts): served for /studio/<owner>/<repo>/settings/ by the vercel.json rewrite.
 // Your team (the team link and who can do what) reads the team from the address and GitHub; the team's rules (how
 // changes reach the code, review rules, safety) render read only from its repository model in the browser
-// (components/ds/studio/TeamSettings.tsx). On the demo, that is the demo's sample team.
+// (components/ds/studio/TeamSettings.tsx). On the demo, that is the demo's sample team. Appearance (light, dark or
+// System) is this browser's own choice, there for everyone whatever the team read gives (AppearanceSetting.tsx).
 import '../../../styles/settings.css';
 import TeamShell from '../../../components/TeamShell.astro';
 import { Card, CardBody } from '@bridge-ds/react';
 import { TeamLinkLive } from '../../../components/ds/studio/TeamLink';
 import TeamSettings from '../../../components/ds/studio/TeamSettings';
+import AppearanceSetting from '../../../components/ds/studio/AppearanceSetting';
 import { tierSummaries } from '../../../lib/governance';
 import { approvalRules } from '../../../lib/settings-view';
 
@@ -27,4 +29,9 @@ const rules = approvalRules(tierSummaries()).map((x) => ({ what: x.what, who: ca
     </Card>
   </section>
   <TeamSettings client:load rules={rules} />
+  <section class="ts-band" id="appearance" aria-labelledby="ts-appearance">
+    <h2 id="ts-appearance" class="ts-h">Appearance</h2>
+    <p class="ts-intro">How Bridge looks for you, only in this browser. It changes nothing for your team.</p>
+    <AppearanceSetting client:load />
+  </section>
 </TeamShell>

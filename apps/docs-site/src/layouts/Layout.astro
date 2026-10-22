@@ -31,7 +31,7 @@ import { humanDate } from '../lib/stats';
 import { BRANDS, DEFAULT_BRAND } from '../lib/tokens';
 import { Avatar, Breadcrumb, Button, Icon, IconButton, Kbd, Link } from '@bridge-ds/react';
 import { siteIcon } from '../brand/site-icons';
-import { Menu as MenuIcon, Moon, Search, X } from 'lucide-react';
+import { Menu as MenuIcon, Search, X } from 'lucide-react';
 import ButtonLink from '../components/ds/ButtonLink';
 import { GitHubMark } from '../components/ds/studio/brand-icons';
 
@@ -137,6 +137,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
     <meta name="theme-color" content="#0b1825" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     {!library && <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />}
+    {/* Theme before first paint: this browser's choice in Settings, Appearance (lib/theme-pref.ts); no value is System. */}
     <script is:inline>
       (function () {
         var t = null;
@@ -179,8 +180,6 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
       </Button>}
       <div class="topbar-actions">
         {viewAware && <ViewAsChange />}
-        {/* Same place in the Library and in Studio, so people find it in both. */}
-        <IconButton icon={Moon} size="sm" label="Dark theme" id="theme-toggle" data-theme-toggle aria-pressed="false" title="Dark theme" className="shell-wide" />
         {/* Library <-> Studio: one link that names the space you are in and carries the page's item across. */}
         {!bare && <SpaceSwitch space={space} href={switchTo.href} item={switchTo.item} />}
         {bare ? (
@@ -267,10 +266,12 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
           }
         </ul>
         <div class="rail-foot">
-          <div class="rail-tools">
-            <Button variant="ghost" iconStart={Moon} data-theme-toggle aria-pressed="false" aria-label="Dark theme">Theme</Button>
-            {!isStudio && <ButtonLink variant="ghost" iconStart={GitHubMark} href={GITHUB_URL} data-team-github={library ? '' : undefined}>GitHub</ButtonLink>}
-          </div>
+          {/* Light, dark or System lives in Studio Settings (Appearance); the Library follows the same choice. */}
+          {!isStudio && (
+            <div class="rail-tools">
+              <ButtonLink variant="ghost" iconStart={GitHubMark} href={GITHUB_URL} data-team-github={library ? '' : undefined}>GitHub</ButtonLink>
+            </div>
+          )}
           {
             isStudio ? (
               <GitHubAccount workspace={workspace} />

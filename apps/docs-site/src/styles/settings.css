@@ -388,6 +388,12 @@
     width: 100%;
   }
 
+  /* A control stretched to the row shares its width between its segments, so no empty end of track. */
+  .set-row-value [data-segmented-control] [data-segment] {
+    flex: 1 1 0;
+    min-width: max-content;
+  }
+
   .set-account-zone {
     padding: var(--space-5);
   }

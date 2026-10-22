@@ -652,7 +652,7 @@ a.topbar-brand {
   margin: 0;
 }
 
-/* Theme and GitHub, with their names, for the phone sheet (the top bar holds them on wide screens). */
+/* The Library's GitHub link, with its name, at the foot of the side nav. The theme is picked in Studio Settings. */
 .rail-tools {
   display: none;
   gap: var(--space-2);
@@ -660,23 +660,11 @@ a.topbar-brand {
   border-top: var(--border-width-default) solid var(--color-border-default);
 }
 
-/* Studio and the Library share one theme control: the moon in the top bar on wide screens, the rail tool on phones. */
-:root[data-space="studio"] .rail-tools {
-  padding-top: 0;
-  border-top: 0;
-}
-
 /* GitHub sits at the foot of the side nav in both spaces: the account in Studio, the repository in the Library. */
 :root:not([data-space="studio"]) .rail-tools {
   display: flex;
   padding-top: 0;
   border-top: 0;
-}
-
-@media (min-width: 961px) {
-  :root:not([data-space="studio"]) .rail-tools [data-theme-toggle] {
-    display: none;
-  }
 }
 
 .rail-foot {
