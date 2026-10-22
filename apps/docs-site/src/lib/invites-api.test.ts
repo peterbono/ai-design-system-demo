@@ -178,14 +178,14 @@ describe('not configured', () => {
 describe('admin checks on the server', () => {
   it('refuses a writer, whatever login the body names', async () => {
     const { deps, sent } = setup();
-    const r = await handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: [{ email: 'x@acme.design' }], login: 'dana', caller: 'dana' }, 'ghu_leo01'), {}, deps);
+    const r = await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'x@acme.design' }], login: 'dana', caller: 'dana' }, 'ghu_leo01'), {}, deps);
     expect(r.status).toBe(403);
     expect(sent).toHaveLength(0);
   });
 
   it('reads the role with the app token, identity with the caller token', async () => {
     const { deps, w } = setup();
-    await handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: [{ email: 'x@acme.design' }] }), {}, deps);
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'x@acme.design' }] }), {}, deps);
     expect(w.calls.find((c) => c.path === '/user')!.auth).toBe('Bearer ghu_dana');
     expect(w.calls.find((c) => c.path.endsWith('/collaborators/dana/permission'))!.auth).toBe('Bearer ghs_app');
   });
@@ -200,19 +200,42 @@ describe('admin checks on the server', () => {
 
   it('lists pending invites to people who can push, not to readers', async () => {
     const { deps } = setup({ users: { ghu_dana: { login: 'dana' }, ghu_leo01: { login: 'leo' }, ghu_ann01: { login: 'ann' } } });
-    await handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: [{ email: 'Sofia@Acme.design' }] }), {}, deps);
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'Sofia@Acme.design' }] }), {}, deps);
     const ok = await handleInvites(get(`?repo=${REPO}`, 'ghu_leo01'), {}, deps);
     const body = await ok.json();
     expect(body.personal).toBe(false);
     expect(body.invites).toHaveLength(1);
-    expect(body.invites[0]).toMatchObject({ email: 'sofia@acme.design', role: 'view', invitedBy: 'dana' });
+    expect(body.invites[0]).toMatchObject({ email: 'sofia@acme.design', role: 'edit', invitedBy: 'dana' });
     expect(body.invites[0].tokenHash).toBeUndefined();
     expect((await handleInvites(get(`?repo=${REPO}`, 'ghu_ann01'), {}, deps)).status).toBe(403);
   });
 
+  it('offers contributor roles only: Can view is refused for invites and role changes', async () => {
+    const { deps, sent } = setup();
+    for (const body of [
+      { action: 'invite', repo: REPO, role: 'view', people: [{ email: 'x@acme.design' }] },
+      { action: 'set-role', repo: REPO, login: 'leo', role: 'view' },
+    ]) {
+      const r = await handleInvites(post(body), {}, deps);
+      expect(r.status).toBe(400);
+      expect((await r.json()).message).toBe('Pick a role: Can edit, Reviewer or Admin.');
+    }
+    expect(sent).toHaveLength(0);
+  });
+
+  it('still honours a Can view invite sent before readers moved to Library access', async () => {
+    const { deps, store, w } = setup();
+    const token = 'v'.repeat(43);
+    const hash = createHash('sha256').update(token).digest('hex');
+    await store.put({ id: 'a'.repeat(16), repo: REPO, email: 'sofia@acme.design', role: 'view', invitedBy: 'dana', createdAt: new Date(T0).toISOString(), sentAt: new Date(T0).toISOString(), expiresAt: new Date(T0 + INVITE_TTL_MS).toISOString(), tokenHash: hash }, 600);
+    const a = await handleInvites(post({ action: 'accept', token }, 'ghu_sofia'), {}, deps);
+    expect(await a.json()).toMatchObject({ status: 'joined', role: 'view' });
+    expect(w.calls.find((c) => c.method === 'PUT' && c.path === '/repos/acme/design/collaborators/sofia')!.body).toEqual({ permission: 'pull' });
+  });
+
   it('says when the app cannot manage people on the repository', async () => {
     const { deps } = setup({}, { app: { installationToken: async () => null } });
-    const r = await handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: [{ email: 'x@acme.design' }] }), {}, deps);
+    const r = await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'x@acme.design' }] }), {}, deps);
     expect(r.status).toBe(409);
     expect((await r.json()).error).toBe('app_missing');
   });
@@ -247,7 +270,7 @@ describe('invite token lifecycle', () => {
 
   it('refuses an expired link and drops the invite', async () => {
     const { deps, sent, store, tick } = setup();
-    await handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
     tick(INVITE_TTL_MS + 1);
     expect((await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps)).status).toBe(410);
     expect((await handleInvites(get(`?repo=${REPO}`), {}, deps)).status).toBe(200);
@@ -263,7 +286,7 @@ describe('invite token lifecycle', () => {
 
   it('resend invalidates the old link and keeps the invite', async () => {
     const { deps, sent, store, tick } = setup();
-    await handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
     const [inv] = await store.list(REPO);
     tick(RESEND_COOLDOWN_MS);
     const r = await handleInvites(post({ action: 'resend', repo: REPO, id: inv!.id }), {}, deps);
@@ -278,7 +301,7 @@ describe('invite token lifecycle', () => {
 
   it('changes the role of a pending invite without a new email, and the same link grants it', async () => {
     const { deps, sent, store, w } = setup();
-    await handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
     const [inv] = await store.list(REPO);
     const r = await handleInvites(post({ action: 'invite-role', repo: REPO, id: inv!.id, role: 'reviewer', reviewAs: 'tech' }), {}, deps);
     expect((await r.json()).invite).toMatchObject({ id: inv!.id, role: 'reviewer', reviewAs: 'tech' });
@@ -292,7 +315,7 @@ describe('invite token lifecycle', () => {
 
   it('cancel removes the invite and its link', async () => {
     const { deps, sent, store } = setup();
-    await handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
     const [inv] = await store.list(REPO);
     expect(await (await handleInvites(post({ action: 'cancel', repo: REPO, id: inv!.id }), {}, deps)).json()).toEqual({ ok: true });
     expect(await store.list(REPO)).toHaveLength(0);
@@ -302,7 +325,7 @@ describe('invite token lifecycle', () => {
 
   it('reports a failed email as failed, and keeps no invite nobody received', async () => {
     const { deps, store } = setup({}, { email: { send: async () => Promise.reject(new Error('provider down')) } });
-    const r = await handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
+    const r = await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
     const [result] = (await r.json()).results;
     expect(result).toMatchObject({ email: 'sofia@acme.design', status: 'failed' });
     expect(result.message).toMatch(/could not send/);
@@ -311,20 +334,20 @@ describe('invite token lifecycle', () => {
 
   it('says already for a pending email, dedupes, and validates emails', async () => {
     const { deps, sent } = setup();
-    await handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
-    const r = await handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: [{ email: 'SOFIA@acme.design' }, { email: 'new@acme.design' }, { email: 'new@acme.design' }, { email: 'not an email' }] }), {}, deps);
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
+    const r = await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'SOFIA@acme.design' }, { email: 'new@acme.design' }, { email: 'new@acme.design' }, { email: 'not an email' }] }), {}, deps);
     expect((await r.json()).results.map((x: { status: string }) => x.status)).toEqual(['already', 'sent', 'failed']);
     expect(sent).toHaveLength(2);
     const many = Array.from({ length: 11 }, (_, i) => ({ email: `p${i}@acme.design` }));
-    expect((await handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: many }), {}, deps)).status).toBe(400);
+    expect((await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: many }), {}, deps)).status).toBe(400);
     expect((await handleInvites(post({ action: 'invite', repo: REPO, role: 'reviewer', people: [{ email: 'a@acme.design' }] }), {}, deps)).status).toBe(400);
   });
 
   it('sends the invitee to GitHub when the app cannot accept for them', async () => {
     const { deps, sent } = setup({ acceptStatus: 403 });
-    await handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
     const a = await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps);
-    expect(await a.json()).toEqual({ status: 'accept-on-github', repo: REPO, role: 'view', acceptUrl: 'https://github.com/acme/design/invitations' });
+    expect(await a.json()).toEqual({ status: 'accept-on-github', repo: REPO, role: 'edit', acceptUrl: 'https://github.com/acme/design/invitations' });
   });
 
   it('a reviewer who accepts gets push and a pull request listing them as owner', async () => {
@@ -373,17 +396,17 @@ describe('roles and removal', () => {
 
   it('opens no pull request when the owner lists already say it', async () => {
     const { deps, w } = setup();
-    const r = await handleInvites(post({ action: 'set-role', repo: REPO, login: 'leo', role: 'view' }), {}, deps);
+    const r = await handleInvites(post({ action: 'set-role', repo: REPO, login: 'leo', role: 'edit' }), {}, deps);
     expect(await r.json()).toEqual({ ok: true });
     expect(w.calls.some((c) => c.path.endsWith('/pulls'))).toBe(false);
   });
 
   it('never changes your own role or the owner of the repository', async () => {
     const { deps } = setup();
-    const self = await handleInvites(post({ action: 'set-role', repo: REPO, login: 'Dana', role: 'view' }), {}, deps);
+    const self = await handleInvites(post({ action: 'set-role', repo: REPO, login: 'Dana', role: 'edit' }), {}, deps);
     expect(self.status).toBe(409);
     expect((await self.json()).message).toBe('Ask another admin to change your role.');
-    expect((await handleInvites(post({ action: 'set-role', repo: REPO, login: 'acme', role: 'view' }), {}, deps)).status).toBe(409);
+    expect((await handleInvites(post({ action: 'set-role', repo: REPO, login: 'acme', role: 'edit' }), {}, deps)).status).toBe(409);
     expect((await handleInvites(post({ action: 'remove', repo: REPO, login: 'dana' }), {}, deps)).status).toBe(409);
   });
 
@@ -492,7 +515,7 @@ describe('services', () => {
 });
 
 const invite = (deps: InvitesDeps, emails: string[], env: Record<string, string> = {}, token = 'ghu_dana') =>
-  handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: emails.map((email) => ({ email })) }, token), env, deps);
+  handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: emails.map((email) => ({ email })) }, token), env, deps);
 
 describe('only the invited email can accept', () => {
   it('accepts when the invited email is a verified email of the account, case and spaces aside', async () => {
@@ -606,7 +629,7 @@ describe('daily caps', () => {
   it('counts only emails that went out: org members added, pending ones and failed sends are given back', async () => {
     const env = { INVITES_MAX_PER_ADMIN_DAY: '1' };
     const { deps } = setup();
-    expect((await handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: [{ email: 'ann@acme.design', login: 'ann' }] }), env, deps)).status).toBe(200);
+    expect((await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'ann@acme.design', login: 'ann' }] }), env, deps)).status).toBe(200);
     expect((await invite(deps, ['a@acme.design'], env)).status).toBe(200);
     // Already pending: nothing to send, no cap hit.
     expect((await invite(deps, ['a@acme.design'], env)).status).toBe(200);
