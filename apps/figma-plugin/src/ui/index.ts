@@ -4,7 +4,7 @@
 // what the primary button will do (or why it is disabled).
 
 import type { ConflictChoice, DiffEntry } from '@bridge-ds/core';
-import { type Analysis, type PullProposal, type PushBrand, type PushProposal, analyze, buildPull, buildPush, changesModeOf } from '../sync/flows';
+import { type Analysis, type PullProposal, type PushBrand, type PushProposal, analyze, buildPull, buildPush, changesModeOf, commitsBehind, pullHeadline } from '../sync/flows';
 import { type ChangesMode, GitHubClient, type PullRequest, changesMode, loadConfig, parseRepo } from '@bridge-ds/core';
 import type { RenameSuggestion } from '@bridge-ds/core';
 import { affectedContrast, defaultTitle } from '@bridge-ds/core';
@@ -724,8 +724,8 @@ function applyPull(): void {
       await loadInit();
       state.push = undefined;
       const cr = p.componentsReport;
-      const parts = [report ? `${report.created} variables created, ${report.updated} updated` : '', cr ? `${plural(cr.created + cr.updated, 'component')} built` : ''].filter(Boolean);
-      void request('notify', { message: `Pulled ${state.init!.settings.branch}: ${parts.join(', ')}.` });
+      const parts = [report && report.created + report.updated ? `${report.created} variables created, ${report.updated} updated` : '', cr ? `${plural(cr.created + cr.updated, 'component')} built` : ''].filter(Boolean);
+      void request('notify', { message: `Pulled ${state.init!.settings.branch}: ${parts.join(', ') || 'nothing changed in Figma'}.` });
     },
     applyPull,
   );
@@ -1629,11 +1629,17 @@ function viewPull(): View {
     prop.kept.length ? `${plural(prop.kept.length, 'Figma edit')} kept` : '',
     pending.length ? `${plural(pending.length, 'component')} to ${pending.every((c) => c.status === 'updated') ? 'update' : 'build'}` : '',
   ].filter(Boolean);
-  const headline = upToDate && !status.length ? 'Already up to date' : !a.baseSha ? 'First pull' : status.join(', ') || 'Already up to date';
-  const meta = a.baseSha
-    ? [`Last pulled ${short(a.baseSha)}${init.sync.lastPullAt ? ` on ${when(init.sync.lastPullAt)}` : ''}`, a.compare?.aheadBy ? `${plural(a.compare.aheadBy, 'new change')} on ${init.settings.branch}` : ''].filter(Boolean).join(' · ')
-    : `${plural(prop.plan.variables.length, 'variable')} from ${init.settings.repo}, in the Primitives, Brand, Base, Semantic, Density and Component collections.`;
-  const body: Child[] = [h('section', { class: 'zone' }, h('h2', { class: 'headline' }, upToDate && status.length ? `Up to date with ${init.settings.branch}. ${status.join(', ')}.` : headline), h('p', { class: 'muted' }, meta))];
+  // Commits on main since the last pull. Even when none of them changes a variable, the file is not up to date yet.
+  const behind = commitsBehind(a);
+  const catchUp = upToDate && behind > 0;
+  const headline = pullHeadline({ baseSha: a.baseSha, branch: init.settings.branch, variablesUpToDate: upToDate, behind, status });
+  const lastPulled = a.baseSha ? `Last pulled ${short(a.baseSha)}${init.sync.lastPullAt ? ` on ${when(init.sync.lastPullAt)}` : ''}` : '';
+  const meta = !a.baseSha
+    ? `${plural(prop.plan.variables.length, 'variable')} from ${init.settings.repo}, in the Primitives, Brand, Base, Semantic, Density and Component collections.`
+    : catchUp
+      ? `${lastPulled}. Your variables already match ${init.settings.branch}: pull to catch up to ${short(a.headSha)}.`
+      : [lastPulled, behind ? `${plural(behind, 'new change')} on ${init.settings.branch}` : ''].filter(Boolean).join(' · ');
+  const body: Child[] = [h('section', { class: 'zone' }, h('h2', { class: 'headline' }, headline), h('p', { class: 'muted' }, meta))];
 
   if (remote.length) {
     body.push(
@@ -1677,9 +1683,11 @@ function viewPull(): View {
   const open = prop.unresolvedConflicts.length;
   return {
     body,
-    bar: upToDate && !withComponents
+    bar: upToDate && !withComponents && !behind
       ? { label: 'Check again', onClick: checkPull }
-      : {
+      : catchUp && !withComponents
+        ? { label: 'Pull', onClick: applyPull, hint: 'Nothing changes in Figma', secondary: { label: 'Check again', onClick: checkPull } }
+        : {
           label: pending.some((c) => c.status === 'updated') ? 'Update all' : 'Apply to Figma',
           onClick: applyPull,
           disabled: open > 0,

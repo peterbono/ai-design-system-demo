@@ -446,6 +446,27 @@ function aliasTargetIds(set: TokenSet): Set<string> {
   return out;
 }
 
+/**
+ * Commits on the branch since the file's last pull: 0 when the file is at the branch head (or was never pulled). When
+ * GitHub could not compare the two, at least 1, since the head moved.
+ */
+export function commitsBehind(a: Pick<Analysis, 'baseSha' | 'headSha' | 'compare'>): number {
+  if (!a.baseSha || a.baseSha === a.headSha) return 0;
+  return Math.max(1, a.compare?.aheadBy ?? 0);
+}
+
+/**
+ * The Pull headline. "Already up to date" only when the file was pulled from the branch head: commits on main that
+ * change nothing in Figma still say how many there are, and the screen offers the pull so the file catches up.
+ */
+export function pullHeadline(o: { baseSha: string | undefined; branch: string; variablesUpToDate: boolean; behind: number; status: string[] }): string {
+  const changes = o.behind ? `${o.behind} new ${o.behind === 1 ? 'change' : 'changes'} on ${o.branch}` : '';
+  if (!o.baseSha) return 'First pull';
+  if (!o.variablesUpToDate) return o.status.join(', ') || changes || 'Already up to date';
+  if (o.behind) return [changes, ...o.status].join(', ');
+  return o.status.length ? `Up to date with ${o.branch}. ${o.status.join(', ')}.` : 'Already up to date';
+}
+
 /** `overwrite`: main wins over every Figma edit to a token that exists on main (Figma-only variables stay). */
 export function buildPull(a: Analysis, choices: Map<string, ConflictChoice>, opts: { overwrite?: boolean } = {}): PullProposal {
   // A variable deleted in Figma stays deleted (a push proposes it) unless other tokens still alias it: keeping that
