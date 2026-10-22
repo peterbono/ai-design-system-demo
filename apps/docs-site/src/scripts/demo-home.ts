@@ -1,10 +1,10 @@
 // The demo's Studio home for a visitor without an account (components/ds/studio/DemoHome.tsx, rules in
 // lib/demo-home.ts): the DS lead's queue and the team's branches in progress, read-only.
 //
-// Every fact about the demo's activity goes through one function, readDemoActivity: today two anonymous GitHub reads
-// (open branches, open suggestions), kept by ghGet's cache when GitHub stops answering (anonymous visitors get 60
-// reads an hour). When the demo publishes an activity snapshot on its bridge-data branch (read from the raw host, no
-// API quota), it plugs in there and nothing else changes. Display names and the before/after thumbnails of what is
+// Every fact about the demo's activity goes through one function, readDemoActivity: two GitHub reads (open branches,
+// open suggestions) that the demo's activity snapshot answers (bridge-data branch, raw host, no API quota) when its
+// recorded reads match these URLs exactly, kept by ghGet's cache when GitHub stops answering. Display names and the
+// before/after thumbnails of what is
 // shown first are read after, and only add to the page.
 import { SUGGESTION_LABEL } from '@bridge-ds/core';
 import { ghGet, RateLimitError, readRepo } from './github-session';
@@ -33,7 +33,7 @@ export async function readDemoActivity(repo: { owner: string; repo: string } = r
   const base = `/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.repo)}`;
   const [open, suggestions] = await Promise.all([
     ghGet<DemoPull[]>(`${base}/pulls?state=open&per_page=100`),
-    ghGet<DemoSuggestion[]>(`${base}/issues?state=open&labels=${encodeURIComponent(SUGGESTION_LABEL)}&per_page=50`).catch(() => ({ data: [] as DemoSuggestion[] })),
+    ghGet<DemoSuggestion[]>(`${base}/issues?state=open&labels=${encodeURIComponent(SUGGESTION_LABEL)}&per_page=50&sort=created&direction=desc`).catch(() => ({ data: [] as DemoSuggestion[] })),
   ]);
   return { open: open.data, suggestions: suggestions.data };
 }
