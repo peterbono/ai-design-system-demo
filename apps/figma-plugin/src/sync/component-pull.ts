@@ -39,6 +39,7 @@ import {
 } from '@bridge-ds/core';
 import { COLLECTIONS, type FigmaResolvedType } from '../shared/messages';
 import { isUnmappable, pathToName, tokenToPlanned } from './mapping';
+import { checkComponentSpecs } from './spec-check';
 
 /** A component set DS Bridge generated, as the main thread finds it (shared plugin data). */
 export interface GeneratedSet {
@@ -195,6 +196,8 @@ export interface ComponentPullPlan {
   slots?: PlannedSlot[] | undefined;
   /** Every component of the design system and whether it is in Figma (component-specs.json coverage). */
   coverage?: SpecCoverage[] | undefined;
+  /** Entries of component-specs.json left out because DS Bridge cannot read them, with the reason. Never built. */
+  skipped?: { name: string; reason: string }[] | undefined;
 }
 
 export interface ComponentApplyReport {
@@ -263,7 +266,10 @@ export async function loadComponentSpecs(
   treeSha: string,
   config: BridgeConfig | undefined,
 ): Promise<{ path: string; specs: ComponentSpecsFile } | undefined> {
-  const path = config?.components?.specs ?? DEFAULT_COMPONENT_SPECS_FILE;
+  const configured = config?.components?.specs;
+  if (configured !== undefined && (typeof configured !== 'string' || !configured.trim()))
+    throw new Error(`bridge.config.json: components.specs is ${configured === null ? 'empty' : `a ${Array.isArray(configured) ? 'list' : typeof configured}`}, it should be the path of component-specs.json. Fix it in the repo.`);
+  const path = (configured ?? DEFAULT_COMPONENT_SPECS_FILE).trim().replace(/^\/+/, '');
   const { entries } = await client.getTree(treeSha, true);
   const entry = entries.find((e) => e.type === 'blob' && e.path === path);
   if (!entry) return undefined;
@@ -439,13 +445,17 @@ export const draftedSetNote = (d: NonNullable<PlannedComponent['drafted']>) => (
 
 /** The pull plan for components: status per spec, every field resolved to a variable (or a reason it is not). */
 export function buildComponentPlan(
-  specs: ComponentSpecsFile,
+  rawSpecs: ComponentSpecsFile,
   source: string,
   generated: GeneratedSet[],
   head: TokenSet,
   opts: { pushed?: ReadonlyMap<number, FigmaPushStatus> | undefined } = {},
 ): ComponentPullPlan {
   const problems: ComponentProblem[] = [];
+  // Entries of the wrong shape are left out (or trimmed) with their reason before anything is planned.
+  const { specs, issues } = checkComponentSpecs(rawSpecs);
+  const skipped: { name: string; reason: string }[] = issues.filter((i) => i.skipped).map((i) => ({ name: i.component, reason: i.reason }));
+  for (const i of issues) if (!i.skipped) problems.push({ component: i.component, part: 'spec', property: 'shape', reason: i.reason });
   const seen = new Set<string>();
   const problem = (p: ComponentProblem) => {
     const k = `${p.component}|${p.part}|${p.property}|${p.reason}`;
@@ -505,6 +515,16 @@ export function buildComponentPlan(
   for (const g of generated) if (!generatedById.has(g.componentId)) generatedById.set(g.componentId, g);
   const components: PlannedComponent[] = [];
   for (const spec of specs.components) {
+    // Last net: a spec this version cannot plan for a reason the check did not foresee is left out, never the others.
+    const mark = problems.length;
+    try {
+      planOne(spec);
+    } catch (err) {
+      problems.splice(mark);
+      skipped.push({ name: spec.name, reason: `could not be read (${err instanceof Error ? err.message : String(err)}): update DS Bridge` });
+    }
+  }
+  function planOne(spec: ComponentSpec): void {
     for (const u of spec.unmapped) problem({ component: spec.name, part: u.part, property: u.property, reason: u.reason });
     const kinds = new Map(spec.parts.map((p) => [p.id, p.kind]));
     // Offsets of an absolute part from its parent's edges, in pixels.
@@ -621,6 +641,7 @@ export function buildComponentPlan(
     source,
     components,
     problems,
+    ...(skipped.length ? { skipped } : {}),
     ...(icons.length ? { icons } : {}),
     ...(iconFields ? { iconFields } : {}),
     ...(slots.length ? { slots } : {}),
