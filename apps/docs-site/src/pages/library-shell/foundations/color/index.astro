@@ -1,0 +1,13 @@
+---
+// Library shell, Color (lib/library-shells.ts): served for
+// /library/<owner>/<repo>/foundations/color/. The same view as Bridge's own page, with the team's model
+// (components/ds/library/LibraryTeamPage.tsx).
+import LibraryShell from '../../../../components/LibraryShell.astro';
+import LibraryShellKit from '../../../../components/foundations/LibraryShellKit.astro';
+import LibraryTeamPage from '../../../../components/ds/library/LibraryTeamPage';
+---
+
+<LibraryShell title="Color" description="A team's semantic color tokens in context in light and dark, and the primitive palette behind them." reading>
+  <LibraryTeamPage page="color" client:load />
+  <LibraryShellKit />
+</LibraryShell>

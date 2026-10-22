@@ -68,7 +68,7 @@ function applyScope(scope: Scope, within: ParentNode = document) {
     if (el.dataset.brand !== scope.brand) el.dataset.brand = scope.brand;
     if (el.dataset.density !== scope.density) el.dataset.density = scope.density;
   });
-  // Specimen brand and density switches (components/foundations/ScopeSwitch.astro, static SegmentedControls).
+  // Specimen brand and density switches (components/ds/library/FoundationParts.tsx ScopeSwitch, static SegmentedControls).
   document.querySelectorAll<HTMLElement>('[data-scope-switch]').forEach((s) => paintSegments(s, s.dataset.scopeSwitch === 'density' ? scope.density : scope.brand));
   document.querySelectorAll<HTMLElement>('[data-scope-label]').forEach((l) => {
     const key = l.dataset.scopeLabel as keyof Scope;
@@ -175,11 +175,16 @@ export function selectSegment(root: Element, value: string, emit = false) {
   if (emit) root.dispatchEvent(new CustomEvent('bridge:segment', { detail: { value }, bubbles: true }));
 }
 
-function initSegmented() {
-  document.querySelectorAll(SEG_ROOT).forEach((root) => {
-    const checked = root.querySelector<HTMLElement>('[data-segment][aria-checked="true"]');
-    paintSegments(root, checked?.dataset.value ?? null);
+/** Restores the roving tab stop of the static SegmentedControls under `root` (a view rendered after load). */
+export function paintStaticSegments(root: ParentNode = document) {
+  root.querySelectorAll(SEG_ROOT).forEach((el) => {
+    const checked = el.querySelector<HTMLElement>('[data-segment][aria-checked="true"]');
+    paintSegments(el, checked?.dataset.value ?? null);
   });
+}
+
+function initSegmented() {
+  paintStaticSegments();
   // Scrolling tracks (phones): fade the edges that hide segments, on scroll and on resize.
   document.addEventListener(
     'scroll',
@@ -524,31 +529,49 @@ function initPalette() {
   });
 }
 
-/** Header menus (<details data-menu>): close on outside click and on Escape, one open at a time. */
+/**
+ * Header menus (<details data-menu>): close on outside click and on Escape, one open at a time. Delegated, so menus a
+ * page renders after load (a team's Library view) behave the same.
+ */
 function initMenus() {
-  const menus = [...document.querySelectorAll<HTMLDetailsElement>('details[data-menu]')];
-  if (!menus.length) return;
+  const menus = () => [...document.querySelectorAll<HTMLDetailsElement>('details[data-menu]')];
   document.addEventListener('click', (e) => {
-    for (const m of menus) if (m.open && !m.contains(e.target as Node)) m.open = false;
+    for (const m of menus()) if (m.open && !m.contains(e.target as Node)) m.open = false;
   });
-  for (const m of menus) {
-    m.addEventListener('toggle', () => {
-      if (m.open) for (const o of menus) if (o !== m) o.open = false;
-    });
-    m.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && m.open) {
-        m.open = false;
-        m.querySelector('summary')?.focus();
-      }
-    });
-  }
+  // 'toggle' does not bubble: listen in the capture phase.
+  document.addEventListener(
+    'toggle',
+    (e) => {
+      const m = e.target;
+      if (!(m instanceof HTMLDetailsElement) || !m.matches('details[data-menu]') || !m.open) return;
+      for (const o of menus()) if (o !== m) o.open = false;
+    },
+    true,
+  );
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const m = (e.target as Element | null)?.closest?.<HTMLDetailsElement>('details[data-menu]');
+    if (m?.open) {
+      m.open = false;
+      m.querySelector('summary')?.focus();
+    }
+  });
 }
 
-/** Right rail of reading pages: one link per h2, the current section marked while scrolling. */
-function initToc() {
+let tocObserver: IntersectionObserver | null = null;
+
+/**
+ * Right rail of reading pages: one link per h2, the current section marked while scrolling. Run again by a page that
+ * renders its sections after load (a team's Library view): it starts over from the headings there now.
+ */
+export function initToc() {
   const aside = document.querySelector<HTMLElement>('[data-auto-toc]');
   const list = aside?.querySelector('ul');
   if (!aside || !list) return;
+  tocObserver?.disconnect();
+  tocObserver = null;
+  list.replaceChildren();
+  aside.hidden = true;
   const heads = [...document.querySelectorAll<HTMLElement>('.page-body h2')].filter((h) => !h.closest('[hidden], dialog, .sr-only') && !h.classList.contains('sr-only'));
   if (heads.length < 2) return;
   const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -564,7 +587,7 @@ function initToc() {
   aside.hidden = false;
   const links = [...list.querySelectorAll('a')];
   if (!('IntersectionObserver' in window)) return;
-  const io = new IntersectionObserver(
+  const io = (tocObserver = new IntersectionObserver(
     (entries) => {
       for (const e of entries) {
         if (!e.isIntersecting) continue;
@@ -572,7 +595,7 @@ function initToc() {
       }
     },
     { rootMargin: '-10% 0px -75% 0px' },
-  );
+  ));
   heads.forEach((h) => io.observe(h));
 }
 

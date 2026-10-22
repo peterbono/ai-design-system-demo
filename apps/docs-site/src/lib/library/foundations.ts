@@ -1,7 +1,7 @@
 // Data of the Library foundation pages for a repo model: one row per token with the same usage the token explorer
 // shows. Components come from the explorer's own flow (the token and every token that aliases it, @bridge-ds/core
 // token set), "in use" from the shared tokenUsage() definition (lib/library/stats.ts), so a row never contradicts the
-// detail panel. Pure: functions of the RepoModel (lib/foundations.ts passes the build-time one).
+// detail panel. Pure: functions of the RepoModel (the Library views pass the build-time one or a team's).
 import { buildTokenSet, layoutOptions, type RepoModel, type TokenSet } from '@bridge-ds/core';
 import { componentsUsing, transitiveDependents } from '../explorer/flow';
 import type { ComponentLink, UsageMap } from '../explorer/model';

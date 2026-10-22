@@ -1,0 +1,14 @@
+---
+// Library shell, Accessibility (lib/library-shells.ts): served for
+// /library/<owner>/<repo>/foundations/accessibility/. The same view as Bridge's own page, with the team's model
+// (components/ds/library/LibraryTeamPage.tsx).
+import '../../../../styles/a11y.css';
+import LibraryShell from '../../../../components/LibraryShell.astro';
+import LibraryShellKit from '../../../../components/foundations/LibraryShellKit.astro';
+import LibraryTeamPage from '../../../../components/ds/library/LibraryTeamPage';
+---
+
+<LibraryShell title="Accessibility" description="Every gated color pair of a team's design system, checked in every brand and theme." reading>
+  <LibraryTeamPage page="accessibility" client:load />
+  <LibraryShellKit />
+</LibraryShell>

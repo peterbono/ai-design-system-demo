@@ -1,41 +1,30 @@
 ---
+// The Library home: the shared view (components/ds/library/views/LandingView.tsx), rendered at build time, with what
+// changed lately from this build's release notes.
 import '../../styles/home.css';
 import Layout from '../../layouts/Layout.astro';
-import Illustration from '../../components/Illustration.astro';
-import ButtonLink from '../../components/ds/ButtonLink';
-import { Badge, Link } from '@bridge-ds/react';
-import { releases, versionInfo } from '../../lib/changelog';
+import LandingView from '../../components/ds/library/views/LandingView';
+import type { LibraryChange } from '../../components/ds/library/library-data';
+import { releases } from '../../lib/changelog';
 import { changeHeadline, mdTitleText } from '../../lib/markdown';
-import { loadComponents } from '../../lib/components';
-import { explorerTokens } from '../../lib/explorer';
+import { siteLibraryData } from '../../lib/library-site';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 import { repoStatus } from '../../lib/stats';
-import type { IllustrationName } from '../../brand/illustrations';
 
-const version = versionInfo();
 const repo = repoStatus();
 
 // What changed: the latest entries people notice (internal tooling left out), newest first.
-const recent = releases()
+const latest = releases()
   .flatMap((r) => r.entries.map((e) => ({ ...e, date: e.date ?? r.date })))
   .filter((e) => e.kind !== 'Internal')
   .slice(0, 3);
 // "This week" only when every entry shown is less than 7 days older than the build's last commit.
 const DAY = 86_400_000;
 const ref = repo.lastChange ? Date.parse(`${repo.lastChange}T00:00:00Z`) : Date.now();
-const thisWeek = recent.length > 0 && recent.every((e) => e.date && ref - Date.parse(`${e.date}T00:00:00Z`) < 7 * DAY);
+const thisWeek = latest.length > 0 && latest.every((e) => e.date && ref - Date.parse(`${e.date}T00:00:00Z`) < 7 * DAY);
 const shortDate = (iso?: string) =>
   iso ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${iso.slice(0, 10)}T00:00:00Z`)) : 'Next release';
-
-// Counts on the topic cards come from the same data as the pages they open.
-const semantic = explorerTokens().filter((t) => t.layer === 'semantic').length;
-const componentCount = loadComponents().length;
-
-const topics: { art: IllustrationName; title: string; text: string; href: string }[] = [
-  { art: 'foundations', title: 'Foundations', text: 'Color, type, spacing and the accessibility rules underneath.', href: '/foundations/color/' },
-  { art: 'tokens', title: 'All tokens', text: `All ${semantic} semantic tokens with their light and dark values, ready to copy.`, href: '/tokens/' },
-  { art: 'components', title: 'Components', text: `${componentCount} React components with examples, props and guidance.`, href: '/components/' },
-];
+const recent: LibraryChange[] = latest.map((e) => ({ kind: e.kind, headline: changeHeadline(e.title), title: mdTitleText(e.title), date: shortDate(e.date) }));
 ---
 
 <Layout
@@ -45,50 +34,5 @@ const topics: { art: IllustrationName; title: string; text: string; href: string
   updated={freshness(PAGE_SOURCES.home)}
   wide
 >
-  <section class="zone hm-hero" aria-labelledby="hero-title">
-    <div class="hm-hero-copy">
-      <h1 id="hero-title" class="t-display">Your design system, one source of truth.</h1>
-      <p class="t-body">
-        Bridge keeps your tokens, components and docs in one repository. This Library always shows the latest release, <span class="mono">{version.current}</span>.
-      </p>
-      <ButtonLink variant="primary" href="/components/">Browse components</ButtonLink>
-    </div>
-    <div class="hm-hero-art">
-      <Illustration name="hero" width={400} label="Two people finishing a plank bridge" />
-    </div>
-  </section>
-
-  <section class="hm-topics" aria-label="In the Library">
-    {
-      topics.map((t) => (
-        <Link variant="subtle" className="fg-card hm-topic" href={t.href}>
-          <h2 class="t-h3">{t.title}</h2>
-          <p class="t-body t-muted">{t.text}</p>
-          <Illustration name={t.art} width={104} class="hm-topic-art" />
-        </Link>
-      ))
-    }
-  </section>
-
-  <section class="hm-week" aria-labelledby="week-title">
-    <header class="hm-week-head">
-      <h2 id="week-title" class="t-h3">{thisWeek ? 'What changed this week' : 'What changed lately'}</h2>
-      <Link href="/changelog/" className="fg-link">All release notes</Link>
-    </header>
-    {
-      recent.length === 0 ? (
-        <p class="t-body t-muted">No changes recorded yet.</p>
-      ) : (
-        <ul class="hm-changes">
-          {recent.map((e) => (
-            <li>
-              <Badge size="sm" className="hm-kind">{e.kind}</Badge>
-              <span class="t-body hm-change" title={mdTitleText(e.title)}>{changeHeadline(e.title)}</span>
-              <span class="t-ui t-muted hm-date">{shortDate(e.date)}</span>
-            </li>
-          ))}
-        </ul>
-      )
-    }
-  </section>
+  <LandingView data={siteLibraryData({ changes: { recent, thisWeek } })} />
 </Layout>

@@ -1,74 +1,16 @@
 ---
+// Library > Foundations > Radius and borders: the shared view (components/ds/library/views/RadiusView.tsx), rendered
+// at build time.
 import Layout from '../../layouts/Layout.astro';
-import { Link } from '@bridge-ds/react';
-import ScopeSwitch from '../../components/foundations/ScopeSwitch.astro';
 import LibraryKit from '../../components/foundations/LibraryKit.astro';
-import TokenList from '../../components/foundations/TokenList.astro';
-import { RadiusSpecimen } from '../../components/foundations/Specimens.tsx';
-import { groupRows, primitiveRows } from '../../lib/foundations';
+import RadiusView from '../../components/ds/library/views/RadiusView';
+import { siteLibraryData } from '../../lib/library-site';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 
 const updated = freshness(PAGE_SOURCES.radius);
-const roles = groupRows('radius');
-const radii = primitiveRows('radius');
-const widths = [...groupRows('border-width'), ...primitiveRows('border.width')];
-const focus = groupRows('focus').filter((r) => r.type !== 'color');
-import LibraryHeader from '../../components/LibraryHeader.astro';
-import { studioHref } from '../../lib/team-path';
 ---
 
 <Layout title="Radius and borders" description="Radius roles by rank, the radius scale, border widths and the focus ring width." sources={PAGE_SOURCES.radius} updated={updated}>
-  <div data-fd-page>
-    <LibraryHeader title="Radius and borders" art="foundations" updated={updated} studio={studioHref('tokens/?focus=radius')}>
-      Radius tells you what kind of object you are looking at: small parts inside controls get the smallest, controls a little more, containers and overlays more again, pills are round. Design with the roles; brands set their values.
-    </LibraryHeader>
-
-    <section class="fd-group" aria-labelledby="roles">
-      <header class="fd-group-head">
-        <h2 id="roles">Radius roles</h2>
-        <code class="fd-group-path">radius</code>
-        <span class="fd-group-n">{roles.length} tokens</span>
-      </header>
-      <p class="fd-group-note">Each role on the components that use it, in the brand you pick here. Nested corners stay concentric: outer = inner + padding.</p>
-      <div class="fd-spec-bar"><ScopeSwitch axis="brand" /></div>
-      <div class="fd-stage" data-scope-stage inert>
-        <RadiusSpecimen />
-      </div>
-      <TokenList rows={roles} preview="radius" label="Radius role tokens" />
-    </section>
-
-    <section class="fd-group" aria-labelledby="scale">
-      <header class="fd-group-head">
-        <h2 id="scale">Radius scale</h2>
-        <code class="fd-group-path">radius</code>
-        <span class="fd-group-n">{radii.length} tokens</span>
-      </header>
-      <p class="fd-group-note">The raw values the roles point to. Reach for a role first; use the scale when you propose a new one.</p>
-      <TokenList rows={radii} preview="radius" label="Radius scale tokens" />
-    </section>
-
-    <section class="fd-group" aria-labelledby="borders">
-      <header class="fd-group-head">
-        <h2 id="borders">Border widths</h2>
-        <code class="fd-group-path">border-width</code>
-        <span class="fd-group-n">{widths.length} tokens</span>
-      </header>
-      <p class="fd-group-note">1 px for edges, 2 px for emphasis, selected states and active indicators.</p>
-      <TokenList rows={widths} preview="stroke" label="Border width tokens" />
-    </section>
-
-    <section class="fd-group" aria-labelledby="focus-ring">
-      <header class="fd-group-head">
-        <h2 id="focus-ring">Focus ring</h2>
-        <code class="fd-group-path">focus.ring</code>
-        <span class="fd-group-n">{focus.length} tokens</span>
-      </header>
-      <p class="fd-group-note">
-        Every focusable component draws the same ring, so keyboard users always know where they are. Its color is on the
-        <Link href="/foundations/color/#focus-ring-color">Color page</Link>.
-      </p>
-      <TokenList rows={focus} preview="stroke" label="Focus ring tokens" />
-    </section>
-  </div>
+  <RadiusView data={siteLibraryData()} />
   <LibraryKit />
 </Layout>

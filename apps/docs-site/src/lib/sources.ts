@@ -29,3 +29,6 @@ export const freshness = (paths: readonly string[]) => lastUpdated([...paths]);
 const usage = readJson<Record<string, string>>(USAGE_FILE);
 export const usageFor = (s: Pick<Semantic, 'group' | 'description'>) => s.description ?? usage[s.group] ?? '';
 export const groupUsage = (group: string) => usage[group] ?? '';
+
+/** Every group usage note (token-usage.json), for the Library views (components/ds/library/views/). */
+export const groupNotes = (): Record<string, string> => ({ ...usage });

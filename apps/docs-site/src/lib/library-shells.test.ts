@@ -3,7 +3,8 @@
 // any file that would take a team's Library address.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { checkLibraryHeaders, checkLibraryShells, LIBRARY_SHELL_ROUTES, LIBRARY_TEAM_NAV, libraryFromPath, libraryHref, libraryNoindexSources, libraryRewrites, libraryShellMarker, ownLibrary, ownLibraryPath, ownLibraryRedirects, publicLibraryProblems, routeOfShell } from './library-shells';
+import { FOUNDATIONS } from './nav';
+import { checkLibraryHeaders, checkLibraryShells, LIBRARY_FOUNDATION_PAGES, LIBRARY_SHELL_ROUTES, LIBRARY_TEAM_NAV, libraryTeamPages, libraryFromPath, libraryHref, libraryNoindexSources, libraryRewrites, libraryShellMarker, ownLibrary, ownLibraryPath, ownLibraryRedirects, publicLibraryProblems, routeOfShell } from './library-shells';
 
 const vercel = JSON.parse(readFileSync(new URL('../../vercel.json', import.meta.url), 'utf8')) as {
   redirects: { source: string; destination: string; permanent: boolean }[];
@@ -116,8 +117,12 @@ describe('addresses', () => {
     expect(libraryShellMarker('components/')).toBe('components');
   });
 
-  it('gives every nav entry a shell route', () => {
-    expect(LIBRARY_TEAM_NAV.map((e) => e.route)).toEqual([...LIBRARY_SHELL_ROUTES]);
+  it('gives every nav page a shell route, with the same Foundations pages as the own Library', () => {
+    const pages = libraryTeamPages().map((p) => p.route);
+    for (const r of pages) expect(LIBRARY_SHELL_ROUTES).toContain(r);
+    expect(LIBRARY_TEAM_NAV.map((e) => e.label)).toEqual(['Home', 'Foundations', 'Components']);
+    expect(FOUNDATIONS.map((f) => f.href)).toEqual(LIBRARY_FOUNDATION_PAGES.map((p) => `/${p.route}`));
+    expect(pages).toContain('foundations/accessibility/');
   });
 });
 
@@ -168,6 +173,8 @@ describe('the site\'s own Library', () => {
     expect(libraryHref(own.owner, own.repo, 'components/?c=Button', own)).toBe('/components/button/');
     expect(libraryHref(own.owner, own.repo, 'components/', own)).toBe('/components/');
     expect(libraryHref(own.owner, own.repo, 'tokens/', own)).toBe('/tokens/');
+    expect(libraryHref(own.owner, own.repo, 'foundations/radius/', own)).toBe('/foundations/radius/');
+    expect(libraryHref(own.owner, own.repo, 'foundations/color/#focus-ring-color', own)).toBe('/foundations/color/#focus-ring-color');
     expect(libraryHref('acme', 'ds', 'tokens/', own)).toBe('/library/acme/ds/tokens/');
     expect(libraryHref('acme', 'ds', '', null)).toBe('/library/acme/ds/');
   });
@@ -183,6 +190,7 @@ describe('the site\'s own Library', () => {
     const dest = (source: string) => rules.find((r) => r.source === source && !r.has)?.destination;
     expect(dest('/library/acme/ds/foundations/')).toBe('/foundations/color/');
     expect(dest('/library/acme/ds/tokens')).toBe('/tokens/');
+    expect(dest('/library/acme/ds/foundations/typography/')).toBe('/foundations/typography/');
     expect(dest('/library/acme/ds/:path*/')).toBe('/library/');
     expect(rules.every((r) => r.permanent === false)).toBe(true);
     expect(rules.findIndex((r) => r.source.endsWith(':path*/'))).toBeLessThan(rules.findIndex((r) => r.source.endsWith(':path*')));

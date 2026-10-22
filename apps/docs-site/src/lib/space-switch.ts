@@ -63,13 +63,21 @@ export function studioRouteOfTeamLibrary(libraryRoute: string, search = ''): { r
     const slug = slugParam(search);
     return slug ? { route: `components/?c=${encodeURIComponent(slug)}`, item: null } : { route: 'components/', item: 'Components' };
   }
+  // The same foundation pages as the own Library (lib/library-shells.ts LIBRARY_FOUNDATION_PAGES).
+  const found = /^foundations\/([^/]+)\/$/.exec(r);
+  if (found) {
+    const f = FOUNDATION_FOCUS[found[1]!];
+    if (f) return { route: `tokens/?focus=${f.focus}`, item: f.label };
+    if (found[1] === 'accessibility') return { route: 'quality/', item: 'Accessibility' };
+  }
   if (r === 'tokens/' || r === 'foundations/') return { route: 'tokens/', item: 'Tokens' };
   return { route: '', item: null };
 }
 
 /**
- * The Library route for a Studio route (relative to the Studio root, '' is Home), and what it names. `team` routes
- * are a team Library's own four places (lib/library-shells.ts); Bridge's own Library has a page per component.
+ * The Library route for a Studio route (relative to the Studio root, '' is Home), and what it names. Every Library has
+ * the same foundation pages; a team Library's component is a query on its Components page (`team`), Bridge's own
+ * Library has a page per component.
  */
 export function libraryRouteOfStudio(studioRoute: string, search = '', nameOf?: NameOf, team = false): { route: string; item: string | null } {
   const r = norm(studioRoute.replace(/^\/+/, '')).replace(/^\/$/, '');
@@ -80,10 +88,10 @@ export function libraryRouteOfStudio(studioRoute: string, search = '', nameOf?: 
   if (r === 'tokens/') {
     const focus = new URLSearchParams(search).get('focus');
     const page = focus ? Object.entries(FOUNDATION_FOCUS).find(([, f]) => f.focus === focus) : undefined;
-    if (page && !team) return { route: `foundations/${page[0]}/`, item: page[1].label };
+    if (page) return { route: `foundations/${page[0]}/`, item: page[1].label };
     return { route: 'tokens/', item: 'Tokens' };
   }
-  if (r === 'quality/' && !team) return { route: 'foundations/accessibility/', item: 'Accessibility' };
+  if (r === 'quality/') return { route: 'foundations/accessibility/', item: 'Accessibility' };
   return { route: '', item: null };
 }
 

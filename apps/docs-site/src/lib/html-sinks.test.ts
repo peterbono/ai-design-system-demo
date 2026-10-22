@@ -21,7 +21,7 @@ const ALLOWED: Record<string, string> = {
   'pages/studio/index.astro': 'jsonForScript',
   'pages/studio/review.astro': 'jsonForScript',
   'pages/studio/settings/index.astro': 'jsonForScript',
-  'pages/tokens/index.astro': 'jsonForScript',
+  'components/ds/library/views/AllTokensView.tsx': 'jsonForScript',
   // Build-time Markdown and constants.
   'pages/how-review-works.astro': 'inline() on docs/GOVERNANCE.md and AGENTS.md (escaped, link schemes allow-listed)',
   'components/ds/MarkdownTable.tsx': 'cells from inline()',

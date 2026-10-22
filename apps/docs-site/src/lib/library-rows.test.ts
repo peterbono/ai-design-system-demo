@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { foundationRow, groupRows, primitiveRows } from './foundations';
+import * as lib from './library/foundations';
+import { repoModel } from './model';
 import { aliasSummary, copyValue, groupTitle, parseCopyFormat, roleOf, usageChip } from './library-rows';
 
 describe('aliasSummary', () => {
@@ -85,7 +86,7 @@ const bgDefaultAlias = (theme: 'light' | 'dark') => {
 
 describe('foundation rows on this repo', () => {
   it('does not call the page background unused', () => {
-    const row = foundationRow('color.bg.default');
+    const row = lib.foundationRow(repoModel, 'color.bg.default');
     expect(row.used).toBe(true);
     expect(row.base).toContain('base.css');
     expect(row.chip.kind).not.toBe('unused');
@@ -93,14 +94,14 @@ describe('foundation rows on this repo', () => {
     expect(row.alias).not.toBe('');
   });
   it('lists the components the explorer lists for a token', () => {
-    const row = foundationRow('color.action.primary.bg');
+    const row = lib.foundationRow(repoModel, 'color.action.primary.bg');
     expect(row.components.map((c) => c.name)).toContain('Button');
     expect(row.chip.label).toMatch(/^\d+ components?$/);
   });
   it('builds group and primitive rows without raw hex in the alias line', () => {
-    const rows = groupRows('color.bg');
+    const rows = lib.groupRows(repoModel, 'color.bg');
     expect(rows.map((r) => r.path)).toEqual(['color.bg.default', 'color.bg.subtle', 'color.bg.muted', 'color.bg.zone']);
     for (const r of rows) expect(r.alias).not.toMatch(/#[0-9a-f]{3,8}/i);
-    expect(primitiveRows('space').length).toBeGreaterThan(10);
+    expect(lib.primitiveRows(repoModel, 'space').length).toBeGreaterThan(10);
   });
 });

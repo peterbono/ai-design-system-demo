@@ -1,9 +1,13 @@
 ---
-// Library shell, Tokens (lib/library-shells.ts): served for /library/<owner>/<repo>/tokens/.
+// Library shell, All tokens (lib/library-shells.ts): served for /library/<owner>/<repo>/tokens/. The same view as
+// Bridge's own page, with the team's model (components/ds/library/LibraryTeamPage.tsx).
+import '../../../styles/all-tokens.css';
 import LibraryShell from '../../../components/LibraryShell.astro';
-import LibraryTokens from '../../../components/ds/library/LibraryTokens';
+import LibraryShellKit from '../../../components/foundations/LibraryShellKit.astro';
+import LibraryTeamPage from '../../../components/ds/library/LibraryTeamPage';
 ---
 
-<LibraryShell title="Tokens" description="Every token of a team's design system, with its value per theme and its CSS variable.">
-  <LibraryTokens client:load />
+<LibraryShell title="All tokens" description="Every semantic token of a team's design system with its light and dark value, ready to copy.">
+  <LibraryTeamPage page="tokens" client:load />
+  <LibraryShellKit />
 </LibraryShell>
