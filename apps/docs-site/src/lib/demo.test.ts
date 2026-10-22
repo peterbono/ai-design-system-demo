@@ -28,9 +28,9 @@ describe('the demo', () => {
   it("frames the waiting line from the lead's seat (board D1b)", () => {
     expect(demoWaiting(8, { names: 'Ann, Leo and Claude AI', rest: ' are waiting on you.' }, 'Dana')).toEqual({
       count: '8 changes need your review.',
-      rest: ' Ann, Leo and Claude AI are waiting on Dana, who leads this design system.',
+      rest: ' Ann, Leo and Claude AI are waiting on you.',
     });
-    expect(demoWaiting(1, { names: 'Ann', rest: ' is waiting on you.' }, null).rest).toBe(' Ann is waiting on the lead of this design system.');
+    expect(demoWaiting(1, { names: 'Ann', rest: ' is waiting on you.' }, null).rest).toBe(' Ann is waiting on you.');
     expect(demoWaiting(2, null, 'Dana')).toEqual({ count: '2 changes need your review.', rest: ' Dana leads this design system.' });
   });
 

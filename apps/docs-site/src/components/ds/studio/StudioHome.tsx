@@ -405,7 +405,6 @@ export function StudioHome(p: StudioHomeProps) {
             </div>
             {loading ? <p className="t-body">Checking what needs you.</p> : p.needs.some((r) => r.waitsOnYou) ? <Waiting needs={p.needs} now={p.now} lead={p.demo ? p.demo.lead : undefined} /> : <p className="t-body">{p.needs.length ? 'Your branches need you.' : 'Nothing needs you.'}</p>}
           </div>
-          <Drawing name="review" width={220} crop={REVIEW_CROP} className="sh-art" />
         </div>
         {loading ? (
           <ul className="sh-rows" aria-hidden="true">
