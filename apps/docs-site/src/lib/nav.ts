@@ -58,7 +58,7 @@ export const ABOUT = '/about/';
 export const DOCS_HOME = '/docs/';
 export const DOCS_FIGMA_PLUGIN = '/docs/figma-plugin/';
 export const STUDIO_HOME = '/studio/';
-/** The read-only demo the landing points to: the hosted Studio of the dedicated demo repo (lib/demo DEMO_REPOS). */
+/** The read-only demo ("Open the demo" on /start/ and the team menu): the hosted Studio of the dedicated demo repo (lib/demo DEMO_REPOS). */
 export const DEMO = '/studio/peterbono/bridge-demo-ds/';
 /** "Get started": how do you want to start, while this browser remembers no workspace (lib/start.ts). */
 export const START = START_PAGE;

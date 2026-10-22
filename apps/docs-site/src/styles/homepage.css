@@ -234,13 +234,6 @@
   margin-top: var(--space-10);
 }
 
-.hp-alt {
-  margin: var(--space-4) 0 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-300);
-  line-height: var(--font-line-height-normal);
-}
-
 /* The drawing (components/home/HpHeroScene.astro): under the text on phones and tablets, full width up to its
    drawn size (680, size.160 + space.10); beside the text from 900 px, centred on it. */
 .hp-hero-vis {
