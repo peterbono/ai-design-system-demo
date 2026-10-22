@@ -15,6 +15,7 @@ import { getToken, hasWorkingToken, studioClient } from './github-session';
 import { loadTeamModel, type SnapshotReader, type TeamModelSource } from './repo-context';
 import { repoFromPath } from '../lib/team-path';
 import { libraryFromPath } from '../lib/library-shells';
+import type { ProductAudit } from '../lib/components-studio';
 import { TEAM_PROGRESS_START, teamProgress, type TeamLoadEvent, type TeamProgress } from '../lib/load-progress';
 
 export interface TeamData {
@@ -169,6 +170,43 @@ export function loadTeamSnapshot(): Promise<RepoSnapshot | null> {
   return snapshot;
 }
 
+let usage: Promise<ProductAudit[] | null> | null = null;
+
+/** Above this an audit report is not read (the snapshot's own cap: a report is far smaller). */
+const AUDIT_MAX_CHARS = SNAPSHOT_MAX_BYTES;
+
+/**
+ * Which design system components each audited product renders, from the adoption reports the team's bridge-data
+ * workflow publishes next to its snapshot (audits/<id>.json, `bridge snapshot --audit`): the "Used in" column of
+ * Components. Public repositories: the raw host, no API quota. Private ones: the contents API with the visitor's
+ * token. Null without a snapshot or a report. Never rejects; a report that cannot be read is left out.
+ */
+export function loadTeamProductUsage(): Promise<ProductAudit[] | null> {
+  usage ??= Promise.all([loadTeamData(), loadTeamSnapshot()])
+    .then(async ([d, snap]) => {
+      if (!snap?.audits?.length) return null;
+      const read = (path: string) => (d.private ? (d.client.canWrite ? d.client.getRawText(path, SNAPSHOT_BRANCH) : Promise.resolve(undefined)) : d.client.readRawFile(path, SNAPSHOT_BRANCH));
+      const out = await Promise.all(
+        snap.audits.map(async (a): Promise<ProductAudit | null> => {
+          const text = await read(a.path).catch(() => undefined);
+          if (!text || text.length > AUDIT_MAX_CHARS) return null;
+          try {
+            const ds = (JSON.parse(text) as { components?: { ds?: unknown } }).components?.ds;
+            if (!ds || typeof ds !== 'object') return null;
+            const components = Object.fromEntries(Object.entries(ds as Record<string, unknown>).filter((e): e is [string, number] => typeof e[1] === 'number'));
+            return { product: a.label?.trim() || a.id, components };
+          } catch {
+            return null;
+          }
+        }),
+      );
+      const found = out.filter((x): x is ProductAudit => x !== null);
+      return found.length ? found : null;
+    })
+    .catch(() => null);
+  return usage;
+}
+
 let llms: Promise<boolean> | null = null;
 
 /**
@@ -191,5 +229,6 @@ export function loadTeamLlms(): Promise<boolean> {
 export function resetTeamData() {
   pending = null;
   snapshot = null;
+  usage = null;
   llms = null;
 }

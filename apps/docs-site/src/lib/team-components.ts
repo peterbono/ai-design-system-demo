@@ -1,6 +1,8 @@
 // Team pages (multi-team PR 3b): the Studio Components list of a team, from its repo model. Pure: the rows, the lead
 // sentence, the family filter and which Storybook story a drawer previews. TeamComponents.tsx paints them.
-import { storybookIframeUrl, storybookManagerUrl, type RepoModel, type ScannedComponent } from '@bridge-ds/core';
+import { figmaCell, storybookIframeUrl, storybookManagerUrl, type RepoModel, type ScannedComponent } from '@bridge-ds/core';
+import type { ComponentListRow } from '../components/ds/studio/ComponentsList';
+import { productUsage, type ProductAudit } from './components-studio';
 import { safeUrl } from './html';
 
 export type TeamGuidance = 'ok' | 'review' | 'missing';
@@ -101,4 +103,30 @@ export function storyPreview(base: string | undefined, row: Pick<TeamComponentRo
   const first = row.stories[0];
   if (!sb || !first) return null;
   return { src: storybookIframeUrl(sb, first.id), manager: storybookManagerUrl(sb, first.id), story: first.name };
+}
+
+/**
+ * The rows of the Components catalog (components/ds/studio/ComponentsList, the same list as the self-hosted Studio),
+ * in `rows` order: the docs.json preview for the thumbnail, examples (stories) and tokens, the products that render
+ * it from the team's adoption reports (`audits` null: no "Used in" column) and its Figma coverage from the specs file.
+ */
+export function teamCatalogRows(model: Pick<RepoModel, 'components' | 'specs'>, rows: TeamComponentRow[], audits: ProductAudit[] | null): ComponentListRow[] {
+  const bySlug = new Map((model.components?.list ?? []).map((c) => [c.slug, c]));
+  const coverage = new Map((model.specs?.coverage ?? []).map((c) => [c.name, c]));
+  const used = audits?.length ? productUsage(audits, rows.map((r) => r.name)) : null;
+  return rows.map((r) => {
+    const c = bySlug.get(r.slug);
+    return {
+      slug: r.slug,
+      name: r.name,
+      family: r.family,
+      status: r.status,
+      guidance: r.guidance,
+      tokensTotal: r.tokens,
+      examples: r.stories.length,
+      preview: c?.docs?.preview,
+      usedIn: used ? (used.get(r.name) ?? []) : undefined,
+      figma: figmaCell(coverage.get(r.name) ?? (c ? coverage.get(c.name) : undefined)),
+    };
+  });
 }

@@ -5,10 +5,14 @@
 // the products that use it as tags (from the committed `bridge audit` reports), examples and tokens. Badges only for exceptions (missing guidance, a Claude
 // draft to review, beta, deprecated). The whole row opens the detail drawer: rows are one tab stop with arrow keys
 // between them, Enter opens.
+//
+// Two hosts: the self-hosted Studio page (pages/studio/components, rendered at build time, Thumb = Example, the rows
+// driven by scripts/components-studio.ts) and a team's Studio page (TeamComponents.tsx, in the browser, Thumb =
+// ClientExample, `onOpen` wires the rows here).
+import type { ComponentType, KeyboardEvent } from 'react';
 import { Avatar, Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tag, type BadgeTone } from '@bridge-ds/react';
 import type { ExampleNode, GuidanceState } from '../../../lib/components';
 import { thumbnailNode, usedInCell } from '../../../lib/components-studio';
-import Example from '../../Example';
 
 export interface ComponentListRow {
   slug: string;
@@ -43,7 +47,37 @@ const INERT = { inert: '' } as Record<string, string>;
 
 const words = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
 
-export default function ComponentsList({ rows, products }: { rows: ComponentListRow[]; products: number }) {
+export interface ComponentsListProps {
+  rows: ComponentListRow[];
+  /** Audited products: the "Used in" column shows only when there is one. */
+  products: number;
+  /** Draws a thumbnail sample (Example at build time, ClientExample in the browser). */
+  Thumb: ComponentType<{ node: ExampleNode }>;
+  /** Opens a row's drawer. Without it the page script drives the rows (scripts/components-studio.ts). */
+  onOpen?: (slug: string) => void;
+  /** The row whose drawer is open (with onOpen). */
+  openSlug?: string | null;
+}
+
+/** Arrow keys move between the rows of the list, Enter and Space open one (with onOpen). */
+function rowKeys(e: KeyboardEvent<HTMLTableRowElement>, open: () => void) {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    open();
+    return;
+  }
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  const table = e.currentTarget.closest('table');
+  const rows = table ? [...table.querySelectorAll<HTMLTableRowElement>('[data-cm-row]:not([hidden])')] : [];
+  const at = rows.indexOf(e.currentTarget);
+  const next = rows[e.key === 'ArrowDown' ? at + 1 : at - 1];
+  if (!next) return;
+  e.preventDefault();
+  for (const r of rows) r.tabIndex = r === next ? 0 : -1;
+  next.focus();
+}
+
+export default function ComponentsList({ rows, products, Thumb, onOpen, openSlug }: ComponentsListProps) {
   const families = [...new Set(rows.map((r) => r.family))];
   const withUsage = products > 0;
   const withFigma = rows.some((r) => r.figma);
@@ -73,7 +107,14 @@ export default function ComponentsList({ rows, products }: { rows: ComponentList
                 key={r.slug}
                 id={`c-${r.slug}`}
                 className="cm-row"
-                tabIndex={-1}
+                tabIndex={onOpen && r.slug === rows[0]?.slug ? 0 : -1}
+                {...(onOpen
+                  ? {
+                      onClick: () => onOpen(r.slug),
+                      onKeyDown: (e: KeyboardEvent<HTMLTableRowElement>) => rowKeys(e, () => onOpen(r.slug)),
+                      'aria-expanded': openSlug === r.slug ? true : undefined,
+                    }
+                  : {})}
                 aria-haspopup="dialog"
                 data-cm-row={r.slug}
                 data-family={r.family}
@@ -85,7 +126,7 @@ export default function ComponentsList({ rows, products }: { rows: ComponentList
                     <span className="cm-thumb" data-fit-frame="" aria-hidden="true" {...INERT}>
                       {r.preview && (
                         <span className="cm-thumb-fit" data-fit="">
-                          <Example node={thumbnailNode(r.preview)!} />
+                          <Thumb node={thumbnailNode(r.preview)!} />
                         </span>
                       )}
                     </span>
