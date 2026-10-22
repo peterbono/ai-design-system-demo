@@ -427,8 +427,10 @@ a.topbar-brand {
   display: none;
 }
 
+/* Always the end column, so the actions stay at the far right even on a page whose header has no search. */
 .topbar-actions {
   display: flex;
+  grid-column: 3;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-1);

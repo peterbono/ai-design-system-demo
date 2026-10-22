@@ -5,7 +5,7 @@
 import { useMemo, useState } from 'react';
 import { Button, Input, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
 import { LibraryPage, LibrarySourceNote, LibraryZone, usePageTeam } from './LibraryState';
-import { filterTokenRows, libraryTokenRows, TIER_LABEL, tierCounts, TOKEN_PAGE, type LibraryTier } from '../../../lib/library-view';
+import { filterTokenRows, libraryTokenRows, TIER_LABEL, tierCounts, TOKEN_PAGE, tokenFromQuery, type LibraryTier } from '../../../lib/library-view';
 import type { TeamData } from '../../../scripts/team-data';
 import '../../../styles/team-components.css';
 
@@ -15,9 +15,11 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 function Ready({ data, refreshing, onRefresh }: { data: TeamData; refreshing: boolean; onRefresh: () => void }) {
   const rows = useMemo(() => libraryTokenRows(data.model), [data.model]);
   const tiers = useMemo(() => tierCounts(rows), [rows]);
-  // Semantic first: what product code should use. The other tiers are one choice away.
-  const [tier, setTier] = useState<LibraryTier | ''>(tiers.some((t) => t.tier === 'semantic') ? 'semantic' : '');
-  const [query, setQuery] = useState('');
+  // A search result opens one token (?t=<path>): every tier, filtered to it. Otherwise semantic first: what product
+  // code should use. The other tiers are one choice away. Ready renders in the browser only, after the team is read.
+  const [asked] = useState(() => tokenFromQuery(location.search));
+  const [tier, setTier] = useState<LibraryTier | ''>(!asked && tiers.some((t) => t.tier === 'semantic') ? 'semantic' : '');
+  const [query, setQuery] = useState(asked);
   const [all, setAll] = useState(false);
   const shown = filterTokenRows(rows, query, tier);
   const visible = all ? shown : shown.slice(0, TOKEN_PAGE);

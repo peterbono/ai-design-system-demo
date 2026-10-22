@@ -11,10 +11,12 @@ import {
   libraryDocs,
   libraryFoundations,
   libraryHome,
+  librarySearchIndex,
   libraryTokenRows,
   llmsTxtUrl,
   publishedLine,
   tierCounts,
+  tokenFromQuery,
 } from './library-view';
 
 describe('bridge-data links', () => {
@@ -91,5 +93,29 @@ describe('published line', () => {
     expect(publishedLine({ published: '2026-10-20T08:00:00Z', sha: 'a1b2c3d4e5', branch: 'main' })).toBe('Published Oct 20, 2026 from a1b2c3d on main.');
     expect(publishedLine({ sha: 'a1b2c3d', branch: 'main' })).toBeNull();
     expect(publishedLine({ published: 'not a date', sha: 'a1b2c3d', branch: 'main' })).toBeNull();
+  });
+});
+
+describe('header search', () => {
+  it("indexes the team's places, components and tokens at the team's Library addresses", () => {
+    const index = librarySearchIndex(repoModel, 'peterbono', 'bridge-demo-ds');
+    const pages = index.filter((x) => x.kind === 'page');
+    expect(pages.map((p) => p.title)).toEqual(['Home', 'Foundations', 'Components', 'Tokens']);
+    expect(pages[0]!.href).toBe('/library/peterbono/bridge-demo-ds/');
+    const components = index.filter((x) => x.kind === 'component');
+    expect(components.length).toBe(libraryComponents(repoModel).length);
+    expect(components.find((c) => c.title === 'Button')?.href).toBe('/library/peterbono/bridge-demo-ds/components/?c=button');
+    const tokens = index.filter((x) => x.kind === 'token');
+    expect(tokens.length).toBe(libraryTokenRows(repoModel).length);
+    const token = tokens.find((t) => t.title === 'color.text.default')!;
+    expect(token.href).toBe('/library/peterbono/bridge-demo-ds/tokens/?t=color.text.default');
+    expect(token.swatch).toBeTruthy();
+    expect(token.keys).toContain('--color-text-default');
+  });
+
+  it('opens the token a search result names', () => {
+    expect(tokenFromQuery('?t=color.text.default')).toBe('color.text.default');
+    expect(tokenFromQuery('?c=button')).toBe('');
+    expect(tokenFromQuery('')).toBe('');
   });
 });
