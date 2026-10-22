@@ -136,7 +136,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
     <meta name="theme-color" content="#0b1825" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     {!library && <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />}
-    {/* Theme before first paint: this browser's choice in Settings, Appearance (lib/theme-pref.ts); no value is System. */}
+    {/* Theme before first paint: this browser's choice in Settings, Appearance (lib/theme-pref.ts); no value takes the OS setting. */}
     <script is:inline>
       (function () {
         var t = null;

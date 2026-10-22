@@ -4,7 +4,8 @@
 //                          an admin's Change unfolds the three choices as a DS RadioGroup, and only the work email
 //                          choice unfolds its domains field (progressive disclosure), then Save and Cancel.
 //   Library link           the address, and Copy library link, so an admin shares it with the company.
-// Everyone else reads the same rows with no Change. The sample team (Acme Design) shows its sample choice and Save opens
+// Everyone else reads the same card, the same rows and the same Change, disabled, with "Only admins can change this."
+// under the choice, so both views match. The sample team (Acme Design) shows its sample choice and Save opens
 // the demo dialog, with no call; a site without the server says it is not available yet, never a fake save.
 // Mounted by both Settings pages (pages/studio/settings, pages/team-shell/settings). Rules and words: lib/library-access.
 import { useEffect, useId, useState, type FormEvent } from 'react';
@@ -188,7 +189,7 @@ export default function LibraryAccessSection() {
   const publicNote = data.isPrivate === false && s.mode !== 'anyone';
   return (
     <>
-      <Header intro={data.canManage ? ACCESS_WORDS.intro : `${ACCESS_WORDS.intro} ${ACCESS_WORDS.readOnly}`} />
+      <Header intro={ACCESS_WORDS.intro} />
       <div className="set-band-body">
         {data.context === 'real' && data.canManage && !data.available && <Alert tone="info">{ACCESS_WORDS.unavailable}</Alert>}
         <Card aria-labelledby="set-library-access">
@@ -211,13 +212,20 @@ export default function LibraryAccessSection() {
                       <p className="set-who">{settingLabel(s)}</p>
                       <p className="set-row-help">{MODE_WORDS[s.mode].help}</p>
                       {publicNote && <p className="set-row-help">{ACCESS_WORDS.publicRepo}</p>}
+                      {!data.canManage && (
+                        <p className="set-row-help" id="lac-admins-only">
+                          {ACCESS_WORDS.adminsOnly}
+                        </p>
+                      )}
                     </div>
                     <div className="set-row-action">
-                      {canEdit && (
+                      {(canEdit || !data.canManage) && (
                         <Button
                           variant="secondary"
                           data-density="compact"
                           className="lac-action"
+                          disabled={!canEdit}
+                          aria-describedby={canEdit ? undefined : 'lac-admins-only'}
                           onClick={() => {
                             setNotice(null);
                             setEditing(true);

@@ -280,3 +280,16 @@
   }
 
 }
+
+/* An email contributor's account menu: their name as the title, the full email on its own line (wrapped, never cut),
+   and no GitHub or repository rows. */
+.gh-acct-menu-email {
+  margin: 0 var(--space-2) var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  overflow-wrap: anywhere;
+}
+
+.gh-acct[data-contributor] [data-gh-github-only] {
+  display: none;
+}

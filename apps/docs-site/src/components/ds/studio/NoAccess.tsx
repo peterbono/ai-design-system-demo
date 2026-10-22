@@ -18,7 +18,7 @@ import { Drawing } from './Drawing';
 import { useCopy } from './TeamLink';
 import { HostedOnboarding, setupStepFromUrl } from './Onboarding';
 import EmailLinkForm from '../library/EmailLinkForm';
-import { accessScreen, teamLink, type AccessAction, type AccessScreen } from '../../../lib/access-view';
+import { accessScreen, signInScreen, SIGN_IN_PARAM, teamLink, type AccessAction, type AccessScreen } from '../../../lib/access-view';
 import { studioBase } from '../../../lib/team-path';
 import { isDemoRepo } from '../../../lib/demo';
 import { updatedLine } from '../../../lib/activity-view';
@@ -215,6 +215,13 @@ export function NoAccess({ screen, updatedAt, repo = '', emailExpired = false }:
   );
 }
 
+/** This page's address without ?signin: the way back from the sign-in screen. */
+function withoutSignIn(): string {
+  const url = new URL(location.href);
+  url.searchParams.delete(SIGN_IN_PARAM);
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 /** Hides the page content under the gate while a block or the onboarding takes the page (styles/team-access.css). */
 function useTakeover(on: boolean) {
   useEffect(() => {
@@ -248,6 +255,8 @@ export function TeamAccessGate() {
   const [setupAt, setSetupAt] = useState<ReturnType<typeof setupStepFromUrl>>(null);
   // A guest page answered from the team's published activity: the banner says how recent it is.
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  // The side nav's Sign in asked for the team's sign-in screen (?signin): read from the address, Back included.
+  const [signInAsked, setSignInAsked] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -285,9 +294,42 @@ export function TeamAccessGate() {
     };
   }, []);
 
+  useEffect(() => {
+    const read = () => setSignInAsked(new URLSearchParams(location.search).has(SIGN_IN_PARAM));
+    read();
+    addEventListener('popstate', read);
+    return () => removeEventListener('popstate', read);
+  }, []);
+
+  // Signed out on a team that signs email contributors in: the side nav's Sign in ([data-gh-signin-screen]) opens the
+  // sign-in screen with both ways in, instead of going straight to GitHub (scripts/github-session.ts). Elsewhere (the
+  // sample team, a site without the email server) the click goes on to GitHub as before.
+  const offersScreen = Boolean(g?.email && !g.login && !isDemoRepo(`${g.owner}/${g.repo}`));
+  useEffect(() => {
+    if (!offersScreen) return;
+    const onClick = (e: MouseEvent) => {
+      if (!(e.target instanceof Element) || !e.target.closest('[data-gh-signin-screen]')) return;
+      // Before the shared session's own listener, which would leave for GitHub.
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      // From the phone menu sheet: close it, the screen takes the page.
+      if (document.getElementById('rail')?.classList.contains('is-open')) document.getElementById('rail-close')?.click();
+      const url = new URL(location.href);
+      url.searchParams.set(SIGN_IN_PARAM, '');
+      history.pushState(history.state, '', url);
+      setSignInAsked(true);
+      window.scrollTo({ top: 0 });
+    };
+    addEventListener('click', onClick, true);
+    return () => removeEventListener('click', onClick, true);
+  }, [offersScreen]);
+
   // The demo greets a guest itself (its demo banner, lib/demo.ts): no guest banner over it.
   const guestOnDemo = g?.access === 'anonymous-public' && isDemoRepo(`${g.owner}/${g.repo}`);
-  const screen = g?.access && !guestOnDemo ? accessScreen(g.access, { owner: g.owner, repo: g.repo, login: g.login, link, admin: g.repoAdmin, email: Boolean(g.email) }) : null;
+  const stateScreen = g?.access && !guestOnDemo ? accessScreen(g.access, { owner: g.owner, repo: g.repo, login: g.login, link, admin: g.repoAdmin, email: Boolean(g.email) }) : null;
+  // A screen that already takes the page (a private team asks to sign in) wins over the asked one.
+  const asked = offersScreen && signInAsked && g && stateScreen?.layout !== 'block' ? signInScreen({ owner: g.owner, repo: g.repo, back: withoutSignIn() }) : null;
+  const screen = asked ?? stateScreen;
   const block = screen?.layout === 'block';
   const setup = Boolean(g?.login && setupAt && !block);
   useTakeover(Boolean(block || setup));

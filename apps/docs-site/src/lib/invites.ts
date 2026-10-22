@@ -350,7 +350,6 @@ export const MEMBERS_WORDS = {
   membersTitle: 'Members',
   membersIntro: (team: string) => `Who is in ${team} and what each person can do. Changes apply the next time they open Bridge.`,
   membersIntroReader: (team: string) => `Who is in ${team} and what each person can do. Only admins can invite people or change roles.`,
-  unreadable: 'GitHub shows the full list to people who can edit. Here are the reviewers from your settings.',
   resend: 'Resend',
   resent: 'Sent again.',
   makeAdmin: 'Make admin',

@@ -278,7 +278,7 @@
   margin: 0;
 }
 
-/* Review rules: the table of what each change needs, then the owner override fold. */
+/* Review rules: the table of what each change needs. */
 .set-change-rules {
   display: grid;
   gap: var(--space-2);

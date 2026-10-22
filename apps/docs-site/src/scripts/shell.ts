@@ -31,7 +31,7 @@ export function announce(text: string) {
   }, 1500);
 }
 
-/** The theme follows this browser's choice (Settings, Appearance): the OS while it is System, and other tabs. */
+/** The theme follows this browser's choice (Settings, Appearance): the OS until a pick, and other tabs. */
 function initTheme() {
   followThemePref();
 }
@@ -275,6 +275,35 @@ function initRail() {
   });
   setInert();
   rail.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest' });
+}
+
+/**
+ * The side nav is sticky and one screen tall. A strip above the shell (the demo banner) pushes it down while it is in
+ * view: --shell-offset is how much of it still shows under the header, so the rail fits the screen and its foot stays
+ * visible. Zero once scrolled past, and on pages with no strip.
+ */
+function initRailFit() {
+  const shell = document.querySelector<HTMLElement>('.shell');
+  const header = document.querySelector<HTMLElement>('.topbar');
+  if (!shell || !header) return;
+  let frame = 0;
+  let last = -1;
+  const fit = () => {
+    frame = 0;
+    const offset = Math.max(0, Math.round(shell.getBoundingClientRect().top - header.getBoundingClientRect().bottom));
+    if (offset === last) return;
+    last = offset;
+    shell.style.setProperty('--shell-offset', `${offset}px`);
+  };
+  const queue = () => {
+    if (!frame) frame = requestAnimationFrame(fit);
+  };
+  addEventListener('scroll', queue, { passive: true });
+  addEventListener('resize', queue);
+  // The demo banner mounts (and wraps) after first paint.
+  const strip = document.querySelector<HTMLElement>('[data-demo-strip]');
+  if (strip && typeof ResizeObserver === 'function') new ResizeObserver(queue).observe(strip);
+  fit();
 }
 
 /**
@@ -654,6 +683,7 @@ export function initShell() {
   bindCodeBlocks();
   bindDialogs();
   initRail();
+  initRailFit();
   initNavGroups();
   initPalette();
 }

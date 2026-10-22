@@ -1,10 +1,11 @@
 ---
 // Team shell of Studio Settings (lib/team-shells.ts): served for /studio/<owner>/<repo>/settings/ by the vercel.json rewrite.
+// An email contributor's Account first (SettingsAccount.tsx ContributorAccountBand).
 // General: the team's name (TeamNameSetting.tsx), edited by an admin, read by everyone else.
 // Members (who is in the team, invites and roles, MembersSection.tsx) reads the team from the address and GitHub; the team's rules (how
 // changes reach the code, review rules, safety) render read only from its repository model in the browser
-// (components/ds/studio/TeamSettings.tsx). On the demo, that is the demo's sample team. Appearance (light, dark or
-// System) is this browser's own choice, there for everyone whatever the team read gives (AppearanceSetting.tsx).
+// (components/ds/studio/TeamSettings.tsx). On the demo, that is the demo's sample team. Appearance (light or
+// dark) is this browser's own choice, there for everyone whatever the team read gives (AppearanceSetting.tsx).
 import '../../../styles/settings.css';
 import TeamShell from '../../../components/TeamShell.astro';
 import MembersSection from '../../../components/ds/studio/MembersSection';
@@ -13,6 +14,7 @@ import TeamSettings from '../../../components/ds/studio/TeamSettings';
 import AppearanceSetting from '../../../components/ds/studio/AppearanceSetting';
 import TeamNameSetting from '../../../components/ds/studio/TeamNameSetting';
 import { TEAM_NAME_WORDS } from '../../../lib/team-name';
+import { ContributorAccountBand } from '../../../components/ds/studio/SettingsAccount';
 import { tierSummaries } from '../../../lib/governance';
 import { approvalRules } from '../../../lib/settings-view';
 
@@ -22,6 +24,7 @@ const rules = approvalRules(tierSummaries()).map((x) => ({ what: x.what, who: ca
 ---
 
 <TeamShell route="settings/" title="Settings" what="settings and roles" description="GitHub connection, roles and approvals for this team's design system.">
+  <ContributorAccountBand client:only="react" />
   <section class="ts-band" id="general" aria-labelledby="ts-general">
     <h2 id="ts-general" class="ts-h">{TEAM_NAME_WORDS.generalTitle}</h2>
     <p class="ts-intro">{TEAM_NAME_WORDS.generalIntro}</p>

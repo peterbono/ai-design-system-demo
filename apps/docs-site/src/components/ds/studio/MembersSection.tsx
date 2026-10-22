@@ -4,8 +4,8 @@
 // role picker (RolePicker, the one the invite dialog uses) and a "More" menu with Make admin and Remove from team.
 // Remove asks once, in the row itself, before anything happens. Pending invites close the list, with Resend on their
 // line. Someone who is not an admin reads the same list with roles as text and no controls (board I4).
-// An email contributor (lib/contribute.ts) reads as any member, with one "Email" tag inline after the name; they stay
-// Can edit (Reviewer and Admin are disabled in their picker, with the reason) and an admin may remove them.
+// An email contributor (lib/contribute.ts) reads as any member, with no tag of their own; they stay Can edit (Reviewer
+// and Admin are disabled in their picker, with the reason) and an admin may remove them.
 // Contexts (scripts/members.ts): the sample team shows its sample people and every change opens the demo dialog; a real
 // team reads GitHub and sends changes to the invites server; the browser workspace has no team yet.
 // Mounted by both Settings pages (pages/studio/settings, pages/team-shell/settings), and it mounts the dialog.
@@ -16,7 +16,6 @@ import RolePicker from './RolePicker';
 import { NoticeLine, PersonCell } from './MemberParts';
 import InviteDialog from './InviteDialog';
 import { memberActions, useMembers, type Notice } from './members-state';
-import { CONTRIBUTE_WORDS } from '../../../lib/contribute';
 import { adminCount, choiceOf, inviteChoice, memberActions as allowed, MEMBERS_WORDS, memberLine, pendingLine, roleText, roleLabel, SAMPLE_NOW, sortMembers, type Member, type PendingInvite } from '../../../lib/invites';
 import type { MembersData } from '../../../scripts/members';
 import '../../../styles/invites.css';
@@ -41,18 +40,18 @@ function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: Member
     <>
       <TableRow>
         <TableCell label="">
-          <PersonCell name={m.name} seed={m.login} line={memberLine(m)} you={m.you} avatar={m.avatar} {...(email ? { tag: CONTRIBUTE_WORDS.emailTag } : {})} />
+          <PersonCell name={m.name} seed={m.login} line={memberLine(m)} you={m.you} avatar={m.avatar} />
         </TableCell>
         <TableCell className="mem-role-cell" label="">
           <span className="mem-role">
             {can.changeRole ? (
-              <RolePicker label={`Role for ${m.name}`} value={choiceOf(m)} personal={data.personal} emailOnly={email} disabled={busy} onChange={(c) => void run(() => act.changeRole(m, c))} />
+              <RolePicker label={`Role for ${m.name}`} value={choiceOf(m)} personal={data.personal} emailOnly={email} disabled={busy} size="sm" onChange={(c) => void run(() => act.changeRole(m, c))} />
             ) : (
               <span className="mem-role-text">{roleText(m)}</span>
             )}
             {menu ? (
               <Menu>
-                <MenuTrigger render={<IconButton icon={MoreHorizontal} label={`More for ${m.name}`} variant="ghost" />} />
+                <MenuTrigger render={<IconButton icon={MoreHorizontal} label={`More for ${m.name}`} variant="ghost" size="sm" />} />
                 <MenuContent align="end">
                   {can.makeAdmin && !email && (
                     <MenuItem disabled={data.personal} onClick={() => void run(() => act.changeRole(m, { role: 'admin' }))}>
@@ -123,13 +122,13 @@ function PendingRow({ p, data, act, onNotice }: { p: PendingInvite; data: Member
       <TableCell className="mem-role-cell" label="">
         <span className="mem-role">
           {data.canManage ? (
-            <RolePicker label={`Role for ${p.email}`} value={inviteChoice(p)} personal={data.personal} onChange={(c) => void run(() => act.changeInviteRole(p, c))} />
+            <RolePicker label={`Role for ${p.email}`} value={inviteChoice(p)} personal={data.personal} size="sm" onChange={(c) => void run(() => act.changeInviteRole(p, c))} />
           ) : (
             <span className="mem-role-text">{roleLabel(inviteChoice(p))}</span>
           )}
           {data.canManage && (
             <Menu>
-              <MenuTrigger render={<IconButton icon={MoreHorizontal} label={`More for ${p.email}`} variant="ghost" />} />
+              <MenuTrigger render={<IconButton icon={MoreHorizontal} label={`More for ${p.email}`} variant="ghost" size="sm" />} />
               <MenuContent align="end">
                 <MenuItem tone="danger" onClick={() => void run(() => act.cancel(p))}>
                   {MEMBERS_WORDS.cancelInvite}
@@ -183,7 +182,6 @@ export default function MembersSection() {
           {MEMBERS_WORDS.unavailable}
         </Alert>
       )}
-      {!data.complete && <p className="mem-intro">{MEMBERS_WORDS.unreadable}</p>}
       <Table aria-label={`Members of ${data.team}`} narrowLayout="stack" className="mem-table">
         <TableHeader>
           <TableRow>

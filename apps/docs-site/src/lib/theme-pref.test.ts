@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
-// Appearance (light, dark or System) is a choice of this browser: the same `ds-theme` key the no-flash script in the
-// <head> reads, System removes it so the page follows the OS. The header no longer carries a theme button.
+// Appearance (light or dark) is a choice of this browser: the same `ds-theme` key the no-flash script in the
+// <head> reads. No pick yet: the page follows the OS. An older stored 'system' becomes the theme it showed. The header no longer carries a theme button.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { followThemePref, parseThemePref, readThemePref, resolveTheme, setThemePref, THEME_KEY, THEME_PREFS } from './theme-pref';
+import { effectiveTheme, followThemePref, migrateThemePref, parseThemePref, readThemePref, resolveTheme, setThemePref, THEME_KEY, THEME_OPTIONS } from './theme-pref';
 
 const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
 
@@ -27,8 +27,32 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe('theme preference', () => {
-  it('offers Light, Dark and System, in that order', () => {
-    expect(THEME_PREFS.map((p) => p.label)).toEqual(['Light', 'Dark', 'System']);
+  it('offers Light and Dark only, in that order', () => {
+    expect(THEME_OPTIONS.map((p) => p.label)).toEqual(['Light', 'Dark']);
+  });
+
+  it('shows the OS theme while nothing is picked, then the pick', () => {
+    dark = true;
+    expect(effectiveTheme()).toBe('dark');
+    localStorage.setItem(THEME_KEY, 'light');
+    expect(effectiveTheme()).toBe('light');
+  });
+
+  it("moves an older stored 'system' to the theme it showed", () => {
+    dark = true;
+    localStorage.setItem(THEME_KEY, 'system');
+    migrateThemePref();
+    expect(localStorage.getItem(THEME_KEY)).toBe('dark');
+    // Nothing stored stays nothing: the OS still decides until a pick.
+    localStorage.clear();
+    migrateThemePref();
+    expect(localStorage.getItem(THEME_KEY)).toBeNull();
+    // On every page: the shell's follow runs the move first.
+    localStorage.setItem(THEME_KEY, 'system');
+    dark = false;
+    const stop = followThemePref();
+    expect(localStorage.getItem(THEME_KEY)).toBe('light');
+    stop();
   });
 
   it('reads anything but light or dark as System', () => {
@@ -59,7 +83,7 @@ describe('theme preference', () => {
     expect(src('../layouts/Landing.astro')).toContain(`localStorage.getItem('${THEME_KEY}')`);
   });
 
-  it('follows the OS while the choice is System, not once Light or Dark is picked', () => {
+  it('follows the OS while nothing is picked, not once Light or Dark is picked', () => {
     const stop = followThemePref();
     dark = true;
     listeners.forEach((fn) => fn());

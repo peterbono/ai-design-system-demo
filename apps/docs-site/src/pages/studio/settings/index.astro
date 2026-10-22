@@ -16,9 +16,9 @@
 //   Review rules  who the design and tech owners are (people or GitHub teams, read from GitHub), who approves design,
 //                 who approves tech and who merges (edited in place, a review is requested on a branch that edits
 //                 bridge.config.json), what each kind of branch needs (plain rules from docs/GOVERNANCE.md, no tier
-//                 numbers) and the owner override as a fold.
+//                 numbers).
 //   Safety        protection of the library and when the visual before and after runs, each with its action.
-//   Figma and Claude, then Integrations (Jira), then Appearance: light, dark or System, a preference of this browser,
+//   Figma and Claude, then Integrations (Jira), then Appearance: light or dark, a preference of this browser,
 //   not a team rule (components/ds/studio/AppearanceSetting.tsx).
 //   Settings speak designer words (lib/vocabulary): no developer section;
 //   a setting with GitHub machinery behind it carries one "How it works on GitHub" link, the library itself one
@@ -46,7 +46,7 @@ import { exists, GITHUB_URL, lastUpdated, readText } from '../../../lib/repo';
 import { VOCAB } from '../../../lib/vocabulary';
 import { CHOICE_LABEL, OWNER_GROUP_HELP, OWNER_GROUP_LABEL, roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL, type RightChoice } from '../../../lib/roles-view';
 import OwnersField from '../../../components/ds/studio/OwnersField';
-import { approvalRules, changesInConfig, overrideText, soloOwnerRow } from '../../../lib/settings-view';
+import { approvalRules, changesInConfig, soloOwnerRow } from '../../../lib/settings-view';
 import ChangesModeSetting from '../../../components/ds/studio/ChangesMode';
 import MembersSection from '../../../components/ds/studio/MembersSection';
 import LibraryAccessSection from '../../../components/ds/studio/LibraryAccessSection';
@@ -86,7 +86,6 @@ const tools = mcpTools().length;
 
 // Approvals: plain rules (no tier numbers). One source: docs/GOVERNANCE.md, the tiers themselves on How review works.
 const rules = approvalRules(tierSummaries());
-const override = overrideText(r.override);
 
 // Integrations: GitHub issues always; Jira when bridge.config.json says so (the bridge-jira workflow does the sync).
 const jira = r.integrations.jira;
@@ -131,7 +130,7 @@ const changes = changesInConfig(config);
           <Illustration name="review" width={132} />
         </SettingsAccount>
         <p class="set-library" id="repository">
-          <span>Library <span class="mono">{repoName}</span>, branch <span class="mono">{r.defaultBranch}</span></span>
+          <span>Repository <span class="mono">{repoName}</span>, branch <span class="mono">{r.defaultBranch}</span></span>
           <Link href={GITHUB_URL} external>{VOCAB.openOnGitHub}</Link>
         </p>
       </div>
@@ -234,7 +233,7 @@ const changes = changesInConfig(config);
           </CardBody>
         </Card>
         <div id="approvals">
-          <ChangeRules client:visible rules={rules.map((x) => ({ what: x.what, who: cap(x.who) }))} override={override} />
+          <ChangeRules client:visible rules={rules.map((x) => ({ what: x.what, who: cap(x.who) }))} />
         </div>
       </div>
     </section>

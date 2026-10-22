@@ -165,6 +165,25 @@ export function accessScreen(state: RepoAccessState, f: AccessScreenInput): Acce
   }
 }
 
+/**
+ * The team's sign-in screen, asked for from the side nav's Sign in (?signin on a team page, signed out, on a team that
+ * signs email contributors in): both ways in on one card, GitHub first, the email link quiet under it. `back` is the
+ * same page without ?signin.
+ */
+export function signInScreen(f: { owner: string; repo: string; back: string }): AccessScreen {
+  return {
+    layout: 'block',
+    title: `Sign in to ${f.owner}/${f.repo}`,
+    body: 'Sign in to review changes and send suggestions.',
+    primary: { kind: 'signin', label: 'Sign in with GitHub' },
+    secondary: { kind: 'link', label: 'Not now', href: f.back },
+    links: [EMAIL_LINK],
+  };
+}
+
+/** The side nav's Sign in asks for the team's sign-in screen with this search parameter. */
+export const SIGN_IN_PARAM = 'signin';
+
 // --- The team chip ------------------------------------------------------------------------------------------------
 
 export type ChipTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';

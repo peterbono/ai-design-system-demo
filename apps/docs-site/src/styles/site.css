@@ -499,7 +499,9 @@ a.topbar-brand {
   align-self: start;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - var(--layout-header-height));
+  /* One screen under the header, less what still shows of a strip above the shell (the demo banner), so the foot
+     (Sign in) never falls below the screen. scripts/shell.ts keeps --shell-offset on the shell. */
+  height: calc(100dvh - var(--layout-header-height) - var(--shell-offset, var(--space-0)));
   overflow-y: auto;
   padding: var(--space-6) var(--space-4);
   border-right: var(--border-width-default) solid var(--color-border-default);

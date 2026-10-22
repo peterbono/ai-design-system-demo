@@ -92,12 +92,14 @@ describe('Settings, Library access', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
   });
 
-  it('a member reads the choice and the link, with no Change', async () => {
+  it('a member reads the same card as an admin, with Change disabled and why', async () => {
     page.data = real({ canManage: false, setting: { mode: 'email', domains: ['acme.design'] } });
     render(createElement(LibraryAccessSection));
     expect(await screen.findByText('Anyone with a work email at acme.design')).toBeInTheDocument();
-    expect(screen.getByText(/Only admins can change who reads the library\./)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Change' })).toBeNull();
+    expect(screen.getByText('Who reads your design system library. Readers need no GitHub account.')).toBeInTheDocument();
+    const change = screen.getByRole('button', { name: 'Change' });
+    expect(change).toBeDisabled();
+    expect(change).toHaveAccessibleDescription('Only admins can change this.');
     expect(screen.getByRole('button', { name: 'Copy library link' })).toBeInTheDocument();
     await expectNoAxeViolations(document.body);
   });
