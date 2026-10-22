@@ -5,6 +5,8 @@
 import { SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, type RepoModel, type TokenRow } from '@bridge-ds/core';
 import { safeSpecimenValue, tokenSpecimens, type SpecimenSet } from './token-specimens';
 import { teamComponentRows, type TeamComponentRow } from './team-components';
+import { LIBRARY_TEAM_NAV, libraryHref } from './library-shells';
+import type { SearchItem } from './search';
 
 const gh = (s: string) => encodeURIComponent(s);
 
@@ -179,6 +181,40 @@ export function filterTokenRows(rows: LibraryTokenRow[], query: string, tier: Li
       (!tier || r.tier === tier) &&
       (!q || r.path.toLowerCase().includes(q) || r.cssVar.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) || r.values.some((v) => v.text.toLowerCase().includes(q))),
   );
+}
+
+/** The token a Tokens link opens (?t=<path>, as the search links say it), '' when there is none. */
+export const tokenFromQuery = (search: string): string => new URLSearchParams(search).get('t')?.trim() ?? '';
+
+// --- Search ----------------------------------------------------------------------------------------------------------
+
+/**
+ * The header search of a team's Library (Cmd+K, scripts/shell.ts): its four places, every component and every token,
+ * from the model the page already read (no extra request). Same shape as Bridge's own /search-index.json, so the
+ * palette ranks and paints both the same way. Swatches come from libraryTokenRows (safeSpecimenValue).
+ */
+export function librarySearchIndex(model: Pick<RepoModel, 'tokens' | 'components'>, owner: string, repo: string): SearchItem[] {
+  const href = (route: string) => libraryHref(owner, repo, route);
+  const pages: SearchItem[] = LIBRARY_TEAM_NAV.map((e) => ({ kind: 'page', title: e.label, href: href(e.route), meta: e.meta, keys: 'library' }));
+  const components: SearchItem[] = libraryComponents(model).map((c) => ({
+    kind: 'component',
+    title: c.name,
+    href: href(`components/?c=${encodeURIComponent(c.slug)}`),
+    meta: c.summary ?? c.family,
+    keys: `${c.slug} ${c.family}`,
+  }));
+  const tokens: SearchItem[] = libraryTokenRows(model).map((r) => {
+    const swatch = r.values.find((v) => v.swatch)?.swatch ?? undefined;
+    return {
+      kind: 'token',
+      title: r.path,
+      href: href(`tokens/?t=${encodeURIComponent(r.path)}`),
+      meta: `${TIER_LABEL[r.tier]}, ${r.values.map((v) => v.text).join(' / ')}`,
+      keys: `${r.cssVar} ${r.values.map((v) => v.text).join(' ')}`,
+      ...(swatch ? { swatch } : {}),
+    };
+  });
+  return [...pages, ...components, ...tokens];
 }
 
 /** Above this, the Tokens table shows the first rows and a "Show all" button (a long table costs the first paint). */
