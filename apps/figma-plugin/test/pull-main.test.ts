@@ -77,7 +77,7 @@ test('Pull headline: commits on main since the last pull never read "Already up 
   assert.equal(pullHeadline({ ...base, behind: 0, status: ['3 components to build'] }), 'Up to date with main. 3 components to build.');
   assert.equal(pullHeadline({ ...base, variablesUpToDate: false, behind: 2, status: ['4 edited on main'] }), '4 edited on main');
   assert.equal(pullHeadline({ ...base, baseSha: undefined, variablesUpToDate: false, behind: 0 }), 'First pull');
-  for (const behind of [0, 1, 2]) assert.ok(!pullHeadline({ ...base, behind }).includes('—'));
+  for (const behind of [0, 1, 2]) assert.ok(!pullHeadline({ ...base, behind }).includes(String.fromCharCode(0x2014)));
 
   const head = 'b'.repeat(40);
   assert.equal(commitsBehind({ baseSha: head, headSha: head, compare: undefined }), 0);
