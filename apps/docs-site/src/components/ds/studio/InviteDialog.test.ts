@@ -125,6 +125,28 @@ describe('Invite collaborators', () => {
     expect(demo.openMakeItYours).not.toHaveBeenCalled();
   });
 
+  it("says today's invite limit calmly when the server caps it, and keeps the emails to send later", async () => {
+    page.data = real();
+    const limit = Object.assign(new Error("You reached today's invite limit. Try again tomorrow."), { name: 'InvitesError', status: 429, code: 'limit' });
+    api.sendInvites.mockRejectedValueOnce(limit);
+    const { user, dialog } = await openDialog();
+    await user.click(within(dialog).getByLabelText('Work email'));
+    await user.keyboard('x@acme.design{Enter}');
+    await user.click(within(dialog).getByRole('button', { name: 'Send 1 invite' }));
+    const line = await within(dialog).findByText("You reached today's invite limit. Try again tomorrow.");
+    expect(line).toHaveAttribute('data-tone', 'info');
+    expect(within(dialog).getByRole('button', { name: 'Send 1 invite' })).toBeInTheDocument();
+  });
+
+  it('says when a pending invite was resent too often', async () => {
+    page.data = real();
+    api.resendInvite.mockRejectedValueOnce(Object.assign(new Error('This invite was just sent. Wait a few minutes, then send it again.'), { name: 'InvitesError', status: 429 }));
+    const user = userEvent.setup();
+    render(createElement(MembersSection));
+    await user.click(await screen.findByRole('button', { name: 'Resend' }));
+    expect(await screen.findByText('This invite was just sent. Wait a few minutes, then send it again.')).toBeInTheDocument();
+  });
+
   it('says invites are not available on a site without them, and cannot send', async () => {
     page.data = real({ invites: false });
     const { user, dialog } = await openDialog();

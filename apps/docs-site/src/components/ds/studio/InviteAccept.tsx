@@ -3,13 +3,15 @@
 // used). Signed out, one sentence and "Sign in with GitHub"; signed in, Bridge accepts the invitation on the server
 // (scripts/invites-api.ts acceptInvite), which adds this GitHub account to the team with the role the admin picked.
 // Then "Open the team". When GitHub still wants the person to accept on github.com (they are not in the
-// organization), one more button does that. Every failure says how to fix it.
+// organization), one more button does that. Every failure says how to fix it. Only the invited person joins: when
+// the GitHub account does not have the invited email, verified, the page says which address the invite was sent to
+// (masked) and how to fix it, and the invite stays valid for the same link.
 import { useEffect, useState } from 'react';
 import { ArrowRight, ExternalLink } from 'lucide-react';
 import { Button, ButtonGroup } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
 import { GitHubMark } from './brand-icons';
-import { ROLE_WORDS, roleLabel, MEMBERS_WORDS } from '../../../lib/invites';
+import { acceptEmailWords, GITHUB_EMAILS_URL, ROLE_WORDS, roleLabel, MEMBERS_WORDS, type AcceptEmailCode } from '../../../lib/invites';
 import { teamHref } from '../../../lib/team-path';
 import type { AcceptResult } from '../../../scripts/invites-api';
 
@@ -27,7 +29,10 @@ type View =
   | { kind: 'signin' }
   | { kind: 'joining' }
   | { kind: 'done'; result: AcceptResult }
-  | { kind: 'error'; text: string; retry: boolean };
+  | { kind: 'error'; text: string; retry: boolean }
+  | { kind: 'email'; code: AcceptEmailCode; sentTo: string; login: string };
+
+const EMAIL_CODES: readonly string[] = ['email_mismatch', 'email_unverified', 'email_access'];
 
 function readToken(): string | null {
   const fromHash = tokenFromHash(location.hash);
@@ -83,6 +88,10 @@ export default function InviteAccept() {
       } catch (err) {
         if (!live) return;
         const unavailable = err instanceof api.InvitesUnavailable;
+        if (err instanceof api.InvitesError && EMAIL_CODES.includes(err.code)) {
+          const str = (v: unknown) => (typeof v === 'string' ? v : '');
+          return setView({ kind: 'email', code: err.code as AcceptEmailCode, sentTo: str(err.details.sentTo), login: str(err.details.login) });
+        }
         const gone = err instanceof api.InvitesError && err.status === 410;
         if (gone) forgetToken();
         setView({ kind: 'error', text: unavailable ? MEMBERS_WORDS.unavailable : err instanceof Error ? err.message : 'Something went wrong.', retry: !unavailable && !gone });
@@ -106,6 +115,29 @@ export default function InviteAccept() {
         </Button>
       </Shell>
     );
+  if (view.kind === 'email') {
+    const w = acceptEmailWords(view.code, view.sentTo, view.login);
+    if (view.code === 'email_access')
+      return (
+        <Shell title={w.title} sub={w.sub}>
+          <Button variant="primary" size="lg" iconStart={GitHubMark} data-gh-signin="">
+            {w.action}
+          </Button>
+        </Shell>
+      );
+    return (
+      <Shell title={w.title} sub={w.sub}>
+        <ButtonGroup>
+          <ButtonLink href={GITHUB_EMAILS_URL} variant="primary" size="lg" iconEnd={ExternalLink} target="_blank" rel="noopener noreferrer">
+            {w.action}
+          </ButtonLink>
+          <Button variant="secondary" size="lg" onClick={() => setRun((n) => n + 1)}>
+            Try again
+          </Button>
+        </ButtonGroup>
+      </Shell>
+    );
+  }
   if (view.kind === 'error')
     return (
       <Shell title="Bridge could not add you yet" sub={view.text}>

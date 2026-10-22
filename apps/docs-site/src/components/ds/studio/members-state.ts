@@ -51,6 +51,8 @@ async function api() {
 
 function failure(err: unknown, unavailable: string): Notice {
   if (err instanceof Error && err.name === 'InvitesUnavailable') return { tone: 'info', text: unavailable };
+  // A daily cap or a resend too soon is not a mistake: said calmly, with when to try again.
+  if (err instanceof Error && (err as Error & { status?: number }).status === 429) return { tone: 'info', text: err.message || MEMBERS_WORDS.limitReached };
   return { tone: 'danger', text: err instanceof Error && err.message ? err.message : 'Something went wrong. Try again in a minute.' };
 }
 

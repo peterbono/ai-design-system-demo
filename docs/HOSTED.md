@@ -186,10 +186,18 @@ so Can view and Admin cannot be enforced there.
 
 ### How it works, and what it keeps
 
-- **Pending invites** (email, role, team, who invited, creation and expiry dates, the SHA-256 of the link token) are
-  stored in an Upstash Redis database, never in the browser. The link token itself is only in the email, in the
-  link's fragment (`/studio/invite/#t=...`), so it reaches no server log. A link works once and expires after 7 days;
-  Resend makes a new one and the old one stops working.
+- **Pending invites** (email, role, team, who invited, created, sent and expiry dates, the SHA-256 of the link
+  token, nothing else) are stored in an Upstash Redis database, never in the browser. Each record and its link index
+  expire in Redis with the invite (7 days), and are deleted at once when the invite is accepted or cancelled. The
+  link token itself is only in the email, in the link's fragment (`/studio/invite/#t=...`), so it reaches no server
+  log. A link works once; Resend makes a new one and the old one stops working. The function logs nothing.
+- **Only the invited person joins.** On accept, the GitHub account must have the invited email as a **verified**
+  email (read with the invitee's own sign-in, `GET /user/emails`, compared trimmed and case-insensitive). Otherwise
+  nothing is granted, the invite stays valid, and the page says which address it was sent to, masked
+  (`m•••@acme.design`), and how to fix it: add and verify that email on GitHub, or ask the admin to invite the address
+  they use on GitHub. This needs the account permission **Email addresses: Read-only** on the GitHub Apps people sign
+  in with (docs/SIGN-IN.md). A sign-in from before that permission was added cannot read emails: the page asks to
+  sign in with GitHub again, which shows GitHub's consent for the new permission.
 - **Who acts on GitHub.** The invitee accepts after the admin is gone, so the admin's own sign-in cannot add them, and
   Bridge does not store anyone's personal token for later. The function mints a short-lived installation token of the
   Bridge Direct app for the one repository on each request, and never stores it.
@@ -203,6 +211,27 @@ so Can view and Admin cannot be enforced there.
 - Without storage, email or the app configured, every action answers "Invites are not available yet on this site."
   and Studio says so. Nothing pretends to work.
 
+### Caps
+
+Every email sent (an invite or a resend) counts toward three daily counters in Redis, which expire on their own after
+two days. A day is a UTC day. A request over a cap sends nothing and answers HTTP 429 with the reason and a
+`Retry-After` header; Studio shows the sentence ("You reached today's invite limit. Try again tomorrow."). A batch
+larger than what is left is refused whole, with how many can still go out today.
+
+| Cap                               | Default | Env override                 |
+| --------------------------------- | ------- | ---------------------------- |
+| Emails per admin per day          | 20      | `INVITES_MAX_PER_ADMIN_DAY`  |
+| Emails per team per day           | 40      | `INVITES_MAX_PER_TEAM_DAY`   |
+| Emails for the whole site per day | 80      | `INVITES_MAX_SITE_DAY`       |
+| Pause between two sends of one invite | 10 minutes | none                    |
+| Resends of one invite per day     | 3       | none                         |
+| People per request                | 10      | none                         |
+
+Keep `INVITES_MAX_SITE_DAY` below the daily sending quota of your Resend plan (check it on your Resend account), so
+invites never fail at the provider. The overrides are whole numbers; `0` stops sending; anything else falls back to
+the default. Emails are validated on the server before anything is counted, and only emails that actually went out
+count (organization members added directly, addresses already invited and failed sends are given back).
+
 ### Set it up (owner of the site)
 
 1. **Storage.** In the Vercel project (`bridge-docs`): **Storage**, **Create Database**, **Upstash for Redis** (Vercel
@@ -214,7 +243,10 @@ so Can view and Admin cannot be enforced there.
    **Private keys**, **Generate a private key** (a `.pem` file). Check its permissions include Repository
    **Administration: Read and write** (already in the list), **Contents** and **Pull requests: Read and write** (for
    the reviewer pull request), and for organization repositories **Organization, Members: Read only**. Each
-   installation must accept a permission GitHub added since it was installed.
+   installation must accept a permission GitHub added since it was installed. On **both** apps (Bridge and Bridge
+   Direct), add the account permission **Email addresses: Read-only**, so the invite page can check the invited email
+   belongs to the person who accepts. People already signed in get it when they sign in again (the invite page asks
+   them to).
 4. **Environment variables** on Vercel, Production and Preview, all **Sensitive**:
 
 | Name                     | Value                                                                    |
@@ -226,6 +258,7 @@ so Can view and Admin cannot be enforced there.
 | `GITHUB_APP_ID`          | Bridge Direct's App ID                                                   |
 | `GITHUB_APP_PRIVATE_KEY` | The whole `.pem` content (line breaks or `\n` both work)                 |
 | `PUBLIC_SITE_URL`        | Optional: the origin for links in emails, `https://bridge.floriangouloubi.com`. Default: the site the admin invited from |
+| `INVITES_MAX_PER_ADMIN_DAY`, `INVITES_MAX_PER_TEAM_DAY`, `INVITES_MAX_SITE_DAY` | Optional: the daily caps (see Caps). Not sensitive |
 
 5. Redeploy. `GET /api/invites` answers `{ "available": true }` once everything is set.
 
