@@ -134,11 +134,11 @@ export const SHORT: CompareRow[] = [
     detail: 'No paid plan',
     cells: [
       y(),
-      p('Free plan with one project and one branch.'),
-      p('Free Starter plan; approvals and adoption on Enterprise.'),
+      n,
+      n,
       y('Chromatic, its visual testing service, is paid.'),
-      p('Free plan with one editor and one styleguide.'),
-      p('Free Starter plan; branching and Make kits are paid.'),
+      n,
+      n,
     ],
   },
 ];
