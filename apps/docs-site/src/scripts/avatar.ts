@@ -33,3 +33,23 @@ export function paintAvatar(root: HTMLElement, name: string, rawUrl: string | un
   const src = `${url}${url.includes('?') ? '&' : '?'}s=${px}`;
   if (img.getAttribute('src') !== src) img.src = src;
 }
+
+/**
+ * Shows the DS default face for someone without a photo in the static DS Avatar `root`: the drawn face seeded by
+ * `seed` (an email contributor's email), never initials. The drawings load once, after the first paint.
+ */
+export function paintDrawnAvatar(root: HTMLElement, seed: string) {
+  const fallback = root.querySelector(':scope > span[aria-hidden="true"]');
+  if (fallback) fallback.textContent = '';
+  void import('@bridge-ds/react/avatar-illustrated').then(({ illustratedAvatarUri }) => {
+    let img = root.querySelector<HTMLImageElement>('img.avatar-photo');
+    if (!img) {
+      img = document.createElement('img');
+      img.className = 'avatar-photo';
+      img.alt = '';
+      root.prepend(img);
+    }
+    const src = illustratedAvatarUri(seed);
+    if (img.getAttribute('src') !== src) img.src = src;
+  });
+}

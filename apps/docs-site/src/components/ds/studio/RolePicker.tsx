@@ -2,12 +2,14 @@
 // Button that names the role ("Can edit", "Reviewer: design") and opens a DS Popover with the four roles as a DS
 // RadioGroup, each with one line that says what it adds. Choosing Reviewer unfolds, under it, "They review as": two
 // DS ChoiceCards, Designer (how it looks and works) and Developer (how it is built). Nothing else unfolds: progressive
-// disclosure. A role GitHub cannot hold on this repository (a personal account's) is shown disabled with the reason.
+// disclosure. A role GitHub cannot hold on this repository (a personal account's) is shown disabled with the reason, and
+// so are Reviewer and Admin for an email contributor (reviewers and admins approve on GitHub).
 // What each role means on GitHub stays out of sight (lib/invites.ts).
 import { useId, useState, type KeyboardEvent } from 'react';
 import { ChevronDown, Code2, PenTool } from 'lucide-react';
 import { Button, ChoiceCard, ChoiceCardGroup, Icon, Popover, PopoverContent, PopoverTrigger, Radio, RadioGroup } from '@bridge-ds/react';
 import { normalizeChoice, PERSONAL_NOTE, REVIEW_AS_ORDER, REVIEW_AS_WORDS, ROLE_WORDS, roleChoices, roleLabel, type ReviewAs, type RoleChoice } from '../../../lib/invites';
+import { CONTRIBUTE_WORDS } from '../../../lib/contribute';
 import '../../../styles/invites.css';
 
 export interface RolePickerProps {
@@ -17,6 +19,8 @@ export interface RolePickerProps {
   label: string;
   /** A personal account's repository: Admin is disabled, with the reason. */
   personal?: boolean;
+  /** An email contributor: Reviewer and Admin are disabled, with the reason (they approve on GitHub). */
+  emailOnly?: boolean;
   disabled?: boolean;
   size?: 'sm' | 'md' | 'lg';
   /** ghost: a quiet trigger inside a list (the dialog's "Who has access"). */
@@ -25,11 +29,11 @@ export interface RolePickerProps {
 
 const REVIEW_ICON = { design: PenTool, tech: Code2 } as const;
 
-export default function RolePicker({ value, onChange, label, personal = false, disabled = false, size = 'md', variant = 'secondary' }: RolePickerProps) {
+export default function RolePicker({ value, onChange, label, personal = false, emailOnly = false, disabled = false, size = 'md', variant = 'secondary' }: RolePickerProps) {
   const [open, setOpen] = useState(false);
   const choice = normalizeChoice(value);
   const id = useId();
-  const choices = roleChoices(personal);
+  const choices = roleChoices(personal).map((c) => (emailOnly && c.role !== 'edit' ? { ...c, disabled: true } : c));
   const pick = (role: string) => {
     const next = normalizeChoice({ role: role as RoleChoice['role'], ...(role === 'reviewer' ? { reviewAs: choice.reviewAs ?? 'design' } : {}) });
     onChange(next);
@@ -82,7 +86,7 @@ export default function RolePicker({ value, onChange, label, personal = false, d
             </div>
           ))}
         </RadioGroup>
-        {personal && <p className="rp-note">{PERSONAL_NOTE}</p>}
+        {emailOnly ? <p className="rp-note">{CONTRIBUTE_WORDS.emailRoleNote}</p> : personal && <p className="rp-note">{PERSONAL_NOTE}</p>}
       </PopoverContent>
     </Popover>
   );

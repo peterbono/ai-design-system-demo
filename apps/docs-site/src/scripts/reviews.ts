@@ -197,11 +197,14 @@ interface Access {
   login: string;
   write: boolean;
   methods: MergeMethod[];
+  /** An email contributor (lib/contribute.ts): edits, never approves, requests changes, merges or overrides. */
+  contributor?: boolean;
 }
 
 async function readAccess(): Promise<Access | null> {
   const v = currentViewer();
   if (!hasWorkingToken() || !v) return null;
+  if (v.email) return { login: v.login, write: true, methods: ['squash'], contributor: true };
   try {
     const info = (await ghGet<RepoInfo>(R)).data;
     return { login: v.login, write: canWrite(info.permissions), methods: allowedMergeMethods(info) };
@@ -805,12 +808,14 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   const lifecycle = pullState(pull);
   const open = lifecycle === 'open';
   const exploration = isActiveExploration(pull.labels);
-  const showOverride = gate.overridable && write;
+  // An email contributor reviews nothing: the who-acts line names who approves and merges instead.
+  const reviewer = write && !access?.contributor;
+  const showOverride = gate.overridable && reviewer;
   const login = access?.login ?? null;
   const isAuthor = Boolean(login && login.toLowerCase() === pull.user.login.toLowerCase());
   const who = whoActs(
     needFromDetail({ state: lifecycle, ci, gate, changesRequestedBy: approvals.changesRequested, exploration, mergeable: pull.mergeable }),
-    people(pull.user.login, { viewer: login, approvers: approvals.approvers, canMerge: write && gate.canShip, overridable: showOverride }),
+    people(pull.user.login, { viewer: login, approvers: approvals.approvers, canMerge: reviewer && gate.canShip, overridable: showOverride }),
   );
   const viewerPeople = people(pull.user.login, { viewer: login });
   const rows = approvalRows({ tier, approvals, people: viewerPeople, open });
@@ -853,7 +858,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   const canEditGuidance = write && sameRepo && (lifecycle === 'open' || lifecycle === 'draft');
 
   // The decision bar (lib/review-page reviewActions).
-  const canApprove = rows.some((r) => r.canAct);
+  const canApprove = !access?.contributor && rows.some((r) => r.canAct);
   const withMine = login ? summarizeApprovals([...reviews, { user: { login }, state: 'APPROVED', submitted_at: new Date().toISOString() }], OWNERS(), pull.user.login, siteApprovalRules()) : approvals;
   const entry = pullEntry(pull as never, BRANCHES, { comments, statuses: x.statuses });
   const shareState = shareFor(pull, files, comments);
@@ -864,8 +869,9 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     canWrite: write,
     isAuthor,
     canApprove,
-    canMerge: gate.allowed && write,
-    mergeAfterApprove: x.gateOf(withMine).allowed && write,
+    canMerge: gate.allowed && reviewer,
+    mergeAfterApprove: x.gateOf(withMine).allowed && reviewer,
+    canReview: !access?.contributor,
     overrideOnly: showOverride && who.action === 'override',
     // Sharing waits for the before and after to say something changed (repainted once read).
     visual: x.visual,

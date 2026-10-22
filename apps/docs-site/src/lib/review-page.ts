@@ -498,6 +498,8 @@ export interface ActionInput {
   statusAction: 'reopen' | 'restart' | 'mark-ready' | null;
   /** The review queue holds the view's primary (Approve and next): the bar's approval is secondary there. */
   inQueue?: boolean;
+  /** False for an email contributor: no approve, suggest changes, merge or override (default true). */
+  canReview?: boolean;
 }
 
 export interface ReviewActions {
@@ -532,17 +534,19 @@ export function reviewActions(x: ActionInput): ReviewActions {
   const live = open || x.lifecycle === 'draft';
   const p = (kind: PrimaryKind) => ({ kind, label: PRIMARY_LABEL[kind] });
   let primary: ReviewActions['primary'] = null;
+  const reviews = x.canReview !== false;
   if (!x.connected) primary = live ? p('connect') : null;
   else if (!live) primary = x.statusAction === 'reopen' ? p('reopen') : x.statusAction === 'restart' ? p('restart') : null;
   else if (x.lifecycle === 'draft') primary = x.isAuthor && x.canWrite && !x.exploration ? p('request-review') : null;
+  else if (!reviews) primary = null;
   else if (x.canApprove && !x.isAuthor) primary = x.mergeAfterApprove && x.canWrite ? p('approve-merge') : p('approve');
   else if (x.canMerge && x.canWrite) primary = p('merge');
   return {
     primary,
     comment: x.connected && live,
-    suggest: x.connected && open && !x.isAuthor,
+    suggest: x.connected && open && !x.isAuthor && reviews,
     menu: {
-      override: x.connected && open && x.canWrite && x.overrideOnly && !x.canMerge ? OVERRIDE_SENTENCE : null,
+      override: x.connected && open && x.canWrite && reviews && x.overrideOnly && !x.canMerge ? OVERRIDE_SENTENCE : null,
       share: live && x.visual && x.shareable,
       draft: x.connected && x.isAuthor && open && !x.exploration && x.canWrite,
       close: x.connected && live && x.canWrite,

@@ -1,0 +1,97 @@
+import { describe, expect, it } from 'vitest';
+import { canReview, contributorAccess } from './access';
+import { CONTRIB_TOKEN, CONTRIBUTE_WORDS, contributeEligible, contributeHashToken, isContribAuth, parseMember, proxyUrl, teamWord } from './contribute';
+import { accessScreen } from './access-view';
+import { emailMembers } from './invites';
+import { reviewActions, type ActionInput } from './review-page';
+
+describe('proxyUrl', () => {
+  it("sends the team's repository calls to the proxy, path and query encoded", () => {
+    expect(proxyUrl('https://api.github.com/repos/acme/ds/git/refs?per_page=5', 'acme/ds')).toBe('/api/contribute?repo=acme%2Fds&gh=%2Frepos%2Facme%2Fds%2Fgit%2Frefs%3Fper_page%3D5');
+    expect(proxyUrl('https://api.github.com/repos/Acme/DS', 'acme/ds')).toBe('/api/contribute?repo=acme%2Fds&gh=%2Frepos%2FAcme%2FDS');
+  });
+
+  it('leaves every other call alone: another repository, the account, another host', () => {
+    expect(proxyUrl('https://api.github.com/repos/acme/ds-other/pulls', 'acme/ds')).toBeNull();
+    expect(proxyUrl('https://api.github.com/user', 'acme/ds')).toBeNull();
+    expect(proxyUrl('https://api.github.com/graphql', 'acme/ds')).toBeNull();
+    expect(proxyUrl('https://raw.githubusercontent.com/acme/ds/main/x.json', 'acme/ds')).toBeNull();
+  });
+});
+
+describe('the email session', () => {
+  it('reads the link token from #contribute= only', () => {
+    const t = 'a'.repeat(43);
+    expect(contributeHashToken(`#contribute=${t}`)).toBe(t);
+    expect(contributeHashToken(`#t=${t}`)).toBeNull();
+    expect(contributeHashToken('#contribute=short')).toBeNull();
+  });
+
+  it('is offered on real teams only, never the sample team, the demo or a page without a team', () => {
+    expect(contributeEligible('acme/ds', true)).toBe(true);
+    expect(contributeEligible('peterbono/bridge-demo-ds', true)).toBe(false);
+    expect(contributeEligible('peterbono/ai-design-system-demo', true)).toBe(false);
+    expect(contributeEligible('acme/ds', false)).toBe(false);
+    expect(contributeEligible(null, true)).toBe(false);
+  });
+
+  it('tells the stand-in token from a GitHub one', () => {
+    expect(isContribAuth(`Bearer ${CONTRIB_TOKEN}`)).toBe(true);
+    expect(isContribAuth(`token ${CONTRIB_TOKEN}`)).toBe(true);
+    expect(isContribAuth('Bearer ghu_abc')).toBe(false);
+    expect(isContribAuth(undefined)).toBe(false);
+  });
+
+  it('keeps a member only with an email, always Can edit', () => {
+    expect(parseMember({ email: 'leo@acme.design', name: ' Leo ', role: 'admin' })).toEqual({ email: 'leo@acme.design', name: 'Leo', role: 'edit' });
+    expect(parseMember({ email: 'leo@acme.design' })).toEqual({ email: 'leo@acme.design', name: 'leo@acme.design', role: 'edit' });
+    expect(parseMember({ name: 'Leo' })).toBeNull();
+  });
+
+  it("names the team for the join button: the server's name, else the repository's", () => {
+    expect(teamWord({ repo: 'acme/ds', team: 'Acme Design' })).toBe('Acme Design');
+    expect(teamWord({ repo: 'acme/ds' })).toBe('ds');
+    expect(teamWord(null)).toBe('the team');
+  });
+
+  it('never writes an em dash', () => {
+    const all = JSON.stringify(Object.values(CONTRIBUTE_WORDS).map((v) => (typeof v === 'function' ? (v as (a: string) => string)('x') : v)));
+    expect(all).not.toContain(String.fromCharCode(0x2014));
+  });
+});
+
+describe('what an email contributor may do', () => {
+  it('edits, never administers or reviews', () => {
+    const a = contributorAccess();
+    expect(a).toMatchObject({ state: 'writer', write: true, admin: false, contributor: true });
+    expect(canReview(a)).toBe(false);
+    expect(canReview({ write: true })).toBe(true);
+    expect(canReview(null)).toBe(false);
+  });
+
+  it('gets no approve, suggest changes, merge or override in the review bar', () => {
+    const base: ActionInput = { lifecycle: 'ready', connected: true, canWrite: true, isAuthor: false, canApprove: true, canMerge: true, mergeAfterApprove: true, overrideOnly: true, visual: false, shareable: false, exploration: false, statusAction: null };
+    expect(reviewActions(base).primary?.kind).toBe('approve-merge');
+    const r = reviewActions({ ...base, canMerge: false, canReview: false });
+    expect(r.primary).toBeNull();
+    expect(r.suggest).toBe(false);
+    expect(r.menu.override).toBeNull();
+    expect(r.comment).toBe(true);
+  });
+});
+
+describe('signed-out screens', () => {
+  it('offer Sign in with your email second, only when the site has it', () => {
+    const f = { owner: 'acme', repo: 'ds', link: 'https://x/studio/acme/ds/' };
+    expect(accessScreen('anonymous-unknown', { ...f, email: true })?.secondary).toEqual({ kind: 'email', label: 'Sign in with your email' });
+    expect(accessScreen('anonymous-public', { ...f, email: true })?.secondary?.kind).toBe('email');
+    expect(accessScreen('anonymous-unknown', f)?.secondary).toBeUndefined();
+  });
+});
+
+describe('email members', () => {
+  it('reads the rows the server marks via email, as Can edit, with you', () => {
+    const rows = [{ email: 'Leo@acme.design', name: 'Leo', via: 'email', role: 'admin' }, { email: 'x@acme.design', via: 'github' }, null];
+    expect(emailMembers(rows, 'leo@acme.design')).toEqual([{ login: 'leo@acme.design', name: 'Leo', role: 'edit', reviews: [], email: 'leo@acme.design', via: 'email', you: true }]);
+  });
+});

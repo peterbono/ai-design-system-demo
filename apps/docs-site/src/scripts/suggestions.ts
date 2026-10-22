@@ -29,6 +29,7 @@ import {
 import { currentViewer, getToken, hasWorkingToken, initGitHubConnect, onAccess, prefersSignIn, readRepo, studioClient, ghGet } from './github-session';
 import { loadTeams, siteApprovers, siteRoles, siteSoloOwner } from './teams';
 import { ghAction } from '../lib/gh-wording';
+import { canReview } from '../lib/access';
 import { person, requesterPerson, type NeedRow, type Person } from '../lib/home-model';
 import {
   applyLines,
@@ -63,7 +64,8 @@ const repoKey = () => {
 const client = (): GitHubClient => studioClient(repoKey(), getToken() ?? '');
 
 let write = false;
-onAccess((a) => (write = Boolean(a?.write)));
+// An email contributor never approves: they count as a collaborator for nothing here (lib/access canReview).
+onAccess((a) => (write = canReview(a)));
 
 /** Owners and rights as the layout embeds them (bridge.config.json on the default branch), teams once read. */
 async function governance(): Promise<SuggestionGovernance> {

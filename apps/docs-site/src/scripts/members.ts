@@ -9,7 +9,7 @@
 // Who may change anything comes from the session's access (repository admin) and is checked again by the server.
 import type { Owners } from '@bridge-ds/core';
 import { demoTeamName, isDemoRepo } from '../lib/demo';
-import { membersContext, roleOf, sampleTeam, type KnownPerson, type Member, type MembersContext, type PendingInvite } from '../lib/invites';
+import { emailMembers, membersContext, roleOf, sampleTeam, type KnownPerson, type Member, type MembersContext, type PendingInvite } from '../lib/invites';
 import { loginKey, personName } from '../lib/people';
 import { currentViewer, getToken, ghGet, resolveAccess } from './github-session';
 import { invitesAvailable, listInvites } from './invites-api';
@@ -126,13 +126,18 @@ export async function loadMembers(): Promise<MembersData> {
     });
   }
 
+  // Pending invites and email contributors come from this site's invites server, which checks the caller on GitHub:
+  // an email contributor (access.contributor) has no GitHub account to show it, so they see GitHub's list only.
   let pending: PendingInvite[] = [];
   let personal = false;
-  if (invites && viewer && access?.write) {
+  if (invites && viewer && access?.write && !access.contributor) {
     try {
       const r = await listInvites(repo);
       pending = r.invites;
       personal = r.personal;
+      const byEmail = emailMembers(r.members, viewer.email);
+      const known = new Set(members.map((m) => m.login.toLowerCase()));
+      members = [...members, ...byEmail.filter((m) => !known.has(m.login))];
     } catch {
       pending = [];
     }

@@ -27,7 +27,20 @@ export interface RepoAccess {
    * "Install Bridge" link (lib/access-view.ts). Absent otherwise (`admin` says it once Bridge is set up).
    */
   repoAdmin?: boolean;
+  /**
+   * An email contributor (lib/contribute.ts): edits through Bridge's proxy, never admin, and reviews nothing (no
+   * approve, request changes, merge or owner override). Absent for a GitHub account.
+   */
+  contributor?: true;
 }
+
+/** What an email contributor may do: edit, never administer, never review. Reachable through Bridge's own app. */
+export function contributorAccess(): RepoAccess {
+  return { state: 'writer', write: true, admin: false, reach: true, contributor: true };
+}
+
+/** May approve, request changes, merge or override: a GitHub account with write access, never an email contributor. */
+export const canReview = (a: Pick<RepoAccess, 'write' | 'contributor'> | null | undefined): boolean => Boolean(a?.write && !a.contributor);
 
 /** How long a resolved access is reused before GitHub is asked again (memory and sessionStorage). */
 export const ACCESS_MAX_AGE_MS = 10 * 60 * 1000;

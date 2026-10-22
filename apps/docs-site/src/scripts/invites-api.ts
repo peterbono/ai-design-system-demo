@@ -78,9 +78,16 @@ export function invitesAvailable(): Promise<boolean> {
   return available;
 }
 
-/** Pending invites of a team (people with write access may read them), and whether the repository is a person's. */
-export function listInvites(repo: string): Promise<{ invites: PendingInvite[]; personal: boolean }> {
-  return call<{ invites?: PendingInvite[]; personal?: boolean }>('GET', `?repo=${encodeURIComponent(repo)}`).then((r) => ({ invites: Array.isArray(r.invites) ? r.invites : [], personal: r.personal === true }));
+/**
+ * Pending invites of a team (people with write access may read them), whether the repository is a person's, and the
+ * team's email contributors (`members`, rows with `via: 'email'`; lib/invites emailMembers reads them).
+ */
+export function listInvites(repo: string): Promise<{ invites: PendingInvite[]; personal: boolean; members: unknown[] }> {
+  return call<{ invites?: PendingInvite[]; personal?: boolean; members?: unknown[] }>('GET', `?repo=${encodeURIComponent(repo)}`).then((r) => ({
+    invites: Array.isArray(r.invites) ? r.invites : [],
+    personal: r.personal === true,
+    members: Array.isArray(r.members) ? r.members : [],
+  }));
 }
 
 export type SendStatus = 'sent' | 'added' | 'already' | 'failed';
@@ -112,6 +119,9 @@ export const setMemberRole = (repo: string, login: string, choice: { role: Membe
   call<{ ok: boolean; ownersPr?: OwnersPr; ownersError?: string }>('POST', '', { action: 'set-role', repo, login, role: choice.role, ...(choice.reviewAs ? { reviewAs: choice.reviewAs } : {}) });
 
 export const removeMember = (repo: string, login: string) => call<{ ok: boolean; ownersPr?: OwnersPr; ownersError?: string }>('POST', '', { action: 'remove', repo, login });
+
+/** Removes an email contributor: their session ends at once (the server drops the member record). */
+export const removeEmailMember = (repo: string, email: string) => call<{ ok: boolean }>('POST', '', { action: 'remove', repo, email });
 
 export interface AcceptResult {
   status: 'joined' | 'accept-on-github';

@@ -8,7 +8,8 @@
 // readonly|checking|connected|rejected).
 // With a GitHub App (docs/SIGN-IN.md) the button is "Sign in with GitHub" and goes straight to GitHub, and the menu
 // has no "Change token": the designer UI never offers a token paste then. The rejected and menu wording follows the
-// session kind. The block is the same on every Studio page: one full-width DS Button, the read-only line under it as
+// session kind. An email contributor (lib/contribute.ts, real teams only) reads "Your account": their name, email and
+// the DS drawn face (never initials), and Sign out. The block is the same on every Studio page: one full-width DS Button, the read-only line under it as
 // its description.
 import { Avatar, Button, Icon, Link } from '@bridge-ds/react';
 import { siteIcon } from '../brand/site-icons';
@@ -56,7 +57,7 @@ const signIn = Boolean(signInConfig(workspace));
       <span class="scope-pick-chev" aria-hidden="true"><Icon icon={siteIcon('chevron')} size="xs" className="icon" /></span>
     </summary>
     <div class="menu-panel" role="group" aria-label="GitHub account">
-      <p class="menu-title">GitHub</p>
+      <p class="menu-title" data-gh-menu-title>GitHub</p>
       <dl class="gh-facts">
         <dt>Signed in</dt>
         <dd data-gh-login-full></dd>

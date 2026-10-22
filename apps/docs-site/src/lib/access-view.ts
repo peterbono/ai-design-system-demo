@@ -5,6 +5,7 @@
 // The states come from core resolveRepoAccess (lib/access.ts). Designer-facing words only: "your lead", "the team",
 // "set up", never collaborator, installation, permission scopes or tokens.
 
+import { CONTRIBUTE_WORDS } from './contribute';
 import type { ChangesMode, RepoAccessState } from '@bridge-ds/core';
 import { isDemoRepo, isSampleTeam, OWN_TEAM, SAMPLE_TEAM } from './demo';
 
@@ -57,6 +58,8 @@ export function askJoinMessage(login: string | null | undefined, repo: string, l
 export type AccessAction =
   | { kind: 'signin'; label: string }
   | { kind: 'signout'; label: string }
+  /** Sign in with an email (lib/contribute.ts): opens the small email form on the screen itself. */
+  | { kind: 'email'; label: string }
   | { kind: 'copy'; label: string; text: string; copied: string }
   | { kind: 'link'; label: string; href: string; external?: boolean };
 
@@ -84,7 +87,11 @@ export interface AccessScreenInput {
   link: string;
   /** GitHub said the viewer is an admin (only for not-installed, where GitHub still shows the repository). */
   admin?: boolean;
+  /** This site signs email contributors in on this team (real teams only): a signed-out screen offers it second. */
+  email?: boolean;
 }
+
+const EMAIL_ACTION: AccessAction = { kind: 'email', label: CONTRIBUTE_WORDS.emailSignIn };
 
 /** The screen of one state, null when the Studio opens as usual (reader, writer, admin). */
 export function accessScreen(state: RepoAccessState, f: AccessScreenInput): AccessScreen | null {
@@ -96,6 +103,7 @@ export function accessScreen(state: RepoAccessState, f: AccessScreenInput): Acce
         title: `Sign in with GitHub to open ${repo}`,
         body: 'This design system may be private. Once you sign in, GitHub tells Bridge what you can see.',
         primary: { kind: 'signin', label: 'Sign in with GitHub' },
+        ...(f.email ? { secondary: EMAIL_ACTION } : {}),
       };
     case 'no-access':
       return {
@@ -114,6 +122,7 @@ export function accessScreen(state: RepoAccessState, f: AccessScreenInput): Acce
         title: 'You are viewing as a guest',
         body: 'Sign in with GitHub to review changes and send suggestions.',
         primary: { kind: 'signin', label: 'Sign in with GitHub' },
+        ...(f.email ? { secondary: EMAIL_ACTION } : {}),
       };
     case 'not-installed':
       return f.admin

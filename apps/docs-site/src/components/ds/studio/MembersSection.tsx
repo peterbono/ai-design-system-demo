@@ -4,6 +4,8 @@
 // role picker (RolePicker, the one the invite dialog uses) and a "More" menu with Make admin and Remove from team.
 // Remove asks once, in the row itself, before anything happens. Pending invites close the list, with Resend on their
 // line. Someone who is not an admin reads the same list with roles as text and no controls (board I4).
+// An email contributor (lib/contribute.ts) reads as any member, with one "Email" tag inline after the name; they stay
+// Can edit (Reviewer and Admin are disabled in their picker, with the reason) and an admin may remove them.
 // Contexts (scripts/members.ts): the sample team shows its sample people and every change opens the demo dialog; a real
 // team reads GitHub and sends changes to the invites server; the browser workspace has no team yet.
 // Mounted by both Settings pages (pages/studio/settings, pages/team-shell/settings), and it mounts the dialog.
@@ -14,6 +16,7 @@ import RolePicker from './RolePicker';
 import { NoticeLine, PersonCell } from './MemberParts';
 import InviteDialog from './InviteDialog';
 import { memberActions, useMembers, type Notice } from './members-state';
+import { CONTRIBUTE_WORDS } from '../../../lib/contribute';
 import { adminCount, choiceOf, inviteChoice, memberActions as allowed, MEMBERS_WORDS, memberLine, pendingLine, roleText, roleLabel, SAMPLE_NOW, sortMembers, type Member, type PendingInvite } from '../../../lib/invites';
 import type { MembersData } from '../../../scripts/members';
 import '../../../styles/invites.css';
@@ -22,6 +25,8 @@ const now = (data: MembersData) => (data.context === 'sample' ? SAMPLE_NOW : Dat
 
 function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: MembersData; admins: number; act: ReturnType<typeof memberActions>; onNotice: (n: Notice | null) => void }) {
   const can = allowed(m, { canManage: data.canManage, admins });
+  // An email contributor stays Can edit: Reviewer and Admin approve on GitHub (the picker says why).
+  const email = m.via === 'email';
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const run = async (fn: () => Promise<Notice | null>) => {
@@ -31,17 +36,17 @@ function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: Member
     setConfirming(false);
     if (n) onNotice(n);
   };
-  const menu = can.makeAdmin || can.remove;
+  const menu = (can.makeAdmin && !email) || can.remove;
   return (
     <>
       <TableRow>
         <TableCell label="">
-          <PersonCell name={m.name} seed={m.login} line={memberLine(m)} you={m.you} avatar={m.avatar} />
+          <PersonCell name={m.name} seed={m.login} line={memberLine(m)} you={m.you} avatar={m.avatar} {...(email ? { tag: CONTRIBUTE_WORDS.emailTag } : {})} />
         </TableCell>
         <TableCell className="mem-role-cell" label="">
           <span className="mem-role">
             {can.changeRole ? (
-              <RolePicker label={`Role for ${m.name}`} value={choiceOf(m)} personal={data.personal} disabled={busy} onChange={(c) => void run(() => act.changeRole(m, c))} />
+              <RolePicker label={`Role for ${m.name}`} value={choiceOf(m)} personal={data.personal} emailOnly={email} disabled={busy} onChange={(c) => void run(() => act.changeRole(m, c))} />
             ) : (
               <span className="mem-role-text">{roleText(m)}</span>
             )}
@@ -49,7 +54,7 @@ function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: Member
               <Menu>
                 <MenuTrigger render={<IconButton icon={MoreHorizontal} label={`More for ${m.name}`} variant="ghost" />} />
                 <MenuContent align="end">
-                  {can.makeAdmin && (
+                  {can.makeAdmin && !email && (
                     <MenuItem disabled={data.personal} onClick={() => void run(() => act.changeRole(m, { role: 'admin' }))}>
                       {MEMBERS_WORDS.makeAdmin}
                     </MenuItem>
@@ -71,7 +76,7 @@ function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: Member
         <TableRow className="mem-confirm">
           <TableCell colSpan={2}>
             <span className="mem-confirm-body">
-              <span>{MEMBERS_WORDS.removeConfirm(m.name, data.team)}</span>
+              <span>{email ? MEMBERS_WORDS.removeConfirmEmail(m.name, data.team) : MEMBERS_WORDS.removeConfirm(m.name, data.team)}</span>
               <ButtonGroup>
                 <Button variant="secondary" onClick={() => setConfirming(false)} autoFocus>
                   Cancel

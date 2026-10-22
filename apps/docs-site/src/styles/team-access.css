@@ -223,6 +223,18 @@
   color: var(--color-text-muted);
 }
 
+/* Sign in with your email, unfolded under the block's text (EmailLinkForm, styles/library-access.css). */
+.na-email,
+.na-email-dialog .lgt-form {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.na-email-dialog .lgt-form {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 @media (max-width: 640px) {
   .na {
     padding: var(--space-8) var(--space-5);
