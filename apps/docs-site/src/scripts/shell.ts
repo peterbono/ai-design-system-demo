@@ -580,6 +580,8 @@ function openReviewFromHash() {
 function initStudio() {
   if (document.documentElement.dataset.space === 'library') return;
   initGitHubConnect();
+  // The start screen and the browser workspace read no repository: no drafts, no review count, no view selector.
+  if (document.documentElement.hasAttribute('data-no-repo')) return;
 
   setCount('drafts', draftCount());
   // Paint the last known count at once, so the nav does not jump while GitHub answers (or when it cannot).

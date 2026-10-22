@@ -9,12 +9,23 @@ import { Button, Card, CardBody, Icon, Input } from '@bridge-ds/react';
 import { GitHubMark } from './brand-icons';
 import { loadReserved, openTeamHref, readTeamField } from '../../../lib/team-open';
 
-export interface TeamLauncherProps {
+export interface TeamFieldProps {
+  /** The input id, unique on the page. */
+  id: string;
+  /** The submit's words and weight. */
+  action?: string;
+  variant?: 'primary' | 'secondary';
+  /** Added to the team address: the setup step to open there (?setup=changes). */
+  query?: string;
   /** Where to go, swapped in tests. */
   go?: (href: string) => void;
 }
 
-export default function TeamLauncher({ go = (href) => location.assign(href) }: TeamLauncherProps) {
+/**
+ * The repository field and its action on one line: "owner/repo" or a GitHub address opens that team's Studio. Shared
+ * by the launcher below and the browser workspace's setup step 2 (Onboarding.tsx).
+ */
+export function TeamField({ id, action = 'Open', variant = 'secondary', query = '', go = (href) => location.assign(href) }: TeamFieldProps) {
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -29,9 +40,42 @@ export default function TeamLauncher({ go = (href) => location.assign(href) }: T
       return;
     }
     setBusy(true);
-    go(await openTeamHref(parsed.owner, parsed.repo));
+    go(`${await openTeamHref(parsed.owner, parsed.repo)}${query}`);
   };
 
+  return (
+    <form className="tl-form" onSubmit={submit} noValidate>
+      <Input
+        ref={input}
+        id={id}
+        label="GitHub repository"
+        hideLabel
+        prefix={<Icon icon={GitHubMark} size="sm" />}
+        placeholder="owner/repo"
+        autoComplete="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        value={value}
+        onFocus={() => void loadReserved()}
+        onValueChange={(v) => {
+          setValue(v);
+          if (error) setError(null);
+        }}
+        error={error ?? undefined}
+      />
+      <Button type="submit" variant={variant} className="tl-open" iconEnd={ArrowRight} loading={busy} disabled={busy}>
+        {action}
+      </Button>
+    </form>
+  );
+}
+
+export interface TeamLauncherProps {
+  /** Where to go, swapped in tests. */
+  go?: (href: string) => void;
+}
+
+export default function TeamLauncher({ go }: TeamLauncherProps) {
   return (
     <Card className="tl" aria-labelledby="tl-title" role="region">
       <CardBody className="tl-body">
@@ -41,29 +85,7 @@ export default function TeamLauncher({ go = (href) => location.assign(href) }: T
           </h2>
           <p className="tl-lead">Enter your design system's GitHub repository, as owner/repo or its address. Your team opens the same link and signs in with GitHub.</p>
         </div>
-        <form className="tl-form" onSubmit={submit} noValidate>
-          <Input
-            ref={input}
-            id="tl-repo"
-            label="GitHub repository"
-            hideLabel
-            prefix={<Icon icon={GitHubMark} size="sm" />}
-            placeholder="owner/repo"
-            autoComplete="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            value={value}
-            onFocus={() => void loadReserved()}
-            onValueChange={(v) => {
-              setValue(v);
-              if (error) setError(null);
-            }}
-            error={error ?? undefined}
-          />
-          <Button type="submit" variant="secondary" className="tl-open" iconEnd={ArrowRight} loading={busy} disabled={busy}>
-            Open
-          </Button>
-        </form>
+        <TeamField id="tl-repo" go={go} />
       </CardBody>
     </Card>
   );

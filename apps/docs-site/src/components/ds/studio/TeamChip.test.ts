@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 // The team chip's "Recent teams": a team joins only after its page read the repository, and each entry has its own
-// remove action, a sibling menu item reachable with the arrow keys, that updates the list in place.
+// remove action, a sibling menu item reachable with the arrow keys, that updates the list in place. Its "Your team"
+// and "Try it" sections (board EmptyB), and the browser workspace's chip.
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
@@ -13,6 +14,7 @@ import TeamChip from './TeamChip';
 
 const page = vi.hoisted(() => ({
   team: { owner: 'acme', repo: 'ds' },
+  viewer: null as { login: string; name?: string } | null,
   listeners: [] as ((a: { state: RepoAccessState } | null) => void)[],
 }));
 
@@ -22,7 +24,7 @@ vi.mock('../../../scripts/repo-context', () => ({
 
 vi.mock('../../../scripts/github-session', () => ({
   prefersSignIn: () => true,
-  initGitHubConnect: (fn: (v: null) => void) => fn(null),
+  initGitHubConnect: (fn: (v: { login: string; name?: string } | null) => void) => fn(page.viewer),
   currentAccess: () => null,
   onAccess: (fn: (a: { state: RepoAccessState } | null) => void) => void page.listeners.push(fn),
   resolveAccess: async () => null,
@@ -42,6 +44,8 @@ async function openMenu() {
 beforeEach(() => {
   localStorage.clear();
   page.listeners = [];
+  page.viewer = null;
+  page.team = { owner: 'acme', repo: 'ds' };
 });
 
 describe('TeamChip recent teams', () => {
@@ -96,5 +100,57 @@ describe('TeamChip recent teams', () => {
     const { menu } = await openMenu();
     // Scoped to the menu, like the DS Menu tests: Base UI's focus guards outside it are its own business.
     await expectNoAxeViolations(menu);
+  });
+});
+
+describe('TeamChip teams to switch to (board EmptyB)', () => {
+  it('names the browser workspace after the viewer, current under "Your team", with the demo under "Try it"', async () => {
+    page.viewer = { login: 'ann-lee', name: 'Ann Lee' };
+    page.team = { owner: 'peterbono', repo: 'ai-design-system-demo' };
+    localStorage.setItem('bridge.start', JSON.stringify({ connect: true }));
+    const user = userEvent.setup();
+    render(createElement(TeamChip, { launcher: true, workspace: true }));
+    const trigger = await screen.findByRole('button', { name: /Ann's workspace/ });
+    await user.click(trigger);
+    const menu = await screen.findByRole('menu');
+    const yours = within(menu).getByRole('group', { name: 'Your team' });
+    expect(within(yours).getByRole('menuitem', { name: /^Ann's workspace/ })).toHaveAttribute('data-current');
+    expect(within(yours).getByText('Not connected yet')).toBeInTheDocument();
+    const tryIt = within(menu).getByRole('group', { name: 'Try it' });
+    expect(within(tryIt).getByRole('menuitem', { name: /^Bridge demo/ })).toBeInTheDocument();
+    expect(within(tryIt).getByText('Sample data, read only')).toBeInTheDocument();
+    // No team link without a repository: nothing to invite to yet.
+    expect(within(menu).queryByRole('menuitem', { name: 'Invite your team' })).toBeNull();
+    expect(within(menu).getByRole('menuitem', { name: 'Create a new team' })).toBeInTheDocument();
+    await expectNoAxeViolations(menu);
+  });
+
+  it('on a team, lists it under "Your team" once, not again in the recent teams', async () => {
+    localStorage.setItem(RECENT_TEAMS_KEY, JSON.stringify(['acme/ds', 'globex/tokens']));
+    const { menu } = await openMenu();
+    expect(within(within(menu).getByRole('group', { name: 'Your team' })).getByRole('menuitem', { name: /^acme\/ds/ })).toBeInTheDocument();
+    expect(within(menu).getAllByRole('menuitem', { name: /^acme\/ds/ })).toHaveLength(1);
+    expect(within(menu).getByRole('menuitem', { name: 'globex/tokens' })).toBeInTheDocument();
+  });
+
+  it('on the demo, offers the workspace the visitor came from and not the demo again', async () => {
+    page.team = { owner: 'peterbono', repo: 'bridge-demo-ds' };
+    localStorage.setItem(RECENT_TEAMS_KEY, JSON.stringify(['peterbono/bridge-demo-ds', 'globex/tokens']));
+    const user = userEvent.setup();
+    render(createElement(TeamChip, { launcher: true }));
+    await user.click(await screen.findByRole('button', { name: /Bridge demo/ }));
+    const menu = await screen.findByRole('menu');
+    const yours = within(menu).getByRole('group', { name: 'Your team' });
+    expect(within(yours).getByRole('menuitem', { name: /^globex\/tokens/ })).not.toHaveAttribute('data-current');
+    expect(within(menu).queryByRole('group', { name: 'Try it' })).toBeNull();
+  });
+
+  it('on the demo without a workspace, shows no "Your team"', async () => {
+    page.team = { owner: 'peterbono', repo: 'bridge-demo-ds' };
+    const user = userEvent.setup();
+    render(createElement(TeamChip, { launcher: true }));
+    await user.click(await screen.findByRole('button', { name: /Bridge demo/ }));
+    const menu = await screen.findByRole('menu');
+    expect(within(menu).queryByRole('group', { name: 'Your team' })).toBeNull();
   });
 });

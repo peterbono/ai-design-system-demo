@@ -116,3 +116,25 @@ describe('memory per repository', () => {
     expect(readMemoryText(s, 'peterbono/demo', 'peterbono/demo')).toBe('{"later":true}');
   });
 });
+
+describe('the browser workspace (board EmptyB)', () => {
+  const ws = (f: Partial<OnboardingFacts> = {}) => onboardingSteps({ login: 'ann', repo: '', storybook: null, products: [], changes: null, workspace: true, ...f });
+
+  it('has six steps, without inviting a team: there is no team link before a repository', () => {
+    const steps = ws();
+    expect(steps.map((s) => s.id)).toEqual(['signin', 'library', 'changes', 'products', 'figma', 'claude']);
+    expect(steps.map((s) => s.n)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(progressLabel(steps)).toBe('1 of 6 connected');
+  });
+
+  it('opens on the design system once signed in, and asks nothing else first', () => {
+    expect(ws().map((s) => `${s.id}:${s.state}`)).toEqual(['signin:done', 'library:current', 'changes:later', 'products:later', 'figma:later', 'claude:later']);
+    expect(ws({ login: null })[0]!.state).toBe('current');
+  });
+
+  it('counts a Storybook added in this browser as connected', () => {
+    const lib = ws({ quickStart: { url: 'https://sb.acme.dev/', components: 12 } }).find((s) => s.id === 'library')!;
+    expect(lib).toMatchObject({ state: 'done', status: 'Connected', detail: 'Storybook', code: 'sb.acme.dev' });
+    expect(progressLabel(ws({ quickStart: { url: 'https://sb.acme.dev', components: 12 } }))).toBe('2 of 6 connected');
+  });
+});

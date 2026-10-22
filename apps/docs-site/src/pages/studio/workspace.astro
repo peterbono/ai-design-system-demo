@@ -1,0 +1,145 @@
+---
+// The browser workspace (board EmptyB, rules in lib/start.ts): the Studio home of someone who started "Connect my
+// design system" from the start screen and has not picked a repository yet. There are no accounts, so it lives in this
+// browser only. Same Studio layout, header and nav; the chip names the workspace ("Ann's workspace").
+//   - ?setup=<step>: the six setup steps (components/ds/studio/Onboarding.tsx, workspace mode). Signed out they open on
+//     "Sign in with GitHub"; the sign-in comes back here. Step 2 takes a Storybook, or a repository that opens its
+//     team's Studio at the next step.
+//   - Otherwise the home (components/ds/studio/WorkspaceHome.tsx): "Welcome, Ann.", "Connect your design system"
+//     (it resumes the steps where the visitor left them) and "1 of 6 connected" by the greeting.
+// Reads no repository and asks GitHub nothing for a guest (<html data-no-repo>).
+import '../../styles/studio-home.css';
+import '../../styles/onboarding.css';
+import '../../styles/storybook-quick.css';
+import '../../styles/team-launcher.css';
+import '../../styles/workspace.css';
+import Layout from '../../layouts/Layout.astro';
+import { Skeleton } from '@bridge-ds/react';
+import { signInConfig } from '../../lib/signin-config';
+
+// Step 1 signs in like a team page (lib/signin-config.ts), so the team picked on step 2 keeps the sign-in.
+const signIn = Boolean(signInConfig(true));
+---
+
+<Layout title="Your workspace" description="Your Studio before a design system is connected: connect a Storybook or a repository." workspace wide>
+  <div class="sh-root" data-workspace-home data-signin={signIn ? '' : undefined}>
+    <div class="sh">
+      <section class="zone sh-zone" aria-busy="true" aria-label="Loading your workspace">
+        <Skeleton variant="text" className="sh-skel-line" />
+        <Skeleton variant="rect" className="sh-skel" />
+      </section>
+    </div>
+  </div>
+
+  <script>
+    import { createElement } from 'react';
+    import type { Root } from 'react-dom/client';
+    import { createRoot } from 'react-dom/client';
+    import { currentViewer, getToken, initGitHubConnect } from '../../scripts/github-session';
+    import { onWorkspaceChange, readWorkspace } from '../../scripts/workspace';
+    import { readStart, rememberStart } from '../../scripts/start';
+    import { FinishConnecting, Onboarding } from '../../components/ds/studio/Onboarding';
+    import { paintWorkspaceHome } from '../../components/ds/studio/WorkspaceHome';
+    import { onboardingSteps, STEP_IDS, type StepId } from '../../lib/onboarding';
+    import { resumeStep } from '../../lib/start';
+    import { shortName } from '../../lib/home-model';
+    import { ghButton } from '../../lib/gh-wording';
+
+    const el = document.querySelector<HTMLElement>('[data-workspace-home]')!;
+    const direct = el.hasAttribute('data-signin');
+    let root: Root | null = null;
+    let known = !getToken();
+    let workspace = readWorkspace();
+    // Coming here is starting the workspace: it exists in this browser from now on (lib/start.ts).
+    if (!readStart().connect) rememberStart({ connect: true });
+
+    // The steps open from the address (?setup=library, the start screen's "Connect my design system"), from the
+    // home's "Connect your design system", or from a step in "1 of 6 connected".
+    const asked = new URLSearchParams(location.search).get('setup');
+    let stepsAt: StepId | null = asked && (STEP_IDS as readonly string[]).includes(asked) ? (asked as StepId) : null;
+    const setAddress = (step: StepId | null) => {
+      const url = new URL(location.href);
+      if (step) url.searchParams.set('setup', step);
+      else url.searchParams.delete('setup');
+      history.replaceState(history.state, '', url);
+    };
+    // Remembered so "Connect your design system" resumes where the visitor left, never back on step 1.
+    const onOpen = (id: StepId) => {
+      if (readStart().step !== id) rememberStart({ step: id });
+    };
+
+    function paint() {
+      const v = currentViewer();
+      const name = v ? (shortName(v.name) ?? v.login) : null;
+      const steps = onboardingSteps({ login: v?.login ?? null, repo: '', storybook: null, quickStart: workspace.storybook, products: [], changes: null, workspace: true });
+      if (stepsAt) {
+        // Signed out, step 1 first: the sign-in comes back to this address, on the step asked for.
+        const initial = v ? stepsAt : 'signin';
+        root = root ?? createRoot(el);
+        root.render(
+          createElement(Onboarding, {
+            key: `${initial}-${Boolean(v)}`,
+            steps,
+            name,
+            initial,
+            ctx: {
+              repo: '',
+              repoUrl: '',
+              storybook: null,
+              quickStart: workspace.storybook,
+              products: [],
+              mcpCommand: '',
+              figmaHref: '/install/#figma-plugin',
+              claudeHref: '/agents/#claude-code',
+              team: { owner: '', repo: '', link: '', access: null, changes: null },
+              workspace: true,
+              signIn: { button: ghButton(direct), direct },
+            },
+            actions: {
+              propose: async () => {
+                throw new Error('Connect the repository first.');
+              },
+              mark: () => undefined,
+              later: (at: StepId) => {
+                rememberStart({ step: at });
+                stepsAt = null;
+                setAddress(null);
+                paint();
+                window.scrollTo({ top: 0 });
+              },
+              onOpen,
+            },
+          }),
+        );
+        return;
+      }
+      const open = (id: StepId) => {
+        stepsAt = id;
+        setAddress(id);
+        paint();
+        window.scrollTo({ top: 0 });
+      };
+      root = paintWorkspaceHome(
+        el,
+        {
+          name,
+          storybook: workspace.storybook,
+          setup: v ? createElement(FinishConnecting, { steps, onOpen: open, onHide: () => undefined, hideable: false, description: 'Connect your design system first. The rest can wait.' }) : undefined,
+          // With a Storybook added, the action is the repository: step 2.
+          onConnect: () => open(workspace.storybook ? 'library' : resumeStep(steps, readStart().step)),
+        },
+        root,
+      );
+    }
+
+    onWorkspaceChange((w) => {
+      workspace = w;
+      paint();
+    });
+    if (known) paint();
+    initGitHubConnect(() => {
+      known = true;
+      paint();
+    });
+  </script>
+</Layout>
