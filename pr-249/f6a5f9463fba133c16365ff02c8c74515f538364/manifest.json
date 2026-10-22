@@ -1,15 +1,15 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-22T11:09:36.709Z",
-  "durationMs": 165834,
+  "createdAt": "2026-10-22T11:14:10.614Z",
+  "durationMs": 178238,
   "base": {
     "ref": "ada1f63bc12585bc60ece2f279883c2b5eab8c17",
     "sha": "ada1f63bc12585bc60ece2f279883c2b5eab8c17"
   },
   "head": {
-    "ref": "8fa49c7070ba999f0ff53acd5151173115a99b28",
-    "sha": "8fa49c7070ba999f0ff53acd5151173115a99b28"
+    "ref": "f6a5f9463fba133c16365ff02c8c74515f538364",
+    "sha": "f6a5f9463fba133c16365ff02c8c74515f538364"
   },
   "options": {
     "only": [
@@ -33,6 +33,7 @@
     "vars": [],
     "files": [
       ".changeset/popover-arrow-scroll.md",
+      "packages/react/component-specs.json",
       "packages/react/src/components/Popover/Popover.module.css",
       "packages/react/src/components/Popover/Popover.tsx"
     ],
