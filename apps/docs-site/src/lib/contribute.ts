@@ -8,7 +8,7 @@
 // GitHub App under a strict policy: the person's own branches, pull requests, issues and comments, never an approval,
 // a merge or the default branch. Paths outside the team's repository never go to the proxy: they are read as a guest.
 
-import { isDemoRepo } from './demo';
+import { isSampleTeam } from './demo';
 
 /** The stand-in token of an email contributor's session. Never sent to GitHub: the proxy rewrites every call. */
 export const CONTRIB_TOKEN = 'bridge-email-contributor';
@@ -58,7 +58,7 @@ export function contributeHashToken(hash: string): string | null {
  * own demo have their own guided flow, and the browser workspace has no team yet.
  */
 export function contributeEligible(repo: string | null | undefined, hosted: boolean): boolean {
-  return hosted && Boolean(repo && /^[\w.-]+\/[\w.-]+$/.test(repo)) && !isDemoRepo(repo);
+  return hosted && Boolean(repo && /^[\w.-]+\/[\w.-]+$/.test(repo)) && !isSampleTeam(repo);
 }
 
 /** A member record read back from storage or the server, or null when it is not one. */

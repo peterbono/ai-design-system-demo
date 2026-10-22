@@ -6,7 +6,7 @@
 // onboarding of hosted teams, multi-team PR 3c).
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { currentAccess, currentViewer, getToken, initGitHubConnect, onAccess, prefersSignIn } from './github-session';
+import { currentAccess, currentContributor, currentViewer, getToken, initGitHubConnect, onAccess, prefersSignIn } from './github-session';
 import { setReviewCount } from './shell';
 import { rememberMine } from './needs-you';
 import { loadHome, type HomeData, type HomeStatic } from './home-data';
@@ -65,6 +65,8 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
     const t = teamOfPage();
     if (!t || (!known && getToken())) return false;
     const v = currentViewer();
+    // An email contributor is a member of the team: never a demo visitor.
+    if (!v && currentContributor()) return false;
     return exploresDemo({ repo: `${t.owner}/${t.repo}`, signedIn: Boolean(v), write: v ? (currentAccess()?.write ?? null) : false });
   };
   const readDemo = () => {

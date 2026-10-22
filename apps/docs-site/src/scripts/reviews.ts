@@ -48,7 +48,7 @@ import { badgeHtml, closeDialog, openDialog, tokenValueHtml } from '@bridge-ds/r
 import { pullEntry, type BranchesConfig } from '../lib/branches';
 import type { Root } from 'react-dom/client';
 import { cssValue } from '../lib/html';
-import { currentViewer, esc, ghGet, GitHubError, studioClient, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, showGhError } from './github-session';
+import { currentContributor, currentViewer, esc, ghGet, GitHubError, studioClient, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, showGhError } from './github-session';
 import { ghAction, ghVerb } from '../lib/gh-wording';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
 import { loadVisualImpact, visualWorkflowPresent } from './reviews/visual-impact';
@@ -306,7 +306,7 @@ function pillOf(r: Row, lifecycle: Lifecycle | 'exploration'): ListRow['pill'] {
  * repository only (lib/demo.ts), as the demo home does: Waiting on me then lists what waits on the lead.
  */
 function demoSeat(): string | null {
-  if (currentViewer() || !isDemoRepo(`${repo.owner}/${repo.repo}`)) return null;
+  if (currentViewer() || currentContributor() || !isDemoRepo(`${repo.owner}/${repo.repo}`)) return null;
   return (siteConfig() as { demo?: { viewer?: string } }).demo?.viewer ?? null;
 }
 

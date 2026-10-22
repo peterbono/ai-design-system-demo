@@ -30,7 +30,7 @@ describe('the email session', () => {
   it('is offered on real teams only, never the sample team, the demo or a page without a team', () => {
     expect(contributeEligible('acme/ds', true)).toBe(true);
     expect(contributeEligible('peterbono/bridge-demo-ds', true)).toBe(false);
-    expect(contributeEligible('peterbono/ai-design-system-demo', true)).toBe(false);
+    expect(contributeEligible('peterbono/ai-design-system-demo', true)).toBe(true);
     expect(contributeEligible('acme/ds', false)).toBe(false);
     expect(contributeEligible(null, true)).toBe(false);
   });
