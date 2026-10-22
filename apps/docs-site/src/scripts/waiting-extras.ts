@@ -6,7 +6,7 @@
 //   - Signed in: the suggestions that wait on the viewer (scripts/suggestions.ts loadSuggestionQueue).
 //   - Signed out anywhere else: nothing waits on anyone.
 import { productsOf } from '@bridge-ds/core';
-import { currentViewer } from './github-session';
+import { currentContributor, currentViewer } from './github-session';
 import { siteConfig } from './repo-context';
 import { isDemoRepo } from '../lib/demo';
 import { askerOf } from '../lib/demo-home';
@@ -17,7 +17,7 @@ import { shortTitle, suggestionNeed } from '../lib/suggestions-view';
 export async function readWaitingExtras(x: { owner: string; repo: string; guidance: { name: string; href: string; since: string | null }[] }): Promise<WaitingExtra[]> {
   const now = Date.now();
   const viewer = currentViewer();
-  const seat = !viewer && isDemoRepo(`${x.owner}/${x.repo}`) && Boolean((siteConfig() as { demo?: { viewer?: string } }).demo?.viewer);
+  const seat = !viewer && !currentContributor() && isDemoRepo(`${x.owner}/${x.repo}`) && Boolean((siteConfig() as { demo?: { viewer?: string } }).demo?.viewer);
   if (!seat && !viewer) return [];
   const products = productsOf(siteConfig() as { products?: never });
   const guidance = x.guidance.map((g) => guidanceExtra(guidanceNeed(g, now)));

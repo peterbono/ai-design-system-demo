@@ -137,3 +137,12 @@ describe("Studio's GitHub calls for an email contributor", () => {
     expect(calls.some((c) => c.url === '/api/contribute?repo=acme%2Fds&mine=1')).toBe(true);
   });
 });
+
+describe("an email contributor on Bridge's own team", () => {
+  it('is a member there, not a demo visitor; the sample team stays sample only', () => {
+    history.replaceState(null, '', '/studio/peterbono/ai-design-system-demo/');
+    localStorage.setItem('bridge.contribute.member:peterbono/ai-design-system-demo', JSON.stringify({ email: 'leo@acme.design', name: 'Leo', role: 'edit' }));
+    expect(currentContributor()?.email).toBe('leo@acme.design');
+    expect(getToken()).toBe(CONTRIB_TOKEN);
+  });
+});

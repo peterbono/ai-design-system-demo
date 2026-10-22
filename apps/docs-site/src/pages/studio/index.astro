@@ -121,7 +121,7 @@ const onboarding = {
   <script>
     import { studioHref } from '../../lib/team-path';
     import { createRoot, type Root } from 'react-dom/client';
-    import { currentAccess, currentViewer, getToken, initGitHubConnect, onAccess, prefersSignIn } from '../../scripts/github-session';
+    import { currentAccess, currentContributor, currentViewer, getToken, initGitHubConnect, onAccess, prefersSignIn } from '../../scripts/github-session';
     import { siteConfig } from '../../scripts/repo-context';
     import { teamLink } from '../../lib/access-view';
     import { STUDIO_ROOT } from '../../lib/team-path';
@@ -217,6 +217,8 @@ const onboarding = {
     const exploring = () => {
       const v = currentViewer();
       if (!known && getToken()) return false;
+      // An email contributor is a member of the team: never a demo visitor.
+      if (!v && currentContributor()) return false;
       return exploresDemo({ repo: onb.ctx.repo, signedIn: Boolean(v), write: v ? (currentAccess()?.write ?? null) : false });
     };
     const launcherSlot = document.querySelector<HTMLElement>('[data-team-launcher]');

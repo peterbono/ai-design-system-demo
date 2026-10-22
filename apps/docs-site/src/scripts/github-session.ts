@@ -882,10 +882,11 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
   // (scripts/demo-gate.ts). First, so its capture listener runs before the gated-action one below.
   bindDemoGate({
     repo: () => repoName(readRepo()),
-    login: () => viewer?.login ?? null,
-    write: () => currentAccess()?.write ?? null,
+    // An email contributor (no GitHub) is a member who can write: never a demo visitor.
+    login: () => viewer?.login ?? currentContributor()?.email ?? null,
+    write: () => (currentContributor() ? true : (currentAccess()?.write ?? null)),
     signIn: prefersSignIn,
-    known: () => checked || !getToken(),
+    known: () => checked || !githubToken(),
     subscribe: (fn) => {
       listeners.push(() => fn());
       onAccess(() => fn());
