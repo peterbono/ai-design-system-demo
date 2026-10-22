@@ -16,6 +16,7 @@ import { PUSHED_KEY } from '../shared/messages';
 import type { ComponentApplyReport, ComponentPullPlan, GeneratedSet, PlannedComponent, PlannedField, PlannedIcon, PlannedSlot, PlannedValue, PlannedVariant } from '../sync/component-pull';
 import { buildSignature } from '../sync/components';
 import { readComponent } from './components';
+import { cleanReactions } from './reactions';
 
 const NS = 'dsbridge';
 const ORPHAN_PREFIX = '[orphan] ';
@@ -977,7 +978,8 @@ export function reactionKey(r: Reaction): string {
 /** A Figma reaction for a planned one: Change to the destination variant, Smart animate with the code's motion. */
 function reactionFor(r: NonNullable<PlannedComponent['interactions']>[number], destinationId: string): Reaction {
   const trigger: Trigger =
-    r.trigger === 'MOUSE_ENTER' || r.trigger === 'MOUSE_LEAVE' ? { type: r.trigger, delay: 0, deprecatedVersion: false } : { type: r.trigger };
+    // No deprecatedVersion: the typings list it, Figma rejects it ("Unrecognized key").
+    r.trigger === 'MOUSE_ENTER' || r.trigger === 'MOUSE_LEAVE' ? ({ type: r.trigger, delay: 0 } as unknown as Trigger) : { type: r.trigger };
   const t = r.transition;
   const transition: Transition | null = t
     ? {
@@ -1029,10 +1031,16 @@ async function wireReactions(set: ComponentSetNode, comp: PlannedComponent, ctx:
     // Same reactions in any order: nothing to write.
     const sorted = (list: readonly Reaction[]) => JSON.stringify(list.map(reactionKey).sort());
     const same = sorted(next) === sorted(node.reactions);
-    if (!same) await node.setReactionsAsync(next);
+    if (!same) await node.setReactionsAsync(cleanReactions(next));
     const keys = wanted.length ? JSON.stringify(wanted.map(reactionKey)) : '';
     if (node.getSharedPluginData(NS, 'reactions') !== keys) node.setSharedPluginData(NS, 'reactions', keys);
   }
+}
+
+/** The summary line when Figma refused the interactions of some sets: they are built, without prototype interactions. */
+export function interactionsNote(names: readonly string[]): string {
+  const n = names.length;
+  return `Interactions could not be added to ${n} ${n === 1 ? 'set' : 'sets'} (${names.join(', ')}). The components are built.`;
 }
 
 function bottomOf(page: PageNode): number {
@@ -1047,6 +1055,7 @@ export async function applyComponentPlan(plan: ComponentPullPlan, progress: Prog
   const report: ComponentApplyReport = { created: 0, updated: 0, unchanged: 0, orphaned: 0, page: PAGE_NAME, problems: ctx.problems, nodeIds: [] };
   await ensureParts(plan, ctx, report, progress);
   let page: PageNode | undefined;
+  const interactionsFailed: string[] = [];
 
   for (let i = 0; i < plan.components.length; i++) {
     const comp = plan.components[i]!;
@@ -1099,7 +1108,13 @@ export async function applyComponentPlan(plan: ComponentPullPlan, progress: Prog
         report.orphaned++;
       }
     }
-    await wireReactions(set, comp, ctx);
+    // Interactions are extra: when Figma refuses them, this set is still built and the pull goes on.
+    try {
+      await wireReactions(set, comp, ctx);
+    } catch (err) {
+      interactionsFailed.push(comp.name);
+      console.warn(`DS Bridge: interactions on ${comp.name} not added: ${errorText(err)}`);
+    }
     // Always: an update can change variant sizes (a padding, a fixed width), not only add variants.
     layoutVariants(set, comp);
     set.setSharedPluginData(NS, 'specHash', comp.hash);
@@ -1111,6 +1126,7 @@ export async function applyComponentPlan(plan: ComponentPullPlan, progress: Prog
     if (isNew) report.created++;
     else report.updated++;
   }
+  if (interactionsFailed.length) report.interactionsNote = interactionsNote(interactionsFailed);
   if (ctx.fonts.missing.size) {
     report.fontNote = `${[...ctx.fonts.missing].join(', ')} ${ctx.fonts.missing.size === 1 ? 'is' : 'are'} not available in this Figma, so text uses Inter. Install the font and pull again.`;
   }

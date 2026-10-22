@@ -8,7 +8,8 @@ import { test } from 'node:test';
 import { type ComponentSpecsFile, hashSpec, parseComponentSpecs } from '@bridge-ds/core';
 import { generateRepoComponentSpecs } from '@bridge-ds/core/node';
 import { applyPullPlan } from '../src/main/apply';
-import { applyComponentPlan, layoutVariants, scanGenerated } from '../src/main/build-components';
+import { applyComponentPlan, interactionsNote, layoutVariants, scanGenerated } from '../src/main/build-components';
+import { cleanReaction, cleanReactions } from '../src/main/reactions';
 import { exportThumbnails, scanComponents } from '../src/main/components';
 import { onlyComponent, plannedSignature, reviewUpdates, withoutComponents } from '../src/sync/component-review';
 import { takeSnapshot } from '../src/main/snapshot';
@@ -825,6 +826,78 @@ test('interactions: a designer reaction on the same trigger wins, and the pull s
   const report = await applyComponentPlan(forced);
   assert.deepEqual(reactionsOf(def).map((r) => r.actions[0]!.destinationId), [pressed.id]);
   assert.deepEqual(report.problems.filter((p) => /interaction/.test(p)), ['Button Variant=primary, Size=md, State=Default: kept your own "While hovering" interaction, so DS Bridge did not add its own']);
+});
+
+test('interactions: reactions are cleaned to the documented shape before setReactionsAsync', () => {
+  const read = {
+    trigger: { type: 'MOUSE_ENTER', delay: 0, deprecatedVersion: false, extra: 1 },
+    action: { type: 'NODE', destinationId: '1:2', navigation: 'CHANGE_TO', transition: null },
+    actions: [
+      {
+        type: 'NODE',
+        destinationId: '1:2',
+        navigation: 'CHANGE_TO',
+        resetScrollPosition: true,
+        internalId: 'x',
+        transition: { type: 'SMART_ANIMATE', duration: 0.15, extra: true, easing: { type: 'CUSTOM_CUBIC_BEZIER', easingFunctionCubicBezier: { x1: 0.2, y1: 0, x2: 0, y2: 1, z: 9 }, junk: 1 } },
+      },
+      { type: 'URL', url: 'https://example.com', openInNewTab: true, weird: 2 },
+      { type: 'CONDITIONAL', conditionalBlocks: [{ actions: [{ type: 'BACK', deprecatedVersion: true }] }] },
+    ],
+    unknown: 'drop',
+  };
+  assert.deepEqual(cleanReaction(read), {
+    trigger: { type: 'MOUSE_ENTER', delay: 0 },
+    actions: [
+      {
+        type: 'NODE',
+        destinationId: '1:2',
+        navigation: 'CHANGE_TO',
+        resetScrollPosition: true,
+        transition: { type: 'SMART_ANIMATE', easing: { type: 'CUSTOM_CUBIC_BEZIER', easingFunctionCubicBezier: { x1: 0.2, y1: 0, x2: 0, y2: 1 } }, duration: 0.15 },
+      },
+      { type: 'URL', url: 'https://example.com', openInNewTab: true },
+      { type: 'CONDITIONAL', conditionalBlocks: [{ actions: [{ type: 'BACK' }] }] },
+    ],
+  });
+  // Trigger shapes per type; the deprecated single action becomes the list; no trigger means no reaction.
+  assert.deepEqual(cleanReaction({ trigger: { type: 'AFTER_TIMEOUT', timeout: 2, delay: 1 }, action: { type: 'CLOSE', x: 1 } }), { trigger: { type: 'AFTER_TIMEOUT', timeout: 2 }, actions: [{ type: 'CLOSE' }] });
+  assert.deepEqual(cleanReaction({ trigger: { type: 'ON_KEY_DOWN', device: 'KEYBOARD', keyCodes: [13], deprecatedVersion: false } })!.trigger, { type: 'ON_KEY_DOWN', device: 'KEYBOARD', keyCodes: [13] });
+  assert.deepEqual(cleanReaction({ trigger: { type: 'MOUSE_LEAVE', deprecatedVersion: true } })!.trigger, { type: 'MOUSE_LEAVE', delay: 0 });
+  assert.deepEqual(cleanReaction({ trigger: { type: 'ON_CLICK', delay: 3 }, actions: [] }), { trigger: { type: 'ON_CLICK' }, actions: [] });
+  assert.equal(cleanReactions([{ trigger: null, actions: [] }, null, { trigger: { type: 'ON_HOVER' }, actions: [] }]).length, 1);
+});
+
+test('interactions: a designer mouse enter read back from Figma (with deprecatedVersion) does not break the next pull', async () => {
+  const { sim, plan } = await pulledFile();
+  await applyComponentPlan(writablePlan(plan));
+  const button = sim.sets().find((s) => s.name === 'Button')!;
+  const def = variantOf(button, 'Variant=primary, Size=md, State=Default');
+  const pressed = variantOf(button, 'Variant=primary, Size=md, State=Pressed');
+  await def.setReactionsAsync([...(def.reactions as never[]).map((r: { trigger: Record<string, unknown> }) => r), { trigger: { type: 'MOUSE_DOWN', delay: 0 }, actions: [{ type: 'NODE', destinationId: pressed.id, navigation: 'CHANGE_TO', transition: null }] }]);
+  // Switch keeps MOUSE_LEAVE reactions: Figma reads them back with deprecatedVersion.
+  const sw = sim.sets().find((s) => s.name === 'Switch')!;
+  assert.ok((sw.children as SimNode[]).some((v) => (v.reactions as { trigger: { deprecatedVersion?: boolean } }[]).some((r) => r.trigger.deprecatedVersion === false)));
+  const again = await pulledFile({ sim });
+  const forced = { ...again.plan, components: again.plan.components.map((c) => ({ ...c, status: 'updated' as const })) };
+  const report = await applyComponentPlan(forced);
+  assert.equal(report.interactionsNote, undefined);
+  assert.ok(reactionsOf(def).some((r) => r.trigger.type === 'MOUSE_DOWN'));
+});
+
+test('interactions: when Figma refuses one set\'s interactions, every other set is still built and the pull says so in designer words', async () => {
+  const { sim, plan } = await pulledFile();
+  sim.rejectReactions = (n) => n.parent?.name === 'Button';
+  const writable = writablePlan(plan);
+  const report = await applyComponentPlan(writable);
+  const built = writable.components.filter((c) => c.status !== 'unchanged').length;
+  assert.equal(report.created + report.updated, built);
+  assert.ok(sim.sets().some((s) => s.name === 'Switch'));
+  const sw = sim.sets().find((s) => s.name === 'Switch')!;
+  assert.ok((sw.children as SimNode[]).some((v) => (v.reactions as unknown[]).length > 0));
+  assert.equal(report.interactionsNote, 'Interactions could not be added to 1 set (Button). The components are built.');
+  assert.equal(interactionsNote(['A', 'B']), 'Interactions could not be added to 2 sets (A, B). The components are built.');
+  assert.doesNotMatch(report.interactionsNote!, /\u2014/);
 });
 
 // ---------------------------------------------------------------------------------------------

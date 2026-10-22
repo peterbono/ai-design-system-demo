@@ -208,6 +208,8 @@ export interface ComponentApplyReport {
   problems: string[];
   /** Set once when a brand font is missing in this Figma and Inter replaced it. */
   fontNote?: string | undefined;
+  /** Set when Figma refused the prototype interactions of some sets: those sets are built without them. */
+  interactionsNote?: string | undefined;
   /** Component set ids, created or updated. */
   nodeIds: string[];
   /** Icon and slot components created or redrawn (Icons and Slots pages). */
