@@ -63,19 +63,20 @@ describe('TeamChip recent teams', () => {
   it('remembers this team once the page read it, and forgets it on a 404', async () => {
     localStorage.setItem(RECENT_TEAMS_KEY, JSON.stringify(['globex/tokens']));
     render(createElement(TeamChip, { launcher: true }));
-    await waitFor(() => expect(page.listeners.length).toBe(1));
-    act(() => page.listeners[0]!({ state: 'anonymous-public' }));
+    await waitFor(() => expect(page.listeners.length).toBeGreaterThan(0));
+    // Every chip mounted so far hears it: a chip left from an earlier test may have registered first.
+    act(() => page.listeners.forEach((l) => l({ state: 'anonymous-public' })));
     await waitFor(() => expect(stored()).toEqual(['acme/ds', 'globex/tokens']));
-    act(() => page.listeners[0]!({ state: 'anonymous-unknown' }));
+    act(() => page.listeners.forEach((l) => l({ state: 'anonymous-unknown' })));
     await waitFor(() => expect(stored()).toEqual(['globex/tokens']));
   });
 
   it('never remembers a team whose page did not load', async () => {
     page.team = { owner: 'typo', repo: 'nothing' };
     render(createElement(TeamChip, { launcher: true }));
-    await waitFor(() => expect(page.listeners.length).toBe(1));
-    act(() => page.listeners[0]!({ state: 'no-access' }));
-    act(() => page.listeners[0]!({ state: 'not-installed' }));
+    await waitFor(() => expect(page.listeners.length).toBeGreaterThan(0));
+    act(() => page.listeners.forEach((l) => l({ state: 'no-access' })));
+    act(() => page.listeners.forEach((l) => l({ state: 'not-installed' })));
     expect(localStorage.getItem(RECENT_TEAMS_KEY)).toBeNull();
     page.team = { owner: 'acme', repo: 'ds' };
   });
@@ -112,8 +113,8 @@ describe('TeamChip names the team', () => {
     render(createElement(TeamChip, { launcher: true }));
     const trigger = await screen.findByRole('button', { name: /^Acme Studio, acme\/ds/ });
     expect(within(trigger).getByText('Acme Studio')).toHaveAttribute('title', 'Acme Studio, acme/ds');
-    await waitFor(() => expect(page.listeners.length).toBe(1));
-    act(() => page.listeners[0]!({ state: 'reader' }));
+    await waitFor(() => expect(page.listeners.length).toBeGreaterThan(0));
+    act(() => page.listeners.forEach((l) => l({ state: 'reader' })));
     await waitFor(() => expect(JSON.parse(localStorage.getItem('bridge.teamNames') ?? '{}')).toEqual({ 'acme/ds': 'Acme Studio' }));
   });
 
@@ -131,16 +132,16 @@ describe('TeamChip "Your teams"', () => {
   it("on the person's own team, lists it first with a check and their role, never the empty workspace", async () => {
     page.viewer = { login: 'peterbono', name: 'Florian' };
     page.team = { owner: 'peterbono', repo: 'ai-design-system-demo' };
-    page.site = { name: 'Bridge' };
+    page.site = { name: 'Bridge DS' };
     localStorage.setItem('bridge.start', JSON.stringify({ connect: true }));
     const user = userEvent.setup();
     render(createElement(TeamChip, { launcher: true }));
-    await waitFor(() => expect(page.listeners.length).toBe(1));
-    act(() => page.listeners[0]!({ state: 'admin' }));
-    await user.click(await screen.findByRole('button', { name: /^Bridge design system/ }));
+    await waitFor(() => expect(page.listeners.length).toBeGreaterThan(0));
+    act(() => page.listeners.forEach((l) => l({ state: 'admin' })));
+    await user.click(await screen.findByRole('button', { name: /^Bridge DS design system/ }));
     const menu = await screen.findByRole('menu');
     const yours = within(menu).getByRole('group', { name: 'Your teams' });
-    const here = within(yours).getByRole('menuitem', { name: /^Bridge/ });
+    const here = within(yours).getByRole('menuitem', { name: /^Bridge DS/ });
     expect(here).toHaveAttribute('data-current');
     expect(within(here).getByText('Admin')).toBeInTheDocument();
     expect(within(here).getByLabelText('Current team')).toBeInTheDocument();

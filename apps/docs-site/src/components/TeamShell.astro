@@ -30,7 +30,7 @@ const { route, title, what, description, subtitle, wide = true } = Astro.props;
 <Layout title={title} description={description} hosted wide={wide}>
   <div class="ts" data-team-shell={route || 'home'}>
     <StudioHeader title={title} subtitle={subtitle}>
-      <p class="ts-repo"><span class="ts-repo-name" data-team-display>Your team</span> <span class="mono ts-repo-path" data-team-name>owner/repo</span></p>
+      <p class="ts-repo"><span class="ts-repo-name" data-team-display>Your team</span></p>
       {Astro.slots.has('actions') && <Fragment slot="actions"><slot name="actions" /></Fragment>}
     </StudioHeader>
     {Astro.slots.has('default') ? <slot /> : <TeamShellEmpty what={what} demoHref={studioHref(route)} />}

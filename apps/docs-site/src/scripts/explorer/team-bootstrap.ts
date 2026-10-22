@@ -11,6 +11,7 @@ import { buildTokenSet, layoutOptions, loadConfig } from '@bridge-ds/core';
 import { TeamLoadError, TeamLoadProgress, TeamSourceNote } from '../../components/ds/studio/TeamState';
 import { loadTeamData, resetTeamData, teamOfPage } from '../team-data';
 import { HOSTED_DOCS_URL, teamFailure } from '../../lib/team-load';
+import { teamDisplayName } from '../../lib/demo';
 import { modeName } from '../../lib/explorer/format';
 import { modesOf } from '../../lib/explorer/model';
 import { explorerInputFromModel, writeExplorerData } from './data';
@@ -45,7 +46,7 @@ export async function bootstrapTeamExplorer(start: () => void): Promise<void> {
   const state = document.querySelector<HTMLElement>('[data-xp-team-state]');
   if (!xp || !state) return;
   const team = teamOfPage();
-  const name = team ? `${team.owner}/${team.repo}` : 'this repository';
+  const name = team ? teamDisplayName(`${team.owner}/${team.repo}`) : 'this repository';
   const paint = (node: ReturnType<typeof createElement>) => {
     state.removeAttribute('aria-busy');
     state.classList.remove('lp-wait');

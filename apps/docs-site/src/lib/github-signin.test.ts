@@ -281,7 +281,7 @@ describe('repository reach', () => {
   });
 
   it('says how to fix a wrong account or a missing install', () => {
-    expect(noReachText('ana', 'acme/ds')).toMatch(/^@ana cannot edit acme\/ds through Bridge\. Ask the repository owner .* or sign out and sign in with another GitHub account\.$/);
+    expect(noReachText('ana', 'acme/ds')).toMatch(/^@ana cannot edit Ds through Bridge\. Ask the repository owner .* or sign out and sign in with another GitHub account\.$/);
     expect(readOnlyText('ana', 'acme/ds', true)).toMatch(/Ask an owner for write access/);
     expect(readOnlyText('ana', 'acme/ds', false)).toMatch(/This token can read but not write/);
   });

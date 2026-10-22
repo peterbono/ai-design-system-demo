@@ -50,7 +50,7 @@ describe('account', () => {
     expect(accountView('connected', { login: 'ana', write: true, repo })).toEqual({
       zone: false,
       title: 'Connected as @ana',
-      detail: 'acme/ds',
+      detail: 'Ds',
       action: 'Reconnect GitHub',
       actionKind: 'token',
       badge: { label: 'Can edit', tone: 'success' },
@@ -82,7 +82,7 @@ describe('account', () => {
   });
 
   it('signs out a signed-in account, and says so when its sign-in expired', () => {
-    expect(accountView('connected', { login: 'ana', write: true, repo, mode: 'app', signIn: true })).toMatchObject({ action: 'Sign out', actionKind: 'signout', detail: 'acme/ds' });
+    expect(accountView('connected', { login: 'ana', write: true, repo, mode: 'app', signIn: true })).toMatchObject({ action: 'Sign out', actionKind: 'signout', detail: 'Ds' });
     expect(accountView('rejected', { write: null, repo, mode: 'app', signIn: true })).toEqual({
       zone: true,
       title: 'Your GitHub sign-in expired.',
@@ -95,7 +95,7 @@ describe('account', () => {
   it('tells a signed-in account without access how to fix it (wrong account, app not installed, read only)', () => {
     const none = accountView('connected', { login: 'ana', write: false, repo, mode: 'app', reach: false });
     expect(none.badge).toEqual({ label: 'No access', tone: 'neutral' });
-    expect(none.detail).toMatch(/^@ana cannot edit acme\/ds through Bridge\..*sign in with another GitHub account\.$/);
+    expect(none.detail).toMatch(/^@ana cannot edit Ds through Bridge\..*sign in with another GitHub account\.$/);
     const read = accountView('connected', { login: 'ana', write: false, repo, mode: 'app', reach: true });
     expect(read.badge).toEqual({ label: 'Read only', tone: 'neutral' });
     expect(read.detail).toMatch(/Ask an owner for write access/);

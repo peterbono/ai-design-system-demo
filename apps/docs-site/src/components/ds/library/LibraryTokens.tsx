@@ -99,7 +99,7 @@ export default function LibraryTokens() {
           lead={
             data
               ? `${plural(data.model.tokens.rows.all.length + data.model.tokens.rows.primitives.length, 'token')} of ${teamDisplayName(`${data.owner}/${data.repo}`, data.model.site)}. Use the semantic tokens in product code: they follow the theme. Primitives are the raw palette underneath.`
-              : `Every token of ${team ? `${team.owner}/${team.repo}` : 'this design system'}, with its value per theme.`
+              : `Every token of ${team ? teamDisplayName(`${team.owner}/${team.repo}`) : 'this design system'}, with its value per theme.`
           }
         />
       )}

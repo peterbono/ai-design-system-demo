@@ -28,8 +28,9 @@ export function pointLinksAtTeam(root: ParentNode = document): number {
 }
 
 /**
- * A team shell's header (components/TeamShell.astro): the name the team goes by (lib/demo.ts teamDisplayName, its
- * bridge.config.json `name` once its settings are read), its repository and its GitHub link, from the address.
+ * A team shell's header (components/TeamShell.astro) and the account menu: the name the team goes by (lib/demo.ts
+ * teamDisplayName, its bridge.config.json `name` once its settings are read, never owner/repo), and its repository
+ * where GitHub is meant (the account menu's Repository link), from the address.
  */
 export function fillTeamShell(root: ParentNode = document) {
   const team = typeof location === 'undefined' ? null : repoFromPath(location.pathname);

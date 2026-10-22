@@ -117,7 +117,7 @@ describe('the demo banner (board EmptyA2)', () => {
 
   it("names Bridge's own design system, never sample data, on its repository", () => {
     render(createElement(DemoBanner, { repoUrl: 'https://github.com/peterbono/ai-design-system-demo', repo: 'peterbono/ai-design-system-demo', onUseOwn: () => undefined }));
-    expect(screen.getByText('Bridge, our own design system.')).toBeInTheDocument();
+    expect(screen.getByText('Bridge DS, our own design system.')).toBeInTheDocument();
     expect(screen.queryByText(/Acme Design|sample data/i)).toBeNull();
   });
 

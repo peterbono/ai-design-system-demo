@@ -18,11 +18,12 @@ export const isDemoRepo = (repo: string | null | undefined): boolean => DEMO_REP
 /**
  * The two demo design systems are not the same thing for a visitor, so they never share a name:
  *   - peterbono/bridge-demo-ds is a simulated team with sample data: "Acme Design" (Dana leads its design system).
- *   - peterbono/ai-design-system-demo is Bridge's own design system, the real one behind this site: "Bridge".
+ *   - peterbono/ai-design-system-demo is Bridge's own design system, the real one behind this site: "Bridge DS".
  */
 export const SAMPLE_REPO = 'peterbono/bridge-demo-ds';
 export const SAMPLE_TEAM = 'Acme Design';
-export const OWN_TEAM = 'Bridge';
+/** Matches `name` in the root bridge.config.json (demo.test.ts checks), for pages that name it before its settings are read. */
+export const OWN_TEAM = 'Bridge DS';
 
 /** True for the simulated team with sample data ("owner/repo", any case). */
 export const isSampleTeam = (repo: string | null | undefined): boolean => (repo ?? '').trim().toLowerCase() === SAMPLE_REPO;

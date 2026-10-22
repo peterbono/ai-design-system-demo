@@ -17,6 +17,7 @@ import ButtonLink from './ds/ButtonLink';
 import { GitHubMark } from './ds/studio/brand-icons';
 import { LogOut, Pencil, Settings } from 'lucide-react';
 import { siteRepo } from '../lib/config';
+import { teamDisplayName } from '../lib/demo';
 import { signInConfig } from '../lib/signin-config';
 import { ghButton } from '../lib/gh-wording';
 import { studioHref } from '../lib/team-path';
@@ -52,7 +53,7 @@ const signIn = Boolean(signInConfig(workspace));
       <Avatar name="GitHub" size="md" decorative className="gh-acct-avatar" data-gh-avatar hidden />
       <span class="gh-acct-text">
         <span class="gh-acct-login" data-gh-login></span>
-        {workspace ? <span class="gh-acct-repo">No repository yet</span> : <span class="gh-acct-repo mono" data-team-name>{r.owner}/{r.repo}</span>}
+        {workspace ? <span class="gh-acct-repo">No repository yet</span> : <span class="gh-acct-repo" data-team-display>{teamDisplayName(`${r.owner}/${r.repo}`, r)}</span>}
       </span>
       <span class="scope-pick-chev" aria-hidden="true"><Icon icon={siteIcon('chevron')} size="xs" className="icon" /></span>
     </summary>

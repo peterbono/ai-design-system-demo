@@ -8,6 +8,7 @@
 import { fromPlain, getEntry, parseJson, serializeJson, soloOwnerOf, soloOwnerSentence, toPlain, type ChangesMode, type JsonObject, type Owners, type Rights } from '@bridge-ds/core';
 import type { TierSummary } from './governance';
 import { noReachText, readOnlyText, type SignInApp } from './github-signin';
+import { teamDisplayName } from './demo';
 
 export interface ApprovalRule {
   tier: number;
@@ -98,7 +99,7 @@ export function accountView(state: AccountState, at: AccountFacts): AccountView 
       return {
         zone: false,
         title: at.login ? `Connected as @${at.login}` : 'Connected to GitHub',
-        detail: noReach ? noReachText(login, at.repo) : readOnly ? readOnlyText(login, at.repo, true) : at.repo,
+        detail: noReach ? noReachText(login, at.repo) : readOnly ? readOnlyText(login, at.repo, true) : teamDisplayName(at.repo),
         // A token pasted before the site had Sign in with GitHub: no token paste any more, only the way out.
         action: app ? 'Sign out' : at.signIn ? 'Disconnect' : 'Reconnect GitHub',
         actionKind: app || at.signIn ? 'signout' : 'token',

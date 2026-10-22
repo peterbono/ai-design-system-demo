@@ -1,4 +1,5 @@
 import { studioHref } from './team-path';
+import { teamDisplayName } from './demo';
 // Sign in with GitHub for the Studio, pure helpers (no DOM, no storage), covered by github-signin.test.ts.
 //
 // The flow is the GitHub App user-to-server flow with state and PKCE:
@@ -377,12 +378,12 @@ export function installationFor(list: InstallationLike[], owner: string): { reac
 
 /** The sentence when the signed-in account cannot reach the repository (wrong account, or the app is not installed). */
 export const noReachText = (login: string, repo: string) =>
-  `@${login} cannot edit ${repo} through Bridge. Ask the repository owner to install the Bridge GitHub App on it and give you write access, or sign out and sign in with another GitHub account.`;
+  `@${login} cannot edit ${teamDisplayName(repo)} through Bridge. Ask the repository owner to install the Bridge GitHub App on it and give you write access, or sign out and sign in with another GitHub account.`;
 
 /** The sentence when the account reaches the repository but only reads it. */
 export const readOnlyText = (login: string, repo: string, app: boolean) =>
   app
-    ? `@${login} can read ${repo} but not edit it. Ask an owner for write access, or sign out and sign in with another GitHub account.`
+    ? `@${login} can read ${teamDisplayName(repo)} but not edit it. Ask an owner for write access, or sign out and sign in with another GitHub account.`
     : 'This token can read but not write. Reviews and token proposals need Contents and Pull requests write access.';
 
 /**

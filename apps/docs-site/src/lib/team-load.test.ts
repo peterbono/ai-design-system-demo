@@ -7,7 +7,7 @@ describe('teamFailure', () => {
   it('names each failure a team page can hit, with a way out', () => {
     expect(teamFailure(err(429, 'GitHub limit reached. Try again after 14:05.'), 'acme/ds')).toMatchObject({ kind: 'rate-limit', body: 'GitHub limit reached. Try again after 14:05.' });
     expect(teamFailure(err(403, 'API rate limit exceeded'), 'acme/ds').kind).toBe('rate-limit');
-    expect(teamFailure(err(404), 'acme/ds')).toMatchObject({ kind: 'not-found', title: 'Bridge cannot open acme/ds' });
+    expect(teamFailure(err(404), 'acme/ds')).toMatchObject({ kind: 'not-found', title: 'Bridge cannot open Ds' });
     expect(teamFailure(err(413, 'tree too large'), 'acme/ds')).toMatchObject({ kind: 'too-large' });
     expect(teamFailure(err(0), 'acme/ds').kind).toBe('network');
     expect(teamFailure(err(500, 'Server Error'), 'acme/ds')).toMatchObject({ kind: 'unknown', body: 'GitHub answered: Server Error' });

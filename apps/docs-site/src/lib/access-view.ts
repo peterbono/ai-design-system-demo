@@ -98,27 +98,29 @@ const EMAIL_LINK = { lead: CONTRIBUTE_WORDS.invitedWithEmail, action: EMAIL_ACTI
 /** The screen of one state, null when the Studio opens as usual (reader, writer, admin). */
 export function accessScreen(state: RepoAccessState, f: AccessScreenInput): AccessScreen | null {
   const repo = `${f.owner}/${f.repo}`;
+  // Titles name the team (never owner/repo); the messages people copy to a GitHub admin keep the repository.
+  const team = teamDisplayName(repo);
   switch (state) {
     case 'anonymous-unknown':
       // With email sign-in the title names no provider: GitHub stays the main way, the email link a quiet one under it.
       return f.email
         ? {
             layout: 'block',
-            title: `Sign in to open ${repo}`,
+            title: `Sign in to open ${team}`,
             body: 'This design system may be private. Sign in to see it.',
             primary: { kind: 'signin', label: 'Sign in with GitHub' },
             links: [EMAIL_LINK],
           }
         : {
             layout: 'block',
-            title: `Sign in with GitHub to open ${repo}`,
+            title: `Sign in with GitHub to open ${team}`,
             body: 'This design system may be private. Once you sign in, GitHub tells Bridge what you can see.',
             primary: { kind: 'signin', label: 'Sign in with GitHub' },
           };
     case 'no-access':
       return {
         layout: 'block',
-        title: `You do not have access to ${repo} yet`,
+        title: `You do not have access to ${team} yet`,
         body: `Bridge uses GitHub to decide who can open this design system. ${who(f.login)} cannot see it: either you are not on the team on GitHub yet, or Bridge is not set up on it.`,
         primary: { kind: 'copy', label: 'Ask your lead for access', text: askAccessMessage(f.login, repo, f.link), copied: 'Message copied. Paste it to your lead.' },
         secondary: { kind: 'signout', label: 'Sign in with another account' },
@@ -139,14 +141,14 @@ export function accessScreen(state: RepoAccessState, f: AccessScreenInput): Acce
         ? {
             layout: 'banner',
             tone: 'warning',
-            title: `Bridge is not set up on ${repo} yet`,
+            title: `Bridge is not set up on ${team} yet`,
             body: 'Install it once and your whole team can review and suggest from here. You stay in control of what it can reach.',
             primary: { kind: 'link', label: 'Install Bridge', href: installUrl(), external: true },
           }
         : {
             layout: 'banner',
             tone: 'warning',
-            title: `Bridge is not set up on ${repo} yet`,
+            title: `Bridge is not set up on ${team} yet`,
             body: 'You can look around. To review and suggest, an admin of the repository installs Bridge once.',
             primary: { kind: 'copy', label: 'Ask your lead to install Bridge', text: askInstallMessage(repo, f.link), copied: 'Message copied. Paste it to your lead.' },
           };
@@ -237,24 +239,25 @@ export function chipIdentity(team: string | null, f: { demo: boolean; state: Rep
 }
 
 /** One sentence for Settings: what the viewer can do here. On the sample team (`demo`), a signed-out visitor explores freely. */
-export function accessSummary(state: RepoAccessState | null, f: { login?: string | null; repo: string; demo?: boolean }): string {
+export function accessSummary(state: RepoAccessState | null, f: { login?: string | null; repo: string; demo?: boolean; name?: string | null }): string {
+  const team = teamDisplayName(f.repo, { name: f.name });
   if (!state && !f.login && f.demo) return "You're exploring the demo with sample data. Nothing you do here is saved.";
-  if (!state) return f.login ? `Checking what ${who(f.login)} can do on ${f.repo}.` : `Sign in with GitHub to see what you can do on ${f.repo}.`;
+  if (!state) return f.login ? `Checking what ${who(f.login)} can do on ${team}.` : `Sign in with GitHub to see what you can do on ${team}.`;
   switch (state) {
     case 'admin':
-      return `${who(f.login)} is an admin of ${f.repo}: you can change anything here, and decide who gets in on GitHub.`;
+      return `${who(f.login)} is an admin of ${team}: you can change anything here, and decide who gets in on GitHub.`;
     case 'writer':
-      return `${who(f.login)} can edit ${f.repo}: review, suggest and start changes.`;
+      return `${who(f.login)} can edit ${team}: review, suggest and start changes.`;
     case 'reader':
-      return `${who(f.login)} can read ${f.repo}: review, comment and send suggestions.`;
+      return `${who(f.login)} can read ${team}: review, comment and send suggestions.`;
     case 'outside-contributor':
       return `${who(f.login)} is not on this team on GitHub: you can look around and send suggestions.`;
     case 'not-installed':
-      return `Bridge is not set up on ${f.repo} yet: you can look around until an admin installs it.`;
+      return `Bridge is not set up on ${team} yet: you can look around until an admin installs it.`;
     case 'no-access':
-      return `${who(f.login)} cannot see ${f.repo}.`;
+      return `${who(f.login)} cannot see ${team}.`;
     default:
-      return `You are viewing ${f.repo} as a guest. Sign in with GitHub to do more.`;
+      return `You are viewing ${team} as a guest. Sign in with GitHub to do more.`;
   }
 }
 

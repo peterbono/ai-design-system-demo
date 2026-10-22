@@ -234,7 +234,7 @@ export default function LibraryComponents() {
             lead={
               data
                 ? `${plural(libraryComponents(data.model).length, 'component')} of ${teamDisplayName(`${data.owner}/${data.repo}`, data.model.site)}, by family. Each one opens its usage guidance and a live story.`
-                : `The components of ${team ? `${team.owner}/${team.repo}` : 'this design system'}, by family, with their usage guidance.`
+                : `The components of ${team ? teamDisplayName(`${team.owner}/${team.repo}`) : 'this design system'}, by family, with their usage guidance.`
             }
           />
         )

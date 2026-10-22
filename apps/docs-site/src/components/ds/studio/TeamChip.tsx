@@ -94,7 +94,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   useEffect(() => {
     let live = true;
     void (async () => {
-      const [{ repoContext }, session] = await Promise.all([import('../../../scripts/repo-context'), import('../../../scripts/github-session')]);
+      const [{ repoContext, siteConfig }, session] = await Promise.all([import('../../../scripts/repo-context'), import('../../../scripts/github-session')]);
       if (!live) return;
       const r = repoContext();
       const team = workspace ? null : `${r.owner}/${r.repo}`;
@@ -104,7 +104,6 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
       setRecent(others(loadRecentTeams(), team));
       setNames(loadTeamNames());
       setRoles(loadTeamRoles());
-      const { siteConfig } = await import('../../../scripts/repo-context');
       const readName = () => {
         if (!live) return document.removeEventListener('bridge:team-model', readName);
         const c = siteConfig();

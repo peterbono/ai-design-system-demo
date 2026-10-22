@@ -17,6 +17,7 @@ import { Drawing } from '../studio/Drawing';
 import { emailDomainIn, GATE_WORDS, libraryGate, signInToken, wrongDomainWords, type AccessAnswer } from '../../../lib/library-access';
 import { isSampleTeam } from '../../../lib/demo';
 import { teamHref } from '../../../lib/team-path';
+import { teamDisplayName } from '../../../lib/demo';
 import '../../../styles/library-access.css';
 
 export type GateState =
@@ -82,7 +83,7 @@ function Zone({ repo, title, children }: { repo: string; title: string; children
   return (
     <section className="zone lgt" aria-labelledby="lgt-title">
       <div className="lgt-copy">
-        <p className="ltm-eyebrow mono">{repo}</p>
+        <p className="ltm-eyebrow">{teamDisplayName(repo)}</p>
         <h1 id="lgt-title" className="t-display lgt-title">
           {title}
         </h1>

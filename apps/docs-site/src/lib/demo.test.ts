@@ -1,5 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { DEMO_REPOS, DEMO_WORDS, demoLeadName, demoSettingsPeople, demoTour, demoWaiting, exploresDemo, humanizeRepo, onBridge, isDemoRepo, teamDisplayName, tourSteps } from './demo';
+import { DEMO_REPOS, DEMO_WORDS, demoLeadName, demoSettingsPeople, demoTour, demoWaiting, exploresDemo, humanizeRepo, onBridge, isDemoRepo, OWN_TEAM, teamDisplayName, tourSteps } from './demo';
 
 describe('the demo', () => {
   it('is the self-hosted repository and the hosted demo team, any case', () => {
@@ -65,14 +66,14 @@ describe('the demo Settings', () => {
 
 describe('teamDisplayName', () => {
   it('a demo goes by its own name, any other team by its repository name in words, never owner/repo', () => {
-    expect(teamDisplayName('peterbono/ai-design-system-demo')).toBe('Bridge');
+    expect(teamDisplayName('peterbono/ai-design-system-demo')).toBe('Bridge DS');
     expect(teamDisplayName('PeterBono/Bridge-Demo-DS')).toBe('Acme Design');
     expect(teamDisplayName('acme/design-system')).toBe('Design system');
   });
 
   it("a team's own name from bridge.config.json wins, except on the sample team", () => {
     expect(teamDisplayName('acme/design-system', { name: '  Acme   Studio ' })).toBe('Acme Studio');
-    expect(teamDisplayName('peterbono/ai-design-system-demo', { name: 'Bridge' })).toBe('Bridge');
+    expect(teamDisplayName('peterbono/ai-design-system-demo', { name: 'Bridge DS' })).toBe('Bridge DS');
     expect(teamDisplayName('peterbono/bridge-demo-ds', { name: 'Other' })).toBe('Acme Design');
     expect(teamDisplayName('acme/ds', { name: ' ' })).toBe('Ds');
     expect(teamDisplayName('acme/ds', null)).toBe('Ds');
@@ -83,6 +84,12 @@ describe('teamDisplayName', () => {
     expect(`Join Bridge${onBridge('Bridge')}`).toBe('Join Bridge');
     expect(onBridge(' bridge ')).toBe('');
     expect(onBridge('Bridge Labs')).toBe(' on Bridge');
+  });
+
+  it("names Bridge's own design system as the root bridge.config.json does", () => {
+    const root = JSON.parse(readFileSync(new URL('../../../../bridge.config.json', import.meta.url), 'utf8')) as { name?: string };
+    expect(root.name).toBe(OWN_TEAM);
+    expect(teamDisplayName('peterbono/ai-design-system-demo', root)).toBe('Bridge DS');
   });
 
   it('puts a repository name in words', () => {

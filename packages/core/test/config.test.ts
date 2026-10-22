@@ -158,7 +158,7 @@ test('the JSON schema lists changes and storybook like the parser', () => {
 test('name: the team display name, trimmed, 1 to 60 characters, kept by siteRepoFromConfig', () => {
   assert.equal(loadConfig({ repo: 'acme/ds', name: '  Acme   Design ' }).name, 'Acme Design');
   assert.equal(loadConfig({ repo: 'acme/ds' }).name, undefined);
-  assert.equal(realConfig().name, 'Bridge');
+  assert.equal(realConfig().name, 'Bridge DS');
   for (const name of ['', ' ', 'x'.repeat(61), 42]) {
     assert.throws(
       () => loadConfig({ repo: 'acme/ds', name } as never),

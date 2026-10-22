@@ -1,7 +1,7 @@
 {
   "$schema": "./packages/core/bridge.config.schema.json",
   "version": 1,
-  "name": "Bridge",
+  "name": "Bridge DS",
   "repo": {
     "owner": "peterbono",
     "name": "ai-design-system-demo",

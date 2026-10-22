@@ -9,6 +9,7 @@ import NewBrandFlow from './NewBrandFlow';
 import { TeamLoadError, TeamLoadProgress, TeamSourceNote, useTeamData } from './TeamState';
 import { teamBrandInput, teamDraftScope } from '../../../lib/team-new-brand';
 import { HOSTED_DOCS_URL } from '../../../lib/team-load';
+import { teamDisplayName } from '../../../lib/demo';
 
 export interface TeamNewBrandProps {
   /** The site has Sign in with GitHub (a GitHub App): the connect action says "Sign in". */
@@ -21,7 +22,7 @@ export default function TeamNewBrand({ signIn = false }: TeamNewBrandProps) {
   if (load.status === 'error') return <TeamLoadError failure={load.failure} onRetry={retry} />;
   const { data, refreshing } = load;
   const input = teamBrandInput(data.model);
-  const name = `${data.owner}/${data.repo}`;
+  const name = teamDisplayName(`${data.owner}/${data.repo}`, data.model.site);
   const note = <TeamSourceNote data={data} refreshing={refreshing} onRefresh={retry} />;
   const howTo = (
     <Link href={HOSTED_DOCS_URL} target="_blank" rel="noopener noreferrer">

@@ -38,14 +38,14 @@ describe('access screens', () => {
 
   it('asks a signed-out visitor to sign in first, with no explanation wall', () => {
     const s = accessScreen('anonymous-unknown', base)!;
-    expect(s).toMatchObject({ layout: 'block', title: 'Sign in with GitHub to open acme/design-system', primary: { kind: 'signin' } });
+    expect(s).toMatchObject({ layout: 'block', title: 'Sign in with GitHub to open Design system', primary: { kind: 'signin' } });
     expect(s.secondary).toBeUndefined();
   });
 
   it('gives a teammate without access a ready message for their lead, and another account', () => {
     const s = accessScreen('no-access', base)!;
     expect(s.layout).toBe('block');
-    expect(s.title).toBe('You do not have access to acme/design-system yet');
+    expect(s.title).toBe('You do not have access to Design system yet');
     expect(s.body).toContain('@ann cannot see it');
     expect(s.primary).toEqual({
       kind: 'copy',
@@ -110,7 +110,7 @@ describe('the team chip', () => {
 
   it("shows Bridge's own design system as one to explore, never as signed out", () => {
     const anon = chipIdentity('peterbono/ai-design-system-demo', { demo: true, state: null, signedIn: false });
-    expect(anon).toMatchObject({ kind: 'demo', name: 'Bridge', badge: { label: 'Explore freely' } });
+    expect(anon).toMatchObject({ kind: 'demo', name: 'Bridge DS', badge: { label: 'Explore freely' } });
     expect(anon.sample).toBeFalsy();
     expect(anon.title).toContain('peterbono/ai-design-system-demo');
     expect(chipIdentity('peterbono/ai-design-system-demo', { demo: true, state: 'admin', signedIn: true }).badge.label).toBe('Admin');
