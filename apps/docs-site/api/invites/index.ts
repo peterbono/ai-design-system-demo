@@ -3,7 +3,7 @@
 // The flow: an admin picks emails and a role in Studio; this function stores a pending invite (server side, never in
 // the browser) and emails a one-time link; the invitee opens it, signs in with GitHub, and this function gives their
 // GitHub account access to the repository with the role's permission. It also changes roles, removes people and
-// resends or cancels invites. Self-contained on purpose (node built-ins only), so Vercel bundles it as is.
+// resends or cancels invites. Shared pieces (HTTP, Redis, email, the GitHub App) live in api/_lib, not a function.
 //
 // Roles, as designers read them, and what each one is on GitHub (keep the Studio words in lib/invites.ts in step):
 //   view      "Can view"   GitHub `pull`  (read). No longer offered (CHOOSABLE_ROLES): readers use Library access.
@@ -27,9 +27,14 @@
 //
 // Endpoints (JSON, errors are { error, message } in Studio words):
 //   GET  /api/invites                       { available }  storage, email and the app are all configured
-//   GET  /api/invites?repo=owner/name       { invites, personal }  caller can push
+//   GET  /api/invites?repo=owner/name       { invites, personal, members }  caller can push; `members` are the email
+//                                           contributors ({ via: 'email', name, email, role }), the GitHub ones are
+//                                           read from GitHub by Studio
 //   POST /api/invites { action: 'invite' | 'resend' | 'invite-role' | 'cancel' | 'set-role' | 'remove' }  caller is admin
+//                                           set-role and remove take `email` instead of `login` for an email
+//                                           contributor; set-role to reviewer or admin answers 409 github-required
 //   POST /api/invites { action: 'accept', token }  caller is the invitee, any GitHub account
+// A "Can edit" invite can also be accepted with the email alone, no GitHub account: api/contribute (action accept).
 // Requests carry `Authorization: Bearer <GitHub user token>` (Studio's Sign in with GitHub). POSTs must come from a
 // page of this site.
 //
@@ -56,7 +61,16 @@
 //   INVITES_MAX_PER_ADMIN_DAY, INVITES_MAX_PER_TEAM_DAY, INVITES_MAX_SITE_DAY (optional)          caps, see LIMIT_DEFAULTS
 // Missing any of the first three groups: every action answers 503 "Invites are not available yet on this site."
 
-import { createHash, createSign, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
+import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
+import { githubApp as sharedGithubApp, type AppTokens } from '../_lib/github-app.js';
+import { b64url, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody as readJsonBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin as originOf, type FetchLike } from '../_lib/http.js';
+import { memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
+import { redisRest, type Redis } from '../_lib/redis.js';
+
+export { appJwt } from '../_lib/github-app.js';
+export { resendSender, sameOrigin };
+export type { AppTokens, EmailMember, EmailMessage, EmailSender, FetchLike, MemberStore };
 
 // ---------------------------------------------------------------------------------------------------------------
 // Types and constants
@@ -141,8 +155,6 @@ export interface InvitesEnv {
   INVITES_MAX_SITE_DAY?: string | undefined;
 }
 
-export type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body?: string }) => Promise<Response>;
-
 /** Pending invites, per repository. Every record disappears on its own once its TTL (the invite's expiry) is over. */
 export interface InviteStore {
   list(repo: string): Promise<StoredInvite[]>;
@@ -156,23 +168,6 @@ export interface InviteStore {
   bump(keys: string[], by: number, ttlSeconds: number): Promise<number[]>;
 }
 
-export interface EmailMessage {
-  to: string;
-  subject: string;
-  text: string;
-  html: string;
-}
-
-/** Sends one email; throws when the provider refuses it. */
-export interface EmailSender {
-  send(msg: EmailMessage): Promise<void>;
-}
-
-/** An installation token of the Bridge app for one repository, or null when the app cannot manage its people. */
-export interface AppTokens {
-  installationToken(owner: string, repo: string): Promise<string | null>;
-}
-
 export interface InvitesDeps {
   fetch: FetchLike;
   now?: () => number;
@@ -181,78 +176,23 @@ export interface InvitesDeps {
   store?: InviteStore;
   email?: EmailSender;
   app?: AppTokens;
+  /** Email contributors (api/contribute); built from the same Redis as the invites otherwise. */
+  members?: MemberStore;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
 // HTTP helpers
 
-class HttpError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string,
-    message: string,
-    /** More fields for the JSON body (never an email in full, never a token). */
-    readonly extra: Record<string, unknown> = {},
-    readonly headers: Record<string, string> = {},
-  ) {
-    super(message);
-  }
-}
-
-function json(status: number, body: unknown, extra: Record<string, string> = {}): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': 'no-store',
-      'Referrer-Policy': 'no-referrer',
-      'X-Content-Type-Options': 'nosniff',
-      ...extra,
-    },
-  });
-}
-
-const fail = (status: number, error: string, message: string) => json(status, { error, message });
-
 export const NOT_CONFIGURED = 'Invites are not available yet on this site.';
-const GITHUB_DOWN = 'GitHub did not answer. Try again in a minute.';
 const APP_MISSING = 'Bridge cannot add people to this design system yet. An admin of the repository gives Bridge access to members.';
 export const EXPIRED = 'This invitation expired or was already used. Ask your admin to send a new one.';
 
-const isLocalHost = (host: string) => /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host);
-
-/** The request comes from a page on this very site (same rule as api/github/token.ts). */
-export function sameOrigin(req: Request): boolean {
-  const origin = req.headers.get('origin');
-  if (!origin) return false;
-  let o: URL;
-  try {
-    o = new URL(origin);
-  } catch {
-    return false;
-  }
-  if (o.origin !== origin) return false;
-  const host = (req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? new URL(req.url).host).split(',')[0]!.trim().toLowerCase();
-  if (!host || o.host.toLowerCase() !== host) return false;
-  if (o.protocol !== 'https:' && !(o.protocol === 'http:' && isLocalHost(o.host))) return false;
-  const site = req.headers.get('sec-fetch-site');
-  return !site || site === 'same-origin';
-}
-
-const REPO = /^([A-Za-z0-9][A-Za-z0-9-]{0,38})\/([A-Za-z0-9._-]{1,100})$/;
 const LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 const EMAIL = /^[^\s@<>()[\]\\,;:"]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?)+$/;
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 const ID = /^[a-f0-9]{16}$/;
 
 export const validEmail = (v: unknown): v is string => typeof v === 'string' && v.length <= 254 && EMAIL.test(v.trim());
-
-function parseRepo(v: unknown): { owner: string; repo: string; full: string } {
-  if (typeof v !== 'string') throw new HttpError(400, 'bad_request', 'Say which design system, as owner/name.');
-  const m = REPO.exec(v.trim());
-  if (!m || m[2] === '.' || m[2] === '..') throw new HttpError(400, 'bad_request', 'Say which design system, as owner/name.');
-  return { owner: m[1]!, repo: m[2]!, full: `${m[1]}/${m[2]}`.toLowerCase() };
-}
 
 function parseRole(role: unknown, reviewAs: unknown): { role: Role; reviewAs?: ReviewAs } {
   if (typeof role !== 'string' || !(CHOOSABLE_ROLES as readonly string[]).includes(role)) throw new HttpError(400, 'bad_request', 'Pick a role: Can edit, Reviewer or Admin.');
@@ -307,34 +247,12 @@ async function gh(f: FetchLike, token: string, method: string, path: string, bod
   return { status: res.status, data };
 }
 
-const b64url = (b: Buffer | string) => Buffer.from(b).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
-
-/** A GitHub App JWT (RS256), valid 9 minutes, backdated 60 s for clock drift. */
-export function appJwt(appId: string, privateKey: string, nowMs: number): string {
-  const now = Math.floor(nowMs / 1000);
-  const head = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
-  const body = b64url(JSON.stringify({ iat: now - 60, exp: now + 540, iss: appId }));
-  const sig = createSign('RSA-SHA256').update(`${head}.${body}`).sign(privateKey.replace(/\\n/g, '\n'));
-  return `${head}.${body}.${b64url(sig)}`;
-}
-
-/** Installation tokens of the Bridge Direct app, scoped to the one repository, never stored. */
-export function githubApp(appId: string, privateKey: string, f: FetchLike, now: () => number): AppTokens {
-  return {
-    async installationToken(owner, repo) {
-      const jwt = appJwt(appId, privateKey, now());
-      const inst = await gh(f, jwt, 'GET', `/repos/${owner}/${repo}/installation`);
-      if (inst.status === 404) return null;
-      if (inst.status !== 200 || typeof inst.data?.id !== 'number') throw new HttpError(502, 'unreachable', GITHUB_DOWN);
-      const tok = await gh(f, jwt, 'POST', `/app/installations/${inst.data.id}/access_tokens`, { repositories: [repo] });
-      if (tok.status === 404 || tok.status === 422) return null;
-      if (tok.status !== 201 || typeof tok.data?.token !== 'string') throw new HttpError(502, 'unreachable', GITHUB_DOWN);
-      // Without Administration write the app cannot add or remove anyone: say so instead of failing later.
-      if (tok.data.permissions && tok.data.permissions.administration !== 'write') return null;
-      return tok.data.token as string;
-    },
-  };
-}
+/**
+ * Installation tokens of the Bridge Direct app, scoped to the one repository, never stored. Without Administration
+ * write the app cannot add or remove anyone: null, so the answer says so instead of failing later.
+ */
+export const githubApp = (appId: string, privateKey: string, f: FetchLike, now: () => number): AppTokens =>
+  sharedGithubApp(appId, privateKey, f, now, { require: { administration: 'write' }, userAgent: 'bridge-studio-invites' });
 
 // ---------------------------------------------------------------------------------------------------------------
 // Storage: Upstash Redis over REST (Vercel Marketplace), or memory in tests
@@ -362,27 +280,12 @@ function parseStored(raw: unknown): StoredInvite | null {
 const STORAGE_DOWN = 'Bridge could not reach its invite storage. Try again in a minute.';
 
 export function redisStore(url: string, token: string, f: FetchLike, now: () => number = Date.now): InviteStore {
-  const base = url.replace(/\/+$/, '');
-  const call = async (path: string, body: unknown): Promise<any> => {
-    let res: Response;
-    try {
-      res = await f(`${base}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    } catch {
-      throw new HttpError(503, 'storage', STORAGE_DOWN);
-    }
-    if (!res.ok) throw new HttpError(503, 'storage', STORAGE_DOWN);
-    return res.json();
-  };
-  const cmd = async (...args: (string | number)[]) => {
-    const r = (await call('', args)) as { result?: unknown; error?: string };
-    if (r.error) throw new HttpError(503, 'storage', STORAGE_DOWN);
-    return r.result;
-  };
-  const pipe = async (cmds: (string | number)[][]): Promise<unknown[]> => {
-    const r = (await call('/pipeline', cmds)) as { result?: unknown; error?: string }[];
-    if (!Array.isArray(r) || r.some((x) => x?.error)) throw new HttpError(503, 'storage', STORAGE_DOWN);
-    return r.map((x) => x.result);
-  };
+  return inviteStoreOn(redisRest(url, token, f, STORAGE_DOWN), now);
+}
+
+/** The invite store on a Redis connection (also the one api/contribute reads invites with). */
+export function inviteStoreOn(redis: Redis, now: () => number = Date.now): InviteStore {
+  const { cmd, pipe } = redis;
   const store: InviteStore = {
     async list(repo) {
       const [, ids] = await pipe([
@@ -492,31 +395,13 @@ export function memoryStore(now: () => number = Date.now): InviteStore & { keys(
 // ---------------------------------------------------------------------------------------------------------------
 // Email: Resend
 
-export function resendSender(apiKey: string, from: string, f: FetchLike): EmailSender {
-  return {
-    async send(msg) {
-      let res: Response;
-      try {
-        res = await f('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ from, to: [msg.to], subject: msg.subject, text: msg.text, html: msg.html }),
-        });
-      } catch {
-        throw new Error('email provider unreachable');
-      }
-      if (!res.ok) throw new Error(`email provider answered ${res.status}`);
-    },
-  };
-}
-
-const escHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-
 /** The invite email: who invited, the role in words, the one link. */
 export function inviteEmail(x: { to: string; inviter: string; repo: string; role: Role; reviewAs?: ReviewAs; link: string }): EmailMessage {
   const w = ROLE_WORDS[x.role];
   const roleLabel = x.role === 'reviewer' && x.reviewAs ? `${w.label}: ${REVIEW_AS_WORDS[x.reviewAs]}` : w.label;
   const subject = `${x.inviter} invited you to ${x.repo} on Bridge`;
+  // "Can edit" joins with the email alone (api/contribute); reviewers and admins approve on GitHub.
+  const how = x.role === 'edit' ? 'You join with this email, no GitHub account needed.' : 'You sign in with GitHub.';
   const lines = [
     `${x.inviter} invited you to the ${x.repo} design system on Bridge.`,
     '',
@@ -524,14 +409,14 @@ export function inviteEmail(x: { to: string; inviter: string; repo: string; role
     '',
     `Join the team: ${x.link}`,
     '',
-    'You sign in with GitHub. The link works once and expires in 7 days.',
+    `${how} The link works once and expires in 7 days.`,
     "If you did not expect this email, you can ignore it.",
   ];
   const html = [
     `<p>${escHtml(x.inviter)} invited you to the <strong>${escHtml(x.repo)}</strong> design system on Bridge.</p>`,
     `<p>Your role: <strong>${escHtml(roleLabel)}</strong>. ${escHtml(w.text)}</p>`,
     `<p><a href="${escHtml(x.link)}">Join the team</a></p>`,
-    '<p>You sign in with GitHub. The link works once and expires in 7 days.</p>',
+    `<p>${how} The link works once and expires in 7 days.</p>`,
     '<p>If you did not expect this email, you can ignore it.</p>',
   ].join('\n');
   return { to: x.to, subject, text: lines.join('\n'), html };
@@ -693,6 +578,8 @@ interface Services {
   store: InviteStore;
   email: EmailSender;
   app: AppTokens;
+  /** Email contributors; null only when a test injects an invite store without one. */
+  members: MemberStore | null;
 }
 
 /** The services from the env (and injected ones), or null when any of storage, email or the app is missing. */
@@ -700,17 +587,17 @@ export function services(env: InvitesEnv, deps: InvitesDeps): Services | null {
   const now = deps.now ?? Date.now;
   const kvUrl = (env.KV_REST_API_URL ?? env.UPSTASH_REDIS_REST_URL)?.trim();
   const kvToken = (env.KV_REST_API_TOKEN ?? env.UPSTASH_REDIS_REST_TOKEN)?.trim();
-  const store = deps.store ?? (kvUrl && kvToken ? redisStore(kvUrl, kvToken, deps.fetch, now) : null);
+  const redis = kvUrl && kvToken ? redisRest(kvUrl, kvToken, deps.fetch, STORAGE_DOWN) : null;
+  const store = deps.store ?? (redis ? inviteStoreOn(redis, now) : null);
+  const members = deps.members ?? (redis ? memberStore(redis) : null);
   const key = env.RESEND_API_KEY?.trim();
   const from = env.INVITE_EMAIL_FROM?.trim();
   const email = deps.email ?? (key && from ? resendSender(key, from, deps.fetch) : null);
   const appId = env.GITHUB_APP_ID?.trim();
   const pem = env.GITHUB_APP_PRIVATE_KEY?.trim();
   const app = deps.app ?? (appId && pem ? githubApp(appId, pem, deps.fetch, now) : null);
-  return store && email && app ? { store, email, app } : null;
+  return store && email && app ? { store, email, app, members } : null;
 }
-
-const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
 // ---------------------------------------------------------------------------------------------------------------
 // Caps
@@ -719,10 +606,7 @@ export type LimitKind = 'admin' | 'team' | 'site';
 
 /** The daily caps: LIMIT_DEFAULTS, or a whole number from the env (0 stops sending). */
 export function limitsFrom(env: InvitesEnv): Record<LimitKind, number> {
-  const pick = (v: string | undefined, d: number) => {
-    const n = v?.trim() ? Number(v.trim()) : NaN;
-    return Number.isInteger(n) && n >= 0 ? n : d;
-  };
+  const pick = envInt;
   return {
     admin: pick(env.INVITES_MAX_PER_ADMIN_DAY, LIMIT_DEFAULTS.admin),
     team: pick(env.INVITES_MAX_PER_TEAM_DAY, LIMIT_DEFAULTS.team),
@@ -745,8 +629,6 @@ export const limitLeftWords = (kind: LimitKind, left: number) => {
   return `${who} ${n} today. Remove some people, or try again tomorrow.`;
 };
 
-const dayOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
-const secondsToTomorrow = (ms: number) => Math.max(1, Math.ceil((Date.UTC(new Date(ms).getUTCFullYear(), new Date(ms).getUTCMonth(), new Date(ms).getUTCDate() + 1) - ms) / 1000));
 const countKey = (kind: string, who: string, day: string) => `bridge:invites:count:${kind}:${who.toLowerCase()}:${day}`;
 
 function limitError(kind: LimitKind | 'resend' | 'resend_soon', message: string, retryAfter: number): HttpError {
@@ -803,6 +685,28 @@ async function emailStatus(f: FetchLike, userToken: string, email: string): Prom
   return found.some((e) => e.verified === true) ? 'verified' : 'unverified';
 }
 const publicInvite = ({ repo: _r, tokenHash: _t, ...rest }: StoredInvite): PendingInvite => rest;
+
+/** An email contributor as Members lists them, next to the GitHub collaborators. */
+export interface PublicEmailMember {
+  via: 'email';
+  name: string;
+  email: string;
+  role: 'edit';
+  addedBy: string;
+  at: string;
+}
+
+const publicMember = (m: EmailMember): PublicEmailMember => ({ via: 'email', name: m.name, email: m.email, role: m.role, addedBy: m.addedBy, at: m.at });
+
+export const GITHUB_REQUIRED = 'Reviewers and admins approve and merge on GitHub. Invite them again with this role: they join with GitHub.';
+
+/** The email contributor an admin acts on (`email` instead of `login`), or 404. */
+async function emailMemberOf(ctx: Ctx, repo: string, raw: unknown): Promise<string> {
+  if (!validEmail(raw)) throw new HttpError(400, 'bad_request', 'Say who, by their email.');
+  const email = raw.trim().toLowerCase();
+  if (!ctx.svc.members || !(await ctx.svc.members.get(repo, email))) throw new HttpError(404, 'not_found', 'This person is not on this team.');
+  return email;
+}
 
 function bearer(req: Request): string {
   const m = /^Bearer\s+([A-Za-z0-9_.-]{8,512})$/i.exec(req.headers.get('authorization') ?? '');
@@ -889,17 +793,7 @@ async function pending(ctx: Ctx, repo: string): Promise<StoredInvite[]> {
   return out.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-function siteOrigin(req: Request, env: InvitesEnv): string {
-  const pub = env.PUBLIC_SITE_URL?.trim();
-  if (pub) {
-    try {
-      return new URL(pub).origin;
-    } catch {
-      /* fall back to the request */
-    }
-  }
-  return req.headers.get('origin') ?? new URL(req.url).origin;
-}
+const siteOrigin = (req: Request, env: InvitesEnv) => originOf(req, env.PUBLIC_SITE_URL);
 
 /** A fresh token (base64url of 32 random bytes) and its hash. */
 function newToken(random: (n: number) => Uint8Array): { token: string; hash: string } {
@@ -955,17 +849,7 @@ export function ownerChangeFor(role: Role, reviewAs?: ReviewAs): OwnerChange {
 /** On accept and direct add, a reviewer is added to their group; nothing is removed. */
 const addOnly = (role: Role, reviewAs?: ReviewAs): OwnerChange => (role === 'reviewer' && reviewAs ? { [reviewAs]: true } : {});
 
-async function readBody(req: Request): Promise<Record<string, unknown>> {
-  const raw = await req.text();
-  if (raw.length > MAX_BODY) throw new HttpError(413, 'too_large', 'Request too large.');
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not an object');
-    return parsed as Record<string, unknown>;
-  } catch {
-    throw new HttpError(400, 'bad_request', 'Send a JSON object.');
-  }
-}
+const readBody = (req: Request) => readJsonBody(req, MAX_BODY);
 
 async function onGet(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise<Response> {
   const svc = services(env, deps);
@@ -975,7 +859,8 @@ async function onGet(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise<
   const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, limits: limitsFrom(env) };
   const { facts } = await authorize(ctx, req, repoArg, 'push');
   const list = await pending(ctx, facts.full);
-  return json(200, { invites: list.map(publicInvite), personal: facts.personal });
+  const members = ctx.svc.members ? await ctx.svc.members.list(facts.full) : [];
+  return json(200, { invites: list.map(publicInvite), personal: facts.personal, members: members.map(publicMember) });
 }
 
 async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise<Response> {
@@ -1112,6 +997,13 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
 
     case 'set-role': {
       const { me, appToken, facts } = await authorize(ctx, req, body.repo, 'admin');
+      if (body.login === undefined && body.email !== undefined) {
+        // An email contributor can only edit: reviewing and merging happen on GitHub, with a GitHub account.
+        await emailMemberOf(ctx, facts.full, body.email);
+        const { role } = parseRole(body.role, body.reviewAs);
+        if (role !== 'edit') throw new HttpError(409, 'github-required', GITHUB_REQUIRED);
+        return json(200, { ok: true });
+      }
       const login = parseLogin(body.login);
       const { role, reviewAs } = parseRole(body.role, body.reviewAs);
       // An admin never changes their own role, so there is always another admin left (the caller).
@@ -1126,6 +1018,12 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
 
     case 'remove': {
       const { me, appToken, facts } = await authorize(ctx, req, body.repo, 'admin');
+      if (body.login === undefined && body.email !== undefined) {
+        // Deleting the record ends their sessions at once (api/contribute reads it on every request).
+        const email = await emailMemberOf(ctx, facts.full, body.email);
+        await ctx.svc.members!.remove(facts.full, email);
+        return json(200, { ok: true });
+      }
       const login = parseLogin(body.login);
       if (norm(login) === norm(me.login)) throw new HttpError(409, 'self', 'You cannot remove yourself. Ask another admin.');
       if (norm(login) === norm(facts.ownerLogin)) throw new HttpError(409, 'owner', 'The owner of the repository cannot be removed.');
@@ -1174,6 +1072,8 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
       const o = await ownersFor(ctx, appToken, facts, me.login, addOnly(inv.role, inv.reviewAs));
       // Single use: the link is spent once access is granted.
       await ctx.svc.store.remove(inv);
+      // They now work with GitHub: an email membership of the same address would list them twice.
+      if (ctx.svc.members) await ctx.svc.members.remove(full, inv.email);
       return json(200, {
         status,
         repo: `${owner}/${repo}`,

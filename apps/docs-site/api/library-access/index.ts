@@ -58,9 +58,35 @@
 //   LIBRARY_SIGNIN_MAX_PER_EMAIL_DAY, _PER_IP_DAY, _PER_TEAM_DAY, _SITE_DAY (optional)            caps, LIMIT_DEFAULTS
 // Missing storage, email, the secret or the app: `available` is false, the Library behaves as before (no gate), and
 // every action answers 503 "Library access is not available yet on this site."
-// Self-contained on purpose (node built-ins only), like api/invites, so Vercel bundles it as is.
+// Shared pieces (HTTP, Redis, email, the GitHub App, signed cookies) live in api/_lib, which is not a function.
 
-import { createHash, createHmac, createSign, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
+import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
+import { githubApp as sharedGithubApp, type AppTokens } from '../_lib/github-app.js';
+import {
+  b64url,
+  clientIp,
+  dayOf,
+  envInt,
+  fail,
+  GITHUB_DOWN,
+  HttpError,
+  json,
+  parseRepo,
+  readBody as readJsonBody,
+  sameOrigin,
+  SECURITY_HEADERS,
+  secondsToTomorrow,
+  sha256,
+  siteOrigin as originOf,
+  type FetchLike,
+} from '../_lib/http.js';
+import { redisRest } from '../_lib/redis.js';
+import { cookieAttrs as attrsFor, readCookie, signClaims, verifyClaims } from '../_lib/session.js';
+
+export { appJwt } from '../_lib/github-app.js';
+export { parseRepo, readCookie, resendSender, sameOrigin };
+export type { AppTokens, EmailMessage, EmailSender, FetchLike };
 
 // ---------------------------------------------------------------------------------------------------------------
 // Types and constants
@@ -103,8 +129,6 @@ export interface LibraryEnv {
   LIBRARY_SIGNIN_MAX_SITE_DAY?: string | undefined;
 }
 
-export type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body?: string }) => Promise<Response>;
-
 export interface LibraryStore {
   getSetting(repo: string): Promise<LibrarySetting | null>;
   putSetting(repo: string, s: LibrarySetting): Promise<void>;
@@ -115,22 +139,6 @@ export interface LibraryStore {
   dropSignIn(hash: string): Promise<void>;
   /** Adds `by` to each counter, which expires after `ttlSeconds`; returns the new values. */
   bump(keys: string[], by: number, ttlSeconds: number): Promise<number[]>;
-}
-
-export interface EmailMessage {
-  to: string;
-  subject: string;
-  text: string;
-  html: string;
-}
-
-export interface EmailSender {
-  send(msg: EmailMessage): Promise<void>;
-}
-
-/** An installation token of the Bridge app that can read the repository's contents, or null. */
-export interface AppTokens {
-  installationToken(owner: string, repo: string): Promise<string | null>;
 }
 
 export interface LibraryDeps {
@@ -197,7 +205,6 @@ export const PUBLIC_EMAIL_DOMAINS: readonly string[] = [
 
 export const NOT_CONFIGURED = 'Library access is not available yet on this site.';
 export const EXPIRED = 'This link expired or was already used. Enter your email to get a new one.';
-const GITHUB_DOWN = 'GitHub did not answer. Try again in a minute.';
 const STORAGE_DOWN = 'Bridge could not reach its storage. Try again in a minute.';
 const APP_MISSING = 'Bridge cannot read this library yet. An admin of the repository gives the Bridge app access to it.';
 export const NOT_PUBLISHED = 'This library is not published yet. Its design system team publishes it with the Bridge snapshot workflow.';
@@ -219,57 +226,9 @@ export const LIMIT_WORDS: Record<LimitKind, string> = {
 // ---------------------------------------------------------------------------------------------------------------
 // HTTP helpers
 
-class HttpError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string,
-    message: string,
-    readonly extra: Record<string, unknown> = {},
-    readonly headers: Record<string, string> = {},
-  ) {
-    super(message);
-  }
-}
-
-const SECURITY_HEADERS = { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff' };
-
-function json(status: number, body: unknown, extra: Record<string, string> = {}): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', ...SECURITY_HEADERS, ...extra } });
-}
-
-const fail = (status: number, error: string, message: string, extra: Record<string, unknown> = {}) => json(status, { error, message, ...extra });
-
-const isLocalHost = (host: string) => /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host);
-
-/** The request comes from a page on this very site (same rule as api/invites and api/github/token.ts). */
-export function sameOrigin(req: Request): boolean {
-  const origin = req.headers.get('origin');
-  if (!origin) return false;
-  let o: URL;
-  try {
-    o = new URL(origin);
-  } catch {
-    return false;
-  }
-  if (o.origin !== origin) return false;
-  const host = (req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? new URL(req.url).host).split(',')[0]!.trim().toLowerCase();
-  if (!host || o.host.toLowerCase() !== host) return false;
-  if (o.protocol !== 'https:' && !(o.protocol === 'http:' && isLocalHost(o.host))) return false;
-  const site = req.headers.get('sec-fetch-site');
-  return !site || site === 'same-origin';
-}
-
-const REPO = /^([A-Za-z0-9][A-Za-z0-9-]{0,38})\/([A-Za-z0-9._-]{1,100})$/;
 const EMAIL = /^[^\s@<>()[\]\\,;:"]{1,64}@([A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?)+)$/;
 const DOMAIN = /^(?=.{4,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\.[a-z]{2,63}$/;
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
-
-export function parseRepo(v: unknown): { owner: string; repo: string; full: string } {
-  if (typeof v !== 'string') throw new HttpError(400, 'bad_request', 'Say which design system, as owner/name.');
-  const m = REPO.exec(v.trim());
-  if (!m || m[2] === '.' || m[2] === '..') throw new HttpError(400, 'bad_request', 'Say which design system, as owner/name.');
-  return { owner: m[1]!, repo: m[2]!, full: `${m[1]}/${m[2]}`.toLowerCase() };
-}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Domains
@@ -313,9 +272,6 @@ export const validEmail = (v: unknown): v is string => typeof v === 'string' && 
 // ---------------------------------------------------------------------------------------------------------------
 // Sessions
 
-const b64url = (b: Buffer | string) => Buffer.from(b).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
-const fromB64url = (s: string) => Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
-const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 const hmac = (secret: string, data: string) => createHmac('sha256', secret).update(data).digest();
 
 /** One cookie per team: its name carries a hash of the team, never the name itself. */
@@ -332,41 +288,14 @@ export interface SessionClaims {
   x: number;
 }
 
-/** The signed cookie value: v1.<claims>.<HMAC-SHA256 of "v1.<claims>">. */
-export function signSession(claims: SessionClaims, secret: string): string {
-  const body = `v1.${b64url(JSON.stringify(claims))}`;
-  return `${body}.${b64url(hmac(secret, `library-session:${body}`))}`;
-}
+const PURPOSE = 'library-session';
+const isClaims = (c: any) => typeof c.r === 'string' && typeof c.d === 'string' && Number.isInteger(c.v) && typeof c.x === 'number';
+
+/** The signed cookie value: v1.<claims>.<HMAC-SHA256 of "library-session:v1.<claims>">. */
+export const signSession = (claims: SessionClaims, secret: string): string => signClaims(claims, secret, PURPOSE);
 
 /** The claims of a cookie value whose signature holds (constant-time compare), else null. Expiry is not checked here. */
-export function verifySignature(value: string, secret: string): SessionClaims | null {
-  const parts = value.split('.');
-  if (parts.length !== 3 || parts[0] !== 'v1' || !parts[1] || !parts[2]) return null;
-  const body = `${parts[0]}.${parts[1]}`;
-  const want = hmac(secret, `library-session:${body}`);
-  let got: Buffer;
-  try {
-    got = fromB64url(parts[2]);
-  } catch {
-    return null;
-  }
-  if (got.length !== want.length || !timingSafeEqual(got, want)) return null;
-  try {
-    const c = JSON.parse(fromB64url(parts[1]).toString('utf8')) as SessionClaims;
-    return typeof c.r === 'string' && typeof c.d === 'string' && Number.isInteger(c.v) && typeof c.x === 'number' ? c : null;
-  } catch {
-    return null;
-  }
-}
-
-/** The cookie `name` of the request, or null. */
-export function readCookie(req: Request, name: string): string | null {
-  for (const part of (req.headers.get('cookie') ?? '').split(';')) {
-    const i = part.indexOf('=');
-    if (i > 0 && part.slice(0, i).trim() === name) return part.slice(i + 1).trim();
-  }
-  return null;
-}
+export const verifySignature = (value: string, secret: string): SessionClaims | null => verifyClaims<SessionClaims>(value, secret, PURPOSE, isClaims);
 
 /**
  * The reader's session for this team, or null: signed by this site, for this team, not expired, for the current
@@ -382,7 +311,7 @@ export function readSession(req: Request, repoFull: string, setting: LibrarySett
   return { domain: c.d };
 }
 
-const cookieAttrs = `Path=${COOKIE_PATH}; HttpOnly; Secure; SameSite=Lax`;
+const cookieAttrs = attrsFor(COOKIE_PATH);
 
 /** Set-Cookie for a new session of `repo`. Also the one place a future SSO sign-in would end. */
 export function issueSession(repoFull: string, domain: string, version: number, secret: string, now: number): string {
@@ -417,22 +346,7 @@ const isSetting = (v: any) => (MODES as readonly unknown[]).includes(v.mode) && 
 const isSignIn = (v: any) => typeof v.repo === 'string' && typeof v.domain === 'string' && Number.isInteger(v.version);
 
 export function redisStore(url: string, token: string, f: FetchLike): LibraryStore {
-  const base = url.replace(/\/+$/, '');
-  const call = async (path: string, body: unknown): Promise<any> => {
-    let res: Response;
-    try {
-      res = await f(`${base}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    } catch {
-      throw new HttpError(503, 'storage', STORAGE_DOWN);
-    }
-    if (!res.ok) throw new HttpError(503, 'storage', STORAGE_DOWN);
-    return res.json();
-  };
-  const cmd = async (...args: (string | number)[]) => {
-    const r = (await call('', args)) as { result?: unknown; error?: string };
-    if (r.error) throw new HttpError(503, 'storage', STORAGE_DOWN);
-    return r.result;
-  };
+  const { cmd, pipe } = redisRest(url, token, f, STORAGE_DOWN);
   return {
     async getSetting(repo) {
       return parseJson<LibrarySetting>(await cmd('GET', settingKey(repo)), isSetting);
@@ -451,9 +365,8 @@ export function redisStore(url: string, token: string, f: FetchLike): LibrarySto
     },
     async bump(keys, by, ttl) {
       if (!keys.length) return [];
-      const r = (await call('/pipeline', keys.flatMap((k) => [['INCRBY', k, by], ['EXPIRE', k, ttl]]))) as { result?: unknown; error?: string }[];
-      if (!Array.isArray(r) || r.some((x) => x?.error)) throw new HttpError(503, 'storage', STORAGE_DOWN);
-      return keys.map((_, i) => Number(r[i * 2]?.result) || 0);
+      const r = await pipe(keys.flatMap((k) => [['INCRBY', k, by], ['EXPIRE', k, ttl]]));
+      return keys.map((_, i) => Number(r[i * 2]) || 0);
     },
   };
 }
@@ -499,26 +412,6 @@ export function memoryStore(now: () => number = Date.now): LibraryStore & { keys
 
 // ---------------------------------------------------------------------------------------------------------------
 // Email: Resend (the invite sender)
-
-export function resendSender(apiKey: string, from: string, f: FetchLike): EmailSender {
-  return {
-    async send(msg) {
-      let res: Response;
-      try {
-        res = await f('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ from, to: [msg.to], subject: msg.subject, text: msg.text, html: msg.html }),
-        });
-      } catch {
-        throw new Error('email provider unreachable');
-      }
-      if (!res.ok) throw new Error(`email provider answered ${res.status}`);
-    },
-  };
-}
-
-const escHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 /** The sign-in email: which library, the one link, how long it works. */
 export function signInEmail(x: { to: string; repo: string; link: string }): EmailMessage {
@@ -573,30 +466,9 @@ async function gh(f: FetchLike, token: string, method: string, path: string, opt
   return { status: res.status, data, text: null };
 }
 
-/** A GitHub App JWT (RS256), valid 9 minutes, backdated 60 s for clock drift. */
-export function appJwt(appId: string, privateKey: string, nowMs: number): string {
-  const now = Math.floor(nowMs / 1000);
-  const head = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
-  const body = b64url(JSON.stringify({ iat: now - 60, exp: now + 540, iss: appId }));
-  const sig = createSign('RSA-SHA256').update(`${head}.${body}`).sign(privateKey.replace(/\\n/g, '\n'));
-  return `${head}.${body}.${b64url(sig)}`;
-}
-
 /** Installation tokens of the Bridge Direct app, scoped to the one repository and to reading contents, never stored. */
-export function githubApp(appId: string, privateKey: string, f: FetchLike, now: () => number): AppTokens {
-  return {
-    async installationToken(owner, repo) {
-      const jwt = appJwt(appId, privateKey, now());
-      const inst = await gh(f, jwt, 'GET', `/repos/${owner}/${repo}/installation`);
-      if (inst.status === 404) return null;
-      if (inst.status !== 200 || typeof inst.data?.id !== 'number') throw new HttpError(502, 'unreachable', GITHUB_DOWN);
-      const tok = await gh(f, jwt, 'POST', `/app/installations/${inst.data.id}/access_tokens`, { body: { repositories: [repo], permissions: { contents: 'read' } } });
-      if (tok.status === 404 || tok.status === 422) return null;
-      if (tok.status !== 201 || typeof tok.data?.token !== 'string') throw new HttpError(502, 'unreachable', GITHUB_DOWN);
-      return tok.data.token as string;
-    },
-  };
-}
+export const githubApp = (appId: string, privateKey: string, f: FetchLike, now: () => number): AppTokens =>
+  sharedGithubApp(appId, privateKey, f, now, { permissions: { contents: 'read' }, userAgent: 'bridge-library-access' });
 
 // ---------------------------------------------------------------------------------------------------------------
 // Services and caps
@@ -625,29 +497,13 @@ export function services(env: LibraryEnv, deps: LibraryDeps): Services | null {
 }
 
 export function limitsFrom(env: LibraryEnv): Record<LimitKind, number> {
-  const pick = (v: string | undefined, d: number) => {
-    const n = v?.trim() ? Number(v.trim()) : NaN;
-    return Number.isInteger(n) && n >= 0 ? n : d;
-  };
+  const pick = envInt;
   return {
     email: pick(env.LIBRARY_SIGNIN_MAX_PER_EMAIL_DAY, LIMIT_DEFAULTS.email),
     ip: pick(env.LIBRARY_SIGNIN_MAX_PER_IP_DAY, LIMIT_DEFAULTS.ip),
     team: pick(env.LIBRARY_SIGNIN_MAX_PER_TEAM_DAY, LIMIT_DEFAULTS.team),
     site: pick(env.LIBRARY_SIGNIN_MAX_SITE_DAY, LIMIT_DEFAULTS.site),
   };
-}
-
-const dayOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
-const secondsToTomorrow = (ms: number) => {
-  const d = new Date(ms);
-  return Math.max(1, Math.ceil((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1) - ms) / 1000));
-};
-
-/** The caller's network, as Vercel forwards it; never stored in clear. */
-function clientIp(req: Request): string {
-  const real = req.headers.get('x-real-ip')?.trim();
-  if (real) return real;
-  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
 }
 
 interface Ctx {
@@ -676,29 +532,8 @@ async function reserve(ctx: Ctx, who: Record<LimitKind, string>): Promise<() => 
   };
 }
 
-function siteOrigin(req: Request, env: LibraryEnv): string {
-  const pub = env.PUBLIC_SITE_URL?.trim();
-  if (pub) {
-    try {
-      return new URL(pub).origin;
-    } catch {
-      /* fall back to the request */
-    }
-  }
-  return req.headers.get('origin') ?? new URL(req.url).origin;
-}
-
-async function readBody(req: Request): Promise<Record<string, unknown>> {
-  const raw = await req.text();
-  if (raw.length > MAX_BODY) throw new HttpError(413, 'too_large', 'Request too large.');
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not an object');
-    return parsed as Record<string, unknown>;
-  } catch {
-    throw new HttpError(400, 'bad_request', 'Send a JSON object.');
-  }
-}
+const siteOrigin = (req: Request, env: LibraryEnv) => originOf(req, env.PUBLIC_SITE_URL);
+const readBody = (req: Request) => readJsonBody(req, MAX_BODY);
 
 /** What the browser may know about a team's setting: never who changed it, never the version. */
 export function publicSetting(s: LibrarySetting | null) {
