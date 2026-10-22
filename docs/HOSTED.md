@@ -3,10 +3,11 @@
 One Bridge site serves any team's design system repository at `/studio/<owner>/<repo>/`. Joining a team means
 opening that link and signing in with GitHub: GitHub repository permissions decide what each person can do, and roles
 stay in the repository's `bridge.config.json`. Bridge keeps no accounts. Its one store holds pending invites by
-email (see "Invites by email" below), and nothing else.
+email (see "Invites by email" below), each team's Library access setting and short-lived Library sign-in links (see
+"Library access" below), and nothing else.
 
 This page grows with the hosted mode. It covers the snapshot a team can publish for it, the team's hosted Library,
-and invites by email.
+invites by email, and who reads a team's Library without a GitHub account.
 
 ## The snapshot: the `bridge-data` branch
 
@@ -174,10 +175,14 @@ function, `apps/docs-site/api/invites/index.ts`.
 
 | Role in Studio | On GitHub                  | In `bridge.config.json`                                              |
 | -------------- | -------------------------- | -------------------------------------------------------------------- |
-| Can view       | `pull` (read)              | nothing                                                              |
+| Can view       | `pull` (read)              | nothing. No longer offered: readers use Library access (below)       |
 | Can edit       | `push` (write)             | nothing                                                              |
 | Reviewer       | `push` (write)             | added to `governance.owners.design` (Designer) or `.tech` (Developer) |
 | Admin          | `admin`                    | owner lists left as they are                                         |
+
+Invites are for contributors: Studio offers Can edit, Reviewer and Admin, and the server refuses Can view for a new
+invite or a role change. People who only read the design system need no GitHub account: see "Library access". A member
+or a pending invite that already has Can view keeps it, shows it, and can be moved to a contributor role.
 
 Owners live in `bridge.config.json`, a guardrail file, so a reviewer is listed through a pull request on it (the same
 keys Settings edits), opened by the Bridge Direct app. The reviewer role applies once it is merged. A repository owned
@@ -262,3 +267,79 @@ count (organization members added directly, addresses already invited and failed
 
 5. Redeploy. `GET /api/invites` answers `{ "available": true }` once everything is set.
 
+
+## Library access
+
+A team's Library (`/library/<owner>/<repo>/`) is for the whole company, and most readers have no GitHub account. An
+admin picks who reads it in Studio, Settings, Library access (everyone else on the team reads the choice), and copies
+the library link from there to share it. The server piece is one Vercel function,
+`apps/docs-site/api/library-access/index.ts`.
+
+| Choice                          | Who reads the Library                                                                           |
+| ------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Anyone with the link            | Everyone. The default for a public repository.                                                  |
+| Anyone with a work email at ... | People with an email at one of the listed domains (for example `acme.design`): they enter it on the Library and open the link Bridge emails them. |
+| Only the team                   | People with access to the repository on GitHub, signed in with GitHub. The default for a private repository. |
+
+Contributors (Can edit, Reviewer, Admin) keep signing in with GitHub and are invited from Members.
+
+### How it works, and what it keeps
+
+- **The setting** is stored per team in the same Upstash Redis database as invites: the choice, the domains, a
+  version number, whether GitHub said the repository is private, who changed it and when. Not in `bridge.config.json`:
+  the server reads it on every Library visit without a GitHub API call, a change must apply at once (it ends every
+  reader session), and a company's email domain does not belong in a public repository. Without a stored setting a
+  team keeps the default above; if the store were lost, every team would fall back to it, which never opens more than
+  GitHub does. Only a repository admin changes it, checked on GitHub with their own sign-in on every save.
+- **The sign-in link.** On the Library, a reader enters their work email. The server checks the part after the `@`
+  against the listed domains (exact match, case-insensitive: `eng.acme.design` matches only if it is listed itself),
+  then emails a link `<site>/library/<owner>/<repo>/#signin=<token>`. The token is 32 random bytes in the fragment,
+  so it reaches no server log. Only its SHA-256 is stored, with the team, the email's domain and the setting's version
+  (never the email itself), for 15 minutes, and it works once. Consumer providers (`gmail.com`, `outlook.com`...) are
+  refused as domains.
+- **The session.** Opening the link sets one cookie per team, `bridge_library_<hash>`, `HttpOnly`, `Secure`,
+  `SameSite=Lax`, `Path=/api/library-access` (only this function reads it), for 30 days. It carries the team, the
+  email's domain, the setting's version and the expiry, signed with HMAC-SHA256 under `LIBRARY_SESSION_SECRET` and
+  checked in constant time. Any change to the setting bumps its version and ends every session of that team at once.
+- **Private repositories.** Once the session is checked, the function reads the team's published snapshot
+  (`snapshot.json` and `llms.txt` on the `bridge-data` branch) with a Bridge Direct installation token limited to
+  reading contents of that one repository, minted per request and never stored, and serves it. The browser never gets
+  a GitHub token. A private team must publish the snapshot (see "The snapshot" above) for email readers to see it.
+- **Public repositories** are still read by the browser from the raw host, with no GitHub API call, as before; a guest
+  costs one call to this function for the setting. The files of a public repository stay readable on GitHub whatever
+  the setting says, and Settings says so.
+- The function logs nothing. Emails and IPs are counted under an HMAC, never kept in clear.
+- Without storage, email, the secret or the app configured, `available` is false: Library pages behave as before (no
+  gate), Settings says "Library access is not available yet on this site." and every action answers 503.
+
+### Caps
+
+Sign-in emails count toward four daily counters in Redis (UTC day, they expire after two days). Over a cap nothing is
+sent: HTTP 429 with the reason and `Retry-After`, and the Library shows the sentence.
+
+| Cap                               | Default | Env override                         |
+| --------------------------------- | ------- | ------------------------------------ |
+| Links per email per day           | 3       | `LIBRARY_SIGNIN_MAX_PER_EMAIL_DAY`   |
+| Links per network (IP) per day    | 10      | `LIBRARY_SIGNIN_MAX_PER_IP_DAY`      |
+| Links per team per day            | 20      | `LIBRARY_SIGNIN_MAX_PER_TEAM_DAY`    |
+| Links for the whole site per day  | 20      | `LIBRARY_SIGNIN_MAX_SITE_DAY`        |
+
+The site cap and `INVITES_MAX_SITE_DAY` (80) together stay under Resend's free daily quota (100). Raise both with
+your Resend plan; a company rolling the Library out to many readers on one day needs a higher team and site cap.
+
+### Set it up (owner of the site)
+
+It reuses everything invites need (storage, Resend, the Bridge Direct app with Contents: Read), plus one secret:
+
+| Name                     | Value                                                                    |
+| ------------------------ | ------------------------------------------------------------------------ |
+| `LIBRARY_SESSION_SECRET` | 32 characters or more, random (`openssl rand -base64 48`). Sensitive. Changing it signs every reader out |
+| `LIBRARY_SIGNIN_MAX_PER_EMAIL_DAY`, `LIBRARY_SIGNIN_MAX_PER_IP_DAY`, `LIBRARY_SIGNIN_MAX_PER_TEAM_DAY`, `LIBRARY_SIGNIN_MAX_SITE_DAY` | Optional: the daily caps. Not sensitive |
+
+Redeploy. `GET /api/library-access` answers `{ "available": true }` once everything is set.
+
+### Later
+
+Not built yet, with a place to plug in: company single sign-on (Google Workspace, Okta) is another way to prove a work
+email, so it would end in the same session cookie (`issueSession` in the function). Comments and suggestions from email
+readers would need the session to name the reader; today it only holds the email's domain.

@@ -6,7 +6,7 @@
 // resends or cancels invites. Self-contained on purpose (node built-ins only), so Vercel bundles it as is.
 //
 // Roles, as designers read them, and what each one is on GitHub (keep the Studio words in lib/invites.ts in step):
-//   view      "Can view"   GitHub `pull`  (read)
+//   view      "Can view"   GitHub `pull`  (read). No longer offered (CHOOSABLE_ROLES): readers use Library access.
 //   edit      "Can edit"   GitHub `push`  (write)
 //   reviewer  "Reviewer"   GitHub `push`, and the login is listed in bridge.config.json `governance.owners.design`
 //                          (reviews as Designer) or `governance.owners.tech` (reviews as Developer)
@@ -66,6 +66,12 @@ export type ReviewAs = 'design' | 'tech';
 export type GitHubPermission = 'pull' | 'push' | 'admin';
 
 export const ROLES: readonly Role[] = ['view', 'edit', 'reviewer', 'admin'];
+
+/**
+ * The roles an admin picks in Studio: contributors only. Readers need no GitHub account (Settings, Library access,
+ * api/library-access), so "Can view" is no longer offered; a pending invite or a member that already has it keeps it.
+ */
+export const CHOOSABLE_ROLES: readonly Role[] = ['edit', 'reviewer', 'admin'];
 
 /** The GitHub permission of each role. Reviewer is `push` plus an owners entry in bridge.config.json. */
 export const ROLE_PERMISSION: Record<Role, GitHubPermission> = { view: 'pull', edit: 'push', reviewer: 'push', admin: 'admin' };
@@ -249,7 +255,7 @@ function parseRepo(v: unknown): { owner: string; repo: string; full: string } {
 }
 
 function parseRole(role: unknown, reviewAs: unknown): { role: Role; reviewAs?: ReviewAs } {
-  if (typeof role !== 'string' || !(ROLES as readonly string[]).includes(role)) throw new HttpError(400, 'bad_request', 'Pick a role: Can view, Can edit, Reviewer or Admin.');
+  if (typeof role !== 'string' || !(CHOOSABLE_ROLES as readonly string[]).includes(role)) throw new HttpError(400, 'bad_request', 'Pick a role: Can edit, Reviewer or Admin.');
   if (role === 'reviewer') {
     if (reviewAs !== 'design' && reviewAs !== 'tech') throw new HttpError(400, 'bad_request', 'Pick how they review: Designer or Developer.');
     return { role, reviewAs };
