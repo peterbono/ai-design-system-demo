@@ -8,7 +8,7 @@ import { Accordion, AccordionItem, Badge, Button, Input, Link } from '@bridge-ds
 import type { ChangesMode, RepoAccessState } from '@bridge-ds/core';
 import { accessBadge, accessSummary, chipIdentity, manageAccessUrl, NO_ACCESS_LINE, orgTeamsUrl, teamLink, viewerRow, whoCanDoWhat } from '../../../lib/access-view';
 import { STUDIO_ROOT, studioBase } from '../../../lib/team-path';
-import { isDemoRepo } from '../../../lib/demo';
+import { isSampleTeam } from '../../../lib/demo';
 
 /** Copies text, then says so for 2 s. `said` is the line for a screen reader (or how to copy by hand). */
 export function useCopy(ms = 2000) {
@@ -176,9 +176,9 @@ export function TeamLinkLive(props: TeamLinkLiveProps) {
   const owner = ctx?.owner ?? props.owner ?? '';
   const repo = ctx?.repo ?? props.repo ?? '';
   const name = `${owner}/${repo}`;
-  // The demo names a signed-out visitor as the team chip does ("Explore freely"), not as a guest of a real team, and
-  // never names the repository's real accounts (Who can do what says owners without logins).
-  const demo = isDemoRepo(name);
+  // The sample team (Acme Design) names its visitor as the team chip does and never shows the repository's real
+  // accounts (Who can do what says owners without logins). Bridge's own design system is a real team: real owners.
+  const demo = isSampleTeam(name);
   const badge = demo ? chipIdentity(name, { demo, state: access, signedIn: Boolean(login) }).badge : accessBadge(access, Boolean(login));
   return (
     <div className="tlk-live">

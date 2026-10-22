@@ -125,13 +125,13 @@ export function tourSteps(x: { rows: boolean; more: boolean; branches: boolean }
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Settings on the demo
+// Settings on the sample team
 
 /** Who the demo's Settings name: the persona (bridge.config.json "demo"), else the role the demo always tells. */
 export const demoLeadName = (persona: { viewer?: string } | null | undefined): string => persona?.viewer?.trim() || 'Your design system lead';
 
 /**
- * The people of the demo's Settings (components/ds/studio/TeamSettings.tsx): the demo tells one story, the visitor in
+ * The people of the sample team's Settings (components/ds/studio/TeamSettings.tsx): the demo tells one story, the visitor in
  * the seat of the persona who leads the design system (Dana), so its Settings never show the repository's real
  * accounts. The persona holds both owner groups and every override; the rules themselves (rights, override on or off,
  * the written reason) stay the repository's. The only-owner line keeps its words, with the persona.

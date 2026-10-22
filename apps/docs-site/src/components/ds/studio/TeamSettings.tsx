@@ -5,8 +5,8 @@
 //   Review rules                 design and tech owners, who approves and merges, what each kind of branch needs and
 //                                the owner override (governance in bridge.config.json, the rules from docs/GOVERNANCE.md)
 //   Safety                       when the visual before and after runs
-// On the demo this is the full Settings with the demo's sample team (its persona, never the repository's accounts);
-// on any other team it is that team's own setup.
+// On the sample team (Acme Design) this is the full Settings with its persona, never the repository's accounts; on any
+// other team, Bridge's own design system included, it is that team's own setup.
 // Repo strings reach the page as React text only.
 import { Users } from 'lucide-react';
 import { Avatar, Card, CardBody, CardHeader, Tag } from '@bridge-ds/react';
@@ -15,7 +15,7 @@ import ChangeRules from './ChangeRules';
 import { TeamLoadError, TeamLoadProgress, useTeamData } from './TeamState';
 import { OWNER_GROUP_HELP, OWNER_GROUP_LABEL, roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL } from '../../../lib/roles-view';
 import { CHANGES_CHOICE, overrideText, soloOwnerRow } from '../../../lib/settings-view';
-import { demoSettingsPeople, isDemoRepo } from '../../../lib/demo';
+import { demoSettingsPeople, isSampleTeam } from '../../../lib/demo';
 
 export interface TeamSettingsProps {
   /** What each kind of branch needs, in plain words (lib/settings-view approvalRules, from docs/GOVERNANCE.md). */
@@ -73,8 +73,9 @@ export default function TeamSettings({ rules }: TeamSettingsProps) {
   if (load.status === 'loading') return <TeamLoadProgress label="Reading the settings of this design system" />;
   if (load.status === 'error') return <TeamLoadError failure={load.failure} onRetry={retry} />;
   const site = load.data.model.site;
-  // The demo tells its sample team (lib/demo.ts demoSettingsPeople); a real team reads its own config.
-  const demo = isDemoRepo(`${load.data.owner}/${load.data.repo}`) ? demoSettingsPeople(site) : null;
+  // The sample team (Acme Design) tells its persona (lib/demo.ts demoSettingsPeople); every real team, Bridge's own
+  // design system included, reads its own config.
+  const demo = isSampleTeam(`${load.data.owner}/${load.data.repo}`) ? demoSettingsPeople(site) : null;
   const changes = CHANGES_CHOICE[site.changes];
   const roles = roleRows(site.owners, site.rights);
   const realSolo = soloOwnerRow(site);
