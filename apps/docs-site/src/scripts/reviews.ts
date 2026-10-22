@@ -6,7 +6,7 @@
 // "Copy link", "Link for a developer"; the page itself never links to GitHub.
 // Without a token the bar's primary connects GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
-import { askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, mergeOnGitHub, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
+import { askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
 import { loadTeams, siteApprovalRules, siteApprovers, siteShipPolicy, siteSoloOwner, teamDirectory } from './teams';
 import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
@@ -19,7 +19,7 @@ import {
   overrideReasonProblem,
   parseOverrideComment,
   pullState,
-  REVIEW_STATUS,
+  reviewStatus,
   summarizeApprovals,
   summarizeCi,
   type MergeMethod,
@@ -39,7 +39,7 @@ import {
   tierParam,
   whoActs,
   writeSnapshot,
-  statusTone,
+  statusPill,
   type CachedPull,
   type People,
   type ApprovalRole,
@@ -51,7 +51,7 @@ import { cssValue } from '../lib/html';
 import { currentViewer, esc, ghGet, GitHubError, studioClient, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, showGhError } from './github-session';
 import { ghAction, ghVerb } from '../lib/gh-wording';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
-import { loadVisualImpact } from './reviews/visual-impact';
+import { loadVisualImpact, visualWorkflowPresent } from './reviews/visual-impact';
 import { ciFor, loadStatuses, rowWho, teamPeople, type PullStatus } from './pr-status';
 import { mdTitleText } from '../lib/markdown';
 import { humanTitle } from '../lib/pr-title';
@@ -290,8 +290,7 @@ function pillOf(r: Row, lifecycle: Lifecycle | 'exploration'): ListRow['pill'] {
   if (lifecycle !== 'ready') return { label: LIFECYCLE[lifecycle].short, tone: lifecycleTone(lifecycle) };
   if (r.skipped) return { label: 'Status unknown', tone: 'neutral' };
   if (!r.kind) return { label: 'Checking', tone: 'neutral' };
-  const who = rowWho(r.kind, facts(r));
-  return { label: who?.short ?? REVIEW_STATUS[r.kind].label, tone: statusTone(r.kind) };
+  return statusPill(r.kind, rowWho(r.kind, facts(r)));
 }
 
 function listRow(r: Row): ListRow {
@@ -344,8 +343,12 @@ function paintRows(rows: Row[], loading: boolean) {
       err instanceof RateLimitError ? `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())} to preview ${VOCAB.branches} together.` : `Could not read a checked ${VOCAB.branch}: ${(err as Error).message}`,
     readClosed: () => void loadClosed(),
   };
-  void import('../components/ds/studio/BranchesList').then(({ paintBranchesList }) => paintBranchesList(el, props));
+  // Each call's module promise may settle in any order (Vite preloads its styles per call): paint the latest props,
+  // never the ones a call captured, so a fast read never ends on an older list.
+  latestList = props;
+  void import('../components/ds/studio/BranchesList').then(({ paintBranchesList }) => latestList && paintBranchesList(el, latestList));
 }
+let latestList: BranchesListProps | null = null;
 
 function showEmpty(empty: boolean) {
   $('cg-list').hidden = empty;
@@ -553,7 +556,7 @@ export async function openPr(n: number, push = true) {
             .catch(() => null)
         : Promise.resolve(pull.mergeable);
     const live = pullState(pull) === 'open' || pullState(pull) === 'draft';
-    const [files, reviews, comments, lineComments, ci, access, statuses, merges, compare] = await Promise.all([
+    const [files, reviews, comments, lineComments, ci, access, statuses, merges, compare, , visualWorkflow] = await Promise.all([
       ghGet<PrFile[]>(`${R}/pulls/${n}/files?per_page=100`).then((f) => f.data),
       ghGet<Review[]>(`${R}/pulls/${n}/reviews?per_page=100`).then((f) => f.data).catch(() => [] as Review[]),
       ghGet<Comment[]>(`${R}/issues/${n}/comments?per_page=100`).then((f) => f.data).catch(() => [] as Comment[]),
@@ -567,6 +570,8 @@ export async function openPr(n: number, push = true) {
       // How far the change is behind the library it started from (behind_by), and what it changed since.
       live ? readCompare(repo.owner, repo.repo, pull.base.ref, pull.head.sha) : Promise.resolve(null),
       loadTeams(),
+      // Whether the repo has the visual impact workflow: without it, no before and after is offered (core visualOffer).
+      visualWorkflowPresent(repo.owner, repo.repo),
     ]);
     pull.mergeable = merges;
     if (seq !== openSeq) return;
@@ -581,7 +586,9 @@ export async function openPr(n: number, push = true) {
     const tokenFiles = files.filter((f) => isTokenFile(f.filename));
     const docsPaths = files.filter((f) => isDocsFile(f.filename) && f.status !== 'removed').map((f) => f.filename);
     // Guidance alone never changes a screen: the before and after is for tokens and components.
-    const visual = touchesVisuals(files.map((f) => f.filename).filter((f) => !isDocsFile(f)));
+    // Only on a repo that has the workflow: no label to add and nothing that "runs again" otherwise.
+    const offer = visualOffer({ touchesVisuals: touchesVisuals(files.map((f) => f.filename).filter((f) => !isDocsFile(f))), workflow: visualWorkflow });
+    const visual = offer === 'run';
     const [review, failedFacts, docs] = await Promise.all([
       tokenFiles.length
         ? analyzeTokenFiles({ owner: repo.owner, repo: repo.repo, baseSha: pull.base.sha, headSha: pull.head.sha, files: tokenFiles }).catch((err) => err as Error)
@@ -592,7 +599,7 @@ export async function openPr(n: number, push = true) {
     if (seq !== openSeq) return;
     const checks = failedFacts.map(classifyCheck);
     const fresh = freshness({ compare, mergeable: pull.mergeable, open: live });
-    const props = await detailProps({ pull, tier, files, reviews, comments, lineComments, ci, approvals, gate, gateOf, access, statuses, review, checks, fresh, docs, visual, seq });
+    const props = await detailProps({ pull, tier, files, reviews, comments, lineComments, ci, approvals, gate, gateOf, access, statuses, review, checks, fresh, docs, visual, visualSetUp: offer === 'set-up', seq });
     if (!props || seq !== openSeq) return;
     view = props;
     d.innerHTML = '';
@@ -743,6 +750,8 @@ interface DetailInput {
   fresh: Freshness;
   docs: { path: string; base: GuidanceDocs | null; head: GuidanceDocs | null }[];
   visual: boolean;
+  /** It touches what visual checks capture, on a repo without the workflow. */
+  visualSetUp: boolean;
   seq: number;
 }
 
@@ -874,7 +883,8 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     crumbs: reviewCrumbs(files.map((f) => f.filename), title),
     title,
     jira: jiraKeyOf(pull.title),
-    status: { label: status.label, tone: status.tone, lifecycle: status.lifecycle },
+    // In review: the same pill as its row in Branches and on the home (lib/changes statusPill over core reviewStatusKind).
+    status: status.lifecycle === 'ready' && !exploration ? { ...statusPill(reviewStatus({ state: pull.state, draft: pull.draft, merged_at: pull.merged_at, ci, approvals, tier, mergeable: pull.mergeable }).kind, who), lifecycle: status.lifecycle } : { label: status.label, tone: status.tone, lifecycle: status.lifecycle },
     who: { person: { login: pull.user.login, name: nameOf(pull.user.login), avatarUrl: pull.user.avatar_url, agent }, lead: line.lead, rest: line.rest },
     added: added > 0 ? addedNotice(added) : null,
     changes,
@@ -902,6 +912,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
       repaint({ guidance: { ...guidance } });
     },
     visual: x.visual ? { state: 'loading', shots: [] } : null,
+    visualSetUp: x.visualSetUp,
     product: PRODUCTS.find((p) => p.key === 'admin')!.label,
     tryUrl: null,
     people: peopleMap,
@@ -993,6 +1004,8 @@ async function act(kind: ActKind | 'close', text: string, x: { pull: Pull; gate:
         return `Approved. Not merged yet: ${(err as Error).message.replace(/[.\s]+$/, '')}. Merge it once the checks finish.`;
       }
     } else if (kind === 'close') await closeOnGitHub(gh, pull.number);
+    // The suggestions it closes get their final label (core, the same as a merge from the MCP server). Best effort.
+    if (kind === 'merge' || kind === 'approve-merge') await markSuggestionsAppliedOnGitHub(gh, pull);
   } catch (err) {
     const el = document.createElement('p');
     showGhError(el, err, `GitHub refused it: ${(err as Error).message}`, verb);
@@ -1137,6 +1150,7 @@ function wireOverride(pull: Pull, access: Access, gate: ReturnType<typeof mergeG
         return;
       }
       closeDialog(root, 'merged');
+      await markSuggestionsAppliedOnGitHub(studioClient(REPO_KEY), pull);
       await openPr(pull.number, false);
       const done = document.getElementById('rv-act-status');
       if (done) done.textContent = `Merged as owner override. The reason is on #${pull.number}.`;

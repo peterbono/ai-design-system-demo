@@ -67,6 +67,7 @@ import {
   type Seg,
 } from '../../../lib/review-page';
 import type { VisualShot } from '../../../lib/visual-impact';
+import { VISUAL_CHECKS_DOCS } from '@bridge-ds/core';
 import type { ShownValue } from '../../../lib/token-review';
 import type { Lifecycle, LifecycleTone } from '../../../lib/change-status';
 
@@ -126,6 +127,11 @@ export interface BranchReviewProps {
   canEditGuidance: boolean;
   onSaveGuidance: (path: string, docs: GuidanceDocs) => Promise<void>;
   visual: VisualView | null;
+  /**
+   * The branch touches what visual checks capture but the repo has no visual impact workflow (core visualOffer
+   * "set-up"): a quiet link to set them up, never an ask or a "No visual change" it cannot know.
+   */
+  visualSetUp?: boolean;
   /** "Admin demo": where the screens are. */
   product: string;
   tryUrl: string | null;
@@ -491,9 +497,27 @@ function ChangeBody(p: BranchReviewProps & { change: ReviewChange; multi: boolea
   if (change.kind === 'tokens') return p.tokens ? <TokensBody tokens={p.tokens} only={change.tokens} /> : <p className="br-muted">Reading the token changes</p>;
   return (
     <>
-      {p.visual ? <WhereItShows visual={p.visual} product={p.product} tryUrl={p.tryUrl} component={change.component} components={components} compact /> : <p className="br-muted">No visual change.</p>}
+      {p.visual ? (
+        <WhereItShows visual={p.visual} product={p.product} tryUrl={p.tryUrl} component={change.component} components={components} compact />
+      ) : p.visualSetUp ? (
+        <SetUpVisualChecks />
+      ) : (
+        <p className="br-muted">No visual change.</p>
+      )}
       <p className="br-muted">The code is a developer's to review, on GitHub.</p>
     </>
+  );
+}
+
+/** On a repo without visual checks: what it would take, calmly, in place of the before and after. */
+function SetUpVisualChecks() {
+  return (
+    <p className="br-muted">
+      This repo has no visual checks yet.{' '}
+      <Link href={VISUAL_CHECKS_DOCS} target="_blank" rel="noopener">
+        Set up visual checks
+      </Link>
+    </p>
   );
 }
 

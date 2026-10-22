@@ -1,5 +1,36 @@
 # @bridge-ds/docs-site
 
+## 0.20.1
+
+### Patch Changes
+
+- 037b56b: Hosted Studio for guests: signed out, a team's pages read its published `activity.json` (no GitHub API request), with "Updated 5 min ago" in the guest banner. History works for guests. What the activity did not record is read live, and a read GitHub refuses for the hourly limit falls back to it. Without it, identical anonymous reads go out once and are reused for two minutes in the tab. Every Branches row gets its status when the activity covers it, and the list never ends on an older paint.
+- Updated dependencies [037b56b]
+  - @bridge-ds/core@0.18.0
+
+## 0.20.0
+
+### Minor Changes
+
+- 782dc75: Library and Studio headers: one switch replaces the "Open Studio" and "Library" buttons. A white pill names the space you are in, on a Deep Harbor track, with the other space as a drawn icon (pen and notes, open book). It carries the page's item across (Button in the Library opens Button in Studio, and back), keeps the team on team shells and team Libraries, and stays in the header on phones.
+
+### Patch Changes
+
+- 9dc3421: Homepage closing: the profile card the walkers carry is now a DS Card with a DS Avatar and a full-width "Connect on LinkedIn" button. Real padding and rhythm, about 20% larger, and the whole card is one link with the Card's hover lift and focus ring.
+- be7d93d: Homepage, design system lead section: Dana's avatar stroke is Deep Harbor.
+- 8bc361a: Homepage, design system lead section: Dana's avatar has a white stroke instead of a drop shadow.
+- 9f111af: Studio team chip: it now describes the design system you are looking at, never your account. On the demo it shows the Bridge mark and "Bridge demo" (the repository in the tooltip) with "Explore freely" for visitors without an account, and its menu offers "Create a new team" and "Sign in with GitHub". On a team page a visitor without an account reads "Guest". Signed in, the chip keeps Admin, Can edit, Can suggest and Read only. Being signed out is said once, in the account block at the bottom of the nav.
+- 3cf7e57: Homepage hero: back to Explore with AI. / Keep what works / in your design system., with an 80px protection space between the headline and the drawing.
+- 4774fa4: Homepage hero: "design system." sits on its own line (Explore with AI. / Keep what works in your / design system.).
+- 4b86d9e: Homepage: the step illustration panels lose their border and shadow, so the drawings sit straight on the page.
+- 12e363f: Homepage: the step sections' drawing panels sit on a white card (the raised surface, neutral 800 in dark) with the emphasis hairline and the card elevation, instead of a grey fill.
+- 5ec4a47: One status per branch, everywhere. `reviewStatusKind` is the single derivation for the Branches list, the branch page, the home cards, `bridge_what_needs_me`, `bridge_branch_status` and `bridge branch status`. A repo with no automated checks is a calm state of its own ("No automated checks", `CI_STATE_LABEL`) and the status comes from the approvals, as for any branch. While GitHub computes whether a branch merges cleanly, a missing approval still shows; "Checking for conflicts" only holds back "Ready to merge". The words live in core (`REVIEW_STATUS_LABEL`), and the branch page header now shows the same pill as its row ("Owner override needed", "Design owner to approve") instead of a plain "In review".
+- e849e5c: Studio team chip, Recent teams: a team joins the list only after its page read the repository (public, read, write, admin or outside contributor), never because someone typed it in the launcher or the Create a new team dialog, and a team GitHub answers 404 for leaves it. Placeholders such as owner/repo or owner/design and invalid names are cleaned out of the stored list when it is read. Each entry now has a "Remove from recent teams" action, a sibling menu item on the same row, reachable with the arrow keys, that updates the list in place.
+- 5ec4a47: Suggestions, visual checks and titles. A suggestion whose change no longer applies to main (main moved and the value it changes is not the one it was suggested from) reads Outdated in Studio, `bridge_list_suggestions` and `bridge_get_suggestion`, through one core rule (`suggestionStalenessOnGitHub`, over `planSuggestionApply`). An applied and closed suggestion keeps only its final label ("suggestion: applied"; "suggestion: declined" when declined): `bridge_apply_suggestion`, `bridge_link_suggestion`, `bridge apply` and a merge from Bridge (`markSuggestionsAppliedOnGitHub`) remove "needs review" and "applying". The visual-check label and "the visual comparison runs again" are offered only when the repo has the visual impact workflow (`hasVisualWorkflow`, `visualOffer`); otherwise the branch page shows a quiet "Set up visual checks" link. Request and suggestion titles are never prefixed twice ("Select: select: ...") and keep component names as written ("EmptyState"), through `subjectTitle`.
+- Updated dependencies [5ec4a47]
+- Updated dependencies [5ec4a47]
+  - @bridge-ds/core@0.17.0
+
 ## 0.19.0
 
 ### Minor Changes

@@ -5,12 +5,12 @@
 // the before/after (the token diff, else the visual impact run). Paints progressively through `onUpdate`. The rules
 // are pure in lib/home-model.ts and lib/branch-thumb.ts.
 import { currentViewer, ghGet, hasWorkingToken, readRepo, RateLimitError } from './github-session';
-import { loadStatuses, owners, type PullStatus } from './pr-status';
+import { loadStatuses, owners, rowWho, type PullStatus } from './pr-status';
 import { loadTeams } from './teams';
 import { loadSuggestionNeeds } from './suggestions';
 import { siteOwners, todoChange, type QueuePullFull } from './needs-you';
 import { reviewQueue } from '../lib/review-queue';
-import { byUrgency } from '../lib/changes';
+import { byUrgency, statusPill } from '../lib/changes';
 import { blockerOf, overviewTodo } from '../lib/overview-todo';
 import { analyzeTokenFiles, isTokenFile } from './reviews/token-review';
 import { manifestPublished } from './reviews/visual-impact';
@@ -255,7 +255,9 @@ export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void
         const st = statuses.get(p.number);
         const c = todoChange(p, st);
         const stage = c.lifecycle === 'waiting' ? 'waiting' : p.draft || c.lifecycle === 'draft' ? 'draft' : 'ready';
-        return { number: p.number, title: c.title, href: studioHref(`changes/?pr=${p.number}`), stage, updated: p.updated_at, reviewer: pick(reviewerLogin(p, st)), thumb: resolved.get(p.number) ?? { kind: 'icon', icon: 'branch' } };
+        // The same pill as the branch's row in Branches and its page header (lib/changes statusPill).
+        const status = st && stage === 'ready' ? statusPill(st.kind, rowWho(st.kind, { author: p.user.login, approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing, failingChecks: st.failingChecks, pending: st.pending })).label : null;
+        return { number: p.number, title: c.title, href: studioHref(`changes/?pr=${p.number}`), stage, updated: p.updated_at, reviewer: pick(reviewerLogin(p, st)), thumb: resolved.get(p.number) ?? { kind: 'icon', icon: 'branch' }, status };
       });
     needs.push(...suggestions);
     const sorted = sortNeeds(needs);

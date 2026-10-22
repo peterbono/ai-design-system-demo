@@ -17,6 +17,9 @@ import {
   declineSuggestionOnGitHub,
   getSuggestionOnGitHub,
   gitBlobSha,
+  githubSuggestionWorkspace,
+  stalenessStatus,
+  suggestionStalenessOnGitHub,
   linkSuggestionPrOnGitHub,
   listSuggestionsOnGitHub,
   loadConfig,
@@ -40,7 +43,10 @@ import {
   type SuggestionApplyPlan,
   type SuggestionGovernance,
   type SuggestionKind,
+  type PullRequestSummary,
+  type SuggestionDetail,
   type SuggestionPayloadV1,
+  type SuggestionStaleness,
   type SuggestionStatus,
   type SuggestionWorkspace,
 } from '@bridge-ds/core';
@@ -188,12 +194,42 @@ export async function suggestionGovernance(ctx: BridgeContext, gh: GitHubClient)
 export type SuggestionStatusFilter = SuggestionStatus | 'all';
 const OPEN_STATUSES: readonly SuggestionStatus[] = ['needs-review', 'changes-requested', 'approved', 'applying', 'outdated'];
 
+/** Open statuses that main moving can turn into Outdated (withOutdated in core). */
+const REVIEW_STATUSES: readonly SuggestionStatus[] = ['needs-review', 'changes-requested', 'approved'];
+/** Open suggestions checked against main per list, the most recent first. */
+const MAX_STALENESS_READS = 30;
+
+/** The ref suggestions are checked against: the one the server reads, else the default branch. */
+const mainRef = (ctx: BridgeContext, config: BridgeConfig) => ctx.ref ?? baseBranchOf(config);
+
+/** Whether an open suggestion still applies to main (core suggestionStalenessOnGitHub, the rule Studio uses). */
+async function stalenessOf(ctx: BridgeContext, gh: GitHubClient, d: SuggestionDetail, config: BridgeConfig, gov: SuggestionGovernance): Promise<SuggestionStaleness | null> {
+  if (d.issue.state !== 'open' || !REVIEW_STATUSES.includes(d.status)) return null;
+  return suggestionStalenessOnGitHub(gh, d, { config, governance: gov, ref: mainRef(ctx, config) }).catch(() => null);
+}
+
 /** bridge_list_suggestions / `bridge suggestions list`. */
 export async function listSuggestionsOp(ctx: BridgeContext, a: { status?: SuggestionStatusFilter | undefined; state?: 'open' | 'closed' | 'all' | undefined; kind?: SuggestionKind | undefined; limit?: number | undefined } = {}) {
   const gh = await reader(ctx);
   const status = a.status ?? 'all';
   const state = a.state ?? (status === 'all' ? 'open' : OPEN_STATUSES.includes(status) ? 'open' : 'closed');
-  let rows = await listSuggestionsOnGitHub(gh, { state, perPage: 100 });
+  const pulls = await gh.listPullRequests('all').catch(() => [] as PullRequestSummary[]);
+  let rows = await listSuggestionsOnGitHub(gh, { state, perPage: 100, pulls });
+  // Main may have moved under an open suggestion: Outdated, the same rule as bridge_get_suggestion and Studio.
+  const open = rows.filter((r) => r.state === 'open' && REVIEW_STATUSES.includes(r.status)).slice(0, MAX_STALENESS_READS);
+  if (open.length) {
+    const { config, gov } = await suggestionGovernance(ctx, gh);
+    const outdated = new Set<number>();
+    await Promise.all(
+      open.map(async (r) => {
+        const d = await getSuggestionOnGitHub(gh, r.number, gov, { pulls }).catch(() => null);
+        if (!d?.parsed.ok) return;
+        const st = await suggestionStalenessOnGitHub(gh, d, { config, governance: gov, ref: mainRef(ctx, config) }).catch(() => null);
+        if (st?.outdated) outdated.add(r.number);
+      }),
+    );
+    rows = rows.map((r) => (outdated.has(r.number) ? { ...r, status: stalenessStatus(r.status, { outdated: true }) } : r));
+  }
   if (status !== 'all') rows = rows.filter((r) => r.status === status);
   if (a.kind) rows = rows.filter((r) => r.kind === a.kind);
   const total = rows.length;
@@ -230,8 +266,11 @@ const roleText = (m: ApprovalRole) => (m === 'approval' ? 'one approval' : `${m}
 export async function getSuggestionOp(ctx: BridgeContext, a: { number: number | string }) {
   const n = suggestionNumber(a.number);
   const gh = await reader(ctx);
-  const { gov } = await suggestionGovernance(ctx, gh);
+  const { config, gov } = await suggestionGovernance(ctx, gh);
   const d = await getSuggestionOnGitHub(gh, n, gov);
+  // Main moved and the change no longer applies as suggested: Outdated (core staleness, the rule Studio uses).
+  const stale = d.parsed.ok ? await stalenessOf(ctx, gh, d, config, gov) : null;
+  d.status = stalenessStatus(d.status, stale);
   const base = { number: n, url: d.issue.url, title: d.issue.title, state: d.issue.state, status: d.status, said: SUGGESTION_STATUS_LABEL[d.status], author: d.issue.author, labels: d.issue.labels, linkedPrs: d.linkedPrs };
   if (!d.parsed.ok) {
     if (!d.issue.labels.includes(SUGGESTION_LABEL) && d.parsed.reason === 'no-block') throw new Error(`Issue #${n} is not a Bridge suggestion: it has no "${SUGGESTION_LABEL}" label and no suggestion block.`);
@@ -272,6 +311,7 @@ export async function getSuggestionOp(ctx: BridgeContext, a: { number: number | 
       ...(solo && p.tier.tier > 1 ? { soloOwner: soloOwnerSentence(solo) } : {}),
     },
     applied: d.applied,
+    ...(stale?.outdated ? { outdated: { mainSha: stale.mainSha, conflicts: stale.conflicts.map((c) => ({ path: c.path, detail: c.detail })) } } : {}),
     ...(p.componentSpec ? { brief: p.componentSpec.brief } : {}),
     next:
       d.status === 'approved'
@@ -283,7 +323,7 @@ export async function getSuggestionOp(ctx: BridgeContext, a: { number: number | 
             : d.status === 'applying'
               ? `Being applied${d.linkedPrs.length ? ` in ${d.linkedPrs.map((x) => `#${x.number}`).join(', ')}` : ''}. It closes when the pull request merges.`
               : d.status === 'outdated'
-                ? 'Outdated: the code changed since it was suggested. Ask the author to refresh it.'
+                ? `Outdated: ${stale?.conflicts[0] ? stale.conflicts[0].detail.replace(/\.$/, '') : 'main changed what it changes since it was suggested'}. Ask the author to send it again on today's code.`
                 : `${SUGGESTION_STATUS_LABEL[d.status]}: nothing to do.`,
   };
 }
@@ -337,12 +377,7 @@ export async function reviewSuggestionOp(ctx: BridgeContext, a: { number: number
 
 /** The planner's workspace over the GitHub API at a ref (remote mode: nothing is written, the files come back). */
 export function githubWorkspace(gh: GitHubClient, ref: string): SuggestionWorkspace {
-  let files: Promise<string[]> | undefined;
-  return {
-    read: async (path) => (await gh.getFile(path, ref)) ?? null,
-    readAt: async (sha, path) => (await gh.readFile(path, sha).catch(() => undefined)) ?? null,
-    list: () => (files ??= gh.listFiles(ref)),
-  };
+  return githubSuggestionWorkspace(gh, ref);
 }
 
 export type ApplyModeArg = 'dry-run' | LocalApplyMode;
@@ -395,6 +430,15 @@ export async function applySuggestionOp(
     return { number: n, status: 'refused', outcome: 'refused', exitCode: 1, message: `Not applied: ${d.parsed.message}` };
   }
   if (d.status === 'declined') return { number: n, status: 'refused', outcome: 'refused', exitCode: 1, message: `Not applied: #${n} was declined. Reopen it on GitHub first if it should go in after all.` };
+  if (d.status === 'applied') {
+    // Applied and closed: nothing to write; the issue keeps the final label only (no "needs review", no "applying").
+    const warnings: string[] = [];
+    if (ctx.canWriteRemote) {
+      const w = await syncSuggestionStateLabel(gh, n, d.issue.labels, 'applied').catch((e: Error) => `The status label on #${n} could not be updated (${e.message}).`);
+      if (w) warnings.push(w);
+    }
+    return { number: n, status: 'already-applied', outcome: 'already-applied', exitCode: 0, message: `#${n} is already applied and closed: nothing to write.`, ...(warnings.length ? { warnings } : {}) };
+  }
   const parsed = d.parsed;
   const dryRun = a.dryRun || a.mode === 'dry-run';
   const mode: LocalApplyMode = a.mode && a.mode !== 'dry-run' ? a.mode : 'branch';
@@ -485,15 +529,18 @@ export async function linkSuggestionOp(ctx: BridgeContext, a: { number: number |
   if (!d.parsed.ok) throw new Error(`#${n} cannot be linked: ${d.parsed.message}`);
   const warnings: string[] = [];
   let branch = a.branch;
+  let merged = false;
   if (a.pr) {
     const pr = await gh.getPullRequest(a.pr);
     branch ??= pr.headRef;
-    if (!closingIssueNumbers(pr.body).includes(n)) warnings.push(`#${a.pr} does not say "Closes #${n}": add it to the pull request description, so the suggestion closes when it merges.`);
+    merged = pr.state === 'merged';
+    if (!merged && !closingIssueNumbers(pr.body).includes(n)) warnings.push(`#${a.pr} does not say "Closes #${n}": add it to the pull request description, so the suggestion closes when it merges.`);
   }
   const viewer = await viewerOf(ctx, gh);
-  const r = await linkSuggestionPrOnGitHub(gh, n, { pr: a.pr, branch, commit: a.commit, by: viewer ?? undefined, payloadSha: d.parsed.sha, forced: a.forced });
+  const r = await linkSuggestionPrOnGitHub(gh, n, { pr: a.pr, branch, commit: a.commit, by: viewer ?? undefined, payloadSha: d.parsed.sha, forced: a.forced, merged });
   warnings.push(...r.warnings);
-  return { number: n, status: 'applying' as SuggestionStatus, said: SUGGESTION_STATUS_LABEL.applying, ...(a.pr ? { pr: a.pr } : {}), ...(branch ? { branch } : {}), ...(warnings.length ? { warnings } : {}), next: 'It closes when the pull request merges.' };
+  const status: SuggestionStatus = r.status;
+  return { number: n, status, said: SUGGESTION_STATUS_LABEL[status], ...(a.pr ? { pr: a.pr } : {}), ...(branch ? { branch } : {}), ...(warnings.length ? { warnings } : {}), next: status === 'applied' ? 'Applied: nothing left to do.' : 'It closes when the pull request merges.' };
 }
 
 /**

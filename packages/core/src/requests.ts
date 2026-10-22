@@ -6,6 +6,7 @@
 // everywhere. The issue body is plain Markdown for people plus one hidden JSON block for tools.
 
 import { EXPLORATION_LABEL, explorationRules } from './explorations';
+import { subjectTitle } from './titles';
 
 export type RequestKind = 'new-component' | 'new-variant' | 'prop-change' | 'structure' | 'visual' | 'token-binding' | 'bug' | 'other';
 export type RequestSource = 'figma' | 'studio' | 'cli' | 'mcp';
@@ -73,8 +74,7 @@ const kindSlug = (k: RequestKind) => `request: ${k}`;
 
 /** Issue title: "Button: add a danger ghost variant". */
 export function requestIssueTitle(r: Pick<ComponentChangeRequest, 'component' | 'title'>): string {
-  const t = r.title.trim().replace(/\.$/, '');
-  return `${r.component}: ${t.charAt(0).toLowerCase()}${t.slice(1)}`;
+  return subjectTitle(r.component, r.title);
 }
 
 /** The GitHub issue for a request: readable Markdown, the labels tools filter on, and a hidden JSON block. */

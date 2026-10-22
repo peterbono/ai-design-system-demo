@@ -86,11 +86,14 @@ Usage:
   bridge audit <path> --fix [--write] safe autofix: CSS values equal to a token become var(--token).
                                       Dry run unless --write
   bridge snapshot [--out bridge-data] [--audit <path>[=label] ...] [--audit-report <file|dir> ...]
-                 [--branch main] [--json]
+                 [--branch main] [--activity [--repo owner/name]] [--json]
                                       the repo model of this checkout for hosted Bridge (Studio and Library):
                                       snapshot.json (token, contrast and component files, Figma coverage,
                                       contrast results) plus audits/<id>.json. --audit runs bridge audit on a
                                       product folder; --audit-report carries reports already written.
+                                      --activity also writes activity.json (open branches, suggestions,
+                                      requests, recent merges, token history) read with GITHUB_TOKEN, so
+                                      signed-out visitors of hosted Studio spend no GitHub API request.
                                       The bridge-data workflow publishes the folder to the bridge-data branch
   bridge docs draft <Component> [--json]
                                       docs.json pre-fill from the code (props, tokens, anatomy, contrast,
@@ -645,8 +648,31 @@ async function audit(a: Args, root: string): Promise<number> {
 async function snapshotCmd(a: Args, root: string): Promise<number> {
   const out = resolve(root, flag(a, 'out') ?? 'bridge-data');
   const branch = flag(a, 'branch');
-  const r = await writeSnapshot({ root, out, version: VERSION, audit: a.flags.audit ?? [], auditReports: a.flags['audit-report'] ?? [], ...(branch ? { branch } : {}) });
-  if (has(a, 'json')) print(JSON.stringify({ out, written: r.written, bytes: r.bytes, sourceSha: r.snapshot.sourceSha, summary: r.snapshot.summary, audits: r.snapshot.audits.map((x) => x.path), problems: r.snapshot.problems }, null, 2));
+  let activity: { token: string; repo?: string } | undefined;
+  if (has(a, 'activity')) {
+    const token = githubToken();
+    if (!token) throw new UsageError('bridge snapshot --activity reads GitHub: set GITHUB_TOKEN (in a workflow, the run token is enough).');
+    const repo = flag(a, 'repo') || process.env.GITHUB_REPOSITORY || undefined;
+    activity = { token, ...(repo ? { repo } : {}) };
+  }
+  const r = await writeSnapshot({ root, out, version: VERSION, audit: a.flags.audit ?? [], auditReports: a.flags['audit-report'] ?? [], ...(branch ? { branch } : {}), ...(activity ? { activity } : {}) });
+  if (has(a, 'json'))
+    print(
+      JSON.stringify(
+        {
+          out,
+          written: r.written,
+          bytes: r.bytes,
+          sourceSha: r.snapshot.sourceSha,
+          summary: r.snapshot.summary,
+          audits: r.snapshot.audits.map((x) => x.path),
+          problems: r.snapshot.problems,
+          ...(r.activity ? { activity: { bytes: r.activity.bytes, reads: Object.keys(r.activity.activity.responses).length, branches: r.activity.activity.branches.length, suggestions: r.activity.activity.suggestions.length, requests: r.activity.activity.requests.length, merged: r.activity.activity.merged.length, history: r.activity.activity.history?.entries.length ?? null, truncated: r.activity.activity.truncated, problems: r.activity.activity.problems } } : {}),
+        },
+        null,
+        2,
+      ),
+    );
   else {
     const shown = relative(process.cwd(), out);
     for (const line of snapshotLines(r, shown.startsWith('..') || isAbsolute(shown) ? out : shown || '.')) print(line);

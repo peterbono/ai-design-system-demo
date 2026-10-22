@@ -11,14 +11,16 @@ import {
   getSuggestionOnGitHub,
   listSuggestionsOnGitHub,
   loadConfig,
-  planSuggestionApply,
   reviewSuggestionOnGitHub,
+  stalenessStatus,
+  suggestionStalenessOnGitHub,
   type ApprovalRole,
   type BridgeConfig,
   type GitHubClient,
   type PullRequestSummary,
-  type SuggestionApplyPlan,
   type SuggestionDetail,
+  type SuggestionListItem,
+  type SuggestionStaleness,
   type SuggestionGovernance,
   type SuggestionStatus,
 } from '@bridge-ds/core';
@@ -111,7 +113,9 @@ async function readWaiting(viewer: string): Promise<Waiting[]> {
         if (!d.parsed.ok) return null;
         const tier = d.parsed.payload.tier.tier;
         const reviewed = [...(d.approvals?.approvers ?? []), ...(d.approvals?.changesRequested ?? [])].some((l) => l.toLowerCase() === viewer.toLowerCase());
-        if (!waitsOnViewer({ status: d.status, missing: missingRoles(tier, d.approvals), viewer, author: d.issue.author, owners, collaborator: write, reviewed })) return null;
+        // An outdated one waits on its author to send it again, not on a review (the status its page shows).
+        const stale = await stalenessOnMain(gh, d);
+        if (!waitsOnViewer({ status: stalenessStatus(d.status, stale), missing: missingRoles(tier, d.approvals), viewer, author: d.issue.author, owners, collaborator: write, reviewed })) return null;
         return { number: i.number, title: shortTitle(d.parsed.payload.title || i.title), author: d.issue.author, createdAt: d.issue.createdAt, thumb: suggestionThumb(d.parsed.payload, theme()) };
       } catch {
         return null;
@@ -183,30 +187,37 @@ function mainConfig(gh: GitHubClient): Promise<BridgeConfig | null> {
   return config;
 }
 
-/** The plan on today's main, nothing written: does it still apply, and its checks re-run on today's tokens. */
-async function planOnMain(gh: GitHubClient, d: SuggestionDetail): Promise<{ plan: SuggestionApplyPlan; mainSha: string } | null> {
-  if (!d.parsed.ok) return null;
+/**
+ * Whether an open suggestion still applies to today's main (core suggestionStalenessOnGitHub, the rule the MCP server
+ * and the CLI use): nothing read when main has not moved, the dry run (planSuggestionApply, nothing written) when main
+ * changed what it writes. Null when it is not open, not in review, or main cannot be read.
+ */
+async function stalenessOnMain(gh: GitHubClient, d: SuggestionDetail): Promise<SuggestionStaleness | null> {
+  if (!d.parsed.ok || d.issue.state !== 'open') return null;
+  if (d.status !== 'needs-review' && d.status !== 'changes-requested' && d.status !== 'approved') return null;
   const cfg = await mainConfig(gh);
   if (!cfg) return null;
-  const ref = d.parsed.payload.base.ref || readRepo().defaultBranch;
-  const mainSha = (await gh.getBranchSha(ref)) ?? ref;
-  let files: string[] | null = null;
-  const plan = await planSuggestionApply({
-    parsed: d.parsed,
-    config: cfg,
-    comments: d.comments,
-    governance: await governance(),
-    author: d.issue.author,
-    // Studio only reads: approvals are shown apart, so the plan runs past them to classify every change.
-    forceUnapproved: true,
-    acceptEdited: true,
-    workspace: {
-      read: async (path) => (await gh.getFile(path, mainSha)) ?? null,
-      readAt: async (at, path) => (await gh.readFile(path, at)) ?? null,
-      list: async () => (files ??= await gh.listFiles(mainSha)),
-    },
-  });
-  return { plan, mainSha };
+  return suggestionStalenessOnGitHub(gh, d, { config: cfg, governance: await governance(), ref: d.parsed.payload.base.ref || readRepo().defaultBranch }).catch(() => null);
+}
+
+/**
+ * The open suggestions of a list that main made outdated, read with a working token only (anonymous visitors keep
+ * their GitHub reads for the branches). At most `limit`, newest first.
+ */
+export async function outdatedOf(items: readonly SuggestionListItem[], gh: GitHubClient = client(), limit = 10): Promise<Set<number>> {
+  const out = new Set<number>();
+  if (!hasWorkingToken()) return out;
+  const open = items.filter((i) => i.state === 'open' && (i.status === 'needs-review' || i.status === 'changes-requested' || i.status === 'approved')).slice(0, limit);
+  if (!open.length) return out;
+  const gov = await governance();
+  await Promise.all(
+    open.map(async (i) => {
+      const d = await getSuggestionOnGitHub(gh, i.number, gov).catch(() => null);
+      const st = d ? await stalenessOnMain(gh, d) : null;
+      if (st?.outdated) out.add(i.number);
+    }),
+  );
+  return out;
 }
 
 export interface OpenedSuggestion {
@@ -333,7 +344,7 @@ export async function openSuggestion(n: number, host: SuggestionHost): Promise<v
   const refresh = async () => {
     const next = await getSuggestionOnGitHub(gh, n, await governance());
     if (next.parsed.ok) d = next;
-    status = conflicts?.length && (d.status === 'needs-review' || d.status === 'changes-requested' || d.status === 'approved') ? 'outdated' : d.status;
+    status = stalenessStatus(d.status, { outdated: Boolean(conflicts?.length) });
   };
 
   const review = async (event: 'approve' | 'request-changes', text: string): Promise<string> => {
@@ -379,15 +390,15 @@ export async function openSuggestion(n: number, host: SuggestionHost): Promise<v
 
   render();
   if (!hasWorkingToken() || d.issue.state === 'closed') return;
-  // Today's main: the dry run (reads the token files once), then the card says whether it still applies.
+  // Today's main (core staleness, the rule the MCP server and the CLI use): the card says whether it still applies.
   try {
-    const r = await planOnMain(gh, d);
-    if (mine !== seq || !r) return;
-    mainMoved = r.mainSha !== payload.base.sha;
-    conflicts = r.plan.ops.filter((o) => o.state === 'conflict');
-    const c = r.plan.checks;
+    const r = await stalenessOnMain(gh, d);
+    if (mine !== seq) return;
+    mainMoved = Boolean(r?.mainMoved);
+    conflicts = r?.conflicts ?? [];
+    const c = r?.plan?.checks;
     today = c ? { newErrors: c.newErrors.length, newFailures: c.newFailures.map((f) => ({ pair: `${f.fg} on ${f.bg}`, mode: f.modes })) } : null;
-    if (conflicts.length && (status === 'needs-review' || status === 'changes-requested' || status === 'approved')) status = 'outdated';
+    status = stalenessStatus(status, r);
   } catch {
     conflicts = conflicts ?? [];
   }

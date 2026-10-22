@@ -171,7 +171,7 @@ function BranchCardItem({ b, now }: { b: BranchCard; now: number }) {
           </Link>
           <span className="t-ui t-muted sh-card-status">
             <span className="sh-card-stage">{s.stage}</span> ·{' '}
-            {b.stage === 'ready' && b.reviewer ? (
+            {b.stage === 'ready' && b.reviewer && !b.status ? (
               <>
                 <Who p={b.reviewer} size="xs" /> {s.detail}
               </>

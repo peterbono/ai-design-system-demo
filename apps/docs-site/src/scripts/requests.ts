@@ -7,7 +7,7 @@ import { workNature } from '../lib/work-nature';
 import { devTag, markWork, natureAttr } from './work-filter';
 import { badgeHtml } from '@bridge-ds/react/dom';
 import { REQUEST_TRIAGE_IN_STUDIO } from '../lib/studio-flags';
-import { assignRequestOnGitHub, closingIssueNumbers, declineReasonProblems, declineRequestOnGitHub, REQUEST_LABEL, REQUEST_STATUS_LABEL, requestIssueTitle, type IntegrationsConfig } from '@bridge-ds/core';
+import { assignRequestOnGitHub, closingIssueNumbers, subjectTitle, declineReasonProblems, declineRequestOnGitHub, REQUEST_LABEL, REQUEST_STATUS_LABEL, requestIssueTitle, type IntegrationsConfig } from '@bridge-ds/core';
 import {
   assigneeOptions,
   buildState,
@@ -288,7 +288,7 @@ export function renderRequestDetail(r: RequestRow, ctx: DetailContext = { viewer
   return `
   ${crumbs(r.number)}
   <header class="zone cg-pr-open">
-    <h1 class="cg-pr-title">${esc(r.component)}: ${esc(r.title.charAt(0).toLowerCase() + r.title.slice(1))} <span class="cg-num">#${r.number}</span></h1>
+    <h1 class="cg-pr-title">${esc(subjectTitle(r.component, r.title))} <span class="cg-num">#${r.number}</span></h1>
     <p class="cg-pr-meta">${badgeHtml(r.kindLabel)}${badgeHtml(r.statusLabel, { tone: r.tone, className: 'rv-status' })}<span>${esc(wantsToChange(r.requester, r.component))}</span><time datetime="${esc(r.createdAt)}">${esc(shortDate(r.createdAt))}</time>${jira}<a class="cg-gh" href="${attrUrl(r.url)}" target="_blank" rel="noopener">Open on GitHub<span class="sr-only"> (opens in a new tab)</span></a></p>
     <p class="cg-pr-state" id="rq-state" role="status" tabindex="-1">${esc(decision.sentence)}</p>
     ${primary ? `<p class="cg-pr-cta rq-decide" id="rq-actions">${primary}</p>` : ''}

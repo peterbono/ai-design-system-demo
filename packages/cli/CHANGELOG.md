@@ -1,5 +1,27 @@
 # @bridge-ds/cli
 
+## 0.12.0
+
+### Minor Changes
+
+- 037b56b: `bridge snapshot --activity [--repo owner/name]` also writes `activity.json`, read with `GITHUB_TOKEN`, so a visitor of a team's hosted Studio who is not signed in spends no GitHub API request on Home, Branches, a branch, Review, History, suggestions and requests. `templates/bridge-data.yml` runs it on pushes, pull request, issue and comment events and every 30 minutes, and keeps one commit on the `bridge-data` branch.
+
+### Patch Changes
+
+- @bridge-ds/mcp@0.8.5
+- @bridge-ds/visual@0.3.12
+
+## 0.11.2
+
+### Patch Changes
+
+- 5ec4a47: One status per branch, everywhere. `reviewStatusKind` is the single derivation for the Branches list, the branch page, the home cards, `bridge_what_needs_me`, `bridge_branch_status` and `bridge branch status`. A repo with no automated checks is a calm state of its own ("No automated checks", `CI_STATE_LABEL`) and the status comes from the approvals, as for any branch. While GitHub computes whether a branch merges cleanly, a missing approval still shows; "Checking for conflicts" only holds back "Ready to merge". The words live in core (`REVIEW_STATUS_LABEL`), and the branch page header now shows the same pill as its row ("Owner override needed", "Design owner to approve") instead of a plain "In review".
+- 5ec4a47: Suggestions, visual checks and titles. A suggestion whose change no longer applies to main (main moved and the value it changes is not the one it was suggested from) reads Outdated in Studio, `bridge_list_suggestions` and `bridge_get_suggestion`, through one core rule (`suggestionStalenessOnGitHub`, over `planSuggestionApply`). An applied and closed suggestion keeps only its final label ("suggestion: applied"; "suggestion: declined" when declined): `bridge_apply_suggestion`, `bridge_link_suggestion`, `bridge apply` and a merge from Bridge (`markSuggestionsAppliedOnGitHub`) remove "needs review" and "applying". The visual-check label and "the visual comparison runs again" are offered only when the repo has the visual impact workflow (`hasVisualWorkflow`, `visualOffer`); otherwise the branch page shows a quiet "Set up visual checks" link. Request and suggestion titles are never prefixed twice ("Select: select: ...") and keep component names as written ("EmptyState"), through `subjectTitle`.
+- Updated dependencies [5ec4a47]
+- Updated dependencies [5ec4a47]
+  - @bridge-ds/mcp@0.8.4
+  - @bridge-ds/visual@0.3.11
+
 ## 0.11.1
 
 ### Patch Changes

@@ -8,7 +8,7 @@
 //   neutral  grey    draft, unknown, checks running or checking, shipped, closed
 // What a change needs is plain words, never colored ("Design + tech", lib/review-queue), so a token change that
 // is ready reads green, not red.
-import { CONFLICT_REASON, mergeGate, type ApprovalSummary, type CiSummary, type MergeGate, type MissingApproval, type PullState, type ReviewStatusKind, type Tier } from './review-rules';
+import { CONFLICT_REASON, mergeGate, REVIEW_STATUS, type ApprovalSummary, type CiSummary, type MergeGate, type MissingApproval, type PullState, type ReviewStatusKind, type Tier } from './review-rules';
 import type { TokenReview } from './token-review';
 import { ghAction } from './gh-wording';
 import { branchCount, VOCAB } from './vocabulary';
@@ -223,8 +223,8 @@ export type Need =
 
 /**
  * The need of an opened pull request, in the order mergeGate blocks: lifecycle, draft, CI, changes, conflict, then
- * approvals. Same order as the list chip (review-rules reviewStatus). `mergeable` null: GitHub is still computing
- * whether it fits the latest library, so nothing promises an approval or a ship yet.
+ * approvals. Same order as the list chip (core reviewStatusKind). `mergeable` null: GitHub is still computing
+ * whether it fits the latest library, so an approved change does not promise a merge yet; a missing approval still shows.
  */
 export function needFromDetail(s: { state: PullState; ci: CiSummary; gate: MergeGate; changesRequestedBy: string[]; exploration?: boolean; mergeable?: boolean | null }): Need {
   if (s.state === 'merged') return { kind: 'merged' };
@@ -236,8 +236,9 @@ export function needFromDetail(s: { state: PullState; ci: CiSummary; gate: Merge
   if (s.gate.reasons.includes(CONFLICT_REASON)) return { kind: 'resolve-conflict' };
   const roles = s.gate.missing.map((m) => ROLE_OF[m]);
   if (s.ci.state === 'pending') return { kind: 'checks-running', then: roles };
-  if (s.mergeable === null && s.state === 'open') return { kind: 'checking-merge', then: roles };
+  // A missing approval is missing whether or not GitHub has worked out the merge yet (core reviewStatusKind).
   if (roles.length) return { kind: 'approve', roles };
+  if (s.mergeable === null && s.state === 'open') return { kind: 'checking-merge', then: roles };
   if (s.gate.allowed) return { kind: 'ready' };
   return { kind: 'unknown' };
 }
@@ -463,6 +464,15 @@ export function whoActs(need: Need, p: People): WhoActs {
       return { who: 'owner', logins: owners, yourTurn: false, action: 'merge', sentence: `Ready to merge: ${who} can merge it.`, short: 'Ready to merge' };
     }
   }
+}
+
+/**
+ * The status pill of an open branch, the same on every surface: the Branches list, the branch page header and the
+ * home cards. The kind comes from core reviewStatusKind, the words from who acts now (whoActs short: "Design owner to
+ * approve", "Owner override needed"), else the status itself ("Needs design approval"). Tone follows the kind.
+ */
+export function statusPill(kind: ReviewStatusKind, who: Pick<WhoActs, 'short'> | null | undefined): { label: string; tone: StatusTone } {
+  return { label: who?.short ?? REVIEW_STATUS[kind].label, tone: statusTone(kind) };
 }
 
 export interface ApprovalRow {

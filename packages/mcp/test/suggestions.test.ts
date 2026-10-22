@@ -259,3 +259,78 @@ describe('apply on a local checkout', () => {
     expect(readFileSync(light, 'utf8')).toContain('{palette.neutral.700}');
   });
 });
+
+describe('outdated suggestions and final labels (the same rules as Studio)', () => {
+  const LIGHT = 'packages/tokens/src/semantic/light.tokens.json';
+  /** A commit straight on main: someone else's change merged after the suggestion was made. */
+  const moveMain = (gh: ReturnType<typeof fakeGitHub>, path: string, edit: (text: string) => string) => {
+    const head = gh.refs.get('main')!;
+    const c = gh.id();
+    const next = new Map(gh.commits.get(head)!.files);
+    next.set(path, edit(next.get(path) ?? ''));
+    gh.commits.set(c, { files: next, parents: [head] });
+    gh.refs.set('main', c);
+  };
+  const setMuted = (value: string) => (text: string) => {
+    const json = JSON.parse(text);
+    json.color.text.muted.$value = value;
+    return `${JSON.stringify(json, null, 2)}\n`;
+  };
+  const labels = (gh: ReturnType<typeof fakeGitHub>) => gh.issues[0]!.labels.map((l: any) => l.name);
+
+  it('main moved and the value it changes is not the one it was suggested from: Outdated in the list and in get', async () => {
+    const gh = remoteRepo();
+    const ctx = await BridgeContext.create({ repo: FULL, token: 'test-token', fetch: gh.fetch });
+    const n = ((await ops.proposeTokenChange(ctx, DARKEN)) as any).number as number;
+
+    // Main moved on a file the suggestion does not write: it still applies.
+    moveMain(gh, 'README.md', (t) => `${t}\nMore.\n`);
+    expect((await suggestions.listSuggestionsOp(ctx)).suggestions.map((x) => x.status)).toEqual(['needs-review']);
+    expect(((await suggestions.getSuggestionOp(ctx, { number: n })) as any).status).toBe('needs-review');
+
+    // Main changed the very token (600 to 500) while the suggestion goes from 600 to 700.
+    moveMain(gh, LIGHT, setMuted('{palette.neutral.500}'));
+    const list = await suggestions.listSuggestionsOp(ctx);
+    expect(list.suggestions.map((x) => [x.number, x.status, x.said])).toEqual([[n, 'outdated', 'Outdated']]);
+    expect((await suggestions.listSuggestionsOp(ctx, { status: 'outdated' })).suggestions.map((x) => x.number)).toEqual([n]);
+    expect((await suggestions.listSuggestionsOp(ctx, { status: 'needs-review' })).suggestions).toEqual([]);
+    const got = (await suggestions.getSuggestionOp(ctx, { number: n })) as any;
+    expect(got).toMatchObject({ status: 'outdated', said: 'Outdated' });
+    expect(got.outdated.conflicts.map((c: any) => c.path)).toEqual(['color.text.muted']);
+    expect(got.next).toMatch(/^Outdated: color\.text\.muted changed since it was suggested \(now \{palette\.neutral\.500\}, suggested from \{palette\.neutral\.600\}\)\. Ask the author/);
+    // Reads never write.
+    expect(writes(gh).filter((w) => w.path.includes('/labels'))).toEqual([]);
+  });
+
+  it('applied and closed: apply says so, and the issue keeps only "suggestion: applied"', async () => {
+    const gh = remoteRepo();
+    const ctx = await BridgeContext.create({ repo: FULL, token: 'test-token', fetch: gh.fetch });
+    const n = ((await ops.proposeTokenChange(ctx, DARKEN)) as any).number as number;
+    // What #8 in the demo repo looked like: closed as completed by its pull request, the old labels left behind.
+    gh.issues[0]!.labels.push({ name: 'suggestion: applying' });
+    Object.assign(gh.issues[0]!, { state: 'closed', state_reason: 'completed' });
+    expect(labels(gh)).toEqual(expect.arrayContaining(['suggestion: needs review', 'suggestion: applying']));
+
+    const r = (await suggestions.applySuggestionOp(ctx, { number: n })) as any;
+    expect(r).toMatchObject({ status: 'already-applied', exitCode: 0 });
+    expect(labels(gh)).toContain('suggestion: applied');
+    expect(labels(gh)).not.toContain('suggestion: needs review');
+    expect(labels(gh)).not.toContain('suggestion: applying');
+    expect(((await suggestions.getSuggestionOp(ctx, { number: n })) as any).status).toBe('applied');
+  });
+
+  it('linking a merged pull request marks it applied, not "being applied"', async () => {
+    const gh = remoteRepo();
+    const ctx = await BridgeContext.create({ repo: FULL, token: 'test-token', fetch: gh.fetch });
+    const n = ((await ops.proposeTokenChange(ctx, DARKEN)) as any).number as number;
+    await ops.proposeTokenChange(ctx, { ...DARKEN, title: 'Apply it', changes: 'direct' });
+    const pr = gh.pulls[0]!;
+    pr.body = `${pr.body}\n\nCloses #${n}`;
+    Object.assign(pr, { state: 'closed', merged: true, merged_at: '2026-10-20T00:00:00Z' });
+    const r = (await suggestions.linkSuggestionOp(ctx, { number: n, pr: pr.number })) as any;
+    expect(r).toMatchObject({ status: 'applied', said: 'Applied' });
+    expect(labels(gh)).toContain('suggestion: applied');
+    expect(labels(gh)).not.toContain('suggestion: needs review');
+    expect(labels(gh)).not.toContain('suggestion: applying');
+  });
+});

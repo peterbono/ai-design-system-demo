@@ -3,13 +3,14 @@
 // in-place reviews (?pr=N: the branch review; ?suggestion=N: the suggestion review). The team's repo model is read
 // first (scripts/team-data.ts, with its progress) because reviews.ts reads the team's settings (owners, rights,
 // products) when it loads. The views the self-hosted page reaches by address work for the team too, with the same
-// modules: History (scripts/history/page.ts, read from the team's GitHub history when signed in), a component change
+// modules: History (scripts/history/page.ts, read from the team's GitHub history when signed in, from its published
+// activity.json for a guest), a component change
 // request in place (scripts/requests.ts, the team's request issues), Requests when triage is on in Studio, and the
 // exploration start form (scripts/explorations.ts, against the team's repository, following its "changes" mode; in
 // direct mode the first write asks for Bridge Direct's OK, scripts/github-session.ts).
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { listSuggestionsOnGitHub } from '@bridge-ds/core';
+import { listSuggestionsOnGitHub, stalenessStatus } from '@bridge-ds/core';
 import { TeamLoadError, TeamLoadProgress } from '../components/ds/studio/TeamState';
 import { loadTeamData, resetTeamData, teamOfPage, type TeamData } from './team-data';
 import { suggestionRows, TEAM_VIEW_TITLE, teamBranchesRoute } from '../lib/team-branches';
@@ -91,6 +92,9 @@ export async function initTeamBranches(): Promise<void> {
       const { paintTeamSuggestions } = await import('../components/ds/studio/TeamSuggestions');
       paintTeamSuggestions(el, suggestionRows(items));
       if (items.length) $('cg-empty')?.setAttribute('hidden', '');
+      // Then whether main made any outdated (the status its page and the MCP server say), with a token only.
+      const outdated = await suggestions.outdatedOf(items, data.client).catch(() => new Set<number>());
+      if (outdated.size) paintTeamSuggestions(el, suggestionRows(items.map((i) => (outdated.has(i.number) ? { ...i, status: stalenessStatus(i.status, { outdated: true }) } : i))));
     } catch {
       // The branches list says when GitHub cannot be read; suggestions only add rows.
     }

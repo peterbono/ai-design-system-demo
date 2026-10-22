@@ -26,10 +26,12 @@ reads the repository live, so a late or failed workflow never shows stale data.
 1. Copy [`templates/bridge-data.yml`](../templates/bridge-data.yml) to `.github/workflows/bridge-data.yml` in your
    design system repository. If your default branch is not `main`, change the `push` branch.
 2. Optional: add one `--audit "<folder>=<label>"` per app folder in the repository that uses the design system.
-3. Push. Each push to the default branch publishes the snapshot to the orphan branch `bridge-data`.
+3. Push. Each push to the default branch publishes the snapshot to the orphan branch `bridge-data`. Pull request,
+   issue and comment events and a run every 30 minutes keep `activity.json` fresh (see below).
 
-The workflow uses only the run's `GITHUB_TOKEN`, with `contents: write` to push that branch. There is no secret to
-add. The branch is never merged; delete it to start over. This repository runs its own copy,
+The workflow uses only the run's `GITHUB_TOKEN`, with `contents: write` to push that branch and read access to pull
+requests, issues, checks and statuses. There is no secret to add. Runs queue in one concurrency group. The branch holds
+one commit with the latest files, replaced on every run; it is never merged; delete it to start over. This repository runs its own copy,
 [`.github/workflows/bridge-data.yml`](../.github/workflows/bridge-data.yml), with the local build of the CLI. It
 follows the `bridge-visual` branch of the visual impact workflow.
 
@@ -38,6 +40,7 @@ follows the `bridge-visual` branch of the visual impact workflow.
 ```
 bridge-data
   snapshot.json        the snapshot (read by hosted Studio and Library)
+  activity.json        the team's work in progress, for visitors who are not signed in (--activity)
   llms.txt             the design system as plain text for AI agents (tokens, components, usage guidance)
   audits/<id>.json     one adoption report per audit, in the `bridge audit --json` format
   README.md
@@ -60,12 +63,46 @@ Nothing else of the repository is copied. In code, `snapshotSource(parseSnapshot
 `RepoSource`, so `loadRepoModel` gives the same model from the snapshot as from the repository (the full Figma
 specs aside).
 
+### Activity: `activity.json`, for visitors who are not signed in
+
+GitHub gives a visitor who is not signed in 60 API requests an hour. A busy team's Branches page alone used to take
+about 20, so a guest ran out after three page views. `bridge snapshot --activity` reads, in CI with the run's
+`GITHUB_TOKEN`, what the guest pages read, and writes it to `activity.json`. A guest's Home, Branches, a branch
+page, Review, History, a suggestion and a request then make no GitHub API request at all.
+
+`activity.json` (`kind: "bridge-activity"`, `schemaVersion: 1`):
+
+| Key | What it holds |
+| --- | --- |
+| `generatedAt`, `repo`, `headSha` | When it was written, the repository and its default branch head |
+| `branches` | Open pull requests: title, author, labels, risk tier, state, comment count, changed token files, previews, checks |
+| `suggestions` | Open suggestions with their parsed payload, status and approvers |
+| `requests` | Component change requests with their kind, component and status |
+| `merged` | Recently merged pull requests |
+| `history` | The token history report of the default branch (what History shows) |
+| `responses` | The GitHub REST reads (GET) the guest pages make, as GitHub answered them, trimmed: no API links, no diffs, trees cut to token, config and changeset files |
+| `truncated`, `problems` | What was left out to stay small, and what could not be read |
+
+Limits: the 30 most recently updated open branches with their pages, 30 suggestions, 30 requests, 20 merges, 20
+history entries; above 3 MB the recorded trees go first, then the pages of the oldest branches. While the default
+branch has not moved, the token history and the page of every branch nobody touched are kept from the last published
+file (checks and statuses are read again), so a scheduled run costs about two requests per open branch of the
+token's 1,000 an hour.
+
+How Studio reads it: signed out, every GitHub GET is answered from `responses` first while `activity.json` is less than
+a day old (`activityAnswer` in `@bridge-ds/core`), so every view keeps one code path. What it did not record is read
+live. When GitHub refuses a read for the hourly limit, an older `activity.json` answers too. The guest banner says
+how recent it is ("Updated 5 min ago"). Signed in, everything is read live. Without `activity.json`, a guest's reads
+are still shared: the same read in flight goes out once, and an answer from the last two minutes is reused in the
+tab.
+
 ### Run it locally
 
 ```sh
 bridge snapshot                                      # writes bridge-data/snapshot.json
 bridge snapshot --out /tmp/bd --audit "apps/web/src=Web app" --audit-report reports/
 bridge snapshot --json                               # summary as JSON
+GITHUB_TOKEN=... bridge snapshot --activity --repo acme/ds   # also activity.json, read from GitHub
 ```
 
 `--audit <folder>[=label]` runs `bridge audit` on a folder of this repository. `--audit-report <file|folder>` carries

@@ -371,6 +371,8 @@ export interface BranchCard {
   /** The first reviewer asked (requested reviewers, else who approved). */
   reviewer: Person | null;
   thumb: ThumbSpec;
+  /** In review: the status pill its row shows in Branches (lib/changes statusPill), once read. */
+  status?: string | null;
 }
 
 export type BranchFilter = 'all' | 'draft' | 'ready';
@@ -400,10 +402,15 @@ export function ago(iso: string, now: number): string {
   return `${d} ${d === 1 ? 'day' : 'days'} ago`;
 }
 
-/** The status line of a card: "Draft · edited 2 h ago", "In review · Dana reviews", "Approved, waiting for code". */
-export function branchStatus(b: Pick<BranchCard, 'stage' | 'updated' | 'reviewer'>, now: number): { stage: string; detail: string } {
+/**
+ * The status line of a card: "Draft · edited 2 h ago", "In review · Needs design approval", "Approved, waiting for
+ * code". In review, the words are the branch's status pill (the same as its row in Branches and its page header) once
+ * read; until then who reviews it.
+ */
+export function branchStatus(b: Pick<BranchCard, 'stage' | 'updated' | 'reviewer' | 'status'>, now: number): { stage: string; detail: string } {
   if (b.stage === 'draft') return { stage: 'Draft', detail: `edited ${ago(b.updated, now)}` };
   if (b.stage === 'waiting') return { stage: 'Approved', detail: 'waiting for code' };
+  if (b.status) return { stage: 'In review', detail: b.status };
   return { stage: 'In review', detail: b.reviewer ? `${b.reviewer.name} reviews` : 'waiting for a reviewer' };
 }
 
