@@ -6,7 +6,8 @@
 // checked with the server on every page.
 // scripts/github-session.ts uses it: getToken() gives the stand-in token (lib/contribute CONTRIB_TOKEN) to every
 // feature, and the session's fetch sends each call that carries it here (contributeFetch). No feature changes.
-import { CONTRIBUTE_API, CONTRIBUTE_HEADER, CONTRIBUTE_WORDS, contributeHashToken, parseMember, proxyUrl, type ContributeMember, type InvitePeek } from '../lib/contribute';
+import { GitHubError } from '@bridge-ds/core';
+import { CONTRIB_REFUSAL, CONTRIBUTE_API, CONTRIBUTE_HEADER, CONTRIBUTE_WORDS, contributeHashToken, parseMember, proxyUrl, type ContributeMember, type InvitePeek } from '../lib/contribute';
 
 /** The site cannot sign in with an email (no server piece, or not set up). */
 export class ContributeUnavailable extends Error {
@@ -195,5 +196,16 @@ export async function contributeFetch(repo: string, url: string, init: RequestIn
   if (!target) return fetchImpl(url, { ...init, headers });
   const res = await fetchImpl(target, { ...init, headers: { ...headers, [CONTRIBUTE_HEADER]: '1' }, credentials: 'same-origin' });
   if (res.status === 401) endedEmailSession(repo);
+  // Bridge's own refusals ({ error, message }: a file outside design files, the app missing a permission, the daily
+  // limit, an ended session) are said in the server's words, as they are: a GitHubError the core client keeps, so no
+  // GitHub wording replaces them.
+  // GitHub's own answers never carry `error` and pass through unchanged.
+  if (!res.ok && /json/i.test(res.headers.get('content-type') ?? '')) {
+    const body = (await res
+      .clone()
+      .json()
+      .catch(() => null)) as { error?: unknown; message?: unknown } | null;
+    if (body && typeof body.error === 'string' && typeof body.message === 'string' && body.message) throw new GitHubError(res.status, body.message, `${CONTRIB_REFUSAL}${body.error}`);
+  }
   return res;
 }

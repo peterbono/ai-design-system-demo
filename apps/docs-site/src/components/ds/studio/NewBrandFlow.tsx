@@ -38,7 +38,8 @@ import {
   saveDraft,
   withHue,
 } from '../../../lib/new-brand';
-import { ghAuthFailure, hasWorkingToken, isDirectWait, tokenRejected } from '../../../scripts/github-session';
+import { currentContributor, ghAuthFailure, hasWorkingToken, isDirectWait, tokenRejected } from '../../../scripts/github-session';
+import { CONTRIBUTE_WORDS } from '../../../lib/contribute';
 import { type ProposedBrand, proposeBrand } from '../../../scripts/new-brand';
 import { ghAction, SEE_SUGGESTION, sendButton, sendGoal, SUGGEST_NEXT, SUGGESTION_SENT, suggestionSentLine } from '../../../lib/gh-wording';
 import { parseJiraKey, VOCAB } from '../../../lib/vocabulary';
@@ -74,6 +75,8 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
   const [draft, setDraft] = useState<BrandDraft>(() => emptyDraft(defaultBrand, facts[defaultBrand]));
   const [restored, setRestored] = useState(false);
   const [connected, setConnected] = useState(false);
+  // An email contributor drafts but never creates a brand: it changes bridge.config.json (lib/contribute.ts).
+  const [contributor, setContributor] = useState(false);
   const [rejected, setRejected] = useState(false);
   const [slugOpen, setSlugOpen] = useState(false);
   const [pairsOpen, setPairsOpen] = useState(false);
@@ -96,6 +99,7 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
     setRestored(true);
     const sync = () => {
       setConnected(hasWorkingToken());
+      setContributor(Boolean(currentContributor()));
       setRejected(tokenRejected());
     };
     sync();
@@ -465,6 +469,10 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
           <Button key="continue" variant="primary" iconEnd={ArrowRight} disabled={!canContinue} onClick={() => go(draft.step + 1)}>
             Continue
           </Button>
+        ) : connected && contributor ? (
+          <Button key="propose" variant="primary" iconStart={suggest ? Send : GitBranch} disabled aria-describedby="nb-email-off">
+            {suggest ? sendButton('brand', mode) : VOCAB.createBranch}
+          </Button>
         ) : connected ? (
           <Button key="propose" variant="primary" iconStart={suggest ? Send : GitBranch} loading={busy} disabled={!ready} onClick={propose}>
             {suggest ? sendButton('brand', mode) : VOCAB.createBranch}
@@ -475,6 +483,11 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
           </Button>
         )}
         {draft.step === 3 && !ready && <span className="nb-actions-note">{plan.contrast.failing.length ? `${suggest ? 'Sending it' : 'Creating the branch'} needs every contrast pair to pass.` : `Fix the problems above to ${suggest ? 'send it' : 'create the branch'}.`}</span>}
+        {draft.step === 3 && connected && contributor && (
+          <span className="nb-actions-note" id="nb-email-off">
+            {CONTRIBUTE_WORDS.newBrandOff}
+          </span>
+        )}
         {draft.step === 3 && ready && !connected && <span className="nb-actions-note">The draft stays in this browser until you {suggest ? 'send it' : 'create the branch'}.</span>}
       </div>
     </section>

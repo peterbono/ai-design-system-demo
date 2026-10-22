@@ -3,6 +3,7 @@
 // the feature (scripts/github-session.ts getToken and studioClient). The network is mocked.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CONTRIB_TOKEN } from '../lib/contribute';
+import { errorText } from '../lib/token-session';
 import { contributeInfo, contributorFor, setContributeFetch, signOutEmail, verifyEmailSignIn } from './contribute-session';
 import { currentContributor, getToken, ghWrite, studioClient, studioFetch } from './github-session';
 
@@ -97,5 +98,16 @@ describe("Studio's GitHub calls for an email contributor", () => {
       .catch(() => null);
     expect(contributorFor('acme/ds')).toBeNull();
     expect(getToken()).toBeNull();
+  });
+
+  it("say Bridge's own refusal as is: a file outside design files", async () => {
+    signIn();
+    const message = 'Bridge only saves design files (tokens, docs, assets) for people who joined with their email. Ask a developer to change this file.';
+    answer = () => json(403, { error: 'not-allowed', message });
+    await expect(ghWrite('PUT', '/repos/acme/ds/contents/src/App.tsx', { message: 'x', content: '', branch: 'leo/x' })).rejects.toThrow(message);
+    const err = await studioClient('acme/ds')
+      .getRepo()
+      .catch((e: unknown) => e);
+    expect(errorText(err, 'fallback')).toBe(message);
   });
 });

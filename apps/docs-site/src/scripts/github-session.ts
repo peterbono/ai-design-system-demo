@@ -955,6 +955,8 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     });
     // Header account menu: login, avatar. An email contributor: their name and email, a drawn face, no GitHub words.
     const email = viewer?.email ? viewer : null;
+    // Pages hide what an email contributor cannot do (the New brand link: it changes bridge.config.json).
+    document.documentElement.toggleAttribute('data-email-contributor', Boolean(email));
     document.querySelectorAll<HTMLElement>('[data-gh-acct]').forEach((acct) => {
       const login = viewer ? `@${viewer.login}` : '';
       acct.toggleAttribute('data-contributor', Boolean(email));

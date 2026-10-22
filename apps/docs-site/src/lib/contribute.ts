@@ -19,6 +19,9 @@ export const isContribAuth = (value: string | null | undefined): boolean => Bool
 export const GITHUB_API = 'https://api.github.com';
 export const CONTRIBUTE_API = '/api/contribute';
 
+/** The detail of an error Bridge's proxy answered itself (not GitHub): its message is shown as is. */
+export const CONTRIB_REFUSAL = 'bridge-contribute:';
+
 /** The header every proxied call carries, so the server tells it from a page's own call. */
 export const CONTRIBUTE_HEADER = 'X-Bridge-Contribute';
 
@@ -120,6 +123,7 @@ export const CONTRIBUTE_WORDS = {
   signOut: 'Sign out',
   // Members.
   emailTag: 'Email',
+  newBrandOff: 'A new brand changes the team settings, so a developer or an admin creates it. You can still draft it here.',
   emailRoleNote: 'Reviewers and admins approve changes on GitHub. Invite them with the email of their GitHub account.',
 } as const;
 

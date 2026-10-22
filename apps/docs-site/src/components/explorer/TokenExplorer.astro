@@ -114,7 +114,7 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
                     <span aria-hidden="true">Brand</span>
                     <SegmentedControl label="Brand" data-vanilla data-xp-brand size="sm" fullWidth defaultValue={modes.brands[0]} items={modes.brands.map((b) => ({ value: b, label: modeName(b) }))} />
                   </div>
-                  <div class="xp-opt-newbrand">
+                  <div class="xp-opt-newbrand" data-new-brand-link>
                     <ButtonLink variant="ghost" size="sm" iconStart={Plus} href={studioHref('brands/new/')} title="Draft a brand in this browser. Proposing it needs GitHub." data-demo-write="create a brand">New brand</ButtonLink>
                   </div>
                   <div class="xp-menu-field" data-xp-mode-field="density" hidden>

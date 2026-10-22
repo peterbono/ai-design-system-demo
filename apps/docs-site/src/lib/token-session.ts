@@ -1,6 +1,7 @@
 // Studio GitHub session state, pure (no DOM, no storage): what the sidebar account block shows, when the token
 // must be checked again, and what a write action says when GitHub refuses the token. The browser glue lives in
 // scripts/github-session.ts.
+import { CONTRIB_REFUSAL } from './contribute';
 import { GitHubError, missingPermissionMessage, permissionLabel, TOKEN_SETTINGS_URL, type RepoAccessState } from '@bridge-ds/core';
 
 /** none: no token. checking: first check running. connected: GitHub accepts it. rejected: GitHub refused it (401). */
@@ -113,6 +114,8 @@ export interface AuthFailure {
  */
 export function authFailure(err: unknown, action?: string, mode: SessionMode = 'token', signIn = false): AuthFailure | null {
   if (!(err instanceof GitHubError)) return null;
+  // Bridge's proxy refused an email contributor's call (lib/contribute.ts): its own sentence, as is.
+  if (typeof err.detail === 'string' && err.detail.startsWith(CONTRIB_REFUSAL)) return { kind: 'missing-permission', text: err.message };
   if (err.auth === 'rejected') return { kind: 'rejected', text: rejectedText(mode, signIn) };
   if (err.auth === 'missing-permission') {
     return mode === 'app'

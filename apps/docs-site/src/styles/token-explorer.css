@@ -3746,3 +3746,8 @@ body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-grid {
   margin: var(--space-2) 0 0;
   padding-left: var(--space-5);
 }
+
+/* An email contributor never creates a brand (it changes bridge.config.json): no New brand link for them. */
+:root[data-email-contributor] [data-new-brand-link] {
+  display: none;
+}
