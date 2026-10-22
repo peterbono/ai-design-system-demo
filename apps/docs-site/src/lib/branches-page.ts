@@ -33,6 +33,8 @@ export interface WhoFacts {
   author: string;
   /** The status read says the next step is the viewer's (scripts/pr-status rowWho yourTurn). */
   yourTurn: boolean;
+  /** The viewer made it, when the page knows it otherwise than by the author (an email contributor's own, ownedBy). */
+  mine?: boolean;
 }
 
 const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && a.replace(/^@/, '').toLowerCase() === b.replace(/^@/, '').toLowerCase());
@@ -41,8 +43,25 @@ const same = (a: string | null | undefined, b: string | null | undefined) => Boo
 export function showsForWho(filter: WhoFilter, row: WhoFacts, viewer: string | null): boolean {
   if (filter === 'all') return true;
   if (!viewer) return false;
-  return filter === 'mine' ? same(row.author, viewer) : row.yourTurn;
+  return filter === 'mine' ? (row.mine ?? same(row.author, viewer)) : row.yourTurn;
 }
+
+/**
+ * What an email contributor made: GitHub names Bridge's app as the author, so their own branches are the ones the
+ * server lists as theirs (contribute-session contributeMine: branch names and pull request numbers), or the ones
+ * already written as theirs (author = their email).
+ */
+export function ownedBy(row: { author: string; number: number; headRef?: string | null }, viewer: string | null, mine: { branches: string[]; issues: number[] } | null): boolean {
+  if (same(row.author, viewer)) return true;
+  if (!mine) return false;
+  return mine.issues.includes(row.number) || Boolean(row.headRef && mine.branches.includes(row.headRef));
+}
+
+/**
+ * Waiting on me for an email contributor: they approve nothing, so only their own branches a reviewer sent back with
+ * changes to make wait on them.
+ */
+export const contributorTurn = (row: { own: boolean; changesRequested?: string[] | null; open: boolean }): boolean => row.own && row.open && Boolean(row.changesRequested?.length);
 
 /** The quiet line when the filter leaves nothing. */
 export function emptyWhoLine(filter: WhoFilter, signedIn: boolean): string {

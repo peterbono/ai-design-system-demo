@@ -59,6 +59,8 @@ export interface ListRow {
   pill: { label: string; tone: PillTone | 'info' } | null;
   lifecycle: Lifecycle | 'exploration';
   yourTurn: boolean;
+  /** The viewer made it, when the author does not say so (an email contributor's own: lib/branches-page ownedBy). */
+  mine?: boolean;
   behindBy: number | null;
   /** What the status read says about the changed files (anonymous fallback for the checkbox). */
   signals: FileSignals | null;
@@ -162,7 +164,7 @@ export function BranchesList(p: BranchesListProps) {
   const all = useMemo(() => [...p.rows, ...(finished.finished ? (p.closed ?? []) : [])], [p.rows, p.closed, finished.finished]);
   const extras = useExtras(all, p.connected ? 'all' : p.seat ? 'seat' : 'none');
 
-  const shown = all.filter((r) => showsForWho(who, { author: r.author, yourTurn: r.yourTurn }, viewer) && (!finished.only || r.lifecycle === finished.only));
+  const shown = all.filter((r) => showsForWho(who, { author: r.author, yourTurn: r.yourTurn, mine: r.mine }, viewer) && (!finished.only || r.lifecycle === finished.only));
   const rows = shown.map((r) => {
     const e = extras.get(r.number);
     return { r, e, product: productOf(e?.files ?? null, p.products, r.labels), tokenOnly: tokenOnly(r, e, p.tokensRoot) };
