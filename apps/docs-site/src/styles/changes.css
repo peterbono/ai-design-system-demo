@@ -887,6 +887,13 @@ details[open] > summary .cg-sec-chev {
   min-height: var(--size-6);
 }
 
+/* The checkbox column on rows without a checkbox, in a group where some rows have one: the same width, so the
+   thumbnails and avatars line up. */
+.bl-pick-slot {
+  flex: none;
+  min-width: var(--size-6);
+}
+
 /* Update from main: a link at the end of the row, a 24px target like every control. */
 .bl-update {
   display: inline-flex;
@@ -1000,11 +1007,11 @@ body:has(.cg-bar) {
   }
 
   /* A row with a checkbox: the text starts after the box and the thumbnail, like a row without one. */
-  .sh-row-body:has(> .bl-pick) > .sh-row-text {
+  .sh-row-body:has(> :is(.bl-pick, .bl-pick-slot)) > .sh-row-text {
     flex-basis: calc(100% - var(--size-16) - var(--size-6) - var(--space-3) * 2);
   }
 
-  .sh-row-body:has(> .bl-pick) > .bl-behind {
+  .sh-row-body:has(> :is(.bl-pick, .bl-pick-slot)) > .bl-behind {
     margin-inline-start: calc(var(--size-16) + var(--size-6) + var(--space-3) * 2);
   }
 

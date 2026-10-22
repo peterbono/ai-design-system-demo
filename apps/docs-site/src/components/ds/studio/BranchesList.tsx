@@ -168,11 +168,13 @@ export function BranchesList(p: BranchesListProps) {
     return { r, e, product: productOf(e?.files ?? null, p.products, r.labels), tokenOnly: tokenOnly(r, e, p.tokensRoot) };
   });
   const waitingView = who === 'waiting' && !finished.only && Boolean(viewer);
+  // Token branches carry a checkbox to preview them together, except in the demo lead's read-only Waiting on me.
+  const picks = !(waitingView && p.seat);
   // Library branches a listed product branch needs follow it, one step in (lib/product-branch nestLinked).
   const groups = nestLinked(groupByProduct(rows, p.products));
 
   // Checked branches stay only while they are listed and still checkable.
-  const checkable = rows.filter((x) => selectable(x));
+  const checkable = rows.filter((x) => picks && selectable(x));
   const listedKey = checkable.map((x) => `${x.r.number}@${x.r.head.sha}\u0000${x.r.title}`).join('\u0001');
   const listed = useMemo(
     () =>
@@ -229,7 +231,12 @@ export function BranchesList(p: BranchesListProps) {
   const whoNode = (r: ListRow, e: Extra | undefined) => <Who p={personOf(r, e)} size="md" />;
   const nameOf = (r: ListRow, e: Extra | undefined) => personOf(r, e).name;
 
-  const branchRow = ({ r, e, tokenOnly: tok, child }: (typeof rows)[number] & { child: boolean }, line?: string) => {
+  // The checkbox (preview token branches together) leads a row; every row of a group that has one keeps its slot, so
+  // thumbnails and avatars stay in one column.
+  const pickable = (x: { tokenOnly: boolean | null }) => picks && selectable(x);
+  const slot = <span className="bl-pick-slot" aria-hidden="true" />;
+  const branchRow = ({ r, e, tokenOnly, child }: (typeof rows)[number] & { child: boolean }, line?: string, reserve = false) => {
+    const tok = picks && tokenOnly;
                 const href = r.opens === 'pr' ? `?pr=${r.number}` : `?exploration=${r.number}`;
                 const checked = selected.includes(r.number);
                 const full = boxDisabled(selected, r.number);
@@ -248,7 +255,7 @@ export function BranchesList(p: BranchesListProps) {
                     key={r.number}
                     className={`bl-row${tok ? ' is-pickable' : ''}${child ? ' is-linked' : ''}`}
                     selected={checked}
-                    lead={tok ? (full ? <Tooltip content={FULL_TIP}>{box}</Tooltip> : box) : undefined}
+                    lead={tok ? (full ? <Tooltip content={FULL_TIP}>{box}</Tooltip> : box) : reserve ? slot : undefined}
                     thumb={e?.thumb ?? { kind: 'icon', icon: r.guidance ? 'guidance' : 'branch' }}
                     who={whoNode(r, e)}
                     title={r.title}
@@ -307,7 +314,7 @@ export function BranchesList(p: BranchesListProps) {
     </Badge>
   );
 
-  const extraRow = ({ w, productName }: (typeof queueExtras)[number]) => {
+  const extraRow = ({ w, productName }: (typeof queueExtras)[number], reserve = false) => {
     const pp = w.need.person ?? CLAUDE;
     const s = w.suggestion;
     const line = s ? `${productName ? `${productName} · ` : ''}${pp.name} · Suggestion` : w.need.line;
@@ -321,6 +328,7 @@ export function BranchesList(p: BranchesListProps) {
         href={w.need.href}
         linkAttributes={s ? { 'data-open-suggestion': s } : undefined}
         pill={w.need.pill}
+        lead={reserve ? slot : undefined}
       />
     );
   };
@@ -350,7 +358,10 @@ export function BranchesList(p: BranchesListProps) {
             </div>
             {g.rows.length ? (
               <ul className="sh-rows" aria-labelledby={`bl-${g.key}`}>
-                {g.rows.map((q) => (q.kind === 'extra' ? extraRow(q) : branchRow({ ...q.x, child: false }, q.productName ? `${q.productName} · ${q.designer.name}` : undefined)))}
+                {g.rows.map((q) => {
+                  const reserve = g.rows.some((o) => o.kind === 'branch' && pickable(o.x));
+                  return q.kind === 'extra' ? extraRow(q, reserve) : branchRow({ ...q.x, child: false }, q.productName ? `${q.productName} · ${q.designer.name}` : undefined, reserve);
+                })}
               </ul>
             ) : (
               <p className="t-ui t-muted bl-none">Nothing of this kind waits on you.</p>
@@ -418,7 +429,7 @@ export function BranchesList(p: BranchesListProps) {
               {g.label} <span className="bl-count">{g.count}</span>
             </h2>
             <ul className="sh-rows" aria-labelledby={`bl-${g.key}`}>
-              {g.rows.map((x) => branchRow(x))}
+              {g.rows.map((x) => branchRow(x, undefined, g.rows.some(pickable)))}
             </ul>
           </section>
         ))
