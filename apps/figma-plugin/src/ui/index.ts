@@ -1596,6 +1596,7 @@ function viewPull(): View {
           meta: r ? (r.layout === 'single-collection' ? 'Themes are modes of the Semantic collection.' : 'This file allows one mode per collection, so each theme has its own Semantic collection.') : undefined,
           art: problems.length ? 'fix' : 'tokens',
         }),
+        cr?.interactionsNote ? h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Interactions not added'), h('p', null, cr.interactionsNote)) : null,
         cr?.fontNote ? h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Font replaced'), h('p', null, cr.fontNote)) : null,
         p.done.size ? reviewGroup(p, [...p.done.values()], 'Updated components') : null,
         problems.length

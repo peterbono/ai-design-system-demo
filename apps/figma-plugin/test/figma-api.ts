@@ -410,7 +410,11 @@ export class SimNode {
   // Prototype reactions. With documentAccess dynamic-page, `reactions` is read only: setReactionsAsync writes them.
   private _reactions: Dict[] = [];
   get reactions(): Dict[] {
-    return structuredClone(this._reactions);
+    // As Figma reads them: mouse enter and leave triggers carry deprecatedVersion, which setReactionsAsync refuses.
+    return structuredClone(this._reactions).map((r) => {
+      const t = r.trigger as Dict | null;
+      return t && (t.type === 'MOUSE_ENTER' || t.type === 'MOUSE_LEAVE') ? { ...r, trigger: { ...t, deprecatedVersion: false } } : r;
+    });
   }
   set reactions(_v: unknown) {
     throw new Error('reactions is read only with documentAccess dynamic-page: use setReactionsAsync');
@@ -421,7 +425,12 @@ export class SimNode {
       const trigger = r.trigger as Dict | null;
       const type = trigger?.type as string;
       if (!['ON_CLICK', 'ON_HOVER', 'ON_PRESS', 'ON_DRAG', 'MOUSE_ENTER', 'MOUSE_LEAVE', 'MOUSE_UP', 'MOUSE_DOWN', 'AFTER_TIMEOUT'].includes(type)) throw new Error(`Invalid trigger ${String(type)}`);
-      if ((type === 'MOUSE_ENTER' || type === 'MOUSE_LEAVE') && (typeof trigger!.delay !== 'number' || typeof trigger!.deprecatedVersion !== 'boolean')) throw new Error(`${type} needs delay and deprecatedVersion`);
+      if (['MOUSE_ENTER', 'MOUSE_LEAVE', 'MOUSE_UP', 'MOUSE_DOWN'].includes(type) && typeof trigger!.delay !== 'number') throw new Error(`${type} needs delay`);
+      // As Figma: any key outside the documented shape fails the whole call (deprecatedVersion included).
+      const allowed = ['type', ...(['MOUSE_ENTER', 'MOUSE_LEAVE', 'MOUSE_UP', 'MOUSE_DOWN'].includes(type) ? ['delay'] : type === 'AFTER_TIMEOUT' ? ['timeout'] : [])];
+      const stray = Object.keys(trigger!).find((k) => !allowed.includes(k));
+      if (stray) throw new Error(`in setReactionsAsync: Property "reactions" failed validation: Unrecognized key: "${stray}" at [${reactions.indexOf(r)}].trigger`);
+      if (this.api.rejectReactions?.(this)) throw new Error('in setReactionsAsync: Property "reactions" failed validation');
       const actions = (r.actions ?? (r.action ? [r.action] : [])) as Dict[];
       for (const a of actions) {
         if (a.type !== 'NODE') continue;
@@ -465,6 +474,8 @@ export class SimFigma {
   notices: string[] = [];
   /** setReactionsAsync calls, to check a second pull writes nothing. */
   reactionWrites = 0;
+  /** When set and true for a node, setReactionsAsync fails there, as Figma does on a reaction it cannot validate. */
+  rejectReactions: ((node: SimNode) => boolean) | undefined = undefined;
 
   constructor(opts: { fonts?: { family: string; style: string }[] } = {}) {
     this.fonts = opts.fonts ?? ['Regular', 'Medium', 'Semi Bold', 'Bold'].flatMap((style) => [{ family: 'Inter', style }, { family: 'Instrument Sans', style }, { family: 'Fraunces', style }, { family: 'IBM Plex Mono', style }]);
