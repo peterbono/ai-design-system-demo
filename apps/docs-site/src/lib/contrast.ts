@@ -1,36 +1,21 @@
-// WCAG 2.2 contrast for the foreground/background pairs the token build gates on (bridge.config.json contrast.path),
-// for every brand x theme, so the pages show exactly what the build enforces. Computed once by the repo model
-// (lib/model.ts, @bridge-ds/core contrast-model); this module names the results for the pages.
-import { CONTRAST_THRESHOLDS, evaluateContrastPairs, hexContrastRatio, hexLuminance, tokensPath, type ContrastModeResult, type ContrastPairSpec } from '@bridge-ds/core';
+// WCAG 2.2 contrast of this build, for the pages: thin wrappers over the pure lib/library/contrast.ts with the
+// build-time repo model (lib/model.ts), so the pages show exactly what the token build enforces.
 import { repoModel } from './model';
-import type { Brand, Mode, Semantic } from './tokens';
+import * as lib from './library/contrast';
+import type { PairResult, PairSpec } from './library/contrast';
+
+export type { ModeResult, PairResult, PairSpec } from './library/contrast';
+export { luminance, ratio, THRESHOLDS } from './library/contrast';
 
 /** Repo-relative contrast checks file: bridge.config.json contrast.path, else contrast.checks.json in tokens.root. */
-export const CONTRAST_FILE = repoModel.contrast.path ?? tokensPath(repoModel.config, 'contrast.checks.json');
+export const CONTRAST_FILE = lib.contrastFile(repoModel);
 
-export type PairSpec = ContrastPairSpec;
-export type ModeResult = ContrastModeResult;
-
-export interface PairResult extends PairSpec {
-  fgToken: Semantic;
-  bgToken: Semantic;
-  /** Default brand, per theme. */
-  modes: Record<Mode, ModeResult>;
-  brands: Record<Brand, Record<Mode, ModeResult>>;
-}
-
-export const luminance = hexLuminance;
-export const ratio = hexContrastRatio;
-
-/** WCAG thresholds: body text 4.5:1 (AA) and 7:1 (AAA); UI parts and graphics 3:1 (AA, 1.4.11). */
-export const THRESHOLDS = CONTRAST_THRESHOLDS;
-
-export const pairSpecs = (): PairSpec[] => repoModel.contrast.specs;
+export const pairSpecs = (): PairSpec[] => lib.pairSpecs(repoModel);
 
 /** Resolve pair specs against the tokens in every brand and theme. */
-export const evaluatePairs = (specs: PairSpec[]): PairResult[] => evaluateContrastPairs(specs, repoModel.tokens.rows) as unknown as PairResult[];
+export const evaluatePairs = (specs: PairSpec[]): PairResult[] => lib.evaluatePairs(repoModel, specs);
 
-export const contrastPairs = (): PairResult[] => repoModel.contrast.pairs as unknown as PairResult[];
+export const contrastPairs = (): PairResult[] => lib.contrastPairs(repoModel);
 
 /**
  * Screenshot and review fixture, dev server only: `BRIDGE_CONTRAST_FIXTURE=fail npm run docs:dev` adds pairs that
