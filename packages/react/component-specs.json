@@ -24509,7 +24509,7 @@
           }
         ]
       },
-      "hash": "b31cc533",
+      "hash": "caff0a81",
       "source": [
         "packages/react/src/components/Popover/Popover.tsx",
         "packages/react/src/components/Button/Button.module.css",
@@ -24550,7 +24550,7 @@
           "id": "root",
           "name": "Popover/Popup",
           "kind": "frame",
-          "source": "Popover.module.css .popup",
+          "source": "Popover.module.css .popup, Popover.module.css .body",
           "layout": {
             "direction": "VERTICAL",
             "primary": "MIN",
@@ -24618,13 +24618,13 @@
             "root": {
               "fill": "popup.bg",
               "cornerRadius": "popup.radius",
+              "strokeWeight": "border-width.default",
+              "stroke": "popup.border",
               "paddingTop": "space.4",
               "paddingRight": "space.4",
               "paddingBottom": "space.4",
               "paddingLeft": "space.4",
-              "itemSpacing": "space.2",
-              "strokeWeight": "border-width.default",
-              "stroke": "popup.border"
+              "itemSpacing": "space.2"
             },
             "title": {
               "itemSpacing": "space.3"
