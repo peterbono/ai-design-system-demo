@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { ABOUT, allPages, COMPARE, DEMO, DOCS_FIGMA_PLUGIN, DOCS_HOME, HOW_REVIEW_WORKS, LANDING, LIBRARY_HOME, locate, navFor, SETTINGS_HOME, SETTINGS_SECTIONS, spaceOf } from './nav';
+import { DEMO_REPOS } from './demo';
 import { REDIRECT_SCRIPT_BODY, REDIRECTS, redirectScript, redirectTarget } from './redirects';
 import { ROOT } from './repo';
 
@@ -78,8 +79,9 @@ describe('routing: the landing at /, the Library home at /library/', () => {
     const footer = readFileSync(join(ROOT, 'apps/docs-site/src/components/site/SiteFooter.astro'), 'utf8');
     for (const name of ['ABOUT', 'DOCS_HOME', 'DOCS_FIGMA_PLUGIN', 'STUDIO_HOME']) expect(header).toContain(name);
     for (const name of ['ABOUT', 'COMPARE', 'DOCS_HOME', 'DOCS_FIGMA_PLUGIN', 'STUDIO_HOME']) expect(footer).toContain(name);
-    // The read-only demo has no route of its own yet: Studio reads the public repo without sign-in.
-    expect(pageFile(DEMO)).not.toBeNull();
+    // The demo is the hosted Studio of the dedicated demo repo, served by the team shell rewrite.
+    expect(DEMO).toBe(`/studio/${DEMO_REPOS[1]}/`);
+    expect(pageFile('/team-shell/')).not.toBeNull();
   });
 
   it('moves only the Library home: its entry, breadcrumbs and deep links stay', () => {

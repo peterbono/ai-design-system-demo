@@ -57,8 +57,8 @@ export const ABOUT = '/about/';
 export const DOCS_HOME = '/docs/';
 export const DOCS_FIGMA_PLUGIN = '/docs/figma-plugin/';
 export const STUDIO_HOME = '/studio/';
-/** TODO: move to /demo/ once it exists. The read-only demo the landing points to; Studio already reads the public repo without sign-in. */
-export const DEMO = STUDIO_HOME;
+/** The read-only demo the landing points to: the hosted Studio of the dedicated demo repo (lib/demo DEMO_REPOS). */
+export const DEMO = '/studio/peterbono/bridge-demo-ds/';
 export const SETTINGS_HOME = '/studio/settings/';
 
 export const FOUNDATIONS: NavItem[] = [
