@@ -48,8 +48,10 @@ export default function RolePicker({ value, onChange, label, personal = false, d
       <PopoverTrigger
         render={<Button variant={variant} size={size} className="rp-trigger" disabled={disabled} aria-label={`${label}: ${roleLabel(choice)}`} />}
       >
-        <span>{roleLabel(choice)}</span>
-        <Icon icon={ChevronDown} size="sm" />
+        <span className="rp-trigger-body">
+          <span>{roleLabel(choice)}</span>
+          <Icon icon={ChevronDown} size="sm" />
+        </span>
       </PopoverTrigger>
       <PopoverContent className="rp-pop" side="bottom" align="end" arrow={false} aria-label={label}>
         <RadioGroup label={label} hideLabel value={choice.role} onValueChange={pick} className="rp-roles">

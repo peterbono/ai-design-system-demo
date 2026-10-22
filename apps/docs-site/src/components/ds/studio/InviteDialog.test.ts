@@ -29,6 +29,7 @@ const api = vi.hoisted(() => {
     setMemberRole: vi.fn(async () => ({ ok: true })),
     removeMember: vi.fn(async () => ({ ok: true })),
     resendInvite: vi.fn(async () => ({})),
+    setInviteRole: vi.fn(async () => ({})),
     cancelInvite: vi.fn(async () => ({ ok: true })),
   };
 });
@@ -222,6 +223,17 @@ describe('Settings > Members', () => {
     render(createElement(MembersSection));
     await user.click(await screen.findByRole('button', { name: 'Resend' }));
     await waitFor(() => expect(api.resendInvite).toHaveBeenCalledWith('acme/ds', 'p1'));
+  });
+
+  it("changes a pending invite's role with the same picker, without sending again", async () => {
+    page.data = real();
+    const user = userEvent.setup();
+    render(createElement(MembersSection));
+    await user.click(await screen.findByRole('button', { name: 'Role for sofia@acme.design: Can view' }));
+    await user.click(await screen.findByRole('radio', { name: /Can edit/ }));
+    await waitFor(() => expect(api.setInviteRole).toHaveBeenCalledWith('acme/ds', 'p1', { role: 'edit' }));
+    expect(api.resendInvite).not.toHaveBeenCalled();
+    expect(await screen.findByText('sofia@acme.design will join as Can edit.')).toBeInTheDocument();
   });
 
   it('a reader sees roles as text, no invite button and no controls (board I4)', async () => {

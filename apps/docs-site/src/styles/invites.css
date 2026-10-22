@@ -136,6 +136,18 @@
   gap: var(--space-1);
 }
 
+/* One width for every role control, fit to the longest label ("Reviewer: design"): their left edges line up, and a
+   role shown as text (your own row, a reader's view) starts where the labels of the controls start. */
+.mem-role .rp-trigger {
+  width: calc(var(--size-40) + var(--space-4));
+}
+
+.mem-role > .mem-role-text {
+  box-sizing: border-box;
+  width: calc(var(--size-40) + var(--space-4));
+  padding-inline-start: calc(var(--control-padding-x-md) + var(--border-width-default));
+}
+
 /* Keeps the role column aligned on rows without a menu (the admin's own row). */
 .mem-more-space {
   width: var(--control-height-md);
@@ -176,6 +188,12 @@
 .inv-row > :first-child {
   flex: 1;
   min-width: 0;
+}
+
+/* The typing space after the chips stays small, so one or two chips keep the field on one line, as tall as the role
+   trigger beside it. Chips wrap only when they no longer fit. */
+.inv-emails input {
+  min-width: var(--size-12);
 }
 
 .inv-hint {
@@ -252,6 +270,22 @@
 .rp-trigger {
   flex: none;
   white-space: nowrap;
+}
+
+.rp-trigger-body {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* In the Members column the label starts at the control's start and the chevron sits at its end. */
+.mem-role .rp-trigger > * {
+  flex: 1;
+}
+
+.mem-role .rp-trigger-body {
+  justify-content: space-between;
+  width: 100%;
 }
 
 /* Wide enough for the two "They review as" cards side by side (the DS popover stops at a narrower size). */

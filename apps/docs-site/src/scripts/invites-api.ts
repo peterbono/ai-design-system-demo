@@ -92,6 +92,10 @@ export function sendInvites(repo: string, choice: { role: MemberRole; reviewAs?:
 
 export const resendInvite = (repo: string, id: string) => call<{ invite?: PendingInvite }>('POST', '', { action: 'resend', repo, id });
 
+/** The role a pending invite will get: same link, no new email. */
+export const setInviteRole = (repo: string, id: string, choice: { role: MemberRole; reviewAs?: ReviewAs }) =>
+  call<{ invite?: PendingInvite }>('POST', '', { action: 'invite-role', repo, id, role: choice.role, ...(choice.reviewAs ? { reviewAs: choice.reviewAs } : {}) });
+
 export const cancelInvite = (repo: string, id: string) => call<{ ok: boolean }>('POST', '', { action: 'cancel', repo, id });
 
 export interface OwnersPr {

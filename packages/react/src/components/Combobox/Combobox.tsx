@@ -202,7 +202,7 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxProps>(function Com
               <BaseCombobox.Chips className={styles.chips} aria-label={selected.length > 0 ? 'Selected options' : undefined}>
                 {selected.map((o) => (
                   <BaseCombobox.Chip key={o.value} className={styles.chip} aria-label={o.label}>
-                    <span className={styles.chipText}>{o.label}</span>
+                    <span className={styles.chipText} title={o.label}>{o.label}</span>
                     <BaseCombobox.ChipRemove className={styles.chipRemove} aria-label={`Remove ${o.label}`}>
                       <Icon icon={X} size="xs" />
                     </BaseCombobox.ChipRemove>

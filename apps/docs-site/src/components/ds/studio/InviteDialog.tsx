@@ -17,6 +17,7 @@ import {
   adminCount,
   choiceOf,
   DEFAULT_CHOICE,
+  inviteChoice,
   inviteOptions,
   MAX_INVITES,
   memberActions as allowed,
@@ -60,7 +61,7 @@ function AccessList({ data, update, onNotice }: { data: MembersData; update: (fn
           const can = allowed(m, { canManage: data.canManage, admins });
           return (
             <li key={m.login} className="inv-access-row">
-              <PersonCell name={m.name} line={memberLine(m)} you={m.you} avatar={m.avatar} />
+              <PersonCell name={m.name} seed={m.login} line={memberLine(m)} you={m.you} avatar={m.avatar} />
               {can.changeRole ? (
                 <RolePicker label={`Role for ${m.name}`} value={choiceOf(m)} personal={data.personal} variant="ghost" onChange={(c) => void run(() => act.changeRole(m, c))} />
               ) : (
@@ -71,13 +72,17 @@ function AccessList({ data, update, onNotice }: { data: MembersData; update: (fn
         })}
         {data.pending.map((p) => (
           <li key={p.id} className="inv-access-row">
-            <PersonCell name={p.email} line={pendingLine(p.sentAt, now)} pending />
+            <PersonCell name={p.email} seed={p.face ?? p.email} line={pendingLine(p.sentAt, now)} pending />
             {data.canManage && (
               <Button variant="link" size="sm" data-demo-write={data.context === 'sample' ? 'send invites' : undefined} onClick={() => void run(() => act.resend(p))}>
                 {MEMBERS_WORDS.resend}
               </Button>
             )}
-            <span className="mem-role-text">{roleLabel({ role: p.role, ...(p.reviewAs ? { reviewAs: p.reviewAs } : {}) })}</span>
+            {data.canManage ? (
+              <RolePicker label={`Role for ${p.email}`} value={inviteChoice(p)} personal={data.personal} variant="ghost" onChange={(c) => void run(() => act.changeInviteRole(p, c))} />
+            ) : (
+              <span className="mem-role-text">{roleLabel(inviteChoice(p))}</span>
+            )}
           </li>
         ))}
       </ul>

@@ -1,6 +1,8 @@
 // The two small blocks Settings > Members and the Invite collaborators dialog share (similarity: the same person reads
 // the same way in both): a person with their muted line, and the calm status line after an action.
-import { Avatar, Link } from '@bridge-ds/react';
+import type { ReactNode } from 'react';
+import { Link } from '@bridge-ds/react';
+import { Who } from './faces';
 import type { Notice } from './members-state';
 
 /** The calm line after an action (role=status), with the settings change to approve when there is one. */
@@ -20,11 +22,15 @@ export function NoticeLine({ notice }: { notice: Notice | null }) {
   );
 }
 
-/** A person: avatar, name (and "(you)"), one muted line. The same block in the table and in the dialog. */
-export function PersonCell({ name, line, you, avatar, pending, size = 'sm' }: { name: string; line: string; you?: boolean; avatar?: string; pending?: boolean; size?: 'xs' | 'sm' }) {
+/**
+ * A person: avatar, name (and "(you)"), one muted line. The same block in the table and in the dialog. The avatar is
+ * the home's (faces.tsx Who): the GitHub photo when there is one, else the drawn face seeded by `seed`, so a person
+ * looks the same on every Studio page. Not joined yet: a dashed ring, and the words say it too.
+ */
+export function PersonCell({ name, seed, line, you, avatar, pending, size = 'sm' }: { name: string; seed: string; line: ReactNode; you?: boolean; avatar?: string; pending?: boolean; size?: 'xs' | 'sm' }) {
   return (
     <span className="mem-person">
-      <Avatar name={name} src={avatar} size={size} decorative className={pending ? 'mem-avatar-pending' : undefined} />
+      <Who p={{ login: seed, name, avatar: avatar ?? null }} size={size} className={pending ? 'mem-avatar-pending' : undefined} />
       <span className="mem-person-text">
         <span className="mem-name">
           {name}

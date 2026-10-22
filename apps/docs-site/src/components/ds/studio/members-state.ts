@@ -100,6 +100,19 @@ export function memberActions(data: MembersData, update: (fn: (d: MembersData) =
     }
   }
 
+  async function changeInviteRole(p: PendingInvite, next: RoleChoice): Promise<Notice | null> {
+    if (sample) return void (await demoGate()), null;
+    const c = normalizeChoice(next);
+    try {
+      const r = await (await api()).setInviteRole(data.repo, p.id, c);
+      const inv = r.invite ?? { ...p, role: c.role, ...(c.reviewAs ? { reviewAs: c.reviewAs } : {}) };
+      update((d) => ({ ...d, pending: d.pending.map((x) => (x.id === p.id ? { ...inv, ...(p.face ? { face: p.face } : {}) } : x)) }));
+      return { tone: 'success', text: `${p.email} will join as ${roleLabel(c)}.` };
+    } catch (err) {
+      return failure(err, unavailable);
+    }
+  }
+
   async function cancel(p: PendingInvite): Promise<Notice | null> {
     if (sample) return void (await demoGate()), null;
     try {
@@ -132,5 +145,5 @@ export function memberActions(data: MembersData, update: (fn: (d: MembersData) =
     }
   }
 
-  return { changeRole, remove, resend, cancel, send };
+  return { changeRole, remove, resend, changeInviteRole, cancel, send };
 }

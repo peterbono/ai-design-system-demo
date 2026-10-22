@@ -9,12 +9,12 @@
 // Mounted by both Settings pages (pages/studio/settings, pages/team-shell/settings), and it mounts the dialog.
 import { useState } from 'react';
 import { Link2Off, MoreHorizontal, UserPlus } from 'lucide-react';
-import { Alert, Avatar, Button, ButtonGroup, EmptyState, IconButton, Menu, MenuContent, MenuItem, MenuTrigger, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
+import { Alert, Button, ButtonGroup, EmptyState, IconButton, Menu, MenuContent, MenuItem, MenuTrigger, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
 import RolePicker from './RolePicker';
 import { NoticeLine, PersonCell } from './MemberParts';
 import InviteDialog from './InviteDialog';
 import { memberActions, useMembers, type Notice } from './members-state';
-import { adminCount, choiceOf, memberActions as allowed, MEMBERS_WORDS, memberLine, pendingLine, roleText, roleLabel, SAMPLE_NOW, sortMembers, type Member, type PendingInvite } from '../../../lib/invites';
+import { adminCount, choiceOf, inviteChoice, memberActions as allowed, MEMBERS_WORDS, memberLine, pendingLine, roleText, roleLabel, SAMPLE_NOW, sortMembers, type Member, type PendingInvite } from '../../../lib/invites';
 import type { MembersData } from '../../../scripts/members';
 import '../../../styles/invites.css';
 
@@ -36,7 +36,7 @@ function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: Member
     <>
       <TableRow>
         <TableCell label="">
-          <PersonCell name={m.name} line={memberLine(m)} you={m.you} avatar={m.avatar} />
+          <PersonCell name={m.name} seed={m.login} line={memberLine(m)} you={m.you} avatar={m.avatar} />
         </TableCell>
         <TableCell className="mem-role-cell" label="">
           <span className="mem-role">
@@ -96,11 +96,12 @@ function PendingRow({ p, data, act, onNotice }: { p: PendingInvite; data: Member
   return (
     <TableRow>
       <TableCell label="">
-        <span className="mem-person">
-          <Avatar name={p.email} size="sm" decorative className="mem-avatar-pending" />
-          <span className="mem-person-text">
-            <span className="mem-name">{p.email}</span>
-            <span className="mem-line">
+        <PersonCell
+          name={p.email}
+          seed={p.face ?? p.email}
+          pending
+          line={
+            <>
               {pendingLine(p.sentAt, now(data))}
               {data.canManage && (
                 <>
@@ -110,13 +111,17 @@ function PendingRow({ p, data, act, onNotice }: { p: PendingInvite; data: Member
                   </Button>
                 </>
               )}
-            </span>
-          </span>
-        </span>
+            </>
+          }
+        />
       </TableCell>
       <TableCell className="mem-role-cell" label="">
         <span className="mem-role">
-          <span className="mem-role-text">{roleLabel({ role: p.role, ...(p.reviewAs ? { reviewAs: p.reviewAs } : {}) })}</span>
+          {data.canManage ? (
+            <RolePicker label={`Role for ${p.email}`} value={inviteChoice(p)} personal={data.personal} onChange={(c) => void run(() => act.changeInviteRole(p, c))} />
+          ) : (
+            <span className="mem-role-text">{roleLabel(inviteChoice(p))}</span>
+          )}
           {data.canManage && (
             <Menu>
               <MenuTrigger render={<IconButton icon={MoreHorizontal} label={`More for ${p.email}`} variant="ghost" />} />

@@ -79,6 +79,9 @@ export const sameChoice = (a: RoleChoice, b: RoleChoice) => {
   return x.role === y.role && x.reviewAs === y.reviewAs;
 };
 
+/** The role a pending invite will get. */
+export const inviteChoice = (p: Pick<PendingInvite, 'role' | 'reviewAs'>): RoleChoice => normalizeChoice({ role: p.role, ...(p.reviewAs ? { reviewAs: p.reviewAs } : {}) });
+
 /** The default role of a new invite: Can edit (board I1). */
 export const DEFAULT_CHOICE: RoleChoice = { role: 'edit' };
 
@@ -162,6 +165,8 @@ export interface PendingInvite {
   reviewAs?: ReviewAs;
   /** ISO time it was sent last. */
   sentAt: string;
+  /** Seed of the drawn face, when the person is known (the sample team's Sofia); else the email seeds it. */
+  face?: string;
 }
 
 /** Someone the email field suggests: in the team or its organization, known to Bridge. */
@@ -329,17 +334,19 @@ export const MEMBERS_WORDS = {
 /**
  * Acme Design's people (boards I3, I4): the visitor sits in Dana's seat (the demo persona, bridge.config.json "demo"),
  * Ann reviews design, Leo edits, Malik reviews code and Sofia has not joined yet. Fixed sample data, never read from
- * GitHub, so a guest's Members page and invite dialog make no GitHub call.
+ * GitHub, so a guest's Members page and invite dialog make no GitHub call. Their logins are the ones the demo home
+ * gives them ("Requested by Ann Leroy." becomes ~ann-leroy, lib/home-model requesterPerson), so each drawn face is
+ * the same person on the home, in Members and in the dialog.
  */
 export function sampleTeam(lead = 'Dana'): { members: Member[]; pending: PendingInvite[]; people: KnownPerson[] } {
   const members: Member[] = [
-    { login: 'dana', name: lead, role: 'admin', reviews: ['design'], you: true, email: 'dana@acme.design' },
-    { login: 'ann', name: 'Ann', role: 'reviewer', reviews: ['design'], email: 'ann@acme.design' },
-    { login: 'leo', name: 'Leo', role: 'edit', reviews: [], email: 'leo@acme.design' },
-    { login: 'malik', name: 'Malik', role: 'reviewer', reviews: ['tech'], email: 'malik@acme.design' },
+    { login: '~dana', name: lead, role: 'admin', reviews: ['design'], you: true, email: 'dana@acme.design' },
+    { login: '~ann-leroy', name: 'Ann', role: 'reviewer', reviews: ['design'], email: 'ann@acme.design' },
+    { login: '~leo-martin', name: 'Leo', role: 'edit', reviews: [], email: 'leo@acme.design' },
+    { login: '~malik-haddad', name: 'Malik', role: 'reviewer', reviews: ['tech'], email: 'malik@acme.design' },
   ];
   const twoDaysAgo = new Date(Date.UTC(2026, 9, 20, 9)).toISOString();
-  const pending: PendingInvite[] = [{ id: 'sample-sofia', email: 'sofia@acme.design', role: 'view', sentAt: twoDaysAgo }];
+  const pending: PendingInvite[] = [{ id: 'sample-sofia', email: 'sofia@acme.design', role: 'view', sentAt: twoDaysAgo, face: '~sofia-reyes' }];
   // The organization's people the field suggests: the team itself (disabled, already in) and two who are not in it yet.
   const people: KnownPerson[] = [
     ...members.filter((m) => !m.you).map((m) => ({ name: m.name, email: m.email!, login: m.login })),
