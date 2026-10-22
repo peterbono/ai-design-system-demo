@@ -327,7 +327,38 @@ export const MEMBERS_WORDS = {
   cancelInvite: 'Cancel invite',
   removeConfirm: (name: string, team: string) => `Remove ${name} from ${team}? They lose access on GitHub too.`,
   reviewerNote: 'Reviewers start once the settings change is approved.',
+  limitReached: "You reached today's invite limit. Try again tomorrow.",
 } as const;
+
+/** Where a person adds and verifies the emails of their GitHub account. */
+export const GITHUB_EMAILS_URL = 'https://github.com/settings/emails';
+
+export type AcceptEmailCode = 'email_mismatch' | 'email_unverified' | 'email_access';
+
+/**
+ * The invite page when the signed-in GitHub account is not the invited one (api/invites accept): what happened, with
+ * the address the invite was sent to (masked by the server, "m•••@acme.design"), and how to fix it.
+ */
+export function acceptEmailWords(code: AcceptEmailCode, sentTo: string, login: string): { title: string; sub: string; action: string } {
+  const to = sentTo || 'another email';
+  if (code === 'email_unverified')
+    return {
+      title: 'Verify your email on GitHub first',
+      sub: `This invitation was sent to ${to}. That email is on your GitHub account but not verified yet. Verify it on GitHub, then try again.`,
+      action: 'Verify on GitHub',
+    };
+  if (code === 'email_access')
+    return {
+      title: 'Sign in again to join',
+      sub: 'Bridge needs to see the emails on your GitHub account to check this invitation is yours. Sign in with GitHub again and allow it.',
+      action: 'Sign in with GitHub',
+    };
+  return {
+    title: 'This invitation is for another email',
+    sub: `It was sent to ${to}, which is not an email of your GitHub account${login ? ` @${login}` : ''}. Add and verify that email on GitHub, then try again. Or ask your admin to invite the email you use on GitHub.`,
+    action: 'Add the email on GitHub',
+  };
+}
 
 // --- The sample team ------------------------------------------------------------------------------------------
 

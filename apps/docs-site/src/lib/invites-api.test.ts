@@ -17,6 +17,13 @@ import {
   redisStore,
   ROLE_PERMISSION,
   type InvitesDeps,
+  LIMIT_DEFAULTS,
+  LIMIT_WORDS,
+  limitsFrom,
+  maskEmail,
+  MAX_RESENDS_PER_INVITE_DAY,
+  RESEND_COOLDOWN_MS,
+  EMAIL_ACCESS,
 } from '../../api/invites/index';
 
 const HOST = 'bridge.example.com';
@@ -37,6 +44,8 @@ const CONFIG = `{
 
 interface World {
   users: Record<string, { login: string; name?: string }>;
+  /** GET /user/emails per user token; a number answers that status instead. */
+  emails: Record<string, { email: string; verified: boolean; primary?: boolean }[] | number>;
   perms: Record<string, string>;
   ownerType: 'User' | 'Organization';
   orgMembers: string[];
@@ -46,8 +55,9 @@ interface World {
 
 function world(over: Partial<World> = {}): World {
   return {
-    users: { ghu_dana: { login: 'dana', name: 'Dana' }, ghu_leo01: { login: 'leo' }, ghu_sofia: { login: 'sofia', name: 'Sofia Reyes' } },
-    perms: { dana: 'admin', leo: 'write', ann: 'read', malik: 'write' },
+    users: { ghu_dana: { login: 'dana', name: 'Dana' }, ghu_leo01: { login: 'leo' }, ghu_sofia: { login: 'sofia', name: 'Sofia Reyes' }, ghu_kim01: { login: 'kim' } },
+    emails: { ghu_sofia: [{ email: 'sofia@acme.design', verified: true, primary: true }], ghu_leo01: [{ email: 'leo@acme.design', verified: true, primary: true }] },
+    perms: { dana: 'admin', leo: 'write', ann: 'read', malik: 'write', kim: 'admin' },
     ownerType: 'Organization',
     orgMembers: ['ann'],
     acceptStatus: 204,
@@ -69,6 +79,10 @@ function github(w: World): FetchLike {
     if (m === 'GET' && path === '/user') {
       const user = w.users[auth.replace('Bearer ', '')];
       return user ? res(200, user) : res(401, { message: 'Bad credentials' });
+    }
+    if (m === 'GET' && path === '/user/emails') {
+      const e = w.emails[auth.replace('Bearer ', '')] ?? [];
+      return typeof e === 'number' ? res(e, { message: 'Resource not accessible by integration' }) : res(200, e);
     }
     let x: RegExpExecArray | null;
     if ((x = /^\/repos\/acme\/design\/collaborators\/([^/]+)\/permission$/.exec(path))) {
@@ -251,11 +265,11 @@ describe('invite token lifecycle', () => {
     const { deps, sent, store, tick } = setup();
     await handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
     const [inv] = await store.list(REPO);
-    tick(60_000);
+    tick(RESEND_COOLDOWN_MS);
     const r = await handleInvites(post({ action: 'resend', repo: REPO, id: inv!.id }), {}, deps);
     const body = await r.json();
     expect(body.invite).toMatchObject({ id: inv!.id, email: 'sofia@acme.design', createdAt: inv!.createdAt });
-    expect(body.invite.sentAt).toBe(new Date(T0 + 60_000).toISOString());
+    expect(body.invite.sentAt).toBe(new Date(T0 + RESEND_COOLDOWN_MS).toISOString());
     expect(sent).toHaveLength(2);
     expect(tokenOf(sent[1]!)).not.toBe(tokenOf(sent[0]!));
     expect((await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps)).status).toBe(410);
@@ -430,16 +444,42 @@ describe('services', () => {
     expect(await app.installationToken('acme', 'design')).toBeNull();
   });
 
-  it('talks to Upstash over REST, the token index expiring with the invite', async () => {
-    const sentCmds: unknown[] = [];
+  it('talks to Upstash over REST, the invite and its token index expiring with the invite', async () => {
+    const sentCmds: [string, any][] = [];
     const f: FetchLike = async (url, init) => {
-      sentCmds.push([url, JSON.parse(init.body!)]);
-      return res(200, url.endsWith('/pipeline') ? [{ result: 1 }, { result: 'OK' }] : { result: null });
+      const body = JSON.parse(init.body!);
+      sentCmds.push([url, body]);
+      if (url.endsWith('/pipeline')) return res(200, body.map((c: unknown[]) => ({ result: c[0] === 'INCRBY' ? 3 : c[0] === 'ZRANGE' ? ['a'.repeat(16), 'b'.repeat(16)] : 1 })));
+      if (body[0] === 'MGET') return res(200, { result: [JSON.stringify({ id: 'a'.repeat(16), tokenHash: 'h', repo: REPO }), null] });
+      return res(200, { result: null });
     };
-    const s = redisStore('https://kv.example/', 'tok', f);
-    await s.put({ id: 'a'.repeat(16), repo: REPO, email: 'x@y.co', role: 'view', invitedBy: 'dana', createdAt: '', expiresAt: '', sentAt: '', tokenHash: 'h' }, 600);
-    expect(sentCmds[0]).toEqual(['https://kv.example/pipeline', [['HSET', 'bridge:invites:acme/design', 'a'.repeat(16), expect.any(String)], ['SET', 'bridge:invite-token:h', `${REPO}|${'a'.repeat(16)}`, 'EX', 600]]]);
+    const s = redisStore('https://kv.example/', 'tok', f, () => T0);
+    const id = 'a'.repeat(16);
+    await s.put({ id, repo: REPO, email: 'x@y.co', role: 'view', invitedBy: 'dana', createdAt: '', expiresAt: '', sentAt: '', tokenHash: 'h' }, 600);
+    expect(sentCmds[0]).toEqual([
+      'https://kv.example/pipeline',
+      [
+        ['SET', `bridge:invite:acme/design:${id}`, expect.any(String), 'EX', 600],
+        ['SET', 'bridge:invite-token:h', `${REPO}|${id}`, 'EX', 600],
+        ['ZADD', 'bridge:invites:acme/design', T0 + 600_000, id],
+        ['EXPIRE', 'bridge:invites:acme/design', INVITE_TTL_MS / 1000],
+      ],
+    ]);
+    // The stored record holds only what the flow needs.
+    expect(Object.keys(JSON.parse(sentCmds[0]![1][0][2])).sort()).toEqual(['createdAt', 'email', 'expiresAt', 'id', 'invitedBy', 'repo', 'role', 'sentAt', 'tokenHash']);
     expect(await s.byTokenHash('h')).toBeNull();
+
+    await s.remove({ id, repo: REPO, tokenHash: 'h' } as never);
+    expect(sentCmds.at(-1)![1]).toEqual([['DEL', `bridge:invite:acme/design:${id}`], ['DEL', 'bridge:invite-token:h'], ['ZREM', 'bridge:invites:acme/design', id]]);
+
+    // Listing drops ids whose record already expired.
+    const listed = await s.list(REPO);
+    expect(listed.map((x) => x.id)).toEqual([id]);
+    expect(sentCmds.find(([, b]) => Array.isArray(b) && b[0] === 'ZREM' && b.includes('b'.repeat(16)))).toBeTruthy();
+    expect(sentCmds.some(([, b]) => Array.isArray(b[0]) && b[0][0] === 'ZREMRANGEBYSCORE' && b[0][3] === T0)).toBe(true);
+
+    expect(await s.bump(['k1'], 2, 60)).toEqual([3]);
+    expect(sentCmds.at(-1)![1]).toEqual([['INCRBY', 'k1', 2], ['EXPIRE', 'k1', 60]]);
   });
 
   it('escapes everything in the email html', () => {
@@ -448,5 +488,238 @@ describe('services', () => {
     expect(m.html).toContain('&lt;b&gt;Eve');
     expect(m.text).toContain('Admin. Also invites people and changes settings.');
     expect(`${m.subject}${m.text}${m.html}`).not.toContain(String.fromCharCode(0x2014));
+  });
+});
+
+const invite = (deps: InvitesDeps, emails: string[], env: Record<string, string> = {}, token = 'ghu_dana') =>
+  handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: emails.map((email) => ({ email })) }, token), env, deps);
+
+describe('only the invited email can accept', () => {
+  it('accepts when the invited email is a verified email of the account, case and spaces aside', async () => {
+    const { deps, sent, w } = setup({ emails: { ghu_sofia: [{ email: 'other@home.example', verified: true, primary: true }, { email: ' Sofia@ACME.design ', verified: true }] } });
+    await invite(deps, ['sofia@acme.design']);
+    const a = await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps);
+    expect(a.status).toBe(200);
+    // Read with the invitee's own sign-in, never the app.
+    expect(w.calls.find((c) => c.path.startsWith('/user/emails'))!.auth).toBe('Bearer ghu_sofia');
+  });
+
+  it('grants nothing to another account, keeps the invite valid and says where it was sent, masked', async () => {
+    const { deps, sent, store, w } = setup();
+    await invite(deps, ['sofia@acme.design']);
+    const token = tokenOf(sent[0]!);
+    const r = await handleInvites(post({ action: 'accept', token }, 'ghu_leo01'), {}, deps);
+    expect(r.status).toBe(403);
+    const body = await r.json();
+    expect(body).toMatchObject({ error: 'email_mismatch', sentTo: 's•••@acme.design', login: 'leo' });
+    expect(body.message).toContain('s•••@acme.design');
+    expect(body.message).toMatch(/Add and verify it on GitHub.*ask your admin to invite/);
+    expect(JSON.stringify(body)).not.toContain('sofia@acme.design');
+    expect(w.calls.some((c) => c.method === 'PUT')).toBe(false);
+    expect(await store.list(REPO)).toHaveLength(1);
+    // The right person still gets in with the same link.
+    expect((await handleInvites(post({ action: 'accept', token }, 'ghu_sofia'), {}, deps)).status).toBe(200);
+  });
+
+  it('refuses an unverified email and says to verify it', async () => {
+    const { deps, sent, store, w } = setup({ emails: { ghu_sofia: [{ email: 'sofia@acme.design', verified: false }] } });
+    await invite(deps, ['sofia@acme.design']);
+    const r = await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps);
+    expect(r.status).toBe(403);
+    const body = await r.json();
+    expect(body.error).toBe('email_unverified');
+    expect(body.message).toMatch(/not verified yet\. Verify it on GitHub/);
+    expect(w.calls.some((c) => c.method === 'PUT')).toBe(false);
+    expect(await store.list(REPO)).toHaveLength(1);
+  });
+
+  it('asks to sign in again when the sign-in cannot read emails, and keeps the invite', async () => {
+    for (const status of [403, 404]) {
+      const { deps, sent, store, w } = setup({ emails: { ghu_sofia: status } });
+      await invite(deps, ['sofia@acme.design']);
+      const r = await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps);
+      expect(r.status).toBe(403);
+      expect(await r.json()).toEqual({ error: 'email_access', message: EMAIL_ACCESS });
+      expect(w.calls.some((c) => c.method === 'PUT')).toBe(false);
+      expect(await store.list(REPO)).toHaveLength(1);
+    }
+  });
+
+  it('masks an email to its first letter and domain', () => {
+    expect(maskEmail('maria@acme.design')).toBe('m•••@acme.design');
+    expect(maskEmail('a@b.co')).toBe('a•••@b.co');
+  });
+});
+
+describe('daily caps', () => {
+  it('has documented defaults below the site cap, overridable by the env', () => {
+    expect(limitsFrom({})).toEqual(LIMIT_DEFAULTS);
+    expect(LIMIT_DEFAULTS).toEqual({ admin: 20, team: 40, site: 80 });
+    expect(limitsFrom({ INVITES_MAX_PER_ADMIN_DAY: '5', INVITES_MAX_PER_TEAM_DAY: ' 7 ', INVITES_MAX_SITE_DAY: '0' })).toEqual({ admin: 5, team: 7, site: 0 });
+    expect(limitsFrom({ INVITES_MAX_PER_ADMIN_DAY: 'lots', INVITES_MAX_PER_TEAM_DAY: '-1', INVITES_MAX_SITE_DAY: '2.5' })).toEqual(LIMIT_DEFAULTS);
+  });
+
+  it('stops an admin at their cap with 429, the reason and Retry-After, then resets the next day', async () => {
+    const { deps, sent, tick } = setup();
+    const env = { INVITES_MAX_PER_ADMIN_DAY: '2' };
+    expect((await invite(deps, ['a@acme.design', 'b@acme.design'], env)).status).toBe(200);
+    const r = await invite(deps, ['c@acme.design'], env);
+    expect(r.status).toBe(429);
+    expect(await r.json()).toEqual({ error: 'limit', message: LIMIT_WORDS.admin, limit: 'admin' });
+    expect(LIMIT_WORDS.admin).toBe("You reached today's invite limit. Try again tomorrow.");
+    expect(Number(r.headers.get('retry-after'))).toBe(14 * 3600);
+    expect(sent).toHaveLength(2);
+    tick(14 * 3600 * 1000);
+    expect((await invite(deps, ['c@acme.design'], env)).status).toBe(200);
+  });
+
+  it('refuses a batch larger than what is left, all or nothing, and says how many are left', async () => {
+    const { deps, sent } = setup();
+    const env = { INVITES_MAX_PER_ADMIN_DAY: '3' };
+    const r = await invite(deps, ['a@acme.design', 'b@acme.design', 'c@acme.design', 'd@acme.design', 'e@acme.design'], env);
+    expect(r.status).toBe(429);
+    expect((await r.json()).message).toBe('You can send 3 more invites today. Remove some people, or try again tomorrow.');
+    expect(sent).toHaveLength(0);
+    // Nothing was kept from the refused batch.
+    expect((await invite(deps, ['a@acme.design', 'b@acme.design', 'c@acme.design'], env)).status).toBe(200);
+  });
+
+  it('caps a team across its admins', async () => {
+    const { deps } = setup();
+    const env = { INVITES_MAX_PER_TEAM_DAY: '2' };
+    expect((await invite(deps, ['a@acme.design'], env)).status).toBe(200);
+    expect((await invite(deps, ['b@acme.design'], env, 'ghu_kim01')).status).toBe(200);
+    const r = await invite(deps, ['c@acme.design'], env, 'ghu_kim01');
+    expect(r.status).toBe(429);
+    expect(await r.json()).toMatchObject({ limit: 'team', message: "This team reached today's invite limit. Try again tomorrow." });
+  });
+
+  it('caps the whole site, whatever the team', async () => {
+    const { deps } = setup();
+    const env = { INVITES_MAX_SITE_DAY: '1' };
+    expect((await invite(deps, ['a@acme.design'], env)).status).toBe(200);
+    const r = await invite(deps, ['b@acme.design'], env, 'ghu_kim01');
+    expect(r.status).toBe(429);
+    expect(await r.json()).toMatchObject({ limit: 'site', message: "Bridge reached today's invite limit for everyone. Try again tomorrow." });
+  });
+
+  it('counts only emails that went out: org members added, pending ones and failed sends are given back', async () => {
+    const env = { INVITES_MAX_PER_ADMIN_DAY: '1' };
+    const { deps } = setup();
+    expect((await handleInvites(post({ action: 'invite', repo: REPO, role: 'view', people: [{ email: 'ann@acme.design', login: 'ann' }] }), env, deps)).status).toBe(200);
+    expect((await invite(deps, ['a@acme.design'], env)).status).toBe(200);
+    // Already pending: nothing to send, no cap hit.
+    expect((await invite(deps, ['a@acme.design'], env)).status).toBe(200);
+
+    let fail = true;
+    const flaky = setup({}, { email: { send: async () => (fail ? Promise.reject(new Error('down')) : undefined) } });
+    expect((await invite(flaky.deps, ['a@acme.design'], env)).status).toBe(200);
+    fail = false;
+    expect((await (await invite(flaky.deps, ['a@acme.design'], env)).json()).results[0].status).toBe('sent');
+  });
+
+  it('still validates every email and caps recipients per request', async () => {
+    const { deps, sent } = setup();
+    const r = await invite(deps, ['ok@acme.design', 'no spaces@acme.design', '<x>@acme.design', 'a@b', `${'x'.repeat(250)}@acme.design`]);
+    expect((await r.json()).results.map((x: { status: string }) => x.status)).toEqual(['sent', 'failed', 'failed', 'failed', 'failed']);
+    expect(sent).toHaveLength(1);
+    const many = Array.from({ length: 11 }, (_, i) => `p${i}@acme.design`);
+    expect((await invite(deps, many)).status).toBe(400);
+  });
+});
+
+describe('resend frequency', () => {
+  it('waits between two sends of the same invite', async () => {
+    const { deps, sent, store, tick } = setup();
+    await invite(deps, ['sofia@acme.design']);
+    const [inv] = await store.list(REPO);
+    tick(RESEND_COOLDOWN_MS - 60_000);
+    const r = await handleInvites(post({ action: 'resend', repo: REPO, id: inv!.id }), {}, deps);
+    expect(r.status).toBe(429);
+    expect(await r.json()).toEqual({ error: 'limit', message: LIMIT_WORDS.resend_soon, limit: 'resend_soon' });
+    expect(r.headers.get('retry-after')).toBe('60');
+    expect(sent).toHaveLength(1);
+    // The first link still works.
+    expect((await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps)).status).toBe(200);
+  });
+
+  it(`allows ${MAX_RESENDS_PER_INVITE_DAY} resends per invite per day; a failed email does not count`, async () => {
+    let fail = false;
+    const { deps, sent, store, tick } = setup({}, {});
+    deps.email = { send: async (msg) => (fail ? Promise.reject(new Error('down')) : void sent.push(msg)) };
+    await invite(deps, ['sofia@acme.design']);
+    const [inv] = await store.list(REPO);
+    const resend = () => handleInvites(post({ action: 'resend', repo: REPO, id: inv!.id }), {}, deps);
+    tick(RESEND_COOLDOWN_MS);
+    fail = true;
+    expect((await resend()).status).toBe(502);
+    fail = false;
+    for (let i = 0; i < MAX_RESENDS_PER_INVITE_DAY; i++) {
+      expect((await resend()).status).toBe(200);
+      tick(RESEND_COOLDOWN_MS);
+    }
+    const r = await resend();
+    expect(r.status).toBe(429);
+    expect((await r.json()).limit).toBe('resend');
+    expect(sent).toHaveLength(1 + MAX_RESENDS_PER_INVITE_DAY);
+  });
+
+  it('counts resends toward the admin cap', async () => {
+    const { deps, store, tick } = setup();
+    const env = { INVITES_MAX_PER_ADMIN_DAY: '1' };
+    await invite(deps, ['sofia@acme.design'], env);
+    const [inv] = await store.list(REPO);
+    tick(RESEND_COOLDOWN_MS);
+    const r = await handleInvites(post({ action: 'resend', repo: REPO, id: inv!.id }), env, deps);
+    expect(r.status).toBe(429);
+    expect((await r.json()).limit).toBe('admin');
+  });
+});
+
+describe('what is kept, and for how long', () => {
+  const inviteKeys = (keys: string[]) => keys.filter((k) => !k.startsWith('bridge:invites:count:'));
+
+  it('keeps only the fields the flow needs', async () => {
+    const { deps, store } = setup();
+    await invite(deps, ['sofia@acme.design']);
+    const [inv] = await store.list(REPO);
+    expect(Object.keys(inv!).sort()).toEqual(['createdAt', 'email', 'expiresAt', 'id', 'invitedBy', 'repo', 'role', 'sentAt', 'tokenHash']);
+  });
+
+  it('deletes the record and its link on accept', async () => {
+    const { deps, sent, store } = setup();
+    await invite(deps, ['sofia@acme.design']);
+    expect(inviteKeys(store.keys())).toHaveLength(2);
+    await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps);
+    expect(inviteKeys(store.keys())).toEqual([]);
+  });
+
+  it('deletes the record and its link on cancel', async () => {
+    const { deps, store } = setup();
+    await invite(deps, ['sofia@acme.design']);
+    const [inv] = await store.list(REPO);
+    await handleInvites(post({ action: 'cancel', repo: REPO, id: inv!.id }), {}, deps);
+    expect(inviteKeys(store.keys())).toEqual([]);
+  });
+
+  it('lets the record and its link expire with the invite, and the counters a day later', async () => {
+    const { deps, store, tick } = setup();
+    await invite(deps, ['sofia@acme.design']);
+    tick(INVITE_TTL_MS - 1000);
+    expect(inviteKeys(store.keys())).toHaveLength(2);
+    tick(1000);
+    expect(store.keys()).toEqual([]);
+  });
+
+  it('never logs an email or a token', async () => {
+    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((k) => vi.spyOn(console, k).mockImplementation(() => {}));
+    const { deps, sent } = setup({}, { email: { send: async (m) => void sent.push(m) } });
+    await invite(deps, ['sofia@acme.design', 'bad email']);
+    await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_leo01'), {}, deps);
+    await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps);
+    for (const s of spies) {
+      expect(s).not.toHaveBeenCalled();
+      s.mockRestore();
+    }
   });
 });

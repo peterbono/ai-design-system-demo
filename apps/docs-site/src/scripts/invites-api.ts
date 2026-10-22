@@ -23,6 +23,8 @@ export class InvitesError extends Error {
     message: string,
     readonly code: string,
     readonly status: number,
+    /** The rest of the answer: `limit` on a 429, `sentTo` (masked) and `login` when an invite is for another email. */
+    readonly details: Record<string, unknown> = {},
   ) {
     super(message);
     this.name = 'InvitesError';
@@ -56,8 +58,11 @@ async function call<T>(method: 'GET' | 'POST', query: string, body?: unknown, au
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (res.status === 503 && data.error === 'not_configured') throw new InvitesUnavailable();
   if (!res.ok) {
-    const message = typeof data.message === 'string' && data.message ? data.message : 'Something went wrong. Try again in a minute.';
-    throw new InvitesError(message, typeof data.error === 'string' ? data.error : 'failed', res.status);
+    // A daily cap or a resend too soon: never silent, and in the server's words when it gave some.
+    const fallback = res.status === 429 ? MEMBERS_WORDS.limitReached : 'Something went wrong. Try again in a minute.';
+    const message = typeof data.message === 'string' && data.message ? data.message : fallback;
+    const { error: _e, message: _m, ...details } = data;
+    throw new InvitesError(message, typeof data.error === 'string' ? data.error : 'failed', res.status, details);
   }
   return data as T;
 }

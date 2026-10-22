@@ -46,6 +46,20 @@ describe('invites api', () => {
   });
 });
 
+describe('caps and the invited email', () => {
+  it('turns a 429 into a sentence, never silent, with the server words or the default', async () => {
+    setInvitesFetch(async () => json(429, { error: 'limit', message: "This team reached today's invite limit. Try again tomorrow.", limit: 'team' }));
+    await expect(sendInvites('acme/ds', { role: 'view' }, [{ email: 'a@b.co' }])).rejects.toMatchObject({ status: 429, code: 'limit', message: "This team reached today's invite limit. Try again tomorrow.", details: { limit: 'team' } });
+    setInvitesFetch(async () => json(429, {}));
+    await expect(sendInvites('acme/ds', { role: 'view' }, [{ email: 'a@b.co' }])).rejects.toMatchObject({ status: 429, message: "You reached today's invite limit. Try again tomorrow." });
+  });
+
+  it('carries the masked address and the account when an invite is for another email', async () => {
+    setInvitesFetch(async () => json(403, { error: 'email_mismatch', message: 'x', sentTo: 'm\u2022\u2022\u2022@acme.design', login: 'leo' }));
+    await expect(acceptInvite('t'.repeat(43))).rejects.toMatchObject({ code: 'email_mismatch', details: { sentTo: 'm\u2022\u2022\u2022@acme.design', login: 'leo' } });
+  });
+});
+
 describe('people the email field suggests', () => {
   it('keeps one entry per real email, never GitHub relays or bots', () => {
     const people = peopleFromCommits([

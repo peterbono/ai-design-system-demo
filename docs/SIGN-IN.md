@@ -83,8 +83,16 @@ only the name and the permissions (step 3) differ.
    | Repository   | Metadata        | Read only      | Required by GitHub                                                                   |
    | Organization | Members         | Read only      | Roles held by GitHub teams in Settings (only for a repository owned by an organization) |
 
-   Administration can be "Read only" if you prefer to turn protection on from GitHub yourself. Account permissions:
-   none. A user can never do more through the app than their own access to the repository allows.
+   Administration can be "Read only" if you prefer to turn protection on from GitHub yourself.
+
+   **Account permissions** (both apps): **Email addresses: Read-only**, and nothing else. The invite page uses it to
+   check that the person accepting an invite has the invited email, verified, on their GitHub account
+   (`GET /user/emails` with their own sign-in; docs/HOSTED.md, "Invites by email"). Bridge only compares it, never
+   stores it. When you add it to an existing app, people already signed in get it the next time they sign in; the
+   invite page asks them to. A pasted token needs the same: the `user:email` scope (classic) or Email addresses
+   read (fine-grained).
+
+   A user can never do more through the app than their own access to the repository allows.
 4. **Where can this GitHub App be installed?**: **Any account**. The hosted Bridge serves every team's repository
    (`/studio/<owner>/<repo>/`), so people from other accounts and organizations must be able to sign in and to
    install it on their own repositories. A private app ("Only on this account") refuses their sign-in. An app that

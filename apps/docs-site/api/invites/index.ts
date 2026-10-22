@@ -36,11 +36,24 @@
 // The invite link is <site>/studio/invite/#t=<token>: 32 random bytes, in the fragment so it never reaches a server
 // log. Only its SHA-256 is stored. It works once and expires after 7 days; Resend makes a new one.
 //
+// Only the invited person can accept: the GitHub account that opens the link must have the invited email as a
+// verified email (GET /user/emails with their own sign-in, so the Bridge apps need the account permission "Email
+// addresses: Read-only", docs/SIGN-IN.md). Otherwise nothing is granted, the invite stays valid, and the answer says
+// which address it was sent to, masked ("m•••@acme.design").
+//
+// Caps (Redis counters that expire on their own): emails sent per admin, per team and for the whole site per UTC day,
+// a pause between two sends of one invite and a few resends per invite per day, at most MAX_PEOPLE per request. A cap
+// answers 429 with a sentence that says it and when to try again (Retry-After), never a silent drop.
+//
+// What is kept: per pending invite only its email, role, team, who invited, created, sent and expiry dates and the
+// link token's hash, each record expiring in Redis with the invite. Accept and cancel delete it. Nothing here logs.
+//
 // Env (server only):
 //   KV_REST_API_URL + KV_REST_API_TOKEN (or UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN)   pending invites
 //   RESEND_API_KEY + INVITE_EMAIL_FROM                                                           the invite email
 //   GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY                                                        Bridge Direct app
 //   PUBLIC_SITE_URL (optional)                                                                    link origin
+//   INVITES_MAX_PER_ADMIN_DAY, INVITES_MAX_PER_TEAM_DAY, INVITES_MAX_SITE_DAY (optional)          caps, see LIMIT_DEFAULTS
 // Missing any of the first three groups: every action answers 503 "Invites are not available yet on this site."
 
 import { createHash, createSign, randomBytes } from 'node:crypto';
@@ -69,6 +82,19 @@ export const REVIEW_AS_WORDS: Record<ReviewAs, string> = { design: 'design', tec
 
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const MAX_PEOPLE = 10;
+
+/**
+ * Emails sent per UTC day (invites and resends), unless the env says otherwise. The site cap stays below the email
+ * provider's free daily quota with room to spare; per admin and per team keep one account or one team from using it
+ * all. Change them with INVITES_MAX_PER_ADMIN_DAY, INVITES_MAX_PER_TEAM_DAY and INVITES_MAX_SITE_DAY (whole numbers).
+ */
+export const LIMIT_DEFAULTS = { admin: 20, team: 40, site: 80 } as const;
+/** The pause between two sends of the same invite. */
+export const RESEND_COOLDOWN_MS = 10 * 60 * 1000;
+/** Resends of one invite per UTC day. */
+export const MAX_RESENDS_PER_INVITE_DAY = 3;
+/** Counters live two days: the key carries the day, so a new day starts at zero. */
+const COUNTER_TTL_S = 2 * 24 * 60 * 60;
 export const MAX_PENDING = 50;
 const MAX_BODY = 8192;
 const CONFIG_FILE = 'bridge.config.json';
@@ -104,19 +130,24 @@ export interface InvitesEnv {
   GITHUB_APP_ID?: string | undefined;
   GITHUB_APP_PRIVATE_KEY?: string | undefined;
   PUBLIC_SITE_URL?: string | undefined;
+  INVITES_MAX_PER_ADMIN_DAY?: string | undefined;
+  INVITES_MAX_PER_TEAM_DAY?: string | undefined;
+  INVITES_MAX_SITE_DAY?: string | undefined;
 }
 
 export type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body?: string }) => Promise<Response>;
 
-/** Pending invites, per repository. */
+/** Pending invites, per repository. Every record disappears on its own once its TTL (the invite's expiry) is over. */
 export interface InviteStore {
   list(repo: string): Promise<StoredInvite[]>;
   get(repo: string, id: string): Promise<StoredInvite | null>;
-  /** Saves the invite and indexes it by its token hash until it expires. */
+  /** Saves the invite and indexes it by its token hash, both expiring after `ttlSeconds`. */
   put(inv: StoredInvite, ttlSeconds: number): Promise<void>;
-  /** Removes the invite and its token index. */
+  /** Deletes the invite and its token index. */
   remove(inv: StoredInvite): Promise<void>;
   byTokenHash(hash: string): Promise<StoredInvite | null>;
+  /** Adds `by` (negative gives back) to each counter, which expires after `ttlSeconds`; returns the new values. */
+  bump(keys: string[], by: number, ttlSeconds: number): Promise<number[]>;
 }
 
 export interface EmailMessage {
@@ -154,6 +185,9 @@ class HttpError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /** More fields for the JSON body (never an email in full, never a token). */
+    readonly extra: Record<string, unknown> = {},
+    readonly headers: Record<string, string> = {},
   ) {
     super(message);
   }
@@ -298,7 +332,14 @@ export function githubApp(appId: string, privateKey: string, f: FetchLike, now: 
 
 // ---------------------------------------------------------------------------------------------------------------
 // Storage: Upstash Redis over REST (Vercel Marketplace), or memory in tests
+//
+// Keys, each with a TTL so nothing outlives its invite:
+//   bridge:invite:<repo>:<id>        the invite (JSON), expires with the invite
+//   bridge:invite-token:<hash>       "<repo>|<id>", expires with the invite
+//   bridge:invites:<repo>            sorted set of invite ids by expiry (ids only), expires 7 days after the last put
+//   bridge:invites:count:<...>:<day> daily counters for the caps, expire after 2 days
 
+const inviteKey = (repo: string, id: string) => `bridge:invite:${repo.toLowerCase()}:${id}`;
 const repoKey = (repo: string) => `bridge:invites:${repo.toLowerCase()}`;
 const tokenKey = (hash: string) => `bridge:invite-token:${hash}`;
 
@@ -312,47 +353,66 @@ function parseStored(raw: unknown): StoredInvite | null {
   }
 }
 
-export function redisStore(url: string, token: string, f: FetchLike): InviteStore {
+const STORAGE_DOWN = 'Bridge could not reach its invite storage. Try again in a minute.';
+
+export function redisStore(url: string, token: string, f: FetchLike, now: () => number = Date.now): InviteStore {
   const base = url.replace(/\/+$/, '');
   const call = async (path: string, body: unknown): Promise<any> => {
     let res: Response;
     try {
       res = await f(`${base}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     } catch {
-      throw new HttpError(503, 'storage', 'Bridge could not reach its invite storage. Try again in a minute.');
+      throw new HttpError(503, 'storage', STORAGE_DOWN);
     }
-    if (!res.ok) throw new HttpError(503, 'storage', 'Bridge could not reach its invite storage. Try again in a minute.');
+    if (!res.ok) throw new HttpError(503, 'storage', STORAGE_DOWN);
     return res.json();
   };
   const cmd = async (...args: (string | number)[]) => {
     const r = (await call('', args)) as { result?: unknown; error?: string };
-    if (r.error) throw new HttpError(503, 'storage', 'Bridge could not reach its invite storage. Try again in a minute.');
+    if (r.error) throw new HttpError(503, 'storage', STORAGE_DOWN);
     return r.result;
   };
-  const pipe = (cmds: (string | number)[][]) => call('/pipeline', cmds);
+  const pipe = async (cmds: (string | number)[][]): Promise<unknown[]> => {
+    const r = (await call('/pipeline', cmds)) as { result?: unknown; error?: string }[];
+    if (!Array.isArray(r) || r.some((x) => x?.error)) throw new HttpError(503, 'storage', STORAGE_DOWN);
+    return r.map((x) => x.result);
+  };
   const store: InviteStore = {
     async list(repo) {
-      const flat = (await cmd('HGETALL', repoKey(repo))) as unknown[] | null;
+      const [, ids] = await pipe([
+        ['ZREMRANGEBYSCORE', repoKey(repo), '-inf', now()],
+        ['ZRANGE', repoKey(repo), 0, -1],
+      ]);
+      const list = Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string') : [];
+      if (!list.length) return [];
+      const raw = (await cmd('MGET', ...list.map((id) => inviteKey(repo, id)))) as unknown[] | null;
       const out: StoredInvite[] = [];
-      for (let i = 1; i < (flat?.length ?? 0); i += 2) {
-        const inv = parseStored(flat![i]);
+      const gone: string[] = [];
+      list.forEach((id, i) => {
+        const inv = parseStored(raw?.[i]);
         if (inv) out.push(inv);
-      }
+        else gone.push(id);
+      });
+      if (gone.length) await cmd('ZREM', repoKey(repo), ...gone);
       return out;
     },
     async get(repo, id) {
-      return parseStored(await cmd('HGET', repoKey(repo), id));
+      return parseStored(await cmd('GET', inviteKey(repo, id)));
     },
     async put(inv, ttl) {
+      const ex = Math.max(1, Math.ceil(ttl));
       await pipe([
-        ['HSET', repoKey(inv.repo), inv.id, JSON.stringify(inv)],
-        ['SET', tokenKey(inv.tokenHash), `${inv.repo}|${inv.id}`, 'EX', Math.max(1, ttl)],
+        ['SET', inviteKey(inv.repo, inv.id), JSON.stringify(inv), 'EX', ex],
+        ['SET', tokenKey(inv.tokenHash), `${inv.repo}|${inv.id}`, 'EX', ex],
+        ['ZADD', repoKey(inv.repo), now() + ex * 1000, inv.id],
+        ['EXPIRE', repoKey(inv.repo), Math.ceil(INVITE_TTL_MS / 1000)],
       ]);
     },
     async remove(inv) {
       await pipe([
-        ['HDEL', repoKey(inv.repo), inv.id],
+        ['DEL', inviteKey(inv.repo, inv.id)],
         ['DEL', tokenKey(inv.tokenHash)],
+        ['ZREM', repoKey(inv.repo), inv.id],
       ]);
     },
     async byTokenHash(hash) {
@@ -362,38 +422,62 @@ export function redisStore(url: string, token: string, f: FetchLike): InviteStor
       const inv = await store.get(repo, id);
       return inv && inv.tokenHash === hash ? inv : null;
     },
+    async bump(keys, by, ttl) {
+      if (!keys.length) return [];
+      const r = await pipe(keys.flatMap((k) => [['INCRBY', k, by], ['EXPIRE', k, ttl]]));
+      return keys.map((_, i) => Number(r[i * 2]) || 0);
+    },
   };
   return store;
 }
 
-/** In-memory store (tests, local experiments). Same contract as the Redis one, expiry by `now`. */
-export function memoryStore(now: () => number = Date.now): InviteStore {
-  const byRepo = new Map<string, Map<string, StoredInvite>>();
-  const tokens = new Map<string, { ref: string; until: number }>();
-  const store: InviteStore = {
+/** In-memory store (tests, local experiments). Same contract as the Redis one, every TTL kept by `now`. */
+export function memoryStore(now: () => number = Date.now): InviteStore & { keys(): string[] } {
+  const items = new Map<string, { value: string; until: number }>();
+  const live = (k: string) => {
+    const v = items.get(k);
+    if (v && v.until <= now()) items.delete(k);
+    return items.get(k)?.value ?? null;
+  };
+  const set = (k: string, value: string, ttl: number) => items.set(k, { value, until: now() + Math.max(1, Math.ceil(ttl)) * 1000 });
+  const store: InviteStore & { keys(): string[] } = {
+    /** Every key still alive (tests: nothing outlives its invite). */
+    keys() {
+      return [...items.keys()].filter((k) => live(k) !== null);
+    },
     async list(repo) {
-      return [...(byRepo.get(repo.toLowerCase())?.values() ?? [])].map((x) => ({ ...x }));
+      const prefix = inviteKey(repo, '');
+      const out: StoredInvite[] = [];
+      for (const k of [...items.keys()]) if (k.startsWith(prefix)) {
+        const inv = parseStored(live(k));
+        if (inv) out.push(inv);
+      }
+      return out;
     },
     async get(repo, id) {
-      const v = byRepo.get(repo.toLowerCase())?.get(id);
-      return v ? { ...v } : null;
+      return parseStored(live(inviteKey(repo, id)));
     },
     async put(inv, ttl) {
-      const m = byRepo.get(inv.repo) ?? new Map<string, StoredInvite>();
-      m.set(inv.id, { ...inv });
-      byRepo.set(inv.repo, m);
-      tokens.set(inv.tokenHash, { ref: `${inv.repo}|${inv.id}`, until: now() + ttl * 1000 });
+      set(inviteKey(inv.repo, inv.id), JSON.stringify(inv), ttl);
+      set(tokenKey(inv.tokenHash), `${inv.repo}|${inv.id}`, ttl);
     },
     async remove(inv) {
-      byRepo.get(inv.repo)?.delete(inv.id);
-      tokens.delete(inv.tokenHash);
+      items.delete(inviteKey(inv.repo, inv.id));
+      items.delete(tokenKey(inv.tokenHash));
     },
     async byTokenHash(hash) {
-      const t = tokens.get(hash);
-      if (!t || t.until <= now()) return null;
-      const [repo = '', id = ''] = t.ref.split('|');
+      const ref = live(tokenKey(hash));
+      if (!ref) return null;
+      const [repo = '', id = ''] = ref.split('|');
       const inv = await store.get(repo, id);
       return inv && inv.tokenHash === hash ? inv : null;
+    },
+    async bump(keys, by, ttl) {
+      return keys.map((k) => {
+        const next = Number(live(k) ?? 0) + by;
+        set(k, String(next), ttl);
+        return next;
+      });
     },
   };
   return store;
@@ -610,7 +694,7 @@ export function services(env: InvitesEnv, deps: InvitesDeps): Services | null {
   const now = deps.now ?? Date.now;
   const kvUrl = (env.KV_REST_API_URL ?? env.UPSTASH_REDIS_REST_URL)?.trim();
   const kvToken = (env.KV_REST_API_TOKEN ?? env.UPSTASH_REDIS_REST_TOKEN)?.trim();
-  const store = deps.store ?? (kvUrl && kvToken ? redisStore(kvUrl, kvToken, deps.fetch) : null);
+  const store = deps.store ?? (kvUrl && kvToken ? redisStore(kvUrl, kvToken, deps.fetch, now) : null);
   const key = env.RESEND_API_KEY?.trim();
   const from = env.INVITE_EMAIL_FROM?.trim();
   const email = deps.email ?? (key && from ? resendSender(key, from, deps.fetch) : null);
@@ -621,6 +705,97 @@ export function services(env: InvitesEnv, deps: InvitesDeps): Services | null {
 }
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+
+// ---------------------------------------------------------------------------------------------------------------
+// Caps
+
+export type LimitKind = 'admin' | 'team' | 'site';
+
+/** The daily caps: LIMIT_DEFAULTS, or a whole number from the env (0 stops sending). */
+export function limitsFrom(env: InvitesEnv): Record<LimitKind, number> {
+  const pick = (v: string | undefined, d: number) => {
+    const n = v?.trim() ? Number(v.trim()) : NaN;
+    return Number.isInteger(n) && n >= 0 ? n : d;
+  };
+  return {
+    admin: pick(env.INVITES_MAX_PER_ADMIN_DAY, LIMIT_DEFAULTS.admin),
+    team: pick(env.INVITES_MAX_PER_TEAM_DAY, LIMIT_DEFAULTS.team),
+    site: pick(env.INVITES_MAX_SITE_DAY, LIMIT_DEFAULTS.site),
+  };
+}
+
+export const LIMIT_WORDS: Record<LimitKind | 'resend' | 'resend_soon', string> = {
+  admin: "You reached today's invite limit. Try again tomorrow.",
+  team: "This team reached today's invite limit. Try again tomorrow.",
+  site: "Bridge reached today's invite limit for everyone. Try again tomorrow.",
+  resend: `This invite was sent again ${MAX_RESENDS_PER_INVITE_DAY} times today. Try again tomorrow.`,
+  resend_soon: 'This invite was just sent. Wait a few minutes, then send it again.',
+};
+
+/** "You can send 3 more invites today." when a batch is larger than what is left. */
+export const limitLeftWords = (kind: LimitKind, left: number) => {
+  const n = `${left} more ${left === 1 ? 'invite' : 'invites'}`;
+  const who = kind === 'admin' ? 'You can send' : kind === 'team' ? 'This team can send' : 'Bridge can send';
+  return `${who} ${n} today. Remove some people, or try again tomorrow.`;
+};
+
+const dayOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+const secondsToTomorrow = (ms: number) => Math.max(1, Math.ceil((Date.UTC(new Date(ms).getUTCFullYear(), new Date(ms).getUTCMonth(), new Date(ms).getUTCDate() + 1) - ms) / 1000));
+const countKey = (kind: string, who: string, day: string) => `bridge:invites:count:${kind}:${who.toLowerCase()}:${day}`;
+
+function limitError(kind: LimitKind | 'resend' | 'resend_soon', message: string, retryAfter: number): HttpError {
+  return new HttpError(429, 'limit', message, { limit: kind }, { 'Retry-After': String(retryAfter) });
+}
+
+/**
+ * Takes `n` emails from the admin's, the team's and the site's counters of today, all or nothing. Over a cap: gives
+ * them back and throws 429. Returns `release(k)` to give back the ones not sent.
+ */
+async function reserve(ctx: Ctx, admin: string, repo: string, n: number): Promise<(k: number) => Promise<void>> {
+  if (n <= 0) return async () => {};
+  const now = ctx.now();
+  const day = dayOf(now);
+  const kinds: LimitKind[] = ['admin', 'team', 'site'];
+  const keys = [countKey('admin', admin, day), countKey('team', repo, day), countKey('site', 'all', day)];
+  const after = await ctx.svc.store.bump(keys, n, COUNTER_TTL_S);
+  // The cap with the least room left decides the words.
+  let worst: { kind: LimitKind; left: number } | undefined;
+  for (const [i, kind] of kinds.entries()) {
+    const left = Math.max(0, ctx.limits[kind] - (after[i]! - n));
+    if (left < n && (!worst || left < worst.left)) worst = { kind, left };
+  }
+  if (worst) {
+    await ctx.svc.store.bump(keys, -n, COUNTER_TTL_S);
+    throw limitError(worst.kind, worst.left > 0 ? limitLeftWords(worst.kind, worst.left) : LIMIT_WORDS[worst.kind], secondsToTomorrow(now));
+  }
+  return async (k) => {
+    if (k > 0) await ctx.svc.store.bump(keys, -k, COUNTER_TTL_S);
+  };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The invitee's email, checked on GitHub
+
+/** "m•••@acme.design": enough to recognise the address, not enough to read it. */
+export function maskEmail(email: string): string {
+  const [local = '', domain = ''] = email.trim().split('@');
+  return `${local.slice(0, 1)}\u2022\u2022\u2022@${domain}`;
+}
+
+export const EMAIL_ACCESS = 'Bridge needs to see the emails on your GitHub account to check this invitation is yours. Sign in with GitHub again and allow it.';
+
+/** Whether the invited email is on the caller's GitHub account, verified, read with their own sign-in. */
+async function emailStatus(f: FetchLike, userToken: string, email: string): Promise<'verified' | 'unverified' | 'missing'> {
+  const r = await gh(f, userToken, 'GET', '/user/emails?per_page=100');
+  if (r.status === 401) throw new HttpError(401, 'signin', 'Your GitHub sign-in expired. Sign in again.');
+  // A sign-in from before Bridge asked for email addresses, or a pasted token without user:email.
+  if (r.status === 403 || r.status === 404) throw new HttpError(403, 'email_access', EMAIL_ACCESS);
+  if (r.status !== 200 || !Array.isArray(r.data)) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+  const want = email.trim().toLowerCase();
+  const found = (r.data as { email?: unknown; verified?: unknown }[]).filter((e) => typeof e?.email === 'string' && e.email.trim().toLowerCase() === want);
+  if (!found.length) return 'missing';
+  return found.some((e) => e.verified === true) ? 'verified' : 'unverified';
+}
 const publicInvite = ({ repo: _r, tokenHash: _t, ...rest }: StoredInvite): PendingInvite => rest;
 
 function bearer(req: Request): string {
@@ -673,6 +848,7 @@ interface Ctx {
   now: () => number;
   random: (n: number) => Uint8Array;
   svc: Services;
+  limits: Record<LimitKind, number>;
 }
 
 async function appFor(ctx: Ctx, owner: string, repo: string): Promise<string> {
@@ -790,7 +966,7 @@ async function onGet(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise<
   const repoArg = new URL(req.url).searchParams.get('repo');
   if (repoArg === null) return json(200, { available: Boolean(svc) });
   if (!svc) return fail(503, 'not_configured', NOT_CONFIGURED);
-  const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc };
+  const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, limits: limitsFrom(env) };
   const { facts } = await authorize(ctx, req, repoArg, 'push');
   const list = await pending(ctx, facts.full);
   return json(200, { invites: list.map(publicInvite), personal: facts.personal });
@@ -801,7 +977,7 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
   if (!/^application\/json\b/i.test(req.headers.get('content-type') ?? '')) return fail(415, 'content_type', 'Send JSON.');
   const svc = services(env, deps);
   if (!svc) return fail(503, 'not_configured', NOT_CONFIGURED);
-  const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc };
+  const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, limits: limitsFrom(env) };
   const body = await readBody(req);
 
   switch (body.action) {
@@ -813,50 +989,66 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
       if (people.length > MAX_PEOPLE) throw new HttpError(400, 'bad_request', `Invite at most ${MAX_PEOPLE} people at once.`);
       const origin = siteOrigin(req, env);
       const current = await pending(ctx, facts.full);
+      // Reserve today's emails for every address that may get one, all or nothing; unused ones go back at the end.
+      const candidates = new Set<string>();
+      for (const p of people) {
+        const e = p && typeof p === 'object' ? (p as Record<string, unknown>).email : undefined;
+        const email = typeof e === 'string' ? e.trim().toLowerCase() : '';
+        if (validEmail(email) && !current.some((x) => x.email === email)) candidates.add(email);
+      }
+      const room = Math.max(0, MAX_PENDING - current.length);
+      const reserved = Math.min(candidates.size, room);
+      const release = await reserve(ctx, me.login, facts.full, reserved);
+      let emailed = 0;
       const results: { email: string; status: 'sent' | 'added' | 'already' | 'failed'; message?: string }[] = [];
       const seen = new Set<string>();
-      for (const p of people) {
-        const rawEmail = p && typeof p === 'object' ? (p as Record<string, unknown>).email : undefined;
-        const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
-        if (!validEmail(email)) {
-          results.push({ email: typeof rawEmail === 'string' ? rawEmail.slice(0, 254) : '', status: 'failed', message: 'This is not a valid email address.' });
-          continue;
-        }
-        if (seen.has(email)) continue;
-        seen.add(email);
-        const rawLogin = (p as Record<string, unknown>).login;
-        try {
-          // An organization member Bridge already knows is added straight away: no email, no link.
-          if (!facts.personal && rawLogin !== undefined) {
-            const login = parseLogin(rawLogin);
-            const member = await gh(ctx.f, appToken, 'GET', `/orgs/${facts.ownerLogin}/members/${encodeURIComponent(login)}`);
-            if (member.status === 204) {
-              await grant(ctx, appToken, facts, login, role);
-              const o = await ownersFor(ctx, appToken, facts, login, addOnly(role, reviewAs));
-              results.push({ email, status: 'added', ...(o.ownersError ? { message: o.ownersError } : {}) });
+      try {
+        for (const p of people) {
+          const rawEmail = p && typeof p === 'object' ? (p as Record<string, unknown>).email : undefined;
+          const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
+          if (!validEmail(email)) {
+            results.push({ email: typeof rawEmail === 'string' ? rawEmail.slice(0, 254) : '', status: 'failed', message: 'This is not a valid email address.' });
+            continue;
+          }
+          if (seen.has(email)) continue;
+          seen.add(email);
+          const rawLogin = (p as Record<string, unknown>).login;
+          try {
+            // An organization member Bridge already knows is added straight away: no email, no link.
+            if (!facts.personal && rawLogin !== undefined) {
+              const login = parseLogin(rawLogin);
+              const member = await gh(ctx.f, appToken, 'GET', `/orgs/${facts.ownerLogin}/members/${encodeURIComponent(login)}`);
+              if (member.status === 204) {
+                await grant(ctx, appToken, facts, login, role);
+                const o = await ownersFor(ctx, appToken, facts, login, addOnly(role, reviewAs));
+                results.push({ email, status: 'added', ...(o.ownersError ? { message: o.ownersError } : {}) });
+                continue;
+              }
+            }
+            if (current.some((x) => x.email === email)) {
+              results.push({ email, status: 'already' });
               continue;
             }
+            if (current.length >= MAX_PENDING) {
+              results.push({ email, status: 'failed', message: `This team already has ${MAX_PENDING} invites waiting. Cancel some first.` });
+              continue;
+            }
+            const id = Buffer.from(ctx.random(8)).toString('hex');
+            const inv = await storeAndSend(
+              ctx,
+              { id, repo: facts.full, email, role, ...(reviewAs ? { reviewAs } : {}), invitedBy: me.login, createdAt: new Date(ctx.now()).toISOString() },
+              origin,
+              me.name,
+            );
+            current.push(inv);
+            emailed++;
+            results.push({ email, status: 'sent' });
+          } catch (e) {
+            results.push({ email, status: 'failed', message: e instanceof HttpError ? e.message : GITHUB_DOWN });
           }
-          if (current.some((x) => x.email === email)) {
-            results.push({ email, status: 'already' });
-            continue;
-          }
-          if (current.length >= MAX_PENDING) {
-            results.push({ email, status: 'failed', message: `This team already has ${MAX_PENDING} invites waiting. Cancel some first.` });
-            continue;
-          }
-          const id = Buffer.from(ctx.random(8)).toString('hex');
-          const inv = await storeAndSend(
-            ctx,
-            { id, repo: facts.full, email, role, ...(reviewAs ? { reviewAs } : {}), invitedBy: me.login, createdAt: new Date(ctx.now()).toISOString() },
-            origin,
-            me.name,
-          );
-          current.push(inv);
-          results.push({ email, status: 'sent' });
-        } catch (e) {
-          results.push({ email, status: 'failed', message: e instanceof HttpError ? e.message : GITHUB_DOWN });
         }
+      } finally {
+        await release(reserved - emailed);
       }
       return json(200, { results });
     }
@@ -864,14 +1056,32 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
     case 'resend': {
       const { me, facts } = await authorize(ctx, req, body.repo, 'admin');
       const inv = await findInvite(ctx, facts.full, body.id);
+      const now = ctx.now();
+      const since = now - Date.parse(inv.sentAt);
+      if (since < RESEND_COOLDOWN_MS) throw limitError('resend_soon', LIMIT_WORDS.resend_soon, Math.ceil((RESEND_COOLDOWN_MS - since) / 1000));
+      const resendKey = [countKey('resend', `${facts.full}:${inv.id}`, dayOf(now))];
+      const [count = 0] = await ctx.svc.store.bump(resendKey, 1, COUNTER_TTL_S);
+      if (count > MAX_RESENDS_PER_INVITE_DAY) {
+        await ctx.svc.store.bump(resendKey, -1, COUNTER_TTL_S);
+        throw limitError('resend', LIMIT_WORDS.resend, secondsToTomorrow(now));
+      }
+      let release: (k: number) => Promise<void>;
+      try {
+        release = await reserve(ctx, me.login, facts.full, 1);
+      } catch (e) {
+        await ctx.svc.store.bump(resendKey, -1, COUNTER_TTL_S);
+        throw e;
+      }
       // The old link stops working: its token index goes with the old record.
       await ctx.svc.store.remove(inv);
       try {
         const next = await storeAndSend(ctx, { id: inv.id, repo: inv.repo, email: inv.email, role: inv.role, ...(inv.reviewAs ? { reviewAs: inv.reviewAs } : {}), invitedBy: inv.invitedBy, createdAt: inv.createdAt }, siteOrigin(req, env), me.name);
         return json(200, { invite: publicInvite(next) });
       } catch (e) {
-        // No email went out: the invite stays as it was, its first link still valid.
+        // No email went out: the invite stays as it was, its first link still valid, and nothing is counted.
         await ctx.svc.store.put(inv, Math.ceil((Date.parse(inv.expiresAt) - ctx.now()) / 1000));
+        await release(1);
+        await ctx.svc.store.bump(resendKey, -1, COUNTER_TTL_S);
         throw e;
       }
     }
@@ -929,6 +1139,21 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
         await ctx.svc.store.remove(inv);
         return fail(410, 'expired', EXPIRED);
       }
+      // Only the invited person: the email must be a verified email of this GitHub account. Otherwise nothing is
+      // granted and the invite stays valid, so they can fix it on GitHub and open the same link again.
+      const email = await emailStatus(ctx.f, userToken, inv.email);
+      if (email !== 'verified') {
+        const sentTo = maskEmail(inv.email);
+        return json(403, {
+          error: email === 'unverified' ? 'email_unverified' : 'email_mismatch',
+          message:
+            email === 'unverified'
+              ? `This invitation was sent to ${sentTo}. That email is on your GitHub account but not verified yet. Verify it on GitHub, then try again.`
+              : `This invitation was sent to ${sentTo}, which is not an email of your GitHub account @${me.login}. Add and verify it on GitHub, then try again, or ask your admin to invite the email you use on GitHub.`,
+          sentTo,
+          login: me.login,
+        });
+      }
       const { owner, repo, full } = parseRepo(inv.repo);
       const appToken = await appFor(ctx, owner, repo);
       const facts = await repoFacts(ctx.f, appToken, owner, repo, full);
@@ -971,7 +1196,7 @@ export async function handleInvites(req: Request, env: InvitesEnv, deps: Invites
     if (req.method === 'POST') return await onPost(req, env, deps);
     return json(405, { error: 'method', message: 'Use GET or POST.' }, { Allow: 'GET, POST' });
   } catch (e) {
-    if (e instanceof HttpError) return fail(e.status, e.code, e.message);
+    if (e instanceof HttpError) return json(e.status, { error: e.code, message: e.message, ...e.extra }, e.headers);
     return fail(502, 'unreachable', GITHUB_DOWN);
   }
 }
@@ -986,6 +1211,9 @@ const envFromProcess = (): InvitesEnv => ({
   GITHUB_APP_ID: process.env.GITHUB_APP_ID,
   GITHUB_APP_PRIVATE_KEY: process.env.GITHUB_APP_PRIVATE_KEY,
   PUBLIC_SITE_URL: process.env.PUBLIC_SITE_URL,
+  INVITES_MAX_PER_ADMIN_DAY: process.env.INVITES_MAX_PER_ADMIN_DAY,
+  INVITES_MAX_PER_TEAM_DAY: process.env.INVITES_MAX_PER_TEAM_DAY,
+  INVITES_MAX_SITE_DAY: process.env.INVITES_MAX_SITE_DAY,
 });
 
 const realFetch: FetchLike = (url, init) => fetch(url, init);
