@@ -420,8 +420,6 @@ export interface BranchCard {
   status?: string | null;
   /** The status line in other words than branchStatus (the demo's team branches: "Exploration in Account · Ann"). */
   statusLine?: { stage: string; detail: string };
-  /** Sample data of the demo: the card says so ("Sample"). */
-  sample?: boolean;
 }
 
 export type BranchFilter = 'all' | 'draft' | 'ready';

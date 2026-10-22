@@ -72,3 +72,14 @@ describe('StudioHome, contributor', () => {
     expect(screen.queryByText(/until a reviewer merges them/)).toBeNull();
   });
 });
+
+describe('StudioHome, demo', () => {
+  it('starts the branch cards with Create branch, gated by the demo, and shows no Sample chip', () => {
+    const demo = { lead: dana, branchesTitle: 'Explorations and branches', branchesMax: 3 };
+    const { container } = render(createElement(StudioHome, props({ contributor: false, demo, tour: () => null })));
+    const items = container.querySelectorAll('.sh-cards > li');
+    expect(items[0]!.classList.contains('sh-create')).toBe(true);
+    expect(items[0]!.querySelector('[data-demo-write="create branches"]')).toBeTruthy();
+    expect(screen.queryByText('Sample')).toBeNull();
+  });
+});

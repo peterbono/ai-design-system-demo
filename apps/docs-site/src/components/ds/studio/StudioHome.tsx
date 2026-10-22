@@ -75,15 +75,6 @@ export function NeedRowItem({ row, selected, onSelect, action, compact }: { row:
   );
 }
 
-/** "Sample": demo data, on the demo's branch cards (its review rows keep one status; the banner says it is sample data). */
-export function SampleTag() {
-  return (
-    <Badge tone="neutral" size="sm" className="sh-sample">
-      Sample
-    </Badge>
-  );
-}
-
 export function NeedList({ rows, selectedKey, onSelect, label = 'Needs you', action, compact }: { rows: NeedRow[]; selectedKey?: string | null; onSelect?: (row: NeedRow) => void; label?: string; action?: 'primary' | 'secondary'; compact?: boolean }) {
   return (
     <ul className="sh-rows" aria-label={label}>
@@ -205,7 +196,6 @@ function BranchCardItem({ b, now }: { b: BranchCard; now: number }) {
             <Link href={b.href} variant="subtle" className="t-body sh-card-title" data-card-primary>
               <span className="sh-strong">{b.title}</span>
             </Link>
-            {b.sample && <SampleTag />}
           </span>
           <span className="t-ui t-muted sh-card-status">
             <span className="sh-card-stage">{s.stage}</span> ·{' '}
@@ -267,7 +257,8 @@ function Branches({
       </header>
       {tour?.('branches')}
       <ul className="sh-cards">
-        {/* Create first, like "+ New" in Figma's file browser: the slot never moves as branches come and go. */}
+        {/* Create first, like "+ New" in Figma's file browser: the slot never moves as branches come and go. On the demo
+            too: its button carries data-demo-write, so a visitor gets the demo's sign-in dialog (scripts/demo-gate.ts). */}
         {create && (
           <li className="sh-card-item sh-create">
             <StartChange components={components} appearance="card" />
@@ -439,7 +430,7 @@ export function StudioHome(p: StudioHomeProps) {
       </section>
       {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}
       {p.health && <Health h={p.health} />}
-      {(p.branches.length > 0 || !loading) && <Branches branches={p.branches} now={p.now} components={p.components} title={p.demo?.branchesTitle} sub={p.demo ? null : undefined} create={!p.demo} max={p.demo?.branchesMax} tour={tour} />}
+      {(p.branches.length > 0 || !loading) && <Branches branches={p.branches} now={p.now} components={p.components} title={p.demo?.branchesTitle} sub={p.demo ? null : undefined} max={p.demo?.branchesMax} tour={tour} />}
     </div>
   );
 }
