@@ -19269,7 +19269,7 @@
       "name": "MenuItem",
       "component": "Menu",
       "view": "without-popup",
-      "hash": "309c39bd",
+      "hash": "dcadfe59",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -19342,7 +19342,7 @@
           },
           "values": {
             "root": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -19366,7 +19366,7 @@
           },
           "values": {
             "root": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -19390,7 +19390,7 @@
           },
           "values": {
             "root": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -19414,7 +19414,7 @@
           },
           "values": {
             "root": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -19451,7 +19451,7 @@
       "name": "MenuCheckboxItem",
       "component": "Menu",
       "view": "without-popup",
-      "hash": "eed6a1f7",
+      "hash": "0680d8fd",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -19572,7 +19572,7 @@
           },
           "values": {
             "root": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -19620,7 +19620,7 @@
           },
           "values": {
             "root": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -19668,7 +19668,7 @@
           },
           "values": {
             "root": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -19712,7 +19712,7 @@
           },
           "values": {
             "root": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -19832,7 +19832,7 @@
           }
         ]
       },
-      "hash": "cd7f0279",
+      "hash": "2ccd0b5f",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -20029,7 +20029,7 @@
               "letterSpacing": "font.tracking.wide"
             },
             "item": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -20053,7 +20053,7 @@
               "lineHeight": "font.line-height.normal"
             },
             "item-2": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -20071,7 +20071,7 @@
               "lineHeight": "font.line-height.normal"
             },
             "item-3": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -20111,7 +20111,7 @@
               "letterSpacing": "font.tracking.wide"
             },
             "item": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -20135,7 +20135,7 @@
               "lineHeight": "font.line-height.normal"
             },
             "item-2": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -20153,7 +20153,7 @@
               "lineHeight": "font.line-height.normal"
             },
             "item-3": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -20185,7 +20185,7 @@
       "name": "MenuRadioItem",
       "component": "Menu",
       "view": "without-popup",
-      "hash": "8d055931",
+      "hash": "d1e68b99",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -20272,7 +20272,7 @@
           },
           "values": {
             "root": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -20307,7 +20307,7 @@
           },
           "values": {
             "root": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -20342,7 +20342,7 @@
           },
           "values": {
             "root": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -20374,7 +20374,7 @@
           },
           "values": {
             "root": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -20460,7 +20460,7 @@
           }
         ]
       },
-      "hash": "cb840d54",
+      "hash": "c2b73291",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -20674,7 +20674,7 @@
               "letterSpacing": "font.tracking.wide"
             },
             "item": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -20699,7 +20699,7 @@
               "lineHeight": "font.line-height.normal"
             },
             "item-2": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -20724,7 +20724,7 @@
               "lineHeight": "font.line-height.normal"
             },
             "item-3": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -20829,7 +20829,7 @@
           }
         ]
       },
-      "hash": "ea762ce4",
+      "hash": "2057db36",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -20892,7 +20892,7 @@
           },
           "values": {
             "root": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -20915,7 +20915,7 @@
           },
           "values": {
             "root": {
-              "cornerRadius": "radius.inset",
+              "cornerRadius": "calc(popup.radius - space.1)",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,

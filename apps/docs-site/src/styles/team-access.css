@@ -57,6 +57,17 @@
   flex: none;
 }
 
+/* What to do here: inviting collaborators is the main action, in the link color; creating another team is rarer and
+   reads quieter. */
+.tc-menu .tc-invite {
+  color: var(--color-text-link);
+  font-weight: var(--font-weight-medium);
+}
+
+.tc-menu .tc-create {
+  color: var(--color-text-muted);
+}
+
 /* A recent team and its remove action share one row: two DS menu items side by side, the team takes the width. */
 .tc-recent {
   display: flex;
