@@ -52,6 +52,8 @@ export interface GeneratedSet {
   variants: string[];
   /** The library branch this set was pushed to from Figma (shared plugin data dsbridge / pushed), until a pull rebuilds it. */
   pushed?: PushedMark | undefined;
+  /** Figma holds the set in error (left by an older DS Bridge): the pull rebuilds it even when its spec did not change. */
+  inError?: boolean | undefined;
 }
 
 /** Where a set's change from Figma went: its library branch (a token change or a branch Claude AI drafts). */
@@ -681,7 +683,7 @@ export function buildComponentPlan(
     // Pushed from Figma and shipped (or closed): rebuilt from the reviewed code even when the spec did not change.
     const shipped = existing?.pushed ? opts.pushed?.get(existing.pushed.number) : undefined;
     const fromFigma = existing?.pushed && shipped?.rebuild ? { number: existing.pushed.number, url: existing.pushed.url, status: shipped } : undefined;
-    const status: ComponentStatus = !existing ? 'new' : existing.specHash === spec.hash && !addedVariants.length && !removedVariants.length && !fromFigma ? 'unchanged' : 'updated';
+    const status: ComponentStatus = !existing ? 'new' : existing.specHash === spec.hash && !addedVariants.length && !removedVariants.length && !fromFigma && !existing.inError ? 'unchanged' : 'updated';
     const pins: NonNullable<PlannedComponent['pins']> = {};
     for (const part of spec.parts) if (part.pin) pins[part.id] = pinPixels(part.id, part.pin);
     components.push({

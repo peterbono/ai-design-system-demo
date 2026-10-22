@@ -136,12 +136,24 @@ export async function scanGenerated(): Promise<GeneratedSet[]> {
     specHash: s.getSharedPluginData(NS, 'specHash'),
     variants: s.children
       .filter((c): c is ComponentNode => c.type === 'COMPONENT' && c.getSharedPluginData(NS, 'orphan') !== 'true')
-      .map((c) => c.getSharedPluginData(NS, 'variant') || variantKeyOf(c.variantProperties ?? {})),
+      .map(keyOfVariant),
     ...(() => {
       const pushed = parsePushedMark(s.getSharedPluginData(NS, PUSHED_KEY));
       return pushed ? { pushed } : {};
     })(),
+    ...(inError(s) ? { inError: true } : {}),
   }));
+}
+
+/** A set Figma holds in error (variants of different shapes or alike): every read of its properties throws. */
+function inError(s: ComponentSetNode): boolean {
+  try {
+    void s.componentPropertyDefinitions;
+    for (const c of s.children) if (c.type === 'COMPONENT') void c.variantProperties;
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 // ---------------------------------------------------------------------------------------------

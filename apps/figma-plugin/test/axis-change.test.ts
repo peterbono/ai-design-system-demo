@@ -144,3 +144,30 @@ test('the code adds an axis, then drops a value, then removes the axis: every se
   assert.deepEqual(sim.loose(), []);
   void sha3;
 });
+
+test('a set an older DS Bridge left in error is rebuilt by the next pull, even when its spec did not change', async () => {
+  const sim = new SimFigma();
+  sim.install();
+  const p = DEFAULT_SETTINGS.tokensPath;
+  const files: Record<string, string> = {};
+  for (const [rel, text] of Object.entries(realFiles())) files[`${p}/${rel}`] = text;
+  files[`${p}/contrast.checks.json`] = realChecksText();
+  files['bridge.config.json'] = realConfigText();
+  files[SPECS_PATH] = JSON.stringify(someSpecs());
+  const gh = new FakeGitHub(files);
+  const first = await pull(gh);
+  const kbd = sim.sets().find((s) => s.name === 'Kbd')!;
+  // What the old update left: an orphan still named with an axis the set no longer has.
+  const old = kbd.children[0]!.copy();
+  old.name = 'Tone=neutral, Size=md';
+  old.setSharedPluginData('dsbridge', 'variant', 'Size=md, Tone=neutral');
+  old.setSharedPluginData('dsbridge', 'orphan', 'true');
+  kbd.appendChild(old);
+  assert.throws(() => propsOf(kbd), /existing errors/);
+  const next = await pull(gh, first.a.headSha);
+  assert.deepEqual(next.plan.components.filter((c) => c.status !== 'unchanged').map((c) => c.name), ['Kbd']);
+  assert.deepEqual(next.report.failed, []);
+  assert.doesNotThrow(() => propsOf(kbd));
+  assert.equal(old.name, 'Size=md (removed)');
+  assert.deepEqual(pendingComponents(next.again), []);
+});
