@@ -180,7 +180,7 @@ describe('who can do what', () => {
 
 describe('accessSummary on the demo', () => {
   it('tells a signed-out visitor they explore sample data, not to sign in to see what they can do', () => {
-    expect(accessSummary(null, { login: null, repo: 'peterbono/bridge-demo-ds', demo: true })).toBe("You're exploring the Bridge demo with sample data. Nothing you do here is saved.");
+    expect(accessSummary(null, { login: null, repo: 'peterbono/bridge-demo-ds', demo: true })).toBe("You're exploring the demo with sample data. Nothing you do here is saved.");
     expect(accessSummary(null, { login: null, repo: 'acme/ds' })).toMatch(/^Sign in with GitHub/);
     expect(accessSummary(null, { login: 'ann', repo: 'peterbono/bridge-demo-ds', demo: true })).toMatch(/^Checking/);
   });

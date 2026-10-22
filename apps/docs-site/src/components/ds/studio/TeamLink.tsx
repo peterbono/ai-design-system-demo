@@ -176,7 +176,8 @@ export function TeamLinkLive(props: TeamLinkLiveProps) {
   const owner = ctx?.owner ?? props.owner ?? '';
   const repo = ctx?.repo ?? props.repo ?? '';
   const name = `${owner}/${repo}`;
-  // The demo names a signed-out visitor as the team chip does ("Explore freely"), not as a guest of a real team.
+  // The demo names a signed-out visitor as the team chip does ("Explore freely"), not as a guest of a real team, and
+  // never names the repository's real accounts (Who can do what says owners without logins).
   const demo = isDemoRepo(name);
   const badge = demo ? chipIdentity(name, { demo, state: access, signedIn: Boolean(login) }).badge : accessBadge(access, Boolean(login));
   return (
@@ -194,7 +195,7 @@ export function TeamLinkLive(props: TeamLinkLiveProps) {
         link={ctx?.link ?? STUDIO_ROOT}
         access={login ? access : null}
         changes={ctx?.changes ?? props.changes ?? null}
-        owners={ctx?.owners ?? props.owners}
+        owners={demo ? undefined : (ctx?.owners ?? props.owners)}
         org={org}
       />
     </div>

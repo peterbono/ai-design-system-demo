@@ -5,7 +5,8 @@
 //   Review rules                 design and tech owners, who approves and merges, what each kind of branch needs and
 //                                the owner override (governance in bridge.config.json, the rules from docs/GOVERNANCE.md)
 //   Safety                       when the visual before and after runs
-// On the demo this is the full Settings with the demo's sample team; on any other team it is that team's own setup.
+// On the demo this is the full Settings with the demo's sample team (its persona, never the repository's accounts);
+// on any other team it is that team's own setup.
 // Repo strings reach the page as React text only.
 import { Users } from 'lucide-react';
 import { Avatar, Card, CardBody, CardHeader, Tag } from '@bridge-ds/react';
@@ -14,6 +15,7 @@ import ChangeRules from './ChangeRules';
 import { TeamLoadError, TeamLoadProgress, useTeamData } from './TeamState';
 import { OWNER_GROUP_HELP, OWNER_GROUP_LABEL, roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL } from '../../../lib/roles-view';
 import { CHANGES_CHOICE, overrideText, soloOwnerRow } from '../../../lib/settings-view';
+import { demoSettingsPeople, isDemoRepo } from '../../../lib/demo';
 
 export interface TeamSettingsProps {
   /** What each kind of branch needs, in plain words (lib/settings-view approvalRules, from docs/GOVERNANCE.md). */
@@ -22,7 +24,17 @@ export interface TeamSettingsProps {
 
 const avatarSrc = (login: string) => `https://github.com/${encodeURIComponent(login)}.png?size=48`;
 
-function Owners({ entries }: { entries: string[] }) {
+function Owners({ entries, demoLead }: { entries: string[]; demoLead: string | null }) {
+  // The demo names its persona (initials, as on the demo home), never the repository's real accounts.
+  if (demoLead)
+    return (
+      <span className="set-owner-list">
+        <span className="set-owner">
+          <Avatar name={demoLead} size="xs" decorative />
+          <span>{demoLead}</span>
+        </span>
+      </span>
+    );
   if (!entries.length) return <span className="set-quiet">Nobody listed yet</span>;
   return (
     <span className="set-owner-list">
@@ -61,10 +73,13 @@ export default function TeamSettings({ rules }: TeamSettingsProps) {
   if (load.status === 'loading') return <TeamLoadProgress label="Reading the settings of this design system" />;
   if (load.status === 'error') return <TeamLoadError failure={load.failure} onRetry={retry} />;
   const site = load.data.model.site;
+  // The demo tells its sample team (lib/demo.ts demoSettingsPeople); a real team reads its own config.
+  const demo = isDemoRepo(`${load.data.owner}/${load.data.repo}`) ? demoSettingsPeople(site) : null;
   const changes = CHANGES_CHOICE[site.changes];
   const roles = roleRows(site.owners, site.rights);
-  const solo = soloOwnerRow(site);
-  const override = overrideText(site.override);
+  const realSolo = soloOwnerRow(site);
+  const solo = demo ? (realSolo && demo.solo ? { ...realSolo, value: demo.solo } : null) : realSolo;
+  const override = demo ? overrideText(site.override, demo.nameOf) : overrideText(site.override);
   const mode = site.visualImpact.mode;
   return (
     <>
@@ -97,7 +112,7 @@ export default function TeamSettings({ rules }: TeamSettingsProps) {
                     <p className="set-row-help">{OWNER_GROUP_HELP[g]}</p>
                   </div>
                   <div className="set-row-value set-row-span">
-                    <Owners entries={site.owners[g]} />
+                    <Owners entries={site.owners[g]} demoLead={demo?.lead ?? null} />
                   </div>
                 </div>
               ))}

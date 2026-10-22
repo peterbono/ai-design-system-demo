@@ -147,10 +147,10 @@ export function accountView(state: AccountState, at: AccountFacts): AccountView 
   }
 }
 
-/** The owner override in one line, for its fold in Review rules. */
-export function overrideText(o: { allowed: string[]; requireReason?: boolean; minReasonLength?: number }): { on: boolean; text: string } {
+/** The owner override in one line, for its fold in Review rules. `nameOf` names a login (the demo names its persona). */
+export function overrideText(o: { allowed: string[]; requireReason?: boolean; minReasonLength?: number }, nameOf: (login: string) => string = (l) => `@${l}`): { on: boolean; text: string } {
   if (!o.allowed.length) return { on: false, text: 'Every branch waits for its approvals before it is merged.' };
-  const who = o.allowed.map((l) => `@${l}`).join(', ');
+  const who = [...new Set(o.allowed.map(nameOf))].join(', ');
   const reason = o.requireReason ? `, with a written reason of ${o.minReasonLength ?? 0} characters or more` : '';
   return { on: true, text: `${who} may merge a branch when only approvals are missing${reason}.` };
 }

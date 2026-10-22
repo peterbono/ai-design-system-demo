@@ -123,3 +123,20 @@ export function demoTour(at: TourAt, role?: string | null): { title: string; tex
 export function tourSteps(x: { rows: boolean; more: boolean; branches: boolean }): TourAt[] {
   return (['rows', 'more', 'branches'] as const).filter((s) => x[s]);
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Settings on the demo
+
+/** Who the demo's Settings name: the persona (bridge.config.json "demo"), else the role the demo always tells. */
+export const demoLeadName = (persona: { viewer?: string } | null | undefined): string => persona?.viewer?.trim() || 'Your design system lead';
+
+/**
+ * The people of the demo's Settings (components/ds/studio/TeamSettings.tsx): the demo tells one story, the visitor in
+ * the seat of the persona who leads the design system (Dana), so its Settings never show the repository's real
+ * accounts. The persona holds both owner groups and every override; the rules themselves (rights, override on or off,
+ * the written reason) stay the repository's. The only-owner line keeps its words, with the persona.
+ */
+export function demoSettingsPeople(site: { demo?: { viewer?: string } | undefined; soloOwnerCanApproveBoth: boolean }): { lead: string; nameOf: (login: string) => string; solo: string | null } {
+  const lead = demoLeadName(site.demo);
+  return { lead, nameOf: () => lead, solo: site.soloOwnerCanApproveBoth ? `As the only owner, ${lead} approves design and code in one review.` : null };
+}

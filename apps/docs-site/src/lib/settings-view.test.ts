@@ -126,6 +126,8 @@ describe('owner override', () => {
       text: '@ana, @bo may merge a branch when only approvals are missing, with a written reason of 20 characters or more.',
     });
     expect(overrideText({ allowed: ['ana'], requireReason: false }).text).toBe('@ana may merge a branch when only approvals are missing.');
+    // The demo names its persona once, whoever the config lists.
+    expect(overrideText({ allowed: ['ana', 'bo'], requireReason: false }, () => 'Dana').text).toBe('Dana may merge a branch when only approvals are missing.');
   });
 
   it('says what happens when nobody may override', () => {
