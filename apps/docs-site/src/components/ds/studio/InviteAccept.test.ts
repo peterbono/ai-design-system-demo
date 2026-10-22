@@ -97,7 +97,7 @@ describe('invite page, Can edit', () => {
     render(createElement(InviteAccept));
     expect(await screen.findByRole('heading', { name: 'Join Acme Design on Bridge' })).toBeInTheDocument();
     expect(screen.getByText(/sent to l•••@acme\.design/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'I use GitHub, sign in with GitHub instead' })).toHaveAttribute('data-gh-signin');
+    expect(screen.queryByRole('button', { name: /GitHub/ })).toBeNull();
     await expectNoAxeViolations(document.body);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Join Acme Design' }));

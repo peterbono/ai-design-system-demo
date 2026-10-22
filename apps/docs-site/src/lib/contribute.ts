@@ -94,7 +94,6 @@ export const CONTRIBUTE_WORDS = {
   namePlaceholder: 'Leo Martin',
   nameMissing: 'Add your name, so your team knows who made a change.',
   join: (team: string) => `Join ${team}`,
-  useGitHub: 'I use GitHub, sign in with GitHub instead',
   joining: 'Joining the team',
   githubRequired: 'This invitation is for a reviewer or an admin. They approve changes on GitHub, so sign in with GitHub to join.',
   // Reviewer and admin invites.
