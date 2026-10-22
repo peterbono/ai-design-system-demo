@@ -104,6 +104,71 @@ export interface PlannedField {
  */
 export const LONE_VARIANT = 'Variant=Default';
 
+/** Props of a variant key ("Size=md, State=Hover", "Default" for none). */
+export function propsOfKey(key: string): Record<string, string> {
+  if (!key || key === variantKeyOf({})) return {};
+  const out: Record<string, string> = {};
+  for (const pair of key.split(', ')) {
+    const i = pair.indexOf('=');
+    if (i > 0) out[pair.slice(0, i)] = pair.slice(i + 1);
+  }
+  return out;
+}
+
+export interface VariantMatch {
+  /** Planned variant key -> id of the Figma variant that becomes it (same node: its instances and overrides follow). */
+  reuse: Map<string, string>;
+  /** Variants the code no longer has, with a name that fits the set's axes now (a set refuses mixed shapes). */
+  orphans: { id: string; name: string }[];
+}
+
+/**
+ * Which Figma variant becomes which planned one when a set is updated. The same key first. Then, when the code adds or
+ * removes an axis, a variant whose values match once the new axis takes its default (and the removed one is dropped)
+ * becomes that variant: "State=Hover" is "Size=md, State=Hover" after Size is added with md as default. What is left is
+ * removed in code: kept as an orphan, renamed to the set's axes (a new axis at its default, a removed one dropped),
+ * with "(removed)" on its first value when that name is taken. Figma refuses a set whose variants do not all have
+ * the same properties, or two variants with the same values.
+ */
+export function matchVariants(existing: readonly { id: string; key: string }[], planned: readonly { key: string; props: Record<string, string> }[], axes: readonly SpecAxis[]): VariantMatch {
+  const reuse = new Map<string, string>();
+  const claimed = new Set<string>();
+  const byKey = new Map<string, string>();
+  for (const e of existing) if (!byKey.has(e.key)) byKey.set(e.key, e.id);
+  for (const pv of planned) {
+    const id = byKey.get(pv.key);
+    if (id && !claimed.has(id)) {
+      reuse.set(pv.key, id);
+      claimed.add(id);
+    }
+  }
+  const project = (props: Record<string, string>) => Object.fromEntries(axes.map((a) => [a.name, props[a.name] ?? a.default ?? a.values[0] ?? '']));
+  for (const pv of planned) {
+    if (reuse.has(pv.key)) continue;
+    const from = existing.find((e) => !claimed.has(e.id) && variantKeyOf(project(propsOfKey(e.key))) === pv.key);
+    if (from) {
+      reuse.set(pv.key, from.id);
+      claimed.add(from.id);
+    }
+  }
+  const lone = !axes.length;
+  const nameOf = (props: Record<string, string>) => (lone ? LONE_VARIANT : axes.map((a) => `${a.name}=${props[a.name]}`).join(', '));
+  const taken = new Set(planned.map((pv) => nameOf(pv.props)));
+  const orphans: VariantMatch['orphans'] = [];
+  for (const e of existing) {
+    if (claimed.has(e.id)) continue;
+    const props = project(propsOfKey(e.key));
+    let name = nameOf(props);
+    for (let n = 1; taken.has(name); n++) {
+      const mark = n === 1 ? ' (removed)' : ` (removed ${n})`;
+      name = lone ? `${LONE_VARIANT}${mark}` : nameOf({ ...props, [axes[0]!.name]: `${props[axes[0]!.name]}${mark}` });
+    }
+    taken.add(name);
+    orphans.push({ id: e.id, name });
+  }
+  return { reuse, orphans };
+}
+
 export interface PlannedVariant {
   /** variantKeyOf(props): stored on the variant (dsbridge / variant). */
   key: string;
