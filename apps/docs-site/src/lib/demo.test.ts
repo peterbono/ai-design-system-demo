@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEMO_REPOS, DEMO_WORDS, demoLeadName, demoSettingsPeople, demoTour, demoWaiting, exploresDemo, isDemoRepo, tourSteps } from './demo';
+import { DEMO_REPOS, DEMO_WORDS, demoLeadName, demoSettingsPeople, demoTour, demoWaiting, exploresDemo, isDemoRepo, teamDisplayName, tourSteps } from './demo';
 
 describe('the demo', () => {
   it('is the self-hosted repository and the hosted demo team, any case', () => {
@@ -60,5 +60,13 @@ describe('the demo Settings', () => {
   it('says the role when the demo has no persona', () => {
     expect(demoLeadName(undefined)).toBe('Your design system lead');
     expect(demoLeadName({ viewer: ' ' })).toBe('Your design system lead');
+  });
+});
+
+describe('teamDisplayName', () => {
+  it('a demo goes by its own name, any other team by its repository name, never owner/repo', () => {
+    expect(teamDisplayName('peterbono/ai-design-system-demo')).toBe('Bridge');
+    expect(teamDisplayName('PeterBono/Bridge-Demo-DS')).toBe('Acme Design');
+    expect(teamDisplayName('acme/design-system')).toBe('design-system');
   });
 });

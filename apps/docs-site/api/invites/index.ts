@@ -68,6 +68,7 @@ import { githubApp as sharedGithubApp, type AppTokens } from '../_lib/github-app
 import { b64url, clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody as readJsonBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin as originOf, type FetchLike } from '../_lib/http.js';
 import { memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
+import { teamDisplayName } from '../../src/lib/demo.js';
 
 export { appJwt } from '../_lib/github-app.js';
 export { resendSender, sameOrigin };
@@ -400,11 +401,12 @@ export function memoryStore(now: () => number = Date.now): InviteStore & { keys(
 export function inviteEmail(x: { to: string; inviter: string; repo: string; role: Role; reviewAs?: ReviewAs; link: string }): EmailMessage {
   const w = ROLE_WORDS[x.role];
   const roleLabel = x.role === 'reviewer' && x.reviewAs ? `${w.label}: ${REVIEW_AS_WORDS[x.reviewAs]}` : w.label;
-  const subject = `${x.inviter} invited you to ${x.repo} on Bridge`;
+  const team = teamDisplayName(x.repo);
+  const subject = `${x.inviter} invited you to ${team} on Bridge`;
   // "Can edit" joins with the email alone (api/contribute); reviewers and admins approve on GitHub.
   const how = x.role === 'edit' ? 'You join with this email, no GitHub account needed.' : 'You sign in with GitHub.';
   const lines = [
-    `${x.inviter} invited you to the ${x.repo} design system on Bridge.`,
+    `${x.inviter} invited you to the ${team} design system on Bridge.`,
     '',
     `Your role: ${roleLabel}. ${w.text}`,
     '',
@@ -414,7 +416,7 @@ export function inviteEmail(x: { to: string; inviter: string; repo: string; role
     "If you did not expect this email, you can ignore it.",
   ];
   const html = [
-    `<p>${escHtml(x.inviter)} invited you to the <strong>${escHtml(x.repo)}</strong> design system on Bridge.</p>`,
+    `<p>${escHtml(x.inviter)} invited you to the <strong>${escHtml(team)}</strong> design system on Bridge.</p>`,
     `<p>Your role: <strong>${escHtml(roleLabel)}</strong>. ${escHtml(w.text)}</p>`,
     `<p><a href="${escHtml(x.link)}">Join the team</a></p>`,
     `<p>${how} The link works once and expires in 7 days.</p>`,
@@ -1047,7 +1049,7 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
       if (typeof body.token !== 'string' || !TOKEN.test(body.token)) return fail(410, 'expired', EXPIRED);
       const inv = await ctx.svc.store.byTokenHash(sha256(body.token));
       if (!inv || !alive(inv, ctx.now())) return fail(410, 'expired', EXPIRED);
-      return json(200, { team: inv.repo, repo: inv.repo, role: inv.role, sentTo: maskEmail(inv.email) });
+      return json(200, { team: teamDisplayName(inv.repo), repo: inv.repo, role: inv.role, sentTo: maskEmail(inv.email) });
     }
     case 'accept': {
       const userToken = bearer(req);

@@ -31,6 +31,16 @@ export const isSampleTeam = (repo: string | null | undefined): boolean => (repo 
 export const demoTeamName = (repo: string | null | undefined): string => (isSampleTeam(repo) ? SAMPLE_TEAM : OWN_TEAM);
 
 /**
+ * The name a team goes by for people outside Studio (the invite page, the invite email): a demo's own name, Bridge or
+ * Acme Design, otherwise the repository part of "owner/repo" ("design-system", never "acme/design-system").
+ */
+export const teamDisplayName = (repo: string): string => {
+  if (isDemoRepo(repo)) return demoTeamName(repo);
+  const name = repo.trim().split('/').pop()?.trim();
+  return name || repo.trim();
+};
+
+/**
  * The visitor explores the demo: it is a demo repository and they cannot write to it. Signed in, `write` stays
  * unknown (null) until GitHub answers; until then the Studio behaves as usual, so its owner is never stopped.
  */
