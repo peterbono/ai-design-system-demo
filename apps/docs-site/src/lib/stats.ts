@@ -6,7 +6,7 @@ import { repoModel } from './model';
 import { git } from './repo';
 
 export type { Issue, IssueKind, Slice } from './library/stats';
-export { categoryOf, typeLabel } from './library/stats';
+export { categoryOf, humanDate, typeLabel } from './library/stats';
 
 /** Global stylesheet -> CSS custom properties it reads (base styles, theme), from the repo model. */
 export const globalStyleVars = (): Record<string, string[]> => lib.globalStyleVars(repoModel);
@@ -31,10 +31,3 @@ export function repoStatus(): RepoStatus {
   return { branch, sha, lastChange, commits };
 }
 
-/** Format a YYYY-MM-DD date for humans, in English, without timezone surprises. */
-export function humanDate(iso: string | null | undefined): string {
-  if (!iso) return 'unknown';
-  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(d);
-}

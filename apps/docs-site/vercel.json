@@ -10,6 +10,8 @@
     {"source": "/library/peterbono/ai-design-system-demo/components/", "has": [{"type": "query", "key": "c", "value": "(?<slug>[a-z0-9][a-z0-9-]*)"}], "destination": "/components/:slug/", "permanent": false},
     {"source": "/library/peterbono/ai-design-system-demo/components/", "destination": "/components/", "permanent": false},
     {"source": "/library/peterbono/ai-design-system-demo/components", "destination": "/components/", "permanent": false},
+    {"source": "/library/peterbono/ai-design-system-demo/components/:slug([A-Za-z0-9][A-Za-z0-9-]*)/", "destination": "/components/:slug/", "permanent": false},
+    {"source": "/library/peterbono/ai-design-system-demo/components/:slug([A-Za-z0-9][A-Za-z0-9-]*)", "destination": "/components/:slug/", "permanent": false},
     {"source": "/library/peterbono/ai-design-system-demo/foundations/", "destination": "/foundations/color/", "permanent": false},
     {"source": "/library/peterbono/ai-design-system-demo/foundations", "destination": "/foundations/color/", "permanent": false},
     {"source": "/library/peterbono/ai-design-system-demo/foundations/color/", "destination": "/foundations/color/", "permanent": false},
@@ -27,13 +29,17 @@
     {"source": "/library/peterbono/ai-design-system-demo/tokens/", "destination": "/tokens/", "permanent": false},
     {"source": "/library/peterbono/ai-design-system-demo/tokens", "destination": "/tokens/", "permanent": false},
     {"source": "/library/peterbono/ai-design-system-demo/:path*/", "destination": "/library/", "permanent": false},
-    {"source": "/library/peterbono/ai-design-system-demo/:path*", "destination": "/library/", "permanent": false}
+    {"source": "/library/peterbono/ai-design-system-demo/:path*", "destination": "/library/", "permanent": false},
+    {"source": "/library/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/components/", "has": [{"type": "query", "key": "c", "value": "(?<slug>[A-Za-z0-9][A-Za-z0-9-]*)"}], "destination": "/library/:owner/:repo/components/:slug/", "permanent": false},
+    {"source": "/library/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/components", "has": [{"type": "query", "key": "c", "value": "(?<slug>[A-Za-z0-9][A-Za-z0-9-]*)"}], "destination": "/library/:owner/:repo/components/:slug/", "permanent": false}
   ],
   "rewrites": [
     { "source": "/studio/~/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/:path*/", "destination": "/team-shell/:path*/" },
     { "source": "/studio/~/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/:path*", "destination": "/team-shell/:path*" },
     { "source": "/studio/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/:path*/", "destination": "/team-shell/:path*/" },
     { "source": "/studio/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/:path*", "destination": "/team-shell/:path*" },
+    { "source": "/library/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/components/:slug([A-Za-z0-9][A-Za-z0-9-]*)/", "destination": "/library-shell/components/item/" },
+    { "source": "/library/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/components/:slug([A-Za-z0-9][A-Za-z0-9-]*)", "destination": "/library-shell/components/item/" },
     { "source": "/library/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/:path*/", "destination": "/library-shell/:path*/" },
     { "source": "/library/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/:path*", "destination": "/library-shell/:path*" }
   ],

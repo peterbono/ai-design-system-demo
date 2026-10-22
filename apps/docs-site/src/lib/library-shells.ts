@@ -37,6 +37,15 @@ export const LIBRARY_FOUNDATION_PAGES: LibraryPage[] = [
   { route: 'tokens/', label: 'All tokens', icon: 'grid', apart: true, meta: 'Every semantic token with its light and dark value, ready to copy' },
 ];
 
+/**
+ * The shell of one component page: /library/<owner>/<repo>/components/<slug>/ is rewritten to it (libraryRewrites) and
+ * the page reads the slug from the address. Not a component name a team can take away: the rewrite comes first.
+ */
+export const COMPONENT_SHELL_ROUTE = 'components/item/';
+
+/** A component slug, as the scan writes it (lowercase) and as addresses may carry it. */
+export const COMPONENT_SLUG_PATTERN = '[A-Za-z0-9][A-Za-z0-9-]*';
+
 /** A top-level entry of a team's Library side nav: a page, or a group of pages (Foundations). */
 export type LibraryNavEntry = (LibraryPage & { children?: undefined }) | { label: string; icon: string; children: LibraryPage[] };
 
@@ -57,7 +66,7 @@ export const libraryTeamPages = (): LibraryPage[] => LIBRARY_TEAM_NAV.flatMap((e
  * The Library routes a team has, relative to its Library root ('' is Home). Each has a shell page. 'foundations/'
  * opens Color (as on Bridge's own Library), for links made before Foundations had a page per topic.
  */
-export const LIBRARY_SHELL_ROUTES = ['', ...LIBRARY_FOUNDATION_PAGES.map((p) => p.route).filter((r) => r !== 'tokens/'), 'foundations/', 'components/', 'tokens/'] as const;
+export const LIBRARY_SHELL_ROUTES = ['', ...LIBRARY_FOUNDATION_PAGES.map((p) => p.route).filter((r) => r !== 'tokens/'), 'foundations/', 'components/', COMPONENT_SHELL_ROUTE, 'tokens/'] as const;
 
 export type LibraryShellRoute = string;
 
@@ -110,6 +119,8 @@ export function ownLibraryPath(route = ''): string {
     const slug = new URLSearchParams(query).get('c');
     return slug && /^[a-z0-9][a-z0-9-]*$/i.test(slug) ? `/components/${slug.toLowerCase()}/` : '/components/';
   }
+  const comp = /^components\/([a-z0-9][a-z0-9-]*)\/$/i.exec(p);
+  if (comp) return `/components/${comp[1]!.toLowerCase()}/${hash ? `#${hash}` : ''}`;
   if (p === 'foundations/') return '/foundations/color/';
   if (LIBRARY_FOUNDATION_PAGES.some((f) => f.route === p)) return `/${p}${hash ? `#${hash}` : ''}`;
   return LIBRARY_ROOT;
@@ -136,9 +147,23 @@ export function ownLibraryRedirects(own: TeamPair): { source: string; destinatio
   return [
     { source: `${base}/components/`, has: [{ type: 'query', key: 'c', value: '(?<slug>[a-z0-9][a-z0-9-]*)' }], destination: '/components/:slug/', permanent: false },
     ...pair('/components', '/components/'),
+    ...pair(`/components/:slug(${COMPONENT_SLUG_PATTERN})`, '/components/:slug/'),
     ...pair('/foundations', '/foundations/color/'),
     ...LIBRARY_FOUNDATION_PAGES.flatMap((p) => pair(`/${p.route.replace(/\/$/, '')}`, `/${p.route}`)),
     ...pair('/:path*', LIBRARY_ROOT),
+  ];
+}
+
+/**
+ * The redirects vercel.json carries for every team Library, after the own Library's: a component link from before
+ * component pages had their own address (/components/?c=<slug>) goes to that address (/components/<slug>/).
+ */
+export function libraryRedirects(): { source: string; destination: string; permanent: false; has: { type: 'query'; key: string; value: string }[] }[] {
+  const base = `${LIBRARY_ROOT}${team}`;
+  const has = [{ type: 'query' as const, key: 'c', value: `(?<slug>${COMPONENT_SLUG_PATTERN})` }];
+  return [
+    { source: `${base}/components/`, has, destination: `${LIBRARY_ROOT}:owner/:repo/components/:slug/`, permanent: false },
+    { source: `${base}/components`, has, destination: `${LIBRARY_ROOT}:owner/:repo/components/:slug/`, permanent: false },
   ];
 }
 
@@ -148,10 +173,16 @@ export const routeOfShell = (path: string): string => (path.startsWith(LIBRARY_S
 const shell = LIBRARY_SHELL_ROOT.replace(/\/$/, '');
 const team = `:owner(${OWNER_PATTERN})/:repo(${REPO_PATTERN})`;
 
-/** The rewrites vercel.json carries for team Libraries: the trailing slash rule first (`:path*` does not match it). */
+/**
+ * The rewrites vercel.json carries for team Libraries: a component page to its one shell (the slug stays in the
+ * address), then every other route to its shell. The trailing slash rule first (`:path*` does not match it).
+ */
 export function libraryRewrites(): { source: string; destination: string }[] {
   const base = `${LIBRARY_ROOT}${team}`;
+  const item = `${shell}/${COMPONENT_SHELL_ROUTE}`;
   return [
+    { source: `${base}/components/:slug(${COMPONENT_SLUG_PATTERN})/`, destination: item },
+    { source: `${base}/components/:slug(${COMPONENT_SLUG_PATTERN})`, destination: item },
     { source: `${base}/:path*/`, destination: `${shell}/:path*/` },
     { source: `${base}/:path*`, destination: `${shell}/:path*` },
   ];

@@ -1,26 +1,13 @@
-// Props playground: the one React island of the component pages. It renders the REAL component from
-// @bridge-ds/react with controls generated from the props parsed out of its TypeScript source (see playgroundSpec).
-// Generic: any component in registry.tsx with string-literal, boolean or string props gets a playground.
-import { Component, useId, useMemo, useState, type ReactNode } from 'react';
+// Props playground of a component page: controls generated from the props parsed out of the component's TypeScript
+// source (playgroundSpec) drive the component's story in the team's Storybook (decision D2: every Library previews
+// with its own Storybook, Bridge's included), through the story's `args=` and the theme, brand and density globals.
+// One React component for Bridge's own page (a hydrated island) and a team's Library (rendered in the browser).
+import { useEffect, useId, useMemo, useState } from 'react';
 import { Button, CodeBlock, Input, SegmentedControl, Select, Switch } from '@bridge-ds/react';
 import { RotateCcw } from 'lucide-react';
 import { requestScope, useScope } from './ds/scope';
 import type { Control, PlaygroundSpec } from '../lib/components';
-import { REGISTRY, resolveProps } from './registry';
-
-/** Some prop combinations are invalid for a component; show a note instead of a blank island. */
-class Guard extends Component<{ children: ReactNode; resetKey: string }, { failed: boolean; key: string }> {
-  state = { failed: false, key: this.props.resetKey };
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-  static getDerivedStateFromProps(props: { resetKey: string }, state: { failed: boolean; key: string }) {
-    return props.resetKey !== state.key ? { failed: false, key: props.resetKey } : null;
-  }
-  render() {
-    return this.state.failed ? <p className="pg-note">This combination does not render. Try other values.</p> : this.props.children;
-  }
-}
+import { previewUrl, storyArgs } from '../lib/library/component-page';
 
 type Values = Record<string, string | boolean>;
 
@@ -78,25 +65,47 @@ function PropControl({ control, value, onChange }: { control: Control; value: st
   );
 }
 
-const DEFAULT_BRANDS = [
-  { value: 'bridge', label: 'Bridge' },
-  { value: 'ocean', label: 'Ocean' },
+const DEFAULT_DENSITIES = [
+  { value: 'comfortable', label: 'Comfortable' },
+  { value: 'compact', label: 'Compact' },
 ];
 
-/** `brands`: every brand of this build (bridge.config.json), so a merged brand shows up here too. */
-export default function PropsPlayground({ spec, brands = DEFAULT_BRANDS }: { spec: PlaygroundSpec; brands?: { value: string; label: string }[] }) {
+/** Waits for typing to settle before the story reloads with new args. */
+function useSettled<T>(value: T, ms = 350): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setSettled(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return settled;
+}
+
+export interface PropsPlaygroundProps {
+  spec: PlaygroundSpec;
+  /** The Storybook the story loads from (https, no trailing slash). */
+  storybook: string;
+  /** The story the controls drive (the component's first story). */
+  storyId: string;
+  /** Every brand of the design system (bridge.config.json), the default first: the switch shows when there are several. */
+  brands: { value: string; label: string }[];
+  densities?: { value: string; label: string }[];
+}
+
+export default function PropsPlayground({ spec, storybook, storyId, brands, densities = DEFAULT_DENSITIES }: PropsPlaygroundProps) {
   const [values, setValues] = useState<Values>(spec.initial);
   const [children, setChildren] = useState(spec.children ?? '');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const scope = useScope();
-  const Comp = REGISTRY[spec.component];
   const controls = [...spec.controls, ...spec.native];
 
   const code = useMemo(() => snippet(spec.component, values, spec.children !== null ? children : null, spec.defaults), [values, children, spec]);
-  if (!Comp) return <p className="muted">No playground: {spec.component} is not in the registry yet.</p>;
+  const args = useSettled(JSON.stringify(storyArgs(values, spec.children !== null ? children : null)));
+  // The default brand and density (listed first) stay out of the address: the story starts on them.
+  const brand = brands.length > 1 && scope.brand !== brands[0]?.value ? scope.brand : undefined;
+  const density = densities.length > 1 && scope.density !== densities[0]?.value ? scope.density : undefined;
+  const src = previewUrl(storybook, storyId, { theme, brand, density }, JSON.parse(args) as Record<string, string>);
 
   const set = (k: string) => (v: string | boolean) => setValues((prev) => ({ ...prev, [k]: v }));
-  const renderProps = { ...resolveProps(spec.fixed), ...Object.fromEntries(Object.entries(values).filter(([, v]) => v !== '')) };
 
   return (
     <div className="pg">
@@ -112,23 +121,8 @@ export default function PropsPlayground({ spec, brands = DEFAULT_BRANDS }: { spe
             value={theme}
             onValueChange={(v) => setTheme(v as 'light' | 'dark')}
           />
-          <SegmentedControl
-            label="Brand"
-            size="sm"
-            items={brands}
-            value={scope.brand}
-            onValueChange={(brand) => requestScope({ brand })}
-          />
-          <SegmentedControl
-            label="Density"
-            size="sm"
-            items={[
-              { value: 'comfortable', label: 'Comfortable' },
-              { value: 'compact', label: 'Compact' },
-            ]}
-            value={scope.density}
-            onValueChange={(density) => requestScope({ density })}
-          />
+          {brands.length > 1 && <SegmentedControl label="Brand" size="sm" items={brands} value={scope.brand} onValueChange={(brand) => requestScope({ brand })} />}
+          {densities.length > 1 && <SegmentedControl label="Density" size="sm" items={densities} value={scope.density} onValueChange={(density) => requestScope({ density })} />}
           <Button
             variant="ghost"
             size="sm"
@@ -142,12 +136,8 @@ export default function PropsPlayground({ spec, brands = DEFAULT_BRANDS }: { spe
             Reset props
           </Button>
         </div>
-        <div className="pg-stage stage-checker" data-theme={theme}>
-          <div className="pg-stage-inner">
-            <Guard resetKey={JSON.stringify(values) + children}>
-              {spec.children !== null ? <Comp {...renderProps}>{children}</Comp> : <Comp {...renderProps} />}
-            </Guard>
-          </div>
+        <div className="pg-stage pg-stage-frame" data-theme={theme}>
+          <iframe className="sb-frame" src={src} title={`${spec.component} playground, ${theme} theme`} sandbox="allow-scripts allow-same-origin allow-popups" referrerPolicy="no-referrer" loading="lazy" />
         </div>
         <CodeBlock className="pg-code" code={code} label="Code for these props" />
       </div>

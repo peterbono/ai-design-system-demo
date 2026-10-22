@@ -199,7 +199,7 @@ export function librarySearchIndex(model: Pick<RepoModel, 'tokens' | 'components
   const components: SearchItem[] = libraryComponents(model).map((c) => ({
     kind: 'component',
     title: c.name,
-    href: href(`components/?c=${encodeURIComponent(c.slug)}`),
+    href: href(`components/${encodeURIComponent(c.slug)}/`),
     meta: c.summary ?? c.family,
     keys: `${c.slug} ${c.family}`,
   }));

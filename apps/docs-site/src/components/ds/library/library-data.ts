@@ -2,7 +2,7 @@
 // only some sources carry. Bridge's own Library passes its build-time model with `team: null` (pages/*.astro, rendered
 // statically); a team's Library shell passes the model it read in the browser (LibraryTeamPage.tsx). The views are
 // pure functions of this data, so both render the same sections. Browser-safe: no Node API.
-import type { RepoModel } from '@bridge-ds/core';
+import type { ChangelogReleaseRow, MotionDocs, RepoModel } from '@bridge-ds/core';
 import type { TeamData } from '../../../scripts/team-data';
 import { libraryHref } from '../../../lib/library-shells';
 import { studioHref, studioHrefAt, teamHref } from '../../../lib/team-path';
@@ -36,6 +36,14 @@ export interface LibraryExtras {
   extraPairs?: { fg: string; bg: string; min: number; usage: 'text' | 'ui' }[];
   /** Signed in on a team's Library: show its "Edit in Studio" door (Bridge's own Library uses data-maintainer). */
   canEdit?: boolean;
+  /** The Storybook the component previews load from (https, no trailing slash); absent: a notice says how to add it. */
+  storybook?: string;
+  /** Releases, newest first (the snapshot's `releases`): a component page lists the notes that name it. */
+  releases?: ChangelogReleaseRow[];
+  /** Motion docs per component name (the snapshot's `motion`); absent: read from the model's specs file. */
+  motion?: Record<string, MotionDocs>;
+  /** Where a repository file opens, with the file path appended ("https://github.com/<o>/<r>/blob/main/"). */
+  sourceBase?: string;
 }
 
 export interface LibraryData {
@@ -58,10 +66,20 @@ export function pageHref(data: Pick<LibraryData, 'team'>, route: string): string
 export function libraryLink(data: Pick<LibraryData, 'team'>, href: string): string {
   if (!data.team || !href.startsWith('/') || href.startsWith('//')) return href;
   const comp = /^\/components\/([a-z0-9][a-z0-9-]*)\/(#.*)?$/i.exec(href);
-  if (comp) return pageHref(data, `components/?c=${encodeURIComponent(comp[1]!.toLowerCase())}${comp[2] ?? ''}`);
+  if (comp) return pageHref(data, componentRoute(comp[1]!, comp[2]));
   if (/^\/(foundations\/[a-z-]+\/|tokens\/|components\/)/.test(href) || href === '/') return pageHref(data, href);
   return href;
 }
+
+/** The Library route of a component page ('components/button/'), with an optional hash ('#tokens'). */
+export const componentRoute = (slug: string, hash = ''): string => `components/${encodeURIComponent(slug.toLowerCase())}/${hash}`;
+
+/** A component page of this Library. */
+export const componentHref = (data: Pick<LibraryData, 'team'>, slug: string, hash = ''): string => pageHref(data, componentRoute(slug, hash));
+
+/** A repository file of this Library's design system on GitHub, or undefined when the source is unknown. */
+export const sourceHref = (data: Pick<LibraryData, 'extras'>, path: string): string | undefined =>
+  data.extras.sourceBase ? `${data.extras.sourceBase}${path.split('/').map(encodeURIComponent).join('/')}` : undefined;
 
 /** Where a page is edited: the team's Studio on a team page, else this site's (studioHref). */
 export function studioLink(data: Pick<LibraryData, 'team'>, route: string): string {

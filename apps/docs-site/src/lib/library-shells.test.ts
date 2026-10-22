@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { FOUNDATIONS } from './nav';
-import { checkLibraryHeaders, checkLibraryShells, LIBRARY_FOUNDATION_PAGES, LIBRARY_SHELL_ROUTES, LIBRARY_TEAM_NAV, libraryTeamPages, libraryFromPath, libraryHref, libraryNoindexSources, libraryRewrites, libraryShellMarker, ownLibrary, ownLibraryPath, ownLibraryRedirects, publicLibraryProblems, routeOfShell } from './library-shells';
+import { checkLibraryHeaders, checkLibraryShells, LIBRARY_FOUNDATION_PAGES, LIBRARY_SHELL_ROUTES, LIBRARY_TEAM_NAV, libraryTeamPages, libraryFromPath, libraryHref, libraryNoindexSources, libraryRedirects, libraryRewrites, libraryShellMarker, ownLibrary, ownLibraryPath, ownLibraryRedirects, publicLibraryProblems, routeOfShell } from './library-shells';
 
 const vercel = JSON.parse(readFileSync(new URL('../../vercel.json', import.meta.url), 'utf8')) as {
   redirects: { source: string; destination: string; permanent: boolean }[];
@@ -19,14 +19,29 @@ const own = { owner: siteConfig.repo.owner, repo: siteConfig.repo.name };
 
 describe('vercel.json', () => {
   it('sends the team address of the site\'s own repository to the site\'s own Library, ahead of the rewrites', () => {
-    expect(vercel.redirects).toEqual(ownLibraryRedirects(own));
+    expect(vercel.redirects).toEqual([...ownLibraryRedirects(own), ...libraryRedirects()]);
+  });
+
+  it('sends a component link from before component pages had their own address to that address', () => {
+    const [slash, bare] = libraryRedirects();
+    expect(slash).toMatchObject({ destination: '/library/:owner/:repo/components/:slug/', has: [{ type: 'query', key: 'c' }] });
+    expect(slash!.source.endsWith('/components/')).toBe(true);
+    expect(bare!.source.endsWith('/components')).toBe(true);
   });
 
   it('rewrites team Library addresses to the shells, the trailing slash rule first', () => {
     const rules = libraryRewrites();
-    expect(rules[0]!.source.endsWith('/:path*/')).toBe(true);
     for (const r of rules) expect(vercel.rewrites).toContainEqual(r);
-    expect(vercel.rewrites.findIndex((r) => r.source === rules[0]!.source)).toBeLessThan(vercel.rewrites.findIndex((r) => r.source === rules[1]!.source));
+    const at = (source: string) => vercel.rewrites.findIndex((r) => r.source === source);
+    for (let i = 1; i < rules.length; i++) expect(at(rules[i - 1]!.source)).toBeLessThan(at(rules[i]!.source));
+    // One shell for every component page, ahead of the route rules; the trailing slash rule first each time.
+    expect(rules.slice(0, 2).map((r) => r.destination)).toEqual(['/library-shell/components/item/', '/library-shell/components/item/']);
+    expect(rules[0]!.source.endsWith('/')).toBe(true);
+    expect(rules[2]!.source.endsWith('/:path*/')).toBe(true);
+    const item = new RegExp(`^${rules[0]!.source.replace(/:(owner|repo|slug)\(([^)]+)\)/g, '($2)').replace(/\./g, '\\.')}$`);
+    expect(item.test('/library/acme/ds/components/button/')).toBe(true);
+    expect(item.test('/library/acme/ds/components/')).toBe(false);
+    expect(item.test('/library/acme/ds/components/button/x/')).toBe(false);
   });
 
   it('never indexes the shells, nor a team Library outside the allow-list (hosted/public-libraries.json)', () => {
@@ -105,7 +120,7 @@ describe('addresses', () => {
 
   it('builds team Library links', () => {
     expect(libraryHref('acme', 'ds')).toBe('/library/acme/ds/');
-    expect(libraryHref('acme', 'ds', 'components/?c=button')).toBe('/library/acme/ds/components/?c=button');
+    expect(libraryHref('acme', 'ds', 'components/button/')).toBe('/library/acme/ds/components/button/');
     expect(libraryHref('acme', 'ds', '/tokens/')).toBe('/library/acme/ds/tokens/');
   });
 
@@ -115,6 +130,7 @@ describe('addresses', () => {
     expect(routeOfShell('/library-shell/tokens')).toBe('tokens/');
     expect(libraryShellMarker('')).toBe('home');
     expect(libraryShellMarker('components/')).toBe('components');
+    expect(libraryShellMarker('components/item/')).toBe('components-item');
   });
 
   it('gives every nav page a shell route, with the same Foundations pages as the own Library', () => {
@@ -172,6 +188,8 @@ describe('the site\'s own Library', () => {
     expect(libraryHref(own.owner.toUpperCase(), own.repo, 'foundations/', own)).toBe('/foundations/color/');
     expect(libraryHref(own.owner, own.repo, 'components/?c=Button', own)).toBe('/components/button/');
     expect(libraryHref(own.owner, own.repo, 'components/', own)).toBe('/components/');
+    expect(libraryHref(own.owner, own.repo, 'components/button/', own)).toBe('/components/button/');
+    expect(libraryHref(own.owner, own.repo, 'components/button/#tokens', own)).toBe('/components/button/#tokens');
     expect(libraryHref(own.owner, own.repo, 'tokens/', own)).toBe('/tokens/');
     expect(libraryHref(own.owner, own.repo, 'foundations/radius/', own)).toBe('/foundations/radius/');
     expect(libraryHref(own.owner, own.repo, 'foundations/color/#focus-ring-color', own)).toBe('/foundations/color/#focus-ring-color');
@@ -190,6 +208,7 @@ describe('the site\'s own Library', () => {
     const dest = (source: string) => rules.find((r) => r.source === source && !r.has)?.destination;
     expect(dest('/library/acme/ds/foundations/')).toBe('/foundations/color/');
     expect(dest('/library/acme/ds/tokens')).toBe('/tokens/');
+    expect(dest('/library/acme/ds/components/:slug([A-Za-z0-9][A-Za-z0-9-]*)/')).toBe('/components/:slug/');
     expect(dest('/library/acme/ds/foundations/typography/')).toBe('/foundations/typography/');
     expect(dest('/library/acme/ds/:path*/')).toBe('/library/');
     expect(rules.every((r) => r.permanent === false)).toBe(true);

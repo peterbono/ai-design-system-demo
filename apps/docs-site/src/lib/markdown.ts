@@ -112,6 +112,17 @@ export function mdTitleText(md: string | null | undefined): string {
     .trim();
 }
 
+/** A Markdown title as parts for React text: inline code spans (`code: true`) and plain prose, as mdTitleHtml splits it. */
+export function mdTitleParts(md: string | null | undefined): { text: string; code: boolean }[] {
+  if (!md) return [];
+  const parts = codeSplit(md).map((part, i) => ({ text: i % 2 ? part : plainOutsideCode(part).replace(/\s+/g, ' '), code: i % 2 === 1 }));
+  if (parts.length) {
+    parts[0]!.text = parts[0]!.text.replace(/^\s+/, '');
+    parts[parts.length - 1]!.text = parts[parts.length - 1]!.text.replace(/\s+$/, '');
+  }
+  return parts.filter((p) => p.text);
+}
+
 /** Escaped HTML of a Markdown title: inline code as <code>, everything else as plain text. Safe for set:html. */
 export function mdTitleHtml(md: string | null | undefined): string {
   if (!md) return '';

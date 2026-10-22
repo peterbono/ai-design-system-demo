@@ -80,7 +80,7 @@ describe('initSpaceSwitch', () => {
     document.documentElement.setAttribute('data-hosted', '');
     const a = page('/studio/acme/ds/components/?c=card', 'studio', '/components/');
     initSpaceSwitch({ navigate: vi.fn(), reducedMotion: false, store: memory(true) });
-    expect(a.getAttribute('href')).toBe('/library/acme/ds/components/?c=card');
+    expect(a.getAttribute('href')).toBe('/library/acme/ds/components/card/');
   });
 
   it('shows the first-visit hint once per browser, and records it', () => {

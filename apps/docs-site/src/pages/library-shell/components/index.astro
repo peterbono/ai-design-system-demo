@@ -1,10 +1,10 @@
 ---
-// Library shell, Components (lib/library-shells.ts): served for /library/<owner>/<repo>/components/, and for one
-// component at /library/<owner>/<repo>/components/?c=<slug>.
+// Library shell, Components (lib/library-shells.ts): served for /library/<owner>/<repo>/components/. The same view as
+// Bridge's own page, with the team's model (components/ds/library/LibraryTeamComponents.tsx).
 import LibraryShell from '../../../components/LibraryShell.astro';
-import LibraryComponents from '../../../components/ds/library/LibraryComponents';
+import LibraryTeamComponents from '../../../components/ds/library/LibraryTeamComponents';
 ---
 
-<LibraryShell title="Components" description="Every component of a team's design system, with its usage guidance and live stories.">
-  <LibraryComponents client:load />
+<LibraryShell title="Components" description="Every component of a team's design system, with its usage guidance and live stories." reading>
+  <LibraryTeamComponents page="index" client:load />
 </LibraryShell>

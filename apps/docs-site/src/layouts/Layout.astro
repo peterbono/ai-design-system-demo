@@ -20,7 +20,7 @@ import SpaceSwitch from '../components/SpaceSwitch';
 import { switchTarget } from '../lib/space-switch';
 import { loadComponents } from '../lib/components';
 import { shellMarker, studioPathOfShell } from '../lib/team-shells';
-import { LIBRARY_SHELL_ROOT, LIBRARY_TEAM_NAV, libraryShellMarker, routeOfShell } from '../lib/library-shells';
+import { COMPONENT_SHELL_ROUTE, LIBRARY_SHELL_ROOT, LIBRARY_TEAM_NAV, libraryShellMarker, routeOfShell } from '../lib/library-shells';
 import { COMPARE, LANDING, LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, type NavEntry, type Space } from '../lib/nav';
 import type { IconName } from '../brand/icons';
 import { PRIVACY_PAGE } from '../lib/account';
@@ -104,7 +104,9 @@ const viewAware = !hosted && isStudio && Boolean(here.item?.branchAware) && here
 // Library reading pages get the right "On this page" rail: it only shows from 1320px, where the column beside the
 // 960px reading width is otherwise empty, and only with two sections or more. Studio and wide pages opt in.
 const showToc = toc ?? (!isStudio && !wide && !isHome);
-const isCurrent = (href: string) => (library ? href === `${LIBRARY_SHELL_ROOT}${libraryRoute}` : path === href);
+// A team's component page (shell components/item/) sits under Components in the nav, as Bridge's own pages do.
+const navRoute = libraryRoute === COMPONENT_SHELL_ROUTE ? 'components/' : libraryRoute;
+const isCurrent = (href: string) => (library ? href === `${LIBRARY_SHELL_ROOT}${navRoute}` : path === href);
 
 // Breadcrumb only below the side nav's depth (a component page): the Harbor header and the nav say the rest.
 const nested = !!here.item && here.item.href !== path;

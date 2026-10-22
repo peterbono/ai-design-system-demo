@@ -67,7 +67,7 @@ async function startPage(page: LibraryTeamPageName, data: TeamData) {
       owner: data.owner,
       repo: data.repo,
       defaultBranch: data.defaultBranch,
-      componentHref: (dir) => libraryHref(data.owner, data.repo, slugOf(dir) ? `components/?c=${encodeURIComponent(slugOf(dir)!)}` : 'components/'),
+      componentHref: (dir) => libraryHref(data.owner, data.repo, slugOf(dir) ? `components/${encodeURIComponent(slugOf(dir)!)}/` : 'components/'),
     }),
   );
   initTokenDrawer();
