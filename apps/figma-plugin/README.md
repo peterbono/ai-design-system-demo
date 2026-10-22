@@ -179,6 +179,14 @@ The specs are derived from code: `npm run specs` (root) reads each component's T
 in `@bridge-ds/core/node` (`component-specs.ts`, `spec-css.ts`), and a core test fails when the committed JSON is out
 of date.
 
+**One component never stops the others.** Each set, and each variant inside it, is built on its own. When Figma
+refuses something (a font that will not load, a property, a layer), that variant or set is rolled back, so nothing half
+built stays in the file, and the others are built. The end of the pull says it in words: "Built 54 of 56 components.
+Not built: Select (a font could not be loaded), Tabs (...)". A set built without some variants keeps no spec hash, so
+**Try again** (or the next pull) builds exactly what is missing, in place, never a duplicate. **Stop** ends the build
+after the set in progress; Try again goes on from there. A set is tagged before the first await, so a file closed
+mid-pull is picked up the same way.
+
 **Drafted with Claude.** What the generator still cannot read (today Toast: it is shown from the `useToast` hook under
 `ToastProvider`, never placed as a component) can be drafted: Claude writes the spec by hand from the code, in the same
 format, in `packages/react/component-spec-overrides/<Name>.json` marked `"source": "drafted"`, with the files it was

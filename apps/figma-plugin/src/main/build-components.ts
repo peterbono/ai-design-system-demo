@@ -36,6 +36,76 @@ type Box = FrameNode | ComponentNode;
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
+/**
+ * Why a component or variant was not built, in designer words, from what Figma or the plan said. The raw message is
+ * kept short at the end, for whoever reports it.
+ */
+export function reasonOf(err: unknown): string {
+  const raw = errorText(err).replace(/\s+/g, ' ').trim();
+  const short = raw.length > 120 ? `${raw.slice(0, 119)}…` : raw;
+  if (/font/i.test(raw) && /load|available/i.test(raw)) return `a font could not be loaded (${short})`;
+  if (/variable/i.test(raw)) return `a variable could not be used (${short})`;
+  if (/property/i.test(raw)) return `a component property was refused (${short})`;
+  if (/svg/i.test(raw)) return `an icon drawing could not be read (${short})`;
+  return `Figma refused a change (${short || 'no details'})`;
+}
+
+/** A generated node DS Bridge keeps on a page: a component set, an icon or a slot component. */
+function isGenerated(n: BaseNode): boolean {
+  if (n.type === 'COMPONENT_SET') return !!n.getSharedPluginData(NS, 'componentId');
+  if (n.type === 'COMPONENT') return !!(n.getSharedPluginData(NS, 'iconId') || n.getSharedPluginData(NS, 'slotId'));
+  return false;
+}
+
+/**
+ * Every node a build creates goes through `make`, so a failure leaves nothing behind: `rollback` removes what was
+ * created since a mark (a variant or a set that failed), and `sweep` removes anything left loose on a page (Figma puts
+ * new nodes on the current page until they are moved into place).
+ */
+class Created {
+  private list: BaseNode[] = [];
+  add<T extends BaseNode>(n: T): T {
+    this.list.push(n);
+    return n;
+  }
+  mark(): number {
+    return this.list.length;
+  }
+  rollback(from: number): void {
+    for (const n of this.list.splice(from).reverse()) {
+      try {
+        if (!n.removed) n.remove();
+      } catch {
+        /* already gone with its parent */
+      }
+    }
+  }
+  /** Loose nodes on a page that are not generated sets or parts; the list is cleared (a finished set is kept). */
+  sweep(): number {
+    let removed = 0;
+    for (const n of this.list) {
+      try {
+        if (n.removed || n.parent?.type !== 'PAGE' || isGenerated(n)) continue;
+        n.remove();
+        removed++;
+      } catch {
+        /* gone */
+      }
+    }
+    this.list = [];
+    return removed;
+  }
+}
+
+let created = new Created();
+const make = {
+  frame: () => created.add(figma.createFrame()),
+  text: () => created.add(figma.createText()),
+  component: () => created.add(figma.createComponent()),
+  instance: (main: ComponentNode) => created.add(main.createInstance()),
+  svg: (svg: string) => created.add(figma.createNodeFromSvg(svg)),
+};
+
 function pageOf(node: BaseNode): PageNode | undefined {
   let n: BaseNode | null = node;
   while (n && n.type !== 'PAGE') n = n.parent;
@@ -69,27 +139,35 @@ export async function scanGenerated(): Promise<GeneratedSet[]> {
 // Variables and fonts
 
 class Variables {
-  private collections = new Map<string, VariableCollection>();
-  private all: Variable[] = [];
+  private collections: VariableCollection[] = [];
+  /** Collection id -> its variables by token id (plugin data "id") and by name: one pass, no search per binding. */
+  private index = new Map<string, { byToken: Map<string, Variable>; byName: Map<string, Variable> }>();
   private cache = new Map<string, Variable | null>();
 
   async load(): Promise<void> {
-    for (const c of await figma.variables.getLocalVariableCollectionsAsync()) if (!c.remote) this.collections.set(c.id, c);
-    this.all = (await figma.variables.getLocalVariablesAsync()).filter((v) => this.collections.has(v.variableCollectionId));
+    this.collections = (await figma.variables.getLocalVariableCollectionsAsync()).filter((c) => !c.remote);
+    for (const c of this.collections) this.index.set(c.id, { byToken: new Map(), byName: new Map() });
+    for (const v of await figma.variables.getLocalVariablesAsync()) {
+      const slot = this.index.get(v.variableCollectionId);
+      if (!slot) continue;
+      const id = v.getPluginData('id');
+      if (id && !slot.byToken.has(id)) slot.byToken.set(id, v);
+      if (!slot.byName.has(v.name)) slot.byName.set(v.name, v);
+    }
   }
 
   /** The variable of a token in its tier's collection ("Semantic", or "Semantic/Light" in the split layout), by id then name. */
   find(v: Extract<PlannedValue, { kind: 'variable' }>): Variable | undefined {
     const key = `${v.collection}|${v.tokenId}|${v.name}`;
     if (this.cache.has(key)) return this.cache.get(key) ?? undefined;
-    const ids = [...this.collections.values()]
+    const ids = this.collections
       .filter((c) => c.name === v.collection || c.name.startsWith(`${v.collection}/`))
       .sort((a, b) => Number(b.name === v.collection) - Number(a.name === v.collection))
       .map((c) => c.id);
     let found: Variable | undefined;
     for (const id of ids) {
-      const inColl = this.all.filter((x) => x.variableCollectionId === id);
-      found = inColl.find((x) => x.getPluginData('id') === v.tokenId) ?? inColl.find((x) => x.name === v.name);
+      const slot = this.index.get(id)!;
+      found = slot.byToken.get(v.tokenId) ?? slot.byName.get(v.name);
       if (found) break;
     }
     this.cache.set(key, found ?? null);
@@ -112,11 +190,19 @@ const WEIGHT_STYLES: Record<number, string[]> = {
 class Fonts {
   /** Lowercased family -> its real name and styles. */
   private available = new Map<string, { family: string; styles: string[] }>();
+  /** Each font is loaded once; a font Figma refused is not asked for again. */
   private loaded = new Set<string>();
+  private refused = new Set<string>();
   missing = new Set<string>();
 
   async load(): Promise<void> {
-    for (const f of await figma.listAvailableFontsAsync()) {
+    let list: Font[] = [];
+    try {
+      list = await figma.listAvailableFontsAsync();
+    } catch {
+      /* Figma could not list fonts: every text uses Inter, said in the font note */
+    }
+    for (const f of list) {
       const k = f.fontName.family.toLowerCase();
       const entry = this.available.get(k) ?? { family: f.fontName.family, styles: [] };
       entry.styles.push(f.fontName.style);
@@ -136,21 +222,42 @@ class Fonts {
     return this.available.get('inter') ?? { family: 'Inter', styles: ['Regular', 'Medium', 'Semi Bold', 'Bold'] };
   }
 
-  async font(families: string[] | undefined, weight: number | undefined): Promise<FontName> {
-    const { family, styles } = this.pick(families?.length ? families : ['Inter']);
-    const w = weight ? Math.min(900, Math.max(100, Math.round(weight / 100) * 100)) : 400;
-    const style =
+  private async tryLoad(font: FontName): Promise<boolean> {
+    const key = `${font.family}|${font.style}`;
+    if (this.loaded.has(key)) return true;
+    if (this.refused.has(key)) return false;
+    try {
+      await figma.loadFontAsync(font);
+      this.loaded.add(key);
+      return true;
+    } catch {
+      this.refused.add(key);
+      return false;
+    }
+  }
+
+  private styleFor(styles: string[], w: number): string {
+    return (
       (WEIGHT_STYLES[w] ?? []).map((s) => styles.find((x) => x.toLowerCase() === s.toLowerCase())).find(Boolean) ??
       styles.find((s) => /^regular$/i.test(s)) ??
       styles[0] ??
-      'Regular';
-    const fontName = { family, style };
-    const key = `${family}|${style}`;
-    if (!this.loaded.has(key)) {
-      await figma.loadFontAsync(fontName);
-      this.loaded.add(key);
+      'Regular'
+    );
+  }
+
+  /** The font for a family stack and weight, loaded. A font Figma will not load falls back to Inter (said once). */
+  async font(families: string[] | undefined, weight: number | undefined): Promise<FontName> {
+    const { family, styles } = this.pick(families?.length ? families : ['Inter']);
+    const w = typeof weight === 'number' && Number.isFinite(weight) ? Math.min(900, Math.max(100, Math.round(weight / 100) * 100)) : 400;
+    const fontName = { family, style: this.styleFor(styles, w) };
+    if (await this.tryLoad(fontName)) return fontName;
+    this.missing.add(`${fontName.family} ${fontName.style}`);
+    const inter = this.available.get('inter') ?? { family: 'Inter', styles: ['Regular', 'Medium', 'Semi Bold', 'Bold'] };
+    for (const style of [this.styleFor(inter.styles, w), 'Regular']) {
+      const fallback = { family: inter.family, style };
+      if (await this.tryLoad(fallback)) return fallback;
     }
-    return fontName;
+    throw new Error(`Font ${fontName.family} ${fontName.style} could not be loaded, nor Inter`);
   }
 }
 
@@ -388,9 +495,9 @@ function placeParts(variant: ComponentNode, comp: PlannedComponent, nodes: Map<s
 function createPart(part: SpecPart): SceneNode {
   let node: SceneNode;
   if (part.kind === 'text') {
-    node = figma.createText();
+    node = make.text();
   } else {
-    const f = figma.createFrame();
+    const f = make.frame();
     f.fills = [];
     if (part.kind === 'icon') f.resize(16, 16);
     node = f;
@@ -522,7 +629,7 @@ function drawVector(frame: FrameNode, vec: { svg: string; hash: string; strokes:
   frame.clipsContent = false;
   if (frame.getSharedPluginData(NS, 'svgHash') !== vec.hash || !frame.children.length) {
     for (const c of [...frame.children]) c.remove();
-    const drawn = figma.createNodeFromSvg(vec.svg);
+    const drawn = make.svg(vec.svg);
     try {
       frame.resizeWithoutConstraints(drawn.width, drawn.height);
       for (const c of [...drawn.children]) {
@@ -637,22 +744,34 @@ function ensureProperties(set: ComponentSetNode, comp: PlannedComponent, ctx: Ct
       const d = defs[k]!;
       if (base(k) !== part.swap.property || d.type === 'INSTANCE_SWAP' || d.type === 'VARIANT') continue;
       if (comp.properties.some((p) => p.name === part.swap!.property && p.type === d.type)) continue;
-      set.deleteComponentProperty(k);
+      try {
+        set.deleteComponentProperty(k);
+      } catch (err) {
+        ctx.problems.push(`${comp.name}, property ${base(k)}: ${errorText(err)}`);
+      }
     }
   }
   defs = set.componentPropertyDefinitions;
+  // One property Figma refuses is reported; the layers it would drive keep their own values.
   for (const p of comp.properties) {
-    const existing = Object.keys(defs).find((k) => base(k) === p.name && defs[k]!.type === p.type);
-    if (!existing) keys.set(p.name, set.addComponentProperty(p.name, p.type, p.default));
-    else {
-      if (defs[existing]!.defaultValue !== p.default) set.editComponentProperty(existing, { defaultValue: p.default });
-      keys.set(p.name, existing);
+    try {
+      // Figma wants a string default for TEXT and a boolean for BOOLEAN.
+      const value = p.type === 'BOOLEAN' ? p.default === true || p.default === 'true' : typeof p.default === 'string' ? p.default : String(p.default ?? '');
+      const existing = Object.keys(defs).find((k) => base(k) === p.name && defs[k]!.type === p.type);
+      if (!existing) keys.set(p.name, set.addComponentProperty(p.name, p.type, value));
+      else {
+        if (defs[existing]!.defaultValue !== value) set.editComponentProperty(existing, { defaultValue: value });
+        keys.set(p.name, existing);
+      }
+    } catch (err) {
+      ctx.problems.push(`${comp.name}, property ${p.name}: ${errorText(err)}`);
     }
   }
   for (const part of comp.parts) {
     if (!part.swap) continue;
     const def = ctx.parts.get(part.swap.default);
     if (!def) continue;
+    try {
     const preferredValues = (part.swap.options ?? ctx.icons)
       .map((n) => ctx.parts.get(n))
       .filter((c): c is ComponentNode => !!c)
@@ -673,6 +792,9 @@ function ensureProperties(set: ComponentSetNode, comp: PlannedComponent, ctx: Ct
       }
     }
     keys.set(`swap:${part.id}`, key);
+    } catch (err) {
+      ctx.problems.push(`${comp.name}, property ${part.swap.property}: ${errorText(err)}`);
+    }
   }
   return keys;
 }
@@ -688,7 +810,7 @@ async function placeInstance(node: SceneNode | undefined, main: ComponentNode, p
     if ((await inst.getMainComponentAsync())?.id !== main.id) inst.swapComponent(main);
     if (inst.parent !== parent) parent.appendChild(inst);
   } else {
-    inst = main.createInstance();
+    inst = make.instance(main);
     // A placeholder or text layer from an earlier pull: the instance takes its place.
     const holder = node?.parent as Box | null | undefined;
     if (node && holder && 'children' in holder) {
@@ -757,7 +879,7 @@ async function pageFor(name: string, key: string): Promise<PageNode> {
 function drawIcon(comp: ComponentNode, icon: PlannedIcon, ctx: Ctx, fields: PlannedField[]): void {
   for (const c of [...comp.children]) c.remove();
   comp.resizeWithoutConstraints(24, 24); // Lucide's grid: the SVG viewBox
-  const frame = figma.createNodeFromSvg(icon.svg);
+  const frame = make.svg(icon.svg);
   try {
     const kids = [...frame.children];
     if (!kids.length) throw new Error('the SVG has no shapes');
@@ -789,7 +911,7 @@ async function drawTextSlot(comp: ComponentNode, slot: PlannedSlot, ctx: Ctx): P
   comp.fills = [];
   let text = comp.findOne((n) => n.getSharedPluginData(NS, 'slotPart') === 'text') as TextNode | null;
   if (!text) {
-    text = figma.createText();
+    text = make.text();
     text.setSharedPluginData(NS, 'slotPart', 'text');
     comp.appendChild(text);
   }
@@ -835,7 +957,7 @@ function drawMediaSlot(comp: ComponentNode, slot: PlannedSlot, ctx: Ctx): void {
   }
   if (!icon || icon.type !== 'INSTANCE') {
     icon?.remove();
-    icon = main.createInstance();
+    icon = make.instance(main);
     icon.setSharedPluginData(NS, 'slotPart', 'icon');
     comp.appendChild(icon);
   }
@@ -861,25 +983,34 @@ async function ensureParts(plan: ComponentPullPlan, ctx: Ctx, report: ComponentA
   if (plan.icons?.length) {
     progress(`Drawing ${plan.icons.length} icons`);
     const page = await pageFor(ICONS_PAGE, 'icons');
-    for (const icon of plan.icons) {
+    for (let i = 0; i < plan.icons.length; i++) {
+      const icon = plan.icons[i]!;
+      const mark = created.mark();
       let comp = icons.get(icon.name);
       const isNew = !comp;
-      if (!comp) {
-        comp = figma.createComponent();
-        page.appendChild(comp);
-        comp.setSharedPluginData(NS, 'iconId', icon.name);
+      try {
+        if (!comp) {
+          comp = make.component();
+          page.appendChild(comp);
+          comp.setSharedPluginData(NS, 'iconId', icon.name);
+        }
+        comp.name = icon.component;
+        if (isNew || comp.getSharedPluginData(NS, 'iconHash') !== icon.hash || !vectorsOf(comp).length) {
+          drawIcon(comp, icon, ctx, plan.iconFields ?? []);
+          comp.setSharedPluginData(NS, 'iconHash', icon.hash);
+          comp.description = `Lucide icon, generated by DS Bridge. Swap it in any component's icon property.`;
+          if (isNew) counts.created++;
+          else counts.updated++;
+        }
         icons.set(icon.name, comp);
+      } catch (err) {
+        // One icon Figma refuses: not drawn (a new one is removed), the components that use it say so.
+        created.rollback(mark);
+        ctx.problems.push(`${icon.component} not drawn: ${reasonOf(err)}`);
       }
-      comp.name = icon.component;
-      if (isNew || comp.getSharedPluginData(NS, 'iconHash') !== icon.hash || !vectorsOf(comp).length) {
-        drawIcon(comp, icon, ctx, plan.iconFields ?? []);
-        comp.setSharedPluginData(NS, 'iconHash', icon.hash);
-        comp.description = `Lucide icon, generated by DS Bridge. Swap it in any component's icon property.`;
-        if (isNew) counts.created++;
-        else counts.updated++;
-      }
+      if (i % 25 === 24) await tick();
     }
-    const sorted = plan.icons.map((i) => icons.get(i.name)!).filter((c) => c.parent?.id === page.id);
+    const sorted = plan.icons.map((i) => icons.get(i.name)).filter((c): c is ComponentNode => !!c && !c.removed && c.parent?.id === page.id);
     sorted.forEach((c, i) => {
       c.x = (i % ICON_COLUMNS) * ICON_CELL;
       c.y = Math.floor(i / ICON_COLUMNS) * ICON_CELL;
@@ -893,23 +1024,32 @@ async function ensureParts(plan: ComponentPullPlan, ctx: Ctx, report: ComponentA
     const page = await pageFor(SLOTS_PAGE, 'slots');
     let x = 0;
     for (const slot of plan.slots) {
+      const mark = created.mark();
       let comp = slots.get(slot.name);
       const isNew = !comp;
-      if (!comp) {
-        comp = figma.createComponent();
-        page.appendChild(comp);
-        comp.setSharedPluginData(NS, 'slotId', slot.name);
+      try {
+        if (!comp) {
+          comp = make.component();
+          page.appendChild(comp);
+          comp.setSharedPluginData(NS, 'slotId', slot.name);
+        }
+        comp.name = slot.name;
+        if (isNew || comp.getSharedPluginData(NS, 'slotHash') !== slot.hash) {
+          ctx.where = slot.name;
+          if (slot.kind === 'text') await drawTextSlot(comp, slot, ctx);
+          else drawMediaSlot(comp, slot, ctx);
+          comp.setSharedPluginData(NS, 'slotHash', slot.hash);
+          comp.description = 'Content slot, generated by DS Bridge. Swap it in a component\'s slot property.';
+          if (isNew) counts.created++;
+          else counts.updated++;
+        }
         slots.set(slot.name, comp);
-      }
-      comp.name = slot.name;
-      if (isNew || comp.getSharedPluginData(NS, 'slotHash') !== slot.hash) {
-        ctx.where = slot.name;
-        if (slot.kind === 'text') await drawTextSlot(comp, slot, ctx);
-        else drawMediaSlot(comp, slot, ctx);
-        comp.setSharedPluginData(NS, 'slotHash', slot.hash);
-        comp.description = 'Content slot, generated by DS Bridge. Swap it in a component\'s slot property.';
-        if (isNew) counts.created++;
-        else counts.updated++;
+      } catch (err) {
+        created.rollback(mark);
+        // An existing slot that failed to redraw: its hash is cleared, so the next pull draws it again.
+        if (comp && !comp.removed) comp.setSharedPluginData(NS, 'slotHash', '');
+        ctx.problems.push(`${slot.name} not drawn: ${reasonOf(err)}`);
+        if (!comp || comp.removed) continue;
       }
       if (comp.parent?.id === page.id) {
         comp.x = x;
@@ -1047,41 +1187,51 @@ function bottomOf(page: PageNode): number {
   return page.children.reduce((m, n) => Math.max(m, n.y + n.height), 0);
 }
 
-export async function applyComponentPlan(plan: ComponentPullPlan, progress: Progress = () => undefined): Promise<ComponentApplyReport> {
-  const ctx: Ctx = { vars: new Variables(), fonts: new Fonts(), problems: [], where: '', parts: new Map(), icons: [] };
-  await ctx.vars.load();
-  await ctx.fonts.load();
-  const existing = new Map((await generatedSets()).map((s) => [s.getSharedPluginData(NS, 'componentId'), s]));
-  const report: ComponentApplyReport = { created: 0, updated: 0, unchanged: 0, orphaned: 0, page: PAGE_NAME, problems: ctx.problems, nodeIds: [] };
-  await ensureParts(plan, ctx, report, progress);
-  let page: PageNode | undefined;
-  const interactionsFailed: string[] = [];
+/** A set none of whose variants could be built: its message is already the reason in words. */
+class NotBuilt extends Error {}
 
-  for (let i = 0; i < plan.components.length; i++) {
-    const comp = plan.components[i]!;
-    if (comp.status === 'unchanged' && existing.has(comp.componentId)) {
-      report.unchanged++;
-      continue;
-    }
-    progress(`Building ${comp.name} (${i + 1} of ${plan.components.length})`);
-    let set = existing.get(comp.componentId);
-    const isNew = !set;
+export interface ApplyOptions {
+  /** Checked between sets: true stops the build after the set in progress (Cancel in the plugin). */
+  cancelled?: (() => boolean) | undefined;
+}
+
+/** Where new sets go: the Components page, below what it holds (its bottom read once, then kept). */
+interface Placement {
+  page?: PageNode | undefined;
+  bottom?: number | undefined;
+}
+
+/**
+ * Builds or updates one set. Each variant is built on its own: a variant Figma refuses is rolled back (removed when
+ * this pull created it) and named in the report, the others are built. When nothing of the set can be built, or a
+ * set-level step fails, everything this pull created for it is removed and the set is reported as not built.
+ */
+async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | undefined, ctx: Ctx, report: ComponentApplyReport, place: Placement, interactionsFailed: string[]): Promise<void> {
+  const mark = created.mark();
+  let set = existingSet;
+  const isNew = !set;
+  /** Variant nodes made by this pull: removed when they fail. */
+  const fresh = new Set<string>();
+  try {
     if (!set) {
-      page ??= await componentsPage();
-      // Variants first (combineAsVariants needs them), then properties on the set, then wiring.
+      place.page ??= await componentsPage();
+      const page = place.page;
+      place.bottom ??= bottomOf(page);
+      // Variants first (combineAsVariants needs them), then properties on the set, then wiring. No await until the set
+      // carries its componentId: if Figma closes now, the next pull finds the set and goes on, never a duplicate.
       const made: ComponentNode[] = [];
       for (const pv of comp.variants) {
-        const c = figma.createComponent();
+        const c = make.component();
         c.name = pv.name;
         c.setSharedPluginData(NS, 'variant', pv.key);
         page.appendChild(c);
+        fresh.add(c.id);
         made.push(c);
       }
-      const y = bottomOf(page);
-      set = figma.combineAsVariants(made, page);
-      set.x = 0;
-      set.y = y ? y + SET_GAP : 0;
+      set = created.add(figma.combineAsVariants(made, page));
       set.setSharedPluginData(NS, 'componentId', comp.componentId);
+      set.x = 0;
+      set.y = place.bottom ? place.bottom + SET_GAP : 0;
     }
     set.name = comp.name;
     set.description = comp.description;
@@ -1089,19 +1239,34 @@ export async function applyComponentPlan(plan: ComponentPullPlan, progress: Prog
     const variants = new Map(
       set.children.filter((c): c is ComponentNode => c.type === 'COMPONENT').map((c) => [c.getSharedPluginData(NS, 'variant') || variantKeyOf(c.variantProperties ?? {}), c]),
     );
+    const failed: { name: string; reason: string }[] = [];
+    let lastTick = Date.now();
     for (const pv of comp.variants) {
       let node = variants.get(pv.key);
-      if (!node) {
-        node = figma.createComponent();
-        set.appendChild(node);
+      const vmark = created.mark();
+      const isFresh = !node || fresh.has(node.id);
+      try {
+        if (!node) {
+          node = make.component();
+          set.appendChild(node);
+        }
+        await configureVariant(node, comp, pv, propKeys, ctx);
+      } catch (err) {
+        failed.push({ name: pv.name, reason: reasonOf(err) });
+        created.rollback(vmark);
+        if (isFresh && node && !node.removed) node.remove();
       }
-      await configureVariant(node, comp, pv, propKeys, ctx);
-      if (pv === comp.variants[comp.variants.length - 1] || comp.variants.indexOf(pv) % 12 === 0) await tick();
+      // Yield to Figma often enough that the file never freezes, whatever the size of the set.
+      if (Date.now() - lastTick > 40) {
+        await tick();
+        lastTick = Date.now();
+      }
     }
+    if (set.removed || failed.length === comp.variants.length) throw new NotBuilt(failed[0]?.reason ?? 'Figma removed the set');
     // Variants removed in code: kept, flagged.
     const keys = new Set(comp.variants.map((v) => v.key));
     for (const [key, node] of variants) {
-      if (keys.has(key)) continue;
+      if (keys.has(key) || node.removed) continue;
       if (node.getSharedPluginData(NS, 'orphan') !== 'true') {
         node.setSharedPluginData(NS, 'orphan', 'true');
         if (!node.description.startsWith(ORPHAN_PREFIX)) node.description = ORPHAN_PREFIX + node.description;
@@ -1116,15 +1281,80 @@ export async function applyComponentPlan(plan: ComponentPullPlan, progress: Prog
       console.warn(`DS Bridge: interactions on ${comp.name} not added: ${errorText(err)}`);
     }
     // Always: an update can change variant sizes (a padding, a fixed width), not only add variants.
-    layoutVariants(set, comp);
-    set.setSharedPluginData(NS, 'specHash', comp.hash);
-    // Rebuilt from the code: a change pushed from Figma is now the reviewed code (or gone), so its mark goes.
-    if (set.getSharedPluginData(NS, PUSHED_KEY)) set.setSharedPluginData(NS, PUSHED_KEY, '');
+    try {
+      layoutVariants(set, comp);
+    } catch (err) {
+      ctx.problems.push(`${comp.name}, variant grid: ${errorText(err)}`);
+    }
+    if (isNew) place.bottom = Math.max(place.bottom ?? 0, set.y + set.height);
+    if (failed.length) {
+      // Built in part: no spec hash, so the next pull plans it again and builds the variants left out.
+      set.setSharedPluginData(NS, 'specHash', '');
+      report.partial = [...(report.partial ?? []), { name: comp.name, built: comp.variants.length - failed.length, total: comp.variants.length, reason: failed[0]!.reason, variants: failed.map((f) => f.name) }];
+    } else {
+      set.setSharedPluginData(NS, 'specHash', comp.hash);
+      // Rebuilt from the code: a change pushed from Figma is now the reviewed code (or gone), so its mark goes.
+      if (set.getSharedPluginData(NS, PUSHED_KEY)) set.setSharedPluginData(NS, PUSHED_KEY, '');
+    }
     // The generated set is the baseline: a Push right after a pull sends nothing.
-    set.setSharedPluginData(NS, 'signature', JSON.stringify(buildSignature(await readComponent(set))));
+    try {
+      set.setSharedPluginData(NS, 'signature', JSON.stringify(buildSignature(await readComponent(set))));
+    } catch (err) {
+      console.warn(`DS Bridge: baseline of ${comp.name} not stored: ${errorText(err)}`);
+    }
     report.nodeIds.push(set.id);
     if (isNew) report.created++;
     else report.updated++;
+  } catch (err) {
+    // Nothing half-built stays: what this pull created for the set goes, a new set included.
+    created.rollback(mark);
+    if (isNew && set && !set.removed) set.remove();
+    throw err;
+  }
+}
+
+export async function applyComponentPlan(plan: ComponentPullPlan, progress: Progress = () => undefined, opts: ApplyOptions = {}): Promise<ComponentApplyReport> {
+  created = new Created();
+  const ctx: Ctx = { vars: new Variables(), fonts: new Fonts(), problems: [], where: '', parts: new Map(), icons: [] };
+  const report: ComponentApplyReport = { created: 0, updated: 0, unchanged: 0, orphaned: 0, page: PAGE_NAME, problems: ctx.problems, nodeIds: [], total: plan.components.length, failed: [] };
+  try {
+    await ctx.vars.load();
+  } catch (err) {
+    ctx.problems.push(`Variables could not be read (${errorText(err)}): components are built without bindings. Pull again.`);
+  }
+  await ctx.fonts.load();
+  const existing = new Map((await generatedSets()).map((s) => [s.getSharedPluginData(NS, 'componentId'), s]));
+  try {
+    await ensureParts(plan, ctx, report, progress);
+  } catch (err) {
+    ctx.problems.push(`Icons and content slots: ${reasonOf(err)}. Components that use them are built without them.`);
+  }
+  created.sweep();
+  const place: Placement = {};
+  const interactionsFailed: string[] = [];
+  const todo = plan.components.length;
+  try {
+    for (let i = 0; i < todo; i++) {
+      const comp = plan.components[i]!;
+      if (opts.cancelled?.()) {
+        report.cancelled = plan.components.slice(i).map((c) => c.name);
+        break;
+      }
+      if (comp.status === 'unchanged' && existing.has(comp.componentId)) {
+        report.unchanged++;
+        continue;
+      }
+      progress(`Building ${i + 1} of ${todo}: ${comp.name}`);
+      try {
+        await buildSet(comp, existing.get(comp.componentId), ctx, report, place, interactionsFailed);
+      } catch (err) {
+        report.failed!.push({ name: comp.name, reason: err instanceof NotBuilt ? err.message : reasonOf(err) });
+      }
+      created.sweep();
+      await tick();
+    }
+  } finally {
+    created.sweep();
   }
   if (interactionsFailed.length) report.interactionsNote = interactionsNote(interactionsFailed);
   if (ctx.fonts.missing.size) {
