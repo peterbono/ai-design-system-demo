@@ -33,7 +33,6 @@ import { Avatar, Breadcrumb, Button, Icon, IconButton, Kbd, Link } from '@bridge
 import { siteIcon } from '../brand/site-icons';
 import { Menu as MenuIcon, Search, X } from 'lucide-react';
 import ButtonLink from '../components/ds/ButtonLink';
-import { GitHubMark } from '../components/ds/studio/brand-icons';
 
 export interface Crumb {
   label: string;
@@ -125,7 +124,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
 ---
 
 <!doctype html>
-<html lang="en" data-hosted={hosted ? '' : undefined} data-no-repo={noRepo ? '' : undefined} data-workspace={workspace ? '' : undefined} data-bare={bare ? '' : undefined} data-shell={shell} data-library-shell={library ? libraryShellMarker(libraryRoute ?? '') : undefined} data-theme="light" data-brand="bridge" data-density="comfortable" data-space={space} data-gh-app={ghApp} data-brands={[DEFAULT_BRAND, ...BRANDS.filter((b) => b !== DEFAULT_BRAND)].join(' ')}>
+<html lang="en" data-hosted={hosted ? '' : undefined} data-no-repo={noRepo ? '' : undefined} data-workspace={workspace ? '' : undefined} data-bare={bare ? '' : undefined} data-shell={shell} data-library-shell={library ? libraryShellMarker(libraryRoute ?? '') : undefined} data-theme="light" data-brand="bridge" data-density="comfortable" data-space={space} data-own-library={`${siteRepo().owner}/${siteRepo().repo}`} data-gh-app={ghApp} data-brands={[DEFAULT_BRAND, ...BRANDS.filter((b) => b !== DEFAULT_BRAND)].join(' ')}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -234,12 +233,14 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
                   </li>
                 );
               }
-              const open = here.entry?.label === entry.label;
+              // Every group renders open, the same for every visitor; scripts/shell.ts applies this tab's toggles
+              // to the other groups (lib/nav-groups.ts) and never closes the one holding the current page.
+              const current = here.entry?.label === entry.label;
               const id = `nav-group-${n}`;
               return (
                 <li class="nav-group">
                   <!-- bridge-audit-ignore-next-line: a side nav group opener styled as its sibling nav links (with the review count badge and chevron); the DS SidebarNav is a React island and would rebuild the whole rail -->
-                  <button type="button" class="nav-link nav-toggle" aria-expanded={open ? 'true' : 'false'} aria-controls={id} data-nav-group data-active={open || undefined}>
+                  <button type="button" class="nav-link nav-toggle" aria-expanded="true" aria-controls={id} data-nav-group={entry.label} data-nav-current={current || undefined} data-active={current || undefined}>
                     <Icon icon={siteIcon(entry.icon)} size="md" className="icon" />
                     <span>{entry.label}</span>
                     {entry.badge && (
@@ -251,7 +252,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
                     )}
                     <span class="nav-chev" aria-hidden="true"><Icon icon={siteIcon('chevron')} size="sm" className="icon" /></span>
                   </button>
-                  <ul class="nav-sub" id={id} hidden={!open}>
+                  <ul class="nav-sub" id={id}>
                     {entry.children!.map((item) => (
                       <li class:list={[{ 'nav-apart': item.apart }]}>
                         <Link variant="subtle" href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined} data-keep-branch={isStudio ? '' : undefined}>
@@ -266,12 +267,8 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
           }
         </ul>
         <div class="rail-foot">
-          {/* Light, dark or System lives in Studio Settings (Appearance); the Library follows the same choice. */}
-          {!isStudio && (
-            <div class="rail-tools">
-              <ButtonLink variant="ghost" iconStart={GitHubMark} href={GITHUB_URL} data-team-github={library ? '' : undefined}>GitHub</ButtonLink>
-            </div>
-          )}
+          {/* Light, dark or System lives in Studio Settings (Appearance); the Library follows the same choice. No
+              GitHub link here: readers do not need it; developers find the repository from Use, Install. */}
           {
             isStudio ? (
               <GitHubAccount workspace={workspace} />

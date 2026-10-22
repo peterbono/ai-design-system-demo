@@ -9,6 +9,7 @@ import { pointLinksAtTeam } from './team-links';
 import { initVanillaControls } from './vanilla-controls';
 import { initViewChange, readOpenPulls } from './view-change';
 import { followThemePref } from '../lib/theme-pref';
+import { navGroupOpen, readNavGroup, writeNavGroup } from '../lib/nav-groups';
 
 interface SearchItem {
   kind: 'page' | 'component' | 'token';
@@ -276,17 +277,46 @@ function initRail() {
   rail.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest' });
 }
 
-/** Side nav groups: a button with aria-expanded shows or hides its list of pages. Only the current group starts open. */
+/**
+ * Side nav groups: a button with aria-expanded shows or hides its list of pages. The same for every visitor: the group
+ * holding the current page is always open, the others start open and follow this tab's toggles (lib/nav-groups.ts).
+ * Applied again when the page comes back from the back-forward cache, and nothing takes focus on load.
+ */
 function initNavGroups() {
-  document.querySelectorAll<HTMLButtonElement>('[data-nav-group]').forEach((btn) => {
-    const list = document.getElementById(btn.getAttribute('aria-controls') ?? '');
-    if (!list) return;
-    btn.addEventListener('click', () => {
-      const open = btn.getAttribute('aria-expanded') !== 'true';
-      btn.setAttribute('aria-expanded', String(open));
-      list.hidden = !open;
-    });
+  const session = (() => {
+    try {
+      return window.sessionStorage;
+    } catch {
+      return null;
+    }
+  })();
+  const groups = [...document.querySelectorAll<HTMLButtonElement>('[data-nav-group]')]
+    .map((btn) => ({ btn, list: document.getElementById(btn.getAttribute('aria-controls') ?? '') }))
+    .filter((g): g is { btn: HTMLButtonElement; list: HTMLElement } => Boolean(g.list));
+  const set = (g: { btn: HTMLButtonElement; list: HTMLElement }, open: boolean) => {
+    g.btn.setAttribute('aria-expanded', String(open));
+    g.list.hidden = !open;
+  };
+  const apply = () => {
+    for (const g of groups) {
+      const label = g.btn.dataset.navGroup ?? '';
+      set(g, navGroupOpen({ current: g.btn.hasAttribute('data-nav-current'), stored: readNavGroup(label, session) }));
+    }
+  };
+  apply();
+  window.addEventListener('pageshow', (e) => {
+    if (!e.persisted) return;
+    apply();
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active.matches('[data-nav-group]')) active.blur();
   });
+  for (const g of groups) {
+    g.btn.addEventListener('click', () => {
+      const open = g.btn.getAttribute('aria-expanded') !== 'true';
+      set(g, open);
+      writeNavGroup(g.btn.dataset.navGroup ?? '', open, session);
+    });
+  }
 }
 
 /** Subsequence fuzzy score: consecutive and word-start hits score higher. -1 when not all characters match. */

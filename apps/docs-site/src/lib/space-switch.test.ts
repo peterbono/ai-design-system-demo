@@ -80,6 +80,15 @@ describe('switchTarget from Studio', () => {
     expect(t('/studio/acme/ds/settings/').href).toBe('/library/acme/ds/');
     expect(t('/studio/~/acme/ds/components/', '', '/studio/~/acme/ds/').href).toBe('/library/acme/ds/components/');
   });
+
+  it('opens the site\'s own Library from the team shell of the repository it documents, for every visitor', () => {
+    const own = { owner: 'peterbono', repo: 'ai-design-system-demo' };
+    const t = (pathname: string, search = '') => switchTarget({ space: 'studio', pathname, search, team: own, own, studioRoot: '/studio/peterbono/ai-design-system-demo/', nameOf });
+    expect(t('/studio/peterbono/ai-design-system-demo/components/', '?c=button')).toEqual({ href: '/components/button/', item: 'Button' });
+    expect(t('/studio/peterbono/ai-design-system-demo/tokens/', '?focus=color').href).toBe('/foundations/color/');
+    expect(t('/studio/peterbono/ai-design-system-demo/').href).toBe('/library/');
+    expect(switchTarget({ space: 'studio', pathname: '/studio/acme/ds/', team: { owner: 'acme', repo: 'ds' }, own, studioRoot: '/studio/acme/ds/' }).href).toBe('/library/acme/ds/');
+  });
 });
 
 describe('names', () => {

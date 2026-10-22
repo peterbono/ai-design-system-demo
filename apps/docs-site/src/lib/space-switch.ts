@@ -5,7 +5,7 @@
 //
 // Pure and browser-safe: the layout resolves the build-time target, the script resolves it again in the browser,
 // where the query (?c=button) and the team in the address are known.
-import { LIBRARY_ROOT, libraryHref } from './library-shells';
+import { LIBRARY_ROOT, libraryHref, ownLibrary, sameTeam, type TeamPair } from './library-shells';
 import { STUDIO_ROOT, studioHrefAt } from './team-path';
 
 export type SwitchSpace = 'library' | 'studio';
@@ -100,6 +100,8 @@ export interface SwitchContext {
   /** On a team's Library shell: the route this page stands for ('components/'). */
   libraryRoute?: string;
   nameOf?: NameOf;
+  /** The repository this site documents: its Library is the site's own, whoever the visitor. Default: from <html>. */
+  own?: TeamPair | null;
 }
 
 /** Where the switch on this page goes, and the item it carries. */
@@ -111,8 +113,10 @@ export function switchTarget(ctx: SwitchContext): SwitchTarget {
     return { href: studioHrefAt(root, route), item };
   }
   const rel = norm(ctx.pathname).startsWith(root) ? norm(ctx.pathname).slice(root.length) : '';
-  const { route, item } = libraryRouteOfStudio(rel, search, ctx.nameOf, Boolean(ctx.team));
-  if (ctx.team) return { href: libraryHref(ctx.team.owner, ctx.team.repo, route), item };
+  // The team this site documents has one Library, the site's own (a page per foundation and component).
+  const team = ctx.team && !sameTeam(ctx.team, ctx.own === undefined ? ownLibrary() : ctx.own) ? ctx.team : null;
+  const { route, item } = libraryRouteOfStudio(rel, search, ctx.nameOf, Boolean(team));
+  if (team) return { href: libraryHref(team.owner, team.repo, route, null), item };
   return { href: route ? `/${route}` : LIBRARY_ROOT, item };
 }
 

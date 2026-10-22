@@ -3,15 +3,24 @@
 // any file that would take a team's Library address.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { checkLibraryHeaders, checkLibraryShells, LIBRARY_SHELL_ROUTES, LIBRARY_TEAM_NAV, libraryFromPath, libraryHref, libraryNoindexSources, libraryRewrites, libraryShellMarker, publicLibraryProblems, routeOfShell } from './library-shells';
+import { checkLibraryHeaders, checkLibraryShells, LIBRARY_SHELL_ROUTES, LIBRARY_TEAM_NAV, libraryFromPath, libraryHref, libraryNoindexSources, libraryRewrites, libraryShellMarker, ownLibrary, ownLibraryPath, ownLibraryRedirects, publicLibraryProblems, routeOfShell } from './library-shells';
 
 const vercel = JSON.parse(readFileSync(new URL('../../vercel.json', import.meta.url), 'utf8')) as {
+  redirects: { source: string; destination: string; permanent: boolean }[];
   rewrites: { source: string; destination: string }[];
   headers: { source: string; headers: { key: string; value: string }[] }[];
 };
 const publicLibraries = (JSON.parse(readFileSync(new URL('../../hosted/public-libraries.json', import.meta.url), 'utf8')) as { libraries: string[] }).libraries;
 
+// The repository this site documents (bridge.config.json): its Library is the site's own, for every visitor.
+const siteConfig = JSON.parse(readFileSync(new URL('../../../../bridge.config.json', import.meta.url), 'utf8')) as { repo: { owner: string; name: string } };
+const own = { owner: siteConfig.repo.owner, repo: siteConfig.repo.name };
+
 describe('vercel.json', () => {
+  it('sends the team address of the site\'s own repository to the site\'s own Library, ahead of the rewrites', () => {
+    expect(vercel.redirects).toEqual(ownLibraryRedirects(own));
+  });
+
   it('rewrites team Library addresses to the shells, the trailing slash rule first', () => {
     const rules = libraryRewrites();
     expect(rules[0]!.source.endsWith('/:path*/')).toBe(true);
@@ -142,5 +151,40 @@ describe('checkLibraryShells', () => {
     const files = { ...site(), 'library/acme/ds/index.html': '<html lang="en">', 'library/old/index.html': '<html lang="en">' };
     const problems = check(files);
     expect(problems).toEqual(['library/acme/ds/index.html takes the Library address of the team "acme/ds": move it out of /library/<owner>/<repo>/.']);
+  });
+});
+
+describe('the site\'s own Library', () => {
+  const doc = (attr?: string) => ({ documentElement: { dataset: attr ? { ownLibrary: attr } : {} } }) as unknown as Document;
+
+  it('reads the repository from <html data-own-library>', () => {
+    expect(ownLibrary(doc('peterbono/ai-design-system-demo'))).toEqual({ owner: 'peterbono', repo: 'ai-design-system-demo' });
+    expect(ownLibrary(doc())).toBeNull();
+  });
+
+  it('links the own repository to the rich Library, whoever builds the link, and other teams to their shell', () => {
+    expect(libraryHref(own.owner, own.repo, '', own)).toBe('/library/');
+    expect(libraryHref(own.owner.toUpperCase(), own.repo, 'foundations/', own)).toBe('/foundations/color/');
+    expect(libraryHref(own.owner, own.repo, 'components/?c=Button', own)).toBe('/components/button/');
+    expect(libraryHref(own.owner, own.repo, 'components/', own)).toBe('/components/');
+    expect(libraryHref(own.owner, own.repo, 'tokens/', own)).toBe('/tokens/');
+    expect(libraryHref('acme', 'ds', 'tokens/', own)).toBe('/library/acme/ds/tokens/');
+    expect(libraryHref('acme', 'ds', '', null)).toBe('/library/acme/ds/');
+  });
+
+  it('maps unknown routes and bad slugs to a page that exists', () => {
+    expect(ownLibraryPath('nope/')).toBe('/library/');
+    expect(ownLibraryPath('components/?c=../x')).toBe('/components/');
+  });
+
+  it('redirects every team route, the component query first and each trailing slash rule before its bare one', () => {
+    const rules = ownLibraryRedirects({ owner: 'acme', repo: 'ds' });
+    expect(rules[0]).toMatchObject({ source: '/library/acme/ds/components/', destination: '/components/:slug/', has: [{ type: 'query', key: 'c' }] });
+    const dest = (source: string) => rules.find((r) => r.source === source && !r.has)?.destination;
+    expect(dest('/library/acme/ds/foundations/')).toBe('/foundations/color/');
+    expect(dest('/library/acme/ds/tokens')).toBe('/tokens/');
+    expect(dest('/library/acme/ds/:path*/')).toBe('/library/');
+    expect(rules.every((r) => r.permanent === false)).toBe(true);
+    expect(rules.findIndex((r) => r.source.endsWith(':path*/'))).toBeLessThan(rules.findIndex((r) => r.source.endsWith(':path*')));
   });
 });
