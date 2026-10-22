@@ -34,6 +34,10 @@ export const DEMO_WORDS = {
   bannerText: 'Read-only, sample data from our open-source design system.',
   seeOnGitHub: 'See it on GitHub',
   useOwn: 'Use your own repo',
+  /** The banner for a visitor with a workspace, or who came through the start screen (board EmptyA2). */
+  sampleTitle: 'Sample data.',
+  sampleText: "You're looking at the Bridge demo, read only. Nothing here touches your repository.",
+  backToWorkspace: 'Back to your workspace',
   /** The home's branches (board D1). */
   branches: 'Explorations and branches',
   /** A write action in the demo (board D2). */

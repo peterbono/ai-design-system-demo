@@ -13,6 +13,7 @@
 import type { IconName } from '../brand/icons';
 import { loadComponents } from './components';
 import { VOCAB } from './vocabulary';
+import { START_PAGE, WORKSPACE_HOME } from './start';
 
 // Studio links in both modes (self-hosted /studio/, team shells /studio/<owner>/<repo>/). Browser code imports it from
 // lib/team-path directly: this module reads the repository at build time.
@@ -59,6 +60,10 @@ export const DOCS_FIGMA_PLUGIN = '/docs/figma-plugin/';
 export const STUDIO_HOME = '/studio/';
 /** The read-only demo the landing points to: the hosted Studio of the dedicated demo repo (lib/demo DEMO_REPOS). */
 export const DEMO = '/studio/peterbono/bridge-demo-ds/';
+/** "Get started": how do you want to start, while this browser remembers no workspace (lib/start.ts). */
+export const START = START_PAGE;
+/** The browser workspace: a Studio home with nothing connected yet (lib/start.ts). */
+export const WORKSPACE = WORKSPACE_HOME;
 export const SETTINGS_HOME = '/studio/settings/';
 
 export const FOUNDATIONS: NavItem[] = [
@@ -134,8 +139,9 @@ export function spaceOf(path: string): Space {
 /** Every page entry of one top-level entry: itself when it is a page, else its children. */
 const pagesOf = (e: NavEntry): NavItem[] => (e.children ?? (e.href ? [{ href: e.href, label: e.label, icon: e.icon, meta: e.meta, branchAware: e.branchAware }] : []));
 
-/** Pages outside the nav that belong to an entry: the review queue opens from the Overview's "Review all". */
-const BELONGS_TO: Record<string, string> = { '/studio/review/': STUDIO_HOME };
+/** Pages outside the nav that belong to an entry: the review queue opens from the Overview's "Review all"; the
+ * browser workspace is a Studio home. */
+const BELONGS_TO: Record<string, string> = { '/studio/review/': STUDIO_HOME, [WORKSPACE_HOME]: STUDIO_HOME };
 
 /**
  * Where a page sits: its top-level entry and page, for breadcrumbs, the expanded group and the current link.

@@ -10,6 +10,8 @@
 // The Storybook quick start (StorybookField) reads a published Storybook and keeps it in this browser; once added,
 // the card says how many components it found and links to them.
 // Step 4 (Invite your team): the team link and "Who can do what" (TeamLink.tsx); copying the link marks it done.
+// The browser workspace (lib/start.ts, pages/studio/workspace.astro): six steps and no repository yet. Step 2 takes a
+// Storybook, or a repository that opens its team at the next step; the steps that need the repository say so.
 import { useEffect, useState, type ReactNode } from 'react';
 import { Check, ChevronDown, Copy } from 'lucide-react';
 import { bridgeMcpInstallCommand, type ChangesMode, type RepoAccessState } from '@bridge-ds/core';
@@ -18,6 +20,7 @@ import { Drawing } from './Drawing';
 import ButtonLink from '../ButtonLink';
 import { ChangesChoices, DevelopersGet } from './ChangesMode';
 import { StorybookField } from './StorybookField';
+import { TeamField } from './TeamLauncher';
 import { TeamLink, useCopy } from './TeamLink';
 import { askInstallMessage, installUrl } from '../../../lib/access-view';
 import type { WorkspaceStorybook } from '../../../lib/workspace';
@@ -25,6 +28,7 @@ import { doneCount, doneSummary, firstRunTitle, onboardingKey, onboardingSteps, 
 import { CHANGES_CHOICE } from '../../../lib/settings-view';
 import { VOCAB } from '../../../lib/vocabulary';
 import { STUDIO_ROOT, studioHref } from '../../../lib/team-path';
+import { NEXT_AFTER_LIBRARY } from '../../../lib/start';
 
 export interface OnboardingContext {
   repo: string;
@@ -49,6 +53,10 @@ export interface OnboardingContext {
   };
   /** A team's Bridge (hosted): what GitHub said, for step 2. Absent on the self-hosted site. */
   hosted?: { access: RepoAccessState | null; admin: boolean } | null;
+  /** The browser workspace: no repository yet. */
+  workspace?: boolean;
+  /** Step 1 while signed out: the sign-in button's words, and whether it goes straight to GitHub. */
+  signIn?: { button: string; direct: boolean };
 }
 
 export interface OnboardingActions {
@@ -56,8 +64,10 @@ export interface OnboardingActions {
   propose: (mode: ChangesMode) => Promise<{ number: number; url: string }>;
   /** Marks the Figma plugin or Claude AI step done in this browser. */
   mark: (id: StepId) => void;
-  /** Leaves the steps for the home. */
-  later: () => void;
+  /** Leaves the steps for the home, from the step that was open. */
+  later: (at: StepId) => void;
+  /** The open step changed (the browser workspace remembers it, to resume there). */
+  onOpen?: (id: StepId) => void;
 }
 
 function StepMark({ s }: { s: Step }) {
@@ -193,6 +203,32 @@ function HostedRepo({ ctx, step }: { ctx: OnboardingContext; step: Step }) {
   );
 }
 
+/** Step 2 of the browser workspace: the repository, picked by name. It opens that team at its next step. */
+function WorkspaceRepo() {
+  return (
+    <section className="onb-way" aria-labelledby="onb-way-repo">
+      <p className="onb-way-tags">
+        <Badge size="sm">Read only</Badge>
+        <span className="onb-quiet">Now or later</span>
+      </p>
+      <h3 id="onb-way-repo" className="onb-h3">
+        Connect the repository
+      </h3>
+      <p className="onb-quiet">Bridge reads the code your design system is built from. Your team opens it with the same link.</p>
+      <TeamField id="onb-team-repo" action="Open" variant="secondary" query={`?setup=${NEXT_AFTER_LIBRARY}`} />
+      <div className="onb-get">
+        <p className="onb-quiet">Everything in Storybook, plus</p>
+        <ul className="onb-features">
+          <Feature>Tokens and contrast checks</Feature>
+          <Feature>The Figma fidelity check</Feature>
+          <Feature>Adoption across your products</Feature>
+          <Feature>Tracking what explorations change</Feature>
+        </ul>
+      </div>
+    </section>
+  );
+}
+
 /** Step 2: the Storybook quick start and the repository this Studio reads. */
 function LibraryStep({ ctx, step }: { ctx: OnboardingContext; step: Step }) {
   return (
@@ -223,7 +259,9 @@ function LibraryStep({ ctx, step }: { ctx: OnboardingContext; step: Step }) {
           </ul>
         </div>
       </section>
-      {ctx.hosted ? (
+      {ctx.workspace ? (
+        <WorkspaceRepo />
+      ) : ctx.hosted ? (
         <HostedRepo ctx={ctx} step={step} />
       ) : (
       <section className="onb-way" aria-labelledby="onb-way-repo" data-selected="">
@@ -271,20 +309,22 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<{ number: number; url: string } | null>(null);
-  const step = steps.find((s) => s.id === open)!;
+  const step = steps.find((s) => s.id === open) ?? steps[0]!;
   const total = steps.length;
+  const { onOpen } = actions;
+  useEffect(() => onOpen?.(open), [open, onOpen]);
   const next = () => {
     const i = steps.findIndex((s) => s.id === open);
     const after = steps.slice(i + 1).find((s) => s.state !== 'done') ?? steps[i + 1];
     if (after) setOpen(after.id);
-    else actions.later();
+    else actions.later(open);
   };
   const back = () => {
     const i = steps.findIndex((s) => s.id === open);
     if (i > 0) setOpen(steps[i - 1]!.id);
   };
   const later = (
-    <Button variant="ghost" onClick={actions.later}>
+    <Button variant="ghost" onClick={() => actions.later(open)}>
       Do this later
     </Button>
   );
@@ -306,11 +346,38 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
     </>
   );
 
+  // The browser workspace: a step that needs the repository says so, and leads back to step 2.
+  const needsRepo = (lead: string) => (
+    <Panel step={step} total={total} title={STEP_TITLE[open]} lead={lead} footer={nav(<Button variant="secondary" onClick={next}>Continue</Button>)}>
+      <p className="onb-quiet">This comes with the repository. Connect it on step 2 first.</p>
+      <p>
+        <Button variant="primary" onClick={() => setOpen('library')}>
+          Connect the repository
+        </Button>
+      </p>
+    </Panel>
+  );
+
   let panel: ReactNode;
   switch (open) {
     case 'signin':
       panel = (
-        <Panel step={step} total={total} title="Sign in with GitHub" lead={step.state === 'done' ? `${step.detail}. Your sign-in stays in this browser.` : 'Bridge works as you on GitHub.'} footer={nav()} />
+        <Panel
+          step={step}
+          total={total}
+          title="Sign in with GitHub"
+          lead={step.state === 'done' ? `${step.detail}. Your sign-in stays in this browser.` : 'Bridge works as you on GitHub.'}
+          footer={
+            step.state !== 'done' && ctx.signIn
+              ? nav(
+                  // The shared session listens for these attributes (scripts/github-session.ts): sign in, or the dialog.
+                  <Button data-gh-open="" data-gh-signin={ctx.signIn.direct ? '' : undefined}>
+                    {ctx.signIn.button}
+                  </Button>,
+                )
+              : nav()
+          }
+        />
       );
       break;
     case 'library': {
@@ -347,6 +414,10 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
       );
       break;
     case 'products':
+      if (ctx.workspace) {
+        panel = needsRepo("The apps that use your library, found in the repository's Bridge settings.");
+        break;
+      }
       panel = (
         <Panel step={step} total={total} title="Products" lead="The apps that use your library, found in the repository's Bridge settings." footer={nav()}>
           {ctx.products.length ? (
@@ -365,6 +436,10 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
       );
       break;
     case 'changes': {
+      if (ctx.workspace) {
+        panel = needsRepo('When your team keeps an exploration, Bridge hands the change to your developers. You pick how once the repository is connected.');
+        break;
+      }
       const chosen = step.state === 'done';
       panel = (
         <Panel
@@ -431,6 +506,10 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
     case 'figma':
     case 'claude': {
       const figma = open === 'figma';
+      if (!figma && ctx.workspace) {
+        panel = needsRepo('Your own Claude gets Bridge tools on your design system, and can apply suggestions in the repo.');
+        break;
+      }
       const done = step.state === 'done';
       panel = (
         <Panel
@@ -498,13 +577,17 @@ export interface FinishConnectingProps {
   /** Opens the steps at one of them. */
   onOpen: (id: StepId) => void;
   onHide: () => void;
+  /** Offer "Hide checklist" (default). The browser workspace keeps it: it is the way back into the steps. */
+  hideable?: boolean;
+  /** The line under the title; the browser workspace says what to connect first. */
+  description?: string;
 }
 
 /** The link word of a step left in the checklist. */
 const actionWord = (s: Step) => (s.state === 'waiting' ? 'See' : s.id === 'changes' ? 'Choose' : s.id === 'team' ? 'Invite' : 'Set up');
 
 /** "4 of 7 connected": the steps left, behind one button on the home. */
-export function FinishConnecting({ steps, onOpen, onHide }: FinishConnectingProps) {
+export function FinishConnecting({ steps, onOpen, onHide, hideable = true, description = 'Your workspace already works. These add more, whenever you like.' }: FinishConnectingProps) {
   const left = steps.filter((s) => s.state !== 'done');
   const summary = doneSummary(steps);
   return (
@@ -513,7 +596,7 @@ export function FinishConnecting({ steps, onOpen, onHide }: FinishConnectingProp
         <Progress variant="circular" size="sm" value={doneCount(steps)} max={steps.length} aria-hidden="true" />
         {progressLabel(steps)}
       </PopoverTrigger>
-      <PopoverContent side="bottom" align="end" arrow={false} title="Finish connecting" description="Your workspace already works. These add more, whenever you like." className="onb-pop">
+      <PopoverContent side="bottom" align="end" arrow={false} title="Finish connecting" description={description} className="onb-pop">
         <Progress value={doneCount(steps)} max={steps.length} size="sm" aria-label={progressLabel(steps)} />
         <ul className="onb-pop-list">
           {summary && (
@@ -534,11 +617,13 @@ export function FinishConnecting({ steps, onOpen, onHide }: FinishConnectingProp
             </li>
           ))}
         </ul>
-        <div className="onb-pop-foot">
-          <Button variant="ghost" size="sm" onClick={onHide}>
-            Hide checklist
-          </Button>
-        </div>
+        {hideable && (
+          <div className="onb-pop-foot">
+            <Button variant="ghost" size="sm" onClick={onHide}>
+              Hide checklist
+            </Button>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );

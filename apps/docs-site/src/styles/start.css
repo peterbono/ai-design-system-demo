@@ -1,0 +1,190 @@
+/* "How do you want to start?" (pages/start.astro, board EmptyC): the Studio's top bar, the question, two cards of one
+   width side by side, stacked on a phone. White page, no Harbor zone: the choice comes before the workspace. Four type
+   sizes: the question (h1), the card titles (h2), body, ui. */
+
+/* No search in the top bar here: the actions keep their column at the end. */
+[data-bare] .topbar-actions {
+  grid-column: 3;
+  margin-inline-start: auto;
+}
+
+/* Signed out there is nobody to show: the session sets [hidden], which the Avatar's own display would override. */
+.topbar-who [hidden] {
+  display: none;
+}
+
+.topbar-who {
+  display: inline-flex;
+  margin-inline-start: var(--space-2);
+}
+
+.bare-main {
+  min-height: calc(100vh - var(--layout-header-height));
+  padding: var(--space-12) var(--space-12) var(--space-16);
+}
+
+/* Until the page knows whether a workspace is remembered (it forwards there), nothing shows: no flash of the choice. */
+[data-start-pending] {
+  visibility: hidden;
+}
+
+.gs {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-8);
+}
+
+.gs-head {
+  display: grid;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.gs-title {
+  margin: 0;
+  font-family: var(--typography-h1-family);
+  font-size: var(--typography-h1-size);
+  font-weight: var(--typography-h1-weight);
+  line-height: var(--typography-h1-line-height);
+  letter-spacing: var(--typography-h1-tracking);
+}
+
+.gs-sub {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
+.gs-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-6);
+  width: 100%;
+  max-width: var(--size-240);
+}
+
+/* Two selectors deep: wins over the Card's own padding whatever the stylesheet order. */
+.gs .gs-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-7) var(--space-8) var(--space-8);
+}
+
+/* The art: what each way gives, in shapes. Dashed outlines for a design system to connect; filled Bridge colors and a
+   button for the demo's sample library. */
+.gs-art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--size-40);
+  margin-block-end: var(--space-1);
+  border-radius: var(--radius-control);
+  background: var(--color-bg-subtle);
+}
+
+.gs-shape {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  inline-size: var(--size-8);
+  block-size: var(--size-8);
+  border: var(--border-width-default) dashed var(--color-border-strong);
+  border-radius: var(--radius-inset);
+}
+
+.gs-shape-solid {
+  border: 0;
+  background: var(--color-action-primary-bg);
+}
+
+.gs-shape-zone {
+  border: 0;
+  background: var(--color-bg-zone);
+}
+
+.gs-shape-button {
+  inline-size: auto;
+  padding-inline: var(--space-3);
+  border: 0;
+  background: var(--color-action-primary-bg);
+  color: var(--color-action-primary-text);
+  font-size: var(--typography-ui-size);
+}
+
+.gs-shape-field {
+  inline-size: var(--size-16);
+  border-style: solid;
+  background: var(--color-surface-default);
+}
+
+.gs-h2 {
+  margin: 0;
+  font-family: var(--typography-h2-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--typography-h1-weight);
+  line-height: var(--typography-h2-line-height);
+  letter-spacing: var(--typography-h2-tracking);
+}
+
+.gs-text {
+  margin: 0;
+  max-width: 65ch;
+  color: var(--color-text-muted);
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
+.gs-checks {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.gs-checks li {
+  display: flex;
+  margin: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.gs-checks svg {
+  flex: none;
+  color: var(--color-text-link);
+}
+
+/* The action sits at the foot of its card, so both cards' actions line up. */
+.gs-action {
+  align-self: flex-start;
+  margin-block-start: auto;
+}
+
+@media (max-width: 768px) {
+  .bare-main {
+    padding: var(--space-8) var(--space-4) var(--space-12);
+  }
+
+  .gs-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gs .gs-card {
+    padding: var(--space-5);
+  }
+
+  .gs-title {
+    font-size: var(--typography-h2-size);
+    line-height: var(--typography-h2-line-height);
+  }
+
+  /* A lone action fills its bar on a phone. */
+  .gs-action {
+    align-self: stretch;
+  }
+}

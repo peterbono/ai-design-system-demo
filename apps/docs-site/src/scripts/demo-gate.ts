@@ -1,6 +1,7 @@
-// On the demo (lib/demo.ts DEMO_REPOS), a visitor who cannot write to it explores freely (boards D1 and D2):
-//   - the "Demo workspace" banner over every Studio page (components/ds/studio/DemoBanner.tsx), with "Use your own
-//     repo", which opens "Create a new team" (NewTeamDialog.tsx);
+// On the demo (lib/demo.ts DEMO_REPOS), a visitor who cannot write to it explores freely (boards D1, D2 and EmptyA2):
+//   - the banner over every Studio page (components/ds/studio/DemoBanner.tsx): "Sample data" with "Back to your
+//     workspace" for a visitor with a workspace or who came through the start screen (lib/start.ts), else "Demo
+//     workspace" with "Use your own repo", which opens "Create a new team" (NewTeamDialog.tsx);
 //   - every action that would change the demo opens "Sign in with GitHub to do this for real."
 //     (components/ds/studio/MakeItYours.tsx) instead of failing or asking for a GitHub sign-in out of context.
 // Someone who can write to the demo (its owner) keeps the normal Studio.
@@ -31,6 +32,8 @@ let deps: DemoGateDeps | null = null;
 /** True when this visitor explores the demo: write actions open the demo dialog. */
 export function exploringDemo(): boolean {
   if (!deps || !deps.known()) return false;
+  // The start screen and the browser workspace are built on the demo's site but read no repository: never the demo.
+  if (document.documentElement.hasAttribute('data-no-repo')) return false;
   const login = deps.login();
   return exploresDemo({ repo: deps.repo(), signedIn: Boolean(login), write: login ? deps.write() : false });
 }
@@ -90,11 +93,22 @@ async function paintBanner() {
   const on = exploringDemo();
   if (!on && !banner) return;
   banner ??= (async () => {
-    const [{ createElement }, { createRoot }, { DemoBanner }] = await Promise.all([import('react'), import('react-dom/client'), import('../components/ds/studio/DemoBanner')]);
+    const [{ createElement }, { createRoot }, { DemoBanner }, { startFacts }, { backToWorkspaceHref, demoBannerKind }, { loadReserved }] = await Promise.all([
+      import('react'),
+      import('react-dom/client'),
+      import('../components/ds/studio/DemoBanner'),
+      import('./start'),
+      import('../lib/start'),
+      import('../lib/team-open'),
+    ]);
     const root = createRoot(slot);
+    // Read once per page from this browser only (no GitHub call): a visitor with a workspace, or who came through the
+    // start screen, gets "Back to your workspace"; one who came straight here keeps "Use your own repo".
+    const facts = startFacts();
+    const back = demoBannerKind(facts) === 'workspace' ? backToWorkspaceHref(facts, await loadReserved()) : null;
     return (show: boolean) => {
       slot.hidden = !show;
-      root.render(show ? createElement(DemoBanner, { repoUrl: `https://github.com/${deps!.repo()}`, onUseOwn: () => void openUseOwnRepo() }) : null);
+      root.render(show ? createElement(DemoBanner, { repoUrl: `https://github.com/${deps!.repo()}`, onUseOwn: () => void openUseOwnRepo(), back }) : null);
     };
   })();
   (await banner)(exploringDemo());

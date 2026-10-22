@@ -16,8 +16,11 @@
 //                                   browser, and "Later is fine" until then.
 // Every step after sign-in can wait: the first run opens on step 3 only while `changes` is unset, and "Do this later"
 // moves the rest into a compact "Finish connecting" checklist on the home.
+// The browser workspace (lib/start.ts, no repository yet) has six steps: no team link to share without a repository,
+// so no "Invite your team". Its step 2 is done once a Storybook is added; picking a repository opens that team.
 import type { ChangesMode, RepoAccessState } from '@bridge-ds/core';
 import { CHANGES_SHORT } from './settings-view';
+import { storybookHost } from './workspace';
 
 export type StepId = 'signin' | 'library' | 'changes' | 'team' | 'products' | 'figma' | 'claude';
 
@@ -72,6 +75,8 @@ export interface OnboardingFacts {
    * the self-hosted site, where the repository is connected at build time.
    */
   hosted?: { access: RepoAccessState | null; admin?: boolean } | null;
+  /** The browser workspace: no repository yet (`repo` is empty), six steps. */
+  workspace?: boolean;
 }
 
 export interface Step {
@@ -116,10 +121,20 @@ function changesStep(f: OnboardingFacts): Pick<Step, 'detail' | 'state' | 'statu
   return { detail: STEP_LINE.changes, state: 'later', status: 'Later is fine' };
 }
 
-/** The seven steps with their state. The current step is the first core step not done, once signed in. */
+/** Step 2 of the browser workspace: the Storybook added here, or nothing yet. */
+function workspaceLibraryStep(f: OnboardingFacts): Pick<Step, 'detail' | 'code' | 'state' | 'status'> {
+  return f.quickStart
+    ? { detail: 'Storybook', code: storybookHost(f.quickStart.url), state: 'done', status: 'Connected' }
+    : { detail: STEP_LINE.library, state: 'later', status: 'To do' };
+}
+
+/** The steps of a Studio: seven, or six for the browser workspace (no team link without a repository). */
+export const stepIdsFor = (workspace?: boolean): readonly StepId[] => (workspace ? STEP_IDS.filter((id) => id !== 'team') : STEP_IDS);
+
+/** The steps with their state. The current step is the first core step not done, once signed in. */
 export function onboardingSteps(f: OnboardingFacts): Step[] {
   const marked = new Set((f.marked ?? []).filter((m) => MARKABLE.includes(m)));
-  const steps: Step[] = STEP_IDS.map((id, i) => {
+  const steps: Step[] = stepIdsFor(f.workspace).map((id, i) => {
     const base = { id, n: i + 1, title: STEP_TITLE[id] };
     switch (id) {
       case 'signin':
@@ -127,6 +142,7 @@ export function onboardingSteps(f: OnboardingFacts): Step[] {
           ? { ...base, detail: `Signed in as @${f.login}`, state: 'done', status: 'Done' }
           : { ...base, detail: STEP_LINE.signin, state: 'later', status: 'To do' };
       case 'library':
+        if (f.workspace) return { ...base, ...workspaceLibraryStep(f) };
         return f.hosted
           ? { ...base, ...hostedLibraryStep(f, f.hosted.access, f.hosted.admin === true) }
           : { ...base, detail: f.storybook || f.quickStart ? 'Storybook and' : 'Repository', code: f.repo, state: 'done', status: 'Connected' };
@@ -146,14 +162,17 @@ export function onboardingSteps(f: OnboardingFacts): Step[] {
           : { ...base, detail: STEP_LINE[id], state: 'later', status: 'Later is fine' };
     }
   });
-  const current = currentStepId(steps);
+  const current = currentStepId(steps, f.workspace ? WORKSPACE_CORE : CORE);
   // A hosted step 2 keeps its own words (Install Bridge, Ask an admin): they say what to do.
   return steps.map((s) => (s.id === current ? { ...s, state: 'current', status: s.id === 'library' && f.hosted ? s.status : 'Current' } : s));
 }
 
-function currentStepId(steps: Step[]): StepId | null {
+/** The browser workspace asks for sign-in and a design system: the rest comes with the repository. */
+const WORKSPACE_CORE: readonly StepId[] = ['signin', 'library'];
+
+function currentStepId(steps: Step[], core: readonly StepId[]): StepId | null {
   if (steps[0]!.state !== 'done') return 'signin';
-  return steps.find((s) => CORE.includes(s.id) && s.state === 'later')?.id ?? null;
+  return steps.find((s) => core.includes(s.id) && s.state === 'later')?.id ?? null;
 }
 
 export const doneCount = (steps: Step[]) => steps.filter((s) => s.state === 'done').length;

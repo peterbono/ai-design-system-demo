@@ -29,7 +29,7 @@ import { signInConfig } from '../lib/signin-config';
 import { GITHUB_URL, STORYBOOK_URL, sourceUrl } from '../lib/repo';
 import { humanDate } from '../lib/stats';
 import { BRANDS, DEFAULT_BRAND } from '../lib/tokens';
-import { Breadcrumb, Button, Icon, IconButton, Kbd, Link } from '@bridge-ds/react';
+import { Avatar, Breadcrumb, Button, Icon, IconButton, Kbd, Link } from '@bridge-ds/react';
 import { siteIcon } from '../brand/site-icons';
 import { Menu as MenuIcon, Moon, Search, X } from 'lucide-react';
 import ButtonLink from '../components/ds/ButtonLink';
@@ -63,14 +63,26 @@ interface Props {
    * (noindex unless the team's bridge.config.json says library.public; scripts/library-team.ts).
    */
   library?: boolean;
+  /**
+   * The start screen (pages/start.astro, board EmptyC): the Studio's top bar only, no side nav, no search. It reads no
+   * repository (<html data-no-repo>) and signs in like a team page, so the sign-in carries over to the team picked.
+   */
+  bare?: boolean;
+  /**
+   * The browser workspace (pages/studio/workspace.astro, board EmptyB): the Studio with nothing connected. Reads no
+   * repository either (<html data-no-repo data-workspace>): no demo banner, no review count, the chip names the workspace.
+   */
+  workspace?: boolean;
 }
 
-const { title, description, sources = [], updated, wide = false, crumbs, toc, hosted = false, library = false } = Astro.props;
+const { title, description, sources = [], updated, wide = false, crumbs, toc, hosted = false, library = false, bare = false, workspace = false } = Astro.props;
+// Pages that read no repository: the start screen and the browser workspace.
+const noRepo = bare || workspace;
 // A shell at /team-shell/tokens/ is the Tokens page of Studio: same nav, same current entry.
 const path = studioPathOfShell(Astro.url.pathname.replace(/\/?$/, '/'));
 const shell = hosted ? shellMarker(Astro.url.pathname.replace(/^\/team-shell\/?/, '').replace(/\/?$/, '/').replace(/^\/$/, '')) : undefined;
 const here = locate(path);
-const space: Space = here.space;
+const space: Space = bare ? 'studio' : here.space;
 // A team's Library: its own four places, at the shell paths (scripts/library-team.ts points them at the team).
 const libraryRoute = library ? routeOfShell(Astro.url.pathname.replace(/\/?$/, '/')) : undefined;
 const nav = library ? LIBRARY_TEAM_NAV.map((e) => ({ href: `${LIBRARY_SHELL_ROOT}${e.route}`, label: e.label, icon: e.icon, meta: e.meta })) : navFor(space);
@@ -96,7 +108,8 @@ const searchLabel = isStudio ? 'Search tokens, components, branches' : 'Search t
 // The team chip names the repository: from the build on the self-hosted Studio, from the address on a team shell.
 const builtRepo = hosted ? null : `${siteRepo().owner}/${siteRepo().repo}`;
 // A team's Library signs in with the same GitHub App as the team's Studio, so a Studio sign-in reads private repos here.
-const ghApp = signInConfig(hosted || library)?.app ?? '';
+// The start screen and the browser workspace sign in like a team page too: the team picked there keeps the sign-in.
+const ghApp = signInConfig(hosted || library || noRepo)?.app ?? '';
 // The hosted deployment (BRIDGE_HOSTED, multi-team plan 4.3) opens other teams: the chip menu offers it.
 const hostedSite = process.env.BRIDGE_HOSTED === '1' || process.env.BRIDGE_HOSTED === 'true';
 // The header switch's build-time target: the same page in the other space (lib/space-switch.ts). The browser resolves
@@ -112,7 +125,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
 ---
 
 <!doctype html>
-<html lang="en" data-hosted={hosted ? '' : undefined} data-shell={shell} data-library-shell={library ? libraryShellMarker(libraryRoute ?? '') : undefined} data-theme="light" data-brand="bridge" data-density="comfortable" data-space={space} data-gh-app={ghApp} data-brands={[DEFAULT_BRAND, ...BRANDS.filter((b) => b !== DEFAULT_BRAND)].join(' ')}>
+<html lang="en" data-hosted={hosted ? '' : undefined} data-no-repo={noRepo ? '' : undefined} data-workspace={workspace ? '' : undefined} data-bare={bare ? '' : undefined} data-shell={shell} data-library-shell={library ? libraryShellMarker(libraryRoute ?? '') : undefined} data-theme="light" data-brand="bridge" data-density="comfortable" data-space={space} data-gh-app={ghApp} data-brands={[DEFAULT_BRAND, ...BRANDS.filter((b) => b !== DEFAULT_BRAND)].join(' ')}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -159,7 +172,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
         <Logo />
         {isStudio && <span class="topbar-space" aria-hidden="true">Studio</span>}
       </Link>
-      {!library && <Button variant="ghost" size="sm" iconStart={Search} className="shell-search" id="search-open" aria-haspopup="dialog" aria-controls="palette" aria-label={searchLabel}>
+      {!library && !bare && <Button variant="ghost" size="sm" iconStart={Search} className="shell-search" id="search-open" aria-haspopup="dialog" aria-controls="palette" aria-label={searchLabel}>
         <span class="shell-search-text">
           <span class="shell-search-label">{searchLabel}</span>
         </span>
@@ -169,14 +182,24 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
         {/* Same place in the Library and in Studio, so people find it in both. */}
         <IconButton icon={Moon} size="sm" label="Dark theme" id="theme-toggle" data-theme-toggle aria-pressed="false" title="Dark theme" className="shell-wide" />
         {/* Library <-> Studio: one link that names the space you are in and carries the page's item across. */}
-        <SpaceSwitch space={space} href={switchTo.href} item={switchTo.item} />
-        <span class="rail-toggle-slot"><IconButton icon={MenuIcon} size="sm" label="Open navigation" id="rail-toggle" aria-controls="rail" aria-expanded="false" /></span>
+        {!bare && <SpaceSwitch space={space} href={switchTo.href} item={switchTo.item} />}
+        {bare ? (
+          // Who is signed in, painted by scripts/github-session.ts ([data-gh-acct] [data-gh-avatar]); hidden signed out.
+          <span class="topbar-who" data-gh-acct><Avatar name="GitHub" size="sm" decorative data-gh-avatar hidden /></span>
+        ) : (
+          <span class="rail-toggle-slot"><IconButton icon={MenuIcon} size="sm" label="Open navigation" id="rail-toggle" aria-controls="rail" aria-expanded="false" /></span>
+        )}
       </div>
     </header>
     {/* The demo, for a visitor who cannot change it: the "Demo workspace" banner (scripts/demo-gate.ts mounts
         components/ds/studio/DemoBanner.tsx here once the session knows who is visiting). */}
-    {isStudio && <div class="demo-strip" data-demo-strip hidden />}
+    {isStudio && !noRepo && <div class="demo-strip" data-demo-strip hidden />}
 
+    {bare ? (
+      <main id="main" tabindex="-1" class="bare-main">
+        <slot />
+      </main>
+    ) : (
     <div class="shell">
       <nav class="rail" id="rail" aria-label={isStudio ? 'Studio navigation' : 'Library navigation'}>
         <div class="rail-head">
@@ -186,7 +209,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
         {
           isStudio && (
             <div class="rail-chip">
-              <TeamChip client:load repo={builtRepo} launcher={hostedSite} />
+              <TeamChip client:load repo={builtRepo} launcher={hostedSite} workspace={workspace} />
             </div>
           )
         }
@@ -250,7 +273,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
           </div>
           {
             isStudio ? (
-              <GitHubAccount />
+              <GitHubAccount workspace={workspace} />
             ) : (
               <div class="rail-team">
                 <p>{library ? 'Maintaining this design system? Edit its tokens and review changes.' : 'Maintaining Bridge? Edit tokens and review changes.'}</p>
@@ -346,6 +369,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
         }
       </main>
     </div>
+    )}
 
     <ScriptDialog id="palette" title="Search" size="lg" closeLabel="Close search">
       <div class="palette-box" role="search">
@@ -365,7 +389,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
       </p>
     </ScriptDialog>
 
-    {isStudio && <GitHubDialog hosted={hosted} />}
+    {isStudio && <GitHubDialog hosted={hosted || noRepo} />}
     <p class="sr-only" role="status" aria-live="polite" id="live"></p>
     {/* A team shell carries no repository of its own: scripts/repo-context.ts reads the team from the address. */}
     <script type="application/json" id="bridge-repo" set:html={hosted ? '{}' : siteRepoJson()} />

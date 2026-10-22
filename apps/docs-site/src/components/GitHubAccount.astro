@@ -20,8 +20,14 @@ import { signInConfig } from '../lib/signin-config';
 import { ghButton } from '../lib/gh-wording';
 import { studioHref } from '../lib/team-path';
 
+interface Props {
+  /** The browser workspace (pages/studio/workspace.astro): no repository yet, and it signs in like a team page. */
+  workspace?: boolean;
+}
+
+const { workspace = false } = Astro.props;
 const r = siteRepo();
-const signIn = Boolean(signInConfig());
+const signIn = Boolean(signInConfig(workspace));
 ---
 
 <div class="gh-acct" data-gh-connect data-gh-acct data-state="checking">
@@ -45,7 +51,7 @@ const signIn = Boolean(signInConfig());
       <Avatar name="GitHub" size="md" decorative className="gh-acct-avatar" data-gh-avatar hidden />
       <span class="gh-acct-text">
         <span class="gh-acct-login" data-gh-login></span>
-        <span class="gh-acct-repo mono" data-team-name>{r.owner}/{r.repo}</span>
+        {workspace ? <span class="gh-acct-repo">No repository yet</span> : <span class="gh-acct-repo mono" data-team-name>{r.owner}/{r.repo}</span>}
       </span>
       <span class="scope-pick-chev" aria-hidden="true"><Icon icon={siteIcon('chevron')} size="xs" className="icon" /></span>
     </summary>
@@ -55,7 +61,7 @@ const signIn = Boolean(signInConfig());
         <dt>Signed in</dt>
         <dd data-gh-login-full></dd>
         <dt>Repository</dt>
-        <dd><Link href={`https://github.com/${r.owner}/${r.repo}`} className="mono" data-team-github><span data-team-name>{r.owner}/{r.repo}</span></Link></dd>
+        <dd>{workspace ? 'None yet' : <Link href={`https://github.com/${r.owner}/${r.repo}`} className="mono" data-team-github><span data-team-name>{r.owner}/{r.repo}</span></Link>}</dd>
         <dt>Access</dt>
         <dd><span class="gh-perm" data-gh-perm>Checking</span></dd>
       </dl>

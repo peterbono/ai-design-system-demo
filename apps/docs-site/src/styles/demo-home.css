@@ -14,6 +14,18 @@
   font-weight: var(--font-weight-regular);
 }
 
+/* "Sample data." (board EmptyA2), for a visitor with a workspace: the board's warm tint, from the warning tones so its
+   text pair is one the contrast gate checks (warning text on its tint). It says "this is not your work", not alarm:
+   the icon stays the neutral info mark. */
+.demo-banner.demo-banner-sample {
+  --_bg: var(--color-feedback-warning-bg);
+  --_border: var(--color-feedback-warning-border);
+}
+
+.demo-banner-sample .demo-banner-text {
+  color: var(--color-feedback-warning-text);
+}
+
 /* --- The tour: a DS Popover anchored under what each step points at ------------------------------------------- */
 
 /* The anchor: a line across the bottom of what the step points at, no height of its own. */
