@@ -19,6 +19,11 @@ import {
   parseTarget,
   validBranch,
   cleanName,
+  clearDesignPathCache,
+  DESIGN_ONLY,
+  designPathsFrom,
+  isDesignPath,
+  publicEmail,
 } from '../../api/contribute/index';
 import { inviteStoreOn, type EmailMessage, type Role, type StoredInvite } from '../../api/invites/index';
 
@@ -27,6 +32,16 @@ const ORIGIN = `https://${HOST}`;
 const REPO = 'acme/design';
 const T0 = Date.parse('2026-10-22T10:00:00Z');
 const SECRET = 's'.repeat(40);
+/** A commit whose changes are design files only; SHA_BAD also touches package.json. */
+const SHA = 'a'.repeat(40);
+const SHA2 = 'b'.repeat(40);
+const SHA_BAD = 'c'.repeat(40);
+const CONFIG = JSON.stringify({
+  tokens: { root: 'design/tokens' },
+  components: { dir: 'src/components', docsSuffix: '.docs.json' },
+  changesets: { dir: '.changeset' },
+  governance: { guardrails: ['AGENTS.md', '.github/', 'bridge.config.json', 'design/tokens/contrast.checks.json'] },
+});
 const ENV = { LIBRARY_SESSION_SECRET: SECRET };
 
 interface Call {
@@ -40,6 +55,11 @@ interface Call {
 interface World {
   /** Branches that exist on GitHub. */
   branches: string[];
+  private: boolean;
+  /** bridge.config.json on the default branch, or null when there is none. */
+  config: string | null;
+  /** Files each commit changes from main (compare main...sha). */
+  compare: Record<string, { filename: string; previous_filename?: string }[]>;
   next: number;
   calls: Call[];
 }
@@ -56,10 +76,19 @@ function github(w: World): FetchLike {
     w.calls.push({ method: init.method, path: path + u.search, auth: init.headers.Authorization ?? '', body, headers: init.headers });
     const m = init.method;
     let x: RegExpExecArray | null;
-    if (m === 'GET' && path === '/repos/acme/design') return res(200, { default_branch: 'main' });
+    if (m === 'GET' && path === '/repos/acme/design') return res(200, { default_branch: 'main', private: w.private });
     if (m === 'GET' && (x = /^\/repos\/acme\/design\/git\/ref\/heads\/(.+)$/.exec(path))) {
       const b = x[1]!.split('/').map(decodeURIComponent).join('/');
       return w.branches.includes(b) ? res(200, { object: { sha: 'abc' } }) : res(404, { message: 'Not Found' });
+    }
+    if (m === 'GET' && (x = /^\/repos\/acme\/design\/compare\/main\.\.\.([0-9a-f]{40})$/.exec(path))) {
+      const files = w.compare[x[1]!];
+      return files ? res(200, { files }) : res(404, { message: 'Not Found' });
+    }
+    if (m === 'GET' && path === '/repos/acme/design/contents/bridge.config.json') {
+      expect(u.searchParams.get('ref')).toBe('main');
+      expect(init.headers.Accept).toBe('application/vnd.github.raw');
+      return w.config === null ? res(404, { message: 'Not Found' }) : new Response(w.config, { status: 200 });
     }
     if (m === 'GET') return res(200, [{ ok: true }], { Link: '<https://api.github.com/repos/acme/design/pulls?page=2>; rel="next"', ETag: '"e1"' });
     if (m === 'POST' && path === '/repos/acme/design/git/refs') {
@@ -72,8 +101,9 @@ function github(w: World): FetchLike {
   };
 }
 
-function setup(over: Partial<ContribDeps> = {}) {
-  const w: World = { branches: ['main', 'theirs'], next: 40, calls: [] };
+function setup(over: Partial<ContribDeps> = {}, world: Partial<World> = {}) {
+  clearDesignPathCache();
+  const w: World = { branches: ['main', 'theirs'], private: true, config: CONFIG, compare: { [SHA]: [], [SHA2]: [{ filename: 'design/tokens/color.tokens.json' }], [SHA_BAD]: [{ filename: 'design/tokens/a.tokens.json' }, { filename: 'package.json' }] }, next: 40, calls: [], ...world };
   let now = T0;
   let seed = 0;
   const redis = memoryRedis(() => now);
@@ -346,8 +376,8 @@ describe('sign-in links', () => {
 });
 
 describe('proxy: what is allowed', () => {
-  async function ready() {
-    const s = setup();
+  async function ready(world: Partial<World> = {}) {
+    const s = setup({}, world);
     const cookie = await join(s);
     const call = async (method: string, path: string, body?: unknown, extra: Record<string, string> = {}) => {
       const before = s.w.calls.length;
@@ -356,7 +386,7 @@ describe('proxy: what is allowed', () => {
       return { r, sent: sent[sent.length - 1] };
     };
     /** Creates a branch through the proxy: it becomes Mia's. */
-    const branch = async (b: string) => expect((await call('POST', `${P}/git/refs`, { ref: `refs/heads/${b}`, sha: 'abc' })).r.status).toBe(201);
+    const branch = async (b: string) => expect((await call('POST', `${P}/git/refs`, { ref: `refs/heads/${b}`, sha: SHA })).r.status).toBe(201);
     return { s, cookie, call, branch };
   }
 
@@ -383,7 +413,9 @@ describe('proxy: what is allowed', () => {
     const blob = await call('POST', `${P}/git/blobs`, { content: 'aGk=', encoding: 'base64' });
     expect(blob.r.status).toBe(201);
     expect(blob.sent!.body).toEqual({ content: 'aGk=', encoding: 'base64' });
-    expect((await call('POST', `${P}/git/trees`, { base_tree: 'abc', tree: [] })).r.status).toBe(201);
+    const tree = await call('POST', `${P}/git/trees`, { base_tree: 'abc', tree: [{ path: 'design/tokens/color.tokens.json', mode: '100644', type: 'blob', sha: 'b1' }] });
+    expect(tree.r.status).toBe(201);
+    expect(tree.sent!.body).toEqual({ base_tree: 'abc', tree: [{ path: 'design/tokens/color.tokens.json', mode: '100644', type: 'blob', sha: 'b1' }] });
   });
 
   it('POST git/commits: the member is the author (date kept), any committer dropped', async () => {
@@ -398,33 +430,33 @@ describe('proxy: what is allowed', () => {
     await branch('bridge/mia-1');
     expect(await s.redis.cmd('GET', `bridge:contrib:branch:${REPO}:bridge/mia-1`)).toBe('mia@acme.design');
     for (const ref of ['refs/heads/main', 'refs/heads/MAIN', 'refs/heads/theirs', 'refs/heads/bridge/mia-1', 'refs/tags/v1', 'refs/heads/a..b', 'refs/heads/x.lock', 'main']) {
-      expect((await call('POST', `${P}/git/refs`, { ref, sha: 'abc' })).r.status, ref).toBe(403);
+      expect((await call('POST', `${P}/git/refs`, { ref, sha: SHA })).r.status, ref).toBe(403);
     }
   });
 
   it('PATCH git/refs/heads/<b>: their branch only, never force', async () => {
     const { call, branch } = await ready();
     await branch('bridge/mia-1');
-    const ok = await call('PATCH', `${P}/git/refs/heads/bridge/mia-1`, { sha: 'def', force: false });
+    const ok = await call('PATCH', `${P}/git/refs/heads/bridge/mia-1`, { sha: SHA2, force: false });
     expect(ok.r.status).toBe(200);
-    expect(ok.sent!.body).toEqual({ sha: 'def', force: false });
-    expect((await call('PATCH', `${P}/git/refs/heads/bridge/mia-1`, { sha: 'def', force: true })).r.status).toBe(403);
-    expect((await call('PATCH', `${P}/git/refs/heads/theirs`, { sha: 'def' })).r.status).toBe(403);
-    expect((await call('PATCH', `${P}/git/refs/heads/main`, { sha: 'def' })).r.status).toBe(403);
+    expect(ok.sent!.body).toEqual({ sha: SHA2, force: false });
+    expect((await call('PATCH', `${P}/git/refs/heads/bridge/mia-1`, { sha: SHA2, force: true })).r.status).toBe(403);
+    expect((await call('PATCH', `${P}/git/refs/heads/theirs`, { sha: SHA2 })).r.status).toBe(403);
+    expect((await call('PATCH', `${P}/git/refs/heads/main`, { sha: SHA2 })).r.status).toBe(403);
   });
 
   it('PUT and DELETE contents: on their branch only, with the member as author', async () => {
     const { call, branch } = await ready();
     await branch('bridge/mia-1');
-    const put = await call('PUT', `${P}/contents/tokens/color.json`, { message: 'm', content: 'e30=', sha: 'old', branch: 'bridge/mia-1', committer: { name: 'Boss', email: 'boss@acme.design' } });
+    const put = await call('PUT', `${P}/contents/design/tokens/color.tokens.json`, { message: 'm', content: 'e30=', sha: 'old', branch: 'bridge/mia-1', committer: { name: 'Boss', email: 'boss@acme.design' } });
     expect(put.r.status).toBe(200);
     expect(put.sent!.body).toEqual({ message: 'm', content: 'e30=', sha: 'old', branch: 'bridge/mia-1', author: { name: 'Mia Chen', email: 'mia@acme.design' } });
-    const del = await call('DELETE', `${P}/contents/tokens/color.json`, { message: 'm', sha: 'old', branch: 'bridge/mia-1' });
+    const del = await call('DELETE', `${P}/contents/design/tokens/color.tokens.json`, { message: 'm', sha: 'old', branch: 'bridge/mia-1' });
     expect(del.r.status).toBe(200);
     expect(del.sent!.body.author).toEqual({ name: 'Mia Chen', email: 'mia@acme.design' });
     for (const b of [undefined, 'main', 'theirs']) {
-      expect((await call('PUT', `${P}/contents/tokens/color.json`, { message: 'm', content: 'e30=', ...(b ? { branch: b } : {}) })).r.status, String(b)).toBe(403);
-      expect((await call('DELETE', `${P}/contents/tokens/color.json`, { message: 'm', sha: 'old', ...(b ? { branch: b } : {}) })).r.status, String(b)).toBe(403);
+      expect((await call('PUT', `${P}/contents/design/tokens/color.tokens.json`, { message: 'm', content: 'e30=', ...(b ? { branch: b } : {}) })).r.status, String(b)).toBe(403);
+      expect((await call('DELETE', `${P}/contents/design/tokens/color.tokens.json`, { message: 'm', sha: 'old', ...(b ? { branch: b } : {}) })).r.status, String(b)).toBe(403);
     }
   });
 
@@ -582,5 +614,184 @@ describe('daily write cap', () => {
     // A new day starts at zero.
     s.tick(864e5);
     expect((await handleContribute(gh('POST', `${P}/issues/1/comments`, cookie, { body: 'x' }), env, s.deps)).status).toBe(201);
+  });
+});
+
+async function readyAt(world: Partial<World> = {}) {
+  const s = setup({}, world);
+  const cookie = await join(s);
+  const call = async (method: string, path: string, body?: unknown) => {
+    const before = s.w.calls.length;
+    const r = await handleContribute(gh(method, path, cookie, body), ENV, s.deps);
+    const sent = s.w.calls.slice(before).filter((c) => c.method === method && c.path === path);
+    return { r, sent: sent[sent.length - 1] };
+  };
+  const branch = async (b: string) => expect((await call('POST', `${P}/git/refs`, { ref: `refs/heads/${b}`, sha: SHA })).r.status).toBe(201);
+  return { s, call, branch };
+}
+
+describe('privacy on a public repository', () => {
+  it('never publishes the work email: a stable .invalid address as author, the name alone in Requested by', async () => {
+    const { call, branch } = await readyAt({ private: false });
+    const stand = publicEmail(SECRET, REPO, 'mia@acme.design');
+    expect(stand).toMatch(/^[0-9a-f]{12}@contributors\.bridge\.invalid$/);
+    expect(publicEmail(SECRET, REPO, 'MIA@acme.design')).toBe(stand);
+    expect(publicEmail(SECRET, 'acme/other', 'mia@acme.design')).not.toBe(stand);
+    const commit = await call('POST', `${P}/git/commits`, { message: 'm', tree: 't', parents: ['p'] });
+    expect(commit.sent!.body.author).toEqual({ name: 'Mia Chen', email: stand });
+    await branch('bridge/mia-1');
+    const put = await call('PUT', `${P}/contents/design/tokens/color.tokens.json`, { message: 'm', content: 'e30=', branch: 'bridge/mia-1' });
+    expect(put.sent!.body.author).toEqual({ name: 'Mia Chen', email: stand });
+    const pr = await call('POST', `${P}/pulls`, { title: 't', head: 'bridge/mia-1', base: 'main', body: 'Why' });
+    expect(pr.sent!.body.body).toBe('Why\n\nRequested by Mia Chen through Bridge.');
+    const issue = await call('POST', `${P}/issues`, { title: 't' });
+    expect(issue.sent!.body.body).toBe('Requested by Mia Chen through Bridge.');
+    const all = JSON.stringify([commit, put, pr, issue].map((x) => x.sent!.body));
+    expect(all).not.toContain('mia@acme.design');
+  });
+
+  it('keeps the real email on a private repository', async () => {
+    const { call } = await readyAt({ private: true });
+    expect((await call('POST', `${P}/git/commits`, { message: 'm', tree: 't', parents: [] })).sent!.body.author.email).toBe('mia@acme.design');
+    expect((await call('POST', `${P}/issues`, { title: 't' })).sent!.body.body).toBe('Requested by Mia Chen (mia@acme.design) through Bridge.');
+  });
+});
+
+describe('attribution stays', () => {
+  it('a new body of their pull request or issue gets the Requested by line back, once', async () => {
+    const { call, branch } = await readyAt();
+    const line = 'Requested by Mia Chen (mia@acme.design) through Bridge.';
+    await branch('bridge/mia-1');
+    await call('POST', `${P}/pulls`, { title: 't', head: 'bridge/mia-1', base: 'main' });
+    expect((await call('PATCH', `${P}/pulls/40`, { body: 'Edited, no line' })).sent!.body).toEqual({ body: `Edited, no line\n\n${line}` });
+    expect((await call('PATCH', `${P}/pulls/40`, { body: `Kept\n\n${line}` })).sent!.body).toEqual({ body: `Kept\n\n${line}` });
+    expect((await call('PATCH', `${P}/pulls/40`, { body: null })).sent!.body).toEqual({ body: line });
+    expect((await call('PATCH', `${P}/pulls/40`, { title: 'Only the title' })).sent!.body).toEqual({ title: 'Only the title' });
+    await call('POST', `${P}/issues`, { title: 'i' });
+    expect((await call('PATCH', `${P}/issues/41`, { body: '' , state: 'open' })).sent!.body).toEqual({ body: line, state: 'open' });
+  });
+});
+
+describe('design files only', () => {
+  const cfg = designPathsFrom(JSON.parse(CONFIG));
+  const fallback = designPathsFrom(null);
+
+  it('allows the folders bridge.config.json declares for tokens, docs, changesets and Bridge files', () => {
+    for (const p of [
+      'design/tokens/color.tokens.json',
+      'design/tokens/brands/ocean.tokens.json',
+      'src/components/Button/Button.docs.json',
+      '.changeset/bridge-ocean.md',
+      '.bridge/figma/button.json',
+      '.bridge/requests/chip-20261022T100000.png',
+      '.bridge/drafts/s1/i1-before.png',
+      '.bridge/explorations/ocean.md',
+      'design/tokens/sub',
+    ]) expect(isDesignPath(p, cfg), p).toBe(true);
+  });
+
+  it('refuses code, CI, scripts, package files, tool config, guardrails and anything outside', () => {
+    for (const p of [
+      'package.json',
+      'design/tokens/package.json',
+      'package-lock.json',
+      'pnpm-lock.yaml',
+      '.github/workflows/ci.yml',
+      'scripts/release.mjs',
+      'vite.config.ts',
+      'vitest.config.mjs',
+      'eslint.config.cjs',
+      'src/components/Button/Button.tsx',
+      'src/components/Button/Button.module.css',
+      'src/components/Button/Button.test.tsx',
+      'design/tokens/build.js',
+      'design/tokens/tsconfig.json',
+      'design/tokens/.npmrc',
+      'design/tokens/contrast.checks.json',
+      'bridge.config.json',
+      'AGENTS.md',
+      '.changeset/config.json',
+      '.bridge/hook.sh',
+      'design/tokens/node_modules/x/index.json',
+      'docs/GOVERNANCE.md',
+      'README.md',
+      'design/tokens/../../package.json',
+      '/design/tokens/a.json',
+      'design//tokens/a.json',
+      '',
+    ]) expect(isDesignPath(p, cfg), p).toBe(false);
+  });
+
+  it('falls back to the built-in folders without bridge.config.json', () => {
+    expect(isDesignPath('tokens/color.tokens.json', fallback)).toBe(true);
+    expect(isDesignPath('.changeset/x.md', fallback)).toBe(true);
+    expect(isDesignPath('.bridge/figma/x.json', fallback)).toBe(true);
+    expect(isDesignPath('src/components/Button/Button.docs.json', fallback)).toBe(false);
+    expect(isDesignPath('package.json', fallback)).toBe(false);
+  });
+
+  it('enforces it on PUT and DELETE contents, reading bridge.config.json once per 5 minutes', async () => {
+    const { s, call, branch } = await readyAt();
+    await branch('bridge/mia-1');
+    expect((await call('PUT', `${P}/contents/design/tokens/color.tokens.json`, { message: 'm', content: 'e30=', branch: 'bridge/mia-1' })).r.status).toBe(200);
+    expect((await call('PUT', `${P}/contents/src/components/Button/Button.docs.json`, { message: 'm', content: 'e30=', branch: 'bridge/mia-1' })).r.status).toBe(200);
+    for (const path of ['package.json', '.github/workflows/ci.yml', 'scripts/x.mjs', 'src/components/Button/Button.tsx']) {
+      const put = await call('PUT', `${P}/contents/${path}`, { message: 'm', content: 'e30=', branch: 'bridge/mia-1' });
+      expect(put.r.status, path).toBe(403);
+      expect(await put.r.json()).toEqual({ error: 'not-allowed', message: DESIGN_ONLY });
+      expect(put.sent).toBeUndefined();
+      expect((await call('DELETE', `${P}/contents/${path}`, { message: 'm', sha: 'x', branch: 'bridge/mia-1' })).r.status, path).toBe(403);
+    }
+    expect(s.w.calls.filter((c) => c.path.startsWith(`${P}/contents/bridge.config.json`))).toHaveLength(1);
+    s.tick(5 * 60 * 1000 + 1);
+    await call('PUT', `${P}/contents/design/tokens/color.tokens.json`, { message: 'm', content: 'e30=', branch: 'bridge/mia-1' });
+    expect(s.w.calls.filter((c) => c.path.startsWith(`${P}/contents/bridge.config.json`))).toHaveLength(2);
+  });
+
+  it('enforces it on POST git/trees: one bad entry among good ones refuses the whole tree; no submodule or symlink', async () => {
+    const { s, call } = await readyAt();
+    const good = { path: 'design/tokens/color.tokens.json', mode: '100644', type: 'blob', sha: 'b1' };
+    const before = s.w.calls.filter((c) => c.path.endsWith('/git/trees')).length;
+    for (const bad of [
+      { path: 'package.json', mode: '100644', type: 'blob', sha: 'b2' },
+      { path: '.github/workflows/ci.yml', mode: '100644', type: 'blob', sha: 'b2' },
+      { path: 'design/tokens/link.json', mode: '120000', type: 'blob', sha: 'b2' },
+      { path: 'design/tokens/sub', mode: '160000', type: 'commit', sha: 'b2' },
+      { path: 'design/tokens/run.json', mode: '100755', type: 'blob', sha: 'b2' },
+      { path: 'scripts', mode: '040000', type: 'tree', sha: 't2' },
+    ]) {
+      const r = await call('POST', `${P}/git/trees`, { base_tree: 'abc', tree: [good, bad] });
+      expect(r.r.status, bad.path).toBe(403);
+      expect((await r.r.json()).message).toBe(DESIGN_ONLY);
+    }
+    expect((await call('POST', `${P}/git/trees`, { base_tree: 'abc', tree: [] })).r.status).toBe(403);
+    expect(s.w.calls.filter((c) => c.path.endsWith('/git/trees')).length).toBe(before);
+    expect((await call('POST', `${P}/git/trees`, { base_tree: 'abc', tree: [good, { path: '.changeset/x.md', mode: '100644', type: 'blob', content: '---' }] })).r.status).toBe(201);
+  });
+
+  it('a branch only points at a commit whose changes are design files, wherever that commit came from', async () => {
+    const { call, branch } = await readyAt();
+    expect((await call('POST', `${P}/git/refs`, { ref: 'refs/heads/bridge/bad', sha: SHA_BAD })).r.status).toBe(403);
+    expect((await call('POST', `${P}/git/refs`, { ref: 'refs/heads/bridge/unknown', sha: 'd'.repeat(40) })).r.status).toBe(403);
+    expect((await call('POST', `${P}/git/refs`, { ref: 'refs/heads/bridge/short', sha: 'abc' })).r.status).toBe(403);
+    await branch('bridge/mia-1');
+    expect((await call('PATCH', `${P}/git/refs/heads/bridge/mia-1`, { sha: SHA2 })).r.status).toBe(200);
+    expect((await call('PATCH', `${P}/git/refs/heads/bridge/mia-1`, { sha: SHA_BAD })).r.status).toBe(403);
+  });
+
+  it('reads the folders of the repository: a renamed tokens root moves what is allowed', async () => {
+    const { call, branch } = await readyAt({ config: JSON.stringify({ tokens: { root: 'packages/ds/tokens' } }) });
+    await branch('bridge/mia-1');
+    const put = (path: string) => call('PUT', `${P}/contents/${path}`, { message: 'm', content: 'e30=', branch: 'bridge/mia-1' });
+    expect((await put('packages/ds/tokens/color.tokens.json')).r.status).toBe(200);
+    expect((await put('design/tokens/color.tokens.json')).r.status).toBe(403);
+  });
+
+  it('uses the built-in folders when the repository has no bridge.config.json', async () => {
+    const { call, branch } = await readyAt({ config: null });
+    await branch('bridge/mia-1');
+    const put = (path: string) => call('PUT', `${P}/contents/${path}`, { message: 'm', content: 'e30=', branch: 'bridge/mia-1' });
+    expect((await put('tokens/color.tokens.json')).r.status).toBe(200);
+    expect((await put('package.json')).r.status).toBe(403);
   });
 });

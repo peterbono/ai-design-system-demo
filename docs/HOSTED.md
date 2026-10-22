@@ -356,12 +356,13 @@ admins keep GitHub: they approve and merge. The server piece is one Vercel funct
 
 ### What Bridge does on their behalf
 
-Their browser never gets a GitHub token. Studio sends its GitHub calls to `/api/contribute?repo=<owner/repo>&gh=<path>`,
-and the function makes them with a Bridge Direct installation token limited to that one repository and to Contents,
-Pull requests and Issues (read and write), minted on the server and never stored. Commits carry the member as author
-(the app is the committer); pull requests and issues they open end with "Requested by <name> (<email>) through
-Bridge."; their comments start with "**<name>** (via Bridge):". Branch protection and required reviews stay the safety
-net: an email contributor can never approve, merge or write to the default branch.
+Their browser never gets a GitHub token. Studio sends its GitHub calls to
+`/api/contribute?repo=<owner/repo>&gh=<path>`, and the function makes them with a Bridge Direct installation token
+limited to that one repository and to Contents, Pull requests and Issues (read and write), minted on the server and
+never stored. Commits carry the member as author (the app is the committer); pull requests and issues they open end
+with "Requested by <name> (<email>) through Bridge." (no email on a public repository, see below); they only change
+design files; their comments start with "**<name>** (via Bridge):". Branch protection and required reviews stay the
+safety net: an email contributor can never approve, merge or write to the default branch.
 
 ### The policy
 
@@ -370,16 +371,17 @@ Deny by default: anything not listed answers 403 `not-allowed`, and only paths u
 | Call                                   | Allowed when                                                                    |
 | -------------------------------------- | ------------------------------------------------------------------------------- |
 | `GET` anything in the repository       | always (read)                                                                   |
-| `POST git/blobs`, `git/trees`          | always                                                                          |
+| `POST git/blobs`                       | always                                                                          |
+| `POST git/trees`                       | every entry a design file (below); no submodule, symlink or executable          |
 | `POST git/commits`                     | always; author set to the member (date kept), committer dropped                 |
-| `POST git/refs`                        | `refs/heads/<b>`, `b` not the default branch and not existing; `b` becomes theirs |
-| `PATCH git/refs/heads/<b>`             | their branch, `force` false                                                     |
-| `PUT` / `DELETE contents/<path>`       | `branch` given and theirs; author set to the member                             |
+| `POST git/refs`                        | `refs/heads/<b>`, `b` not the default branch and not existing, at a commit that changes design files only; `b` becomes theirs |
+| `PATCH git/refs/heads/<b>`             | their branch, `force` false, to a commit that changes design files only         |
+| `PUT` / `DELETE contents/<path>`       | a design file; `branch` given and theirs; author set to the member              |
 | `POST pulls`                           | head is their branch, base the default branch or their branch; it becomes theirs |
-| `PATCH pulls/<n>`                      | theirs; only `title`, `body`, `state`, `draft`                                  |
+| `PATCH pulls/<n>`                      | theirs; only `title`, `body`, `state`, `draft`; a new body keeps the "Requested by" line |
 | `PUT pulls/<n>/update-branch`          | theirs                                                                          |
 | `POST issues`                          | always; it becomes theirs                                                       |
-| `PATCH issues/<n>`                     | theirs; only `title`, `body`, `state`, `labels`                                 |
+| `PATCH issues/<n>`                     | theirs; only `title`, `body`, `state`, `labels`; a new body keeps the "Requested by" line |
 | `POST issues/<n>/comments`             | any issue or pull request                                                       |
 | `POST issues/<n>/labels`               | theirs                                                                          |
 
@@ -387,6 +389,21 @@ Never: merges, reviews, requested reviewers, rulesets, branch protection, collab
 settings, another repository, GraphQL. "Theirs" means created through this function by the same member (Redis keeps
 who created each branch, issue and pull request for a year). Paths with `.`/`..` segments, encoded slashes or
 backslashes are refused. A request body is at most 5 MB.
+
+**Design files only.** CI runs what a pull request contains, with the repository's secrets, so an email contributor
+can only change design files: token files under `tokens.root`, component usage docs (`components.dir`, files ending
+in `components.docsSuffix`), changesets (`changesets.dir` and `.changeset/`, `.md`) and Bridge's own files under
+`.bridge/` (Figma specs, drafts, request images, exploration notes), read from `bridge.config.json` on the default
+branch (cached 5 minutes); without the file, `tokens/`, `.changeset/` and `.bridge/`. Never code (`.js`, `.ts`, CSS,
+YAML...), `.github/`, `scripts/`, `package.json` and lockfiles, tool configuration or dotfiles, the guardrails, or
+`bridge.config.json` itself (so a new brand, which also edits it, needs a GitHub account). The check runs on every
+written path and again on the content of any commit a branch is moved to (its changes from the default branch), so
+a commit built elsewhere cannot slip in. Refused with "Bridge only saves design files (tokens, docs, assets) for
+people who joined with their email. Ask a developer to change this file."
+
+**Public repositories.** A work email is never published there: commits carry a stable address that routes nowhere,
+`<12 hex>@contributors.bridge.invalid` (an HMAC of the team and the email), and the "Requested by" line names the
+person without the email. Private repositories show the real email.
 
 ### Sessions, storage and caps
 

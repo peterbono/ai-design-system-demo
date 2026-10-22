@@ -22,23 +22,30 @@
 //
 // The proxy policy (anything else answers 403 { error: 'not-allowed' }). Only paths under /repos/<the session's repo>:
 //   GET    anything under the repository (read)
-//   POST   git/blobs, git/trees
+//   POST   git/blobs
+//   POST   git/trees                   every entry a design file (below), no submodule, no symlink
 //   POST   git/commits                 the author is set to the member (date kept), any committer dropped
-//   POST   git/refs                    refs/heads/<b>, b not the default branch and not existing; b becomes theirs
-//   PATCH  git/refs/heads/<b>          their branch only, never force
-//   PUT    contents/<path>             branch required and theirs; the author is set to the member
+//   POST   git/refs                    refs/heads/<b>, b not the default branch and not existing, at a commit that
+//                                      changes design files only; b becomes theirs
+//   PATCH  git/refs/heads/<b>          their branch only, never force, to a commit that changes design files only
+//   PUT    contents/<path>             a design file; branch required and theirs; the author is set to the member
 //   DELETE contents/<path>             same
 //   POST   pulls                       head is their branch, base the default branch or their branch; the body gets
 //                                      "Requested by <name> (<email>) through Bridge."; the pull request becomes theirs
-//   PATCH  pulls/<n>                   theirs only; only title, body, state, draft
+//   PATCH  pulls/<n>                   theirs only; only title, body, state, draft; a new body keeps the line
 //   PUT    pulls/<n>/update-branch     theirs only
 //   POST   issues                      the same "Requested by" line; the issue becomes theirs
-//   PATCH  issues/<n>                  theirs only; only title, body, state, labels
+//   PATCH  issues/<n>                  theirs only; only title, body, state, labels; a new body keeps the line
 //   POST   issues/<n>/comments         any issue or pull request; the body starts with "**<name>** (via Bridge):"
 //   POST   issues/<n>/labels           theirs only
 // Never: merges, reviews, requested reviewers, rulesets, branch protection, collaborators, deleting a ref, hooks,
-// settings, another repository, GraphQL. Every call other than GET counts against a daily cap per member
-// (CONTRIB_MAX_WRITES, 300 by default): over it, 429 { error: 'limit' }.
+// settings, another repository, GraphQL.
+// Design files only: writes land in the folders bridge.config.json declares for tokens, component docs and specs,
+// changesets and Bridge's own files (designPaths), never code, CI, package files or guardrails, because CI runs what
+// a pull request contains. On a public repository the member's email is never published: commits carry
+// <hash>@contributors.bridge.invalid and the "Requested by" line names them without the email.
+// Every call other than GET counts against a daily cap per member (CONTRIB_MAX_WRITES, 300 by default): over it,
+// 429 { error: 'limit' }.
 //
 // Sessions: one cookie per team, `bridge_contrib_<sha256 of the team, 16 hex>`, Path=/api/contribute, HttpOnly, Secure,
 // SameSite=Lax, 30 days, signed with HMAC-SHA256 under LIBRARY_SESSION_SECRET (api/_lib/session.ts). Every request
@@ -489,38 +496,183 @@ async function ghApp(ctx: Ctx, token: string, method: string, path: string): Pro
   return { status: res.status, data };
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// Design files: the only paths an email contributor writes
+
+export const DESIGN_ONLY = 'Bridge only saves design files (tokens, docs, assets) for people who joined with their email. Ask a developer to change this file.';
+
+/** Where writes may land: folders, with the file kinds allowed in each. */
+export interface DesignPaths {
+  dirs: { dir: string; ext: string[] }[];
+  /** Guardrails of the repository (bridge.config.json governance.guardrails): never, whatever the folder. */
+  never: string[];
+}
+
+const DATA = ['.json', '.md'];
+const IMAGES = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'];
+
+/**
+ * The design paths of a repository, from its bridge.config.json (the keys Studio and the plugin write under), with
+ * the defaults Bridge uses when a key is absent. Without a config file, the built-in defaults alone.
+ */
+export function designPathsFrom(config: any): DesignPaths {
+  const str = (v: unknown, d: string) => (typeof v === 'string' && v.trim() ? v.trim() : d);
+  // bridge.config.json itself (owners, guardrails) is never theirs to change: isDesignPath refuses it.
+  const dir = (d: string) => d.replace(/^\.?\/+/, '').replace(/\/+$/, '');
+  const c = config && typeof config === 'object' ? config : {};
+  const componentsDir = typeof c.components?.dir === 'string' && c.components.dir.trim() ? dir(c.components.dir) : null;
+  const docsSuffix = str(c.components?.docsSuffix, '.docs.json');
+  const changesets = dir(str(c.changesets?.dir, '.changeset'));
+  const dirs: DesignPaths['dirs'] = [
+    // Token files (token editor, new brand, library update, history, the plugin).
+    { dir: dir(str(c.tokens?.root, 'tokens')), ext: ['.json'] },
+    // Changesets that go with a change: changesets.dir, and .changeset where some writers always put them.
+    { dir: changesets, ext: ['.md'] },
+    ...(changesets === '.changeset' ? [] : [{ dir: '.changeset', ext: ['.md'] }]),
+    // Bridge's own files: Figma specs, drafts and request images, exploration notes.
+    { dir: '.bridge', ext: [...DATA, ...IMAGES] },
+  ];
+  // Component usage docs (docs proposals) sit next to the code: only that suffix, never the code.
+  if (componentsDir) dirs.push({ dir: componentsDir, ext: [docsSuffix] });
+  const never = Array.isArray(c.governance?.guardrails) ? c.governance.guardrails.filter((g: unknown): g is string => typeof g === 'string').map((g: string) => g.replace(/^\.?\/+/, '')) : [];
+  return { dirs, never };
+}
+
+const LOCKFILES = ['package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'bun.lockb', 'bun.lock'];
+const CODE = /\.(m?[jt]sx?|c[jt]s|sh|bash|zsh|py|rb|ya?ml|toml|html?|astro|vue|svelte|css|scss|less)$/i;
+/** Tool configuration that happens to be JSON, and dotfiles (.npmrc, .eslintrc.json...): never design files. */
+const TOOL_CONFIG = /^(\..*|(ts|js)config(\..+)?\.json|.*\.config\.json|(vercel|turbo|nx|lerna|renovate|biome|deno|composer)\.json)$/i;
+
+/** Whether `path` (repository-relative, as GitHub takes it) is a design file this repository lets them write. */
+export function isDesignPath(path: string, allowed: DesignPaths): boolean {
+  const segs = path.split('/');
+  if (!path || path.startsWith('/') || segs.some((s) => !s || s === '.' || s === '..' || /[\\\u0000-\u001f\u007f]/.test(s))) return false;
+  const lower = path.toLowerCase();
+  const base = segs[segs.length - 1]!.toLowerCase();
+  // Never: CI, scripts, dependencies, package files, code, guardrails.
+  if (lower.startsWith('.github/') || lower === '.github' || lower.startsWith('scripts/') || segs.some((s) => s.toLowerCase() === 'node_modules')) return false;
+  if (LOCKFILES.includes(base) || CODE.test(base) || TOOL_CONFIG.test(base) || base === 'bridge.config.json') return false;
+  if (allowed.never.some((g) => (g.endsWith('/') ? lower.startsWith(g.toLowerCase()) || `${lower}/` === g.toLowerCase() : lower === g.toLowerCase()))) return false;
+  return allowed.dirs.some(({ dir, ext }) => {
+    if (!dir) return false;
+    // A folder entry of a tree (no extension needed) inside the design folder, or the folder itself.
+    if (path === dir) return true;
+    if (!path.startsWith(`${dir}/`)) return false;
+    return !/\.[^/]+$/.test(segs[segs.length - 1]!) || ext.some((e) => lower.endsWith(e.toLowerCase()));
+  });
+}
+
+/** bridge.config.json of the default branch, cached 5 minutes per warm function (memory only). */
+const configCache = new Map<string, { at: number; paths: DesignPaths }>();
+
+/** Tests start each case cold. */
+export const clearDesignPathCache = () => configCache.clear();
+
+async function designPaths(ctx: Ctx, c: Call, defaultBranch: string): Promise<DesignPaths> {
+  const key = `${c.full}@${defaultBranch}`;
+  const hit = configCache.get(key);
+  if (hit && ctx.now() - hit.at < 5 * 60 * 1000) return hit.paths;
+  let res: Response;
+  try {
+    res = await ctx.f(`${API}/repos/${c.owner}/${c.repo}/contents/bridge.config.json?ref=${encodeURIComponent(defaultBranch)}`, {
+      method: 'GET',
+      headers: { Accept: 'application/vnd.github.raw', Authorization: `Bearer ${c.token}`, 'User-Agent': 'bridge-contribute', 'X-GitHub-Api-Version': '2022-11-28' },
+    });
+  } catch {
+    throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+  }
+  let config: unknown = null;
+  if (res.status === 200) {
+    try {
+      config = JSON.parse(await res.text());
+    } catch {
+      config = null;
+    }
+  } else if (res.status !== 404) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+  const paths = designPathsFrom(config);
+  configCache.set(key, { at: ctx.now(), paths });
+  return paths;
+}
+
+interface RepoFacts {
+  defaultBranch: string;
+  private: boolean;
+}
+
+async function repoFacts(ctx: Ctx, c: Call): Promise<RepoFacts> {
+  const repo = await ghApp(ctx, c.token, 'GET', `/repos/${c.owner}/${c.repo}`);
+  if (repo.status !== 200 || typeof repo.data?.default_branch !== 'string') throw new HttpError(409, 'app_missing', APP_MISSING);
+  // Unknown visibility counts as public: the safer side for an email.
+  return { defaultBranch: repo.data.default_branch as string, private: repo.data.private === true };
+}
+
+/** The stand-in address on a public repository: stable per member and team, under .invalid (RFC 2606, never routable). */
+export const publicEmail = (secret: string, repo: string, email: string) => `${createHmac('sha256', secret).update(`contrib-author:${repo.toLowerCase()}:${email.toLowerCase()}`).digest('hex').slice(0, 12)}@contributors.bridge.invalid`;
+
 /** What the policy allows for this call, with the body it sends; throws not-allowed otherwise. */
 async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
   const r = c.target.rest;
   const at = (...p: string[]) => r.length === p.length && p.every((x, i) => x === '*' || x === r[i]);
   const body = c.body ?? {};
-  const author = { name: c.member.name, email: c.member.email };
-  let defaultBranch: string | null = null;
-  const def = async () => {
-    if (defaultBranch !== null) return defaultBranch;
-    const repo = await ghApp(ctx, c.token, 'GET', `/repos/${c.owner}/${c.repo}`);
-    if (repo.status !== 200 || typeof repo.data?.default_branch !== 'string') throw new HttpError(409, 'app_missing', APP_MISSING);
-    defaultBranch = repo.data.default_branch as string;
-    return defaultBranch;
-  };
+  let facts: RepoFacts | null = null;
+  const info = async () => (facts ??= await repoFacts(ctx, c));
+  const def = async () => (await info()).defaultBranch;
   const isDefault = async (b: string) => b.toLowerCase() === (await def()).toLowerCase();
   const ownsBranch = async (b: unknown) => typeof b === 'string' && validBranch(b) && !(await isDefault(b)) && (await ctx.svc.redis.cmd('GET', branchKey(c.full, b))) === c.member.email;
   const ownsIssue = async (n: string | undefined) => n !== undefined && NUMBER.test(n) && (await ctx.svc.redis.cmd('GET', issueKey(c.full, n))) === c.member.email;
   const recordIssue = async (data: any) => {
     if (typeof data?.number === 'number') await ctx.svc.redis.cmd('SET', issueKey(c.full, data.number), c.member.email, 'EX', OWNERSHIP_TTL_S);
   };
-  const requested = (text: unknown) => `${typeof text === 'string' && text.trim() ? `${text}\n\n` : ''}Requested by ${c.member.name} (${c.member.email}) through Bridge.`;
+  // A work email is never published on a public repository: a stable address that routes nowhere stands in for it.
+  const author = async () => ({ name: c.member.name, email: (await info()).private ? c.member.email : publicEmail(ctx.svc.secret, c.full, c.member.email) });
+  const line = async () => `Requested by ${c.member.name}${(await info()).private ? ` (${c.member.email})` : ''} through Bridge.`;
+  /** The text with the "Requested by" line at the end, unless it already carries it (attribution is never edited away). */
+  const requested = async (text: unknown) => {
+    const l = await line();
+    const t = typeof text === 'string' ? text : '';
+    if (t.includes(l)) return t;
+    return `${t.trim() ? `${t}\n\n` : ''}${l}`;
+  };
+  /** Every path written must be a design file (bridge.config.json folders, or the built-in list). */
+  const checkPaths = async (paths: string[]) => {
+    const allowed = await designPaths(ctx, c, await def());
+    if (!paths.length || paths.some((p) => !isDesignPath(p, allowed))) throw new HttpError(403, 'not-allowed', DESIGN_ONLY);
+  };
+  /**
+   * Where a branch may point: a commit whose changes from the default branch are design files only. Checked on the
+   * content, so it holds whatever the commit's origin (a tree built elsewhere, an object of a fork).
+   */
+  const checkCommit = async (sha: unknown) => {
+    if (typeof sha !== 'string' || !/^[0-9a-f]{40}$/i.test(sha)) throw notAllowed();
+    const cmp = await ghApp(ctx, c.token, 'GET', `/repos/${c.owner}/${c.repo}/compare/${encodeRef(await def())}...${sha}`);
+    const files = cmp.data?.files;
+    if (cmp.status !== 200 || !Array.isArray(files)) throw notAllowed();
+    // GitHub lists at most 300 files: a change that large is not a design edit.
+    if (files.length >= 300) throw new HttpError(403, 'not-allowed', DESIGN_ONLY);
+    const paths = (files as { filename?: unknown; previous_filename?: unknown }[]).flatMap((f) => [f.filename, f.previous_filename].filter((x): x is string => typeof x === 'string'));
+    if (paths.length) await checkPaths(paths);
+  };
 
   switch (c.method) {
     case 'GET':
       return { body: null };
 
     case 'POST': {
-      if (at('git', 'blobs') || at('git', 'trees')) return { body };
+      if (at('git', 'blobs')) return { body };
+      if (at('git', 'trees')) {
+        // Each entry a design file; never a submodule (160000) or a symlink (120000).
+        const tree = body.tree;
+        if (!Array.isArray(tree) || !tree.length) throw notAllowed();
+        const entries = tree as Record<string, unknown>[];
+        if (entries.some((e) => !e || typeof e !== 'object' || typeof e.path !== 'string' || (e.mode !== undefined && e.mode !== '100644' && e.mode !== '040000') || e.type === 'commit')) throw new HttpError(403, 'not-allowed', DESIGN_ONLY);
+        // Folders too: a tree entry could graft a whole folder anywhere.
+        await checkPaths(entries.map((e) => e.path as string));
+        return { body: pick(body, ['base_tree', 'tree']) };
+      }
       if (at('git', 'commits')) {
         const date = body.author && typeof body.author === 'object' && typeof (body.author as Record<string, unknown>).date === 'string' ? { date: (body.author as Record<string, unknown>).date } : {};
         const { committer: _c, author: _a, ...rest } = body;
-        return { body: { ...rest, author: { ...author, ...date } } };
+        return { body: { ...rest, author: { ...(await author()), ...date } } };
       }
       if (at('git', 'refs')) {
         const m = typeof body.ref === 'string' ? /^refs\/heads\/(.+)$/.exec(body.ref) : null;
@@ -528,6 +680,7 @@ async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
         if (!b || !validBranch(b) || (await isDefault(b)) || typeof body.sha !== 'string') throw notAllowed();
         const exists = await ghApp(ctx, c.token, 'GET', `/repos/${c.owner}/${c.repo}/git/ref/heads/${encodeRef(b)}`);
         if (exists.status !== 404) throw notAllowed();
+        await checkCommit(body.sha);
         return {
           body: { ref: `refs/heads/${b}`, sha: body.sha },
           after: async () => {
@@ -542,9 +695,9 @@ async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
         const head = i >= 0 ? body.head.slice(i + 1) : body.head;
         if (!(await ownsBranch(head))) throw notAllowed();
         if (!(await isDefault(body.base)) && !(await ownsBranch(body.base))) throw notAllowed();
-        return { body: { ...pick(body, ['title', 'draft']), head, base: body.base, body: requested(body.body) }, after: recordIssue };
+        return { body: { ...pick(body, ['title', 'draft']), head, base: body.base, body: await requested(body.body) }, after: recordIssue };
       }
-      if (at('issues')) return { body: { ...pick(body, ['title', 'labels']), body: requested(body.body) }, after: recordIssue };
+      if (at('issues')) return { body: { ...pick(body, ['title', 'labels']), body: await requested(body.body) }, after: recordIssue };
       if (at('issues', '*', 'comments')) {
         if (!NUMBER.test(r[1]!) || typeof body.body !== 'string') throw notAllowed();
         return { body: { body: `**${c.member.name}** (via Bridge):\n\n${body.body}` } };
@@ -560,15 +713,16 @@ async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
       if (r.length >= 4 && r[0] === 'git' && r[1] === 'refs' && r[2] === 'heads') {
         const b = r.slice(3).join('/');
         if (body.force || !(await ownsBranch(b)) || typeof body.sha !== 'string') throw notAllowed();
+        await checkCommit(body.sha);
         return { body: { sha: body.sha, force: false } };
       }
       if (at('pulls', '*')) {
         if (!onlyKeys(body, ['title', 'body', 'state', 'draft']) || !(await ownsIssue(r[1]))) throw notAllowed();
-        return { body };
+        return { body: 'body' in body ? { ...body, body: await requested(body.body) } : body };
       }
       if (at('issues', '*')) {
         if (!onlyKeys(body, ['title', 'body', 'state', 'labels']) || !(await ownsIssue(r[1]))) throw notAllowed();
-        return { body };
+        return { body: 'body' in body ? { ...body, body: await requested(body.body) } : body };
       }
       throw notAllowed();
     }
@@ -577,8 +731,9 @@ async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
     case 'DELETE': {
       if (r.length >= 2 && r[0] === 'contents') {
         if (!(await ownsBranch(body.branch))) throw notAllowed();
+        await checkPaths([r.slice(1).join('/')]);
         const keys = c.method === 'PUT' ? ['message', 'content', 'sha', 'branch'] : ['message', 'sha', 'branch'];
-        return { body: { ...pick(body, keys), author } };
+        return { body: { ...pick(body, keys), author: await author() } };
       }
       if (c.method === 'PUT' && at('pulls', '*', 'update-branch')) {
         if (!(await ownsIssue(r[1]))) throw notAllowed();
