@@ -2,9 +2,11 @@
 
 One Bridge site serves any team's design system repository at `/studio/<owner>/<repo>/`. Joining a team means
 opening that link and signing in with GitHub: GitHub repository permissions decide what each person can do, and roles
-stay in the repository's `bridge.config.json`. Bridge keeps no accounts and no database.
+stay in the repository's `bridge.config.json`. Bridge keeps no accounts. Its one store holds pending invites by
+email (see "Invites by email" below), and nothing else.
 
-This page grows with the hosted mode. It covers the snapshot a team can publish for it, and the team's hosted Library.
+This page grows with the hosted mode. It covers the snapshot a team can publish for it, the team's hosted Library,
+and invites by email.
 
 ## The snapshot: the `bridge-data` branch
 
@@ -160,3 +162,70 @@ address requested, before the rewrite, so the shell's own rule never reaches a t
 `/library/`, and the build fails if a file would ever take a `/library/<owner>/<repo>/` address.
 `node scripts/hosted-smoke.mjs <deployment>` checks the routes on a deployment, and the `X-Robots-Tag` of each team
 Library against the allow-list (on production only: Vercel marks every preview response `noindex`).
+
+## Invites by email
+
+An admin invites people from Studio (the team menu, or Settings, Members): work emails and a role. Bridge emails each
+person a link; they open it, sign in with GitHub, and Bridge gives their GitHub account access to the repository with
+that role. Admins also change roles, remove people, and resend or cancel invites there. The server piece is one Vercel
+function, `apps/docs-site/api/invites/index.ts`.
+
+### Roles
+
+| Role in Studio | On GitHub                  | In `bridge.config.json`                                              |
+| -------------- | -------------------------- | -------------------------------------------------------------------- |
+| Can view       | `pull` (read)              | nothing                                                              |
+| Can edit       | `push` (write)             | nothing                                                              |
+| Reviewer       | `push` (write)             | added to `governance.owners.design` (Designer) or `.tech` (Developer) |
+| Admin          | `admin`                    | owner lists left as they are                                         |
+
+Owners live in `bridge.config.json`, a guardrail file, so a reviewer is listed through a pull request on it (the same
+keys Settings edits), opened by the Bridge Direct app. The reviewer role applies once it is merged. A repository owned
+by a personal GitHub account has no per-person permissions: every collaborator can push and only the owner is admin,
+so Can view and Admin cannot be enforced there.
+
+### How it works, and what it keeps
+
+- **Pending invites** (email, role, team, who invited, creation and expiry dates, the SHA-256 of the link token) are
+  stored in an Upstash Redis database, never in the browser. The link token itself is only in the email, in the
+  link's fragment (`/studio/invite/#t=...`), so it reaches no server log. A link works once and expires after 7 days;
+  Resend makes a new one and the old one stops working.
+- **Who acts on GitHub.** The invitee accepts after the admin is gone, so the admin's own sign-in cannot add them, and
+  Bridge does not store anyone's personal token for later. The function mints a short-lived installation token of the
+  Bridge Direct app for the one repository on each request, and never stores it.
+- **Every call is checked on GitHub.** The caller is identified with their own GitHub sign-in (`GET /user`), and
+  their role on the repository is read again with the app on every request: only admins invite, change roles, remove,
+  resend or cancel; people who can push see the pending invites.
+- **Organization members** Bridge already knows (picked from the suggestions) are added straight away, without an
+  email.
+- When GitHub sends an invitation instead of adding the person (someone outside the organization), Bridge accepts it
+  for them when GitHub allows it, else the invite page sends them to accept it on GitHub in one click.
+- Without storage, email or the app configured, every action answers "Invites are not available yet on this site."
+  and Studio says so. Nothing pretends to work.
+
+### Set it up (owner of the site)
+
+1. **Storage.** In the Vercel project (`bridge-docs`): **Storage**, **Create Database**, **Upstash for Redis** (Vercel
+   Marketplace), connect it to the project for Production and Preview. It adds `KV_REST_API_URL` and
+   `KV_REST_API_TOKEN` (the function also reads `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`).
+2. **Email.** Create a [Resend](https://resend.com) account, verify a sending domain (for example
+   `bridge.floriangouloubi.com`, with the DNS records Resend lists), create an API key with sending access.
+3. **The app's private key.** On the Bridge Direct app's settings page (docs/SIGN-IN.md): note its **App ID**, then
+   **Private keys**, **Generate a private key** (a `.pem` file). Check its permissions include Repository
+   **Administration: Read and write** (already in the list), **Contents** and **Pull requests: Read and write** (for
+   the reviewer pull request), and for organization repositories **Organization, Members: Read only**. Each
+   installation must accept a permission GitHub added since it was installed.
+4. **Environment variables** on Vercel, Production and Preview, all **Sensitive**:
+
+| Name                     | Value                                                                    |
+| ------------------------ | ------------------------------------------------------------------------ |
+| `KV_REST_API_URL`        | Added by step 1                                                          |
+| `KV_REST_API_TOKEN`      | Added by step 1                                                          |
+| `RESEND_API_KEY`         | The Resend API key                                                       |
+| `INVITE_EMAIL_FROM`      | The sender, on the verified domain: `Bridge <invites@bridge.floriangouloubi.com>` |
+| `GITHUB_APP_ID`          | Bridge Direct's App ID                                                   |
+| `GITHUB_APP_PRIVATE_KEY` | The whole `.pem` content (line breaks or `\n` both work)                 |
+| `PUBLIC_SITE_URL`        | Optional: the origin for links in emails, `https://bridge.floriangouloubi.com`. Default: the site the admin invited from |
+
+5. Redeploy. `GET /api/invites` answers `{ "available": true }` once everything is set.
+
