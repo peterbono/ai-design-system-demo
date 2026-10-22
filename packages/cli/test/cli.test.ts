@@ -217,7 +217,8 @@ describe('bridge snapshot', () => {
     expect(llms).toContain('### Button');
     expect(llms).not.toContain('\u2014');
     // component-specs.json is over 1 MB; the snapshot carries its coverage only.
-    expect(res.bytes).toBeLessThan(1_000_000);
+    // About 0.9 MB of files the model reads, plus 0.15 MB of releases, packages and motion (2026-10).
+    expect(res.bytes).toBeLessThan(1_250_000);
     expect(res.summary.contrast.failing).toBe(0);
     expect(res.summary.components).toBeGreaterThan(20);
     expect(res.summary.figma?.inFigma).toBeGreaterThan(20);
@@ -227,6 +228,9 @@ describe('bridge snapshot', () => {
     expect(snap.repo.name).toBe('ai-design-system-demo');
     expect(Object.keys(snap.files)).toContain('bridge.config.json');
     expect(Object.keys(snap.files)).not.toContain('packages/react/component-specs.json');
+    expect(snap.packages.map((p: { name: string }) => p.name)).toContain('@bridge-ds/react');
+    expect(snap.releases.some((r: { name: string; pending: boolean }) => !r.pending && /^v\d+\.\d+\.\d+$/.test(r.name))).toBe(true);
+    expect(snap.motion.Button.rows.length).toBeGreaterThan(0);
     expect(snap.audits.map((a) => [a.id, a.label])).toEqual([
       ['admin-after', 'Bridge admin, after migration'],
       ['clean-app', 'Clean app'],

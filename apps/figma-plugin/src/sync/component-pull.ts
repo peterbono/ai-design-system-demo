@@ -214,6 +214,44 @@ export interface ComponentApplyReport {
   nodeIds: string[];
   /** Icon and slot components created or redrawn (Icons and Slots pages). */
   parts?: { created: number; updated: number } | undefined;
+  /** Sets this pull was asked to build or update (unchanged ones included). */
+  total?: number | undefined;
+  /** Sets not built, each with the reason in plain words. Nothing of them was left in the file. */
+  failed?: { name: string; reason: string }[] | undefined;
+  /** Sets built without some variants (the next pull builds them): how many were built, the first reason. */
+  partial?: { name: string; built: number; total: number; reason: string; variants: string[] }[] | undefined;
+  /** The pull was stopped: the sets it did not reach. The next pull goes on from there. */
+  cancelled?: string[] | undefined;
+}
+
+/** What the end of a component pull says, in designer words. */
+export interface ComponentReportView {
+  /** "Built 54 of 56 components." or "All 56 components are built." */
+  headline: string;
+  /** "Not built: Select (a font could not be loaded), Tabs (...)." */
+  notBuilt?: string | undefined;
+  /** "Button: 70 of 72 variants (...)". */
+  partial: string[];
+  /** "Stopped after 120 of 300. Pull again to build the other 180." */
+  stopped?: string | undefined;
+  /** A pull again would build more: offer "Try again". */
+  retry: boolean;
+}
+
+const listNames = (names: string[], max = 5) => (names.length > max ? `${names.slice(0, max).join(', ')} and ${names.length - max} more` : names.join(', '));
+
+export function componentReportView(r: ComponentApplyReport): ComponentReportView {
+  const built = r.created + r.updated + r.unchanged;
+  const failed = r.failed ?? [];
+  const cancelled = r.cancelled ?? [];
+  const total = r.total ?? built + failed.length + cancelled.length;
+  const noun = (n: number) => (n === 1 ? 'component' : 'components');
+  const headline = built === total ? (total === 1 ? 'The component is built.' : `All ${total} components are built.`) : `Built ${built} of ${total} ${noun(total)}.`;
+  const shown = failed.slice(0, 5).map((f) => `${f.name} (${f.reason})`);
+  const notBuilt = failed.length ? `Not built: ${shown.join(', ')}${failed.length > 5 ? ` and ${failed.length - 5} more` : ''}. Nothing of them was left in the file.` : undefined;
+  const partial = (r.partial ?? []).map((p) => `${p.name}: ${p.built} of ${p.total} variants (${listNames(p.variants, 3)} not built: ${p.reason})`);
+  const stopped = cancelled.length ? `Stopped after ${built + failed.length} of ${total}. Pull again to build the other ${cancelled.length}: ${listNames(cancelled)}.` : undefined;
+  return { headline, ...(notBuilt ? { notBuilt } : {}), partial, ...(stopped ? { stopped } : {}), retry: failed.length + cancelled.length + (r.partial?.length ?? 0) > 0 };
 }
 
 // ---------------------------------------------------------------------------------------------

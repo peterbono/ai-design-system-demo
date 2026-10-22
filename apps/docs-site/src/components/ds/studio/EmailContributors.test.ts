@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Email contributors in Studio (lib/contribute.ts), from the keyboard, with axe: Settings > Members shows them with no
 // tag of their own, Can edit only (Reviewer and Admin disabled, with the reason) and an admin removes them; a signed-out
-// visitor of a real team signs in with their email ("Check your inbox"), the Library gate's form.
+// visitor of a real team gets Continue with email, which opens the one sign-in screen of Bridge (/signin/).
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -76,42 +76,30 @@ describe('Settings > Members, an email contributor', () => {
 describe('a real team, signed out', () => {
   const f = { owner: 'acme', repo: 'ds', link: 'https://bridge.example/studio/acme/ds/', email: true };
 
-  it('signs in with GitHub first; Get a sign-in link swaps in the email form, then Check your inbox', async () => {
-    render(createElement(NoAccess, { screen: accessScreen('anonymous-unknown', f)!, repo: 'acme/ds' }));
+  it('signs in with GitHub first; Continue with email opens the one sign-in screen, back to this page', async () => {
+    history.replaceState(null, '', '/studio/acme/ds/tokens/');
+    const { container } = render(createElement(NoAccess, { screen: accessScreen('anonymous-unknown', f)!, repo: 'acme/ds' }));
     expect(screen.getByRole('heading', { name: 'Sign in to open Ds' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign in with GitHub' })).toHaveAttribute('data-gh-signin');
     expect(document.documentElement.hasAttribute('data-signin-card')).toBe(true);
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Get a sign-in link' }));
-    expect(screen.queryByRole('button', { name: 'Sign in with GitHub' })).toBeNull();
-    const field = screen.getByRole('textbox', { name: 'Work email' });
-    expect(field).toHaveFocus();
-    await user.click(screen.getByRole('button', { name: 'Use GitHub instead' }));
-    expect(screen.getByRole('button', { name: 'Sign in with GitHub' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Get a sign-in link' }));
-    await expectNoAxeViolations(document.body);
-    await user.type(screen.getByRole('textbox', { name: 'Work email' }), 'nope');
-    await user.click(screen.getByRole('button', { name: 'Send me a link' }));
-    expect(screen.getByText('Enter your work email, like name@company.com.')).toBeInTheDocument();
-    await user.clear(screen.getByRole('textbox', { name: 'Work email' }));
-    await user.type(screen.getByRole('textbox', { name: 'Work email' }), 'leo@acme.design{Enter}');
-    expect(await screen.findByRole('heading', { name: 'Check your inbox' })).toBeInTheDocument();
-    expect(contribute.requestEmailSignIn).toHaveBeenCalledWith('acme/ds', 'leo@acme.design');
-    expect(screen.getByText(/If l•••@acme\.design is on this team, Bridge sent it a link\./)).toHaveAttribute('role', 'status');
-    await expectNoAxeViolations(document.body);
+    expect(screen.getByText('Invited with your email?')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Continue with email' })).toHaveAttribute('href', '/signin/?next=%2Fstudio%2Facme%2Fds%2Ftokens%2F');
+    // No per-team email form any more.
+    expect(screen.queryByRole('textbox')).toBeNull();
+    await expectNoAxeViolations(container);
   });
 
-  it('opens the form at once, with the reason, when the link had expired', () => {
+  it('says an older sign-in link expired, under the way in', () => {
     render(createElement(NoAccess, { screen: accessScreen('anonymous-unknown', f)!, repo: 'acme/ds', emailExpired: true }));
     expect(screen.getByText('This link expired or was already used. Enter your email to get a new one.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Use GitHub instead' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Continue with email' })).toBeInTheDocument();
   });
 
-  it('on a public team, the guest banner opens the same form in a dialog', async () => {
-    render(createElement(NoAccess, { screen: accessScreen('anonymous-public', f)!, repo: 'acme/ds' }));
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Get a sign-in link' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Get a sign-in link' });
-    expect(within(dialog).getByRole('textbox', { name: 'Work email' })).toBeInTheDocument();
-    await expectNoAxeViolations(document.body);
+  it('on a public team, the guest banner links to the same sign-in screen', async () => {
+    history.replaceState(null, '', '/studio/acme/ds/');
+    const { container } = render(createElement(NoAccess, { screen: accessScreen('anonymous-public', f)!, repo: 'acme/ds' }));
+    expect(screen.getByRole('link', { name: 'Continue with email' })).toHaveAttribute('href', '/signin/?next=%2Fstudio%2Facme%2Fds%2F');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await expectNoAxeViolations(container);
   });
 });

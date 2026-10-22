@@ -11,6 +11,7 @@ import type { RepoAccessState } from '@bridge-ds/core';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import { RECENT_TEAMS_KEY } from '../../../lib/access-view';
 import TeamChip from './TeamChip';
+import { setAccountFetch } from '../../../scripts/account-session';
 
 const page = vi.hoisted(() => ({
   team: { owner: 'acme', repo: 'ds' },
@@ -164,6 +165,20 @@ describe('TeamChip "Your teams"', () => {
     const recent = within(menu).getByRole('group', { name: 'Recent teams' });
     expect(within(recent).queryByRole('menuitem', { name: 'Tokens' })).toBeNull();
     expect(within(recent).getByRole('menuitem', { name: 'Ui kit' })).toBeInTheDocument();
+  });
+});
+
+describe('TeamChip "Your teams" from a Bridge account', () => {
+  it("lists the account's teams with their role, each opening its own space, and no Sign in", async () => {
+    setAccountFetch(async () =>
+      new Response(JSON.stringify({ available: true, account: { email: 'leo@acme.design', name: 'Leo', github: null, teams: [{ repo: 'acme/ds', name: 'Acme Design', role: 'admin', via: 'email' }, { repo: 'globex/tokens', name: 'Globex', role: 'edit', via: 'email' }] } }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    );
+    const { menu } = await openMenu();
+    const yours = await within(menu).findByRole('group', { name: 'Your teams' });
+    const globex = await within(yours).findByRole('menuitem', { name: /^Globex/ });
+    expect(within(globex).getByText('Can edit')).toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: 'Sign in' })).toBeNull();
+    setAccountFetch(null);
   });
 });
 

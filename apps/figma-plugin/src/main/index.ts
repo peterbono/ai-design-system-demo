@@ -19,6 +19,8 @@ import { clearGitHubToken, readGitHubToken, saveGitHubToken, setGitHubTokenState
 import { takeSnapshot, writePluginData } from './snapshot';
 
 const NS = 'dsbridge';
+/** Set by "Stop" in the plugin: the component build stops after the set in progress. */
+let cancelBuild = false;
 
 figma.showUI(__html__, { width: 480, height: 640, themeColors: true, title: 'DS Bridge' });
 
@@ -143,7 +145,13 @@ const handlers: Handlers = {
     return exportVariants(nodeId, keys, scale);
   },
   async 'apply-components'({ plan }) {
-    return applyComponentPlan(plan, (message) => figma.ui.postMessage({ kind: 'progress', message }));
+    cancelBuild = false;
+    return applyComponentPlan(plan, (message) => figma.ui.postMessage({ kind: 'progress', message }), { cancelled: () => cancelBuild });
+  },
+  // Answered while the build runs: the build yields between sets, so this message gets through.
+  async 'cancel-components'() {
+    cancelBuild = true;
+    return { cancelled: true };
   },
 };
 

@@ -14,9 +14,11 @@ import {
   snapshotLlmsTxt,
   snapshotSource,
   SnapshotError,
+  SNAPSHOT_MAX_RELEASES,
   SNAPSHOT_SCHEMA_VERSION,
   type RepoSnapshot,
 } from '../src/snapshot';
+import { collectReleases, releaseAnnouncement } from '../src/changelog-model';
 import type { AuditReport } from '../src/audit/types';
 
 const json = (x: unknown) => JSON.stringify(x);
@@ -118,6 +120,9 @@ test('this repo: the snapshot is under 1 MB and serves the same model as the che
   // component-specs.json alone is over 1 MB; the snapshot carries its coverage only.
   assert.ok(text.length < 1_000_000, `snapshot is ${text.length} bytes`);
   assert.ok(snapshot.figma && snapshot.figma.coverage.length > 20);
+  // Motion docs come from the full specs, which the snapshot does not carry: computed when it is written.
+  assert.ok(snapshot.motion && Object.keys(snapshot.motion).length > 20);
+  assert.ok(snapshot.motion.Button && snapshot.motion.Button.rows.some((r) => r.when === 'Hover'));
   const fromSnapshot = await loadRepoModel(snapshotSource(parseSnapshot(text)));
   assert.deepEqual({ ...fromSnapshot, specs: live.specs }, live);
   assert.deepEqual(fromSnapshot.specs.coverage, live.specs.coverage);
@@ -157,4 +162,87 @@ test('llms.txt: the design system as plain text, repo text kept on one line', as
   assert.match(text, /- Do: Name the outcome\. Publish, not OK/);
   assert.ok(!/\n# Not a heading/.test(text), 'repo text cannot open a heading');
   assert.ok(text.endsWith('\n') && !text.includes('\n\n\n'));
+});
+
+const SPEC_BUTTON = {
+  name: 'Button',
+  variants: [{ props: { State: 'Default' } }, { props: { State: 'Hover' } }],
+  interactions: [
+    {
+      trigger: 'ON_HOVER',
+      axis: 'State',
+      from: 'Default',
+      to: 'Hover',
+      transition: { duration: 150, durationToken: 'motion.duration.fast', easing: { type: 'EASE_OUT' }, easingToken: 'motion.easing.standard', properties: ['background-color'] },
+    },
+  ],
+};
+
+const CHANGELOG = `# @acme/ui
+
+## 1.1.0
+
+### Minor Changes
+
+- abc1234: Button gets a ghost variant. Use it on busy surfaces.
+
+## 1.0.0
+
+### Major Changes
+
+- def5678: First stable release.
+`;
+
+test('extras: releases, packages and motion ride along, and an older snapshot without them still reads', async () => {
+  const files = { ...TEAM, 'src/specs.json': json({ version: 1, components: [SPEC_BUTTON], coverage: [{ name: 'Button', status: 'generated' }] }) };
+  const rec = recordingSource(memorySource(files, { owner: 'acme', repo: 'design', sha: 'c0ffee' }));
+  const model = await loadRepoModel(rec.source);
+  const releases = collectReleases({
+    changelogs: [{ pkg: '@acme/ui', published: true, text: CHANGELOG }],
+    changesets: [{ ref: '.changeset/tidy.md', text: '---\n"@acme/ui": patch\n---\n\nTooltip waits less before it opens.\n' }],
+    dateOf: (_pkg, version) => (version === '1.1.0' ? '2026-10-01' : undefined),
+    libraryPackage: '@acme/ui',
+  });
+  const packages = [
+    { name: '@acme/web', version: '0.1.0', private: true, dir: 'apps/web' },
+    { name: '@acme/ui', version: '1.1.0', private: false, dir: 'packages/ui' },
+  ];
+  const snapshot = buildSnapshot({ model, paths: rec.paths, files: rec.files, version: '9.9.9', releases, packages });
+  assert.equal(snapshot.schemaVersion, 1, 'optional fields keep schema version 1');
+  assert.deepEqual(
+    snapshot.releases?.map((r) => [r.name, r.date ?? null, r.pending, r.entries.map((e) => e.kind)]),
+    [
+      ['Coming in the next release', null, true, ['Fix']],
+      ['v1.1.0', '2026-10-01', false, ['New']],
+      ['v1.0.0', null, false, ['Breaking']],
+    ],
+  );
+  assert.match(releaseAnnouncement(snapshot.releases![1]!), /^Design system v1\.1\.0 is out:\n- New: Button gets a ghost variant/);
+  assert.deepEqual(snapshot.packages?.map((p) => p.dir), ['apps/web', 'packages/ui']);
+  assert.deepEqual(snapshot.motion?.Button?.rows, [{ when: 'Hover', what: 'Background', duration: { token: 'motion.duration.fast', value: '150 ms' }, easing: { token: 'motion.easing.standard', value: 'settles in place' } }]);
+  const parsed = parseSnapshot(JSON.stringify(snapshot));
+  assert.deepEqual(parsed.releases, JSON.parse(JSON.stringify(snapshot.releases)));
+  // Model unchanged: the extras are beside the files, not in them.
+  assert.deepEqual({ ...(await loadRepoModel(snapshotSource(parsed))), specs: model.specs }, model);
+
+  const { releases: _r, packages: _p, motion: _m, ...older } = snapshot;
+  assert.equal(parseSnapshot(JSON.stringify(older)).releases, undefined);
+  assert.throws(() => parseSnapshot({ ...snapshot, releases: 'v1' }), /releases must be a list/);
+  assert.throws(() => parseSnapshot({ ...snapshot, packages: [{ name: 'x' }] }), /packages must be a list/);
+  assert.throws(() => parseSnapshot({ ...snapshot, motion: { Button: 'fast' } }), /motion must map/);
+});
+
+test('extras: releases are capped, a spec of an odd shape leaves out its motion, no specs means no motion', async () => {
+  const many = Array.from({ length: SNAPSHOT_MAX_RELEASES + 5 }, (_, i) => ({ name: `v0.${i}.0`, pending: false, packages: [], entries: [] }));
+  const { snapshot: odd, live } = await teamSnapshot();
+  assert.deepEqual(odd.motion, {}, 'the fixture spec has no variants: skipped, not thrown');
+  const capped = buildSnapshot({ model: live, paths: [], files: {}, version: 't', releases: many });
+  assert.equal(capped.releases?.length, SNAPSHOT_MAX_RELEASES);
+  assert.equal(capped.releases?.[0]?.name, 'v0.0.0');
+  const files = { ...TEAM };
+  delete files['src/specs.json'];
+  const { snapshot } = await teamSnapshot(files);
+  assert.equal(snapshot.motion, undefined);
+  assert.equal(snapshot.releases, undefined);
+  assert.equal(snapshot.packages, undefined);
 });

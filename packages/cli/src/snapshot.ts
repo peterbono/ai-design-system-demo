@@ -2,9 +2,9 @@
 // read it from the raw host, no API quota). Adds what only Node can compute: adoption audits of product folders.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { basename, join, relative, resolve } from 'node:path';
+import { basename, join, posix, relative, resolve } from 'node:path';
 import type { AuditReport } from '@bridge-ds/core/audit';
-import { ACTIVITY_FILE, activityBytes, auditId, buildSnapshot, collectActivity, GitHubClient, loadRepoModel, parseActivity, recordingSource, snapshotAudit, snapshotLlmsTxt, SNAPSHOT_AUDITS_DIR, SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, SNAPSHOT_MAX_BYTES, type FetchLike, type RepoActivity, type RepoSnapshot, type SnapshotAudit } from '@bridge-ds/core';
+import { ACTIVITY_FILE, activityBytes, auditId, buildSnapshot, collectActivity, collectReleases, GitHubClient, loadRepoModel, parseActivity, recordingSource, snapshotAudit, snapshotLlmsTxt, SNAPSHOT_AUDITS_DIR, SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, SNAPSHOT_MAX_BYTES, type FetchLike, type RepoActivity, type RepoSnapshot, type SnapshotAudit, type SnapshotPackage } from '@bridge-ds/core';
 import { fsSource, runAudit } from '@bridge-ds/core/node';
 
 export interface SnapshotOptions {
@@ -39,6 +39,8 @@ export interface SnapshotResult {
   /** Files written, relative to out. */
   written: string[];
   bytes: number;
+  /** Where the release dates came from, for the summary: tags, history, or none (a shallow clone without tags). */
+  releaseDates?: string;
 }
 
 const git = (root: string, args: string[]) => {
@@ -48,6 +50,94 @@ const git = (root: string, args: string[]) => {
     return '';
   }
 };
+
+const readJsonFile = <T>(file: string): T | null => {
+  try {
+    return JSON.parse(readFileSync(file, 'utf8')) as T;
+  } catch {
+    return null;
+  }
+};
+
+/** Workspace globs of the root package.json ("workspaces", or "workspaces.packages") or pnpm-workspace.yaml. */
+function workspaceGlobs(root: string): string[] {
+  const pj = readJsonFile<{ workspaces?: string[] | { packages?: string[] } }>(join(root, 'package.json'));
+  const ws = Array.isArray(pj?.workspaces) ? pj.workspaces : (pj?.workspaces?.packages ?? []);
+  if (ws.length) return ws;
+  const pnpm = join(root, 'pnpm-workspace.yaml');
+  if (!existsSync(pnpm)) return [];
+  const block = /^packages:\s*\n((?:[ \t]+.*\n?|\s*\n)*)/m.exec(readFileSync(pnpm, 'utf8'))?.[1] ?? '';
+  return [...block.matchAll(/^\s*-\s*['"]?([^'"#\n]+?)['"]?\s*$/gm)].map((m) => m[1]!);
+}
+
+/**
+ * The repository's packages: each workspace folder with a named package.json ("dir/*" and exact folders; negated and
+ * deeper globs are skipped), else the root package. Sorted by folder.
+ */
+export function workspacePackages(root: string): SnapshotPackage[] {
+  const dirs = new Set<string>();
+  for (const glob of workspaceGlobs(root)) {
+    if (glob.startsWith('!')) continue;
+    const g = posix.normalize(glob.replace(/\/+$/, ''));
+    if (g.endsWith('/*') && !g.slice(0, -2).includes('*')) {
+      const parent = g.slice(0, -2);
+      if (!existsSync(join(root, parent))) continue;
+      for (const n of readdirSync(join(root, parent)).sort()) if (statSync(join(root, parent, n)).isDirectory()) dirs.add(`${parent}/${n}`);
+    } else if (!g.includes('*')) dirs.add(g);
+  }
+  if (!dirs.size) dirs.add('.');
+  const out: SnapshotPackage[] = [];
+  for (const dir of dirs) {
+    const pj = readJsonFile<{ name?: string; version?: string; private?: boolean }>(join(root, dir, 'package.json'));
+    if (!pj?.name) continue;
+    out.push({ name: pj.name, version: pj.version ?? '0.0.0', private: Boolean(pj.private), dir });
+  }
+  return out.sort((a, b) => (a.dir < b.dir ? -1 : a.dir > b.dir ? 1 : 0));
+}
+
+/**
+ * Releases from the packages' CHANGELOG.md files and .changeset/*.md, dated by release tags ("@acme/ui@1.2.0"), else
+ * by the commit that added the version heading. A shallow clone (actions/checkout's default) has no history to read
+ * a heading's date from: only tags date it there, and no date is ever guessed.
+ */
+function readReleases(root: string, packages: SnapshotPackage[], libraryDir: string | undefined) {
+  const withLog = packages.filter((p) => existsSync(join(root, p.dir, 'CHANGELOG.md')));
+  const changelogs = withLog.map((p) => ({ pkg: p.name, published: !p.private, text: readFileSync(join(root, p.dir, 'CHANGELOG.md'), 'utf8') }));
+  const csDir = join(root, '.changeset');
+  const changesets = existsSync(csDir)
+    ? readdirSync(csDir)
+        .filter((f) => f.endsWith('.md') && f !== 'README.md')
+        .sort()
+        .map((f) => ({ ref: `.changeset/${f}`, text: readFileSync(join(csDir, f), 'utf8') }))
+    : [];
+  if (!changelogs.length && !changesets.length) return null;
+  const tags = new Map<string, string>();
+  for (const line of git(root, ['for-each-ref', '--format=%(refname:short)\t%(creatordate:short)', 'refs/tags/']).split('\n')) {
+    const [tag, date] = line.split('\t');
+    if (tag && date && /@\d+\.\d+\.\d+/.test(tag)) tags.set(tag, date);
+  }
+  const shallow = git(root, ['rev-parse', '--is-shallow-repository']) !== 'false';
+  const fileOf = new Map(withLog.map((p) => [p.name, posix.join(p.dir, 'CHANGELOG.md')]));
+  let fromTags = 0;
+  let fromLog = 0;
+  const dateOf = (pkg: string, version: string) => {
+    const tagged = tags.get(`${pkg}@${version}`);
+    if (tagged) {
+      fromTags++;
+      return tagged;
+    }
+    const file = fileOf.get(pkg);
+    if (shallow || !file) return undefined;
+    const dates = git(root, ['log', '--format=%cs', '-S', `## ${version}\n`, '--', file]).split('\n').filter(Boolean);
+    const d = dates[dates.length - 1];
+    if (d) fromLog++;
+    return d;
+  };
+  const lib = (libraryDir && packages.find((p) => p.dir !== '.' && (libraryDir === p.dir || libraryDir.startsWith(`${p.dir}/`)))) || packages.find((p) => !p.private) || packages[0];
+  const releases = collectReleases({ changelogs, changesets, dateOf, ...(lib ? { libraryPackage: lib.name } : {}) });
+  const dates = fromTags || fromLog ? [fromTags && 'release tags', fromLog && 'git history'].filter(Boolean).join(' and ') : shallow ? 'none (shallow clone without release tags)' : 'none';
+  return { releases, dates };
+}
 
 const isReport = (x: unknown): x is AuditReport => {
   const r = x as AuditReport | null;
@@ -92,6 +182,8 @@ export async function writeSnapshot(opts: SnapshotOptions): Promise<SnapshotResu
     audits.set(id, { summary: snapshotAudit(id, report), report });
   }
 
+  const packages = workspacePackages(opts.root);
+  const rel = readReleases(opts.root, packages, model.components?.dir);
   const snapshot = buildSnapshot({
     model,
     paths: rec.paths,
@@ -101,6 +193,8 @@ export async function writeSnapshot(opts: SnapshotOptions): Promise<SnapshotResu
     ...(git(opts.root, ['log', '-1', '--format=%cI']) ? { committedAt: git(opts.root, ['log', '-1', '--format=%cI']) } : {}),
     ...(opts.generatedAt ? { generatedAt: opts.generatedAt } : {}),
     audits: [...audits.values()].map((a) => a.summary),
+    ...(packages.length ? { packages } : {}),
+    ...(rel ? { releases: rel.releases } : {}),
   });
   const text = `${JSON.stringify(snapshot)}\n`;
   const bytes = Buffer.byteLength(text);
@@ -133,7 +227,7 @@ export async function writeSnapshot(opts: SnapshotOptions): Promise<SnapshotResu
     written.push(ACTIVITY_FILE);
     activity = { activity: a, bytes: activityBytes(a), reused: Boolean(previous && a.history && previous.history === a.history) };
   }
-  return { snapshot, written, bytes, ...(activity ? { activity } : {}) };
+  return { snapshot, written, bytes, ...(rel ? { releaseDates: rel.dates } : {}), ...(activity ? { activity } : {}) };
 }
 
 /** What `bridge snapshot` prints: one line per fact, for the terminal and the workflow summary. */
@@ -147,6 +241,9 @@ export function snapshotLines(r: SnapshotResult, out: string): string[] {
     `  components    ${s.summary.components ?? 'not scanned'}`,
     `  contrast      ${c.checks} checks over ${c.pairs} pairs, ${c.failing} failing`,
     `  figma         ${s.summary.figma ? `${s.summary.figma.inFigma} of ${s.summary.figma.visual} visual components` : 'no component-specs.json'}`,
+    `  packages      ${s.packages?.length ?? 0}`,
+    `  releases      ${s.releases ? `${s.releases.filter((x) => !x.pending).length} published${s.releases.some((x) => x.pending) ? ', 1 pending' : ''}, dates from ${r.releaseDates ?? 'none'}` : 'no CHANGELOG.md or .changeset'}`,
+    `  motion        ${s.motion ? `${Object.values(s.motion).filter((m) => m.rows.length).length} of ${Object.keys(s.motion).length} components animate` : 'no component-specs.json'}`,
     `  audits        ${s.audits.length ? s.audits.map((a) => a.path).join(', ') : 'none (--audit <path> or --audit-report <file|dir>)'}`,
     ...s.problems.map((p) => `  problem       ${p}`),
     ...activityLines(r, out),

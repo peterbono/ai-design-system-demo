@@ -57,6 +57,8 @@
 // Sessions: one cookie per team, `bridge_contrib_<sha256 of the team, 16 hex>`, Path=/api/contribute, HttpOnly, Secure,
 // SameSite=Lax, 30 days, signed with HMAC-SHA256 under LIBRARY_SESSION_SECRET (api/_lib/session.ts). Every request
 // reads the member again: removed, or joined again since (the version moves), and the session ends (401).
+// A Bridge account session (`bridge_account`, Path=/, api/account) works too: an account whose email is a member of
+// the team is that member. The per-team cookie stays valid.
 //
 // Storage (Upstash Redis, the same database as api/invites):
 //   bridge:member:<repo>:<email>, bridge:members:<repo>    the members (api/_lib/members.ts)
@@ -73,6 +75,7 @@
 // action answers 503.
 
 import { createHmac, randomBytes } from 'node:crypto';
+import { sessionAccount } from '../_lib/account.js';
 import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import {
@@ -247,15 +250,23 @@ export function issueSession(m: EmailMember, repoFull: string, secret: string, n
 
 export const clearSession = (repoFull: string) => `${cookieName(repoFull)}=; Max-Age=0; ${cookieAttrs(COOKIE_PATH)}`;
 
-/** The member behind the request's cookie for this team, or null: signed here, this team, not expired, same version. */
+/**
+ * The member behind the request for this team, or null. The team's own cookie first: signed here, this team, not
+ * expired, same member version. Else the Bridge account session (`bridge_account`, api/account): an account whose
+ * email is a member of this team counts as that member (the account's version ends it, deleting it removes it).
+ */
 async function sessionMember(ctx: Ctx, req: Request, repoFull: string): Promise<EmailMember | null> {
   const raw = readCookie(req, cookieName(repoFull));
-  if (!raw) return null;
-  const c = verifySession(raw, ctx.svc.secret);
-  if (!c || c.repo !== repoFull.toLowerCase() || c.exp <= ctx.now()) return null;
-  const m = await ctx.svc.members.get(repoFull, c.email);
-  // Removed, or joined again since: the session ends.
-  return m && m.version === c.v && m.email === c.email ? m : null;
+  const c = raw ? verifySession(raw, ctx.svc.secret) : null;
+  if (c && c.repo === repoFull.toLowerCase() && c.exp > ctx.now()) {
+    const m = await ctx.svc.members.get(repoFull, c.email);
+    // Removed, or joined again since: the session ends.
+    if (m && m.version === c.v && m.email === c.email) return m;
+  }
+  const a = await sessionAccount(req, ctx.svc.redis, ctx.svc.secret, ctx.now());
+  if (!a) return null;
+  const m = await ctx.svc.members.get(repoFull, a.email);
+  return m && m.email === a.email ? m : null;
 }
 
 const publicMember = (m: EmailMember) => ({ email: m.email, name: m.name, role: m.role });

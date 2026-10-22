@@ -76,6 +76,8 @@ export * from './component-scan';
 export * from './repo-model';
 export * from './repo-source-github';
 export * from './repo-access';
+export * from './changelog-model';
+export * from './motion-docs';
 export * from './snapshot';
 export * from './requester';
 export * from './activity';

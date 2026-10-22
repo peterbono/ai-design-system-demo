@@ -23,8 +23,10 @@ import { shellMarker, studioPathOfShell } from '../lib/team-shells';
 import { LIBRARY_SHELL_ROOT, LIBRARY_TEAM_NAV, libraryShellMarker, routeOfShell } from '../lib/library-shells';
 import { COMPARE, LANDING, LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, type NavEntry, type Space } from '../lib/nav';
 import type { IconName } from '../brand/icons';
+import { PRIVACY_PAGE } from '../lib/account';
 import { siteRepo, siteRepoJson } from '../lib/config';
 import TeamChip from '../components/ds/studio/TeamChip';
+import AccountMenu from '../components/ds/account/AccountMenu';
 import { TeamAccessGate } from '../components/ds/studio/NoAccess';
 import { signInConfig } from '../lib/signin-config';
 import { GITHUB_URL, STORYBOOK_URL, sourceUrl } from '../lib/repo';
@@ -192,7 +194,11 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
         {!bare && <SpaceSwitch space={space} href={switchTo.href} item={switchTo.item} />}
         {bare ? (
           // Who is signed in, painted by scripts/github-session.ts ([data-gh-acct] [data-gh-avatar]); hidden signed out.
-          <span class="topbar-who" data-gh-acct><Avatar name="GitHub" size="sm" decorative data-gh-avatar hidden /></span>
+          <>
+            <span class="topbar-who" data-gh-acct><Avatar name="GitHub" size="sm" decorative data-gh-avatar hidden /></span>
+            {/* Signed in with a Bridge account: its face and menu instead (components/ds/account/AccountMenu.tsx). */}
+            <AccountMenu client:only="react" compact />
+          </>
         ) : (
           <span class="rail-toggle-slot"><IconButton icon={MenuIcon} size="sm" label="Open navigation" id="rail-toggle" aria-controls="rail" aria-expanded="false" /></span>
         )}
@@ -280,7 +286,10 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
               GitHub link here: readers do not need it; developers find the repository from Use, Install. */}
           {
             isStudio ? (
-              <GitHubAccount workspace={workspace} />
+              <>
+                <AccountMenu client:only="react" />
+                <GitHubAccount workspace={workspace} />
+              </>
             ) : (
               <div class="rail-team">
                 <p>{library ? 'Maintaining this design system? Edit its tokens and review changes.' : 'Maintaining Bridge? Edit tokens and review changes.'}</p>
@@ -369,6 +378,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
               )}
               <Link variant="subtle" href={LANDING}>About Bridge<span>What it does</span></Link>
               <Link variant="subtle" href={COMPARE}>Compare<span>Bridge and other tools</span></Link>
+              <Link variant="subtle" href={PRIVACY_PAGE}>Privacy<span>What Bridge keeps</span></Link>
             </nav>
           </footer>
         </div>
@@ -405,10 +415,12 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
       import { fillTeamShell } from '../scripts/team-links';
       import { initLibraryTeam } from '../scripts/library-team';
       import { initSpaceSwitch } from '../scripts/space-switch';
+      import { initSignInLinks } from '../scripts/signin-links';
       // A team's Library: noindex first, then its links, name and data (a no-op elsewhere).
       if (document.documentElement.hasAttribute('data-library-shell')) initLibraryTeam();
       initShell();
       initSpaceSwitch();
+      initSignInLinks();
       // The account block names the team in the address on a team shell (a no-op elsewhere).
       if (document.documentElement.hasAttribute('data-hosted')) fillTeamShell();
     </script>

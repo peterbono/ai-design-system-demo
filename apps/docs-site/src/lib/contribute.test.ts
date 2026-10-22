@@ -86,7 +86,7 @@ describe('signed-out screens', () => {
     const withEmail = accessScreen('anonymous-unknown', { ...f, email: true })!;
     expect(withEmail.title).toBe('Sign in to open Ds');
     expect(withEmail.primary.kind).toBe('signin');
-    expect(withEmail.links).toEqual([{ lead: 'Invited with your email?', action: { kind: 'email', label: 'Get a sign-in link' } }]);
+    expect(withEmail.links).toEqual([{ lead: 'Invited with your email?', action: { kind: 'email', label: 'Continue with email' } }]);
     expect(accessScreen('anonymous-public', { ...f, email: true })?.links?.[0]?.action.kind).toBe('email');
     expect(accessScreen('anonymous-unknown', f)?.title).toBe('Sign in with GitHub to open Ds');
     expect(accessScreen('anonymous-unknown', f)?.links).toBeUndefined();
