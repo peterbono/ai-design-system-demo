@@ -1,12 +1,19 @@
 ---
 // Team shell of Studio Settings (lib/team-shells.ts): served for /studio/<owner>/<repo>/settings/ by the vercel.json rewrite.
-// Your team (the team link and who can do what) already reads the team from the address and GitHub; the rest of
-// Settings is not rendered from the team yet, so the empty state with the demo link follows it.
+// Your team (the team link and who can do what) reads the team from the address and GitHub; the team's rules (how
+// changes reach the code, review rules, safety) render read only from its repository model in the browser
+// (components/ds/studio/TeamSettings.tsx). On the demo, that is the demo's sample team.
+import '../../../styles/settings.css';
 import TeamShell from '../../../components/TeamShell.astro';
 import { Card, CardBody } from '@bridge-ds/react';
 import { TeamLinkLive } from '../../../components/ds/studio/TeamLink';
-import TeamShellEmpty from '../../../components/ds/studio/TeamShellEmpty';
-import { studioHref } from '../../../lib/team-path';
+import TeamSettings from '../../../components/ds/studio/TeamSettings';
+import { tierSummaries } from '../../../lib/governance';
+import { approvalRules } from '../../../lib/settings-view';
+
+// What each kind of branch needs: Bridge's review tiers (docs/GOVERNANCE.md), the same on every team.
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const rules = approvalRules(tierSummaries()).map((x) => ({ what: x.what, who: cap(x.who) }));
 ---
 
 <TeamShell route="settings/" title="Settings" what="settings and roles" description="GitHub connection, roles and approvals for this team's design system.">
@@ -19,5 +26,5 @@ import { studioHref } from '../../../lib/team-path';
       </CardBody>
     </Card>
   </section>
-  <TeamShellEmpty what="settings and roles" demoHref={studioHref('settings/')} />
+  <TeamSettings client:load rules={rules} />
 </TeamShell>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEMO_REPOS, DEMO_WORDS, demoTour, demoWaiting, exploresDemo, isDemoRepo, tourSteps } from './demo';
+import { DEMO_REPOS, DEMO_WORDS, demoLeadName, demoSettingsPeople, demoTour, demoWaiting, exploresDemo, isDemoRepo, tourSteps } from './demo';
 
 describe('the demo', () => {
   it('is the self-hosted repository and the hosted demo team, any case', () => {
@@ -45,5 +45,20 @@ describe('the tour', () => {
   it("names the persona's role on its first step", () => {
     expect(demoTour('rows', 'DS lead').title).toBe('Changes wait for the DS lead');
     expect(demoTour('rows', null).title).toBe('Changes wait for the lead');
+  });
+});
+
+describe('the demo Settings', () => {
+  it('names the persona, never the repository accounts', () => {
+    const p = demoSettingsPeople({ demo: { viewer: 'Dana' }, soloOwnerCanApproveBoth: true });
+    expect(p.lead).toBe('Dana');
+    expect(p.nameOf('peterbono')).toBe('Dana');
+    expect(p.solo).toBe('As the only owner, Dana approves design and code in one review.');
+    expect(demoSettingsPeople({ demo: { viewer: 'Dana' }, soloOwnerCanApproveBoth: false }).solo).toBeNull();
+  });
+
+  it('says the role when the demo has no persona', () => {
+    expect(demoLeadName(undefined)).toBe('Your design system lead');
+    expect(demoLeadName({ viewer: ' ' })).toBe('Your design system lead');
   });
 });

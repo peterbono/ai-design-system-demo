@@ -6,8 +6,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { Accordion, AccordionItem, Badge, Button, Input, Link } from '@bridge-ds/react';
 import type { ChangesMode, RepoAccessState } from '@bridge-ds/core';
-import { accessBadge, accessSummary, manageAccessUrl, NO_ACCESS_LINE, orgTeamsUrl, teamLink, viewerRow, whoCanDoWhat } from '../../../lib/access-view';
+import { accessBadge, accessSummary, chipIdentity, manageAccessUrl, NO_ACCESS_LINE, orgTeamsUrl, teamLink, viewerRow, whoCanDoWhat } from '../../../lib/access-view';
 import { STUDIO_ROOT, studioBase } from '../../../lib/team-path';
+import { isSampleTeam } from '../../../lib/demo';
 
 /** Copies text, then says so for 2 s. `said` is the line for a screen reader (or how to copy by hand). */
 export function useCopy(ms = 2000) {
@@ -175,14 +176,17 @@ export function TeamLinkLive(props: TeamLinkLiveProps) {
   const owner = ctx?.owner ?? props.owner ?? '';
   const repo = ctx?.repo ?? props.repo ?? '';
   const name = `${owner}/${repo}`;
-  const badge = accessBadge(access, Boolean(login));
+  // The sample team (Acme Design) names its visitor as the team chip does and never shows the repository's real
+  // accounts (Who can do what says owners without logins). Bridge's own design system is a real team: real owners.
+  const demo = isSampleTeam(name);
+  const badge = demo ? chipIdentity(name, { demo, state: access, signedIn: Boolean(login) }).badge : accessBadge(access, Boolean(login));
   return (
     <div className="tlk-live">
       <p className="tlk-summary">
         <Badge size="sm" tone={badge.tone} dot>
           {badge.label}
         </Badge>
-        <span>{accessSummary(login ? access : null, { login, repo: name })}</span>
+        <span>{accessSummary(login ? access : null, { login, repo: name, demo })}</span>
       </p>
       <TeamLink
         id="set-team-link"
@@ -191,7 +195,7 @@ export function TeamLinkLive(props: TeamLinkLiveProps) {
         link={ctx?.link ?? STUDIO_ROOT}
         access={login ? access : null}
         changes={ctx?.changes ?? props.changes ?? null}
-        owners={ctx?.owners ?? props.owners}
+        owners={demo ? undefined : (ctx?.owners ?? props.owners)}
         org={org}
       />
     </div>
