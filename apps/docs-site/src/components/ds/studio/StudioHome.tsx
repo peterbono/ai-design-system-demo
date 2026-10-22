@@ -58,7 +58,6 @@ export function NeedRowItem({ row, selected, onSelect, action, compact }: { row:
       line={row.line}
       pill={row.pill}
       compact={compact}
-      tags={row.sample ? <SampleTag /> : undefined}
       end={
         action && (
           <ButtonLink variant={action} href={row.href} className="sh-row-action" tabIndex={-1} aria-hidden="true">
@@ -70,7 +69,7 @@ export function NeedRowItem({ row, selected, onSelect, action, compact }: { row:
   );
 }
 
-/** "Sample": demo data, said on every row and card of the demo so a visitor never takes it for real work. */
+/** "Sample": demo data, on the demo's branch cards (its review rows keep one status; the banner says it is sample data). */
 export function SampleTag() {
   return (
     <Badge tone="neutral" size="sm" className="sh-sample">
