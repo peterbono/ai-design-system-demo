@@ -168,7 +168,8 @@ Library against the allow-list (on production only: Vercel marks every preview r
 
 An admin invites people from Studio (the team menu, or Settings, Members): work emails and a role. Bridge emails each
 person a link; they open it, sign in with GitHub, and Bridge gives their GitHub account access to the repository with
-that role. Admins also change roles, remove people, and resend or cancel invites there. The server piece is one Vercel
+that role. A "Can edit" invite can also be accepted with the email alone, no GitHub account: see "Email
+contributors". Admins also change roles, remove people, and resend or cancel invites there. The server piece is one Vercel
 function, `apps/docs-site/api/invites/index.ts`.
 
 ### Roles
@@ -176,7 +177,7 @@ function, `apps/docs-site/api/invites/index.ts`.
 | Role in Studio | On GitHub                  | In `bridge.config.json`                                              |
 | -------------- | -------------------------- | -------------------------------------------------------------------- |
 | Can view       | `pull` (read)              | nothing. No longer offered: readers use Library access (below)       |
-| Can edit       | `push` (write)             | nothing                                                              |
+| Can edit       | `push` (write), or none when they join with their email (Email contributors) | nothing    |
 | Reviewer       | `push` (write)             | added to `governance.owners.design` (Designer) or `.tech` (Developer) |
 | Admin          | `admin`                    | owner lists left as they are                                         |
 
@@ -343,3 +344,88 @@ Redeploy. `GET /api/library-access` answers `{ "available": true }` once everyth
 Not built yet, with a place to plug in: company single sign-on (Google Workspace, Okta) is another way to prove a work
 email, so it would end in the same session cookie (`issueSession` in the function). Comments and suggestions from email
 readers would need the session to name the reader; today it only holds the email's domain.
+
+## Email contributors
+
+A designer invited with "Can edit" can join with their email only, no GitHub account. On the invite page they pick
+"Join with your email" (the GitHub way stays available); clicking the emailed link already proved they read that
+inbox, so nothing else is checked. Later they sign in on Studio with their email and a one-time link. Reviewers and
+admins keep GitHub: they approve and merge. The server piece is one Vercel function,
+`apps/docs-site/api/contribute/index.ts`; the pieces it shares with invites and Library access live in
+`apps/docs-site/api/_lib/` (not a function).
+
+### What Bridge does on their behalf
+
+Their browser never gets a GitHub token. Studio sends its GitHub calls to
+`/api/contribute?repo=<owner/repo>&gh=<path>`, and the function makes them with a Bridge Direct installation token
+limited to that one repository and to Contents, Pull requests and Issues (read and write), minted on the server and
+never stored. Commits carry the member as author (the app is the committer); pull requests and issues they open end
+with "Requested by <name> (<email>) through Bridge." (no email on a public repository, see below); they only change
+design files; their comments start with "**<name>** (via Bridge):". Branch protection and required reviews stay the
+safety net: an email contributor can never approve, merge or write to the default branch.
+
+### The policy
+
+Deny by default: anything not listed answers 403 `not-allowed`, and only paths under `/repos/<the session's repo>`.
+
+| Call                                   | Allowed when                                                                    |
+| -------------------------------------- | ------------------------------------------------------------------------------- |
+| `GET` anything in the repository       | always (read)                                                                   |
+| `POST git/blobs`                       | always                                                                          |
+| `POST git/trees`                       | every entry a design file (below); no submodule, symlink or executable          |
+| `POST git/commits`                     | always; author set to the member (date kept), committer dropped                 |
+| `POST git/refs`                        | `refs/heads/<b>`, `b` not the default branch and not existing, at a commit that changes design files only; `b` becomes theirs |
+| `PATCH git/refs/heads/<b>`             | their branch, `force` false, to a commit that changes design files only         |
+| `PUT` / `DELETE contents/<path>`       | a design file; `branch` given and theirs; author set to the member              |
+| `POST pulls`                           | head is their branch, base the default branch or their branch; it becomes theirs |
+| `PATCH pulls/<n>`                      | theirs; only `title`, `body`, `state`, `draft`; a new body keeps the "Requested by" line |
+| `PUT pulls/<n>/update-branch`          | theirs                                                                          |
+| `POST issues`                          | always; it becomes theirs                                                       |
+| `PATCH issues/<n>`                     | theirs; only `title`, `body`, `state`, `labels`; a new body keeps the "Requested by" line |
+| `POST issues/<n>/comments`             | any issue or pull request                                                       |
+| `POST issues/<n>/labels`               | theirs                                                                          |
+
+Never: merges, reviews, requested reviewers, rulesets, branch protection, collaborators, deleting a ref, hooks,
+settings, another repository, GraphQL. "Theirs" means created through this function by the same member (Redis keeps
+who created each branch, issue and pull request for a year). Paths with `.`/`..` segments, encoded slashes or
+backslashes are refused. A request body is at most 5 MB.
+
+**Design files only.** CI runs what a pull request contains, with the repository's secrets, so an email contributor
+can only change design files: token files under `tokens.root`, component usage docs (`components.dir`, files ending
+in `components.docsSuffix`), changesets (`changesets.dir` and `.changeset/`, `.md`) and Bridge's own files under
+`.bridge/` (Figma specs, drafts, request images, exploration notes), read from `bridge.config.json` on the default
+branch (cached 5 minutes); without the file, `tokens/`, `.changeset/` and `.bridge/`. Never code (`.js`, `.ts`, CSS,
+YAML...), `.github/`, `scripts/`, `package.json` and lockfiles, tool configuration or dotfiles, the guardrails, or
+`bridge.config.json` itself (so a new brand, which also edits it, needs a GitHub account). The check runs on every
+written path and again on the content of any commit a branch is moved to (its changes from the default branch), so
+a commit built elsewhere cannot slip in. Refused with "Bridge only saves design files (tokens, docs, assets) for
+people who joined with their email. Ask a developer to change this file."
+
+**Public repositories.** A work email is never published there: commits carry a stable address that routes nowhere,
+`<12 hex>@contributors.bridge.invalid` (an HMAC of the team and the email), and the "Requested by" line names the
+person without the email. Private repositories show the real email.
+
+### Sessions, storage and caps
+
+- **Members**: `bridge:member:<repo>:<email>` (email, name, role, version, who invited, when) and the set
+  `bridge:members:<repo>`, in the same Upstash Redis as invites. Settings, Members lists them (marked as joined with
+  email) and an admin removes them there; changing them to Reviewer or Admin answers `github-required`: invite them
+  again with that role, and they join with GitHub (which drops the email membership).
+- **The session**: one cookie per team, `bridge_contrib_<hash>`, `HttpOnly`, `Secure`, `SameSite=Lax`,
+  `Path=/api/contribute`, 30 days, signed with HMAC-SHA256 under `LIBRARY_SESSION_SECRET` (with its own purpose, so a
+  Library cookie never passes for it). Every request reads the member again: removed, or joined again since, and the
+  session ends at once.
+- **Sign-in links**: `<site>/studio/<owner>/<repo>/#contribute=<token>`, only the token's SHA-256 stored, 15 minutes,
+  once. The answer is the same whether or not the email is a member. Links count like Library sign-ins: 3 per email,
+  10 per network, 20 per team and 20 for the site per day (emails and networks under an HMAC).
+- **Writes**: every call other than `GET` counts toward a daily cap per member, `CONTRIB_MAX_WRITES` (300 by
+  default; one saved change is a few calls). Over it: 429 `limit` until the next UTC day.
+- **CSRF**: every call other than `GET` must carry `X-Bridge-Contribute: 1` (Studio sends it) and, when there is an
+  `Origin`, come from a page of this site. The function logs nothing.
+
+### Set it up (owner of the site)
+
+It reuses what invites and Library access need: storage, Resend, `LIBRARY_SESSION_SECRET`, and the Bridge Direct app,
+which must have **Contents**, **Pull requests** and **Issues: Read and write** on each installation (Issues is new if
+the app was set up for invites only). Optional, not sensitive: `CONTRIB_MAX_WRITES`. Redeploy;
+`GET /api/contribute?repo=<owner/repo>` answers `{ "available": true, "member": null }` once everything is set.

@@ -39,6 +39,11 @@ const ALLOWED: { file: string; line: string; why: string }[] = [
     why: 'the invite link emailed to people: one page for every team, the team is in the stored invite',
   },
   {
+    file: 'api/contribute/index.ts',
+    line: '/studio/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/#contribute=',
+    why: 'the sign-in link emailed to an email contributor: the team shell address, built on the server (no page)',
+  },
+  {
     file: 'src/pages/tokens/index.astro',
     line: "location.replace('/studio/tokens/'",
     why: 'is:inline script on a Library page (cannot import modules, never on a team shell): old ?edit=1 links',

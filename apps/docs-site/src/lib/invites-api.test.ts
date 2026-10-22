@@ -25,6 +25,8 @@ import {
   RESEND_COOLDOWN_MS,
   EMAIL_ACCESS,
 } from '../../api/invites/index';
+import { memberStore } from '../../api/_lib/members';
+import { memoryRedis } from '../../api/_lib/redis';
 
 const HOST = 'bridge.example.com';
 const ORIGIN = `https://${HOST}`;
@@ -744,5 +746,61 @@ describe('what is kept, and for how long', () => {
       expect(s).not.toHaveBeenCalled();
       s.mockRestore();
     }
+  });
+});
+
+describe('email contributors in Members', () => {
+  async function withMember() {
+    const members = memberStore(memoryRedis());
+    await members.put(REPO, { email: 'mia@acme.design', name: 'Mia Chen', role: 'edit', version: 1, addedBy: 'dana', at: '2026-10-22T10:00:00.000Z' });
+    return { members, ...setup({}, { members }) };
+  }
+
+  it('lists them next to the invites, flagged via email', async () => {
+    const { deps } = await withMember();
+    const r = await handleInvites(get(`?repo=${REPO}`, 'ghu_leo01'), {}, deps);
+    expect(r.status).toBe(200);
+    expect((await r.json()).members).toEqual([{ via: 'email', name: 'Mia Chen', email: 'mia@acme.design', role: 'edit', addedBy: 'dana', at: '2026-10-22T10:00:00.000Z' }]);
+  });
+
+  it('an admin removes one by email, which ends their sessions; a writer cannot', async () => {
+    const { deps, members, w } = await withMember();
+    expect((await handleInvites(post({ action: 'remove', repo: REPO, email: 'mia@acme.design' }, 'ghu_leo01'), {}, deps)).status).toBe(403);
+    expect(await members.get(REPO, 'mia@acme.design')).not.toBeNull();
+    const r = await handleInvites(post({ action: 'remove', repo: REPO, email: 'MIA@acme.design' }), {}, deps);
+    expect(r.status).toBe(200);
+    expect(await members.get(REPO, 'mia@acme.design')).toBeNull();
+    expect(await members.list(REPO)).toEqual([]);
+    expect(w.calls.some((c) => c.method === 'DELETE')).toBe(false);
+    expect((await handleInvites(post({ action: 'remove', repo: REPO, email: 'mia@acme.design' }), {}, deps)).status).toBe(404);
+  });
+
+  it('refuses reviewer or admin for an email contributor with 409 github-required', async () => {
+    const { deps, w } = await withMember();
+    for (const role of [{ role: 'reviewer', reviewAs: 'design' }, { role: 'admin' }]) {
+      const r = await handleInvites(post({ action: 'set-role', repo: REPO, email: 'mia@acme.design', ...role }), {}, deps);
+      expect(r.status).toBe(409);
+      expect((await r.json()).error).toBe('github-required');
+    }
+    expect((await handleInvites(post({ action: 'set-role', repo: REPO, email: 'mia@acme.design', role: 'edit' }), {}, deps)).status).toBe(200);
+    expect((await handleInvites(post({ action: 'set-role', repo: REPO, email: 'nobody@acme.design', role: 'edit' }), {}, deps)).status).toBe(404);
+    expect(w.calls.some((c) => c.method === 'PUT')).toBe(false);
+  });
+
+  it('a Can edit invite says no GitHub account is needed; reviewers still sign in with GitHub', async () => {
+    const edit = inviteEmail({ to: 'a@b.co', inviter: 'Dana', repo: REPO, role: 'edit', link: 'https://x/#t=1' });
+    expect(edit.text).toContain('You join with this email, no GitHub account needed.');
+    const reviewer = inviteEmail({ to: 'a@b.co', inviter: 'Dana', repo: REPO, role: 'reviewer', reviewAs: 'design', link: 'https://x/#t=1' });
+    expect(reviewer.text).toContain('You sign in with GitHub.');
+  });
+
+  it('joining with GitHub drops an email membership of the same address', async () => {
+    const members = memberStore(memoryRedis());
+    await members.put(REPO, { email: 'sofia@acme.design', name: 'Sofia', role: 'edit', version: 1, addedBy: 'dana', at: '' });
+    const { deps, sent } = setup({}, { members });
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
+    const r = await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps);
+    expect(r.status).toBe(200);
+    expect(await members.get(REPO, 'sofia@acme.design')).toBeNull();
   });
 });
