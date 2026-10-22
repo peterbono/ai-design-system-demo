@@ -1,32 +1,48 @@
-// One comparison table of "How Bridge compares." (homepage): the DS Table, a sticky feature column, and a check or a
-// dash per tool. Rendered statically by HpCompare.astro (short table) and inside the HpCompareMore island (every
-// feature, by group). Words and data: lib/compare-home.ts. Styles: styles/home-compare.css.
-import { Icon, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, VisuallyHidden } from '@bridge-ds/react';
-import { Check, Minus } from 'lucide-react';
-import { NO, TOOLS, YES, type HomeGroup, type HomeRow } from '../../lib/compare-home';
+// One comparison table of "How Bridge compares." (homepage): the DS Table, a sticky feature column, and a mark per tool:
+// a check (does it), a half mark (does part of it) or a dash (does not, or not documented). A mark with a note is a
+// ghost DS IconButton whose Tooltip says how; its accessible name carries the same words. Hydrated by HpCompare.astro
+// (short table) and inside the HpCompareMore island (every feature, by group). Words and data: lib/compare.ts.
+// Styles: styles/home-compare.css.
+import { Icon, IconButton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tooltip, VisuallyHidden } from '@bridge-ds/react';
+import { Check, Contrast, Minus } from 'lucide-react';
+import { STATE_LABEL, TOOLS, cellText, type Cell, type CellState, type CompareGroup, type CompareRow } from '../../lib/compare';
 
-/** The glyph for a check (true) and a dash (false), shared with the legend. */
-export const markIcon = (yes: boolean) => (yes ? Check : Minus);
+/** The glyph for each state, shared with the legend. */
+export const MARK_ICON: Record<CellState, typeof Check> = { yes: Check, partial: Contrast, no: Minus };
 
-function Mark({ yes }: { yes: boolean }) {
+function Mark({ cell, tool }: { cell: Cell; tool: string }) {
+  if (cell.note) {
+    return (
+      <Tooltip content={cell.note}>
+        <IconButton
+          icon={MARK_ICON[cell.state]}
+          label={`${tool}, ${cellText(cell)}`}
+          variant="ghost"
+          size="sm"
+          className="hp-cmp-mark hp-cmp-tip"
+          data-state={cell.state}
+        />
+      </Tooltip>
+    );
+  }
   return (
-    <span className="hp-cmp-mark" data-state={yes ? 'yes' : 'no'}>
-      <Icon icon={markIcon(yes)} size="md" className="hp-cmp-icon" />
-      <VisuallyHidden>{yes ? YES : NO}</VisuallyHidden>
+    <span className="hp-cmp-mark" data-state={cell.state}>
+      <Icon icon={MARK_ICON[cell.state]} size="md" className="hp-cmp-icon" />
+      <VisuallyHidden>{STATE_LABEL[cell.state]}</VisuallyHidden>
     </span>
   );
 }
 
-function Row({ row }: { row: HomeRow }) {
+function Row({ row }: { row: CompareRow }) {
   return (
     <TableRow className="hp-cmp-row">
       <TableHead scope="row" className="hp-cmp-c hp-cmp-feat">
         {row.feature}
         {row.detail && <small className="hp-cmp-detail">{row.detail}</small>}
       </TableHead>
-      {row.cells.map((yes, i) => (
+      {row.cells.map((cell, i) => (
         <TableCell key={TOOLS[i]} className={i === 0 ? 'hp-cmp-c hp-cmp-b' : 'hp-cmp-c'}>
-          <Mark yes={yes} />
+          <Mark cell={cell} tool={TOOLS[i]} />
         </TableCell>
       ))}
     </TableRow>
@@ -39,9 +55,9 @@ export interface HpCompareTableProps {
   /** Text of the feature column head. */
   firstHead: string;
   /** Plain rows (the short table)... */
-  rows?: HomeRow[];
+  rows?: CompareRow[];
   /** ...or rows under group headings (every feature). */
-  groups?: HomeGroup[];
+  groups?: CompareGroup[];
 }
 
 export default function HpCompareTable({ label, firstHead, rows, groups }: HpCompareTableProps) {
