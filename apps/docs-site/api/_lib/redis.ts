@@ -38,9 +38,26 @@ export function redisRest(url: string, token: string, f: FetchLike, message: str
   };
 }
 
+/** A Redis MATCH glob as a regular expression: `*`, `?`, and `\\x` for a literal x. */
+function globRegExp(glob: string): RegExp {
+  let out = '';
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i]!;
+    if (c === '\\' && i + 1 < glob.length) out += glob[++i]!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    else if (c === '*') out += '.*';
+    else if (c === '?') out += '.';
+    else out += c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+  return new RegExp(`^${out}$`, 's');
+}
+
+/** `s` with the characters a Redis MATCH glob treats specially escaped. */
+export const globEscape = (s: string) => s.replace(/[*?[\]\\]/g, '\\$&');
+
 /**
  * In-memory Redis for tests: strings, sets and sorted sets, EX and NX, GET, SET, GETDEL, DEL, MGET, INCRBY, EXPIRE,
- * SADD, SREM, SMEMBERS, SISMEMBER, ZADD, ZREM, ZRANGE (all), ZREMRANGEBYSCORE. TTLs follow `now`.
+ * SADD, SREM, SMEMBERS, SISMEMBER, ZADD, ZREM, ZRANGE (all), ZREMRANGEBYSCORE, TYPE and SCAN (one page, MATCH glob
+ * with `*`, `?` and backslash escapes). TTLs follow `now`.
  */
 export function memoryRedis(now: () => number = Date.now): Redis & { keys(): string[]; dump(): Map<string, string | string[]> } {
   const items = new Map<string, { value: string | Set<string> | Map<string, number>; until: number }>();
@@ -133,6 +150,15 @@ export function memoryRedis(now: () => number = Date.now): Redis & { keys(): str
         const gone = [...z.entries()].filter(([, sc]) => sc <= max).map(([m]) => m);
         for (const m of gone) z.delete(m);
         return gone.length;
+      }
+      case 'TYPE': {
+        const v = live(k);
+        return v === null ? 'none' : typeof v === 'string' ? 'string' : v instanceof Set ? 'set' : 'zset';
+      }
+      case 'SCAN': {
+        const i = rest.findIndex((x) => x.toUpperCase() === 'MATCH');
+        const re = i >= 0 ? globRegExp(rest[i + 1]!) : /^/;
+        return ['0', [...items.keys()].filter((key) => live(key) !== null && re.test(key))];
       }
       default:
         throw new Error(`memoryRedis: ${op} is not supported`);
