@@ -10,8 +10,10 @@
 // people in with their email: on such a team it opens the team's sign-in screen (both ways in, components/ds/studio/
 // NoAccess.tsx), elsewhere (the sample team, a site without email sign-in) it goes straight to GitHub. The menu has
 // no "Change token" then: the designer UI never offers a token paste. The rejected and menu wording follows the
-// session kind. An email contributor (lib/contribute.ts, real teams only) gets the same account row, never a sign-in
-// button: the DS drawn face (never initials), their name, their email as the second line, and the menu with Sign out. The block is the same on every Studio page: one full-width DS Button, the read-only line under it as
+// session kind. The account row's second line is the team's name (lib/demo.ts teamDisplayName), never owner/repo.
+// An email contributor (lib/contribute.ts, real teams only) gets the same account row, never a sign-in button: the DS
+// drawn face (never initials), their name, their role in words ("Can edit") as the second line, and a menu with their
+// name, their full email on its own line, Access "Can edit", Settings and Sign out (no GitHub or repository rows). The block is the same on every Studio page: one full-width DS Button, the read-only line under it as
 // its description.
 import { Avatar, Button, Icon, Link } from '@bridge-ds/react';
 import { siteIcon } from '../brand/site-icons';
@@ -55,17 +57,19 @@ const signIn = Boolean(signInConfig(workspace));
       <Avatar name="GitHub" size="md" decorative className="gh-acct-avatar" data-gh-avatar hidden />
       <span class="gh-acct-text">
         <span class="gh-acct-login" data-gh-login></span>
-        {workspace ? <span class="gh-acct-repo">No repository yet</span> : <span class="gh-acct-repo" data-team-display>{teamDisplayName(`${r.owner}/${r.repo}`, r)}</span>}
+        {workspace ? <span class="gh-acct-repo">No repository yet</span> : <span class="gh-acct-repo" data-team-display data-gh-acct-team>{teamDisplayName(`${r.owner}/${r.repo}`, r)}</span>}
+        <span class="gh-acct-repo" data-gh-acct-role hidden></span>
       </span>
       <span class="scope-pick-chev" aria-hidden="true"><Icon icon={siteIcon('chevron')} size="xs" className="icon" /></span>
     </summary>
     <div class="menu-panel" role="group" aria-label="GitHub account">
       <p class="menu-title" data-gh-menu-title>GitHub</p>
+      <p class="gh-acct-menu-email" data-gh-menu-email hidden></p>
       <dl class="gh-facts">
-        <dt>Signed in</dt>
-        <dd data-gh-login-full></dd>
-        <dt>Repository</dt>
-        <dd>{workspace ? 'None yet' : <Link href={`https://github.com/${r.owner}/${r.repo}`} className="mono" data-team-github><span data-team-name>{r.owner}/{r.repo}</span></Link>}</dd>
+        <dt data-gh-github-only>Signed in</dt>
+        <dd data-gh-github-only data-gh-login-full></dd>
+        <dt data-gh-github-only>Repository</dt>
+        <dd data-gh-github-only>{workspace ? 'None yet' : <Link href={`https://github.com/${r.owner}/${r.repo}`} className="mono" data-team-github><span data-team-name>{r.owner}/{r.repo}</span></Link>}</dd>
         <dt>Access</dt>
         <dd><span class="gh-perm" data-gh-perm>Checking</span></dd>
       </dl>

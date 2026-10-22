@@ -134,7 +134,8 @@
   }
 }
 
-/* The role and its "More" menu on one line, at the row's end. */
+/* The role and its "More" menu on one line, at the row's end. Small controls (control-height-sm) sit centered in the
+   row with the same space above and below, so a row with a picker is as tall as a row with the role as text. */
 .mem-role {
   display: flex;
   align-items: center;
@@ -151,12 +152,12 @@
 .mem-role > .mem-role-text {
   box-sizing: border-box;
   width: calc(var(--size-40) + var(--space-4));
-  padding-inline-start: calc(var(--control-padding-x-md) + var(--border-width-default));
+  padding-inline-start: calc(var(--control-padding-x-sm) + var(--border-width-default));
 }
 
 /* Keeps the role column aligned on rows without a menu (the admin's own row). */
 .mem-more-space {
-  width: var(--control-height-md);
+  width: var(--control-height-sm);
   flex: none;
 }
 

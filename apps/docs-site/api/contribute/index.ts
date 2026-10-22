@@ -10,6 +10,12 @@
 // Endpoints (JSON, errors are { error, message } in Studio words):
 //   GET  /api/contribute?repo=owner/name                 { available, member }  member is { email, name, role } or null
 //   GET  /api/contribute?repo=owner/name&mine=1          { branches, issues }  what the signed-in member made and owns
+//   GET  /api/contribute?repo=owner/name&members=1       { collaborators, members }  who is on the team, for Settings >
+//                                                        Members of anyone on it: an email contributor (the cookie) or
+//                                                        a GitHub account that can read the repository (Bearer). The
+//                                                        GitHub people come from the app's token (login, avatar,
+//                                                        permissions); the email members by name and role only, never
+//                                                        another member's email
 //   POST { action: 'accept', token, name }               joins with a pending "Can edit" invite (api/invites token),
 //                                                        sets the session cookie; { member, repo }
 //   POST { action: 'sign-in', repo, email }              always { ok: true }; emails a link to members only
@@ -862,6 +868,51 @@ async function mineOf(ctx: Ctx, full: string, email: string): Promise<{ branches
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Members, for anyone on the team
+
+/** A GitHub person as Settings > Members needs them: no email, no more than GitHub's collaborator list says. */
+export interface TeamCollaborator {
+  login: string;
+  avatar_url?: string;
+  role_name?: string;
+  permissions?: { admin?: boolean; maintain?: boolean; push?: boolean; triage?: boolean; pull?: boolean };
+}
+
+/** GitHub says the Bearer token of the request can read the repository: a member of the team on GitHub. */
+async function githubReader(ctx: Ctx, req: Request, owner: string, repo: string): Promise<boolean> {
+  const bearer = /^Bearer\s+([A-Za-z0-9_.-]{20,255})$/i.exec(req.headers.get('authorization') ?? '')?.[1];
+  if (!bearer) return false;
+  const r = await ghApp(ctx, bearer, 'GET', `/repos/${owner}/${repo}`);
+  return r.status === 200 && Boolean(r.data?.permissions?.pull);
+}
+
+/**
+ * GET ?members=1: the team's people for a member who cannot list them on GitHub (an email contributor, a GitHub
+ * reader). The GitHub people through the app's token, the email members by name and role. Never anyone's email:
+ * admins manage people through api/invites, which shows them.
+ */
+async function membersOf(ctx: Ctx, req: Request, full: string, m: EmailMember | null): Promise<Response> {
+  const { owner, repo } = parseRepo(full);
+  if (!m && !(await githubReader(ctx, req, owner, repo))) return fail(401, 'signin', SIGNIN);
+  const token = await ctx.svc.app.installationToken(owner, repo);
+  if (!token) return fail(409, 'app_missing', APP_MISSING);
+  const r = await ghApp(ctx, token, 'GET', `/repos/${owner}/${repo}/collaborators?affiliation=all&per_page=100`);
+  if (r.status !== 200 || !Array.isArray(r.data)) return fail(502, 'unreachable', GITHUB_DOWN);
+  const flags = ['admin', 'maintain', 'push', 'triage', 'pull'] as const;
+  const collaborators: TeamCollaborator[] = r.data
+    .filter((c: any) => c && typeof c.login === 'string')
+    .map((c: any) => ({
+      login: c.login,
+      ...(typeof c.avatar_url === 'string' ? { avatar_url: c.avatar_url } : {}),
+      ...(typeof c.role_name === 'string' ? { role_name: c.role_name } : {}),
+      ...(c.permissions && typeof c.permissions === 'object' ? { permissions: Object.fromEntries(flags.filter((f) => typeof c.permissions[f] === 'boolean').map((f) => [f, c.permissions[f]])) } : {}),
+    }));
+  const people = await ctx.svc.members.list(full);
+  const members = people.map((p) => ({ name: p.name, role: p.role, ...(m && p.email === m.email ? { you: true } : {}) }));
+  return json(200, { collaborators, members }, { 'Cache-Control': 'private, no-store' });
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // The handler
 
 export async function handleContribute(req: Request, env: ContribEnv, deps: ContribDeps): Promise<Response> {
@@ -882,6 +933,7 @@ export async function handleContribute(req: Request, env: ContribEnv, deps: Cont
       const { full } = parseRepo(repoArg);
       const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, env };
       const m = await sessionMember(ctx, req, full);
+      if (params.get('members') === '1') return await membersOf(ctx, req, full, m);
       if (params.get('mine') === '1') {
         if (!m) return fail(401, 'signin', SIGNIN);
         return json(200, await mineOf(ctx, full, m.email));

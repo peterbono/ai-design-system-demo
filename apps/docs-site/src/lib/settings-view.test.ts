@@ -59,6 +59,12 @@ describe('account', () => {
     expect(accountView('connected', { login: 'ana', write: null, repo }).badge).toBeUndefined();
   });
 
+  it("says the role in the team chip's words once GitHub gave the access: an owner is Admin", () => {
+    expect(accountView('connected', { login: 'peterbono', write: true, repo, state: 'admin' }).badge).toEqual({ label: 'Admin', tone: 'success' });
+    expect(accountView('connected', { login: 'ana', write: true, repo, state: 'writer' }).badge).toEqual({ label: 'Can edit', tone: 'success' });
+    expect(accountView('connected', { login: 'x', write: true, repo: 'peterbono/ai-design-system-demo' }).detail).toBe('Bridge DS');
+  });
+
   it('opens the Harbor zone with the primary action only when Studio cannot act', () => {
     expect(accountView('readonly', { write: null, repo })).toMatchObject({ zone: true, action: 'Connect GitHub' });
     expect(accountView('rejected', { write: null, repo })).toMatchObject({ zone: true, action: 'Reconnect GitHub' });

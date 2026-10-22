@@ -71,8 +71,8 @@ function remember(repo: string, m: ContributeMember | null) {
   if (Boolean(before) !== Boolean(m) || before?.email !== m?.email || before?.name !== m?.name) listeners.forEach((fn) => fn(repo, m));
 }
 
-async function call<T>(method: 'GET' | 'POST', query: string, body?: unknown): Promise<T> {
-  const headers: Record<string, string> = { Accept: 'application/json' };
+async function call<T>(method: 'GET' | 'POST', query: string, body?: unknown, extra: Record<string, string> = {}): Promise<T> {
+  const headers: Record<string, string> = { Accept: 'application/json', ...extra };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   // The server refuses any action without it (CSRF).
   if (method !== 'GET') headers[CONTRIBUTE_HEADER] = '1';
@@ -124,6 +124,33 @@ export function contributeInfo(repo: string): Promise<ContributeInfo> {
   );
   infos.set(k, p);
   return p;
+}
+
+/** A GitHub person of the team, as /api/contribute?members=1 lists them (no email). */
+export interface TeamCollaborator {
+  login: string;
+  avatar_url?: string;
+  role_name?: string;
+  permissions?: { admin?: boolean; maintain?: boolean; push?: boolean; triage?: boolean; pull?: boolean };
+}
+
+export interface TeamPeople {
+  collaborators: TeamCollaborator[];
+  /** Email members by name and role; `you` marks the signed-in one. Never another member's email. */
+  members: { name: string; role: 'edit'; you?: boolean }[];
+}
+
+/**
+ * The team's people for a member who cannot list them on GitHub: an email contributor (their session cookie) or a
+ * GitHub reader (`githubToken`, checked by the server with GitHub). Settings > Members, read only.
+ */
+export async function contributeTeam(repo: string, githubToken: string | null = null): Promise<TeamPeople> {
+  const r = await call<Partial<TeamPeople>>('GET', `?repo=${encodeURIComponent(repo)}&members=1`, undefined, githubToken ? { Authorization: `Bearer ${githubToken}` } : {});
+  const collaborators = Array.isArray(r.collaborators) ? r.collaborators.filter((c): c is TeamCollaborator => Boolean(c && typeof c.login === 'string')) : [];
+  const members = Array.isArray(r.members)
+    ? r.members.filter((m) => m && typeof m.name === 'string').map((m) => ({ name: m.name.trim() || 'Contributor', role: 'edit' as const, ...(m.you ? { you: true } : {}) }))
+    : [];
+  return { collaborators, members };
 }
 
 /** Asks for a sign-in link. The server answers the same whether or not the email is on the team. */

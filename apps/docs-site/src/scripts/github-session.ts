@@ -60,6 +60,7 @@ import {
 import { studioHref } from '../lib/team-path';
 import { clearGuestReads, guestFetch } from './guest-activity';
 import { CONTRIB_TOKEN, CONTRIBUTE_WORDS, contributeEligible, isContribAuth, type ContributeMember } from '../lib/contribute';
+import { ROLE_WORDS } from '../lib/invites';
 import { contributeFetch, contributeInfo, contributorFor, onContributeChange, signOutEmail, takeContributeHash, verifyEmailSignIn } from './contribute-session';
 
 export { GitHubError };
@@ -72,6 +73,8 @@ export interface RepoRef {
 
 // The token, its check and its sign-in session live in one slot per GitHub App (lib/github-signin.ts slotKey):
 // 'bridge.github.token.suggest' for "Bridge", '.direct' for "Bridge Direct", no suffix without a GitHub App.
+/** An email contributor's role, in the words Members uses: "Can edit". */
+const CONTRIBUTOR_ROLE = ROLE_WORDS.edit.label;
 const TOKEN_BASE = 'bridge.github.token';
 const CHECK_BASE = 'bridge.github.check';
 /** The sign-in session (expiry, refresh token) next to its token. Absent for a pasted token. */
@@ -966,13 +969,19 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
         const short = el.hasAttribute('data-gh-login');
         el.textContent = email ? (short ? (email.name ?? email.login) : email.login) : viewer ? (short ? viewer.login : login) : '';
       });
-      // The side nav's account row: an email contributor's second line is their email, in place of the repository.
-      acct.querySelectorAll<HTMLElement>('[data-gh-email]').forEach((el) => {
+      // The side nav's account row: the second line is the team's name, or an email contributor's role in words. Their
+      // menu says who they are (name, then the full email on its own line), never GitHub or the repository.
+      // (The team's name is [data-team-display], kept by scripts/team-links.ts; a contributor sees their role instead.)
+      acct.querySelectorAll<HTMLElement>('[data-gh-acct-team]').forEach((el) => (el.hidden = Boolean(email)));
+      acct.querySelectorAll<HTMLElement>('[data-gh-acct-role]').forEach((el) => {
+        el.textContent = email ? CONTRIBUTOR_ROLE : '';
+        el.hidden = !email;
+      });
+      acct.querySelectorAll<HTMLElement>('[data-gh-menu-email]').forEach((el) => {
         el.textContent = email ? email.login : '';
         el.hidden = !email;
       });
-      acct.querySelectorAll<HTMLElement>('[data-gh-acct-repo]').forEach((el) => (el.hidden = Boolean(email)));
-      acct.querySelectorAll<HTMLElement>('[data-gh-menu-title]').forEach((el) => (el.textContent = email ? CONTRIBUTE_WORDS.account : 'GitHub'));
+      acct.querySelectorAll<HTMLElement>('[data-gh-menu-title]').forEach((el) => (el.textContent = email ? (email.name ?? email.login) : 'GitHub'));
       const avatar = acct.querySelector<HTMLElement>('[data-gh-avatar]');
       if (avatar) {
         avatar.hidden = !viewer;
@@ -1333,7 +1342,8 @@ function paintAccess() {
   const access = currentAccess();
   const shown = viewer ? access : null;
   document.querySelectorAll<HTMLElement>('[data-gh-perm]').forEach((el) => {
-    el.textContent = accessLabel(Boolean(viewer), shown);
+    // An email contributor reads their role in designer words, the one they joined with.
+    el.textContent = viewer?.email ? CONTRIBUTOR_ROLE : accessLabel(Boolean(viewer), shown);
     el.className = `gh-perm${shown ? (shown.write ? ' is-write' : ' is-read') : ''}`;
   });
   document.querySelectorAll<HTMLElement>('[data-gh-perm-help]').forEach((el) => {

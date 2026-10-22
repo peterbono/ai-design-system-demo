@@ -7,8 +7,10 @@
 //   may do on the repository, and the format-preserving edit of `changes` in bridge.config.json.
 import { fromPlain, getEntry, parseJson, serializeJson, soloOwnerOf, soloOwnerSentence, toPlain, type ChangesMode, type JsonObject, type Owners, type Rights } from '@bridge-ds/core';
 import type { TierSummary } from './governance';
-import { noReachText, readOnlyText, type SignInApp } from './github-signin';
+import { accessBadge, type ChipTone } from './access-view';
+import type { RepoAccessState } from './access';
 import { teamDisplayName } from './demo';
+import { noReachText, readOnlyText, type SignInApp } from './github-signin';
 
 export interface ApprovalRule {
   tier: number;
@@ -72,7 +74,7 @@ export interface AccountView {
   /** What the action does: sign in with GitHub, open the token dialog, or sign out. */
   actionKind?: 'signin' | 'token' | 'signout';
   /** What the token may do on the library, once GitHub said so. */
-  badge?: { label: string; tone: 'success' | 'neutral' };
+  badge?: { label: string; tone: ChipTone };
 }
 
 export interface AccountFacts {
@@ -85,6 +87,8 @@ export interface AccountFacts {
   signIn?: boolean;
   /** Signed in: false when the app does not reach the repository for this account (wrong account, not installed). */
   reach?: boolean | null;
+  /** The access state GitHub gave (lib/access): the badge says it in the team chip's words (Admin, Can edit). */
+  state?: RepoAccessState | null;
 }
 
 export function accountView(state: AccountState, at: AccountFacts): AccountView {
@@ -103,9 +107,12 @@ export function accountView(state: AccountState, at: AccountFacts): AccountView 
         // A token pasted before the site had Sign in with GitHub: no token paste any more, only the way out.
         action: app ? 'Sign out' : at.signIn ? 'Disconnect' : 'Reconnect GitHub',
         actionKind: app || at.signIn ? 'signout' : 'token',
+        // The same words and source as the team chip (accessBadge): an owner reads Admin, not Can edit.
         badge: noReach
           ? { label: 'No access', tone: 'neutral' }
-          : at.write === null
+          : at.state
+            ? accessBadge(at.state, true)
+            : at.write === null
             ? undefined
             : at.write
               ? { label: 'Can edit', tone: 'success' }

@@ -810,3 +810,48 @@ describe('design files only', () => {
     expect((await put('package.json')).r.status).toBe(403);
   });
 });
+
+describe('GET ?members=1: the team for anyone on it', () => {
+  const list = (headers: Record<string, string>) => new Request(`${ORIGIN}/api/contribute?repo=${REPO}&members=1`, { headers: { host: HOST, ...headers } });
+  /** GitHub with a collaborator list for the app, and a reader token that may read the repository. */
+  const withPeople = (s: ReturnType<typeof setup>): ContribDeps => {
+    const base = s.deps.fetch;
+    return {
+      ...s.deps,
+      fetch: async (url, init) => {
+        const u = new URL(url);
+        if (u.pathname === '/repos/acme/design/collaborators') {
+          expect(init.headers.Authorization).toBe('Bearer ghs_contrib');
+          return res(200, [
+            { login: 'peterbono', avatar_url: 'https://avatars.githubusercontent.com/u/1', role_name: 'admin', permissions: { admin: true, push: true, pull: true }, email: 'leak@acme.design', site_admin: false },
+          ]);
+        }
+        if (u.pathname === '/repos/acme/design' && init.headers.Authorization === 'Bearer gho_readerreaderreader01') return res(200, { permissions: { pull: true, push: false, admin: false } });
+        if (u.pathname === '/repos/acme/design' && init.headers.Authorization === 'Bearer gho_strangerstranger001') return res(404, { message: 'Not Found' });
+        return base(url, init);
+      },
+    };
+  };
+
+  it('lists GitHub people and email members by name to an email contributor, never another email', async () => {
+    const s = setup();
+    const cookie = await join(s);
+    await join(s, 'leo@acme.design', 'Leo Park');
+    const r = await handleContribute(list({ cookie }), ENV, withPeople(s));
+    expect(r.status).toBe(200);
+    const body = await r.json();
+    expect(body.collaborators).toEqual([{ login: 'peterbono', avatar_url: 'https://avatars.githubusercontent.com/u/1', role_name: 'admin', permissions: { admin: true, push: true, pull: true } }]);
+    expect(body.members).toEqual(expect.arrayContaining([{ name: 'Mia Chen', role: 'edit', you: true }, { name: 'Leo Park', role: 'edit' }]));
+    expect(JSON.stringify(body)).not.toContain('@acme.design');
+  });
+
+  it('lists them to a GitHub account that can read the repository, and refuses anyone else', async () => {
+    const s = setup();
+    await join(s);
+    const reader = await handleContribute(list({ authorization: 'Bearer gho_readerreaderreader01' }), ENV, withPeople(s));
+    expect(reader.status).toBe(200);
+    expect((await reader.json()).members).toEqual([{ name: 'Mia Chen', role: 'edit' }]);
+    expect((await handleContribute(list({ authorization: 'Bearer gho_strangerstranger001' }), ENV, withPeople(s))).status).toBe(401);
+    expect((await handleContribute(list({}), ENV, withPeople(s))).status).toBe(401);
+  });
+});

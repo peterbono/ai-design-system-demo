@@ -3,7 +3,8 @@
 //   sample  Acme Design (peterbono/bridge-demo-ds): its fixed sample people, no GitHub call at all, so a guest spends
 //           none of the 60 reads an hour GitHub gives them. Every change opens the demo dialog instead.
 //   real    any other team, Bridge's own included: the repository's people on GitHub (signed in with write access,
-//           GitHub lists them; otherwise the reviewers from the settings), pending invites from this site's invites
+//           GitHub lists them; any other member, an email contributor or a GitHub reader, reads the same list from
+//           /api/contribute?members=1; else the reviewers from the settings), pending invites from this site's invites
 //           server, and suggestions from the people who committed to the repository.
 //   none    the browser workspace, which has no repository yet.
 // Who may change anything comes from the session's access (repository admin) and is checked again by the server.
@@ -107,13 +108,35 @@ export async function loadMembers(): Promise<MembersData> {
   // GitHub lists a repository's people to those who can write to it; a reader sees the reviewers from the settings.
   let members: Member[] = [];
   let complete = false;
-  if (viewer && getToken() && access?.write) {
+  if (viewer && getToken() && access?.write && !access.contributor) {
     try {
       const { data } = await ghGet<Collaborator[]>(`/repos/${repo}/collaborators?affiliation=all&per_page=100`);
       members = data.map((c) => {
         const r = roleOf(c, owners);
         return { login: c.login, name: you(c.login) && viewer.name ? viewer.name : personName(c.login, names), role: r.role, reviews: r.reviews, ...(you(c.login) ? { you: true } : {}), ...(c.avatar_url ? { avatar: c.avatar_url } : {}) };
       });
+      complete = true;
+    } catch {
+      complete = false;
+    }
+  }
+  // Anyone else on the team (an email contributor, a GitHub reader) reads the same list through this site's server,
+  // which lists them with the Bridge app: read only, and never another member's email.
+  let fromServer: Member[] | null = null;
+  if (!complete && viewer && access && (access.contributor || access.state === 'reader')) {
+    try {
+      const { contributeTeam } = await import('./contribute-session');
+      const r = await contributeTeam(repo, access.contributor ? null : getToken());
+      members = r.collaborators.map((c) => {
+        const role = roleOf(c, owners);
+        return { login: c.login, name: you(c.login) && viewer.name ? viewer.name : personName(c.login, names), role: role.role, reviews: role.reviews, ...(you(c.login) ? { you: true } : {}), ...(c.avatar_url ? { avatar: c.avatar_url } : {}) };
+      });
+      fromServer = r.members.map((m, i) =>
+        m.you && viewer.email
+          ? { login: viewer.email.toLowerCase(), name: m.name, role: 'edit' as const, reviews: [], email: viewer.email.toLowerCase(), via: 'email' as const, you: true }
+          : { login: `email-member-${i}`, name: m.name, role: 'edit' as const, reviews: [], via: 'email' as const },
+      );
+      members = [...members, ...fromServer];
       complete = true;
     } catch {
       complete = false;
@@ -128,7 +151,7 @@ export async function loadMembers(): Promise<MembersData> {
   }
 
   // Pending invites and email contributors come from this site's invites server, which checks the caller on GitHub:
-  // an email contributor (access.contributor) has no GitHub account to show it, so they see GitHub's list only.
+  // an email contributor (access.contributor) has no GitHub account to show it: they read the list above instead.
   let pending: PendingInvite[] = [];
   let personal = false;
   if (invites && viewer && access?.write && !access.contributor) {

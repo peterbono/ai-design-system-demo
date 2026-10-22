@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-// Email contributors in Studio (lib/contribute.ts), from the keyboard, with axe: Settings > Members shows them with one
-// "Email" tag, Can edit only (Reviewer and Admin disabled, with the reason) and an admin removes them; a signed-out
+// Email contributors in Studio (lib/contribute.ts), from the keyboard, with axe: Settings > Members shows them with no
+// tag of their own, Can edit only (Reviewer and Admin disabled, with the reason) and an admin removes them; a signed-out
 // visitor of a real team signs in with their email ("Check your inbox"), the Library gate's form.
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
@@ -47,12 +47,11 @@ beforeEach(() => {
 });
 
 describe('Settings > Members, an email contributor', () => {
-  it('reads with one Email tag inline, stays Can edit with the reason, and an admin removes them', async () => {
+  it('reads like any member (no Email tag), stays Can edit with the reason, and an admin removes them', async () => {
     render(createElement(MembersSection));
     const row = (await screen.findByText('Leo')).closest('tr')!;
-    expect(within(row).getByText('Email')).toBeInTheDocument();
-    // Inline: the tag is inside the name, never its own cell.
-    expect(within(row).getByText('Email').closest('.mem-name')).not.toBeNull();
+    // No tag of their own: an email member reads like any member.
+    expect(within(row).queryByText('Email')).toBeNull();
     await expectNoAxeViolations(document.body);
 
     const user = userEvent.setup();
