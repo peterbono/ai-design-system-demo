@@ -74,6 +74,8 @@ function remember(repo: string, m: ContributeMember | null) {
 async function call<T>(method: 'GET' | 'POST', query: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
+  // The server refuses any action without it (CSRF).
+  if (method !== 'GET') headers[CONTRIBUTE_HEADER] = '1';
   let res: Response;
   try {
     res = await fetchImpl(`${CONTRIBUTE_API}${query}`, { method, headers, credentials: 'include', ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });

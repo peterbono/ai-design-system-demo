@@ -3,8 +3,7 @@
 // used). Two ways in, by role:
 //   Can edit         "Join with your email" first (lib/contribute.ts): the invited address (masked), a name and
 //                    "Join <team>". Bridge accepts on the server (scripts/contribute-session.ts acceptEmailInvite) and
-//                    opens the team, signed in with that email. No GitHub account needed. A quiet link under it,
-//                    "I use GitHub, sign in with GitHub instead", keeps the GitHub way.
+//                    opens the team, signed in with that email. No GitHub account needed, and no GitHub link.
 //   Reviewer, Admin  Sign in with GitHub, as before (they approve and merge on GitHub), with "New to GitHub? Create a
 //                    free account with this email" under it. Signed in, Bridge accepts the invitation on the server
 //                    (scripts/invites-api.ts acceptInvite), which adds this GitHub account to the team.
@@ -167,15 +166,6 @@ export default function InviteAccept() {
     };
   }, [run, token]);
 
-  /** "I use GitHub": signed in, join with that account now; signed out, GitHub first (the button carries data-gh-signin). */
-  const useGitHub = () => {
-    chooseGitHub();
-    if (githubLogin) {
-      setView({ kind: 'joining' });
-      setRun((n) => n + 1);
-    }
-  };
-
   if (view.kind === 'checking' || view.kind === 'joining')
     return (
       <Shell title={view.kind === 'joining' ? 'Joining the team' : 'Opening your invitation'} sub={view.kind === 'joining' ? 'Bridge is adding you with the role your admin picked.' : ''} />
@@ -186,8 +176,6 @@ export default function InviteAccept() {
       <EmailJoin
         token={token!}
         peek={view.peek}
-        github={githubLogin}
-        onGitHub={useGitHub}
         onGitHubRequired={() => {
           chooseGitHub();
           if (githubLogin) {
@@ -303,9 +291,9 @@ export default function InviteAccept() {
 
 /**
  * "Join with your email" for a "Can edit" invite: the invited address (masked), a name, "Join <team>". On success the
- * team's Studio home opens, signed in with the email. The GitHub way stays one quiet link below.
+ * team's Studio home opens, signed in with the email. No GitHub link: a designer who prefers GitHub asks for a reviewer invite.
  */
-function EmailJoin({ token, peek, github, onGitHub, onGitHubRequired, onGone }: { token: string; peek: InvitePeek | null; github: string | null; onGitHub: () => void; onGitHubRequired: () => void; onGone: (text: string) => void }) {
+function EmailJoin({ token, peek, onGitHubRequired, onGone }: { token: string; peek: InvitePeek | null; onGitHubRequired: () => void; onGone: (text: string) => void }) {
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -360,11 +348,6 @@ function EmailJoin({ token, peek, github, onGitHub, onGitHubRequired, onGone }: 
           {failed}
         </p>
       </form>
-      <p className="inv-accept-more">
-        <Button variant="link" size="sm" iconStart={GitHubMark} onClick={onGitHub} {...(github ? {} : { 'data-gh-signin': '' })}>
-          {CONTRIBUTE_WORDS.useGitHub}
-        </Button>
-      </p>
     </div>
   );
 }

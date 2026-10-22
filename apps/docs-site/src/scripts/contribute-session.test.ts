@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CONTRIB_TOKEN } from '../lib/contribute';
 import { errorText } from '../lib/token-session';
-import { contributeInfo, contributorFor, setContributeFetch, signOutEmail, verifyEmailSignIn } from './contribute-session';
+import { acceptEmailInvite, contributeInfo, contributorFor, requestEmailSignIn, setContributeFetch, signOutEmail, verifyEmailSignIn } from './contribute-session';
 import { currentContributor, getToken, ghWrite, studioClient, studioFetch } from './github-session';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -54,6 +54,16 @@ describe('the email session', () => {
     await signOutEmail('acme/ds');
     expect(contributorFor('acme/ds')).toBeNull();
     expect(JSON.parse(String(calls[1]!.init.body))).toEqual({ action: 'sign-out', repo: 'acme/ds' });
+  });
+
+  it('sends the header the server requires on every action (join, links, sign out)', async () => {
+    answer = () => json(200, { repo: 'acme/ds', member: { email: 'leo@acme.design', name: 'Leo', role: 'edit' } });
+    await acceptEmailInvite('T'.repeat(43), 'Leo');
+    await requestEmailSignIn('acme/ds', 'leo@acme.design');
+    await verifyEmailSignIn('acme/ds', 'T'.repeat(43));
+    await signOutEmail('acme/ds');
+    expect(calls).toHaveLength(4);
+    for (const c of calls) expect((c.init.headers as Record<string, string>)['X-Bridge-Contribute']).toBe('1');
   });
 });
 
