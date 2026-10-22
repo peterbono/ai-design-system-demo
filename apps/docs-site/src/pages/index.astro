@@ -11,7 +11,6 @@ import '../styles/home-hero.css';
 import '../styles/home-compare.css';
 import Landing from '../layouts/Landing.astro';
 import ButtonLink from '../components/ds/ButtonLink';
-import { Link } from '@bridge-ds/react';
 import { ArrowRight } from 'lucide-react';
 import HpSprite from '../components/home/HpSprite.astro';
 import HpHeroScene from '../components/home/HpHeroScene.astro';
@@ -31,7 +30,7 @@ import HpFaqArt from '../components/home/HpFaqArt.astro';
 import HpPanorama from '../components/home/HpPanorama.astro';
 import HpWalkers from '../components/home/HpWalkers.astro';
 import HpConnectCard from '../components/home/HpConnectCard';
-import { DEMO, START } from '../lib/nav';
+import { START } from '../lib/nav';
 
 ---
 
@@ -52,7 +51,6 @@ import { DEMO, START } from '../lib/nav';
         <div class="hp-go">
           <ButtonLink variant="primary" size="lg" iconEnd={ArrowRight} href={START}>Get started</ButtonLink>
         </div>
-        <p class="hp-alt">Or <Link href={DEMO}>explore the demo</Link>, no account needed.</p>
       </div>
       <div class="hp-hero-vis">
         <HpHeroScene />

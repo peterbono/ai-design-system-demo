@@ -55,7 +55,7 @@ describe('homepage sections', () => {
     expect(page).toContain('<HpHeroScene />');
     expect(page).not.toMatch(/type="range"|data-range|data-hero|Drag: your|HpPencil|HpGhost|HpProfile/);
     expect(page).toContain('>Get started</ButtonLink>');
-    expect(page).toContain('explore the demo</Link>, no account needed.');
+    expect(page).not.toContain('no account needed');
     const scene = readFileSync(join(ROOT, 'apps/docs-site/src/components/home/HpHeroScene.astro'), 'utf8');
     expect(scene).toMatch(/role="img" aria-label="Dana[^"]+Profile header[^"]+code and the Figma kit follow\."/);
     expect(scene).not.toMatch(/#[0-9a-f]{6}\b|\u2014/i);
