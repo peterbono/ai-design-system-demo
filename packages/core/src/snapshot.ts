@@ -5,8 +5,10 @@
 // Pure: no Node, no DOM.
 
 import type { AuditMetrics, AuditReport } from './audit/types';
+import type { ChangelogReleaseRow } from './changelog-model';
 import type { ContrastPairResult } from './contrast-model';
 import type { SpecCoverage } from './component-spec';
+import { motionDocs, type MotionDocs } from './motion-docs';
 import { isUnder, normalizeRepoPath, type RepoSource } from './repo-source';
 import type { RepoModel } from './repo-model';
 
@@ -17,6 +19,18 @@ export const SNAPSHOT_FILE = 'snapshot.json';
 export const SNAPSHOT_AUDITS_DIR = 'audits';
 /** Above this, a snapshot is refused (a published file the browser downloads whole). */
 export const SNAPSHOT_MAX_BYTES = 5_000_000;
+/** Releases a snapshot keeps, newest first (the pending one counts); older ones stay in the CHANGELOG.md files. */
+export const SNAPSHOT_MAX_RELEASES = 60;
+
+/** A workspace package of the repository, for the Library's Install page. */
+export interface SnapshotPackage {
+  name: string;
+  version: string;
+  /** Not published to npm. */
+  private: boolean;
+  /** Repo-relative folder ("." for the root package). */
+  dir: string;
+}
 
 /** One adoption audit: the summary lives in snapshot.json, the full report in audits/<id>.json next to it. */
 export interface SnapshotAudit {
@@ -72,6 +86,19 @@ export interface RepoSnapshot {
    * written before Bridge read global stylesheets: a reader then reads those files from the repository.
    */
   styles?: string[];
+  /**
+   * Releases from the packages' CHANGELOG.md files and the pending changesets, newest first, at most
+   * SNAPSHOT_MAX_RELEASES. Dates come from release tags or git history, absent when the clone has neither. Absent from
+   * a snapshot written before Bridge read releases, or when the repository has no changelog.
+   */
+  releases?: ChangelogReleaseRow[];
+  /** Workspace packages (name, version, private, folder). Absent from a snapshot written before Bridge read them. */
+  packages?: SnapshotPackage[];
+  /**
+   * Motion and interaction docs per component (motionDocs), keyed by component name, computed from the specs file the
+   * snapshot does not carry. Absent without a readable specs file or a component scan.
+   */
+  motion?: Record<string, MotionDocs>;
 }
 
 export class SnapshotError extends Error {}
@@ -102,6 +129,9 @@ export function parseSnapshot(input: string | unknown): RepoSnapshot {
   if (!isObj(data.contrast) || !Array.isArray(data.contrast.pairs)) throw new SnapshotError(`${SNAPSHOT_FILE}: contrast needs pairs`);
   if (!Array.isArray(data.audits) || !data.audits.every((a) => isObj(a) && isStr(a.id) && isStr(a.path) && isObj(a.metrics))) throw new SnapshotError(`${SNAPSHOT_FILE}: audits must be a list of { id, path, metrics }`);
   if (!Array.isArray(data.problems)) throw new SnapshotError(`${SNAPSHOT_FILE}: problems must be a list`);
+  if (data.releases !== undefined && (!Array.isArray(data.releases) || !data.releases.every((r) => isObj(r) && isStr(r.name) && Array.isArray(r.entries)))) throw new SnapshotError(`${SNAPSHOT_FILE}: releases must be a list of { name, entries }`);
+  if (data.packages !== undefined && (!Array.isArray(data.packages) || !data.packages.every((p) => isObj(p) && isStr(p.name) && isStr(p.version) && isStr(p.dir)))) throw new SnapshotError(`${SNAPSHOT_FILE}: packages must be a list of { name, version, dir }`);
+  if (data.motion !== undefined && (!isObj(data.motion) || !Object.values(data.motion).every((m) => isObj(m) && Array.isArray(m.rows)))) throw new SnapshotError(`${SNAPSHOT_FILE}: motion must map components to { summary, rows }`);
   return data as unknown as RepoSnapshot;
 }
 
@@ -184,6 +214,27 @@ export interface BuildSnapshotInput {
   committedAt?: string;
   generatedAt?: string;
   audits?: SnapshotAudit[];
+  /** collectReleases() of the repository; kept to the newest SNAPSHOT_MAX_RELEASES. */
+  releases?: ChangelogReleaseRow[];
+  packages?: SnapshotPackage[];
+}
+
+/**
+ * Motion docs of every scanned component, from the parsed specs file: what the Library's motion section shows. Null
+ * without a specs file or a component scan.
+ */
+export function snapshotMotion(model: Pick<RepoModel, 'components' | 'specs'>): Record<string, MotionDocs> | null {
+  const file = model.specs.file;
+  if (!file || !model.components) return null;
+  const out: Record<string, MotionDocs> = {};
+  for (const c of model.components.list) {
+    try {
+      out[c.name] = motionDocs(c.name, file.components, model.specs.coverage.find((x) => x.name === c.name), c.tokenPaths);
+    } catch {
+      // A spec of an unexpected shape (hand-edited, older generator): no motion section rather than no snapshot.
+    }
+  }
+  return out;
 }
 
 /** Every brand x theme result of a pair (the default brand per theme when the rows have no brands). */
@@ -217,6 +268,7 @@ export function buildSnapshot(input: BuildSnapshotInput): RepoSnapshot {
     if (p !== specsPath) files[p] = v;
   }
   const hasSpecs = entries.some(([k]) => normalizeRepoPath(k) === specsPath);
+  const motion = snapshotMotion(model);
   return {
     kind: 'bridge-snapshot',
     schemaVersion: SNAPSHOT_SCHEMA_VERSION,
@@ -233,6 +285,9 @@ export function buildSnapshot(input: BuildSnapshotInput): RepoSnapshot {
     audits: input.audits ?? [],
     problems: [...model.problems],
     styles: [...model.styles.globs],
+    ...(input.releases ? { releases: input.releases.slice(0, SNAPSHOT_MAX_RELEASES) } : {}),
+    ...(input.packages ? { packages: [...input.packages].sort((a, b) => (a.dir < b.dir ? -1 : a.dir > b.dir ? 1 : 0)) } : {}),
+    ...(motion ? { motion } : {}),
   };
 }
 
