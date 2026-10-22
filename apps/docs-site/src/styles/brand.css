@@ -41,7 +41,7 @@
 }
 
 /* Fraunces in its soft optical style for every display role. */
-:where(h1, .t-display, .t-h1, .logo-word) {
+:where(h1, .t-display, .t-h1, .logo-word, .topbar-space) {
   font-variation-settings: "SOFT" 50;
 }
 
