@@ -191,12 +191,6 @@
   margin-inline-start: 0;
 }
 
-/* "Sample" on the demo's rows and cards: an outlined label, quieter than a status. */
-.sh-sample {
-  border: var(--border-width-default) solid var(--color-border-default);
-  background-color: transparent;
-}
-
 .sh-row-line {
   min-width: 0;
   overflow: hidden;
@@ -316,7 +310,7 @@
   padding: var(--space-3) var(--space-4) var(--space-4);
 }
 
-/* The card's title and, on the demo, "Sample" at its end (board D1). */
+/* The card's title. No "Sample" on the demo: its banner already says the data is sample data. */
 .sh-card-head {
   display: flex;
   align-items: flex-start;
@@ -336,7 +330,7 @@
   font-weight: var(--font-weight-medium);
 }
 
-/* The last card opens Create branch: a dashed placeholder the size of a card. */
+/* The first card opens Create branch: a dashed placeholder the size of a card. */
 .sh-cards .sh-create-btn {
   height: 100%;
   min-height: var(--size-40);

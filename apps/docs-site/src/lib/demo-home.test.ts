@@ -79,6 +79,7 @@ describe("the DS lead's queue on the demo", () => {
       [15, 'draft', { stage: 'Library branch', detail: 'draft' }],
     ]);
     expect(cards[1]!.reviewer?.login).toBe('dana');
-    expect(cards.every((c) => c.sample)).toBe(true);
+    // No "Sample" chip on the cards: the demo banner already says it is sample data.
+    expect(cards.every((c) => !('sample' in c))).toBe(true);
   });
 });

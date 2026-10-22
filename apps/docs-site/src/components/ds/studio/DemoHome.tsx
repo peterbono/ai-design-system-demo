@@ -4,7 +4,8 @@
 //     review. Ann and Claude AI are waiting on you.", three Needs you rows each with
 //     its Review button, and beyond them the grouped row with its one primary "Review all (8)" (the review queue, which
 //     a visitor browses read-only).
-//   - The library health line, then "Explorations and branches": the team's work as the home's cards.
+//   - The library health line, then "Explorations and branches": "+ Create branch" first, as on the signed-in home
+//     (its click opens the demo's sign-in dialog, scripts/demo-gate.ts), then the team's work as the home's cards.
 //   - A three-step tour on the first visit (HomeTour.tsx), anchored under the rows, the grouped row and the branches.
 // The demo banner over every Studio page is DemoBanner.tsx. Data: scripts/demo-home.ts.
 import { createRoot, type Root } from 'react-dom/client';
@@ -31,8 +32,8 @@ export interface DemoHomeProps {
 }
 
 const TOUR_KEY = 'bridge.demo.tour';
-/** One row of cards on a wide screen (board D1); "See all" opens Branches. */
-export const BRANCH_CARDS = 4;
+/** One row on a wide screen (board D1): Create branch and three cards; "See all" opens Branches. */
+export const BRANCH_CARDS = 3;
 
 export function DemoHome(p: DemoHomeProps) {
   const { more } = splitNeeds(p.needs);

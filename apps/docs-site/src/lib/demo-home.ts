@@ -126,7 +126,6 @@ export function teamBranches(pulls: DemoPull[], opts: LeadOptions = {}): BranchC
         stage: p.draft ? 'draft' : 'ready',
         updated: p.updated_at,
         reviewer: reviewer ? who(reviewer, opts.people) : null,
-        sample: true,
         thumb: opts.thumbs?.get(p.number) ?? { kind: 'icon', icon: guidanceBranch(p) ? 'guidance' : 'branch' },
         // Board D1: "Exploration in Admin demo · Ann", "Library branch · in review", "Library branch · draft".
         statusLine: isExploration(p)
