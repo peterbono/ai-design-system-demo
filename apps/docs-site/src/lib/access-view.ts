@@ -7,7 +7,7 @@
 
 import { CONTRIBUTE_WORDS } from './contribute';
 import type { ChangesMode, RepoAccessState } from '@bridge-ds/core';
-import { isDemoRepo, isSampleTeam, OWN_TEAM, SAMPLE_TEAM } from './demo';
+import { isDemoRepo, isSampleTeam, SAMPLE_TEAM, teamDisplayName } from './demo';
 
 /** The public GitHub App people sign in with (docs/SIGN-IN.md). Its page lists it at github.com/apps/<slug>. */
 export const BRIDGE_APP_SLUG = 'bridge-ds';
@@ -202,7 +202,7 @@ export const isDemoTeam = (team: string | null | undefined, _hosted?: boolean) =
 
 /** What the team chip shows: the design system being viewed, and what the visitor can do on it. */
 export interface ChipIdentity {
-  /** demo: a friendly name (Bridge's own with the Bridge mark, Acme Design with its initials); team: the owner's avatar and owner/repo. */
+  /** demo: a friendly name (Bridge's own with the Bridge mark, Acme Design with its initials); team: the owner's avatar and the team's name. */
   kind: 'demo' | 'team';
   /** The simulated team with sample data (Acme Design): its initials instead of the Bridge mark. */
   sample?: boolean;
@@ -214,24 +214,26 @@ export interface ChipIdentity {
 }
 
 /**
- * The chip of `team` ("owner/repo", null while unknown). The sample team reads "Acme Design" with a "Demo" tag for
- * everyone: it is a simulated team, whatever access the viewer has on its repository. Bridge's own design system reads
- * "Bridge": a visitor without an account explores freely (nothing they do reaches the repository), signed in it shows
- * their real access like any team.
+ * The chip of `team` ("owner/repo", null while unknown), named by teamDisplayName (lib/demo.ts): the team's own name
+ * from bridge.config.json (`name`, once its settings are read), else its repository name in words; owner/repo stays in
+ * the tooltip. The sample team reads "Acme Design" with a "Demo" tag for everyone: it is a simulated team, whatever
+ * access the viewer has on its repository. Bridge's own design system reads "Bridge": a visitor without an account
+ * explores freely (nothing they do reaches the repository), signed in it shows their real access like any team.
  */
-export function chipIdentity(team: string | null, f: { demo: boolean; state: RepoAccessState | null; signedIn: boolean }): ChipIdentity {
+export function chipIdentity(team: string | null, f: { demo: boolean; state: RepoAccessState | null; signedIn: boolean; name?: string | null }): ChipIdentity {
   if (f.demo && isSampleTeam(team)) {
     return { kind: 'demo', sample: true, name: SAMPLE_TEAM, title: `${SAMPLE_TEAM}, a sample team, ${team}`, badge: { label: 'Demo', tone: 'info' } };
   }
+  const name = team ? teamDisplayName(team, { name: f.name }) : null;
   if (f.demo) {
     return {
       kind: 'demo',
-      name: OWN_TEAM,
-      title: team ? `${OWN_TEAM} design system, ${team}` : `${OWN_TEAM} design system`,
+      name: name ?? teamDisplayName(DEMO_TEAM),
+      title: team ? `${name} design system, ${team}` : `${teamDisplayName(DEMO_TEAM)} design system`,
       badge: f.signedIn ? accessBadge(f.state, true) : { label: 'Explore freely', tone: 'info' },
     };
   }
-  return { kind: 'team', name: team ?? 'Your team', title: team ?? 'Your team', badge: accessBadge(f.state, f.signedIn) };
+  return { kind: 'team', name: name ?? 'Your team', title: team ? `${name}, ${team}` : 'Your team', badge: accessBadge(f.state, f.signedIn) };
 }
 
 /** One sentence for Settings: what the viewer can do here. On the sample team (`demo`), a signed-out visitor explores freely. */
@@ -357,6 +359,49 @@ export function removeRecentTeam(list: readonly string[], team: string): string[
 export function remembersTeam(state: RepoAccessState | null | undefined): boolean {
   return state === 'anonymous-public' || state === 'reader' || state === 'writer' || state === 'admin' || state === 'outside-contributor';
 }
+
+/** The names teams go by, as their pages read them (bridge.config.json `name`), for the recent teams: lower-case "owner/repo" to name. */
+export const TEAM_NAMES_KEY = 'bridge.teamNames';
+
+/** The stored names, cleaned: real-looking teams with a name of 1 to 60 characters. */
+export function parseTeamNames(text: string | null): Record<string, string> {
+  if (!text) return {};
+  try {
+    const v = JSON.parse(text) as unknown;
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+    const out: Record<string, string> = {};
+    for (const [k, n] of Object.entries(v)) if (isRecentTeamName(k) && typeof n === 'string' && n.trim() && n.trim().length <= 60) out[k.toLowerCase()] = n.trim();
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** The names with `team`'s set (or dropped when the team has none), only for the teams still listed in `keep`. */
+export function noteName(names: Record<string, string>, team: string, name: string | null | undefined, keep: readonly string[]): Record<string, string> {
+  const listed = new Set(keep.map((t) => t.toLowerCase()));
+  const next: Record<string, string> = {};
+  for (const [k, n] of Object.entries(names)) if (listed.has(k)) next[k] = n;
+  const k = team.toLowerCase();
+  if (name?.trim() && listed.has(k)) next[k] = name.trim();
+  else delete next[k];
+  return next;
+}
+
+/**
+ * The role a signed-in person holds on the teams they belong to ("Admin", "Can edit"...), kept like the names
+ * (parseTeamNames, noteName) so the team menu lists them under "Your teams": lower-case "owner/repo" to role words.
+ */
+export const TEAM_ROLES_KEY = 'bridge.teamRoles';
+
+/** The role words of a member of the team (reads, edits or administers it), null for anyone else. */
+export function memberRole(state: RepoAccessState | null | undefined, signedIn: boolean): string | null {
+  if (!signedIn || (state !== 'reader' && state !== 'writer' && state !== 'admin')) return null;
+  return accessBadge(state, true).label;
+}
+
+/** The name a recent team goes by: the one its page read, else teamDisplayName (a demo's name, the repository in words). */
+export const recentTeamName = (team: string, names: Record<string, string>): string => teamDisplayName(team, { name: names[team.toLowerCase()] });
 
 /** The page found nothing at that address (GitHub answered 404): drop it from the recent teams. */
 export function forgetsTeam(state: RepoAccessState | null | undefined): boolean {

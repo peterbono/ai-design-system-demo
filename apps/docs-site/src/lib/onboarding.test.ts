@@ -1,4 +1,4 @@
-// Studio onboarding: the six steps, their state, and what this browser remembers.
+// Studio onboarding: the eight steps, their state, and what this browser remembers.
 import { describe, expect, it } from 'vitest';
 import { doneSummary, firstRunTitle, onboardingKey, onboardingSteps, parseMemory, progressLabel, readMemoryText, showsChecklist, showsFirstRun, type OnboardingFacts } from './onboarding';
 
@@ -7,11 +7,11 @@ const states = (f: OnboardingFacts) => onboardingSteps(f).map((s) => `${s.id}:${
 
 describe('onboarding steps', () => {
   it('opens on how changes reach the code once signed in, while the file does not say it', () => {
-    expect(states(base)).toEqual(['signin:done', 'library:done', 'changes:current', 'team:later', 'products:done', 'figma:later', 'claude:later']);
+    expect(states(base)).toEqual(['signin:done', 'library:done', 'name:later', 'changes:current', 'team:later', 'products:done', 'figma:later', 'claude:later']);
     const steps = onboardingSteps(base);
-    expect(progressLabel(steps)).toBe('3 of 7 connected');
+    expect(progressLabel(steps)).toBe('3 of 8 connected');
     expect(steps[1]).toMatchObject({ detail: 'Storybook and', code: 'acme/design-system', status: 'Connected' });
-    expect(steps[2]!.status).toBe('Current');
+    expect(steps[3]!.status).toBe('Current');
     expect(showsFirstRun(steps, { later: false })).toBe(true);
     expect(showsFirstRun(steps, { later: true })).toBe(false);
   });
@@ -25,8 +25,8 @@ describe('onboarding steps', () => {
 
   it('counts the mode as done when bridge.config.json sets it, and leaves the checklist for the rest', () => {
     const steps = onboardingSteps({ ...base, changes: 'direct' });
-    expect(steps[2]).toMatchObject({ state: 'done', detail: 'Pull requests Bridge opens' });
-    expect(progressLabel(steps)).toBe('4 of 7 connected');
+    expect(steps[3]).toMatchObject({ state: 'done', detail: 'Pull requests Bridge opens' });
+    expect(progressLabel(steps)).toBe('4 of 8 connected');
     expect(showsFirstRun(steps, { later: false })).toBe(false);
     expect(showsChecklist(steps, { hidden: false })).toBe(true);
     expect(showsChecklist(steps, { hidden: true })).toBe(false);
@@ -35,13 +35,13 @@ describe('onboarding steps', () => {
 
   it('waits on the pull request proposed from this browser', () => {
     const steps = onboardingSteps({ ...base, proposed: { pr: 182, mode: 'suggest' } });
-    expect(steps[2]).toMatchObject({ state: 'waiting', status: 'In review, #182', pr: 182 });
+    expect(steps[3]).toMatchObject({ state: 'waiting', status: 'In review, #182', pr: 182 });
     expect(showsFirstRun(steps, { later: false })).toBe(false);
   });
 
   it('marks Figma and Claude done only when the viewer says so, and hides the checklist when all is done', () => {
-    const steps = onboardingSteps({ ...base, changes: 'suggest', marked: ['team', 'figma', 'claude', 'signin'] });
-    expect(progressLabel(steps)).toBe('7 of 7 connected');
+    const steps = onboardingSteps({ ...base, changes: 'suggest', teamName: 'Acme', marked: ['team', 'figma', 'claude', 'signin'] });
+    expect(progressLabel(steps)).toBe('8 of 8 connected');
     expect(showsChecklist(steps, { hidden: false })).toBe(false);
   });
 
@@ -59,9 +59,9 @@ describe('onboarding steps', () => {
 
 describe('onboarding memory', () => {
   it('drops anything malformed', () => {
-    expect(parseMemory(null)).toEqual({ later: false, hidden: false, marked: [], proposed: null });
-    expect(parseMemory('{nope')).toEqual({ later: false, hidden: false, marked: [], proposed: null });
-    expect(parseMemory(JSON.stringify({ later: true, marked: ['figma', 'changes', 3], proposed: { pr: -1, mode: 'suggest' } }))).toEqual({ later: true, hidden: false, marked: ['figma'], proposed: null });
+    expect(parseMemory(null)).toEqual({ later: false, hidden: false, marked: [], proposed: null, named: null });
+    expect(parseMemory('{nope')).toEqual({ later: false, hidden: false, marked: [], proposed: null, named: null });
+    expect(parseMemory(JSON.stringify({ later: true, marked: ['figma', 'changes', 3], proposed: { pr: -1, mode: 'suggest' } }))).toEqual({ later: true, hidden: false, marked: ['figma'], proposed: null, named: null });
     expect(parseMemory(JSON.stringify({ proposed: { pr: 9, mode: 'direct' } })).proposed).toEqual({ pr: 9, mode: 'direct' });
   });
 });
@@ -74,10 +74,30 @@ describe('step 2 with the Storybook quick start', () => {
   });
 });
 
+describe('name your team', () => {
+  it('waits as Later is fine, right after the repository, and never opens the first run alone', () => {
+    const steps = onboardingSteps({ ...base, changes: 'suggest' });
+    expect(steps[2]).toMatchObject({ id: 'name', n: 3, title: 'Name your team', state: 'later', status: 'Later is fine', detail: 'How your team shows up in Bridge' });
+    expect(showsFirstRun(steps, { later: false })).toBe(false);
+  });
+
+  it('is done once bridge.config.json names the team, and waits on the pull request proposed from this browser', () => {
+    expect(onboardingSteps({ ...base, teamName: 'Acme Design' })[2]).toMatchObject({ state: 'done', status: 'Named', detail: 'Acme Design' });
+    expect(onboardingSteps({ ...base, named: { pr: 12, name: 'Acme' } })[2]).toMatchObject({ state: 'waiting', status: 'In review, #12', pr: 12, detail: 'Acme, waiting for review' });
+    expect(doneSummary(onboardingSteps({ ...base, teamName: 'Acme' }))).toBe('Signed in, design system, team named and products');
+  });
+
+  it('remembers the pull request, dropping anything malformed', () => {
+    expect(parseMemory(JSON.stringify({ named: { pr: 4, name: ' Acme ' } })).named).toEqual({ pr: 4, name: 'Acme' });
+    expect(parseMemory(JSON.stringify({ named: { pr: 4, name: '' } })).named).toBeNull();
+    expect(parseMemory(JSON.stringify({ named: { pr: 0, name: 'Acme' } })).named).toBeNull();
+  });
+});
+
 describe('invite your team', () => {
   it('waits as Later is fine, and is done once the link was copied', () => {
     const later = onboardingSteps({ ...base, changes: 'suggest' }).find((s) => s.id === 'team')!;
-    expect(later).toMatchObject({ n: 4, title: 'Invite your team', state: 'later', status: 'Later is fine', detail: 'Share one link. GitHub decides who gets in.' });
+    expect(later).toMatchObject({ n: 5, title: 'Invite your team', state: 'later', status: 'Later is fine', detail: 'Share one link. GitHub decides who gets in.' });
     // Not a core step: the first run does not open for it alone.
     expect(showsFirstRun(onboardingSteps({ ...base, changes: 'suggest' }), { later: false })).toBe(false);
     const done = onboardingSteps({ ...base, changes: 'suggest', marked: ['team'] }).find((s) => s.id === 'team')!;

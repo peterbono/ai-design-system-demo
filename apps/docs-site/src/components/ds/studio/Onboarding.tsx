@@ -1,15 +1,17 @@
 // Studio onboarding (rules and words in lib/onboarding.ts), mounted by pages/studio/index.astro:
-//   - Onboarding: the first run. The seven steps on the left (the open one highlighted, any row opens its step), the
+//   - Onboarding: the first run. The eight steps on the left (the open one highlighted, any row opens its step), the
 //     open step in one card on the right. Opens on "How changes reach your code" while bridge.config.json does not
 //     say it. Every step after sign-in can wait: "Do this later" goes to the home.
-//   - FinishConnecting: on the home once the first run is behind, "4 of 7 connected" opens the steps left as a
+//   - FinishConnecting: on the home once the first run is behind, "4 of 8 connected" opens the steps left as a
 //     compact checklist. "Hide checklist" puts it away for this browser.
 // Step 2 (your design system): a self-hosted Studio is built for one repository, so it is connected from the start.
 // On a team's Bridge (hosted, HostedOnboarding below) it says what GitHub said: connected, read only, or "Install
 // Bridge" (admins) / "Ask an admin to install Bridge" (everyone else) while Bridge is not set up on the repository.
 // The Storybook quick start (StorybookField) reads a published Storybook and keeps it in this browser; once added,
 // the card says how many components it found and links to them.
-// Step 4 (Invite your team): the team link and "Who can do what" (TeamLink.tsx); copying the link marks it done.
+// Step 3 (Name your team): one field prefilled with the repository name in words; Save name opens the config pull
+// request that sets `name` (scripts/roles.ts proposeTeamName), the same way as the changes step.
+// Step 5 (Invite your team): the team link and "Who can do what" (TeamLink.tsx); copying the link marks it done.
 // The browser workspace (lib/start.ts, pages/studio/workspace.astro): six steps and no repository yet. Step 2 takes a
 // Storybook, or a repository that opens its team at the next step; the steps that need the repository say so.
 import { useEffect, useState, type ReactNode } from 'react';
@@ -29,6 +31,8 @@ import { CHANGES_CHOICE } from '../../../lib/settings-view';
 import { VOCAB } from '../../../lib/vocabulary';
 import { STUDIO_ROOT, studioHref } from '../../../lib/team-path';
 import { NEXT_AFTER_LIBRARY } from '../../../lib/start';
+import { humanizeRepo } from '../../../lib/demo';
+import { TEAM_NAME_WORDS, teamNameProblem } from '../../../lib/team-name';
 
 export interface OnboardingContext {
   repo: string;
@@ -62,6 +66,8 @@ export interface OnboardingContext {
 export interface OnboardingActions {
   /** Opens the pull request that sets `changes`; resolves with it, rejects with a sentence. */
   propose: (mode: ChangesMode) => Promise<{ number: number; url: string }>;
+  /** Opens the pull request that sets the team's name; resolves with it, rejects with a sentence. */
+  name?: (name: string) => Promise<{ number: number; url: string }>;
   /** Marks the Figma plugin or Claude AI step done in this browser. */
   mark: (id: StepId) => void;
   /** Leaves the steps for the home, from the step that was open. */
@@ -309,6 +315,9 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<{ number: number; url: string } | null>(null);
+  const [teamName, setTeamName] = useState(() => humanizeRepo(ctx.repo));
+  const [named, setNamed] = useState<{ number: number; url: string; name: string } | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
   const step = steps.find((s) => s.id === open) ?? steps[0]!;
   const total = steps.length;
   const { onOpen } = actions;
@@ -392,6 +401,89 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
           footer={nav(install ? <Button variant="secondary" onClick={next}>Continue</Button> : undefined)}
         >
           <LibraryStep ctx={ctx} step={step} />
+        </Panel>
+      );
+      break;
+    }
+    case 'name': {
+      const done = step.state === 'done';
+      const waiting = Boolean(named) || step.state === 'waiting';
+      const save = async () => {
+        const problem = teamNameProblem(teamName);
+        if (problem) return setNameError(problem);
+        if (!actions.name) return;
+        setBusy(true);
+        setNameError(null);
+        try {
+          const pr = await actions.name(teamName);
+          setNamed({ ...pr, name: teamName.trim() });
+        } catch (err) {
+          setNameError((err as Error).message);
+        } finally {
+          setBusy(false);
+        }
+      };
+      panel = (
+        <Panel
+          step={step}
+          total={total}
+          title={TEAM_NAME_WORDS.stepTitle}
+          lead={TEAM_NAME_WORDS.lead}
+          footer={
+            done || waiting || !actions.name
+              ? nav()
+              : nav(
+                  <Button type="submit" form="onb-name-form" loading={busy} disabled={busy}>
+                    {TEAM_NAME_WORDS.save}
+                  </Button>,
+                )
+          }
+        >
+          {done ? (
+            <p className="onb-done">
+              <Icon icon={Check} size="sm" />
+              <span>
+                Your team is <b className="onb-strong">{step.detail}</b>. <Link href={studioHref('settings/#general')}>Change it in Settings</Link>
+              </span>
+            </p>
+          ) : waiting ? (
+            <div className="rq-done" role="status">
+              <p>
+                <strong>
+                  {TEAM_NAME_WORDS.requested}
+                  {named ? `, #${named.number}` : ''}.
+                </strong>{' '}
+                {named ? named.name : step.detail}. {TEAM_NAME_WORDS.applies}
+              </p>
+              <p>
+                <Link href={studioHref(`changes/?pr=${named?.number ?? step.pr ?? ''}`)}>See the branch</Link>
+              </p>
+            </div>
+          ) : (
+            <form
+              id="onb-name-form"
+              className="onb-name"
+              noValidate
+              onSubmit={(e) => {
+                e.preventDefault();
+                void save();
+              }}
+            >
+              <Input
+                id="onb-team-name"
+                label={TEAM_NAME_WORDS.label}
+                hint={TEAM_NAME_WORDS.help}
+                value={teamName}
+                maxLength={60}
+                autoComplete="off"
+                error={nameError ?? undefined}
+                onValueChange={(v: string) => {
+                  setTeamName(v);
+                  setNameError(null);
+                }}
+              />
+            </form>
+          )}
         </Panel>
       );
       break;
@@ -584,9 +676,9 @@ export interface FinishConnectingProps {
 }
 
 /** The link word of a step left in the checklist. */
-const actionWord = (s: Step) => (s.state === 'waiting' ? 'See' : s.id === 'changes' ? 'Choose' : s.id === 'team' ? 'Invite' : 'Set up');
+const actionWord = (s: Step) => (s.state === 'waiting' ? 'See' : s.id === 'changes' ? 'Choose' : s.id === 'team' ? 'Invite' : s.id === 'name' ? 'Name' : 'Set up');
 
-/** "4 of 7 connected": the steps left, behind one button on the home. */
+/** "4 of 8 connected": the steps left, behind one button on the home. */
 export function FinishConnecting({ steps, onOpen, onHide, hideable = true, description = 'Your workspace already works. These add more, whenever you like.' }: FinishConnectingProps) {
   const left = steps.filter((s) => s.state !== 'done');
   const summary = doneSummary(steps);
@@ -670,7 +762,8 @@ export function HostedOnboarding({ gate, link, initial, onLeave }: HostedOnboard
       /* private mode: kept for this visit only */
     }
   };
-  const [cfg, setCfg] = useState<{ changes: ChangesMode | null; owners?: { design: string[]; tech: string[] }; products: { name: string; path?: string }[]; storybook: string | null }>({
+  const [cfg, setCfg] = useState<{ name: string | null; changes: ChangesMode | null; owners?: { design: string[]; tech: string[] }; products: { name: string; path?: string }[]; storybook: string | null }>({
+    name: null,
     changes: null,
     products: [],
     storybook: null,
@@ -682,6 +775,7 @@ export function HostedOnboarding({ gate, link, initial, onLeave }: HostedOnboard
         if (!live) return;
         const c = siteConfig();
         setCfg({
+          name: c.name ?? null,
           changes: c.changes ?? null,
           owners: c.owners,
           products: (c.products ?? []).map((p) => ({ name: p.name, path: p.path })),
@@ -704,6 +798,8 @@ export function HostedOnboarding({ gate, link, initial, onLeave }: HostedOnboard
     products: cfg.products.map((p) => p.name),
     changes: cfg.changes,
     proposed: cfg.changes ? null : memory.proposed,
+    teamName: cfg.name,
+    named: cfg.name ? null : memory.named,
     marked: memory.marked,
     hosted: { access: gate.access, admin },
   });
@@ -728,6 +824,12 @@ export function HostedOnboarding({ gate, link, initial, onLeave }: HostedOnboard
           const { proposeChangesMode } = await import('../../../scripts/roles');
           const pr = await proposeChangesMode(mode);
           save({ ...memory, proposed: { pr: pr.number, mode } });
+          return pr;
+        },
+        name: async (name) => {
+          const { proposeTeamName } = await import('../../../scripts/roles');
+          const pr = await proposeTeamName(name);
+          save({ ...memory, named: { pr: pr.number, name: name.trim() } });
           return pr;
         },
         mark: (id) => save({ ...memory, marked: [...new Set([...memory.marked, id])] }),

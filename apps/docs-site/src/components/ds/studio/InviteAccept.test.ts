@@ -89,6 +89,14 @@ describe('invite page, another email', () => {
 });
 
 describe('invite page, Can edit', () => {
+  it('never says "Join Bridge on Bridge" when the team is Bridge itself', async () => {
+    gh.viewer = null;
+    api.peekInvite.mockResolvedValue({ repo: 'peterbono/ai-design-system-demo', team: 'Bridge', role: 'edit', sentTo: 'l•••@acme.design' });
+    render(createElement(InviteAccept));
+    expect(await screen.findByRole('heading', { name: 'Join Bridge' })).toBeInTheDocument();
+    expect(screen.queryByText(/Bridge on Bridge/)).toBeNull();
+  });
+
   it('joins with an email and a name, then opens the team signed in', async () => {
     gh.viewer = null;
     api.peekInvite.mockResolvedValue({ repo: 'acme/ds', team: 'Acme Design', role: 'edit', sentTo: 'l•••@acme.design' });

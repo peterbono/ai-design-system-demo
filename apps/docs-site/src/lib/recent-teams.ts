@@ -4,7 +4,7 @@
 // Covered by recent-teams.test.ts with an in-memory storage.
 
 import type { RepoAccessState } from '@bridge-ds/core';
-import { forgetsTeam, parseRecentTeams, pushRecentTeam, RECENT_TEAMS_KEY, remembersTeam, removeRecentTeam } from './access-view';
+import { forgetsTeam, noteName, parseRecentTeams, parseTeamNames, pushRecentTeam, RECENT_TEAMS_KEY, remembersTeam, removeRecentTeam, TEAM_NAMES_KEY, TEAM_ROLES_KEY } from './access-view';
 
 export type RecentStore = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
@@ -62,3 +62,36 @@ export function noteTeamAccess(team: string, state: RepoAccessState | null | und
   if (forgetsTeam(state)) return forgetRecentTeam(team, store);
   return list;
 }
+
+function loadMap(key: string, store: RecentStore | null): Record<string, string> {
+  if (!store) return {};
+  try {
+    return parseTeamNames(store.getItem(key));
+  } catch {
+    return {};
+  }
+}
+
+function noteMap(key: string, team: string, value: string | null | undefined, store: RecentStore | null): Record<string, string> {
+  const next = noteName(loadMap(key, store), team, value, loadRecentTeams(store));
+  if (!store) return next;
+  try {
+    if (Object.keys(next).length) store.setItem(key, JSON.stringify(next));
+    else store.removeItem(key);
+  } catch {
+    /* storage blocked or full: the menu falls back to what it knows */
+  }
+  return next;
+}
+
+/** The names the recent teams go by in this browser (TEAM_NAMES_KEY), {} when the storage is blocked. */
+export const loadTeamNames = (store: RecentStore | null = browserStore()) => loadMap(TEAM_NAMES_KEY, store);
+
+/** A team page read its settings: remember the name it goes by (none: forget it), for the recent teams only. */
+export const noteTeamName = (team: string, name: string | null | undefined, store: RecentStore | null = browserStore()) => noteMap(TEAM_NAMES_KEY, team, name, store);
+
+/** The teams the signed-in person belongs to in this browser, with their role words (TEAM_ROLES_KEY). */
+export const loadTeamRoles = (store: RecentStore | null = browserStore()) => loadMap(TEAM_ROLES_KEY, store);
+
+/** A team page knows the person's access: remember their role there (none: they do not belong to it). */
+export const noteTeamRole = (team: string, role: string | null | undefined, store: RecentStore | null = browserStore()) => noteMap(TEAM_ROLES_KEY, team, role, store);

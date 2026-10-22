@@ -76,7 +76,7 @@ describe('the browser workspace setup', () => {
     const user = userEvent.setup();
     await user.type(screen.getByRole('textbox', { name: 'GitHub repository' }), 'acme/ds');
     await user.click(screen.getByRole('button', { name: 'Open' }));
-    await vi.waitFor(() => expect(assign).toHaveBeenCalledWith('/studio/acme/ds/?setup=changes'));
+    await vi.waitFor(() => expect(assign).toHaveBeenCalledWith('/studio/acme/ds/?setup=name'));
     await expectNoAxeViolations(container);
     vi.unstubAllGlobals();
   });

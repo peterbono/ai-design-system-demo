@@ -117,7 +117,7 @@ describe('resuming the setup', () => {
 
   it('opens a team picked on step 2 at its next step', () => {
     expect(CONNECT_HREF).toBe(`${WORKSPACE_HOME}?setup=library`);
-    expect(NEXT_AFTER_LIBRARY).toBe('changes');
+    expect(NEXT_AFTER_LIBRARY).toBe('name');
   });
 });
 

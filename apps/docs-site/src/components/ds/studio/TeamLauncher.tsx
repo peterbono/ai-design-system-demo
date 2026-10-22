@@ -15,7 +15,7 @@ export interface TeamFieldProps {
   /** The submit's words and weight. */
   action?: string;
   variant?: 'primary' | 'secondary';
-  /** Added to the team address: the setup step to open there (?setup=changes). */
+  /** Added to the team address: the setup step to open there (?setup=name). */
   query?: string;
   /** Where to go, swapped in tests. */
   go?: (href: string) => void;

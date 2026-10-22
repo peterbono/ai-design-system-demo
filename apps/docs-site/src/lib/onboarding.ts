@@ -1,4 +1,4 @@
-// Studio onboarding: the seven steps that connect a design system to Bridge, as a checklist (components/ds/studio/
+// Studio onboarding: the eight steps that connect a design system to Bridge, as a checklist (components/ds/studio/
 // Onboarding.tsx). Pure rules and words, covered by onboarding.test.ts. No DOM, no fetch.
 //
 //   1. Sign in with GitHub          done once the viewer is known.
@@ -7,27 +7,31 @@
 //                                   7.2): connected once GitHub says the viewer can use Bridge on the repository;
 //                                   "Install Bridge" while it is not set up there. The Storybook quick start reads a
 //                                   published Storybook and keeps its address in this browser (lib/workspace.ts).
-//   3. How changes reach your code  done when bridge.config.json sets `changes`; waiting while the pull request that
+//   3. Name your team               bridge.config.json `name`, the name the team goes by in Studio, the Library and
+//                                   invitations. A light step: one field prefilled from the repository, saved as a
+//                                   config pull request; waiting while that pull request is open; "Later is fine".
+//   4. How changes reach your code  done when bridge.config.json sets `changes`; waiting while the pull request that
 //                                   sets it is open; otherwise the current step (suggestions by default).
-//   4. Invite your team             share the team link. Done once the viewer copied it (this browser remembers);
-//                                   next after step 3 in the first run, "Later is fine" otherwise.
-//   5. Products                     the apps listed in bridge.config.json `products`, found with the repo.
-//   6. Figma plugin, 7. Claude AI   nothing on GitHub says they are set up: the viewer marks them done in this
+//   5. Invite your team             share the team link. Done once the viewer copied it (this browser remembers);
+//                                   next after step 4 in the first run, "Later is fine" otherwise.
+//   6. Products                     the apps listed in bridge.config.json `products`, found with the repo.
+//   7. Figma plugin, 8. Claude AI   nothing on GitHub says they are set up: the viewer marks them done in this
 //                                   browser, and "Later is fine" until then.
-// Every step after sign-in can wait: the first run opens on step 3 only while `changes` is unset, and "Do this later"
+// Every step after sign-in can wait: the first run opens on step 4 only while `changes` is unset, and "Do this later"
 // moves the rest into a compact "Finish connecting" checklist on the home.
 // The browser workspace (lib/start.ts, no repository yet) has six steps: no team link to share without a repository,
-// so no "Invite your team". Its step 2 is done once a Storybook is added; picking a repository opens that team.
+// so no "Name your team" nor "Invite your team". Its step 2 is done once a Storybook is added; picking a repository opens that team.
 import type { ChangesMode, RepoAccessState } from '@bridge-ds/core';
 import { CHANGES_SHORT } from './settings-view';
 import { storybookHost } from './workspace';
+import { TEAM_NAME_WORDS } from './team-name';
 
-export type StepId = 'signin' | 'library' | 'changes' | 'team' | 'products' | 'figma' | 'claude';
+export type StepId = 'signin' | 'library' | 'name' | 'changes' | 'team' | 'products' | 'figma' | 'claude';
 
 /** done, the one step open now, waiting on a review, or one that can wait. */
 export type StepState = 'done' | 'current' | 'waiting' | 'later';
 
-export const STEP_IDS: readonly StepId[] = ['signin', 'library', 'changes', 'team', 'products', 'figma', 'claude'];
+export const STEP_IDS: readonly StepId[] = ['signin', 'library', 'name', 'changes', 'team', 'products', 'figma', 'claude'];
 
 /** The steps Bridge asks for on the first run. Products come with the repo; the others say "Later is fine". */
 const CORE: readonly StepId[] = ['signin', 'library', 'changes'];
@@ -35,6 +39,7 @@ const CORE: readonly StepId[] = ['signin', 'library', 'changes'];
 export const STEP_TITLE: Record<StepId, string> = {
   signin: 'Sign in with GitHub',
   library: 'Your design system',
+  name: TEAM_NAME_WORDS.stepTitle,
   products: 'Products',
   changes: 'How changes reach your code',
   team: 'Invite your team',
@@ -46,6 +51,7 @@ export const STEP_TITLE: Record<StepId, string> = {
 export const STEP_LINE: Record<StepId, string> = {
   signin: 'Who you are on GitHub',
   library: 'Storybook URL or the repository',
+  name: TEAM_NAME_WORDS.stepLine,
   products: 'The apps that use your library',
   changes: 'Suggestions or pull requests',
   team: 'Share one link. GitHub decides who gets in.',
@@ -68,6 +74,10 @@ export interface OnboardingFacts {
   changes: ChangesMode | null;
   /** The open pull request that sets `changes`, proposed from this browser. */
   proposed?: { pr: number; mode: ChangesMode } | null;
+  /** The team's display name as bridge.config.json says it (`name`); null when the key is absent. */
+  teamName?: string | null;
+  /** The open pull request that sets `name`, proposed from this browser. */
+  named?: { pr: number; name: string } | null;
   /** Steps the viewer marked done in this browser (Figma plugin, Claude AI, the team link copied). */
   marked?: readonly StepId[];
   /**
@@ -121,6 +131,12 @@ function changesStep(f: OnboardingFacts): Pick<Step, 'detail' | 'state' | 'statu
   return { detail: STEP_LINE.changes, state: 'later', status: 'Later is fine' };
 }
 
+function nameStep(f: OnboardingFacts): Pick<Step, 'detail' | 'state' | 'status' | 'pr'> {
+  if (f.teamName) return { detail: f.teamName, state: 'done', status: 'Named' };
+  if (f.named) return { detail: `${f.named.name}, waiting for review`, state: 'waiting', status: `In review, #${f.named.pr}`, pr: f.named.pr };
+  return { detail: STEP_LINE.name, state: 'later', status: 'Later is fine' };
+}
+
 /** Step 2 of the browser workspace: the Storybook added here, or nothing yet. */
 function workspaceLibraryStep(f: OnboardingFacts): Pick<Step, 'detail' | 'code' | 'state' | 'status'> {
   return f.quickStart
@@ -128,8 +144,8 @@ function workspaceLibraryStep(f: OnboardingFacts): Pick<Step, 'detail' | 'code' 
     : { detail: STEP_LINE.library, state: 'later', status: 'To do' };
 }
 
-/** The steps of a Studio: seven, or six for the browser workspace (no team link without a repository). */
-export const stepIdsFor = (workspace?: boolean): readonly StepId[] => (workspace ? STEP_IDS.filter((id) => id !== 'team') : STEP_IDS);
+/** The steps of a Studio: eight, or six for the browser workspace (no team to name nor link without a repository). */
+export const stepIdsFor = (workspace?: boolean): readonly StepId[] => (workspace ? STEP_IDS.filter((id) => id !== 'team' && id !== 'name') : STEP_IDS);
 
 /** The steps with their state. The current step is the first core step not done, once signed in. */
 export function onboardingSteps(f: OnboardingFacts): Step[] {
@@ -150,6 +166,8 @@ export function onboardingSteps(f: OnboardingFacts): Step[] {
         return f.products.length
           ? { ...base, detail: f.products.join(', '), state: 'done', status: 'Connected' }
           : { ...base, detail: STEP_LINE.products, state: 'later', status: 'Found with the repo' };
+      case 'name':
+        return { ...base, ...nameStep(f) };
       case 'changes':
         return { ...base, ...changesStep(f) };
       case 'team':
@@ -177,7 +195,7 @@ function currentStepId(steps: Step[], core: readonly StepId[]): StepId | null {
 
 export const doneCount = (steps: Step[]) => steps.filter((s) => s.state === 'done').length;
 
-/** "4 of 7 connected" */
+/** "4 of 8 connected" */
 export const progressLabel = (steps: Step[]) => `${doneCount(steps)} of ${steps.length} connected`;
 
 /** The first run opens full screen only for a signed-in viewer with a core step left, until "Do this later". */
@@ -199,6 +217,7 @@ export function doneSummary(steps: Step[]): string | null {
   const WORD: Record<StepId, string> = {
     signin: 'signed in',
     library: 'design system',
+    name: 'team named',
     products: 'products',
     changes: 'how changes reach your code',
     team: 'team invited',
@@ -242,9 +261,11 @@ export interface OnboardingMemory {
   hidden: boolean;
   marked: StepId[];
   proposed: { pr: number; mode: ChangesMode } | null;
+  /** The pull request that names the team, opened from this browser. */
+  named: { pr: number; name: string } | null;
 }
 
-export const EMPTY_MEMORY: OnboardingMemory = { later: false, hidden: false, marked: [], proposed: null };
+export const EMPTY_MEMORY: OnboardingMemory = { later: false, hidden: false, marked: [], proposed: null, named: null };
 
 /** Reads what was stored, dropping anything malformed. */
 export function parseMemory(text: string | null): OnboardingMemory {
@@ -252,11 +273,13 @@ export function parseMemory(text: string | null): OnboardingMemory {
   try {
     const v = JSON.parse(text) as Partial<OnboardingMemory>;
     const p = v.proposed;
+    const n = v.named;
     return {
       later: v.later === true,
       hidden: v.hidden === true,
       marked: Array.isArray(v.marked) ? v.marked.filter((m): m is StepId => MARKABLE.includes(m as StepId)) : [],
       proposed: p && Number.isInteger(p.pr) && p.pr > 0 && (p.mode === 'suggest' || p.mode === 'direct') ? { pr: p.pr, mode: p.mode } : null,
+      named: n && Number.isInteger(n.pr) && n.pr > 0 && typeof n.name === 'string' && n.name.trim() ? { pr: n.pr, name: n.name.trim() } : null,
     };
   } catch {
     return { ...EMPTY_MEMORY };

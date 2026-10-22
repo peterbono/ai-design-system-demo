@@ -5,7 +5,7 @@
 //   2. Your branches: open branches as cards, "Create branch" as the first one.
 //   3. Nothing waits and nothing is open: three ways to start.
 // Signed in, the setup steps (lib/onboarding.ts, components/ds/studio/Onboarding.tsx): the first run takes the page
-// while bridge.config.json does not say how changes reach the code; after that, "N of 7 connected" by the greeting
+// while bridge.config.json does not say how changes reach the code; after that, "N of 8 connected" by the greeting
 // opens what is left.
 // Repo facts are read here at build time (usage guidance Claude drafted, contrast on main, adoption, the changelog);
 // GitHub facts in the browser (scripts/home-data.ts).
@@ -26,7 +26,7 @@ import { adoptionDrop } from '../../lib/home-model';
 import { signInConfig } from '../../lib/signin-config';
 import { siteRepo } from '../../lib/config';
 import { exists, GITHUB_URL, PREVIEW_APPS, PREVIEW_PACKAGES, PRODUCTION_APPS, readJson } from '../../lib/repo';
-import { bridgeMcpInstallCommand } from '@bridge-ds/core';
+import { bridgeMcpInstallCommand, teamName } from '@bridge-ds/core';
 import { changesInConfig } from '../../lib/settings-view';
 import type { BranchesConfig } from '../../lib/branches';
 import { studioHref } from '../../lib/team-path';
@@ -83,6 +83,7 @@ const repoName = `${repo.owner}/${repo.repo}`;
 const demo = isDemoRepo(repoName);
 const onboarding = {
   changes: changesInConfig(rawCfg),
+  name: teamName(rawCfg.name) ?? null,
   prefix: rawCfg.governance?.branchPrefix ?? '',
   protectedBranches: rawCfg.governance?.protectedBranches ?? ['main', 'master'],
   ctx: {
@@ -137,7 +138,7 @@ const onboarding = {
     import { FinishConnecting, Onboarding, type OnboardingContext } from '../../components/ds/studio/Onboarding';
     import { onboardingKey, onboardingSteps, parseMemory, readMemoryText, STEP_IDS, showsChecklist, showsFirstRun, type OnboardingMemory, type StepId } from '../../lib/onboarding';
     import { shortName } from '../../lib/home-model';
-    import { proposeChangesMode } from '../../scripts/roles';
+    import { proposeChangesMode, proposeTeamName } from '../../scripts/roles';
     import { onWorkspaceChange, readWorkspace } from '../../scripts/workspace';
     import { exploresDemo } from '../../lib/demo';
     import { loadDemoHome, type DemoHomeData } from '../../scripts/demo-home';
@@ -168,7 +169,7 @@ const onboarding = {
     let run = 0;
 
     // Setup steps: the facts of this build, and what this browser remembers (Do this later, Hide, marked steps).
-    const onb = read<{ changes: ChangesMode | null; prefix: string; protectedBranches: string[]; ctx: OnboardingContext }>('home-onboarding')!;
+    const onb = read<{ changes: ChangesMode | null; name: string | null; prefix: string; protectedBranches: string[]; ctx: OnboardingContext }>('home-onboarding')!;
     // Kept per repository (bridge.onboarding.<owner>/<repo>); the old shared key belonged to this build's repository.
     const memoryKey = onboardingKey(onb.ctx.repo);
     const loadMemory = (): OnboardingMemory => {
@@ -188,7 +189,7 @@ const onboarding = {
       }
       paint();
     };
-    // The steps open over the home: on the first run, from "N of 7 connected" at the step picked there, or from a
+    // The steps open over the home: on the first run, from "N of 8 connected" at the step picked there, or from a
     // link elsewhere in Studio (?setup=library, "Connect the repository" on the Storybook components page).
     const asked = new URLSearchParams(location.search).get('setup');
     let stepsAt: StepId | null = asked && (STEP_IDS as readonly string[]).includes(asked) ? (asked as StepId) : null;
@@ -258,6 +259,8 @@ const onboarding = {
         changes: onb.changes,
         // A proposal stays waiting until the file says it.
         proposed: onb.changes ? null : memory.proposed,
+        teamName: onb.name,
+        named: onb.name ? null : memory.named,
         marked: memory.marked,
       });
       if (v && (stepsOpen || stepsAt || showsFirstRun(steps, { later: memory.later }))) {
@@ -274,6 +277,16 @@ const onboarding = {
               propose: async (mode: ChangesMode) => {
                 const pr = await proposeChangesMode(mode, { prefix: onb.prefix, protectedBranches: onb.protectedBranches });
                 memory = { ...memory, proposed: { pr: pr.number, mode } };
+                try {
+                  localStorage.setItem(memoryKey, JSON.stringify(memory));
+                } catch {
+                  /* kept for this visit only */
+                }
+                return pr;
+              },
+              name: async (name: string) => {
+                const pr = await proposeTeamName(name, { prefix: onb.prefix, protectedBranches: onb.protectedBranches });
+                memory = { ...memory, named: { pr: pr.number, name: name.trim() } };
                 try {
                   localStorage.setItem(memoryKey, JSON.stringify(memory));
                 } catch {

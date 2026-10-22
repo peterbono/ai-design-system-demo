@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'vitest';
-import { changesMode, ConfigError, defineConfig, libraryIsPublic, loadConfig, storybookUrl, toConfigJson } from '../src/config';
+import { changesMode, ConfigError, defineConfig, libraryIsPublic, loadConfig, storybookUrl, TEAM_NAME_MAX, toConfigJson } from '../src/config';
 import { buildTokenSet, detectLayout, layoutOptions } from '../src/token-set';
 import { realConfig, realFiles } from './helpers';
 
@@ -153,4 +153,19 @@ test('the JSON schema lists changes and storybook like the parser', () => {
   assert.equal(schema.properties.storybook.properties.url.pattern, '^https://');
   assert.equal(schema.properties.library.properties.public.type, 'boolean');
   assert.equal(schema.properties.library.properties.public.default, false);
+});
+
+test('name: the team display name, trimmed, 1 to 60 characters, kept by siteRepoFromConfig', () => {
+  assert.equal(loadConfig({ repo: 'acme/ds', name: '  Acme   Design ' }).name, 'Acme Design');
+  assert.equal(loadConfig({ repo: 'acme/ds' }).name, undefined);
+  assert.equal(realConfig().name, 'Bridge');
+  for (const name of ['', ' ', 'x'.repeat(61), 42]) {
+    assert.throws(
+      () => loadConfig({ repo: 'acme/ds', name } as never),
+      (err: ConfigError) => err.problems.some((p) => /"name" must be the team's name, 1 to 60 characters/.test(p)),
+    );
+  }
+  const schema = JSON.parse(readFileSync(new URL('../bridge.config.schema.json', import.meta.url), 'utf8'));
+  assert.equal(schema.properties.name.maxLength, TEAM_NAME_MAX);
+  assert.equal(schema.properties.name.minLength, 1);
 });

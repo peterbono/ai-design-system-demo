@@ -13,6 +13,9 @@ import {
   manageAccessUrl,
   forgetsTeam,
   isRecentTeamName,
+  noteName,
+  parseTeamNames,
+  recentTeamName,
   parseRecentTeams,
   pushRecentTeam,
   remembersTeam,
@@ -111,7 +114,9 @@ describe('the team chip', () => {
     expect(anon.sample).toBeFalsy();
     expect(anon.title).toContain('peterbono/ai-design-system-demo');
     expect(chipIdentity('peterbono/ai-design-system-demo', { demo: true, state: 'admin', signedIn: true }).badge.label).toBe('Admin');
-    expect(chipIdentity('acme/ds', { demo: false, state: 'anonymous-public', signedIn: false })).toMatchObject({ kind: 'team', name: 'acme/ds', badge: { label: 'Guest' } });
+    expect(chipIdentity('acme/ds', { demo: false, state: 'anonymous-public', signedIn: false })).toMatchObject({ kind: 'team', name: 'Ds', title: 'Ds, acme/ds', badge: { label: 'Guest' } });
+    expect(chipIdentity('acme/ds', { demo: false, state: 'writer', signedIn: true, name: 'Acme Studio' })).toMatchObject({ name: 'Acme Studio', title: 'Acme Studio, acme/ds' });
+    expect(chipIdentity('peterbono/bridge-demo-ds', { demo: true, state: null, signedIn: false, name: 'Other' }).name).toBe('Acme Design');
     expect(chipIdentity('acme/ds', { demo: false, state: 'writer', signedIn: true }).badge.label).toBe('Can edit');
     expect(isDemoTeam('Peterbono/AI-design-system-demo', false)).toBe(true);
     expect(isDemoTeam('peterbono/ai-design-system-demo', true)).toBe(true);
@@ -183,5 +188,25 @@ describe('accessSummary on the demo', () => {
     expect(accessSummary(null, { login: null, repo: 'peterbono/bridge-demo-ds', demo: true })).toBe("You're exploring the demo with sample data. Nothing you do here is saved.");
     expect(accessSummary(null, { login: null, repo: 'acme/ds' })).toMatch(/^Sign in with GitHub/);
     expect(accessSummary(null, { login: 'ann', repo: 'peterbono/bridge-demo-ds', demo: true })).toMatch(/^Checking/);
+  });
+});
+
+describe('the names of the recent teams', () => {
+  it('keeps real teams with a 1 to 60 character name, lower case keys', () => {
+    expect(parseTeamNames(JSON.stringify({ 'Acme/DS': ' Acme ', 'owner/repo': 'x', 'a/b': '', 'c/d': 'y'.repeat(61), 'e/f': 3 }))).toEqual({ 'acme/ds': 'Acme' });
+    expect(parseTeamNames('[1]')).toEqual({});
+    expect(parseTeamNames('{nope')).toEqual({});
+  });
+
+  it('notes a name only for a listed team, drops it when the team has none, and forgets teams no longer listed', () => {
+    expect(noteName({ 'old/team': 'Old' }, 'Acme/DS', 'Acme', ['acme/ds'])).toEqual({ 'acme/ds': 'Acme' });
+    expect(noteName({ 'acme/ds': 'Acme' }, 'acme/ds', null, ['acme/ds'])).toEqual({});
+    expect(noteName({}, 'acme/ds', 'Acme', [])).toEqual({});
+  });
+
+  it('names a recent team by the name its page read, else like everywhere else', () => {
+    expect(recentTeamName('Acme/DS', { 'acme/ds': 'Acme' })).toBe('Acme');
+    expect(recentTeamName('globex/design-tokens', {})).toBe('Design tokens');
+    expect(recentTeamName('peterbono/bridge-demo-ds', {})).toBe('Acme Design');
   });
 });

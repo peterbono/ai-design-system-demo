@@ -3,6 +3,8 @@
 // (studioHref), before anyone can click. Links the islands render go through studioHref already and are left alone.
 import { isHosted, repoFromPath, STUDIO_ROOT, studioBase, studioHref } from '../lib/team-path';
 import { libraryHref } from '../lib/library-shells';
+import { teamDisplayName } from '../lib/demo';
+import { siteConfig } from './repo-context';
 
 /** The sign-in callback is one address for every team (lib/github-signin.ts CALLBACK_PATH). */
 const SHARED = `${STUDIO_ROOT}auth/`;
@@ -25,11 +27,20 @@ export function pointLinksAtTeam(root: ParentNode = document): number {
   return n;
 }
 
-/** A team shell's empty state (components/TeamShell.astro): the team's name and its GitHub link, from the address. */
+/**
+ * A team shell's header (components/TeamShell.astro): the name the team goes by (lib/demo.ts teamDisplayName, its
+ * bridge.config.json `name` once its settings are read), its repository and its GitHub link, from the address.
+ */
 export function fillTeamShell(root: ParentNode = document) {
   const team = typeof location === 'undefined' ? null : repoFromPath(location.pathname);
   if (!team) return;
   const name = `${team.owner}/${team.repo}`;
+  const paintName = () => {
+    const shown = teamDisplayName(name, siteConfig());
+    for (const el of root.querySelectorAll<HTMLElement>('[data-team-display]')) el.textContent = shown;
+  };
+  paintName();
+  document.addEventListener('bridge:team-model', paintName);
   for (const el of root.querySelectorAll<HTMLElement>('[data-team-name]')) el.textContent = name;
   for (const a of root.querySelectorAll<HTMLAnchorElement>('a[data-team-github]')) a.href = `https://github.com/${encodeURIComponent(team.owner)}/${encodeURIComponent(team.repo)}`;
 }
