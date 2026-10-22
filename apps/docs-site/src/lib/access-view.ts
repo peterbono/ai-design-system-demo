@@ -215,8 +215,9 @@ export function chipIdentity(team: string | null, f: { demo: boolean; state: Rep
   return { kind: 'team', name: team ?? 'Your team', title: team ?? 'Your team', badge: accessBadge(f.state, f.signedIn) };
 }
 
-/** One sentence for Settings: what the viewer can do here. */
-export function accessSummary(state: RepoAccessState | null, f: { login?: string | null; repo: string }): string {
+/** One sentence for Settings: what the viewer can do here. On the demo, a signed-out visitor explores freely. */
+export function accessSummary(state: RepoAccessState | null, f: { login?: string | null; repo: string; demo?: boolean }): string {
+  if (!state && !f.login && f.demo) return "You're exploring the Bridge demo with sample data. Nothing you do here is saved.";
   if (!state) return f.login ? `Checking what ${who(f.login)} can do on ${f.repo}.` : `Sign in with GitHub to see what you can do on ${f.repo}.`;
   switch (state) {
     case 'admin':

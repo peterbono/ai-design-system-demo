@@ -6,8 +6,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { Accordion, AccordionItem, Badge, Button, Input, Link } from '@bridge-ds/react';
 import type { ChangesMode, RepoAccessState } from '@bridge-ds/core';
-import { accessBadge, accessSummary, manageAccessUrl, NO_ACCESS_LINE, orgTeamsUrl, teamLink, viewerRow, whoCanDoWhat } from '../../../lib/access-view';
+import { accessBadge, accessSummary, chipIdentity, manageAccessUrl, NO_ACCESS_LINE, orgTeamsUrl, teamLink, viewerRow, whoCanDoWhat } from '../../../lib/access-view';
 import { STUDIO_ROOT, studioBase } from '../../../lib/team-path';
+import { isDemoRepo } from '../../../lib/demo';
 
 /** Copies text, then says so for 2 s. `said` is the line for a screen reader (or how to copy by hand). */
 export function useCopy(ms = 2000) {
@@ -175,14 +176,16 @@ export function TeamLinkLive(props: TeamLinkLiveProps) {
   const owner = ctx?.owner ?? props.owner ?? '';
   const repo = ctx?.repo ?? props.repo ?? '';
   const name = `${owner}/${repo}`;
-  const badge = accessBadge(access, Boolean(login));
+  // The demo names a signed-out visitor as the team chip does ("Explore freely"), not as a guest of a real team.
+  const demo = isDemoRepo(name);
+  const badge = demo ? chipIdentity(name, { demo, state: access, signedIn: Boolean(login) }).badge : accessBadge(access, Boolean(login));
   return (
     <div className="tlk-live">
       <p className="tlk-summary">
         <Badge size="sm" tone={badge.tone} dot>
           {badge.label}
         </Badge>
-        <span>{accessSummary(login ? access : null, { login, repo: name })}</span>
+        <span>{accessSummary(login ? access : null, { login, repo: name, demo })}</span>
       </p>
       <TeamLink
         id="set-team-link"
