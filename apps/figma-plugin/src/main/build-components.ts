@@ -372,6 +372,18 @@ function reset(node: SceneNode, field: SpecField): void {
   }
 }
 
+/** Fixed sizing on one axis, so a set or bound size holds (auto layout would hug or fill over it). */
+function fixAxis(node: SceneNode, field: 'width' | 'height'): void {
+  if ('layoutSizingHorizontal' in node && node.parent && 'layoutMode' in node.parent && node.parent.layoutMode !== 'NONE') {
+    if (field === 'width') node.layoutSizingHorizontal = 'FIXED';
+    else node.layoutSizingVertical = 'FIXED';
+  } else if ('layoutMode' in node && node.layoutMode !== 'NONE') {
+    const horizontal = node.layoutMode === 'HORIZONTAL';
+    if ((field === 'width') === horizontal) node.primaryAxisSizingMode = 'FIXED';
+    else node.counterAxisSizingMode = 'FIXED';
+  }
+}
+
 function apply(node: SceneNode, f: PlannedField, ctx: Ctx): void {
   const n = node as unknown as Record<string, unknown>;
   const v = f.value;
@@ -393,7 +405,14 @@ function apply(node: SceneNode, f: PlannedField, ctx: Ctx): void {
         /* nothing bound */
       }
       if (f.field === 'cornerRadius') n.cornerRadius = v.value;
-      else n[f.field] = v.value;
+      else if (f.field === 'width' || f.field === 'height') {
+        // Read only in Figma: fixed sizing on that axis, then resize.
+        fixAxis(node, f.field);
+        if ('resize' in node) {
+          const r = node as FrameNode;
+          r.resize(f.field === 'width' ? Math.max(0.01, v.value) : r.width, f.field === 'height' ? Math.max(0.01, v.value) : r.height);
+        }
+      } else n[f.field] = v.value;
       return;
     }
     if (v.kind === 'percent') {
@@ -421,14 +440,7 @@ function apply(node: SceneNode, f: PlannedField, ctx: Ctx): void {
         return;
       case 'width':
       case 'height':
-        if ('layoutSizingHorizontal' in node && node.parent && 'layoutMode' in node.parent && node.parent.layoutMode !== 'NONE') {
-          if (f.field === 'width') node.layoutSizingHorizontal = 'FIXED';
-          else node.layoutSizingVertical = 'FIXED';
-        } else if ('layoutMode' in node && node.layoutMode !== 'NONE') {
-          const horizontal = node.layoutMode === 'HORIZONTAL';
-          if ((f.field === 'width') === horizontal) node.primaryAxisSizingMode = 'FIXED';
-          else node.counterAxisSizingMode = 'FIXED';
-        }
+        fixAxis(node, f.field);
         bind(node, f.field, variable);
         return;
       default:

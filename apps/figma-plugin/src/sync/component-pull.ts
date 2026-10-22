@@ -98,6 +98,12 @@ export interface PlannedField {
   value: PlannedValue;
 }
 
+/**
+ * Figma name of the one variant of a spec with no axes. A set needs a variant property on every variant (an unnamed
+ * one leaves the set in error and every read of it throws), so it gets this one; reading the set drops it again.
+ */
+export const LONE_VARIANT = 'Variant=Default';
+
 export interface PlannedVariant {
   /** variantKeyOf(props): stored on the variant (dsbridge / variant). */
   key: string;
@@ -571,7 +577,7 @@ export function buildComponentPlan(
       }
       return {
         key: variantKeyOf(v.props),
-        name: variantName(v.props),
+        name: variantName(v.props) || LONE_VARIANT,
         props: v.props,
         parts,
         ...(v.pins ? { pins: Object.fromEntries(Object.entries(v.pins).map(([part, pin]) => [part, pinPixels(part, pin)])) } : {}),

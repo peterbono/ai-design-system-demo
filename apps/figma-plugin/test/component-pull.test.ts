@@ -324,8 +324,7 @@ test('grid: rows of different heights are evenly spaced, columns as wide as thei
   const comp = plan.components.find((c) => c.name === 'Button')!;
   // What Figma measures after auto layout: sm 32, md 44, lg 48 tall; Hover a bit wider.
   for (const c of set.children) {
-    c.height = /Size=sm/.test(c.name) ? 32 : /Size=md/.test(c.name) ? 44 : 48;
-    c.width = /State=Hover/.test(c.name) ? 120 : 100;
+    c.resize(/State=Hover/.test(c.name) ? 120 : 100, /Size=sm/.test(c.name) ? 32 : /Size=md/.test(c.name) ? 44 : 48);
   }
   layoutVariants(set as unknown as ComponentSetNode, comp);
   const rows = [...new Set(set.children.map((c) => c.y))].sort((x, y) => x - y);
