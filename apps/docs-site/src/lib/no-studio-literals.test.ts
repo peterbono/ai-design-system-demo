@@ -34,6 +34,11 @@ const ALLOWED: { file: string; line: string; why: string }[] = [
     why: 'the token API checks redirect_uri against the same registered callback (server side, no page)',
   },
   {
+    file: 'api/invites/index.ts',
+    line: "INVITE_PATH = '/studio/invite/'",
+    why: 'the invite link emailed to people: one page for every team, the team is in the stored invite',
+  },
+  {
     file: 'src/pages/tokens/index.astro',
     line: "location.replace('/studio/tokens/'",
     why: 'is:inline script on a Library page (cannot import modules, never on a team shell): old ?edit=1 links',
