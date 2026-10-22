@@ -8,7 +8,7 @@
 //   - Else the Storybook quick start (lib/workspace.ts), or "Connect my design system" started from the start screen:
 //     the browser workspace at WORKSPACE_HOME, empty until a Storybook or a repository is connected.
 //   - Else none: "Get started" shows the start screen.
-import { isDemoRepo } from './demo';
+import { isDemoRepo, SAMPLE_TEAM } from './demo';
 import { STEP_IDS, type Step, type StepId } from './onboarding';
 import { STUDIO_ROOT, teamHref, type ReservedPaths } from './team-path';
 
@@ -96,7 +96,7 @@ export const demoBack = (f: StartFacts, reserved: ReservedPaths | null = null): 
 
 /**
  * Which banner the demo shows a visitor (board EmptyA2): "Sample data" with "Back to your workspace" for someone who
- * came through the start screen or has a workspace; the "Demo workspace" banner with "Use your own repo" for a visitor
+ * came through the start screen or has a workspace; the demo banner with "Use your own repo" for a visitor
  * who came straight to the demo.
  */
 export const demoBannerKind = (f: StartFacts): 'workspace' | 'visitor' => (hasWorkspace(f) || f.memory.demo ? 'workspace' : 'visitor');
@@ -132,7 +132,7 @@ export const START_WORDS = {
   connectChecks: ['About 2 minutes with a Storybook URL', 'Read only: Bridge writes nothing in your code'],
   connectButton: 'Connect my design system',
   demoTitle: 'Look around first',
-  demoText: 'The Bridge demo with sample data: a design system, its branches and changes waiting for review.',
+  demoText: 'Acme Design, a sample team: a design system, its branches and changes waiting for review.',
   demoChecks: ['No setup', 'Read only, nothing touches your repository'],
   demoButton: 'Open the demo',
 } as const;
@@ -158,7 +158,7 @@ export const WORKSPACE_WORDS = {
 export const MENU_WORDS = {
   yourTeam: 'Your team',
   tryIt: 'Try it',
-  demo: 'Bridge demo',
+  demo: SAMPLE_TEAM,
   demoLine: 'Sample data, read only',
   workspaceLine: 'Not connected yet',
 } as const;

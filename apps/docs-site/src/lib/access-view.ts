@@ -6,7 +6,7 @@
 // "set up", never collaborator, installation, permission scopes or tokens.
 
 import type { ChangesMode, RepoAccessState } from '@bridge-ds/core';
-import { isDemoRepo } from './demo';
+import { isDemoRepo, isSampleTeam, OWN_TEAM, SAMPLE_TEAM } from './demo';
 
 /** The public GitHub App people sign in with (docs/SIGN-IN.md). Its page lists it at github.com/apps/<slug>. */
 export const BRIDGE_APP_SLUG = 'bridge-ds';
@@ -172,7 +172,7 @@ export function accessBadge(state: RepoAccessState | null, signedIn: boolean): {
   }
 }
 
-/** The design system the self-hosted site shows to everyone: Bridge's own demo. */
+/** The design system the self-hosted site shows to everyone: Bridge's own. */
 export const DEMO_TEAM = 'peterbono/ai-design-system-demo';
 
 /**
@@ -183,8 +183,10 @@ export const isDemoTeam = (team: string | null | undefined, _hosted?: boolean) =
 
 /** What the team chip shows: the design system being viewed, and what the visitor can do on it. */
 export interface ChipIdentity {
-  /** demo: the Bridge mark and a friendly name; team: the owner's avatar and owner/repo. */
+  /** demo: a friendly name (Bridge's own with the Bridge mark, Acme Design with its initials); team: the owner's avatar and owner/repo. */
   kind: 'demo' | 'team';
+  /** The simulated team with sample data (Acme Design): its initials instead of the Bridge mark. */
+  sample?: boolean;
   /** The name on the chip. */
   name: string;
   /** The full name, in the tooltip. */
@@ -193,15 +195,20 @@ export interface ChipIdentity {
 }
 
 /**
- * The chip of `team` ("owner/repo", null while unknown). On the demo a visitor without an account explores freely:
- * nothing they do there reaches the repository. Signed in, the demo shows their real access like any team.
+ * The chip of `team` ("owner/repo", null while unknown). The sample team reads "Acme Design" with a "Demo" tag for
+ * everyone: it is a simulated team, whatever access the viewer has on its repository. Bridge's own design system reads
+ * "Bridge": a visitor without an account explores freely (nothing they do reaches the repository), signed in it shows
+ * their real access like any team.
  */
 export function chipIdentity(team: string | null, f: { demo: boolean; state: RepoAccessState | null; signedIn: boolean }): ChipIdentity {
+  if (f.demo && isSampleTeam(team)) {
+    return { kind: 'demo', sample: true, name: SAMPLE_TEAM, title: `${SAMPLE_TEAM}, a sample team, ${team}`, badge: { label: 'Demo', tone: 'info' } };
+  }
   if (f.demo) {
     return {
       kind: 'demo',
-      name: 'Bridge demo',
-      title: team ? `Bridge demo design system, ${team}` : 'Bridge demo design system',
+      name: OWN_TEAM,
+      title: team ? `${OWN_TEAM} design system, ${team}` : `${OWN_TEAM} design system`,
       badge: f.signedIn ? accessBadge(f.state, true) : { label: 'Explore freely', tone: 'info' },
     };
   }

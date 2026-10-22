@@ -1,14 +1,15 @@
 // The team chip at the top of the Studio side nav (multi-team plan 7.1): the design system you are looking at, not your
 // account. The owner's avatar, owner/repo in mono and what you can do on it as a badge ("Can edit", "Can suggest",
-// "Guest"), then a chevron. On the demo (the self-hosted site's own repository) it shows the Bridge mark and "Bridge
-// demo" instead of the owner's photo, and a visitor without an account reads "Explore freely". It is the nav's
+// "Guest"), then a chevron. On Bridge's own design system (the self-hosted site's own repository) it shows the Bridge
+// mark and "Bridge" instead of the owner's photo, and a visitor without an account reads "Explore freely". On the
+// sample team it reads "Acme Design" with its initials and a "Demo" tag (lib/demo.ts). It is the nav's
 // first focus stop and a full-width target. The name stays on one line (ellipsis, the full name in its title). Its
 // menu: Invite your team (signed in) or Sign in with GitHub (signed out: there is nobody to invite yet), then on the hosted site the teams opened in this browser (max 5) and "Create a new team",
 // which opens a dialog over the page (NewTeamDialog.tsx) to connect another design system: the person keeps their
 // place. Who you are stays at the bottom of the nav (components/GitHubAccount.astro): proximity keeps the team at the
 // top and the account at the bottom.
 // On the hosted site the menu opens with "Your team" (board EmptyB): the team you are on, or from the demo the
-// workspace you came from (lib/start.ts), and "Try it" with the Bridge demo. The browser workspace (no repository yet,
+// workspace you came from (lib/start.ts), and "Try it" with Acme Design, the sample team. The browser workspace (no repository yet,
 // pages/studio/workspace.astro) names itself on the chip: "Ann's workspace", kept in this browser.
 // Mounted by layouts/Layout.astro on every Studio page, both modes: a self-hosted Studio is its own one team.
 import { Fragment, useCallback, useEffect, useState } from 'react';
@@ -24,6 +25,7 @@ import NewTeamDialog, { type TeamAccessCheck } from './NewTeamDialog';
 import { GitHubMark } from './brand-icons';
 import { Drawing } from './Drawing';
 import { shortName } from '../../../lib/home-model';
+import { demoTeamName } from '../../../lib/demo';
 import { DEMO_HOME, MENU_WORDS, ownTeams, WORKSPACE_HOME, WORKSPACE_WORDS, workspaceHref, workspaceName, type StartFacts } from '../../../lib/start';
 
 export interface TeamChipProps {
@@ -48,6 +50,9 @@ function TeamItem({ mark, title, line, href, current, mono }: { mark: ReactEleme
     </MenuItem>
   );
 }
+
+/** The sample team's mark: its initials, like any team without a photo. */
+const SampleMark = ({ size = 'xs' }: { size?: 'xs' | 'sm' }) => <Avatar name={MENU_WORDS.demo} size={size} decorative className={size === 'sm' ? 'tc-avatar' : undefined} />;
 
 const DemoMark = () => (
   <span className="tc-mark" aria-hidden="true">
@@ -153,7 +158,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
       )}
       {offerTeams && chip.kind !== 'demo' && (
         <MenuGroup label={MENU_WORDS.tryIt}>
-          <TeamItem mark={<DemoMark />} title={MENU_WORDS.demo} line={MENU_WORDS.demoLine} href={DEMO_HOME} />
+          <TeamItem mark={<SampleMark />} title={MENU_WORDS.demo} line={MENU_WORDS.demoLine} href={DEMO_HOME} />
         </MenuGroup>
       )}
     </>
@@ -190,18 +195,21 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
         <MenuGroup label="Recent teams">
           {listed.map((t) => {
             const [o = '', r = ''] = t.split('/');
+            // A demo design system goes by its name (Bridge, Acme Design), never its repository.
+            const demo = isDemoTeam(t);
+            const shown = demo ? demoTeamName(t) : t;
             // Two sibling menu items on one row (proximity), never a button inside an item: arrow keys reach the team,
             // then its remove action, and the menu stays open so the list updates in place.
             return (
               <div key={t} className="tc-recent">
-                <MenuItem className="tc-recent-open" label={t} icon={<Avatar name={o} src={ownerAvatarUrl(o, 32)} size="xs" decorative />} onClick={() => go(teamHref(o, r, null))}>
-                  <span className="mono">{t}</span>
+                <MenuItem className="tc-recent-open" label={shown} icon={<Avatar name={demo ? shown : o} src={demo ? undefined : ownerAvatarUrl(o, 32)} size="xs" decorative />} onClick={() => go(teamHref(o, r, null))}>
+                  <span className={demo ? undefined : 'mono'}>{shown}</span>
                 </MenuItem>
                 <MenuItem
                   className="tc-recent-remove"
                   icon={X}
-                  label={`Remove ${t}`}
-                  aria-label={`Remove ${t} from recent teams`}
+                  label={`Remove ${shown}`}
+                  aria-label={`Remove ${shown} from recent teams`}
                   title="Remove from recent teams"
                   closeOnClick={false}
                   onClick={() => forget(t)}
@@ -219,7 +227,9 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
         <MenuTrigger
           render={<Button variant="ghost" fullWidth className="tc-trigger" aria-label={label} />}
         >
-          {chip.kind === 'demo' ? (
+          {chip.kind === 'demo' && chip.sample ? (
+            <SampleMark size="sm" />
+          ) : chip.kind === 'demo' ? (
             <DemoMark />
           ) : chip.kind === 'workspace' ? (
             <Avatar name={viewerName ?? 'Workspace'} size="sm" decorative className="tc-avatar" />

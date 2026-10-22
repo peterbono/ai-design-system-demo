@@ -86,7 +86,7 @@ export async function openUseOwnRepo(): Promise<void> {
 
 let banner: Promise<(on: boolean) => void> | null = null;
 
-/** Shows the "Demo workspace" banner while the visitor explores the demo, hides it otherwise. */
+/** Shows the demo banner while the visitor explores the demo, hides it otherwise. */
 async function paintBanner() {
   const slot = document.querySelector<HTMLElement>('[data-demo-strip]');
   if (!slot) return;
@@ -110,7 +110,7 @@ async function paintBanner() {
     const back = demoBannerKind(facts) === 'workspace' ? demoBack(facts, await loadReserved()) : null;
     return (show: boolean) => {
       slot.hidden = !show;
-      root.render(show ? createElement(DemoBanner, { repoUrl: `https://github.com/${deps!.repo()}`, onUseOwn: () => void openUseOwnRepo(), back, onConnect: connectDesignSystem }) : null);
+      root.render(show ? createElement(DemoBanner, { repoUrl: `https://github.com/${deps!.repo()}`, repo: deps!.repo(), onUseOwn: () => void openUseOwnRepo(), back, onConnect: connectDesignSystem }) : null);
     };
   })();
   (await banner)(exploringDemo());

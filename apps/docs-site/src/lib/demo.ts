@@ -1,4 +1,4 @@
-// The Bridge demo: which design systems are the public demo, and the words a visitor reads there. Pure: no DOM, no
+// The demo: which design systems are the public demo, and the words a visitor reads there. Pure: no DOM, no
 // fetch, covered by demo.test.ts.
 //
 // A visitor without an account (or signed in without write access) explores the demo freely: the Studio home shows
@@ -16,6 +16,21 @@ export const DEMO_REPOS: readonly string[] = ['peterbono/ai-design-system-demo',
 export const isDemoRepo = (repo: string | null | undefined): boolean => DEMO_REPOS.includes((repo ?? '').trim().toLowerCase());
 
 /**
+ * The two demo design systems are not the same thing for a visitor, so they never share a name:
+ *   - peterbono/bridge-demo-ds is a simulated team with sample data: "Acme Design" (Dana leads its design system).
+ *   - peterbono/ai-design-system-demo is Bridge's own design system, the real one behind this site: "Bridge".
+ */
+export const SAMPLE_REPO = 'peterbono/bridge-demo-ds';
+export const SAMPLE_TEAM = 'Acme Design';
+export const OWN_TEAM = 'Bridge';
+
+/** True for the simulated team with sample data ("owner/repo", any case). */
+export const isSampleTeam = (repo: string | null | undefined): boolean => (repo ?? '').trim().toLowerCase() === SAMPLE_REPO;
+
+/** The name a demo design system goes by: Acme Design for the sample team, Bridge for Bridge's own. */
+export const demoTeamName = (repo: string | null | undefined): string => (isSampleTeam(repo) ? SAMPLE_TEAM : OWN_TEAM);
+
+/**
  * The visitor explores the demo: it is a demo repository and they cannot write to it. Signed in, `write` stays
  * unknown (null) until GitHub answers; until then the Studio behaves as usual, so its owner is never stopped.
  */
@@ -29,14 +44,20 @@ export function exploresDemo(x: { repo: string | null | undefined; signedIn: boo
 // The words
 
 export const DEMO_WORDS = {
-  /** The banner over every Studio page of the demo (board D1). */
-  bannerTitle: 'Demo workspace.',
+  /** The banner over every Studio page of the demo (board D1); demoBanner() picks the words for the repository. */
+  bannerTitle: `${SAMPLE_TEAM}, a sample team.`,
   bannerText: 'Read-only, sample data from our open-source design system.',
+  /** The same banner on Bridge's own design system: real data, read only for a visitor. */
+  ownTitle: `${OWN_TEAM}, our own design system.`,
+  ownText: 'Read-only, the real repository behind this site.',
   seeOnGitHub: 'See it on GitHub',
   useOwn: 'Use your own repo',
   /** The banner for a visitor with a workspace, or who came through the start screen (board EmptyA2). */
   sampleTitle: 'Sample data.',
-  sampleText: "You're looking at the Bridge demo, read only. Nothing here touches your repository.",
+  sampleText: `You're looking at ${SAMPLE_TEAM}, read only. Nothing here touches your repository.`,
+  /** The same banner on Bridge's own design system: its data is real, so it is not called sample data. */
+  ownSampleTitle: 'Read only.',
+  ownSampleText: `You're looking at ${OWN_TEAM}, our own design system. Nothing here touches your repository.`,
   backToWorkspace: 'Back to your workspace',
   /** The same banner for someone who chose the demo on the start screen and has no workspace yet. */
   connectOwn: 'Connect your design system',
@@ -48,6 +69,14 @@ export const DEMO_WORDS = {
   dialogNote: 'You pick the repos Bridge can see. It starts read-only and asks again before it writes anything.',
   keepExploring: 'Keep exploring',
 } as const;
+
+/** The banner's words for a demo repository: the sample team's, or Bridge's own. */
+export function demoBanner(repo: string | null | undefined): { title: string; text: string; sampleTitle: string; sampleText: string } {
+  const w = DEMO_WORDS;
+  return isSampleTeam(repo) || !isDemoRepo(repo)
+    ? { title: w.bannerTitle, text: w.bannerText, sampleTitle: w.sampleTitle, sampleText: w.sampleText }
+    : { title: w.ownTitle, text: w.ownText, sampleTitle: w.ownSampleTitle, sampleText: w.ownSampleText };
+}
 
 /** What a write action in the demo does, as its data-demo-write says it, when it does not say ("save changes"). */
 export const DEFAULT_WRITE = 'save changes';

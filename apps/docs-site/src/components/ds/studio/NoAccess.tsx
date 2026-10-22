@@ -186,7 +186,7 @@ export function TeamAccessGate() {
     };
   }, []);
 
-  // The demo greets a guest itself ("You're exploring the Bridge demo", lib/demo.ts): no guest banner over it.
+  // The demo greets a guest itself (its demo banner, lib/demo.ts): no guest banner over it.
   const guestOnDemo = g?.access === 'anonymous-public' && isDemoRepo(`${g.owner}/${g.repo}`);
   const screen = g?.access && !guestOnDemo ? accessScreen(g.access, { owner: g.owner, repo: g.repo, login: g.login, link, admin: g.repoAdmin }) : null;
   const block = screen?.layout === 'block';

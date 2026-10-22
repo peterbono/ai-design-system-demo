@@ -1,5 +1,6 @@
 // The empty state of a team shell (components/TeamShell.astro) for a page that does not read the team yet, rendered
-// at build time, no client JS: one calm line and the same page on the demo. "See it on the demo" carries
+// at build time, no client JS: one calm line and the same page on Bridge's own design system (the self-hosted Studio,
+// a demo repository in lib/demo.ts). "See it on Bridge" carries
 // data-demo-link so pointLinksAtTeam leaves it on the demo.
 import { ArrowRight, Hourglass } from 'lucide-react';
 import { EmptyState } from '@bridge-ds/react';
@@ -19,10 +20,10 @@ export default function TeamShellEmpty({ what, demoHref }: TeamShellEmptyProps) 
       headingLevel={2}
       icon={Hourglass}
       title="Coming to team pages"
-      description={`Bridge does not show your ${what} here yet. The same page is live on the Bridge demo.`}
+      description={`Bridge does not show your ${what} here yet. The same page is live on Bridge, our own design system.`}
       actions={
         <ButtonLink variant="primary" href={demoHref} iconEnd={ArrowRight} data-demo-link="">
-          See it on the demo
+          See it on Bridge
         </ButtonLink>
       }
     />
