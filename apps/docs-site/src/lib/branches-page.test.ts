@@ -12,6 +12,8 @@ import {
   selectable,
   showsForWho,
   ownedBy,
+  showsDesignerFilter,
+  tabFilters,
   contributorTurn,
   whoFilterParam,
 } from './branches-page';
@@ -162,5 +164,20 @@ describe('email contributors on Branches', () => {
     expect(contributorTurn({ own: true, changesRequested: [], open: true })).toBe(false);
     expect(contributorTurn({ own: false, changesRequested: ['dana'], open: true })).toBe(false);
     expect(contributorTurn({ own: true, changesRequested: ['dana'], open: false })).toBe(false);
+  });
+});
+
+describe('the filter bar on every tab', () => {
+  it('shows the designer filter on Waiting on me and All, not on Mine', () => {
+    expect(showsDesignerFilter('waiting')).toBe(true);
+    expect(showsDesignerFilter('all')).toBe(true);
+    expect(showsDesignerFilter('mine')).toBe(false);
+  });
+
+  it('keeps the picks across tabs and applies what each tab can', () => {
+    const picked = { kind: 'library', by: 'ann' };
+    expect(tabFilters('all', picked, ['ann', 'dana'])).toEqual({ kind: 'library', by: 'ann' });
+    expect(tabFilters('mine', picked, ['ann'])).toEqual({ kind: 'library', by: null });
+    expect(tabFilters('waiting', picked, ['dana'])).toEqual({ kind: 'library', by: null });
   });
 });

@@ -175,3 +175,18 @@ export function barCopy(n: number): BarCopy | null {
   }
   return { title: `${n} ${VOCAB.branches} selected`, hint: null, action: 'together', label: 'Preview together' };
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// The kind and designer filters: one bar on every tab
+
+/** The designer filter shows on Waiting on me and All; Mine is the viewer's own work, so it has none. */
+export const showsDesignerFilter = (filter: WhoFilter): boolean => filter !== 'mine';
+
+/**
+ * The filters a tab applies, from the ones picked (kept across tabs): the kind always, the designer where the tab
+ * shows it and only while someone listed matches it (an address naming nobody listed keeps everyone).
+ */
+export function tabFilters<F extends { kind: string; by: string | null }>(filter: WhoFilter, picked: F, designers: readonly string[]): F {
+  const by = showsDesignerFilter(filter) && picked.by && designers.includes(picked.by) ? picked.by : null;
+  return { ...picked, by };
+}

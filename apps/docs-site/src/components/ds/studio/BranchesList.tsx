@@ -18,7 +18,7 @@ import { Badge, Button, Checkbox, Link, SegmentedControl, Select, Skeleton, Tool
 import { BranchRow } from './BranchRow';
 import { Who } from './faces';
 import { SelectionBar, type ListedBranch } from './CombineChanges';
-import { boxDisabled, emptyWhoLine, finishedParam, FULL_TIP, groupByProduct, mergedLine, mergedThisMonth, onlyLine, productOf, selectable, showsForWho, WHO_FILTERS, whoFilterParam, type WhoFilter } from '../../../lib/branches-page';
+import { boxDisabled, emptyWhoLine, showsDesignerFilter, tabFilters, finishedParam, FULL_TIP, groupByProduct, mergedLine, mergedThisMonth, onlyLine, productOf, selectable, showsForWho, WHO_FILTERS, whoFilterParam, type WhoFilter } from '../../../lib/branches-page';
 import { onlyTokens, toggleChange } from '../../../lib/combine-changes';
 import { childLine, nestLinked } from '../../../lib/product-branch';
 import { CLAUDE, person, requesterPerson, type Person, type PillTone } from '../../../lib/home-model';
@@ -164,12 +164,42 @@ export function BranchesList(p: BranchesListProps) {
   const all = useMemo(() => [...p.rows, ...(finished.finished ? (p.closed ?? []) : [])], [p.rows, p.closed, finished.finished]);
   const extras = useExtras(all, p.connected ? 'all' : p.seat ? 'seat' : 'none');
 
+  // The person of a row: who asked for it when Bridge recorded it, else Claude AI for its own work, else the author.
+  const personOf = (r: ListRow, e: Extra | undefined): Person =>
+    (r.requester && requesterPerson(r.requester, (l) => (l.toLowerCase() === r.author.toLowerCase() && e?.person) || person(l, null, avatarOf(l)))) ??
+    (r.agent ? CLAUDE : (e?.person ?? person(r.author, null, avatarOf(r.author))));
+  const whoNode = (r: ListRow, e: Extra | undefined) => <Who p={personOf(r, e)} size="md" />;
+  const nameOf = (r: ListRow, e: Extra | undefined) => personOf(r, e).name;
+
   const shown = all.filter((r) => showsForWho(who, { author: r.author, yourTurn: r.yourTurn, mine: r.mine }, viewer) && (!finished.only || r.lifecycle === finished.only));
-  const rows = shown.map((r) => {
+  const tabRows = shown.map((r) => {
     const e = extras.get(r.number);
     return { r, e, product: productOf(e?.files ?? null, p.products, r.labels), tokenOnly: tokenOnly(r, e, p.tokensRoot) };
   });
   const waitingView = who === 'waiting' && !finished.only && Boolean(viewer);
+  // The kind and designer of each listed branch: the filter bar narrows every tab, not only Waiting on me.
+  const products = p.products ?? DEFAULT_PRODUCTS;
+  const classified = tabRows.map((x) => {
+    const c = categoryOf({ files: x.e?.files ?? null, labels: x.r.labels, headRef: x.r.head.ref, signals: x.r.signals, guidanceOnly: x.r.guidance }, products);
+    const pp = personOf(x.r, x.e);
+    return { kind: 'branch' as const, x, category: c.category, productName: c.product?.name ?? null, designer: { key: designerKey(pp), name: pp.name } };
+  });
+  const queueExtras = waitingView
+    ? (p.waiting ?? []).map((w) => {
+        const pp = w.need.person ?? CLAUDE;
+        return { kind: 'extra' as const, w, category: w.category, productName: w.product?.name ?? null, designer: { key: designerKey(pp), name: pp.name } };
+      })
+    : [];
+  const queue = [...classified, ...queueExtras];
+  const active: QueueFilters = tabFilters(
+    who,
+    filters,
+    queue.map((q) => q.designer.key),
+  );
+  const filtered = active.kind !== 'all' || Boolean(active.by);
+  const kept = queue.filter((q) => passes(q, active));
+  const keptBranches = new Set(kept.filter((q) => q.kind === 'branch').map((q) => (q as (typeof classified)[number]).x.r.number));
+  const rows = tabRows.filter((x) => keptBranches.has(x.r.number));
   // Token branches carry a checkbox to preview them together, except in the demo lead's read-only Waiting on me.
   const picks = !(waitingView && p.seat);
   // Library branches a listed product branch needs follow it, one step in (lib/product-branch nestLinked).
@@ -204,11 +234,7 @@ export function BranchesList(p: BranchesListProps) {
     const next = v as WhoFilter;
     setWho(next);
     setParam('who', next === 'all' ? null : next);
-    // The kind and designer filters belong to Waiting on me: they leave the address with it.
-    if (next !== 'waiting') {
-      setParam('kind', null);
-      setParam('by', null);
-    }
+    // The kind and designer picks stay across tabs: each tab applies what it can (lib/branches-page tabFilters).
   };
   const pickFilters = (f: QueueFilters) => {
     setFilters(f);
@@ -226,12 +252,6 @@ export function BranchesList(p: BranchesListProps) {
     setParam('status', null);
   };
 
-  // The person of a row: who asked for it when Bridge recorded it, else Claude AI for its own work, else the author.
-  const personOf = (r: ListRow, e: Extra | undefined): Person =>
-    (r.requester && requesterPerson(r.requester, (l) => (l.toLowerCase() === r.author.toLowerCase() && e?.person) || person(l, null, avatarOf(l)))) ??
-    (r.agent ? CLAUDE : (e?.person ?? person(r.author, null, avatarOf(r.author))));
-  const whoNode = (r: ListRow, e: Extra | undefined) => <Who p={personOf(r, e)} size="md" />;
-  const nameOf = (r: ListRow, e: Extra | undefined) => personOf(r, e).name;
 
   // The checkbox (preview token branches together) leads a row; every row of a group that has one keeps its slot, so
   // thumbnails and avatars stay in one column.
@@ -287,27 +307,7 @@ export function BranchesList(p: BranchesListProps) {
   };
 
   // Waiting on me: every change that waits on the viewer, branches and the rest, by kind and by designer.
-  const products = p.products ?? DEFAULT_PRODUCTS;
-  const queueBranches = waitingView
-    ? rows.map((x) => {
-        const c = categoryOf({ files: x.e?.files ?? null, labels: x.r.labels, headRef: x.r.head.ref, signals: x.r.signals, guidanceOnly: x.r.guidance }, products);
-        const pp = personOf(x.r, x.e);
-        return { kind: 'branch' as const, x, category: c.category, productName: c.product?.name ?? null, designer: { key: designerKey(pp), name: pp.name } };
-      })
-    : [];
-  const queueExtras = waitingView
-    ? (p.waiting ?? []).map((w) => {
-        const pp = w.need.person ?? CLAUDE;
-        return { kind: 'extra' as const, w, category: w.category, productName: w.product?.name ?? null, designer: { key: designerKey(pp), name: pp.name } };
-      })
-    : [];
-  const queue = [...queueBranches, ...queueExtras];
-  // An address naming nobody who waits keeps everyone, rather than an empty list.
-  const by = filters.by && queue.some((q) => q.designer.key === filters.by) ? filters.by : null;
-  const active: QueueFilters = { kind: filters.kind, by };
-  const filtered = active.kind !== 'all' || Boolean(active.by);
-  const kept = queue.filter((q) => passes(q, active));
-  const kinds = kindOptions(queue, by);
+  const kinds = kindOptions(queue, active.by);
   const designers = designerOptions(queue, active.kind);
   const reach = reachLine(products);
   const count = (n: number) => (
@@ -377,7 +377,7 @@ export function BranchesList(p: BranchesListProps) {
     <div className={waitingView ? 'bl is-waiting' : 'bl'}>
       <div className="bl-filters">
         <SegmentedControl label={`Whose ${VOCAB.branches}`} value={who} onValueChange={pickWho} items={WHO_FILTERS} />
-        {waitingView && queue.length > 0 && (
+        {!(p.loading && !p.rows.length) && (
           <span className="bl-narrow">
             <Select
               label="Kind of change"
@@ -386,13 +386,16 @@ export function BranchesList(p: BranchesListProps) {
               onValueChange={(v) => pickFilters({ ...active, kind: (v ?? 'all') as KindFilter })}
               options={kinds.map((k) => ({ value: k.value, label: k.label, badge: count(k.count), disabled: k.count === 0 && k.value !== active.kind }))}
             />
-            <Select
-              label="Designer"
-              hideLabel
-              value={active.by ?? EVERYONE}
-              onValueChange={(v) => pickFilters({ ...active, by: !v || v === EVERYONE ? null : v })}
-              options={designers.map((d) => ({ value: d.value, label: d.label, badge: count(d.count), disabled: d.count === 0 && d.value !== (active.by ?? EVERYONE) }))}
-            />
+            {/* Mine is the viewer's own work: no designer to pick. The kind select keeps its place. */}
+            {showsDesignerFilter(who) && (
+              <Select
+                label="Designer"
+                hideLabel
+                value={active.by ?? EVERYONE}
+                onValueChange={(v) => pickFilters({ ...active, by: !v || v === EVERYONE ? null : v })}
+                options={designers.map((d) => ({ value: d.value, label: d.label, badge: count(d.count), disabled: d.count === 0 && d.value !== (active.by ?? EVERYONE) }))}
+              />
+            )}
           </span>
         )}
       </div>
@@ -422,6 +425,13 @@ export function BranchesList(p: BranchesListProps) {
         </ul>
       ) : waitingView && queue.length > 0 ? (
         waitingList
+      ) : groups.length === 0 && filtered && tabRows.length > 0 ? (
+        <p className="t-body t-muted bl-none">
+          No {VOCAB.branch} of this kind.{' '}
+          <Button variant="link" onClick={() => pickFilters({ kind: 'all', by: null })}>
+            Clear filters
+          </Button>
+        </p>
       ) : groups.length === 0 || waitingView ? (
         <p className="t-body t-muted bl-none">{emptyWhoLine(who, Boolean(viewer))}</p>
       ) : (
