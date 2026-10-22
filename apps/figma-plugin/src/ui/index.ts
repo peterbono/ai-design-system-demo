@@ -20,7 +20,7 @@ import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classi
 import { CLAUDE_MODELS, type ClaudeDraft, type ClaudeDraftInput, ClaudeDraftError, DRAFTED_NOTE, draftWithClaude } from '../sync/claude';
 import { loadCodedComponents, sendComponentRequest } from '../sync/requests';
 import { DRAFT_PHRASE, type DraftField, DraftPoller, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, planFill, startMyClaudeDrafts } from '../sync/my-claude';
-import { type ComponentApplyReport, type ComponentPullPlan, type CoverageView, type PlannedComponent, buildComponentPlan, coverageView, draftedSetNote, loadComponentSpecs, pushedInReview, pushedNumbers } from '../sync/component-pull';
+import { type ComponentApplyReport, type ComponentPullPlan, type CoverageView, type PlannedComponent, buildComponentPlan, componentReportView, coverageView, draftedSetNote, loadComponentSpecs, pushedInReview, pushedNumbers } from '../sync/component-pull';
 import { type FigmaPushStatus, figmaPushStatusesOnGitHub } from '@bridge-ds/core';
 import { type ComponentReview, onlyComponent, reviewUpdates } from '../sync/component-review';
 import type { ComponentSignature } from '../sync/components';
@@ -184,6 +184,8 @@ interface State {
   tab: Tab;
   init?: InitPayload | undefined;
   busy?: string | undefined;
+  /** While a long build runs: "Stop" in the action bar calls it. */
+  cancel?: (() => void) | undefined;
   /** `problem`: the failure was about the token (rejected, or a missing permission named with its GitHub link). */
   error?: { message: string; retry?: (() => void) | undefined; problem?: TokenProblem | undefined } | undefined;
   pull?: PullState | undefined;
@@ -662,7 +664,19 @@ async function refreshBaselines(p: PullState): Promise<void> {
 
 /** Builds components, then takes the "after" thumbnails of the updated ones and moves their review to `done`. */
 async function buildComponents(p: PullState, list: PlannedComponent[]): Promise<ComponentApplyReport> {
-  const report = await request('apply-components', { plan: { ...p.components!, components: list } });
+  state.cancel = () => {
+    state.cancel = undefined;
+    state.busy = 'Stopping after the component in progress';
+    render();
+    void request('cancel-components', {});
+  };
+  render();
+  let report: ComponentApplyReport;
+  try {
+    report = await request('apply-components', { plan: { ...p.components!, components: list } });
+  } finally {
+    state.cancel = undefined;
+  }
   const updated = list.filter((c) => c.status === 'updated' && c.nodeId);
   if (updated.length) Object.assign(p.after, await request('thumbnails', { nodeIds: updated.map((c) => c.nodeId!), width: THUMB_W }).catch(() => ({})));
   for (const c of updated) {
@@ -696,7 +710,9 @@ function updateComponent(componentId: string): void {
       const next = await loadPull(p);
       if (report.problems.length) next.componentsReport = undefined;
       state.pull = next;
-      if (report.problems.length) state.error = { message: `${comp.name} updated, with problems: ${report.problems.slice(0, 3).join('; ')}` };
+      const notBuilt = report.failed?.[0] ?? report.partial?.[0];
+      if (notBuilt) state.error = { message: `${comp.name} was not fully updated: ${notBuilt.reason}. Nothing half built was left.`, retry: () => updateComponent(componentId) };
+      else if (report.problems.length) state.error = { message: `${comp.name} updated, with problems: ${report.problems.slice(0, 3).join('; ')}` };
       void request('notify', { message: `${comp.name} updated${withVariables ? ', with the variables from main' : ''}` });
     },
     () => updateComponent(componentId),
@@ -724,10 +740,33 @@ function applyPull(): void {
       await loadInit();
       state.push = undefined;
       const cr = p.componentsReport;
-      const parts = [report && report.created + report.updated ? `${report.created} variables created, ${report.updated} updated` : '', cr ? `${plural(cr.created + cr.updated, 'component')} built` : ''].filter(Boolean);
+      const parts = [report && report.created + report.updated ? `${report.created} variables created, ${report.updated} updated` : '', cr ? componentReportView(cr).headline.replace(/\.$/, '') : ''].filter(Boolean);
       void request('notify', { message: `Pulled ${state.init!.settings.branch}: ${parts.join(', ') || 'nothing changed in Figma'}.` });
     },
     applyPull,
+  );
+}
+
+/**
+ * "Try again" after a pull that left components out (Figma refused some, or Stop): reads main and the file again and
+ * builds what is still missing. Sets already built are unchanged now, so it goes on from where the pull stopped.
+ */
+function retryComponents(): void {
+  const prev = state.pull;
+  if (!prev) return;
+  void run(
+    'Building the components left',
+    async () => {
+      const next = await loadPull({ ...prev, includeComponents: true });
+      const build = componentsToBuild(next);
+      if (build.length) next.componentsReport = await buildComponents(next, build);
+      next.report = prev.report;
+      await refreshBaselines(next);
+      state.pull = next;
+      const cr = next.componentsReport;
+      void request('notify', { message: cr ? componentReportView(cr).headline : 'Every component is built.' });
+    },
+    retryComponents,
   );
 }
 
@@ -1581,21 +1620,34 @@ function viewPull(): View {
     const r = p.report;
     const cr = p.componentsReport;
     const problems = [...(r?.errors ?? []), ...(cr?.problems ?? [])];
+    const view = cr ? componentReportView(cr) : undefined;
     const text = [
       r ? `${plural(r.created, 'variable')} created, ${r.updated} updated${r.orphaned ? `, ${r.orphaned} flagged as orphan` : ''}.` : '',
-      cr
-        ? `${[cr.created ? `${plural(cr.created, 'component set')} created` : '', cr.updated ? `${plural(cr.updated, 'component set')} updated` : '', cr.orphaned ? `${plural(cr.orphaned, 'variant')} flagged as orphan` : ''].filter(Boolean).join(', ') || 'Component sets already matched the code'} on the ${cr.page} page.`
+      cr && view
+        ? `${view.headline} ${[cr.created ? `${cr.created} created` : '', cr.updated ? `${cr.updated} updated` : '', cr.orphaned ? `${plural(cr.orphaned, 'variant')} flagged as orphan` : ''].filter(Boolean).join(', ')}${cr.created || cr.updated || cr.orphaned ? ` on the ${cr.page} page.` : ''}`.trim()
         : '',
       prop.kept.length ? `${plural(prop.kept.length, 'Figma edit')} kept: send them from Push.` : '',
     ].filter(Boolean);
+    const left = view?.retry ?? false;
     return {
       body: [
         intro({
-          title: problems.length ? 'Pulled, with problems' : 'Figma is up to date',
+          title: view?.stopped ? 'Pull stopped' : left ? 'Some components were not built' : problems.length ? 'Pulled, with problems' : 'Figma is up to date',
           text: text.join(' '),
           meta: r ? (r.layout === 'single-collection' ? 'Themes are modes of the Semantic collection.' : 'This file allows one mode per collection, so each theme has its own Semantic collection.') : undefined,
           art: problems.length ? 'fix' : 'tokens',
         }),
+        view && left
+          ? h(
+              'div',
+              { class: 'callout warn', role: 'status' },
+              h('div', { class: 'callout-title' }, icon('alert'), view.stopped ? 'Not built yet' : 'Not built'),
+              view.stopped ? h('p', null, view.stopped) : null,
+              view.notBuilt ? h('p', null, view.notBuilt) : null,
+              view.partial.length ? h('ul', null, view.partial.map((x) => h('li', null, x))) : null,
+              h('p', null, 'Try again builds what is missing. Sets already built are kept as they are.'),
+            )
+          : null,
         cr?.interactionsNote ? h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Interactions not added'), h('p', null, cr.interactionsNote)) : null,
         cr?.fontNote ? h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Font replaced'), h('p', null, cr.fontNote)) : null,
         p.done.size ? reviewGroup(p, [...p.done.values()], 'Updated components') : null,
@@ -1609,7 +1661,9 @@ function viewPull(): View {
             )
           : null,
       ],
-      bar: { label: 'Check again', onClick: checkPull, secondary: prop.kept.length ? { label: 'Push my edits', onClick: () => { state.tab = 'push'; scanPush(); } } : undefined },
+      bar: left
+        ? { label: 'Try again', onClick: retryComponents, secondary: { label: 'Check again', onClick: checkPull } }
+        : { label: 'Check again', onClick: checkPull, secondary: prop.kept.length ? { label: 'Push my edits', onClick: () => { state.tab = 'push'; scanPush(); } } : undefined },
     };
   }
 
@@ -3320,8 +3374,9 @@ function actionBar(bar: ActionBar | undefined): Child {
       { class: 'bar-status', 'aria-live': 'polite' },
       state.busy ? [h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('span', { id: 'busy-text' }, state.busy)] : bar?.hint ? h('span', null, bar.hint) : null,
     ),
-    bar?.secondary ? h('button', { class: 'btn', disabled: !!state.busy, onClick: bar.secondary.onClick }, bar.secondary.label) : null,
-    bar ? h('button', { class: 'btn primary', disabled: !!state.busy || !!bar.disabled, onClick: bar.onClick }, bar.label) : null,
+    state.busy && state.cancel ? h('button', { class: 'btn', 'data-focus-id': 'stop-build', onClick: state.cancel }, 'Stop') : null,
+    bar?.secondary && !state.cancel ? h('button', { class: 'btn', disabled: !!state.busy, onClick: bar.secondary.onClick }, bar.secondary.label) : null,
+    bar && !state.cancel ? h('button', { class: 'btn primary', disabled: !!state.busy || !!bar.disabled, onClick: bar.onClick }, bar.label) : null,
   );
 }
 

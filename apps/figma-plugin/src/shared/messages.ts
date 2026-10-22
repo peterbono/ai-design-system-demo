@@ -200,6 +200,8 @@ export interface RequestMap {
   'fidelity-export': { request: { nodeId: string; keys: string[]; scale: number }; response: Record<string, string> };
   /** Build or update the component sets of a plan on the Components page, bound to the variables. */
   'apply-components': { request: { plan: ComponentPullPlan }; response: ComponentApplyReport };
+  /** Stop the component build in progress after the set it is on: its report lists the sets it did not reach. */
+  'cancel-components': { request: Record<string, never>; response: { cancelled: boolean } };
 }
 
 export type RequestType = keyof RequestMap;
