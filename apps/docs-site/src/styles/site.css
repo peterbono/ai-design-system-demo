@@ -405,20 +405,20 @@ a.topbar-brand {
   display: inline-flex;
   align-items: center;
   min-height: var(--control-height-md);
-  gap: var(--space-3);
+  gap: var(--space-1);
   justify-self: start;
   color: var(--color-text-default);
   text-decoration: none;
 }
 
-/* "Studio" in the display face, like the wordmark, so "Bridge Studio" reads as one name. Deep Harbor marks the space. */
+/* Studio reads as one wordmark, "Bridge Studio": the same display face, size, weight and baseline as "Bridge", one
+   space-1 apart, no divider. Both words share one line box (same family, size and line height), so centring them puts
+   them on one baseline. Deep Harbor marks the space. */
 .topbar-space {
-  padding-left: var(--space-3);
-  border-left: var(--border-width-default) solid var(--color-border-default);
   color: var(--color-text-signal);
   font-family: var(--typography-h2-family);
   font-size: var(--typography-h3-size);
-  font-weight: var(--font-weight-regular);
+  font-weight: var(--typography-h2-weight);
   letter-spacing: var(--font-tracking-snug);
   line-height: var(--typography-h3-line-height);
 }
