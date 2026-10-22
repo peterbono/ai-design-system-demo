@@ -20,6 +20,7 @@ import { HostedOnboarding, setupStepFromUrl } from './Onboarding';
 import { accessScreen, teamLink, type AccessAction, type AccessScreen } from '../../../lib/access-view';
 import { studioBase } from '../../../lib/team-path';
 import { isDemoRepo } from '../../../lib/demo';
+import { updatedLine } from '../../../lib/activity-view';
 
 /** The attributes the shared GitHub session listens for (scripts/github-session.ts). */
 const SESSION_ATTRS = {
@@ -58,10 +59,12 @@ function ActionButton({ action, variant, copy, copied }: { action: AccessAction;
 
 export interface NoAccessProps {
   screen: AccessScreen;
+  /** When the page reads the team's published activity (a guest): when it was written, said quietly in the banner. */
+  updatedAt?: string | null;
 }
 
 /** One access screen: the full block or the banner. */
-export function NoAccess({ screen }: NoAccessProps) {
+export function NoAccess({ screen, updatedAt }: NoAccessProps) {
   const { copied, said, copy } = useCopy(3000);
   const run = (text: string, done: string) => void copy(text, done);
   const live = (
@@ -81,6 +84,15 @@ export function NoAccess({ screen }: NoAccessProps) {
         actions={<ActionButton action={screen.primary} variant="secondary" copy={run} copied={copied} />}
       >
         {screen.body}
+        {updatedAt && (
+          <span className="na-updated">
+            {' '}
+            <time dateTime={updatedAt} title={new Date(updatedAt).toLocaleString('en-US')}>
+              {updatedLine(updatedAt)}
+            </time>
+            .
+          </span>
+        )}
         {live}
         {fallback}
       </Banner>
@@ -146,6 +158,8 @@ export function TeamAccessGate() {
   const [link, setLink] = useState('');
   // The hosted onboarding opens on the team's home with ?setup=<step> (the chip menu, Settings, a shared link).
   const [setupAt, setSetupAt] = useState<ReturnType<typeof setupStepFromUrl>>(null);
+  // A guest page answered from the team's published activity: the banner says how recent it is.
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -162,8 +176,13 @@ export function TeamAccessGate() {
       session.initGitHubConnect(() => paint(session.currentAccess()));
       session.onAccess(paint);
     })();
+    let stop: (() => void) | null = null;
+    void import('../../../scripts/guest-activity').then((m) => {
+      if (live) stop = m.onActivityUsed((a) => setUpdatedAt(a.generatedAt));
+    });
     return () => {
       live = false;
+      stop?.();
     };
   }, []);
 
@@ -190,5 +209,5 @@ export function TeamAccessGate() {
         }}
       />
     );
-  return screen ? <NoAccess screen={screen} /> : null;
+  return screen ? <NoAccess screen={screen} updatedAt={g.access === 'anonymous-public' ? updatedAt : null} /> : null;
 }

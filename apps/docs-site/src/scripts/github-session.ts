@@ -58,6 +58,7 @@ import {
   type TokenResponse,
 } from '../lib/github-signin';
 import { studioHref } from '../lib/team-path';
+import { clearGuestReads, guestFetch } from './guest-activity';
 
 export { GitHubError };
 
@@ -170,6 +171,7 @@ export function setToken(token: string | null) {
   } catch {
     /* private mode: token lives for this page only */
   }
+  clearGuestReads();
   document.dispatchEvent(new CustomEvent('bridge:auth', { detail: { signedIn: Boolean(token) } }));
 }
 
@@ -612,6 +614,11 @@ export const studioFetch: FetchLike = async (url, init = {}) => {
       return res;
     }
   }
+  // A guest's read: the team's activity, this tab's recent answer, or GitHub (scripts/guest-activity.ts).
+  if (method === 'GET' && !headers.Authorization && url.startsWith(API)) {
+    const h = headers;
+    return guestFetch(url, h.Accept ?? '', () => fetch(url, { ...init, headers: h }));
+  }
   const res = await fetch(url, { ...init, headers });
   if (res.status === 401 && headers.Authorization) {
     markTokenRejected();
@@ -735,7 +742,9 @@ async function ghGetOnce<T>(url: string, path: string, key: string, opts: { acce
   try {
     // raw.githubusercontent.com: no custom headers, so no CORS preflight (and no API rate limit).
     const isApi = url.startsWith(API);
-    let res = await fetch(url, isApi ? { headers: headers(opts.accept ? { Accept: opts.accept } : {}) } : {});
+    const h = headers(opts.accept ? { Accept: opts.accept } : {});
+    // A guest's read: the team's activity, this tab's recent answer, or GitHub (scripts/guest-activity.ts).
+    let res = isApi && !h.Authorization ? await guestFetch(url, h.Accept ?? '', () => fetch(url, { headers: h })) : await fetch(url, isApi ? { headers: h } : {});
     // GitHub refused the token: mark it, then read anonymously (public repos keep working).
     if (res.status === 401 && isApi && hasWorkingToken()) {
       markTokenRejected();
