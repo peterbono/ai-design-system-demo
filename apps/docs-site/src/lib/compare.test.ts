@@ -20,12 +20,39 @@ describe('comparison (homepage and /compare/)', () => {
     for (const r of ALL_ROWS) expect(r.cells.length, r.feature).toBe(TOOLS.length);
   });
 
-  it('says why on every half mark, and never on a dash', () => {
+  it('says why on every partial cell, and never on a dash', () => {
     for (const r of ALL_ROWS)
       for (const c of r.cells) {
         if (c.state === 'partial') expect(c.note, r.feature).toBeTruthy();
-        if (c.state === 'no') expect(c.note, r.feature).toBeUndefined();
+        if (c.state === 'no') expect([c.note, c.short], r.feature).toEqual([undefined, undefined]);
       }
+  });
+
+  it('gives every partial cell a short label of 2 to 4 words, and keeps qualifiers on checks as short', () => {
+    for (const r of ALL_ROWS)
+      for (const c of r.cells) {
+        if (c.state === 'partial') expect(c.short, `${r.feature}: ${c.note}`).toBeTruthy();
+        if (!c.short) continue;
+        const words = c.short.split(/\s+/).length;
+        expect(words, c.short).toBeGreaterThanOrEqual(c.state === 'partial' ? 2 : 1);
+        expect(words, c.short).toBeLessThanOrEqual(4);
+        expect(c.short.length, c.short).toBeLessThanOrEqual(28);
+        expect(c.short, c.short).not.toMatch(/\.$/);
+        expect(c.note, c.short).toBeTruthy();
+      }
+  });
+
+  it('labels the partial cells of the review rows in words', () => {
+    const row = (f: string) => ALL_ROWS.find((r) => r.feature === f)!;
+    expect(row('One review for tokens, code and docs').cells.map((c) => c.short)).toEqual([
+      undefined,
+      'Tokens only',
+      'Docs only',
+      'Code only',
+      'Docs and tokens',
+      'Two separate reviews',
+    ]);
+    expect(row('Start an AI exploration with your design system').cells[5].short).toBe('Paid plans');
   });
 
   it('opens on the exploration row, worded with the design system', () => {
@@ -40,8 +67,8 @@ describe('comparison (homepage and /compare/)', () => {
     expect(marks(row('UI kit linked to code'))).toBe('ypyypy');
   });
 
-  it('has a legend for each mark and a date', () => {
-    expect(Object.keys(KEY)).toEqual(['yes', 'partial', 'no']);
+  it('has a legend for each mark, none for the worded partial cells, and a date', () => {
+    expect(Object.keys(KEY)).toEqual(['yes', 'no']);
     expect(AS_OF_LINE).toBe('From public pages, October 2026');
   });
 
@@ -54,7 +81,12 @@ describe('comparison (homepage and /compare/)', () => {
 
   it('reads cells as words', () => {
     expect(cellText({ state: 'yes' })).toBe('Yes');
-    expect(cellText({ state: 'partial', note: 'Tokens only.' })).toBe('In part: Tokens only.');
+    expect(cellText({ state: 'yes', note: 'MIT.' })).toBe('Yes: MIT.');
+    expect(cellText({ state: 'partial', short: 'Tokens only', note: 'Tokens only.' })).toBe('In part: Tokens only.');
+    expect(cellText({ state: 'partial', short: 'Plugin only', note: 'The Figma plugin is MIT; the platform is not.' })).toBe(
+      'In part: Plugin only. The Figma plugin is MIT; the platform is not.',
+    );
+    expect(cellText({ state: 'yes', short: 'Paid plans', note: 'Git sync on paid plans.' })).toBe('Yes: Paid plans. Git sync on paid plans.');
     expect(cellText({ state: 'no' })).toBe('No');
   });
 

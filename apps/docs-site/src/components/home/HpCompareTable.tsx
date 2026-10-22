@@ -1,34 +1,47 @@
-// One comparison table of "How Bridge compares." (homepage): the DS Table, a sticky feature column, and a mark per tool:
-// a check (does it), a half mark (does part of it) or a dash (does not, or not documented). A mark with a note is a
-// ghost DS IconButton whose Tooltip says how; its accessible name carries the same words. Hydrated by HpCompare.astro
-// (short table) and inside the HpCompareMore island (every feature, by group). Words and data: lib/compare.ts.
+// One comparison table of "How Bridge compares." (homepage): the DS Table, a sticky feature column, and per tool a
+// check (does it), a dash (does not, or not documented) or, for a tool that does part of it, a short label of 2 to 4
+// words saying what is missing or limited. A check may carry a short grey qualifier under it ("Paid plans"). A cell
+// with a note is a DS Tooltip trigger (a ghost IconButton on a check, a link Button on a label) whose Tooltip holds
+// the full note; its accessible name says the state and carries the same words. Hydrated by HpCompare.astro (short
+// table) and inside the HpCompareMore island (every feature, by group). Words and data: lib/compare.ts.
 // Styles: styles/home-compare.css.
-import { Icon, IconButton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tooltip, VisuallyHidden } from '@bridge-ds/react';
-import { Check, Contrast, Minus } from 'lucide-react';
-import { STATE_LABEL, TOOLS, cellText, type Cell, type CellState, type CompareGroup, type CompareRow } from '../../lib/compare';
+import { Button, Icon, IconButton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tooltip, VisuallyHidden } from '@bridge-ds/react';
+import { Check, Minus } from 'lucide-react';
+import { STATE_LABEL, TOOLS, cellText, type Cell, type CompareGroup, type CompareRow, type MarkState } from '../../lib/compare';
 
-/** The glyph for each state, shared with the legend. */
-export const MARK_ICON: Record<CellState, typeof Check> = { yes: Check, partial: Contrast, no: Minus };
+/** The glyph for each mark, shared with the legend. A partial cell has no mark: it shows its short label. */
+export const MARK_ICON: Record<MarkState, typeof Check> = { yes: Check, no: Minus };
 
 function Mark({ cell, tool }: { cell: Cell; tool: string }) {
-  if (cell.note) {
+  const label = `${tool}, ${cellText(cell)}`;
+  if (cell.state === 'partial') {
     return (
       <Tooltip content={cell.note}>
-        <IconButton
-          icon={MARK_ICON[cell.state]}
-          label={`${tool}, ${cellText(cell)}`}
-          variant="ghost"
-          size="sm"
-          className="hp-cmp-mark hp-cmp-tip"
-          data-state={cell.state}
-        />
+        <Button variant="link" className="hp-cmp-label" data-state="partial" aria-label={label}>
+          {cell.short}
+        </Button>
       </Tooltip>
+    );
+  }
+  const sub = cell.short && (
+    <small className="hp-cmp-sub" aria-hidden="true">
+      {cell.short}
+    </small>
+  );
+  if (cell.note) {
+    return (
+      <span className="hp-cmp-stack">
+        <Tooltip content={cell.note}>
+          <IconButton icon={MARK_ICON[cell.state]} label={label} variant="ghost" size="sm" className="hp-cmp-mark hp-cmp-tip" data-state={cell.state} />
+        </Tooltip>
+        {sub}
+      </span>
     );
   }
   return (
     <span className="hp-cmp-mark" data-state={cell.state}>
       <Icon icon={MARK_ICON[cell.state]} size="md" className="hp-cmp-icon" />
-      <VisuallyHidden>{STATE_LABEL[cell.state]}</VisuallyHidden>
+      <VisuallyHidden>{cell.short ? cellText(cell) : STATE_LABEL[cell.state]}</VisuallyHidden>
     </span>
   );
 }
