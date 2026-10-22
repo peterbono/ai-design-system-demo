@@ -1,7 +1,7 @@
 // The Studio home on the demo for a visitor who cannot change it (lib/demo.ts exploresDemo), boards D1 and D1b: the
 // signed-in home itself (StudioHome.tsx), from the DS lead's seat, with the demo's real activity read-only.
 //   - The Harbor zone as the lead has it: "Good morning, Dana." by the Field Guide drawing, "8 changes need your
-//     review. Ann and Claude AI are waiting on Dana, who leads this design system.", three Needs you rows each with
+//     review. Ann and Claude AI are waiting on you.", three Needs you rows each with
 //     its Review button, and beyond them the grouped row with its one primary "Review all (8)" (the review queue, which
 //     a visitor browses read-only).
 //   - The library health line, then "Explorations and branches": the team's work as the home's cards.

@@ -83,14 +83,13 @@ export const DEFAULT_WRITE = 'save changes';
 
 /**
  * The waiting line of the demo (board D1b), the visitor in the DS lead's seat: "8 changes need your review." then
- * who waits, on whom: "Ann and Claude AI are waiting on Dana, who leads this design system." `people` is
+ * who waits: "Ann and Claude AI are waiting on you." (the visitor is Dana). `people` is
  * home-model waitingSentence over everyone but the lead.
  */
 export function demoWaiting(n: number, people: { names: string; rest: string } | null, lead: string | null): { count: string; rest: string } {
   const count = `${n} ${n === 1 ? 'change needs' : 'changes need'} your review.`;
-  const on = lead ? `on ${lead}, who leads this design system.` : 'on the lead of this design system.';
   if (!people) return { count, rest: lead ? ` ${lead} leads this design system.` : '' };
-  return { count, rest: ` ${people.names}${people.rest.replace(/on you\.$/, on)}` };
+  return { count, rest: ` ${people.names}${people.rest}` };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
