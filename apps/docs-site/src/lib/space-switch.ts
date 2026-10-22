@@ -73,6 +73,7 @@ export function studioRouteOfTeamLibrary(libraryRoute: string, search = ''): { r
     if (found[1] === 'accessibility') return { route: 'quality/', item: 'Accessibility' };
   }
   if (r === 'tokens/' || r === 'foundations/') return { route: 'tokens/', item: 'Tokens' };
+  if (r === 'how-review-works/') return { route: 'settings/#approvals', item: 'Approvals' };
   return { route: '', item: null };
 }
 
