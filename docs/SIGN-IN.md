@@ -14,7 +14,7 @@ that you, the owner, create once, and their environment variables on Vercel.
 
 - **Bridge** reads the code and writes only issues: designers' changes become suggestions that a developer applies.
   A DS owner gets least privilege: nobody can push code through Studio.
-- **Bridge Direct** (the app first created as "Bridge Studio") opens branches and pull requests for every change.
+- **Bridge Direct** (the app first created as "Bridge Studio", now named "Bridge Design Studio" on GitHub, slug `bridge-design-studio`, settings at github.com/settings/apps/bridge-design-studio) opens branches and pull requests for every change.
 - With only one of the two configured, Studio signs in with that one whatever the mode (a site that never created
   the Bridge app keeps working exactly as before). In suggest mode with only Bridge Direct, Bridge still keeps to
   suggestions in software, but the app itself could write code.

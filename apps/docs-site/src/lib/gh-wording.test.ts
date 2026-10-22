@@ -75,9 +75,9 @@ describe('saving to branches on a team page (Bridge Direct)', () => {
   });
 
   it('writes the message for the lead with the install link and the team link', () => {
-    const m = askDirectInstallMessage('acme/ds', 'https://github.com/apps/bridge-direct/installations/new', 'https://bridge.example.com/studio/acme/ds/');
+    const m = askDirectInstallMessage('acme/ds', 'https://github.com/apps/bridge-design-studio/installations/new', 'https://bridge.example.com/studio/acme/ds/');
     expect(m).toContain('github.com/acme/ds');
-    expect(m).toContain('https://github.com/apps/bridge-direct/installations/new (pick ds)');
+    expect(m).toContain('https://github.com/apps/bridge-design-studio/installations/new (pick ds)');
     expect(m).toContain('https://bridge.example.com/studio/acme/ds/');
     expect(m).not.toMatch(/\u2014/);
   });
