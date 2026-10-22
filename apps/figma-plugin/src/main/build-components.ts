@@ -34,6 +34,15 @@ type Progress = (message: string) => void;
 type Box = FrameNode | ComponentNode;
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+/** Longest stretch of work before giving Figma a turn (ms): keeps the file responsive on a big design system. */
+const SLICE_MS = 30;
+let lastYield = 0;
+/** Yields to Figma when the current slice of work is used up. Cheap to call in any loop. */
+async function breathe(): Promise<void> {
+  if (Date.now() - lastYield < SLICE_MS) return;
+  await tick();
+  lastYield = Date.now();
+}
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 /**
@@ -1008,7 +1017,7 @@ async function ensureParts(plan: ComponentPullPlan, ctx: Ctx, report: ComponentA
         created.rollback(mark);
         ctx.problems.push(`${icon.component} not drawn: ${reasonOf(err)}`);
       }
-      if (i % 25 === 24) await tick();
+      await breathe();
     }
     const sorted = plan.icons.map((i) => icons.get(i.name)).filter((c): c is ComponentNode => !!c && !c.removed && c.parent?.id === page.id);
     sorted.forEach((c, i) => {
@@ -1044,6 +1053,7 @@ async function ensureParts(plan: ComponentPullPlan, ctx: Ctx, report: ComponentA
           else counts.updated++;
         }
         slots.set(slot.name, comp);
+        await breathe();
       } catch (err) {
         created.rollback(mark);
         // An existing slot that failed to redraw: its hash is cleared, so the next pull draws it again.
@@ -1212,6 +1222,9 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
   const isNew = !set;
   /** Variant nodes made by this pull: removed when they fail. */
   const fresh = new Set<string>();
+  const failed: { name: string; reason: string }[] = [];
+  /** Variants not even created (a new set): built by the update path of the next pull. */
+  const skipped = new Set<string>();
   try {
     if (!set) {
       place.page ??= await componentsPage();
@@ -1221,13 +1234,21 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
       // carries its componentId: if Figma closes now, the next pull finds the set and goes on, never a duplicate.
       const made: ComponentNode[] = [];
       for (const pv of comp.variants) {
-        const c = make.component();
-        c.name = pv.name;
-        c.setSharedPluginData(NS, 'variant', pv.key);
-        page.appendChild(c);
-        fresh.add(c.id);
-        made.push(c);
+        const vmark = created.mark();
+        try {
+          const c = make.component();
+          c.name = pv.name;
+          c.setSharedPluginData(NS, 'variant', pv.key);
+          page.appendChild(c);
+          fresh.add(c.id);
+          made.push(c);
+        } catch (err) {
+          created.rollback(vmark);
+          failed.push({ name: pv.name, reason: reasonOf(err) });
+          skipped.add(pv.key);
+        }
       }
+      if (!made.length) throw new NotBuilt(failed[0]?.reason ?? 'no variant could be created');
       set = created.add(figma.combineAsVariants(made, page));
       set.setSharedPluginData(NS, 'componentId', comp.componentId);
       set.x = 0;
@@ -1239,9 +1260,8 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
     const variants = new Map(
       set.children.filter((c): c is ComponentNode => c.type === 'COMPONENT').map((c) => [c.getSharedPluginData(NS, 'variant') || variantKeyOf(c.variantProperties ?? {}), c]),
     );
-    const failed: { name: string; reason: string }[] = [];
-    let lastTick = Date.now();
     for (const pv of comp.variants) {
+      if (skipped.has(pv.key)) continue;
       let node = variants.get(pv.key);
       const vmark = created.mark();
       const isFresh = !node || fresh.has(node.id);
@@ -1257,10 +1277,7 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
         if (isFresh && node && !node.removed) node.remove();
       }
       // Yield to Figma often enough that the file never freezes, whatever the size of the set.
-      if (Date.now() - lastTick > 40) {
-        await tick();
-        lastTick = Date.now();
-      }
+      await breathe();
     }
     if (set.removed || failed.length === comp.variants.length) throw new NotBuilt(failed[0]?.reason ?? 'Figma removed the set');
     // Variants removed in code: kept, flagged.
@@ -1273,6 +1290,7 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
         report.orphaned++;
       }
     }
+    await breathe();
     // Interactions are extra: when Figma refuses them, this set is still built and the pull goes on.
     try {
       await wireReactions(set, comp, ctx);
@@ -1296,6 +1314,7 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
       // Rebuilt from the code: a change pushed from Figma is now the reviewed code (or gone), so its mark goes.
       if (set.getSharedPluginData(NS, PUSHED_KEY)) set.setSharedPluginData(NS, PUSHED_KEY, '');
     }
+    await breathe();
     // The generated set is the baseline: a Push right after a pull sends nothing.
     try {
       set.setSharedPluginData(NS, 'signature', JSON.stringify(buildSignature(await readComponent(set))));
@@ -1315,6 +1334,7 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
 
 export async function applyComponentPlan(plan: ComponentPullPlan, progress: Progress = () => undefined, opts: ApplyOptions = {}): Promise<ComponentApplyReport> {
   created = new Created();
+  lastYield = Date.now();
   const ctx: Ctx = { vars: new Variables(), fonts: new Fonts(), problems: [], where: '', parts: new Map(), icons: [] };
   const report: ComponentApplyReport = { created: 0, updated: 0, unchanged: 0, orphaned: 0, page: PAGE_NAME, problems: ctx.problems, nodeIds: [], total: plan.components.length, failed: [] };
   try {
@@ -1323,7 +1343,14 @@ export async function applyComponentPlan(plan: ComponentPullPlan, progress: Prog
     ctx.problems.push(`Variables could not be read (${errorText(err)}): components are built without bindings. Pull again.`);
   }
   await ctx.fonts.load();
-  const existing = new Map((await generatedSets()).map((s) => [s.getSharedPluginData(NS, 'componentId'), s]));
+  // Index the generated sets once (by componentId): no search per component. A duplicate (a set copied by hand) is
+  // left alone; the first one found is updated.
+  const existing = new Map<string, ComponentSetNode>();
+  for (const s of await generatedSets()) {
+    const id = s.getSharedPluginData(NS, 'componentId');
+    if (!existing.has(id)) existing.set(id, s);
+  }
+  await breathe();
   try {
     await ensureParts(plan, ctx, report, progress);
   } catch (err) {
@@ -1351,7 +1378,7 @@ export async function applyComponentPlan(plan: ComponentPullPlan, progress: Prog
         report.failed!.push({ name: comp.name, reason: err instanceof NotBuilt ? err.message : reasonOf(err) });
       }
       created.sweep();
-      await tick();
+      await breathe();
     }
   } finally {
     created.sweep();
