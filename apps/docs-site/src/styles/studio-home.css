@@ -165,9 +165,11 @@
   min-width: 0;
 }
 
-/* One line (the home's Needs you, BranchRow compact): "Title · who asks" ellipsed, the chips and the button at the end. */
+/* One line (the home's Needs you, BranchRow compact): "Title · who asks" ellipsed, its one status right after it (read
+   as a label, not a button), the row button alone at the end. */
 .sh-row-compact .sh-row-text {
   display: block;
+  flex: 0 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -185,7 +187,7 @@
   margin-inline-start: auto;
 }
 
-.sh-row-body > .sh-row-chips + .sh-row-action {
+.sh-row-compact .sh-row-chips {
   margin-inline-start: 0;
 }
 

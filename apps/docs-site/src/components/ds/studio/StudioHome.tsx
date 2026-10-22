@@ -58,7 +58,6 @@ export function NeedRowItem({ row, selected, onSelect, action, compact }: { row:
       line={row.line}
       pill={row.pill}
       compact={compact}
-      tags={row.sample ? <SampleTag /> : undefined}
       end={
         action && (
           <ButtonLink variant={action} href={row.href} className="sh-row-action" tabIndex={-1} aria-hidden="true">
@@ -70,7 +69,7 @@ export function NeedRowItem({ row, selected, onSelect, action, compact }: { row:
   );
 }
 
-/** "Sample": demo data, said on every row and card of the demo so a visitor never takes it for real work. */
+/** "Sample": demo data, on the demo's branch cards (its review rows keep one status; the banner says it is sample data). */
 export function SampleTag() {
   return (
     <Badge tone="neutral" size="sm" className="sh-sample">
@@ -167,9 +166,9 @@ function Needs({ needs, now, snoozed, demo, tour }: { needs: NeedRow[]; now: num
   const { shown, more } = splitNeeds(needs);
   return (
     <>
-      {/* One item: its button is the page's primary. Two or three: secondary buttons. More: no row buttons, "Review all"
-          acts. The demo (board D1b) keeps a Review button on each row, beside "Review all (N)". */}
-      <NeedList rows={shown} compact action={demo ? 'secondary' : more ? undefined : shown.length === 1 ? 'primary' : 'secondary'} />
+      {/* One item: its button is the page's primary. Two or three: secondary buttons. More: no row buttons, each row is
+          its own link and "Review all" acts, the demo included. */}
+      <NeedList rows={shown} compact action={more ? undefined : shown.length === 1 ? 'primary' : 'secondary'} />
       {tour?.('rows')}
       {more && (
         <div className="sh-more">
