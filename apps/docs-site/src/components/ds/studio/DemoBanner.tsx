@@ -3,7 +3,8 @@
 //   - "Demo workspace." (board D1), for a visitor who came straight to the demo: what the demo is, "See it on GitHub"
 //     (the demo repository) and "Use your own repo", which opens "Create a new team" (NewTeamDialog.tsx).
 //   - "Sample data." (board EmptyA2), for a visitor with a workspace or who came through the start screen: the demo is
-//     read only, and "Back to your workspace" leads home (their team, the browser workspace, or the start screen).
+//     read only, and "Back to your workspace" leads to their team or browser workspace; with none yet, "Connect your
+//     design system" starts the setup (lib/start.ts demoBack).
 // A DS Banner, neutral; the sample kind takes the board's warm tint (styles/demo-home.css). Mounted by
 // scripts/demo-gate.ts into the layout's [data-demo-strip].
 import { Info } from 'lucide-react';
@@ -17,11 +18,13 @@ export interface DemoBannerProps {
   repoUrl: string;
   /** Opens "Create a new team". */
   onUseOwn: () => void;
-  /** The visitor's workspace: shows the "Sample data" banner with "Back to your workspace" to it. */
-  back?: string | null;
+  /** Shows the "Sample data" banner: back to the visitor's workspace, or connect one when there is none. */
+  back?: { href: string; connect: boolean } | null;
+  /** "Connect your design system" clicked (scripts/start-connect.ts). */
+  onConnect?: (e: Event, href: string) => void;
 }
 
-export function DemoBanner({ repoUrl, onUseOwn, back }: DemoBannerProps) {
+export function DemoBanner({ repoUrl, onUseOwn, back, onConnect }: DemoBannerProps) {
   if (back)
     return (
       <Banner
@@ -34,9 +37,15 @@ export function DemoBanner({ repoUrl, onUseOwn, back }: DemoBannerProps) {
           </>
         }
         actions={
-          <ButtonLink variant="secondary" href={back}>
-            {DEMO_WORDS.backToWorkspace}
-          </ButtonLink>
+          back.connect ? (
+            <ButtonLink variant="primary" href={back.href} onClick={(e) => onConnect?.(e.nativeEvent, back.href)}>
+              {DEMO_WORDS.connectOwn}
+            </ButtonLink>
+          ) : (
+            <ButtonLink variant="secondary" href={back.href}>
+              {DEMO_WORDS.backToWorkspace}
+            </ButtonLink>
+          )
         }
       />
     );

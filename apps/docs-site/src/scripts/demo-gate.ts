@@ -93,22 +93,24 @@ async function paintBanner() {
   const on = exploringDemo();
   if (!on && !banner) return;
   banner ??= (async () => {
-    const [{ createElement }, { createRoot }, { DemoBanner }, { startFacts }, { backToWorkspaceHref, demoBannerKind }, { loadReserved }] = await Promise.all([
+    const [{ createElement }, { createRoot }, { DemoBanner }, { startFacts }, { demoBack, demoBannerKind }, { connectDesignSystem }, { loadReserved }] = await Promise.all([
       import('react'),
       import('react-dom/client'),
       import('../components/ds/studio/DemoBanner'),
       import('./start'),
       import('../lib/start'),
+      import('./start-connect'),
       import('../lib/team-open'),
     ]);
     const root = createRoot(slot);
     // Read once per page from this browser only (no GitHub call): a visitor with a workspace, or who came through the
-    // start screen, gets "Back to your workspace"; one who came straight here keeps "Use your own repo".
+    // start screen, gets "Back to your workspace" (or "Connect your design system" with no workspace yet); one who came
+    // straight here keeps "Use your own repo".
     const facts = startFacts();
-    const back = demoBannerKind(facts) === 'workspace' ? backToWorkspaceHref(facts, await loadReserved()) : null;
+    const back = demoBannerKind(facts) === 'workspace' ? demoBack(facts, await loadReserved()) : null;
     return (show: boolean) => {
       slot.hidden = !show;
-      root.render(show ? createElement(DemoBanner, { repoUrl: `https://github.com/${deps!.repo()}`, onUseOwn: () => void openUseOwnRepo(), back }) : null);
+      root.render(show ? createElement(DemoBanner, { repoUrl: `https://github.com/${deps!.repo()}`, onUseOwn: () => void openUseOwnRepo(), back, onConnect: connectDesignSystem }) : null);
     };
   })();
   (await banner)(exploringDemo());

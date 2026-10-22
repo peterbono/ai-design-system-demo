@@ -85,8 +85,14 @@ export function workspaceHref(f: StartFacts, reserved: ReservedPaths | null = nu
 /** Where "Get started" goes: the workspace, else the start screen. */
 export const getStartedHref = (f: StartFacts, reserved: ReservedPaths | null = null): string => workspaceHref(f, reserved) ?? START_PAGE;
 
-/** Where "Back to your workspace" goes from the demo: the workspace, else back to the start screen. */
-export const backToWorkspaceHref = (f: StartFacts, reserved: ReservedPaths | null = null): string => workspaceHref(f, reserved) ?? START_PAGE;
+/**
+ * The Sample data banner's button: "Back to your workspace" when there is one, else "Connect your design system",
+ * which starts the setup as the start screen's card does (never a "back" that lands on the start screen).
+ */
+export const demoBack = (f: StartFacts, reserved: ReservedPaths | null = null): { href: string; connect: boolean } => {
+  const href = workspaceHref(f, reserved);
+  return href ? { href, connect: false } : { href: CONNECT_HREF, connect: true };
+};
 
 /**
  * Which banner the demo shows a visitor (board EmptyA2): "Sample data" with "Back to your workspace" for someone who
