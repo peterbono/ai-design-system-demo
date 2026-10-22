@@ -5,6 +5,7 @@
 //
 // Pure: astro.config.mjs (bridge-team-shells) checks the built site with these after every build, and
 // team-shells.test.ts checks vercel.json against vercelRewrites().
+import { DEMO_REPOS } from './demo';
 import { isTeamName, OWNER_PATTERN, REPO_PATTERN, STUDIO_ROOT } from './team-path';
 
 /** Where the shells are built. Not under a folder starting with "_": Astro does not build those. */
@@ -90,6 +91,11 @@ export function checkTeamShells(files: readonly string[], read: (file: string) =
       const rest = href.slice(STUDIO_ROOT.length);
       const [a, b] = rest.split('/');
       if (!a || !b || a === '~' || !isTeamName(a, b)) continue;
+      // The demo teams are linked on purpose (the landing's "explore the demo"): fine on any team shell route.
+      if (DEMO_REPOS.includes(`${a}/${b}`.toLowerCase())) {
+        const route = rest.slice(a.length + b.length + 2).replace(/[?#].*$/, '').replace(/index\.html$/, '');
+        if (routes.has(route)) continue;
+      }
       const target = `${studioDir}${rest}`;
       if (all.has(target) || all.has(`${target.replace(/\/?$/, '/')}index.html`)) continue;
       problems.push(`${file} links to ${href}, which no page serves: once deployed it would open the team "${a}/${b}" instead of a 404.`);
