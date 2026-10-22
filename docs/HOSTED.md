@@ -436,3 +436,76 @@ It reuses what invites and Library access need: storage, Resend, `LIBRARY_SESSIO
 which must have **Contents**, **Pull requests** and **Issues: Read and write** on each installation (Issues is new if
 the app was set up for invites only). Optional, not sensitive: `CONTRIB_MAX_WRITES`. Redeploy;
 `GET /api/contribute?repo=<owner/repo>` answers `{ "available": true, "member": null }` once everything is set.
+
+## Accounts
+
+One Bridge account per person, identified by email: no password, no username. "Continue with GitHub" or "Continue
+with email" (a 6-digit code by email) on one screen, for signing in and signing up alike. A new email creates the
+account and opens onboarding (`/start/`); a known one opens the team joined last. Admins and reviewers link GitHub
+(GitHub stays the way to approve, merge and write as themselves); editors may have an email only. People who already
+joined a team with their email find that team on their first sign-in with the same email. The server piece is one
+Vercel function, `apps/docs-site/api/account/index.ts`; the record and the session live in
+`apps/docs-site/api/_lib/account.ts`.
+
+### Endpoints
+
+| Call                                            | Answer                                                                |
+| ----------------------------------------------- | --------------------------------------------------------------------- |
+| `GET /api/account`                              | `{ available, account }`, account `{ email, name, github, teams }` or null; teams `[{ repo, name, role, via }]` (email memberships; GitHub teams are found on GitHub as before) |
+| `POST { action: 'code', email }`                | always `{ ok: true }` for a well-formed email, with or without an account; a daily cap answers 429 for everyone alike |
+| `POST { action: 'verify', email, code, name? }` | sets the cookie; `{ account, created, next }`, next `/start/` for a new account, else `/studio/<owner>/<repo>/` (team joined last), else `/studio/` (a GitHub account) or `/start/` |
+| `POST { action: 'github', token }`              | a GitHub user token: `GET /user` and `GET /user/emails`, verified emails only. Links GitHub to the account of one of them (primary first), else creates one with the primary verified email. Same answer as verify. 409 `github-taken` when that account is linked to another GitHub account |
+| `POST { action: 'rename', name }`               | `{ account }`                                                         |
+| `POST { action: 'sign-out' }`                   | clears the cookie on this browser                                     |
+| `POST { action: 'sign-out-everywhere' }`        | bumps the account's version: every session ends                       |
+| `POST { action: 'delete' }`                     | deletes the account, its GitHub link, its email memberships (which ends their contributor sessions) and every session; 409 `last-admin` with `teams` when the person is the only admin of a team that has other members |
+
+Every `POST` carries `X-Bridge-Account: 1`, JSON, and an `Origin` of this very site (CSRF).
+
+**The last-admin rule.** Email memberships are never admin (admins join with GitHub). For a GitHub-linked account,
+Studio sends the person's own GitHub token as `Authorization: Bearer` with `delete`: the function reads the
+repositories the Bridge app and the person share (`GET /user/installations`, then each installation's repositories),
+and for each one where they are admin, its collaborators and email members. Without that token the GitHub check is
+skipped: deleting a Bridge account never changes anything on GitHub, so the team keeps its GitHub admin either way.
+
+### Codes, sessions and storage
+
+- **Codes**: 6 digits, 10 minutes, single use, one live code per email (a new one replaces the last). Stored only as
+  `bridge:account:code:<sha256(email + code)>` `{ email, tries }`, checked in constant time. 5 wrong tries burn the
+  code. Caps per UTC day: 5 codes per email, 20 per network, 100 for the site (`ACCOUNT_CODES_MAX_SITE_DAY`), 60 code
+  checks and 60 GitHub sign-ins per network (emails and networks under an HMAC). Nothing logs an email or a code.
+- **The session**: cookie `bridge_account`, `Path=/`, `HttpOnly`, `Secure`, `SameSite=Lax`, 30 days, signed with
+  HMAC-SHA256 under `LIBRARY_SESSION_SECRET` with its own purpose, claims `{ email, v, exp }`. Every request reads the
+  account again: a version bump (sign out everywhere) or a deleted account ends it at once.
+- **Email contributors**: `/api/contribute` accepts the account session too. An account whose email is a member of
+  the team counts as that member; the per-team cookie keeps working.
+- **Keys** (the same Upstash Redis as invites): `bridge:account:<email>` `{ id, email, name, github, createdAt,
+  version }`, `bridge:account:gh:<githubId>` (the email), `bridge:account:teams:<email>` (set of `owner/repo`, kept by
+  the member store), the codes above. Memberships stay `bridge:member:<repo>:<email>`.
+
+### Backup and privacy
+
+A Vercel cron (`crons` in `apps/docs-site/vercel.json`, daily at 03:17 UTC) calls `GET /api/account?export=1` with
+`Authorization: Bearer $CRON_SECRET`. The function writes a JSON of `bridge:account:*`, `bridge:member:*`,
+`bridge:members:*` and `bridge:invite:*` (never codes or counters) to Vercel Blob as a private file,
+`bridge-backups/accounts-<date>.json`, and keeps the last 30. Without `BLOB_READ_WRITE_TOKEN` it does nothing and
+logs a warning that names no one. Data stays in the Upstash region of each environment and in the Blob store's
+region; deleting an account removes it from Redis at once and from the backups within 30 days.
+
+### Set it up (owner of the site)
+
+It reuses storage, Resend (`RESEND_API_KEY`, `INVITE_EMAIL_FROM`) and `LIBRARY_SESSION_SECRET`. For the backup:
+
+1. **Blob store.** In the Vercel project (`bridge-docs`): **Storage**, **Create Database**, **Blob**, connect it to
+   Production. It adds `BLOB_READ_WRITE_TOKEN`.
+2. **Cron secret.** Add `CRON_SECRET` (Production, Sensitive): 32 characters or more, random
+   (`openssl rand -base64 48`). Vercel sends it with every cron call.
+
+| Name                         | Value                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| `BLOB_READ_WRITE_TOKEN`      | Added by step 1. Sensitive                                               |
+| `CRON_SECRET`                | Step 2. Sensitive                                                        |
+| `ACCOUNT_CODES_MAX_SITE_DAY` | Optional: codes the site sends per day (100). Not sensitive              |
+
+Redeploy. `GET /api/account` answers `{ "available": true, "account": null }` once storage and the secret are set;
+the cron's run shows under the project's **Cron Jobs**.

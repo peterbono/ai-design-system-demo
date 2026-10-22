@@ -4,6 +4,7 @@
 // Keys (Upstash Redis, no expiry: a member stays until an admin removes them):
 //   bridge:member:<owner/repo>:<email>   the member (JSON)
 //   bridge:members:<owner/repo>          set of their emails
+//   bridge:account:teams:<email>         set of the teams that email is a member of (api/account reads it)
 // Repository and email are lower case.
 
 import type { Redis } from './redis.js';
@@ -29,6 +30,8 @@ export interface MemberStore {
 
 export const memberKey = (repo: string, email: string) => `bridge:member:${repo.toLowerCase()}:${email.trim().toLowerCase()}`;
 export const membersKey = (repo: string) => `bridge:members:${repo.toLowerCase()}`;
+/** The teams one email is a member of: the Bridge account of that email finds its memberships here. */
+export const accountTeamsKey = (email: string) => `bridge:account:teams:${email.trim().toLowerCase()}`;
 
 function parseMember(raw: unknown): EmailMember | null {
   if (typeof raw !== 'string') return null;
@@ -50,12 +53,14 @@ export function memberStore(redis: Redis): MemberStore {
       await redis.pipe([
         ['SET', memberKey(repo, email), JSON.stringify({ ...m, email })],
         ['SADD', membersKey(repo), email],
+        ['SADD', accountTeamsKey(email), repo.toLowerCase()],
       ]);
     },
     async remove(repo, email) {
       const [n] = await redis.pipe([
         ['DEL', memberKey(repo, email)],
         ['SREM', membersKey(repo), email.trim().toLowerCase()],
+        ['SREM', accountTeamsKey(email), repo.toLowerCase()],
       ]);
       return Number(n) > 0;
     },
