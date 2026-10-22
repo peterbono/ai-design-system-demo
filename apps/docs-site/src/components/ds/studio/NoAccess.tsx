@@ -9,18 +9,20 @@
 import { useEffect, useState } from 'react';
 import '../../../styles/onboarding.css';
 import '../../../styles/requests.css';
-import { AlertTriangle, Check, Copy, Info, LogOut } from 'lucide-react';
-import { Banner, Button, Link } from '@bridge-ds/react';
+import { AlertTriangle, Check, Copy, Info, LogOut, Mail } from 'lucide-react';
+import { Banner, Button, Dialog, DialogContent, Link } from '@bridge-ds/react';
 import type { RepoAccessState } from '@bridge-ds/core';
 import ButtonLink from '../ButtonLink';
 import { GitHubMark } from './brand-icons';
 import { Drawing } from './Drawing';
 import { useCopy } from './TeamLink';
 import { HostedOnboarding, setupStepFromUrl } from './Onboarding';
+import EmailLinkForm from '../library/EmailLinkForm';
 import { accessScreen, teamLink, type AccessAction, type AccessScreen } from '../../../lib/access-view';
 import { studioBase } from '../../../lib/team-path';
 import { isDemoRepo } from '../../../lib/demo';
 import { updatedLine } from '../../../lib/activity-view';
+import { CONTRIBUTE_WORDS, contributeEligible } from '../../../lib/contribute';
 
 /** The attributes the shared GitHub session listens for (scripts/github-session.ts). */
 const SESSION_ATTRS = {
@@ -28,8 +30,14 @@ const SESSION_ATTRS = {
   signout: { 'data-gh-forget': '' },
 } as const;
 
-function ActionButton({ action, variant, copy, copied }: { action: AccessAction; variant: 'primary' | 'secondary'; copy: (text: string, done: string) => void; copied: boolean }) {
+function ActionButton({ action, variant, copy, copied, onEmail }: { action: AccessAction; variant: 'primary' | 'secondary'; copy: (text: string, done: string) => void; copied: boolean; onEmail?: () => void }) {
   switch (action.kind) {
+    case 'email':
+      return (
+        <Button variant={variant} iconStart={Mail} onClick={onEmail}>
+          {action.label}
+        </Button>
+      );
     case 'signin':
       return (
         <Button variant={variant} iconStart={GitHubMark} {...SESSION_ATTRS.signin}>
@@ -57,15 +65,52 @@ function ActionButton({ action, variant, copy, copied }: { action: AccessAction;
   }
 }
 
+/**
+ * Sign in with your email (lib/contribute.ts): the Library gate's email form (EmailLinkForm), sending a link to a
+ * team's email contributor. The server answers the same whether or not the address is on the team.
+ */
+function EmailSignIn({ repo, expired, autoFocus, onSent }: { repo: string; expired: boolean; autoFocus: boolean; onSent: (sent: boolean) => void }) {
+  return (
+    <EmailLinkForm
+      words={CONTRIBUTE_WORDS}
+      expired={expired}
+      autoFocus={autoFocus}
+      onSent={onSent}
+      send={async (email) => (await import('../../../scripts/contribute-session')).requestEmailSignIn(repo, email)}
+      isUnavailable={(err) => err instanceof Error && err.name === 'ContributeUnavailable'}
+      unavailable={<p className="t-body">{CONTRIBUTE_WORDS.unavailable}</p>}
+    >
+      <p className="t-body">{CONTRIBUTE_WORDS.emailSignInLead}</p>
+    </EmailLinkForm>
+  );
+}
+
 export interface NoAccessProps {
   screen: AccessScreen;
+  /** "owner/repo": where Sign in with your email sends its link (screens with the email action). */
+  repo?: string;
+  /** The visitor opened a sign-in link that expired: the email form opens with the reason. */
+  emailExpired?: boolean;
   /** When the page reads the team's published activity (a guest): when it was written, said quietly in the banner. */
   updatedAt?: string | null;
 }
 
 /** One access screen: the full block or the banner. */
-export function NoAccess({ screen, updatedAt }: NoAccessProps) {
+export function NoAccess({ screen, updatedAt, repo = '', emailExpired = false }: NoAccessProps) {
   const { copied, said, copy } = useCopy(3000);
+  // "Invited with your email? Get a sign-in link": on the block, the form replaces Sign in with GitHub in place (its
+  // Send me a link becomes the primary, "Use GitHub instead" goes back); on the banner, it opens in a dialog.
+  const emailLink = repo ? screen.links?.find((l) => l.action.kind === 'email') : undefined;
+  const [emailOpen, setEmailOpen] = useState(emailExpired && Boolean(emailLink));
+  const [sent, setSent] = useState(false);
+  const email = emailLink ? <EmailSignIn repo={repo} expired={emailExpired} autoFocus={!emailExpired} onSent={setSent} /> : null;
+  // While this screen asks to sign in, the side nav's own "Connect GitHub" would be a second call to action: hidden.
+  const asksSignIn = screen.layout === 'block' && screen.primary.kind === 'signin';
+  useEffect(() => {
+    const root = document.documentElement;
+    root.toggleAttribute('data-signin-card', asksSignIn);
+    return () => root.removeAttribute('data-signin-card');
+  }, [asksSignIn]);
   const run = (text: string, done: string) => void copy(text, done);
   const live = (
     <p className="sr-only" role="status" aria-live="polite">
@@ -81,7 +126,16 @@ export function NoAccess({ screen, updatedAt }: NoAccessProps) {
         appearance="neutral"
         icon={screen.tone === 'warning' ? AlertTriangle : Info}
         title={screen.title}
-        actions={<ActionButton action={screen.primary} variant="secondary" copy={run} copied={copied} />}
+        actions={
+          <>
+            <ActionButton action={screen.primary} variant="secondary" copy={run} copied={copied} />
+            {emailLink && (
+              <Button variant="link" size="sm" onClick={() => setEmailOpen(true)}>
+                {emailLink.action.label}
+              </Button>
+            )}
+          </>
+        }
       >
         {screen.body}
         {updatedAt && (
@@ -95,10 +149,18 @@ export function NoAccess({ screen, updatedAt }: NoAccessProps) {
         )}
         {live}
         {fallback}
+        {email && (
+          <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
+            <DialogContent title={sent ? CONTRIBUTE_WORDS.sentTitle : CONTRIBUTE_WORDS.emailSignInTitle} size="sm" className="na-email-dialog">
+              {email}
+            </DialogContent>
+          </Dialog>
+        )}
       </Banner>
     );
   }
 
+  const inEmail = Boolean(email && emailOpen);
   return (
     <section className="zone na" aria-labelledby="na-title">
       <div className="na-art" aria-hidden="true">
@@ -106,25 +168,47 @@ export function NoAccess({ screen, updatedAt }: NoAccessProps) {
       </div>
       <div className="na-text">
         <h1 id="na-title" className="na-title">
-          {screen.title}
+          {sent ? CONTRIBUTE_WORDS.sentTitle : screen.title}
         </h1>
-        <p className="na-body">{screen.body}</p>
-        <div className="na-actions">
-          <ActionButton action={screen.primary} variant="primary" copy={run} copied={copied} />
-          {screen.secondary && <ActionButton action={screen.secondary} variant="secondary" copy={run} copied={copied} />}
-        </div>
+        {!inEmail && <p className="na-body">{screen.body}</p>}
+        {!inEmail && (
+          <div className="na-actions">
+            <ActionButton action={screen.primary} variant="primary" copy={run} copied={copied} />
+            {screen.secondary && <ActionButton action={screen.secondary} variant="secondary" copy={run} copied={copied} />}
+          </div>
+        )}
+        {inEmail && (
+          <div className="na-email">
+            {email}
+            {!sent && (
+              <p className="na-link">
+                <Button variant="link" size="sm" iconStart={GitHubMark} onClick={() => setEmailOpen(false)}>
+                  {CONTRIBUTE_WORDS.useGitHubInstead}
+                </Button>
+              </p>
+            )}
+          </div>
+        )}
         {live}
         {fallback}
-        {screen.links?.map((l) =>
-          l.action.kind === 'link' ? (
-            <p key={l.action.href} className="na-link">
-              {l.lead && <span>{l.lead} </span>}
-              <Link href={l.action.href} external={l.action.external}>
-                {l.action.label}
-              </Link>
-            </p>
-          ) : null,
-        )}
+        {!inEmail &&
+          screen.links?.map((l) =>
+            l.action.kind === 'link' ? (
+              <p key={l.action.href} className="na-link">
+                {l.lead && <span>{l.lead} </span>}
+                <Link href={l.action.href} external={l.action.external}>
+                  {l.action.label}
+                </Link>
+              </p>
+            ) : l.action.kind === 'email' && email ? (
+              <p key="email" className="na-link">
+                {l.lead && <span>{l.lead} </span>}
+                <Button variant="link" size="sm" onClick={() => setEmailOpen(true)}>
+                  {l.action.label}
+                </Button>
+              </p>
+            ) : null,
+          )}
         {screen.note && <p className="na-quiet">{screen.note}</p>}
       </div>
     </section>
@@ -146,6 +230,10 @@ export interface GateState {
   login: string | null;
   access: RepoAccessState | null;
   repoAdmin: boolean;
+  /** This site signs email contributors in on this team (real teams only). */
+  email?: boolean;
+  /** The sign-in link from an email had expired. */
+  emailExpired?: boolean;
 }
 
 /**
@@ -168,13 +256,24 @@ export function TeamAccessGate() {
       if (!live) return;
       setLink(teamLink(location.origin, studioBase(location.pathname, true)));
       if (document.documentElement.dataset.shell === 'home') setSetupAt(setupStepFromUrl(location.search));
+      let email = false;
       const paint = (access: ReturnType<typeof session.currentAccess>) => {
         const r = repoContext();
         const v = session.currentViewer();
-        setG({ owner: r.owner, repo: r.repo, login: v?.login ?? null, access: access?.state ?? null, repoAdmin: access?.repoAdmin === true || access?.admin === true });
+        setG({ owner: r.owner, repo: r.repo, login: v?.login ?? null, access: access?.state ?? null, repoAdmin: access?.repoAdmin === true || access?.admin === true, email, emailExpired: session.contributeLinkState() === 'expired' });
       };
       session.initGitHubConnect(() => paint(session.currentAccess()));
       session.onAccess(paint);
+      // Sign in with your email, on real teams whose site has the email server (one GET, shared with the session).
+      const r = repoContext();
+      const full = `${r.owner}/${r.repo}`;
+      if (contributeEligible(full, r.hosted)) {
+        const { contributeInfo } = await import('../../../scripts/contribute-session');
+        const info = await contributeInfo(full);
+        if (!live) return;
+        email = info.available;
+        paint(session.currentAccess());
+      }
     })();
     let stop: (() => void) | null = null;
     void import('../../../scripts/guest-activity').then((m) => {
@@ -188,12 +287,15 @@ export function TeamAccessGate() {
 
   // The demo greets a guest itself (its demo banner, lib/demo.ts): no guest banner over it.
   const guestOnDemo = g?.access === 'anonymous-public' && isDemoRepo(`${g.owner}/${g.repo}`);
-  const screen = g?.access && !guestOnDemo ? accessScreen(g.access, { owner: g.owner, repo: g.repo, login: g.login, link, admin: g.repoAdmin }) : null;
+  const screen = g?.access && !guestOnDemo ? accessScreen(g.access, { owner: g.owner, repo: g.repo, login: g.login, link, admin: g.repoAdmin, email: Boolean(g.email) }) : null;
   const block = screen?.layout === 'block';
   const setup = Boolean(g?.login && setupAt && !block);
   useTakeover(Boolean(block || setup));
   if (!g) return null;
-  if (block) return <NoAccess screen={screen!} />;
+  const emailProps = g.email ? { repo: `${g.owner}/${g.repo}`, emailExpired: Boolean(g.emailExpired) } : {};
+  // A link found expired after the screen showed opens the email form: a fresh screen.
+  const k = g.emailExpired ? 'expired' : 'ok';
+  if (block) return <NoAccess key={k} screen={screen!} {...emailProps} />;
   if (setup)
     return (
       <HostedOnboarding
@@ -209,5 +311,5 @@ export function TeamAccessGate() {
         }}
       />
     );
-  return screen ? <NoAccess screen={screen} updatedAt={g.access === 'anonymous-public' ? updatedAt : null} /> : null;
+  return screen ? <NoAccess key={k} screen={screen} updatedAt={g.access === 'anonymous-public' ? updatedAt : null} {...emailProps} /> : null;
 }

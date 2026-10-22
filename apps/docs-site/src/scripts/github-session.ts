@@ -7,7 +7,7 @@
 
 import { attrUrl, escapeHtml } from '../lib/html';
 import { classifyAuth, type FetchLike, GitHubClient, GitHubError, type ClientOptions, friendlyMessage, resolveRepoAccess } from '@bridge-ds/core';
-import { accessFromCheck, accessLabel, accessStorageKey, accessView, freshAccess, type RepoAccess, type RepoAccessState } from '../lib/access';
+import { accessFromCheck, accessLabel, accessStorageKey, accessView, contributorAccess, freshAccess, type RepoAccess, type RepoAccessState } from '../lib/access';
 import { repoContext } from './repo-context';
 import { clearPrivateRepoCaches, clearRepoCache } from './repo-cache';
 import {
@@ -23,7 +23,7 @@ import {
   type SessionMode,
 } from '../lib/token-session';
 import { closeDialog, isDialogOpen, openDialog as openDsDialog } from '@bridge-ds/react/dom';
-import { paintAvatar } from './avatar';
+import { paintAvatar, paintDrawnAvatar } from './avatar';
 import { askDirectInstallMessage, DIRECT_CONSENT, DIRECT_SETUP, directSetupLine, ghAction, ghButton, ghVerb } from '../lib/gh-wording';
 import { installUrl } from '../lib/access-view';
 import { changesModeOnPage } from './changes-mode';
@@ -59,6 +59,8 @@ import {
 } from '../lib/github-signin';
 import { studioHref } from '../lib/team-path';
 import { clearGuestReads, guestFetch } from './guest-activity';
+import { CONTRIB_TOKEN, CONTRIBUTE_WORDS, contributeEligible, isContribAuth, type ContributeMember } from '../lib/contribute';
+import { contributeFetch, contributeInfo, contributorFor, onContributeChange, signOutEmail, takeContributeHash, verifyEmailSignIn } from './contribute-session';
 
 export { GitHubError };
 
@@ -156,12 +158,37 @@ export function readRepo(): RepoRef {
   return { owner, repo, defaultBranch };
 }
 
-export function getToken(): string | null {
+/** The GitHub token saved in this browser (Sign in with GitHub or a pasted token), never the email stand-in. */
+function githubToken(): string | null {
   try {
     return localStorage.getItem(key(TOKEN_BASE));
   } catch {
     return null;
   }
+}
+
+/** "owner/repo" of this page, as written in the address (the proxy and the server keep its case). */
+const pageRepo = () => {
+  const r = readRepo();
+  return `${r.owner}/${r.repo}`;
+};
+
+/**
+ * The email contributor signed in on this page's team (lib/contribute.ts), when there is no GitHub sign-in: real teams
+ * only, never the sample team, Bridge's demo or the browser workspace. Null otherwise.
+ */
+export function currentContributor(): ContributeMember | null {
+  if (typeof document === 'undefined' || githubToken() || document.documentElement.hasAttribute('data-no-repo')) return null;
+  const repo = pageRepo();
+  return contributeEligible(repo, repoContext().hosted) ? contributorFor(repo) : null;
+}
+
+/**
+ * The token every GitHub call of the Studio carries: the GitHub one, or, for an email contributor, a stand-in that
+ * the session's fetch sends to this site's proxy (scripts/contribute-session.ts). Features never tell them apart.
+ */
+export function getToken(): string | null {
+  return githubToken() ?? (currentContributor() ? CONTRIB_TOKEN : null);
 }
 
 export function setToken(token: string | null) {
@@ -579,7 +606,8 @@ let refreshedAfter401 = false;
  */
 export function markTokenRejected() {
   const token = getToken();
-  if (!token || tokenRejected()) return;
+  // An email session that ended is handled by the proxy's fetch (contributeFetch): no GitHub token to mark.
+  if (!token || isContribAuth(token) || tokenRejected()) return;
   if (!refreshedAfter401 && canRefresh(readAppSession(), Date.now())) {
     refreshedAfter401 = true;
     void refreshSignIn().then((ok) => (ok ? onRefreshed?.() : markTokenRejected()));
@@ -597,6 +625,8 @@ export function markTokenRejected() {
 export const studioFetch: FetchLike = async (url, init = {}) => {
   const method = (init.method ?? 'GET').toUpperCase();
   let headers = init.headers ?? {};
+  // An email contributor: every call to the team's repository goes through this site's proxy, the rest as a guest.
+  if (isContribAuth(headers.Authorization)) return contributeFetch(pageRepo(), url, init as RequestInit);
   // A write with a token GitHub already refused cannot succeed: answer for it, so the action shows the one message.
   if (method !== 'GET' && tokenRejected() && headers.Authorization) {
     return new Response(JSON.stringify({ message: 'Bad credentials' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
@@ -708,6 +738,10 @@ function cacheSet(url: string, data: unknown) {
   }
 }
 
+/** fetch for a call with the session's headers: the proxy for an email contributor, GitHub otherwise. */
+const ghFetch = (url: string, init: RequestInit & { headers: Record<string, string> }): Promise<Response> =>
+  isContribAuth(init.headers.Authorization) ? contributeFetch(pageRepo(), url, init) : fetch(url, init);
+
 function headers(extra: Record<string, string> = {}): Record<string, string> {
   const h: Record<string, string> = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...extra };
   const token = getToken();
@@ -744,7 +778,7 @@ async function ghGetOnce<T>(url: string, path: string, key: string, opts: { acce
     const isApi = url.startsWith(API);
     const h = headers(opts.accept ? { Accept: opts.accept } : {});
     // A guest's read: the team's activity, this tab's recent answer, or GitHub (scripts/guest-activity.ts).
-    let res = isApi && !h.Authorization ? await guestFetch(url, h.Accept ?? '', () => fetch(url, { headers: h })) : await fetch(url, isApi ? { headers: h } : {});
+    let res = isApi && !h.Authorization ? await guestFetch(url, h.Accept ?? '', () => fetch(url, { headers: h })) : isApi ? await ghFetch(url, { headers: h }) : await fetch(url);
     // GitHub refused the token: mark it, then read anonymously (public repos keep working).
     if (res.status === 401 && isApi && hasWorkingToken()) {
       markTokenRejected();
@@ -776,10 +810,11 @@ export async function ghWrite<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', pa
   if (!getToken()) throw new GitHubError(401, `${ghVerb(prefersSignIn())} first.`, 'no-token');
   if (tokenRejected()) throw new GitHubError(401, rejectedText(sessionMode(), prefersSignIn()), 'Bad credentials', { auth: 'rejected' });
   // A code write on a team page in direct mode goes out with Bridge Direct (or waits for its OK: this throws).
-  const direct = needsDirectApp(method, `${API}${path}`) ? await directTokenForWrite() : null;
   const headers = authHeaders({ 'Content-Type': 'application/json' });
+  const contributor = isContribAuth(headers.Authorization);
+  const direct = !contributor && needsDirectApp(method, `${API}${path}`) ? await directTokenForWrite() : null;
   if (direct) headers.Authorization = `Bearer ${direct}`;
-  const res = await fetch(`${API}${path}`, {
+  const res = await ghFetch(`${API}${path}`, {
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -818,13 +853,21 @@ export interface Viewer {
   avatar_url: string;
   /** Profile name, when the user set one. */
   name?: string | null;
+  /** An email contributor (lib/contribute.ts): `login` is their email, there is no GitHub account. */
+  email?: string;
 }
+
+/** The viewer of an email contributor: their email stands for the login, no photo. */
+const contributorViewer = (m: ContributeMember): Viewer => ({ login: m.email, avatar_url: '', name: m.name, email: m.email });
 
 let viewer: Viewer | null = null;
 export const currentViewer = () => viewer;
 
 let wired = false;
 let checked = false;
+/** The link from a sign-in email on this page: being checked, or expired (the email form says so). */
+let contributeLink: 'checking' | 'expired' | null = null;
+export const contributeLinkState = () => contributeLink;
 const listeners: ((v: Viewer | null) => void)[] = [];
 const notify = (v: Viewer | null) => listeners.forEach((fn) => fn(v));
 
@@ -901,25 +944,36 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       block.dataset.state = state;
       block.dataset.mode = app ? 'app' : 'token';
       const text = block.querySelector('[data-gh-status-text]');
-      if (text) text.textContent = viewer ? `Connected as @${viewer.login}` : rejected ? (app ? 'Sign-in expired' : 'Token stopped working') : switched ? 'Signed out' : 'Read only';
+      if (text) text.textContent = viewer?.email ? CONTRIBUTE_WORDS.signedInWithEmail : viewer ? `Connected as @${viewer.login}` : rejected ? (app ? 'Sign-in expired' : 'Token stopped working') : switched ? 'Signed out' : 'Read only';
       const label = block.querySelector('[data-gh-open-label]');
       if (label) label.textContent = viewer ? (app ? 'Account' : 'Token') : rejected || switched ? (app || signIn ? 'Sign in again' : 'Reconnect') : ghButton(signIn);
       block.querySelectorAll<HTMLElement>('[data-gh-rejected-text]').forEach((el) => (el.textContent = switched ? 'Bridge changed its GitHub app' : app ? 'Your GitHub sign-in expired' : 'Your GitHub token stopped working'));
       block.querySelectorAll<HTMLElement>('[data-gh-reconnect-label]').forEach((el) => (el.textContent = app || switched ? 'Sign in again' : signIn ? 'Sign in with GitHub' : 'Reconnect'));
       // Change token only for a pasted token on a site without Sign in with GitHub.
-      block.querySelectorAll<HTMLElement>('[data-gh-token-only]').forEach((el) => (el.hidden = app || signIn));
-      block.querySelectorAll<HTMLElement>('[data-gh-forget-label]').forEach((el) => (el.textContent = app ? 'Sign out' : 'Disconnect'));
+      block.querySelectorAll<HTMLElement>('[data-gh-token-only]').forEach((el) => (el.hidden = app || signIn || Boolean(viewer?.email)));
+      block.querySelectorAll<HTMLElement>('[data-gh-forget-label]').forEach((el) => (el.textContent = app || viewer?.email ? 'Sign out' : 'Disconnect'));
     });
-    // Header account menu: login, avatar.
+    // Header account menu: login, avatar. An email contributor: their name and email, a drawn face, no GitHub words.
+    const email = viewer?.email ? viewer : null;
+    // Pages hide what an email contributor cannot do (the New brand link: it changes bridge.config.json).
+    document.documentElement.toggleAttribute('data-email-contributor', Boolean(email));
     document.querySelectorAll<HTMLElement>('[data-gh-acct]').forEach((acct) => {
       const login = viewer ? `@${viewer.login}` : '';
-      acct.querySelectorAll('[data-gh-login], [data-gh-login-full]').forEach((el) => (el.textContent = viewer ? (el.hasAttribute('data-gh-login') ? viewer.login : login) : ''));
+      acct.toggleAttribute('data-contributor', Boolean(email));
+      acct.querySelectorAll('[data-gh-login], [data-gh-login-full]').forEach((el) => {
+        const short = el.hasAttribute('data-gh-login');
+        el.textContent = email ? (short ? (email.name ?? email.login) : email.login) : viewer ? (short ? viewer.login : login) : '';
+      });
+      acct.querySelectorAll<HTMLElement>('[data-gh-menu-title]').forEach((el) => (el.textContent = email ? CONTRIBUTE_WORDS.account : 'GitHub'));
       const avatar = acct.querySelector<HTMLElement>('[data-gh-avatar]');
       if (avatar) {
         avatar.hidden = !viewer;
-        if (viewer) paintAvatar(avatar, viewer.login, viewer.avatar_url, 64);
+        if (email) paintDrawnAvatar(avatar, email.login);
+        else if (viewer) paintAvatar(avatar, viewer.login, viewer.avatar_url, 64);
       }
-      acct.querySelector('summary')?.setAttribute('aria-label', viewer ? `GitHub: connected as ${viewer.login}. Account menu` : 'GitHub account');
+      acct
+        .querySelector('summary')
+        ?.setAttribute('aria-label', email ? `${CONTRIBUTE_WORDS.account}: ${email.name ?? email.login}. Account menu` : viewer ? `GitHub: connected as ${viewer.login}. Account menu` : 'GitHub account');
     });
     paintGates();
     if (forget) {
@@ -930,10 +984,10 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
 
   /** GET /user with the saved token, whatever the session state. 401 = the token was refused (after one refresh). */
   const check = async (): Promise<Viewer | null> => {
-    if (!getToken()) return null;
+    if (!githubToken()) return null;
     let res = await fetch(`${API}/user`, { headers: authHeaders() });
     if (res.status === 401 && (await refreshSignIn())) res = await fetch(`${API}/user`, { headers: authHeaders() });
-    const token = getToken();
+    const token = githubToken();
     if (!token) return null;
     if (res.status === 401) {
       writeCheck(rejectedCheck(token, Date.now()));
@@ -1024,6 +1078,17 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     }
   });
   const disconnect = () => {
+    // An email contributor signs out of this team's email session: there is no GitHub sign-in to remove.
+    if (viewer?.email && !githubToken()) {
+      void signOutEmail(pageRepo());
+      viewer = null;
+      forgetAccess();
+      void clearPrivateRepoCaches();
+      paint();
+      paintAccess();
+      notify(null);
+      return;
+    }
     clearSwitched();
     setToken(null);
     writeCheck(null);
@@ -1112,6 +1177,48 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
         .finally(done);
     }
   };
+  // An email contributor (real teams only, no GitHub sign-in): the link from the email is spent first, then the server
+  // confirms the session; meanwhile the page shows the member this browser last saw. Without one, the same GET tells
+  // whether someone is signed in with an email (a session from another tab), after the page painted signed out.
+  const repo = pageRepo();
+  if (!githubToken() && contributeEligible(repo, repoContext().hosted) && !document.documentElement.hasAttribute('data-no-repo')) {
+    const link = takeContributeHash();
+    const settle = (m: ContributeMember | null) => {
+      const next = m ? contributorViewer(m) : null;
+      if (githubToken() || (viewer?.login === next?.login && viewer?.name === next?.name && checked)) return;
+      viewer = next;
+      forgetAccess();
+      if (!m) void clearPrivateRepoCaches();
+      done();
+      if (!m) paintAccess();
+    };
+    onContributeChange((r, m) => {
+      if (r.toLowerCase() === repo.toLowerCase()) settle(m);
+    });
+    const known = contributorFor(repo);
+    if (link) {
+      contributeLink = 'checking';
+      paint();
+      void verifyEmailSignIn(repo, link).then(
+        (m) => {
+          contributeLink = null;
+          settle(m);
+        },
+        () => {
+          contributeLink = 'expired';
+          settle(known);
+        },
+      );
+      return;
+    }
+    if (known) {
+      viewer = contributorViewer(known);
+      done();
+      void contributeInfo(repo);
+      return;
+    }
+    void contributeInfo(repo);
+  }
   const app = readAppSession();
   const token = getToken();
   if (token && app && needsRefresh(app, Date.now())) {
@@ -1166,6 +1273,13 @@ export async function resolveAccess(repo: { owner: string; repo: string } = read
   const signedIn = Boolean(viewer && token && !tokenRejected());
   if (!signedIn && !opts.anonymous) return null;
   const name = repoName(repo);
+  // An email contributor can edit this team, never more (they approve nothing): no GitHub call to say it.
+  if (signedIn && viewer?.email && isContribAuth(token)) {
+    if (name !== repoName(readRepo())) return null;
+    const a = contributorAccess();
+    accessByRepo.set(name, a);
+    return a;
+  }
   const held = accessByRepo.get(name);
   if (held) return held;
   const app = signedIn && sessionMode() === 'app';

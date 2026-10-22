@@ -21,6 +21,12 @@
   font-weight: var(--font-weight-medium);
 }
 
+/* One small tag inline after the name (an email contributor): never pushed to the row's end. */
+.mem-tag {
+  margin-inline-start: var(--space-2);
+  vertical-align: middle;
+}
+
 .mem-you,
 .mem-count {
   color: var(--color-text-muted);
@@ -392,4 +398,19 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
+}
+
+/* Join with your email: the name field, then the join button, one column. */
+.inv-accept-form {
+  display: grid;
+  gap: var(--space-4);
+  max-width: var(--size-80);
+}
+
+/* The quiet line under the actions: the GitHub way, a free account, how to switch accounts. */
+.inv-accept-more {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
 }

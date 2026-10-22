@@ -387,7 +387,10 @@ Deny by default: anything not listed answers 403 `not-allowed`, and only paths u
 
 Never: merges, reviews, requested reviewers, rulesets, branch protection, collaborators, deleting a ref, hooks,
 settings, another repository, GraphQL. "Theirs" means created through this function by the same member (Redis keeps
-who created each branch, issue and pull request for a year). Paths with `.`/`..` segments, encoded slashes or
+who created each branch, issue and pull request for a year, and per member the set
+`bridge:contrib:mine:<repo>:<email>`). `GET /api/contribute?repo=<owner/repo>&mine=1` answers
+`{ "branches": [...], "issues": [numbers] }` for the signed-in member (401 without a session), so Studio counts those
+as theirs: GitHub shows Bridge's app as their author, and Studio writes the member back as author in what it reads. Paths with `.`/`..` segments, encoded slashes or
 backslashes are refused. A request body is at most 5 MB.
 
 **Design files only.** CI runs what a pull request contains, with the repository's secrets, so an email contributor
@@ -415,6 +418,10 @@ person without the email. Private repositories show the real email.
   `Path=/api/contribute`, 30 days, signed with HMAC-SHA256 under `LIBRARY_SESSION_SECRET` (with its own purpose, so a
   Library cookie never passes for it). Every request reads the member again: removed, or joined again since, and the
   session ends at once.
+- **Invite links, before accepting**: `POST /api/invites { "action": "peek", "token" }` needs no sign-in and answers
+  `{ "team", "repo", "role", "sentTo" }` (the address masked, never in full), 410 for a spent or unknown link, 30 per
+  network an hour. The invite page uses it to open on the right path: the email for Can edit, GitHub for a reviewer
+  or an admin.
 - **Sign-in links**: `<site>/studio/<owner>/<repo>/#contribute=<token>`, only the token's SHA-256 stored, 15 minutes,
   once. The answer is the same whether or not the email is a member. Links count like Library sign-ins: 3 per email,
   10 per network, 20 per team and 20 for the site per day (emails and networks under an HMAC).

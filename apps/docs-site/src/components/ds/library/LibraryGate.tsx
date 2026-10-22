@@ -1,5 +1,6 @@
 // The gate of a team's Library (Settings, Library access): what a visitor sees before the Library when its team chose
-// "Anyone with a work email at ..." or "Only the team". One calm screen, the page's one Harbor zone, one primary action:
+// "Anyone with a work email at ..." or "Only the team" (the email form is EmailLinkForm.tsx, shared with a team's email
+// sign-in). One calm screen, the page's one Harbor zone, one primary action:
 //   email        "Enter your work email" and Send me a link; then "Check your inbox" (the address masked). A wrong
 //                domain is said on the field ("This library is open to @acme.design emails. Ask your design system
 //                team for access."), an expired link above it, a site without email sign-in instead of the form.
@@ -8,14 +9,12 @@
 // the sample team and a site without the feature never ask anything and open as before. The link from the email lands
 // here with #signin=<token>: the token leaves the address at once, then is spent on the server, which sets the
 // session cookie (httpOnly, never seen by this page).
-import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Mail } from 'lucide-react';
-import { Alert, Button, Icon, Input } from '@bridge-ds/react';
+import { useEffect, useState } from 'react';
 import ButtonLink from '../ButtonLink';
+import EmailLinkForm from './EmailLinkForm';
 import { GitHubMark } from '../studio/brand-icons';
 import { Drawing } from '../studio/Drawing';
-import { emailDomainIn, GATE_WORDS, libraryGate, maskEmail, signInToken, wrongDomainWords, type AccessAnswer } from '../../../lib/library-access';
-import { isEmail } from '../../../lib/invites';
+import { emailDomainIn, GATE_WORDS, libraryGate, signInToken, wrongDomainWords, type AccessAnswer } from '../../../lib/library-access';
 import { isSampleTeam } from '../../../lib/demo';
 import { teamHref } from '../../../lib/team-path';
 import '../../../styles/library-access.css';
@@ -95,106 +94,25 @@ function Zone({ repo, title, children }: { repo: string; title: string; children
 }
 
 function EmailGate({ repo, domains, expired }: { repo: string; domains: string[]; expired: boolean }) {
-  const [email, setEmail] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
-  const [sentTo, setSentTo] = useState<string | null>(null);
-  const [unavailable, setUnavailable] = useState(false);
-  const [showExpired, setShowExpired] = useState(expired);
-  const field = useRef<HTMLInputElement>(null);
-  const back = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (sentTo) back.current?.focus();
-  }, [sentTo]);
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    const value = email.trim();
-    if (!isEmail(value)) return setError(GATE_WORDS.badEmail);
-    // Said at once, without spending a link; the server checks again and decides.
-    if (!emailDomainIn(value, domains)) return setError(wrongDomainWords(domains));
-    setError(null);
-    setSending(true);
-    try {
-      const api = await import('../../../scripts/library-access-api');
-      try {
-        await api.requestSignIn(repo, value);
-        setShowExpired(false);
-        setSentTo(maskEmail(value));
-      } catch (err) {
-        if (err instanceof api.AccessUnavailable) setUnavailable(true);
-        else setError(err instanceof Error && err.message ? err.message : GATE_WORDS.network);
-      }
-    } finally {
-      setSending(false);
-    }
-  };
-
-  if (unavailable)
-    return (
-      <Zone repo={repo} title={GATE_WORDS.title}>
-        <p className="t-body">
-          {GATE_WORDS.unavailable} {GATE_WORDS.unavailableText}
-        </p>
-      </Zone>
-    );
-
-  if (sentTo)
-    return (
-      <Zone repo={repo} title={GATE_WORDS.sentTitle}>
-        <p className="t-body" role="status">
-          {GATE_WORDS.sentText(sentTo)}
-        </p>
-        <div className="lgt-actions">
-          <Button
-            ref={back}
-            variant="secondary"
-            size="lg"
-            onClick={() => {
-              setSentTo(null);
-              setEmail('');
-              requestAnimationFrame(() => field.current?.focus());
-            }}
-          >
-            {GATE_WORDS.otherEmail}
-          </Button>
-        </div>
-      </Zone>
-    );
-
+  const [sent, setSent] = useState(false);
+  const unavailableText = (
+    <p className="t-body">
+      {GATE_WORDS.unavailable} {GATE_WORDS.unavailableText}
+    </p>
+  );
   return (
-    <Zone repo={repo} title={GATE_WORDS.title}>
-      <p className="t-body">{GATE_WORDS.emailLead(domains)}</p>
-      {showExpired && (
-        <Alert tone="warning" className="lgt-alert">
-          {GATE_WORDS.expired}
-        </Alert>
-      )}
-      <form className="lgt-form" noValidate onSubmit={(e) => void submit(e)}>
-        <Input
-          ref={field}
-          label={GATE_WORDS.emailLabel}
-          hideLabel
-          type="email"
-          name="email"
-          autoComplete="email"
-          inputMode="email"
-          size="lg"
-          prefix={<Icon icon={Mail} size="sm" />}
-          placeholder={GATE_WORDS.emailPlaceholder}
-          value={email}
-          error={error ?? undefined}
-          onValueChange={(v) => {
-            setEmail(v);
-            if (error) setError(null);
-          }}
-          className="lgt-input"
-        />
-        <Button type="submit" variant="primary" size="lg" loading={sending} className="lgt-send">
-          {GATE_WORDS.send}
-        </Button>
-      </form>
+    <Zone repo={repo} title={sent ? GATE_WORDS.sentTitle : GATE_WORDS.title}>
+      <EmailLinkForm
+        words={GATE_WORDS}
+        expired={expired}
+        onSent={setSent}
+        check={(email) => (emailDomainIn(email, domains) ? null : wrongDomainWords(domains))}
+        send={async (email) => (await import('../../../scripts/library-access-api')).requestSignIn(repo, email)}
+        isUnavailable={(err) => err instanceof Error && err.name === 'AccessUnavailable'}
+        unavailable={unavailableText}
+      >
+        <p className="t-body">{GATE_WORDS.emailLead(domains)}</p>
+      </EmailLinkForm>
     </Zone>
   );
 }

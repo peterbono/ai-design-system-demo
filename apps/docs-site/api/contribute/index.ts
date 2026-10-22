@@ -9,6 +9,7 @@
 //
 // Endpoints (JSON, errors are { error, message } in Studio words):
 //   GET  /api/contribute?repo=owner/name                 { available, member }  member is { email, name, role } or null
+//   GET  /api/contribute?repo=owner/name&mine=1          { branches, issues }  what the signed-in member made and owns
 //   POST { action: 'accept', token, name }               joins with a pending "Can edit" invite (api/invites token),
 //                                                        sets the session cookie; { member, repo }
 //   POST { action: 'sign-in', repo, email }              always { ok: true }; emails a link to members only
@@ -55,6 +56,7 @@
 //   bridge:member:<repo>:<email>, bridge:members:<repo>    the members (api/_lib/members.ts)
 //   bridge:contrib:branch:<repo>:<branch>                   who created a branch through here (a year)
 //   bridge:contrib:issue:<repo>:<number>                    who opened an issue or pull request through here (a year)
+//   bridge:contrib:mine:<repo>:<email>                      set of "b:<branch>" and "i:<number>" they made (a year)
 //   bridge:contrib:signin:<sha256 of token>                 a sign-in link { repo, email }, 15 minutes, works once
 //   bridge:contrib:count:<repo>:<email>:<day>               writes today; sign-in links per email, network, team, site
 // Nothing here logs.
@@ -456,6 +458,15 @@ export function validBranch(b: string): boolean {
 
 const branchKey = (repo: string, b: string) => `bridge:contrib:branch:${repo.toLowerCase()}:${b}`;
 const issueKey = (repo: string, n: string | number) => `bridge:contrib:issue:${repo.toLowerCase()}:${n}`;
+/** Everything one member made here, "b:<branch>" and "i:<number>", so Studio counts it as theirs (GET ?mine=1). */
+const mineKey = (repo: string, email: string) => `bridge:contrib:mine:${repo.toLowerCase()}:${email.toLowerCase()}`;
+/** Adds one branch or issue to the member's set, kept a year from the last addition. */
+async function rememberMine(ctx: Ctx, repo: string, email: string, item: string) {
+  await ctx.svc.redis.pipe([
+    ['SADD', mineKey(repo, email), item],
+    ['EXPIRE', mineKey(repo, email), OWNERSHIP_TTL_S],
+  ]);
+}
 const encodeRef = (ref: string) => ref.split('/').map(encodeURIComponent).join('/');
 
 /** Keeps only `keys` of `body`. */
@@ -621,7 +632,10 @@ async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
   const ownsBranch = async (b: unknown) => typeof b === 'string' && validBranch(b) && !(await isDefault(b)) && (await ctx.svc.redis.cmd('GET', branchKey(c.full, b))) === c.member.email;
   const ownsIssue = async (n: string | undefined) => n !== undefined && NUMBER.test(n) && (await ctx.svc.redis.cmd('GET', issueKey(c.full, n))) === c.member.email;
   const recordIssue = async (data: any) => {
-    if (typeof data?.number === 'number') await ctx.svc.redis.cmd('SET', issueKey(c.full, data.number), c.member.email, 'EX', OWNERSHIP_TTL_S);
+    if (typeof data?.number === 'number') {
+      await ctx.svc.redis.cmd('SET', issueKey(c.full, data.number), c.member.email, 'EX', OWNERSHIP_TTL_S);
+      await rememberMine(ctx, c.full, c.member.email, `i:${data.number}`);
+    }
   };
   // A work email is never published on a public repository: a stable address that routes nowhere stands in for it.
   const author = async () => ({ name: c.member.name, email: (await info()).private ? c.member.email : publicEmail(ctx.svc.secret, c.full, c.member.email) });
@@ -685,6 +699,7 @@ async function planCall(ctx: Ctx, c: Call): Promise<Plan> {
           body: { ref: `refs/heads/${b}`, sha: body.sha },
           after: async () => {
             await ctx.svc.redis.cmd('SET', branchKey(c.full, b), c.member.email, 'EX', OWNERSHIP_TTL_S);
+            await rememberMine(ctx, c.full, c.member.email, `b:${b}`);
           },
         };
       }
@@ -827,6 +842,25 @@ async function onProxy(req: Request, ctx: Ctx, params: URLSearchParams): Promise
   return new Response(text, { status: res.status, headers });
 }
 
+/**
+ * What the member made through here and still owns: branch names and issue or pull request numbers, from their set,
+ * each one checked against its ownership key (a branch or number that changed hands, or expired, is left out).
+ */
+async function mineOf(ctx: Ctx, full: string, email: string): Promise<{ branches: string[]; issues: number[] }> {
+  const items = ((await ctx.svc.redis.cmd('SMEMBERS', mineKey(full, email))) as string[] | null) ?? [];
+  const branches: string[] = [];
+  const issues: number[] = [];
+  for (const it of items) {
+    if (it.startsWith('b:')) {
+      const b = it.slice(2);
+      if ((await ctx.svc.redis.cmd('GET', branchKey(full, b))) === email) branches.push(b);
+    } else if (it.startsWith('i:') && NUMBER.test(it.slice(2))) {
+      if ((await ctx.svc.redis.cmd('GET', issueKey(full, it.slice(2)))) === email) issues.push(Number(it.slice(2)));
+    }
+  }
+  return { branches: branches.sort(), issues: issues.sort((a, b) => a - b) };
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // The handler
 
@@ -848,6 +882,10 @@ export async function handleContribute(req: Request, env: ContribEnv, deps: Cont
       const { full } = parseRepo(repoArg);
       const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, env };
       const m = await sessionMember(ctx, req, full);
+      if (params.get('mine') === '1') {
+        if (!m) return fail(401, 'signin', SIGNIN);
+        return json(200, await mineOf(ctx, full, m.email));
+      }
       return json(200, { available: true, member: m ? publicMember(m) : null });
     }
 

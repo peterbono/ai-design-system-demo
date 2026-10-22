@@ -82,7 +82,8 @@ export function memberActions(data: MembersData, update: (fn: (d: MembersData) =
   async function remove(m: Member): Promise<Notice | null> {
     if (sample) return void (await demoGate()), null;
     try {
-      await (await api()).removeMember(data.repo, m.login);
+      const a = await api();
+      await (m.via === 'email' ? a.removeEmailMember(data.repo, m.email ?? m.login) : a.removeMember(data.repo, m.login));
       update((d) => ({ ...d, members: d.members.filter((x) => x.login !== m.login) }));
       return { tone: 'success', text: `${m.name} was removed from ${data.team}.` };
     } catch (err) {

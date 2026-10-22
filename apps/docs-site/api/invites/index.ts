@@ -34,6 +34,7 @@
 //                                           set-role and remove take `email` instead of `login` for an email
 //                                           contributor; set-role to reviewer or admin answers 409 github-required
 //   POST /api/invites { action: 'accept', token }  caller is the invitee, any GitHub account
+//   POST /api/invites { action: 'peek', token }    no sign-in: { team, repo, role, sentTo (masked) }, 410 when expired
 // A "Can edit" invite can also be accepted with the email alone, no GitHub account: api/contribute (action accept).
 // Requests carry `Authorization: Bearer <GitHub user token>` (Studio's Sign in with GitHub). POSTs must come from a
 // page of this site.
@@ -64,7 +65,7 @@
 import { randomBytes } from 'node:crypto';
 import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { githubApp as sharedGithubApp, type AppTokens } from '../_lib/github-app.js';
-import { b64url, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody as readJsonBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin as originOf, type FetchLike } from '../_lib/http.js';
+import { b64url, clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody as readJsonBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin as originOf, type FetchLike } from '../_lib/http.js';
 import { memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
 
@@ -604,6 +605,10 @@ export function services(env: InvitesEnv, deps: InvitesDeps): Services | null {
 
 export type LimitKind = 'admin' | 'team' | 'site';
 
+/** Looks at invite links (peek) one network may make in an hour: enough for a person, not for guessing. */
+export const PEEK_PER_HOUR = 30;
+const hourOf = (t: number) => new Date(t).toISOString().slice(0, 13);
+
 /** The daily caps: LIMIT_DEFAULTS, or a whole number from the env (0 stops sending). */
 export function limitsFrom(env: InvitesEnv): Record<LimitKind, number> {
   const pick = envInt;
@@ -1033,6 +1038,17 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
       return json(200, { ok: true, ...o });
     }
 
+    case 'peek': {
+      // What an invite link is, before anything is signed in: the invite page opens on the right path (an email for
+      // Can edit, GitHub for a reviewer or admin). No sign-in; capped per address; the email only ever masked.
+      const ip = sha256(`peek:${clientIp(req)}`).slice(0, 32);
+      const [n = 0] = await ctx.svc.store.bump([`bridge:invites:count:peek:${ip}:${hourOf(ctx.now())}`], 1, 2 * 3600);
+      if (n > PEEK_PER_HOUR) return fail(429, 'limit', 'Too many tries from this network. Try again in an hour.');
+      if (typeof body.token !== 'string' || !TOKEN.test(body.token)) return fail(410, 'expired', EXPIRED);
+      const inv = await ctx.svc.store.byTokenHash(sha256(body.token));
+      if (!inv || !alive(inv, ctx.now())) return fail(410, 'expired', EXPIRED);
+      return json(200, { team: inv.repo, repo: inv.repo, role: inv.role, sentTo: maskEmail(inv.email) });
+    }
     case 'accept': {
       const userToken = bearer(req);
       if (typeof body.token !== 'string' || !TOKEN.test(body.token)) return fail(410, 'expired', EXPIRED);

@@ -5,6 +5,7 @@
 // fails with InvitesUnavailable and the screens say "Invites are not available yet on this site." Never a fake success.
 import type { MemberRole, PendingInvite, ReviewAs } from '../lib/invites';
 import { MEMBERS_WORDS } from '../lib/invites';
+import type { InvitePeek } from '../lib/contribute';
 import { getToken } from './github-session';
 
 export const INVITES_API = '/api/invites';
@@ -78,9 +79,16 @@ export function invitesAvailable(): Promise<boolean> {
   return available;
 }
 
-/** Pending invites of a team (people with write access may read them), and whether the repository is a person's. */
-export function listInvites(repo: string): Promise<{ invites: PendingInvite[]; personal: boolean }> {
-  return call<{ invites?: PendingInvite[]; personal?: boolean }>('GET', `?repo=${encodeURIComponent(repo)}`).then((r) => ({ invites: Array.isArray(r.invites) ? r.invites : [], personal: r.personal === true }));
+/**
+ * Pending invites of a team (people with write access may read them), whether the repository is a person's, and the
+ * team's email contributors (`members`, rows with `via: 'email'`; lib/invites emailMembers reads them).
+ */
+export function listInvites(repo: string): Promise<{ invites: PendingInvite[]; personal: boolean; members: unknown[] }> {
+  return call<{ invites?: PendingInvite[]; personal?: boolean; members?: unknown[] }>('GET', `?repo=${encodeURIComponent(repo)}`).then((r) => ({
+    invites: Array.isArray(r.invites) ? r.invites : [],
+    personal: r.personal === true,
+    members: Array.isArray(r.members) ? r.members : [],
+  }));
 }
 
 export type SendStatus = 'sent' | 'added' | 'already' | 'failed';
@@ -113,6 +121,9 @@ export const setMemberRole = (repo: string, login: string, choice: { role: Membe
 
 export const removeMember = (repo: string, login: string) => call<{ ok: boolean; ownersPr?: OwnersPr; ownersError?: string }>('POST', '', { action: 'remove', repo, login });
 
+/** Removes an email contributor: their session ends at once (the server drops the member record). */
+export const removeEmailMember = (repo: string, email: string) => call<{ ok: boolean }>('POST', '', { action: 'remove', repo, email });
+
 export interface AcceptResult {
   status: 'joined' | 'accept-on-github';
   repo: string;
@@ -125,3 +136,19 @@ export interface AcceptResult {
 }
 
 export const acceptInvite = (token: string) => call<AcceptResult>('POST', '', { action: 'accept', token });
+
+/**
+ * What an invite link is before it is accepted (no sign-in): its team, role and the address it went to, masked. Null
+ * when the site cannot say (the page then offers both ways); throws an InvitesError 410 when the link is spent.
+ */
+export async function peekInvite(token: string): Promise<InvitePeek | null> {
+  try {
+    const r = await call<Record<string, unknown>>('POST', '', { action: 'peek', token }, false);
+    const role = r.role;
+    if (typeof r.repo !== 'string' || (role !== 'view' && role !== 'edit' && role !== 'reviewer' && role !== 'admin')) return null;
+    return { repo: r.repo, role, ...(typeof r.team === 'string' ? { team: r.team } : {}), ...(typeof r.sentTo === 'string' ? { sentTo: r.sentTo } : {}) };
+  } catch (err) {
+    if (err instanceof InvitesError && err.status === 410) throw err;
+    return null;
+  }
+}

@@ -10,6 +10,7 @@ import {
   githubApp,
   handleInvites,
   INVITE_TTL_MS,
+  PEEK_PER_HOUR,
   inviteEmail,
   memoryStore,
   NOT_CONFIGURED,
@@ -223,6 +224,23 @@ describe('admin checks on the server', () => {
       expect((await r.json()).message).toBe('Pick a role: Can edit, Reviewer or Admin.');
     }
     expect(sent).toHaveLength(0);
+  });
+
+  it('peek: says the team, role and masked address of a link before anyone signs in; 410 when spent; capped per network', async () => {
+    const { deps, store } = setup();
+    const token = 'p'.repeat(43);
+    const hash = createHash('sha256').update(token).digest('hex');
+    await store.put({ id: 'p'.repeat(16), repo: REPO, email: 'sofia@acme.design', role: 'edit', invitedBy: 'dana', createdAt: new Date(T0).toISOString(), sentAt: new Date(T0).toISOString(), expiresAt: new Date(T0 + INVITE_TTL_MS).toISOString(), tokenHash: hash }, 600);
+    const anon = (body: unknown) => new Request(`${ORIGIN}/api/invites`, { method: 'POST', headers: { host: HOST, origin: ORIGIN, 'content-type': 'application/json', 'sec-fetch-site': 'same-origin', 'x-real-ip': '1.2.3.4' }, body: JSON.stringify(body) });
+    const r = await handleInvites(anon({ action: 'peek', token }), {}, deps);
+    expect(r.status).toBe(200);
+    const body = await r.json();
+    expect(body).toEqual({ team: REPO, repo: REPO, role: 'edit', sentTo: 's•••@acme.design' });
+    expect(JSON.stringify(body)).not.toContain('sofia@');
+    expect((await handleInvites(anon({ action: 'peek', token: 'q'.repeat(43) }), {}, deps)).status).toBe(410);
+    expect((await handleInvites(anon({ action: 'peek', token: 'bad' }), {}, deps)).status).toBe(410);
+    for (let i = 0; i < PEEK_PER_HOUR; i++) await handleInvites(anon({ action: 'peek', token }), {}, deps);
+    expect((await handleInvites(anon({ action: 'peek', token }), {}, deps)).status).toBe(429);
   });
 
   it('still honours a Can view invite sent before readers moved to Library access', async () => {
