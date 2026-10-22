@@ -10,7 +10,8 @@
 //     (?kind=, ?by=). The designer is who asked for the change (the requester line), Claude AI's work included.
 // Mounted and repainted by scripts/reviews.ts (loadList), which reads GitHub; this file only enriches what is shown
 // (display names, before/after thumbnails and changed files, with a working token only: anonymous visitors have 60
-// GitHub reads an hour, kept for the statuses).
+// GitHub reads an hour, kept for the statuses). The exception is the visitor in the demo lead's seat: the demo's
+// activity snapshot answers the before/after and the files, so a change looks the same here as on the demo home.
 import { createRoot, type Root } from 'react-dom/client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Badge, Button, Checkbox, Link, SegmentedControl, Select, Skeleton, Tooltip, VisuallyHidden } from '@bridge-ds/react';
@@ -110,16 +111,20 @@ interface Extra {
   files?: string[] | null;
 }
 
-function useExtras(rows: ListRow[], connected: boolean): Map<number, Extra> {
+/**
+ * `read`: 'all' with a working token; 'seat' for the visitor in the demo lead's seat, whose reads the demo's activity
+ * snapshot answers (the before/after and the files, as on the demo home; no profile reads); 'none' otherwise.
+ */
+function useExtras(rows: ListRow[], read: 'all' | 'seat' | 'none'): Map<number, Extra> {
   const [extras, setExtras] = useState<Map<number, Extra>>(new Map());
   const key = rows.map((r) => `${r.number}@${r.head.sha}`).join(',');
   useEffect(() => {
-    if (!connected || !rows.length) return;
+    if (read === 'none' || !rows.length) return;
     let live = true;
     const put = (n: number, e: Extra) => live && setExtras((m) => new Map(m).set(n, { ...m.get(n), ...e }));
     void import('../../../scripts/home-data').then(({ personOf, thumbOf, filesOf }) => {
       for (const r of rows) {
-        if (!r.agent) void personOf(r.author, avatarOf(r.author)).then((p) => put(r.number, { person: p }));
+        if (!r.agent && read === 'all') void personOf(r.author, avatarOf(r.author)).then((p) => put(r.number, { person: p }));
         void filesOf(r.number, r.head.sha).then((files) => put(r.number, { files }));
         if (r.base) void thumbOf({ number: r.number, head: r.head, base: r.base }, r.guidance).then((thumb) => put(r.number, { thumb }));
       }
@@ -128,7 +133,7 @@ function useExtras(rows: ListRow[], connected: boolean): Map<number, Extra> {
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, connected]);
+  }, [key, read]);
   return extras;
 }
 
@@ -155,7 +160,7 @@ export function BranchesList(p: BranchesListProps) {
   const [filters, setFilters] = useState<QueueFilters>(() => readQueueFilters(location.search));
   const viewer = p.viewer ?? (p.seat ? `~${p.seat.toLowerCase()}` : null);
   const all = useMemo(() => [...p.rows, ...(finished.finished ? (p.closed ?? []) : [])], [p.rows, p.closed, finished.finished]);
-  const extras = useExtras(all, p.connected);
+  const extras = useExtras(all, p.connected ? 'all' : p.seat ? 'seat' : 'none');
 
   const shown = all.filter((r) => showsForWho(who, { author: r.author, yourTurn: r.yourTurn }, viewer) && (!finished.only || r.lifecycle === finished.only));
   const rows = shown.map((r) => {
@@ -315,7 +320,7 @@ export function BranchesList(p: BranchesListProps) {
         line={line}
         href={w.need.href}
         linkAttributes={s ? { 'data-open-suggestion': s } : undefined}
-        pill={s ? { label: 'Needs review', tone: 'warning' } : w.need.pill}
+        pill={w.need.pill}
       />
     );
   };

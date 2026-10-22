@@ -107,6 +107,7 @@ import { AGENT_NAME, isClaudeLogin } from '../lib/people';
 import { safeUrl } from '../lib/html';
 import { siteConfig } from './repo-context';
 import { isDemoRepo } from '../lib/demo';
+import { waitingLabel } from '../lib/home-model';
 import type { WaitingExtra } from '../lib/review-categories';
 
 interface User {
@@ -243,6 +244,8 @@ interface Row {
   number: number;
   title: string;
   updated_at: string;
+  /** When it was opened: on the demo, the lead's rows say how long it waits, as on its home. */
+  created_at?: string;
   tier: Tier | null;
   kind: ReviewStatusKind | null;
   skipped: boolean;
@@ -317,6 +320,7 @@ function listRow(r: Row): ListRow {
   const lifecycle: Lifecycle | 'exploration' = r.exploration ? 'exploration' : lifecycleOfRow(r);
   // In the lead's seat on the demo, every branch in review waits on them (drafts are still being made), as on its home.
   const seat = demoSeat() !== null;
+  const waitsOnSeat = seat && !r.exploration && !r.draft && lifecycle !== 'draft' && lifecycle !== 'shipped' && lifecycle !== 'closed';
   return {
     number: r.number,
     title: humanTitle(mdTitleText(withoutJiraKey(r.title))),
@@ -324,9 +328,10 @@ function listRow(r: Row): ListRow {
     author: r.user.login,
     agent: Boolean(r.agent) || agentMade({ body: r.body ?? null, labels: r.labels ?? null }),
     opens: r.exploration ? 'exploration' : 'pr',
-    pill: pillOf(r, lifecycle),
+    // The lead's rows on the demo carry the home's status for the same change ("New today", "Waiting 2 days").
+    pill: waitsOnSeat && r.created_at ? { label: waitingLabel(r.created_at, Date.now()), tone: 'warning' } : pillOf(r, lifecycle),
     lifecycle,
-    yourTurn: !r.exploration && lifecycle !== 'shipped' && lifecycle !== 'closed' && (seat ? !r.draft && lifecycle !== 'draft' : turnOf(r).yourTurn),
+    yourTurn: !r.exploration && lifecycle !== 'shipped' && lifecycle !== 'closed' && (seat ? waitsOnSeat : turnOf(r).yourTurn),
     behindBy: r.behindBy ?? null,
     signals: r.signals ?? null,
     guidance: Boolean(r.guidance),
@@ -395,6 +400,7 @@ const toRow = (p: Pull | CachedPull, kind: ReviewStatusKind | null): Row => ({
   number: p.number,
   title: p.title,
   updated_at: p.updated_at,
+  ...('created_at' in p && p.created_at ? { created_at: p.created_at } : {}),
   // A label decides at once; the files (read with the status) complete it, the same rule as the detail.
   tier: 'labels' in p ? effectiveTier(p.labels, p.body, null) : p.tier,
   kind,
