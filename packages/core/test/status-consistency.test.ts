@@ -1,4 +1,4 @@
-// The fixes from seeding the Bridge demo repo: one branch status everywhere (no CI is a calm state, a merge not
+// The fixes from seeding the demo repo (Acme Design, peterbono/bridge-demo-ds): one branch status everywhere (no CI is a calm state, a merge not
 // computed yet never hides a missing approval), Outdated suggestions, final suggestion labels, the visual check only
 // where the workflow exists, and titles never prefixed twice.
 import { readFileSync } from 'node:fs';

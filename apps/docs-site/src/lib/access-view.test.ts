@@ -105,9 +105,10 @@ describe('the team chip', () => {
     expect(accessBadge('anonymous-public', false).label).toBe('Guest');
   });
 
-  it('shows the demo as a design system to explore, never as signed out', () => {
+  it("shows Bridge's own design system as one to explore, never as signed out", () => {
     const anon = chipIdentity('peterbono/ai-design-system-demo', { demo: true, state: null, signedIn: false });
-    expect(anon).toMatchObject({ kind: 'demo', name: 'Bridge demo', badge: { label: 'Explore freely' } });
+    expect(anon).toMatchObject({ kind: 'demo', name: 'Bridge', badge: { label: 'Explore freely' } });
+    expect(anon.sample).toBeFalsy();
     expect(anon.title).toContain('peterbono/ai-design-system-demo');
     expect(chipIdentity('peterbono/ai-design-system-demo', { demo: true, state: 'admin', signedIn: true }).badge.label).toBe('Admin');
     expect(chipIdentity('acme/ds', { demo: false, state: 'anonymous-public', signedIn: false })).toMatchObject({ kind: 'team', name: 'acme/ds', badge: { label: 'Guest' } });
@@ -116,6 +117,14 @@ describe('the team chip', () => {
     expect(isDemoTeam('peterbono/ai-design-system-demo', true)).toBe(true);
     expect(isDemoTeam('peterbono/bridge-demo-ds', true)).toBe(true);
     expect(isDemoTeam('acme/ds', false)).toBe(false);
+  });
+
+  it('shows the sample team as Acme Design with a Demo tag, whatever the access', () => {
+    for (const f of [{ state: null, signedIn: false }, { state: 'admin' as const, signedIn: true }]) {
+      const chip = chipIdentity('peterbono/bridge-demo-ds', { demo: true, ...f });
+      expect(chip).toMatchObject({ kind: 'demo', sample: true, name: 'Acme Design', badge: { label: 'Demo', tone: 'info' } });
+      expect(chip.title).toContain('peterbono/bridge-demo-ds');
+    }
   });
 
   it('remembers at most five recent teams, newest first, once each', () => {

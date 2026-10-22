@@ -117,7 +117,7 @@ describe('TeamChip teams to switch to (board EmptyB)', () => {
     expect(within(yours).getByRole('menuitem', { name: /^Ann's workspace/ })).toHaveAttribute('data-current');
     expect(within(yours).getByText('Not connected yet')).toBeInTheDocument();
     const tryIt = within(menu).getByRole('group', { name: 'Try it' });
-    expect(within(tryIt).getByRole('menuitem', { name: /^Bridge demo/ })).toBeInTheDocument();
+    expect(within(tryIt).getByRole('menuitem', { name: /^Acme Design/ })).toBeInTheDocument();
     expect(within(tryIt).getByText('Sample data, read only')).toBeInTheDocument();
     // No team link without a repository: nothing to invite to yet.
     expect(within(menu).queryByRole('menuitem', { name: 'Invite your team' })).toBeNull();
@@ -138,7 +138,7 @@ describe('TeamChip teams to switch to (board EmptyB)', () => {
     localStorage.setItem(RECENT_TEAMS_KEY, JSON.stringify(['peterbono/bridge-demo-ds', 'globex/tokens']));
     const user = userEvent.setup();
     render(createElement(TeamChip, { launcher: true }));
-    await user.click(await screen.findByRole('button', { name: /Bridge demo/ }));
+    await user.click(await screen.findByRole('button', { name: /Acme Design/ }));
     const menu = await screen.findByRole('menu');
     const yours = within(menu).getByRole('group', { name: 'Your team' });
     expect(within(yours).getByRole('menuitem', { name: /^globex\/tokens/ })).not.toHaveAttribute('data-current');
@@ -149,7 +149,7 @@ describe('TeamChip teams to switch to (board EmptyB)', () => {
     page.team = { owner: 'peterbono', repo: 'bridge-demo-ds' };
     const user = userEvent.setup();
     render(createElement(TeamChip, { launcher: true }));
-    await user.click(await screen.findByRole('button', { name: /Bridge demo/ }));
+    await user.click(await screen.findByRole('button', { name: /Acme Design/ }));
     const menu = await screen.findByRole('menu');
     expect(within(menu).queryByRole('group', { name: 'Your team' })).toBeNull();
   });

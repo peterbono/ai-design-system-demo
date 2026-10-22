@@ -97,7 +97,7 @@ describe('the demo banner (board EmptyA2)', () => {
   it('leads a visitor with a workspace back to it', async () => {
     const { container } = render(createElement(DemoBanner, { repoUrl: 'https://github.com/peterbono/bridge-demo-ds', onUseOwn: () => undefined, back: { href: '/studio/workspace/', connect: false } }));
     expect(screen.getByText('Sample data.')).toBeInTheDocument();
-    expect(screen.getByText("You're looking at the Bridge demo, read only. Nothing here touches your repository.")).toBeInTheDocument();
+    expect(screen.getByText("You're looking at Acme Design, read only. Nothing here touches your repository.")).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Back to your workspace' })).toHaveAttribute('href', '/studio/workspace/');
     expect(screen.queryByRole('button', { name: 'Use your own repo' })).toBeNull();
     await expectNoAxeViolations(container);
@@ -115,11 +115,17 @@ describe('the demo banner (board EmptyA2)', () => {
     await expectNoAxeViolations(container);
   });
 
+  it("names Bridge's own design system, never sample data, on its repository", () => {
+    render(createElement(DemoBanner, { repoUrl: 'https://github.com/peterbono/ai-design-system-demo', repo: 'peterbono/ai-design-system-demo', onUseOwn: () => undefined }));
+    expect(screen.getByText('Bridge, our own design system.')).toBeInTheDocument();
+    expect(screen.queryByText(/Acme Design|sample data/i)).toBeNull();
+  });
+
   it('keeps "Use your own repo" for a visitor who came straight to the demo', async () => {
     const onUseOwn = vi.fn();
     const { container } = render(createElement(DemoBanner, { repoUrl: 'https://github.com/peterbono/bridge-demo-ds', onUseOwn }));
     const banner = container.firstElementChild as HTMLElement;
-    expect(within(banner).getByText('Demo workspace.')).toBeInTheDocument();
+    expect(within(banner).getByText('Acme Design, a sample team.')).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Use your own repo' }));
     expect(onUseOwn).toHaveBeenCalledOnce();
     await expectNoAxeViolations(container);

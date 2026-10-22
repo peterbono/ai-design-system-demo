@@ -1,4 +1,4 @@
-/* The demo for a visitor (boards D1, D1b, D2): the "Demo workspace" banner (DemoBanner.tsx), the tour of the home
+/* The demo for a visitor (boards D1, D1b, D2): the demo banner (DemoBanner.tsx), the tour of the home
    (DemoHome.tsx) and the write-action dialog (MakeItYours.tsx). The home itself is the signed-in home
    (studio-home.css); only what is new lives here. */
 

@@ -6,7 +6,7 @@
 //     a visitor browses read-only).
 //   - The library health line, then "Explorations and branches": the team's work as the home's cards.
 //   - A three-step tour on the first visit (TourStep), anchored under the rows, the grouped row and the branches.
-// The "Demo workspace" banner over every Studio page is DemoBanner.tsx. Data: scripts/demo-home.ts.
+// The demo banner over every Studio page is DemoBanner.tsx. Data: scripts/demo-home.ts.
 import { createRoot, type Root } from 'react-dom/client';
 import { useState, type ReactNode } from 'react';
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@bridge-ds/react';
