@@ -1,0 +1,41 @@
+{
+  "$description": "Ocean overrides on top of semantic/dark.",
+  "color": {
+    "action": {
+      "primary": {
+        "bg": {
+          "$type": "color",
+          "$value": "{palette.primary.300}"
+        },
+        "bg-hover": {
+          "$type": "color",
+          "$value": "{palette.primary.200}"
+        },
+        "bg-active": {
+          "$type": "color",
+          "$value": "{palette.primary.100}"
+        },
+        "text": {
+          "$type": "color",
+          "$value": "{palette.primary.950}"
+        }
+      }
+    },
+    "control": {
+      "checked": {
+        "bg": {
+          "$type": "color",
+          "$value": "{palette.primary.300}"
+        },
+        "bg-hover": {
+          "$type": "color",
+          "$value": "{palette.primary.200}"
+        },
+        "fg": {
+          "$type": "color",
+          "$value": "{palette.primary.950}"
+        }
+      }
+    }
+  }
+}

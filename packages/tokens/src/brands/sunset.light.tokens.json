@@ -1,0 +1,85 @@
+{
+  "$description": "Ocean overrides on top of semantic/light: the Fog canvas behind white surfaces, a filled sea-blue primary, sea links.",
+  "color": {
+    "bg": {
+      "default": {
+        "$type": "color",
+        "$value": "{palette.neutral.50}",
+        "$description": "Ocean keeps a tinted canvas behind white surfaces."
+      },
+      "zone": {
+        "$type": "color",
+        "$value": "{palette.primary.50}",
+        "$description": "Sea 200 is too saturated for muted text and links; ocean zones use the palest sea step."
+      }
+    },
+    "agent": {
+      "surface": {
+        "$type": "color",
+        "$value": "{palette.primary.50}",
+        "$description": "Follows the ocean zone, so the agent mark (action.primary.bg) keeps the checked zone contrast."
+      }
+    },
+    "action": {
+      "primary": {
+        "bg": {
+          "$type": "color",
+          "$value": "{palette.primary.600}"
+        },
+        "bg-hover": {
+          "$type": "color",
+          "$value": "{palette.primary.700}"
+        },
+        "bg-active": {
+          "$type": "color",
+          "$value": "{palette.primary.800}"
+        },
+        "text": {
+          "$type": "color",
+          "$value": "{palette.neutral.0}"
+        }
+      }
+    },
+    "control": {
+      "checked": {
+        "bg": {
+          "$type": "color",
+          "$value": "{palette.primary.600}"
+        },
+        "bg-hover": {
+          "$type": "color",
+          "$value": "{palette.primary.700}"
+        },
+        "fg": {
+          "$type": "color",
+          "$value": "{palette.neutral.0}"
+        }
+      }
+    },
+    "signal": {
+      "default": {
+        "$type": "color",
+        "$value": "{palette.accent.600}",
+        "$description": "Sea 500 is too light for 3:1 on muted tracks."
+      }
+    },
+    "text": {
+      "link": {
+        "$type": "color",
+        "$value": "{palette.link.600}"
+      },
+      "link-hover": {
+        "$type": "color",
+        "$value": "{palette.link.700}"
+      }
+    }
+  },
+  "focus": {
+    "ring": {
+      "color": {
+        "$type": "color",
+        "$value": "{palette.accent.600}"
+      }
+    }
+  }
+}

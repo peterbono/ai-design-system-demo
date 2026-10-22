@@ -1,0 +1,528 @@
+{
+  "$description": "Ocean (alternate brand): slate neutral, filled sea-blue primary, plum info, softer radii.",
+  "palette": {
+    "$type": "color",
+    "$description": "Palette roles. Semantic tokens only reference palette.*; a brand re-points these to primitive ramps.",
+    "neutral": {
+      "0": {
+        "$value": "{color.white}"
+      },
+      "50": {
+        "$value": "{color.slate.50}"
+      },
+      "100": {
+        "$value": "{color.slate.100}"
+      },
+      "200": {
+        "$value": "{color.slate.200}"
+      },
+      "300": {
+        "$value": "{color.slate.300}"
+      },
+      "400": {
+        "$value": "{color.slate.400}"
+      },
+      "500": {
+        "$value": "{color.slate.500}"
+      },
+      "600": {
+        "$value": "{color.slate.600}"
+      },
+      "700": {
+        "$value": "{color.slate.700}"
+      },
+      "800": {
+        "$value": "{color.slate.800}"
+      },
+      "900": {
+        "$value": "{color.slate.900}"
+      },
+      "950": {
+        "$value": "{color.slate.950}"
+      }
+    },
+    "primary": {
+      "50": {
+        "$value": "{color.sea.50}"
+      },
+      "100": {
+        "$value": "{color.sea.100}"
+      },
+      "200": {
+        "$value": "{color.sea.200}"
+      },
+      "300": {
+        "$value": "{color.sea.300}"
+      },
+      "400": {
+        "$value": "{color.sea.400}"
+      },
+      "500": {
+        "$value": "{color.sea.500}"
+      },
+      "600": {
+        "$value": "{color.sea.600}"
+      },
+      "700": {
+        "$value": "{color.sea.700}"
+      },
+      "800": {
+        "$value": "{color.sea.800}"
+      },
+      "900": {
+        "$value": "{color.sea.900}"
+      },
+      "950": {
+        "$value": "{color.sea.950}"
+      }
+    },
+    "accent": {
+      "50": {
+        "$value": "{color.sea.50}"
+      },
+      "100": {
+        "$value": "{color.sea.100}"
+      },
+      "200": {
+        "$value": "{color.sea.200}"
+      },
+      "300": {
+        "$value": "{color.sea.300}"
+      },
+      "400": {
+        "$value": "{color.sea.400}"
+      },
+      "500": {
+        "$value": "{color.sea.500}"
+      },
+      "600": {
+        "$value": "{color.sea.600}"
+      },
+      "700": {
+        "$value": "{color.sea.700}"
+      },
+      "800": {
+        "$value": "{color.sea.800}"
+      },
+      "900": {
+        "$value": "{color.sea.900}"
+      },
+      "950": {
+        "$value": "{color.sea.950}"
+      }
+    },
+    "success": {
+      "50": {
+        "$value": "{color.teal.50}"
+      },
+      "100": {
+        "$value": "{color.teal.100}"
+      },
+      "200": {
+        "$value": "{color.teal.200}"
+      },
+      "300": {
+        "$value": "{color.teal.300}"
+      },
+      "400": {
+        "$value": "{color.teal.400}"
+      },
+      "500": {
+        "$value": "{color.teal.500}"
+      },
+      "600": {
+        "$value": "{color.teal.600}"
+      },
+      "700": {
+        "$value": "{color.teal.700}"
+      },
+      "800": {
+        "$value": "{color.teal.800}"
+      },
+      "900": {
+        "$value": "{color.teal.900}"
+      },
+      "950": {
+        "$value": "{color.teal.950}"
+      }
+    },
+    "warning": {
+      "50": {
+        "$value": "{color.ochre.50}"
+      },
+      "100": {
+        "$value": "{color.ochre.100}"
+      },
+      "200": {
+        "$value": "{color.ochre.200}"
+      },
+      "300": {
+        "$value": "{color.ochre.300}"
+      },
+      "400": {
+        "$value": "{color.ochre.400}"
+      },
+      "500": {
+        "$value": "{color.ochre.500}"
+      },
+      "600": {
+        "$value": "{color.ochre.600}"
+      },
+      "700": {
+        "$value": "{color.ochre.700}"
+      },
+      "800": {
+        "$value": "{color.ochre.800}"
+      },
+      "900": {
+        "$value": "{color.ochre.900}"
+      },
+      "950": {
+        "$value": "{color.ochre.950}"
+      }
+    },
+    "danger": {
+      "50": {
+        "$value": "{color.crimson.50}"
+      },
+      "100": {
+        "$value": "{color.crimson.100}"
+      },
+      "200": {
+        "$value": "{color.crimson.200}"
+      },
+      "300": {
+        "$value": "{color.crimson.300}"
+      },
+      "400": {
+        "$value": "{color.crimson.400}"
+      },
+      "500": {
+        "$value": "{color.crimson.500}"
+      },
+      "600": {
+        "$value": "{color.crimson.600}"
+      },
+      "700": {
+        "$value": "{color.crimson.700}"
+      },
+      "800": {
+        "$value": "{color.crimson.800}"
+      },
+      "900": {
+        "$value": "{color.crimson.900}"
+      },
+      "950": {
+        "$value": "{color.crimson.950}"
+      }
+    },
+    "info": {
+      "50": {
+        "$value": "{color.plum.50}"
+      },
+      "100": {
+        "$value": "{color.plum.100}"
+      },
+      "200": {
+        "$value": "{color.plum.200}"
+      },
+      "300": {
+        "$value": "{color.plum.300}"
+      },
+      "400": {
+        "$value": "{color.plum.400}"
+      },
+      "500": {
+        "$value": "{color.plum.500}"
+      },
+      "600": {
+        "$value": "{color.plum.600}"
+      },
+      "700": {
+        "$value": "{color.plum.700}"
+      },
+      "800": {
+        "$value": "{color.plum.800}"
+      },
+      "900": {
+        "$value": "{color.plum.900}"
+      },
+      "950": {
+        "$value": "{color.plum.950}"
+      }
+    },
+    "link": {
+      "50": {
+        "$value": "{color.sea.50}"
+      },
+      "100": {
+        "$value": "{color.sea.100}"
+      },
+      "200": {
+        "$value": "{color.sea.200}"
+      },
+      "300": {
+        "$value": "{color.sea.300}"
+      },
+      "400": {
+        "$value": "{color.sea.400}"
+      },
+      "500": {
+        "$value": "{color.sea.500}"
+      },
+      "600": {
+        "$value": "{color.sea.600}"
+      },
+      "700": {
+        "$value": "{color.sea.700}"
+      },
+      "800": {
+        "$value": "{color.sea.800}"
+      },
+      "900": {
+        "$value": "{color.sea.900}"
+      },
+      "950": {
+        "$value": "{color.sea.950}"
+      }
+    },
+    "categorical": {
+      "$description": "Extra categorical hue for data visualization only (chart series 5). Chosen far from the accent and info hues of the brand.",
+      "50": {
+        "$value": "{color.orange.50}"
+      },
+      "100": {
+        "$value": "{color.orange.100}"
+      },
+      "200": {
+        "$value": "{color.orange.200}"
+      },
+      "300": {
+        "$value": "{color.orange.300}"
+      },
+      "400": {
+        "$value": "{color.orange.400}"
+      },
+      "500": {
+        "$value": "{color.orange.500}"
+      },
+      "600": {
+        "$value": "{color.orange.600}"
+      },
+      "700": {
+        "$value": "{color.orange.700}"
+      },
+      "800": {
+        "$value": "{color.orange.800}"
+      },
+      "900": {
+        "$value": "{color.orange.900}"
+      },
+      "950": {
+        "$value": "{color.orange.950}"
+      }
+    }
+  },
+  "radius": {
+    "$type": "dimension",
+    "$description": "Radius roles by hierarchy (docs/DESIGN-LANGUAGE.md, section 6).",
+    "inset": {
+      "$value": "{radius.sm}",
+      "$description": "Small parts inside controls: checkbox box, tag, kbd, menu item highlight."
+    },
+    "control": {
+      "$value": "{radius.lg}",
+      "$description": "Buttons, inputs, selects, tabs."
+    },
+    "container": {
+      "$value": "{radius.2xl}",
+      "$description": "Cards, alerts, popovers, menus, tables."
+    },
+    "overlay": {
+      "$value": "{radius.3xl}",
+      "$description": "Dialogs, drawers, toasts."
+    },
+    "pill": {
+      "$value": "{radius.full}",
+      "$description": "Switch, avatar, badge, slider thumb."
+    }
+  },
+  "font": {
+    "family": {
+      "$type": "fontFamily",
+      "sans": {
+        "$value": "{font.family.plex-sans}"
+      },
+      "mono": {
+        "$value": "{font.family.plex-mono}"
+      },
+      "display": {
+        "$value": "{font.family.plex-sans}"
+      }
+    }
+  },
+  "typography": {
+    "$description": "Typography roles: size, line height, weight, family and tracking per text role. Four sizes per screen at most.",
+    "display": {
+      "$description": "Home hero and onboarding only. One per screen.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.1000}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.68}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.semibold}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.plex-sans}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.tighter}"
+      }
+    },
+    "h1": {
+      "$description": "Page titles.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.800}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.50}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.semibold}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.plex-sans}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.tight}"
+      }
+    },
+    "h2": {
+      "$description": "Section titles.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.600}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.38}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.semibold}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.plex-sans}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.snug}"
+      }
+    },
+    "h3": {
+      "$description": "Card, dialog and group titles.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.400}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.28}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.semibold}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.plex-sans}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.snug}"
+      }
+    },
+    "body": {
+      "$description": "Reading text and leads. Measure 65ch or less.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.300}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.26}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.regular}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.plex-sans}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.normal}"
+      }
+    },
+    "ui": {
+      "$description": "Controls, labels, table cells, navigation.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.200}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.20}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.regular}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.plex-sans}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.normal}"
+      }
+    },
+    "caption": {
+      "$description": "Meta, badges, footnotes.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.100}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.16}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.regular}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.plex-sans}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.normal}"
+      }
+    }
+  }
+}

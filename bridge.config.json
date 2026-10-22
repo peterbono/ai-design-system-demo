@@ -9,31 +9,87 @@
   },
   "tokens": {
     "root": "packages/tokens/src",
-    "include": ["**/*.tokens.json"],
+    "include": [
+      "**/*.tokens.json"
+    ],
     "tiers": {
-      "primitive": ["primitives"],
-      "brand": ["brands"],
-      "base": ["semantic/base.tokens.json"],
-      "semantic": ["semantic"],
-      "density": ["density"],
-      "component": ["components"]
+      "primitive": [
+        "primitives"
+      ],
+      "brand": [
+        "brands"
+      ],
+      "base": [
+        "semantic/base.tokens.json"
+      ],
+      "semantic": [
+        "semantic"
+      ],
+      "density": [
+        "density"
+      ],
+      "component": [
+        "components"
+      ]
     },
     "layers": [
-      { "files": "primitives/*.tokens.json" },
-      { "files": "semantic/base.tokens.json" },
-      { "files": "brands/{brand}.tokens.json" },
-      { "files": "semantic/{theme}.tokens.json" },
-      { "files": "brands/{brand}.{theme}.tokens.json", "optional": true },
-      { "files": "density/{density}.tokens.json" },
-      { "files": "components/*.tokens.json" }
+      {
+        "files": "primitives/*.tokens.json"
+      },
+      {
+        "files": "semantic/base.tokens.json"
+      },
+      {
+        "files": "brands/{brand}.tokens.json"
+      },
+      {
+        "files": "semantic/{theme}.tokens.json"
+      },
+      {
+        "files": "brands/{brand}.{theme}.tokens.json",
+        "optional": true
+      },
+      {
+        "files": "density/{density}.tokens.json"
+      },
+      {
+        "files": "components/*.tokens.json"
+      }
     ]
   },
   "modes": {
-    "brand": { "values": ["bridge", "ocean"], "default": "bridge" },
-    "theme": { "values": ["light", "dark"], "default": "light", "parity": true },
-    "density": { "values": ["comfortable", "compact"], "default": "comfortable" }
+    "brand": {
+      "values": [
+        "bridge",
+        "ocean",
+        "forest",
+        "sunset"
+      ],
+      "default": "bridge"
+    },
+    "theme": {
+      "values": [
+        "light",
+        "dark"
+      ],
+      "default": "light",
+      "parity": true
+    },
+    "density": {
+      "values": [
+        "comfortable",
+        "compact"
+      ],
+      "default": "comfortable"
+    }
   },
-  "contrast": { "path": "packages/tokens/src/contrast.checks.json", "modes": ["brand", "theme"] },
+  "contrast": {
+    "path": "packages/tokens/src/contrast.checks.json",
+    "modes": [
+      "brand",
+      "theme"
+    ]
+  },
   "components": {
     "dir": "packages/react/src/components",
     "docsSuffix": ".docs.json",
@@ -46,12 +102,23 @@
     "guidelines": "AGENTS.md",
     "governance": "docs/GOVERNANCE.md"
   },
-  "changesets": { "dir": ".changeset", "package": "@bridge-ds/tokens" },
-  "cssVar": { "prefix": "--", "separator": "-" },
+  "changesets": {
+    "dir": ".changeset",
+    "package": "@bridge-ds/tokens"
+  },
+  "cssVar": {
+    "prefix": "--",
+    "separator": "-"
+  },
   "governance": {
-    "protectedBranches": ["main", "master"],
+    "protectedBranches": [
+      "main",
+      "master"
+    ],
     "branchPrefix": "bridge/",
-    "labels": ["source: mcp"],
+    "labels": [
+      "source: mcp"
+    ],
     "guardrails": [
       "AGENTS.md",
       "CLAUDE.md",
@@ -61,14 +128,41 @@
       "bridge.config.json",
       "packages/tokens/src/contrast.checks.json"
     ],
-    "owners": { "design": ["peterbono"], "tech": ["peterbono"] },
-    "rights": { "approveDesign": ["design"], "approveTech": ["tech"], "ship": ["tech"] },
+    "owners": {
+      "design": [
+        "peterbono"
+      ],
+      "tech": [
+        "peterbono"
+      ]
+    },
+    "rights": {
+      "approveDesign": [
+        "design"
+      ],
+      "approveTech": [
+        "tech"
+      ],
+      "ship": [
+        "tech"
+      ]
+    },
     "soloOwnerCanApproveBoth": true,
-    "override": { "allowed": ["peterbono"], "requireReason": true, "minReasonLength": 20 }
+    "override": {
+      "allowed": [
+        "peterbono"
+      ],
+      "requireReason": true,
+      "minReasonLength": 20
+    }
   },
   "changes": "direct",
   "previews": {
-    "packages": ["@bridge-ds/tokens", "@bridge-ds/core", "@bridge-ds/react"],
+    "packages": [
+      "@bridge-ds/tokens",
+      "@bridge-ds/core",
+      "@bridge-ds/react"
+    ],
     "apps": {
       "docs": "https://bridge-docs-git-{branch}-peterbonos-projects.vercel.app",
       "storybook": "https://bridge-storybook-git-{branch}-peterbonos-projects.vercel.app",
@@ -81,7 +175,19 @@
     }
   },
   "products": [
-    { "key": "admin", "name": "Admin demo", "path": "apps/admin", "preview": "https://bridge-admin-git-{branch}-peterbonos-projects.vercel.app", "framework": "react" },
-    { "key": "library", "name": "Library", "path": "packages", "framework": "react", "default": true }
+    {
+      "key": "admin",
+      "name": "Admin demo",
+      "path": "apps/admin",
+      "preview": "https://bridge-admin-git-{branch}-peterbonos-projects.vercel.app",
+      "framework": "react"
+    },
+    {
+      "key": "library",
+      "name": "Library",
+      "path": "packages",
+      "framework": "react",
+      "default": true
+    }
   ]
 }
