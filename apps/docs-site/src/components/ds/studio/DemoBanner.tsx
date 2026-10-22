@@ -4,7 +4,8 @@
 //     (the demo repository) and "Use your own repo", which opens "Create a new team" (NewTeamDialog.tsx).
 //   - "Sample data." (board EmptyA2), for a visitor with a workspace or who came through the start screen: the demo is
 //     read only, and "Back to your workspace" leads to their team or browser workspace; with none yet, "Connect your
-//     design system" starts the setup (lib/start.ts demoBack).
+//     design system" starts the setup (lib/start.ts demoBack). A guest on Bridge's own team always gets this kind:
+//     "Bridge DS, read only." and one action.
 // A DS Banner, neutral; the sample kind takes the board's warm tint (styles/demo-home.css). Mounted by
 // scripts/demo-gate.ts into the layout's [data-demo-strip].
 import { Info } from 'lucide-react';

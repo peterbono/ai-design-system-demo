@@ -1,7 +1,7 @@
 // On the demo (lib/demo.ts DEMO_REPOS), a visitor who cannot write to it explores freely (boards D1, D2 and EmptyA2):
 //   - the banner over every Studio page (components/ds/studio/DemoBanner.tsx): "Sample data" with "Back to your
 //     workspace" for a visitor with a workspace or who came through the start screen (lib/start.ts), else "Demo
-//     workspace" with "Use your own repo", which opens "Create a new team" (NewTeamDialog.tsx);
+//     workspace" with "Use your own repo" (sample team only; a guest on Bridge's own team gets the one action), which opens "Create a new team" (NewTeamDialog.tsx);
 //   - every action that would change the demo opens "Sign in with GitHub to do this for real."
 //     (components/ds/studio/MakeItYours.tsx) instead of failing or asking for a GitHub sign-in out of context.
 // Someone who can write to the demo (its owner) keeps the normal Studio.
@@ -10,7 +10,7 @@
 // the actions the session gates while signed out ([data-gh-gate="<verb phrase>"]). One capture listener on the
 // document, wired once by the shared GitHub session (scripts/github-session.ts initGitHubConnect), so it runs before
 // the page's own handlers and before the session opens its sign-in dialog. The React parts load on first use.
-import { exploresDemo } from '../lib/demo';
+import { exploresDemo, isOwnTeam } from '../lib/demo';
 
 export interface DemoGateDeps {
   /** "owner/repo" of the page. */
@@ -105,9 +105,9 @@ async function paintBanner() {
     const root = createRoot(slot);
     // Read once per page from this browser only (no GitHub call): a visitor with a workspace, or who came through the
     // start screen, gets "Back to your workspace" (or "Connect your design system" with no workspace yet); one who came
-    // straight here keeps "Use your own repo".
+    // straight to the sample team keeps "Use your own repo". A guest on Bridge's own team always gets the one action.
     const facts = startFacts();
-    const back = demoBannerKind(facts) === 'workspace' ? demoBack(facts, await loadReserved()) : null;
+    const back = demoBannerKind(facts, isOwnTeam(deps!.repo())) === 'workspace' ? demoBack(facts, await loadReserved()) : null;
     return (show: boolean) => {
       slot.hidden = !show;
       root.render(show ? createElement(DemoBanner, { repoUrl: `https://github.com/${deps!.repo()}`, repo: deps!.repo(), onUseOwn: () => void openUseOwnRepo(), back, onConnect: connectDesignSystem }) : null);
