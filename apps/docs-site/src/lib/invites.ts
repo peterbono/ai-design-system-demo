@@ -14,9 +14,11 @@
 //   Admin     = GitHub "admin"
 // Reading it back (roleOf): GitHub admin is Admin whatever the owner lists say; write (or maintain) plus an owner
 // entry is Reviewer; write alone is Can edit; read (or triage) is Can view.
-// A repository owned by a personal account has no read-only or admin collaborators on GitHub (everyone added can
-// write, only the account itself is admin), so the picker offers Can view and Admin only on an organization's
-// repository (roleChoices) and says why.
+// Studio invites are for contributors: the picker offers Can edit, Reviewer and Admin (CHOOSABLE_ROLES). Readers need
+// no GitHub account; Settings, Library access lets them in by work email (lib/library-access.ts). Someone who already
+// has read access on GitHub still shows as "Can view" (roleOf), and an admin can move them to a contributor role.
+// A repository owned by a personal account has no admin collaborators on GitHub (everyone added can write, only the
+// account itself is admin), so the picker offers Admin only on an organization's repository (roleChoices) and says why.
 
 import type { Owners } from '@bridge-ds/core';
 import { isSampleTeam } from './demo';
@@ -35,7 +37,10 @@ export interface RoleChoice {
 
 export const ROLE_ORDER: readonly MemberRole[] = ['view', 'edit', 'reviewer', 'admin'];
 
-/** The four roles as the picker shows them (board I2): each one "Also" adds to the one before. */
+/** The roles an admin picks, in invites and in Members: contributors only (the server refuses Can view too). */
+export const CHOOSABLE_ROLES: readonly MemberRole[] = ['edit', 'reviewer', 'admin'];
+
+/** The roles in words (board I2): each one "Also" adds to the one before. Can view is shown, never offered. */
 export const ROLE_WORDS: Record<MemberRole, { label: string; help: string }> = {
   view: { label: 'Can view', help: 'Sees everything, comments and suggests.' },
   edit: { label: 'Can edit', help: 'Also explores and changes the library.' },
@@ -86,11 +91,11 @@ export const inviteChoice = (p: Pick<PendingInvite, 'role' | 'reviewAs'>): RoleC
 export const DEFAULT_CHOICE: RoleChoice = { role: 'edit' };
 
 /**
- * The roles the picker offers on this repository. A personal account's repository cannot hold read-only or admin
- * people on GitHub, so those two are shown but disabled, with `note` saying why.
+ * The roles the picker offers on this repository: contributors only. A personal account's repository cannot hold admin
+ * people on GitHub, so Admin is shown but disabled there, with PERSONAL_NOTE saying why.
  */
 export function roleChoices(personal: boolean): { role: MemberRole; disabled: boolean }[] {
-  return ROLE_ORDER.map((role) => ({ role, disabled: personal && (role === 'view' || role === 'admin') }));
+  return CHOOSABLE_ROLES.map((role) => ({ role, disabled: personal && role === 'admin' }));
 }
 
 export const PERSONAL_NOTE = 'This design system belongs to one person on GitHub, so everyone you add can edit it.';
@@ -364,7 +369,7 @@ export function acceptEmailWords(code: AcceptEmailCode, sentTo: string, login: s
 
 /**
  * Acme Design's people (boards I3, I4): the visitor sits in Dana's seat (the demo persona, bridge.config.json "demo"),
- * Ann reviews design, Leo edits, Malik reviews code and Sofia has not joined yet. Fixed sample data, never read from
+ * Ann reviews design, Leo edits, Malik reviews code and Sofia (invited to edit) has not joined yet. Fixed sample data, never read from
  * GitHub, so a guest's Members page and invite dialog make no GitHub call. Their logins are the ones the demo home
  * gives them ("Requested by Ann Leroy." becomes ~ann-leroy, lib/home-model requesterPerson), so each drawn face is
  * the same person on the home, in Members and in the dialog.
@@ -377,7 +382,7 @@ export function sampleTeam(lead = 'Dana'): { members: Member[]; pending: Pending
     { login: '~malik-haddad', name: 'Malik', role: 'reviewer', reviews: ['tech'], email: 'malik@acme.design' },
   ];
   const twoDaysAgo = new Date(Date.UTC(2026, 9, 20, 9)).toISOString();
-  const pending: PendingInvite[] = [{ id: 'sample-sofia', email: 'sofia@acme.design', role: 'view', sentAt: twoDaysAgo, face: '~sofia-reyes' }];
+  const pending: PendingInvite[] = [{ id: 'sample-sofia', email: 'sofia@acme.design', role: 'edit', sentAt: twoDaysAgo, face: '~sofia-reyes' }];
   // The organization's people the field suggests: the team itself (disabled, already in) and two who are not in it yet.
   const people: KnownPerson[] = [
     ...members.filter((m) => !m.you).map((m) => ({ name: m.name, email: m.email!, login: m.login })),

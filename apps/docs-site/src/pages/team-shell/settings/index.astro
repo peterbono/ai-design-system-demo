@@ -7,6 +7,7 @@
 import '../../../styles/settings.css';
 import TeamShell from '../../../components/TeamShell.astro';
 import MembersSection from '../../../components/ds/studio/MembersSection';
+import LibraryAccessSection from '../../../components/ds/studio/LibraryAccessSection';
 import TeamSettings from '../../../components/ds/studio/TeamSettings';
 import AppearanceSetting from '../../../components/ds/studio/AppearanceSetting';
 import { tierSummaries } from '../../../lib/governance';
@@ -20,6 +21,9 @@ const rules = approvalRules(tierSummaries()).map((x) => ({ what: x.what, who: ca
 <TeamShell route="settings/" title="Settings" what="settings and roles" description="GitHub connection, roles and approvals for this team's design system.">
   <section class="ts-band" id="team" aria-labelledby="set-members">
     <MembersSection client:only="react" />
+  </section>
+  <section class="ts-band" id="library-access" aria-labelledby="set-library-access">
+    <LibraryAccessSection client:only="react" />
   </section>
   <TeamSettings client:load rules={rules} />
   <section class="ts-band" id="appearance" aria-labelledby="ts-appearance">

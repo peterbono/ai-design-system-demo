@@ -14,6 +14,7 @@ import { publishedLine } from '../../../lib/library-view';
 import { teamHref } from '../../../lib/team-path';
 import { teamOfPage, type TeamData } from '../../../scripts/team-data';
 import type { IllustrationName } from '../../../brand/illustrations';
+import LibraryGate, { emailFallback, useLibraryGate } from './LibraryGate';
 import '../../../styles/library-team.css';
 
 /**
@@ -102,19 +103,42 @@ export function LibraryLoadError({ failure, onRetry }: { failure: TeamFailure; o
 }
 
 /**
- * A Library page: its header at once (`header` gets the data once read, null before), then the progress, the error,
- * or `ready` with the team's data.
+ * A Library page. First the gate (Settings, Library access; LibraryGate.tsx): a team that opened its Library to work
+ * emails or to its team only shows that screen instead, until the reader is in. Then its header at once (`header` gets
+ * the data once read, null before), the progress, the error, or `ready` with the team's data.
  */
-export function LibraryPage({
+export function LibraryPage(props: { label: string; header: (data: TeamData | null) => ReactNode; ready: (data: TeamData, refresh: { refreshing: boolean; onRefresh: () => void }) => ReactNode }) {
+  const team = usePageTeam();
+  const gate = useLibraryGate(team);
+  if (gate.step === 'checking') return (
+    <div className="ltm">
+      <TeamLoadProgress label={props.label} />
+    </div>
+  );
+  if (gate.step !== 'open') return team ? (
+    <div className="ltm">
+      <LibraryGate team={team} state={gate} />
+    </div>
+  ) : null;
+  return <LibraryRead {...props} fallback={emailFallback(gate.answer)} />;
+}
+
+function LibraryRead({
   label,
   header,
   ready,
+  fallback,
 }: {
   label: string;
   header: (data: TeamData | null) => ReactNode;
   ready: (data: TeamData, refresh: { refreshing: boolean; onRefresh: () => void }) => ReactNode;
+  /** The work email domains to offer when GitHub does not show this signed-in visitor the repository. */
+  fallback: string[] | null;
 }) {
   const { load, retry } = useTeamData();
+  const team = usePageTeam();
+  // Signed in with GitHub but not on the team: the Library still opens with a work email when its team allows it.
+  if (load.status === 'error' && load.failure.kind === 'not-found' && fallback && team) return <LibraryGate team={team} state={{ step: 'email', domains: fallback }} />;
   return (
     <div className="ltm">
       {header(load.status === 'ready' ? load.data : null)}

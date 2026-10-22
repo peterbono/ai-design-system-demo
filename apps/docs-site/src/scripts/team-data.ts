@@ -36,6 +36,8 @@ export interface TeamData {
    * read, which takes the snapshot as published without asking GitHub for the head.
    */
   published?: string;
+  /** A private Library this site served after the reader's session check (api/library-access), not GitHub. */
+  servedBy?: 'bridge';
 }
 
 /** The team in this page's address (a Studio or a Library team address), null off a team address. */
@@ -78,6 +80,42 @@ export const readTeamSnapshot: SnapshotReader = async (client, repo) => {
 };
 
 let pending: Promise<TeamData> | null = null;
+
+/**
+ * Set by the Library gate (components/ds/library/LibraryState.tsx) once the reader is let in to a private Library
+ * this site serves: the snapshot then comes from /api/library-access, never from GitHub, and no token is involved.
+ */
+let fromBridge = false;
+let opened: () => void = () => {};
+const libraryOpen = new Promise<void>((resolve) => {
+  opened = resolve;
+});
+
+/** The gate let this visitor in: read the Library, from this site (`fromBridgeSite`) or as before. */
+export function openLibrary(fromBridgeSite: boolean) {
+  if (fromBridge !== fromBridgeSite) resetTeamData();
+  fromBridge = fromBridgeSite;
+  opened();
+}
+
+/** Resolves once the Library gate opened (scripts/library-team.ts waits for it before reading anything). */
+export const whenLibraryOpen = (): Promise<void> => libraryOpen;
+
+/** The private Library's published snapshot, from this site (scripts/library-access-api.ts). */
+async function bridgeServed(team: { owner: string; repo: string }, client: GitHubClient): Promise<TeamData> {
+  const { readLibraryFile } = await import('./library-access-api');
+  const text = await readLibraryFile(`${team.owner}/${team.repo}`, 'snapshot');
+  let snap: RepoSnapshot;
+  try {
+    snap = parseSnapshot(text);
+  } catch {
+    throw Object.assign(new Error('The published library does not read. Its team publishes it again from CI.'), { status: 422, source: 'bridge' });
+  }
+  report({ step: 'snapshot' });
+  snapshot ??= Promise.resolve(snap);
+  const model = await loadRepoModel(snapshotSource(snap));
+  return { ...team, model, sha: snap.sourceSha, defaultBranch: snap.repo.branch, private: true, source: 'snapshot' as const, storybook: storybookUrl(model.config), client, published: snap.committedAt ?? snap.generatedAt, servedBy: 'bridge' };
+}
 let snapshot: Promise<RepoSnapshot | null> | null = null;
 
 // How far this page's load has gone (lib/load-progress.ts), for every view that waits on it
@@ -108,6 +146,7 @@ export function loadTeamData(): Promise<TeamData> {
     const team = teamOfPage();
     if (!team) throw Object.assign(new Error('This page is not a team address.'), { status: 404 });
     const client = teamClient(team);
+    if (onLibraryPage() && fromBridge) return bridgeServed(team, client);
     if (onLibraryPage() && !client.canWrite) {
       const published = await readPublishedSnapshot(client, team);
       if (published) {
@@ -184,7 +223,7 @@ const AUDIT_MAX_CHARS = SNAPSHOT_MAX_BYTES;
 export function loadTeamProductUsage(): Promise<ProductAudit[] | null> {
   usage ??= Promise.all([loadTeamData(), loadTeamSnapshot()])
     .then(async ([d, snap]) => {
-      if (!snap?.audits?.length) return null;
+      if (!snap?.audits?.length || d.servedBy) return null;
       const read = (path: string) => (d.private ? (d.client.canWrite ? d.client.getRawText(path, SNAPSHOT_BRANCH) : Promise.resolve(undefined)) : d.client.readRawFile(path, SNAPSHOT_BRANCH));
       const out = await Promise.all(
         snap.audits.map(async (a): Promise<ProductAudit | null> => {
@@ -217,6 +256,10 @@ let llms: Promise<boolean> | null = null;
 export function loadTeamLlms(): Promise<boolean> {
   llms ??= loadTeamData()
     .then(async (d) => {
+      if (d.servedBy) {
+        const { readLibraryFile } = await import('./library-access-api');
+        return Boolean(await readLibraryFile(`${d.owner}/${d.repo}`, 'llms').catch(() => ''));
+      }
       if (d.private) return d.client.canWrite ? Boolean(await d.client.getRawText(SNAPSHOT_LLMS_FILE, SNAPSHOT_BRANCH)) : false;
       const url = `https://raw.githubusercontent.com/${encodeURIComponent(d.owner)}/${encodeURIComponent(d.repo)}/${SNAPSHOT_BRANCH}/${SNAPSHOT_LLMS_FILE}`;
       return (await fetch(url, { method: 'HEAD' })).ok;

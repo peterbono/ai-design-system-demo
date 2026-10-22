@@ -27,6 +27,12 @@ const statusOf = (err: unknown): number | undefined => {
 export function teamFailure(err: unknown, repo: string): TeamFailure {
   const status = statusOf(err);
   const message = err instanceof Error ? err.message : '';
+  // A private Library this site serves (api/library-access): its own sentence, never "GitHub answered".
+  if ((err as { source?: unknown } | null)?.source === 'bridge') {
+    return status === 0
+      ? { kind: 'network', title: 'Bridge did not answer', body: 'Check your connection, then try again.' }
+      : { kind: 'unknown', title: `Bridge cannot open ${repo} yet`, body: message || 'Something went wrong while opening the library. Try again.' };
+  }
   if (status === 429 || (status === 403 && /rate limit/i.test(message))) {
     return {
       kind: 'rate-limit',

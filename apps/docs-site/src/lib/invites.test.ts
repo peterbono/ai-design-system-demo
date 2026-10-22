@@ -53,6 +53,13 @@ describe('roles', () => {
     expect(sameChoice({ role: 'reviewer', reviewAs: 'tech' }, { role: 'reviewer' })).toBe(false);
   });
 
+  it('offers contributor roles only, never Can view (readers use Library access)', () => {
+    expect(roleChoices(false).map((c) => c.role)).toEqual(['edit', 'reviewer', 'admin']);
+    expect(roleChoices(true).map((c) => c.role)).not.toContain('view');
+    // Someone who already has read access still reads as Can view.
+    expect(roleLabel({ role: 'view' })).toBe('Can view');
+  });
+
   it('on a personal account, only Can edit and Reviewer can be given', () => {
     expect(roleChoices(true).filter((c) => !c.disabled).map((c) => c.role)).toEqual(['edit', 'reviewer']);
     expect(roleChoices(false).every((c) => !c.disabled)).toBe(true);
@@ -176,7 +183,7 @@ describe('contexts', () => {
     const s = sampleTeam();
     expect(s.members.map((m) => `${m.name}:${roleText(m)}`)).toEqual(['Dana:Admin', 'Ann:Reviewer: design', 'Leo:Can edit', 'Malik:Reviewer: tech']);
     expect(s.members[0]!.you).toBe(true);
-    expect(s.pending).toEqual([expect.objectContaining({ email: 'sofia@acme.design', role: 'view' })]);
+    expect(s.pending).toEqual([expect.objectContaining({ email: 'sofia@acme.design', role: 'edit' })]);
     expect(sampleTeam('Robin').members[0]!.name).toBe('Robin');
   });
 });
