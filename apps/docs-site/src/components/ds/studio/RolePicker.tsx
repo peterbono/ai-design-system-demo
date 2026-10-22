@@ -15,7 +15,7 @@ export interface RolePickerProps {
   onChange: (next: RoleChoice) => void;
   /** Accessible name of the trigger: "Role", "Role for Ann". The visible text is the role. */
   label: string;
-  /** A personal account's repository: Can view and Admin are disabled, with the reason. */
+  /** A personal account's repository: Admin is disabled, with the reason. */
   personal?: boolean;
   disabled?: boolean;
   size?: 'sm' | 'md' | 'lg';

@@ -11,6 +11,7 @@ import { libraryHome, llmsTxtUrl } from '../../../lib/library-view';
 import { libraryHref } from '../../../lib/library-shells';
 import { SNAPSHOT_TEMPLATE_URL } from '../../../lib/team-load';
 import { loadTeamLlms, type TeamData } from '../../../scripts/team-data';
+import { libraryFileUrl } from '../../../scripts/library-access-api';
 import type { IllustrationName } from '../../../brand/illustrations';
 import '../../../styles/home.css';
 
@@ -44,7 +45,7 @@ function Agents({ data }: { data: TeamData }) {
         </p>
       </div>
       {has ? (
-        <ButtonLink variant="secondary" href={llmsTxtUrl(data.owner, data.repo, data.private)} iconEnd={ExternalLink} target="_blank" rel="noopener noreferrer">
+        <ButtonLink variant="secondary" href={data.servedBy ? libraryFileUrl(`${data.owner}/${data.repo}`, 'llms') : llmsTxtUrl(data.owner, data.repo, data.private)} iconEnd={ExternalLink} target="_blank" rel="noopener noreferrer">
           <span className="mono">llms.txt</span>
         </ButtonLink>
       ) : (

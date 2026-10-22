@@ -6,6 +6,8 @@
 //                 Guide drawing and Connect GitHub) while Studio is read only.
 //   Members       who is in the team and what each person can do, with Invite collaborators for an admin
 //                 (components/ds/studio/MembersSection.tsx, boards I3 and I4; anchor #team kept for old links).
+//   Library access who reads the team's Library without a GitHub account, and its link to share
+//                 (components/ds/studio/LibraryAccessSection.tsx, api/library-access).
 //   How changes reach your code  suggestions (a GitHub issue developers apply) or pull requests Bridge opens, from
 //                 `changes` in bridge.config.json; what Bridge's GitHub App may do on the repo; the switch, sent for review
 //                 as a pull request (components/ds/studio/ChangesMode.tsx, scripts/roles.ts).
@@ -45,6 +47,7 @@ import OwnersField from '../../../components/ds/studio/OwnersField';
 import { approvalRules, changesInConfig, overrideText, soloOwnerRow } from '../../../lib/settings-view';
 import ChangesModeSetting from '../../../components/ds/studio/ChangesMode';
 import MembersSection from '../../../components/ds/studio/MembersSection';
+import LibraryAccessSection from '../../../components/ds/studio/LibraryAccessSection';
 import '../../../styles/team-access.css';
 
 const r = siteRepo();
@@ -122,6 +125,10 @@ const changes = changesInConfig(config);
 
     <section class="set-band" id="team" aria-labelledby="set-members" data-full>
       <MembersSection client:only="react" />
+    </section>
+
+    <section class="set-band" id="library-access" aria-labelledby="set-library-access">
+      <LibraryAccessSection client:only="react" />
     </section>
 
     <section class="set-band" id="changes" aria-labelledby="set-changes">

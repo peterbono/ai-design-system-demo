@@ -180,7 +180,7 @@ describe('the role picker', () => {
     trigger.focus();
     await user.keyboard('{Enter}');
     const roles = await screen.findByRole('radiogroup', { name: 'Role' });
-    expect(within(roles).getAllByRole('radio').map((r) => r.getAttribute('aria-checked'))).toEqual(['false', 'true', 'false', 'false']);
+    expect(within(roles).getAllByRole('radio').map((r) => r.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false']);
     expect(screen.queryByRole('radiogroup', { name: 'They review as' })).toBeNull();
     expect(screen.getByText('Also approves changes before they ship.')).toBeInTheDocument();
 
@@ -198,12 +198,23 @@ describe('the role picker', () => {
     await expectNoAxeViolations(document.body);
   });
 
-  it('disables Can view and Admin on a personal account, and says why', async () => {
+  it('offers contributor roles only: Can edit, Reviewer and Admin, never Can view', async () => {
+    page.data = real();
+    const { user, dialog } = await openDialog();
+    await user.click(within(dialog).getByRole('button', { name: 'Role: Can edit' }));
+    const roles = await screen.findByRole('radiogroup', { name: 'Role' });
+    expect(within(roles).getAllByRole('radio')).toHaveLength(3);
+    for (const name of [/Can edit/, /Reviewer/, /Admin/]) expect(within(roles).getByRole('radio', { name })).toBeInTheDocument();
+    expect(within(roles).queryByRole('radio', { name: /Can view/ })).toBeNull();
+    await expectNoAxeViolations(document.body);
+  });
+
+  it('disables Admin on a personal account, and says why', async () => {
     page.data = real({ personal: true });
     const { user, dialog } = await openDialog();
     await user.click(within(dialog).getByRole('button', { name: 'Role: Can edit' }));
     const roles = await screen.findByRole('radiogroup', { name: 'Role' });
-    expect(within(roles).getByRole('radio', { name: /Can view/ })).toHaveAttribute('aria-disabled', 'true');
+    expect(within(roles).queryByRole('radio', { name: /Can view/ })).toBeNull();
     expect(within(roles).getByRole('radio', { name: /Admin/ })).toHaveAttribute('aria-disabled', 'true');
     expect(screen.getByText(/everyone you add can edit it/)).toBeInTheDocument();
   });
@@ -251,7 +262,10 @@ describe('Settings > Members', () => {
     page.data = real();
     const user = userEvent.setup();
     render(createElement(MembersSection));
+    // Sofia was invited to view before readers moved to Library access: her role still reads Can view, and the picker
+    // offers only contributor roles to move her to.
     await user.click(await screen.findByRole('button', { name: 'Role for sofia@acme.design: Can view' }));
+    expect(screen.queryByRole('radio', { name: /Can view/ })).toBeNull();
     await user.click(await screen.findByRole('radio', { name: /Can edit/ }));
     await waitFor(() => expect(api.setInviteRole).toHaveBeenCalledWith('acme/ds', 'p1', { role: 'edit' }));
     expect(api.resendInvite).not.toHaveBeenCalled();
@@ -272,7 +286,7 @@ describe('Settings > Members', () => {
     const user = userEvent.setup();
     render(createElement(MembersSection));
     await user.click(await screen.findByRole('button', { name: 'Role for Leo: Can edit' }));
-    await user.click(await screen.findByRole('radio', { name: /Can view/ }));
+    await user.click(await screen.findByRole('radio', { name: /Admin/ }));
     await waitFor(() => expect(demo.openMakeItYours).toHaveBeenCalled());
     expect(api.setMemberRole).not.toHaveBeenCalled();
   });

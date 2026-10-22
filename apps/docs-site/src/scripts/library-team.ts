@@ -10,7 +10,8 @@ import { libraryIsPublic } from '@bridge-ds/core';
 import { LIBRARY_SHELL_ROOT, libraryFromPath, libraryHref } from '../lib/library-shells';
 import { RESERVED_PATHS_URL, STUDIO_ROOT, teamHref, type ReservedPaths } from '../lib/team-path';
 import { llmsTxtUrl } from '../lib/library-view';
-import { loadTeamData, loadTeamLlms } from './team-data';
+import { loadTeamData, loadTeamLlms, whenLibraryOpen } from './team-data';
+import { libraryFileUrl } from './library-access-api';
 import { refreshSpaceSwitch } from './space-switch';
 
 const ROBOTS = 'meta[name="robots"][data-library-robots]';
@@ -73,10 +74,12 @@ export function initLibraryTeam() {
     .then((r) => (r.ok ? (r.json() as Promise<ReservedPaths>) : null))
     .then((reserved) => reserved && pointLibraryLinks(team, reserved))
     .catch(() => {});
-  loadTeamData()
+  // Nothing is read before the Library gate lets the visitor in (Settings, Library access): a gated page stays noindex.
+  whenLibraryOpen()
+    .then(() => loadTeamData())
     .then(async (data) => {
-      applyIndexing({ public: libraryIsPublic(data.model.config), private: data.private });
-      if (await loadTeamLlms()) linkLlms(llmsTxtUrl(data.owner, data.repo, data.private));
+      applyIndexing({ public: libraryIsPublic(data.model.config) && !data.servedBy, private: data.private });
+      if (await loadTeamLlms()) linkLlms(data.servedBy ? libraryFileUrl(`${data.owner}/${data.repo}`, 'llms') : llmsTxtUrl(data.owner, data.repo, data.private));
     })
     .catch(() => markNoindex());
 }

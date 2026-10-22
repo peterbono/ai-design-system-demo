@@ -169,10 +169,10 @@ describe('settings', () => {
   });
 
   it('puts every band in the 1200px page, Account first, then the team rules, and Appearance (this browser) last', () => {
-    const order = ['id="connection"', 'id="team"', 'id="changes"', 'id="roles"', 'id="safety"', 'id="tools"', 'id="integrations"', 'id="appearance"'].map((x) => page.indexOf(x));
+    const order = ['id="connection"', 'id="team"', 'id="library-access"', 'id="changes"', 'id="roles"', 'id="safety"', 'id="tools"', 'id="integrations"', 'id="appearance"'].map((x) => page.indexOf(x));
     expect(order.every((i) => i > 0)).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
-    expect(page.match(/<section class="set-band"/g)).toHaveLength(8);
+    expect(page.match(/<section class="set-band"/g)).toHaveLength(9);
     expect(page.indexOf('<div class="set-page">')).toBeLessThan(order[0]!);
   });
 
