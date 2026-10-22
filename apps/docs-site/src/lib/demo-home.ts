@@ -35,6 +35,8 @@ export interface DemoSuggestion {
   created_at: string;
   body?: string | null;
   pull_request?: unknown;
+  /** Its labels: the kind of suggestion ("suggestion: docs") and its product, when it has one. */
+  labels?: (string | { name: string })[] | null;
 }
 
 /** A pull request opened by automation (the release bot, Dependabot): not a design change. */

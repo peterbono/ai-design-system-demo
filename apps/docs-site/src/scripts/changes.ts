@@ -6,7 +6,8 @@
 // (#other-branches, ?branch=). The header names the view: "Branches" with a History link, or the view's own name with
 // a link back to all branches.
 import { initWorkFilter } from './work-filter';
-import { closePr, initReviewAuth, loadList, openPr } from './reviews';
+import { closePr, initReviewAuth, loadList, openPr, setWaitingExtras } from './reviews';
+import { readWaitingExtras } from './waiting-extras';
 import { initHistory } from './history/page';
 import { initRequests, loadRequests, openRequest } from './requests';
 import { closeSuggestion, onViewerChange, openSuggestion } from './suggestions';
@@ -25,6 +26,7 @@ type View = 'review' | 'requests' | 'explorations' | 'history';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 let listLoaded: Promise<{ number: number; head: { ref: string } }[]> | null = null;
+let extrasLoaded: Promise<void> | null = null;
 const VIEW_QUERY: Record<View, string> = { review: '', requests: '?view=requests', explorations: '?view=explorations', history: '?view=history' };
 
 /** The open pull requests In review already read (with their bodies), so Requests links them at no request. */
@@ -116,7 +118,11 @@ function showView(view: View) {
   if (view === 'history') initHistory();
   else if (view === 'requests') void loadRequests(openPullsForRequests());
   else if (view === 'explorations') void loadExplorations(openPullsForExplorations);
-  else listLoaded ??= loadList();
+  else {
+    listLoaded ??= loadList();
+    // Waiting on me also lists the suggestions that wait on the viewer (no guidance drafts here: Home has them).
+    extrasLoaded ??= listLoaded.then(() => readWaitingExtras({ ...readRepo(), guidance: [] })).then(setWaitingExtras, () => undefined);
+  }
   void listLoaded?.then((pulls) => paintExplorationCount(pulls as unknown as ExplorationPullLike[]));
 }
 

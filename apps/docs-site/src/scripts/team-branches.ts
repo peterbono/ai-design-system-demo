@@ -18,6 +18,8 @@ import { teamFailure } from '../lib/team-load';
 import type { PullLike } from '../lib/requests-view';
 import type { ExplorationPullLike } from '../lib/explorations-view';
 import { studioHref } from '../lib/team-path';
+import { teamGuidance } from '../lib/team-facts';
+import { readWaitingExtras } from './waiting-extras';
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -66,6 +68,7 @@ export async function initTeamBranches(): Promise<void> {
   const header = document.querySelector<HTMLElement>('[data-team-shell] > .st-head');
   let listLoaded: ReturnType<typeof reviews.loadList> | null = null;
   let suggestionsLoaded: Promise<void> | null = null;
+  let extrasLoaded: Promise<void> | null = null;
 
   type MainView = keyof typeof TEAM_VIEW_TITLE;
   const panels: Record<MainView, HTMLElement | null> = { list: $('cg-review'), history: $('cg-history'), requests: $('cg-requests'), explorations: $('cg-explore') };
@@ -171,6 +174,7 @@ export async function initTeamBranches(): Promise<void> {
     showMain('list');
     listLoaded ??= reviews.loadList();
     suggestionsLoaded ??= listLoaded.then(paintSuggestions);
+    extrasLoaded ??= listLoaded.then(() => readWaitingExtras({ owner: data.owner, repo: data.repo, guidance: teamGuidance(data) })).then(reviews.setWaitingExtras, () => undefined);
   };
   const go = (search: string) => {
     history.pushState({}, '', search || location.pathname);

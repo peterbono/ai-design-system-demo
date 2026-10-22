@@ -6,7 +6,7 @@
 // "Copy link", "Link for a developer"; the page itself never links to GitHub.
 // Without a token the bar's primary connects GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
-import { askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
+import { askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
 import { loadTeams, siteApprovalRules, siteApprovers, siteShipPolicy, siteSoloOwner, teamDirectory } from './teams';
 import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
@@ -106,6 +106,9 @@ import { bringInLatest, checkGuardrail, commitResolution, readCompare, readConfl
 import { AGENT_NAME, isClaudeLogin } from '../lib/people';
 import { safeUrl } from '../lib/html';
 import { siteConfig } from './repo-context';
+import { isDemoRepo } from '../lib/demo';
+import { waitingLabel } from '../lib/home-model';
+import type { WaitingExtra } from '../lib/review-categories';
 
 interface User {
   login: string;
@@ -241,6 +244,8 @@ interface Row {
   number: number;
   title: string;
   updated_at: string;
+  /** When it was opened: on the demo, the lead's rows say how long it waits, as on its home. */
+  created_at?: string;
   tier: Tier | null;
   kind: ReviewStatusKind | null;
   skipped: boolean;
@@ -293,8 +298,29 @@ function pillOf(r: Row, lifecycle: Lifecycle | 'exploration'): ListRow['pill'] {
   return statusPill(r.kind, rowWho(r.kind, facts(r)));
 }
 
+/**
+ * The demo persona a visitor without an account stands in for ("Dana", bridge.config.json "demo"), on a demo
+ * repository only (lib/demo.ts), as the demo home does: Waiting on me then lists what waits on the lead.
+ */
+function demoSeat(): string | null {
+  if (currentViewer() || !isDemoRepo(`${repo.owner}/${repo.repo}`)) return null;
+  return (siteConfig() as { demo?: { viewer?: string } }).demo?.viewer ?? null;
+}
+
+/** What waits on the viewer besides branches (suggestions, usage guidance drafts), set by the page that reads them. */
+let waitingExtras: WaitingExtra[] = [];
+
+/** Hands Waiting on me the suggestions and guidance drafts that wait on the viewer, and repaints the list. */
+export function setWaitingExtras(extras: WaitingExtra[]) {
+  waitingExtras = extras;
+  if (listMount) paintRows(openRows, listLoading);
+}
+
 function listRow(r: Row): ListRow {
   const lifecycle: Lifecycle | 'exploration' = r.exploration ? 'exploration' : lifecycleOfRow(r);
+  // In the lead's seat on the demo, every branch in review waits on them (drafts are still being made), as on its home.
+  const seat = demoSeat() !== null;
+  const waitsOnSeat = seat && !r.exploration && !r.draft && lifecycle !== 'draft' && lifecycle !== 'shipped' && lifecycle !== 'closed';
   return {
     number: r.number,
     title: humanTitle(mdTitleText(withoutJiraKey(r.title))),
@@ -302,9 +328,10 @@ function listRow(r: Row): ListRow {
     author: r.user.login,
     agent: Boolean(r.agent) || agentMade({ body: r.body ?? null, labels: r.labels ?? null }),
     opens: r.exploration ? 'exploration' : 'pr',
-    pill: pillOf(r, lifecycle),
+    // The lead's rows on the demo carry the home's status for the same change ("New today", "Waiting 2 days").
+    pill: waitsOnSeat && r.created_at ? { label: waitingLabel(r.created_at, Date.now()), tone: 'warning' } : pillOf(r, lifecycle),
     lifecycle,
-    yourTurn: !r.exploration && lifecycle !== 'shipped' && lifecycle !== 'closed' && turnOf(r).yourTurn,
+    yourTurn: !r.exploration && lifecycle !== 'shipped' && lifecycle !== 'closed' && (seat ? waitsOnSeat : turnOf(r).yourTurn),
     behindBy: r.behindBy ?? null,
     signals: r.signals ?? null,
     guidance: Boolean(r.guidance),
@@ -314,6 +341,7 @@ function listRow(r: Row): ListRow {
     labels: r.labels ?? null,
     // A library branch a product branch needs: listed under that product branch.
     neededBy: parseNeededBy(r.body)?.pr ?? null,
+    requester: requesterOf(r.body),
   };
 }
 
@@ -342,6 +370,8 @@ function paintRows(rows: Row[], loading: boolean) {
     failure: (err) =>
       err instanceof RateLimitError ? `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())} to preview ${VOCAB.branches} together.` : `Could not read a checked ${VOCAB.branch}: ${(err as Error).message}`,
     readClosed: () => void loadClosed(),
+    seat: demoSeat(),
+    waiting: waitingExtras,
   };
   // Each call's module promise may settle in any order (Vite preloads its styles per call): paint the latest props,
   // never the ones a call captured, so a fast read never ends on an older list.
@@ -370,6 +400,7 @@ const toRow = (p: Pull | CachedPull, kind: ReviewStatusKind | null): Row => ({
   number: p.number,
   title: p.title,
   updated_at: p.updated_at,
+  ...('created_at' in p && p.created_at ? { created_at: p.created_at } : {}),
   // A label decides at once; the files (read with the status) complete it, the same rule as the detail.
   tier: 'labels' in p ? effectiveTier(p.labels, p.body, null) : p.tier,
   kind,
