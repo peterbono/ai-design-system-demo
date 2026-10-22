@@ -1,8 +1,8 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-21T01:40:34.832Z",
-  "sha": "591f8f639d4c097325bb5ce4485abc565e822ef8",
+  "createdAt": "2026-10-22T11:15:25.691Z",
+  "sha": "a137625f3afb3ac6e1026357cf1fbce3b4a11366",
   "scale": 2,
   "mode": {
     "brand": "bridge",
@@ -1137,7 +1137,7 @@
       }
     },
     "Popover/Popup": {
-      "specHash": "b31cc533",
+      "specHash": "caff0a81",
       "variants": {
         "Default": {
           "skipped": "drawn open in Figma; the code image shows it closed"
