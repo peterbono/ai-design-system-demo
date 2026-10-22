@@ -1,25 +1,47 @@
 // Team pages (multi-team PR 3b): Studio Components of a team, read from its repository (scripts/team-data.ts). One
-// sentence on the catalog, search and family on one row, then every component grouped by family. A row opens a
+// sentence on the catalog, search and family on one row, then every component grouped by family in the same catalog
+// as the self-hosted Studio (ComponentsList: a thumbnail of the docs.json preview, the products that use it from the
+// team's adoption reports, examples, tokens and Figma coverage), all from the snapshot for a guest. A row opens a
 // drawer with ONE preview: the component's first story from the team's Storybook (bridge.config.json storybook.url,
 // else the Storybook added in this browser), only in the open drawer. Without a Storybook, a band of token
 // specimens (tokens only) and one line on how to add it. Mounted client:load; the server renders the skeleton.
 // Repo content is React text only; links built from repo data go through lib/html.ts safeUrl.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink, Layers } from 'lucide-react';
-import { Badge, Button, ButtonGroup, Drawer, DrawerContent, EmptyState, Input, Link, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
+import { Badge, Button, ButtonGroup, Drawer, DrawerContent, EmptyState, Input, Link, Select } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
 import { GitHubMark } from './brand-icons';
 import { TeamLoadError, TeamLoadProgress, TeamSourceNote, useTeamData } from './TeamState';
 import TokenSpecimens from './TokenSpecimens';
-import { filterTeamRows, pickStorybook, rowExceptions, storyPreview, teamComponentRows, teamComponentsLead, teamFamilies, type TeamComponentRow } from '../../../lib/team-components';
+import ComponentsList from './ComponentsList';
+import ClientExample from './ClientExample';
+import { filterTeamRows, pickStorybook, rowExceptions, storyPreview, teamCatalogRows, teamComponentRows, teamComponentsLead, teamFamilies, type TeamComponentRow } from '../../../lib/team-components';
+import type { ProductAudit } from '../../../lib/components-studio';
+import { fitFrames } from '../../../scripts/explorer/preview-frames';
 import { tokenSpecimens } from '../../../lib/token-specimens';
 import { fileUrl } from '../../../lib/team-load';
 import { safeUrl } from '../../../lib/html';
 import { studioHref } from '../../../lib/team-path';
 import { readWorkspace, onWorkspaceChange } from '../../../scripts/workspace';
-import type { TeamData } from '../../../scripts/team-data';
+import { loadTeamProductUsage, type TeamData } from '../../../scripts/team-data';
 
 const words = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
+
+/** The list thumbnails' largest scale, as on the self-hosted page (scripts/components-studio.ts THUMB_MAX). */
+const THUMB_MAX = 0.7;
+
+/** The products that use each component (the team's adoption reports), null until read or without any. */
+function useProductUsage(data: TeamData): ProductAudit[] | null {
+  const [audits, setAudits] = useState<ProductAudit[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    void loadTeamProductUsage().then((a) => live && setAudits(a));
+    return () => {
+      live = false;
+    };
+  }, [data]);
+  return audits;
+}
 
 /** The Storybook added in this browser (quick start), read after mount: localStorage is not there on the server. */
 function useBrowserStorybook(): string | undefined {
@@ -104,7 +126,23 @@ function Ready({ data, refreshing, onRefresh }: { data: TeamData; refreshing: bo
   const [query, setQuery] = useState('');
   const [family, setFamily] = useState('');
   const [open, setOpen] = useState<TeamComponentRow | null>(null);
-  const shown = filterTeamRows(rows, query, family);
+  const shown = useMemo(() => filterTeamRows(rows, query, family), [rows, query, family]);
+  const audits = useProductUsage(data);
+  const catalog = useMemo(() => teamCatalogRows(data.model, shown, audits), [data.model, shown, audits]);
+  const listRef = useRef<HTMLDivElement>(null);
+  // Thumbnails scale to fit their frame once drawn, and again when the list or the window changes.
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const fit = () => fitFrames(el, { max: THUMB_MAX });
+    const raf = requestAnimationFrame(fit);
+    void document.fonts?.ready.then(fit);
+    window.addEventListener('resize', fit);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', fit);
+    };
+  }, [catalog]);
   const dir = data.model.components?.dir ?? data.model.config.components?.dir ?? 'components';
 
   const noStorybook = !storybook && (
@@ -166,49 +204,9 @@ function Ready({ data, refreshing, onRefresh }: { data: TeamData; refreshing: bo
               </Button>
             </p>
           ) : (
-            teamFamilies(shown).map((f) => (
-              <section key={f.name} className="tcm-family" aria-label={f.name}>
-                <h2 className="tcm-family-title">
-                  {f.name} <span className="tcm-muted num">{f.n}</span>
-                </h2>
-                <Table aria-label={`${f.name} components`} narrowLayout="stack" layout="fixed">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Component</TableHead>
-                      <TableHead numeric width={0.12}>
-                        Stories
-                      </TableHead>
-                      <TableHead numeric width={0.12}>
-                        Tokens
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {shown
-                      .filter((r) => r.family === f.name)
-                      .map((r) => (
-                        <TableRow key={r.slug}>
-                          <TableCell>
-                            <span className="tcm-name">
-                              <Button variant="link" onClick={() => setOpen(r)} className="tcm-open">
-                                {r.name}
-                              </Button>
-                              {rowExceptions(r).map((b) => (
-                                <Badge key={b.label} tone={b.tone} size="sm">
-                                  {b.label}
-                                </Badge>
-                              ))}
-                            </span>
-                            {r.summary && <span className="tcm-summary">{r.summary}</span>}
-                          </TableCell>
-                          <TableCell numeric>{r.stories.length}</TableCell>
-                          <TableCell numeric>{r.tokens}</TableCell>
-                        </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
-              </section>
-            ))
+            <div ref={listRef}>
+              <ComponentsList rows={catalog} products={audits?.length ?? 0} Thumb={ClientExample} onOpen={(slug) => setOpen(rows.find((r) => r.slug === slug) ?? null)} openSlug={open?.slug ?? null} />
+            </div>
           )}
         </>
       )}

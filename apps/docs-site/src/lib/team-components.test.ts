@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RepoModel, ScannedComponent } from '@bridge-ds/core';
-import { filterTeamRows, httpsStorybook, pickStorybook, rowExceptions, storyPreview, teamComponentRows, teamComponentsLead, teamFamilies } from './team-components';
+import { filterTeamRows, httpsStorybook, pickStorybook, rowExceptions, storyPreview, teamCatalogRows, teamComponentRows, teamComponentsLead, teamFamilies } from './team-components';
 
 const comp = (name: string, category: string, extra: Partial<ScannedComponent> = {}): ScannedComponent =>
   ({
@@ -34,6 +34,23 @@ const model = {
 } as unknown as Pick<RepoModel, 'components'>;
 
 describe('team components', () => {
+  it('catalog rows: the same facts as the self-hosted list, from the team model and its adoption reports', () => {
+    const preview = { c: 'Button', p: { variant: 'primary' }, children: ['Save'] };
+    const m = {
+      components: { ...model.components!, list: model.components!.list.map((c) => (c.name === 'Button' ? { ...c, docs: { ...c.docs!, preview } } : c)) },
+      specs: { path: 'specs.json', file: null, coverage: [{ name: 'Button', status: 'generated' }, { name: 'Input', status: 'layout' }] },
+    } as unknown as Pick<RepoModel, 'components' | 'specs'>;
+    const rows = teamComponentRows(m);
+    // ButtonIcon is a part of Button (counted with it); Card is not a component of this team (left out).
+    const out = teamCatalogRows(m, rows, [{ product: 'Account app', components: { Button: 3, ButtonIcon: 1, Card: 2 } }]);
+    expect(out.map((r) => r.name)).toEqual(['Input', 'Button', 'Zebra']);
+    expect(out[1]).toMatchObject({ slug: 'button', examples: 1, tokensTotal: 2, guidance: 'ok', preview, usedIn: [{ product: 'Account app', instances: 4 }], figma: { label: 'Yes' } });
+    expect(out[0]).toMatchObject({ guidance: 'review', usedIn: [], figma: { label: 'Auto layout' } });
+    expect(out[2]!.figma).toBeUndefined();
+    // No adoption report: no "Used in" facts at all (the column is left out).
+    expect(teamCatalogRows(m, rows, null)[1]!.usedIn).toBeUndefined();
+  });
+
   it('rows follow the barrel family order, then the rest', () => {
     const rows = teamComponentRows(model);
     expect(rows.map((r) => r.name)).toEqual(['Input', 'Button', 'Zebra']);
