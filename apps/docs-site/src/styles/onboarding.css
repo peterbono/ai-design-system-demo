@@ -262,6 +262,10 @@
   line-height: var(--typography-ui-line-height);
 }
 
+.onb-name {
+  max-width: 48ch;
+}
+
 .onb-repo {
   display: flex;
   flex-wrap: wrap;

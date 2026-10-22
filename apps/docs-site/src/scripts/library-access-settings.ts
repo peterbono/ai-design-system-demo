@@ -7,10 +7,10 @@
 //   none    the browser workspace, which has no repository yet.
 import { accessContext, defaultSetting, SAMPLE_SETTING, type AccessContext, type AccessSetting } from '../lib/library-access';
 import { libraryHref } from '../lib/library-shells';
-import { demoTeamName, isDemoRepo } from '../lib/demo';
+import { teamDisplayName } from '../lib/demo';
 import { currentViewer, resolveAccess } from './github-session';
 import { libraryAccess } from './library-access-api';
-import { repoContext } from './repo-context';
+import { repoContext, siteConfig } from './repo-context';
 
 export interface AccessData {
   context: AccessContext;
@@ -37,7 +37,7 @@ export async function loadAccessSettings(): Promise<AccessData> {
   const ctx = repoContext();
   const repo = `${ctx.owner}/${ctx.repo}`;
   const context = accessContext(noRepoPage() ? null : repo, noRepoPage());
-  const team = isDemoRepo(repo) ? demoTeamName(repo) : repo;
+  const team = teamDisplayName(repo, siteConfig());
   const link = `${location.origin}${libraryHref(ctx.owner, ctx.repo)}`;
   const base: AccessData = { context, repo, team, setting: defaultSetting(false), stored: false, canManage: false, isPrivate: null, available: false, link };
   if (context === 'none') return base;

@@ -1,6 +1,7 @@
 // Team pages (multi-team PR 3b): the words for how a team's repository was read, and for why it could not be.
 // Pure: scripts/team-data.ts loads, components/ds/studio/TeamState.tsx shows, team-load.test.ts covers the wording.
 
+import { teamDisplayName } from './demo';
 /** Where the team's data came from (scripts/repo-context.ts TeamModelSource). */
 export type TeamDataSource = 'cache' | 'snapshot' | 'live';
 
@@ -24,8 +25,10 @@ const statusOf = (err: unknown): number | undefined => {
 };
 
 /** A failure to read `repo` ("owner/name") as the page says it. Never shows a stack or a raw API body. */
-export function teamFailure(err: unknown, repo: string): TeamFailure {
+export function teamFailure(err: unknown, full: string): TeamFailure {
   const status = statusOf(err);
+  // The team by its name, never owner/repo ("this repository" when the address names none).
+  const repo = full.includes('/') ? teamDisplayName(full) : full;
   const message = err instanceof Error ? err.message : '';
   // A private Library this site serves (api/library-access): its own sentence, never "GitHub answered".
   if ((err as { source?: unknown } | null)?.source === 'bridge') {

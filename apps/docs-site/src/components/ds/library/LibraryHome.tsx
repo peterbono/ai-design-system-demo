@@ -14,6 +14,7 @@ import { loadTeamLlms, type TeamData } from '../../../scripts/team-data';
 import { libraryFileUrl } from '../../../scripts/library-access-api';
 import type { IllustrationName } from '../../../brand/illustrations';
 import '../../../styles/home.css';
+import { teamDisplayName } from '../../../lib/demo';
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -84,16 +85,15 @@ function Ready({ data, refreshing, onRefresh }: { data: TeamData; refreshing: bo
 
 export default function LibraryHome() {
   const team = usePageTeam();
-  const name = team ? `${team.owner}/${team.repo}` : 'This team';
   return (
     <LibraryPage
       label="Reading the Library"
       header={(data) => (
         <section className="zone hm-hero ltm-hero" aria-labelledby="ltm-hero-title">
           <div className="hm-hero-copy">
-            <p className="ltm-eyebrow mono">{name}</p>
+            <p className="ltm-eyebrow">Design system library</p>
             <h1 id="ltm-hero-title" className="t-display">
-              {team ? `The ${team.repo} design system` : 'Design system'}
+              {team ? `The ${teamDisplayName(`${team.owner}/${team.repo}`, data?.model.site)} design system` : 'Design system'}
             </h1>
             <p className="t-body">{data ? `${libraryHome(data.model).lead} Tokens, components and how to use them, published from the repository.` : 'Tokens, components and how to use them, published from the repository.'}</p>
             {team && (

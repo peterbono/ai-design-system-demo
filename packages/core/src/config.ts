@@ -186,6 +186,8 @@ export interface AuditConfig {
 }
 
 export interface BridgeConfig {
+  /** The team's display name ("Bridge", "Acme Design"), 1 to 60 characters. Undefined: Bridge names the team after its repository. */
+  name?: string | undefined;
   /** GitHub repository. Undefined only for a detected config of a repo with no known remote. */
   repo: RepoRef | undefined;
   tokens: TokenConfig;
@@ -258,6 +260,16 @@ export interface BridgeConfigInput {
   storybook?: { url: string };
   library?: LibraryConfig;
   demo?: DemoConfig;
+}
+
+/** Longest team display name bridge.config.json accepts. */
+export const TEAM_NAME_MAX = 60;
+
+/** The team's display name from a config value: trimmed, 1 to 60 characters; undefined for anything else. */
+export function teamName(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const v = value.trim().replace(/\s+/g, ' ');
+  return v && v.length <= TEAM_NAME_MAX ? v : undefined;
 }
 
 export const DEFAULT_TOKEN_PATHS: TokenPaths = {
@@ -378,6 +390,7 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
   const g = input.governance ?? {};
   const contrastFile = contrastPath ?? [root === '.' ? '' : root, paths.contrastChecks].filter(Boolean).join('/');
   return {
+    ...(teamName(input.name) ? { name: teamName(input.name) } : {}),
     repo: parseRepoInput(input.repo, input.branch),
     tokens: { ...paths, include: input.tokens?.include ?? ['**/*.tokens.json'], exclude: input.tokens?.exclude ?? [], tiers, layers, ...(t.usage ? { usage: trimSlashes(t.usage) } : {}) },
     axes,
@@ -554,6 +567,7 @@ export function loadConfig(source: string | unknown): BridgeConfig {
     }
   }
   problems.push(...visualImpactProblems(d.visualImpact));
+  if (d.name !== undefined && teamName(d.name) === undefined) problems.push(`"name" must be the team's name, 1 to ${TEAM_NAME_MAX} characters`);
   if (d.changes !== undefined && !(CHANGES_MODES as readonly unknown[]).includes(d.changes)) problems.push(`"changes" must be "suggest" or "direct" (got ${JSON.stringify(d.changes)})`);
   const sb = d.storybook;
   if (sb !== undefined) {
@@ -642,6 +656,7 @@ export function toConfigJson(config: BridgeConfig, schema = './packages/core/bri
   return {
     $schema: schema,
     version: 1,
+    ...(config.name ? { name: config.name } : {}),
     ...(config.repo ? { repo: config.repo } : {}),
     tokens: { root: config.tokens.root, include: config.tokens.include, ...(config.tokens.exclude.length ? { exclude: config.tokens.exclude } : {}), tiers: config.tokens.tiers, layers: config.tokens.layers.map((l) => (l.optional ? l : { files: l.files })), ...(config.tokens.usage ? { usage: config.tokens.usage } : {}) },
     modes: Object.fromEntries(Object.entries(config.axes).map(([k, a]) => [k, a.parity ? a : { values: a.values, default: a.default }])),

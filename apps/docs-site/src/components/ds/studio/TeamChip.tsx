@@ -1,5 +1,6 @@
 // The team chip at the top of the Studio side nav (multi-team plan 7.1): the design system you are looking at, not your
-// account. The owner's avatar, owner/repo in mono and what you can do on it as a badge ("Can edit", "Can suggest",
+// account. The owner's avatar, the team's name (lib/demo.ts teamDisplayName: bridge.config.json `name` once read, else
+// the repository name in words; owner/repo in its title) and what you can do on it as a badge ("Can edit", "Can suggest",
 // "Guest"), then a chevron. On Bridge's own design system (the self-hosted site's own repository) it shows the Bridge
 // mark and "Bridge" instead of the owner's photo, and a visitor without an account reads "Explore freely". On the
 // sample team it reads "Acme Design" with its initials and a "Demo" tag (lib/demo.ts). It is the nav's
@@ -9,17 +10,19 @@
 // which opens a dialog over the page (NewTeamDialog.tsx) to connect another design system: the person keeps their
 // place. Who you are stays at the bottom of the nav (components/GitHubAccount.astro): proximity keeps the team at the
 // top and the account at the bottom.
-// On the hosted site the menu opens with "Your team" (board EmptyB): the team you are on, or from the demo the
-// workspace you came from (lib/start.ts), and "Try it" with Acme Design, the sample team. The browser workspace (no repository yet,
+// On the hosted site the menu opens with "Your teams" (board EmptyB): the teams the signed-in person belongs to (their
+// role remembered in this browser), the one they are on first with a check and their role; the empty browser
+// workspace only while they are in it or have no team of their own (lib/start.ts); and "Try it" with Acme Design, the
+// sample team. The browser workspace (no repository yet,
 // pages/studio/workspace.astro) names itself on the chip: "Ann's workspace", kept in this browser.
 // Mounted by layouts/Layout.astro on every Studio page, both modes: a self-hosted Studio is its own one team.
 import { Fragment, lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import { ChevronsUpDown, Plus, UserPlus, X } from 'lucide-react';
+import { Check, ChevronsUpDown, Plus, UserPlus, X } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
 import { Avatar, Badge, Button, Icon, Menu, MenuContent, MenuGroup, MenuItem, MenuSeparator, MenuTrigger } from '@bridge-ds/react';
 import type { RepoAccessState } from '@bridge-ds/core';
-import { chipIdentity, isDemoTeam, ownerAvatarUrl } from '../../../lib/access-view';
-import { forgetRecentTeam, loadRecentTeams, noteTeamAccess } from '../../../lib/recent-teams';
+import { chipIdentity, isDemoTeam, memberRole, ownerAvatarUrl, recentTeamName } from '../../../lib/access-view';
+import { forgetRecentTeam, loadRecentTeams, loadTeamNames, loadTeamRoles, noteTeamAccess, noteTeamName, noteTeamRole } from '../../../lib/recent-teams';
 import { teamHref } from '../../../lib/team-path';
 import { ghButton } from '../../../lib/gh-wording';
 import NewTeamDialog, { type TeamAccessCheck } from './NewTeamDialog';
@@ -29,7 +32,7 @@ const InviteDialog = lazy(() => import('./InviteDialog'));
 import { GitHubMark } from './brand-icons';
 import { Drawing } from './Drawing';
 import { shortName } from '../../../lib/home-model';
-import { demoTeamName, isSampleTeam } from '../../../lib/demo';
+import { isSampleTeam } from '../../../lib/demo';
 import { DEMO_HOME, MENU_WORDS, ownTeams, WORKSPACE_HOME, WORKSPACE_WORDS, workspaceHref, workspaceName, type StartFacts } from '../../../lib/start';
 
 export interface TeamChipProps {
@@ -43,14 +46,20 @@ export interface TeamChipProps {
 
 const others = (list: readonly string[], team: string | null) => list.filter((t) => t.toLowerCase() !== (team ?? '').toLowerCase());
 
-/** One team in the "Your team" and "Try it" sections: its mark, its name and one muted line, the whole row the target. */
-function TeamItem({ mark, title, line, href, current, mono }: { mark: ReactElement; title: string; line: string; href: string; current?: boolean; mono?: boolean }) {
+/** One team in "Your teams" and "Try it": its mark, its name, one muted line or the person's role as a tag, and a check on the one you are on. */
+function TeamItem({ mark, title, line, role, href, current }: { mark: ReactElement; title: string; line?: string; role?: string; href: string; current?: boolean }) {
   return (
     <MenuItem className="tc-team" data-current={current ? '' : undefined} label={title} icon={mark} onClick={() => location.assign(href)}>
       <span className="tc-team-text">
-        <span className={mono ? 'tc-team-name mono' : 'tc-team-name'}>{title}</span>
-        <span className="tc-team-line">{line}</span>
+        <span className="tc-team-name">{title}</span>
+        {line && <span className="tc-team-line">{line}</span>}
       </span>
+      {role && (
+        <Badge size="sm" tone="neutral" className="tc-team-role">
+          {role}
+        </Badge>
+      )}
+      {current && <Icon icon={Check} size="sm" className="tc-team-check" aria-label="Current team" />}
     </MenuItem>
   );
 }
@@ -77,11 +86,15 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   const [inviting, setInviting] = useState(false);
   const [invitedOnce, setInvitedOnce] = useState(false);
   const [signInApp, setSignInApp] = useState(false);
+  // The team's own name (bridge.config.json `name`) once its settings are read, and the names of the recent teams.
+  const [cfg, setCfg] = useState<{ read: boolean; name: string | null }>({ read: false, name: null });
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [roles, setRoles] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let live = true;
     void (async () => {
-      const [{ repoContext }, session] = await Promise.all([import('../../../scripts/repo-context'), import('../../../scripts/github-session')]);
+      const [{ repoContext, siteConfig }, session] = await Promise.all([import('../../../scripts/repo-context'), import('../../../scripts/github-session')]);
       if (!live) return;
       const r = repoContext();
       const team = workspace ? null : `${r.owner}/${r.repo}`;
@@ -89,6 +102,16 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
       setHosted(r.hosted);
       // The stored list, cleaned of placeholders. This team joins it only once its page read the repository (below).
       setRecent(others(loadRecentTeams(), team));
+      setNames(loadTeamNames());
+      setRoles(loadTeamRoles());
+      const readName = () => {
+        if (!live) return document.removeEventListener('bridge:team-model', readName);
+        const c = siteConfig();
+        // A team shell knows its settings once GitHub answered (bridge:team-model); the self-hosted page from the start.
+        setCfg({ read: Object.keys(c).length > 0, name: c.name?.trim() || null });
+      };
+      readName();
+      document.addEventListener('bridge:team-model', readName);
       setSignInApp(session.prefersSignIn());
       // This browser only: no GitHub call (the demo stays free for guests).
       const { startFacts } = await import('../../../scripts/start');
@@ -112,6 +135,18 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     setRecent(others(noteTeamAccess(name, access), name));
   }, [hosted, name, access]);
 
+  // The name it goes by joins the recent teams' names once its settings were read.
+  useEffect(() => {
+    if (!hosted || !name || !cfg.read) return;
+    setNames(noteTeamName(name, cfg.name));
+  }, [hosted, name, cfg, recent]);
+
+  // Signed in, the person's role here: a team they belong to joins "Your teams" on the next pages. Signed out says nothing.
+  useEffect(() => {
+    if (!hosted || !name || !access || !signedIn) return;
+    setRoles(noteTeamRole(name, memberRole(access, signedIn)));
+  }, [hosted, name, access, signedIn, recent]);
+
   const forget = (team: string) => setRecent(others(forgetRecentTeam(team), name));
 
   const [owner = ''] = (name ?? '').split('/');
@@ -119,25 +154,41 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   const wsLine = facts?.storybook ? 'Storybook connected' : MENU_WORDS.workspaceLine;
   const chip = workspace
     ? { kind: 'workspace' as const, name: wsName, title: `${wsName}, ${WORKSPACE_WORDS.kept.toLowerCase()}`, badge: { label: facts?.storybook ? 'Storybook' : WORKSPACE_WORDS.notConnected, tone: 'neutral' as const } }
-    : chipIdentity(name, { demo: isDemoTeam(name, hosted), state: access, signedIn });
+    : chipIdentity(name, { demo: isDemoTeam(name, hosted), state: access, signedIn, name: cfg.name });
   const badge = chip.badge;
   const offerTeams = launcher || hosted;
-  // "Your team": the workspace or team you are on; from the demo, the workspace you came from (none: no section).
-  const yours = (() => {
-    if (!offerTeams) return null;
-    if (chip.kind === 'workspace') return { key: 'ws', mark: <Avatar name={viewerName ?? 'Workspace'} size="xs" decorative />, title: wsName, line: wsLine, href: WORKSPACE_HOME, current: true, mono: false };
-    if (chip.kind === 'team' && name) return { key: name, mark: <Avatar name={owner} src={ownerAvatarUrl(owner, 32)} size="xs" decorative />, title: name, line: badge.label, href: teamHref(owner, name.split('/')[1] ?? '', null), current: true, mono: true };
-    if (!facts) return null;
+  // "Your teams": the teams the signed-in person belongs to (their role known in this browser), the one you are on first
+  // with a check and your role. The browser workspace shows only while you are in it or have no team of your own; from
+  // the sample team or a team you are a guest of, the place you came from. The sample team stays under "Try it".
+  type TeamRow = { key: string; mark: ReactElement; title: string; line?: string; role?: string; href: string; current: boolean };
+  const wsMark = <Avatar name={viewerName ?? 'Workspace'} size="xs" decorative />;
+  const teamMark = (t: string) => (isDemoTeam(t) && !isSampleTeam(t) ? <DemoMark /> : <Avatar name={t.split('/')[0] ?? ''} src={ownerAvatarUrl(t.split('/')[0] ?? '', 32)} size="xs" decorative />);
+  const teamRowOf = (t: string, current: boolean, role?: string): TeamRow => {
+    const [o = '', r = ''] = t.split('/');
+    return { key: t, mark: teamMark(t), title: current ? chip.name : recentTeamName(t, names), role, href: teamHref(o, r, null), current };
+  };
+  const yours: TeamRow[] = (() => {
+    if (!offerTeams) return [];
+    const rows: TeamRow[] = [];
+    if (chip.kind === 'workspace') rows.push({ key: 'ws', mark: wsMark, title: wsName, line: wsLine, href: WORKSPACE_HOME, current: true });
+    const here = chip.kind !== 'workspace' && name && !isSampleTeam(name) ? name : null;
+    const role = memberRole(access, signedIn);
+    // The team you are on: yours when you belong to it; a guest still sees where they are on someone else's team.
+    if (here && (role || chip.kind === 'team')) rows.push(teamRowOf(here, true, role ?? badge.label));
+    for (const t of recent) {
+      const r = roles[t.toLowerCase()];
+      if (r && !isSampleTeam(t) && t.toLowerCase() !== here?.toLowerCase()) rows.push(teamRowOf(t, false, r));
+    }
+    if (rows.length || !facts) return rows;
+    // No team of your own here: the place you came from, a team you opened or the browser workspace.
     const [team] = ownTeams(facts.recent);
     const href = workspaceHref(facts);
-    if (!href) return null;
-    if (team) {
-      const [o = ''] = team.split('/');
-      return { key: team, mark: <Avatar name={o} src={ownerAvatarUrl(o, 32)} size="xs" decorative />, title: team, line: 'Your most recent team', href, current: false, mono: true };
-    }
-    return { key: 'ws', mark: <Avatar name={viewerName ?? 'Workspace'} size="xs" decorative />, title: wsName, line: wsLine, href, current: false, mono: false };
+    if (!href) return rows;
+    if (team) return [{ ...teamRowOf(team, false), line: 'Your most recent team' }];
+    return [{ key: 'ws', mark: wsMark, title: wsName, line: wsLine, href, current: false }];
   })();
-  const listed = recent.filter((t) => t.toLowerCase() !== yours?.key.toLowerCase());
+  const yourKeys = new Set(yours.map((y) => y.key.toLowerCase()));
+  const listed = recent.filter((t) => !yourKeys.has(t.toLowerCase()));
   const createItem = (
     // A dialog over the page: connect another design system by its repository, without leaving this one.
     <MenuItem icon={Plus} className="tc-create" onClick={() => setCreating(true)}>
@@ -157,9 +208,11 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   const blocks: { key: string; node: ReactNode }[] = [];
   const teams = (
     <>
-      {yours && (
-        <MenuGroup label={MENU_WORDS.yourTeam}>
-          <TeamItem mark={yours.mark} title={yours.title} line={yours.line} href={yours.href} current={yours.current} mono={yours.mono} />
+      {yours.length > 0 && (
+        <MenuGroup label={MENU_WORDS.yourTeams}>
+          {yours.map((y) => (
+            <TeamItem key={y.key} mark={y.mark} title={y.title} line={y.line} role={y.role} href={y.href} current={y.current} />
+          ))}
         </MenuGroup>
       )}
       {offerTeams && chip.kind !== 'demo' && (
@@ -169,7 +222,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
       )}
     </>
   );
-  if (yours || (offerTeams && chip.kind !== 'demo')) blocks.push({ key: 'teams', node: teams });
+  if (yours.length > 0 || (offerTeams && chip.kind !== 'demo')) blocks.push({ key: 'teams', node: teams });
   // Invite collaborators opens the dialog over the page (board I1). The sample team shows it to everyone, with its
   // sample people: sending opens the demo dialog. The browser workspace has no repository, so nobody to invite yet.
   const sample = chip.kind === 'demo' && Boolean(chip.sample) && isSampleTeam(name);
@@ -208,15 +261,15 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
         <MenuGroup label="Recent teams">
           {listed.map((t) => {
             const [o = '', r = ''] = t.split('/');
-            // A demo design system goes by its name (Bridge, Acme Design), never its repository.
+            // Every team goes by its name (lib/demo.ts teamDisplayName), never its repository.
             const demo = isDemoTeam(t);
-            const shown = demo ? demoTeamName(t) : t;
+            const shown = recentTeamName(t, names);
             // Two sibling menu items on one row (proximity), never a button inside an item: arrow keys reach the team,
             // then its remove action, and the menu stays open so the list updates in place.
             return (
               <div key={t} className="tc-recent">
                 <MenuItem className="tc-recent-open" label={shown} icon={<Avatar name={demo ? shown : o} src={demo ? undefined : ownerAvatarUrl(o, 32)} size="xs" decorative />} onClick={() => go(teamHref(o, r, null))}>
-                  <span className={demo ? undefined : 'mono'}>{shown}</span>
+                  <span>{shown}</span>
                 </MenuItem>
                 <MenuItem
                   className="tc-recent-remove"
@@ -250,7 +303,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
             <Avatar name={owner || 'Team'} src={owner ? ownerAvatarUrl(owner) : undefined} size="sm" decorative className="tc-avatar" />
           )}
           <span className="tc-text">
-            <span className={chip.kind === 'team' ? 'tc-name mono' : 'tc-name'} title={chip.title}>
+            <span className="tc-name" title={chip.title}>
               {chip.name}
             </span>
             <Badge size="sm" tone={badge.tone} dot className="tc-badge">

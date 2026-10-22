@@ -113,8 +113,8 @@
   color: var(--color-text-muted);
 }
 
-/* "Your team" and "Try it" (board EmptyB): one team per row, its name over one muted line. The team you are on reads
-   as selected. The mark keeps its own size: the menu's leading slot is sized for a 16px icon. */
+/* "Your teams" and "Try it" (board EmptyB): one team per row, its name over one muted line or your role as a tag. The
+   team you are on reads as selected, with a check. The mark keeps its own size: the menu's leading slot is sized for a 16px icon. */
 .tc-menu .tc-team {
   min-height: var(--size-12);
   padding-block: var(--space-1-5);
@@ -122,7 +122,17 @@
 
 .tc-team-text {
   display: grid;
+  flex: 1;
   min-width: 0;
+}
+
+.tc-team-role,
+.tc-team-check {
+  flex: none;
+}
+
+.tc-team-check {
+  color: var(--color-text-default);
 }
 
 .tc-team-name {

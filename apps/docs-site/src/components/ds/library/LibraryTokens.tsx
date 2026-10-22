@@ -8,6 +8,7 @@ import { LibraryPage, LibrarySourceNote, LibraryZone, usePageTeam } from './Libr
 import { filterTokenRows, libraryTokenRows, TIER_LABEL, tierCounts, TOKEN_PAGE, tokenFromQuery, type LibraryTier } from '../../../lib/library-view';
 import type { TeamData } from '../../../scripts/team-data';
 import '../../../styles/team-components.css';
+import { teamDisplayName } from '../../../lib/demo';
 
 const ALL = '__all__';
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -97,8 +98,8 @@ export default function LibraryTokens() {
           art="tokens"
           lead={
             data
-              ? `${plural(data.model.tokens.rows.all.length + data.model.tokens.rows.primitives.length, 'token')} of ${data.owner}/${data.repo}. Use the semantic tokens in product code: they follow the theme. Primitives are the raw palette underneath.`
-              : `Every token of ${team ? `${team.owner}/${team.repo}` : 'this design system'}, with its value per theme.`
+              ? `${plural(data.model.tokens.rows.all.length + data.model.tokens.rows.primitives.length, 'token')} of ${teamDisplayName(`${data.owner}/${data.repo}`, data.model.site)}. Use the semantic tokens in product code: they follow the theme. Primitives are the raw palette underneath.`
+              : `Every token of ${team ? teamDisplayName(`${team.owner}/${team.repo}`) : 'this design system'}, with its value per theme.`
           }
         />
       )}

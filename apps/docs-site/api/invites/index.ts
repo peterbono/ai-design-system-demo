@@ -68,7 +68,7 @@ import { githubApp as sharedGithubApp, type AppTokens } from '../_lib/github-app
 import { b64url, clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody as readJsonBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin as originOf, type FetchLike } from '../_lib/http.js';
 import { memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
-import { teamDisplayName } from '../../src/lib/demo.js';
+import { onBridge, teamDisplayName } from '../../src/lib/demo.js';
 
 export { appJwt } from '../_lib/github-app.js';
 export { resendSender, sameOrigin };
@@ -402,11 +402,11 @@ export function inviteEmail(x: { to: string; inviter: string; repo: string; team
   const w = ROLE_WORDS[x.role];
   const roleLabel = x.role === 'reviewer' && x.reviewAs ? `${w.label}: ${REVIEW_AS_WORDS[x.reviewAs]}` : w.label;
   const team = x.team ?? teamDisplayName(x.repo);
-  const subject = `${x.inviter} invited you to ${team} on Bridge`;
+  const subject = `${x.inviter} invited you to ${team}${onBridge(team)}`;
   // "Can edit" joins with the email alone (api/contribute); reviewers and admins approve on GitHub.
   const how = x.role === 'edit' ? 'You join with this email, no GitHub account needed.' : 'You sign in with GitHub.';
   const lines = [
-    `${x.inviter} invited you to the ${team} design system on Bridge.`,
+    `${x.inviter} invited you to the ${team} design system${onBridge(team)}.`,
     '',
     `Your role: ${roleLabel}. ${w.text}`,
     '',
@@ -416,7 +416,7 @@ export function inviteEmail(x: { to: string; inviter: string; repo: string; team
     "If you did not expect this email, you can ignore it.",
   ];
   const html = [
-    `<p>${escHtml(x.inviter)} invited you to the <strong>${escHtml(team)}</strong> design system on Bridge.</p>`,
+    `<p>${escHtml(x.inviter)} invited you to the <strong>${escHtml(team)}</strong> design system${onBridge(team)}.</p>`,
     `<p>Your role: <strong>${escHtml(roleLabel)}</strong>. ${escHtml(w.text)}</p>`,
     `<p><a href="${escHtml(x.link)}">Join the team</a></p>`,
     `<p>${how} The link works once and expires in 7 days.</p>`,
@@ -780,8 +780,9 @@ async function teamNameOf(ctx: Ctx, full: string): Promise<string> {
     if (token) {
       const file = await gh(ctx.f, token, 'GET', `/repos/${owner}/${repo}/contents/${CONFIG_FILE}`);
       if (file.status === 200 && typeof file.data?.content === 'string') {
-        const name = JSON.parse(Buffer.from(file.data.content, 'base64').toString('utf8'))?.name;
-        if (typeof name === 'string' && name.trim()) return name.trim().slice(0, 80);
+        const name: unknown = JSON.parse(Buffer.from(file.data.content, 'base64').toString('utf8'))?.name;
+        // bridge.config.json `name`: 1 to 60 characters (the schema); anything else falls back.
+        if (typeof name === 'string' && name.trim() && name.trim().length <= 60) return teamDisplayName(full, { name });
       }
     }
   } catch {

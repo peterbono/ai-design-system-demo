@@ -10,6 +10,7 @@ import { libraryIsPublic } from '@bridge-ds/core';
 import { LIBRARY_SHELL_ROOT, libraryFromPath, libraryHref } from '../lib/library-shells';
 import { RESERVED_PATHS_URL, STUDIO_ROOT, teamHref, type ReservedPaths } from '../lib/team-path';
 import { llmsTxtUrl } from '../lib/library-view';
+import { teamDisplayName } from '../lib/demo';
 import { loadTeamData, loadTeamLlms, whenLibraryOpen } from './team-data';
 import { libraryFileUrl } from './library-access-api';
 import { refreshSpaceSwitch } from './space-switch';
@@ -49,6 +50,14 @@ export function pointLibraryLinks(team: { owner: string; repo: string }, reserve
   const github = `https://github.com/${encodeURIComponent(team.owner)}/${encodeURIComponent(team.repo)}`;
   for (const a of root.querySelectorAll<HTMLAnchorElement>('a[data-team-github]')) a.href = github;
   for (const el of root.querySelectorAll<HTMLElement>('[data-team-name]')) el.textContent = `${team.owner}/${team.repo}`;
+  paintTeamName(team, null, root);
+}
+
+/** The name the team goes by (lib/demo.ts teamDisplayName) in the account menu and the tab title, never owner/repo. */
+export function paintTeamName(team: { owner: string; repo: string }, site: { name?: string } | null, root: ParentNode = document) {
+  const shown = teamDisplayName(`${team.owner}/${team.repo}`, site);
+  for (const el of root.querySelectorAll<HTMLElement>('[data-team-display]')) el.textContent = shown;
+  if (typeof document !== 'undefined' && root === document) document.title = document.title.replace(/\| [^|]+$/, `| ${shown}`);
 }
 
 /** The team's llms.txt as the page's alternate (agents find it from any Library page), once it is known to exist. */
@@ -67,7 +76,6 @@ export function initLibraryTeam() {
   markNoindex();
   const team = libraryFromPath(location.pathname);
   if (!team) return;
-  document.title = document.title.replace(/\| Bridge$/, `| ${team.owner}/${team.repo}`);
   pointLibraryLinks(team, null);
   // The reserved list is a static file of this site (no GitHub call): with it, Open Studio uses the plain address.
   fetch(RESERVED_PATHS_URL)
@@ -78,6 +86,7 @@ export function initLibraryTeam() {
   whenLibraryOpen()
     .then(() => loadTeamData())
     .then(async (data) => {
+      paintTeamName(team, data.model.site);
       applyIndexing({ public: libraryIsPublic(data.model.config) && !data.servedBy, private: data.private });
       if (await loadTeamLlms()) linkLlms(data.servedBy ? libraryFileUrl(`${data.owner}/${data.repo}`, 'llms') : llmsTxtUrl(data.owner, data.repo, data.private));
     })

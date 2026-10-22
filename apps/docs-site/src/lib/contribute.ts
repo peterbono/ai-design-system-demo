@@ -8,7 +8,7 @@
 // GitHub App under a strict policy: the person's own branches, pull requests, issues and comments, never an approval,
 // a merge or the default branch. Paths outside the team's repository never go to the proxy: they are read as a guest.
 
-import { isSampleTeam } from './demo';
+import { isSampleTeam, onBridge, teamDisplayName } from './demo';
 
 /** The stand-in token of an email contributor's session. Never sent to GitHub: the proxy rewrites every call. */
 export const CONTRIB_TOKEN = 'bridge-email-contributor';
@@ -81,12 +81,12 @@ export interface InvitePeek {
 }
 
 /** The team's name for a join button: the server's, else the repository's name. */
-export const teamWord = (peek: Pick<InvitePeek, 'repo' | 'team'> | null | undefined): string => peek?.team?.trim() || peek?.repo.split('/')[1] || 'the team';
+export const teamWord = (peek: Pick<InvitePeek, 'repo' | 'team'> | null | undefined): string => peek?.team?.trim() || (peek?.repo ? teamDisplayName(peek.repo) : '') || 'the team';
 
 /** Every designer-facing sentence of the email path, in one place. */
 export const CONTRIBUTE_WORDS = {
   // The invite page, "Can edit" invites.
-  joinTitle: (team: string) => `Join ${team} on Bridge`,
+  joinTitle: (team: string) => `Join ${team}${onBridge(team)}`,
   joinLead: (sentTo: string | undefined) =>
     sentTo ? `Your invitation was sent to ${sentTo}. Add your name and you are in. No GitHub account needed.` : 'Add your name and you are in. No GitHub account needed.',
   nameLabel: 'Your name',

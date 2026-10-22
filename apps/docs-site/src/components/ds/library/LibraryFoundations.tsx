@@ -5,6 +5,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { Link } from '@bridge-ds/react';
 import { LibraryPage, LibrarySourceNote, LibraryZone, usePageTeam } from './LibraryState';
+import { teamDisplayName } from '../../../lib/demo';
 import { libraryFoundations } from '../../../lib/library-view';
 import { libraryHref } from '../../../lib/library-shells';
 import type { Specimen, SpecimenSet } from '../../../lib/token-specimens';
@@ -118,7 +119,7 @@ export default function LibraryFoundations() {
   return (
     <LibraryPage
       label="Reading the foundations"
-      header={() => <LibraryZone title="Foundations" art="foundations" lead={`The visual language of ${team ? `${team.owner}/${team.repo}` : 'this design system'}: color, type, space, radius and shadow, drawn from its tokens.`} />}
+      header={(data) => <LibraryZone title="Foundations" art="foundations" lead={`The visual language of ${team ? teamDisplayName(`${team.owner}/${team.repo}`, data?.model.site) : 'this design system'}: color, type, space, radius and shadow, drawn from its tokens.`} />}
       ready={(data, r) => <Ready data={data} {...r} />}
     />
   );

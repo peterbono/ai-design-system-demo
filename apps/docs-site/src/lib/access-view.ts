@@ -7,7 +7,7 @@
 
 import { CONTRIBUTE_WORDS } from './contribute';
 import type { ChangesMode, RepoAccessState } from '@bridge-ds/core';
-import { isDemoRepo, isSampleTeam, OWN_TEAM, SAMPLE_TEAM } from './demo';
+import { isDemoRepo, isSampleTeam, SAMPLE_TEAM, teamDisplayName } from './demo';
 
 /** The public GitHub App people sign in with (docs/SIGN-IN.md). Its page lists it at github.com/apps/<slug>. */
 export const BRIDGE_APP_SLUG = 'bridge-ds';
@@ -98,27 +98,29 @@ const EMAIL_LINK = { lead: CONTRIBUTE_WORDS.invitedWithEmail, action: EMAIL_ACTI
 /** The screen of one state, null when the Studio opens as usual (reader, writer, admin). */
 export function accessScreen(state: RepoAccessState, f: AccessScreenInput): AccessScreen | null {
   const repo = `${f.owner}/${f.repo}`;
+  // Titles name the team (never owner/repo); the messages people copy to a GitHub admin keep the repository.
+  const team = teamDisplayName(repo);
   switch (state) {
     case 'anonymous-unknown':
       // With email sign-in the title names no provider: GitHub stays the main way, the email link a quiet one under it.
       return f.email
         ? {
             layout: 'block',
-            title: `Sign in to open ${repo}`,
+            title: `Sign in to open ${team}`,
             body: 'This design system may be private. Sign in to see it.',
             primary: { kind: 'signin', label: 'Sign in with GitHub' },
             links: [EMAIL_LINK],
           }
         : {
             layout: 'block',
-            title: `Sign in with GitHub to open ${repo}`,
+            title: `Sign in with GitHub to open ${team}`,
             body: 'This design system may be private. Once you sign in, GitHub tells Bridge what you can see.',
             primary: { kind: 'signin', label: 'Sign in with GitHub' },
           };
     case 'no-access':
       return {
         layout: 'block',
-        title: `You do not have access to ${repo} yet`,
+        title: `You do not have access to ${team} yet`,
         body: `Bridge uses GitHub to decide who can open this design system. ${who(f.login)} cannot see it: either you are not on the team on GitHub yet, or Bridge is not set up on it.`,
         primary: { kind: 'copy', label: 'Ask your lead for access', text: askAccessMessage(f.login, repo, f.link), copied: 'Message copied. Paste it to your lead.' },
         secondary: { kind: 'signout', label: 'Sign in with another account' },
@@ -139,14 +141,14 @@ export function accessScreen(state: RepoAccessState, f: AccessScreenInput): Acce
         ? {
             layout: 'banner',
             tone: 'warning',
-            title: `Bridge is not set up on ${repo} yet`,
+            title: `Bridge is not set up on ${team} yet`,
             body: 'Install it once and your whole team can review and suggest from here. You stay in control of what it can reach.',
             primary: { kind: 'link', label: 'Install Bridge', href: installUrl(), external: true },
           }
         : {
             layout: 'banner',
             tone: 'warning',
-            title: `Bridge is not set up on ${repo} yet`,
+            title: `Bridge is not set up on ${team} yet`,
             body: 'You can look around. To review and suggest, an admin of the repository installs Bridge once.',
             primary: { kind: 'copy', label: 'Ask your lead to install Bridge', text: askInstallMessage(repo, f.link), copied: 'Message copied. Paste it to your lead.' },
           };
@@ -202,7 +204,7 @@ export const isDemoTeam = (team: string | null | undefined, _hosted?: boolean) =
 
 /** What the team chip shows: the design system being viewed, and what the visitor can do on it. */
 export interface ChipIdentity {
-  /** demo: a friendly name (Bridge's own with the Bridge mark, Acme Design with its initials); team: the owner's avatar and owner/repo. */
+  /** demo: a friendly name (Bridge's own with the Bridge mark, Acme Design with its initials); team: the owner's avatar and the team's name. */
   kind: 'demo' | 'team';
   /** The simulated team with sample data (Acme Design): its initials instead of the Bridge mark. */
   sample?: boolean;
@@ -214,45 +216,48 @@ export interface ChipIdentity {
 }
 
 /**
- * The chip of `team` ("owner/repo", null while unknown). The sample team reads "Acme Design" with a "Demo" tag for
- * everyone: it is a simulated team, whatever access the viewer has on its repository. Bridge's own design system reads
- * "Bridge": a visitor without an account explores freely (nothing they do reaches the repository), signed in it shows
- * their real access like any team.
+ * The chip of `team` ("owner/repo", null while unknown), named by teamDisplayName (lib/demo.ts): the team's own name
+ * from bridge.config.json (`name`, once its settings are read), else its repository name in words; owner/repo stays in
+ * the tooltip. The sample team reads "Acme Design" with a "Demo" tag for everyone: it is a simulated team, whatever
+ * access the viewer has on its repository. Bridge's own design system reads "Bridge": a visitor without an account
+ * explores freely (nothing they do reaches the repository), signed in it shows their real access like any team.
  */
-export function chipIdentity(team: string | null, f: { demo: boolean; state: RepoAccessState | null; signedIn: boolean }): ChipIdentity {
+export function chipIdentity(team: string | null, f: { demo: boolean; state: RepoAccessState | null; signedIn: boolean; name?: string | null }): ChipIdentity {
   if (f.demo && isSampleTeam(team)) {
     return { kind: 'demo', sample: true, name: SAMPLE_TEAM, title: `${SAMPLE_TEAM}, a sample team, ${team}`, badge: { label: 'Demo', tone: 'info' } };
   }
+  const name = team ? teamDisplayName(team, { name: f.name }) : null;
   if (f.demo) {
     return {
       kind: 'demo',
-      name: OWN_TEAM,
-      title: team ? `${OWN_TEAM} design system, ${team}` : `${OWN_TEAM} design system`,
+      name: name ?? teamDisplayName(DEMO_TEAM),
+      title: team ? `${name} design system, ${team}` : `${teamDisplayName(DEMO_TEAM)} design system`,
       badge: f.signedIn ? accessBadge(f.state, true) : { label: 'Explore freely', tone: 'info' },
     };
   }
-  return { kind: 'team', name: team ?? 'Your team', title: team ?? 'Your team', badge: accessBadge(f.state, f.signedIn) };
+  return { kind: 'team', name: name ?? 'Your team', title: team ? `${name}, ${team}` : 'Your team', badge: accessBadge(f.state, f.signedIn) };
 }
 
 /** One sentence for Settings: what the viewer can do here. On the sample team (`demo`), a signed-out visitor explores freely. */
-export function accessSummary(state: RepoAccessState | null, f: { login?: string | null; repo: string; demo?: boolean }): string {
+export function accessSummary(state: RepoAccessState | null, f: { login?: string | null; repo: string; demo?: boolean; name?: string | null }): string {
+  const team = teamDisplayName(f.repo, { name: f.name });
   if (!state && !f.login && f.demo) return "You're exploring the demo with sample data. Nothing you do here is saved.";
-  if (!state) return f.login ? `Checking what ${who(f.login)} can do on ${f.repo}.` : `Sign in with GitHub to see what you can do on ${f.repo}.`;
+  if (!state) return f.login ? `Checking what ${who(f.login)} can do on ${team}.` : `Sign in with GitHub to see what you can do on ${team}.`;
   switch (state) {
     case 'admin':
-      return `${who(f.login)} is an admin of ${f.repo}: you can change anything here, and decide who gets in on GitHub.`;
+      return `${who(f.login)} is an admin of ${team}: you can change anything here, and decide who gets in on GitHub.`;
     case 'writer':
-      return `${who(f.login)} can edit ${f.repo}: review, suggest and start changes.`;
+      return `${who(f.login)} can edit ${team}: review, suggest and start changes.`;
     case 'reader':
-      return `${who(f.login)} can read ${f.repo}: review, comment and send suggestions.`;
+      return `${who(f.login)} can read ${team}: review, comment and send suggestions.`;
     case 'outside-contributor':
       return `${who(f.login)} is not on this team on GitHub: you can look around and send suggestions.`;
     case 'not-installed':
-      return `Bridge is not set up on ${f.repo} yet: you can look around until an admin installs it.`;
+      return `Bridge is not set up on ${team} yet: you can look around until an admin installs it.`;
     case 'no-access':
-      return `${who(f.login)} cannot see ${f.repo}.`;
+      return `${who(f.login)} cannot see ${team}.`;
     default:
-      return `You are viewing ${f.repo} as a guest. Sign in with GitHub to do more.`;
+      return `You are viewing ${team} as a guest. Sign in with GitHub to do more.`;
   }
 }
 
@@ -357,6 +362,49 @@ export function removeRecentTeam(list: readonly string[], team: string): string[
 export function remembersTeam(state: RepoAccessState | null | undefined): boolean {
   return state === 'anonymous-public' || state === 'reader' || state === 'writer' || state === 'admin' || state === 'outside-contributor';
 }
+
+/** The names teams go by, as their pages read them (bridge.config.json `name`), for the recent teams: lower-case "owner/repo" to name. */
+export const TEAM_NAMES_KEY = 'bridge.teamNames';
+
+/** The stored names, cleaned: real-looking teams with a name of 1 to 60 characters. */
+export function parseTeamNames(text: string | null): Record<string, string> {
+  if (!text) return {};
+  try {
+    const v = JSON.parse(text) as unknown;
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+    const out: Record<string, string> = {};
+    for (const [k, n] of Object.entries(v)) if (isRecentTeamName(k) && typeof n === 'string' && n.trim() && n.trim().length <= 60) out[k.toLowerCase()] = n.trim();
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** The names with `team`'s set (or dropped when the team has none), only for the teams still listed in `keep`. */
+export function noteName(names: Record<string, string>, team: string, name: string | null | undefined, keep: readonly string[]): Record<string, string> {
+  const listed = new Set(keep.map((t) => t.toLowerCase()));
+  const next: Record<string, string> = {};
+  for (const [k, n] of Object.entries(names)) if (listed.has(k)) next[k] = n;
+  const k = team.toLowerCase();
+  if (name?.trim() && listed.has(k)) next[k] = name.trim();
+  else delete next[k];
+  return next;
+}
+
+/**
+ * The role a signed-in person holds on the teams they belong to ("Admin", "Can edit"...), kept like the names
+ * (parseTeamNames, noteName) so the team menu lists them under "Your teams": lower-case "owner/repo" to role words.
+ */
+export const TEAM_ROLES_KEY = 'bridge.teamRoles';
+
+/** The role words of a member of the team (reads, edits or administers it), null for anyone else. */
+export function memberRole(state: RepoAccessState | null | undefined, signedIn: boolean): string | null {
+  if (!signedIn || (state !== 'reader' && state !== 'writer' && state !== 'admin')) return null;
+  return accessBadge(state, true).label;
+}
+
+/** The name a recent team goes by: the one its page read, else teamDisplayName (a demo's name, the repository in words). */
+export const recentTeamName = (team: string, names: Record<string, string>): string => teamDisplayName(team, { name: names[team.toLowerCase()] });
 
 /** The page found nothing at that address (GitHub answered 404): drop it from the recent teams. */
 export function forgetsTeam(state: RepoAccessState | null | undefined): boolean {

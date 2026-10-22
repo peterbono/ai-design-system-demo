@@ -113,8 +113,8 @@ export function resumeStep(steps: readonly Step[], left: StepId | null): StepId 
   return kept?.id ?? steps.find((s) => s.state === 'current')?.id ?? steps.find((s) => s.state !== 'done')?.id ?? 'library';
 }
 
-/** A team picked in the setup opens at its next step (Onboarding.tsx HostedOnboarding, opened with ?setup=). */
-export const NEXT_AFTER_LIBRARY: StepId = 'changes';
+/** A team picked in the setup opens at its next step, naming it (Onboarding.tsx HostedOnboarding, opened with ?setup=). */
+export const NEXT_AFTER_LIBRARY: StepId = 'name';
 
 // ---------------------------------------------------------------------------------------------------------------
 // The words
@@ -156,7 +156,7 @@ export const WORKSPACE_WORDS = {
 
 /** The team menu's sections (board EmptyB). */
 export const MENU_WORDS = {
-  yourTeam: 'Your team',
+  yourTeams: 'Your teams',
   tryIt: 'Try it',
   demo: SAMPLE_TEAM,
   demoLine: 'Sample data, read only',

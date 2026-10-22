@@ -8,7 +8,7 @@
 //   none    the browser workspace, which has no repository yet.
 // Who may change anything comes from the session's access (repository admin) and is checked again by the server.
 import type { Owners } from '@bridge-ds/core';
-import { demoTeamName, isDemoRepo } from '../lib/demo';
+import { teamDisplayName } from '../lib/demo';
 import { emailMembers, membersContext, roleOf, sampleTeam, type KnownPerson, type Member, type MembersContext, type PendingInvite } from '../lib/invites';
 import { loginKey, personName } from '../lib/people';
 import { currentViewer, getToken, ghGet, resolveAccess } from './github-session';
@@ -77,8 +77,9 @@ async function ownersOfTeam(hosted: boolean): Promise<Owners> {
   return { design: o?.design ?? [], tech: o?.tech ?? [] };
 }
 
+/** The name the team goes by (lib/demo.ts teamDisplayName): its own once its settings are read. */
 function teamName(repo: string): string {
-  return isDemoRepo(repo) ? demoTeamName(repo) : repo;
+  return teamDisplayName(repo, siteConfig());
 }
 
 const noRepoPage = () => typeof document !== 'undefined' && document.documentElement.hasAttribute('data-no-repo');

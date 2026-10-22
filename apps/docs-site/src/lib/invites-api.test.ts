@@ -237,7 +237,7 @@ describe('admin checks on the server', () => {
     const r = await handleInvites(anon({ action: 'peek', token }), {}, deps);
     expect(r.status).toBe(200);
     const body = await r.json();
-    expect(body).toEqual({ team: 'design', repo: REPO, role: 'edit', sentTo: 's•••@acme.design' });
+    expect(body).toEqual({ team: 'Design', repo: REPO, role: 'edit', sentTo: 's•••@acme.design' });
     expect(JSON.stringify(body)).not.toContain('sofia@');
     expect((await handleInvites(anon({ action: 'peek', token: 'q'.repeat(43) }), {}, deps)).status).toBe(410);
     expect((await handleInvites(anon({ action: 'peek', token: 'bad' }), {}, deps)).status).toBe(410);
@@ -270,7 +270,7 @@ describe('invite token lifecycle', () => {
     expect(await r.json()).toEqual({ results: [{ email: 'sofia@acme.design', status: 'sent' }] });
     expect(sent).toHaveLength(1);
     expect(sent[0]!.to).toBe('sofia@acme.design');
-    expect(sent[0]!.subject).toBe('Dana invited you to design on Bridge');
+    expect(sent[0]!.subject).toBe('Dana invited you to Design on Bridge');
     expect(sent[0]!.text).toContain(`${ORIGIN}/studio/invite/#t=`);
     const token = tokenOf(sent[0]!);
     expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
@@ -822,13 +822,19 @@ describe('email contributors in Members', () => {
     expect((await r.json()).team).toBe('Acme Studio');
   });
 
-  it("the email names the team, not its repository: Bridge's own design system reads Bridge", () => {
+  it("the email names the team, not its repository: Bridge's own design system reads Bridge DS", () => {
     const own = inviteEmail({ to: 'a@b.co', inviter: 'Dana', repo: 'peterbono/ai-design-system-demo', role: 'edit', link: 'https://x/#t=1' });
-    expect(own.subject).toBe('Dana invited you to Bridge on Bridge');
+    expect(own.subject).toBe('Dana invited you to Bridge DS on Bridge');
     expect(`${own.text}${own.html}`).not.toContain('peterbono/');
+    // Never "Bridge on Bridge": the suffix drops when a team is named Bridge itself.
+    const bridge = inviteEmail({ to: 'a@b.co', inviter: 'Dana', repo: REPO, team: 'Bridge', role: 'edit', link: 'https://x/#t=1' });
+    expect(bridge.subject).toBe('Dana invited you to Bridge');
+    expect(bridge.text).toContain('Dana invited you to the Bridge design system.');
+    expect(bridge.html).toContain('<strong>Bridge</strong> design system.</p>');
+    expect(`${bridge.text}${bridge.html}`).not.toMatch(/Bridge on Bridge|system on Bridge/);
     const other = inviteEmail({ to: 'a@b.co', inviter: 'Dana', repo: REPO, role: 'edit', link: 'https://x/#t=1' });
-    expect(other.subject).toBe('Dana invited you to design on Bridge');
-    expect(other.text).toContain('the design design system');
+    expect(other.subject).toBe('Dana invited you to Design on Bridge');
+    expect(other.text).toContain('the Design design system on Bridge.');
   });
 
   it('joining with GitHub drops an email membership of the same address', async () => {

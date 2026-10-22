@@ -50,7 +50,7 @@ describe('the email session', () => {
 
   it("names the team for the join button: the server's name, else the repository's", () => {
     expect(teamWord({ repo: 'acme/ds', team: 'Acme Design' })).toBe('Acme Design');
-    expect(teamWord({ repo: 'acme/ds' })).toBe('ds');
+    expect(teamWord({ repo: 'acme/ds' })).toBe('Ds');
     expect(teamWord(null)).toBe('the team');
   });
 
@@ -84,11 +84,11 @@ describe('signed-out screens', () => {
   it('offer a quiet email link under Sign in with GitHub, only when the site has it', () => {
     const f = { owner: 'acme', repo: 'ds', link: 'https://x/studio/acme/ds/' };
     const withEmail = accessScreen('anonymous-unknown', { ...f, email: true })!;
-    expect(withEmail.title).toBe('Sign in to open acme/ds');
+    expect(withEmail.title).toBe('Sign in to open Ds');
     expect(withEmail.primary.kind).toBe('signin');
     expect(withEmail.links).toEqual([{ lead: 'Invited with your email?', action: { kind: 'email', label: 'Get a sign-in link' } }]);
     expect(accessScreen('anonymous-public', { ...f, email: true })?.links?.[0]?.action.kind).toBe('email');
-    expect(accessScreen('anonymous-unknown', f)?.title).toBe('Sign in with GitHub to open acme/ds');
+    expect(accessScreen('anonymous-unknown', f)?.title).toBe('Sign in with GitHub to open Ds');
     expect(accessScreen('anonymous-unknown', f)?.links).toBeUndefined();
   });
 });

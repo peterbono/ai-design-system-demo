@@ -20,6 +20,7 @@ import { storybookIframeUrl, storybookManagerUrl } from '@bridge-ds/core';
 import type { TeamData } from '../../../scripts/team-data';
 import '../../../styles/component.css';
 import '../../../styles/team-components.css';
+import { teamDisplayName } from '../../../lib/demo';
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const STATUS_TONE = { stable: 'success', beta: 'info', deprecated: 'warning' } as const;
@@ -232,8 +233,8 @@ export default function LibraryComponents() {
             art="components"
             lead={
               data
-                ? `${plural(libraryComponents(data.model).length, 'component')} of ${data.owner}/${data.repo}, by family. Each one opens its usage guidance and a live story.`
-                : `The components of ${team ? `${team.owner}/${team.repo}` : 'this design system'}, by family, with their usage guidance.`
+                ? `${plural(libraryComponents(data.model).length, 'component')} of ${teamDisplayName(`${data.owner}/${data.repo}`, data.model.site)}, by family. Each one opens its usage guidance and a live story.`
+                : `The components of ${team ? teamDisplayName(`${team.owner}/${team.repo}`) : 'this design system'}, by family, with their usage guidance.`
             }
           />
         )

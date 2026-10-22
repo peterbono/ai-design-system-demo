@@ -79,7 +79,7 @@ describe('a real team, signed out', () => {
 
   it('signs in with GitHub first; Get a sign-in link swaps in the email form, then Check your inbox', async () => {
     render(createElement(NoAccess, { screen: accessScreen('anonymous-unknown', f)!, repo: 'acme/ds' }));
-    expect(screen.getByRole('heading', { name: 'Sign in to open acme/ds' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sign in to open Ds' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign in with GitHub' })).toHaveAttribute('data-gh-signin');
     expect(document.documentElement.hasAttribute('data-signin-card')).toBe(true);
     const user = userEvent.setup();

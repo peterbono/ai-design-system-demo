@@ -14,12 +14,14 @@ import TeamChip from './TeamChip';
 
 const page = vi.hoisted(() => ({
   team: { owner: 'acme', repo: 'ds' },
+  site: {} as { name?: string },
   viewer: null as { login: string; name?: string } | null,
   listeners: [] as ((a: { state: RepoAccessState } | null) => void)[],
 }));
 
 vi.mock('../../../scripts/repo-context', () => ({
   repoContext: () => ({ ...page.team, hosted: true }),
+  siteConfig: () => page.site,
 }));
 
 vi.mock('../../../scripts/github-session', () => ({
@@ -46,33 +48,35 @@ beforeEach(() => {
   page.listeners = [];
   page.viewer = null;
   page.team = { owner: 'acme', repo: 'ds' };
+  page.site = {};
 });
 
 describe('TeamChip recent teams', () => {
   it('cleans placeholders out of the list and does not remember the team before its access is known', async () => {
     localStorage.setItem(RECENT_TEAMS_KEY, JSON.stringify(['owner/design', 'globex/tokens', 'owner/repo']));
     const { menu } = await openMenu();
-    expect(within(menu).getByRole('menuitem', { name: 'globex/tokens' })).toBeInTheDocument();
-    expect(within(menu).queryByText('owner/design')).toBeNull();
+    expect(within(menu).getByRole('menuitem', { name: 'Tokens' })).toBeInTheDocument();
+    expect(within(menu).queryByText('Design')).toBeNull();
     expect(stored()).toEqual(['globex/tokens']);
   });
 
   it('remembers this team once the page read it, and forgets it on a 404', async () => {
     localStorage.setItem(RECENT_TEAMS_KEY, JSON.stringify(['globex/tokens']));
     render(createElement(TeamChip, { launcher: true }));
-    await waitFor(() => expect(page.listeners.length).toBe(1));
-    act(() => page.listeners[0]!({ state: 'anonymous-public' }));
+    await waitFor(() => expect(page.listeners.length).toBeGreaterThan(0));
+    // Every chip mounted so far hears it: a chip left from an earlier test may have registered first.
+    act(() => page.listeners.forEach((l) => l({ state: 'anonymous-public' })));
     await waitFor(() => expect(stored()).toEqual(['acme/ds', 'globex/tokens']));
-    act(() => page.listeners[0]!({ state: 'anonymous-unknown' }));
+    act(() => page.listeners.forEach((l) => l({ state: 'anonymous-unknown' })));
     await waitFor(() => expect(stored()).toEqual(['globex/tokens']));
   });
 
   it('never remembers a team whose page did not load', async () => {
     page.team = { owner: 'typo', repo: 'nothing' };
     render(createElement(TeamChip, { launcher: true }));
-    await waitFor(() => expect(page.listeners.length).toBe(1));
-    act(() => page.listeners[0]!({ state: 'no-access' }));
-    act(() => page.listeners[0]!({ state: 'not-installed' }));
+    await waitFor(() => expect(page.listeners.length).toBeGreaterThan(0));
+    act(() => page.listeners.forEach((l) => l({ state: 'no-access' })));
+    act(() => page.listeners.forEach((l) => l({ state: 'not-installed' })));
     expect(localStorage.getItem(RECENT_TEAMS_KEY)).toBeNull();
     page.team = { owner: 'acme', repo: 'ds' };
   });
@@ -80,18 +84,18 @@ describe('TeamChip recent teams', () => {
   it('removes one entry from the keyboard and keeps the menu open', async () => {
     localStorage.setItem(RECENT_TEAMS_KEY, JSON.stringify(['globex/tokens', 'initech/ui']));
     const { user, menu } = await openMenu();
-    const remove = within(menu).getByRole('menuitem', { name: 'Remove globex/tokens from recent teams' });
+    const remove = within(menu).getByRole('menuitem', { name: 'Remove Tokens from recent teams' });
     // A sibling of the team's item, never nested inside it.
-    expect(within(menu).getByRole('menuitem', { name: 'globex/tokens' })).not.toContainElement(remove);
+    expect(within(menu).getByRole('menuitem', { name: 'Tokens' })).not.toContainElement(remove);
     expect(remove.querySelector('button, a, [role="menuitem"]')).toBeNull();
     // Arrow keys reach it: down from the team item lands on its remove action.
-    within(menu).getByRole('menuitem', { name: 'globex/tokens' }).focus();
+    within(menu).getByRole('menuitem', { name: 'Tokens' }).focus();
     await user.keyboard('{ArrowDown}');
     expect(remove).toHaveFocus();
     await user.keyboard('{Enter}');
     expect(screen.getByRole('menu')).toBeInTheDocument();
-    expect(within(menu).queryByRole('menuitem', { name: 'globex/tokens' })).toBeNull();
-    expect(within(menu).getByRole('menuitem', { name: 'initech/ui' })).toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: 'Tokens' })).toBeNull();
+    expect(within(menu).getByRole('menuitem', { name: 'Ui' })).toBeInTheDocument();
     expect(stored()).toEqual(['initech/ui']);
   });
 
@@ -103,8 +107,68 @@ describe('TeamChip recent teams', () => {
   });
 });
 
+describe('TeamChip names the team', () => {
+  it("goes by the team's name from bridge.config.json, owner/repo in its title, and remembers it for the recent teams", async () => {
+    page.site = { name: 'Acme Studio' };
+    render(createElement(TeamChip, { launcher: true }));
+    const trigger = await screen.findByRole('button', { name: /^Acme Studio, acme\/ds/ });
+    expect(within(trigger).getByText('Acme Studio')).toHaveAttribute('title', 'Acme Studio, acme/ds');
+    await waitFor(() => expect(page.listeners.length).toBeGreaterThan(0));
+    act(() => page.listeners.forEach((l) => l({ state: 'reader' })));
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('bridge.teamNames') ?? '{}')).toEqual({ 'acme/ds': 'Acme Studio' }));
+  });
+
+  it('names a recent team by the name its page read, else its repository in words', async () => {
+    localStorage.setItem(RECENT_TEAMS_KEY, JSON.stringify(['globex/tokens', 'initech/ui-kit']));
+    localStorage.setItem('bridge.teamNames', JSON.stringify({ 'globex/tokens': 'Globex Design' }));
+    const { menu } = await openMenu();
+    expect(within(menu).getByRole('menuitem', { name: 'Globex Design' })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: 'Ui kit' })).toBeInTheDocument();
+    expect(within(menu).queryByText('globex/tokens')).toBeNull();
+  });
+});
+
+describe('TeamChip "Your teams"', () => {
+  it("on the person's own team, lists it first with a check and their role, never the empty workspace", async () => {
+    page.viewer = { login: 'peterbono', name: 'Florian' };
+    page.team = { owner: 'peterbono', repo: 'ai-design-system-demo' };
+    page.site = { name: 'Bridge DS' };
+    localStorage.setItem('bridge.start', JSON.stringify({ connect: true }));
+    const user = userEvent.setup();
+    render(createElement(TeamChip, { launcher: true }));
+    await waitFor(() => expect(page.listeners.length).toBeGreaterThan(0));
+    act(() => page.listeners.forEach((l) => l({ state: 'admin' })));
+    await user.click(await screen.findByRole('button', { name: /^Bridge DS design system/ }));
+    const menu = await screen.findByRole('menu');
+    const yours = within(menu).getByRole('group', { name: 'Your teams' });
+    const here = within(yours).getByRole('menuitem', { name: /^Bridge DS/ });
+    expect(here).toHaveAttribute('data-current');
+    expect(within(here).getByText('Admin')).toBeInTheDocument();
+    expect(within(here).getByLabelText('Current team')).toBeInTheDocument();
+    expect(within(menu).queryByText(/workspace/)).toBeNull();
+    expect(within(menu).queryByText('Not connected yet')).toBeNull();
+    expect(within(menu).getByRole('menuitem', { name: 'Invite collaborators' })).toBeInTheDocument();
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('bridge.teamRoles') ?? '{}')).toEqual({ 'peterbono/ai-design-system-demo': 'Admin' }));
+    await expectNoAxeViolations(menu);
+  });
+
+  it('lists the other teams the person belongs to with their role, and only the rest under recent teams', async () => {
+    page.viewer = { login: 'ann' };
+    localStorage.setItem(RECENT_TEAMS_KEY, JSON.stringify(['globex/tokens', 'initech/ui-kit']));
+    localStorage.setItem('bridge.teamRoles', JSON.stringify({ 'globex/tokens': 'Can edit' }));
+    const { menu } = await openMenu();
+    const yours = within(menu).getByRole('group', { name: 'Your teams' });
+    const globex = within(yours).getByRole('menuitem', { name: /^Tokens/ });
+    expect(globex).not.toHaveAttribute('data-current');
+    expect(within(globex).getByText('Can edit')).toBeInTheDocument();
+    const recent = within(menu).getByRole('group', { name: 'Recent teams' });
+    expect(within(recent).queryByRole('menuitem', { name: 'Tokens' })).toBeNull();
+    expect(within(recent).getByRole('menuitem', { name: 'Ui kit' })).toBeInTheDocument();
+  });
+});
+
 describe('TeamChip teams to switch to (board EmptyB)', () => {
-  it('names the browser workspace after the viewer, current under "Your team", with the demo under "Try it"', async () => {
+  it('names the browser workspace after the viewer, current under "Your teams", with the demo under "Try it"', async () => {
     page.viewer = { login: 'ann-lee', name: 'Ann Lee' };
     page.team = { owner: 'peterbono', repo: 'ai-design-system-demo' };
     localStorage.setItem('bridge.start', JSON.stringify({ connect: true }));
@@ -113,7 +177,7 @@ describe('TeamChip teams to switch to (board EmptyB)', () => {
     const trigger = await screen.findByRole('button', { name: /Ann's workspace/ });
     await user.click(trigger);
     const menu = await screen.findByRole('menu');
-    const yours = within(menu).getByRole('group', { name: 'Your team' });
+    const yours = within(menu).getByRole('group', { name: 'Your teams' });
     expect(within(yours).getByRole('menuitem', { name: /^Ann's workspace/ })).toHaveAttribute('data-current');
     expect(within(yours).getByText('Not connected yet')).toBeInTheDocument();
     const tryIt = within(menu).getByRole('group', { name: 'Try it' });
@@ -135,12 +199,12 @@ describe('TeamChip teams to switch to (board EmptyB)', () => {
     expect(await screen.findByRole('dialog', { name: 'Invite collaborators' })).toBeInTheDocument();
   });
 
-  it('on a team, lists it under "Your team" once, not again in the recent teams', async () => {
+  it('on a team, lists it under "Your teams" once, not again in the recent teams', async () => {
     localStorage.setItem(RECENT_TEAMS_KEY, JSON.stringify(['acme/ds', 'globex/tokens']));
     const { menu } = await openMenu();
-    expect(within(within(menu).getByRole('group', { name: 'Your team' })).getByRole('menuitem', { name: /^acme\/ds/ })).toBeInTheDocument();
-    expect(within(menu).getAllByRole('menuitem', { name: /^acme\/ds/ })).toHaveLength(1);
-    expect(within(menu).getByRole('menuitem', { name: 'globex/tokens' })).toBeInTheDocument();
+    expect(within(within(menu).getByRole('group', { name: 'Your teams' })).getByRole('menuitem', { name: /^Ds/ })).toBeInTheDocument();
+    expect(within(menu).getAllByRole('menuitem', { name: /^Ds/ })).toHaveLength(1);
+    expect(within(menu).getByRole('menuitem', { name: 'Tokens' })).toBeInTheDocument();
   });
 
   it('on the demo, offers the workspace the visitor came from and not the demo again', async () => {
@@ -150,17 +214,17 @@ describe('TeamChip teams to switch to (board EmptyB)', () => {
     render(createElement(TeamChip, { launcher: true }));
     await user.click(await screen.findByRole('button', { name: /Acme Design/ }));
     const menu = await screen.findByRole('menu');
-    const yours = within(menu).getByRole('group', { name: 'Your team' });
-    expect(within(yours).getByRole('menuitem', { name: /^globex\/tokens/ })).not.toHaveAttribute('data-current');
+    const yours = within(menu).getByRole('group', { name: 'Your teams' });
+    expect(within(yours).getByRole('menuitem', { name: /^Tokens/ })).not.toHaveAttribute('data-current');
     expect(within(menu).queryByRole('group', { name: 'Try it' })).toBeNull();
   });
 
-  it('on the demo without a workspace, shows no "Your team"', async () => {
+  it('on the demo without a workspace, shows no "Your teams"', async () => {
     page.team = { owner: 'peterbono', repo: 'bridge-demo-ds' };
     const user = userEvent.setup();
     render(createElement(TeamChip, { launcher: true }));
     await user.click(await screen.findByRole('button', { name: /Acme Design/ }));
     const menu = await screen.findByRole('menu');
-    expect(within(menu).queryByRole('group', { name: 'Your team' })).toBeNull();
+    expect(within(menu).queryByRole('group', { name: 'Your teams' })).toBeNull();
   });
 });

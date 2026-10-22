@@ -2,6 +2,8 @@
 // Studio Settings: one page for designers and design system owners. Each section is a band: on wide screens its
 // title and one sentence sit in a left column, its rows in a DS Card on the right, with every value close to its
 // label; the page stops at 1200px so nothing stretches across a wide monitor. In order:
+//   General       the team's name (bridge.config.json `name`): an admin edits it, a review is requested on a branch;
+//                 everyone else reads it (components/ds/studio/TeamNameSetting.tsx).
 //   Account       the GitHub connection: a compact row once connected, the page's one Harbor zone (with a Field
 //                 Guide drawing and Connect GitHub) while Studio is read only.
 //   Members       who is in the team and what each person can do, with Invite collaborators for an admin
@@ -48,6 +50,8 @@ import { approvalRules, changesInConfig, overrideText, soloOwnerRow } from '../.
 import ChangesModeSetting from '../../../components/ds/studio/ChangesMode';
 import MembersSection from '../../../components/ds/studio/MembersSection';
 import LibraryAccessSection from '../../../components/ds/studio/LibraryAccessSection';
+import TeamNameSetting from '../../../components/ds/studio/TeamNameSetting';
+import { TEAM_NAME_WORDS } from '../../../lib/team-name';
 import '../../../styles/team-access.css';
 
 const r = siteRepo();
@@ -106,6 +110,16 @@ const changes = changesInConfig(config);
 <Layout title="Settings" description="Your GitHub connection, how changes reach your code, who approves what, how the library stays safe, and the tools that work on it." sources={sources} updated={lastUpdated(sources)} wide>
   <div class="set-page">
     <StudioHeader title="Settings" />
+
+    <section class="set-band" id="general" aria-labelledby="set-general">
+      <div class="set-band-intro">
+        <h2 id="set-general" class="set-h">{TEAM_NAME_WORDS.generalTitle}</h2>
+        <p class="set-intro">{TEAM_NAME_WORDS.generalIntro}</p>
+      </div>
+      <div class="set-band-body">
+        <TeamNameSetting client:only="react" prefix={config.governance?.branchPrefix ?? ''} protectedBranches={config.governance?.protectedBranches ?? ['main', 'master']} />
+      </div>
+    </section>
 
     <section class="set-band" id="connection" aria-labelledby="set-account">
       <div class="set-band-intro">

@@ -18,27 +18,39 @@ export const isDemoRepo = (repo: string | null | undefined): boolean => DEMO_REP
 /**
  * The two demo design systems are not the same thing for a visitor, so they never share a name:
  *   - peterbono/bridge-demo-ds is a simulated team with sample data: "Acme Design" (Dana leads its design system).
- *   - peterbono/ai-design-system-demo is Bridge's own design system, the real one behind this site: "Bridge".
+ *   - peterbono/ai-design-system-demo is Bridge's own design system, the real one behind this site: "Bridge DS".
  */
 export const SAMPLE_REPO = 'peterbono/bridge-demo-ds';
 export const SAMPLE_TEAM = 'Acme Design';
-export const OWN_TEAM = 'Bridge';
+/** Matches `name` in the root bridge.config.json (demo.test.ts checks), for pages that name it before its settings are read. */
+export const OWN_TEAM = 'Bridge DS';
 
 /** True for the simulated team with sample data ("owner/repo", any case). */
 export const isSampleTeam = (repo: string | null | undefined): boolean => (repo ?? '').trim().toLowerCase() === SAMPLE_REPO;
 
-/** The name a demo design system goes by: Acme Design for the sample team, Bridge for Bridge's own. */
-export const demoTeamName = (repo: string | null | undefined): string => (isSampleTeam(repo) ? SAMPLE_TEAM : OWN_TEAM);
+/** The repository part of "owner/repo" in words: "ai-design-system-demo" reads "Ai design system demo". */
+export const humanizeRepo = (repo: string): string => {
+  const part = repo.trim().split('/').pop()?.trim() ?? '';
+  const words = part.replace(/[-_.\s]+/g, ' ').trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : repo.trim();
+};
 
 /**
- * The name a team goes by for people outside Studio (the invite page, the invite email): a demo's own name, Bridge or
- * Acme Design, otherwise the repository part of "owner/repo" ("design-system", never "acme/design-system").
+ * The one name a team goes by everywhere it is named (the team chip and its menu, recent teams, the Library, Settings,
+ * the invite page and email): the sample team is always Acme Design; otherwise bridge.config.json `name` when the
+ * team set one (`config`, its settings once read), else Bridge for Bridge's own design system, else the repository
+ * name in words ("Design system", never "acme/design-system").
  */
-export const teamDisplayName = (repo: string): string => {
-  if (isDemoRepo(repo)) return demoTeamName(repo);
-  const name = repo.trim().split('/').pop()?.trim();
-  return name || repo.trim();
+export const teamDisplayName = (repo: string, config?: { name?: unknown } | null): string => {
+  if (isSampleTeam(repo)) return SAMPLE_TEAM;
+  const own = typeof config?.name === 'string' ? config.name.trim().replace(/\s+/g, ' ') : '';
+  if (own) return own;
+  if (isDemoRepo(repo)) return OWN_TEAM;
+  return humanizeRepo(repo);
 };
+
+/** " on Bridge" after a team's name, or nothing when the team is Bridge itself: never "Join Bridge on Bridge". */
+export const onBridge = (team: string): string => (team.trim().toLowerCase() === 'bridge' ? '' : ' on Bridge');
 
 /**
  * The visitor explores the demo: it is a demo repository and they cannot write to it. Signed in, `write` stays

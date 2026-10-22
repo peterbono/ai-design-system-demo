@@ -30,6 +30,8 @@ export const REPO_MODEL_DEFAULTS = {
 
 /** The repository settings the site and Studio act on (roles, owners, mode), derived from bridge.config.json. */
 export interface SiteRepo {
+  /** The team's display name from bridge.config.json `name`, when set. */
+  name?: string;
   owner: string;
   repo: string;
   defaultBranch: string;
@@ -83,6 +85,7 @@ export function siteRepoFromConfig(
     products: config.products.length ? config.products : DEFAULT_PRODUCTS.map((p) => ({ ...p })),
     changes: config.changes ?? DEFAULT_CHANGES_MODE,
     ...(config.demo ? { demo: { ...config.demo } } : {}),
+    ...(config.name ? { name: config.name } : {}),
   };
 }
 

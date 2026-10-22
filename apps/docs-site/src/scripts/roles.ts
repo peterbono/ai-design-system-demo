@@ -7,13 +7,14 @@
 // (withRoles keeps the rest byte for byte). The tier comes from the shared classifier: bridge.config.json is a
 // guardrail file.
 // It also writes `changes` (how changes reach the code: suggestions or pull requests) the same way, for the Settings
-// band and the onboarding step (proposeChangesMode), and reads what the GitHub App may do on the repository.
+// band and the onboarding step (proposeChangesMode), the team's display name `name` (proposeTeamName), and reads what the GitHub App may do on the repository.
 import { classifyRisk, DEFAULT_RIGHTS, type Owners, type Rights, type VisualImpactMode } from '@bridge-ds/core';
 import { choiceOf, groupsOf, roleRows, rolesProposal, sameOwners, withRoles, type RightChoice } from '../lib/roles-view';
 import { selectSegment } from './shell';
 import { getToken, ghGet, prefersSignIn, readRepo, readSignInConfig, sessionMode, setButtonBusy, setButtonDisabled, prLinksHtml, showGhError, studioClient } from './github-session';
 import { ghAction } from '../lib/gh-wording';
 import { changesProposal, withChanges, type AppPermissions } from '../lib/settings-view';
+import { teamNameProposal, withTeamName } from '../lib/team-name';
 import { installationFor, type InstallationLike } from '../lib/github-signin';
 import type { ChangesMode } from '@bridge-ds/core';
 
@@ -158,10 +159,15 @@ function initForm(form: HTMLFormElement) {
 }
 
 /**
- * Opens the pull request that sets `changes` in bridge.config.json, with the reader's own token, and returns it.
- * Throws with a sentence when there is nothing to change or GitHub refuses.
+ * Opens a pull request that edits bridge.config.json with the reader's own token, and returns it: `edit` turns the
+ * file as it is on the default branch into the new one, `proposal` gives the branch, title and body. Throws with a
+ * sentence when there is nothing to change or GitHub refuses. Every config change from Studio goes through it.
  */
-export async function proposeChangesMode(mode: ChangesMode, opts: { prefix?: string; protectedBranches?: string[] } = {}): Promise<{ number: number; url: string }> {
+async function proposeConfig(
+  edit: (current: string) => string,
+  proposal: (tierLabel: string) => { branch: string; title: string; body: string; message: string },
+  opts: { protectedBranches?: string[]; prefix?: string },
+): Promise<{ number: number; url: string }> {
   const token = getToken();
   if (!token) throw new Error(`${ghAction('request a review', prefersSignIn())}.`);
   const repo = readRepo();
@@ -171,16 +177,34 @@ export async function proposeChangesMode(mode: ChangesMode, opts: { prefix?: str
   });
   const current = await gh.getFileText(FILE, repo.defaultBranch);
   if (current === undefined) throw new Error('The repository has no Bridge settings file yet.');
-  const next = withChanges(current, mode);
+  const next = edit(current);
   if (next === current) throw new Error('This is already the current setting. Nothing to review.');
   const risk = classifyRisk({ files: [{ path: FILE, status: 'modified' }] });
-  const p = changesProposal(mode, { date: new Date(), prefix: opts.prefix, suggestApp: readSignInConfig()?.suggestApp ?? null, tierLabel: `Tier ${risk.tier}${risk.reasons[0] ? ` (${risk.reasons[0]})` : ''}` });
+  const p = proposal(`Tier ${risk.tier}${risk.reasons[0] ? ` (${risk.reasons[0]})` : ''}`);
   let branch = p.branch;
   for (let i = 2; await gh.getBranchSha(branch); i++) branch = `${p.branch}-${i}`;
   await gh.commitToNewBranch({ base: repo.defaultBranch, branch, message: p.message, files: [{ path: FILE, content: next }] });
   const pr = await gh.createPullRequest({ title: p.title, head: branch, base: repo.defaultBranch, body: p.body, draft: false });
   await gh.addLabels(pr.number, ['config', 'source: bridge-web', `tier: ${risk.tier}`]).catch(() => false);
   return { number: pr.number, url: pr.url };
+}
+
+/** Opens the pull request that sets `changes` in bridge.config.json (Settings and the onboarding step). */
+export function proposeChangesMode(mode: ChangesMode, opts: { prefix?: string; protectedBranches?: string[] } = {}): Promise<{ number: number; url: string }> {
+  return proposeConfig(
+    (current) => withChanges(current, mode),
+    (tierLabel) => changesProposal(mode, { date: new Date(), prefix: opts.prefix, suggestApp: readSignInConfig()?.suggestApp ?? null, tierLabel }),
+    opts,
+  );
+}
+
+/** Opens the pull request that sets the team's display name, `name` in bridge.config.json (setup step, Settings > General). */
+export function proposeTeamName(name: string, opts: { prefix?: string; protectedBranches?: string[] } = {}): Promise<{ number: number; url: string }> {
+  return proposeConfig(
+    (current) => withTeamName(current, name),
+    (tierLabel) => teamNameProposal(name, { date: new Date(), prefix: opts.prefix, tierLabel }),
+    opts,
+  );
 }
 
 /** Signed in with the GitHub App: the permissions of its installation on the repository owner. Null when unknown. */
