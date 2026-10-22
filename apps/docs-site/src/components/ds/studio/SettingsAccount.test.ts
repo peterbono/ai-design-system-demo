@@ -35,7 +35,7 @@ beforeEach(() => {
 });
 
 describe('Settings > Account', () => {
-  it('gives an email contributor their account row and a Sign out that opens the team sign-in', async () => {
+  it('gives an email contributor their account row and a Sign out that opens the sign-in screen', async () => {
     s.viewer = { login: 'goulou@example.com', avatar_url: '', name: 'Goulou Photographie', email: 'goulou@example.com' };
     s.access = { state: 'writer', write: true, admin: false };
     const assign = vi.fn();
@@ -49,7 +49,7 @@ describe('Settings > Account', () => {
     expect(screen.queryByText(/Sign in with GitHub|Connected as/)).toBeNull();
     await expectNoAxeViolations(container);
     await userEvent.setup().click(screen.getByRole('button', { name: 'Sign out' }));
-    await waitFor(() => expect(assign).toHaveBeenCalledWith('/studio/acme/ds/?signin='));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/signin/?next=%2Fstudio%2Facme%2Fds%2F'));
     expect(s.signOutEmail).toHaveBeenCalledWith('acme/ds');
     vi.unstubAllGlobals();
   });

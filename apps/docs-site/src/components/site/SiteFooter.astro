@@ -5,6 +5,7 @@ import { Link } from '@bridge-ds/react';
 import Logo from '../Logo.astro';
 import { ABOUT, DOCS_FIGMA_PLUGIN, DOCS_HOME, LANDING, STUDIO_HOME } from '../../lib/nav';
 import { GITHUB_URL } from '../../lib/repo';
+import { PRIVACY_PAGE } from '../../lib/account';
 
 interface Props {
   path: string;
@@ -35,6 +36,7 @@ const cols = [
     links: [
       { href: ABOUT, label: 'About Bridge' },
       { href: GITHUB_URL, label: 'GitHub' },
+      { href: PRIVACY_PAGE, label: 'Privacy' },
     ],
   },
 ];

@@ -17,7 +17,7 @@
 // pages/studio/workspace.astro) names itself on the chip: "Ann's workspace", kept in this browser.
 // Mounted by layouts/Layout.astro on every Studio page, both modes: a self-hosted Studio is its own one team.
 import { Fragment, lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import { Check, ChevronsUpDown, Plus, UserPlus, X } from 'lucide-react';
+import { Check, ChevronsUpDown, LogIn, Plus, UserPlus, X } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
 import { Avatar, Badge, Button, Icon, Menu, MenuContent, MenuGroup, MenuItem, MenuSeparator, MenuTrigger } from '@bridge-ds/react';
 import type { RepoAccessState } from '@bridge-ds/core';
@@ -25,7 +25,9 @@ import { chipIdentity, isDemoTeam, memberRole, ownerAvatarUrl, recentTeamName } 
 import { forgetRecentTeam, loadRecentTeams, loadTeamNames, loadTeamRoles, noteTeamAccess, noteTeamName, noteTeamRole } from '../../../lib/recent-teams';
 import { teamHref } from '../../../lib/team-path';
 import { ghButton } from '../../../lib/gh-wording';
+import { ACCOUNT_WORDS, roleWord, signInHref } from '../../../lib/account';
 import NewTeamDialog, { type TeamAccessCheck } from './NewTeamDialog';
+import { useAccount } from '../account/AccountMenu';
 
 // Loaded on first use: most pages never open it.
 const InviteDialog = lazy(() => import('./InviteDialog'));
@@ -79,7 +81,10 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   const [viewerName, setViewerName] = useState<string | null>(null);
   const [facts, setFacts] = useState<StartFacts | null>(null);
   const [access, setAccess] = useState<RepoAccessState | null>(null);
-  const [signedIn, setSignedIn] = useState(false);
+  const [ghSignedIn, setSignedIn] = useState(false);
+  // A Bridge account (GET /api/account): its teams join "Your teams", each with its role.
+  const account = useAccount();
+  const signedIn = ghSignedIn || Boolean(account);
   const [recent, setRecent] = useState<string[]>([]);
   const [hosted, setHosted] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -143,9 +148,9 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
 
   // Signed in, the person's role here: a team they belong to joins "Your teams" on the next pages. Signed out says nothing.
   useEffect(() => {
-    if (!hosted || !name || !access || !signedIn) return;
-    setRoles(noteTeamRole(name, memberRole(access, signedIn)));
-  }, [hosted, name, access, signedIn, recent]);
+    if (!hosted || !name || !access || !ghSignedIn) return;
+    setRoles(noteTeamRole(name, memberRole(access, ghSignedIn)));
+  }, [hosted, name, access, ghSignedIn, recent]);
 
   const forget = (team: string) => setRecent(others(forgetRecentTeam(team), name));
 
@@ -154,7 +159,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   const wsLine = facts?.storybook ? 'Storybook connected' : MENU_WORDS.workspaceLine;
   const chip = workspace
     ? { kind: 'workspace' as const, name: wsName, title: `${wsName}, ${WORKSPACE_WORDS.kept.toLowerCase()}`, badge: { label: facts?.storybook ? 'Storybook' : WORKSPACE_WORDS.notConnected, tone: 'neutral' as const } }
-    : chipIdentity(name, { demo: isDemoTeam(name, hosted), state: access, signedIn, name: cfg.name });
+    : chipIdentity(name, { demo: isDemoTeam(name, hosted), state: access, signedIn: ghSignedIn, name: cfg.name });
   const badge = chip.badge;
   const offerTeams = launcher || hosted;
   // "Your teams": the teams the signed-in person belongs to (their role known in this browser), the one you are on first
@@ -172,12 +177,19 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     const rows: TeamRow[] = [];
     if (chip.kind === 'workspace') rows.push({ key: 'ws', mark: wsMark, title: wsName, line: wsLine, href: WORKSPACE_HOME, current: true });
     const here = chip.kind !== 'workspace' && name && !isSampleTeam(name) ? name : null;
-    const role = memberRole(access, signedIn);
+    const mine = (t: string) => account?.teams.find((x) => x.repo.toLowerCase() === t.toLowerCase());
+    const here_ = here ? mine(here) : undefined;
+    const role = memberRole(access, ghSignedIn) ?? (here_ ? roleWord(here_.role) : null);
     // The team you are on: yours when you belong to it; a guest still sees where they are on someone else's team.
     if (here && (role || chip.kind === 'team')) rows.push(teamRowOf(here, true, role ?? badge.label));
     for (const t of recent) {
       const r = roles[t.toLowerCase()];
       if (r && !isSampleTeam(t) && t.toLowerCase() !== here?.toLowerCase()) rows.push(teamRowOf(t, false, r));
+    }
+    // The account's teams, wherever this browser has not opened them yet, each to its own space.
+    for (const t of account?.teams ?? []) {
+      if (isSampleTeam(t.repo) || rows.some((x) => x.key.toLowerCase() === t.repo.toLowerCase())) continue;
+      rows.push({ ...teamRowOf(t.repo, false, roleWord(t.role)), ...(t.name ? { title: t.name } : {}) });
     }
     if (rows.length || !facts) return rows;
     // No team of your own here: the place you came from, a team you opened or the browser workspace.
@@ -246,10 +258,16 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
           {sample && inviteItem}
           {/* Signed out the next steps come first: start a team of your own, or sign in to do more here. */}
           {offerTeams && createItem}
-          {/* The shared session listens for these attributes (scripts/github-session.ts): sign in, or the dialog. */}
-          <MenuItem icon={GitHubMark} data-gh-open="" data-gh-signin="">
-            {ghButton(signInApp)}
-          </MenuItem>
+          {/* With a GitHub App, the one sign-in screen of Bridge (back here afterwards); else the token dialog. */}
+          {signInApp ? (
+            <MenuItem icon={LogIn} onClick={() => go(signInHref(location.pathname + location.search + location.hash))}>
+              {ACCOUNT_WORDS.signInShort}
+            </MenuItem>
+          ) : (
+            <MenuItem icon={GitHubMark} data-gh-open="">
+              {ghButton(signInApp)}
+            </MenuItem>
+          )}
         </>
       ),
     });
@@ -321,7 +339,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
           ))}
         </MenuContent>
       </Menu>
-      {offerTeams && <NewTeamDialog open={creating} onOpenChange={setCreating} signedIn={signedIn} check={check} />}
+      {offerTeams && <NewTeamDialog open={creating} onOpenChange={setCreating} signedIn={ghSignedIn} check={check} />}
       {invitedOnce && (
         <Suspense fallback={null}>
           <InviteDialog open={inviting} onOpenChange={setInviting} />

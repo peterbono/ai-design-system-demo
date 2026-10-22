@@ -58,7 +58,7 @@ export function askJoinMessage(login: string | null | undefined, repo: string, l
 export type AccessAction =
   | { kind: 'signin'; label: string }
   | { kind: 'signout'; label: string }
-  /** Sign in with an email (lib/contribute.ts): opens the small email form on the screen itself. */
+  /** Continue with email: the one sign-in screen of Bridge (pages/signin.astro), back to this page afterwards. */
   | { kind: 'email'; label: string }
   | { kind: 'copy'; label: string; text: string; copied: string }
   | { kind: 'link'; label: string; href: string; external?: boolean };
@@ -91,8 +91,8 @@ export interface AccessScreenInput {
   email?: boolean;
 }
 
-const EMAIL_ACTION: AccessAction = { kind: 'email', label: CONTRIBUTE_WORDS.getLink };
-/** The quiet way in for people invited with their email, under Sign in with GitHub. */
+const EMAIL_ACTION: AccessAction = { kind: 'email', label: CONTRIBUTE_WORDS.continueWithEmail };
+/** The quiet way in for people invited with their email, under Sign in with GitHub: the one sign-in screen of Bridge. */
 const EMAIL_LINK = { lead: CONTRIBUTE_WORDS.invitedWithEmail, action: EMAIL_ACTION };
 
 /** The screen of one state, null when the Studio opens as usual (reader, writer, admin). */
@@ -165,23 +165,7 @@ export function accessScreen(state: RepoAccessState, f: AccessScreenInput): Acce
   }
 }
 
-/**
- * The team's sign-in screen, asked for from the side nav's Sign in (?signin on a team page, signed out, on a team that
- * signs email contributors in): both ways in on one card, GitHub first, the email link quiet under it. `back` is the
- * same page without ?signin.
- */
-export function signInScreen(f: { owner: string; repo: string; back: string }): AccessScreen {
-  return {
-    layout: 'block',
-    title: `Sign in to ${f.owner}/${f.repo}`,
-    body: 'Sign in to review changes and send suggestions.',
-    primary: { kind: 'signin', label: 'Sign in with GitHub' },
-    secondary: { kind: 'link', label: 'Not now', href: f.back },
-    links: [EMAIL_LINK],
-  };
-}
-
-/** The side nav's Sign in asks for the team's sign-in screen with this search parameter. */
+/** The old team sign-in screen's search parameter: such an address now opens the one sign-in screen (/signin/). */
 export const SIGN_IN_PARAM = 'signin';
 
 // --- The team chip ------------------------------------------------------------------------------------------------

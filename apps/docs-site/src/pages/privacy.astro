@@ -1,0 +1,50 @@
+---
+// /privacy/: what Bridge keeps about a person, why, where, for how long, and how to delete it. Short, in the Bridge
+// voice. Linked from the sign-in screen, Settings > Account and every footer. Static: nothing is read here.
+import '../styles/homepage.css';
+import '../styles/account.css';
+import Landing from '../layouts/Landing.astro';
+import { Link } from '@bridge-ds/react';
+import { SIGNIN_PAGE } from '../lib/account';
+import { GITHUB_URL } from '../lib/repo';
+---
+
+<Landing title="Privacy | Bridge" description="What Bridge keeps about you, where, for how long, and how to delete it.">
+  <article class="hp pv">
+    <header class="zone pv-head">
+      <h1 class="pv-title">What Bridge keeps about you</h1>
+      <p class="pv-lead">As little as it can: enough to sign you in and know which teams you belong to. Your design system never leaves your repository.</p>
+    </header>
+
+    <section class="pv-section" aria-labelledby="pv-keeps">
+      <h2 id="pv-keeps" class="pv-h">What Bridge keeps</h2>
+      <ul>
+        <li>Your account email and the name you gave.</li>
+        <li>Your GitHub login, when you link GitHub.</li>
+        <li>The teams you belong to, and your role on each.</li>
+        <li>Invitations waiting for you or sent by you.</li>
+        <li>The one-time sign-in codes, hashed, for 10 minutes.</li>
+      </ul>
+    </section>
+
+    <section class="pv-section" aria-labelledby="pv-never">
+      <h2 id="pv-never" class="pv-h">What Bridge never keeps</h2>
+      <ul>
+        <li>Passwords: there are none. You sign in with GitHub or a code sent to your email.</li>
+        <li>GitHub tokens: they stay in your browser.</li>
+        <li>Your design system: it stays in your repository. Bridge reads it on GitHub when you open it.</li>
+      </ul>
+    </section>
+
+    <section class="pv-section" aria-labelledby="pv-where">
+      <h2 id="pv-where" class="pv-h">Where and for how long</h2>
+      <p>Your account lives in an Upstash Redis database on Vercel, with a daily backup in Vercel Blob. Bridge keeps it until you delete your account. Backups are kept 30 days, then removed.</p>
+    </section>
+
+    <section class="pv-section" aria-labelledby="pv-delete">
+      <h2 id="pv-delete" class="pv-h">How to delete it</h2>
+      <p>Open Settings, Account, then Delete my account. Bridge removes your account, your email memberships and your sessions at once. If you are the only admin of a team with other members, make someone else an admin first.</p>
+      <p><Link href={SIGNIN_PAGE}>Sign in to Bridge</Link> to get there. Questions? <Link href={GITHUB_URL}>Open an issue on GitHub</Link>.</p>
+    </section>
+  </article>
+</Landing>

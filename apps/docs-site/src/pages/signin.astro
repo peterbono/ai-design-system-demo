@@ -1,0 +1,13 @@
+---
+// /signin/: the one sign-in screen of Bridge, for sign in and sign up (components/ds/account/SignIn.tsx). The landing's
+// "Sign in" and "Get started" (?new=1) open it, and so does every other "Sign in" of the product, with ?next=<the page
+// it was opened from>. Reads no repository (bare: the Studio top bar only), and signs in with GitHub like a team page,
+// so the GitHub sign-in carries over to the team. A signed-in account goes straight on to `next`.
+import '../styles/start.css';
+import Layout from '../layouts/Layout.astro';
+import SignIn from '../components/ds/account/SignIn';
+---
+
+<Layout title="Sign in" description="Sign in to Bridge, or make your account, with GitHub or your work email." crumbs={false} bare>
+  <SignIn client:only="react" />
+</Layout>
