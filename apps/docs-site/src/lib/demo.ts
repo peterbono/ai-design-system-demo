@@ -38,6 +38,8 @@ export const DEMO_WORDS = {
   sampleTitle: 'Sample data.',
   sampleText: "You're looking at the Bridge demo, read only. Nothing here touches your repository.",
   backToWorkspace: 'Back to your workspace',
+  /** The same banner for someone who chose the demo on the start screen and has no workspace yet. */
+  connectOwn: 'Connect your design system',
   /** The home's branches (board D1). */
   branches: 'Explorations and branches',
   /** A write action in the demo (board D2). */

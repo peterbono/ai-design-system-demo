@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEMO, START, WORKSPACE } from './nav';
 import { onboardingSteps } from './onboarding';
 import {
-  backToWorkspaceHref,
+  demoBack,
   CONNECT_HREF,
   DEMO_HOME,
   demoBannerKind,
@@ -81,16 +81,16 @@ describe('the demo banner and "Back to your workspace"', () => {
     expect(demoBannerKind(facts())).toBe('visitor');
   });
 
-  it('shows "Back to your workspace" after the start screen, back to it while there is no workspace', () => {
+  it('after the start screen with no workspace yet, offers to connect the design system instead of a "back"', () => {
     const f = facts({ memory: { demo: true } });
     expect(demoBannerKind(f)).toBe('workspace');
-    expect(backToWorkspaceHref(f)).toBe(START_PAGE);
+    expect(demoBack(f)).toEqual({ href: CONNECT_HREF, connect: true });
   });
 
   it('leads back to the team, else the browser workspace', () => {
     expect(demoBannerKind(facts({ recent: ['acme/ds'] }))).toBe('workspace');
-    expect(backToWorkspaceHref(facts({ recent: ['acme/ds'] }), NONE_RESERVED)).toBe('/studio/acme/ds/');
-    expect(backToWorkspaceHref(facts({ memory: { connect: true } }))).toBe(WORKSPACE_HOME);
+    expect(demoBack(facts({ recent: ['acme/ds'] }), NONE_RESERVED)).toEqual({ href: '/studio/acme/ds/', connect: false });
+    expect(demoBack(facts({ memory: { connect: true } }))).toEqual({ href: WORKSPACE_HOME, connect: false });
   });
 });
 

@@ -95,11 +95,23 @@ describe('the browser workspace setup', () => {
 
 describe('the demo banner (board EmptyA2)', () => {
   it('leads a visitor with a workspace back to it', async () => {
-    const { container } = render(createElement(DemoBanner, { repoUrl: 'https://github.com/peterbono/bridge-demo-ds', onUseOwn: () => undefined, back: '/studio/workspace/' }));
+    const { container } = render(createElement(DemoBanner, { repoUrl: 'https://github.com/peterbono/bridge-demo-ds', onUseOwn: () => undefined, back: { href: '/studio/workspace/', connect: false } }));
     expect(screen.getByText('Sample data.')).toBeInTheDocument();
     expect(screen.getByText("You're looking at the Bridge demo, read only. Nothing here touches your repository.")).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Back to your workspace' })).toHaveAttribute('href', '/studio/workspace/');
     expect(screen.queryByRole('button', { name: 'Use your own repo' })).toBeNull();
+    await expectNoAxeViolations(container);
+  });
+
+  it('offers to connect the design system after the start screen when there is no workspace to go back to', async () => {
+    const onConnect = vi.fn();
+    const { container } = render(createElement(DemoBanner, { repoUrl: 'https://github.com/peterbono/bridge-demo-ds', onUseOwn: () => undefined, back: { href: '/studio/workspace/?setup=library', connect: true }, onConnect }));
+    expect(screen.queryByRole('link', { name: 'Back to your workspace' })).toBeNull();
+    const link = screen.getByRole('link', { name: 'Connect your design system' });
+    expect(link).toHaveAttribute('href', '/studio/workspace/?setup=library');
+    link.addEventListener('click', (e) => e.preventDefault());
+    link.click();
+    expect(onConnect).toHaveBeenCalledWith(expect.any(Event), '/studio/workspace/?setup=library');
     await expectNoAxeViolations(container);
   });
 

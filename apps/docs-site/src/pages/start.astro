@@ -60,7 +60,8 @@ import { DEMO } from '../lib/nav';
     import { getStartedHref, hasWorkspace, startTitle } from '../lib/start';
     import { loadReserved } from '../lib/team-open';
     import { shortName } from '../lib/home-model';
-    import { currentViewer, initGitHubConnect, prefersSignIn, SignInError, startSignIn } from '../scripts/github-session';
+    import { currentViewer, initGitHubConnect } from '../scripts/github-session';
+    import { connectDesignSystem } from '../scripts/start-connect';
 
     const root = document.querySelector<HTMLElement>('[data-start]')!;
 
@@ -79,18 +80,7 @@ import { DEMO } from '../lib/nav';
       });
     })();
 
-    // "Connect my design system": the browser workspace exists from now on. Signed out, sign in with GitHub first and
-    // come back on the setup step; without Sign in with GitHub on this site, the workspace's step 1 offers the token.
-    root.querySelector<HTMLAnchorElement>('[data-start-connect]')?.addEventListener('click', (e) => {
-      rememberStart({ connect: true });
-      if (currentViewer() || !prefersSignIn()) return;
-      e.preventDefault();
-      const href = (e.currentTarget as HTMLAnchorElement).getAttribute('href')!;
-      startSignIn(href).catch((err: unknown) => {
-        // Sign-in could not start here (storage blocked, no Web Crypto): the setup's step 1 says how to go on.
-        if (err instanceof SignInError) location.assign(href);
-      });
-    });
+    root.querySelector<HTMLAnchorElement>('[data-start-connect]')?.addEventListener('click', (e) => connectDesignSystem(e, (e.currentTarget as HTMLAnchorElement).getAttribute('href')!));
     // "Open the demo": the demo's banner then leads back here, or to the workspace once there is one.
     root.querySelector('[data-start-demo]')?.addEventListener('click', () => rememberStart({ demo: true }));
   </script>
