@@ -167,9 +167,9 @@ function Needs({ needs, now, snoozed, demo, tour }: { needs: NeedRow[]; now: num
   const { shown, more } = splitNeeds(needs);
   return (
     <>
-      {/* One item: its button is the page's primary. Two or three: secondary buttons. More: no row buttons, "Review all"
-          acts. The demo (board D1b) keeps a Review button on each row, beside "Review all (N)". */}
-      <NeedList rows={shown} compact action={demo ? 'secondary' : more ? undefined : shown.length === 1 ? 'primary' : 'secondary'} />
+      {/* One item: its button is the page's primary. Two or three: secondary buttons. More: no row buttons, each row is
+          its own link and "Review all" acts, the demo included. */}
+      <NeedList rows={shown} compact action={more ? undefined : shown.length === 1 ? 'primary' : 'secondary'} />
       {tour?.('rows')}
       {more && (
         <div className="sh-more">
