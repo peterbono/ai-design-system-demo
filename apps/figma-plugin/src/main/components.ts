@@ -4,7 +4,7 @@
 import { type RawBinding, type RawComponent, type RawLayer, type RawVariant, buildSignature, fnv1a, bindingKind, parseSignature, propName } from '../sync/components';
 import { EXPERIMENTAL_KEY, PUSHED_KEY, type ScannedComponentsPayload } from '../shared/messages';
 import { variantKeyOf } from '@bridge-ds/core';
-import { LONE_VARIANT } from '../sync/component-pull';
+import { LONE_VARIANT, propsOfKey } from '../sync/component-pull';
 
 const NS = 'dsbridge';
 const SIGNATURE_KEY = 'signature';
@@ -191,7 +191,13 @@ async function slotsOf(variant: ComponentNode): Promise<Pick<RawVariant, 'slots'
 
 /** A variant's properties; none for the lone variant DS Bridge made for a spec with no axes (LONE_VARIANT). */
 function variantPropsOf(v: ComponentNode): Record<string, string> {
-  return isLoneVariant(v) ? {} : { ...(v.variantProperties ?? {}) };
+  if (isLoneVariant(v)) return {};
+  try {
+    return { ...(v.variantProperties ?? {}) };
+  } catch {
+    // A set Figma holds in error refuses the read: its name says the same ("Size=md, State=Hover").
+    return propsOfKey(v.name);
+  }
 }
 
 const isLoneVariant = (v: SceneNode) => v.type === 'COMPONENT' && v.name === LONE_VARIANT && v.getSharedPluginData(NS, 'variant') === variantKeyOf({});

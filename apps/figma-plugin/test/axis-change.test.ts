@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import { type ComponentSpecsFile, type SpecAxis, parseComponentSpecs, variantKeyOf } from '@bridge-ds/core';
 import { applyPullPlan } from '../src/main/apply';
 import { applyComponentPlan, scanGenerated } from '../src/main/build-components';
+import { readComponent } from '../src/main/components';
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
 import { LONE_VARIANT, buildComponentPlan, loadComponentSpecs, matchVariants, pendingComponents, writablePlan } from '../src/sync/component-pull';
@@ -164,6 +165,9 @@ test('a set an older DS Bridge left in error is rebuilt by the next pull, even w
   old.setSharedPluginData('dsbridge', 'orphan', 'true');
   kbd.appendChild(old);
   assert.throws(() => propsOf(kbd), /existing errors/);
+  // The update review reads it from its variant names meanwhile.
+  const raw = await readComponent(kbd as unknown as ComponentSetNode);
+  assert.deepEqual(raw.variants.map((v) => v.props).slice(-1), [{ Tone: 'neutral', Size: 'md' }]);
   const next = await pull(gh, first.a.headSha);
   assert.deepEqual(next.plan.components.filter((c) => c.status !== 'unchanged').map((c) => c.name), ['Kbd']);
   assert.deepEqual(next.report.failed, []);
