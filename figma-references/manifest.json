@@ -1,8 +1,8 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-22T11:15:25.691Z",
-  "sha": "a137625f3afb3ac6e1026357cf1fbce3b4a11366",
+  "createdAt": "2026-10-22T12:20:08.289Z",
+  "sha": "21c31ed95e1a60e396aacc5022aed110b17d270e",
   "scale": 2,
   "mode": {
     "brand": "bridge",
@@ -953,7 +953,7 @@
       }
     },
     "MenuItem": {
-      "specHash": "309c39bd",
+      "specHash": "dcadfe59",
       "variants": {
         "State=Default, Tone=default": {
           "skipped": "the code example did not render"
@@ -970,7 +970,7 @@
       }
     },
     "MenuCheckboxItem": {
-      "specHash": "eed6a1f7",
+      "specHash": "0680d8fd",
       "variants": {
         "Checked=false, State=Default": {
           "skipped": "the code example did not render"
@@ -987,7 +987,7 @@
       }
     },
     "MenuRadioGroup": {
-      "specHash": "cd7f0279",
+      "specHash": "2ccd0b5f",
       "variants": {
         "State=Default": {
           "skipped": "the code example did not render"
@@ -998,7 +998,7 @@
       }
     },
     "MenuRadioItem": {
-      "specHash": "8d055931",
+      "specHash": "d1e68b99",
       "variants": {
         "Checked=false, State=Default": {
           "skipped": "the code example did not render"
@@ -1015,7 +1015,7 @@
       }
     },
     "MenuGroup": {
-      "specHash": "cb840d54",
+      "specHash": "c2b73291",
       "variants": {
         "Default": {
           "skipped": "the code example did not render"
@@ -1031,7 +1031,7 @@
       }
     },
     "MenuSubmenu": {
-      "specHash": "ea762ce4",
+      "specHash": "2057db36",
       "variants": {
         "State=Default": {
           "skipped": "the code example did not render"
