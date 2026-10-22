@@ -78,7 +78,9 @@ describe('routing: the landing at /, the Library home at /library/', () => {
     const header = readFileSync(join(ROOT, 'apps/docs-site/src/components/site/SiteHeader.astro'), 'utf8');
     const footer = readFileSync(join(ROOT, 'apps/docs-site/src/components/site/SiteFooter.astro'), 'utf8');
     for (const name of ['ABOUT', 'DOCS_HOME', 'DOCS_FIGMA_PLUGIN', 'STUDIO_HOME']) expect(header).toContain(name);
-    for (const name of ['ABOUT', 'COMPARE', 'DOCS_HOME', 'DOCS_FIGMA_PLUGIN', 'STUDIO_HOME']) expect(footer).toContain(name);
+    for (const name of ['ABOUT', 'DOCS_HOME', 'DOCS_FIGMA_PLUGIN', 'STUDIO_HOME']) expect(footer).toContain(name);
+    // The comparison lives on the homepage: the footer does not link it again.
+    expect(footer).not.toContain('COMPARE');
     // The demo is the hosted Studio of the dedicated demo repo, served by the team shell rewrite.
     expect(DEMO).toBe(`/studio/${DEMO_REPOS[1]}/`);
     expect(pageFile('/team-shell/')).not.toBeNull();
