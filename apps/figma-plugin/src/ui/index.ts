@@ -1841,6 +1841,14 @@ function componentsGroup(p: PullState): Child {
       [
         coverageDetails(cov),
         motionDetails(plan),
+        plan.skipped?.length
+          ? h(
+              'details',
+              { class: 'notes' },
+              h('summary', null, `${plural(plan.skipped.length, 'component')} in component-specs.json cannot be read, the others are pulled`),
+              h('ul', null, plan.skipped.map((x) => h('li', null, `${x.name}: ${x.reason}.`))),
+            )
+          : null,
         fresh.length
           ? rowList(
               'pull-components',
