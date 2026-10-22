@@ -8,11 +8,9 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
   width: max-content;
   max-width: min(var(--size-80), var(--available-width));
   max-height: var(--available-height);
-  padding: var(--space-4);
   border: var(--border-width-default) solid var(--popup-border);
   border-radius: var(--popup-radius);
   background-color: var(--popup-bg);
@@ -21,12 +19,22 @@
   font-family: var(--font-family-sans);
   font-size: var(--font-size-200);
   line-height: var(--font-line-height-normal);
-  overflow-y: auto;
   outline: none;
   transform-origin: var(--transform-origin);
   transition-property: opacity, transform;
   transition-duration: var(--motion-duration-fast);
   transition-timing-function: var(--motion-easing-enter);
+}
+
+/* The content scrolls when the popup is capped by the viewport. The arrow sits outside it, so it never makes the
+   popup scroll, and the padding is inside it, so a focus ring near the edge has room. */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+  padding: var(--space-4);
+  overflow-y: auto;
 }
 
 .popup[data-starting-style],
