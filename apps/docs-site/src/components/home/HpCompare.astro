@@ -1,15 +1,16 @@
 ---
 // "How Bridge compares." on the homepage: one card holding the seven differences that matter most (DS Table, hydrated
-// for the Tooltips on half marks), the legend and the date, then "Compare every feature" (HpCompareMore, the DS
+// for the Tooltips that hold each note), the legend of the two marks and the date, then "Compare every feature" (HpCompareMore, the DS
 // Accordion); under it the link to /compare/, where every note and source is written out. Data and words:
 // lib/compare.ts, shared with /compare/. Styles: styles/home-compare.css.
 import { Icon, Link } from '@bridge-ds/react';
 import HpCompareTable, { MARK_ICON } from './HpCompareTable';
 import HpCompareMore from './HpCompareMore';
-import { AS_OF_LINE, DETAIL_LINK, HEADING, HEAD_LINE, KEY, SHORT, SHORT_CAPTION, SHORT_FIRST_HEAD, SWIPE_HINT, type CellState } from '../../lib/compare';
+import { AS_OF_LINE, DETAIL_LINK, HEADING, HEAD_LINE, KEY, SHORT, SHORT_CAPTION, SHORT_FIRST_HEAD, SWIPE_HINT, type MarkState } from '../../lib/compare';
 import { COMPARE } from '../../lib/nav';
 
-const STATES: CellState[] = ['yes', 'partial', 'no'];
+// A partial cell is worded ("Tokens only"), so only the check and the dash need a key.
+const STATES: MarkState[] = ['yes', 'no'];
 ---
 
 <section class="hp-cmp" aria-labelledby="hp-cmp-t">

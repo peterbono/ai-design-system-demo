@@ -134,11 +134,6 @@
   color: var(--color-text-muted);
 }
 
-/* The half mark: a circle with its right half filled. */
-.lp-cell[data-state="partial"] .lp-cell-icon path {
-  fill: currentcolor;
-}
-
 .lp-cell-note,
 .lp-cell-detail {
   display: block;

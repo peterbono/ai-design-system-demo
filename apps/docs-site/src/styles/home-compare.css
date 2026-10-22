@@ -173,13 +173,45 @@
   color: var(--color-text-disabled);
 }
 
-/* The half mark: a circle with its right half filled, lighter than a check, darker than a dash. */
-.hp-cmp-mark[data-state="partial"] {
-  color: var(--color-text-muted);
+/* A partial cell: no mark, its short label in body text (a DS link Button, the trigger of the Tooltip that holds the
+   note). It reads as text, not a link: default colour, a dotted muted underline that says there is more on hover or
+   focus. Words wrap inside the column; no label holds a word wider than a column. */
+.hp-cmp .hp-cmp-c .hp-cmp-label {
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  padding: var(--space-0-5) 0;
+  white-space: normal;
+  color: var(--color-text-default);
+  font-size: var(--_t13);
+  line-height: var(--_l18);
+  text-decoration-style: dotted;
+  text-decoration-color: var(--color-text-muted);
+  overflow-wrap: break-word;
+  vertical-align: middle;
 }
 
-.hp-cmp-mark[data-state="partial"] svg path {
-  fill: currentcolor;
+@media (hover: hover) {
+  .hp-cmp .hp-cmp-c .hp-cmp-label:hover {
+    color: var(--color-text-default);
+    text-decoration-color: currentcolor;
+  }
+}
+
+/* A check with a qualifier: the mark, then the qualifier in small grey text under it. */
+.hp-cmp-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.hp-cmp-sub {
+  color: var(--color-text-muted);
+  font-size: var(--_t13);
+  line-height: var(--_l18);
+  overflow-wrap: break-word;
 }
 
 /* A mark with a note is a ghost DS IconButton (the Tooltip trigger): it keeps the mark's colour and glyph size, and
@@ -193,10 +225,6 @@
 
 .hp-cmp .hp-cmp-tip[data-state="yes"] {
   color: var(--color-text-link);
-}
-
-.hp-cmp .hp-cmp-tip[data-state="partial"] {
-  color: var(--color-text-muted);
 }
 
 .hp-cmp .hp-cmp-tip svg {
@@ -240,11 +268,12 @@
 }
 
 /* ---------- every feature (DS Accordion root): the last row of the card, its trigger centred ---------- */
+/* The trigger is the button in the item heading; the Tooltip triggers in the table below are buttons too. */
 .hp-cmp-more {
   border-top: var(--_rule);
 }
 
-.hp-cmp .hp-cmp-more button {
+.hp-cmp .hp-cmp-more h3 > button {
   justify-content: center;
   gap: calc(var(--space-2) + var(--space-0-5));
   min-height: var(--size-14);
@@ -255,16 +284,16 @@
   line-height: var(--font-leading-20);
 }
 
-.hp-cmp .hp-cmp-more button > span {
+.hp-cmp .hp-cmp-more h3 > button > span {
   flex: none;
 }
 
-.hp-cmp .hp-cmp-more button svg {
+.hp-cmp .hp-cmp-more h3 > button svg {
   color: currentcolor;
 }
 
 @media (hover: hover) {
-  .hp-cmp .hp-cmp-more button:hover {
+  .hp-cmp .hp-cmp-more h3 > button:hover {
     background-color: var(--color-bg-subtle);
   }
 }
@@ -334,7 +363,7 @@ a.hp-cmp-link {
     padding: calc(var(--space-3) + var(--space-0-5)) var(--space-6);
   }
 
-  .hp-cmp .hp-cmp-more button {
+  .hp-cmp .hp-cmp-more h3 > button {
     padding: 0 var(--space-6);
   }
 }

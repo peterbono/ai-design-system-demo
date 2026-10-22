@@ -1,18 +1,19 @@
 ---
 // /compare/: Bridge next to the tools teams already use, as of October 2026, from their public pages. Same rows and
-// cells as the homepage table (lib/compare.ts), with every note written out and the sources listed per tool.
+// cells as the homepage table (lib/compare.ts), with every note written out and the sources listed per tool. A check
+// or a dash reads its mark and state; a partial cell reads its short label ("Tokens only"), with no mark.
 // Linked from the homepage table, the landing footer and the Library footer.
 import Landing from '../layouts/Landing.astro';
-import { Icon, Link, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
-import { Check, Contrast, Minus } from 'lucide-react';
-import { AS_OF, GROUPS, KEY, SHORT, SOURCES, STATE_LABEL, TOOLS, type CellState, type CompareRow } from '../lib/compare';
+import { Icon, Link, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, VisuallyHidden } from '@bridge-ds/react';
+import { Check, Minus } from 'lucide-react';
+import { AS_OF, GROUPS, KEY, SHORT, SOURCES, STATE_LABEL, TOOLS, type CompareRow, type MarkState } from '../lib/compare';
 import { GITHUB_URL } from '../lib/repo';
 import { LIBRARY_HOME, STUDIO_HOME } from '../lib/nav';
 import ButtonLink from '../components/ds/ButtonLink';
 
-const ICON: Record<CellState, typeof Check> = { yes: Check, partial: Contrast, no: Minus };
+const ICON: Record<MarkState, typeof Check> = { yes: Check, no: Minus };
 const SECTIONS: { name: string; rows: CompareRow[] }[] = [{ name: 'The differences that matter most', rows: SHORT }, ...GROUPS];
-const STATES: CellState[] = ['yes', 'partial', 'no'];
+const STATES: MarkState[] = ['yes', 'no'];
 ---
 
 <Landing
@@ -55,13 +56,23 @@ const STATES: CellState[] = ['yes', 'partial', 'no'];
                 </TableCell>
                 {r.cells.map((c) => (
                   <TableCell>
-                    <span class="lp-cell" data-state={c.state}>
-                      <Icon icon={ICON[c.state]} size="sm" className="lp-cell-icon" />
-                      <span>
-                        {STATE_LABEL[c.state]}
-                        {c.note && <span class="lp-cell-note">{c.note}</span>}
+                    {c.state === 'partial' ? (
+                      <span class="lp-cell" data-state="partial">
+                        <span>
+                          <VisuallyHidden>{STATE_LABEL.partial}: </VisuallyHidden>
+                          {c.short}
+                          {c.note !== `${c.short}.` && <span class="lp-cell-note">{c.note}</span>}
+                        </span>
                       </span>
-                    </span>
+                    ) : (
+                      <span class="lp-cell" data-state={c.state}>
+                        <Icon icon={ICON[c.state as MarkState]} size="sm" className="lp-cell-icon" />
+                        <span>
+                          {STATE_LABEL[c.state]}
+                          {c.note && <span class="lp-cell-note">{c.note}</span>}
+                        </span>
+                      </span>
+                    )}
                   </TableCell>
                 ))}
               </TableRow>

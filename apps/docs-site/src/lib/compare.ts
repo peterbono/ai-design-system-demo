@@ -1,14 +1,19 @@
 // "How Bridge compares.": one source for the homepage table (components/home/HpCompare.astro) and /compare/
-// (pages/compare.astro). Each cell is a check (does it), a half mark (does part of it, with the reason) or a dash
-// (doesn't, or isn't documented). From the tools' public pages, October 2026; the source of every cell is listed in
+// (pages/compare.astro). Each cell is a check (does it), a short label of 2 to 4 words saying what is missing or
+// limited (does part of it, with the reason in its note) or a dash (doesn't, or isn't documented). From the tools' public pages, October 2026; the source of every cell is listed in
 // SOURCES and quoted in the pull request that last changed it. Pure data and helpers.
 
 export type CellState = 'yes' | 'partial' | 'no';
 
 export interface Cell {
   state: CellState;
-  /** What the tool does, in one line. Required on a half mark; optional on a check, to say how. */
+  /** What the tool does, in one line. Required on a partial cell; optional on a check, to say how. */
   note?: string;
+  /**
+   * The words the cell shows, 2 to 4 words condensed from the note. Required on a partial cell (it shows no mark);
+   * optional on a check, as a grey qualifier under it ("Paid plans").
+   */
+  short?: string;
 }
 
 export interface CompareRow {
@@ -32,12 +37,13 @@ export const HEADING = 'How Bridge compares.';
 export const HEAD_LINE = 'What each tool covers, from their public pages.';
 export const AS_OF_LINE = `From public pages, ${AS_OF}`;
 
-/** The words a mark reads, for screen readers and on /compare/. */
+/** The words a state reads, for screen readers and on /compare/. */
 export const STATE_LABEL: Record<CellState, string> = { yes: 'Yes', partial: 'In part', no: 'No' };
-/** The legend under the short table, one entry per mark. */
-export const KEY: Record<CellState, string> = {
+/** The states drawn as a mark; a partial cell shows its short label instead. */
+export type MarkState = Exclude<CellState, 'partial'>;
+/** The legend under the tables, one entry per mark. */
+export const KEY: Record<MarkState, string> = {
   yes: 'Does it',
-  partial: 'Does part of it',
   no: 'Does not, or not documented',
 };
 export const SWIPE_HINT = 'Swipe the table to see every tool';
@@ -51,8 +57,8 @@ export const MORE_CLOSED = 'Compare every feature';
 export const MORE_OPEN = 'Hide the full comparison';
 export const DETAIL_LINK = 'See the comparison in detail, with sources';
 
-const y = (note?: string): Cell => ({ state: 'yes', note });
-const p = (note: string): Cell => ({ state: 'partial', note });
+const y = (note?: string, short?: string): Cell => (short ? { state: 'yes', note, short } : { state: 'yes', note });
+const p = (short: string, note: string): Cell => ({ state: 'partial', short, note });
 const n: Cell = { state: 'no' };
 
 // Cells in TOOLS order: Bridge, Tokens Studio, Supernova, Storybook, zeroheight, Figma.
@@ -63,10 +69,10 @@ export const SHORT: CompareRow[] = [
     cells: [
       y(),
       n,
-      p('AI prototypes with your code components and a share link, in beta. No branch found.'),
-      p('A coding agent builds with your stories through its MCP server, in preview. The branch is yours to set up.'),
-      p('Gives your system to Figma Make and coding agents through MCP. It does not run the exploration itself.'),
-      y('Figma Make with a kit of your code components, in a Git branch, with a live preview. Paid plans.'),
+      p('Beta, no branch', 'AI prototypes with your code components and a share link, in beta. No branch found.'),
+      p('Agent via MCP', 'A coding agent builds with your stories through its MCP server, in preview. The branch is yours to set up.'),
+      p('Feeds other AI tools', 'Gives your system to Figma Make and coding agents through MCP. It does not run the exploration itself.'),
+      y('Figma Make with a kit of your code components, in a Git branch, with a live preview. Paid plans.', 'Paid plans'),
     ],
   },
   {
@@ -74,11 +80,11 @@ export const SHORT: CompareRow[] = [
     detail: 'New tokens, variants and components, listed',
     cells: [
       y(),
-      p('A branch lists the tokens it adds, changes and removes. Not components.'),
+      p('Tokens only', 'A branch lists the tokens it adds, changes and removes. Not components.'),
       n,
-      p('With Chromatic, a review shows the stories that changed visually.'),
-      p('Its MCP audit flags design and code inconsistencies before a merge.'),
-      p('Check designs flags hard-coded values and detached components, one page at a time.'),
+      p('Visual diffs via Chromatic', 'With Chromatic, a review shows the stories that changed visually.'),
+      p('Audit via MCP', 'Its MCP audit flags design and code inconsistencies before a merge.'),
+      p('Page by page audit', 'Check designs flags hard-coded values and detached components, one page at a time.'),
     ],
   },
   {
@@ -86,10 +92,10 @@ export const SHORT: CompareRow[] = [
     detail: 'Before it reaches the library',
     cells: [
       y(),
-      y('Branch review with Approve or Request changes, for tokens.'),
-      p('An approval workflow for doc pages, on Enterprise.'),
-      p('Through your Git host, or Chromatic UI Review.'),
-      p('Token changes go back to code as a pull request. No approval step of its own.'),
+      y('Branch review with Approve or Request changes, for tokens.', 'For tokens'),
+      p('Docs only, Enterprise', 'An approval workflow for doc pages, on Enterprise.'),
+      p('Via Git or Chromatic', 'Through your Git host, or Chromatic UI Review.'),
+      p('No approval step', 'Token changes go back to code as a pull request. No approval step of its own.'),
       y('Branch review with Approve or Suggest changes, on Organization and Enterprise.'),
     ],
   },
@@ -98,11 +104,11 @@ export const SHORT: CompareRow[] = [
     detail: 'Traced back to the exploration, in Git, with checks',
     cells: [
       y(),
-      p('Tokens only.'),
-      p('Doc pages; code comes as pipeline pull requests.'),
-      p('Code and stories, in your Git review.'),
-      p('Docs, plus token pull requests.'),
-      p('Design files in branch review; Make code in GitHub pull requests.'),
+      p('Tokens only', 'Tokens only.'),
+      p('Docs only', 'Doc pages; code comes as pipeline pull requests.'),
+      p('Code only', 'Code and stories, in your Git review.'),
+      p('Docs and tokens', 'Docs, plus token pull requests.'),
+      p('Two separate reviews', 'Design files in branch review; Make code in GitHub pull requests.'),
     ],
   },
   {
@@ -110,11 +116,11 @@ export const SHORT: CompareRow[] = [
     detail: 'Pixel match between Figma and code',
     cells: [
       y(),
-      p('Tokens become Figma variables and styles. Not components.'),
+      p('Tokens only', 'Tokens become Figma variables and styles. Not components.'),
       n,
       n,
       n,
-      p('An agent skill builds components from code, in beta. Drift checks cover tokens only.'),
+      p('Beta, no fidelity check', 'An agent skill builds components from code, in beta. Drift checks cover tokens only.'),
     ],
   },
   {
@@ -122,8 +128,8 @@ export const SHORT: CompareRow[] = [
     detail: '',
     cells: [
       y('MIT.'),
-      p('The Figma plugin is MIT; the platform is not.'),
-      p('The code exporters are MIT; the platform is not.'),
+      p('Plugin only', 'The Figma plugin is MIT; the platform is not.'),
+      p('Exporters only', 'The code exporters are MIT; the platform is not.'),
       y('MIT.'),
       n,
       n,
@@ -136,7 +142,7 @@ export const SHORT: CompareRow[] = [
       y(),
       n,
       n,
-      y('Chromatic, its visual testing service, is paid.'),
+      y('Chromatic, its visual testing service, is paid.', 'Chromatic is paid'),
       n,
       n,
     ],
@@ -157,11 +163,11 @@ export const GROUPS: CompareGroup[] = [
         detail: '',
         cells: [
           y(),
-          y('Git sync on paid plans.'),
-          p('Tokens come in from Figma and Git and go out as pull requests; Figma import is one way.'),
+          y('Git sync on paid plans.', 'Paid plans'),
+          p('Figma import one way', 'Tokens come in from Figma and Git and go out as pull requests; Figma import is one way.'),
           n,
-          p('Two-way with Git; Figma variables come in one way.'),
-          p('An agent skill syncs variables and code with drift detection, in beta.'),
+          p('Figma one way', 'Two-way with Git; Figma variables come in one way.'),
+          p('Agent skill, in beta', 'An agent skill syncs variables and code with drift detection, in beta.'),
         ],
       },
       {
@@ -169,10 +175,10 @@ export const GROUPS: CompareGroup[] = [
         detail: '',
         cells: [
           y('The kit is built from code, linked to Storybook, and checked for fidelity.'),
-          p('Tokens only: token names show in Dev Mode.'),
+          p('Tokens only', 'Tokens only: token names show in Dev Mode.'),
           y('A component links its Figma component and its code repository.'),
           y('Storybook Connect, by Chromatic, links stories to Figma components.'),
-          p('Figma and Storybook side by side in doc pages.'),
+          p('Shown side by side', 'Figma and Storybook side by side in doc pages.'),
           y('Code Connect in Dev Mode, on Organization and Enterprise.'),
         ],
       },
@@ -186,9 +192,9 @@ export const GROUPS: CompareGroup[] = [
         detail: '',
         cells: [
           y('On the coded stories and app screens, in every brand and theme, in the pull request.'),
-          p('Token values before and after, not a visual.'),
-          p('Page history for doc pages, not a visual of components.'),
-          p('With Chromatic, a separate paid service.'),
+          p('Values, not visual', 'Token values before and after, not a visual.'),
+          p('Doc page history', 'Page history for doc pages, not a visual of components.'),
+          p('Via paid Chromatic', 'With Chromatic, a separate paid service.'),
           n,
           y('Branch review, side by side or as an overlay.'),
         ],
@@ -198,11 +204,11 @@ export const GROUPS: CompareGroup[] = [
         detail: '',
         cells: [
           y('220 token pairs in every brand and theme, in CI; a failing change cannot merge.'),
-          p('Contrast nodes in Graph Engine, not a check on each change.'),
-          p('An accessibility color grid in docs, not a check on each change.'),
+          p('Graph Engine nodes', 'Contrast nodes in Graph Engine, not a check on each change.'),
+          p('Color grid in docs', 'An accessibility color grid in docs, not a check on each change.'),
           y('The accessibility addon runs axe on stories, and fails CI when set to.'),
           n,
-          p('Check designs tests contrast on demand, one page at a time.'),
+          p('On demand, per page', 'Check designs tests contrast on demand, one page at a time.'),
         ],
       },
       {
@@ -210,11 +216,11 @@ export const GROUPS: CompareGroup[] = [
         detail: '',
         cells: [
           y(),
-          p('Release history of token changes; reverting goes through Git.'),
-          p('Versions are read-only; restore is for doc pages.'),
+          p('Revert through Git', 'Release history of token changes; reverting goes through Git.'),
+          p('Read-only versions', 'Versions are read-only; restore is for doc pages.'),
           n,
-          p('Tokens follow styleguide releases, on paid plans.'),
-          p('Version history restores a whole file, not one variable.'),
+          p('Releases, paid plans', 'Tokens follow styleguide releases, on paid plans.'),
+          p('Whole file only', 'Version history restores a whole file, not one variable.'),
         ],
       },
     ],
@@ -225,13 +231,13 @@ export const GROUPS: CompareGroup[] = [
       {
         feature: 'Workshop to build coded components',
         detail: '',
-        cells: [p('Bridge ships its components with Storybook and builds on it.'), n, n, y(), n, n],
+        cells: [p('Built on Storybook', 'Bridge ships its components with Storybook and builds on it.'), n, n, y(), n, n],
       },
       { feature: 'Docs drafted by AI, reviewed by people', detail: '', cells: [y(), n, y(), n, y(), y('With the Figma agent.')] },
       {
         feature: 'Hosted documentation site',
         detail: '',
-        cells: [y(), n, y(), p('A static build you host, or publish with Chromatic.'), y(), p('Figma Sites, with no docs template.')],
+        cells: [y(), n, y(), p('Static build, self-hosted', 'A static build you host, or publish with Chromatic.'), y(), p('No docs template', 'Figma Sites, with no docs template.')],
       },
       {
         feature: 'Adoption audit in product code',
@@ -239,10 +245,10 @@ export const GROUPS: CompareGroup[] = [
         cells: [
           y(),
           n,
-          y('On Enterprise.'),
+          y('On Enterprise.', 'Enterprise'),
           n,
-          y('On Enterprise, for React and Angular.'),
-          p('Library analytics count use in Figma files, not code.'),
+          y('On Enterprise, for React and Angular.', 'Enterprise'),
+          p('Figma files only', 'Library analytics count use in Figma files, not code.'),
         ],
       },
     ],
@@ -253,7 +259,7 @@ export const GROUPS: CompareGroup[] = [
       {
         feature: 'Works with AI agents, through MCP',
         detail: '',
-        cells: [y(), n, y(), y('MCP server in preview.'), y(), y()],
+        cells: [y(), n, y(), y('MCP server in preview.', 'In preview'), y(), y()],
       },
     ],
   },
@@ -292,7 +298,13 @@ export const SOURCES: Record<(typeof TOOLS)[number], { label: string; href: stri
   ],
 };
 
-/** The words a cell reads: "Yes", "In part: tokens only.", "No". */
+/**
+ * The words a cell reads: "Yes", "No", "Yes: MIT.", or with a short label "In part: Tokens only." then the note
+ * when it says more than the label.
+ */
 export function cellText(c: Cell): string {
-  return c.note ? `${STATE_LABEL[c.state]}: ${c.note}` : STATE_LABEL[c.state];
+  const state = STATE_LABEL[c.state];
+  if (!c.short) return c.note ? `${state}: ${c.note}` : state;
+  const head = `${state}: ${c.short}.`;
+  return c.note && c.note !== `${c.short}.` ? `${head} ${c.note}` : head;
 }
