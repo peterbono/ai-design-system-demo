@@ -1,7 +1,7 @@
 // Studio Settings: approvals in plain words and the Claude connect command.
 import { describe, expect, it } from 'vitest';
 import { tierSummaries } from './governance';
-import { accountView, appReach, approvalRules, changesInConfig, changesProposal, effectiveChanges, INTERIM_APP_TEXT, overrideText, READ_ONLY_APP_TEXT, soloOwnerRow, suggestAppText, plainApprovals, ruleSentence, withChanges } from './settings-view';
+import { accountView, appReach, approvalRules, changesInConfig, changesProposal, effectiveChanges, INTERIM_APP_TEXT, READ_ONLY_APP_TEXT, soloOwnerRow, suggestAppText, plainApprovals, ruleSentence, withChanges } from './settings-view';
 
 const GOVERNANCE = `# Governance
 
@@ -116,22 +116,6 @@ describe('only owner', () => {
     expect(soloOwnerRow({ owners, rights: null, soloOwnerCanApproveBoth: true })).toEqual({ label: 'Only owner', help: 'A design system run by one person.', value: 'As the only owner, @peterbono approves design and code in one review.' });
     expect(soloOwnerRow({ owners, rights: null, soloOwnerCanApproveBoth: false })).toBeNull();
     expect(soloOwnerRow({ owners: { design: ['dana'], tech: ['theo'] }, rights: null, soloOwnerCanApproveBoth: true })).toBeNull();
-  });
-});
-
-describe('owner override', () => {
-  it('names who may merge past missing approvals, and the reason rule', () => {
-    expect(overrideText({ allowed: ['ana', 'bo'], requireReason: true, minReasonLength: 20 })).toEqual({
-      on: true,
-      text: '@ana, @bo may merge a branch when only approvals are missing, with a written reason of 20 characters or more.',
-    });
-    expect(overrideText({ allowed: ['ana'], requireReason: false }).text).toBe('@ana may merge a branch when only approvals are missing.');
-    // The demo names its persona once, whoever the config lists.
-    expect(overrideText({ allowed: ['ana', 'bo'], requireReason: false }, () => 'Dana').text).toBe('Dana may merge a branch when only approvals are missing.');
-  });
-
-  it('says what happens when nobody may override', () => {
-    expect(overrideText({ allowed: [] })).toEqual({ on: false, text: 'Every branch waits for its approvals before it is merged.' });
   });
 });
 

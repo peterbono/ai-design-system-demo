@@ -2,8 +2,8 @@
 // browser (scripts/team-data.ts, the same read every team page shares; a signed-out visitor's reads are answered from
 // the team's published activity, no GitHub API call). Read only, in the bands of the self-hosted Settings:
 //   How changes reach your code  suggestions or pull requests (bridge.config.json `changes`)
-//   Review rules                 design and tech owners, who approves and merges, what each kind of branch needs and
-//                                the owner override (governance in bridge.config.json, the rules from docs/GOVERNANCE.md)
+//   Review rules                 design and tech owners, who approves and merges, what each kind of branch needs
+//                                (governance in bridge.config.json, the rules from docs/GOVERNANCE.md)
 //   Safety                       when the visual before and after runs
 // On the sample team (Acme Design) this is the full Settings with its persona, never the repository's accounts; on any
 // other team, Bridge's own design system included, it is that team's own setup.
@@ -14,7 +14,7 @@ import { parseOwnerEntry } from '@bridge-ds/core';
 import ChangeRules from './ChangeRules';
 import { TeamLoadError, TeamLoadProgress, useTeamData } from './TeamState';
 import { OWNER_GROUP_HELP, OWNER_GROUP_LABEL, roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL } from '../../../lib/roles-view';
-import { CHANGES_CHOICE, overrideText, soloOwnerRow } from '../../../lib/settings-view';
+import { CHANGES_CHOICE, soloOwnerRow } from '../../../lib/settings-view';
 import { demoSettingsPeople, isSampleTeam } from '../../../lib/demo';
 
 export interface TeamSettingsProps {
@@ -80,7 +80,6 @@ export default function TeamSettings({ rules }: TeamSettingsProps) {
   const roles = roleRows(site.owners, site.rights);
   const realSolo = soloOwnerRow(site);
   const solo = demo ? (realSolo && demo.solo ? { ...realSolo, value: demo.solo } : null) : realSolo;
-  const override = demo ? overrideText(site.override, demo.nameOf) : overrideText(site.override);
   const mode = site.visualImpact.mode;
   return (
     <>
@@ -138,7 +137,7 @@ export default function TeamSettings({ rules }: TeamSettingsProps) {
             </div>
           </CardBody>
         </Card>
-        <ChangeRules rules={rules} override={override} />
+        <ChangeRules rules={rules} />
       </Band>
 
       <Band id="safety" title="Safety" intro="When the visual before and after runs on a branch.">

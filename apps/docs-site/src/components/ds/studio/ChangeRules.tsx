@@ -1,13 +1,13 @@
 // Settings > Review rules: which changes need which approvals, as one small DS Table in plain words (no tier numbers,
-// from docs/GOVERNANCE.md through approvalRules), then the owner override folded in a flush DS Accordion under it.
-import { Accordion, AccordionItem, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
+// from docs/GOVERNANCE.md through approvalRules). The owner override stays a rule of bridge.config.json and of the
+// merge flow; Settings does not show it, since designers never act on it.
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
 
 export interface ChangeRulesProps {
   rules: { what: string; who: string }[];
-  override: { on: boolean; text: string };
 }
 
-export default function ChangeRules({ rules, override }: ChangeRulesProps) {
+export default function ChangeRules({ rules }: ChangeRulesProps) {
   return (
     <div className="set-change-rules">
       <Table aria-label="Approvals each kind of branch needs">
@@ -26,11 +26,6 @@ export default function ChangeRules({ rules, override }: ChangeRulesProps) {
           ))}
         </TableBody>
       </Table>
-      <Accordion appearance="flush" headingLevel={4}>
-        <AccordionItem value="override" title={`Owner override: ${override.on ? 'on' : 'off'}`}>
-          {override.text}
-        </AccordionItem>
-      </Accordion>
     </div>
   );
 }

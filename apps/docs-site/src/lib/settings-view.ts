@@ -2,7 +2,7 @@
 //
 // - Approvals as a rule list without tier numbers, built from the Risk tiers table of docs/GOVERNANCE.md (the same
 //   rows How review works shows), so the plain list never drifts from the rules.
-// - The Account block for each connection state, and the owner override as one line.
+// - The Account block for each connection state.
 // - How changes reach your code: the two modes in words (shared with the onboarding checklist), what the GitHub App
 //   may do on the repository, and the format-preserving edit of `changes` in bridge.config.json.
 import { fromPlain, getEntry, parseJson, serializeJson, soloOwnerOf, soloOwnerSentence, toPlain, type ChangesMode, type JsonObject, type Owners, type Rights } from '@bridge-ds/core';
@@ -146,14 +146,6 @@ export function accountView(state: AccountState, at: AccountFacts): AccountView 
             actionKind: 'token',
           };
   }
-}
-
-/** The owner override in one line, for its fold in Review rules. `nameOf` names a login (the demo names its persona). */
-export function overrideText(o: { allowed: string[]; requireReason?: boolean; minReasonLength?: number }, nameOf: (login: string) => string = (l) => `@${l}`): { on: boolean; text: string } {
-  if (!o.allowed.length) return { on: false, text: 'Every branch waits for its approvals before it is merged.' };
-  const who = [...new Set(o.allowed.map(nameOf))].join(', ');
-  const reason = o.requireReason ? `, with a written reason of ${o.minReasonLength ?? 0} characters or more` : '';
-  return { on: true, text: `${who} may merge a branch when only approvals are missing${reason}.` };
 }
 
 /**

@@ -940,7 +940,8 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     // The site moved to another GitHub App and removed the old sign-in: ask for a new one, like an expired sign-in.
     const switched = !viewer && !rejected && signIn && signInSwitched();
     // Same block as a refused token: the alert line and a Sign in again button.
-    const state = viewer ? 'connected' : rejected || switched ? 'rejected' : !checked && getToken() ? 'checking' : 'readonly';
+    // A sign-in link from an email being spent is a session on its way, not a signed-out visitor: no Sign in meanwhile.
+    const state = viewer ? 'connected' : rejected || switched ? 'rejected' : (!checked && getToken()) || contributeLink === 'checking' ? 'checking' : 'readonly';
     document.querySelectorAll<HTMLElement>('[data-gh-connect]').forEach((block) => {
       block.dataset.state = state;
       block.dataset.mode = app ? 'app' : 'token';
@@ -965,6 +966,12 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
         const short = el.hasAttribute('data-gh-login');
         el.textContent = email ? (short ? (email.name ?? email.login) : email.login) : viewer ? (short ? viewer.login : login) : '';
       });
+      // The side nav's account row: an email contributor's second line is their email, in place of the repository.
+      acct.querySelectorAll<HTMLElement>('[data-gh-email]').forEach((el) => {
+        el.textContent = email ? email.login : '';
+        el.hidden = !email;
+      });
+      acct.querySelectorAll<HTMLElement>('[data-gh-acct-repo]').forEach((el) => (el.hidden = Boolean(email)));
       acct.querySelectorAll<HTMLElement>('[data-gh-menu-title]').forEach((el) => (el.textContent = email ? CONTRIBUTE_WORDS.account : 'GitHub'));
       const avatar = acct.querySelector<HTMLElement>('[data-gh-avatar]');
       if (avatar) {

@@ -6,20 +6,22 @@
 // When GitHub refuses the saved token (revoked, regenerated or expired), the block says so with a Reconnect button
 // instead of the account. Painted by scripts/github-session.ts (every [data-gh-connect] block gets data-state
 // readonly|checking|connected|rejected).
-// With a GitHub App (docs/SIGN-IN.md) the button is "Sign in with GitHub" and goes straight to GitHub, and the menu
-// has no "Change token": the designer UI never offers a token paste then. The rejected and menu wording follows the
-// session kind. An email contributor (lib/contribute.ts, real teams only) reads "Your account": their name, email and
-// the DS drawn face (never initials), and Sign out. The block is the same on every Studio page: one full-width DS Button, the read-only line under it as
+// With a GitHub App (docs/SIGN-IN.md) the button is "Sign in" with a neutral sign-in icon, since a team may also let
+// people in with their email: on such a team it opens the team's sign-in screen (both ways in, components/ds/studio/
+// NoAccess.tsx), elsewhere (the sample team, a site without email sign-in) it goes straight to GitHub. The menu has
+// no "Change token" then: the designer UI never offers a token paste. The rejected and menu wording follows the
+// session kind. An email contributor (lib/contribute.ts, real teams only) gets the same account row, never a sign-in
+// button: the DS drawn face (never initials), their name, their email as the second line, and the menu with Sign out. The block is the same on every Studio page: one full-width DS Button, the read-only line under it as
 // its description.
 import { Avatar, Button, Icon, Link } from '@bridge-ds/react';
 import { siteIcon } from '../brand/site-icons';
 import ButtonLink from './ds/ButtonLink';
 import { GitHubMark } from './ds/studio/brand-icons';
-import { LogOut, Pencil, Settings } from 'lucide-react';
+import { LogIn, LogOut, Pencil, Settings } from 'lucide-react';
 import { siteRepo } from '../lib/config';
 import { teamDisplayName } from '../lib/demo';
 import { signInConfig } from '../lib/signin-config';
-import { ghButton } from '../lib/gh-wording';
+import { ghVerb } from '../lib/gh-wording';
 import { studioHref } from '../lib/team-path';
 
 interface Props {
@@ -34,8 +36,8 @@ const signIn = Boolean(signInConfig(workspace));
 
 <div class="gh-acct" data-gh-connect data-gh-acct data-state="checking">
   <div class="gh-acct-connect">
-    <Button variant="primary" iconStart={GitHubMark} fullWidth data-gh-open data-gh-signin={signIn ? '' : undefined} aria-describedby="gh-acct-note">
-      {ghButton(signIn)}
+    <Button variant="primary" iconStart={signIn ? LogIn : GitHubMark} fullWidth data-gh-open data-gh-signin={signIn ? '' : undefined} data-gh-signin-screen={signIn ? '' : undefined} aria-describedby="gh-acct-note">
+      {ghVerb(signIn)}
     </Button>
     <p class="gh-acct-note" id="gh-acct-note">{signIn ? 'Read only until you sign in' : 'Read only until connected'}</p>
   </div>
