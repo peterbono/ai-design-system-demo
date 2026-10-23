@@ -133,6 +133,18 @@ export interface SyncState {
 }
 
 /**
+ * Sync state to clear when Settings change. The base is the commit the file was last pulled from, so it still holds
+ * on another branch of the same repository: the diff against the new branch stays three-way, and the file's own edits
+ * stay edits (clearing it made every token the branch changes a conflict, such as each brand token when a brand is
+ * added). Another repository has none of it.
+ */
+export function syncResetOnSettings(before: RepoSettings, after: RepoSettings): Partial<Record<keyof SyncState, ''>> {
+  if (before.repo.trim().toLowerCase() !== after.repo.trim().toLowerCase()) return { baseSha: '', lastPullAt: '', lastPrBranch: '', lastPrUrl: '' };
+  if (before.branch.trim() !== after.branch.trim()) return { lastPrBranch: '', lastPrUrl: '' };
+  return {};
+}
+
+/**
  * Which components a scan reads (each read exports a small image per variant, so a big file takes minutes): all by
  * default, only `nodeIds`, all but `skip`, or only the ones with no baseline yet.
  */

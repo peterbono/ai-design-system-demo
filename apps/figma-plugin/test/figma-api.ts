@@ -102,8 +102,14 @@ export class SimNode {
   children: SimNode[] = [];
   x = 0;
   y = 0;
-  width = 100;
-  height = 40;
+  // Like Figma: read only, changed with resize().
+  private size = { width: 100, height: 40 };
+  get width(): number {
+    return this.size.width;
+  }
+  get height(): number {
+    return this.size.height;
+  }
   description = '';
   fills: Dict[] = [];
   strokes: Dict[] = [];
@@ -336,8 +342,7 @@ export class SimNode {
     return this.findAll((n) => c.types.includes(n.type));
   }
   resize(w: number, h: number) {
-    this.width = w;
-    this.height = h;
+    this.size = { width: w, height: h };
   }
   resizeWithoutConstraints(w: number, h: number) {
     this.resize(w, h);
@@ -429,12 +434,18 @@ export class SimNode {
   // Components
   get variantProperties(): Record<string, string> | null {
     if (this.type !== 'COMPONENT' || this.parent?.type !== 'COMPONENT_SET') return null;
-    return Object.fromEntries(
-      this.name
-        .split(',')
-        .map((p) => p.split('=').map((x) => x.trim()))
-        .filter((p) => p.length === 2) as [string, string][],
-    );
+    // Like Figma: every variant of a set is named "Prop=value, ...", with the same properties and no two alike, or
+    // the set is in error and reading any of its variants throws.
+    const parse = (name: string) => {
+      const pairs = name.split(',').map((p) => p.split('=').map((x) => x.trim()));
+      return pairs.every((p) => p.length === 2 && p[0] && p[1]) ? (Object.fromEntries(pairs) as Record<string, string>) : null;
+    };
+    const siblings = this.parent.children.filter((c) => c.type === 'COMPONENT').map((c) => parse(c.name));
+    const shape = (p: Record<string, string>) => Object.keys(p).sort().join('|');
+    const combos = siblings.map((p) => (p ? JSON.stringify(Object.entries(p).sort()) : ''));
+    const broken = siblings.some((p) => !p || shape(p) !== shape(siblings[0]!)) || new Set(combos).size !== combos.length;
+    if (broken) throw new Error('in get_variantProperties: Component set for node has existing errors');
+    return parse(this.name);
   }
   get componentPropertyDefinitions(): Record<string, { type: string; defaultValue: string | boolean; variantOptions?: string[]; preferredValues?: { type: string; key: string }[] }> {
     if (this.type !== 'COMPONENT_SET' && this.type !== 'COMPONENT') throw new Error('Not a component');

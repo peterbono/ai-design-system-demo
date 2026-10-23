@@ -3,6 +3,8 @@
 
 import { type RawBinding, type RawComponent, type RawLayer, type RawVariant, buildSignature, fnv1a, bindingKind, parseSignature, propName } from '../sync/components';
 import { EXPERIMENTAL_KEY, PUSHED_KEY, type ScanComponentsRequest, type ScannedComponentsPayload } from '../shared/messages';
+import { variantKeyOf } from '@bridge-ds/core';
+import { LONE_VARIANT, isRemovedValue, propsOfKey } from '../sync/component-pull';
 
 const NS = 'dsbridge';
 const SIGNATURE_KEY = 'signature';
@@ -138,13 +140,16 @@ async function readDefinitions(node: ComponentSetNode | ComponentNode): Promise<
     return [];
   }
   const out: RawComponent['definitions'] = [];
+  const lone = node.type === 'COMPONENT_SET' && node.children.length === 1 && isLoneVariant(node.children[0]!);
   for (const [name, d] of Object.entries(defs)) {
+    if (lone && d.type === 'VARIANT') continue;
     let def = String(d.defaultValue);
     if (d.type === 'INSTANCE_SWAP' && typeof d.defaultValue === 'string') {
       const target = await figma.getNodeByIdAsync(d.defaultValue).catch(() => null);
       def = target?.name ?? def;
     }
-    out.push({ name, type: d.type, default: def, ...(d.variantOptions ? { options: [...d.variantOptions] } : {}) });
+    // A value only an orphan has ("tone1 (removed)") is not one of the set's values.
+    out.push({ name, type: d.type, default: def, ...(d.variantOptions ? { options: d.variantOptions.filter((o) => !isRemovedValue(o)) } : {}) });
   }
   return out;
 }
@@ -185,12 +190,25 @@ async function slotsOf(variant: ComponentNode): Promise<Pick<RawVariant, 'slots'
   return { ...(Object.keys(slots).length ? { slots } : {}), ...(Object.keys(slotDefaults).length ? { slotDefaults } : {}) };
 }
 
+/** A variant's properties; none for the lone variant DS Bridge made for a spec with no axes (LONE_VARIANT). */
+function variantPropsOf(v: ComponentNode): Record<string, string> {
+  if (isLoneVariant(v)) return {};
+  try {
+    return { ...(v.variantProperties ?? {}) };
+  } catch {
+    // A set Figma holds in error refuses the read: its name says the same ("Size=md, State=Hover").
+    return propsOfKey(v.name);
+  }
+}
+
+const isLoneVariant = (v: SceneNode) => v.type === 'COMPONENT' && v.name === LONE_VARIANT && v.getSharedPluginData(NS, 'variant') === variantKeyOf({});
+
 export async function readComponent(node: ComponentSetNode | ComponentNode, reader = new Reader()): Promise<RawComponent> {
   const variants: RawVariant[] = [];
   const members = node.type === 'COMPONENT_SET' ? node.children.filter((c): c is ComponentNode => c.type === 'COMPONENT') : [node];
   for (const v of members) {
     variants.push({
-      props: node.type === 'COMPONENT_SET' ? { ...(v.variantProperties ?? {}) } : null,
+      props: node.type === 'COMPONENT_SET' ? variantPropsOf(v) : null,
       bindings: await reader.bindings(v),
       render: await renderHash(v),
       structure: structureOf(v),
