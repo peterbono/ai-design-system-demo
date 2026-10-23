@@ -105,7 +105,7 @@ describe('bridge request', () => {
     expect(await runRequest(args('request'), dir, io(gh).io)).toBe(2);
   });
 
-  it('create: dry run needs no token, a real one needs GITHUB_TOKEN or gh, the issue says source: cli', async () => {
+  it('create: dry run needs no token, a real one needs GITHUB_TOKEN, --token or --use-gh-auth, the issue says source: cli', async () => {
     const gh = fakeGitHub(OWNER, NAME, {});
     const create = ['request', 'create', '--component', 'Button', '--kind', 'new-variant', '--title', 'Add a danger ghost variant', '--summary', 'Toolbars need a quieter danger button.', '--change', 'variant=:danger-ghost'];
     const d = io(gh);
@@ -115,11 +115,14 @@ describe('bridge request', () => {
     expect(d.out()).toContain('Labels: component-change, request: new-variant, source: cli');
     expect(gh.issues).toHaveLength(0);
 
-    await expect(runRequest(args(...create), dir, io(gh).io)).rejects.toThrow(/needs a GitHub token/);
+    await expect(runRequest(args(...create), dir, io(gh).io)).rejects.toThrow(/needs a token you pass: set GITHUB_TOKEN, pass --token <token>, or add --use-gh-auth/);
     await expect(runRequest(args('request', 'create', '--component', 'Button', '--kind', 'big', '--title', 'x', '--summary', 'y'), dir, io(gh).io)).rejects.toThrow(/--kind takes/);
+    // Signed in with gh, but the gh sign-in was not passed for this write: refused, nothing sent (tests/auth.test.ts).
+    await expect(runRequest(args(...create), dir, io(gh, { ghToken: () => 'from-gh' }).io)).rejects.toThrow(/needs a token you pass/);
+    expect(gh.issues).toHaveLength(0);
 
     const c = io(gh, { ghToken: () => 'from-gh' });
-    expect(await runRequest(args(...create), dir, c.io)).toBe(0);
+    expect(await runRequest(args(...create, '--use-gh-auth'), dir, c.io)).toBe(0);
     expect(c.out()).toContain(`Created request #100: https://github.com/${OWNER}/${NAME}/issues/100`);
     expect(gh.issues[0]!.labels.map((l: any) => l.name)).toEqual(['component-change', 'request: new-variant', 'source: cli']);
     expect(gh.issues[0]!.body).toContain('| variant |  | danger-ghost |');

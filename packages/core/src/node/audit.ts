@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from '
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { loadConfig, type BridgeConfig } from '../config';
 import { globToRegExp, LayeredTokenSet, selectTokenFiles } from '../layered';
-import { AUDIT_IGNORE_DIRS, buildAuditReport, compareWithBaseline, isAuditable, planCssFixes, type CssFixEdit } from '../audit/report';
+import { AUDIT_IGNORE_DIRS, buildAuditReport, compareWithBaseline, isAuditable, planCssFixes, type CssFixEdit, type CssFixKept } from '../audit/report';
 import { DesignSystemIndex } from '../audit/ds-index';
 import { parseAllowlist } from '../audit/ignore';
 import type { AllowlistEntry, AuditReport } from '../audit/types';
@@ -145,17 +145,27 @@ export function runAudit(target: string, opts: RunAuditOptions = {}): AuditRepor
   return opts.baseline ? compareWithBaseline(report, opts.baseline) : report;
 }
 
-/** Plan (and optionally write) the safe CSS autofix for every CSS/SCSS/Less file under `target`. */
-export function fixCss(target: string, ds: DesignSystemIndex, write: boolean): { file: string; edits: CssFixEdit[] }[] {
-  const { root, files } = collectAuditFiles(target);
-  const out: { file: string; edits: CssFixEdit[] }[] = [];
+/**
+ * Plan (and optionally write) the safe CSS autofix for every CSS/SCSS/Less file under `target`, with the audit's own
+ * rules: the files bridge.config.json excludes from the audit (audit.exclude) are left alone, and so are the values an
+ * ignore comment or the allowlist keeps (returned in `kept`).
+ */
+export function fixCss(
+  target: string,
+  ds: DesignSystemIndex,
+  write: boolean,
+  opts: { exclude?: string[] | undefined; allowlist?: AllowlistEntry[] | undefined } = {},
+): { file: string; edits: CssFixEdit[]; kept: CssFixKept[] }[] {
+  const { root, files } = collectAuditFiles(target, opts.exclude ?? []);
+  const out: { file: string; edits: CssFixEdit[]; kept: CssFixKept[] }[] = [];
   for (const f of files) {
     const lang = f.path.endsWith('.scss') || f.path.endsWith('.sass') ? 'scss' : f.path.endsWith('.less') ? 'less' : f.path.endsWith('.css') ? 'css' : null;
     if (!lang) continue;
-    const plan = planCssFixes(f.text, lang, ds);
-    if (!plan.edits.length) continue;
-    if (write) writeFileSync(join(root, f.path), plan.output);
-    out.push({ file: f.path, edits: plan.edits });
+    const allowlist = (opts.allowlist ?? []).filter((e) => toPosix(e.file) === f.path);
+    const plan = planCssFixes(f.text, lang, ds, { allowlist });
+    if (!plan.edits.length && !plan.kept.length) continue;
+    if (write && plan.edits.length) writeFileSync(join(root, f.path), plan.output);
+    out.push({ file: f.path, edits: plan.edits, kept: plan.kept });
   }
   return out;
 }

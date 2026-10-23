@@ -3,8 +3,9 @@
 // applies with their own git and GitHub access. The same @bridge-ds/mcp operations Claude calls
 // (bridge_list_suggestions, bridge_get_suggestion, bridge_review_suggestion, bridge_apply_suggestion).
 import { SUGGESTION_APPLY_EXIT, SUGGESTION_STATUS_LABEL, type ChangesMode, type SuggestionStatus } from '@bridge-ds/core';
-import { BridgeContext, suggestions } from '@bridge-ds/mcp';
+import { suggestions } from '@bridge-ds/mcp';
 import { defaultIO, type RequestIO } from './request.js';
+import { cliContext, TOKEN_HELP, type Access } from './auth.js';
 
 export interface SuggestArgs {
   _: string[];
@@ -29,7 +30,7 @@ Usage:
   bridge review <n> --approve | --request-changes --message "..." | --decline --message "..." [--version <sha>]
                      as the owner your GitHub token belongs to; counts only for owners in bridge.config.json
 
-GitHub token: GITHUB_TOKEN or BRIDGE_GITHUB_TOKEN, else \`gh auth token\`. Reading a public repo works without one.
+${TOKEN_HELP}
 Exit codes (apply): 0 applied, already applied or a clean dry run; 1 not approved, blocked by a check or refused;
 2 usage or setup error; 3 conflict with today's code.`;
 
@@ -42,14 +43,7 @@ export function changesFlag(a: SuggestArgs): ChangesMode | undefined {
   return has(a, 'direct') ? 'direct' : has(a, 'suggest') ? 'suggest' : undefined;
 }
 
-function tokenFrom(io: RequestIO): string | undefined {
-  return io.env.BRIDGE_GITHUB_TOKEN || io.env.GITHUB_TOKEN || io.ghToken();
-}
-
-async function context(root: string, io: RequestIO): Promise<BridgeContext> {
-  const token = tokenFrom(io);
-  return BridgeContext.create({ root, ...(token ? { token } : {}), ...(io.fetch ? { fetch: io.fetch } : {}) });
-}
+const context = (root: string, io: RequestIO, a: SuggestArgs, access: Access) => cliContext(root, io, a, access);
 
 function issueNumber(raw: string | undefined, usage: string): number {
   const n = Number((raw ?? '').replace(/^#/, ''));
@@ -70,7 +64,7 @@ export async function runSuggestions(a: SuggestArgs, root: string, io: RequestIO
       if (!STATUSES.includes(status)) throw new SuggestUsageError(`--status takes ${STATUSES.join(', ')}, got "${status}"`);
       const kind = flag(a, 'kind');
       if (kind && !KINDS.includes(kind)) throw new SuggestUsageError(`--kind takes ${KINDS.join(', ')}, got "${kind}"`);
-      const ctx = await context(root, io);
+      const ctx = await context(root, io, a, 'read');
       const r = await suggestions.listSuggestionsOp(ctx, { status: status as suggestions.SuggestionStatusFilter, ...(kind ? { kind: kind as never } : {}) });
       if (has(a, 'json')) return io.print(JSON.stringify(r, null, 2)), 0;
       if (!r.suggestions.length) return io.print(`No ${status === 'all' ? 'open ' : `${status} `}suggestion in ${r.repo}.`), 0;
@@ -83,7 +77,7 @@ export async function runSuggestions(a: SuggestArgs, root: string, io: RequestIO
     }
     case 'show': {
       const n = issueNumber(a._[2], 'bridge suggestions show <number>');
-      const ctx = await context(root, io);
+      const ctx = await context(root, io, a, 'read');
       const r = (await suggestions.getSuggestionOp(ctx, { number: n })) as Record<string, any>;
       if (has(a, 'json')) return io.print(JSON.stringify(r, null, 2)), 0;
       io.print(`#${r.number} ${r.title}`);
@@ -117,7 +111,7 @@ export async function runSuggestions(a: SuggestArgs, root: string, io: RequestIO
       const pr = prRaw ? issueNumber(prRaw, 'bridge suggestions link <number> --pr <m>') : undefined;
       const branch = flag(a, 'branch');
       if (!pr && !branch) throw new SuggestUsageError('Usage: bridge suggestions link <number> --pr <m> (or --branch <name>)');
-      const ctx = await context(root, io);
+      const ctx = await context(root, io, a, 'write');
       const r = await suggestions.linkSuggestionOp(ctx, { number: n, ...(pr ? { pr } : {}), ...(branch ? { branch } : {}) });
       if (has(a, 'json')) return io.print(JSON.stringify(r, null, 2)), 0;
       io.print(`#${n} is being applied${pr ? ` in #${pr}` : branch ? ` on ${branch}` : ''}.`);
@@ -137,7 +131,8 @@ export async function runApply(a: SuggestArgs, root: string, io: RequestIO = def
   const n = issueNumber(a._[1], 'bridge apply <number> [--write | --patch] [--dry-run]');
   if (has(a, 'write') && has(a, 'patch')) throw new SuggestUsageError('Pass --write or --patch, not both.');
   const mode = has(a, 'write') ? 'write' : has(a, 'patch') ? 'patch' : 'branch';
-  const ctx = await context(root, io);
+  // Applying writes locally; with a token it also says so on the issue (a comment and a label).
+  const ctx = await context(root, io, a, has(a, 'dry-run') ? 'read' : 'write');
   if (ctx.mode !== 'local' || !ctx.isGit) throw new SuggestUsageError('bridge apply runs in a git checkout of the design system: cd into it, or pass --root.');
   const branch = flag(a, 'branch');
   const r = (await suggestions.applySuggestionOp(ctx, {
@@ -182,7 +177,7 @@ export async function runReview(a: SuggestArgs, root: string, io: RequestIO = de
   if ((event === 'request-changes' || event === 'decline' || event === 'comment') && !message?.trim()) throw new SuggestUsageError(`--${event} needs --message "..." (the author reads it).`);
   const role = flag(a, 'role');
   if (role && !['design', 'tech', 'approval'].includes(role)) throw new SuggestUsageError(`--role takes design, tech or approval, got "${role}"`);
-  const ctx = await context(root, io);
+  const ctx = await context(root, io, a, 'write');
   const version = flag(a, 'version');
   const r = (await suggestions.reviewSuggestionOp(ctx, {
     number: n,

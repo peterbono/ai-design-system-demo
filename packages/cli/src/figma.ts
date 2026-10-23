@@ -3,9 +3,10 @@
 // without a token on a public repo; writes need one.
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { BridgeContext, branches, figma } from '@bridge-ds/mcp';
+import { branches, figma } from '@bridge-ds/mcp';
 import { defaultIO, RequestUsageError, type RequestArgs, type RequestIO } from './request.js';
 import { changesFlag } from './suggest.js';
+import { cliContext, TOKEN_HELP, type Access } from './auth.js';
 
 export const FIGMA_HELP = `bridge figma: component changes sent from Figma
 
@@ -19,14 +20,12 @@ Usage:
                                                  send a structured component diff like the plugin does: an exact
                                                  token change, or a branch with the spec for Claude AI
 
-GitHub token: GITHUB_TOKEN or BRIDGE_GITHUB_TOKEN, else \`gh auth token\`. Exit codes: 0 ok, 2 usage or setup error.`;
+${TOKEN_HELP}
+Exit codes: 0 ok, 2 usage or setup error.`;
 
 const has = (a: RequestArgs, k: string) => Boolean(a.flags[k]);
 
-async function context(root: string, io: RequestIO): Promise<BridgeContext> {
-  const token = io.env.BRIDGE_GITHUB_TOKEN || io.env.GITHUB_TOKEN || io.ghToken();
-  return BridgeContext.create({ root, ...(token ? { token } : {}), ...(io.fetch ? { fetch: io.fetch } : {}) });
-}
+const context = (root: string, io: RequestIO, a: RequestArgs, access: Access) => cliContext(root, io, a, access);
 
 function number(a: RequestArgs, usage: string): number {
   const raw = a._[2];
@@ -41,14 +40,16 @@ export async function runFigma(a: RequestArgs, root: string, io: RequestIO = def
     return 0;
   }
   const json = has(a, 'json');
-  const ctx = await context(root, io);
+  const writes = (sub === 'drafted' || sub === 'push') && !has(a, 'dry-run');
+  const ctx = await context(root, io, a, writes ? 'write' : 'read');
   const out = (r: unknown, text: () => void) => (json ? io.print(JSON.stringify(r, null, 2)) : text(), 0);
   switch (sub) {
     case undefined:
     case 'list': {
       const r = await figma.figmaChangesOp(ctx, { state: has(a, 'all') ? 'all' : 'open' });
       return out(r, () => {
-        for (const c of r.changes) io.print(`#${c.pr} ${c.title} (${c.route}): ${c.status}. ${c.said}`);
+        // The route only when the status does not already say it ("Drafted with Claude" needs no "(Claude AI drafts)").
+        for (const c of r.changes) io.print(`#${c.pr} ${c.title}${/Claude/.test(c.status) ? '' : ` (${c.route})`}: ${c.status}. ${c.said}`);
         io.print(`Next: ${r.next}`);
       });
     }
@@ -60,7 +61,7 @@ export async function runFigma(a: RequestArgs, root: string, io: RequestIO = def
         return io.runClaude(r.brief, root);
       }
       return out(r, () => {
-        io.print(`#${r.pr} ${r.title} (${r.route}): ${r.status}. ${r.said}`);
+        io.print(`#${r.pr} ${r.title}${/Claude/.test(r.status) ? '' : ` (${r.route})`}: ${r.status}. ${r.said}`);
         io.print(`  ${r.url}`);
         if (r.brief) io.print(`\n${r.brief}`);
       });

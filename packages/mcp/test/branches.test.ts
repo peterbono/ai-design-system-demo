@@ -1,6 +1,8 @@
 // Studio parity over an in-memory GitHub: every action a designer takes on a branch in Bridge Studio, from Claude or
 // the terminal, through the same @bridge-ds/core functions (review-gate, branch-actions, library-update, share-branch,
 // combine-branches, docs-proposal, products). Reads need no token; writes need one and say how to fix it.
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BridgeContext, branches, ops, studio } from '../dist/lib.js';
 import { previewComment } from '@bridge-ds/core';
@@ -320,7 +322,11 @@ describe('docs, settings, Figma coverage', () => {
     expect(JSON.stringify(s)).not.toMatch(/"t"|Bearer/);
     const f = (await studio.figmaCoverage(await ro(), { component: 'Button' })) as any;
     expect(f.components).toEqual([{ name: 'Button', inFigma: 'Yes' }]);
-    expect(f.summary).toMatch(/components are in Figma/);
+    // One component count: the folders, as snapshot.json counts them; the other numbers say what they are.
+    const folders = readdirSync(join(REPO, 'packages/react/src/components')).length;
+    expect(f.summary).toMatch(new RegExp(`^\\d+ of the ${folders} components are in Figma`));
+    expect(f.summary).toMatch(/layout helpers, built with auto layout/);
+    expect(f.summary).toMatch(/component sets: popups, items/);
     expect(f.fidelity).toMatch(/No code images/);
     await expect(studio.figmaCoverage(await ro(), { component: 'Nope' })).rejects.toThrow(/not in the coverage list/);
   });

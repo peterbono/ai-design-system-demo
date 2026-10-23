@@ -16,6 +16,7 @@ import { runFigma } from './figma.js';
 import { snapshotLines, writeSnapshot } from './snapshot.js';
 import { changesFlag, runApply, runReview, runSuggestions } from './suggest.js';
 import { defaultIO } from './request.js';
+import { chooseToken, cliContext, needsWriteToken, WRITE_TOKEN_HOW, type Access } from './auth.js';
 import { protectionReport, type ProtectionReport } from './protection.js';
 import { rolesReport, type RolesReport } from './roles.js';
 import { brand, BridgeContext, CONFIG_FILE, core, detectConfig, GitRefSource, history as hist, LocalSource, ops, optionsFromArgv, serveStdio, toConfigJson, type BridgeConfig } from '@bridge-ds/mcp';
@@ -37,7 +38,9 @@ Usage:
                                       teams named as owners, reporting teams it cannot read (neither
                                       changes the exit code; --offline skips both). Exit 0 ok, 1 failures,
                                       2 setup error
-  bridge tokens <query> [--json]      search tokens by name, description or value
+  bridge tokens <query> [--limit 20] [--json]
+                                      search tokens by name, description or value (the best 20 first,
+                                      and how many more match)
   bridge diff <base> [--json|--md]    designer-readable token diff: working tree vs <base> (git ref)
   bridge propose --title "..." --set path=value [--set ...] [--file f | --mode theme=dark]
                  [--edits edits.json] [--summary "..."] [--branch explore/<name>] [--pr <n>]
@@ -83,7 +86,9 @@ Usage:
                                       --allowlist lists known file:line exceptions, each with a reason.
                                       Ignored items stay listed in the report.
                                       Exit 0 ok, 1 under --fail-under or regressed, 2 setup error
-  bridge audit <path> --fix [--write] safe autofix: CSS values equal to a token become var(--token).
+  bridge audit <path> --fix [--write] [--allowlist known.json] [--json]
+                                      safe autofix: CSS values equal to a token become var(--token), with
+                                      the audit's exceptions (ignore comments, --allowlist, audit.exclude).
                                       Dry run unless --write
   bridge snapshot [--out bridge-data] [--audit <path>[=label] ...] [--audit-report <file|dir> ...]
                  [--branch main] [--activity [--repo owner/name]] [--json]
@@ -144,15 +149,24 @@ Usage:
   bridge docs save <Component> --file docs.json [--pr n] [--jira DS-42] [--product key] [--dry-run]
                                       save usage guidance as in the Library edit mode (GitHub token)
   bridge mcp [--root dir | --repo owner/name]   start the MCP server on stdio
+  bridge --version | -v                 the CLI version.   bridge --help | -h   this help
 
 Options:
   --root <dir>   repo root (default: current directory)
   --ds <dir>     audit: design system repo with bridge.config.json (default: --root, or the nearest one above)
-  GITHUB_TOKEN   env, optional: lets bridge file suggestions and requests (Issues: read and write) and the
-                 MCP server open PRs on a remote repo in direct mode (else \`gh auth token\`). Never needed for
-                 local token work in direct mode.
+  GITHUB_TOKEN   env (or BRIDGE_GITHUB_TOKEN), or --token <token>: the token bridge writes on GitHub with
+                 (suggestions and requests need Issues: read and write; reviews, merges and pull requests need
+                 Contents and Pull requests: read and write). Writes never use your gh sign-in on their own:
+                 add --use-gh-auth for that. Reads (list, status, show) may use it and say so on stderr.
+                 Never needed for local token work in direct mode, nor for --dry-run.
   --suggest | --direct   how a change reaches the code for this command (propose, brand create, revert,
                  docs save, pieces open, figma push). Default: "changes" in bridge.config.json, else suggest.
+
+Exit codes (every command):
+  0  done, or a clean dry run
+  1  a rule said no: a check fails, a proposal or a merge is blocked, a suggestion is not approved yet
+  2  usage or setup error: a missing or unknown argument, a bad git ref, a file not found, no token for a write
+  3  bridge apply only: the suggestion conflicts with today's code
 `;
 
 interface Args {
@@ -168,7 +182,7 @@ function parse(argv: string[]): Args {
       const next = argv[i + 1];
       // --json and --md print to stdout, or write a file when followed by one (bridge audit).
       const fileArg = (k === 'json' && /\.json$/i.test(next ?? '')) || (k === 'md' && /\.(md|markdown)$/i.test(next ?? ''));
-      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking', 'claude', 'all', 'offline', 'approve', 'patch', 'accept-edited', 'force-unapproved', 'suggest', 'direct'].includes(k));
+      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking', 'claude', 'all', 'offline', 'approve', 'patch', 'accept-edited', 'force-unapproved', 'suggest', 'direct', 'use-gh-auth'].includes(k));
       (out.flags[k] ??= []).push(inline ?? (takesValue ? argv[++i]! : 'true'));
     } else out._.push(a);
   }
@@ -178,8 +192,8 @@ const flag = (a: Args, k: string) => a.flags[k]?.[a.flags[k]!.length - 1];
 const has = (a: Args, k: string) => Boolean(a.flags[k]);
 const print = (s: string) => process.stdout.write(`${s}\n`);
 const modeArg = (s?: string) => (s ? Object.fromEntries(s.split(',').map((kv) => kv.split('=') as [string, string])) : undefined);
-/** The GitHub token the GitHub commands use: GITHUB_TOKEN, BRIDGE_GITHUB_TOKEN, else `gh auth token`. */
-const githubToken = () => process.env.BRIDGE_GITHUB_TOKEN || process.env.GITHUB_TOKEN || defaultIO().ghToken();
+/** The context of a command: the token it may use (src/auth.ts), and messages in the words of the CLI. */
+const context = (a: Args, root: string, access: Access) => cliContext(root, defaultIO(), a, access);
 /** Where a change went: the suggestion filed, the branch opened, or why nothing was sent. */
 function printSent(r: Record<string, any>) {
   if (r.status === 'suggested') print(`suggestion: #${r.number} ${r.url}`);
@@ -224,7 +238,7 @@ async function init(a: Args, root: string) {
 }
 
 async function check(a: Args, root: string): Promise<number> {
-  const ctx = await BridgeContext.create({ root });
+  const ctx = await context(a, root, 'local');
   const v = await ops.validateTokens(ctx, { includeWarnings: true });
   const c = await ops.checkContrast(ctx, {});
   const warnings = 'warnings' in v ? (v.warnings ?? []) : [];
@@ -280,18 +294,32 @@ async function rolesOf(a: Args, root: string, ctx: BridgeContext): Promise<Roles
 async function tokens(a: Args, root: string) {
   const q = a._.slice(1).join(' ');
   if (!q) throw new UsageError('bridge tokens <query>');
-  const ctx = await BridgeContext.create({ root });
-  const r = await ops.searchTokens(ctx, { query: q, limit: Number(flag(a, 'limit') ?? 20) });
+  const ctx = await context(a, root, 'local');
+  const limit = Number(flag(a, 'limit') ?? 20);
+  if (!Number.isInteger(limit) || limit < 1) throw new UsageError('--limit needs a whole number, e.g. --limit 50');
+  const r = await ops.searchTokens(ctx, { query: q, limit });
   if (has(a, 'json')) return print(JSON.stringify(r, null, 2));
   if (!r.results.length) return print(`No token matches "${q}".`);
   const w = Math.max(...r.results.map((x) => x.path.length));
   for (const t of r.results) print(`${t.path.padEnd(w)}  ${String(t.value).padEnd(10)}  ${(t.tier ?? '').padEnd(9)}  ${t.description ?? ''}`);
+  if (r.truncated) print(`\n${r.truncated}`);
+}
+
+/** Whether `ref` names a commit in the repo at `root` (a branch, a tag, HEAD~1, a sha). */
+function gitRefExists(root: string, ref: string): boolean {
+  try {
+    execFileSync('git', ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], { cwd: root, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function diff(a: Args, root: string): Promise<number> {
   const base = a._[1];
   if (!base) throw new UsageError('bridge diff <base>   (a git ref: main, HEAD~1, a sha)');
-  const ctx = await BridgeContext.create({ root });
+  if (!gitRefExists(root, base)) throw new UsageError(`"${base}" is not a branch, tag or commit in ${root}. Pass a git ref: main, HEAD~1, a sha (\`git branch -a\` lists the branches).`);
+  const ctx = await context(a, root, 'local');
   const { config } = await ctx.config();
   const before = await core.loadTokenSet(new GitRefSource(root, base), config);
   const after = await ctx.tokens();
@@ -345,9 +373,8 @@ async function propose(a: Args, root: string): Promise<number> {
   if (!edits.length) throw new UsageError('Give at least one --set path=value or --edits file.json');
   const pr = flag(a, 'pr');
   const changes = changesFlag(a);
-  // Adding to a branch in review and filing a suggestion write on GitHub: the token the other GitHub commands use.
-  const token = pr || changes !== 'direct' ? githubToken() : undefined;
-  const ctx = await BridgeContext.create({ root, ...(token ? { token } : {}) });
+  // Adding to a branch in review and filing a suggestion write on GitHub: only with a token passed on purpose.
+  const ctx = await context(a, root, pr || changes !== 'direct' ? (has(a, 'dry-run') ? 'read' : 'write') : 'local');
   const summary = flag(a, 'summary');
   const branch = flag(a, 'branch');
   const jira = flag(a, 'jira');
@@ -377,9 +404,10 @@ async function propose(a: Args, root: string): Promise<number> {
 
 async function brandCmd(a: Args, root: string): Promise<number> {
   const sub = a._[1];
+  if (sub === 'help' || has(a, 'help')) return print(BRAND_HELP), 0;
+  if (!sub) return print(BRAND_HELP), 2;
   const changes = changesFlag(a);
-  const token = sub === 'create' && changes !== 'direct' ? githubToken() : undefined;
-  const ctx = await BridgeContext.create({ root, ...(token ? { token } : {}) });
+  const ctx = await context(a, root, sub === 'create' && changes !== 'direct' ? (has(a, 'dry-run') ? 'read' : 'write') : 'local');
   if (sub === 'list') {
     const r = await brand.listBrands(ctx);
     if (has(a, 'json')) print(JSON.stringify(r.brands, null, 2));
@@ -495,7 +523,7 @@ async function impact(a: Args, root: string): Promise<number> {
 const day = (iso: string) => iso.slice(0, 10);
 
 async function historyCmd(a: Args, root: string): Promise<number> {
-  const ctx = await BridgeContext.create({ root });
+  const ctx = await context(a, root, 'local');
   const token = a._[1];
   const limit = Number(flag(a, 'limit') ?? 20);
   if (token) {
@@ -531,8 +559,7 @@ async function revertCmd(a: Args, root: string): Promise<number> {
   const target = a._[1];
   if (!target) throw new UsageError('bridge revert <pr|commit|id> [--dry-run]   (ids from `bridge history`)');
   const changes = changesFlag(a);
-  const token = changes !== 'direct' ? githubToken() : undefined;
-  const ctx = await BridgeContext.create({ root, ...(token ? { token } : {}) });
+  const ctx = await context(a, root, changes !== 'direct' ? (has(a, 'dry-run') ? 'read' : 'write') : 'local');
   const resolutions = Object.fromEntries((a.flags['use-before'] ?? []).map((k) => [k, 'use-before' as const]));
   const r = (await hist.proposeRevert(ctx, { target, resolutions, restoreConflicts: has(a, 'restore-conflicts'), dryRun: has(a, 'dry-run'), ...(changes ? { changes } : {}), source: 'cli' })) as Record<string, any>;
   if (has(a, 'json')) {
@@ -562,12 +589,33 @@ async function audit(a: Args, root: string): Promise<number> {
   const dsRoot = flag(a, 'ds') ? resolve(flag(a, 'ds')!) : existsSync(join(root, CONFIG_FILE)) ? root : findDesignSystemRoot(root);
   if (!dsRoot) throw new UsageError(`No ${CONFIG_FILE} found: run bridge audit from the design system repo or pass --ds <dir>.`);
   const ds = loadDesignSystem(dsRoot);
+  // The audit and its --fix read the same exceptions: --allowlist, ignore comments, audit.exclude in bridge.config.json.
+  const allowlistPath = flag(a, 'allowlist');
+  if (allowlistPath && !existsSync(allowlistPath)) throw new UsageError(`Allowlist not found: ${allowlistPath}`);
+  let allowlist;
+  try {
+    allowlist = allowlistPath ? loadAllowlist(allowlistPath) : undefined;
+  } catch (e) {
+    throw new UsageError(`${allowlistPath}: ${(e as Error).message}`);
+  }
   if (has(a, 'fix')) {
     const write = has(a, 'write');
-    const changes = fixCss(target, ds.index, write);
+    const changes = fixCss(target, ds.index, write, { exclude: ds.config.audit?.exclude ?? [], ...(allowlist ? { allowlist } : {}) });
     const n = changes.reduce((acc, c) => acc + c.edits.length, 0);
+    const kept = changes.reduce((acc, c) => acc + c.kept.length, 0);
+    const files = changes.filter((c) => c.edits.length).length;
+    const said = n
+      ? `${write ? 'Replaced' : 'Would replace'} ${n} value(s) in ${files} file(s) with exact token matches.${write ? '' : ' Run again with --write to apply.'}`
+      : 'Nothing to fix: no CSS value equals a token exactly.';
+    const keptLine = kept ? `Left as is on purpose: ${kept} value(s), by an ignore comment or the allowlist, as in the audit.` : '';
+    if (has(a, 'json')) {
+      print(JSON.stringify({ write, replaced: write ? n : 0, wouldReplace: write ? 0 : n, kept, files: changes, said }, null, 2));
+      return 0;
+    }
     for (const c of changes) for (const e of c.edits) print(`${c.file}:${e.line}:${e.column}  ${e.from} -> ${e.to}`);
-    print(n ? `${write ? 'Replaced' : 'Would replace'} ${n} value(s) in ${changes.length} file(s) with exact token matches.${write ? '' : ' Run again with --write to apply.'}` : 'Nothing to fix: no CSS value equals a token exactly.');
+    for (const c of changes) for (const k of c.kept) print(`${c.file}:${k.line}:${k.column}  ${k.from} kept (${k.via}: ${k.reason})`);
+    print(said);
+    if (keptLine) print(keptLine);
     return 0;
   }
   const baselinePath = flag(a, 'baseline');
@@ -577,14 +625,6 @@ async function audit(a: Args, root: string): Promise<number> {
     baseline = JSON.parse(await readFile(baselinePath, 'utf8')) as AuditReport;
   }
   const label = flag(a, 'label');
-  const allowlistPath = flag(a, 'allowlist');
-  if (allowlistPath && !existsSync(allowlistPath)) throw new UsageError(`Allowlist not found: ${allowlistPath}`);
-  let allowlist;
-  try {
-    allowlist = allowlistPath ? loadAllowlist(allowlistPath) : undefined;
-  } catch (e) {
-    throw new UsageError(`${allowlistPath}: ${(e as Error).message}`);
-  }
   const report = runAudit(target, { ds: dsRoot, version: VERSION, ...(label ? { label } : {}), ...(baseline ? { baseline } : {}), ...(allowlist ? { allowlist } : {}) });
   const md = auditMarkdown(report);
   const jsonOut = flag(a, 'json');
@@ -650,8 +690,9 @@ async function snapshotCmd(a: Args, root: string): Promise<number> {
   const branch = flag(a, 'branch');
   let activity: { token: string; repo?: string } | undefined;
   if (has(a, 'activity')) {
-    const token = githubToken();
-    if (!token) throw new UsageError('bridge snapshot --activity reads GitHub: set GITHUB_TOKEN (in a workflow, the run token is enough).');
+    // Reads only: GITHUB_TOKEN (in a workflow, the run token is enough), --token, or the gh sign-in (said on stderr).
+    const token = chooseToken(a, defaultIO(), 'read').token;
+    if (!token) throw new UsageError('bridge snapshot --activity reads GitHub: set GITHUB_TOKEN or pass --token <token> (in a workflow, the run token is enough).');
     const repo = flag(a, 'repo') || process.env.GITHUB_REPOSITORY || undefined;
     activity = { token, ...(repo ? { repo } : {}) };
   }
@@ -680,10 +721,35 @@ async function snapshotCmd(a: Args, root: string): Promise<number> {
   return 0;
 }
 
+const DOCS_HELP = `bridge docs: component usage guidance (Name.docs.json)
+
+Usage:
+  bridge docs draft <Component> [--json]
+                     docs.json pre-fill from the code and a prompt for Claude to write the prose. Writes nothing
+  bridge docs save <Component> --file docs.json [--pr <n>] [--title "..."] [--jira DS-42] [--product key]
+                   [--suggest | --direct] [--dry-run] [--json]
+                     save usage guidance as in the Library edit mode (GitHub token, see \`bridge --help\`)
+
+Exit codes: 0 ok, 2 usage or setup error.`;
+
+const BRAND_HELP = `bridge brand: brands (palette, radius, fonts) and new ones
+
+Usage:
+  bridge brand list [--json]
+  bridge brand create <slug> --from bridge --primary <hex|hue> --neutral <hex|hue> [--name "Acme"] [--accent x]
+                      [--link x] [--radius soft|balanced|crisp|i,c,co,o] [--heading font] [--text font]
+                      [--notes "..."] [--suggest | --direct] [--dry-run] [--json]
+                     generated ramps and the contrast gate for every theme, then a suggestion, or in direct
+                     mode a new local bridge/brand-<slug> branch (never pushes, never main)
+
+Exit codes: 0 ok, 1 blocked by the contrast gate, 2 usage or setup error.`;
+
 async function docsCmd(a: Args, root: string): Promise<number> {
   const [, sub, name] = a._;
-  if (sub !== 'draft' || !name) throw new UsageError('Usage: bridge docs draft <Component> [--json]');
-  const ctx = await BridgeContext.create({ root });
+  if (sub === 'help' || has(a, 'help')) return print(DOCS_HELP), 0;
+  if (!sub) return print(DOCS_HELP), 2;
+  if (sub !== 'draft' || !name) throw new UsageError('Usage: bridge docs draft <Component> [--json]   (`bridge docs help` for docs save)');
+  const ctx = await context(a, root, 'local');
   const d = await ops.draftDocsOp(ctx, { name });
   if (has(a, 'json')) {
     print(JSON.stringify({ component: d.component, path: d.path, exists: d.exists, prefill: d.prefill, prompt: d.prompt }, null, 2));
@@ -723,10 +789,12 @@ async function main(): Promise<number> {
   if (cmd === 'apply') return runApply(a, root);
   if (cmd === 'review') return runReview(a, root);
   if (cmd === 'products' || cmd === 'settings' || cmd === 'coverage') return runStudioRead(cmd, a, root);
-  if (cmd === 'docs' && a._[1] === 'save') return runDocsSave(a, root);
-  // `--version` parses as a flag (no command); `history --version v` keeps its own meaning.
-  if (cmd === 'version' || (!cmd && has(a, 'version'))) return print(VERSION), 0;
-  if (!cmd || has(a, 'help') || cmd === 'help') {
+  if (cmd === 'docs' && a._[1] === 'save' && !has(a, 'help')) return runDocsSave(a, root);
+  // `--version` and `-v` (no command) print the version; `history --version v` keeps its own meaning.
+  if (cmd === 'version' || cmd === '-v' || (!cmd && has(a, 'version'))) return print(VERSION), 0;
+  // Commands with their own help: `bridge docs --help`, `bridge brand --help`.
+  if ((cmd === 'docs' || cmd === 'brand') && has(a, 'help')) return cmd === 'docs' ? docsCmd(a, root) : brandCmd(a, root);
+  if (!cmd || has(a, 'help') || cmd === 'help' || cmd === '-h') {
     print(HELP);
     // Asked for (`help`, `--help`): exit 0. No command at all is a usage error: exit 2.
     return cmd || has(a, 'help') ? 0 : 2;
@@ -773,7 +841,9 @@ main().then(
     if (code >= 0) process.exitCode = code;
   },
   (e: Error) => {
-    process.stderr.write(`bridge: ${e.message}\n`);
+    // A write that went without a token the person passed: say how to pass one, in the CLI's words.
+    const how = needsWriteToken(e.message) && !e.message.includes('--use-gh-auth') ? `\nTo write on GitHub, ${WRITE_TOKEN_HOW}.` : '';
+    process.stderr.write(`bridge: ${e.message}${how}\n`);
     process.exitCode = 2;
   },
 );

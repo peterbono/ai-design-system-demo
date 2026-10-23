@@ -23,6 +23,7 @@ import { listComponentNames } from './components.js';
 import { toExplorationBranch } from './explorations.js';
 import type { BridgeContext } from './context.js';
 import { productMarks, resolveProduct } from './branches.js';
+import { addToken, say } from './say.js';
 
 export type RequestStatusFilter = RequestStatus | 'all';
 
@@ -197,7 +198,7 @@ export async function createRequest(ctx: BridgeContext, a: CreateRequestInput) {
   const issue = marks.labels.length ? { ...composed, body: `${composed.body}\n\n${marks.line}`, labels: [...composed.labels, ...marks.labels] } : composed;
   if (a.dryRun) return { status: 'dry-run' as const, issue };
   const gh = await requireGitHub(ctx);
-  if (!ctx.canWriteRemote) throw new Error('Creating a request needs GITHUB_TOKEN with Issues: read and write on this repository (Contents: read is enough, like for suggestions). Without it Bridge is read-only.');
+  if (!ctx.canWriteRemote) throw new Error(`Creating a request needs a GitHub token with Issues: read and write on this repository (Contents: read is enough, like for suggestions): ${addToken(ctx)}. Without it Bridge is read-only.`);
   const created = await gh.createIssue(issue);
   return {
     status: 'created' as const,
@@ -205,6 +206,6 @@ export async function createRequest(ctx: BridgeContext, a: CreateRequestInput) {
     url: created.url,
     title: created.title,
     labels: created.labels.length ? created.labels : issue.labels,
-    next: `Implement it with bridge_get_request {"number": ${created.number}} (or \`bridge request implement ${created.number}\`).${req.exploration ? ` It is part of ${req.exploration}: work on that branch, not in a pull request to main.` : ''}`,
+    next: `Implement it with ${say(ctx, `bridge_get_request {"number": ${created.number}}`, `\`bridge request implement ${created.number}\``)}.${req.exploration ? ` It is part of ${req.exploration}: work on that branch, not in a pull request to main.` : ''}`,
   };
 }

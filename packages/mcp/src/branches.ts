@@ -72,6 +72,7 @@ import {
 } from '@bridge-ds/core';
 import { originRepo } from '@bridge-ds/core/node';
 import type { BridgeContext } from './context.js';
+import { addToken, BlockedError, say } from './say.js';
 
 /** What a write needs from the token, per action, in the words GitHub's token settings use. */
 export const RIGHTS = {
@@ -97,7 +98,7 @@ export async function reader(ctx: BridgeContext): Promise<GitHubClient> {
  */
 export async function writer(ctx: BridgeContext, what: string, need: string): Promise<GitHubClient> {
   const gh = await reader(ctx);
-  if (!ctx.canWriteRemote) throw new Error(`${what} needs a GitHub token with ${need} on ${gh.fullName}. Set GITHUB_TOKEN (or BRIDGE_GITHUB_TOKEN) where the Bridge MCP server or the CLI runs, or do it in Bridge Studio.`);
+  if (!ctx.canWriteRemote) throw new Error(`${what} needs a GitHub token with ${need} on ${gh.fullName}: ${addToken(ctx)}, or do it in Bridge Studio.`);
   return gh.withBranchPrefix(undefined);
 }
 
@@ -188,18 +189,20 @@ export async function branchStatus(ctx: BridgeContext, a: { pr: number | string 
       blockedBy: f.gate.reasons,
       ...(viewer ? { you: viewer, youCanShip: f.gate.canShip, ownerOverride: f.gate.overridable } : { you: null, note: 'Without a GitHub token Bridge cannot tell whether you may merge.' }),
     },
-    next: nextStep(f, viewer),
+    next: nextStep(ctx, f, viewer),
   };
 }
 
-function nextStep(f: Awaited<ReturnType<typeof branchFacts>>, viewer: string | null): string {
+function nextStep(ctx: BridgeContext, f: Awaited<ReturnType<typeof branchFacts>>, viewer: string | null): string {
+  const n = f.pr.number;
   if (f.lifecycle === 'merged') return 'Merged. It goes out with the next library release.';
-  if (f.lifecycle === 'closed') return 'Closed without merging. bridge_reopen_branch reopens it when its work is still there.';
-  if (f.exploration) return 'It is an exploration: promote it with bridge_promote_exploration when the idea is validated, or close it.';
-  if (f.lifecycle === 'draft') return 'Draft: bridge_send_for_review asks for review when it is ready.';
-  if (f.fresh.state === 'conflict') return 'It conflicts with main: bridge_update_from_main shows the token conflicts to pick (code conflicts stay with a developer).';
-  if (f.gate.allowed) return viewer ? 'Ready: bridge_merge_branch merges it when the person asks.' : 'Ready to merge by someone who may ship.';
-  if (f.gate.overridable) return `Only approvals are missing and you may use the owner override: bridge_merge_branch with a reason of at least ${(f.config.governance.override ?? DEFAULT_OVERRIDE).minReasonLength} characters.`;
+  if (f.lifecycle === 'closed') return `Closed without merging. ${say(ctx, 'bridge_reopen_branch reopens it', `\`bridge branch reopen ${n}\` reopens it`)} when its work is still there.`;
+  if (f.exploration) return `It is an exploration: promote it with ${say(ctx, 'bridge_promote_exploration', `\`bridge explore promote #${n}\``)} when the idea is validated, or close it.`;
+  if (f.lifecycle === 'draft') return `Draft: ${say(ctx, 'bridge_send_for_review', `\`bridge branch ready ${n}\``)} asks for review when it is ready.`;
+  if (f.fresh.state === 'conflict') return `It conflicts with main: ${say(ctx, 'bridge_update_from_main', `\`bridge branch update ${n}\``)} shows the token conflicts to pick (code conflicts stay with a developer).`;
+  if (f.gate.allowed) return viewer ? `Ready: ${say(ctx, 'bridge_merge_branch merges it when the person asks', `\`bridge branch merge ${n}\` merges it`)}.` : 'Ready to merge by someone who may ship.';
+  const min = (f.config.governance.override ?? DEFAULT_OVERRIDE).minReasonLength;
+  if (f.gate.overridable) return `Only approvals are missing and you may use the owner override: ${say(ctx, `bridge_merge_branch with a reason (overrideReason) of at least ${min} characters`, `\`bridge branch merge ${n} --override "why"\` with a reason of at least ${min} characters`)}.`;
   return f.gate.reasons[0] ?? 'Waiting.';
 }
 
@@ -379,9 +382,9 @@ export async function sendForReview(ctx: BridgeContext, a: { pr: number | string
   const n = branchNumber(a.pr);
   const gh = await writer(ctx, 'Sending a branch for review', RIGHTS.draft);
   const [pr, viewer] = await Promise.all([gh.getPullRequest(n), gh.getViewer()]);
-  if (pr.author.toLowerCase() !== viewer.login.toLowerCase()) throw new Error(`Only its author (@${pr.author}) sends #${n} for review, as in Studio. Ask them, or comment with bridge_comment.`);
-  if (isActiveExploration(pr.labels)) throw new Error(`#${n} is an exploration: promote it with bridge_promote_exploration instead.`);
-  if (pr.state !== 'open') throw new Error(`#${n} is ${pr.state}: reopen it first with bridge_reopen_branch.`);
+  if (pr.author.toLowerCase() !== viewer.login.toLowerCase()) throw new Error(`Only its author (@${pr.author}) sends #${n} for review, as in Studio. Ask them, or comment with ${say(ctx, 'bridge_comment', `\`bridge branch comment ${n} "text"\``)}.`);
+  if (isActiveExploration(pr.labels)) throw new Error(`#${n} is an exploration: promote it with ${say(ctx, 'bridge_promote_exploration', `\`bridge explore promote #${n}\``)} instead.`);
+  if (pr.state !== 'open') throw new Error(`#${n} is ${pr.state}: reopen it first with ${say(ctx, 'bridge_reopen_branch', `\`bridge branch reopen ${n}\``)}.`);
   if (!pr.draft) return { pr: n, status: 'already-in-review' as const, said: 'It is already in review. Reviewers can see it.' };
   await gh.markReadyForReview(n);
   return { pr: n, status: 'in-review' as const, said: 'Review requested. Reviewers can see it now.', url: pr.url };
@@ -450,7 +453,7 @@ export async function listComments(ctx: BridgeContext, a: { pr: number | string 
     pr: n,
     conversation: conversation.filter((c) => !c.body.includes('<!-- bridge-branch-preview -->')).map((c) => ({ id: c.id, author: c.author, body: c.body, at: c.updatedAt })),
     threads: lines.filter((c) => !c.inReplyTo).map((c) => ({ id: c.id, author: c.author, file: c.path, line: c.line, body: c.body, url: c.url, replies: lines.filter((r) => r.inReplyTo === c.id).map((r) => ({ id: r.id, author: r.author, body: r.body })) })),
-    howToReply: 'bridge_comment with replyTo: the thread id.',
+    howToReply: say(ctx, 'bridge_comment with replyTo: the thread id.', `bridge branch comment ${n} "text" --reply-to <thread id>`),
   };
 }
 
@@ -464,12 +467,21 @@ const appliedLine = (ns: number[]) => (ns.length ? ` ${ns.length === 1 ? 'Sugges
  */
 export async function mergeBranch(ctx: BridgeContext, a: { pr: number | string; overrideReason?: string | undefined; dryRun?: boolean | undefined }) {
   const n = branchNumber(a.pr);
+  // A dry run only reads: without a token it checks every rule but who you are (who may ship, the override).
+  if (a.dryRun && !ctx.canWriteRemote) {
+    const gh = await reader(ctx);
+    const f = await branchFacts(ctx, gh, n, null);
+    // Without a viewer the gate leaves out who may ship and the override (core mergeGate), like Studio signed out.
+    const note = `Without a GitHub token Bridge cannot tell whether you may merge (who ships, the owner override): ${addToken(ctx)} to check that too.`;
+    if (f.gate.allowed) return { pr: n, status: 'would-merge' as const, said: `Every rule Bridge can check without a token passes. ${note}`, note };
+    return { pr: n, status: 'blocked' as const, blockedBy: f.gate.reasons, said: `#${n} cannot be merged yet: ${f.gate.reasons.join(' ')}`, note };
+  }
   const gh = await writer(ctx, 'Merging a branch', RIGHTS.merge);
   const viewer = (await gh.getViewer()).login;
   const f = await branchFacts(ctx, gh, n, viewer);
   const policy = f.config.governance.override ?? DEFAULT_OVERRIDE;
   const reason = a.overrideReason?.trim();
-  if (f.write === false) throw new Error(`@${viewer} cannot write to ${gh.fullName}, so GitHub refuses the merge. Ask someone with write access.`);
+  if (f.write === false) throw new BlockedError(`@${viewer} cannot write to ${gh.fullName}, so GitHub refuses the merge. Ask someone with write access.`);
   if (f.gate.allowed) {
     if (a.dryRun) return { pr: n, status: 'would-merge' as const, said: 'Every rule passes: it can be merged.' };
     const r = await mergeOnGitHub(gh, { number: n, headSha: f.pr.headSha, method: 'squash' });
@@ -477,11 +489,14 @@ export async function mergeBranch(ctx: BridgeContext, a: { pr: number | string; 
     return { pr: n, status: 'merged' as const, sha: r.sha, said: `Merged. It goes out with the next library release.${appliedLine(s.applied)}`, ...(s.warnings.length ? { warnings: s.warnings } : {}) };
   }
   if (!reason) {
-    const hint = f.gate.overridable ? ` Only approvals are missing and @${viewer} may use the owner override: pass overrideReason (at least ${policy.minReasonLength} characters), it is posted on the branch.` : '';
-    throw new Error(`#${n} cannot be merged yet: ${f.gate.reasons.join(' ')}${hint}`);
+    const how = say(ctx, `pass overrideReason (at least ${policy.minReasonLength} characters)`, `run \`bridge branch merge ${n} --override "why"\` (a reason of at least ${policy.minReasonLength} characters)`);
+    const hint = f.gate.overridable ? ` Only approvals are missing and @${viewer} may use the owner override: ${how}, it is posted on the branch.` : '';
+    const said = `#${n} cannot be merged yet: ${f.gate.reasons.join(' ')}${hint}`;
+    if (a.dryRun) return { pr: n, status: 'blocked' as const, blockedBy: f.gate.reasons, said };
+    throw new BlockedError(said);
   }
-  if (!canOverride(viewer, policy)) throw new Error(`@${viewer} is not allowed to use the owner override (governance.override.allowed in bridge.config.json). It still needs: ${f.gate.missing.join(', ') || f.gate.reasons.join(' ')}`);
-  if (!f.gate.overridable) throw new Error(`The owner override only skips missing approvals. #${n} is blocked by: ${f.gate.reasons.join(' ')}`);
+  if (!canOverride(viewer, policy)) throw new BlockedError(`@${viewer} is not allowed to use the owner override (governance.override.allowed in bridge.config.json). It still needs: ${f.gate.missing.join(', ') || f.gate.reasons.join(' ')}`);
+  if (!f.gate.overridable) throw new BlockedError(`The owner override only skips missing approvals. #${n} is blocked by: ${f.gate.reasons.join(' ')}`);
   const problem = overrideReasonProblem(reason, policy);
   if (problem) throw new Error(problem);
   if (a.dryRun) return { pr: n, status: 'would-override' as const, skips: f.gate.missing, said: 'The override would post your reason on the branch, then merge.' };
@@ -501,7 +516,7 @@ export async function closeBranch(ctx: BridgeContext, a: { pr: number | string }
   const n = branchNumber(a.pr);
   const gh = await writer(ctx, 'Closing a branch', RIGHTS.review);
   const pr = await gh.getPullRequest(n);
-  if (isActiveExploration(pr.labels)) throw new Error(`#${n} is an exploration: close it with bridge_close_exploration.`);
+  if (isActiveExploration(pr.labels)) throw new Error(`#${n} is an exploration: close it with ${say(ctx, 'bridge_close_exploration', `\`bridge explore close #${n}\``)}.`);
   if (pr.state !== 'open') return { pr: n, status: pr.state, said: `It is already ${pr.state}.` };
   await closeOnGitHub(gh, n);
   return { pr: n, status: 'closed' as const, said: 'Closed. It can be reopened while its work is still there.' };
@@ -513,12 +528,12 @@ export async function reopenBranch(ctx: BridgeContext, a: { pr: number | string 
   const gh = await writer(ctx, 'Reopening a branch', RIGHTS.review);
   const { config } = await ctx.config();
   const [pr, viewer, repo] = await Promise.all([gh.getPullRequest(n), gh.getViewer(), gh.getMergeSettings().catch(() => null)]);
-  if (pr.state === 'merged') throw new Error(`#${n} is merged: it cannot be reopened. Undo it with bridge_plan_revert and bridge_propose_revert.`);
+  if (pr.state === 'merged') throw new Error(`#${n} is merged: it cannot be reopened. Undo it with ${say(ctx, 'bridge_plan_revert and bridge_propose_revert', `\`bridge revert ${n} --dry-run\`, then \`bridge revert ${n}\``)}.`);
   const exists = await gh.getBranchSha(pr.headRef).then((s) => (s ? 'exists' : 'gone'), () => 'unknown' as const);
   const owners = [...config.governance.owners.design, ...config.governance.owners.tech];
   const ok = reopenEligibility({ state: pr.state === 'closed' ? 'closed' : 'open', viewer: viewer.login, author: pr.author, owners, canWrite: hasWriteAccess(repo?.permissions), branch: exists as 'exists' | 'gone' | 'unknown' });
   if (pr.state === 'open') return { pr: n, status: 'open' as const, said: 'It is already open.' };
-  if (ok.kind === 'gone') throw new Error(`#${n} can't be reopened: its work was removed. Start a new branch with its token edits (bridge_propose_token_change).`);
+  if (ok.kind === 'gone') throw new Error(`#${n} can't be reopened: its work was removed. Start a new branch with its token edits (${say(ctx, 'bridge_propose_token_change', '`bridge propose`')}).`);
   if (ok.kind !== 'reopen') throw new Error(`Only its author (@${pr.author}) or an owner with write access reopens #${n}, as in Studio.`);
   await reopenOnGitHub(gh, n);
   return { pr: n, status: 'open' as const, said: 'Reopened. It is back in review with its earlier approvals and checks.' };

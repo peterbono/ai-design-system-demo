@@ -4,6 +4,7 @@ import { BridgeContext, type ContextOptions } from './context.js';
 import { createServer, VERSION } from './server.js';
 
 export { BridgeContext, type ContextOptions } from './context.js';
+export { BlockedError, isBlocked, say } from './say.js';
 export { createServer, VERSION } from './server.js';
 export { CONFIG_FILE, detectConfig, parseConfig, toConfigJson, type BridgeConfig } from './config.js';
 export { core } from './core-adapter.js';

@@ -24,6 +24,7 @@ import { branchNumber, reader, viewerOf, writer } from './branches.js';
 import { appliedNext, changesFor, SUGGEST_RIGHTS, suggestionBase } from './suggestions.js';
 import type { BridgeContext } from './context.js';
 import { core, type TokenSet } from './core-adapter.js';
+import { say } from './say.js';
 
 const NEED = 'Contents and Pull requests: read and write';
 
@@ -45,7 +46,7 @@ export async function figmaChangesOp(ctx: BridgeContext, a: { state?: 'open' | '
   return {
     changes: rows.map((r) => ({ pr: r.number, title: r.title, url: r.url, branch: r.branch, component: r.origin.component, route: r.origin.route === 'token-change' ? 'exact token change' : 'Claude AI drafts', status: r.status.label, said: r.status.sentence })),
     next: rows.some((r) => r.status.key === 'waiting-for-claude')
-      ? 'Draft one: bridge_get_figma_change { pr } gives the spec and the steps.'
+      ? say(ctx, 'Draft one: bridge_get_figma_change { pr } gives the spec and the steps.', 'Draft one: `bridge figma show <n>` gives the spec and the steps (--draft runs Claude Code on it).')
       : rows.length
         ? 'Owners review them on GitHub or in Bridge Studio.'
         : 'Nothing sent from Figma is open.',
@@ -69,7 +70,7 @@ export async function getFigmaChangeOp(ctx: BridgeContext, a: { pr: number | str
     said: r.status.sentence,
     ...(r.spec ? { spec: { path: r.origin.spec, changes: r.spec.changes, variantAxes: r.spec.variantAxes, properties: r.spec.properties, tokenEdits: r.spec.tokenEdits ?? [], reasons: r.spec.reasons ?? [] } } : {}),
     ...(r.brief ? { brief: r.brief } : {}),
-    next: r.brief && r.status.key === 'waiting-for-claude' ? 'Follow the brief, push the code to the branch, then bridge_mark_figma_change_drafted.' : r.status.sentence,
+    next: r.brief && r.status.key === 'waiting-for-claude' ? `Follow the brief, push the code to the branch, then ${say(ctx, 'bridge_mark_figma_change_drafted', `\`bridge figma drafted ${n}\``)}.` : r.status.sentence,
   };
 }
 
@@ -78,7 +79,7 @@ export async function markFigmaDraftedOp(ctx: BridgeContext, a: { pr: number | s
   const n = branchNumber(a.pr);
   const gh = await writer(ctx, 'Marking a Figma change drafted', NEED);
   const r = await markFigmaChangeDraftedOnGitHub(gh, n);
-  return { pr: n, status: r.status.label, said: r.status.sentence, files: r.files, next: 'Send it for review when it is ready (bridge_send_for_review), or tell the designer it is ready to look at.' };
+  return { pr: n, status: r.status.label, said: r.status.sentence, files: r.files, next: `Send it for review when it is ready (${say(ctx, 'bridge_send_for_review', `\`bridge branch ready ${n}\``)}), or tell the designer it is ready to look at.` };
 }
 
 /**
@@ -89,7 +90,7 @@ export async function markFigmaDraftedOp(ctx: BridgeContext, a: { pr: number | s
  */
 export async function pushFigmaComponentOp(ctx: BridgeContext, a: { diff: ComponentPushDiff; dryRun?: boolean | undefined; source?: FigmaSource | undefined; changes?: ChangesMode | undefined }) {
   const d = a.diff;
-  if (!d || d.v !== 1 || typeof d.component !== 'string' || !Array.isArray(d.changes)) throw new Error('The diff is not a Bridge component diff (v 1): see the spec of a branch from bridge_get_figma_change for its shape.');
+  if (!d || d.v !== 1 || typeof d.component !== 'string' || !Array.isArray(d.changes)) throw new Error(`The diff is not a Bridge component diff (v 1): see the spec of a branch from ${say(ctx, 'bridge_get_figma_change', '`bridge figma show <n> --json`')} for its shape.`);
   const source = a.source ?? 'mcp';
   const tool = source === 'mcp' ? 'Bridge MCP' : 'the bridge CLI';
   const { config } = await ctx.config();
@@ -140,13 +141,13 @@ export async function pushFigmaComponentOp(ctx: BridgeContext, a: { diff: Compon
     ...(r.suggestion ? { suggestion: r.suggestion } : {}),
     next:
       r.status === 'dry-run'
-        ? `Run it without dryRun to ${mode === 'suggest' ? 'file the suggestion' : 'open the library branch'}.`
+        ? `Run it without ${say(ctx, 'dryRun', '--dry-run')} to ${mode === 'suggest' ? 'file the suggestion' : 'open the library branch'}.`
         : r.status === 'not-sent'
           ? 'Nothing was sent: fix these in Figma, then push again.'
           : r.suggestion
-            ? `${r.suggestion.route === 'claude-draft' ? 'A component spec suggestion: Claude AI drafts the code from it once a developer applies it (bridge_apply_suggestion writes the spec file and returns the brief). ' : ''}${appliedNext(r.suggestion.number)}`
+            ? `${r.suggestion.route === 'claude-draft' ? 'A component spec suggestion: Claude AI drafts the code from it once a developer applies it (' + say(ctx, 'bridge_apply_suggestion', '`bridge apply`') + ' writes the spec file and returns the brief). ' : ''}${appliedNext(r.suggestion.number, ctx)}`
           : plan.route === 'claude-draft'
-            ? `Draft the code: bridge_get_figma_change { pr: ${r.link!.number} }.`
+            ? `Draft the code: ${say(ctx, `bridge_get_figma_change { pr: ${r.link!.number} }`, `\`bridge figma show ${r.link!.number} --draft\``)}.`
             : 'Design and tech owners review the token change. Once it ships, a pull in the DS Bridge plugin rebuilds the component.',
   };
 }

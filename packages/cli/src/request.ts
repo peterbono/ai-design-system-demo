@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { REQUEST_KINDS, REQUEST_STATUS_LABEL, type RequestKind } from '@bridge-ds/core';
 import { BridgeContext, requests } from '@bridge-ds/mcp';
 import { jiraSync } from './jira-sync.js';
+import { chooseToken, cliContext, TOKEN_HELP, WRITE_TOKEN_HOW } from './auth.js';
 
 export interface RequestArgs {
   _: string[];
@@ -39,7 +40,7 @@ Usage:
                      GitHub Action step: mirror a request issue to Jira (see docs/REQUESTS.md)
 
 Kinds: ${REQUEST_KINDS.map((k) => k.value).join(', ')}
-GitHub token: GITHUB_TOKEN or BRIDGE_GITHUB_TOKEN, else \`gh auth token\`. Reading a public repo works without one.
+${TOKEN_HELP}
 Exit codes: 0 ok, 1 not a request or Claude Code not found, 2 usage or setup error.`;
 
 export class RequestUsageError extends Error {}
@@ -68,14 +69,10 @@ export const defaultIO = (): RequestIO => ({
   },
 });
 
-function tokenFrom(io: RequestIO): string | undefined {
-  return io.env.BRIDGE_GITHUB_TOKEN || io.env.GITHUB_TOKEN || io.ghToken();
-}
-
-async function context(root: string, io: RequestIO, needToken: boolean): Promise<BridgeContext> {
-  const token = tokenFrom(io);
-  if (needToken && !token) throw new RequestUsageError('Creating a request needs a GitHub token: set GITHUB_TOKEN, or sign in with `gh auth login`.');
-  return BridgeContext.create({ root, ...(token ? { token } : {}), ...(io.fetch ? { fetch: io.fetch } : {}) });
+async function context(root: string, io: RequestIO, a: RequestArgs, needToken: boolean): Promise<BridgeContext> {
+  if (needToken && !chooseToken(a, io, 'write').token)
+    throw new RequestUsageError(`Creating a request writes on GitHub and needs a token you pass: ${WRITE_TOKEN_HOW}.`);
+  return cliContext(root, io, a, needToken ? 'write' : 'read');
 }
 
 function issueNumber(a: RequestArgs, usage: string): number {
@@ -120,7 +117,7 @@ export async function runRequest(a: RequestArgs, root: string, io: RequestIO = d
     case 'list': {
       const status = flag(a, 'status') ?? 'all';
       if (!['requested', 'in-progress', 'done', 'declined', 'all'].includes(status)) throw new RequestUsageError(`--status takes requested, in-progress, done, declined or all, got "${status}"`);
-      const ctx = await context(root, io, false);
+      const ctx = await context(root, io, a, false);
       const component = flag(a, 'component');
       const r = await requests.listRequests(ctx, { status: status as requests.RequestStatusFilter, ...(component ? { component } : {}) });
       if (has(a, 'json')) return io.print(JSON.stringify(r, null, 2)), 0;
@@ -134,7 +131,7 @@ export async function runRequest(a: RequestArgs, root: string, io: RequestIO = d
     }
     case 'show': {
       const n = issueNumber(a, 'bridge request show <number>');
-      const ctx = await context(root, io, false);
+      const ctx = await context(root, io, a, false);
       const r = await getOrExplain(ctx, n, io);
       if (!r) return 1;
       if (has(a, 'json')) return io.print(JSON.stringify(r, null, 2)), 0;
@@ -159,7 +156,7 @@ export async function runRequest(a: RequestArgs, root: string, io: RequestIO = d
     }
     case 'implement': {
       const n = issueNumber(a, 'bridge request implement <number> [--claude] [--branch explore/<name>]');
-      const ctx = await context(root, io, false);
+      const ctx = await context(root, io, a, false);
       const branch = flag(a, 'branch');
       const r = await getOrExplain(ctx, n, io, branch);
       if (!r) return 1;
@@ -180,7 +177,7 @@ export async function runRequest(a: RequestArgs, root: string, io: RequestIO = d
       if (!component || !kind || !title || !summary) throw new RequestUsageError(`Usage: ${usage}`);
       if (!REQUEST_KINDS.some((k) => k.value === kind)) throw new RequestUsageError(`--kind takes ${REQUEST_KINDS.map((k) => k.value).join(', ')}, got "${kind}"`);
       const dryRun = has(a, 'dry-run');
-      const ctx = await context(root, io, !dryRun);
+      const ctx = await context(root, io, a, !dryRun);
       const figma = flag(a, 'figma');
       const exploration = flag(a, 'exploration');
       const r = await requests.createRequest(ctx, {

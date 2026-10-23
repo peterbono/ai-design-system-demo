@@ -130,7 +130,8 @@ describe('Claude drafts a component change from Figma', () => {
     expect(pr.body).toMatch(/\*\*Drafted with Claude\*\* from the Figma spec/);
     lines.length = 0;
     expect(await runFigma({ _: ['figma'], flags: {} }, REPO, io)).toBe(0);
-    expect(lines[0]).toBe(`#${n} Button: add an xl size (Claude AI drafts): Drafted with Claude. The code is drafted. A person reviews it before it ships.`);
+    // Said once: the status names Claude, so the route is not repeated.
+    expect(lines[0]).toBe(`#${n} Button: add an xl size: Drafted with Claude. The code is drafted. A person reviews it before it ships.`);
   });
 
   it('what cannot be read is listed with what to do, and nothing is opened', async () => {
