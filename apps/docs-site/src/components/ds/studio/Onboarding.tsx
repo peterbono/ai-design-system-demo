@@ -713,7 +713,7 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
           ) : sent || step.state === 'waiting' ? (
             <div className="rq-done" role="status">
               <p>
-                <strong>Review requested{sent ? `, #${sent.number}` : ''}.</strong> {sent ? CHANGES_CHOICE[mode].title : step.detail}. It applies once your team approves and merges the branch.
+                <strong>Sent for review{sent ? `, #${sent.number}` : ''}.</strong> {sent ? CHANGES_CHOICE[mode].title : step.detail}. It applies once your team approves and merges the branch.
               </p>
               <p>
                 <Link href={studioHref(`changes/?pr=${sent?.number ?? step.pr ?? ''}`)}>See the branch</Link>

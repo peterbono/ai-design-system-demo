@@ -1051,7 +1051,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
           return;
         }
       }
-      announce(branch || continued ? 'Update sent.' : 'Review requested.');
+      announce(branch || continued ? 'Update sent.' : 'Sent for review.');
     } catch (err) {
       // The session's words: sign-in or token, and the site's way in.
       const { ghAuthFailure } = await import('../scripts/github-session');
@@ -1330,7 +1330,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
         <Dialog open={sendOpen} onOpenChange={(o) => (o ? setSendOpen(true) : sent ? doneSent() : setSendOpen(false))}>
           <DialogContent
             size="md"
-            title={sent ? (sent.suggestion ? SUGGESTION_SENT : sent.continued || branch ? 'Update sent' : 'Review requested') : branch ? 'Send your update' : suggest ? sendWords('docs', mode) : 'Send for review'}
+            title={sent ? (sent.suggestion ? SUGGESTION_SENT : sent.continued || branch ? 'Update sent' : 'Sent for review') : branch ? 'Send your update' : suggest ? sendWords('docs', mode) : 'Send for review'}
             description={
               sent
                 ? undefined

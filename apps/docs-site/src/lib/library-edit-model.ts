@@ -316,7 +316,7 @@ export const EDIT_BAR_LABEL: Record<EditBarState, string> = {
   clean: 'No changes yet',
   saved: 'Draft saved in this browser',
   unsaved: 'Unsaved changes',
-  sent: 'Review requested',
+  sent: 'Sent for review',
 };
 
 /**

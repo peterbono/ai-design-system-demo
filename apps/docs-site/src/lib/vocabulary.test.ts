@@ -4,7 +4,7 @@ import { branchCount, branchWithJiraKey, isJiraKey, jargonIn, jiraKeyOf, parseJi
 describe('vocabulary', () => {
   it('speaks Figma branching', () => {
     expect(VOCAB.createBranch).toBe('Create branch');
-    expect(VOCAB.requestReview).toBe('Request review');
+    expect(VOCAB.requestReview).toBe('Send for review');
     expect(VOCAB.updateFromMain).toBe('Update from main');
     expect(VOCAB.reviewAndMerge).toBe('Review and merge');
     expect(STATUS_WORDS.inReview).toBe('In review');

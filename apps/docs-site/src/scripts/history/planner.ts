@@ -25,7 +25,6 @@ import { esc, getToken, hasWorkingToken, prefersSignIn, readRepo, setButtonDisab
 import { ghAction, ghVerb, notSentLine, SEE_SUGGESTION, sendButton, sendGoal, sendingLine, suggestionSentLine } from '../../lib/gh-wording';
 import { changesModeOnPage } from '../changes-mode';
 import { suggestFilesOnGitHub } from '../suggest-files';
-import { VOCAB } from '../../lib/vocabulary';
 import { loadHistory, type Loaded } from './state';
 import { attrUrl } from '../../lib/html';
 import { studioHref } from '../../lib/team-path';
@@ -192,7 +191,7 @@ function syncFoot() {
   const token = hasWorkingToken();
   const mode = changesModeOnPage();
   if (go) {
-    setButtonLabel(go, mode === 'suggest' ? sendButton('revert', mode) : VOCAB.requestReview);
+    setButtonLabel(go, sendButton('revert', mode));
     go.hidden = !token && !req?.demo;
     setButtonDisabled(go, !ready || Boolean(req?.demo));
   }
@@ -262,7 +261,7 @@ function wire() {
     const out = $('hp-status')!;
     setButtonDisabled(go, true);
     const mode = changesModeOnPage();
-    out.textContent = mode === 'suggest' ? `Reading main. ${sendingLine(mode)}` : 'Reading main, creating the branch and requesting a review';
+    out.textContent = `Reading main. ${sendingLine(mode)}`;
     try {
       const sent = await propose();
       if (sent.kind === 'branch') {

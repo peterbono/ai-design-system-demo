@@ -1,6 +1,6 @@
 ---
 // Studio, New brand: a focused four-step flow on its own page (the preview needs two themes side by side, which a
-// side sheet over the token table would cramp). Drafting needs no GitHub; only "Propose brand" does. The Library
+// side sheet over the token table would cramp). Drafting needs no GitHub; only sending it does. The Library
 // shows a brand once its pull request is merged: brands come from bridge.config.json at build time.
 import Layout from '../../../layouts/Layout.astro';
 import StudioHeader from '../../../components/StudioHeader.astro';
@@ -21,6 +21,6 @@ const suggest = siteRepo().changes === 'suggest';
 ---
 
 <Layout title="New brand" description="Draft a brand in this browser, check it with real components in light and dark, then create a branch for review." sources={sources} updated={updated} wide>
-  <StudioHeader title="New brand" subtitle={`Draft it in this browser, check it with real components, then ${suggest ? 'send it as a suggestion' : 'propose it for review'}.`} />
+  <StudioHeader title="New brand" subtitle={`Draft it in this browser, check it with real components, then ${suggest ? 'send it as a suggestion' : 'send it for review'}.`} />
   <NewBrandFlow client:load files={tokenFiles()} configText={readText('bridge.config.json')} contrastText={readText(CONTRAST_FILE)} signIn={Boolean(signInConfig())} />
 </Layout>

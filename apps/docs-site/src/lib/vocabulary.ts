@@ -16,8 +16,8 @@ export const VOCAB = {
   main: 'main',
   /** Start a branch (Figma: "Create branch"). */
   createBranch: 'Create branch',
-  /** Ask reviewers to look (Figma: "Request review"). */
-  requestReview: 'Request review',
+  /** Ask reviewers to look: the one send verb of the site (lib/gh-wording.ts sendButton), in direct mode. */
+  requestReview: 'Send for review',
   /** The reviewer's step that ends in a merge (Figma: "Review and merge"). */
   reviewAndMerge: 'Review and merge',
   merge: 'Merge',

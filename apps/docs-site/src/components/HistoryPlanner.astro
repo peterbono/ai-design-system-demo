@@ -7,7 +7,6 @@ import ScriptDialog from './ds/ScriptDialog.astro';
 import { ghAction, sendButton, sendGoal } from '../lib/gh-wording';
 import { siteRepo } from '../lib/config';
 import { signInConfig } from '../lib/signin-config';
-import { VOCAB } from '../lib/vocabulary';
 
 const signIn = Boolean(signInConfig());
 // How changes reach the code (bridge.config.json "changes"): a suggestion, or a branch in review.
@@ -23,6 +22,6 @@ const mode = siteRepo().changes;
     <p class="hp-status" id="hp-status" role="status" aria-live="polite"></p>
     <Button variant="secondary" data-dialog-close>Cancel</Button>
     <Button variant="primary" className="st-hideable" data-gh-open data-demo-write="undo a change" id="hp-connect" hidden>{ghAction(sendGoal('revert', mode), signIn)}</Button>
-    <Button variant="primary" className="st-hideable" id="hp-propose">{mode === 'suggest' ? sendButton('revert', mode) : VOCAB.requestReview}</Button>
+    <Button variant="primary" className="st-hideable" id="hp-propose">{sendButton('revert', mode)}</Button>
   </div>
 </ScriptDialog>
