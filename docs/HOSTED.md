@@ -204,13 +204,9 @@ so Can view and Admin cannot be enforced there.
   new account once, then shows the invite (Entry E3) and joins with the Bridge account. Signed in as another email, it
   says where the invite went with "Sign in as that email". The invite page reads the link with
   `POST /api/entry { action: 'invite-link', token }`, the one entry call without a session, 30 per network an hour.
-- **Only the invited person joins.** On accept, the GitHub account must have the invited email as a **verified**
-  email (read with the invitee's own sign-in, `GET /user/emails`, compared trimmed and case-insensitive). Otherwise
-  nothing is granted, the invite stays valid, and the page says which address it was sent to, masked
-  (`m•••@acme.design`), and how to fix it: add and verify that email on GitHub, or ask the admin to invite the address
-  they use on GitHub. This needs the account permission **Email addresses: Read-only** on the GitHub Apps people sign
-  in with (docs/SIGN-IN.md). A sign-in from before that permission was added cannot read emails: the page asks to
-  sign in with GitHub again, which shows GitHub's consent for the new permission.
+- **Only the invited person joins.** Accepting goes through the Bridge account (`POST /api/entry { action:
+  'accept-invite' }`): its email must be the invited one. A reviewer or admin invite also needs the account's linked
+  GitHub account, whose verified emails GitHub linking already read (`GET /user/emails`, docs/SIGN-IN.md).
 - **Who acts on GitHub.** The invitee accepts after the admin is gone, so the admin's own sign-in cannot add them, and
   Bridge does not store anyone's personal token for later. The function mints a short-lived installation token of the
   Bridge Direct app for the one repository on each request, and never stores it.
@@ -426,9 +422,6 @@ person without the email. Private repositories show the real email.
   `Path=/api/contribute`, 30 days, signed with HMAC-SHA256 under `LIBRARY_SESSION_SECRET` (with its own purpose, so a
   Library cookie never passes for it). Every request reads the member again: removed, or joined again since, and the
   session ends at once.
-- **Invite links, before accepting**: `POST /api/invites { "action": "peek", "token" }` needs no sign-in and answers
-  `{ "team", "repo", "role", "sentTo" }` (the address masked, never in full), 410 for a spent or unknown link, 30 per
-  network an hour. The invite page itself reads `POST /api/entry { "action": "invite-link" }` (see "Invites by email").
 - **Sign-in links**: `<site>/studio/<owner>/<repo>/#contribute=<token>`, only the token's SHA-256 stored, 15 minutes,
   once. The answer is the same whether or not the email is a member. Links count like Library sign-ins: 3 per email,
   10 per network, 20 per team and 20 for the site per day (emails and networks under an HMAC).

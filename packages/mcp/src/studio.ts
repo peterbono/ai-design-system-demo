@@ -33,6 +33,7 @@ import {
   whoCanShipSentence,
   defaultProduct,
   DEFAULT_OVERRIDE,
+  overrideReasonMin,
   type ChangesMode,
   type ComponentDocsJson,
   type FigmaReferenceManifest,
@@ -199,7 +200,7 @@ export async function getSettings(ctx: BridgeContext) {
       ...(unreadable.length ? { teamsNotRead: unreadable.map((t) => t.message) } : {}),
     },
     ownerOverride: override.allowed.length
-      ? { on: true, who: override.allowed.map((l) => `@${l}`), reason: override.requireReason ? `A reason of at least ${override.minReasonLength} characters, posted on the branch.` : 'No reason required.' }
+      ? { on: true, who: override.allowed.map((l) => `@${l}`), reason: `A reason of at least ${overrideReasonMin(override)} characters, posted on the branch.` }
       : { on: false, who: [], reason: 'Nobody can merge without the approvals.' },
     protection: protection ? protectionSentence(protection) : 'Not read (no GitHub repo known, or GitHub did not answer).',
     products: products.map((p) => ({ key: p.key, name: p.name, default: p === defaultProduct(products) })),

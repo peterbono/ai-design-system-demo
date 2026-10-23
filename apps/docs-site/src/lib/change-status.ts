@@ -17,7 +17,7 @@ import { classifyCheck, type CheckKind } from './check-explain';
 import { pullState, type PullState, type ReviewStatusKind, type Tier } from './review-rules';
 import { GROUP_TONE, openerFor, type Opener, type OpenerRow, type StatusTone } from './changes';
 import type { WorkNature } from './work-nature';
-import { reopenEligibility, type ReopenEligibility, type TokenSet } from '@bridge-ds/core';
+import { hasOwnerApproval, reopenEligibility, type ReopenEligibility, type TokenSet } from '@bridge-ds/core';
 import { branchCount, STATUS_WORDS, VOCAB } from './vocabulary';
 
 export type Lifecycle = 'draft' | 'ready' | 'waiting' | 'shipped' | 'closed';
@@ -46,10 +46,10 @@ export function lifecycleTone(l: Lifecycle): LifecycleTone {
 // ---------------------------------------------------------------------------------------------------------------
 // Waiting for code
 
-/** The design approval the tier needs: Tier 2 and 3 a design owner approval, Tier 1 any one approval (mergeGate). */
-export function designApprovalIn(tier: Tier | null, approvals: { design: boolean; approvers: string[] } | null | undefined): boolean {
+/** The design approval the tier needs: Tier 2 and 3 a design owner approval, Tier 1 one owner approval (mergeGate). */
+export function designApprovalIn(tier: Tier | null, approvals: { design: boolean; approvers: string[]; owner?: boolean } | null | undefined): boolean {
   if (!approvals) return false;
-  return (tier ?? 3) >= 2 ? approvals.design : approvals.approvers.length > 0;
+  return (tier ?? 3) >= 2 ? approvals.design : hasOwnerApproval({ tech: false, changesRequested: [], ...approvals });
 }
 
 export interface WaitingInput {

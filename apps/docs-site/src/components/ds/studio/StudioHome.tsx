@@ -172,7 +172,7 @@ function Waiting({ needs, now, lead }: { needs: NeedRow[]; now: number; lead?: P
   const people = uniquePeople(needs.filter((r) => r.waitsOnYou).map((r) => r.person)).filter((p) => !lead || p.agent || p.login.toLowerCase() !== lead.login.toLowerCase());
   const s = waitingSentence(people);
   const oldest = oldestLabel(needs, now);
-  const demo = lead !== undefined ? demoWaiting(needs.filter((r) => r.waitsOnYou).length, s, lead?.name ?? null) : null;
+  const demo = lead !== undefined ? demoWaiting(needs.filter((r) => r.kind === 'review').length, s, lead?.name ?? null) : null;
   if (!s && !demo) return null;
   // A div, not a p: the avatar group is a block (a div inside a p is invalid HTML).
   return (
@@ -252,9 +252,9 @@ function Needs({ needs, now, snoozed, demo, tour, join }: { needs: NeedRow[]; no
             <b className="sh-strong">{more.label}</b>
             {more.parts && <span className="t-muted"> · {more.parts}</span>}
           </p>
-          {/* The demo opens Branches on Waiting on me: every change that waits on the lead, by kind and designer. */}
-          <ButtonLink variant="primary" href={studioHref(demo ? 'changes/?who=waiting' : 'review/')} className="sh-more-btn">
-            {demo ? `Review all (${needs.length})` : 'Review all'}
+          {/* Always the Review page: the one queue, the same rows as this list (the demo lead's included). */}
+          <ButtonLink variant="primary" href={studioHref('review/')} className="sh-more-btn">
+            Review all
           </ButtonLink>
         </div>
       )}
@@ -415,7 +415,7 @@ export interface StudioHomeProps {
   setup?: ReactNode;
   /**
    * The demo for a visitor (DemoHome.tsx, boards D1 and D1b): the same home from the DS lead's seat. `lead` names
-   * them in the waiting line; each row keeps its Review button; "Review all (N)"; the team's branches under their own
+   * them in the waiting line; each row keeps its Review button; "Review all" opens the Review page; the team's branches under their own
    * title, without Create branch. Always the busy layout.
    */
   demo?: { lead: Person | null; branchesTitle: string; branchesMax: number };

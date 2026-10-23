@@ -10,10 +10,10 @@ import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToke
 import { loadStatuses, owners, rowWho, shippers, type PullStatus } from './pr-status';
 import { loadTeams } from './teams';
 import { loadSuggestionNeeds } from './suggestions';
-import { siteOwners, todoChange, type QueuePullFull } from './needs-you';
+import { todoChange, viewerRole, type QueuePullFull } from './needs-you';
 import { reviewQueue } from '../lib/review-queue';
 import { byUrgency, statusPill } from '../lib/changes';
-import { overviewTodo } from '../lib/overview-todo';
+import { isReviewTask, waitingOn } from '../lib/waiting-on';
 import { analyzeTokenFiles, isTokenFile } from './reviews/token-review';
 import { manifestPublished } from './reviews/visual-impact';
 import { visualBase, visualState, type VisualManifest } from '../lib/visual-impact';
@@ -24,13 +24,11 @@ import {
   joinNeed,
   contrastNeed,
   guidanceNeed,
-  holdsReviewRight,
   isOnlyReviewer,
   person,
   requesterPerson,
   sortNeeds,
   waitingSince,
-  waitsOnContributor,
   type BranchCard,
   type ChangeFacts,
   type NeedRow,
@@ -199,9 +197,9 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
   const facts = typeof stat === 'function' ? stat : () => stat;
   const viewer = currentViewer()?.login ?? null;
   const now = Date.now();
-  // An email contributor is known at once; a GitHub account once the owner teams are read (below).
-  const contributor = Boolean(currentContributor()) || currentAccess()?.contributor === true;
-  const rightNow = () => holdsReviewRight({ viewer, contributor, approvers: [...owners().design, ...owners().tech], shippers: shippers(), write: currentAccess()?.write ?? null });
+  // An email contributor is known at once; a GitHub account once the owner teams are read (below). The same role as
+  // the nav badge and Branches (needs-you viewerRole).
+  const rightNow = () => viewerRole() === 'reviewer';
   let reviewer = rightNow();
   // People asking to join: admins only, read next to the branches.
   let joins: NeedRow[] = [];
@@ -258,24 +256,20 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
       const p = byNum.get(u.number)!;
       return { pull: p, c: todoChange(p, statuses.get(p.number)) };
     });
-    const todo = overviewTodo({ changes: changes.map((x) => x.c), requests: [], viewer, owners: siteOwners(), loading });
-    const mine = new Map(todo.mine.map((r) => [r.key, r]));
+    // Who acts now, by the one rule of every "waiting on me" surface (lib/waiting-on.ts).
+    const role = reviewer ? 'reviewer' : 'contributor';
     const design = owners().design;
     return changes.map(({ pull, c }): Classified => {
-      const row = mine.get(`change-${pull.number}`);
-      const author = same(pull.user.login, viewer);
       const requested = (pull.requested_reviewers ?? []).map((r) => r.login);
       const base = { pull, agent: Boolean(c.agent), guidance: Boolean(c.guidance), onlyReviewer: false, task: null as ChangeFacts['task'] | null };
-      const only = isOnlyReviewer({ eligible: design, requested, author: pull.user.login, viewer });
-      if (!c.who || c.nature === 'developer') return base;
-      if (!author && row && (row.task === 'design' || row.task === 'ship' || row.task === 'guidance')) return { ...base, task: row.task, onlyReviewer: only };
-      if (author && row?.task === 'ship') return { ...base, task: 'own-ship' };
-      if (author && c.who.action === 'address-changes') return { ...base, task: 'own-changes', changesBy: c.changesBy ?? [] };
-      // Failing tests and conflicts are technical: a developer fixes them in GitHub, the home never shows them.
-      if (author && (c.who.action === 'fix-checks' || c.who.action === 'resolve-conflict')) return base;
-      if (!author && !pull.draft && requested.some((l) => same(l, viewer))) return { ...base, task: 'requested', onlyReviewer: only };
-      return base;
-    }).map((x): Classified => (reviewer || waitsOnContributor(x.task) ? x : { ...x, task: null }));
+      const task = waitingOn(
+        { author: pull.user.login, draft: pull.draft, nature: c.nature, guidance: c.guidance, lifecycle: c.lifecycle, who: c.who, requested, changesRequested: c.changesBy },
+        { login: viewer, role },
+      );
+      if (!task) return base;
+      if (task === 'own-changes') return { ...base, task, changesBy: c.changesBy ?? [] };
+      return { ...base, task, onlyReviewer: isReviewTask(task) && isOnlyReviewer({ eligible: design, requested, author: pull.user.login, viewer }) };
+    });
   };
 
   const pick = (login: string | null | undefined): Person | null => (login ? (persons.get(login.toLowerCase()) ?? person(login, null, `https://github.com/${login}.png?size=64`)) : null);

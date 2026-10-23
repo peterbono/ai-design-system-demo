@@ -12,7 +12,7 @@ import { CONFLICT_REASON, mergeGate, REVIEW_STATUS, type ApprovalSummary, type C
 import type { TokenReview } from './token-review';
 import { ghAction } from './gh-wording';
 import { branchCount, VOCAB } from './vocabulary';
-import { eligibleReviewers, entriesFor, pendingApprovals, requiredApprovals, soloOwnerSentence, type ApprovalRole, type TeamStates } from '@bridge-ds/core';
+import { eligibleReviewers, entriesFor, hasOwnerApproval, pendingApprovals, requiredApprovals, soloOwnerSentence, type ApprovalRole, type TeamStates } from '@bridge-ds/core';
 
 export type StatusGroup = 'blocked' | 'waiting' | 'ready' | 'neutral';
 
@@ -504,14 +504,14 @@ const ROW_ACTION: Record<ApprovalRole, string> = { design: 'Approve design', tec
  */
 export function approvalRows(input: { tier: Tier | null; approvals: ApprovalSummary; people: People; open: boolean }): ApprovalRow[] {
   const { approvals: a, people: p } = input;
-  const covered: Record<ApprovalRole, boolean> = { design: a.design, tech: a.tech, approval: a.approvers.length > 0 };
+  const covered: Record<ApprovalRole, boolean> = { design: a.design, tech: a.tech, approval: hasOwnerApproval(a) };
   // The only owner covers both parts with one review: the first row carries "Approve", the other says so.
   const solo = input.open && soloCovers((['design', 'tech'] as const).filter((r) => !covered[r]), { ...p, approvers: a.approvers }) && viewerCanApprove('design', { ...p, approvers: a.approvers });
   let acted = false;
   return requiredApprovals(input.tier).map((role) => {
     const listed = listedFor(role, p.owners);
-    // A plain approval counts from anyone (mergeGate); a design or tech approval only from that role's owners.
-    const inRole = (l: string) => role === 'approval' || listed.length === 0 || listed.some((x) => same(x, l));
+    // Every approval counts from that role's owners (mergeGate): a plain approval (Tier 1) from any owner, either list.
+    const inRole = (l: string) => listed.length === 0 || listed.some((x) => same(x, l));
     const by = a.approvers.filter(inRole);
     const asked = a.changesRequested.filter(inRole);
     const canAct = input.open && !covered[role] && !acted && viewerCanApprove(role, { ...p, approvers: a.approvers });

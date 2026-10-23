@@ -40,13 +40,15 @@ export function suggestionOfKey(key: string | null | undefined): number | null {
 export const SUGGESTION_WORDS = {
   /** The row line on Home and in the queue. */
   asks: (name: string) => `${name} suggests a change`,
+  /** The row line for a developer once it is approved. */
+  toApply: (name: string) => `Approved. ${name} waits for you to apply it`,
   approve: 'Approve',
   requestChanges: 'Suggest changes',
   decline: 'Decline',
   /** After an approval that completes the review. */
   ready: 'Approved, ready to apply',
-  /** What a developer runs, shown once approved. */
-  applyHint: 'A developer applies it from the terminal or with Claude.',
+  /** Once approved: who acts next. The commands sit under For developers, for developers only. */
+  applyHint: 'A developer applies it next. It reaches the library once their change merges, without a second review.',
 } as const;
 
 const KIND_LABEL: Record<SuggestionKind, string> = {
@@ -122,7 +124,10 @@ export function missingRoles(tier: 1 | 2 | 3, approvals: SuggestionApprovals | u
   return approvals ? pendingApprovals(tier, approvals) : [];
 }
 
-/** Whether a suggestion waits on the viewer: open for review, a role they hold is missing, and they did not write it. */
+/**
+ * Whether a suggestion waits on the viewer: open for review, a role they hold is missing, and they did not write it;
+ * or approved and the viewer is a developer (a tech owner), who applies it.
+ */
 export function waitsOnViewer(x: {
   status: SuggestionStatus;
   missing: readonly ApprovalRole[];
@@ -134,20 +139,24 @@ export function waitsOnViewer(x: {
   /** The viewer already reviewed this version (approved or asked for changes). */
   reviewed?: boolean;
 }): boolean {
-  if (!x.viewer || x.status !== 'needs-review' || same(x.viewer, x.author) || x.reviewed) return false;
+  if (!x.viewer) return false;
   const roles = noOwners(x.owners) ? (x.collaborator ? (['design', 'tech', 'approval'] as ApprovalRole[]) : []) : viewerRoles(x.viewer, x.owners);
+  // Approved: it waits on a developer (a tech owner) to apply it, never on a designer.
+  if (x.status === 'approved') return roles.includes('tech');
+  if (x.status !== 'needs-review' || same(x.viewer, x.author) || x.reviewed) return false;
   return x.missing.length === 0 ? roles.length > 0 : x.missing.some((m) => roles.includes(m));
 }
 
 /** One Home and queue row for a suggestion that waits on the viewer. */
-export function suggestionNeed(s: { number: number; title: string; createdAt: string; thumb?: ThumbSpec | null }, author: Person, now: number): NeedRow {
+export function suggestionNeed(s: { number: number; title: string; createdAt: string; thumb?: ThumbSpec | null; apply?: boolean }, author: Person, now: number): NeedRow {
   return {
     key: suggestionKey(s.number),
     kind: 'review',
     title: s.title,
     href: suggestionHref(s.number),
     person: author,
-    line: SUGGESTION_WORDS.asks(author.name),
+    line: s.apply ? SUGGESTION_WORDS.toApply(author.name) : SUGGESTION_WORDS.asks(author.name),
+    ...(s.apply ? { action: 'Apply' } : {}),
     since: s.createdAt,
     waitsOnYou: true,
     pill: { label: waitingLabel(s.createdAt, now), tone: 'warning' },
@@ -376,9 +385,9 @@ export function suggestionGate(x: {
     const left = missing[0];
     const others = (left === 'design' ? x.owners.design : left === 'tech' ? x.owners.tech : listed).filter((l) => !same(l, x.viewer));
     const rest = left ? ` It waits for ${left === 'approval' ? 'an approval' : `a ${left} approval`}${others.length ? ` from ${people(others, x.names)}` : ' from someone else'}.` : '';
-    return { ...base, why: `You approved this version.${rest}` };
+    return { ...base, why: `You approved this version.${rest || (x.status === 'approved' ? ' A developer applies it.' : '')}` };
   }
-  if (x.status === 'approved') return { ...base, why: 'It has every approval it needs.' };
+  if (x.status === 'approved') return { ...base, why: 'It has every approval it needs. A developer applies it.' };
   if (!role) {
     const other = missing[0];
     const who = other === 'design' ? x.owners.design : other === 'tech' ? x.owners.tech : listed;
@@ -411,7 +420,7 @@ export function approvalRows(x: { tier: 1 | 2 | 3; approvals: SuggestionApproval
   return [row('Design approval', Boolean(a?.design), x.owners.design), row('Tech approval', Boolean(a?.tech), x.owners.tech)];
 }
 
-/** How a developer applies it, for the "Approved, ready to apply" panel. */
+/** How a developer applies it: the "For developers" fold of the approved panel, never shown to a designer. */
 export function applyLines(n: number): { label: string; value: string }[] {
   return [
     { label: 'In a terminal', value: `npx bridge apply ${n}` },

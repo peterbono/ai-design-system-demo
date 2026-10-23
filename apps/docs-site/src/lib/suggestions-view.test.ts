@@ -111,6 +111,13 @@ describe('who it waits on', () => {
     expect(waitsOnViewer({ ...base, missing: ['design'], status: 'approved' })).toBe(false);
   });
 
+  it('once approved, waits on a developer (a tech owner) to apply it, never on a designer', () => {
+    const base = { status: 'approved' as const, missing: [], author: 'ann', owners };
+    const tech = owners.tech[0]!;
+    expect(waitsOnViewer({ ...base, viewer: tech })).toBe(true);
+    expect(waitsOnViewer({ ...base, viewer: 'dana' })).toBe(owners.tech.some((l) => l.toLowerCase() === 'dana'));
+  });
+
   it('with no owner configured, waits on people who can edit the library', () => {
     const none = { design: [], tech: [] };
     expect(waitsOnViewer({ status: 'needs-review', missing: [], viewer: 'x', author: 'ann', owners: none, collaborator: true })).toBe(true);

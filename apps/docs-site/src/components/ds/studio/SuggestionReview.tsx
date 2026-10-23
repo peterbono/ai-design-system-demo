@@ -10,6 +10,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { Check, CircleAlert, Ellipsis, Minus, TriangleAlert, X } from 'lucide-react';
 import {
+  Accordion,
+  AccordionItem,
   Alert,
   Badge,
   Breadcrumb,
@@ -73,6 +75,8 @@ export interface SuggestionReviewProps {
   approveLabel: string;
   /** Approved: how a developer applies it. */
   apply: { label: string; value: string }[] | null;
+  /** The viewer is a developer (a tech owner): the commands show, folded under For developers. Designers never see them. */
+  developer?: boolean;
   previews: { label: string; url: string }[];
   next: NextCard[];
   crumbs?: { label: string; href?: string }[] | undefined;
@@ -435,9 +439,15 @@ export function SuggestionReview(p: SuggestionReviewProps) {
               <section className="sg-apply" aria-label={SUGGESTION_WORDS.ready}>
                 <p className="sg-apply-title">{SUGGESTION_WORDS.ready}</p>
                 <p className="sg-muted">{SUGGESTION_WORDS.applyHint}</p>
-                {p.apply.map((l) => (
-                  <CodeBlock key={l.label} label={l.label} code={l.value} />
-                ))}
+                {p.developer && (
+                  <Accordion appearance="flush" headingLevel={3} className="sg-dev">
+                    <AccordionItem value="developers" title="For developers">
+                      {p.apply.map((l) => (
+                        <CodeBlock key={l.label} label={l.label} code={l.value} />
+                      ))}
+                    </AccordionItem>
+                  </Accordion>
+                )}
               </section>
             )}
           </div>

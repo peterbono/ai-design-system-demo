@@ -1,9 +1,10 @@
 // /api/invites: invite people to a team's Bridge by work email, and manage who has access (docs/HOSTED.md, "Invites by email").
 //
 // The flow: an admin picks emails and a role in Studio; this function stores a pending invite (server side, never in
-// the browser) and emails a one-time link; the invitee opens it, signs in with GitHub, and this function gives their
-// GitHub account access to the repository with the role's permission. It also changes roles, removes people and
-// resends or cancels invites. Shared pieces (HTTP, Redis, email, the GitHub App) live in api/_lib, not a function.
+// the browser) and emails a one-time link; the invitee opens it and joins through their Bridge account (api/entry),
+// which for a reviewer or admin gives their GitHub account the role's permission here. It also changes roles,
+// removes people and resends or cancels invites. Shared pieces (HTTP, Redis, email, the GitHub App) live in
+// api/_lib, not a function.
 //
 // Roles, as designers read them, and what each one is on GitHub (keep the Studio words in lib/invites.ts in step):
 //   view      "Can view"   GitHub `pull`  (read). No longer offered (CHOOSABLE_ROLES): readers use Library access.
@@ -33,11 +34,10 @@
 //   POST /api/invites { action: 'invite' | 'resend' | 'invite-role' | 'cancel' | 'set-role' | 'remove' }  caller is admin
 //                                           set-role and remove take `email` instead of `login` for an email
 //                                           contributor; set-role to reviewer or admin answers 409 github-required
-//   POST /api/invites { action: 'accept', token }  caller is the invitee, any GitHub account
-//   POST /api/invites { action: 'peek', token }    no sign-in: { team, repo, role, sentTo (masked) }, 410 when expired
-// A "Can edit" or "Admin" invite can also be accepted with the email alone, no GitHub account: api/contribute (action
-// accept) and api/entry (accept-invite). Requests carry `Authorization: Bearer <GitHub user token>` (Studio's Sign in
-// with GitHub). POSTs must come from a page of this site.
+// Accepting goes through the Bridge account (api/entry: invite-link, accept-invite): a "Can edit" or "Admin" invite
+// with the email alone, a reviewer invite (and an admin one from an account with linked GitHub) through the linked
+// GitHub account (acceptInviteForGithub below). Requests carry `Authorization: Bearer <GitHub user token>` (Studio's Sign in with
+// GitHub). POSTs must come from a page of this site.
 //
 // Email admins (api/_lib/members.ts): an email member made Admin manages the team without GitHub. A request without a
 // Bearer token but with the Bridge account cookie (api/account, `X-Bridge-Account: 1` on POSTs) is checked as that
@@ -50,10 +50,7 @@
 // The invite link is <site>/studio/invite/#t=<token>: 32 random bytes, in the fragment so it never reaches a server
 // log. Only its SHA-256 is stored. It works once and expires after 7 days; Resend makes a new one.
 //
-// Only the invited person can accept: the GitHub account that opens the link must have the invited email as a
-// verified email (GET /user/emails with their own sign-in, so the Bridge apps need the account permission "Email
-// addresses: Read-only", docs/SIGN-IN.md). Otherwise nothing is granted, the invite stays valid, and the answer says
-// which address it was sent to, masked ("m•••@acme.design").
+// Only the invited person can accept: api/entry accepts for the Bridge account whose email is the invited one.
 //
 // Caps (Redis counters that expire on their own): emails sent per admin, per team and for the whole site per UTC day,
 // a pause between two sends of one invite and a few resends per invite per day, at most MAX_PEOPLE per request. A cap
@@ -75,7 +72,7 @@ import { randomBytes } from 'node:crypto';
 import { accountNameByGithub, displayName } from '../_lib/account.js';
 import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { githubApp as sharedGithubApp, type AppTokens } from '../_lib/github-app.js';
-import { b64url, clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody as readJsonBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin as originOf, type FetchLike } from '../_lib/http.js';
+import { b64url, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody as readJsonBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin as originOf, type FetchLike } from '../_lib/http.js';
 import { memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
 import { configName, getTeamNames, putTeamName, resolveTeam } from '../_lib/teams.js';
@@ -231,11 +228,9 @@ export interface InvitesDeps {
 
 export const NOT_CONFIGURED = 'Invites are not available yet on this site.';
 const APP_MISSING = 'Bridge cannot add people to this design system yet. An admin of the repository gives Bridge access to members.';
-export const EXPIRED = 'This invitation expired or was already used. Ask your admin to send a new one.';
 
 const LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 const EMAIL = /^[^\s@<>()[\]\\,;:"]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?)+$/;
-const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 const ID = /^[a-f0-9]{16}$/;
 
 export const validEmail = (v: unknown): v is string => typeof v === 'string' && v.length <= 254 && EMAIL.test(v.trim());
@@ -711,10 +706,6 @@ export function services(env: InvitesEnv, deps: InvitesDeps): Services | null {
 
 export type LimitKind = 'admin' | 'team' | 'site';
 
-/** Looks at invite links (peek) one network may make in an hour: enough for a person, not for guessing. */
-export const PEEK_PER_HOUR = 30;
-const hourOf = (t: number) => new Date(t).toISOString().slice(0, 13);
-
 /** The daily caps: LIMIT_DEFAULTS, or a whole number from the env (0 stops sending). */
 export function limitsFrom(env: InvitesEnv): Record<LimitKind, number> {
   const pick = envInt;
@@ -773,7 +764,7 @@ async function reserve(ctx: Ctx, admin: string, repo: string, n: number): Promis
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// The invitee's email, checked on GitHub
+// The invitee's email, masked
 
 /** "m•••@acme.design": enough to recognise the address, not enough to read it. */
 export function maskEmail(email: string): string {
@@ -781,20 +772,6 @@ export function maskEmail(email: string): string {
   return `${local.slice(0, 1)}\u2022\u2022\u2022@${domain}`;
 }
 
-export const EMAIL_ACCESS = 'Bridge needs to see the emails on your GitHub account to check this invitation is yours. Sign in with GitHub again and allow it.';
-
-/** Whether the invited email is on the caller's GitHub account, verified, read with their own sign-in. */
-async function emailStatus(f: FetchLike, userToken: string, email: string): Promise<'verified' | 'unverified' | 'missing'> {
-  const r = await gh(f, userToken, 'GET', '/user/emails?per_page=100');
-  if (r.status === 401) throw new HttpError(401, 'signin', 'Your GitHub sign-in expired. Sign in again.');
-  // A sign-in from before Bridge asked for email addresses, or a pasted token without user:email.
-  if (r.status === 403 || r.status === 404) throw new HttpError(403, 'email_access', EMAIL_ACCESS);
-  if (r.status !== 200 || !Array.isArray(r.data)) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
-  const want = email.trim().toLowerCase();
-  const found = (r.data as { email?: unknown; verified?: unknown }[]).filter((e) => typeof e?.email === 'string' && e.email.trim().toLowerCase() === want);
-  if (!found.length) return 'missing';
-  return found.some((e) => e.verified === true) ? 'verified' : 'unverified';
-}
 const publicInvite = ({ repo: _r, tokenHash: _t, ...rest }: StoredInvite): PendingInvite => rest;
 
 /** An email contributor as Members lists them, next to the GitHub collaborators. */
@@ -1327,45 +1304,6 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
       if (r.status !== 204 && r.status !== 404) throw new HttpError(422, 'refused', 'GitHub refused to remove this person. Try again.');
       const o = await ownersFor(ctx, appToken, facts, login, { design: false, tech: false });
       return json(200, { ok: true, ...o });
-    }
-
-    case 'peek': {
-      // What an invite link is, before anything is signed in: the invite page opens on the right path (an email for
-      // Can edit, GitHub for a reviewer or admin). No sign-in; capped per address; the email only ever masked.
-      const ip = sha256(`peek:${clientIp(req)}`).slice(0, 32);
-      const [n = 0] = await ctx.svc.store.bump([`bridge:invites:count:peek:${ip}:${hourOf(ctx.now())}`], 1, 2 * 3600);
-      if (n > PEEK_PER_HOUR) return fail(429, 'limit', 'Too many tries from this network. Try again in an hour.');
-      if (typeof body.token !== 'string' || !TOKEN.test(body.token)) return fail(410, 'expired', EXPIRED);
-      const inv = await ctx.svc.store.byTokenHash(sha256(body.token));
-      if (!inv || !alive(inv, ctx.now())) return fail(410, 'expired', EXPIRED);
-      return json(200, { team: await teamNameOf(ctx, inv.repo), repo: inv.repo, role: inv.role, sentTo: maskEmail(inv.email) });
-    }
-    case 'accept': {
-      const userToken = bearer(req);
-      if (typeof body.token !== 'string' || !TOKEN.test(body.token)) return fail(410, 'expired', EXPIRED);
-      const me = await caller(ctx.f, userToken);
-      const inv = await ctx.svc.store.byTokenHash(sha256(body.token));
-      if (!inv) return fail(410, 'expired', EXPIRED);
-      if (!alive(inv, ctx.now())) {
-        await ctx.svc.store.remove(inv);
-        return fail(410, 'expired', EXPIRED);
-      }
-      // Only the invited person: the email must be a verified email of this GitHub account. Otherwise nothing is
-      // granted and the invite stays valid, so they can fix it on GitHub and open the same link again.
-      const email = await emailStatus(ctx.f, userToken, inv.email);
-      if (email !== 'verified') {
-        const sentTo = maskEmail(inv.email);
-        return json(403, {
-          error: email === 'unverified' ? 'email_unverified' : 'email_mismatch',
-          message:
-            email === 'unverified'
-              ? `This invitation was sent to ${sentTo}. That email is on your GitHub account but not verified yet. Verify it on GitHub, then try again.`
-              : `This invitation was sent to ${sentTo}, which is not an email of your GitHub account @${me.login}. Add and verify it on GitHub, then try again, or ask your admin to invite the email you use on GitHub.`,
-          sentTo,
-          login: me.login,
-        });
-      }
-      return json(200, await grantAccepted(ctx, inv, me.login, userToken));
     }
 
     default:

@@ -85,11 +85,10 @@ only the name and the permissions (step 3) differ.
 
    Administration can be "Read only" if you prefer to turn protection on from GitHub yourself.
 
-   **Account permissions** (both apps): **Email addresses: Read-only**, and nothing else. The invite page uses it to
-   check that the person accepting an invite has the invited email, verified, on their GitHub account
-   (`GET /user/emails` with their own sign-in; docs/HOSTED.md, "Invites by email"). Bridge only compares it, never
-   stores it. When you add it to an existing app, people already signed in get it the next time they sign in; the
-   invite page asks them to. A pasted token needs the same: the `user:email` scope (classic) or Email addresses
+   **Account permissions** (both apps): **Email addresses: Read-only**, and nothing else. Linking GitHub to a Bridge
+   account uses it to read the verified emails of that GitHub account (`GET /user/emails` with their own sign-in;
+   docs/HOSTED.md, "Invites by email"), so a reviewer or admin invite goes to the person it was sent to. When you add
+   it to an existing app, people already signed in get it the next time they sign in. A pasted token needs the same: the `user:email` scope (classic) or Email addresses
    read (fine-grained).
 
    A user can never do more through the app than their own access to the repository allows.

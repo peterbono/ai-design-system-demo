@@ -1,7 +1,7 @@
 // /api/contribute: email contributors (docs/HOSTED.md, "Email contributors").
 //
-// A designer invited with "Can edit" joins with their email only, no GitHub account. Clicking the emailed invite link
-// proves they read that inbox, so accepting needs no GitHub check. Their browser then talks to GitHub through this
+// A designer invited with "Can edit" joins with their email only, no GitHub account, through their Bridge account
+// (api/entry, accept-invite): no GitHub check. Their browser then talks to GitHub through this
 // function: it holds a signed session cookie, and every call goes out with an installation token of the Bridge app
 // (contents, pull requests and issues write, one repository, minted here and never sent to the browser), under a
 // deny-by-default policy. Reviewers and admins keep GitHub, because they approve and merge: an email contributor can
@@ -16,8 +16,6 @@
 //                                                        GitHub people come from the app's token (login, avatar,
 //                                                        permissions); the email members by name and role only, never
 //                                                        another member's email
-//   POST { action: 'accept', token, name }               joins with a pending "Can edit" invite (api/invites token),
-//                                                        sets the session cookie; { member, repo }
 //   POST { action: 'sign-in', repo, email }              always { ok: true }; emails a link to members only
 //   POST { action: 'verify', repo, token }               spends that link, sets the session cookie; { member }
 //   POST { action: 'sign-out', repo }                    clears it
@@ -105,7 +103,6 @@ import { memberStore, type EmailMember, type MemberStore } from '../_lib/members
 import { redisRest, type Redis } from '../_lib/redis.js';
 import { configName, putTeamName } from '../_lib/teams.js';
 import { cookieAttrs, readCookie, signClaims, verifyClaims } from '../_lib/session.js';
-import { inviteStoreOn, type InviteStore } from '../invites/index.js';
 import { accountTeamsKey } from '../_lib/members.js';
 import { isPublicRepo, noteWrite, onBlobs, onRead, parseBlobList, PUBLIC_TEAMS, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
 
@@ -138,7 +135,6 @@ export interface ContribDeps {
   random?: (bytes: number) => Uint8Array;
   /** Injected services (tests); otherwise built from the env. */
   redis?: Redis;
-  invites?: InviteStore;
   members?: MemberStore;
   email?: EmailSender;
   app?: AppTokens;
@@ -183,7 +179,6 @@ export const PROXY_PERMISSIONS = { contents: 'write', pull_requests: 'write', is
 
 export const NOT_CONFIGURED = 'Joining with an email is not available yet on this site.';
 export const EXPIRED = 'This link expired or was already used. Ask your admin for a new invitation, or enter your email to get a sign-in link.';
-export const GITHUB_REQUIRED = 'Reviewers approve changes on GitHub. Sign in with GitHub to join with this role.';
 export const NOT_ALLOWED = 'Bridge does not do this for people who joined with their email. Ask a reviewer or an admin.';
 const SIGNIN = 'You signed out. Sign in again with your email: Bridge sends you a code.';
 const STORAGE_DOWN = 'Bridge could not reach its storage. Try again in a minute.';
@@ -198,7 +193,6 @@ export const LIMIT_WORDS = {
 
 interface Services {
   redis: Redis;
-  invites: InviteStore;
   members: MemberStore;
   email: EmailSender | null;
   app: AppTokens;
@@ -265,7 +259,7 @@ export function services(env: ContribEnv, deps: ContribDeps): Services | null {
   const secret = env.LIBRARY_SESSION_SECRET?.trim() ?? '';
   if (!redis || !app || secret.length < MIN_SECRET_LENGTH) return null;
   const readApp = deps.app ?? readTokens(appId!, pem!, deps.fetch, now);
-  return { redis, invites: deps.invites ?? inviteStoreOn(redis, now), members: deps.members ?? memberStore(redis), email, app, readApp, secret, localAdmins: activeLocalAdmins(deps.localAdmins) };
+  return { redis, members: deps.members ?? memberStore(redis), email, app, readApp, secret, localAdmins: activeLocalAdmins(deps.localAdmins) };
 }
 
 interface Ctx {
@@ -321,13 +315,6 @@ const publicMember = (m: EmailMember) => ({ email: m.email, name: m.name, role: 
 const validEmail = (v: unknown): v is string => typeof v === 'string' && v.length <= 254 && EMAIL.test(v.trim());
 const hmacHex = (secret: string, s: string) => createHmac('sha256', secret).update(s).digest('hex').slice(0, 32);
 
-/** The name shown in pull requests and comments: letters, digits, spaces, . ' - only (no markdown), at most 80. */
-export function cleanName(raw: unknown, email: string): string {
-  const s = typeof raw === 'string' ? raw.normalize('NFC').replace(/[^\p{L}\p{M}\p{N} .'-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 80).trim() : '';
-  if (s) return s;
-  return email.split('@')[0]!.replace(/[^A-Za-z0-9.-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40) || 'Contributor';
-}
-
 function requireCsrf(req: Request): void {
   if (req.headers.get('x-bridge-contribute') !== '1' || !sameOriginWhenPresent(req)) throw new HttpError(403, 'origin', 'Contribute from Studio on this site.');
 }
@@ -380,27 +367,6 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
   const { svc } = ctx;
 
   switch (body.action) {
-    case 'accept': {
-      // The token of an api/invites invitation: opening the emailed link proves the inbox, no GitHub check.
-      if (typeof body.token !== 'string' || !TOKEN.test(body.token)) return fail(410, 'expired', EXPIRED);
-      const inv = await svc.invites.byTokenHash(sha256(body.token));
-      if (!inv) return fail(410, 'expired', EXPIRED);
-      if (Date.parse(inv.expiresAt) <= ctx.now()) {
-        await svc.invites.remove(inv);
-        return fail(410, 'expired', EXPIRED);
-      }
-      // Reviewers approve on GitHub: the invite stays valid for the GitHub way. An admin needs no GitHub for what
-      // admins do in Bridge (members, requests, settings, invites), so Admin joins with the email too.
-      if (inv.role !== 'edit' && inv.role !== 'admin') return fail(409, 'github-required', GITHUB_REQUIRED);
-      const email = inv.email.trim().toLowerCase();
-      const prev = await svc.members.get(inv.repo, email);
-      const member: EmailMember = { email, name: cleanName(body.name, email), role: inv.role, version: (prev?.version ?? 0) + 1, addedBy: inv.invitedBy, at: new Date(ctx.now()).toISOString() };
-      await svc.members.put(inv.repo, member);
-      // Single use, the same bookkeeping as the GitHub accept.
-      await svc.invites.remove(inv);
-      return json(200, { member: publicMember(member), repo: inv.repo }, { 'Set-Cookie': issueSession(member, inv.repo, svc.secret, ctx.now()) });
-    }
-
     case 'sign-in': {
       const { owner, repo, full } = parseRepo(body.repo);
       if (!validEmail(body.email)) return fail(400, 'bad_email', 'Enter your email, like name@company.com.');
