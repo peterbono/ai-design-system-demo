@@ -2760,9 +2760,10 @@ function refreshTryIt(r: PushState): void {
 
 /** The hint under a preview: what it shows, or where its build stands. */
 function linkHint(l: { hint: string; url: string | null; state: string }): string {
+  // A build that failed before it had a URL (a rate limit) would otherwise wait forever.
+  if (l.state === 'failed') return l.url ? 'This deploy failed, the branch in Studio says why' : 'This preview did not build. The branch in Studio says why';
   if (!l.url) return 'Link not ready yet';
   if (l.state === 'building') return 'Rebuilding with your edits';
-  if (l.state === 'failed') return 'This deploy failed, the branch in Studio says why';
   return l.hint;
 }
 
@@ -2821,7 +2822,9 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
                   h('span', { class: 'row-label' }, h('span', null, l.label), h('small', null, linkHint(l))),
                   l.url
                     ? h('button', { class: 'btn ghost row-action', 'data-focus-id': `tryit-open-${l.app}`, 'aria-label': `Open ${l.label} preview`, title: l.url, onClick: () => void request('open-url', { url: l.url! }) }, icon('external'), 'Open')
-                    : h('span', { class: 'spinner row-wait', role: 'img', 'aria-label': `Waiting for the ${l.label} link` }),
+                    : l.state === 'failed'
+                      ? null
+                      : h('span', { class: 'spinner row-wait', role: 'img', 'aria-label': `Waiting for the ${l.label} link` }),
                 ),
               ),
             ),

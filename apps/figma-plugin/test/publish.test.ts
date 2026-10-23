@@ -289,6 +289,9 @@ test('push to an exploration: variable edits commit to explore/<slug>, no pull r
   // Sending the same edits again commits nothing.
   const again = await publish(client, { analysis: a, proposal, components: [], unchecked, description: '', title: '', fileName: 'Test', coded: [], exploration: targetOf(exploration) });
   assert.equal(again.exploration?.unchanged, true);
+  // Only component requests: no variable edit was sent, so the result never says the exploration "already had" them.
+  const onlyComponents = await publish(client, { analysis: a, proposal: { ...proposal, files: {}, brandFiles: [] }, components: scan.changed, unchecked: new Set(), description: '', title: '', fileName: 'Test', coded: ['Button', 'Card'], exploration: targetOf(exploration) });
+  assert.equal(onlyComponents.exploration?.unchanged, false);
 });
 
 // The result screen's "Try it": previews in a designer's order, the test build from the preview comment, the share message.

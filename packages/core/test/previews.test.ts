@@ -181,6 +181,13 @@ test('the template alone never shows a shortened alias: admin (64) and storybook
     ],
   );
   assert.equal(previewsSettled(previews), false);
+  // A build Vercel refused (rate limit) fails without a URL: settled, so polling stops instead of waiting forever.
+  const refused = resolveBranchPreviews(realApps(), { branch: PR64.branch, pr: 64 }, {
+    statuses: ['bridge-docs', 'bridge-storybook', 'bridge-admin'].map((p) => ({ context: `Vercel – ${p}`, state: 'failure', target_url: 'https://vercel.com/team?upgradeToPro=build-rate-limit' })),
+  });
+  assert.deepEqual(refused.map((p) => [p.app, p.state]), [['docs', 'failed'], ['storybook', 'failed'], ['admin', 'failed']]);
+  assert.equal(refused[1]!.url, null);
+  assert.equal(previewsSettled(refused), true);
 });
 
 test('the Vercel comment and statuses give the real #64 URLs and their state', () => {
