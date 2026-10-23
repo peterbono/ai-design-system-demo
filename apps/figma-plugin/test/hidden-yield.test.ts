@@ -90,3 +90,12 @@ test('hidden window: turns go through the UI, not throttled timers; shown again,
   assert.equal(again.turns, shown.turns);
   assert.equal(again.uiTurns, 0);
 });
+
+test('a busy file that is shown (turns of 250 ms): longer slices, far fewer turns, never read as hidden', async () => {
+  const quiet = await build(16, () => false);
+  const busy = await build(250, () => false);
+  assert.equal(busy.uiTurns, 0, 'not hidden: timer turns');
+  assert.ok(busy.turns * 4 < quiet.turns, `busy ${busy.turns} turns, quiet ${quiet.turns}`);
+  // Waiting stays a small share: about a fifth of the work at most.
+  assert.ok(busy.waited <= quiet.turns * 5 * 30 * 0.3 + 250, `waited ${busy.waited} ms`);
+});
