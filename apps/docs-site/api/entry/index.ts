@@ -454,17 +454,9 @@ export async function entryFor(ctx: Ctx, req: Request, a: Account): Promise<Entr
   // 2. Invites waiting for their email.
   const invites = await ctx.svc.invites.byEmail(a.email);
   if (invites.length) {
-    const out: Extract<Entry, { kind: 'invites' }>['invites'] = [];
-    const nameOf = await teamNamesOf(ctx, invites.map((inv) => inv.repo));
-    for (const inv of invites) {
-      const { memberCount, people, nameOfLogin } = await teamPeople(ctx, inv.repo);
-      const invitedBy = inv.invitedByName ? displayName(inv.invitedByName, inv.invitedBy) : await nameOfLogin(inv.invitedBy);
-      out.push({ id: inv.id, team: nameOf(inv.repo), repo: inv.repo, role: inv.role, invitedBy, invitedAt: inv.createdAt, memberCount, people });
-    }
-}
-
     const out: EntryInviteCard[] = [];
-    for (const inv of invites) out.push(await inviteCard(ctx, inv));
+    const nameOf = await teamNamesOf(ctx, invites.map((inv) => inv.repo));
+    for (const inv of invites) out.push(await inviteCard(ctx, inv, nameOf(inv.repo)));
     return { kind: 'invites', invites: out };
   }
 
