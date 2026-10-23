@@ -1,3 +1,4 @@
+import type { ProductConfig } from '@bridge-ds/core';
 import { describe, expect, it } from 'vitest';
 import {
   changeGroups,
@@ -14,6 +15,10 @@ import {
   readLooked,
   reviewActions,
   reviewCrumbs,
+  productWorkOf,
+  productWorkLine,
+  productWorkEmpty,
+  bodyWhy,
   shotComponent,
   splitChanges,
   tokenGroup,
@@ -314,5 +319,75 @@ describe('reviewCrumbs', () => {
     const c = reviewCrumbs(null, 'T');
     expect(c[1]!.label).toBe('Library');
     expect(c[2]!.href).toBeUndefined();
+  });
+
+  const account = [
+    { key: 'library', name: 'Library', path: 'packages', framework: 'react', default: true },
+    { key: 'account', name: 'Account app', path: 'apps/account', framework: 'react' },
+  ] as ProductConfig[];
+
+  it("reads the site's products and the product label, never Library for a product screen", () => {
+    expect(reviewCrumbs(['apps/account/src/pages/Billing.tsx'], 'T', { products: account }).map((c) => c.label)).toEqual(['Branches', 'Account app', 'T']);
+    expect(reviewCrumbs(null, 'T', { products: account, labels: [{ name: 'product: account' }] })[1]!.label).toBe('Account app');
+  });
+
+  it('files a running exploration under Explorations', () => {
+    expect(reviewCrumbs(['apps/account/src/pages/Profile.tsx'], 'Profile page', { products: account, exploration: true }).map((c) => c.label)).toEqual(['Branches', 'Explorations', 'Profile page']);
+  });
+});
+
+describe('productWorkOf', () => {
+  const products = [
+    { key: 'library', name: 'Library', path: 'packages', framework: 'react', default: true },
+    { key: 'account', name: 'Account app', path: 'apps/account', framework: 'react' },
+  ] as ProductConfig[];
+
+  it('is null for a library branch', () => {
+    expect(productWorkOf({ exploration: false, files: ['packages/react/src/Button.tsx'], products })).toBeNull();
+  });
+
+  it('names the product of a product branch, keeps only the previews with a link', () => {
+    const v = productWorkOf({ exploration: false, files: ['apps/account/src/pages/Billing.tsx'], products, previews: [{ label: 'Admin demo', url: 'https://a.example', state: 'ready' }, { label: 'Component sandbox', url: null, state: 'unknown' }], tryUrl: 'https://a.example/?bridge=45' });
+    expect(v).toEqual({ kind: 'product', product: 'Account app', purpose: null, useCase: null, experimental: [], previews: [{ label: 'Admin demo', url: 'https://a.example' }], tryUrl: 'https://a.example/?bridge=45', previewState: 'missing' });
+    expect(productWorkLine(v!)).toBe('A change to Account app, built with the library.');
+  });
+
+  it('says what an exploration is for, in designer words', () => {
+    const v = productWorkOf({ exploration: true, files: null, labels: ['product: account'], products, purpose: 'Try the new profile page with customers' });
+    expect(v!.kind).toBe('exploration');
+    const line = productWorkLine(v!);
+    expect(line).toBe('An exploration in Account app, never merged as is. Try the new profile page with customers.');
+    expect(productWorkEmpty(v!)).toMatch(/^No preview of it yet\./);
+    for (const t of [line, productWorkEmpty(v!)]) expect(t).not.toMatch(/\u2014|pull request|\bPR\b|\bmain\b/);
+  });
+
+  it('says why there is no preview: none set up, did not build, still building', () => {
+    const none = productWorkOf({ exploration: true, files: null, products })!;
+    expect(none.previewState).toBe('none');
+    const failed = productWorkOf({ exploration: true, files: null, products, previews: [{ label: 'Admin demo', url: 'https://x.example', state: 'failed' }] })!;
+    expect(failed).toMatchObject({ previews: [], previewState: 'failed' });
+    expect(productWorkEmpty(failed)).toMatch(/did not build/);
+    expect(productWorkEmpty({ product: 'the library', previewState: 'building' })).toMatch(/being built/);
+    expect(productWorkEmpty({ product: 'the library', previewState: 'missing' })).toMatch(/^No preview of this version yet\./);
+    expect(productWorkOf({ exploration: true, files: null, products, useCase: 'Other' })!.useCase).toBeNull();
+  });
+
+  it('calls a library exploration the library', () => {
+    expect(productWorkOf({ exploration: true, files: ['packages/react/src/Button.tsx'], products })!.product).toBe('the library');
+  });
+});
+
+describe('bodyWhy', () => {
+  it('reads the first paragraph under What changed and why, as plain text', () => {
+    const body = '## What changed and why\n\nAccount app, Billing page. The status is now the library `Badge` **instead** of [text](https://x).\n\nNo library change.\n\n## Risk tier';
+    expect(bodyWhy(body)).toBe('Account app, Billing page. The status is now the library Badge instead of text.');
+  });
+
+  it('is null without that section, and cuts long text on a word', () => {
+    expect(bodyWhy('Fixes #3')).toBeNull();
+    expect(bodyWhy(null)).toBeNull();
+    const long = bodyWhy(`## Why\n\n${'word '.repeat(100)}`)!;
+    expect(long.length).toBeLessThanOrEqual(283);
+    expect(long.endsWith('word...')).toBe(true);
   });
 });

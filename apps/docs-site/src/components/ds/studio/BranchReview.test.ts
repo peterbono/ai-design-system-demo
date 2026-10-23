@@ -55,4 +55,33 @@ describe('BranchReview', () => {
     render(createElement(BranchReview, { ...base, developer: { tests: '2 developer tests fail. A developer fixes them.', failing: ['Unit tests'], url: 'https://github.com/o/r/pull/17', number: 17 } }));
     expect(screen.getByRole('button', { name: 'For developers' })).toBeTruthy();
   });
+
+  const work = {
+    kind: 'exploration' as const,
+    product: 'Account app',
+    purpose: 'Try the new profile page with customers.',
+    useCase: 'Prototype for a user test',
+    experimental: ['Account app: profile page'],
+    previews: [{ label: 'Component sandbox', url: 'https://sandbox.example/' }],
+    tryUrl: 'https://admin.example/?bridge=36',
+    previewState: 'missing' as const,
+  };
+  const code = { files: ['apps/account/src/pages/Profile.tsx'], branch: 'explore/profile-page', url: 'https://github.com/o/r/pull/36', number: 36, install: null };
+
+  it('shows a designer an exploration: why, Try it in the product, its previews and Share, the code folded', () => {
+    render(createElement(BranchReview, { ...base, productWork: work, code }));
+    expect(screen.getByRole('heading', { name: /See it/ })).toBeTruthy();
+    expect(screen.getByText(/An exploration in Account app/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Try it in the product' }).getAttribute('href')).toBe('https://admin.example/?bridge=36');
+    expect(screen.getByRole('link', { name: 'Open in Component sandbox' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Share' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'For developers' })).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/the changes are code/);
+  });
+
+  it('says why there is nothing to try yet', () => {
+    render(createElement(BranchReview, { ...base, productWork: { ...work, previews: [], tryUrl: null, previewState: 'none' }, code }));
+    expect(screen.getByText(/No preview of it yet\. Once Account app publishes a preview/)).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Try it in the product' })).toBeNull();
+  });
 });

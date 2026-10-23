@@ -3,23 +3,113 @@
 // conversation without bots, the one line about checks, which actions the decision bar and its "More actions" menu
 // hold, and the "looked at" reading aid of a busy branch. components/ds/studio/BranchReview.tsx renders it;
 // scripts/reviews.ts reads GitHub and calls in. No DOM. Tested in review-page.test.ts.
-import { CI_STATE_LABEL } from '@bridge-ds/core';
+import { CI_STATE_LABEL, DEFAULT_PRODUCTS, type ProductConfig } from '@bridge-ds/core';
 import type { CheckStory } from './check-explain';
-import { PRODUCTS, productOf } from './branches-page';
+import { headingsOf, PRODUCTS, productOf } from './branches-page';
 import type { Lifecycle } from './change-status';
 import { studioHref } from './team-path';
 
 // ---------------------------------------------------------------------------------------------------------------
 // Breadcrumb
 
-/** "Branches › Library › <title>": the group is the product the Branches page files the branch under. */
-export function reviewCrumbs(files: readonly string[] | null, title: string): { label: string; href?: string }[] {
-  const group = PRODUCTS.find((p) => p.key === productOf(files))!;
+/**
+ * "Branches › Library › <title>": the group is the product the Branches page files the branch under (its
+ * `product: <key>` label, else the folder of its files, among the site's products). A running exploration is filed
+ * under Explorations, never under the library it does not change.
+ */
+export function reviewCrumbs(
+  files: readonly string[] | null,
+  title: string,
+  opts: { products?: readonly ProductConfig[]; labels?: readonly (string | { name: string })[] | null; exploration?: boolean } = {},
+): { label: string; href?: string }[] {
+  const products = opts.products?.length ? opts.products : DEFAULT_PRODUCTS;
+  const key = productOf(files, products, opts.labels ?? null);
+  const group = opts.exploration ? 'Explorations' : (headingsOf(products).find((p) => p.key === key) ?? PRODUCTS.find((p) => p.key === key) ?? PRODUCTS[0]!).label;
   return [
     { label: 'Branches', href: studioHref('changes/') },
-    { label: group.label, href: studioHref('changes/') },
+    { label: group, href: studioHref('changes/') },
     { label: title },
   ];
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Product work: an exploration or a product branch, as a designer sees it
+
+/** What a designer gets on an exploration or a product branch page: where it is, why, and how to see it. */
+export interface ProductWorkView {
+  kind: 'exploration' | 'product';
+  /** The product it is built in ("Account app"); "the library" for an exploration of the library itself. */
+  product: string;
+  /** Why it exists, from the exploration block (or null). */
+  purpose: string | null;
+  /** The use case, in words ("Prototype for a user test"). */
+  useCase: string | null;
+  /** What is experimental, one line each, from the exploration block. */
+  experimental: string[];
+  /** Previews Vercel reported for the branch, by designer name (Component sandbox, Admin demo). */
+  previews: { label: string; url: string }[];
+  /** The product preview with the Bridge toolbar on (?bridge=N), when there is one. */
+  tryUrl: string | null;
+  /** Without a preview to open: none set up, none for this version, the latest did not build, or still building. */
+  previewState: 'none' | 'missing' | 'failed' | 'building';
+}
+
+/**
+ * The product work view of a branch, or null for a library branch: a running exploration, or a branch filed under a
+ * product other than the library (its label or its files).
+ */
+export function productWorkOf(x: {
+  exploration: boolean;
+  files: readonly string[] | null;
+  labels?: readonly (string | { name: string })[] | null;
+  products?: readonly ProductConfig[];
+  purpose?: string | null;
+  useCase?: string | null;
+  experimental?: string[] | null;
+  previews?: { label: string; url: string | null; state?: string }[];
+  tryUrl?: string | null;
+}): ProductWorkView | null {
+  const products = x.products?.length ? x.products : DEFAULT_PRODUCTS;
+  const key = productOf(x.files, products, x.labels ?? null);
+  const library = products.find((p) => p.default)?.key ?? 'library';
+  if (!x.exploration && key === library) return null;
+  const name = key === library ? 'the library' : (headingsOf(products).find((p) => p.key === key)?.label ?? key);
+  const all = x.previews ?? [];
+  const previews = all.filter((p) => p.url && p.state !== 'failed').map((p) => ({ label: p.label, url: p.url! }));
+  const previewState = !all.length ? 'none' : all.some((p) => p.state === 'building') ? 'building' : all.some((p) => p.state === 'failed') ? 'failed' : 'missing';
+  return { kind: x.exploration ? 'exploration' : 'product', product: name, purpose: x.purpose?.trim() || null, useCase: x.useCase && x.useCase.toLowerCase() !== 'other' ? x.useCase : null, experimental: (x.experimental ?? []).filter((e) => e.trim()), previews, tryUrl: x.tryUrl ?? null, previewState };
+}
+
+/**
+ * The first paragraph a branch description gives under "What changed and why" (or "Why"), as plain text, for a
+ * product branch without an exploration block. Null when the body has no such section. At most 280 characters.
+ */
+export function bodyWhy(body: string | null | undefined): string | null {
+  const m = /^#{1,4}\s*(?:what changed(?: and why)?|why)\b[^\n]*\n+([\s\S]*?)(?:\n\s*\n|\n#|$)/im.exec(body ?? '');
+  const text = m?.[1]
+    ?.replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/\*\*?([^*]+)\*\*?/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!text) return null;
+  return text.length > 280 ? `${text.slice(0, 279).replace(/\s+\S*$/, '')}...` : text;
+}
+
+/** The sentence under "See it": "An exploration in Account app, to try ..." or "A screen of Account app, built with the library." */
+export function productWorkLine(v: Pick<ProductWorkView, 'kind' | 'product' | 'purpose' | 'useCase'>): string {
+  const what = v.kind === 'exploration' ? `An exploration in ${v.product}, never merged as is.` : `A change to ${v.product}, built with the library.`;
+  const why = v.purpose ? ` ${v.purpose.replace(/\s+/g, ' ').replace(/([^.!?])$/, '$1.')}` : '';
+  return `${what}${why}`;
+}
+
+/** When nothing can be seen yet (no before and after, no preview): why, and what a designer can do about it. */
+export function productWorkEmpty(v: Pick<ProductWorkView, 'product' | 'previewState'>): string {
+  if (v.previewState === 'failed') return 'The preview of the latest version did not build. Ask a developer to run it again.';
+  if (v.previewState === 'building') return 'Its preview is being built. It shows here in a few minutes.';
+  if (v.previewState === 'missing') return 'No preview of this version yet. Ask a developer to publish one.';
+  return `No preview of it yet. Once ${v.product} publishes a preview for each branch, you can try it from here. Ask a developer to turn previews on.`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
