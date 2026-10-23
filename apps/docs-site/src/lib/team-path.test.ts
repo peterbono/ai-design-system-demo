@@ -125,6 +125,9 @@ describe('pageTeamFromPath', () => {
   it('reads the team on a team shell, the escape form included', () => {
     expect(pageTeamFromPath('/studio/acme/ds/changes/', true)).toEqual({ owner: 'acme', repo: 'ds' });
     expect(pageTeamFromPath('/studio/~/brands/new/', true)).toEqual({ owner: 'brands', repo: 'new' });
+  });
+});
+
 describe('teams made in Bridge, no repository yet', () => {
   it('go by a key no GitHub owner can take, and open on the workspace page', () => {
     expect(teamKeyOf('C0FFEE0000000017')).toBe('_team/c0ffee0000000017');

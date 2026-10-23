@@ -94,7 +94,7 @@ describe('create-team: a real team at step 1', () => {
     expect(team).toMatchObject({ name: 'Northwind Design', role: 'admin', repo: null, storybook: null, discovery: { domain: 'northwind.io', enabled: true }, memberCount: 1 });
     expect((await s.members.get(team.key, 'jo@northwind.io'))?.role).toBe('admin');
     // The creator's next sign-in routes to it, as admin.
-    expect((await s.entry(jo)).body).toEqual({ kind: 'teams', teams: [{ repo: team.key, name: 'Northwind Design', role: 'admin', via: 'email' }] });
+    expect((await s.entry(jo)).body).toEqual({ kind: 'teams', teams: [{ repo: team.key, id: expect.any(String), name: 'Northwind Design', role: 'admin', via: 'email' }] });
     expect(teamHref('_team', team.id, null)).toBe(`/studio/workspace/?team=${team.id}`);
     // The account lists it, with its home.
     const me = await handleAccount(new Request(`${ORIGIN}/api/account`, { headers: { host: HOST, cookie: jo } }), ENV, { fetch: async () => res(404), redis: s.redis, members: s.members });
@@ -135,8 +135,10 @@ describe('colleagues find it and ask to join', () => {
     const { jo, team } = await created(s);
     const kim = await s.cookie('kim@northwind.io', 'Kim Lee');
     const e = await s.entry(kim);
-    expect(e.body).toMatchObject({ kind: 'domain', domain: 'northwind.io', teams: [{ repo: team.key, name: 'Northwind Design', memberCount: 1, people: ['Jo Park'], adminName: 'Jo Park', requested: false }] });
-    expect((await s.act(kim, { action: 'request', repo: team.key })).body).toMatchObject({ requested: true });
+    expect(e.body).toMatchObject({ kind: 'domain', domain: 'northwind.io', teams: [{ name: 'Northwind Design', memberCount: 1, people: ['Jo P.'], adminName: 'Jo Park', requested: false }] });
+    // A domain card names the team by an opaque id, never its key.
+    expect(JSON.stringify(e.body)).not.toContain(team.key);
+    expect((await s.act(kim, { action: 'request', team: e.body.teams[0].id })).body).toMatchObject({ requested: true });
     // The admin is emailed, with a link to the team's home.
     expect(s.sent.find((m) => m.to === 'jo@northwind.io')?.text).toContain(`/studio/workspace/?team=${team.id}`);
     const reqs = (await s.entry(jo, `?requests=${team.key}`)).body.requests;

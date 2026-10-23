@@ -321,7 +321,7 @@ export const ENTRY_WORDS = {
   githubWhy: (role: string) => `As ${role}, you approve changes on GitHub, the free account where your team's design system lives.`,
   newToGitHub: 'New to GitHub?',
   createGitHub: 'Create a free account',
-  githubOff: (role: string, inviter: string) => `Joining as ${role} needs GitHub, which is not available on this Bridge site. Ask ${inviter || 'your admin'} to invite you as Can edit instead.`,
+  githubOff: (role: string, inviter: string) => `Joining as ${role} needs GitHub, which is not available on this Bridge site. Ask ${inviter || 'your admin'} to invite you as Can edit or Admin instead.`,
   // The invite link (/studio/invite/#t=...), before E3.
   opening: 'Opening your invite',
   linkTitle: (team: string) => (team ? `Join ${team}` : 'Join your team'),
