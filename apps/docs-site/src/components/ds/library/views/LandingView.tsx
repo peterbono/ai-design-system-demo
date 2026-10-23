@@ -6,7 +6,7 @@ import { Badge, Link } from '@bridge-ds/react';
 import ButtonLink from '../../ButtonLink';
 import { Drawing } from '../../studio/Drawing';
 import type { IllustrationName } from '../../../../brand/illustrations';
-import { libraryHome } from '../../../../lib/library-view';
+import { libraryHome } from '../../../../lib/library/home';
 import { loadComponents } from '../../../../lib/library/components';
 import { tokenRows } from '../../../../lib/library/tokens';
 import { pageHref, systemName, type LibraryData } from '../library-data';

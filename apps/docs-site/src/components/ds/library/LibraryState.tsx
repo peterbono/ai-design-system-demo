@@ -10,7 +10,7 @@ import { GitHubMark } from '../studio/brand-icons';
 import { Drawing } from '../studio/Drawing';
 import { TeamLoadProgress, TeamSourceNote, useTeamData } from '../studio/TeamState';
 import { commitUrl, SNAPSHOT_TEMPLATE_URL, type TeamFailure } from '../../../lib/team-load';
-import { publishedLine } from '../../../lib/library-view';
+import { publishedLine } from '../../../lib/library/published';
 import { teamHref } from '../../../lib/team-path';
 import { teamOfPage, type TeamData } from '../../../scripts/team-data';
 import type { IllustrationName } from '../../../brand/illustrations';

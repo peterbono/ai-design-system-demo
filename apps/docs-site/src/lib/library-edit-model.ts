@@ -19,7 +19,6 @@ export type Section = (typeof SECTIONS)[number];
 
 export const sectionOf = (key: ProseKey): Section => SECTIONS.find((s) => (s.keys as readonly ProseKey[]).includes(key))!;
 export const sectionById = (id: SectionId): Section => SECTIONS.find((s) => s.id === id)!;
-export const sectionLabel = (id: SectionId) => sectionById(id).label;
 
 type ProseValue = ComponentDocsJson[ProseKey];
 
@@ -120,9 +119,6 @@ export function sectionState(s: EditState, id: SectionId): SectionState {
 
 /** Sections that are empty or outdated: what "Fill empty and outdated sections" works on. */
 export const sectionsToFill = (s: EditState): SectionId[] => SECTIONS.filter((x) => ['empty', 'outdated'].includes(sectionState(s, x.id))).map((x) => x.id);
-
-/** Prose keys missing on the page (core's rule), for the page-level hint. */
-export const missingKeys = (d: Partial<ComponentDocsJson>): ProseKey[] => missingProse(d);
 
 /**
  * Puts Claude's sections on the page as pending drafts. A key drafted twice keeps its first "before". `checked` lists

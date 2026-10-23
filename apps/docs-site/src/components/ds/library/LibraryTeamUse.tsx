@@ -13,7 +13,7 @@ import AgentsView, { AGENTS_PAGE } from './views/AgentsView';
 import ReviewView, { REVIEW_PAGE } from './views/ReviewView';
 import ChangelogView, { CHANGELOG_PAGE } from './views/ChangelogView';
 import { agentPrChecksOf, agentRulesOf, approvalsOf, reviewGatesOf, riskTiersOf } from '../../../lib/library/use-pages';
-import { llmsTxtUrl } from '../../../lib/library-view';
+import { llmsTxtUrl } from '../../../lib/library/published';
 import type { IllustrationName } from '../../../brand/illustrations';
 import { loadTeamLlmsText, loadTeamSnapshot, readTeamFile, resetTeamData, type TeamData } from '../../../scripts/team-data';
 import '../../../styles/process.css';
