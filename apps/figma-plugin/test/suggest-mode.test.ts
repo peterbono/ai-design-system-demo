@@ -87,7 +87,7 @@ test('suggest, read-only token: the variable edits are one token suggestion with
   assert.ok(p.tokens!.edits.every((e) => e.file), 'each edit names its token file');
   const issue = gh.issues.find((i) => i.number === s.number)!;
   assert.ok(issue.labels.includes('bridge-suggestion') && issue.labels.includes('source: figma') && issue.labels.includes('suggestion: token-change'), issue.labels.join());
-  assert.equal(sentTitle(res, 'suggest'), `Suggestion #${s.number} sent to your DS lead`);
+  assert.equal(sentTitle(res, 'suggest'), 'Suggestion sent to your DS lead');
   assert.ok(res.tags?.length, 'variables are tagged so the next diff matches them');
 
   // Applied on main, the edits give the same tokens the direct push would have committed.
@@ -215,12 +215,14 @@ test('tokenEditsOf: set per file, add, remove, rename', () => {
 
 test('wording per mode: the action, the result and the token help', () => {
   assert.equal(sendLabel('suggest'), 'Send suggestion');
-  assert.equal(sendLabel('direct'), 'Request review');
-  assert.equal(sentTitle({ suggestions: [{ kind: 'variables', number: 12, url: 'u' }] }, 'suggest'), 'Suggestion #12 sent to your DS lead');
+  assert.equal(sendLabel('direct'), 'Send for review');
+  assert.equal(sentTitle({ suggestions: [{ kind: 'variables', number: 12, url: 'u' }] }, 'suggest'), 'Suggestion sent to your DS lead');
   assert.equal(sentTitle({ suggestions: [{ kind: 'variables', number: 12, url: 'u' }, { kind: 'component-spec', number: 13, url: 'u' }] }, 'suggest'), '2 suggestions sent to your DS lead');
   assert.match(tokenHelp('suggest'), /"Issues" set to "Read and write", "Contents" and "Pull requests" set to "Read"/);
   assert.doesNotMatch(tokenHelp('suggest'), /Pull requests" and "Issues" set to "Read and write"/);
   assert.match(tokenHelp('direct'), /"Contents", "Pull requests" and "Issues" set to "Read and write"/);
-  assert.match(tokenHelp(undefined), /suggestions.*"changes": "direct"/);
+  assert.match(tokenHelp(undefined), /suggestions.*straight to review/);
+  // First-run help speaks to designers: no config keys.
+  assert.doesNotMatch(tokenHelp(undefined), /"changes"|bridge\.config/);
   for (const s of [tokenHelp(undefined), IMAGES_NEED_WRITE, sendLabel('suggest')]) assert.doesNotMatch(s, /\u2014/);
 });

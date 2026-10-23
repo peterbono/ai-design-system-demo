@@ -42,6 +42,9 @@ export function setContributeFetch(f: Fetch | null) {
 const HINT_PREFIX = 'bridge.contribute.member:';
 const key = (repo: string) => repo.toLowerCase();
 
+/** The storage key of `repo`'s member: another tab removing it means the session ended there. */
+export const contributorKey = (repo: string) => HINT_PREFIX + key(repo);
+
 /** The member this browser last saw signed in on `repo`, or null. Synchronous: the server confirms it on each page. */
 export function contributorFor(repo: string): ContributeMember | null {
   try {
@@ -69,6 +72,37 @@ function remember(repo: string, m: ContributeMember | null) {
   }
   infos.set(key(repo), Promise.resolve({ available: infoAvailable.get(key(repo)) ?? true, member: m }));
   if (Boolean(before) !== Boolean(m) || before?.email !== m?.email || before?.name !== m?.name) listeners.forEach((fn) => fn(repo, m));
+}
+
+/**
+ * A Bridge account signed in with its code is a member of its email teams already (api/contribute reads the account
+ * session too): each team page of theirs knows it at once, even one never opened in this browser. Only the hint is
+ * written (the server confirms it on the page); a team whose hint is there already is left as it is.
+ */
+export function seedContributors(account: { email: string; name: string | null }, teams: readonly { repo: string; role: string; via: string }[]) {
+  for (const t of teams) {
+    if (t.via !== 'email' || !/^[^/\s]+\/[^/\s]+$/.test(t.repo)) continue;
+    if (contributorFor(t.repo)) continue;
+    const m = parseMember({ email: account.email, name: account.name ?? '', role: t.role === 'admin' ? 'admin' : 'edit' });
+    if (!m) continue;
+    try {
+      localStorage.setItem(HINT_PREFIX + key(t.repo), JSON.stringify(m));
+    } catch {
+      return;
+    }
+    listeners.forEach((fn) => fn(t.repo, m));
+  }
+}
+
+/** Forgets every team's email member in this browser (sign-out, account deleted). */
+export function forgetContributors() {
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith(HINT_PREFIX)) localStorage.removeItem(k);
+  } catch {
+    /* storage blocked: nothing kept */
+  }
+  infos.clear();
+  mines.clear();
 }
 
 async function call<T>(method: 'GET' | 'POST', query: string, body?: unknown, extra: Record<string, string> = {}): Promise<T> {
@@ -177,15 +211,6 @@ export async function signOutEmail(repo: string): Promise<void> {
 /** The session ended on the server (removed from the team, or re-invited): forget it here too. */
 export function endedEmailSession(repo: string) {
   remember(repo, null);
-}
-
-/** Accepts a "Can edit" invite with a name: no GitHub. 409 github-required for a reviewer or admin invite. */
-export async function acceptEmailInvite(token: string, name: string): Promise<{ repo: string; member: ContributeMember }> {
-  const r = await call<{ repo?: unknown; member?: unknown }>('POST', '', { action: 'accept', token, name: name.trim() });
-  const m = parseMember(r.member);
-  if (typeof r.repo !== 'string' || !m) throw new ContributeError('Something went wrong. Try again in a minute.', 'failed', 500);
-  remember(r.repo, m);
-  return { repo: r.repo, member: m };
 }
 
 /** The token of `#contribute=<token>`, taken out of the address at once (never in the history or a shared link). */

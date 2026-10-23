@@ -24,3 +24,17 @@ export function libraryHome(model: Pick<RepoModel, 'tokens' | 'components'>): Li
   const lead = parts.length ? `${list(parts)}${rows.themes.length > 1 ? `, in ${list(rows.themes)}` : ''}.` : 'No tokens or components were found yet.';
   return { tokens, semantic: rows.semantic.length, components: comps.length, documented, themes: rows.themes, lead };
 }
+
+/**
+ * The packages a designer meets in a Library: the tokens and the components. The site, the CLI, the core library and
+ * the plugins ship with their own notes; their changesets stay out of the home's "What changed".
+ */
+export const LIBRARY_PACKAGES: readonly string[] = ['@bridge-ds/tokens', '@bridge-ds/react'];
+
+/**
+ * The release notes the Library home shows: entries that change the tokens or the components. Internal entries (no
+ * package) and entries that only touch the tooling or the site (an internal API, a Studio board) are left out.
+ */
+export function libraryNotes<T extends { kind: string; packages: readonly string[] }>(entries: readonly T[], packages: readonly string[] = LIBRARY_PACKAGES): T[] {
+  return entries.filter((e) => e.kind !== 'Internal' && e.packages.some((p) => packages.includes(p)));
+}

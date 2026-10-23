@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CONTRIB_TOKEN } from '../lib/contribute';
 import { errorText } from '../lib/token-session';
-import { acceptEmailInvite, contributeInfo, contributorFor, requestEmailSignIn, setContributeFetch, signOutEmail, verifyEmailSignIn } from './contribute-session';
+import { contributeInfo, contributorFor, forgetContributors, onContributeChange, requestEmailSignIn, seedContributors, setContributeFetch, signOutEmail, verifyEmailSignIn } from './contribute-session';
 import { currentContributor, getToken, ghWrite, studioClient, studioFetch } from './github-session';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -35,6 +35,28 @@ afterEach(() => {
 const signIn = () => localStorage.setItem('bridge.contribute.member:acme/ds', JSON.stringify({ email: 'leo@acme.design', name: 'Leo', role: 'edit' }));
 
 describe('the email session', () => {
+  it('knows the member of every email team of an account signed in with a code, without a call', () => {
+    localStorage.setItem('bridge.contribute.member:lumen/brand', JSON.stringify({ email: 'old@acme.design', name: 'Old', role: 'edit' }));
+    const seen: string[] = [];
+    onContributeChange((repo) => seen.push(repo));
+    seedContributors({ email: 'leo@acme.design', name: 'Leo' }, [
+      { repo: 'acme/ds', role: 'edit', via: 'email' },
+      { repo: 'Lumen/Mobile-Kit', role: 'edit', via: 'email' },
+      { repo: 'lumen/brand', role: 'edit', via: 'email' },
+      { repo: 'octo/gh-only', role: 'reviewer', via: 'github' },
+    ]);
+    expect(contributorFor('acme/ds')).toEqual({ email: 'leo@acme.design', name: 'Leo', role: 'edit' });
+    expect(contributorFor('lumen/mobile-kit')?.email).toBe('leo@acme.design');
+    // A member already known is left as the server last said; a GitHub team has no email session.
+    expect(contributorFor('lumen/brand')?.email).toBe('old@acme.design');
+    expect(contributorFor('octo/gh-only')).toBeNull();
+    expect(seen).toEqual(['acme/ds', 'Lumen/Mobile-Kit']);
+    expect(calls).toHaveLength(0);
+    forgetContributors();
+    expect(contributorFor('acme/ds')).toBeNull();
+    expect(contributorFor('lumen/brand')).toBeNull();
+  });
+
   it('reads who is signed in once per team and page, with the cookie', async () => {
     answer = () => json(200, { available: true, member: { email: 'leo@acme.design', name: 'Leo', role: 'edit' } });
     const info = await contributeInfo('acme/ds');
@@ -56,13 +78,12 @@ describe('the email session', () => {
     expect(JSON.parse(String(calls[1]!.init.body))).toEqual({ action: 'sign-out', repo: 'acme/ds' });
   });
 
-  it('sends the header the server requires on every action (join, links, sign out)', async () => {
+  it('sends the header the server requires on every action (links, sign out)', async () => {
     answer = () => json(200, { repo: 'acme/ds', member: { email: 'leo@acme.design', name: 'Leo', role: 'edit' } });
-    await acceptEmailInvite('T'.repeat(43), 'Leo');
     await requestEmailSignIn('acme/ds', 'leo@acme.design');
     await verifyEmailSignIn('acme/ds', 'T'.repeat(43));
     await signOutEmail('acme/ds');
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(3);
     for (const c of calls) expect((c.init.headers as Record<string, string>)['X-Bridge-Contribute']).toBe('1');
   });
 });

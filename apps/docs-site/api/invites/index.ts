@@ -52,7 +52,8 @@
 // answers 429 with a sentence that says it and when to try again (Retry-After), never a silent drop.
 //
 // What is kept: per pending invite only its email, role, team, who invited, created, sent and expiry dates and the
-// link token's hash, each record expiring in Redis with the invite. Accept and cancel delete it. Nothing here logs.
+// link token's hash, each record expiring in Redis with the invite. Accept and cancel delete it. Per link, its team and
+// the inviter's name (no email) stay 30 days longer, so an old link says whom to ask for a new one. Nothing here logs.
 //
 // Env (server only):
 //   KV_REST_API_URL + KV_REST_API_TOKEN (or UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN)   pending invites
@@ -69,6 +70,7 @@ import { githubApp as sharedGithubApp, type AppTokens } from '../_lib/github-app
 import { b64url, clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody as readJsonBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin as originOf, type FetchLike } from '../_lib/http.js';
 import { memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
+import { configName, getTeamNames, putTeamName } from '../_lib/teams.js';
 import { onBridge, teamDisplayName } from '../../src/lib/demo.js';
 
 export { appJwt } from '../_lib/github-app.js';
@@ -144,6 +146,16 @@ export interface StoredInvite {
   tokenHash: string;
 }
 
+/** What an invite link still says after its invite is gone. */
+export interface InviteTrace {
+  repo: string;
+  /** The inviter's display name, else their login. */
+  invitedBy: string;
+}
+
+/** How long an invite link remembers its team and inviter after the invite expired. */
+export const INVITE_TRACE_MS = 30 * 24 * 60 * 60 * 1000;
+
 /** What GET returns per invite. */
 export type PendingInvite = Omit<StoredInvite, 'repo' | 'tokenHash'>;
 
@@ -171,6 +183,11 @@ export interface InviteStore {
   /** Deletes the invite and its token index. */
   remove(inv: StoredInvite): Promise<void>;
   byTokenHash(hash: string): Promise<StoredInvite | null>;
+  /**
+   * What a link said once its invite is gone (accepted, cancelled or expired): the team and who invited, never the
+   * email. Kept INVITE_TRACE_MS after the invite expires, so an old link says whom to ask (api/entry, invite-link).
+   */
+  traceByTokenHash(hash: string): Promise<InviteTrace | null>;
   /** The live invites sent to this email, on every team (api/entry). */
   byEmail(email: string): Promise<StoredInvite[]>;
   /** Adds `by` (negative gives back) to each counter, which expires after `ttlSeconds`; returns the new values. */
@@ -189,6 +206,8 @@ export interface InvitesDeps {
   members?: MemberStore;
   /** Bridge account names by GitHub id (the inviter's name); read from the same Redis otherwise. */
   accountName?: (githubId: number) => Promise<string | null>;
+  /** Where team names are kept (api/_lib/teams.ts); the env's Redis otherwise. */
+  redis?: Redis;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -271,6 +290,8 @@ export const githubApp = (appId: string, privateKey: string, f: FetchLike, now: 
 // Keys, each with a TTL so nothing outlives its invite:
 //   bridge:invite:<repo>:<id>        the invite (JSON), expires with the invite
 //   bridge:invite-token:<hash>       "<repo>|<id>", expires with the invite
+//   bridge:invite-trace:<hash>       { repo, invitedBy } (no email), expires INVITE_TRACE_MS after the invite: an old
+//                                    link still says which team and whom to ask for a new one
 //   bridge:invites:<repo>            sorted set of invite ids by expiry (ids only), expires 7 days after the last put
 //   bridge:invites:email:<email>     set of "<repo>|<id>" sent to that email (api/entry), expires 7 days after the last put
 //   bridge:invites:count:<...>:<day> daily counters for the caps, expire after 2 days
@@ -278,6 +299,19 @@ export const githubApp = (appId: string, privateKey: string, f: FetchLike, now: 
 const inviteKey = (repo: string, id: string) => `bridge:invite:${repo.toLowerCase()}:${id}`;
 const repoKey = (repo: string) => `bridge:invites:${repo.toLowerCase()}`;
 const tokenKey = (hash: string) => `bridge:invite-token:${hash}`;
+const traceKey = (hash: string) => `bridge:invite-trace:${hash}`;
+const traceOf = (inv: StoredInvite): string => JSON.stringify({ repo: inv.repo, invitedBy: inv.invitedByName?.trim() || inv.invitedBy } satisfies InviteTrace);
+const traceTtl = (ex: number) => ex + Math.ceil(INVITE_TRACE_MS / 1000);
+
+function parseTrace(raw: unknown): InviteTrace | null {
+  if (typeof raw !== 'string') return null;
+  try {
+    const v = JSON.parse(raw) as InviteTrace;
+    return v && typeof v.repo === 'string' && typeof v.invitedBy === 'string' ? { repo: v.repo, invitedBy: v.invitedBy } : null;
+  } catch {
+    return null;
+  }
+}
 const emailKey = (email: string) => `bridge:invites:email:${email.trim().toLowerCase()}`;
 const liveInvite = (inv: StoredInvite | null, email: string, now: number): inv is StoredInvite =>
   Boolean(inv && inv.email.trim().toLowerCase() === email.trim().toLowerCase() && Date.parse(inv.expiresAt) > now);
@@ -328,6 +362,7 @@ export function inviteStoreOn(redis: Redis, now: () => number = Date.now): Invit
       await pipe([
         ['SET', inviteKey(inv.repo, inv.id), JSON.stringify(inv), 'EX', ex],
         ['SET', tokenKey(inv.tokenHash), `${inv.repo}|${inv.id}`, 'EX', ex],
+        ['SET', traceKey(inv.tokenHash), traceOf(inv), 'EX', traceTtl(ex)],
         ['ZADD', repoKey(inv.repo), now() + ex * 1000, inv.id],
         ['EXPIRE', repoKey(inv.repo), Math.ceil(INVITE_TTL_MS / 1000)],
         ['SADD', emailKey(inv.email), `${inv.repo.toLowerCase()}|${inv.id}`],
@@ -359,6 +394,9 @@ export function inviteStoreOn(redis: Redis, now: () => number = Date.now): Invit
       const [repo = '', id = ''] = ref.split('|');
       const inv = await store.get(repo, id);
       return inv && inv.tokenHash === hash ? inv : null;
+    },
+    async traceByTokenHash(hash) {
+      return parseTrace(await cmd('GET', traceKey(hash)));
     },
     async bump(keys, by, ttl) {
       if (!keys.length) return [];
@@ -398,6 +436,7 @@ export function memoryStore(now: () => number = Date.now): InviteStore & { keys(
     async put(inv, ttl) {
       set(inviteKey(inv.repo, inv.id), JSON.stringify(inv), ttl);
       set(tokenKey(inv.tokenHash), `${inv.repo}|${inv.id}`, ttl);
+      set(traceKey(inv.tokenHash), traceOf(inv), traceTtl(Math.max(1, Math.ceil(ttl))));
     },
     async remove(inv) {
       items.delete(inviteKey(inv.repo, inv.id));
@@ -409,6 +448,9 @@ export function memoryStore(now: () => number = Date.now): InviteStore & { keys(
       const [repo = '', id = ''] = ref.split('|');
       const inv = await store.get(repo, id);
       return inv && inv.tokenHash === hash ? inv : null;
+    },
+    async traceByTokenHash(hash) {
+      return parseTrace(live(traceKey(hash)));
     },
     async byEmail(email) {
       const out: StoredInvite[] = [];
@@ -619,6 +661,8 @@ interface Services {
   /** Email contributors; null only when a test injects an invite store without one. */
   members: MemberStore | null;
   accountName: ((githubId: number) => Promise<string | null>) | null;
+  /** Team names kept with the team (api/_lib/teams.ts); null when a test injects stores without Redis. */
+  redis: Redis | null;
 }
 
 /** The services from the env (and injected ones), or null when any of storage, email or the app is missing. */
@@ -626,7 +670,7 @@ export function services(env: InvitesEnv, deps: InvitesDeps): Services | null {
   const now = deps.now ?? Date.now;
   const kvUrl = (env.KV_REST_API_URL ?? env.UPSTASH_REDIS_REST_URL)?.trim();
   const kvToken = (env.KV_REST_API_TOKEN ?? env.UPSTASH_REDIS_REST_TOKEN)?.trim();
-  const redis = kvUrl && kvToken ? redisRest(kvUrl, kvToken, deps.fetch, STORAGE_DOWN) : null;
+  const redis = deps.redis ?? (kvUrl && kvToken ? redisRest(kvUrl, kvToken, deps.fetch, STORAGE_DOWN) : null);
   const store = deps.store ?? (redis ? inviteStoreOn(redis, now) : null);
   const members = deps.members ?? (redis ? memberStore(redis) : null);
   const key = env.RESEND_API_KEY?.trim();
@@ -636,7 +680,7 @@ export function services(env: InvitesEnv, deps: InvitesDeps): Services | null {
   const pem = env.GITHUB_APP_PRIVATE_KEY?.trim();
   const app = deps.app ?? (appId && pem ? githubApp(appId, pem, deps.fetch, now) : null);
   const accountName = deps.accountName ?? (redis ? (id: number) => accountNameByGithub(redis, id) : null);
-  return store && email && app ? { store, email, app, members, accountName } : null;
+  return store && email && app ? { store, email, app, members, accountName, redis } : null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -824,21 +868,30 @@ interface Ctx {
  * anything GitHub does not answer falls back.
  */
 async function teamNameOf(ctx: Ctx, full: string): Promise<string> {
+  const redis = ctx.svc.redis;
   try {
     const [owner, repo] = full.split('/');
     const token = owner && repo ? await ctx.svc.app.installationToken(owner, repo) : null;
     if (token) {
       const file = await gh(ctx.f, token, 'GET', `/repos/${owner}/${repo}/contents/${CONFIG_FILE}`);
       if (file.status === 200 && typeof file.data?.content === 'string') {
-        const name: unknown = JSON.parse(Buffer.from(file.data.content, 'base64').toString('utf8'))?.name;
-        // bridge.config.json `name`: 1 to 60 characters (the schema); anything else falls back.
-        if (typeof name === 'string' && name.trim() && name.trim().length <= 60) return teamDisplayName(full, { name });
+        // bridge.config.json `name`: 1 to 60 characters (the schema); anything else falls back. Kept with the team.
+        const name = configName(JSON.parse(Buffer.from(file.data.content, 'base64').toString('utf8')));
+        if (redis) await putTeamName(redis, full, name, ctx.now());
+        if (name) return teamDisplayName(full, { name });
+        return teamDisplayName(full);
       }
     }
   } catch {
     // Fall back below.
   }
-  return teamDisplayName(full);
+  // GitHub did not answer: the name kept with the team, else the repository in words.
+  try {
+    const kept = redis ? (await getTeamNames(redis, [full])).get(full.toLowerCase())?.name : undefined;
+    return teamDisplayName(full, { name: kept });
+  } catch {
+    return teamDisplayName(full);
+  }
 }
 
 async function appFor(ctx: Ctx, owner: string, repo: string): Promise<string> {
@@ -1209,7 +1262,7 @@ export async function acceptInviteForGithub(
   githubId: number,
   userToken: string | null,
 ): Promise<AcceptedInvite> {
-  const ctx: Ctx = { f: d.f, now: d.now, random: d.random ?? ((n) => randomBytes(n)), svc: { store: d.store, email: null as unknown as EmailSender, app: d.app, members: d.members, accountName: null }, limits: { admin: 0, team: 0, site: 0 } };
+  const ctx: Ctx = { f: d.f, now: d.now, random: d.random ?? ((n) => randomBytes(n)), svc: { store: d.store, email: null as unknown as EmailSender, app: d.app, members: d.members, accountName: null, redis: null }, limits: { admin: 0, team: 0, site: 0 } };
   const { owner, repo } = parseRepo(inv.repo);
   const appToken = await appFor(ctx, owner, repo);
   const u = await gh(ctx.f, appToken, 'GET', `/user/${githubId}`);

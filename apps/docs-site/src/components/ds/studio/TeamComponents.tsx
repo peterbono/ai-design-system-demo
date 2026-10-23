@@ -7,10 +7,9 @@
 // specimens (tokens only) and one line on how to add it. Mounted client:load; the server renders the skeleton.
 // Repo content is React text only; links built from repo data go through lib/html.ts safeUrl.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ExternalLink, Layers } from 'lucide-react';
-import { Badge, Button, ButtonGroup, Drawer, DrawerContent, EmptyState, Input, Link, Select } from '@bridge-ds/react';
+import { Ellipsis, ExternalLink, Layers } from 'lucide-react';
+import { Badge, Button, ButtonGroup, CodeBlock, Drawer, DrawerContent, EmptyState, IconButton, Input, Link, Menu, MenuContent, MenuItem, MenuTrigger, Select, Tooltip } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
-import { GitHubMark } from './brand-icons';
 import { TeamLoadError, TeamLoadProgress, TeamSourceNote, useTeamData } from './TeamState';
 import TokenSpecimens from './TokenSpecimens';
 import ComponentsList from './ComponentsList';
@@ -18,6 +17,7 @@ import ClientExample from './ClientExample';
 import { filterTeamRows, pickStorybook, rowExceptions, storyPreview, teamCatalogRows, teamComponentRows, teamComponentsLead, teamFamilies, type TeamComponentRow } from '../../../lib/team-components';
 import type { ProductAudit } from '../../../lib/components-studio';
 import { fitFrames } from '../../../scripts/explorer/preview-frames';
+import { exampleCode, storyInIndex } from '../../../lib/library/component-page';
 import { tokenSpecimens } from '../../../lib/token-specimens';
 import { fileUrl } from '../../../lib/team-load';
 import { safeUrl } from '../../../lib/html';
@@ -53,8 +53,33 @@ function useBrowserStorybook(): string | undefined {
   return url;
 }
 
+/**
+ * Whether the published Storybook lists a story: 'listed', 'missing' (the code is ahead of the last Storybook build),
+ * 'unknown' (the index could not be read: the frame shows what it can), undefined while reading.
+ */
+function useStoryListed(base: string | undefined, id: string | undefined): 'listed' | 'missing' | 'unknown' | undefined {
+  const [state, setState] = useState<{ key: string; value: 'listed' | 'missing' | 'unknown' } | null>(null);
+  const key = `${base ?? ''}|${id ?? ''}`;
+  useEffect(() => {
+    if (!base || !id) return;
+    let live = true;
+    void import('../../../scripts/storybook-source')
+      .then(({ loadStorybook }) => loadStorybook(base))
+      .then(({ index }) => (storyInIndex(index.entries, id) ? 'listed' : 'missing'))
+      .catch(() => 'unknown' as const)
+      .then((value) => live && setState({ key, value }));
+    return () => {
+      live = false;
+    };
+  }, [base, id, key]);
+  return state?.key === key ? state.value : undefined;
+}
+
 function ComponentDrawer({ row, data, storybook, onClose }: { row: TeamComponentRow | null; data: TeamData; storybook: string | undefined; onClose: () => void }) {
-  const preview = row ? storyPreview(storybook, row) : null;
+  const found = row ? storyPreview(storybook, row) : null;
+  const listed = useStoryListed(found?.base, found?.id);
+  // A story the published Storybook does not have yet would show Storybook's own error: the code instead.
+  const preview = listed === 'missing' ? null : found;
   const github = row ? safeUrl(fileUrl(data.owner, data.repo, data.sha, row.file)) : '';
   return (
     <Drawer open={Boolean(row)} onOpenChange={(open) => !open && onClose()}>
@@ -72,16 +97,29 @@ function ComponentDrawer({ row, data, storybook, onClose }: { row: TeamComponent
                 </ButtonLink>
               )}
               {github && (
-                <ButtonLink variant={preview ? 'secondary' : 'primary'} href={github} iconStart={GitHubMark} target="_blank" rel="noopener noreferrer">
-                  Open on GitHub
-                </ButtonLink>
+                // The source file is for developers: it waits in More, the preview stays the one action.
+                <Menu>
+                  <Tooltip content="More actions">
+                    <MenuTrigger render={<IconButton icon={Ellipsis} label="More actions" variant="secondary" />} />
+                  </Tooltip>
+                  <MenuContent side="top" align="end">
+                    <MenuItem onClick={() => window.open(github, '_blank', 'noopener,noreferrer')}>Open the code on GitHub</MenuItem>
+                  </MenuContent>
+                </Menu>
               )}
             </ButtonGroup>
           }
         >
           <div className="tcm-d">
             <p className="tcm-d-eyebrow">{row.family}</p>
-            {preview ? (
+            {found && listed === 'missing' ? (
+              <div className="tcm-d-missing">
+                <p className="tcm-muted">Preview appears after the next Storybook update.</p>
+                <CodeBlock code={exampleCode(row.name, null)} label={`${row.name} example`} />
+              </div>
+            ) : found && listed === undefined ? (
+              <p className="tcm-muted">Loading the preview.</p>
+            ) : preview ? (
               <figure className="tcm-d-frame">
                 <iframe
                   key={preview.src}

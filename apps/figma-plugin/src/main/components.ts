@@ -245,7 +245,7 @@ function pageOf(node: BaseNode): string | undefined {
   return n?.name;
 }
 
-/** Icon and slot components DS Bridge generates from code (Icons and Slots pages): parts of sets, never requests. */
+/** Icon and slot components Bridge generates from code (Icons and Slots pages): parts of sets, never requests. */
 export const isGeneratedPart = (n: BaseNode) => !!n.getSharedPluginData(NS, 'iconId') || !!n.getSharedPluginData(NS, 'slotId');
 
 /** Local component sets and single components (variants inside a set are read through their set). */
@@ -275,7 +275,7 @@ async function slotsOf(variant: ComponentNode): Promise<Pick<RawVariant, 'slots'
   return { ...(Object.keys(slots).length ? { slots } : {}), ...(Object.keys(slotDefaults).length ? { slotDefaults } : {}) };
 }
 
-/** A variant's properties; none for the lone variant DS Bridge made for a spec with no axes (LONE_VARIANT). */
+/** A variant's properties; none for the lone variant Bridge made for a spec with no axes (LONE_VARIANT). */
 function variantPropsOf(v: ComponentNode): Record<string, string> {
   if (isLoneVariant(v)) return {};
   try {

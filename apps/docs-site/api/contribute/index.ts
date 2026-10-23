@@ -99,6 +99,7 @@ import {
 } from '../_lib/http.js';
 import { memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
+import { configName, putTeamName } from '../_lib/teams.js';
 import { cookieAttrs, readCookie, signClaims, verifyClaims } from '../_lib/session.js';
 import { inviteStoreOn, type InviteStore } from '../invites/index.js';
 
@@ -174,7 +175,7 @@ export const NOT_CONFIGURED = 'Joining with an email is not available yet on thi
 export const EXPIRED = 'This link expired or was already used. Ask your admin for a new invitation, or enter your email to get a sign-in link.';
 export const GITHUB_REQUIRED = 'Reviewers and admins approve and merge on GitHub. Sign in with GitHub to join with this role.';
 export const NOT_ALLOWED = 'Bridge does not do this for people who joined with their email. Ask a reviewer or an admin.';
-const SIGNIN = 'Your session ended. Enter your email to get a new sign-in link.';
+const SIGNIN = 'You signed out. Sign in again with your email: Bridge sends you a code.';
 const STORAGE_DOWN = 'Bridge could not reach its storage. Try again in a minute.';
 const APP_MISSING = 'Bridge cannot write to this design system yet. An admin of the repository gives the Bridge app access to it.';
 export const LIMIT_WORDS = {
@@ -622,6 +623,8 @@ async function designPaths(ctx: Ctx, c: Call, defaultBranch: string): Promise<De
       config = null;
     }
   } else if (res.status !== 404) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+  // The name the team goes by, kept with it for the team pickers and emails (api/_lib/teams.ts). Never throws.
+  if (res.status === 404 || config) await putTeamName(ctx.svc.redis, c.full, configName(config), ctx.now());
   const paths = designPathsFrom(config);
   configCache.set(key, { at: ctx.now(), paths });
   return paths;

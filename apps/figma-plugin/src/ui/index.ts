@@ -1,4 +1,4 @@
-// DS Bridge UI: three tabs (Pull: code -> Figma, Push: Figma -> code, Settings). Plain TypeScript and DOM, no framework.
+// Bridge UI: three tabs (Pull: code -> Figma, Push: Figma -> code, Settings). Plain TypeScript and DOM, no framework.
 // The UI owns network calls and logic; figma.* access goes through request() to the main thread.
 // Layout: tabs on top, scrolling content, and an action bar pinned to the bottom that always shows
 // what the primary button will do (or why it is disabled).
@@ -19,7 +19,7 @@ import { REQUEST_KINDS, type RequestKind, draftPushDescription, pushChangeRows, 
 import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classifyComponents, pullBaselines, suggestLine, suggestSummary, suggestTitle, toRequest } from '../sync/components';
 import { CLAUDE_MODELS, type ClaudeDraft, type ClaudeDraftInput, ClaudeDraftError, DRAFTED_NOTE, draftWithClaude } from '../sync/claude';
 import { loadCodedComponents, sendComponentRequest } from '../sync/requests';
-import { DRAFT_PHRASE, type DraftField, DraftPoller, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, planFill, startMyClaudeDrafts } from '../sync/my-claude';
+import { DRAFT_PHRASE, type DraftField, DraftPoller, MY_CLAUDE_NEEDS_WRITE, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, myClaudeAccess, planFill, startMyClaudeDrafts } from '../sync/my-claude';
 import { type ComponentApplyReport, type ComponentPullPlan, type CoverageView, type PlannedComponent, buildComponentPlan, componentReportView, coverageView, draftedSetNote, loadComponentSpecs, pushedInReview, pushedNumbers } from '../sync/component-pull';
 import { type FigmaPushStatus, figmaPushStatusesOnGitHub } from '@bridge-ds/core';
 import { type ComponentReview, onlyComponent, reviewUpdates } from '../sync/component-review';
@@ -27,7 +27,8 @@ import type { ComponentSignature } from '../sync/components';
 import { type ComponentPush, ROUTE_TAG, componentPushes } from '../sync/component-push';
 import { IMAGES_NEED_WRITE, type SentComponentPush, sendLabel, sentTitle, suggestionLines, tokenHelp } from '../sync/publish';
 import { type Destination, type PublishItem, type PublishResult, sendComponentPush, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
-import { type ComponentsReadProblem, NEW_TOKEN_REFUSED, TOKEN_REJECTED_CALLOUT, TOKEN_REJECTED_DETAIL, TOKEN_SETTINGS_URL, type TokenProblem, checkToken, componentsReadProblem, errorText, tokenProblem } from '../sync/token-health';
+import { type ComponentsReadProblem, NEW_TOKEN_REFUSED, TOKEN_REJECTED_CALLOUT, TOKEN_REJECTED_DETAIL, TOKEN_SETTINGS_URL, type TokenProblem, checkToken, componentsReadProblem, errorText, friendlyError, tokenProblem } from '../sync/token-health';
+import { type BuildItem, type StudioTarget, developerMessage, sentLinks, studioChangeUrl } from '../sync/studio';
 import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, tryItLinks } from '../sync/explorations';
 import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
 import { type Selection, onProgress, onSelection, request } from './bridge';
@@ -37,6 +38,7 @@ import { decodePng, encodePng } from './png';
 import { type Child, h } from './dom';
 import { icon } from './icons';
 import { ILLUSTRATIONS, type IllustrationName } from './illustrations';
+import { focusFirstItem, menuKeys } from './menu';
 
 type Tab = 'pull' | 'push' | 'settings';
 const TABS: { id: Tab; label: string }[] = [
@@ -103,8 +105,11 @@ interface PushState {
   /** Where each component change goes (review): an exact token change, a branch Claude AI drafts, or fix in Figma. */
   pushes: ComponentPush[];
   form?: RequestForm | undefined;
-  /** Sent from this screen: requests (issues) and library branches, one status line each. */
-  sent: { component: string; number: number; url: string; what?: string | undefined }[];
+  /**
+   * Sent from this screen: requests (issues), suggestions and library branches, one status line each. `target` is how
+   * Studio opens it; `build` is set when a developer builds it with Claude (the line offers the message for them).
+   */
+  sent: SentLine[];
   /** Who wrote the Description: the plugin's draft (kept in sync with the checked changes), Claude, or the designer. */
   descriptionSource: TextSource;
   /** Who wrote the pull request title (Claude fills it only when the designer has not typed one). */
@@ -140,6 +145,19 @@ interface PushState {
   lines: Map<string, { line: string; title?: string | undefined; key: string }>;
 }
 
+/** One thing sent from the Push screen, as its status line shows it. */
+interface SentLine {
+  component: string;
+  number: number;
+  url: string;
+  /** What it became, in designer words ("request sent"). */
+  what: string;
+  target: StudioTarget;
+  build?: BuildItem | undefined;
+  /** "Copy message for a developer" copied it (the button says so). */
+  copied?: boolean | undefined;
+}
+
 /** Where the text of a field comes from. Only "draft" text is rewritten by the plugin. */
 type TextSource = 'draft' | 'claude' | 'user';
 
@@ -165,6 +183,8 @@ interface MineState {
   /** Fields the designer typed in after the request: Claude's text is offered for them, not filled. */
   edited: Partial<Record<DraftField, boolean>>;
   error?: string | undefined;
+  /** The error is the token's missing permission: the block offers "Edit token on GitHub". */
+  permission?: boolean | undefined;
   copied?: boolean | undefined;
 }
 
@@ -187,7 +207,7 @@ interface State {
   /** While a long build runs: "Stop" in the action bar calls it. */
   cancel?: (() => void) | undefined;
   /** `problem`: the failure was about the token (rejected, or a missing permission named with its GitHub link). */
-  error?: { message: string; retry?: (() => void) | undefined; problem?: TokenProblem | undefined } | undefined;
+  error?: { message: string; detail?: string | undefined; retry?: (() => void) | undefined; problem?: TokenProblem | undefined } | undefined;
   pull?: PullState | undefined;
   push?: PushState | undefined;
   settingsDraft: RepoSettings;
@@ -233,8 +253,12 @@ onProgress((message) => {
 // ---------------------------------------------------------------------------------------------
 // Helpers
 
+/** The file is connected: a design system (repository) picked for this file, and a token on this computer. */
+const connected = () => !!state.init?.hasToken && !!state.init.settings.repo;
+
 function getClient(): GitHubClient {
   const init = state.init!;
+  if (!init.settings.repo) throw new Error('Connect a design system in Settings first.');
   if (!init.token) throw new Error('Add a GitHub token in Settings to connect.');
   client ??= new GitHubClient(init.settings.repo, init.token);
   return client;
@@ -249,7 +273,8 @@ async function run(label: string, task: () => Promise<void>, retry?: () => void)
     await task();
   } catch (err) {
     const problem = noteTokenProblem(err);
-    state.error = { message: problem?.text ?? errorText(err), retry, problem };
+    const f = friendlyError(err);
+    state.error = { message: problem?.text ?? f.text, detail: problem ? undefined : f.detail, retry, problem };
   } finally {
     state.busy = undefined;
     render();
@@ -718,7 +743,7 @@ function updateComponent(componentId: string): void {
       const notBuilt = report.failed?.[0] ?? report.partial?.[0];
       if (notBuilt) state.error = { message: `${comp.name} was not fully updated: ${notBuilt.reason}. Nothing half built was left.`, retry: () => updateComponent(componentId) };
       else if (report.problems.length) state.error = { message: `${comp.name} updated, with problems: ${report.problems.slice(0, 3).join('; ')}` };
-      void request('notify', { message: `${comp.name} updated${withVariables ? `, with the variables from ${state.init!.settings.branch}` : ''}` });
+      void request('notify', { message: `${comp.name} updated${withVariables ? ', with the latest variables' : ''}` });
     },
     () => updateComponent(componentId),
   );
@@ -747,7 +772,7 @@ function applyPull(): void {
       state.push = undefined;
       const cr = p.componentsReport;
       const parts = [report && report.created + report.updated ? `${report.created} variables created, ${report.updated} updated` : '', cr ? componentReportView(cr).headline.replace(/\.$/, '') : ''].filter(Boolean);
-      void request('notify', { message: `Pulled ${state.init!.settings.branch}: ${parts.join(', ') || 'nothing changed in Figma'}.` });
+      void request('notify', { message: `Figma updated: ${parts.join(', ') || 'nothing changed in Figma'}.` });
     },
     applyPull,
   );
@@ -910,7 +935,7 @@ function submitPush(): void {
   const toExploration = r.destination === 'exploration';
   const mode = modeOf(r);
   void run(
-    toExploration ? (r.exploreTarget === 'new' ? 'Starting the exploration' : 'Sending to the exploration') : mode === 'suggest' ? 'Sending the suggestion' : withPr ? (r.appendToOpen && r.openPr ? 'Adding to the branch' : 'Creating the branch') : 'Sending the requests',
+    toExploration ? (r.exploreTarget === 'new' ? 'Starting the exploration' : 'Sending to the exploration') : mode === 'suggest' ? 'Sending the suggestion' : withPr ? (r.appendToOpen && r.openPr ? 'Adding to your change' : 'Sending for review') : 'Sending the requests',
     async () => {
       let exploration: ExplorationChoice | undefined;
       if (toExploration) {
@@ -959,23 +984,23 @@ function submitPush(): void {
         if (result.pr && !exploration) await request('save-sync', { sync: { lastPrBranch: result.pr.branch, lastPrUrl: result.pr.pr.url } });
         // A request is the new reference for its component: the next scan compares against what was asked for.
         for (const x of result.requests) await request('rebaseline', { nodeId: x.nodeId }).catch(() => undefined);
-        for (const x of result.requests) r.sent.unshift({ component: x.component, number: x.number, url: x.url });
+        for (const x of result.requests) r.sent.unshift({ component: x.component, number: x.number, url: x.url, what: 'request sent', target: 'request' });
         // A library branch from Figma: the set remembers it, so a pull rebuilds it from the reviewed code once it ships.
         for (const x of result.branches) await afterBranch(r, x);
         // A component change sent as a suggestion: its new baseline, and the issue in the "sent" list.
         for (const x of result.suggestions) {
           if (x.nodeId) await request('rebaseline', { nodeId: x.nodeId }).catch(() => undefined);
-          r.sent.unshift({ component: x.component ?? x.title ?? 'Variables', number: x.number, url: x.url, what: 'Suggestion' });
+          r.sent.unshift({ component: x.component ?? x.title ?? 'Variables', number: x.number, url: x.url, what: 'suggestion sent', target: 'suggestion' });
         }
         await loadInit();
       } catch (err) {
-        state.error = { message: `Sent, but saving the links in this file failed: ${err instanceof Error ? err.message : String(err)}` };
+        state.error = { message: 'Sent. Bridge could not save the links in this file, so the next scan may list these changes again.', detail: errorText(err) };
       }
       const parts = exploration
         ? [`Sent to ${exploration.name}`]
         : mode === 'suggest'
-          ? [result.suggestions.length ? sentTitle(result, mode) : '', result.requests.length ? `${plural(result.requests.length, 'request')} opened` : ''].filter(Boolean)
-          : [result.pr ? (result.pr.appended ? 'Branch updated' : 'Branch created') : '', result.requests.length ? `${plural(result.requests.length, 'request')} opened` : '', result.branches.length ? `${plural(result.branches.length, 'component')} sent` : ''].filter(Boolean);
+          ? [result.suggestions.length ? sentTitle(result, mode) : '', result.requests.length ? `${plural(result.requests.length, 'request')} sent` : ''].filter(Boolean)
+          : [result.pr ? (result.pr.appended ? 'Added to your change in review' : 'Sent for review') : '', result.requests.length ? `${plural(result.requests.length, 'request')} sent` : '', result.branches.length ? `${plural(result.branches.length, 'component')} sent` : ''].filter(Boolean);
       void request('notify', { message: parts.join(', ') });
     },
     submitPush,
@@ -1021,7 +1046,10 @@ function saveSettings(): void {
   state.settingsMessage = undefined;
   void run('Checking access to the repository', async () => {
     try {
-      parseRepo(draft.repo);
+      if (!draft.repo.trim()) throw new Error('Paste the GitHub repository of your design system, for example acme/design-system.');
+      // A pasted GitHub link works too: stored as owner/name.
+      const parsed = parseRepo(draft.repo);
+      draft.repo = `${parsed.owner}/${parsed.name}`;
       if (!draft.branch.trim()) throw new Error('Enter a base branch, for example main.');
       if (!draft.tokensPath.trim()) throw new Error('Enter the folder that holds the *.tokens.json files, for example packages/tokens/src.');
       const newToken = state.tokenDraft.trim();
@@ -1050,7 +1078,7 @@ function saveSettings(): void {
         if (!(await gh.getBranchSha(draft.branch.trim()))) throw new Error(`Branch "${draft.branch.trim()}" does not exist in ${info.fullName}.`);
         if (newToken) await request('save-token', { token: newToken });
         else setTokenState('ok');
-        message = `Connected to ${info.fullName}.${newToken ? ' The token is saved on this computer only.' : ''}${readOnly ? ' It sends suggestions (issues) only; screenshots need "Contents: Read and write".' : ''}`;
+        message = `Connected to ${info.fullName}.${newToken ? ' The token is saved on this computer only.' : ''}${readOnly ? ' This token sends suggestions only. Screenshots and drafting with your Claude plan need "Contents: Read and write".' : ''}`;
       }
       state.tokenDraft = '';
       state.expanded.delete('repo-edit');
@@ -1322,6 +1350,13 @@ function startMine(a: AssistState, t: AssistTarget): void {
     try {
       gh = getClient();
       if (previous) void finishMyClaudeDrafts(gh, previous);
+      // Claude's drafts go through a file in the repository: say what is missing before anything is written or waited for.
+      const missing = await myClaudeAccess(gh);
+      if (missing) {
+        a.mine = { status: 'error', edited: {}, error: missing, permission: true };
+        render();
+        return;
+      }
       const input = { ...t.input(), ...(t.images ? await t.images() : {}) };
       const session = await startMyClaudeDrafts(gh, { targets: [toMyClaudeTarget(input)], baseBranch: state.init!.settings.branch });
       const mine = a.mine;
@@ -1348,7 +1383,8 @@ function startMine(a: AssistState, t: AssistTarget): void {
       mine.poller.start();
     } catch (err) {
       const message = inlineError(err);
-      a.mine = message === undefined ? undefined : { status: 'error', edited: {}, error: message };
+      const permission = tokenProblem(err)?.kind === 'missing-permission';
+      a.mine = message === undefined ? undefined : { status: 'error', edited: {}, error: permission ? MY_CLAUDE_NEEDS_WRITE : message, permission };
     }
     render();
   })();
@@ -1366,7 +1402,7 @@ function receiveMine(a: AssistState, t: AssistTarget, result: Pick<ClaudeDraft, 
   if (target) target.apply({ title: fill.title ?? '', summary: fill.summary ?? '', lines: result.lines });
   a.offer = offer.title || offer.summary ? offer : undefined;
   // One status line under the field ("Drafted by Claude, review before sending") says the rest.
-  a.message = a.offer ? { kind: 'ok', text: 'Your Claude answered. You edited a field meanwhile, so your text stays: use Claude\'s draft below if you prefer it.' } : undefined;
+  a.message = a.offer ? { kind: 'ok', text: 'Claude answered. You edited a field meanwhile, so your text stays: use Claude\'s draft below if you prefer it.' } : undefined;
   render();
 }
 
@@ -1409,17 +1445,25 @@ function mineView(a: AssistState, t: AssistTarget): Child {
   const mine = a.mine;
   if (!mine || mine.status === 'drafted') return null;
   if (mine.status === 'error') {
-    return h('p', { class: 'form-error', role: 'alert' }, icon('alert'), `Could not hand the drafts to your Claude: ${mine.error ?? 'unknown error'}`);
+    if (mine.permission) {
+      return h(
+        'div',
+        { class: 'mine', role: 'alert' },
+        h('p', { class: 'form-error' }, icon('alert'), mine.error ?? MY_CLAUDE_NEEDS_WRITE),
+        h('div', { class: 'inline-actions' }, h('button', { class: 'btn', onClick: openTokenSettings }, icon('external'), 'Edit token on GitHub'), h('button', { class: 'btn ghost', onClick: () => cancelMine(a) }, 'Close')),
+      );
+    }
+    return h('p', { class: 'form-error', role: 'alert' }, icon('alert'), `Could not hand the drafts to Claude: ${mine.error ?? 'try again.'}`);
   }
   if (mine.status === 'starting') {
-    return h('div', { class: 'mine', role: 'status' }, h('div', { class: 'mine-head' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('b', null, 'Getting the drafts ready for your Claude')));
+    return h('div', { class: 'mine', role: 'status' }, h('div', { class: 'mine-head' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('b', null, 'Getting the drafts ready for Claude')));
   }
   const timeout = mine.status === 'timeout';
   return h(
     'div',
     { class: 'mine', role: 'status', 'aria-live': 'polite' },
-    h('div', { class: 'mine-head' }, timeout ? icon('info') : h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('b', null, timeout ? 'Your Claude has not answered yet' : 'Waiting for your Claude')),
-    h('p', null, timeout ? 'Stopped checking after 10 minutes. In Claude Desktop or Claude Code, say:' : 'In Claude Desktop or Claude Code, with the Bridge MCP server connected, say:'),
+    h('div', { class: 'mine-head' }, timeout ? icon('info') : h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('b', null, timeout ? 'Claude has not answered yet' : 'Waiting for Claude')),
+    h('p', null, timeout ? 'Stopped checking after 10 minutes. In Claude, say:' : 'In Claude, with Bridge connected (Settings), say:'),
     h(
       'div',
       { class: 'phrase' },
@@ -1432,7 +1476,7 @@ function mineView(a: AssistState, t: AssistTarget): Child {
       { class: 'inline-actions' },
       timeout ? h('button', { class: 'btn', 'data-focus-id': `${t.id}-mine-again`, onClick: () => checkMineAgain(a) }, icon('refresh'), 'Check again') : null,
       h('button', { class: 'btn ghost', 'data-focus-id': `${t.id}-mine-cancel`, onClick: () => cancelMine(a) }, 'Cancel'),
-      h('button', { class: 'btn ghost', onClick: () => { state.tab = 'settings'; render(); } }, 'How to connect'),
+      h('button', { class: 'btn ghost', onClick: () => { state.tab = 'settings'; state.expanded.add('mcp-setup'); render(); } }, 'How to connect'),
     ),
   );
 }
@@ -1490,6 +1534,7 @@ function assistAction(a: AssistState, t: AssistTarget): Child {
           if (!withKey) return startMine(a, t);
           a.menuOpen = !a.menuOpen;
           render();
+          if (a.menuOpen) focusFirstItem(document.querySelector(`[data-menu-id="${t.id}-ways"]`));
         },
       },
       'Draft with Claude',
@@ -1498,9 +1543,19 @@ function assistAction(a: AssistState, t: AssistTarget): Child {
     withKey && a.menuOpen
       ? h(
           'div',
-          { class: 'ways-menu', role: 'menu', 'aria-label': 'Draft with Claude' },
-          way('mine', 'With my Claude (MCP)', state.init?.hasToken ? 'Your plan, in Claude Desktop or Claude Code. Set up once in Settings.' : 'Add a GitHub token in Settings first.', pick(() => startMine(a, t)), { tag: 'Recommended', disabled: !state.init?.hasToken }),
-          way('claude', 'With my API key', 'One click, billed to your Anthropic account.', pick(() => void runClaude(a, t))),
+          {
+            class: 'ways-menu',
+            role: 'menu',
+            'aria-label': 'Draft with Claude',
+            'data-menu-id': `${t.id}-ways`,
+            onKeyDown: menuKeys(() => {
+              a.menuOpen = false;
+              render();
+              (document.querySelector(`[data-focus-id="${t.id}-assist"]`) as HTMLElement | null)?.focus();
+            }),
+          },
+          way('mine', 'With your Claude plan', state.init?.hasToken ? 'In the Claude app or Claude Code. Set up once in Settings.' : 'Add a GitHub token in Settings first.', pick(() => startMine(a, t)), { tag: 'Recommended', disabled: !state.init?.hasToken }),
+          way('claude', 'With an API key', 'One click, billed to your Anthropic account.', pick(() => void runClaude(a, t))),
         )
       : null,
   );
@@ -1535,9 +1590,9 @@ function saveClaude(): void {
       await request('save-claude', { key: key || undefined, model: state.init!.claude.model });
       state.claudeKeyDraft = '';
       await loadInit();
-      state.claudeMessage = { kind: 'ok', text: key ? 'Key saved on this computer only. "Draft with Claude (API key)" now shows on requests and on the message to the team.' : 'Claude settings saved.' };
+      state.claudeMessage = { kind: 'ok', text: key ? 'Key saved on this computer only. Draft with Claude now offers it, on requests and on the message to the team.' : 'Claude settings saved.' };
     } catch (err) {
-      state.claudeMessage = { kind: 'error', text: err instanceof Error ? err.message : String(err) };
+      state.claudeMessage = { kind: 'error', text: errorText(err) };
     }
   });
 }
@@ -1546,7 +1601,7 @@ function removeClaudeKey(): void {
   void run('Removing the key', async () => {
     await request('clear-claude-key', {});
     await loadInit();
-    state.claudeMessage = { kind: 'ok', text: 'Key removed from this computer. Copy for Claude still works with your Claude plan.' };
+    state.claudeMessage = { kind: 'ok', text: 'Key removed from this computer. Draft with Claude still works with your Claude plan, set up above.' };
   });
 }
 
@@ -1586,28 +1641,49 @@ function steps(items: [string, string][]): HTMLElement {
   );
 }
 
-function needToken(): View {
+/**
+ * Repository, branch and commit, for whoever needs them: folded under "For developers", never in a designer's
+ * sentence. Rows without a value are left out.
+ */
+function forDevelopers(rows: [string, string | undefined][]): Child {
+  const shown = rows.filter((r): r is [string, string] => !!r[1]);
+  if (!shown.length) return null;
+  return h(
+    'details',
+    { class: 'notes dev-details' },
+    h('summary', null, 'For developers'),
+    h('dl', { class: 'dev-list' }, shown.map(([k, v]) => [h('dt', null, k), h('dd', { class: 'mono' }, breakable(v))])),
+  );
+}
+
+/** Repository and branch of the connected design system, the first rows of every "For developers". */
+const repoRows = (): [string, string | undefined][] => [
+  ['Repository', state.init?.settings.repo],
+  ['Branch', state.init?.settings.branch],
+];
+
+function needSetup(): View {
   return {
-    body: intro({ title: 'Connect your repository', text: "DS Bridge reads your design system's tokens and sends your edits for review. It needs a GitHub token for one repository.", art: 'guide' }),
+    body: intro({ title: 'Connect your design system', text: "Bridge brings your design system's tokens and components into Figma, and sends your edits for review. Pick the design system this file uses.", art: 'guide' }),
     bar: { label: 'Open Settings', onClick: () => { state.tab = 'settings'; render(); } },
   };
 }
 
 function viewPull(): View {
   const init = state.init!;
-  if (!init.hasToken) return needToken();
+  if (!connected()) return needSetup();
   const p = state.pull;
   if (!p) {
     return {
       body: [intro({
-        title: `Bring ${init.settings.branch} into Figma`,
+        title: 'Get the latest design system',
         text: 'See every change before anything is written. Your own edits are kept, nothing is deleted.',
         meta: init.sync.baseSha
-          ? `Last pulled ${short(init.sync.baseSha)} from ${init.settings.repo}${init.sync.lastPullAt ? ` on ${when(init.sync.lastPullAt)}` : ''}`
-          : `From ${init.settings.repo}. First pull: one collection per tier, with its modes.`,
+          ? init.sync.lastPullAt ? `Last updated in this file on ${when(init.sync.lastPullAt)}.` : undefined
+          : 'First time in this file: one collection per tier, with its modes.',
         art: 'tokens',
-      }), steps([
-        ['Check', `DS Bridge reads the token files on ${init.settings.branch}.`],
+      }), forDevelopers([...repoRows(), ['Last pulled commit', short(init.sync.baseSha)]]), steps([
+        ['Check', "Bridge reads the design system's tokens and components."],
         ['Review', 'Every new, edited or deleted token is listed with its value. Nothing is written yet.'],
         ['Apply', 'Figma variables are created or updated. Your own edits stay until you send them from Push.'],
       ])],
@@ -1669,7 +1745,7 @@ function viewPull(): View {
       ],
       bar: left
         ? { label: 'Try again', onClick: retryComponents, secondary: { label: 'Check again', onClick: checkPull } }
-        : { label: 'Check again', onClick: checkPull, secondary: prop.kept.length ? { label: 'Push my edits', onClick: () => { state.tab = 'push'; scanPush(); } } : undefined },
+        : { label: 'Check again', onClick: checkPull, secondary: prop.kept.length ? { label: 'Send my edits', onClick: () => { state.tab = 'push'; scanPush(); } } : undefined },
     };
   }
 
@@ -1685,28 +1761,31 @@ function viewPull(): View {
 
   // Summary first: one sentence for the whole screen, then one line of where it comes from.
   const status = [
-    summary.length ? `${summary.join(', ')} on ${init.settings.branch}` : '',
+    summary.length ? `${summary.join(', ')} in the design system` : '',
     a.diff.conflicts.length ? plural(a.diff.conflicts.length, 'conflict') : '',
-    prop.restored.length ? (p.overwrite ? `${prop.restored.length} replaced with ${init.settings.branch}` : `${prop.restored.length} to recreate`) : '',
+    prop.restored.length ? (p.overwrite ? `${prop.restored.length} replaced with the design system's version` : `${prop.restored.length} to recreate`) : '',
     prop.kept.length ? `${plural(prop.kept.length, 'Figma edit')} kept` : '',
     pending.length ? `${plural(pending.length, 'component')} to ${pending.every((c) => c.status === 'updated') ? 'update' : 'build'}` : '',
   ].filter(Boolean);
   // Commits on main since the last pull. Even when none of them changes a variable, the file is not up to date yet.
   const behind = commitsBehind(a);
   const catchUp = upToDate && behind > 0;
-  const headline = pullHeadline({ baseSha: a.baseSha, branch: init.settings.branch, variablesUpToDate: upToDate, behind, status });
-  const lastPulled = a.baseSha ? `Last pulled ${short(a.baseSha)}${init.sync.lastPullAt ? ` on ${when(init.sync.lastPullAt)}` : ''}` : '';
+  const headline = pullHeadline({ baseSha: a.baseSha, variablesUpToDate: upToDate, behind, status });
+  const lastPulled = a.baseSha && init.sync.lastPullAt ? `Last updated in this file on ${when(init.sync.lastPullAt)}` : '';
   const meta = !a.baseSha
-    ? `${plural(prop.plan.variables.length, 'variable')} from ${init.settings.repo}, in the Primitives, Brand, Base, Semantic, Density and Component collections.`
+    ? `${plural(prop.plan.variables.length, 'variable')} from the design system, in the Primitives, Brand, Base, Semantic, Density and Component collections.`
     : catchUp
-      ? `${lastPulled}. Your variables already match ${init.settings.branch}: pull to catch up to ${short(a.headSha)}.`
-      : [lastPulled, behind ? `${plural(behind, 'new change')} on ${init.settings.branch}` : ''].filter(Boolean).join(' · ');
-  const body: Child[] = [h('section', { class: 'zone' }, h('h2', { class: 'headline' }, headline), h('p', { class: 'muted' }, meta))];
+      ? [lastPulled, 'Your variables already match the design system: update to catch up with its latest changes.'].filter(Boolean).join('. ')
+      : [lastPulled, behind ? `${plural(behind, 'new change')} in the design system` : ''].filter(Boolean).join(' · ');
+  const body: Child[] = [
+    h('section', { class: 'zone' }, h('h2', { class: 'headline' }, headline), meta ? h('p', { class: 'muted' }, meta) : null),
+    forDevelopers([...repoRows(), ['Last pulled commit', short(a.baseSha)], ['Latest commit', short(a.headSha)]]),
+  ];
 
   if (remote.length) {
     body.push(
       group(
-        `Changes on ${init.settings.branch}`,
+        'Changes in the design system',
         remote.length,
         null,
         counts.removed ? 'Tokens deleted in the design system stay in Figma with an "[orphan]" note, so nothing in your designs breaks.' : 'Written to Figma when you apply.',
@@ -1718,7 +1797,7 @@ function viewPull(): View {
   if (prop.restored.length) {
     body.push(
       group(
-        p.overwrite ? `Replaced with ${init.settings.branch}` : 'To recreate',
+        p.overwrite ? "Replaced with the design system's version" : 'To recreate',
         prop.restored.length,
         p.overwrite ? h('button', { class: 'btn ghost', onClick: () => { p.overwrite = false; refreshProposals(); } }, 'Keep my edits') : null,
         p.overwrite ? "The design system's version wins over your Figma edits. Variables that exist only in Figma stay." : 'Deleted in Figma, but other tokens still point to them.',
@@ -1731,7 +1810,7 @@ function viewPull(): View {
       group(
         'Your Figma edits, kept',
         prop.kept.length,
-        prop.kept.some((e) => e.head) ? h('button', { class: 'btn ghost', onClick: () => { p.overwrite = true; refreshProposals(); } }, `Replace with ${init.settings.branch}`) : null,
+        prop.kept.some((e) => e.head) ? h('button', { class: 'btn ghost', onClick: () => { p.overwrite = true; refreshProposals(); } }, "Use the design system's version") : null,
         'Not in the design system yet. Send them from Push.',
         rowList('pull-kept', prop.kept.map((e) => diffRow(a, e.local!.kind, { before: e.base, after: e.figma, beforeIndex: a.base?.byPath ?? a.head.byPath, afterIndex: fi })), 5),
       ),
@@ -1748,7 +1827,7 @@ function viewPull(): View {
     bar: upToDate && !withComponents && !behind
       ? { label: 'Check again', onClick: checkPull }
       : catchUp && !withComponents
-        ? { label: 'Pull', onClick: applyPull, hint: 'Nothing changes in Figma', secondary: { label: 'Check again', onClick: checkPull } }
+        ? { label: 'Update', onClick: applyPull, hint: 'Nothing changes in Figma', secondary: { label: 'Check again', onClick: checkPull } }
         : {
           label: pending.some((c) => c.status === 'updated') ? 'Update all' : 'Apply to Figma',
           onClick: applyPull,
@@ -1820,7 +1899,7 @@ function componentsGroup(p: PullState): Child {
       h(
         'p',
         { class: 'muted' },
-        `Sent from Figma, still in review: ${p.inReview.map((x) => `${x.name} (#${x.number}, ${x.status.label.charAt(0).toLowerCase()}${x.status.label.slice(1)})`).join(', ')}. Once it ships, Update rebuilds it from the reviewed code.`,
+        `Sent from Figma, still in review: ${p.inReview.map((x) => `${x.name} (${x.status.label.charAt(0).toLowerCase()}${x.status.label.slice(1)})`).join(', ')}. Once it ships, Update rebuilds it from the reviewed code.`,
       ),
     );
   }
@@ -1870,7 +1949,7 @@ function componentsGroup(p: PullState): Child {
                     h('span', { class: 'comp-name' }, c.name),
                     h('span', { class: 'muted' }, plural(c.variants.length, 'variant')),
                     c.interactions?.length ? h('span', { class: 'muted' }, `Interactions: ${c.interactions.length}`) : null,
-                    c.drafted ? h('span', { class: 'kind row-end', title: 'Drafted with Claude: DS Bridge cannot read this component on its own. Check fidelity compares it with the code.' }, draftedSetNote(c.drafted)) : null,
+                    c.drafted ? h('span', { class: 'kind row-end', title: 'Drafted with Claude: Bridge cannot read this component on its own. Check fidelity compares it with the code.' }, draftedSetNote(c.drafted)) : null,
                   ),
                 ),
               ),
@@ -1938,7 +2017,7 @@ function fidelityGroup(p: PullState): Child {
   else if (outcome?.kind === 'no-references') lede = NO_REFERENCES_TEXT;
   else if (outcome?.kind === 'no-sets') lede = 'No component set from code in this file yet. Pull components first.';
   else if (outcome?.kind === 'done') {
-    lede = `${fidelitySummary(outcome.report)} Code images from ${short(outcome.report.reference.sha)}.`;
+    lede = fidelitySummary(outcome.report);
     const order = { differs: 0, matches: 1, 'not-checked': 2 } as const;
     const rows = [...outcome.items]
       .sort((a, b) => order[a.result.status] - order[b.result.status])
@@ -2120,7 +2199,7 @@ function sendRequest(r: PushState): void {
         imagesNeedWrite: modeOf(r) === 'suggest',
       });
       if (res.imagesSkipped) state.error = { message: IMAGES_NEED_WRITE };
-      r.sent.unshift({ component: d.component.trim(), number: res.issue.number, url: res.issue.url });
+      r.sent.unshift({ component: d.component.trim(), number: res.issue.number, url: res.issue.url, what: 'request sent', target: 'request' });
       // Sent: the pending drafts file for the designer's Claude is done.
       cancelMine(f.assist, false);
       r.form = undefined;
@@ -2133,7 +2212,7 @@ function sendRequest(r: PushState): void {
         }
         await request('rebaseline', { nodeId: done }).catch(() => undefined);
       }
-      void request('notify', { message: `Request #${res.issue.number} opened` });
+      void request('notify', { message: `Request sent for ${d.component.trim()}` });
     },
     () => sendRequest(r),
   );
@@ -2313,7 +2392,7 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
     h(
       'div',
       { class: 'inline-actions' },
-      h('button', { class: 'btn primary', disabled: !!state.busy, onClick: () => sendRequest(r) }, 'Send request'),
+      h('button', { class: 'btn primary', disabled: !!state.busy, onClick: () => sendRequest(r) }, sendLabel(modeOf(r))),
       h('button', { class: 'btn ghost', onClick: () => { cancelMine(f.assist, false); r.form = undefined; render(); } }, 'Cancel'),
     ),
   );
@@ -2322,7 +2401,7 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
 /**
  * "Icon end already does this: show it with the Icon end property": an optional part of the component already draws
  * what was added. Neutral, on the row it is about; the item starts unchecked and "Keep it as a request" checks it.
- * DS Bridge never changes the designer's file for it.
+ * Bridge never changes the designer's file for it.
  */
 function equivalentHint(r: PushState, item: ComponentChangeItem): Child {
   if (!item.equivalent) return null;
@@ -2354,7 +2433,8 @@ function componentRow(r: PushState, item: ComponentChangeItem, action: string, e
       // Routed as an exact token change, the route tag says it all: no second "Token change" tag.
       routed(r) && item.kind === 'token-binding' && pushOf(r, item.nodeId)?.plan.route === 'token-change' && !pushOf(r, item.nodeId)?.blocked ? null : h('span', { class: `kind ${item.kind === 'new-component' ? 'added' : ''}` }, kindName(item.kind)),
       routeTag(r, item),
-      edge ? edge.tail : open ? null : h('button', { class: 'btn ghost row-action', 'data-focus-id': `req-${item.nodeId}`, onClick: () => (sendsToBranch(r, item) ? sendCandidate(r, item) : openForm(r, item)) }, sendsToBranch(r, item) ? 'Send to Claude AI' : action),
+      // The row's own send is a quiet ghost button: the bar keeps the one primary action of the screen.
+      edge ? edge.tail : open ? null : h('button', { class: 'btn ghost row-action', 'data-focus-id': `req-${item.nodeId}`, 'aria-label': `${sendsToBranch(r, item) ? sendLabel(modeOf(r)) : action}: ${item.component}`, onClick: () => (sendsToBranch(r, item) ? sendCandidate(r, item) : openForm(r, item)) }, sendsToBranch(r, item) ? sendLabel(modeOf(r)) : action),
     ),
     changeSummary(lineOf(r, item), item.changes, equivalentHint(r, item)),
     routeNote(r, item),
@@ -2365,14 +2445,14 @@ function componentRow(r: PushState, item: ComponentChangeItem, action: string, e
 /** For review, component changes go to a library branch (component-push.ts); to an exploration, they stay requests. */
 const routed = (r: PushState) => r.destination === 'review';
 
-/** A new component drawn in Figma, sent for review: Claude AI drafts it on a library branch instead of a request. */
+/** A new component drawn in Figma, sent for review: its library branch carries the spec, a developer builds it with Claude. */
 const sendsToBranch = (r: PushState, item: ComponentChangeItem) => routed(r) && item.kind === 'new-component' && pushOf(r, item.nodeId)?.plan.route === 'claude-draft';
 
-/** "Exact token change", "Claude AI drafts" or "Fix in Figma": where the change goes, in a neutral tag. */
+/** "Exact token change", "A developer builds it" or "Fix in Figma": where the change goes, in a neutral tag. */
 function routeTag(r: PushState, item: ComponentChangeItem): Child {
   const p = pushOf(r, item.nodeId);
   // Under "Fix in Figma first" the group title says where it stands.
-  // A new component's action ("Send to Claude AI") already says where it goes.
+  // A new component's own send action says where it goes.
   if (!p || !routed(r) || (p.plan.route === 'manual' && !p.blocked) || sendsToBranch(r, item)) return null;
   return h('span', { class: 'tag', title: p.plan.said }, p.blocked ? 'Held back' : ROUTE_TAG[p.plan.route]);
 }
@@ -2390,30 +2470,32 @@ function routeNote(r: PushState, item: ComponentChangeItem): Child {
 
 /** After a library branch opens: the set remembers it (pull rebuilds it once it ships), its new baseline, a status line. */
 async function afterBranch(r: PushState, x: SentComponentPush): Promise<void> {
+  // Needs code: nothing builds it on its own, the line offers the message for a developer.
+  const build = x.route === 'claude-draft' ? { component: x.component, number: x.number, url: x.url, suggested: x.suggested } : undefined;
   if (x.suggested) {
     // A suggestion has no library branch to follow yet: only the new baseline and the "sent" line.
     await request('rebaseline', { nodeId: x.nodeId }).catch(() => undefined);
-    r.sent.unshift({ component: x.component, number: x.number, url: x.url, what: 'Suggestion' });
+    r.sent.unshift({ component: x.component, number: x.number, url: x.url, what: 'suggestion sent', target: 'suggestion', build });
     return;
   }
   await request('mark-pushed', { nodeId: x.nodeId, mark: JSON.stringify({ number: x.number, url: x.url, route: x.route, at: new Date().toISOString() }) }).catch(() => undefined);
   await request('rebaseline', { nodeId: x.nodeId }).catch(() => undefined);
-  r.sent.unshift({ component: x.component, number: x.number, url: x.url, what: x.route === 'token-change' ? 'Exact token change' : 'Library branch for Claude AI' });
+  r.sent.unshift({ component: x.component, number: x.number, url: x.url, what: x.route === 'token-change' ? 'exact token change sent for review' : 'sent for review, a developer builds it with Claude', target: 'pr', build });
 }
 
-/** "Send to Claude AI" on a new component: its library branch with the spec and a screenshot, for Claude AI to draft. */
+/** The row send on a new component: its library branch with the spec and a screenshot, for a developer to build with Claude. */
 function sendCandidate(r: PushState, item: ComponentChangeItem): void {
   const push = pushOf(r, item.nodeId);
   if (!push) return;
   void run(
-    `Sending ${item.component} to Claude AI`,
+    `Sending ${item.component}`,
     async () => {
       const draft: RequestDraft = { component: item.component, kind: item.kind, title: titleOf(r, item), summary: r.descriptionSource === 'user' && r.description.trim() ? r.description : suggestSummary(item), line: lineOf(r, item), changes: item.changes, nodeId: item.nodeId, nodeName: item.figmaName };
       const x = await sendComponentPush(getClient(), { analysis: r.analysis, fileKey: r.fileKey, mode: modeOf(r), image: async (nodeId) => (await request('export-image', { nodeId }).catch(() => null))?.base64 }, push, draft);
       await afterBranch(r, x);
       if (r.components) r.components.candidates = r.components.candidates.filter((c) => c.nodeId !== item.nodeId);
       if (x.imagesSkipped) state.error = { message: IMAGES_NEED_WRITE };
-      void request('notify', { message: x.suggested ? `Suggestion #${x.number} sent to your DS lead` : `${item.component} sent: library branch #${x.number}, waiting for Claude AI` });
+      void request('notify', { message: x.suggested ? 'Suggestion sent to your DS lead' : `${item.component} sent for review: a developer builds it with Claude` });
     },
     () => sendCandidate(r, item),
   );
@@ -2452,8 +2534,23 @@ function rowTail(r: PushState, item: PublishItem | undefined, name: string, extr
     item.experimental ? h('span', { class: 'tag', title: 'Never sent for review. Goes to explorations only.' }, 'Exploration only') : null,
     h(
       'details',
-      { class: 'row-menu' },
-      h('summary', { class: 'btn ghost icon-only', 'data-focus-id': `menu-${item.key}`, 'aria-label': `More actions for ${name}`, title: 'More actions' }, icon('more')),
+      {
+        class: 'row-menu',
+        // Opening moves focus into the menu; arrows, Home and End move in it; Escape closes it back on its button.
+        onToggle: (e: Event) => {
+          const d = e.currentTarget as HTMLDetailsElement;
+          if (d.open) focusFirstItem(d.querySelector('[role="menu"]'));
+        },
+        onKeyDown: (e: KeyboardEvent) => {
+          const d = e.currentTarget as HTMLDetailsElement;
+          if (!d.open) return;
+          menuKeys(() => {
+            d.removeAttribute('open');
+            d.querySelector<HTMLElement>('summary')?.focus();
+          })(e);
+        },
+      },
+      h('summary', { class: 'btn ghost icon-only', 'data-focus-id': `menu-${item.key}`, 'aria-label': `More actions for ${name}`, 'aria-haspopup': 'menu', title: 'More actions' }, icon('more')),
       h(
         'div',
         { class: 'menu', role: 'menu' },
@@ -2526,7 +2623,7 @@ function componentChangesGroup(r: PushState): Child {
   });
   const lede = !routed(r)
     ? 'Each becomes a request to build in the exploration.'
-    : 'Token swaps go as exact token changes. New variants, properties and layers go to Claude AI, who drafts the code for a person to review.';
+    : 'Token swaps go as exact token changes. New variants, properties and layers go with their spec: a developer builds them with Claude, then a person reviews.';
   return changeGroup(r, 'component', 'Components', lede, rows, 'push-components');
 }
 
@@ -2561,7 +2658,7 @@ function componentNotes(r: PushState): Child[] {
         'details',
         { class: 'notes candidates', open: candidates.some((c) => r.form?.key === c.nodeId) },
         h('summary', null, `Not in the design system yet (${candidates.length})`),
-        h('p', { class: 'muted' }, `Components in this file with no folder in ${scan?.coded.length ? 'the code' : 'code'}. Nothing is sent unless you ask for it.${routed(r) ? ' Sent to Claude AI, each gets a library branch with its spec; Claude AI drafts the code and a person reviews it.' : ''}`),
+        h('p', { class: 'muted' }, `Components in this file with no folder in ${scan?.coded.length ? 'the code' : 'code'}. Nothing is sent unless you ask for it.${routed(r) ? ' Sent for review, each goes with its spec: a developer builds it with Claude, then a person reviews it.' : ''}`),
         h('ul', { class: 'rows' }, candidates.map((item) => componentRow(r, item, 'Request as new component'))),
       ),
     );
@@ -2569,15 +2666,26 @@ function componentNotes(r: PushState): Child[] {
   return out;
 }
 
-/** Requests sent from this screen, one status line each with its link. */
+/** Sent from this screen, one status line each: "See it in Studio" first, GitHub behind it, and the developer message. */
 function sentNotes(r: PushState): Child[] {
-  return r.sent.map((s) =>
-    h(
+  const repo = state.init!.settings.repo;
+  return r.sent.map((s) => {
+    const studio = studioChangeUrl(repo, s.target, s.number);
+    return h(
       'div',
       { class: 'callout ok', role: 'status' },
-      h('div', { class: 'callout-title' }, icon('check'), s.what ? `${s.what} #${s.number} opened for ${s.component}` : `Request #${s.number} opened for ${s.component}`, h('button', { class: 'btn ghost callout-action', onClick: () => void request('open-url', { url: s.url }) }, 'Open on GitHub')),
-    ),
-  );
+      h('div', { class: 'callout-title' }, icon('check'), `${s.component}: ${s.what}`),
+      h(
+        'div',
+        { class: 'inline-actions' },
+        studio ? h('button', { class: 'btn', onClick: () => void request('open-url', { url: studio }) }, icon('external'), 'See it in Studio') : null,
+        h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: s.url }) }, 'Open on GitHub'),
+        s.build
+          ? h('button', { class: 'btn ghost', onClick: () => void copyText(developerMessage(repo, [s.build!])).then((ok) => { s.copied = ok; render(); }) }, icon(s.copied ? 'check' : 'copy'), s.copied ? 'Message copied' : 'Copy message for a developer')
+          : null,
+      ),
+    );
+  });
 }
 
 /**
@@ -2621,7 +2729,7 @@ function destinationControl(r: PushState): HTMLElement {
   return h(
     'section',
     { class: 'destination' },
-    h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Where your changes go' }, option('review', 'Request review'), option('exploration', 'Try in an exploration')),
+    h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Where your changes go' }, option('review', 'For review'), option('exploration', 'Try in an exploration')),
     h('p', { class: 'muted' }, exploring ? 'Test it in a preview and a staging build. It never reaches the product as is.' : 'Owners approve it, then it reaches the product.'),
     exploring
       ? h(
@@ -2805,7 +2913,8 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
       : h('p', { class: 'lede', 'data-region': 'tryit-status', 'data-sig': 'ready' }, 'A developer installs it in a staging branch of your product. The message has the command, the previews and the link.');
   const linksSig = JSON.stringify(links.map((l) => [l.app, l.url, l.state]));
   return [
-    intro({ title: `Sent to ${e.name}`, text: text.join(' '), meta: h('span', { class: 'url mono' }, e.branch), art: 'review' }),
+    intro({ title: `Sent to ${e.name}`, text: text.join(' '), art: 'review' }),
+    forDevelopers([...repoRows(), ['Exploration branch', e.branch], ['Pull request', e.url]]),
     h(
       'section',
       { class: 'try', 'data-region': 'tryit-links', 'data-sig': linksSig },
@@ -2853,6 +2962,29 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
   ];
 }
 
+/**
+ * "A developer builds it with Claude": nothing acts on a component that needs code on its own yet (the
+ * waiting-for-claude label is kept for that later), so the result says who does it and hands the designer the
+ * message for them, with the links and how to build it.
+ */
+function buildMessage(r: PushState, items: BuildItem[]): HTMLElement {
+  const repo = state.init!.settings.repo;
+  const message = developerMessage(repo, items);
+  return h(
+    'section',
+    { class: 'share' },
+    h('h2', null, 'A developer builds it with Claude'),
+    h('p', { class: 'lede' }, `${items.length === 1 ? `${items[0]!.component} needs` : `${plural(items.length, 'component')} need`} code. Send this message to a developer: it has the links and how to build it.`),
+    h(
+      'button',
+      { class: 'btn share-action', 'data-focus-id': 'build-copy', onClick: () => void copyText(message).then((ok) => { r.shared = ok; render(); }) },
+      icon(r.shared ? 'check' : 'copy'),
+      r.shared ? 'Message copied' : 'Copy message for a developer',
+    ),
+    h('details', { class: 'notes command' }, h('summary', null, 'Show the message'), h('pre', { class: 'mono-area', tabindex: '0', 'aria-label': 'Message for a developer' }, message)),
+  );
+}
+
 /** A status sentence with "Check again" on the same line. */
 function statusLine(text: string, r: PushState): HTMLElement {
   return h(
@@ -2865,7 +2997,7 @@ function statusLine(text: string, r: PushState): HTMLElement {
 
 function viewPush(): View {
   const init = state.init!;
-  if (!init.hasToken) return needToken();
+  if (!connected()) return needSetup();
   const r = state.push;
   if (!r) {
     return {
@@ -2873,13 +3005,12 @@ function viewPush(): View {
         intro({
           title: 'Send your edits',
           text: 'Variable edits and component changes go for review, or into an exploration to try them first. Nothing reaches the product until owners approve.',
-          meta: `To ${init.settings.repo}.`,
           art: 'paint',
         }),
         steps([
           ['Edit in Figma', 'Change synced variables, or change a component: a variant, a prop, a part, the token a part uses.'],
           ['Review the changes', 'Every change is listed and checked. Uncheck what is not ready; mark work in progress as exploration only.'],
-          ['Send', 'Request review: owners approve before anything is merged. In an exploration, you try it in previews and a staging build first.'],
+          ['Send', 'Send for review: owners approve before anything ships. In an exploration, you try it in previews and a staging build first.'],
         ]),
         requestLine(undefined),
       ],
@@ -2899,42 +3030,45 @@ function viewPush(): View {
     if (failed && shown.some((f) => f.problem === 'missing-permission')) {
       (failed as HTMLElement).append(h('div', { class: 'inline-actions' }, h('button', { class: 'btn', onClick: openTokenSettings }, icon('external'), 'Edit token on GitHub')));
     }
+    // After a send, one primary: the change in Studio for this team. GitHub is one step behind it; scanning again is a
+    // quiet line in the body.
+    const scanAgain = h('p', null, h('span', { class: 'muted' }, 'Edited more in Figma?'), ' ', h('button', { class: 'link', 'data-focus-id': 'scan-again', onClick: () => scanPush() }, 'Scan again'));
+    const resultBar = (links: { studio?: string | undefined; github?: string | undefined }): ActionBar => {
+      const github = links.github ? { label: 'Open on GitHub', onClick: () => void request('open-url', { url: links.github! }) } : undefined;
+      if (links.studio) return { label: 'See it in Studio', onClick: () => void request('open-url', { url: links.studio! }), secondary: github };
+      return github ? { ...github, secondary: { label: 'Scan again', onClick: () => scanPush() } } : { label: 'Scan again', onClick: () => scanPush() };
+    };
     if (r.sentTo) {
       const e = r.sentTo;
-      // One primary: the product with the edits when its preview exists, else the pull request.
-      const product = tryItLinks(e, r.previews).find((l) => l.app === 'admin' && l.url);
-      const github = { label: 'Open on GitHub', onClick: () => void request('open-url', { url: e.url }) };
       return {
-        body: [
-          ...explorationResult(r, e, res),
-          failed,
-          requestLine(r),
-          product ? h('p', null, h('span', { class: 'muted' }, 'Edited more in Figma?'), ' ', h('button', { class: 'link', onClick: () => scanPush() }, 'Scan again')) : null,
-        ],
-        bar: r.form
-          ? undefined
-          : product
-            ? { label: 'Open in the product', onClick: () => void request('open-url', { url: product.url! }), secondary: github }
-            : { ...github, secondary: { label: 'Scan again', onClick: () => scanPush() } },
+        body: [...explorationResult(r, e, res), failed, requestLine(r), scanAgain],
+        bar: r.form ? undefined : resultBar(sentLinks(init.settings.repo, res, e)),
       };
     }
     const mode = modeOf(r);
     const text = [
       ...suggestionLines(res),
-      pr ? `${pr.appended ? 'Added to your branch' : 'Branch created as a draft'}. Checks run, then a design owner and a tech owner approve before it is merged.` : '',
-      res.requests.length ? `${plural(res.requests.length, 'request')} opened for ${res.requests.map((x) => x.component).join(', ')}.` : '',
-      ...res.branches.map((x) => (x.route === 'token-change' ? `${x.component}: exact token change #${x.number}, checked for contrast.` : `${x.component}: library branch #${x.number}, waiting for Claude AI to draft the code.`)),
+      pr ? `${pr.appended ? 'Added to your change in review' : 'Variable edits sent as a draft'}. Checks run, then a design owner and a tech owner approve before it ships.` : '',
+      res.requests.length ? `${plural(res.requests.length, 'request')} sent for ${res.requests.map((x) => x.component).join(', ')}.` : '',
+      ...res.branches.filter((x) => !x.suggested).map((x) => (x.route === 'token-change' ? `${x.component}: an exact token change, checked for contrast.` : `${x.component}: a developer builds it with Claude. Send them the message below.`)),
       res.held.length ? `Not sent, fix in Figma first: ${res.held.map((x) => x.component).join(', ')}.` : '',
       prop.held.length ? `${plural(prop.held.length, 'unchecked variable edit')} stay${prop.held.length === 1 ? 's' : ''} in Figma.` : '',
     ].filter(Boolean);
-    const first = pr?.pr.url ?? res.suggestions[0]?.url ?? res.branches[0]?.url ?? res.requests[0]?.url;
+    // Components that need code: nothing builds them on its own, so the designer hands the developer a message.
+    const builds: BuildItem[] = res.branches.filter((x) => x.route === 'claude-draft').map((x) => ({ component: x.component, number: x.number, url: x.url, suggested: x.suggested }));
     const images = res.imagesSkipped ? h('div', { class: 'callout warn', role: 'status' }, h('div', { class: 'callout-title' }, icon('alert'), 'Screenshots not attached'), h('p', null, IMAGES_NEED_WRITE)) : null;
     if (images && mode === 'suggest') (images as HTMLElement).append(h('div', { class: 'inline-actions' }, h('button', { class: 'btn', onClick: openTokenSettings }, icon('external'), 'Edit token on GitHub')));
     return {
-      body: [intro({ title: sentTitle(res, mode), text: text.join(' '), meta: pr ? h('span', { class: 'url' }, pr.pr.url) : res.suggestions[0] ? h('span', { class: 'url' }, res.suggestions[0].url) : undefined, art: 'review' }), images, failed, requestLine(r)],
-      bar: r.form ? undefined : first
-        ? { label: 'Open on GitHub', onClick: () => void request('open-url', { url: first }), secondary: { label: 'Scan again', onClick: () => scanPush() } }
-        : { label: 'Scan again', onClick: () => scanPush() },
+      body: [
+        intro({ title: sentTitle(res, mode), text: text.join(' '), art: 'review' }),
+        forDevelopers([...repoRows(), ['Branch', pr?.branch], ['Pull request', pr?.pr.url], ['Suggestion', res.suggestions[0]?.url]]),
+        builds.length ? buildMessage(r, builds) : null,
+        images,
+        failed,
+        requestLine(r),
+        scanAgain,
+      ],
+      bar: r.form ? undefined : resultBar(sentLinks(init.settings.repo, res)),
     };
   }
 
@@ -3102,7 +3236,7 @@ function viewPush(): View {
               'label',
               { class: 'check' },
               h('input', { type: 'checkbox', checked: r.appendToOpen, onChange: (e: Event) => { r.appendToOpen = (e.target as HTMLInputElement).checked; render(); } }),
-              `Add to your open branch: ${r.openPr.title.replace(/^[a-z]+(\([^)]*\))?!?:\s*/i, '')}`,
+              `Add to your change in review: ${r.openPr.title.replace(/^[a-z]+(\([^)]*\))?!?:\s*/i, '')}`,
             )
           : null,
         // An exploration's title is generated (it only names the change on the exploration): nothing to fill in.
@@ -3110,10 +3244,10 @@ function viewPush(): View {
           ? h(
               'details',
               { class: 'notes', open: r.titleSource === 'claude' },
-              h('summary', null, modeOf(r) === 'suggest' ? 'Suggestion title' : 'Branch title'),
+              h('summary', null, modeOf(r) === 'suggest' ? 'Suggestion title' : 'Title'),
               h('input', {
                 type: 'text',
-                'aria-label': 'Branch title',
+                'aria-label': modeOf(r) === 'suggest' ? 'Suggestion title' : 'Title',
                 value: r.title,
                 placeholder: prop.changes.length ? defaultTitle(prop.changes) : prop.brands.find((b) => b.plan)?.plan?.title ?? '',
                 maxlength: '120',
@@ -3167,7 +3301,8 @@ function viewPush(): View {
 function viewSettings(): View {
   const d = state.settingsDraft;
   const init = state.init!;
-  const editingRepo = !init.hasToken || state.expanded.has('repo-edit');
+  // Not connected yet (no design system for this file, or no token): the fields show; connected, one row and Edit.
+  const editingRepo = !init.hasToken || !init.settings.repo || state.expanded.has('repo-edit');
   const rejected = init.tokenState === 'rejected';
   // The token field shows without a token, or after "Replace token".
   const tokenField = !init.hasToken || state.expanded.has('token-replace');
@@ -3181,17 +3316,23 @@ function viewSettings(): View {
     );
   return {
     body: [
-      init.hasToken ? null : intro({ title: 'Connect your repository', text: 'Point DS Bridge at the repository that holds your token files, then paste a token. Nothing is written until you send your edits.', art: 'guide' }),
-      // Connected: where the tokens live is a state (one row, Edit). The fields show to set it up or after Edit.
+      connected() ? null : intro({ title: 'Connect your design system', text: 'Which design system does this file use? Paste its GitHub repository, then a token. Nothing is written until you send your edits.', art: 'guide' }),
+      // Connected: the design system is a state (one row, Edit). The fields show to set it up or after Edit. Branch and
+      // tokens folder are for developers: folded, with defaults that work (the design system's config decides).
       editingRepo
         ? h(
             'section',
             { class: 'card' },
-            h('h2', null, 'Where the tokens live'),
-            field('Repository', 'repo', 'Owner and name, as in the GitHub URL.', 'owner/name'),
-            field('Base branch', 'branch', 'Pulls read from it; pull requests target it.', 'main'),
-            field('Tokens folder', 'tokensPath', 'Folder that holds the *.tokens.json files.', 'packages/tokens/src'),
-            init.hasToken
+            h('h2', null, 'Design system'),
+            field('GitHub repository', 'repo', 'The repository that holds your design system, as in its GitHub address.', 'owner/name or a GitHub link'),
+            h(
+              'details',
+              { class: 'notes dev-details' },
+              h('summary', null, 'For developers'),
+              field('Base branch', 'branch', 'Updates read from it; changes sent for review target it.', 'main'),
+              field('Tokens folder', 'tokensPath', "Used when the design system has no bridge.config.json to say where its tokens are.", 'tokens'),
+            ),
+            init.settings.repo
               ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', onClick: () => { state.expanded.delete('repo-edit'); state.settingsDraft = { ...init.settings }; render(); } }, 'Cancel'))
               : null,
           )
@@ -3201,9 +3342,10 @@ function viewSettings(): View {
             h(
               'div',
               { class: 'token-row' },
-              h('span', { class: 'opt-text' }, h('span', { class: 'opt-title' }, 'Repository'), h('small', { class: 'mono-line' }, `${init.settings.repo} · ${init.settings.branch} · ${init.settings.tokensPath}`)),
+              h('span', { class: 'opt-text' }, h('span', { class: 'opt-title' }, 'Design system'), h('small', { class: 'mono-line' }, init.settings.repo)),
               h('span', { class: 'opt-status ok' }, icon('check'), 'Connected'),
             ),
+            forDevelopers([['Branch', init.settings.branch], ['Tokens folder', init.settings.tokensPath]]),
             h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', 'data-focus-id': 'repo-edit', onClick: () => { state.expanded.add('repo-edit'); render(); } }, 'Edit')),
           ),
       // A saved token is a state, not a question: one row with "Connected" (or "Stopped working") and its actions.
@@ -3275,12 +3417,13 @@ function tokenInput(label: string, hint: string): HTMLElement {
   );
 }
 
-function snippet(id: string, label: string, text: string): HTMLElement {
+/** A setup snippet: `text` on screen, `copy` on the clipboard (the same text with the saved token in place). */
+function snippet(id: string, label: string, text: string, copy = text): HTMLElement {
   const copied = state.claudeCopied === id;
   return h(
     'div',
     { class: 'snippet' },
-    h('div', { class: 'snippet-head' }, h('span', null, label), h('button', { class: 'btn ghost', 'data-focus-id': `copy-${id}`, onClick: () => void copyText(text).then((ok) => { state.claudeCopied = ok ? id : undefined; render(); }) }, icon(copied ? 'check' : 'copy'), copied ? 'Copied' : 'Copy')),
+    h('div', { class: 'snippet-head' }, h('span', null, label), h('button', { class: 'btn ghost', 'data-focus-id': `copy-${id}`, onClick: () => void copyText(copy).then((ok) => { state.claudeCopied = ok ? id : undefined; render(); }) }, icon(copied ? 'check' : 'copy'), copied ? 'Copied' : 'Copy')),
     h('pre', { class: 'mono-area', tabindex: '0', 'aria-label': label }, text),
   );
 }
@@ -3292,7 +3435,10 @@ function snippet(id: string, label: string, text: string): HTMLElement {
 function claudeCard(): HTMLElement {
   const c = state.init!.claude;
   const repo = state.init!.settings.repo;
+  const hasToken = !!state.init!.hasToken;
+  // On screen the token is a placeholder; Copy puts the saved one in (it is never shown, so nobody has to find it).
   const mcp = mcpSnippets(repo);
+  const filled = mcpSnippets(repo, state.init!.token);
   const msg = state.claudeMessage;
   const toggle = (key: string) => () => {
     state.expanded.has(key) ? state.expanded.delete(key) : state.expanded.add(key);
@@ -3317,21 +3463,30 @@ function claudeCard(): HTMLElement {
     'section',
     { class: 'card' },
     h('div', { class: 'group-head' }, h('h2', null, 'Claude', h('span', { class: 'group-n' }, 'Optional'))),
-    h('p', { class: 'lede' }, 'Writes your request and branch text from the changes it sees. You review it before anything is sent.'),
+    h('p', { class: 'lede' }, 'Writes the text of what you send from the changes it sees. You review it before anything is sent.'),
     h(
       'ul',
       { class: 'opts' },
       row(
         'mcp-setup',
         'Your Claude plan',
-        'Through MCP, from your terminal. No API key.',
+        'In the Claude app or Claude Code. No API key.',
         'Set up once',
         'Recommended',
         h(
           'ol',
           { class: 'setup-steps' },
-          h('li', null, 'Add Bridge to your Claude, once, in a terminal. Put this plugin\'s GitHub token in place of your-github-token.', snippet('code', 'Terminal', mcp.code)),
-          h('li', null, `Then click "Draft with Claude" and say "${DRAFT_PHRASE}" to your Claude.`),
+          h(
+            'li',
+            null,
+            hasToken
+              ? 'Add Bridge to Claude, once. Copy fills in the GitHub token saved in this plugin; it stays on this computer.'
+              : 'Save a GitHub token above first: Copy then fills it in. Then add Bridge to Claude, once.',
+            snippet('code', 'Claude Code, in a terminal', mcp.code, filled.code),
+            h('details', { class: 'notes' }, h('summary', null, 'Using the Claude app instead'), snippet('desktop', 'In claude_desktop_config.json', mcp.desktop, filled.desktop)),
+            h('small', null, 'The token needs "Contents" set to "Read and write": Claude reads and writes the drafts in a file of the repository.'),
+          ),
+          h('li', null, `Then click "Draft with Claude" and say "${DRAFT_PHRASE}" to Claude.`),
         ),
       ),
       row(
@@ -3381,6 +3536,13 @@ function claudeCard(): HTMLElement {
   );
 }
 
+/** The design system's own name (its bridge.config.json "name", once read), else the repository's name. */
+function designSystemName(): string {
+  const config = (state.push?.analysis ?? state.pull?.analysis)?.headFiles.config;
+  if (config?.name) return config.name;
+  return state.init?.settings.repo.split('/').pop() ?? '';
+}
+
 function actionBar(bar: ActionBar | undefined): Child {
   if (!bar && !state.busy) return null;
   // Fitts: a lone action takes the whole bar; with a secondary or a status it stays on the right.
@@ -3413,7 +3575,13 @@ function render(): void {
         'main',
         null,
         state.error
-          ? h('div', { class: 'callout error', role: 'alert' }, h('div', { class: 'callout-title' }, icon('alert'), 'DS Bridge could not start'), h('p', null, state.error.message))
+          ? h(
+              'div',
+              { class: 'callout error', role: 'alert' },
+              h('div', { class: 'callout-title' }, icon('alert'), 'Bridge could not start'),
+              h('p', null, state.error.message),
+              state.error.detail ? h('details', { class: 'notes command' }, h('summary', null, 'Details'), h('pre', { class: 'mono-area', tabindex: '0', 'aria-label': 'Error details' }, state.error.detail)) : null,
+            )
           : h('p', { class: 'muted loading' }, h('span', { class: 'spinner' }), 'Loading'),
       ),
     );
@@ -3424,7 +3592,7 @@ function render(): void {
 
   const tabs = h(
     'nav',
-    { class: 'tabs', role: 'tablist', 'aria-label': 'DS Bridge' },
+    { class: 'tabs', role: 'tablist', 'aria-label': 'Bridge' },
     TABS.map((t) =>
       h(
         'button',
@@ -3453,7 +3621,8 @@ function render(): void {
         t.id === 'push' && pushCount ? h('span', { class: 'count', 'aria-label': `${pushCount} changes` }, String(pushCount)) : null,
       ),
     ),
-    h('span', { class: 'repo', title: `${state.init.settings.repo}, branch ${state.init.settings.branch}` }, icon('branch'), state.init.settings.branch),
+    // Which design system this file uses, by its name: never a branch or a repository slug.
+    state.init.settings.repo ? h('span', { class: 'repo', title: `Design system: ${designSystemName()}` }, designSystemName()) : null,
   );
 
   // A rejected token: one callout on Pull and Push whatever failed (Settings shows it on the token row).
@@ -3465,6 +3634,7 @@ function render(): void {
         'div',
         { class: 'callout error', role: 'alert' },
         h('div', { class: 'callout-title' }, icon('alert'), shownError.message),
+        shownError.detail ? h('details', { class: 'notes command' }, h('summary', null, 'Details'), h('pre', { class: 'mono-area', tabindex: '0', 'aria-label': 'Error details' }, shownError.detail)) : null,
         shownError.retry || permission
           ? h(
               'div',
@@ -3485,9 +3655,9 @@ function render(): void {
 
 /** One call at start (the repository) so a token GitHub stopped accepting shows before the designer tries an action. */
 async function checkAccessOnStart(): Promise<void> {
-  if (!state.init?.hasToken) return;
+  if (!connected()) return;
   const result = await checkToken(getClient());
-  if (!result || result === state.init.tokenState) return;
+  if (!result || result === state.init?.tokenState) return;
   setTokenState(result);
   render();
 }
@@ -3495,11 +3665,11 @@ async function checkAccessOnStart(): Promise<void> {
 render();
 loadInit()
   .then(() => {
-    if (!state.init!.hasToken) state.tab = 'settings';
+    if (!connected()) state.tab = 'settings';
     render();
     void checkAccessOnStart();
   })
   .catch((err: unknown) => {
-    state.error = { message: err instanceof Error ? err.message : String(err) };
+    state.error = { message: 'Close Bridge and open it again. If it keeps happening, report it with the details.', detail: err instanceof Error ? `${err.name}: ${err.message}` : String(err) };
     render();
   });

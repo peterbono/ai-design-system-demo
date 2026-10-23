@@ -109,6 +109,17 @@ export function componentMotion(model: RepoModel, c: Pick<ComponentInfo, 'name' 
 /** The story a component's previews play: its first story. */
 export const mainStory = (c: Pick<ComponentInfo, 'stories'>) => c.stories[0];
 
+/**
+ * The code a component page shows in place of its preview while the published Storybook does not have the story yet:
+ * the component with its text children, when it takes some.
+ */
+export function exampleCode(name: string, children: string | null | undefined): string {
+  return children ? `<${name}>${children}</${name}>` : `<${name} />`;
+}
+
+/** Whether a Storybook index lists the story (the published Storybook may lag behind the code). */
+export const storyInIndex = (entries: readonly { id: string }[], storyId: string) => entries.some((e) => e.id === storyId);
+
 /** Values a Storybook `args=` address accepts as they are; anything else is left out (Storybook would drop it). */
 const ARG_VALUE = /^[A-Za-z0-9 _-]*$/;
 

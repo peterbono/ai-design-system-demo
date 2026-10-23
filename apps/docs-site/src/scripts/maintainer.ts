@@ -7,6 +7,10 @@
 // the token again at most every ten minutes, and on every connect or disconnect.
 import { paintAvatar } from './avatar';
 import { API, getToken, markTokenRejected, readRepo, tokenRejected } from './github-session';
+import { isContribAuth } from '../lib/contribute';
+
+/** The GitHub token of this browser; never an email member's stand-in (it is not a GitHub token: GitHub refuses it). */
+const githubTokenOf = (token: string | null): string | null => (token && !isContribAuth(token) ? token : null);
 
 const KEY = 'bridge.gh.maintainer';
 const FRESH_MS = 10 * 60 * 1000;
@@ -68,7 +72,7 @@ async function check(token: string): Promise<MaintainerState | null> {
 }
 
 async function refresh(force = false) {
-  const token = getToken();
+  const token = githubTokenOf(getToken());
   if (token && tokenRejected()) {
     write(null);
     return paint(null);

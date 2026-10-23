@@ -4,7 +4,8 @@
 // With GitHub linked and signed in on this browser, the GitHub sign-in goes along (Bearer) so the server can find the
 // teams GitHub gives the person and accept reviewer or admin invites; the server never keeps it.
 import { CONTRIBUTE_HEADER } from '../lib/contribute';
-import { ENTRY_API, parseDiscovery, parseEntry, parseRequests, type Discovery, type Entry, type EntryRole, type JoinRequest } from '../lib/entry';
+import { noteAccountTeamNames } from '../lib/recent-teams';
+import { ENTRY_API, parseDiscovery, parseEntry, parseInviteLink, parseRequests, type Discovery, type Entry, type EntryRole, type InviteLink, type JoinRequest } from '../lib/entry';
 
 /** The server refused or failed: its sentence, its code ("github-required", "forbidden", "expired"), the status. */
 export class EntryError extends Error {
@@ -66,7 +67,16 @@ async function call<T>(method: 'GET' | 'POST', query: string, body?: unknown, wi
 export async function getEntry(): Promise<Entry> {
   const e = parseEntry(await call('GET', '', undefined, true));
   if (!e) throw new EntryError(FAILED, 'failed', 500);
+  // The teams by the names the server keeps: the team page names its team from its first paint, no flip.
+  if (e.kind === 'teams') noteAccountTeamNames(e.teams);
   return e;
+}
+
+/** What an invite link is (signed in or not): its team, whom it was sent to (masked), whether it is this account's. */
+export async function openInviteLink(token: string): Promise<InviteLink> {
+  const link = parseInviteLink(await call('POST', '', { action: 'invite-link', token }));
+  if (!link) throw new EntryError(FAILED, 'failed', 500);
+  return link;
 }
 
 export interface Accepted {
@@ -118,6 +128,11 @@ export async function approveRequest(repo: string, id: string): Promise<{ name: 
 
 export async function declineRequest(repo: string, id: string): Promise<void> {
   await call('POST', '', { action: 'decline', repo, id });
+}
+
+/** Admins: takes back an approve or decline within 30 seconds; the request waits again. 410 once too late. */
+export async function undoDecision(repo: string, id: string): Promise<void> {
+  await call('POST', '', { action: 'undo', repo, id });
 }
 
 /** Admins: opens the team to their own work domain, or closes it. 409 public-domain for a public email. */

@@ -35,7 +35,7 @@
   position: relative;
 }
 
-.attached > *:focus-visible {
+.attached > :focus-visible {
   z-index: 1;
 }
 

@@ -1,17 +1,13 @@
 ---
 // Where an invitation email leads: /studio/invite/#t=<token> (api/invites/index.ts writes the link). Not in the nav.
-// The island (components/ds/studio/InviteAccept.tsx) reads the token from the fragment, asks the
-// visitor to sign in with GitHub, then accepts the invitation on the server and opens the team. Reads no repository
-// (bare: the Studio top bar only), and signs in like a team page so the sign-in carries over to the team.
-import '../../styles/invites.css';
+// One identity: the link opens the one sign-in screen of Bridge (components/ds/account/SignIn.tsx, `invite`), which
+// signs in the invited email with a code, then shows the invite (Entry E3). Signed in as someone else, it says where
+// the invite went and offers to sign in as that email. Reads no repository (bare: the Studio top bar only).
+import '../../styles/start.css';
 import Layout from '../../layouts/Layout.astro';
-import Illustration from '../../components/Illustration.astro';
-import InviteAccept from '../../components/ds/studio/InviteAccept';
+import SignIn from '../../components/ds/account/SignIn';
 ---
 
 <Layout title="Join your team" description="Accept an invitation to a design system on Bridge." crumbs={false} bare>
-  <section class="zone inv-accept" aria-label="Your invitation">
-    <div class="inv-accept-art" aria-hidden="true"><Illustration name="review" width={132} /></div>
-    <InviteAccept client:only="react" />
-  </section>
+  <SignIn client:only="react" invite />
 </Layout>

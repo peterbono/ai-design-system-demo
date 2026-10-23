@@ -9,6 +9,7 @@
 //   domain   "Your colleagues already use Bridge" (E4): every team open to the work domain, largest first, three then
 //            "N more"; Ask to join, then "Request sent" (E4b).
 //   create   "Create your team" (E6): the workspace setup, step 1.
+import { ROLE_WORDS, roleLabel, type MemberRole } from './invites';
 import { teamHref } from './team-path';
 import { WORKSPACE_HOME } from './start';
 
@@ -28,6 +29,8 @@ export interface EntryInvite {
   team: string;
   repo: string;
   role: string;
+  /** A reviewer invite: what they review ("design" or "tech"). */
+  reviewAs?: string;
   invitedBy: string;
   /** When the invite was sent (ISO), '' when unknown. */
   invitedAt: string;
@@ -70,6 +73,23 @@ const isoOf = (v: unknown): string => {
   return s && Number.isFinite(Date.parse(s)) ? s : '';
 };
 
+const REVIEW_AS = ['design', 'tech'];
+
+function inviteOf(i: Record<string, unknown>, id: string, repo: string): EntryInvite {
+  const reviewAs = str(i.reviewAs);
+  return {
+    id,
+    repo,
+    team: str(i.team) ?? repo,
+    role: str(i.role) ?? 'edit',
+    ...(reviewAs && REVIEW_AS.includes(reviewAs) ? { reviewAs } : {}),
+    invitedBy: str(i.invitedBy) ?? '',
+    invitedAt: isoOf(i.invitedAt),
+    memberCount: countOf(i.memberCount),
+    people: namesOf(i.people),
+  };
+}
+
 /** An /api/entry answer, or null when it is not one. Unknown fields and malformed rows are dropped. */
 export function parseEntry(v: unknown): Entry | null {
   if (!v || typeof v !== 'object') return null;
@@ -90,7 +110,7 @@ export function parseEntry(v: unknown): Entry | null {
         const repo = repoOf(i.repo);
         const id = str(i.id);
         if (!repo || !id) return [];
-        return [{ id, repo, team: str(i.team) ?? repo, role: str(i.role) ?? 'edit', invitedBy: str(i.invitedBy) ?? '', invitedAt: isoOf(i.invitedAt), memberCount: countOf(i.memberCount), people: namesOf(i.people) }];
+        return [inviteOf(i, id, repo)];
       });
       return invites.length ? { kind: 'invites', invites } : { kind: 'create' };
     }
@@ -108,6 +128,57 @@ export function parseEntry(v: unknown): Entry | null {
     default:
       return null;
   }
+}
+
+/**
+ * What an invite link (/studio/invite/#t=...) is, from POST /api/entry { action: 'invite-link' }:
+ *   live     the invite waits. `invite` (its E3 card) when it is the signed-in account's own; `sentTo` masked.
+ *   gone     accepted, cancelled or expired: the team and whom to ask still show.
+ *   unknown  a token Bridge never knew (a cut link).
+ * `member`: the signed-in account is already on the team (`repo` then opens it).
+ */
+export type InviteLink =
+  | { state: 'live'; team: string; invitedBy: string; role: string; reviewAs?: string; sentTo: string; signedIn: boolean; mine: boolean; member: boolean; repo?: string; invite?: EntryInvite }
+  | { state: 'gone'; team: string; invitedBy: string; signedIn: boolean; member: boolean; repo?: string }
+  | { state: 'unknown'; signedIn: boolean };
+
+export function parseInviteLink(v: unknown): InviteLink | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  const signedIn = o.signedIn === true;
+  const repo = repoOf(o.repo);
+  const member = o.member === true && Boolean(repo);
+  const team = str(o.team) ?? '';
+  const invitedBy = str(o.invitedBy) ?? '';
+  if (o.state === 'gone') return { state: 'gone', team, invitedBy, signedIn, member, ...(member && repo ? { repo } : {}) };
+  if (o.state !== 'live') return o.state === 'unknown' ? { state: 'unknown', signedIn } : null;
+  const reviewAs = str(o.reviewAs);
+  const raw = o.invite && typeof o.invite === 'object' ? (o.invite as Record<string, unknown>) : null;
+  const invRepo = raw ? repoOf(raw.repo) : null;
+  const invId = raw ? str(raw.id) : null;
+  const invite = raw && invRepo && invId ? inviteOf(raw, invId, invRepo) : null;
+  return {
+    state: 'live',
+    team: team || invite?.team || '',
+    invitedBy,
+    role: str(o.role) ?? 'edit',
+    ...(reviewAs && REVIEW_AS.includes(reviewAs) ? { reviewAs } : {}),
+    sentTo: str(o.sentTo) ?? '',
+    signedIn,
+    mine: o.mine === true && Boolean(invite),
+    member,
+    ...(member && repo ? { repo } : {}),
+    ...(invite ? { invite } : {}),
+  };
+}
+
+/** Where an invite link keeps its token in this tab (sessionStorage) while the person signs in or links GitHub. */
+export const INVITE_TOKEN_KEY = 'bridge.invite.token';
+
+/** The token of an invite link's `#t=...`, if the fragment carries one that looks like ours. */
+export function inviteTokenFromHash(hash: string): string | null {
+  const m = /(?:^#|&)t=([A-Za-z0-9_-]{20,128})(?:&|$)/.exec(hash);
+  return m ? m[1]! : null;
 }
 
 /** Largest first, then by name: the order the server sends, kept when a list comes back unsorted. */
@@ -179,6 +250,12 @@ export function routeEntry(e: Entry, recent: readonly string[] = []): EntryRoute
   }
 }
 
+/** The role an invite gives, in the words of the role picker: "Can edit", "Reviewer: design", "Admin". */
+export function inviteRole(i: Pick<EntryInvite, 'role' | 'reviewAs'>): string {
+  if (i.role === 'reviewer') return roleLabel({ role: 'reviewer', reviewAs: i.reviewAs === 'tech' ? 'tech' : 'design' });
+  return i.role in ROLE_WORDS ? ROLE_WORDS[i.role as MemberRole].label : i.role;
+}
+
 /** "12 members", "1 member". */
 export const membersLabel = (n: number): string => `${n} ${n === 1 ? 'member' : 'members'}`;
 
@@ -217,7 +294,30 @@ export const ENTRY_WORDS = {
   notYou: 'Not you?',
   otherEmail: 'Use another email',
   githubToAccept: 'Connect GitHub to accept',
-  githubToAcceptWhy: (role: string) => `You join as ${role}. Reviewers and admins approve on GitHub, so Bridge needs your GitHub account first.`,
+  githubWhy: (role: string) => `As ${role}, you approve changes on GitHub, the free account where your team's design system lives.`,
+  newToGitHub: 'New to GitHub?',
+  createGitHub: 'Create a free account',
+  githubOff: (role: string, inviter: string) => `Joining as ${role} needs GitHub, which is not available on this Bridge site. Ask ${inviter || 'your admin'} to invite you as Can edit instead.`,
+  // The invite link (/studio/invite/#t=...), before E3.
+  opening: 'Opening your invite',
+  linkTitle: (team: string) => (team ? `Join ${team}` : 'Join your team'),
+  linkLead: (inviter: string) => (inviter ? `${inviter} invited` : 'You were invited with'),
+  linkLeadEnd: '. Bridge sends a 6-digit code there to sign you in.',
+  linkNotYours: (inviter: string) => `Not your email? Ask ${inviter || 'your admin'} to invite the one you use.`,
+  otherTitle: (sentTo: string) => `This invite was sent to ${sentTo || 'another email'}`,
+  otherLead: (team: string) => `You're signed in with another email. Sign in with the invited one to join ${team || 'the team'}.`,
+  signInAsInvited: 'Sign in as that email',
+  continueAs: (email: string) => `Continue as ${email}`,
+  alreadyIn: (team: string) => (team ? `You're already in ${team}` : "You're already on this team"),
+  alreadyInLead: 'This invite is yours, and you are on the team. Open it to pick up where you left off.',
+  openNamed: (team: string) => (team ? `Open ${team}` : 'Open the team'),
+  goneTitle: 'This invite link no longer works',
+  goneLead: (inviter: string, team: string) => `Invites work once, for 7 days. Ask ${inviter || 'your admin'} for a new invite to ${team || 'the team'}.`,
+  goneSignedOut: 'Already on the team? Sign in to open it.',
+  missingTitle: 'This invite link is incomplete',
+  missingLead: 'Open the link from the invite email again, or ask your admin for a new invite.',
+  signIn: 'Sign in',
+  continueToBridge: 'Continue to Bridge',
   inviteGone: 'This invite expired or was cancelled. Ask your admin for a new one.',
   acceptOnGitHubTitle: 'One last step on GitHub',
   acceptOnGitHub: (repo: string, role: string) => `GitHub asks you to accept the invitation to ${repo} once. Then come back: you are ${role}.`,
@@ -242,7 +342,7 @@ export const ENTRY_WORDS = {
   cancelRequest: 'Cancel the request',
   // E5
   pickTitle: 'Pick a team',
-  pickLead: (n: number) => `You are in ${n} teams. Switch any time from the top bar.`,
+  pickLead: (n: number) => `You are in ${n} teams. Switch any time from the team menu.`,
   lastOpened: 'Last opened',
   newLead: 'Starting something new?',
   createTeam: 'Create a team',
@@ -276,6 +376,9 @@ export const ENTRY_WORDS = {
   joined: (name: string) => `${firstName(name)} joined as Can edit.`,
   declined: (name: string) => `${firstName(name)} will not join. Bridge does not tell them why.`,
   githubToManage: 'Connect GitHub to manage requests',
+  undo: 'Undo',
+  /** After Undo: the request waits again (and an approved person left the team). */
+  undone: (name: string) => `${firstName(name)}'s request is back.`,
   requestKind: (n: number) => `${n} ${n === 1 ? 'join request' : 'join requests'}`,
 } as const;
 

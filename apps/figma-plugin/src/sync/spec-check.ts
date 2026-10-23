@@ -225,7 +225,7 @@ function checkComponent(raw: unknown, index: number, issue: (component: string, 
               (x.transition.properties === undefined || Array.isArray(x.transition.properties)))),
       )
     : undefined;
-  if (Array.isArray(raw.interactions) && interactions && interactions.length < raw.interactions.length) trim(`${raw.interactions.length - interactions.length} prototype interactions were left out: their shape is not one DS Bridge reads`);
+  if (Array.isArray(raw.interactions) && interactions && interactions.length < raw.interactions.length) trim(`${raw.interactions.length - interactions.length} prototype interactions were left out: their shape is not one Bridge reads`);
   const motion = Array.isArray(raw.motion) ? raw.motion.filter((m): m is NonNullable<ComponentSpec['motion']>[number] & Dict => isDict(m) && typeof m.what === 'string' && typeof m.reason === 'string') : undefined;
   return {
     ...(raw as unknown as ComponentSpec),

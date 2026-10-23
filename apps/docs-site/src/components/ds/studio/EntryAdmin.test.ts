@@ -4,7 +4,7 @@
 // request row on an admin's Studio home (Decline and Approve inline up to 3 things, folded beyond), and the request in
 // Settings, Members with its discovery line. "Connect GitHub to manage requests" instead of a refusal. Axe clean.
 import '../../../../../../packages/react/src/test/setup';
-import { createElement } from 'react';
+import { createElement, useState } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -142,20 +142,39 @@ const home = (over: Partial<StudioHomeProps>): StudioHomeProps => ({
 });
 
 describe('join request on the admin home (E7b)', () => {
-  it('keeps Decline and Approve inline, then says who joined', async () => {
+  it('keeps Decline and Approve inline, then removes the row at once and offers Undo in a toast', async () => {
     reply = () => json(200, { member: { name: 'Jordan Lee', role: 'edit' }, repo: 'acme/ds' });
     const gone = vi.fn();
-    const { container } = render(createElement(StudioHome, home({ needs: [jordan, review(1)], join: joinHandlers(() => 'acme/ds', gone, 0) })));
+    const back = vi.fn();
+    const { container } = render(createElement(StudioHome, home({ needs: [jordan, review(1)], join: joinHandlers(() => 'acme/ds', gone, back) })));
     expect(screen.getByText('Jordan Lee')).toBeInTheDocument();
     expect(screen.getByText('· asks to join Acme Design')).toBeInTheDocument();
     expect(screen.getByText('jordan.lee@acme.com · joins as Can edit')).toBeInTheDocument();
     expect(screen.getByText('Waiting 1 h')).toBeInTheDocument();
     expect(screen.getByText(/are waiting on you/).textContent).toContain('Jordan and Ann');
     await expectNoAxeViolations(container);
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Approve Jordan Lee' }));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Approve Jordan Lee' }));
     expect(await screen.findByText('Jordan joined as Can edit.')).toBeInTheDocument();
     expect(calls[0]!.body).toEqual({ action: 'approve', repo: 'acme/ds', id: 'a1b2c3d4e5f60718' });
-    await waitFor(() => expect(gone).toHaveBeenCalledWith(jordan.key));
+    expect(gone).toHaveBeenCalledWith(jordan.key);
+    reply = () => json(200, { undone: true });
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(await screen.findByText("Jordan's request is back.")).toBeInTheDocument();
+    expect(calls[1]!.body).toEqual({ action: 'undo', repo: 'acme/ds', id: 'a1b2c3d4e5f60718' });
+    expect(back).toHaveBeenCalledWith(jordan.key);
+  });
+
+  it('recounts the headline once the last request is decided', async () => {
+    reply = () => json(200, { ok: true });
+    function Host() {
+      const [needs, setNeeds] = useState([jordan]);
+      return createElement(StudioHome, home({ needs, join: joinHandlers(() => 'acme/ds', (k) => setNeeds((n) => n.filter((r) => r.key !== k))) }));
+    }
+    render(createElement(Host));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Decline Jordan Lee' }));
+    expect(await screen.findByText(/Nothing needs you/)).toBeInTheDocument();
+    expect(screen.queryByText('Jordan Lee')).toBeNull();
   });
 
   it('folds into N more beyond 3, no inline buttons', () => {

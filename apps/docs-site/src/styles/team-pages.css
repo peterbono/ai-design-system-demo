@@ -53,6 +53,16 @@
   display: none;
 }
 
+/* Team Home: the design system read (progress, or why it failed) under the home, in the page width. */
+.sh-team-ds {
+  max-width: var(--studio-page-max);
+  margin-block-start: var(--space-6);
+}
+
+.sh-team-ds:empty {
+  display: none;
+}
+
 /* Team Tokens: the explorer stays out of the page until the team's tokens are in (its grid display would show it). */
 [data-hosted-explorer][hidden] {
   display: none;

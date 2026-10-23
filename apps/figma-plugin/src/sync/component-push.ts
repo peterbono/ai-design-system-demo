@@ -218,9 +218,9 @@ export function componentPushes(
     let blocked: string | undefined;
     if (plan.route === 'token-change') {
       // No bridge.config.json: the shared token write cannot plan it, so Claude AI makes the token swap on a branch.
-      if (!lib) plan = { ...plan, route: 'claude-draft', said: 'Claude AI drafts the token swap: this repo has no bridge.config.json for Bridge to write it exactly.' };
+      if (!lib) plan = { ...plan, route: 'claude-draft', said: 'A developer makes the token swap with Claude: Bridge cannot write it exactly in this design system yet.' };
       else {
-        const p = planTokenProposal({ before: lib.before, pairs: pushPairs(ctx.head, ctx.pairs, plan.edits), edits: plan.edits, title: diff.title, config: lib.config, tool: 'the DS Bridge Figma plugin' });
+        const p = planTokenProposal({ before: lib.before, pairs: pushPairs(ctx.head, ctx.pairs, plan.edits), edits: plan.edits, title: diff.title, config: lib.config, tool: 'the Bridge Figma plugin' });
         if (p?.blocked) blocked = `Not sent: ${p.blocked}. Pick another variable, or ask for a review in a request.`;
         else if (!p) plan = { ...plan, route: 'manual', said: 'The library already paints it this way: nothing to send.', edits: [] };
       }
@@ -230,4 +230,4 @@ export function componentPushes(
 }
 
 /** Push tab wording of a route: the tag on the row. */
-export const ROUTE_TAG: Record<ComponentPushPlan['route'], string> = { 'token-change': 'Exact token change', 'claude-draft': 'Claude AI drafts', manual: 'Fix in Figma' };
+export const ROUTE_TAG: Record<ComponentPushPlan['route'], string> = { 'token-change': 'Exact token change', 'claude-draft': 'A developer builds it', manual: 'Fix in Figma' };

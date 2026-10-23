@@ -2,11 +2,12 @@
 // Pure: scripts/team-data.ts loads, components/ds/studio/TeamState.tsx shows, team-load.test.ts covers the wording.
 
 import { teamDisplayName } from './demo';
+import { knownTeamName } from './recent-teams';
 /** Where the team's data came from (scripts/repo-context.ts TeamModelSource). */
 export type TeamDataSource = 'cache' | 'snapshot' | 'live';
 
 /** What went wrong reading a team's repository, in the words the page shows. */
-export type TeamFailureKind = 'rate-limit' | 'not-found' | 'too-large' | 'network' | 'unknown';
+export type TeamFailureKind = 'rate-limit' | 'not-found' | 'too-large' | 'network' | 'signed-out' | 'unknown';
 
 export interface TeamFailure {
   kind: TeamFailureKind;
@@ -24,11 +25,14 @@ const statusOf = (err: unknown): number | undefined => {
   return typeof s === 'number' ? s : undefined;
 };
 
+/** Signed out meanwhile: the page says so and offers Sign in (back to the same page with a code). */
+const SIGNED_OUT_FAILURE = (repo: string): TeamFailure => ({ kind: 'signed-out', title: 'You signed out', body: `Sign in again to open ${repo}. Bridge sends a code to your email.` });
+
 /** A failure to read `repo` ("owner/name") as the page says it. Never shows a stack or a raw API body. */
 export function teamFailure(err: unknown, full: string): TeamFailure {
   const status = statusOf(err);
   // The team by its name, never owner/repo ("this repository" when the address names none).
-  const repo = full.includes('/') ? teamDisplayName(full) : full;
+  const repo = full.includes('/') ? teamDisplayName(full, { name: knownTeamName(full) }) : full;
   const message = err instanceof Error ? err.message : '';
   // A private Library this site serves (api/library-access): its own sentence, never "GitHub answered".
   if ((err as { source?: unknown } | null)?.source === 'bridge') {
@@ -36,6 +40,8 @@ export function teamFailure(err: unknown, full: string): TeamFailure {
       ? { kind: 'network', title: 'Bridge did not answer', body: 'Check your connection, then try again.' }
       : { kind: 'unknown', title: `Bridge cannot open ${repo} yet`, body: message || 'Something went wrong while opening the library. Try again.' };
   }
+  // The session ended (signed out in another tab, or on another device): a way back in, never the server's sentence.
+  if (status === 401) return SIGNED_OUT_FAILURE(repo);
   if (status === 429 || (status === 403 && /rate limit/i.test(message))) {
     return {
       kind: 'rate-limit',

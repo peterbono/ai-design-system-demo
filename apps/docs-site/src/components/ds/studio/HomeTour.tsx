@@ -11,7 +11,7 @@ export function TourStep({ n, total, words, onNext, onFinish, onClose }: { n: nu
   const last = n === total;
   return (
     <Popover open onOpenChange={(o) => !o && onClose()}>
-      <PopoverTrigger render={<span className="dh-tour-anchor" aria-hidden="true" tabIndex={-1} />} />
+      <PopoverTrigger nativeButton={false} render={<span className="dh-tour-anchor" aria-hidden="true" tabIndex={-1} />} />
       <PopoverContent side="bottom" align="start" className="dh-tour" title={words.title} description={words.text}>
         <div className="dh-tour-foot">
           <span className="t-ui t-muted">
