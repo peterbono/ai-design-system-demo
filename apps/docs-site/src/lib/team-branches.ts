@@ -1,6 +1,6 @@
 // Team Branches (team shell /studio/<owner>/<repo>/changes/): the words and the addresses of the page, pure.
 // scripts/team-branches.ts reads GitHub and routes; components/ds/studio/TeamSuggestions shows the suggestions.
-import type { SuggestionKind, SuggestionListItem } from '@bridge-ds/core';
+import type { Requester, SuggestionKind, SuggestionListItem } from '@bridge-ds/core';
 import type { ThumbSpec } from './branch-thumb';
 import { shortTitle, statusBadge, type SuggestionTone } from './suggestions-view';
 import { REQUEST_TRIAGE_IN_STUDIO } from './studio-flags';
@@ -47,6 +47,8 @@ export interface SuggestionRow {
   number: number;
   title: string;
   author: string;
+  /** Who asked for it ("Requested by Ann Leroy." in the body), shown instead of the author when there is one. */
+  requester: Requester | null;
   thumb: ThumbSpec;
   pill: { label: string; tone: SuggestionTone };
 }
@@ -65,6 +67,7 @@ export function suggestionRows(items: readonly SuggestionListItem[]): Suggestion
       number: i.number,
       title: shortTitle(i.title),
       author: i.author,
+      requester: i.requester ?? null,
       thumb: (i.kind && KIND_THUMB[i.kind]) ?? { kind: 'icon', icon: 'token' },
       pill: statusBadge(i.status),
     }));

@@ -150,7 +150,8 @@ async function readWaiting(viewer: string): Promise<Waiting[]> {
 export async function loadSuggestionNeeds(personOf: (login: string) => Promise<Person> = async (l) => person(l, null, `https://github.com/${l}.png?size=64`)): Promise<NeedRow[]> {
   const now = Date.now();
   const rows = await readNeeds();
-  return Promise.all(rows.map(async (w) => suggestionNeed(w, await personOf(w.author), now)));
+  // Who asked for it (the requester Bridge recorded in the body), else the GitHub account that opened it.
+  return Promise.all(rows.map(async (w) => suggestionNeed(w, (w.requester && requesterPerson(w.requester, (l) => person(l, null, `https://github.com/${l}.png?size=64`))) ?? (await personOf(w.author)), now)));
 }
 
 /**
