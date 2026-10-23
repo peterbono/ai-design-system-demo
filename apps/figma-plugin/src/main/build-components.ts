@@ -617,6 +617,12 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
     const parentPart = comp.parts.find((p) => p.id === part.parent);
     ctx.where = `${comp.name} ${pv.name}, ${part.name}`;
     const fields = pv.parts[part.id] ?? [];
+    // Fields the variant sets are written by apply below: resetting them first wrote each one twice (a third of the
+    // time a variant took). Corner radius is the exception: a number does not unbind the four corners.
+    const setHere = new Set<SpecField>(fields.map((f) => f.field));
+    const resetUnset = (list: readonly SpecField[], n: SceneNode) => {
+      for (const f of list) if (f === 'cornerRadius' || !setHere.has(f)) reset(n, f);
+    };
     if (part.kind === 'text' && node.type === 'TEXT') {
       const fam = fields.find((f) => f.value.kind === 'font')?.value as Extract<PlannedValue, { kind: 'font' }> | undefined;
       const weight = fields.find((f) => f.field === 'fontWeight')?.value;
@@ -637,7 +643,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
       const key = part.text ? propKeys.get(part.text) : undefined;
       const visibleKey = part.visible ? propKeys.get(part.visible) : undefined;
       if (key || visibleKey) node.componentPropertyReferences = { ...(key ? { characters: key } : {}), ...(visibleKey ? { visible: visibleKey } : {}) };
-      for (const f of TEXT_FIELDS) reset(node, f);
+      resetUnset(TEXT_FIELDS, node);
     } else if (node.type === 'FRAME' || node.type === 'COMPONENT') {
       if (part.kind === 'frame') setupFrame(node, part, pv.layout?.[part.id]);
       else {
@@ -645,7 +651,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
         node.fills = [];
       }
       if (part.kind === 'vector' && node.type === 'FRAME') drawVector(node, pv.vectors?.[part.id], ctx);
-      for (const f of part.kind === 'icon' ? ICON_FIELDS : FRAME_FIELDS) reset(node, f);
+      resetUnset(part.kind === 'icon' ? ICON_FIELDS : FRAME_FIELDS, node);
       if (part.visible) {
         const key = propKeys.get(part.visible);
         if (key) node.componentPropertyReferences = { visible: key };
