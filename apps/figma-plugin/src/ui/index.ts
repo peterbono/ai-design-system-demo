@@ -2387,7 +2387,7 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
     f.error ? h('p', { class: 'form-error', role: 'alert' }, icon('alert'), f.error) : null,
     // Sent while the push goes to an exploration, the request is built there: said before sending, not after.
     r.destination === 'exploration' && pickedExploration(r)
-      ? h('p', { class: 'muted', role: 'note' }, `Goes to the exploration ${pickedExploration(r)!.name}: it is built there, not sent for review. Pick Request review above to send it for review.`)
+      ? h('p', { class: 'muted', role: 'note' }, `Goes to the exploration ${pickedExploration(r)!.name}: it is built there, not sent for review. Pick For review above to send it for review instead.`)
       : null,
     h(
       'div',
