@@ -165,7 +165,7 @@ export type DrawerAction = 'docs' | 'change';
 /**
  * The drawer's actions, one primary: the guidance while it is missing or waits for a review (the Library page is
  * incomplete until then), else "Change this component" (the designer drives the change: its tokens, an exploration
- * Claude builds, or a mismatch report). The other one follows as secondary.
+ * a developer builds with Claude, or a mismatch report). The other one follows as secondary.
  */
 export function drawerActions(input: { guidance: GuidanceState }): { primary: DrawerAction; secondary: DrawerAction[] } {
   const primary: DrawerAction = input.guidance === 'ok' ? 'change' : 'docs';

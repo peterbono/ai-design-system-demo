@@ -4,7 +4,7 @@
 // docs save path (lib/docs-draft-model.ts, scripts/docs-commit.ts); drafting goes through scripts/docs-ai.ts.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Avatar, Alert, AlertDialog, AlertDialogContent, Badge, Button, CodeBlock, Dialog, DialogContent, IconButton, Input, Link, Menu, MenuContent, MenuGroup, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, Popover, PopoverContent, PopoverTrigger, SegmentedControl, Spinner, Textarea } from '@bridge-ds/react';
+import { Avatar, Alert, AlertDialog, AlertDialogContent, Badge, Button, Dialog, DialogContent, IconButton, Input, Link, Menu, MenuContent, MenuGroup, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, Popover, PopoverContent, PopoverTrigger, Spinner, Textarea } from '@bridge-ds/react';
 import { Check, ChevronDown, Circle, CircleX, Copy, Ellipsis, PenLine, Plus, Sparkles, X } from 'lucide-react';
 import { docsAuthorLine, DRAFT_PHRASE, type ComponentDocsJson, type DocsGuidance, type ProseKey } from '@bridge-ds/core';
 import { REGISTRY, resolveProps } from './registry';
@@ -45,12 +45,14 @@ import {
   setField,
   setValue,
   toReview,
+  guestEditLine,
   type EditState,
   type FieldRef,
   type SectionId,
 } from '../lib/library-edit-model';
 import type { DraftScope, DraftWay } from '../scripts/docs-ai';
 import { studioHref } from '../lib/team-path';
+import { COPY_SETUP, developerSetupMessage } from '../lib/docs-ai-model';
 
 export interface LibraryEditModeProps {
   name: string;
@@ -539,11 +541,10 @@ function StatusPill({ value, onChange }: { value: NonNullable<ComponentDocsJson[
 /* ------------------------------------------------------------------------------------------------------------------ */
 /* Claude setup panel (no way to draft yet), like the Figma plugin's Claude card.                                     */
 
-function ClaudeSetup({ repo, onSaved, ai }: { repo: string; onSaved: () => void; ai: DocsAi | null }) {
-  const [way, setWay] = useState<'plan' | 'key'>('plan');
+function ClaudeSetup({ repo, component, onSaved, ai }: { repo: string; component: string; onSaved: () => void; ai: DocsAi | null }) {
   const [key, setKey] = useState('');
+  const [copied, setCopied] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'danger' | 'success'; text: string } | null>(null);
-  const command = `claude mcp add bridge -s user -e GITHUB_TOKEN=your-github-token -- npx -y @bridge-ds/mcp --repo ${repo}`;
   const save = () => {
     try {
       ai?.saveApiKey(key.trim() || null);
@@ -553,36 +554,26 @@ function ClaudeSetup({ repo, onSaved, ai }: { repo: string; onSaved: () => void;
       setMsg({ tone: 'danger', text: 'Drafting with Claude is not available on this site yet.' });
     }
   };
+  // The my-Claude way belongs to a developer: the designer copies the setup for them, she never sees the terminal steps.
+  const copySetup = () => {
+    const page = `${location.origin}${location.pathname}?edit=1`;
+    const text = developerSetupMessage({ repo, component, page, phrase: DRAFT_PHRASE });
+    void navigator.clipboard?.writeText(text).then(() => {
+      setCopied(true);
+      announce(COPY_SETUP.done);
+    });
+  };
   return (
     <div className="le-setup">
       <p>Claude drafts the sections from the code. You review each one before anything is sent.</p>
-      <SegmentedControl
-        label="How Bridge reaches Claude"
-        size="sm"
-        fullWidth
-        value={way}
-        onValueChange={(v) => {
-          setWay(v as 'plan' | 'key');
-          setMsg(null);
-        }}
-        items={[
-          { value: 'plan', label: 'Your Claude plan' },
-          { value: 'key', label: 'An API key' },
-        ]}
-      />
-      {way === 'plan' ? (
-        <>
-          <p className="le-setup-note">Add Bridge to your Claude once, in a terminal. Put your GitHub token in place of your-github-token.</p>
-          <CodeBlock className="le-setup-code" code={command} label="Command for Claude Code" />
-        </>
-      ) : (
-        <>
-          <Input label="Anthropic API key" type="password" autoComplete="off" spellCheck={false} placeholder="sk-ant-..." value={key} onChange={(ev) => setKey(ev.target.value)} hint="Saved in this browser only. Each draft sends this page's text to Anthropic." />
-          <Button variant="secondary" size="sm" disabled={!key.trim()} onClick={save}>
-            Save key
-          </Button>
-        </>
-      )}
+      <Input label="Anthropic API key" type="password" autoComplete="off" spellCheck={false} placeholder="sk-ant-..." value={key} onChange={(ev) => setKey(ev.target.value)} hint="Saved in this browser only. Each draft sends this page's text to Anthropic." />
+      <Button variant="secondary" size="sm" disabled={!key.trim()} onClick={save}>
+        Save key
+      </Button>
+      <p className="le-setup-note">No API key? A developer can draft it with their own Claude.</p>
+      <Button variant="ghost" size="sm" iconStart={copied ? Check : Copy} onClick={copySetup}>
+        {copied ? COPY_SETUP.done : COPY_SETUP.label}
+      </Button>
       {msg && (
         <p className={`le-setup-msg is-${msg.tone}`} role={msg.tone === 'danger' ? 'alert' : 'status'}>
           {msg.text}
@@ -621,6 +612,8 @@ const overlayOpen = () => Boolean(document.querySelector('[role="menu"], [role="
 
 export default function LibraryEditMode(p: LibraryEditModeProps) {
   const [editing, setEditing] = useState(false);
+  /** Editing without a GitHub session: the line that says it is a draft in this browser only; null when signed in. */
+  const [guest, setGuest] = useState<string | null>(null);
   const [state, setState] = useState<EditState>(() => initEdit(p.initial));
   const [base, setBase] = useState<string | null>(p.original);
   /** Where Send goes instead of a new proposal: a change opened from Studio (?pr&ref), or the component's open proposal. */
@@ -654,6 +647,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   const exampleHtml = useRef(new Map<string, string>());
   const loaded = useRef(false);
   const viewerWired = useRef(false);
+  const guestWired = useRef(false);
   const wide = useWide();
   const compact = useCompact();
 
@@ -824,29 +818,16 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
     announce(`Editing ${p.name}. Each section of the usage guidance is editable.`);
   }, []);
 
-  // Edit asks for GitHub first when nobody is connected.
+  // Edit never asks for GitHub first: without a session (a guest, or signed out) it is a draft in this browser, Keep
+  // and Discard work, and only the send asks to sign in (openSend).
   const requestEdit = useCallback(async () => {
     const session = await import('../scripts/github-session');
-    session.initGitHubConnect();
-    if (session.hasWorkingToken()) return void start();
-    openConnect();
-    const dialog = document.getElementById('gh-dialog');
-    const onAuth = () => {
-      if (!session.hasWorkingToken()) return;
-      cleanup();
-      void start();
-    };
-    const onClose = () => window.setTimeout(() => {
-      if (session.hasWorkingToken()) return;
-      cleanup();
-      setEditUrl(false);
-    }, 0);
-    const cleanup = () => {
-      document.removeEventListener('bridge:auth', onAuth);
-      dialog?.removeEventListener('close', onClose);
-    };
-    document.addEventListener('bridge:auth', onAuth);
-    dialog?.addEventListener('close', onClose);
+    const paintGuest = () => setGuest(session.hasWorkingToken() ? null : guestEditLine(session.prefersSignIn()));
+    if (guestWired.current) session.initGitHubConnect();
+    else session.initGitHubConnect(paintGuest);
+    guestWired.current = true;
+    paintGuest();
+    void start();
   }, [start]);
 
   useEffect(() => {
@@ -1156,6 +1137,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   const claudeSetup = (onDone: () => void) => (
     <ClaudeSetup
       repo={repoName}
+      component={p.name}
       ai={ai}
       onSaved={() => {
         if (ai) setWays(ai.draftAvailability());
@@ -1238,6 +1220,11 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
           </div>
         )}
       </div>
+      {guest && !sent && (
+        <p className="le-bar-note" data-le-guest="">
+          {guest}
+        </p>
+      )}
       {branch?.continues && branch.author && branch.pr && (
         <p className="le-bar-note">
           {continueLine(branch.author, viewer)}{' '}
@@ -1250,7 +1237,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
           <span>{drafting.status}</span>
           {drafting.way === 'my-claude' && (
             <span className="le-status-hint">
-              Ask your Claude: <q className="le-phrase">{DRAFT_PHRASE}</q>
+              A developer says: <q className="le-phrase">{DRAFT_PHRASE}</q>
               <Button
                 variant="ghost"
                 size="sm"

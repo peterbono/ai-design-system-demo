@@ -309,6 +309,34 @@
   margin-block-start: var(--space-4);
 }
 
+/* The message for the developer, under the done line: the text, then Copy message. */
+.cm-dev-msg {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  margin-block-start: var(--space-3);
+}
+
+.cm-dev-msg > * {
+  inline-size: 100%;
+}
+
+.cm-dev-msg > button {
+  inline-size: auto;
+}
+
+.cm-dev-msg[hidden],
+.cm-req-frame-rule[hidden] {
+  display: none;
+}
+
+/* An exploration needs the design: a Figma link or an image. */
+.cm-req-frame-rule {
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  color: var(--color-text-muted);
+}
+
 /* Request form: the image attachment and the change rows (DS Inputs). */
 .cm-req-img {
   display: grid;

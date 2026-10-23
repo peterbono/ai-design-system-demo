@@ -372,7 +372,7 @@ function Health({ h }: { h: HealthLine }) {
 
 const CHOICES = [
   { drawing: 'tokens', title: 'Edit tokens', line: 'A colour, a spacing, a radius. See every place it shows before you send it.', key: 'tokens' },
-  { drawing: 'components', title: 'Ask for a component change', line: 'Describe what is missing or wrong. Claude builds it, the owner decides.', key: 'component' },
+  { drawing: 'components', title: 'Ask for a component change', line: 'Describe what is missing or wrong. A developer builds it with Claude, the owner decides.', key: 'component' },
   { drawing: 'guide', title: 'Write usage guidance', line: 'When to use a component, and when not to.', key: 'guidance' },
 ] as const;
 
