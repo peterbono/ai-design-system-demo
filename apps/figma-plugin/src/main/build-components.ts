@@ -18,6 +18,7 @@ import type { ComponentApplyReport, ComponentPullPlan, GeneratedSet, PlannedComp
 import { buildSignature } from '../sync/components';
 import { readComponent } from './components';
 import { cleanReactions } from './reactions';
+import { breathe, resetTurns } from './turns';
 
 const NS = 'dsbridge';
 const ORPHAN_PREFIX = '[orphan] ';
@@ -34,16 +35,6 @@ const SET_GAP = 96;
 type Progress = (message: string) => void;
 type Box = FrameNode | ComponentNode;
 
-const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
-/** Longest stretch of work before giving Figma a turn (ms): keeps the file responsive on a big design system. */
-const SLICE_MS = 30;
-let lastYield = 0;
-/** Yields to Figma when the current slice of work is used up. Cheap to call in any loop. */
-async function breathe(): Promise<void> {
-  if (Date.now() - lastYield < SLICE_MS) return;
-  await tick();
-  lastYield = Date.now();
-}
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 /**
@@ -1079,7 +1070,7 @@ async function ensureParts(plan: ComponentPullPlan, ctx: Ctx, report: ComponentA
       c.x = (i % ICON_COLUMNS) * ICON_CELL;
       c.y = Math.floor(i / ICON_COLUMNS) * ICON_CELL;
     });
-    await tick();
+    await breathe();
   }
   for (const [name, c] of icons) ctx.parts.set(c.name || `Icon/${name}`, c);
   ctx.icons = (plan.icons ?? []).map((i) => i.component).filter((n) => ctx.parts.has(n));
@@ -1493,7 +1484,8 @@ export async function applyComponentPlan(plan: ComponentPullPlan, progress: Prog
 
 async function buildAll(plan: ComponentPullPlan, progress: Progress, opts: ApplyOptions, started: number): Promise<ComponentApplyReport> {
   created = new Created();
-  lastYield = Date.now();
+  // Each build measures again whether Figma shows the file.
+  resetTurns();
   const ctx: Ctx = { vars: new Variables(), fonts: new Fonts(), problems: [], where: '', parts: new Map(), icons: [] };
   const report: ComponentApplyReport = { created: 0, updated: 0, unchanged: 0, orphaned: 0, page: PAGE_NAME, problems: ctx.problems, nodeIds: [], total: plan.components.length, failed: [] };
   try {

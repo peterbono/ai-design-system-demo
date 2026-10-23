@@ -14,13 +14,13 @@ import {
   splitCollectionName,
 } from '../shared/messages';
 import { readPluginData, writePluginData } from './snapshot';
+import { breathe } from './turns';
 import { familyKey, stackFamily } from '../sync/mapping';
 
 const ORPHAN_PREFIX = '[orphan] ';
 const BATCH = 25;
 const PRIMITIVE_MODE = 'value';
 
-const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 interface Slot {
@@ -229,7 +229,7 @@ export async function applyPullPlan(plan: PullPlan, progress: (message: string) 
       }
       if (++ops % BATCH === 0) {
         progress(`Writing variables: ${created + changed.size} of ${plan.variables.length}`);
-        await tick();
+        await breathe();
       }
     }
     if (touched && isNew) created++;
@@ -269,7 +269,7 @@ export async function applyPullPlan(plan: PullPlan, progress: (message: string) 
     } catch (err) {
       errors.push(`${d.owner}: ${errorText(err)}`);
     }
-    if (++ops % BATCH === 0) await tick();
+    if (++ops % BATCH === 0) await breathe();
   }
 
   for (const [variable, modes] of unlinked) writePluginData(variable, { unlinkedModes: [...modes] });
@@ -282,7 +282,7 @@ export async function applyPullPlan(plan: PullPlan, progress: (message: string) 
     v.setPluginData('orphan', 'true');
     if (!v.description.startsWith(ORPHAN_PREFIX)) v.description = ORPHAN_PREFIX + v.description;
     orphaned++;
-    if (++ops % BATCH === 0) await tick();
+    if (++ops % BATCH === 0) await breathe();
   }
 
   for (const id of createdIds) changed.delete(id);
