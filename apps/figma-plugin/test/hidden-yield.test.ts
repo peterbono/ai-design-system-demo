@@ -1,5 +1,5 @@
-// Behind a locked screen or in a hidden window, Figma throttles timers (a turn takes about a second). The build then
-// works longer between turns instead of spending most of its time waiting; shown again, it yields every 30 ms.
+// Behind a locked screen or in a hidden window, Figma throttles timers (a turn takes up to a minute). The build then
+// gives Figma its turns through the UI (messages are not throttled); shown again, it uses 30 ms timer turns.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -8,6 +8,7 @@ import { parseComponentSpecs } from '@bridge-ds/core';
 import { applyPullPlan } from '../src/main/apply';
 import { applyComponentPlan, scanGenerated } from '../src/main/build-components';
 import { takeSnapshot } from '../src/main/snapshot';
+import { enableUiTurns, isTurnReply, turnReply } from '../src/main/turns';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
 import { buildComponentPlan, loadComponentSpecs, writablePlan } from '../src/sync/component-pull';
 import { analyze, buildPull } from '../src/sync/flows';
@@ -15,9 +16,26 @@ import { FakeGitHub } from './fake-github';
 import { SimFigma } from './figma-api';
 import { realChecksText, realConfigText, realFiles } from './helpers';
 
-async function build(turnMs: number): Promise<{ turns: number; waited: number }> {
+/** The plugin window: answers each turn on the next task, saying whether its page is hidden. */
+function installUi(pageHidden: () => boolean): { turns: number } {
+  const ui = { turns: 0 };
+  const figma = (globalThis as unknown as { figma: { ui: { postMessage: (m: unknown) => void } } }).figma;
+  figma.ui = {
+    postMessage: (m: unknown) => {
+      if (!m || typeof m !== 'object' || (m as { kind?: string }).kind !== 'turn') return;
+      ui.turns++;
+      const reply = { kind: 'turn', id: (m as { id: number }).id, hidden: pageHidden() };
+      setImmediate(() => isTurnReply(reply) && turnReply(reply));
+    },
+  };
+  enableUiTurns();
+  return ui;
+}
+
+async function build(turnMs: number, ui?: () => boolean): Promise<{ turns: number; waited: number; uiTurns: number }> {
   const sim = new SimFigma();
   sim.install();
+  const window = ui ? installUi(ui) : { turns: 0 };
   const p = DEFAULT_SETTINGS.tokensPath;
   const files: Record<string, string> = {};
   for (const [rel, text] of Object.entries(realFiles())) files[`${p}/${rel}`] = text;
@@ -53,15 +71,22 @@ async function build(turnMs: number): Promise<{ turns: number; waited: number }>
     globalThis.setTimeout = realTimeout;
     Date.now = realNow;
   }
-  return { turns, waited };
+  return { turns, waited, uiTurns: window.turns };
 }
 
-test('hidden window: far fewer turns when each costs 400 ms, and 30 ms slices again once turns are fast', async () => {
-  const shown = await build(16);
-  const hidden = await build(400);
-  const shownAgain = await build(16);
-  assert.ok(hidden.turns * 5 < shown.turns, `hidden ${hidden.turns} turns, shown ${shown.turns}`);
-  // Waiting stays a small share of the time: at most about a tenth of it, plus the first turn that measured it.
-  assert.ok(hidden.waited < shown.waited * 2 + 400 * 2, `waited ${hidden.waited} ms hidden, ${shown.waited} ms shown`);
-  assert.equal(shownAgain.turns, shown.turns, 'back to 30 ms slices');
+test('hidden window: turns go through the UI, not throttled timers; shown again, 30 ms timer turns', async () => {
+  const shown = await build(16, () => false);
+  assert.equal(shown.uiTurns, 0, 'shown: timer turns only');
+  // Locked screen: a timer turn takes a minute and the UI says the page is hidden.
+  const hidden = await build(60_000, () => true);
+  assert.equal(hidden.turns, 1, `one slow timer turn, then turns through the UI: ${hidden.turns} timer turns, ${hidden.uiTurns} UI turns`);
+  assert.ok(hidden.uiTurns >= shown.turns - 2, `${hidden.uiTurns} UI turns`);
+  assert.equal(hidden.waited, 60_000);
+  // A UI that cannot tell (it says shown): a timer turn is tried again only after nine slow turns' time.
+  const unknown = await build(60_000, () => false);
+  assert.ok(unknown.turns <= 2, `${unknown.turns} timer turns`);
+  // Shown again: the next build yields with timers, as before.
+  const again = await build(16, () => false);
+  assert.equal(again.turns, shown.turns);
+  assert.equal(again.uiTurns, 0);
 });

@@ -17,6 +17,7 @@ import type { ComponentApplyReport, ComponentPullPlan, GeneratedSet, PlannedComp
 import { buildSignature } from '../sync/components';
 import { readComponent } from './components';
 import { cleanReactions } from './reactions';
+import { breathe, resetTurns } from './turns';
 
 const NS = 'dsbridge';
 const ORPHAN_PREFIX = '[orphan] ';
@@ -33,29 +34,6 @@ const SET_GAP = 96;
 type Progress = (message: string) => void;
 type Box = FrameNode | ComponentNode;
 
-const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
-/** Longest stretch of work before giving Figma a turn (ms): keeps the file responsive on a big design system. */
-const SLICE_MS = 30;
-/** Longest stretch when Figma is not drawing the file (window hidden, screen locked). */
-const HIDDEN_SLICE_MS = 5000;
-/** A turn that takes longer than this means Figma throttles timers: the window is not shown. */
-const THROTTLED_MS = 100;
-let lastYield = 0;
-let slice = SLICE_MS;
-/**
- * Yields to Figma when the current slice of work is used up. Cheap to call in any loop. A turn costs about a frame
- * while Figma shows the file; in a hidden window or behind a locked screen its timers are throttled to about a second,
- * and turns every 30 ms made a 25 minute pull take over an hour. So a slow turn stretches the next slices (turns then
- * take about a tenth of the time), and a fast one brings them back to 30 ms as soon as the file is shown again.
- */
-async function breathe(): Promise<void> {
-  if (Date.now() - lastYield < slice) return;
-  const before = Date.now();
-  await tick();
-  const turn = Date.now() - before;
-  slice = turn > THROTTLED_MS ? Math.min(HIDDEN_SLICE_MS, turn * 9) : SLICE_MS;
-  lastYield = Date.now();
-}
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 /**
@@ -1037,7 +1015,7 @@ async function ensureParts(plan: ComponentPullPlan, ctx: Ctx, report: ComponentA
       c.x = (i % ICON_COLUMNS) * ICON_CELL;
       c.y = Math.floor(i / ICON_COLUMNS) * ICON_CELL;
     });
-    await tick();
+    await breathe();
   }
   for (const [name, c] of icons) ctx.parts.set(c.name || `Icon/${name}`, c);
   ctx.icons = (plan.icons ?? []).map((i) => i.component).filter((n) => ctx.parts.has(n));
@@ -1347,9 +1325,8 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
 
 export async function applyComponentPlan(plan: ComponentPullPlan, progress: Progress = () => undefined, opts: ApplyOptions = {}): Promise<ComponentApplyReport> {
   created = new Created();
-  lastYield = Date.now();
   // Each build measures again whether Figma shows the file.
-  slice = SLICE_MS;
+  resetTurns();
   const ctx: Ctx = { vars: new Variables(), fonts: new Fonts(), problems: [], where: '', parts: new Map(), icons: [] };
   const report: ComponentApplyReport = { created: 0, updated: 0, unchanged: 0, orphaned: 0, page: PAGE_NAME, problems: ctx.problems, nodeIds: [], total: plan.components.length, failed: [] };
   try {

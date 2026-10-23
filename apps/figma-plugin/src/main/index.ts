@@ -17,12 +17,14 @@ import { clearClaudeKey, readClaudeSettings, saveClaudeSettings } from './claude
 import { baselineImage, exportImage, exportThumbnails, markPushed, rebaseline, saveSignatures, scanComponents, selectionInfo, setExperimental } from './components';
 import { clearGitHubToken, readGitHubToken, saveGitHubToken, setGitHubTokenState } from './github-token';
 import { takeSnapshot, writePluginData } from './snapshot';
+import { enableUiTurns, isTurnReply, turnReply } from './turns';
 
 const NS = 'dsbridge';
 /** Set by "Stop" in the plugin: the component build stops after the set in progress. */
 let cancelBuild = false;
 
 figma.showUI(__html__, { width: 480, height: 640, themeColors: true, title: 'DS Bridge' });
+enableUiTurns();
 
 function readShared(): { settings: RepoSettings; sync: SyncState } {
   const get = (key: string) => figma.root.getSharedPluginData(NS, key);
@@ -159,6 +161,8 @@ const handlers: Handlers = {
 figma.on('selectionchange', () => figma.ui.postMessage({ kind: 'selection', selection: selectionInfo() ?? null }));
 
 figma.ui.onmessage = async (msg: unknown) => {
+  // A turn answered by the UI (a long build gives Figma turns through it when the file is not shown).
+  if (isTurnReply(msg)) return turnReply(msg);
   if (!isRequest(msg)) return;
   let response: ResponseEnvelope;
   try {
