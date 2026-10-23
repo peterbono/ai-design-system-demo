@@ -610,7 +610,8 @@ async function loadPull(prev?: PullState): Promise<PullState> {
     const updated = components?.components.filter((c) => c.status === 'updated' && c.nodeId) ?? [];
     if (components && updated.length) {
       // Review updates: the sets as they are now, compared with what the update builds, and their thumbnails.
-      const scanned = await request('scan-components', {});
+      // Only the sets to update: reading every component of a big file takes minutes.
+      const scanned = await request('scan-components', { nodeIds: updated.map((c) => c.nodeId!) });
       reviews = reviewUpdates(components, new Map<string, ComponentSignature>(scanned.components.map((c) => [c.nodeId, c.signature])));
       const missing = updated.map((c) => c.nodeId!).filter((id) => !before[id]);
       if (missing.length) Object.assign(before, await request('thumbnails', { nodeIds: missing, width: THUMB_W }).catch(() => ({})));
@@ -650,10 +651,14 @@ function componentsToBuild(p: PullState): PlannedComponent[] {
   return (p.components?.components ?? []).filter((c) => (c.status === 'updated' && !p.done.has(c.componentId)) || (c.status === 'new' && p.includeComponents));
 }
 
-/** After a pull: components now render with main's values, so refresh their baselines (pending changes are kept). */
-async function refreshBaselines(p: PullState): Promise<void> {
+/**
+ * After a pull: components now render with main's values, so refresh their baselines (pending changes are kept). The
+ * sets just built already carry theirs. Without a variable change nothing else renders differently, so only the
+ * components with no baseline yet are read: reading every component of a big file takes minutes.
+ */
+async function refreshBaselines(p: PullState, pulled: { variables: boolean; built: readonly string[] }): Promise<void> {
   try {
-    const scanned = await request('scan-components', {});
+    const scanned = await request('scan-components', { skip: [...pulled.built], withoutBaseline: !pulled.variables });
     const coded = await loadCodedComponents(getClient(), p.analysis.headFiles.treeSha, p.analysis.headFiles.config);
     const items = pullBaselines(scanned.components, coded);
     if (items.length) await request('save-signatures', { items: items.map((x) => ({ nodeId: x.nodeId, signature: JSON.stringify(x.signature) })) });
@@ -704,7 +709,7 @@ function updateComponent(componentId: string): void {
         if (report.errors.length) throw new Error(`Variables were written with problems, so ${comp.name} was not updated: ${report.errors[0]}`);
       }
       const report = await buildComponents(p, onlyComponent(p.components!, componentId).components);
-      await refreshBaselines(p);
+      await refreshBaselines(p, { variables: withVariables, built: report.nodeIds });
       if (withVariables) await loadInit();
       // Re-read main and the file: the updated set is now up to date; what is left stays to review.
       const next = await loadPull(p);
@@ -732,11 +737,12 @@ function applyPull(): void {
   void run(
     variablesUpToDate(p) && build.length ? 'Building components' : 'Writing variables',
     async () => {
-      if (!variablesUpToDate(p) || !build.length) p.report = await request('apply-pull', { plan: p.proposal.plan });
+      const variables = !variablesUpToDate(p);
+      if (variables || !build.length) p.report = await request('apply-pull', { plan: p.proposal.plan });
       // Components after the variables, so every binding finds its variable.
       if (build.length) p.componentsReport = await buildComponents(p, build);
       const report = p.report;
-      await refreshBaselines(p);
+      await refreshBaselines(p, { variables, built: p.componentsReport?.nodeIds ?? [] });
       await loadInit();
       state.push = undefined;
       const cr = p.componentsReport;
@@ -761,7 +767,7 @@ function retryComponents(): void {
       const build = componentsToBuild(next);
       if (build.length) next.componentsReport = await buildComponents(next, build);
       next.report = prev.report;
-      await refreshBaselines(next);
+      await refreshBaselines(next, { variables: false, built: next.componentsReport?.nodeIds ?? [] });
       state.pull = next;
       const cr = next.componentsReport;
       void request('notify', { message: cr ? componentReportView(cr).headline : 'Every component is built.' });

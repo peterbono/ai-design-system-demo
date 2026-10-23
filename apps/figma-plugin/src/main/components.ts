@@ -2,7 +2,7 @@
 // shared plugin data, and exports PNGs to attach to requests. No network. The diff logic is in src/sync/components.ts.
 
 import { type RawBinding, type RawComponent, type RawLayer, type RawVariant, buildSignature, fnv1a, bindingKind, parseSignature, propName } from '../sync/components';
-import { EXPERIMENTAL_KEY, PUSHED_KEY, type ScannedComponentsPayload } from '../shared/messages';
+import { EXPERIMENTAL_KEY, PUSHED_KEY, type ScanComponentsRequest, type ScannedComponentsPayload } from '../shared/messages';
 import { variantKeyOf } from '@bridge-ds/core';
 import { LONE_VARIANT, isRemovedValue, propsOfKey } from '../sync/component-pull';
 
@@ -219,8 +219,10 @@ export async function readComponent(node: ComponentSetNode | ComponentNode, read
   return { nodeId: node.id, name: node.name, page: pageOf(node), definitions: await readDefinitions(node), variants };
 }
 
-export async function scanComponents(progress: Progress): Promise<ScannedComponentsPayload> {
-  const nodes = await localComponents();
+export async function scanComponents(progress: Progress, scope: ScanComponentsRequest = {}): Promise<ScannedComponentsPayload> {
+  const only = scope.nodeIds ? new Set(scope.nodeIds) : undefined;
+  const skip = new Set(scope.skip ?? []);
+  const nodes = (await localComponents()).filter((n) => (!only || only.has(n.id)) && !skip.has(n.id) && (!scope.withoutBaseline || !n.getSharedPluginData(NS, SIGNATURE_KEY)));
   const reader = new Reader();
   const components: ScannedComponentsPayload['components'] = [];
   for (let i = 0; i < nodes.length; i++) {
