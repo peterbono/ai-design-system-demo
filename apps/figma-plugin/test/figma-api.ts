@@ -209,6 +209,16 @@ export class SimNode {
     this.setSizing(false, v);
   }
 
+  // Private plugin data (this plugin only)
+  private own = new Map<string, string>();
+  getPluginData(key: string) {
+    return this.own.get(key) ?? '';
+  }
+  setPluginData(key: string, value: string) {
+    if (value === '') this.own.delete(key);
+    else this.own.set(key, value);
+  }
+
   // Shared plugin data
   getSharedPluginData(ns: string, key: string) {
     return this.shared.get(`${ns}|${key}`) ?? '';
@@ -539,6 +549,7 @@ export class SimNode {
 
   // Export: a description of what Figma would draw, bound values resolved.
   async exportAsync(): Promise<Uint8Array> {
+    this.api.exports++;
     await this.api.gate();
     return new TextEncoder().encode(JSON.stringify(this.api.render(this)));
   }
@@ -546,6 +557,8 @@ export class SimNode {
 
 export class SimFigma {
   nodes = new Map<string, SimNode>();
+  /** exportAsync calls (images), on every node. */
+  exports = 0;
   collections: SimCollection[] = [];
   variables: SimVariable[] = [];
   loadedFonts = new Set<string>();
