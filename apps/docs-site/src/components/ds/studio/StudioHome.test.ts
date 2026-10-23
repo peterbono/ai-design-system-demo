@@ -83,3 +83,11 @@ describe('StudioHome, demo', () => {
     expect(screen.queryByText('Sample')).toBeNull();
   });
 });
+
+describe('StudioHome, lead (a reviewer, or an admin, an email admin included)', () => {
+  it('tours the lead, never the contributor', async () => {
+    render(createElement(StudioHome, props({ contributor: false, lead: true })));
+    expect(await screen.findByText('Work in progress stays apart')).toBeTruthy();
+    expect(screen.queryByText(/until a reviewer merges them/)).toBeNull();
+  });
+});

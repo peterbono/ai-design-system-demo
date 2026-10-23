@@ -838,14 +838,16 @@ describe('email contributors in Members', () => {
     expect((await handleInvites(post({ action: 'remove', repo: REPO, email: 'mia@acme.design' }), {}, deps)).status).toBe(404);
   });
 
-  it('refuses reviewer or admin for an email contributor with 409 github-required', async () => {
+  it('makes an email member admin or Can edit; Reviewer answers 409 github-required', async () => {
     const { deps, w } = await withMember();
-    for (const role of [{ role: 'reviewer', reviewAs: 'design' }, { role: 'admin' }]) {
-      const r = await handleInvites(post({ action: 'set-role', repo: REPO, email: 'mia@acme.design', ...role }), {}, deps);
-      expect(r.status).toBe(409);
-      expect((await r.json()).error).toBe('github-required');
-    }
+    const r = await handleInvites(post({ action: 'set-role', repo: REPO, email: 'mia@acme.design', role: 'reviewer', reviewAs: 'design' }), {}, deps);
+    expect(r.status).toBe(409);
+    expect((await r.json()).error).toBe('github-required');
+    const up = await handleInvites(post({ action: 'set-role', repo: REPO, email: 'mia@acme.design', role: 'admin' }), {}, deps);
+    expect(await up.json()).toEqual({ ok: true, role: 'admin' });
+    expect((await deps.members!.get(REPO, 'mia@acme.design'))?.role).toBe('admin');
     expect((await handleInvites(post({ action: 'set-role', repo: REPO, email: 'mia@acme.design', role: 'edit' }), {}, deps)).status).toBe(200);
+    expect((await deps.members!.get(REPO, 'mia@acme.design'))?.role).toBe('edit');
     expect((await handleInvites(post({ action: 'set-role', repo: REPO, email: 'nobody@acme.design', role: 'edit' }), {}, deps)).status).toBe(404);
     expect(w.calls.some((c) => c.method === 'PUT')).toBe(false);
   });

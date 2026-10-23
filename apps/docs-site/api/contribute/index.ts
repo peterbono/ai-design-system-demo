@@ -183,7 +183,7 @@ export const PROXY_PERMISSIONS = { contents: 'write', pull_requests: 'write', is
 
 export const NOT_CONFIGURED = 'Joining with an email is not available yet on this site.';
 export const EXPIRED = 'This link expired or was already used. Ask your admin for a new invitation, or enter your email to get a sign-in link.';
-export const GITHUB_REQUIRED = 'Reviewers and admins approve and merge on GitHub. Sign in with GitHub to join with this role.';
+export const GITHUB_REQUIRED = 'Reviewers approve changes on GitHub. Sign in with GitHub to join with this role.';
 export const NOT_ALLOWED = 'Bridge does not do this for people who joined with their email. Ask a reviewer or an admin.';
 const SIGNIN = 'You signed out. Sign in again with your email: Bridge sends you a code.';
 const STORAGE_DOWN = 'Bridge could not reach its storage. Try again in a minute.';
@@ -389,11 +389,12 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
         await svc.invites.remove(inv);
         return fail(410, 'expired', EXPIRED);
       }
-      // Reviewers and admins approve and merge on GitHub: the invite stays valid for the GitHub way.
-      if (inv.role !== 'edit') return fail(409, 'github-required', GITHUB_REQUIRED);
+      // Reviewers approve on GitHub: the invite stays valid for the GitHub way. An admin needs no GitHub for what
+      // admins do in Bridge (members, requests, settings, invites), so Admin joins with the email too.
+      if (inv.role !== 'edit' && inv.role !== 'admin') return fail(409, 'github-required', GITHUB_REQUIRED);
       const email = inv.email.trim().toLowerCase();
       const prev = await svc.members.get(inv.repo, email);
-      const member: EmailMember = { email, name: cleanName(body.name, email), role: 'edit', version: (prev?.version ?? 0) + 1, addedBy: inv.invitedBy, at: new Date(ctx.now()).toISOString() };
+      const member: EmailMember = { email, name: cleanName(body.name, email), role: inv.role, version: (prev?.version ?? 0) + 1, addedBy: inv.invitedBy, at: new Date(ctx.now()).toISOString() };
       await svc.members.put(inv.repo, member);
       // Single use, the same bookkeeping as the GitHub accept.
       await svc.invites.remove(inv);

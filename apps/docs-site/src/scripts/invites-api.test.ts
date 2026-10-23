@@ -35,14 +35,18 @@ describe('invites api', () => {
     }
   });
 
-  it("passes the server's sentence through on a refusal, and asks to sign in without a token", async () => {
+  it("passes the server's sentence through on a refusal; without a GitHub sign-in it goes as the Bridge account", async () => {
     setInvitesFetch(async () => json(403, { error: 'not_admin', message: 'Only admins of acme/ds can invite people.' }));
     await expect(removeMember('acme/ds', 'leo')).rejects.toMatchObject({ message: 'Only admins of acme/ds can invite people.', status: 403 });
     session.token = null;
-    const f = vi.fn();
+    const f = vi.fn(async () => json(401, { error: 'signin', message: 'Your session ended. Sign in again.' }));
     setInvitesFetch(f);
     await expect(listInvites('acme/ds')).rejects.toBeInstanceOf(InvitesError);
-    expect(f).not.toHaveBeenCalled();
+    const [, init] = f.mock.calls[0] as unknown as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Authorization).toBeUndefined();
+    // An email admin: the account cookie speaks for them, checked by the server.
+    expect(headers['X-Bridge-Account']).toBe('1');
   });
 });
 

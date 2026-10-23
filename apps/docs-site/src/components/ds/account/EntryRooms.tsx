@@ -115,7 +115,8 @@ export function InviteRoom({
 }: RoomProps & { invite: EntryInvite; email: string; more: number; /** The account has GitHub linked. */ github: boolean; header: (h: Header) => ReactNode }) {
   const [busy, setBusy] = useState(false);
   // Reviewers and admins approve on GitHub: said before Join, not after a refusal (the server's 409 still lands here).
-  const [needsGitHub, setNeedsGitHub] = useState(() => (invite.role === 'reviewer' || invite.role === 'admin') && !github);
+  // Reviewers approve on GitHub; an admin joins with the email (members, requests, settings need no GitHub).
+  const [needsGitHub, setNeedsGitHub] = useState(() => invite.role === 'reviewer' && !github);
   const [problem, setProblem] = useState<string | null>(null);
   const [onGitHub, setOnGitHub] = useState<{ repo: string; role: string; url: string; next: string } | null>(null);
   const role = inviteRole(invite);

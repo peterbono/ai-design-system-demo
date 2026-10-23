@@ -18,6 +18,7 @@ const api = vi.hoisted(() => ({
   removeMember: vi.fn(async () => ({ ok: true })),
   removeEmailMember: vi.fn(async () => ({ ok: true })),
   setMemberRole: vi.fn(async () => ({ ok: true })),
+  setEmailMemberRole: vi.fn(async () => ({ ok: true, role: 'admin' })),
 }));
 const contribute = vi.hoisted(() => ({ requestEmailSignIn: vi.fn(async () => {}) }));
 
@@ -47,7 +48,7 @@ beforeEach(() => {
 });
 
 describe('Settings > Members, an email contributor', () => {
-  it('reads like any member (no Email tag), stays Can edit with the reason, and an admin removes them', async () => {
+  it('reads like any member (no Email tag), can be made Admin but never Reviewer (with the reason), and an admin removes them', async () => {
     render(createElement(MembersSection));
     const row = (await screen.findByText('Leo')).closest('tr')!;
     // No tag of their own: an email member reads like any member.
@@ -56,15 +57,19 @@ describe('Settings > Members, an email contributor', () => {
 
     const user = userEvent.setup();
     await user.click(within(row).getByRole('button', { name: 'Role for Leo: Can edit' }));
-    expect(await screen.findByText('Reviewers and admins approve changes on GitHub. Invite them with the email of their GitHub account.')).toBeInTheDocument();
+    expect(await screen.findByText('Reviewer needs a GitHub account: reviewers approve changes on GitHub. Admin works with the email.')).toBeInTheDocument();
     const off = (name: RegExp) => screen.getByRole('radio', { name }).getAttribute('aria-disabled') === 'true';
     expect(off(/Reviewer/)).toBe(true);
-    expect(off(/Admin/)).toBe(true);
+    expect(off(/Admin/)).toBe(false);
     expect(off(/Can edit/)).toBe(false);
     await user.keyboard('{Escape}');
 
     await user.click(within(row).getByRole('button', { name: 'More for Leo' }));
-    expect(screen.queryByRole('menuitem', { name: 'Make admin' })).toBeNull();
+    await user.click(await screen.findByRole('menuitem', { name: 'Make admin' }));
+    await waitFor(() => expect(api.setEmailMemberRole).toHaveBeenCalledWith('acme/ds', 'leo@acme.design', { role: 'admin' }));
+    expect(api.setMemberRole).not.toHaveBeenCalled();
+    expect(await screen.findByText('Leo is now Admin.')).toBeInTheDocument();
+    await user.click(within((await screen.findByText('Leo')).closest('tr')!).getByRole('button', { name: 'More for Leo' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Remove from team' }));
     expect(screen.getByText('Remove Leo from acme/ds? They are signed out at once.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Remove' }));

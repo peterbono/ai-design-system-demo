@@ -223,8 +223,10 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null, dsEl
         signedOut: { line: signedOutLine(signIn), button: ghButton(signIn), signIn },
         failed: d?.failed ?? null,
         startHrefs: f.startHrefs,
-        // No review right: only what waits on them, and their tour (once the owner teams are read).
-        contributor: Boolean(d && !d.loading && !d.reviewer),
+        // No review right and not an admin: only what waits on them, and their tour (once the owner teams are read). An
+        // admin (an email admin included) or a reviewer is a lead: the lead tour.
+        contributor: Boolean(d && !d.loading && !d.reviewer && !currentAccess()?.admin),
+        lead: Boolean(d && !d.loading && (d.reviewer || currentAccess()?.admin)),
         join,
         note,
       },

@@ -6,6 +6,8 @@
 // opens "Make it yours" instead (components/ds/studio/MakeItYours.tsx, scripts/demo-gate.ts). Someone who can
 // write to the demo repository (its owner) keeps the normal Studio.
 
+import { isTeamKey } from './team-path';
+
 /**
  * The design systems that are the public demo, lower case "owner/repo": the self-hosted site's own repository and
  * the demo team on the hosted site (/studio/peterbono/bridge-demo-ds/). The one place to change what "demo" means.
@@ -45,6 +47,7 @@ export const teamDisplayName = (repo: string, config?: { name?: unknown } | null
   if (isSampleTeam(repo)) return SAMPLE_TEAM;
   const own = typeof config?.name === 'string' ? config.name.trim().replace(/\s+/g, ' ') : '';
   if (own) return own;
+  if (isTeamKey(repo)) return 'Your team';
   if (isDemoRepo(repo)) return OWN_TEAM;
   return humanizeRepo(repo);
 };

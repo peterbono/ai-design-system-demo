@@ -35,9 +35,17 @@
 //                                           contributor; set-role to reviewer or admin answers 409 github-required
 //   POST /api/invites { action: 'accept', token }  caller is the invitee, any GitHub account
 //   POST /api/invites { action: 'peek', token }    no sign-in: { team, repo, role, sentTo (masked) }, 410 when expired
-// A "Can edit" invite can also be accepted with the email alone, no GitHub account: api/contribute (action accept).
-// Requests carry `Authorization: Bearer <GitHub user token>` (Studio's Sign in with GitHub). POSTs must come from a
-// page of this site.
+// A "Can edit" or "Admin" invite can also be accepted with the email alone, no GitHub account: api/contribute (action
+// accept) and api/entry (accept-invite). Requests carry `Authorization: Bearer <GitHub user token>` (Studio's Sign in
+// with GitHub). POSTs must come from a page of this site.
+//
+// Email admins (api/_lib/members.ts): an email member made Admin manages the team without GitHub. A request without a
+// Bearer token but with the Bridge account cookie (api/account, `X-Bridge-Account: 1` on POSTs) is checked as that
+// account: an email admin of the team (or, in `npm run dev:full` only, a seeded local admin) may list, send, resend,
+// re-role and cancel invites, and change the role of or remove email members (Can edit or Admin). What happens on
+// GitHub stays with GitHub admins: GitHub people's roles, and Reviewer (approvals happen on GitHub). A team made in
+// Bridge without a repository (`_team/<id>`, api/entry) is managed this way only; its admins can never be removed or
+// demoted to none: the last one stays.
 //
 // The invite link is <site>/studio/invite/#t=<token>: 32 random bytes, in the fragment so it never reaches a server
 // log. Only its SHA-256 is stored. It works once and expires after 7 days; Resend makes a new one.
@@ -70,8 +78,12 @@ import { githubApp as sharedGithubApp, type AppTokens } from '../_lib/github-app
 import { b64url, clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody as readJsonBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin as originOf, type FetchLike } from '../_lib/http.js';
 import { memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
-import { configName, getTeamNames, putTeamName } from '../_lib/teams.js';
+import { configName, getTeamNames, putTeamName, resolveTeam } from '../_lib/teams.js';
+import { sessionAccount, type Account } from '../_lib/account.js';
+import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
+import { EMAIL_ROLES, type EmailRole } from '../_lib/members.js';
 import { onBridge, teamDisplayName } from '../../src/lib/demo.js';
+import { isTeamKey } from '../../src/lib/team-path.js';
 
 export { appJwt } from '../_lib/github-app.js';
 export { resendSender, sameOrigin };
@@ -172,6 +184,8 @@ export interface InvitesEnv {
   INVITES_MAX_PER_ADMIN_DAY?: string | undefined;
   INVITES_MAX_PER_TEAM_DAY?: string | undefined;
   INVITES_MAX_SITE_DAY?: string | undefined;
+  /** The Bridge account session (email admins, no GitHub). */
+  LIBRARY_SESSION_SECRET?: string | undefined;
 }
 
 /** Pending invites, per repository. Every record disappears on its own once its TTL (the invite's expiry) is over. */
@@ -208,6 +222,8 @@ export interface InvitesDeps {
   accountName?: (githubId: number) => Promise<string | null>;
   /** Where team names are kept (api/_lib/teams.ts); the env's Redis otherwise. */
   redis?: Redis;
+  /** `npm run dev:full` only (api/_lib/local-admin.ts): admins seeded locally, ignored outside local mode. */
+  localAdmins?: LocalAdmins;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -480,8 +496,8 @@ export function inviteEmail(x: { to: string; inviter: string; repo: string; team
   const roleLabel = x.role === 'reviewer' && x.reviewAs ? `${w.label}: ${REVIEW_AS_WORDS[x.reviewAs]}` : w.label;
   const team = x.team ?? teamDisplayName(x.repo);
   const subject = `${x.inviter} invited you to ${team}${onBridge(team)}`;
-  // "Can edit" joins with the email alone (api/contribute); reviewers and admins approve on GitHub.
-  const how = x.role === 'edit' ? 'You join with this email, no GitHub account needed.' : 'You sign in with GitHub.';
+  // Can edit and Admin join with the email (an admin needs GitHub only to approve there); reviewers approve on GitHub.
+  const how = x.role === 'edit' || x.role === 'admin' ? 'You join with this email, no GitHub account needed.' : 'You sign in with GitHub.';
   const lines = [
     `${x.inviter} invited you to the ${team} design system${onBridge(team)}.`,
     '',
@@ -657,7 +673,11 @@ async function ownersPullRequest(f: FetchLike, token: string, o: { owner: string
 interface Services {
   store: InviteStore;
   email: EmailSender;
-  app: AppTokens;
+  /** The Bridge app; null where only email admins manage the team (no GitHub App on this site). */
+  app: AppTokens | null;
+  /** The account session secret, for email admins; '' when not set. */
+  secret: string;
+  localAdmins: LocalAdmins | null;
   /** Email contributors; null only when a test injects an invite store without one. */
   members: MemberStore | null;
   accountName: ((githubId: number) => Promise<string | null>) | null;
@@ -680,7 +700,10 @@ export function services(env: InvitesEnv, deps: InvitesDeps): Services | null {
   const pem = env.GITHUB_APP_PRIVATE_KEY?.trim();
   const app = deps.app ?? (appId && pem ? githubApp(appId, pem, deps.fetch, now) : null);
   const accountName = deps.accountName ?? (redis ? (id: number) => accountNameByGithub(redis, id) : null);
-  return store && email && app ? { store, email, app, members, accountName, redis } : null;
+  const secret = env.LIBRARY_SESSION_SECRET?.trim() ?? '';
+  // Storage and email always; then GitHub admins need the app, email admins the account session.
+  const accounts = Boolean(redis && members && secret.length >= 32);
+  return store && email && (app || accounts) ? { store, email, app, members, accountName, redis, secret: accounts ? secret : '', localAdmins: activeLocalAdmins(deps.localAdmins) } : null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -779,14 +802,20 @@ export interface PublicEmailMember {
   via: 'email';
   name: string;
   email: string;
-  role: 'edit';
+  role: EmailRole;
   addedBy: string;
   at: string;
 }
 
 const publicMember = (m: EmailMember): PublicEmailMember => ({ via: 'email', name: m.name, email: m.email, role: m.role, addedBy: m.addedBy, at: m.at });
 
-export const GITHUB_REQUIRED = 'Reviewers and admins approve and merge on GitHub. Invite them again with this role: they join with GitHub.';
+export const GITHUB_REQUIRED = 'Reviewers approve changes on GitHub, so they need a GitHub account. Invite them again with this role: they join with GitHub.';
+export const GITHUB_PEOPLE = 'This person works with GitHub: change their role while signed in with GitHub as an admin of the repository.';
+export const REVIEWER_NEEDS_REPO = 'Reviewers approve changes on GitHub. Connect the repository first, then invite reviewers.';
+export const LAST_ADMIN = 'Every team keeps an admin. Make someone else admin first.';
+export const SELF_ROLE = 'Ask another admin to change your role.';
+export const SELF_REMOVE = 'You cannot remove yourself. Ask another admin.';
+const EMAIL_ADMIN_ONLY = 'Only admins of this team can invite people or change roles.';
 
 /** The email contributor an admin acts on (`email` instead of `login`), or 404. */
 async function emailMemberOf(ctx: Ctx, repo: string, raw: unknown): Promise<string> {
@@ -871,7 +900,7 @@ async function teamNameOf(ctx: Ctx, full: string): Promise<string> {
   const redis = ctx.svc.redis;
   try {
     const [owner, repo] = full.split('/');
-    const token = owner && repo ? await ctx.svc.app.installationToken(owner, repo) : null;
+    const token = owner && repo && ctx.svc.app && !owner.startsWith('_') ? await ctx.svc.app.installationToken(owner, repo) : null;
     if (token) {
       const file = await gh(ctx.f, token, 'GET', `/repos/${owner}/${repo}/contents/${CONFIG_FILE}`);
       if (file.status === 200 && typeof file.data?.content === 'string') {
@@ -895,6 +924,7 @@ async function teamNameOf(ctx: Ctx, full: string): Promise<string> {
 }
 
 async function appFor(ctx: Ctx, owner: string, repo: string): Promise<string> {
+  if (!ctx.svc.app) throw new HttpError(503, 'not_configured', NOT_CONFIGURED);
   const t = await ctx.svc.app.installationToken(owner, repo);
   if (!t) throw new HttpError(409, 'app_missing', APP_MISSING);
   return t;
@@ -985,12 +1015,239 @@ const addOnly = (role: Role, reviewAs?: ReviewAs): OwnerChange => (role === 'rev
 
 const readBody = (req: Request) => readJsonBody(req, MAX_BODY);
 
+/** Who sends invites: their GitHub login ('' for an email admin) and display name. */
+interface Inviter {
+  login: string;
+  name: string;
+}
+
+/**
+ * Sends invites to `people` ([{ email, login? }]), all or nothing on today's caps. An organization member Bridge knows
+ * by login is added on GitHub straight away when `github` is given (a GitHub admin); an email admin only sends emails.
+ */
+async function inviteMany(
+  ctx: Ctx,
+  req: Request,
+  env: InvitesEnv,
+  people: unknown,
+  x: { full: string; role: Role; reviewAs?: ReviewAs; me: Inviter; counter: string; github?: { appToken: string; facts: RepoFacts } },
+): Promise<Response> {
+  if (!Array.isArray(people) || people.length === 0) throw new HttpError(400, 'bad_request', 'Add at least one work email.');
+  if (people.length > MAX_PEOPLE) throw new HttpError(400, 'bad_request', `Invite at most ${MAX_PEOPLE} people at once.`);
+  const origin = siteOrigin(req, env);
+  const current = await pending(ctx, x.full);
+  // Reserve today's emails for every address that may get one, all or nothing; unused ones go back at the end.
+  const candidates = new Set<string>();
+  for (const p of people) {
+    const e = p && typeof p === 'object' ? (p as Record<string, unknown>).email : undefined;
+    const email = typeof e === 'string' ? e.trim().toLowerCase() : '';
+    if (validEmail(email) && !current.some((i) => i.email === email)) candidates.add(email);
+  }
+  const room = Math.max(0, MAX_PENDING - current.length);
+  const reserved = Math.min(candidates.size, room);
+  const release = await reserve(ctx, x.counter, x.full, reserved);
+  let emailed = 0;
+  const results: { email: string; status: 'sent' | 'added' | 'already' | 'failed'; message?: string }[] = [];
+  const seen = new Set<string>();
+  try {
+    for (const p of people) {
+      const rawEmail = p && typeof p === 'object' ? (p as Record<string, unknown>).email : undefined;
+      const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
+      if (!validEmail(email)) {
+        results.push({ email: typeof rawEmail === 'string' ? rawEmail.slice(0, 254) : '', status: 'failed', message: 'This is not a valid email address.' });
+        continue;
+      }
+      if (seen.has(email)) continue;
+      seen.add(email);
+      const rawLogin = (p as Record<string, unknown>).login;
+      try {
+        // An organization member Bridge already knows is added straight away: no email, no link.
+        if (x.github && !x.github.facts.personal && rawLogin !== undefined) {
+          const { appToken, facts } = x.github;
+          const login = parseLogin(rawLogin);
+          const member = await gh(ctx.f, appToken, 'GET', `/orgs/${facts.ownerLogin}/members/${encodeURIComponent(login)}`);
+          if (member.status === 204) {
+            await grant(ctx, appToken, facts, login, x.role);
+            const o = await ownersFor(ctx, appToken, facts, login, addOnly(x.role, x.reviewAs));
+            results.push({ email, status: 'added', ...(o.ownersError ? { message: o.ownersError } : {}) });
+            continue;
+          }
+        }
+        if (current.some((i) => i.email === email)) {
+          results.push({ email, status: 'already' });
+          continue;
+        }
+        if (current.length >= MAX_PENDING) {
+          results.push({ email, status: 'failed', message: `This team already has ${MAX_PENDING} invites waiting. Cancel some first.` });
+          continue;
+        }
+        const id = Buffer.from(ctx.random(8)).toString('hex');
+        const inv = await storeAndSend(
+          ctx,
+          { id, repo: x.full, email, role: x.role, ...(x.reviewAs ? { reviewAs: x.reviewAs } : {}), invitedBy: x.me.login, invitedByName: x.me.name, createdAt: new Date(ctx.now()).toISOString() },
+          origin,
+          x.me.name,
+        );
+        current.push(inv);
+        emailed++;
+        results.push({ email, status: 'sent' });
+      } catch (e) {
+        results.push({ email, status: 'failed', message: e instanceof HttpError ? e.message : GITHUB_DOWN });
+      }
+    }
+  } finally {
+    await release(reserved - emailed);
+  }
+  return json(200, { results });
+}
+
+/** Sends an invite again with a new link (the old one stops working), within the pause and the daily caps. */
+async function resendOne(ctx: Ctx, req: Request, env: InvitesEnv, full: string, id: unknown, me: Inviter, counter: string): Promise<Response> {
+  const inv = await findInvite(ctx, full, id);
+  const now = ctx.now();
+  const since = now - Date.parse(inv.sentAt);
+  if (since < RESEND_COOLDOWN_MS) throw limitError('resend_soon', LIMIT_WORDS.resend_soon, Math.ceil((RESEND_COOLDOWN_MS - since) / 1000));
+  const resendKey = [countKey('resend', `${full}:${inv.id}`, dayOf(now))];
+  const [count = 0] = await ctx.svc.store.bump(resendKey, 1, COUNTER_TTL_S);
+  if (count > MAX_RESENDS_PER_INVITE_DAY) {
+    await ctx.svc.store.bump(resendKey, -1, COUNTER_TTL_S);
+    throw limitError('resend', LIMIT_WORDS.resend, secondsToTomorrow(now));
+  }
+  let release: (k: number) => Promise<void>;
+  try {
+    release = await reserve(ctx, counter, full, 1);
+  } catch (e) {
+    await ctx.svc.store.bump(resendKey, -1, COUNTER_TTL_S);
+    throw e;
+  }
+  // The old link stops working: its token index goes with the old record.
+  await ctx.svc.store.remove(inv);
+  try {
+    const next = await storeAndSend(ctx, { id: inv.id, repo: inv.repo, email: inv.email, role: inv.role, ...(inv.reviewAs ? { reviewAs: inv.reviewAs } : {}), invitedBy: inv.invitedBy, ...(inv.invitedByName ? { invitedByName: inv.invitedByName } : me.login && inv.invitedBy === me.login ? { invitedByName: me.name } : {}), createdAt: inv.createdAt }, siteOrigin(req, env), me.name);
+    return json(200, { invite: publicInvite(next) });
+  } catch (e) {
+    // No email went out: the invite stays as it was, its first link still valid, and nothing is counted.
+    await ctx.svc.store.put(inv, Math.ceil((Date.parse(inv.expiresAt) - ctx.now()) / 1000));
+    await release(1);
+    await ctx.svc.store.bump(resendKey, -1, COUNTER_TTL_S);
+    throw e;
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Email admins: the Bridge account session, no GitHub
+
+/** An email admin of the team, from the account cookie. */
+interface EmailAdmin {
+  account: Account;
+  full: string;
+  /** A team made in Bridge, no repository: email admins are its only admins. */
+  teamless: boolean;
+}
+
+const hasBearer = (req: Request) => /^Bearer\s+\S+/i.test(req.headers.get('authorization') ?? '');
+
+/** True when this request is managed as a Bridge account (no GitHub token, a site with accounts). */
+const asAccount = (ctx: Ctx, req: Request, repoArg?: unknown) =>
+  Boolean(ctx.svc.secret && ctx.svc.redis && ctx.svc.members) && (!hasBearer(req) || (typeof repoArg === 'string' && isTeamKey(repoArg)));
+
+/** The account behind the cookie, an admin of the team (email admin, or a seeded local admin); else 401 or 403. */
+async function emailAdmin(ctx: Ctx, req: Request, repoArg: unknown): Promise<EmailAdmin> {
+  const redis = ctx.svc.redis!;
+  const a = await sessionAccount(req, redis, ctx.svc.secret, ctx.now());
+  if (!a) throw new HttpError(401, 'signin', 'Your session ended. Sign in again.');
+  const t = await resolveTeam(redis, repoArg);
+  const local = ctx.svc.localAdmins ? await ctx.svc.localAdmins.isAdmin(t.full, a.email) : false;
+  if (!local && (await ctx.svc.members!.get(t.full, a.email))?.role !== 'admin') throw new HttpError(403, 'forbidden', EMAIL_ADMIN_ONLY);
+  return { account: a, full: t.full, teamless: Boolean(t.id) };
+}
+
+/** The other admins of a team made in Bridge (email admins and seeded local admins), never `except`. */
+async function otherAdmins(ctx: Ctx, full: string, except: string): Promise<number> {
+  const email = (await ctx.svc.members!.list(full)).filter((m) => m.role === 'admin' && m.email !== except).map((m) => m.email);
+  const local = ctx.svc.localAdmins ? (await ctx.svc.localAdmins.adminsOf(full)).filter((e) => e !== except) : [];
+  return new Set([...email, ...local]).size;
+}
+
+/**
+ * Changes an email member's role: Can edit or Admin (Reviewer approves on GitHub: 409 github-required). `by.email`: the
+ * email admin acting (never on themselves); `by.teamless`: a team made in Bridge keeps at least one admin.
+ */
+async function setEmailRole(ctx: Ctx, full: string, body: Record<string, unknown>, by: { email: string | null; teamless: boolean }): Promise<Response> {
+  const email = await emailMemberOf(ctx, full, body.email);
+  const { role } = parseRole(body.role, body.reviewAs);
+  if (role === 'reviewer') throw new HttpError(409, 'github-required', GITHUB_REQUIRED);
+  if (by.email && email === by.email) throw new HttpError(409, 'self', SELF_ROLE);
+  const m = (await ctx.svc.members!.get(full, email))!;
+  const next = role === 'admin' ? 'admin' : 'edit';
+  if (m.role === 'admin' && next !== 'admin' && by.teamless && (await otherAdmins(ctx, full, email)) === 0) throw new HttpError(409, 'last-admin', LAST_ADMIN);
+  if (m.role !== next) await ctx.svc.members!.put(full, { ...m, role: next });
+  return json(200, { ok: true, role: next });
+}
+
+/** What an email admin does on POST: invites, and the roles of email members. GitHub people stay with GitHub admins. */
+async function onEmailAdminPost(ctx: Ctx, req: Request, env: InvitesEnv, body: Record<string, unknown>): Promise<Response> {
+  if (req.headers.get('x-bridge-account') !== '1') throw new HttpError(403, 'origin', 'Manage your team from Studio on this site.');
+  const ad = await emailAdmin(ctx, req, body.repo);
+  const me: Inviter = { login: ad.account.github?.login ?? '', name: displayName(ad.account.name, ad.account.github?.login) || ad.account.email.split('@')[0]! };
+  // Counted per admin without keeping their email in a key.
+  const counter = `email-${sha256(ad.account.email.toLowerCase()).slice(0, 16)}`;
+  const noReviewer = (role: Role) => {
+    if (role === 'reviewer' && ad.teamless) throw new HttpError(409, 'github-required', REVIEWER_NEEDS_REPO);
+  };
+  switch (body.action) {
+    case 'invite': {
+      const { role, reviewAs } = parseRole(body.role, body.reviewAs);
+      noReviewer(role);
+      return inviteMany(ctx, req, env, body.people, { full: ad.full, role, ...(reviewAs ? { reviewAs } : {}), me, counter });
+    }
+    case 'resend':
+      return resendOne(ctx, req, env, ad.full, body.id, me, counter);
+    case 'invite-role': {
+      const inv = await findInvite(ctx, ad.full, body.id);
+      const { role, reviewAs } = parseRole(body.role, body.reviewAs);
+      noReviewer(role);
+      const { reviewAs: _old, ...rest } = inv;
+      const next = { ...rest, role, ...(reviewAs ? { reviewAs } : {}) };
+      await ctx.svc.store.put(next, Math.max(1, Math.ceil((Date.parse(inv.expiresAt) - ctx.now()) / 1000)));
+      return json(200, { invite: publicInvite(next) });
+    }
+    case 'cancel': {
+      const inv = await findInvite(ctx, ad.full, body.id);
+      await ctx.svc.store.remove(inv);
+      return json(200, { ok: true });
+    }
+    case 'set-role':
+      if (body.login !== undefined || body.email === undefined) throw new HttpError(409, 'github-required', GITHUB_PEOPLE);
+      return setEmailRole(ctx, ad.full, body, { email: ad.account.email.toLowerCase(), teamless: ad.teamless });
+    case 'remove': {
+      if (body.login !== undefined || body.email === undefined) throw new HttpError(409, 'github-required', GITHUB_PEOPLE);
+      const email = await emailMemberOf(ctx, ad.full, body.email);
+      if (email === ad.account.email.toLowerCase()) throw new HttpError(409, 'self', SELF_REMOVE);
+      const m = await ctx.svc.members!.get(ad.full, email);
+      if (m?.role === 'admin' && ad.teamless && (await otherAdmins(ctx, ad.full, email)) === 0) throw new HttpError(409, 'last-admin', LAST_ADMIN);
+      await ctx.svc.members!.remove(ad.full, email);
+      return json(200, { ok: true });
+    }
+    default:
+      return fail(400, 'bad_request', 'Unknown action.');
+  }
+}
+
+const EMAIL_ADMIN_ACTIONS = new Set(['invite', 'resend', 'invite-role', 'cancel', 'set-role', 'remove']);
+
 async function onGet(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise<Response> {
   const svc = services(env, deps);
   const repoArg = new URL(req.url).searchParams.get('repo');
   if (repoArg === null) return json(200, { available: Boolean(svc) });
   if (!svc) return fail(503, 'not_configured', NOT_CONFIGURED);
   const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, limits: limitsFrom(env) };
+  if (asAccount(ctx, req, repoArg)) {
+    const ad = await emailAdmin(ctx, req, repoArg);
+    const list = await pending(ctx, ad.full);
+    const members = await ctx.svc.members!.list(ad.full);
+    return json(200, { invites: list.map(publicInvite), personal: false, members: members.map(publicMember) }, { 'Cache-Control': 'private, no-store' });
+  }
   const { facts } = await authorize(ctx, req, repoArg, 'push');
   const list = await pending(ctx, facts.full);
   const members = ctx.svc.members ? await ctx.svc.members.list(facts.full) : [];
@@ -1004,111 +1261,19 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
   if (!svc) return fail(503, 'not_configured', NOT_CONFIGURED);
   const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, limits: limitsFrom(env) };
   const body = await readBody(req);
+  // A team made in Bridge has no GitHub side: managed as the account even when a GitHub sign-in comes along.
+  if (EMAIL_ADMIN_ACTIONS.has(String(body.action)) && asAccount(ctx, req, body.repo)) return onEmailAdminPost(ctx, req, env, body);
 
   switch (body.action) {
     case 'invite': {
       const { me, appToken, facts } = await authorize(ctx, req, body.repo, 'admin');
       const { role, reviewAs } = parseRole(body.role, body.reviewAs);
-      const people = body.people;
-      if (!Array.isArray(people) || people.length === 0) throw new HttpError(400, 'bad_request', 'Add at least one work email.');
-      if (people.length > MAX_PEOPLE) throw new HttpError(400, 'bad_request', `Invite at most ${MAX_PEOPLE} people at once.`);
-      const origin = siteOrigin(req, env);
-      const current = await pending(ctx, facts.full);
-      // Reserve today's emails for every address that may get one, all or nothing; unused ones go back at the end.
-      const candidates = new Set<string>();
-      for (const p of people) {
-        const e = p && typeof p === 'object' ? (p as Record<string, unknown>).email : undefined;
-        const email = typeof e === 'string' ? e.trim().toLowerCase() : '';
-        if (validEmail(email) && !current.some((x) => x.email === email)) candidates.add(email);
-      }
-      const room = Math.max(0, MAX_PENDING - current.length);
-      const reserved = Math.min(candidates.size, room);
-      const release = await reserve(ctx, me.login, facts.full, reserved);
-      let emailed = 0;
-      const results: { email: string; status: 'sent' | 'added' | 'already' | 'failed'; message?: string }[] = [];
-      const seen = new Set<string>();
-      try {
-        for (const p of people) {
-          const rawEmail = p && typeof p === 'object' ? (p as Record<string, unknown>).email : undefined;
-          const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
-          if (!validEmail(email)) {
-            results.push({ email: typeof rawEmail === 'string' ? rawEmail.slice(0, 254) : '', status: 'failed', message: 'This is not a valid email address.' });
-            continue;
-          }
-          if (seen.has(email)) continue;
-          seen.add(email);
-          const rawLogin = (p as Record<string, unknown>).login;
-          try {
-            // An organization member Bridge already knows is added straight away: no email, no link.
-            if (!facts.personal && rawLogin !== undefined) {
-              const login = parseLogin(rawLogin);
-              const member = await gh(ctx.f, appToken, 'GET', `/orgs/${facts.ownerLogin}/members/${encodeURIComponent(login)}`);
-              if (member.status === 204) {
-                await grant(ctx, appToken, facts, login, role);
-                const o = await ownersFor(ctx, appToken, facts, login, addOnly(role, reviewAs));
-                results.push({ email, status: 'added', ...(o.ownersError ? { message: o.ownersError } : {}) });
-                continue;
-              }
-            }
-            if (current.some((x) => x.email === email)) {
-              results.push({ email, status: 'already' });
-              continue;
-            }
-            if (current.length >= MAX_PENDING) {
-              results.push({ email, status: 'failed', message: `This team already has ${MAX_PENDING} invites waiting. Cancel some first.` });
-              continue;
-            }
-            const id = Buffer.from(ctx.random(8)).toString('hex');
-            const inv = await storeAndSend(
-              ctx,
-              { id, repo: facts.full, email, role, ...(reviewAs ? { reviewAs } : {}), invitedBy: me.login, invitedByName: me.name, createdAt: new Date(ctx.now()).toISOString() },
-              origin,
-              me.name,
-            );
-            current.push(inv);
-            emailed++;
-            results.push({ email, status: 'sent' });
-          } catch (e) {
-            results.push({ email, status: 'failed', message: e instanceof HttpError ? e.message : GITHUB_DOWN });
-          }
-        }
-      } finally {
-        await release(reserved - emailed);
-      }
-      return json(200, { results });
+      return inviteMany(ctx, req, env, body.people, { full: facts.full, role, ...(reviewAs ? { reviewAs } : {}), me, counter: me.login, github: { appToken, facts } });
     }
 
     case 'resend': {
       const { me, facts } = await authorize(ctx, req, body.repo, 'admin');
-      const inv = await findInvite(ctx, facts.full, body.id);
-      const now = ctx.now();
-      const since = now - Date.parse(inv.sentAt);
-      if (since < RESEND_COOLDOWN_MS) throw limitError('resend_soon', LIMIT_WORDS.resend_soon, Math.ceil((RESEND_COOLDOWN_MS - since) / 1000));
-      const resendKey = [countKey('resend', `${facts.full}:${inv.id}`, dayOf(now))];
-      const [count = 0] = await ctx.svc.store.bump(resendKey, 1, COUNTER_TTL_S);
-      if (count > MAX_RESENDS_PER_INVITE_DAY) {
-        await ctx.svc.store.bump(resendKey, -1, COUNTER_TTL_S);
-        throw limitError('resend', LIMIT_WORDS.resend, secondsToTomorrow(now));
-      }
-      let release: (k: number) => Promise<void>;
-      try {
-        release = await reserve(ctx, me.login, facts.full, 1);
-      } catch (e) {
-        await ctx.svc.store.bump(resendKey, -1, COUNTER_TTL_S);
-        throw e;
-      }
-      // The old link stops working: its token index goes with the old record.
-      await ctx.svc.store.remove(inv);
-      try {
-        const next = await storeAndSend(ctx, { id: inv.id, repo: inv.repo, email: inv.email, role: inv.role, ...(inv.reviewAs ? { reviewAs: inv.reviewAs } : {}), invitedBy: inv.invitedBy, ...(inv.invitedByName ? { invitedByName: inv.invitedByName } : inv.invitedBy === me.login ? { invitedByName: me.name } : {}), createdAt: inv.createdAt }, siteOrigin(req, env), me.name);
-        return json(200, { invite: publicInvite(next) });
-      } catch (e) {
-        // No email went out: the invite stays as it was, its first link still valid, and nothing is counted.
-        await ctx.svc.store.put(inv, Math.ceil((Date.parse(inv.expiresAt) - ctx.now()) / 1000));
-        await release(1);
-        await ctx.svc.store.bump(resendKey, -1, COUNTER_TTL_S);
-        throw e;
-      }
+      return resendOne(ctx, req, env, facts.full, body.id, me, me.login);
     }
 
     case 'invite-role': {
@@ -1132,11 +1297,8 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
     case 'set-role': {
       const { me, appToken, facts } = await authorize(ctx, req, body.repo, 'admin');
       if (body.login === undefined && body.email !== undefined) {
-        // An email contributor can only edit: reviewing and merging happen on GitHub, with a GitHub account.
-        await emailMemberOf(ctx, facts.full, body.email);
-        const { role } = parseRole(body.role, body.reviewAs);
-        if (role !== 'edit') throw new HttpError(409, 'github-required', GITHUB_REQUIRED);
-        return json(200, { ok: true });
+        // An email member is Can edit or Admin: reviewing happens on GitHub, with a GitHub account.
+        return setEmailRole(ctx, facts.full, body, { email: null, teamless: false });
       }
       const login = parseLogin(body.login);
       const { role, reviewAs } = parseRole(body.role, body.reviewAs);
@@ -1262,7 +1424,7 @@ export async function acceptInviteForGithub(
   githubId: number,
   userToken: string | null,
 ): Promise<AcceptedInvite> {
-  const ctx: Ctx = { f: d.f, now: d.now, random: d.random ?? ((n) => randomBytes(n)), svc: { store: d.store, email: null as unknown as EmailSender, app: d.app, members: d.members, accountName: null, redis: null }, limits: { admin: 0, team: 0, site: 0 } };
+  const ctx: Ctx = { f: d.f, now: d.now, random: d.random ?? ((n) => randomBytes(n)), svc: { store: d.store, email: null as unknown as EmailSender, app: d.app, members: d.members, accountName: null, redis: null, secret: '', localAdmins: null }, limits: { admin: 0, team: 0, site: 0 } };
   const { owner, repo } = parseRepo(inv.repo);
   const appToken = await appFor(ctx, owner, repo);
   const u = await gh(ctx.f, appToken, 'GET', `/user/${githubId}`);
@@ -1301,6 +1463,7 @@ const envFromProcess = (): InvitesEnv => ({
   INVITES_MAX_PER_ADMIN_DAY: process.env.INVITES_MAX_PER_ADMIN_DAY,
   INVITES_MAX_PER_TEAM_DAY: process.env.INVITES_MAX_PER_TEAM_DAY,
   INVITES_MAX_SITE_DAY: process.env.INVITES_MAX_SITE_DAY,
+  LIBRARY_SESSION_SECRET: process.env.LIBRARY_SESSION_SECRET,
 });
 
 const realFetch: FetchLike = (url, init) => fetch(url, init);

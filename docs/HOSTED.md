@@ -418,9 +418,10 @@ person without the email. Private repositories show the real email.
 ### Sessions, storage and caps
 
 - **Members**: `bridge:member:<repo>:<email>` (email, name, role, version, who invited, when) and the set
-  `bridge:members:<repo>`, in the same Upstash Redis as invites. Settings, Members lists them (marked as joined with
-  email) and an admin removes them there; changing them to Reviewer or Admin answers `github-required`: invite them
-  again with that role, and they join with GitHub (which drops the email membership).
+  `bridge:members:<repo>`, in the same Upstash Redis as invites. Role `edit` (Can edit) or `admin`. Settings, Members
+  lists them and an admin makes them Admin or Can edit, or removes them there; changing them to Reviewer answers
+  `github-required` (reviewers approve on GitHub): invite them again with that role, and they join with GitHub (which
+  drops the email membership). An "Admin" invite accepted with the email makes an email admin.
 - **The session**: one cookie per team, `bridge_contrib_<hash>`, `HttpOnly`, `Secure`, `SameSite=Lax`,
   `Path=/api/contribute`, 30 days, signed with HMAC-SHA256 under `LIBRARY_SESSION_SECRET` (with its own purpose, so a
   Library cookie never passes for it). Every request reads the member again: removed, or joined again since, and the
@@ -497,8 +498,10 @@ instead of one request per file.
 
 One Bridge account per person, identified by email: no password, no username. "Continue with GitHub" or "Continue
 with email" (a 6-digit code by email) on one screen, for signing in and signing up alike. A new email creates the
-account and opens onboarding (`/start/`); a known one opens the team joined last. Admins and reviewers link GitHub
-(GitHub stays the way to approve, merge and write as themselves); editors may have an email only. People who already
+account and opens onboarding (`/start/`); a known one opens the team joined last. Reviewers link GitHub (GitHub stays
+the way to approve, merge and write as themselves); editors and admins may have an email only. An email admin does
+everything that does not happen on GitHub: members and roles, join requests, discovery, team settings and invites by
+email. Merging and GitHub-side approvals need a linked GitHub account. People who already
 joined a team with their email find that team on their first sign-in with the same email. The server piece is one
 Vercel function, `apps/docs-site/api/account/index.ts`; the record and the session live in
 `apps/docs-site/api/_lib/account.ts`.
@@ -514,11 +517,16 @@ Vercel function, `apps/docs-site/api/account/index.ts`; the record and the sessi
 | `POST { action: 'rename', name }`               | `{ account }`                                                         |
 | `POST { action: 'sign-out' }`                   | clears the cookie on this browser                                     |
 | `POST { action: 'sign-out-everywhere' }`        | bumps the account's version: every session ends                       |
-| `POST { action: 'delete' }`                     | deletes the account, its GitHub link, its email memberships (which ends their contributor sessions) and every session; 409 `last-admin` with `teams` when the person is the only admin of a team that has other members |
+| `POST { action: 'delete-check' }`               | before the confirm field: `{ blocked: [{ repo, name, people: [{ name, email }] }] }`, the teams the person is the only admin of while others are on them, with the email members who could take over; `[]` when deleting goes through |
+| `POST { action: 'delete' }`                     | deletes the account, its GitHub link, its email memberships (which ends their contributor sessions) and every session; a team made in Bridge they were alone on goes too. 409 `last-admin` with `teams` and `blocked` when the person is the only admin of a team that has other members; the message names the team |
 
 Every `POST` carries `X-Bridge-Account: 1`, JSON, and an `Origin` of this very site (CSRF).
 
-**The last-admin rule.** Email memberships are never admin (admins join with GitHub). For a GitHub-linked account,
+**The last-admin rule.** Settings, Account asks `delete-check` when the person presses Delete my account: a team that
+would refuse is named first, with "Make <name> admin" inline (an email member, through `/api/invites set-role`) or
+"Hand over the team" (its Members), and the confirm field comes once nothing blocks. An email admin of a repository's
+team is never the last one: the repository keeps its admins on GitHub. A team made in Bridge has email admins only, so
+the others there decide. For a GitHub-linked account,
 Studio sends the person's own GitHub token as `Authorization: Bearer` with `delete`: the function reads the
 repositories the Bridge app and the person share (`GET /user/installations`, then each installation's repositories),
 and for each one where they are admin, its collaborators and email members. Without that token the GitHub check is
@@ -534,8 +542,9 @@ token as `Authorization: Bearer` when it has one). The first rule that matches a
    Sign-in itself is by email; an account linked to GitHub earlier is the same account when it signs in by email.
 2. `{ kind: 'invites', invites: [{ id, team, repo, role, invitedBy, invitedAt, memberCount, people }] }`: invites
    sent to the account email.
-   `POST { action: 'accept-invite', repo, id }` joins at once (Can edit with the email; reviewer and admin need
-   linked GitHub, granted to the login read again from the GitHub id).
+   `POST { action: 'accept-invite', repo, id }` joins at once: Can edit and Admin with the email (an admin invite
+   with linked GitHub on a repository is granted on GitHub as before); Reviewer needs linked GitHub, granted to the
+   login read again from the GitHub id.
 3. `{ kind: 'domain', domain, teams: [{ repo, name, memberCount, people, adminName, requested }] }`: teams an admin
    opened to the person's work domain, all of them, largest first. `POST { action: 'request', repo }` asks to join (an
    invite for that team is accepted instead); `POST { action: 'cancel-request', repo }` takes back the account's own
@@ -554,10 +563,32 @@ configured, eligible }`. Public mailbox domains (`apps/docs-site/api/_lib/domain
 opened. A request emails the team's admins that have a Bridge account; admins list them with
 `GET /api/entry?requests=<repo>` and answer with `POST { action: 'approve' | 'decline', repo, id }`. Approved people
 join with Can edit and get an email. Requests expire after 14 days, one per person and team, capped per person (10),
-network (30) and team (20) per day. Admins are checked on GitHub with the app on every call, matched by GitHub id.
+network (30) and team (20) per day. Admins are email members with the Admin role, or checked on GitHub with the app on
+every call, matched by GitHub id.
 Every `POST` carries `X-Bridge-Contribute: 1` and an `Origin` of this site. Keys: `bridge:team:discovery:<repo>`,
 `bridge:team:domain:<domain>`, `bridge:joinreq:<repo>:<email>`, `bridge:joinreqs:<repo>`,
 `bridge:joinreq:mine:<email>`, and `bridge:invites:email:<email>` (invites by email, kept by the invite store).
+
+### Teams made in Bridge, before any repository
+
+"Create your team" (the workspace setup, step 1) makes a real team at once: `POST /api/entry { action:
+'create-team', name, discover }` stores `bridge:team:rec:<id>` `{ id, name, createdBy, createdAt, repo, storybook }`,
+makes its creator an email admin, keeps its name, and, when `discover` and the creator has a work email, opens it to
+that domain. Run again by the same creator, it renames that team (one team without a repository per creator). Until a
+repository is linked the team goes by its key `_team/<id>` (no GitHub owner starts with `_`) in every repo-keyed store:
+members, discovery, join requests, team names and invites. So colleagues find it in `kind: 'domain'` and ask to join,
+the creator's next sign-in answers `kind: 'teams'` with it, and its admins approve, invite and set roles exactly as on
+a repository's team. Its home is `/studio/workspace/?team=<id>`: the team's name on the chip, what to connect next, the
+people asking to join. `GET /api/entry?team=_team/<id>` answers its members `{ team: { id, key, name, role, repo,
+storybook, discovery, memberCount } }` and anyone else the 404 of a team that does not exist.
+
+The design system comes later: `POST { action: 'link-team', team, storybook }` keeps the quick start's Storybook with
+the team (its admins); `POST { action: 'link-team', team, repo }` links the repository, which needs an admin of the
+team and of the repository (on GitHub, or an admin of its team here; 409 `app_missing` while Bridge is not installed
+there, and Studio links it from the team page once its admin opens it). Everything moves to the repository's keys
+(members, admins, discovery, requests, invites, the name), the record keeps `repo` and `bridge:team:byrepo:<repo>`
+points back to it, and an old key resolves to the repository in every call. Existing repository teams have no record
+and need no migration.
 
 ### Codes, sessions and storage
 
@@ -628,12 +659,13 @@ are in your shell or `.env.local`, so it cannot touch the real site's data or se
 session secret the first time. It refuses to start when `NODE_ENV=production` or on Vercel, and nothing of it is part
 of the build.
 
-**Scenarios.** `npm run dev:scenario <name>` (`S0` to `S16`, a number or a slug; `npm run dev:scenario list` lists
+**Scenarios.** `npm run dev:scenario <name>` (`S0` to `S18`, a number or a slug; `npm run dev:scenario list` lists
 them) clears local accounts, teams, codes and the outbox, writes one situation with the same storage functions the
 functions use, and prints who to sign in as and what each person should see: a work domain with one or five teams
 open to it, a closed team, invites (valid, expired, sent to another email, reviewer and admin), members of one or
 three teams, admins with 0, 1 and 4 join requests, a pending request, a request and an invite for the same team, the
-last admin, and sign-in code edge cases (`dev/scenarios.ts`). It works while the server runs. The "recent team" of
+last admin, sign-in code edge cases, a team made in Bridge with no repository yet (S17) and an email admin without
+GitHub (S18) (`dev/scenarios.ts`). It works while the server runs. The "recent team" of
 someone on several teams lives in the browser: set it in the page console with
 `localStorage.setItem("bridge.recentTeams", JSON.stringify(["lumen/mobile-kit"]))`, or clear it to get the picker.
 
@@ -649,8 +681,9 @@ production), and no deployed function ever receives it.
 Members (`/api/invites`), Library access settings (`/api/library-access`), "Continue with GitHub" and admin checks.
 Without keys they answer as a site that has not set them up yet ("not available yet"). To try them, put the
 `GITHUB_APP_*` variables of a test app in `apps/docs-site/.env.local` (see [SIGN-IN.md](SIGN-IN.md)); they are the only
-variables this mode reads from it. Those calls then reach the real GitHub, so use a test repository. With scenario teams, still unreachable locally:
-inviting by email, changing roles and removing people from Settings, Members (`/api/invites` needs a GitHub sign-in),
-"Continue with GitHub" and joining as reviewer or admin, any write to a scenario team (branches, changes, reviews:
+variables this mode reads from it. Those calls then reach the real GitHub, so use a test repository. Email admins
+(S17, S18) manage Members, invites by email and join requests locally: `/api/invites` takes their account session.
+With scenario teams, still unreachable locally: changing a GitHub person's role, "Continue with GitHub", joining as
+reviewer, linking a repository to a team made in Bridge, any write to a scenario team (branches, changes, reviews:
 the fixture files are read-only), Library access settings, and a scenario team's Library (`/library/<owner>/<repo>/`
 reads a published snapshot that scenario teams do not have). Bridge's own Library and the sample team work as usual.

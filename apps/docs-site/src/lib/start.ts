@@ -10,7 +10,7 @@
 //   - Else none: "Get started" shows the start screen.
 import { isDemoRepo, SAMPLE_TEAM } from './demo';
 import { ANY_STEP_IDS, type Step, type StepId } from './onboarding';
-import { STUDIO_ROOT, teamHref, type ReservedPaths } from './team-path';
+import { isTeamKey, STUDIO_ROOT, teamHref, teamKeyId, type ReservedPaths } from './team-path';
 
 /** The start screen: Connect your design system, or Look around first. */
 export const START_PAGE = '/start/';
@@ -32,24 +32,28 @@ export interface StartMemory {
   /** "Look around first": the demo was opened from the start screen. */
   demo: boolean;
   /**
-   * "Create your team" step 1 (board E6), until a repository makes it a real team: the name typed, and whether people
-   * with the work domain may find it (applied once an admin opens the team, Onboarding.tsx HostedOnboarding).
+   * A repository picked on step 2 of "Create your team" that could not be linked yet (Bridge not installed there): the
+   * team's key and the repository. The team page links it once its admin opened it (Onboarding.tsx HostedOnboarding).
+   * The team itself lives on the server from step 1 (api/entry create-team), never here.
    */
-  team: PendingTeam | null;
+  link: PendingLink | null;
 }
 
-export interface PendingTeam {
-  name: string;
-  discover: boolean;
+export interface PendingLink {
+  /** The key of the team made in Bridge, `_team/<id>`. */
+  team: string;
+  /** owner/repo. */
+  repo: string;
 }
 
-export const EMPTY_START: StartMemory = { connect: false, step: null, demo: false, team: null };
+export const EMPTY_START: StartMemory = { connect: false, step: null, demo: false, link: null };
 
-function parseTeam(v: unknown): PendingTeam | null {
+function parseLink(v: unknown): PendingLink | null {
   if (!v || typeof v !== 'object') return null;
   const o = v as Record<string, unknown>;
-  const name = typeof o.name === 'string' ? o.name.trim().replace(/\s+/g, ' ').slice(0, 60) : '';
-  return name ? { name, discover: o.discover === true } : null;
+  const team = typeof o.team === 'string' && isTeamKey(o.team) ? o.team.toLowerCase() : null;
+  const repo = typeof o.repo === 'string' && /^[^/\s]+\/[^/\s]+$/.test(o.repo) ? o.repo.toLowerCase() : null;
+  return team && repo ? { team, repo } : null;
 }
 
 /** Reads what was stored, dropping anything malformed. */
@@ -62,7 +66,7 @@ export function parseStartMemory(text: string | null): StartMemory {
       connect: v.connect === true,
       step: typeof v.step === 'string' && (ANY_STEP_IDS as readonly string[]).includes(v.step) ? v.step : null,
       demo: v.demo === true,
-      team: parseTeam(v.team),
+      link: parseLink(v.link),
     };
   } catch {
     return { ...EMPTY_START };
@@ -120,6 +124,17 @@ export const demoBack = (f: StartFacts, reserved: ReservedPaths | null = null): 
 export const demoBannerKind = (f: StartFacts, own = false): 'workspace' | 'visitor' =>
   own || hasWorkspace(f) || f.memory.demo ? 'workspace' : 'visitor';
 
+/**
+ * The team made in Bridge (no repository yet) the workspace page shows: the one its address names (?team=<id>) when
+ * the account is on it, else the first one the account administers, else the first one it is on. Null for none.
+ */
+export function workspaceTeamKey(teams: readonly { repo: string; role: string }[], search: string): string | null {
+  const keys = teams.filter((t) => isTeamKey(t.repo));
+  const asked = new URLSearchParams(search).get('team');
+  const named = asked ? keys.find((t) => teamKeyId(t.repo) === asked.trim().toLowerCase()) : undefined;
+  return (named ?? keys.find((t) => t.role === 'admin') ?? keys[0])?.repo.toLowerCase() ?? null;
+}
+
 /** Where "Connect my design system" leads: the browser workspace, on the step that picks the design system. */
 export const CONNECT_HREF = `${WORKSPACE_HOME}?setup=library`;
 
@@ -172,6 +187,21 @@ export const WORKSPACE_WORDS = {
   noBranches: 'None yet. Branches you start or review show up here.',
   /** The chip's tooltip: the workspace is this browser's, not an account's. */
   kept: 'Kept in this browser',
+} as const;
+
+/**
+ * The home of a team made in Bridge with no design system yet (api/entry create-team): the real team, never the sample
+ * team nor Bridge's own. It says what to connect next; only an admin connects.
+ */
+export const TEAM_HOME_WORDS = {
+  ready: (team: string) => `${team} is set up. Connect your design system next, and your tokens, components and branches show up here.`,
+  waiting: (team: string) => `${team} has no design system connected yet. An admin of the team connects it, and it shows up here.`,
+  storybook: (team: string) => `${team} reads your Storybook. Connect the repository too, and your tokens and branches show up here.`,
+  members: (n: number) => `${n} ${n === 1 ? 'member' : 'members'}`,
+  findable: (domain: string) => `People with @${domain} can find it`,
+  inviteOnly: 'People join by invite',
+  /** The chip's line under the team name. */
+  chipLine: 'No design system yet',
 } as const;
 
 /** The team menu's sections (board EmptyB). */

@@ -1,11 +1,15 @@
 // The browser side of /api/invites (api/invites/index.ts): send, resend and cancel invites, change a role, remove
-// someone. Every call carries the visitor's GitHub sign-in; the server checks on GitHub who they
-// are and that they administer the repository before it changes anything, so nothing here is trusted for access.
+// someone, accept an invitation. Every call carries the visitor's GitHub sign-in; the server checks on GitHub who they
+// are and that they administer the repository before it changes anything, so nothing here is trusted for access. An
+// email admin (no GitHub sign-in) is sent as their Bridge account instead: the httpOnly cookie and X-Bridge-Account,
+// checked by the server against the team's email admins.
 // When the site has no invites server (an older deploy, a fork, `astro dev`) or it is not set up yet, every call
 // fails with InvitesUnavailable and the screens say "Invites are not available yet on this site." Never a fake success.
 import type { MemberRole, PendingInvite, ReviewAs } from '../lib/invites';
 import { MEMBERS_WORDS } from '../lib/invites';
 import { getToken } from './github-session';
+import { isContribAuth } from '../lib/contribute';
+import { ACCOUNT_HEADER } from '../lib/account';
 
 export const INVITES_API = '/api/invites';
 
@@ -44,8 +48,9 @@ async function call<T>(method: 'GET' | 'POST', query: string, body?: unknown, au
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const token = auth ? getToken() : null;
-  if (auth && !token) throw new InvitesError('Sign in with GitHub first.', 'signin', 401);
-  if (token) headers.Authorization = `Bearer ${token}`;
+  // A GitHub sign-in goes along; without one (an email admin), the Bridge account cookie speaks for the person.
+  if (token && !isContribAuth(token)) headers.Authorization = `Bearer ${token}`;
+  else if (auth) headers[ACCOUNT_HEADER] = '1';
   let res: Response;
   try {
     res = await fetchImpl(`${INVITES_API}${query}`, { method, headers, credentials: 'same-origin', ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
@@ -119,6 +124,10 @@ export const setMemberRole = (repo: string, login: string, choice: { role: Membe
   call<{ ok: boolean; ownersPr?: OwnersPr; ownersError?: string }>('POST', '', { action: 'set-role', repo, login, role: choice.role, ...(choice.reviewAs ? { reviewAs: choice.reviewAs } : {}) });
 
 export const removeMember = (repo: string, login: string) => call<{ ok: boolean; ownersPr?: OwnersPr; ownersError?: string }>('POST', '', { action: 'remove', repo, login });
+
+/** An email member's role: Can edit or Admin (Reviewer answers 409 github-required: reviewers approve on GitHub). */
+export const setEmailMemberRole = (repo: string, email: string, choice: { role: MemberRole; reviewAs?: ReviewAs }) =>
+  call<{ ok: boolean; ownersPr?: OwnersPr; ownersError?: string }>('POST', '', { action: 'set-role', repo, email, role: choice.role, ...(choice.reviewAs ? { reviewAs: choice.reviewAs } : {}) });
 
 /** Removes an email contributor: their session ends at once (the server drops the member record). */
 export const removeEmailMember = (repo: string, email: string) => call<{ ok: boolean }>('POST', '', { action: 'remove', repo, email });

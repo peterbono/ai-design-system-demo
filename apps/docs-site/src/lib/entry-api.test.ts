@@ -652,16 +652,27 @@ describe('accept-invite', () => {
     expect(await s.members.get(REPO, 'mia@acme.design')).toBeNull();
   });
 
-  it('needs GitHub for a reviewer or admin invite, then grants the login read from the GitHub id', async () => {
+  it('joins an admin invite with the email alone, as an email admin', async () => {
     const s = setup();
     const inv = await invite(s, { email: 'cara@acme.design', role: 'admin' });
     const emailOnly = await account(s, 'cara@acme.design', 'Cara');
-    expect(await (await post(s, emailOnly, { action: 'accept-invite', repo: REPO, id: inv.id })).json()).toMatchObject({ error: 'github-required' });
+    expect(await (await post(s, emailOnly, { action: 'accept-invite', repo: REPO, id: inv.id })).json()).toMatchObject({ joined: true, role: 'admin' });
+    expect((await s.members.get(REPO, 'cara@acme.design'))?.role).toBe('admin');
+    expect(s.calls.some((c) => c.startsWith('PUT'))).toBe(false);
+  });
+
+  it('needs GitHub for a reviewer invite, and grants an admin invite on GitHub to a linked account, by the login read from the GitHub id', async () => {
+    const s = setup();
+    const rev = await invite(s, { id: 'f1f2f3f4f5f6f7f8', email: 'cara@acme.design', role: 'reviewer', reviewAs: 'design', tokenHash: 'r'.repeat(64) });
+    const emailOnly = await account(s, 'cara@acme.design', 'Cara');
+    expect(await (await post(s, emailOnly, { action: 'accept-invite', repo: REPO, id: rev.id })).json()).toMatchObject({ error: 'github-required' });
+    const inv = await invite(s, { email: 'cara@acme.design', role: 'admin' });
     const linked = await account(s, 'cara@acme.design', 'Cara', { login: 'cara-old', id: 9 });
     const r = await post(s, linked, { action: 'accept-invite', repo: REPO, id: inv.id });
     expect(await r.json()).toMatchObject({ joined: true, status: 'joined', repo: REPO, role: 'admin' });
     expect(s.calls).toContain('PUT /repos/acme/ds/collaborators/cara-now');
-    expect(await s.invites.byEmail('cara@acme.design')).toEqual([]);
+    // The reviewer invite still waits for the GitHub way.
+    expect((await s.invites.byEmail('cara@acme.design')).map((i) => i.id)).toEqual([rev.id]);
   });
 });
 

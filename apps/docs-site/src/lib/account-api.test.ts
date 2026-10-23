@@ -14,7 +14,7 @@ import {
   CODE_TTL_S,
   handleAccount,
   INVITE_GONE,
-  LAST_ADMIN,
+  lastAdminOf,
   MAX_TRIES,
   WRONG_CODE,
 } from '../../api/account/index';
@@ -412,7 +412,7 @@ describe('delete', () => {
     const cookie = cookieOf(await handleAccount(act({ action: 'github', token: GH_TOKEN }), ENV, s.deps));
     const r = await handleAccount(act({ action: 'delete' }, { cookie, authorization: `Bearer ${GH_TOKEN}` }), ENV, s.deps);
     expect(r.status).toBe(409);
-    expect(await r.json()).toEqual({ error: 'last-admin', message: LAST_ADMIN, teams: ['acme/design'] });
+    expect(await r.json()).toEqual({ error: 'last-admin', message: lastAdminOf(['Design']), teams: ['acme/design'], blocked: [{ repo: 'acme/design', name: 'Design', people: [{ name: 'Mia', email: 'lee@acme.design' }] }] });
     expect(await getAccount(s.redis, 'mia@acme.design')).not.toBeNull();
     // Another admin on the team: delete goes through.
     s.w.collaborators['acme/design'] = [{ id: 77, login: 'mia-gh', permissions: { admin: true } }, { id: 9, login: 'lee-gh', permissions: { admin: true } }];

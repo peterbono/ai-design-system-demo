@@ -378,9 +378,15 @@ describe('entry: Bridge picks the room after the code (E3 to E6)', () => {
     }
   });
 
+  it('E3: an admin invite joins with the email, no GitHub step', async () => {
+    signedIn(() => json(200, { kind: 'invites', invites: [{ id: 'inv4', team: 'Acme Design', repo: 'acme/ds', role: 'admin', invitedBy: 'Sam Rivera' }] }));
+    expect(await screen.findByRole('button', { name: 'Join Acme Design' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Connect GitHub to accept' })).toBeNull();
+  });
+
   it('E3: on a site without GitHub sign-in, a reviewer invite says it is not available here and whom to ask', async () => {
-    signedIn(() => json(200, { kind: 'invites', invites: [{ id: 'inv2', team: 'Acme Design', repo: 'acme/ds', role: 'admin', invitedBy: 'Sam Rivera' }] }));
-    expect(await screen.findByText('Joining as Admin needs GitHub, which is not available on this Bridge site. Ask Sam Rivera to invite you as Can edit instead.')).toBeInTheDocument();
+    signedIn(() => json(200, { kind: 'invites', invites: [{ id: 'inv2', team: 'Acme Design', repo: 'acme/ds', role: 'reviewer', reviewAs: 'design', invitedBy: 'Sam Rivera' }] }));
+    expect(await screen.findByText('Joining as Reviewer: design needs GitHub, which is not available on this Bridge site. Ask Sam Rivera to invite you as Can edit or Admin instead.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Connect GitHub to accept' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Join Acme Design' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Open the demo' })).toBeInTheDocument();

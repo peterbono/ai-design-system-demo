@@ -43,7 +43,7 @@ import {
 } from '../../../lib/home-model';
 import { VOCAB } from '../../../lib/vocabulary';
 import { studioHref } from '../../../lib/team-path';
-import { demoWaiting, type TourAt } from '../../../lib/demo';
+import { demoTour, demoWaiting, tourSteps, type TourAt } from '../../../lib/demo';
 import { ENTRY_WORDS } from '../../../lib/entry';
 import { useTour } from './HomeTour';
 
@@ -426,6 +426,12 @@ export interface StudioHomeProps {
    * their branches sent back with changes, and the contributor tour runs on the first visit.
    */
   contributor?: boolean;
+  /**
+   * A lead of the team: a reviewer, or an admin (an email admin included, who manages without GitHub). They get the
+   * lead tour on the first visit (the rows that wait on the lead, the whole queue, the branches), never the
+   * contributor's.
+   */
+  lead?: boolean;
   /** Admins: Approve and Decline on join requests (board E7b). */
   join?: JoinHandlers;
 }
@@ -434,6 +440,7 @@ export interface StudioHomeProps {
 export type HomeTourAt = TourAt | ContributorTourAt;
 
 const CONTRIBUTOR_TOUR_KEY = 'bridge.home.contributor-tour';
+const LEAD_TOUR_KEY = 'bridge.home.lead-tour';
 
 /** The review drawing without its empty sky: the scene only, so it never makes the greeting taller than its text. */
 const REVIEW_CROP = '0 98 232 86';
@@ -461,7 +468,15 @@ export function StudioHome(p: StudioHomeProps) {
 function HomeBody(p: StudioHomeProps) {
   const snoozed = hintSnoozed(readSnooze(), p.now);
   const own = useTour<ContributorTourAt>(CONTRIBUTOR_TOUR_KEY, [...CONTRIBUTOR_TOUR_STEPS], contributorTour, Boolean(p.contributor) && !p.demo && (p.state === 'busy' || p.state === 'empty'));
-  const tour: StudioHomeProps['tour'] = p.tour ?? (p.contributor ? (at) => (at === 'branches' || at === 'start' ? own(at) : null) : undefined);
+  const leadSteps = tourSteps({ rows: p.needs.length > 0, more: Boolean(splitNeeds(p.needs).more), branches: p.branches.length > 0 });
+  const lead = useTour<TourAt>(LEAD_TOUR_KEY, leadSteps, (at) => demoTour(at), Boolean(p.lead) && !p.contributor && !p.demo && p.state === 'busy' && leadSteps.length > 0);
+  const tour: StudioHomeProps['tour'] =
+    p.tour ??
+    (p.contributor
+      ? (at) => (at === 'branches' || at === 'start' ? own(at) : null)
+      : p.lead && !p.demo
+        ? (at) => (at === 'rows' || at === 'more' || at === 'branches' ? lead(at) : null)
+        : undefined);
   if (p.state === 'signed-out' && !p.demo) {
     return (
       <div className="sh">

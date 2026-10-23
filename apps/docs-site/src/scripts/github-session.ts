@@ -1335,10 +1335,11 @@ export async function resolveAccess(repo: { owner: string; repo: string } = read
   const signedIn = Boolean(viewer && token && !tokenRejected());
   if (!signedIn && !opts.anonymous) return null;
   const name = repoName(repo);
-  // An email contributor can edit this team, never more (they approve nothing): no GitHub call to say it.
+  // An email member edits this team, or administers it without GitHub (they approve nothing): no GitHub call to say it.
   if (signedIn && viewer?.email && isContribAuth(token)) {
     if (name !== repoName(readRepo())) return null;
-    // 'admin' only for a member seeded as admin in `npm run dev:full`: the server checks every admin action again.
+    // 'admin' for an email member made Admin (or seeded as admin in `npm run dev:full`): the server checks every admin
+    // action again.
     const a = contributorAccess(contributorFor(pageRepo())?.role === 'admin');
     accessByRepo.set(name, a);
     return a;

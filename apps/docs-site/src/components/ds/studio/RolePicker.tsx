@@ -3,7 +3,8 @@
 // RadioGroup, each with one line that says what it adds. Choosing Reviewer unfolds, under it, "They review as": two
 // DS ChoiceCards, Designer (how it looks and works) and Developer (how it is built). Nothing else unfolds: progressive
 // disclosure. A role GitHub cannot hold on this repository (a personal account's) is shown disabled with the reason, and
-// so are Reviewer and Admin for an email contributor (reviewers and admins approve on GitHub).
+// so is Reviewer for an email member (reviewers approve on GitHub). Admin works with the email: members, requests,
+// settings and invites need no GitHub.
 // What each role means on GitHub stays out of sight (lib/invites.ts).
 import { useId, useState, type KeyboardEvent } from 'react';
 import { ChevronDown, Code2, PenTool } from 'lucide-react';
@@ -19,7 +20,7 @@ export interface RolePickerProps {
   label: string;
   /** A personal account's repository: Admin is disabled, with the reason. */
   personal?: boolean;
-  /** An email contributor: Reviewer and Admin are disabled, with the reason (they approve on GitHub). */
+  /** An email member: Reviewer is disabled, with the reason (reviewers approve on GitHub). Admin stays offered. */
   emailOnly?: boolean;
   disabled?: boolean;
   size?: 'sm' | 'md' | 'lg';
@@ -33,7 +34,8 @@ export default function RolePicker({ value, onChange, label, personal = false, e
   const [open, setOpen] = useState(false);
   const choice = normalizeChoice(value);
   const id = useId();
-  const choices = roleChoices(personal).map((c) => (emailOnly && c.role !== 'edit' ? { ...c, disabled: true } : c));
+  // An email member: GitHub's personal-repository rule does not apply to them (Admin is a Bridge role there).
+  const choices = (emailOnly ? roleChoices(false) : roleChoices(personal)).map((c) => (emailOnly && c.role === 'reviewer' ? { ...c, disabled: true } : c));
   const pick = (role: string) => {
     const next = normalizeChoice({ role: role as RoleChoice['role'], ...(role === 'reviewer' ? { reviewAs: choice.reviewAs ?? 'design' } : {}) });
     onChange(next);

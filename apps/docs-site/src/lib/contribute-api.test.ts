@@ -217,17 +217,24 @@ describe('accept with the email', () => {
     expect(await again.json()).toEqual({ error: 'expired', message: EXPIRED });
   });
 
-  it('refuses a reviewer or admin invite with 409 github-required, and keeps it for the GitHub way', async () => {
+  it('refuses a reviewer invite with 409 github-required, and keeps it for the GitHub way', async () => {
     const s = setup();
-    for (const role of ['reviewer', 'admin'] as const) {
-      const token = await s.invite(`${role}@acme.design`, role);
-      const r = await handleContribute(act({ action: 'accept', token, name: 'X' }), ENV, s.deps);
-      expect(r.status).toBe(409);
-      expect(await r.json()).toEqual({ error: 'github-required', message: GITHUB_REQUIRED });
-      expect(r.headers.get('set-cookie')).toBeNull();
-    }
-    expect(await s.invites.list(REPO)).toHaveLength(2);
+    const token = await s.invite('reviewer@acme.design', 'reviewer');
+    const r = await handleContribute(act({ action: 'accept', token, name: 'X' }), ENV, s.deps);
+    expect(r.status).toBe(409);
+    expect(await r.json()).toEqual({ error: 'github-required', message: GITHUB_REQUIRED });
+    expect(r.headers.get('set-cookie')).toBeNull();
+    expect(await s.invites.list(REPO)).toHaveLength(1);
     expect(await s.members.list(REPO)).toEqual([]);
+  });
+
+  it('joins an admin invite with the email: an admin needs GitHub only to approve on GitHub', async () => {
+    const s = setup();
+    const token = await s.invite('admin@acme.design', 'admin');
+    const r = await handleContribute(act({ action: 'accept', token, name: 'Ada' }), ENV, s.deps);
+    expect(r.status).toBe(200);
+    expect((await r.json()).member).toMatchObject({ email: 'admin@acme.design', role: 'admin' });
+    expect((await s.members.get(REPO, 'admin@acme.design'))?.role).toBe('admin');
   });
 
   it('refuses an expired, unknown or malformed token with 410', async () => {

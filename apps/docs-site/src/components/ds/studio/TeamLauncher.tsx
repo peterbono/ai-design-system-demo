@@ -19,13 +19,18 @@ export interface TeamFieldProps {
   query?: string;
   /** Where to go, swapped in tests. */
   go?: (href: string) => void;
+  /**
+   * Runs before going, with the repository picked: a sentence keeps the person here with it as the field's error
+   * (the team made in Bridge links the repository first, Onboarding.tsx WorkspaceRepo).
+   */
+  before?: (owner: string, repo: string) => Promise<string | null>;
 }
 
 /**
  * The repository field and its action on one line: "owner/repo" or a GitHub address opens that team's Studio. Shared
  * by the launcher below and the browser workspace's setup step 2 (Onboarding.tsx).
  */
-export function TeamField({ id, action = 'Open', variant = 'secondary', query = '', go = (href) => location.assign(href) }: TeamFieldProps) {
+export function TeamField({ id, action = 'Open', variant = 'secondary', query = '', go = (href) => location.assign(href), before }: TeamFieldProps) {
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -40,6 +45,13 @@ export function TeamField({ id, action = 'Open', variant = 'secondary', query = 
       return;
     }
     setBusy(true);
+    const refused = before ? await before(parsed.owner, parsed.repo) : null;
+    if (refused) {
+      setBusy(false);
+      setError(refused);
+      input.current?.focus();
+      return;
+    }
     go(`${await openTeamHref(parsed.owner, parsed.repo)}${query}`);
   };
 

@@ -10,9 +10,14 @@
 //                                       request that ran out says so)
 //   bridge:joinreq:count:<kind>:<who>:<day>   daily caps, 2 days
 //   bridge:joinreq:undo:<repo>:<id>     an approve or decline the admin can still undo { request, approved, added }, 30 s
-//   bridge:team:name:<repo>             { name, at }  the team's bridge.config.json `name` as last read, no expiry
+//   bridge:team:name:<repo>             { name, at }  the team's bridge.config.json `name` as last read (a team made in
+//                                       Bridge: the name it was given), no expiry
+//   bridge:team:rec:<id>, bridge:team:byrepo:<repo>   teams made in Bridge before any repository (below)
+// `<repo>` is owner/repo, or the key `_team/<id>` of a team made in Bridge that has no repository yet.
 
 import type { Redis } from './redis.js';
+import { parseRepo } from './http.js';
+import { TEAM_KEY_OWNER, teamKeyId, teamKeyOf } from '../../src/lib/team-path.js';
 
 export interface Discovery {
   domain: string;
@@ -210,4 +215,82 @@ export async function putTeamName(redis: Redis, repo: string, name: string | nul
   } catch {
     // A name is a nicety: the team still goes by its repository in words.
   }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Teams created in Bridge ("Create your team", api/entry create-team): they exist before any repository
+//
+//   bridge:team:rec:<id>          { id, name, createdBy, createdAt, repo, storybook, linkedAt? }  no expiry, in backup
+//   bridge:team:byrepo:<repo>     the id of the team created in Bridge that a repository was linked to
+// While it has no repository the team goes by its key `_team/<id>` (src/lib/team-path.ts teamKeyOf) in every
+// repo-keyed store: members (its creator is its first email admin), discovery, join requests, team names, invites. When
+// an admin links a repository (api/entry link-team), everything moves to the repository's keys, and the record keeps
+// `repo`: an old key then resolves to the repository (resolveTeam). Existing repository teams have no record.
+
+export interface TeamRecord {
+  id: string;
+  name: string;
+  /** The email of the account that created it. */
+  createdBy: string;
+  createdAt: string;
+  /** owner/repo once linked (lower case), else null. */
+  repo: string | null;
+  /** A Storybook connected with the quick start, kept with the team. */
+  storybook: string | null;
+  linkedAt?: string;
+}
+
+export const teamRecordKey = (id: string) => `bridge:team:rec:${lc(id)}`;
+export const teamByRepoKey = (repo: string) => `bridge:team:byrepo:${lc(repo)}`;
+
+const isRecord = (v: any) => typeof v.id === 'string' && typeof v.name === 'string' && typeof v.createdBy === 'string' && (v.repo === null || typeof v.repo === 'string');
+
+export async function getTeamRecord(redis: Redis, id: string): Promise<TeamRecord | null> {
+  const r = parse<TeamRecord>(await redis.cmd('GET', teamRecordKey(id)), isRecord);
+  return r ? { ...r, storybook: typeof r.storybook === 'string' ? r.storybook : null } : null;
+}
+
+export async function putTeamRecord(redis: Redis, r: TeamRecord): Promise<void> {
+  await redis.pipe([['SET', teamRecordKey(r.id), JSON.stringify(r)], ...(r.repo ? [['SET', teamByRepoKey(r.repo), r.id]] : [])]);
+}
+
+export async function deleteTeamRecord(redis: Redis, r: TeamRecord): Promise<void> {
+  await redis.pipe([['DEL', teamRecordKey(r.id)], ...(r.repo ? [['DEL', teamByRepoKey(r.repo)]] : [])]);
+}
+
+/** Forgets what a team keeps under a key: its discovery (and the domain index), name and pending requests. */
+export async function forgetTeamKey(redis: Redis, key: string, now: number): Promise<void> {
+  const d = await getDiscovery(redis, key);
+  for (const r of await listRequests(redis, key, now)) await removeRequest(redis, key, r.email);
+  await redis.pipe([
+    ...(d ? [['SREM', domainKey(d.domain), lc(key)]] : []),
+    ['DEL', discoveryKey(key)],
+    ['DEL', requestsKey(key)],
+    ['DEL', teamNameKey(key)],
+  ]);
+}
+
+/** A team an action names: a repository, or the key of a team made in Bridge (`_team/<id>`). */
+export interface TeamRef {
+  owner: string;
+  repo: string;
+  /** Lower case: owner/repo, or `_team/<id>`. */
+  full: string;
+  /** The id of a team made in Bridge, else null. */
+  id: string | null;
+}
+
+/** A repository (owner/name) or a team key; anything else is the 400 of parseRepo. */
+export function parseTeam(v: unknown): TeamRef {
+  const id = typeof v === 'string' ? teamKeyId(v) : null;
+  if (id) return { owner: TEAM_KEY_OWNER, repo: id, full: teamKeyOf(id), id };
+  return { ...parseRepo(v), id: null };
+}
+
+/** The team an action names; a key whose team was linked to a repository since resolves to that repository. */
+export async function resolveTeam(redis: Redis, v: unknown): Promise<TeamRef> {
+  const t = parseTeam(v);
+  if (!t.id) return t;
+  const rec = await getTeamRecord(redis, t.id);
+  return rec?.repo ? parseTeam(rec.repo) : t;
 }
