@@ -468,6 +468,32 @@ repositories the Bridge app and the person share (`GET /user/installations`, the
 and for each one where they are admin, its collaborators and email members. Without that token the GitHub check is
 skipped: deleting a Bridge account never changes anything on GitHub, so the team keeps its GitHub admin either way.
 
+### Where to go after sign-in: `/api/entry`
+
+Once the account is verified, Studio calls `GET /api/entry` (account cookie; with the linked GitHub account's own
+token as `Authorization: Bearer` when it has one). The first rule that matches answers:
+
+1. `{ kind: 'teams', teams: [{ repo, name, role, via }] }`: email memberships, plus the repositories the Bridge app
+   shares with that GitHub account where it can push or administer (`via: 'github'`).
+2. `{ kind: 'invites', invites: [{ id, team, repo, role, invitedBy }] }`: invites sent to the account email.
+   `POST { action: 'accept-invite', repo, id }` joins at once (Can edit with the email; reviewer and admin need
+   linked GitHub, granted to the login read again from the GitHub id).
+3. `{ kind: 'domain', domain, teams: [{ repo, name, memberCount, adminName, requested }] }`: teams an admin opened
+   to the person's work domain. `POST { action: 'request', repo }` asks to join (an invite for that team is accepted
+   instead).
+4. `{ kind: 'create' }`.
+
+Discovery is an admin's choice per team: `POST { action: 'discovery', repo, enabled }` opens the team to the admin's
+own work domain (their account email), or closes it; `GET /api/entry?discovery=<repo>` says `{ domain, enabled,
+configured, eligible }`. Public mailbox domains (`apps/docs-site/api/_lib/domains.ts`) never match and cannot be
+opened. A request emails the team's admins that have a Bridge account; admins list them with
+`GET /api/entry?requests=<repo>` and answer with `POST { action: 'approve' | 'decline', repo, id }`. Approved people
+join with Can edit and get an email. Requests expire after 14 days, one per person and team, capped per person (10),
+network (30) and team (20) per day. Admins are checked on GitHub with the app on every call, matched by GitHub id.
+Every `POST` carries `X-Bridge-Contribute: 1` and an `Origin` of this site. Keys: `bridge:team:discovery:<repo>`,
+`bridge:team:domain:<domain>`, `bridge:joinreq:<repo>:<email>`, `bridge:joinreqs:<repo>`,
+`bridge:joinreq:mine:<email>`, and `bridge:invites:email:<email>` (invites by email, kept by the invite store).
+
 ### Codes, sessions and storage
 
 - **Codes**: 6 digits, 10 minutes, single use, one live code per email (a new one replaces the last). Stored only as
@@ -487,7 +513,7 @@ skipped: deleting a Bridge account never changes anything on GitHub, so the team
 
 A Vercel cron (`crons` in `apps/docs-site/vercel.json`, daily at 03:17 UTC) calls `GET /api/account?export=1` with
 `Authorization: Bearer $CRON_SECRET`. The function writes a JSON of `bridge:account:*`, `bridge:member:*`,
-`bridge:members:*` and `bridge:invite:*` (never codes or counters) to Vercel Blob as a private file,
+`bridge:members:*`, `bridge:invite:*` and `bridge:team:*` (never codes, counters or join requests) to Vercel Blob as a private file,
 `bridge-backups/accounts-<date>.json`, and keeps the last 30. Without `BLOB_READ_WRITE_TOKEN` it does nothing and
 logs a warning that names no one. Data stays in the Upstash region of each environment and in the Blob store's
 region; deleting an account removes it from Redis at once and from the backups within 30 days.

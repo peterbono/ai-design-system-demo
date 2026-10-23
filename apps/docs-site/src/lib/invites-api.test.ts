@@ -508,6 +508,8 @@ describe('services', () => {
         ['SET', 'bridge:invite-token:h', `${REPO}|${id}`, 'EX', 600],
         ['ZADD', 'bridge:invites:acme/design', T0 + 600_000, id],
         ['EXPIRE', 'bridge:invites:acme/design', INVITE_TTL_MS / 1000],
+        ['SADD', 'bridge:invites:email:x@y.co', `${REPO}|${id}`],
+        ['EXPIRE', 'bridge:invites:email:x@y.co', INVITE_TTL_MS / 1000],
       ],
     ]);
     // The stored record holds only what the flow needs.
@@ -516,6 +518,8 @@ describe('services', () => {
 
     await s.remove({ id, repo: REPO, tokenHash: 'h' } as never);
     expect(sentCmds.at(-1)![1]).toEqual([['DEL', `bridge:invite:acme/design:${id}`], ['DEL', 'bridge:invite-token:h'], ['ZREM', 'bridge:invites:acme/design', id]]);
+    await s.remove({ id, repo: REPO, email: 'X@y.co', tokenHash: 'h' } as never);
+    expect(sentCmds.at(-1)![1].at(-1)).toEqual(['SREM', 'bridge:invites:email:x@y.co', `${REPO}|${id}`]);
 
     // Listing drops ids whose record already expired.
     const listed = await s.list(REPO);
