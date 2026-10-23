@@ -790,7 +790,7 @@ export function createServer(ctx: BridgeContext): McpServer {
     'bridge_branch_status',
     {
       title: 'Branch status',
-      description: 'One branch in review as Studio shows it: its product, status (draft, in review, needs design or tech approval, blocked by tests, conflict, ready to merge, merged, closed), approvals, tests, how it stands against main, whether the person may merge it (same gate as the Merge button), and the next step. For the token diff and contrast, use bridge_get_review.',
+      description: 'One branch in review as Studio shows it: its product, status (draft, in review, needs design or tech approval, blocked by tests, conflict, ready to merge, merged, closed), approvals (Tier 1: one owner approval; a branch that applies an approved suggestion carries its approvals), tests, how it stands against main, whether the person may merge it (the same verdict as the Merge button and status chips in Studio), and the next step. For the token diff and contrast, use bridge_get_review.',
       inputSchema: { pr: Pr },
       annotations: READ,
     },
@@ -919,7 +919,7 @@ export function createServer(ctx: BridgeContext): McpServer {
     {
       title: 'Merge a branch',
       description:
-        'Merge a branch into main through the same gate as Studio\'s Merge button: tests pass, the approvals its tier needs, no changes requested, no conflict, not a draft or an exploration, and the person holds the right to ship (governance.rights). When it is blocked, the error says by what. Owner override: pass overrideReason when only approvals are missing and the person is in governance.override.allowed; the reason is posted on the branch first. Only when the person explicitly asked to merge; dryRun checks without merging. Needs GITHUB_TOKEN (contents and pull requests: write); GitHub\'s own branch rules still apply.',
+        'Merge a branch into main through the same gate as Studio\'s Merge button: tests pass, the approvals its tier needs (Tier 1: one owner approval; Tier 2 and 3: design and tech; a branch that applies an approved suggestion with Closes #n carries its approvals while the suggestion stays approved and the tier is not higher), no changes requested, no conflict, not a draft or an exploration, and the person holds the right to ship (governance.rights). When it is blocked, the error says by what. Owner override: pass overrideReason when only approvals are missing and the person is an owner named in governance.override.allowed; the reason is always required (at least minReasonLength characters, 20 by default) and posted on the branch first. Only when the person explicitly asked to merge; dryRun checks without merging. Needs GITHUB_TOKEN (contents and pull requests: write); GitHub\'s own branch rules still apply.',
       inputSchema: {
         pr: Pr,
         overrideReason: z.string().optional().describe('Owner override only: why it merges without the missing approvals (at least the configured length). Posted on the branch.'),
@@ -973,7 +973,7 @@ export function createServer(ctx: BridgeContext): McpServer {
     {
       title: 'Save component docs',
       description:
-        "Save a component's usage guidance (docs.json sections: summary, whenToUse, whenNotToUse, dos, donts, accessibility, contentGuidelines, anatomy, preview) the way the Library edit mode does: merged into the docs on the branch, cleaned and checked (a summary, no empty items, no em dash). Without pr: a new branch sent for review (docs only: one approval, patch release note), with an optional Jira key and product. With pr: one commit on that open branch. Suggest mode (the default unless bridge.config.json says \"changes\": \"direct\"), without pr: a docs suggestion issue instead of a branch (Issues write only). dryRun returns the file. Direct mode needs GITHUB_TOKEN (contents and pull requests: write). Prose you drafted carries \"draftedBy\": \"claude\" and \"needsReview\": true so a reviewer accepts it in Studio.",
+        "Save a component's usage guidance (docs.json sections: summary, whenToUse, whenNotToUse, dos, donts, accessibility, contentGuidelines, anatomy, preview) the way the Library edit mode does: merged into the docs on the branch, cleaned and checked (a summary, no empty items, no em dash). Without pr: a new branch sent for review (docs only: one owner approval, patch release note), with an optional Jira key and product. With pr: one commit on that open branch. Suggest mode (the default unless bridge.config.json says \"changes\": \"direct\"), without pr: a docs suggestion issue instead of a branch (Issues write only). dryRun returns the file. Direct mode needs GITHUB_TOKEN (contents and pull requests: write). Prose you drafted carries \"draftedBy\": \"claude\" and \"needsReview\": true so a reviewer accepts it in Studio.",
       inputSchema: {
         component: z.string().min(1).describe('Component name, e.g. Button.'),
         docs: z.record(z.string(), z.unknown()).describe('The sections to set, in docs.json shapes: summary a string; whenToUse, whenNotToUse, accessibility, contentGuidelines lists of strings; dos and donts lists of {"title","text"}.'),

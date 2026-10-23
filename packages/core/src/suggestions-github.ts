@@ -168,6 +168,35 @@ export async function getSuggestionOnGitHub(gh: GitHubClient, n: number, gov: Su
   return { issue, parsed, comments, approvals, linkedPrs, applied, status };
 }
 
+/** An approved Bridge suggestion a pull request applies: its number, approvals and the tier they were given at. */
+export interface ApprovedSuggestion {
+  number: number;
+  approvals: SuggestionApprovals;
+  tier: 1 | 2 | 3;
+}
+
+/**
+ * The approved Bridge suggestion a pull request applies, from the issues its body closes ("Closes #n", the first three):
+ * its approvals and the tier they were given at, for branchVerdict (withSuggestionApprovals). Null when it closes
+ * none, or none is an approved suggestion. Studio, the MCP server and the CLI read it through this one call. A read
+ * that fails counts as no suggestion: the pull request then needs its own approvals, never fewer.
+ */
+export async function approvedSuggestionOnGitHub(gh: GitHubClient, body: string | null | undefined, gov: SuggestionGovernance): Promise<ApprovedSuggestion | null> {
+  for (const n of closingIssueNumbers(body).slice(0, 3)) {
+    const found = await approvedSuggestionNumber(gh, n, gov).catch(() => null);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** One issue: the approved suggestion it holds, or null (not a suggestion, not approved). Throws when it cannot be read. */
+export async function approvedSuggestionNumber(gh: GitHubClient, n: number, gov: SuggestionGovernance): Promise<ApprovedSuggestion | null> {
+  const d = await getSuggestionOnGitHub(gh, n, gov, { pulls: [] });
+  if (!d.parsed.ok || !d.approvals) return null;
+  const tier = d.parsed.payload.tier.tier;
+  return suggestionReviewState(tier, d.approvals) === 'approved' ? { number: n, approvals: d.approvals, tier } : null;
+}
+
 /**
  * Keeps exactly one status label on the issue, the one the status calls for (suggestionLabelChanges): an open state
  * label while open, the final label ("suggestion: applied", "suggestion: declined") once closed, the old ones removed.

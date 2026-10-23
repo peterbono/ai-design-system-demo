@@ -10,7 +10,7 @@ import {
   askOthersToReviewOnGitHub,
   commentOnGitHub,
   reviewersToAsk,
-  approverEntries,
+  approverLists,
   baseBranchOf,
   DEFAULT_OVERRIDE,
   canAddTo,
@@ -20,13 +20,11 @@ import {
   commitLibraryResolution,
   defaultProduct,
   effectiveTier,
-  expandOwners,
   findProduct,
   freshness,
   hasWriteAccess,
   isActiveExploration,
   MAX_TOGETHER,
-  mergeGate,
   mergeOnGitHub,
   markSuggestionsAppliedOnGitHub,
   MIN_TOGETHER,
@@ -48,7 +46,6 @@ import {
   CI_STATE_LABEL,
   reviewOnGitHub,
   reviewQueue,
-  reviewStatusKind,
   shareMessage,
   shareState,
   shipPolicy,
@@ -64,6 +61,13 @@ import {
   tryTogetherUrl,
   branchPreviewUrls,
   allowedMergeMethods,
+  approvedSuggestionOnGitHub,
+  branchVerdict,
+  closingIssueNumbers,
+  eligibleReviewers,
+  hasOwnerApproval,
+  overrideReasonMin,
+  type SuggestionGovernance,
   type BridgeConfig,
   type ChangeLifecycle,
   type GitHubClient,
@@ -118,8 +122,12 @@ const lifecycleOf = (state: string, draft: boolean): ChangeLifecycle => (state =
 async function people(gh: GitHubClient, config: BridgeConfig) {
   const { owners, rights } = config.governance;
   const teams = await new TeamDirectory(gh).resolve(owners).catch(() => undefined);
-  const lists = expandOwners(approverEntries(owners, rights), teams);
-  return { lists, ship: shipPolicy(owners, rights, teams), solo: config.governance.soloOwnerCanApproveBoth ? soloApprover(lists) : null };
+  // The approver lists as Studio reads them (core approverLists: rights applied, teams expanded once read).
+  const lists = approverLists(owners, rights, teams ?? null);
+  // The governance a suggestion's approvals are counted with, as Studio reads it (an approved suggestion's approvals
+  // carry to the pull request that applies it).
+  const gov: SuggestionGovernance = { owners, rights: rights ?? null, ...(teams ? { teams } : {}), ...(config.governance.soloOwnerCanApproveBoth ? { soloOwnerCanApproveBoth: true } : {}) };
+  return { lists, gov, ship: shipPolicy(owners, rights, teams), solo: config.governance.soloOwnerCanApproveBoth ? soloApprover(lists) : null };
 }
 
 /** The viewer of the token, or null without one (or when GitHub does not say). */
@@ -146,21 +154,28 @@ export async function branchFacts(ctx: BridgeContext, gh: GitHubClient, n: numbe
     runs.map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion, ...(r.url ? { html_url: r.url } : {}) })),
     statuses.map((s) => ({ context: s.context, state: s.state, target_url: s.target_url })),
   );
-  const approvals = summarizeApprovals(
+  const own = summarizeApprovals(
     reviews.map((r) => ({ user: r.user ? { login: r.user } : null, state: r.state, submitted_at: r.submittedAt ?? null })),
     who.lists,
     pr.author,
-    { soloOwnerCanApproveBoth: Boolean(who.solo) },
+    { soloOwnerCanApproveBoth: config.governance.soloOwnerCanApproveBoth === true },
   );
   const tier = effectiveTier(labels, pr.body, files);
   const merged = pr.state === 'merged';
   const pullLike = { state: merged ? 'closed' : pr.state, draft: pr.draft, merged_at: merged ? 'merged' : null };
   const exploration = isActiveExploration(pr.labels);
-  const gate = mergeGate({ tier, ci, approvals, draft: pr.draft, mergeable: pr.mergeable, state: pullLike.state, merged_at: pullLike.merged_at, viewer, override: config.governance.override, exploration, ship: who.ship });
-  const status: ReviewStatusKind = reviewStatusKind({ ...pullLike, ci, approvals, tier, mergeable: pr.mergeable });
+  // The pull request that applies an approved suggestion ("Closes #n") carries its approvals, as in Studio.
+  const suggestion = closingIssueNumbers(pr.body).length ? await approvedSuggestionOnGitHub(gh, pr.body, who.gov) : null;
+  // One verdict (core branchVerdict), the one Studio's branch page and status chips read: Tier 1 needs one owner
+  // approval, the override is for its owner holders only, an applied suggestion's approvals carry.
+  const verdict = branchVerdict({ tier, ci, approvals: own, suggestion, owners: who.lists, override: config.governance.override ?? DEFAULT_OVERRIDE, mergeable: pr.mergeable, ...pullLike, viewer, exploration, ship: who.ship });
+  const approvals = verdict.approvals!;
+  const gate = verdict.gate!;
+  const status: ReviewStatusKind = verdict.status;
+  const override = verdict.override ?? DEFAULT_OVERRIDE;
   const fresh = freshness({ compare: compare ? { behind_by: compare.behindBy, merge_base_commit: compare.mergeBase ? { sha: compare.mergeBase } : null } : null, mergeable: pr.mergeable, open: pr.state === 'open' });
   const product = productOfBranch(productsOf(config), { files: files.map((f) => f.filename), labels: pr.labels });
-  return { config, pr, files, ci, approvals, tier, gate, status, fresh, compare, exploration, product, lifecycle: pullState(pullLike), write: repo ? hasWriteAccess(repo.permissions) : null, repo, solo: who.solo };
+  return { config, pr, files, ci, approvals, tier, gate, status, override, suggestion, fresh, compare, exploration, product, lifecycle: pullState(pullLike), write: repo ? hasWriteAccess(repo.permissions) : null, repo, solo: who.solo, lists: who.lists };
 }
 
 // The status words Studio shows too (core REVIEW_STATUS_LABEL): one derivation (reviewStatusKind), one vocabulary.
@@ -182,8 +197,8 @@ export async function branchStatus(ctx: BridgeContext, a: { pr: number | string 
     product: { key: f.product.key, name: f.product.name },
     lifecycle: f.lifecycle,
     status: { kind: f.status, label: STATUS_WORDS[f.status] },
-    approvalNeeded: f.tier === 1 ? 'One approval' : 'Design and tech approval',
-    approvals: { approvedBy: f.approvals.approvers, changesRequestedBy: f.approvals.changesRequested, design: f.approvals.design, tech: f.approvals.tech, ...(f.solo && (f.tier ?? 3) > 1 ? { soloOwner: soloOwnerSentence(f.solo, Boolean(viewer && viewer.toLowerCase() === f.solo)) } : {}) },
+    approvalNeeded: f.tier === 1 ? 'One owner approval' : 'Design and tech approval',
+    approvals: { approvedBy: f.approvals.approvers, changesRequestedBy: f.approvals.changesRequested, design: f.approvals.design, tech: f.approvals.tech, owner: hasOwnerApproval(f.approvals), ...(f.suggestion ? { carriedFrom: `Suggestion #${f.suggestion.number}: its approvals count here (it applies that approved suggestion).` } : {}), ...(f.solo && (f.tier ?? 3) > 1 ? { soloOwner: soloOwnerSentence(f.solo, Boolean(viewer && viewer.toLowerCase() === f.solo)) } : {}) },
     tests: { state: f.ci.state, label: CI_STATE_LABEL[f.ci.state], failing: f.ci.failed.map((x) => x.name), running: f.ci.pending.map((x) => x.name) },
     main: { state: f.fresh.state, behindBy: f.fresh.behindBy },
     merge: {
@@ -203,9 +218,17 @@ function nextStep(ctx: BridgeContext, f: Awaited<ReturnType<typeof branchFacts>>
   if (f.lifecycle === 'draft') return `Draft: ${say(ctx, 'bridge_send_for_review', `\`bridge branch ready ${n}\``)} asks for review when it is ready.`;
   if (f.fresh.state === 'conflict') return `It conflicts with main: ${say(ctx, 'bridge_update_from_main', `\`bridge branch update ${n}\``)} shows the token conflicts to pick (code conflicts stay with a developer).`;
   if (f.gate.allowed) return viewer ? `Ready: ${say(ctx, 'bridge_merge_branch merges it when the person asks', `\`bridge branch merge ${n}\` merges it`)}.` : 'Ready to merge by someone who may ship.';
-  const min = (f.config.governance.override ?? DEFAULT_OVERRIDE).minReasonLength;
+  const min = overrideReasonMin(f.override);
   if (f.gate.overridable) return `Only approvals are missing and you may use the owner override: ${say(ctx, `bridge_merge_branch with a reason (overrideReason) of at least ${min} characters`, `\`bridge branch merge ${n} --override "why"\` with a reason of at least ${min} characters`)}.`;
   return f.gate.reasons[0] ?? 'Waiting.';
+}
+
+/** Whether the viewer can give the missing Tier 1 approval: an owner who has not approved yet (core eligibleReviewers). */
+function canGiveApproval(f: Awaited<ReturnType<typeof branchFacts>>, viewer: string): boolean {
+  const e = eligibleReviewers('approval', { owners: f.lists, author: f.pr.author, approvers: f.approvals.approvers });
+  const v = viewer.toLowerCase();
+  if (f.approvals.approvers.some((x) => x.toLowerCase() === v) || f.pr.author.toLowerCase() === v) return false;
+  return e.open || e.logins.some((l) => l.toLowerCase() === v);
 }
 
 /**
@@ -231,7 +254,7 @@ export async function whatNeedsMe(ctx: BridgeContext, a: { limit?: number | unde
       if (viewer && !mine) {
         if (f.status === 'needs-design' && inDesign) needsYou = 'Your design approval';
         else if (f.status === 'needs-tech' && inTech) needsYou = 'Your tech approval';
-        else if (f.status === 'needs-approval' && !f.approvals.approvers.some((x) => same(x, viewer))) needsYou = 'Your approval';
+        else if (f.status === 'needs-approval' && canGiveApproval(f, viewer)) needsYou = 'Your approval';
         else if (f.status === 'ready' && f.gate.canShip) needsYou = 'Ready for you to merge';
       }
       if (viewer && mine) {
@@ -467,8 +490,9 @@ const appliedLine = (ns: number[]) => (ns.length ? ` ${ns.length === 1 ? 'Sugges
 
 /**
  * Merge, through the same gate as Studio's Merge button (tests, approvals for the tier, who may ship, conflicts,
- * drafts and explorations). With `overrideReason`, the owner override: only missing approvals are skipped, the reason is
- * posted on the branch first, and only people in governance.override.allowed may use it.
+ * drafts and explorations; core branchVerdict). With `overrideReason`, the owner override: only missing approvals are
+ * skipped, the reason (always required, at least `minReasonLength` characters, 20 by default) is posted on the branch
+ * first, and only the owners governance.override.allowed names may use it.
  */
 export async function mergeBranch(ctx: BridgeContext, a: { pr: number | string; overrideReason?: string | undefined; dryRun?: boolean | undefined }) {
   const n = branchNumber(a.pr);
@@ -484,7 +508,9 @@ export async function mergeBranch(ctx: BridgeContext, a: { pr: number | string; 
   const gh = await writer(ctx, 'Merging a branch', RIGHTS.merge);
   const viewer = (await gh.getViewer()).login;
   const f = await branchFacts(ctx, gh, n, viewer);
-  const policy = f.config.governance.override ?? DEFAULT_OVERRIDE;
+  // The override as the gate reads it: its owner holders only (core ownerOverridePolicy, through branchVerdict).
+  const policy = f.override;
+  const min = overrideReasonMin(policy);
   const reason = a.overrideReason?.trim();
   if (f.write === false) throw new BlockedError(`@${viewer} cannot write to ${gh.fullName}, so GitHub refuses the merge. Ask someone with write access.`);
   if (f.gate.allowed) {
@@ -494,13 +520,13 @@ export async function mergeBranch(ctx: BridgeContext, a: { pr: number | string; 
     return { pr: n, status: 'merged' as const, sha: r.sha, said: `Merged. It goes out with the next library release.${appliedLine(s.applied)}`, ...(s.warnings.length ? { warnings: s.warnings } : {}) };
   }
   if (!reason) {
-    const how = say(ctx, `pass overrideReason (at least ${policy.minReasonLength} characters)`, `run \`bridge branch merge ${n} --override "why"\` (a reason of at least ${policy.minReasonLength} characters)`);
+    const how = say(ctx, `pass overrideReason (at least ${min} characters)`, `run \`bridge branch merge ${n} --override "why"\` (a reason of at least ${min} characters)`);
     const hint = f.gate.overridable ? ` Only approvals are missing and @${viewer} may use the owner override: ${how}, it is posted on the branch.` : '';
     const said = `#${n} cannot be merged yet: ${f.gate.reasons.join(' ')}${hint}`;
     if (a.dryRun) return { pr: n, status: 'blocked' as const, blockedBy: f.gate.reasons, said };
     throw new BlockedError(said);
   }
-  if (!canOverride(viewer, policy)) throw new BlockedError(`@${viewer} is not allowed to use the owner override (governance.override.allowed in bridge.config.json). It still needs: ${f.gate.missing.join(', ') || f.gate.reasons.join(' ')}`);
+  if (!canOverride(viewer, policy)) throw new BlockedError(`@${viewer} is not allowed to use the owner override: only the owners governance.override.allowed names in bridge.config.json may use it. It still needs: ${f.gate.missing.join(', ') || f.gate.reasons.join(' ')}`);
   if (!f.gate.overridable) throw new BlockedError(`The owner override only skips missing approvals. #${n} is blocked by: ${f.gate.reasons.join(' ')}`);
   const problem = overrideReasonProblem(reason, policy);
   if (problem) throw new Error(problem);

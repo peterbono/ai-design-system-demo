@@ -7,7 +7,8 @@
 // Words and rules: lib/suggestions-view.ts.
 import {
   closingIssueNumbers,
-  suggestionReviewState,
+  approvedSuggestionNumber,
+  type ApprovedSuggestion,
   declineReasonProblems,
   declineSuggestionOnGitHub,
   getSuggestionOnGitHub,
@@ -81,22 +82,18 @@ async function governance(): Promise<SuggestionGovernance> {
 // ---------------------------------------------------------------------------------------------------------------
 // The pull request that applies a suggestion carries its approvals (core withSuggestionApprovals)
 
-const applied = new Map<number, Promise<{ number: number; approvals: SuggestionDetail['approvals'] & {}; tier: 1 | 2 | 3 } | null>>();
+const applied = new Map<number, Promise<ApprovedSuggestion | null>>();
 
 /**
  * The approved Bridge suggestion a pull request applies, from the issues its body closes ("Closes #n"), read once per
- * page: its approvals and the tier they were given at. Null when it closes none, or none is an approved suggestion.
+ * page: its approvals and the tier they were given at (core approvedSuggestionNumber, the read the MCP server and the
+ * CLI make too). Null when it closes none, or none is an approved suggestion.
  */
-export async function approvedSuggestionOf(body: string | null | undefined): Promise<{ number: number; approvals: SuggestionDetail['approvals'] & {}; tier: 1 | 2 | 3 } | null> {
+export async function approvedSuggestionOf(body: string | null | undefined): Promise<ApprovedSuggestion | null> {
   for (const n of closingIssueNumbers(body).slice(0, 3)) {
     let p = applied.get(n);
     if (!p) {
-      p = (async () => {
-        const d = await getSuggestionOnGitHub(client(), n, await governance(), { pulls: [] });
-        if (!d.parsed.ok || !d.approvals) return null;
-        const tier = d.parsed.payload.tier.tier;
-        return suggestionReviewState(tier, d.approvals) === 'approved' ? { number: n, approvals: d.approvals, tier } : null;
-      })().catch(() => null);
+      p = (async () => approvedSuggestionNumber(client(), n, await governance()))().catch(() => null);
       applied.set(n, p);
     }
     const found = await p;

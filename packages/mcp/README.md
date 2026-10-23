@@ -53,7 +53,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 | `bridge_ask_someone_else` | writes | Ask the other people who can give the missing approvals to review a branch, as "Ask someone else to review" in the Studio review queue, and take the person off its requested reviewers. |
 | `bridge_audit` | reads | Measure how a product codebase uses this design system (local only). |
 | `bridge_back_to_draft` | writes | Take a branch out of review back to draft, as in Studio's More menu. |
-| `bridge_branch_status` | reads | One branch in review as Studio shows it: its product, status (draft, in review, needs design or tech approval, blocked by tests, conflict, ready to merge, merged, closed), approvals, tests, how it stands against main, whether the person may merge it (same gate as the Merge button), and the next step. |
+| `bridge_branch_status` | reads | One branch in review as Studio shows it: its product, status (draft, in review, needs design or tech approval, blocked by tests, conflict, ready to merge, merged, closed), approvals (Tier 1: one owner approval; a branch that applies an approved suggestion carries its approvals), tests, how it stands against main, whether the person may merge it (the same verdict as the Merge button and status chips in Studio), and the next step. |
 | `bridge_check_contrast` | reads | Run the repo's WCAG contrast gate (every pair in every brand x theme). |
 | `bridge_close_branch` | writes | Close a branch without merging it, as in Studio's More menu. |
 | `bridge_close_exploration` | writes | Close an exploration without merging it, as in Studio. |
@@ -87,7 +87,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 | `bridge_list_suggestions` | reads | Suggestions in the repo: GitHub issues labeled bridge-suggestion, each an exact change (tokens, docs, a component spec, a brand, a revert, settings) that the owners approve and a developer applies. |
 | `bridge_list_tokens` | reads | List tokens with their resolved CSS value in one mode. |
 | `bridge_mark_figma_change_drafted` | writes | After you pushed the code for a component change from Figma to its branch: label it drafted-by-claude (no longer waiting-for-claude) and say so in its description, for a person to review. |
-| `bridge_merge_branch` | writes | Merge a branch into main through the same gate as Studio's Merge button: tests pass, the approvals its tier needs, no changes requested, no conflict, not a draft or an exploration, and the person holds the right to ship (governance.rights). |
+| `bridge_merge_branch` | writes | Merge a branch into main through the same gate as Studio's Merge button: tests pass, the approvals its tier needs (Tier 1: one owner approval; Tier 2 and 3: design and tech; a branch that applies an approved suggestion with Closes #n carries its approvals while the suggestion stays approved and the tier is not higher), no changes requested, no conflict, not a draft or an exploration, and the person holds the right to ship (governance.rights). |
 | `bridge_missing_pieces` | writes | Check a product branch (an exploration started for a product) against the library: the adoption audit on each product file it changes, at its start and at its head, keeps what the branch added. |
 | `bridge_open_library_branch` | writes | Turn one recorded missing piece into a library branch linked to the product branch, as Bridge Studio does: a token piece opens a token change (same gate and body as bridge_propose_token_change, a draft for design and tech review) and the product branch takes its preview; a variant opens a library exploration with the brief to build it (build it there, then bridge_use_library_preview); a new component opens a component request. |
 | `bridge_pending_drafts` | reads | Change texts a designer asked their own Claude to write from the DS Bridge Figma plugin ("Draft with my Claude"), waiting on the bridge-requests branch. |
@@ -122,6 +122,16 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 Resources: `bridge://tokens/resolved`, `bridge://design-language`, `bridge://guidelines`,
 `bridge://components/{name}`. Prompts: `review-token-pr`, `add-component`, `audit-ui-for-tokens`,
 `migrate-file-to-ds`.
+
+### The merge gate is Studio's
+
+`bridge_branch_status`, `bridge_merge_branch` and `bridge_what_needs_me` (and `bridge branch status|merge|list` in the
+CLI) read the same verdict as Studio's branch page and status chips: `branchVerdict` in `@bridge-ds/core`. Tier 1
+needs one owner approval; Tier 2 and 3 a design owner and a tech owner. A branch whose body says `Closes #<n>` for an
+approved suggestion carries that suggestion's approvals while it stays approved and the branch's tier is not higher.
+The owner override (`overrideReason`) is for owners named in `governance.override.allowed` only, skips missing
+approvals only, and always needs a reason of at least `minReasonLength` characters (20 by default). See
+[GOVERNANCE.md](../../docs/GOVERNANCE.md#one-verdict-everywhere).
 
 ## Configuration
 

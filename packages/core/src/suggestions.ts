@@ -508,7 +508,7 @@ function checksSection(p: SuggestionPayloadV1, max: number): string[] {
     '',
     `- Token validation: ${c.newErrors ? `**${c.newErrors} new error(s)**` : 'no new errors'}`,
     `- Contrast: ${c.contrast.length ? (failing.length ? `**${failing.length} failing pair(s)**` : `${c.contrast.length} pair(s) checked, all pass`) : 'no pair affected'}`,
-    `- Risk tier: ${p.tier.tier} (\`${p.tier.bump}\`), ${p.tier.tier === 1 ? 'one approval' : 'design and tech approval'}`,
+    `- Risk tier: ${p.tier.tier} (\`${p.tier.bump}\`), ${p.tier.tier === 1 ? 'one owner approval' : 'design and tech approval'}`,
     `- Impact: ${c.impact ? `${c.impact} token(s) resolve to a new value` : 'no other token changes value'}`,
     '',
     ...(rows.length ? [...table(['Pair', 'Mode', 'Before', 'After', 'Min', 'Result'], rows, max), ''] : []),
