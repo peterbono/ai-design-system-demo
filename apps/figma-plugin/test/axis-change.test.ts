@@ -140,6 +140,9 @@ test('the code adds an axis, then drops a value, then removes the axis: every se
     assert.equal(new Set(set(name).children.map((c) => c.name)).size, set(name).children.length, `${name}: no two variants alike`);
   }
   assert.equal(set('Checklist').children.filter((c) => !isOrphan(c))[0]!.name, LONE_VARIANT);
+  // A review or a Push lists the set's values, not the orphans' "(removed)" ones.
+  const defs = (await readComponent(set('Kbd') as unknown as ComponentSetNode)).definitions;
+  assert.ok(defs.every((d) => !(d.options ?? []).some((o) => o.includes('(removed'))), JSON.stringify(defs));
   assert.equal(instance.mainId, used.id);
   assert.deepEqual(pendingComponents(fourth.again), []);
   assert.deepEqual(sim.loose(), []);

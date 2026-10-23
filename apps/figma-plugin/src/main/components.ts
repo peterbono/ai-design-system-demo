@@ -4,7 +4,7 @@
 import { type RawBinding, type RawComponent, type RawLayer, type RawVariant, buildSignature, fnv1a, bindingKind, parseSignature, propName } from '../sync/components';
 import { EXPERIMENTAL_KEY, PUSHED_KEY, type ScannedComponentsPayload } from '../shared/messages';
 import { variantKeyOf } from '@bridge-ds/core';
-import { LONE_VARIANT, propsOfKey } from '../sync/component-pull';
+import { LONE_VARIANT, isRemovedValue, propsOfKey } from '../sync/component-pull';
 
 const NS = 'dsbridge';
 const SIGNATURE_KEY = 'signature';
@@ -148,7 +148,8 @@ async function readDefinitions(node: ComponentSetNode | ComponentNode): Promise<
       const target = await figma.getNodeByIdAsync(d.defaultValue).catch(() => null);
       def = target?.name ?? def;
     }
-    out.push({ name, type: d.type, default: def, ...(d.variantOptions ? { options: [...d.variantOptions] } : {}) });
+    // A value only an orphan has ("tone1 (removed)") is not one of the set's values.
+    out.push({ name, type: d.type, default: def, ...(d.variantOptions ? { options: d.variantOptions.filter((o) => !isRemovedValue(o)) } : {}) });
   }
   return out;
 }

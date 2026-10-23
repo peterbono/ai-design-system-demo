@@ -117,6 +117,11 @@ export function propsOfKey(key: string): Record<string, string> {
   return out;
 }
 
+/** Marks an orphan's value when its name would be taken ("md (removed)", "md (removed 2)"). */
+const REMOVED_MARK = '(removed)';
+/** A value only an orphan has because of its "(removed)" mark: not one of the set's values for a review or a Push. */
+export const isRemovedValue = (value: string) => / \(removed( \d+)?\)$/.test(value);
+
 export interface VariantMatch {
   /** Planned variant key -> id of the Figma variant that becomes it (same node: its instances and overrides follow). */
   reuse: Map<string, string>;
@@ -162,7 +167,7 @@ export function matchVariants(existing: readonly { id: string; key: string }[], 
     const props = project(propsOfKey(e.key));
     let name = nameOf(props);
     for (let n = 1; taken.has(name); n++) {
-      const mark = n === 1 ? ' (removed)' : ` (removed ${n})`;
+      const mark = n === 1 ? ` ${REMOVED_MARK}` : ` (removed ${n})`;
       name = lone ? `${LONE_VARIANT}${mark}` : nameOf({ ...props, [axes[0]!.name]: `${props[axes[0]!.name]}${mark}` });
     }
     taken.add(name);
