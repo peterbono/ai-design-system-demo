@@ -5,6 +5,7 @@
   "buildCommand": "cd ../.. && npm run docs:build",
   "outputDirectory": "dist",
   "ignoreCommand": "node ../../scripts/vercel-ignore.mjs docs",
+  "git": { "deploymentEnabled": { "agent/**": false, "test/**": false, "changeset-release/**": false } },
   "crons": [{ "path": "/api/account?export=1", "schedule": "17 3 * * *" }],
   "redirects": [
     {"source": "/library/peterbono/ai-design-system-demo/components/", "has": [{"type": "query", "key": "c", "value": "(?<slug>[a-z0-9][a-z0-9-]*)"}], "destination": "/components/:slug/", "permanent": false},
