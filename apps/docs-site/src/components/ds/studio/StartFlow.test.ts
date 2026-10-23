@@ -93,6 +93,40 @@ describe('the browser workspace setup', () => {
   });
 });
 
+describe('the setup steps, in order and by keyboard', () => {
+  it('puts the open step before the checklist in the page', () => {
+    const { container } = render(createElement(Onboarding, { steps: steps('ann'), name: 'Ann', initial: 'library', ctx, actions: actions() }));
+    const panel = screen.getByRole('heading', { level: 2, name: 'Connect your design system' });
+    const list = screen.getByRole('list', { name: 'Setup steps' });
+    expect(panel.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(container.querySelector('h1')!.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('moves focus to the new step and keeps it in the address, so a reload opens it again', async () => {
+    window.history.replaceState(null, '', '/studio/workspace/?setup=library&x=1');
+    render(createElement(Onboarding, { steps: steps('ann'), name: 'Ann', initial: 'library', ctx, actions: actions() }));
+    expect(window.location.search).toBe('?setup=library&x=1');
+    await userEvent.setup().click(screen.getByRole('button', { name: /Name your team|Continue/ }));
+    const heading = screen.getAllByRole('heading', { level: 2 })[0]!;
+    expect(document.activeElement).toBe(heading);
+    expect(new URLSearchParams(window.location.search).get('setup')).not.toBe('library');
+    expect(new URLSearchParams(window.location.search).get('x')).toBe('1');
+    window.history.replaceState(null, '', '/');
+  });
+
+  it('folds the checklist on a phone', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query, addEventListener: () => undefined, removeEventListener: () => undefined }));
+    const { container } = render(createElement(Onboarding, { steps: steps('ann'), name: 'Ann', initial: 'library', ctx, actions: actions() }));
+    const toggle = screen.getByRole('button', { name: /All setup steps/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('list', { name: 'Setup steps' })).toBeNull();
+    await userEvent.setup().click(toggle);
+    expect(screen.getByRole('list', { name: 'Setup steps' })).toBeInTheDocument();
+    await expectNoAxeViolations(container);
+    vi.unstubAllGlobals();
+  });
+});
+
 describe('the demo banner (board EmptyA2)', () => {
   it('leads a visitor with a workspace back to it', async () => {
     const { container } = render(createElement(DemoBanner, { repoUrl: 'https://github.com/peterbono/bridge-demo-ds', onUseOwn: () => undefined, back: { href: '/studio/workspace/', connect: false } }));

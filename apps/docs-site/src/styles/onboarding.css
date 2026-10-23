@@ -6,22 +6,53 @@
 
 .onb {
   display: grid;
-  gap: var(--space-10);
+  gap: var(--space-6);
   max-width: var(--studio-page-max);
 }
 
+/* The open step first in the page, then the checklist; on wide screens the title and the checklist sit on the left. */
 @media (min-width: 1100px) {
   .onb {
     grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      'head main'
+      'side main';
     align-items: start;
-    gap: var(--space-16);
+    gap: var(--space-5) var(--space-16);
+  }
+
+  .onb-head {
+    grid-area: head;
+  }
+
+  .onb-main {
+    grid-area: main;
+  }
+
+  .onb-side {
+    grid-area: side;
   }
 }
 
+.onb-head,
 .onb-side {
   display: grid;
   align-content: start;
   gap: var(--space-5);
+}
+
+/* On a phone the open step comes right under the title: the drawing waits for a wider screen. */
+@media (max-width: 1099px) {
+  .onb-art {
+    display: none;
+  }
+}
+
+/* The team name field shows the same focus ring as every other control of the step. */
+.onb-field:focus-within {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .onb-art {

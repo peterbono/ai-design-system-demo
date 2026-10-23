@@ -17,10 +17,10 @@
 // Signed in with a Bridge account, it is "Create your team" (boards E6 and E7a): step 1 names the team and, for a work
 // email, offers "Let people with @acme.com find this team" (checked); a public email gets one line instead. Under the
 // steps, "Expecting an invite?" names the email to give the design lead. Step 2 asks for GitHub only to link the repo.
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, ChevronDown, Copy } from 'lucide-react';
 import { bridgeMcpInstallCommand, type ChangesMode, type RepoAccessState } from '@bridge-ds/core';
-import { Badge, Button, Card, CardBody, Checkbox, CodeBlock, Icon, Input, Link, Popover, PopoverContent, PopoverTrigger, Progress } from '@bridge-ds/react';
+import { Accordion, AccordionItem, Badge, Button, Card, CardBody, Checkbox, CodeBlock, Icon, Input, Link, Popover, PopoverContent, PopoverTrigger, Progress } from '@bridge-ds/react';
 import { Drawing } from './Drawing';
 import ButtonLink from '../ButtonLink';
 import { ChangesChoices, DevelopersGet } from './ChangesMode';
@@ -29,7 +29,7 @@ import { TeamField } from './TeamLauncher';
 import { TeamLink, useCopy } from './TeamLink';
 import { askInstallMessage, installUrl } from '../../../lib/access-view';
 import type { WorkspaceStorybook } from '../../../lib/workspace';
-import { doneCount, doneSummary, firstRunTitle, onboardingKey, onboardingSteps, parseMemory, progressLabel, readMemoryText, STEP_IDS, STEP_LINE, STEP_TITLE, type OnboardingMemory, type Step, type StepId } from '../../../lib/onboarding';
+import { doneCount, doneSummary, firstRunTitle, onboardingKey, onboardingSteps, parseMemory, progressLabel, readMemoryText, STEP_IDS, STEP_LINE, STEP_TITLE, withSetupStep, type OnboardingMemory, type Step, type StepId } from '../../../lib/onboarding';
 import { CHANGES_CHOICE } from '../../../lib/settings-view';
 import { VOCAB } from '../../../lib/vocabulary';
 import { STUDIO_ROOT, studioHref } from '../../../lib/team-path';
@@ -146,7 +146,8 @@ function Panel({ step, total, title, lead, children, footer }: { step: Step; tot
           <p className="onb-quiet">
             Step {step.n} of {total}
           </p>
-          <h2 id="onb-panel-title" className="onb-h2">
+          {/* tabIndex -1: focus lands here when another step opens, so keyboard and screen reader users follow. */}
+          <h2 id="onb-panel-title" className="onb-h2" tabIndex={-1}>
             {title}
           </h2>
           <p className="onb-lead">{lead}</p>
@@ -363,6 +364,16 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
   const total = steps.length;
   const { onOpen } = actions;
   useEffect(() => onOpen?.(open), [open, onOpen]);
+  // Another step opened (not the first paint): focus goes to its title, and an address with ?setup= follows it, so a
+  // reload opens the same step.
+  const shown = useRef(open);
+  useEffect(() => {
+    if (shown.current === open) return;
+    shown.current = open;
+    document.getElementById('onb-panel-title')?.focus();
+    if (new URLSearchParams(location.search).has('setup')) history.replaceState(history.state, '', `${location.pathname}${withSetupStep(location.search, open)}${location.hash}`);
+  }, [open]);
+  const narrow = useNarrow();
   const next = () => {
     const i = steps.findIndex((s) => s.id === open);
     const after = steps.slice(i + 1).find((s) => s.state !== 'done') ?? steps[i + 1];
@@ -450,6 +461,7 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
           >
             <Input
               id="onb-new-team"
+              className="onb-field"
               label={ENTRY_WORDS.teamName}
               hint={domain ? undefined : ENTRY_WORDS.inviteOnly}
               value={newName}
@@ -748,29 +760,61 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
     }
   }
 
+  const progress = (
+    <div className="onb-progress">
+      <p className="onb-progress-text">
+        <b className="onb-strong">{progressLabel(steps)}</b> <span className="onb-quiet">{ctx.account ? ENTRY_WORDS.firstOnly : 'Every step after sign-in can wait.'}</span>
+      </p>
+      <Progress value={doneCount(steps)} max={total} size="sm" aria-label={progressLabel(steps)} />
+    </div>
+  );
+  // The open step comes first in the page (and first on a phone); the checklist follows it, folded on a phone.
   return (
     <div className="onb">
-      <aside className="onb-side" aria-labelledby="onb-title">
+      <div className="onb-head">
         <Drawing name="hero" width={126} className="onb-art" />
         <h1 id="onb-title" className="onb-h1">
           {ctx.account ? ENTRY_WORDS.setupTitle(name) : firstRunTitle(name, open === 'changes' ? 'changes' : 'library')}
         </h1>
-        <div className="onb-progress">
-          <p className="onb-progress-text">
-            <b className="onb-strong">{progressLabel(steps)}</b> <span className="onb-quiet">{ctx.account ? ENTRY_WORDS.firstOnly : 'Every step after sign-in can wait.'}</span>
-          </p>
-          <Progress value={doneCount(steps)} max={total} size="sm" aria-label={progressLabel(steps)} />
-        </div>
-        <StepList steps={steps} open={open} onOpen={setOpen} />
+      </div>
+      <div className="onb-main">{panel}</div>
+      <aside className="onb-side" aria-label="Setup checklist">
+        {narrow ? (
+          <Accordion headingLevel={2}>
+            <AccordionItem value="steps" title="All setup steps" meta={progressLabel(steps)}>
+              <StepList steps={steps} open={open} onOpen={setOpen} />
+            </AccordionItem>
+          </Accordion>
+        ) : (
+          <>
+            {progress}
+            <StepList steps={steps} open={open} onOpen={setOpen} />
+          </>
+        )}
         {ctx.account && (
           <p className="onb-quiet onb-expecting">
             {ENTRY_WORDS.expecting} <b className="onb-strong">{ctx.account.email}</b>
           </p>
         )}
       </aside>
-      <div className="onb-main">{panel}</div>
     </div>
   );
+}
+
+/** Below the two-column width (onboarding.css), the checklist folds under the open step. */
+const NARROW = '(max-width: 1099px)';
+
+function useNarrow(): boolean {
+  const query = () => (typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia(NARROW) : null);
+  const [narrow, setNarrow] = useState(() => query()?.matches ?? false);
+  useEffect(() => {
+    const mq = query();
+    if (!mq) return;
+    const on = () => setNarrow(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return narrow;
 }
 
 export interface FinishConnectingProps {
