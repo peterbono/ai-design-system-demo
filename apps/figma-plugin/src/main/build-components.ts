@@ -467,6 +467,18 @@ function setupFrame(node: Box, part: SpecPart, layout?: SpecLayout): void {
  * axis. Set last: the child's own hug sizing (setupFrame) would otherwise undo it, and FILL needs the node to be inside
  * its auto layout parent already. A text that fills the width wraps: fixed width, height grows.
  */
+/**
+ * Back in its parent's auto layout. A layer the last pull pinned or laid over its parent is absolute, and Figma refuses
+ * to make an absolute layer fill: it is sized in the layout first, then pinned again after placing.
+ */
+function intoLayout(node: SceneNode): void {
+  try {
+    if ('layoutPositioning' in node && node.layoutPositioning === 'ABSOLUTE') node.layoutPositioning = 'AUTO';
+  } catch {
+    /* its parent is no longer an auto layout: nothing to fill */
+  }
+}
+
 function sizeInParent(node: SceneNode, parentPart: SpecPart | undefined, definite = true): void {
   if (!parentPart?.layout || parentPart.layout.counter !== 'STRETCH' || !('layoutSizingHorizontal' in node)) return;
   // A vertical parent that hugs its content has no width to fill: its children hug too (same look for left-aligned
@@ -542,6 +554,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
       ctx.where = `${comp.name} ${pv.name}, ${part.name}`;
       if (main) {
         const inst = await placeInstance(node, main, parent, part.id, target);
+        intoLayout(inst);
         nodes.set(part.id, inst);
         if (inst.name !== part.name) inst.name = part.name;
         const swapKey = propKeys.get(`swap:${part.id}`);
@@ -564,6 +577,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
       parent.appendChild(node);
     } else if (part.id !== 'root' && node.parent !== parent) parent.appendChild(node);
     nodes.set(part.id, node);
+    if (part.id !== 'root') intoLayout(node);
     if (part.id !== 'root' && node.name !== part.name) node.name = part.name;
     const parentPart = comp.parts.find((p) => p.id === part.parent);
     ctx.where = `${comp.name} ${pv.name}, ${part.name}`;

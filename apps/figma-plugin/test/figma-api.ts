@@ -138,6 +138,8 @@ export class SimNode {
   // parent's cross axis, layoutGrow on its main axis). Hugging an axis drops a fill on it, as in Figma.
   layoutAlign = 'INHERIT';
   layoutGrow = 0;
+  /** ABSOLUTE: out of its parent's auto layout, so it cannot fill it (Figma refuses). */
+  layoutPositioning = 'AUTO';
   /** How a layer follows its parent's resizing (absolute layers: pinned edges, stretched, centered). */
   constraints: { horizontal: string; vertical: string } = { horizontal: 'MIN', vertical: 'MIN' };
   private axisSizing = { primary: 'FIXED', counter: 'FIXED' };
@@ -184,6 +186,7 @@ export class SimNode {
     if (v === 'FILL') {
       const p = this.parent;
       if (!p || !this.autoLayout(p)) throw new Error('FILL can only be set on children of auto-layout frames');
+      if (this.layoutPositioning === 'ABSOLUTE') throw new Error('FILL cannot be set on absolute positioned auto-layout children');
       if ((p.layoutMode === 'HORIZONTAL') === horizontal) this.layoutGrow = 1;
       else this.layoutAlign = 'STRETCH';
       if (this.type === 'TEXT' && horizontal && this.textAutoResize === 'WIDTH_AND_HEIGHT') this.textAutoResize = 'HEIGHT';
