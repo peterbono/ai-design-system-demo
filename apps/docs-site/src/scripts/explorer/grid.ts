@@ -73,7 +73,7 @@ function rowHtml(d: ExplorerData, t: XToken, view: View, s: ExplorerState, secti
   const cells = view.columns
     .map(
       (c, i) =>
-        `<div role="gridcell" class="xp-td is-mode" aria-colindex="${i + 2}" tabindex="-1" data-col="${i + 1}" data-colkey="${esc(c.key)}" data-label="${esc(c.label)}" aria-label="${esc(cellLabel(d, t.path, c))}"${
+        `<div role="gridcell" class="xp-td is-mode" aria-colindex="${i + 2}" tabindex="-1" data-col="${i + 1}" data-colkey="${esc(c.key)}" data-label="${esc(c.label)}" aria-label="${esc(cellLabel(d, t.path, c, studio))}"${
           editable ? ' aria-readonly="false" aria-haspopup="dialog"' : ''
         }>${studio ? studioCellHtml(d, t.path, c, edited.has(modeKeyFor(t.tier, c))) : cellHtml(d, t.path, c, editable)}</div>`,
     )
@@ -199,7 +199,8 @@ export function refreshRow(host: HTMLElement, d: ExplorerData, view: View, s: Ex
   row.querySelectorAll<HTMLElement>('.xp-td.is-mode').forEach((cell, i) => {
     const col = view.columns[i];
     if (!col) return;
-    cell.innerHTML = (s.mode === 'edit' || s.flat) && t ? studioCellHtml(d, path, col, edited.has(modeKeyFor(t.tier, col))) : cellHtml(d, path, col, false);
-    cell.setAttribute('aria-label', cellLabel(d, path, col));
+    const studio = (s.mode === 'edit' || s.flat) && Boolean(t);
+    cell.innerHTML = studio && t ? studioCellHtml(d, path, col, edited.has(modeKeyFor(t.tier, col))) : cellHtml(d, path, col, false);
+    cell.setAttribute('aria-label', cellLabel(d, path, col, studio));
   });
 }

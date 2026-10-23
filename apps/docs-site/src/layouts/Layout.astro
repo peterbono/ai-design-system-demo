@@ -181,7 +181,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
   <body>
     <Link variant="subtle" className="skip" href="#main">Skip to content</Link>
     <header class="topbar">
-      <Link variant="subtle" className="topbar-brand" href={isStudio ? STUDIO_HOME : library ? LIBRARY_SHELL_ROOT : LIBRARY_HOME} aria-label={isStudio ? 'Bridge Studio, overview' : library ? 'Library, home' : 'Bridge Library, home'}>
+      <Link variant="subtle" className="topbar-brand" href={isStudio ? STUDIO_HOME : library ? LIBRARY_SHELL_ROOT : LIBRARY_HOME} aria-label={isStudio ? 'Bridge Studio, overview' : 'Bridge Library, home'}>
         <Logo />
         {isStudio && <span class="topbar-space" aria-hidden="true">Studio</span>}
       </Link>

@@ -8,7 +8,7 @@
 // `playground` (PropsPlayground). `Example` draws docs.json examples with the real components: only Bridge, which runs
 // its own components, has one; a team's guidance reads as text. Repo content reaches the page as React text only.
 import type { ComponentType, ReactNode } from 'react';
-import { Alert, Badge, Link, PageHeader, SegmentedControl } from '@bridge-ds/react';
+import { Alert, Badge, CodeBlock, Link, PageHeader, SegmentedControl } from '@bridge-ds/react';
 import { BookOpen, Columns2, FileCode, Lock, Moon, Pencil, Sun } from 'lucide-react';
 import { storybookIframeUrl, storybookManagerUrl, type ExampleNode } from '@bridge-ds/core';
 import ButtonLink from '../../ButtonLink';
@@ -16,7 +16,7 @@ import PropsTable from '../../PropsTable';
 import MotionTable from '../../MotionTable';
 import UsagePanel from '../../../UsagePanel';
 import { playgroundSpec, type ComponentInfo } from '../../../../lib/library/components';
-import { COMPONENT_TABS, componentMotion, componentNotes, mainStory, previewUrl, readableDocs, STATUS_LABEL, STATUS_TONE, statusOf, tokenKindCounts } from '../../../../lib/library/component-page';
+import { COMPONENT_TABS, componentMotion, componentNotes, exampleCode, mainStory, previewUrl, readableDocs, STATUS_LABEL, STATUS_TONE, statusOf, tokenKindCounts } from '../../../../lib/library/component-page';
 import { tokenAxes } from '../../../../lib/library/tokens';
 import { humanDate } from '../../../../lib/library/stats';
 import { mdTitleParts } from '../../../../lib/markdown';
@@ -51,6 +51,19 @@ export function StorybookNotice({ name }: { name: string }) {
       <p>
         <strong>Add the Storybook to see {name} live here.</strong> Set <span className="mono">storybook.url</span> in <span className="mono">bridge.config.json</span>.
       </p>
+    </div>
+  );
+}
+
+/**
+ * What the page shows in place of the preview when the published Storybook does not list the story yet (the page
+ * script checks the index and turns it on): the code, and when the preview comes.
+ */
+function StoryMissing({ name, code }: { name: string; code: string }) {
+  return (
+    <div className="cp-sb-missing" data-sb-missing-note="">
+      <p className="muted">Preview appears after the next Storybook update.</p>
+      <CodeBlock code={code} label={`${name} example`} />
     </div>
   );
 }
@@ -105,7 +118,7 @@ export default function ComponentView({ data, component: c, Example, heroTools, 
   );
 
   return (
-    <div className="cp-page">
+    <div className="cp-page" data-sb-check-base={storybook && story ? storybook : undefined} data-sb-check-story={storybook && story ? story.id : undefined}>
       <div className="le-bar-slot" data-le-bar=""></div>
       <div className="cp-main">
         <div className="cp-head">
@@ -139,7 +152,7 @@ export default function ComponentView({ data, component: c, Example, heroTools, 
           <div className="cp-meta">
             <ul className="cp-links" aria-label="Resources">
               {manager && (
-                <li>
+                <li data-sb-needs-story="">
                   <ButtonLink variant="secondary" size="sm" href={manager} iconStart={BookOpen}>
                     Workbench
                   </ButtonLink>
@@ -150,8 +163,9 @@ export default function ComponentView({ data, component: c, Example, heroTools, 
         </div>
         <div data-le-rail-narrow=""></div>
 
+        {story && storybook && <StoryMissing name={c.name} code={exampleCode(c.name, spec?.children)} />}
         {story && storybook && (
-          <section className="hero-stage" data-view="split" aria-label={`${c.name} preview`}>
+          <section className="hero-stage" data-view="split" aria-label={`${c.name} preview`} data-sb-needs-story="">
             <div className="hero-stage-bar">
               <SegmentedControl
                 label="Preview theme"
@@ -401,7 +415,7 @@ export default function ComponentView({ data, component: c, Example, heroTools, 
                         : 'other components'}{' '}
                       and any native attribute. Here it is in both themes.
                     </p>
-                    <div className="pg-fallback">
+                    <div className="pg-fallback" data-sb-needs-story="">
                       {modes.map((m) => (
                         <div key={m} className="pg-stage pg-stage-frame stage-checker" data-theme={m}>
                           <span className="pane-label">{m === 'light' ? 'Light' : 'Dark'}</span>

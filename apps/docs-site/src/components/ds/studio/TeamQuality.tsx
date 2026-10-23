@@ -4,7 +4,7 @@
 // the team's Bridge snapshot, or how to publish one), guidance. Numbers: lib/team-quality.ts. Repo content as React
 // text only; repo links through safeUrl.
 import { useEffect, useState } from 'react';
-import { Badge, Card, CardBody, Icon, Link } from '@bridge-ds/react';
+import { Accordion, AccordionItem, Badge, Card, CardBody, CodeBlock, Icon, Link } from '@bridge-ds/react';
 import type { SnapshotAudit } from '@bridge-ds/core';
 import { siteIcon } from '../../../brand/site-icons';
 import ContrastFailTable from './ContrastFailTable';
@@ -12,6 +12,8 @@ import ButtonLink from '../ButtonLink';
 import { QualityShare } from './QualityShare';
 import { TeamLoadError, TeamLoadProgress, TeamSourceNote, useTeamData } from './TeamState';
 import { loadTeamSnapshot } from '../../../scripts/team-data';
+import { currentViewer, initGitHubConnect } from '../../../scripts/github-session';
+import { viewerRoles } from '../../../lib/suggestions-view';
 import { teamQuality, guidanceLead, pctLabel, type TeamQuality as Quality } from '../../../lib/team-quality';
 import { ADOPTION_MEANING, cleanupTitle, type Finding } from '../../../lib/quality';
 import { HEALTH_SECTION } from '../../../lib/library-health';
@@ -72,15 +74,16 @@ function Metric({ label, value, note }: { label: string; value: number | null; n
   );
 }
 
-/** No audit to show: what adoption is, and the one way to get it here. */
-function NoAudit({ snapshot }: { snapshot: boolean }) {
+/** What a designer sends a developer to turn the adoption audit on (copied from the Quality page). */
+export function auditAskMessage(repo: string): string {
+  return `Could you turn on the adoption audit in Bridge for ${repo}? Copy the Bridge data workflow (${SNAPSHOT_TEMPLATE_URL}) into .github/workflows/ and add --audit "<folder>=<label>" to its bridge snapshot step, once per product folder. How it works: ${HOSTED_DOCS_URL}`;
+}
+
+/** The setup a developer does: the workflow and the audit flag, then a push. */
+function AuditSetup() {
   return (
-    <div className="tp-locked">
+    <>
       <p>
-        <strong>No adoption audit yet.</strong> {ADOPTION_MEANING}
-      </p>
-      <p>
-        {snapshot ? 'The Bridge snapshot of this repository carries no audit. ' : 'Bridge reads audits from the Bridge snapshot, which this repository does not publish yet. '}
         Copy the Bridge data workflow into <span className="mono">.github/workflows/</span> and add <span className="mono">--audit "&lt;folder&gt;=&lt;label&gt;"</span> to its{' '}
         <span className="mono">bridge snapshot</span> step, once per product folder. The results show here after the next push.
       </p>
@@ -93,11 +96,40 @@ function NoAudit({ snapshot }: { snapshot: boolean }) {
           How the snapshot works
         </Link>
       </p>
+    </>
+  );
+}
+
+/**
+ * No audit to show: what could not be read, what adoption is, and who turns it on. A tech owner gets the setup; anyone
+ * else asks a developer, with a message to copy, and the setup waits in a "For developers" fold.
+ */
+function NoAudit({ snapshot, repo, developer }: { snapshot: boolean; repo: string; developer: boolean }) {
+  return (
+    <div className="tp-locked">
+      <p>
+        <strong>No adoption audit yet.</strong>{' '}
+        {snapshot ? 'Bridge read this repository\'s Bridge snapshot, and it carries no adoption audit.' : 'Bridge could not find a Bridge snapshot (the bridge-data branch) in this repository, and audits come from it.'}{' '}
+        {ADOPTION_MEANING}
+      </p>
+      {developer ? (
+        <AuditSetup />
+      ) : (
+        <>
+          <p>Ask a developer to turn it on. Send them this message:</p>
+          <CodeBlock code={auditAskMessage(repo)} label="Message for a developer" wrap />
+          <Accordion className="ql-dev" headingLevel={3}>
+            <AccordionItem value="dev" title="For developers">
+              <AuditSetup />
+            </AccordionItem>
+          </Accordion>
+        </>
+      )}
     </div>
   );
 }
 
-function QualityBody({ q, snapshot }: { q: Quality; snapshot: boolean | undefined }) {
+function QualityBody({ q, snapshot, repo, developer }: { q: Quality; snapshot: boolean | undefined; repo: string; developer: boolean }) {
   const { gate } = q;
   return (
     <>
@@ -245,7 +277,7 @@ function QualityBody({ q, snapshot }: { q: Quality; snapshot: boolean | undefine
         ) : snapshot === undefined ? (
           <p className="ql-muted">Looking for the Bridge snapshot of this repository.</p>
         ) : (
-          <NoAudit snapshot={snapshot} />
+          <NoAudit snapshot={snapshot} repo={repo} developer={developer} />
         )}
       </section>
 
@@ -272,6 +304,12 @@ export default function TeamQuality() {
   // undefined: still looking; null: no snapshot; a list (maybe empty): the snapshot's audits.
   const [audits, setAudits] = useState<SnapshotAudit[] | null | undefined>(undefined);
   const sha = load.status === 'ready' ? load.data.sha : null;
+  // A tech owner sets the audit up; anyone else asks a developer (NoAudit).
+  const [viewer, setViewer] = useState<string | null>(null);
+  useEffect(() => {
+    initGitHubConnect((v) => setViewer(v?.login ?? null));
+    setViewer(currentViewer()?.login ?? null);
+  }, []);
   useEffect(() => {
     if (!sha) return;
     let live = true;
@@ -291,7 +329,7 @@ export default function TeamQuality() {
         <TeamSourceNote data={data} refreshing={refreshing} onRefresh={retry} />
         <QualityShare figures={q.figures} sentence={q.sentence} path={studioHref('quality/')} />
       </div>
-      <QualityBody q={q} snapshot={audits === undefined ? undefined : audits !== null} />
+      <QualityBody q={q} snapshot={audits === undefined ? undefined : audits !== null} repo={`${data.owner}/${data.repo}`} developer={viewerRoles(viewer, data.model.config.governance.owners).includes('tech')} />
     </div>
   );
 }
