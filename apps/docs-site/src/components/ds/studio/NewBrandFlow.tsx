@@ -487,7 +487,7 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
         ) : sampleVisitor() ? (
           // The sample team: the button says what it does, and a click opens the demo dialog (scripts/demo-gate.ts).
           <Button key="sample" variant="primary" iconStart={suggest ? Send : GitBranch} disabled={!ready} data-demo-write="send a new brand">
-            {suggest ? sendButton('brand', mode) : VOCAB.createBranch}
+            {sendButton('brand', mode)}
           </Button>
         ) : (
           <Button key="connect" variant="primary" data-gh-open="">
