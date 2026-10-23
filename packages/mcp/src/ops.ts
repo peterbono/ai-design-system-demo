@@ -331,6 +331,7 @@ export function pagedDraftDocs<D extends { component: string; prompt: string; pr
     promptPage: {
       page,
       pages: pages.length,
+      // MCP only: the CLI prints the whole draft.
       ...(page < pages.length ? { next: `The prompt continues: call bridge_draft_docs again with page ${page + 1} (of ${pages.length}) and read every page before writing.` } : {}),
     },
   };
