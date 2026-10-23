@@ -92,7 +92,13 @@ export type PlannedValue =
   | { kind: 'number'; value: number; /** A calc() of tokens, resolved: set, not bound. */ expr?: string | undefined }
   | { kind: 'percent'; value: number; path: string }
   | { kind: 'none' }
-  | { kind: 'font'; families: string[]; path: string }
+  | {
+      kind: 'font';
+      families: string[];
+      path: string;
+      /** The token's Figma variable: the text's family is bound to it, so it follows the Brand mode like colors do. */
+      variable?: { tokenId: string; name: string; collection: string } | undefined;
+    }
   | { kind: 'keyword'; value: string };
 
 export interface PlannedField {
@@ -473,7 +479,10 @@ function planValueOf(field: SpecField, value: unknown, head: TokenSet): PlannedV
   if (!t) return { problem: `${value} is not a token on this branch` };
   if (field === 'fontFamily') {
     const families = familiesOf(head, value);
-    return families?.length ? { kind: 'font', families, path: value } : { problem: `${value} does not resolve to a font family` };
+    if (!families?.length) return { problem: `${value} does not resolve to a font family` };
+    const planned = tokenToPlanned(t, head);
+    const variable = !isUnmappable(planned) && planned.resolvedType === 'STRING' ? { tokenId: t.id, name: pathToName(value), collection: COLLECTIONS[t.tier] } : undefined;
+    return { kind: 'font', families, path: value, ...(variable ? { variable } : {}) };
   }
   // Unitless line heights and em letter spacing: Figma variables for these are pixels, so set a percent, unbound.
   if ((field === 'lineHeight' || field === 'letterSpacing') && t.type === 'number') {

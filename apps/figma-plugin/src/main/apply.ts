@@ -14,6 +14,7 @@ import {
   splitCollectionName,
 } from '../shared/messages';
 import { readPluginData, writePluginData } from './snapshot';
+import { familyKey, stackFamily } from '../sync/mapping';
 
 const ORPHAN_PREFIX = '[orphan] ';
 const BATCH = 25;
@@ -125,6 +126,17 @@ function toVariableValue(v: Exclude<PlannedValue, { kind: 'alias-token' }>): Var
   }
 }
 
+/** Font families installed in Figma: familyKey -> Figma's name. */
+async function installedFamilies(): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  try {
+    for (const f of await figma.listAvailableFontsAsync()) out.set(familyKey(f.fontName.family), f.fontName.family);
+  } catch {
+    /* Figma could not list fonts: each stack shows its first family */
+  }
+  return out;
+}
+
 /** The same value as Figma already holds for that mode (colors to 4 decimals, numbers to float precision): nothing to write. */
 function sameValue(current: VariableValue | undefined, next: VariableValue): boolean {
   if (current === undefined) return false;
@@ -171,6 +183,17 @@ export async function applyPullPlan(plan: PullPlan, progress: (message: string) 
   const createdIds = new Set<string>();
   let ops = 0;
   const deferred: { variable: Variable; modeId: string; mode: string; ref: { path: string; tokenId?: string | undefined; tier?: Tier | undefined }; owner: string; collectionId: string }[] = [];
+
+  // Font stacks: the variable shows the family Figma has, the stack stays in plugin data (read back unchanged).
+  let installed: Map<string, string> | undefined;
+  for (const planned of plan.variables) {
+    if (planned.pluginData.dtcgType !== 'fontFamily') continue;
+    const literals = Object.values(planned.values).filter((v): v is Extract<PlannedValue, { kind: 'string' }> => v.kind === 'string');
+    if (!literals.length) continue;
+    installed ??= await installedFamilies();
+    planned.pluginData = { ...planned.pluginData, stacks: [...new Set(literals.map((v) => v.value))] };
+    for (const [mode, v] of Object.entries(planned.values)) if (v.kind === 'string') planned.values[mode] = { kind: 'string', value: stackFamily(v.value, installed) };
+  }
 
   for (const planned of plan.variables) {
     const slots = slotsByTier.get(planned.tier) ?? [];
