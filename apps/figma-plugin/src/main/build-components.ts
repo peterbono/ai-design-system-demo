@@ -1332,7 +1332,51 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
   }
 }
 
+/** Shared plugin data on the file: the pull building components here, and when it last moved. */
+const LOCK_KEY = 'buildLock';
+/** A lock that has not moved for this long was left by a pull that stopped (Figma closed): it no longer holds. */
+const LOCK_STALE_MS = 120_000;
+const session = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+type BuildLock = { session: string; started: number; at: number };
+
+/** Another pull building components in this file right now (a teammate in the same file), or none. */
+export function otherBuild(now = Date.now()): BuildLock | undefined {
+  try {
+    const lock = JSON.parse(figma.root.getSharedPluginData(NS, LOCK_KEY) || 'null') as BuildLock | null;
+    return lock && lock.session !== session && now - lock.at < LOCK_STALE_MS ? lock : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const holdBuildLock = (started: number) => figma.root.setSharedPluginData(NS, LOCK_KEY, JSON.stringify({ session, started, at: Date.now() }));
+
+function releaseBuildLock(): void {
+  try {
+    const lock = JSON.parse(figma.root.getSharedPluginData(NS, LOCK_KEY) || 'null') as BuildLock | null;
+    if (lock?.session === session) figma.root.setSharedPluginData(NS, LOCK_KEY, '');
+  } catch {
+    /* unreadable: left to go stale */
+  }
+}
+
 export async function applyComponentPlan(plan: ComponentPullPlan, progress: Progress = () => undefined, opts: ApplyOptions = {}): Promise<ComponentApplyReport> {
+  // Two pulls at once in one file (two designers) would both build the new components: one at a time.
+  const other = otherBuild();
+  if (other) {
+    const minutes = Math.max(1, Math.round((Date.now() - other.started) / 60_000));
+    throw new Error(`Someone else is pulling components into this file (started ${minutes} min ago). Wait until it ends, then check again: two pulls at once would build the same components twice.`);
+  }
+  const started = Date.now();
+  holdBuildLock(started);
+  try {
+    return await buildAll(plan, progress, opts, started);
+  } finally {
+    releaseBuildLock();
+  }
+}
+
+async function buildAll(plan: ComponentPullPlan, progress: Progress, opts: ApplyOptions, started: number): Promise<ComponentApplyReport> {
   created = new Created();
   lastYield = Date.now();
   const ctx: Ctx = { vars: new Variables(), fonts: new Fonts(), problems: [], where: '', parts: new Map(), icons: [] };
@@ -1378,6 +1422,8 @@ export async function applyComponentPlan(plan: ComponentPullPlan, progress: Prog
         report.failed!.push({ name: comp.name, reason: err instanceof NotBuilt ? err.message : reasonOf(err) });
       }
       created.sweep();
+      // Still building: a teammate's pull waits.
+      holdBuildLock(started);
       await breathe();
     }
   } finally {
