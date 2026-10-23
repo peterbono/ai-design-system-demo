@@ -10,6 +10,8 @@ import { adminNames, useTeamPeople } from './members-state';
 export interface DevFact {
   term: string;
   value: ReactNode;
+  /** The value is code (a path, a key, a branch): mono. */
+  code?: boolean;
 }
 
 export function DevFold({ facts, children }: { facts: DevFact[]; children?: ReactNode }) {
@@ -24,7 +26,7 @@ export function DevFold({ facts, children }: { facts: DevFact[]; children?: Reac
         {facts.map((f) => (
           <div className="set-dev-fact" key={f.term}>
             <dt>{f.term}</dt>
-            <dd>{f.value}</dd>
+            <dd>{f.code ? <code className="mono">{f.value}</code> : f.value}</dd>
           </div>
         ))}
       </dl>

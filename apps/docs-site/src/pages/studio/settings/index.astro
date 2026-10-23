@@ -35,7 +35,7 @@ import ChangeRules from '../../../components/ds/studio/ChangeRules';
 import AppearanceSetting from '../../../components/ds/studio/AppearanceSetting';
 import { signInConfig } from '../../../lib/signin-config';
 import { Badge, Button, Card, CardBody, CardHeader, Input, Link, SegmentedControl } from '@bridge-ds/react';
-import { Code, DevFold } from '../../../components/ds/studio/SettingsParts';
+import { DevFold } from '../../../components/ds/studio/SettingsParts';
 import { siteRepo } from '../../../lib/config';
 import { GOVERNANCE_FILE, pluginListing, tierSummaries } from '../../../lib/governance';
 import { mcpTools } from '../../../lib/mcp';
@@ -147,11 +147,11 @@ const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? 
           <CardBody>
             <DevFold
               facts={[
-                { term: 'Repository', value: <Code>{repoName}</Code> },
-                { term: 'Default branch', value: <Code>{r.defaultBranch}</Code> },
-                { term: 'Tokens', value: <Code>{r.tokensRoot}</Code> },
-                { term: 'Mode', value: <Code>{changes ? `"changes": "${changes}"` : 'not set: suggestions'}</Code> },
-                { term: 'Set in', value: <Code>{file}</Code> },
+                { term: 'Repository', value: repoName, code: true },
+                { term: 'Default branch', value: r.defaultBranch, code: true },
+                { term: 'Tokens', value: r.tokensRoot, code: true },
+                { term: 'Mode', value: changes ? `"changes": "${changes}"` : 'not set: suggestions', code: true },
+                { term: 'Set in', value: file, code: true },
               ]}
             >
               <p><Link href={ghRepo} external>{VOCAB.openOnGitHub}</Link></p>
@@ -252,11 +252,11 @@ const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? 
           <CardBody>
             <DevFold
               facts={[
-                { term: 'Design owners', value: <Code>{entries(r.owners.design)}</Code> },
-                { term: 'Tech owners', value: <Code>{entries(r.owners.tech)}</Code> },
-                { term: 'Protected branches', value: <Code>{protectedBranches.join(', ') || 'none'}</Code> },
-                { term: 'Branch prefix', value: <Code>{branchPrefix || 'none'}</Code> },
-                { term: 'Set in', value: <Code>{`${file}, governance; ${GOVERNANCE_FILE}`}</Code> },
+                { term: 'Design owners', value: entries(r.owners.design), code: true },
+                { term: 'Tech owners', value: entries(r.owners.tech), code: true },
+                { term: 'Protected branches', value: protectedBranches.join(', ') || 'none', code: true },
+                { term: 'Branch prefix', value: branchPrefix || 'none', code: true },
+                { term: 'Set in', value: `${file}, governance; ${GOVERNANCE_FILE}`, code: true },
               ]}
             >
               <p>Bridge counts approvals on GitHub reviews. A ruleset or branch protection on {r.defaultBranch} keeps unreviewed pull requests out.</p>
