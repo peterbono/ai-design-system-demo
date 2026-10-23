@@ -207,6 +207,8 @@ export interface ComponentApplyReport {
   /** Variants flagged "[orphan]". */
   orphaned: number;
   page: string;
+  /** Of the sets created or updated, those on another page than `page` (where the designer keeps them). */
+  elsewhere?: number | undefined;
   /** Bindings or fonts that failed in Figma. */
   problems: string[];
   /** Set once when a brand font is missing in this Figma and Inter replaced it. */

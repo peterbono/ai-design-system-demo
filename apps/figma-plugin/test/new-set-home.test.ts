@@ -42,7 +42,8 @@ test('Select moved into a section of a Forms page: Select/Popup is built in that
   forms.name = 'Forms';
   const section = figma.createSection();
   forms.appendChild(section);
-  section.resize(800, 300);
+  // Tall enough for Select/Popup, not wide enough: the section still grows.
+  section.resize(300, 5000);
   const select = sim.sets().find((s) => s.name === 'Select')!;
   section.appendChild(select);
   select.x = 40;
@@ -51,11 +52,13 @@ test('Select moved into a section of a Forms page: Select/Popup is built in that
   gh.pushToMain((f) => (f['packages/react/component-specs.json'] = only(['Select', 'Select/Popup', 'Accordion', 'AccordionItem'])));
   const report = await pull();
   assert.deepEqual(report.failed, []);
+  assert.equal(report.elsewhere, 1, 'the report does not say Select/Popup is on the Components page');
   const popup = sim.sets().find((s) => s.name === 'Select/Popup')!;
   assert.equal(popup.parent, section, 'in the section Select is in');
   assert.equal(popup.x, select.x);
   assert.ok(popup.y >= select.y + select.height, 'below Select');
   assert.ok(section.height >= popup.y + popup.height, 'the section grew to hold it');
+  assert.ok(section.width >= popup.x + popup.width, 'wide enough too');
   // Accordion is still on the Components page: its new item goes there too.
   const item = sim.sets().find((s) => s.name === 'AccordionItem')!;
   assert.equal(pageOf(item).name, 'Components');

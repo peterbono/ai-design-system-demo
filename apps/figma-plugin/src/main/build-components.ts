@@ -1242,7 +1242,9 @@ function moveHome(set: ComponentSetNode, home: { container: Container; near: Com
   set.x = near.x;
   set.y = kids.reduce((m, n) => Math.max(m, n.y + n.height), 0) + SET_GAP;
   // A section does not grow with what it holds: make room.
-  if (container.type === 'SECTION' && set.y + set.height > container.height) container.resizeWithoutConstraints(Math.max(container.width, set.x + set.width + SET_GAP), set.y + set.height + SET_GAP);
+  if (container.type === 'SECTION' && (set.x + set.width > container.width || set.y + set.height > container.height)) {
+    container.resizeWithoutConstraints(Math.max(container.width, set.x + set.width + SET_GAP), Math.max(container.height, set.y + set.height + SET_GAP));
+  }
 }
 
 /**
@@ -1362,6 +1364,7 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
     report.nodeIds.push(set.id);
     if (isNew) report.created++;
     else report.updated++;
+    if (pageOf(set)?.name !== PAGE_NAME) report.elsewhere = (report.elsewhere ?? 0) + 1;
   } catch (err) {
     // Nothing half-built stays: what this pull created for the set goes, a new set included.
     created.rollback(mark);
