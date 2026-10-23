@@ -1673,7 +1673,8 @@ function viewPull(): View {
     counts.added ? `${counts.added} new` : '',
     counts.changed ? `${counts.changed} edited` : '',
     counts.renamed ? `${counts.renamed} renamed` : '',
-    counts.removed ? `${counts.removed} deleted on ${state.init!.settings.branch}` : '',
+    // The headline names the branch once ("2 new, 1 deleted on next").
+    counts.removed ? `${counts.removed} deleted` : '',
   ].filter(Boolean);
 
   // Summary first: one sentence for the whole screen, then one line of where it comes from.
