@@ -63,7 +63,8 @@
         "bridge",
         "ocean",
         "forest",
-        "sunset"
+        "sunset",
+        "coral"
       ],
       "default": "bridge"
     },
