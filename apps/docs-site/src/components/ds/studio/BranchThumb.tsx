@@ -3,7 +3,7 @@
 // before/after to show. Decorative: the row or card next to it says the same thing in words. Styles:
 // styles/branch-thumb.css.
 import type { ReactNode } from 'react';
-import { BookOpen, Component, Contrast, GitBranch, Palette } from 'lucide-react';
+import { BookOpen, Component, Contrast, GitBranch, Palette, UserPlus } from 'lucide-react';
 import { Icon, type LucideIcon } from '@bridge-ds/react';
 import { fitScale, type ThumbIcon, type ThumbSpec } from '../../../lib/branch-thumb';
 
@@ -15,6 +15,7 @@ const ICONS: Record<ThumbIcon, LucideIcon> = {
   guidance: BookOpen,
   branch: GitBranch,
   contrast: Contrast,
+  person: UserPlus,
 };
 
 // The px room a drawn value gets inside one half. Row halves are 32 by 40, card halves at least 120 by 136; data

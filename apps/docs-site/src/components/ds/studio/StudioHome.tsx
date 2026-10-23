@@ -7,6 +7,8 @@
 //   - Someone without a review right (`contributor`): only what waits on them (their branches sent back with changes),
 //     never the review queue, and on the first visit a two-step tour of their branches and how to start (HomeTour.tsx).
 // NeedList is shared with the review queue (pages/studio/review.astro), so a row reads the same in both places.
+// Admins also get join requests (board E7b, scripts/team-home.ts): one row per person, Decline and Approve inline while
+// 3 things or fewer wait; more than that, it folds into "N more" like any row and Review all leads there.
 import { createRoot, type Root } from 'react-dom/client';
 import { useState, type MouseEvent, type ReactNode } from 'react';
 import { Check, CircleAlert, CircleCheck, TriangleAlert } from 'lucide-react';
@@ -42,10 +44,61 @@ import {
 import { VOCAB } from '../../../lib/vocabulary';
 import { studioHref } from '../../../lib/team-path';
 import { demoWaiting, type TourAt } from '../../../lib/demo';
+import { ENTRY_WORDS } from '../../../lib/entry';
 import { useTour } from './HomeTour';
 
+/** What deciding on a join request gave: the line that replaces the buttons, or why it did not happen. */
+export type JoinOutcome = { ok: true; text: string } | { ok: false; github: boolean; text: string };
+
+export interface JoinHandlers {
+  decide: (row: NeedRow, approve: boolean) => Promise<JoinOutcome>;
+  /** No GitHub admin account linked: "Connect GitHub to manage requests". */
+  connectGitHub: () => void;
+}
+
+/** Decline and Approve on a join request; after a decision, one calm line in their place. */
+function JoinActions({ row, join }: { row: NeedRow; join: JoinHandlers }) {
+  const [busy, setBusy] = useState<'approve' | 'decline' | null>(null);
+  const [out, setOut] = useState<JoinOutcome | null>(null);
+  const decide = async (approve: boolean) => {
+    setBusy(approve ? 'approve' : 'decline');
+    setOut(await join.decide(row, approve));
+    setBusy(null);
+  };
+  if (out?.ok)
+    return (
+      <span className="sh-join t-ui" role="status">
+        {out.text}
+      </span>
+    );
+  if (out && !out.ok && out.github)
+    return (
+      <span className="sh-join">
+        <Button variant="link" onClick={join.connectGitHub}>
+          {ENTRY_WORDS.githubToManage}
+        </Button>
+      </span>
+    );
+  const who = row.request?.name ?? row.title;
+  return (
+    <span className="sh-join">
+      {out && !out.ok && (
+        <span className="t-ui t-muted" role="status">
+          {out.text}
+        </span>
+      )}
+      <Button variant="secondary" loading={busy === 'decline'} disabled={Boolean(busy)} aria-label={`${ENTRY_WORDS.decline} ${who}`} onClick={() => void decide(false)}>
+        {ENTRY_WORDS.decline}
+      </Button>
+      <Button variant="primary" loading={busy === 'approve'} disabled={Boolean(busy)} aria-label={`${ENTRY_WORDS.approve} ${who}`} onClick={() => void decide(true)}>
+        {ENTRY_WORDS.approve}
+      </Button>
+    </span>
+  );
+}
+
 /** One Needs you row: before/after, who, what and why, the status on the right (the shared BranchRow). */
-export function NeedRowItem({ row, selected, onSelect, action, compact }: { row: NeedRow; selected?: boolean; onSelect?: (row: NeedRow) => void; action?: 'primary' | 'secondary'; compact?: boolean }) {
+export function NeedRowItem({ row, selected, onSelect, action, compact, join }: { row: NeedRow; selected?: boolean; onSelect?: (row: NeedRow) => void; action?: 'primary' | 'secondary'; compact?: boolean; join?: JoinHandlers }) {
   const click = onSelect
     ? (e: MouseEvent<HTMLAnchorElement>) => {
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
@@ -64,22 +117,27 @@ export function NeedRowItem({ row, selected, onSelect, action, compact }: { row:
       line={row.line}
       pill={row.pill}
       compact={compact}
+      detail={row.detail}
       end={
-        action && (
+        action && row.kind === 'join' && join ? (
+          <JoinActions row={row} join={join} />
+        ) : (
+          action && (
           <ButtonLink variant={action} href={row.href} className="sh-row-action" tabIndex={-1} aria-hidden="true">
             {rowAction(row.kind, row.action)}
           </ButtonLink>
+          )
         )
       }
     />
   );
 }
 
-export function NeedList({ rows, selectedKey, onSelect, label = 'Needs you', action, compact }: { rows: NeedRow[]; selectedKey?: string | null; onSelect?: (row: NeedRow) => void; label?: string; action?: 'primary' | 'secondary'; compact?: boolean }) {
+export function NeedList({ rows, selectedKey, onSelect, label = 'Needs you', action, compact, join }: { rows: NeedRow[]; selectedKey?: string | null; onSelect?: (row: NeedRow) => void; label?: string; action?: 'primary' | 'secondary'; compact?: boolean; join?: JoinHandlers }) {
   return (
     <ul className="sh-rows" aria-label={label}>
       {rows.map((r) => (
-        <NeedRowItem key={r.key} row={r} selected={selectedKey === r.key} onSelect={onSelect} action={action} compact={compact} />
+        <NeedRowItem key={r.key} row={r} selected={selectedKey === r.key} onSelect={onSelect} action={action} compact={compact} join={join} />
       ))}
     </ul>
   );
@@ -159,13 +217,13 @@ function OnlyReviewerHint({ needs, snoozed }: { needs: NeedRow[]; snoozed: boole
   );
 }
 
-function Needs({ needs, now, snoozed, demo, tour }: { needs: NeedRow[]; now: number; snoozed: boolean; demo?: boolean; tour?: StudioHomeProps['tour'] }) {
+function Needs({ needs, now, snoozed, demo, tour, join }: { needs: NeedRow[]; now: number; snoozed: boolean; demo?: boolean; tour?: StudioHomeProps['tour']; join?: JoinHandlers }) {
   const { shown, more } = splitNeeds(needs);
   return (
     <>
       {/* One item: its button is the page's primary. Two or three: secondary buttons. More: no row buttons, each row is
           its own link and "Review all" acts, the demo included. */}
-      <NeedList rows={shown} compact action={more ? undefined : shown.length === 1 ? 'primary' : 'secondary'} />
+      <NeedList rows={shown} compact action={more ? undefined : shown.length === 1 ? 'primary' : 'secondary'} join={join} />
       {tour?.('rows')}
       {more && (
         <div className="sh-more">
@@ -345,6 +403,8 @@ export interface StudioHomeProps {
    * their branches sent back with changes, and the contributor tour runs on the first visit.
    */
   contributor?: boolean;
+  /** Admins: Approve and Decline on join requests (board E7b). */
+  join?: JoinHandlers;
 }
 
 /** Where a tour step can point: the demo's (lib/demo TourAt) and the contributor's ("start", the ways to start). */
@@ -425,7 +485,7 @@ export function StudioHome(p: StudioHomeProps) {
             </li>
           </ul>
         ) : (
-          p.needs.length > 0 && <Needs needs={p.needs} now={p.now} snoozed={snoozed} demo={Boolean(p.demo)} tour={tour} />
+          p.needs.length > 0 && <Needs needs={p.needs} now={p.now} snoozed={snoozed} demo={Boolean(p.demo)} tour={tour} join={p.join} />
         )}
       </section>
       {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}

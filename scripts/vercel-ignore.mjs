@@ -7,6 +7,8 @@
 //   main         since the last deployed commit (VERCEL_GIT_PREVIOUS_SHA, else HEAD^).
 //   any other    since the merge-base with origin/main, so the first push of a branch with several commits
 //                sees all of them, not only the last one. Vercel clones shallow: main is fetched if missing.
+//   agent/*      never previewed: agent branches are validated by the GitHub checks and only deploy once merged,
+//                which keeps Vercel under its daily deployment limit.
 //
 //   ignoreCommand in apps/docs-site/vercel.json:  node ../../scripts/vercel-ignore.mjs docs
 import { execFileSync } from 'node:child_process';
@@ -21,6 +23,8 @@ export const APP_PATHS = {
 };
 
 export const MAIN = 'main';
+/** Branches that never get a preview deploy. */
+export const NO_PREVIEW = ['agent/'];
 
 /** True when any changed file is an input of the app. Unknown apps always build. */
 export function shouldBuild(app, changedFiles) {
@@ -34,6 +38,9 @@ export function shouldBuild(app, changedFiles) {
  * the decision is unit tested without a repository. Returns { build, base, reason }.
  */
 export function decide(app, { ref = '', previousSha = '', repoUrl = '' } = {}, git) {
+  if (NO_PREVIEW.some((prefix) => ref.startsWith(prefix))) {
+    return { build: false, base: null, reason: `${ref} is an agent branch, no preview: it deploys once merged.` };
+  }
   let base;
   try {
     base = ref === MAIN ? previousSha || 'HEAD^' : mergeBase(git, repoUrl);

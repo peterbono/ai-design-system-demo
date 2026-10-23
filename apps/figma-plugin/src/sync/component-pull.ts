@@ -33,6 +33,7 @@ import {
   iconComponentName,
   parseDimension,
   resolve,
+  hashSpec,
   specHash,
   variantKeyOf,
   variantName,
@@ -52,6 +53,8 @@ export interface GeneratedSet {
   variants: string[];
   /** The library branch this set was pushed to from Figma (shared plugin data dsbridge / pushed), until a pull rebuilds it. */
   pushed?: PushedMark | undefined;
+  /** Figma holds the set in error (left by an older DS Bridge): the pull rebuilds it even when its spec did not change. */
+  inError?: boolean | undefined;
 }
 
 /** Where a set's change from Figma went: its library branch (a token change or a branch Claude AI drafts). */
@@ -90,12 +93,94 @@ export type PlannedValue =
   | { kind: 'number'; value: number; /** A calc() of tokens, resolved: set, not bound. */ expr?: string | undefined }
   | { kind: 'percent'; value: number; path: string }
   | { kind: 'none' }
-  | { kind: 'font'; families: string[]; path: string }
+  | {
+      kind: 'font';
+      families: string[];
+      path: string;
+      /** The token's Figma variable: the text's family is bound to it, so it follows the Brand mode like colors do. */
+      variable?: { tokenId: string; name: string; collection: string } | undefined;
+    }
   | { kind: 'keyword'; value: string };
 
 export interface PlannedField {
   field: SpecField;
   value: PlannedValue;
+}
+
+/**
+ * Figma name of the one variant of a spec with no axes. A set needs a variant property on every variant (an unnamed
+ * one leaves the set in error and every read of it throws), so it gets this one; reading the set drops it again.
+ */
+export const LONE_VARIANT = 'Variant=Default';
+
+/** Props of a variant key ("Size=md, State=Hover", "Default" for none). */
+export function propsOfKey(key: string): Record<string, string> {
+  if (!key || key === variantKeyOf({})) return {};
+  const out: Record<string, string> = {};
+  for (const pair of key.split(', ')) {
+    const i = pair.indexOf('=');
+    if (i > 0) out[pair.slice(0, i)] = pair.slice(i + 1);
+  }
+  return out;
+}
+
+/** Marks an orphan's value when its name would be taken ("md (removed)", "md (removed 2)"). */
+const REMOVED_MARK = '(removed)';
+/** A value only an orphan has because of its "(removed)" mark: not one of the set's values for a review or a Push. */
+export const isRemovedValue = (value: string) => / \(removed( \d+)?\)$/.test(value);
+
+export interface VariantMatch {
+  /** Planned variant key -> id of the Figma variant that becomes it (same node: its instances and overrides follow). */
+  reuse: Map<string, string>;
+  /** Variants the code no longer has, with a name that fits the set's axes now (a set refuses mixed shapes). */
+  orphans: { id: string; name: string }[];
+}
+
+/**
+ * Which Figma variant becomes which planned one when a set is updated. The same key first. Then, when the code adds or
+ * removes an axis, a variant whose values match once the new axis takes its default (and the removed one is dropped)
+ * becomes that variant: "State=Hover" is "Size=md, State=Hover" after Size is added with md as default. What is left is
+ * removed in code: kept as an orphan, renamed to the set's axes (a new axis at its default, a removed one dropped),
+ * with "(removed)" on its first value when that name is taken. Figma refuses a set whose variants do not all have
+ * the same properties, or two variants with the same values.
+ */
+export function matchVariants(existing: readonly { id: string; key: string }[], planned: readonly { key: string; props: Record<string, string> }[], axes: readonly SpecAxis[]): VariantMatch {
+  const reuse = new Map<string, string>();
+  const claimed = new Set<string>();
+  const byKey = new Map<string, string>();
+  for (const e of existing) if (!byKey.has(e.key)) byKey.set(e.key, e.id);
+  for (const pv of planned) {
+    const id = byKey.get(pv.key);
+    if (id && !claimed.has(id)) {
+      reuse.set(pv.key, id);
+      claimed.add(id);
+    }
+  }
+  const project = (props: Record<string, string>) => Object.fromEntries(axes.map((a) => [a.name, props[a.name] ?? a.default ?? a.values[0] ?? '']));
+  for (const pv of planned) {
+    if (reuse.has(pv.key)) continue;
+    const from = existing.find((e) => !claimed.has(e.id) && variantKeyOf(project(propsOfKey(e.key))) === pv.key);
+    if (from) {
+      reuse.set(pv.key, from.id);
+      claimed.add(from.id);
+    }
+  }
+  const lone = !axes.length;
+  const nameOf = (props: Record<string, string>) => (lone ? LONE_VARIANT : axes.map((a) => `${a.name}=${props[a.name]}`).join(', '));
+  const taken = new Set(planned.map((pv) => nameOf(pv.props)));
+  const orphans: VariantMatch['orphans'] = [];
+  for (const e of existing) {
+    if (claimed.has(e.id)) continue;
+    const props = project(propsOfKey(e.key));
+    let name = nameOf(props);
+    for (let n = 1; taken.has(name); n++) {
+      const mark = n === 1 ? ` ${REMOVED_MARK}` : ` (removed ${n})`;
+      name = lone ? `${LONE_VARIANT}${mark}` : nameOf({ ...props, [axes[0]!.name]: `${props[axes[0]!.name]}${mark}` });
+    }
+    taken.add(name);
+    orphans.push({ id: e.id, name });
+  }
+  return { reuse, orphans };
 }
 
 export interface PlannedVariant {
@@ -207,6 +292,8 @@ export interface ComponentApplyReport {
   /** Variants flagged "[orphan]". */
   orphaned: number;
   page: string;
+  /** Of the sets created or updated, those on another page than `page` (where the designer keeps them). */
+  elsewhere?: number | undefined;
   /** Bindings or fonts that failed in Figma. */
   problems: string[];
   /** Set once when a brand font is missing in this Figma and Inter replaced it. */
@@ -395,7 +482,10 @@ function planValueOf(field: SpecField, value: unknown, head: TokenSet): PlannedV
   if (!t) return { problem: `${value} is not a token on this branch` };
   if (field === 'fontFamily') {
     const families = familiesOf(head, value);
-    return families?.length ? { kind: 'font', families, path: value } : { problem: `${value} does not resolve to a font family` };
+    if (!families?.length) return { problem: `${value} does not resolve to a font family` };
+    const planned = tokenToPlanned(t, head);
+    const variable = !isUnmappable(planned) && planned.resolvedType === 'STRING' ? { tokenId: t.id, name: pathToName(value), collection: COLLECTIONS[t.tier] } : undefined;
+    return { kind: 'font', families, path: value, ...(variable ? { variable } : {}) };
   }
   // Unitless line heights and em letter spacing: Figma variables for these are pixels, so set a percent, unbound.
   if ((field === 'lineHeight' || field === 'letterSpacing') && t.type === 'number') {
@@ -525,6 +615,9 @@ export function buildComponentPlan(
     }
   }
   function planOne(spec: ComponentSpec): void {
+    // From the spec as read, not its "hash" field: a file edited by hand or by another tool keeps a stale one, and
+    // the sets it changed would never be updated. The generator writes this same hash, so a current file reads equal.
+    const hash = hashSpec(spec);
     for (const u of spec.unmapped) problem({ component: spec.name, part: u.part, property: u.property, reason: u.reason });
     const kinds = new Map(spec.parts.map((p) => [p.id, p.kind]));
     // Offsets of an absolute part from its parent's edges, in pixels.
@@ -571,7 +664,7 @@ export function buildComponentPlan(
       }
       return {
         key: variantKeyOf(v.props),
-        name: variantName(v.props),
+        name: variantName(v.props) || LONE_VARIANT,
         props: v.props,
         parts,
         ...(v.pins ? { pins: Object.fromEntries(Object.entries(v.pins).map(([part, pin]) => [part, pinPixels(part, pin)])) } : {}),
@@ -610,7 +703,7 @@ export function buildComponentPlan(
     // Pushed from Figma and shipped (or closed): rebuilt from the reviewed code even when the spec did not change.
     const shipped = existing?.pushed ? opts.pushed?.get(existing.pushed.number) : undefined;
     const fromFigma = existing?.pushed && shipped?.rebuild ? { number: existing.pushed.number, url: existing.pushed.url, status: shipped } : undefined;
-    const status: ComponentStatus = !existing ? 'new' : existing.specHash === spec.hash && !addedVariants.length && !removedVariants.length && !fromFigma ? 'unchanged' : 'updated';
+    const status: ComponentStatus = !existing ? 'new' : existing.specHash === hash && !addedVariants.length && !removedVariants.length && !fromFigma && !existing.inError ? 'unchanged' : 'updated';
     const pins: NonNullable<PlannedComponent['pins']> = {};
     for (const part of spec.parts) if (part.pin) pins[part.id] = pinPixels(part.id, part.pin);
     components.push({
@@ -620,7 +713,7 @@ export function buildComponentPlan(
       ...(spec.component ? { component: spec.component } : {}),
       ...(spec.drafted ? { drafted: spec.drafted } : {}),
       ...(fromFigma ? { fromFigma } : {}),
-      hash: spec.hash,
+      hash,
       status,
       ...(existing ? { nodeId: existing.nodeId } : {}),
       description: describeSpec(spec),
@@ -651,7 +744,11 @@ export function buildComponentPlan(
 
 /** What the Pull screen says about coverage: the count, then the components not in Figma with a plain reason each. */
 export interface CoverageView {
-  /** "26 of 47 components are in Figma", or "6 components are in Figma" when the file does not list the others. */
+  /**
+   * What the code brings to Figma (not what this file holds yet): "26 of 47 components can be pulled into Figma", or
+   * "6 components can be pulled into Figma. The code does not list the others yet" without a coverage list. No final
+   * period: the Pull screen goes on after it.
+   */
   headline: string;
   /** Components in Figma that Claude drafted (the generator cannot read them): check them against the code. */
   drafted: { name: string; reason: string }[];
@@ -668,7 +765,7 @@ export function coverageView(plan: Pick<ComponentPullPlan, 'coverage' | 'compone
   if (!list) {
     // An older specs file: it names the sets it has, not the components it leaves out. Never claim it is complete.
     const n = new Set(plan.components.map((c) => c.name)).size;
-    return { headline: `${n} ${n === 1 ? 'component is' : 'components are'} in Figma. The code does not list the others yet.`, missing: [], drafted: [], layout: [], complete: false };
+    return { headline: `${n} ${n === 1 ? 'component' : 'components'} can be pulled into Figma. The code does not list the others yet`, missing: [], drafted: [], layout: [], complete: false };
   }
   const visual = list.filter((c) => c.status !== 'layout');
   // Drafted with Claude: in Figma, never counted as generated, named so designers check them.
@@ -676,7 +773,7 @@ export function coverageView(plan: Pick<ComponentPullPlan, 'coverage' | 'compone
   const inFigma = visual.filter((c) => c.status === 'generated').length + drafted.length;
   const missing = visual.filter((c) => c.status !== 'generated' && c.status !== 'drafted').map((c) => ({ name: c.name, reason: c.reason ? `Not supported yet: ${c.reason}` : 'Not added yet' }));
   const layout = list.filter((c) => c.status === 'layout').map((c) => c.name);
-  const headline = `${inFigma} of ${visual.length} components are in Figma${drafted.length ? `, ${drafted.length} drafted with Claude` : ''}`;
+  const headline = `${inFigma} of ${visual.length} components can be pulled into Figma${drafted.length ? `, ${drafted.length} drafted with Claude` : ''}`;
   return { headline, missing, drafted, layout, complete: missing.length === 0 };
 }
 

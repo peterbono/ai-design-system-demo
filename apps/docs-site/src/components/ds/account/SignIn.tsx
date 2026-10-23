@@ -1,17 +1,21 @@
-// The one sign-in screen of Bridge (pages/signin.astro), for sign in and sign up alike: one Harbor zone with a Field
-// Guide drawing, "Sign in to Bridge" (or "Get started with Bridge" from Get started, ?new=1), Continue with GitHub
-// (the one primary action), a divider, and Continue with email: the work email, Send code, then the 6-digit code
-// (numeric keyboard, one-time-code autofill, a pasted "123 456" works), with a resend link on a cooldown. A new
-// account without a name is asked "Your name" once. Then the person goes to `next`: the page that sent them here
-// (?next=), else the server's answer (a new account: "How do you want to start?"; a known one: their team).
-// Signed in already, the screen forwards at once. A site without accounts keeps GitHub only. lib/account.ts holds the
-// words and rules, scripts/account-session.ts the calls.
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+// The one sign-in screen of Bridge (pages/signin.astro), for sign in and sign up alike (boards E1 and E2): one Harbor
+// zone with a Field Guide drawing, "Welcome to Bridge", the work email and Send code (the one primary action), then
+// the 6-digit code (numeric keyboard, one-time-code autofill, a pasted "123 456" works), with a resend link on a
+// cooldown. Email only: GitHub comes back where a repository is linked, and in Settings > Account. A new account
+// without a name is asked "Your name" once. Then the person goes to `next` (the page that sent them here, ?next=),
+// else Bridge picks the room (lib/entry.ts, GET /api/entry): their team, an invite (E3), a team found by work domain
+// (E4, E4b), a team picker (E5), or "Create your team" (E6). Those rooms live in EntryRooms.tsx, in this same zone.
+// Signed in already, the screen forwards at once. Back from GitHub (Link GitHub, Connect GitHub to accept), the GitHub
+// sign-in links to the account first. A site without accounts keeps Continue with GitHub, its only way in.
+// lib/account.ts holds the words and rules, scripts/account-session.ts the calls.
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Mail } from 'lucide-react';
-import { Alert, Button, Divider, Icon, Input, Link } from '@bridge-ds/react';
+import { Alert, Button, Icon, Input, Link } from '@bridge-ds/react';
 import { GitHubMark } from '../studio/brand-icons';
 import { Drawing } from '../studio/Drawing';
 import { ACCOUNT_WORDS as W, codeDigits, GITHUB_PENDING_KEY, CODE_LENGTH, defaultNext, PRIVACY_PAGE, readSignInQuery, RESEND_COOLDOWN, type SignedIn } from '../../../lib/account';
+import { routeEntry, type EntryRoute } from '../../../lib/entry';
+import { DomainRoom, InviteRoom, PickRoom } from './EntryRooms';
 import { isEmail } from '../../../lib/invites';
 import { maskEmail } from '../../../lib/library-access';
 import { loadRecentTeams } from '../../../lib/recent-teams';
@@ -21,7 +25,10 @@ import '../../../styles/account.css';
 /** Tests replace it. */
 export const navigate = { to: (href: string) => location.replace(href) };
 
-type Step = 'loading' | 'start' | 'code' | 'name' | 'leaving';
+type Step = 'loading' | 'start' | 'code' | 'name' | 'room' | 'leaving';
+
+/** The rooms shown on this screen; the others are pages of their own. */
+type Room = Exclude<EntryRoute, { to: 'go' } | { to: 'create' }>;
 
 function useCooldown(): [number, () => void] {
   const [left, setLeft] = useState(0);
@@ -34,7 +41,7 @@ function useCooldown(): [number, () => void] {
 }
 
 export default function SignIn() {
-  const [{ fresh, next }] = useState(() => readSignInQuery(location.search));
+  const [{ next }] = useState(() => readSignInQuery(location.search));
   const [step, setStep] = useState<Step>('loading');
   const [available, setAvailable] = useState(true);
   const [email, setEmail] = useState('');
@@ -45,7 +52,8 @@ export default function SignIn() {
   const [busy, setBusy] = useState<'github' | 'send' | 'verify' | 'name' | null>(null);
   const [said, setSaid] = useState('');
   const [left, startCooldown] = useCooldown();
-  const [after, setAfter] = useState('');
+  const [after, setAfter] = useState<SignedIn | null>(null);
+  const [room, setRoom] = useState<Room | null>(null);
   const codeField = useRef<HTMLInputElement>(null);
   const nameField = useRef<HTMLInputElement>(null);
   const emailField = useRef<HTMLInputElement>(null);
@@ -57,17 +65,36 @@ export default function SignIn() {
   };
 
   /**
-   * Where a finished sign-in goes. A brand new account follows the server ("How do you want to start?", or the Studio
-   * for a GitHub account); a known one goes back to the page that sent it here, else where the server says.
+   * Picks the room (lib/entry.ts): a team's home or "Create your team" leave this screen; an invite, a team found by
+   * work domain or the team picker show here. When /api/entry cannot answer, `fallback`, as before Entry.
    */
+  const enter = async (fallback: string) => {
+    const api = await import('../../../scripts/entry-session');
+    try {
+      const r = routeEntry(await api.getEntry(), loadRecentTeams());
+      if (r.to === 'go' || r.to === 'create') return leave(r.href);
+      setRoom(r);
+      setStep('room');
+    } catch {
+      leave(fallback);
+    }
+  };
+
+  /** Where a signed-in person goes: the page that sent them here, else the room Bridge picks for them. */
+  const go = (r: SignedIn) => {
+    if (next) return leave(next);
+    void enter(r.created ? r.next || START_PAGE : r.next || defaultNext(r.account, loadRecentTeams()));
+  };
+
+  /** A finished sign-in: a new account without a name says it once, then goes on. */
   const done = (r: SignedIn) => {
-    const target = r.created ? r.next || START_PAGE : (next ?? (r.next || defaultNext(r.account, loadRecentTeams())));
+    setEmail((e) => e || r.account.email);
     if (r.created && !r.account.name) {
-      setAfter(target);
+      setAfter(r);
       setStep('name');
       return;
     }
-    leave(target);
+    go(r);
   };
 
   const finishGitHub = async (token: string) => {
@@ -106,7 +133,10 @@ export default function SignIn() {
       }
       const info = await api.getAccount();
       if (!live) return;
-      if (info.account) return leave(next ?? defaultNext(info.account, loadRecentTeams()));
+      if (info.account) {
+        setEmail(info.account.email);
+        return go({ account: info.account, created: false, next: '' });
+      }
       setAvailable(info.available);
       setStep('start');
     })();
@@ -199,26 +229,71 @@ export default function SignIn() {
     setBusy('name');
     const api = await import('../../../scripts/account-session');
     try {
-      await api.renameAccount(name);
-      leave(after);
+      const account = await api.renameAccount(name);
+      if (after) go({ ...after, account: account ?? after.account });
     } catch (err) {
       setError(err instanceof Error ? err.message : W.failed);
       setBusy(null);
     }
   };
 
-  const title = step === 'code' ? W.codeTitle : step === 'name' ? W.nameTitle : fresh ? W.signUpTitle : W.signInTitle;
-  const lead = step === 'code' ? W.codeLead(maskEmail(email.trim())) : step === 'name' ? W.nameLead : fresh ? W.signUpLead : W.signInLead;
+  /** "Not you? Use another email": the session ends, back to the email field. */
+  const otherEmail = async () => {
+    const api = await import('../../../scripts/account-session');
+    await api.signOut().catch(() => undefined);
+    setRoom(null);
+    setEmail('');
+    setCode('');
+    setStep('start');
+    requestAnimationFrame(() => emailField.current?.focus());
+  };
+
+  /** "Connect GitHub to accept": GitHub links to the account, then this screen picks the room again. */
+  const connectGitHub = async () => {
+    const api = await import('../../../scripts/account-session');
+    try {
+      if (await api.linkGitHub(location.pathname + location.search)) await enter(next ?? '/');
+    } catch (err) {
+      setAlert(err instanceof Error && err.message ? err.message : W.githubOff);
+    }
+  };
+
+  const title = step === 'code' ? W.codeTitle : step === 'name' ? W.nameTitle : W.signInTitle;
+  const lead = step === 'code' ? W.codeLead(maskEmail(email.trim())) : step === 'name' ? W.nameLead : W.signInLead;
+  const header = (h: { title: string; lead: ReactNode }) => (
+    <>
+      <h1 id="acc-title" className="acc-title">
+        {h.title}
+      </h1>
+      <p className="acc-lead">{h.lead}</p>
+    </>
+  );
+
+  if (step === 'room' && room) {
+    const rooms = { leave, onOtherEmail: () => void otherEmail(), onConnectGitHub: () => void connectGitHub() };
+    return (
+      <section className="zone acc acc-room" aria-labelledby="acc-title">
+        <div className="acc-art" aria-hidden="true">
+          <Drawing name="guide" width={96} />
+        </div>
+        {alert && (
+          <Alert tone="danger" className="acc-alert">
+            {alert}
+          </Alert>
+        )}
+        {room.to === 'invite' && <InviteRoom {...rooms} invite={room.invite} more={room.more} email={email} header={header} />}
+        {room.to === 'domain' && <DomainRoom {...rooms} domain={room.domain} teams={room.teams} header={header} />}
+        {room.to === 'pick' && <PickRoom teams={room.teams} header={header} />}
+      </section>
+    );
+  }
 
   return (
     <section className="zone acc" aria-labelledby="acc-title" aria-busy={step === 'loading' || step === 'leaving'}>
       <div className="acc-art" aria-hidden="true">
         <Drawing name="guide" width={96} />
       </div>
-      <h1 id="acc-title" className="acc-title">
-        {title}
-      </h1>
-      <p className="acc-lead">{lead}</p>
+      {header({ title, lead })}
       {alert && (
         <Alert tone="danger" className="acc-alert">
           {alert}
@@ -227,16 +302,12 @@ export default function SignIn() {
 
       {(step === 'start' || step === 'loading' || step === 'leaving') && (
         <div className="acc-ways">
-          <Button variant="primary" size="lg" fullWidth iconStart={GitHubMark} loading={busy === 'github'} disabled={step !== 'start'} onClick={() => void github()}>
-            {busy === 'github' ? W.githubBusy : W.github}
-          </Button>
           {available ? (
             <>
-              <Divider label={W.or} spacing="sm" />
               <form className="acc-form" noValidate onSubmit={(e) => void send(e)}>
                 <Input
                   ref={emailField}
-                  label={W.email}
+                  label={W.emailLabel}
                   type="email"
                   name="email"
                   autoComplete="email"
@@ -252,13 +323,19 @@ export default function SignIn() {
                     if (error) setError(null);
                   }}
                 />
-                <Button type="submit" variant="secondary" size="lg" fullWidth loading={busy === 'send'} disabled={step !== 'start'}>
+                <Button type="submit" variant="primary" size="lg" fullWidth loading={busy === 'send'} disabled={step !== 'start'}>
                   {W.sendCode}
                 </Button>
               </form>
             </>
           ) : (
-            step === 'start' && <p className="acc-quiet">{W.unavailable}</p>
+            // A site without accounts: GitHub is its one way in, as before.
+            <>
+              <Button variant="primary" size="lg" fullWidth iconStart={GitHubMark} loading={busy === 'github'} disabled={step !== 'start'} onClick={() => void github()}>
+                {busy === 'github' ? W.githubBusy : W.github}
+              </Button>
+              {step === 'start' && <p className="acc-quiet">{W.unavailable}</p>}
+            </>
           )}
         </div>
       )}
@@ -341,7 +418,7 @@ export default function SignIn() {
         {said}
       </p>
       <div className="acc-foot">
-        {fresh && step === 'start' && (
+        {step === 'start' && (
           <p className="acc-quiet">
             {W.demoLead} <Link href={DEMO_HOME}>{W.demo}</Link>
           </p>

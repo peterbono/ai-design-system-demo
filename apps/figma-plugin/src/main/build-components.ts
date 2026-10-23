@@ -10,13 +10,15 @@
 // swapped through INSTANCE_SWAP properties whose preferred values list them, like a Figma library.
 
 import { variantKeyOf } from '@bridge-ds/core';
+import { familyKey } from '../sync/mapping';
 import type { SpecField, SpecLayout, SpecPart } from '@bridge-ds/core';
-import { parsePushedMark } from '../sync/component-pull';
+import { matchVariants, parsePushedMark, propsOfKey } from '../sync/component-pull';
 import { PUSHED_KEY } from '../shared/messages';
 import type { ComponentApplyReport, ComponentPullPlan, GeneratedSet, PlannedComponent, PlannedField, PlannedIcon, PlannedSlot, PlannedValue, PlannedVariant } from '../sync/component-pull';
 import { buildSignature } from '../sync/components';
 import { readComponent } from './components';
 import { cleanReactions } from './reactions';
+import { breathe, resetTurns } from './turns';
 
 const NS = 'dsbridge';
 const ORPHAN_PREFIX = '[orphan] ';
@@ -33,16 +35,6 @@ const SET_GAP = 96;
 type Progress = (message: string) => void;
 type Box = FrameNode | ComponentNode;
 
-const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
-/** Longest stretch of work before giving Figma a turn (ms): keeps the file responsive on a big design system. */
-const SLICE_MS = 30;
-let lastYield = 0;
-/** Yields to Figma when the current slice of work is used up. Cheap to call in any loop. */
-async function breathe(): Promise<void> {
-  if (Date.now() - lastYield < SLICE_MS) return;
-  await tick();
-  lastYield = Date.now();
-}
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 /**
@@ -136,12 +128,24 @@ export async function scanGenerated(): Promise<GeneratedSet[]> {
     specHash: s.getSharedPluginData(NS, 'specHash'),
     variants: s.children
       .filter((c): c is ComponentNode => c.type === 'COMPONENT' && c.getSharedPluginData(NS, 'orphan') !== 'true')
-      .map((c) => c.getSharedPluginData(NS, 'variant') || variantKeyOf(c.variantProperties ?? {})),
+      .map(keyOfVariant),
     ...(() => {
       const pushed = parsePushedMark(s.getSharedPluginData(NS, PUSHED_KEY));
       return pushed ? { pushed } : {};
     })(),
+    ...(inError(s) ? { inError: true } : {}),
   }));
+}
+
+/** A set Figma holds in error (variants of different shapes or alike): every read of its properties throws. */
+function inError(s: ComponentSetNode): boolean {
+  try {
+    void s.componentPropertyDefinitions;
+    for (const c of s.children) if (c.type === 'COMPONENT') void c.variantProperties;
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -372,6 +376,18 @@ function reset(node: SceneNode, field: SpecField): void {
   }
 }
 
+/** Fixed sizing on one axis, so a set or bound size holds (auto layout would hug or fill over it). */
+function fixAxis(node: SceneNode, field: 'width' | 'height'): void {
+  if ('layoutSizingHorizontal' in node && node.parent && 'layoutMode' in node.parent && node.parent.layoutMode !== 'NONE') {
+    if (field === 'width') node.layoutSizingHorizontal = 'FIXED';
+    else node.layoutSizingVertical = 'FIXED';
+  } else if ('layoutMode' in node && node.layoutMode !== 'NONE') {
+    const horizontal = node.layoutMode === 'HORIZONTAL';
+    if ((field === 'width') === horizontal) node.primaryAxisSizingMode = 'FIXED';
+    else node.counterAxisSizingMode = 'FIXED';
+  }
+}
+
 function apply(node: SceneNode, f: PlannedField, ctx: Ctx): void {
   const n = node as unknown as Record<string, unknown>;
   const v = f.value;
@@ -393,14 +409,31 @@ function apply(node: SceneNode, f: PlannedField, ctx: Ctx): void {
         /* nothing bound */
       }
       if (f.field === 'cornerRadius') n.cornerRadius = v.value;
-      else n[f.field] = v.value;
+      else if (f.field === 'width' || f.field === 'height') {
+        // Read only in Figma: fixed sizing on that axis, then resize.
+        fixAxis(node, f.field);
+        if ('resize' in node) {
+          const r = node as FrameNode;
+          r.resize(f.field === 'width' ? Math.max(0.01, v.value) : r.width, f.field === 'height' ? Math.max(0.01, v.value) : r.height);
+        }
+      } else n[f.field] = v.value;
       return;
     }
     if (v.kind === 'percent') {
       n[f.field] = { unit: 'PERCENT', value: v.value };
       return;
     }
-    if (v.kind === 'font') return; // fontName is set with the text, from the family list
+    if (v.kind === 'font') {
+      // fontName is set with the text, from the family list. Bound to the token's variable when it shows that family,
+      // so the text follows the Brand mode (Ocean's Plex Sans) like its colors; never to a family Figma lacks.
+      if (v.variable && node.type === 'TEXT') {
+        const variable = ctx.vars.find({ kind: 'variable', path: v.path, ...v.variable, resolvedType: 'STRING' });
+        const shown = variable?.resolveForConsumer(node).value;
+        const family = node.fontName === figma.mixed ? undefined : node.fontName.family;
+        if (variable && typeof shown === 'string' && family && familyKey(shown) === familyKey(family)) bind(node, 'fontFamily', variable);
+      }
+      return;
+    }
     if (v.kind === 'keyword') {
       n[f.field] = v.value;
       return;
@@ -421,14 +454,7 @@ function apply(node: SceneNode, f: PlannedField, ctx: Ctx): void {
         return;
       case 'width':
       case 'height':
-        if ('layoutSizingHorizontal' in node && node.parent && 'layoutMode' in node.parent && node.parent.layoutMode !== 'NONE') {
-          if (f.field === 'width') node.layoutSizingHorizontal = 'FIXED';
-          else node.layoutSizingVertical = 'FIXED';
-        } else if ('layoutMode' in node && node.layoutMode !== 'NONE') {
-          const horizontal = node.layoutMode === 'HORIZONTAL';
-          if ((f.field === 'width') === horizontal) node.primaryAxisSizingMode = 'FIXED';
-          else node.counterAxisSizingMode = 'FIXED';
-        }
+        fixAxis(node, f.field);
         bind(node, f.field, variable);
         return;
       default:
@@ -467,6 +493,18 @@ function setupFrame(node: Box, part: SpecPart, layout?: SpecLayout): void {
  * axis. Set last: the child's own hug sizing (setupFrame) would otherwise undo it, and FILL needs the node to be inside
  * its auto layout parent already. A text that fills the width wraps: fixed width, height grows.
  */
+/**
+ * Back in its parent's auto layout. A layer the last pull pinned or laid over its parent is absolute, and Figma refuses
+ * to make an absolute layer fill: it is sized in the layout first, then pinned again after placing.
+ */
+function intoLayout(node: SceneNode): void {
+  try {
+    if ('layoutPositioning' in node && node.layoutPositioning === 'ABSOLUTE') node.layoutPositioning = 'AUTO';
+  } catch {
+    /* its parent is no longer an auto layout: nothing to fill */
+  }
+}
+
 function sizeInParent(node: SceneNode, parentPart: SpecPart | undefined, definite = true): void {
   if (!parentPart?.layout || parentPart.layout.counter !== 'STRETCH' || !('layoutSizingHorizontal' in node)) return;
   // A vertical parent that hugs its content has no width to fill: its children hug too (same look for left-aligned
@@ -542,6 +580,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
       ctx.where = `${comp.name} ${pv.name}, ${part.name}`;
       if (main) {
         const inst = await placeInstance(node, main, parent, part.id, target);
+        intoLayout(inst);
         nodes.set(part.id, inst);
         if (inst.name !== part.name) inst.name = part.name;
         const swapKey = propKeys.get(`swap:${part.id}`);
@@ -564,10 +603,17 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
       parent.appendChild(node);
     } else if (part.id !== 'root' && node.parent !== parent) parent.appendChild(node);
     nodes.set(part.id, node);
+    if (part.id !== 'root') intoLayout(node);
     if (part.id !== 'root' && node.name !== part.name) node.name = part.name;
     const parentPart = comp.parts.find((p) => p.id === part.parent);
     ctx.where = `${comp.name} ${pv.name}, ${part.name}`;
     const fields = pv.parts[part.id] ?? [];
+    // Fields the variant sets are written by apply below: resetting them first wrote each one twice (a third of the
+    // time a variant took). Corner radius is the exception: a number does not unbind the four corners.
+    const setHere = new Set<SpecField>(fields.map((f) => f.field));
+    const resetUnset = (list: readonly SpecField[], n: SceneNode) => {
+      for (const f of list) if (f === 'cornerRadius' || !setHere.has(f)) reset(n, f);
+    };
     if (part.kind === 'text' && node.type === 'TEXT') {
       const fam = fields.find((f) => f.value.kind === 'font')?.value as Extract<PlannedValue, { kind: 'font' }> | undefined;
       const weight = fields.find((f) => f.field === 'fontWeight')?.value;
@@ -588,7 +634,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
       const key = part.text ? propKeys.get(part.text) : undefined;
       const visibleKey = part.visible ? propKeys.get(part.visible) : undefined;
       if (key || visibleKey) node.componentPropertyReferences = { ...(key ? { characters: key } : {}), ...(visibleKey ? { visible: visibleKey } : {}) };
-      for (const f of TEXT_FIELDS) reset(node, f);
+      resetUnset(TEXT_FIELDS, node);
     } else if (node.type === 'FRAME' || node.type === 'COMPONENT') {
       if (part.kind === 'frame') setupFrame(node, part, pv.layout?.[part.id]);
       else {
@@ -596,7 +642,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
         node.fills = [];
       }
       if (part.kind === 'vector' && node.type === 'FRAME') drawVector(node, pv.vectors?.[part.id], ctx);
-      for (const f of part.kind === 'icon' ? ICON_FIELDS : FRAME_FIELDS) reset(node, f);
+      resetUnset(part.kind === 'icon' ? ICON_FIELDS : FRAME_FIELDS, node);
       if (part.visible) {
         const key = propKeys.get(part.visible);
         if (key) node.componentPropertyReferences = { visible: key };
@@ -1024,7 +1070,7 @@ async function ensureParts(plan: ComponentPullPlan, ctx: Ctx, report: ComponentA
       c.x = (i % ICON_COLUMNS) * ICON_CELL;
       c.y = Math.floor(i / ICON_COLUMNS) * ICON_CELL;
     });
-    await tick();
+    await breathe();
   }
   for (const [name, c] of icons) ctx.parts.set(c.name || `Icon/${name}`, c);
   ctx.icons = (plan.icons ?? []).map((i) => i.component).filter((n) => ctx.parts.has(n));
@@ -1197,6 +1243,13 @@ function bottomOf(page: PageNode): number {
   return page.children.reduce((m, n) => Math.max(m, n.y + n.height), 0);
 }
 
+/** A variant's key: the one DS Bridge stored, else read from its name (its properties throw while the set is in error). */
+function keyOfVariant(c: ComponentNode): string {
+  const stored = c.getSharedPluginData(NS, 'variant');
+  if (stored) return stored;
+  return variantKeyOf(propsOfKey(c.name));
+}
+
 /** A set none of whose variants could be built: its message is already the reason in words. */
 class NotBuilt extends Error {}
 
@@ -1209,6 +1262,42 @@ export interface ApplyOptions {
 interface Placement {
   page?: PageNode | undefined;
   bottom?: number | undefined;
+  /** Generated sets already in the file: a new set goes next to the one its name extends, where the designer put it. */
+  sets?: readonly ComponentSetNode[] | undefined;
+}
+
+type Container = BaseNode & ChildrenMixin;
+
+/**
+ * Where a new set goes in a file organised by hand: with the set its name extends ("Select/Popup" with "Select",
+ * "AccordionItem" with "Accordion"), in that set's page, section or frame, when the designer moved it off the
+ * Components page. None otherwise: new sets go on the Components page, as before.
+ */
+export function homeOf(name: string, sets: readonly ComponentSetNode[], componentsPage: PageNode | undefined): { container: Container; near: ComponentSetNode } | undefined {
+  let near: ComponentSetNode | undefined;
+  for (const s of sets) {
+    if (s.removed || s.name === name || !name.startsWith(s.name)) continue;
+    // A whole word: "Select/Popup" and "AccordionItem" extend their set; "Tables" does not extend "Table".
+    const next = name.charAt(s.name.length);
+    if (next !== '/' && !/[A-Z ]/.test(next)) continue;
+    if (!near || s.name.length > near.name.length) near = s;
+  }
+  if (!near?.parent || pageOf(near) === componentsPage) return undefined;
+  return { container: near.parent as Container, near };
+}
+
+/** Puts a new set into its home: below what the home holds (an auto layout frame places it itself). */
+function moveHome(set: ComponentSetNode, home: { container: Container; near: ComponentSetNode }): void {
+  const { container, near } = home;
+  const kids = container.children.filter((c) => c !== set);
+  container.appendChild(set);
+  if ('layoutMode' in container && container.layoutMode !== 'NONE') return;
+  set.x = near.x;
+  set.y = kids.reduce((m, n) => Math.max(m, n.y + n.height), 0) + SET_GAP;
+  // A section does not grow with what it holds: make room.
+  if (container.type === 'SECTION' && (set.x + set.width > container.width || set.y + set.height > container.height)) {
+    container.resizeWithoutConstraints(Math.max(container.width, set.x + set.width + SET_GAP), Math.max(container.height, set.y + set.height + SET_GAP));
+  }
 }
 
 /**
@@ -1256,10 +1345,28 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
     }
     set.name = comp.name;
     set.description = comp.description;
+    // Which variant becomes which (a new axis keeps the variants it extends), and the orphans' names. Renamed first,
+    // so the set has one shape again before anything reads its properties.
+    const members = set.children.filter((c): c is ComponentNode => c.type === 'COMPONENT');
+    const byId = new Map(members.map((c) => [c.id, c]));
+    const match = matchVariants(members.map((c) => ({ id: c.id, key: keyOfVariant(c) })), comp.variants, comp.axes);
+    const variants = new Map<string, ComponentNode>();
+    for (const pv of comp.variants) {
+      const node = byId.get(match.reuse.get(pv.key) ?? '');
+      if (!node) continue;
+      variants.set(pv.key, node);
+      if (node.name !== pv.name) node.name = pv.name;
+    }
+    for (const o of match.orphans) {
+      const node = byId.get(o.id)!;
+      if (node.name !== o.name) node.name = o.name;
+      if (node.getSharedPluginData(NS, 'orphan') !== 'true') {
+        node.setSharedPluginData(NS, 'orphan', 'true');
+        if (!node.description.startsWith(ORPHAN_PREFIX)) node.description = ORPHAN_PREFIX + node.description;
+        report.orphaned++;
+      }
+    }
     const propKeys = ensureProperties(set, comp, ctx);
-    const variants = new Map(
-      set.children.filter((c): c is ComponentNode => c.type === 'COMPONENT').map((c) => [c.getSharedPluginData(NS, 'variant') || variantKeyOf(c.variantProperties ?? {}), c]),
-    );
     for (const pv of comp.variants) {
       if (skipped.has(pv.key)) continue;
       let node = variants.get(pv.key);
@@ -1268,6 +1375,9 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
       try {
         if (!node) {
           node = make.component();
+          // Named before it joins the set: an unnamed variant leaves the set in error.
+          node.name = pv.name;
+          node.setSharedPluginData(NS, 'variant', pv.key);
           set.appendChild(node);
         }
         await configureVariant(node, comp, pv, propKeys, ctx);
@@ -1280,16 +1390,6 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
       await breathe();
     }
     if (set.removed || failed.length === comp.variants.length) throw new NotBuilt(failed[0]?.reason ?? 'Figma removed the set');
-    // Variants removed in code: kept, flagged.
-    const keys = new Set(comp.variants.map((v) => v.key));
-    for (const [key, node] of variants) {
-      if (keys.has(key) || node.removed) continue;
-      if (node.getSharedPluginData(NS, 'orphan') !== 'true') {
-        node.setSharedPluginData(NS, 'orphan', 'true');
-        if (!node.description.startsWith(ORPHAN_PREFIX)) node.description = ORPHAN_PREFIX + node.description;
-        report.orphaned++;
-      }
-    }
     await breathe();
     // Interactions are extra: when Figma refuses them, this set is still built and the pull goes on.
     try {
@@ -1304,7 +1404,11 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
     } catch (err) {
       ctx.problems.push(`${comp.name}, variant grid: ${errorText(err)}`);
     }
-    if (isNew) place.bottom = Math.max(place.bottom ?? 0, set.y + set.height);
+    if (isNew) {
+      const home = homeOf(comp.name, place.sets ?? [], place.page);
+      if (home) moveHome(set, home);
+      else place.bottom = Math.max(place.bottom ?? 0, set.y + set.height);
+    }
     if (failed.length) {
       // Built in part: no spec hash, so the next pull plans it again and builds the variants left out.
       set.setSharedPluginData(NS, 'specHash', '');
@@ -1319,11 +1423,13 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
     try {
       set.setSharedPluginData(NS, 'signature', JSON.stringify(buildSignature(await readComponent(set))));
     } catch (err) {
-      console.warn(`DS Bridge: baseline of ${comp.name} not stored: ${errorText(err)}`);
+      // Said on the Pull screen: without a baseline, a Push cannot tell this set's edits from the pull.
+      ctx.problems.push(`${comp.name}: its baseline for Push was not stored (${errorText(err)}). Pull again.`);
     }
     report.nodeIds.push(set.id);
     if (isNew) report.created++;
     else report.updated++;
+    if (pageOf(set)?.name !== PAGE_NAME) report.elsewhere = (report.elsewhere ?? 0) + 1;
   } catch (err) {
     // Nothing half-built stays: what this pull created for the set goes, a new set included.
     created.rollback(mark);
@@ -1332,9 +1438,54 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
   }
 }
 
+/** Shared plugin data on the file: the pull building components here, and when it last moved. */
+const LOCK_KEY = 'buildLock';
+/** A lock that has not moved for this long was left by a pull that stopped (Figma closed): it no longer holds. */
+const LOCK_STALE_MS = 120_000;
+const session = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+type BuildLock = { session: string; started: number; at: number };
+
+/** Another pull building components in this file right now (a teammate in the same file), or none. */
+export function otherBuild(now = Date.now()): BuildLock | undefined {
+  try {
+    const lock = JSON.parse(figma.root.getSharedPluginData(NS, LOCK_KEY) || 'null') as BuildLock | null;
+    return lock && lock.session !== session && now - lock.at < LOCK_STALE_MS ? lock : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const holdBuildLock = (started: number) => figma.root.setSharedPluginData(NS, LOCK_KEY, JSON.stringify({ session, started, at: Date.now() }));
+
+function releaseBuildLock(): void {
+  try {
+    const lock = JSON.parse(figma.root.getSharedPluginData(NS, LOCK_KEY) || 'null') as BuildLock | null;
+    if (lock?.session === session) figma.root.setSharedPluginData(NS, LOCK_KEY, '');
+  } catch {
+    /* unreadable: left to go stale */
+  }
+}
+
 export async function applyComponentPlan(plan: ComponentPullPlan, progress: Progress = () => undefined, opts: ApplyOptions = {}): Promise<ComponentApplyReport> {
+  // Two pulls at once in one file (two designers) would both build the new components: one at a time.
+  const other = otherBuild();
+  if (other) {
+    const minutes = Math.max(1, Math.round((Date.now() - other.started) / 60_000));
+    throw new Error(`Someone else is pulling components into this file (started ${minutes} min ago). Wait until it ends, then check again: two pulls at once would build the same components twice.`);
+  }
+  const started = Date.now();
+  holdBuildLock(started);
+  try {
+    return await buildAll(plan, progress, opts, started);
+  } finally {
+    releaseBuildLock();
+  }
+}
+
+async function buildAll(plan: ComponentPullPlan, progress: Progress, opts: ApplyOptions, started: number): Promise<ComponentApplyReport> {
   created = new Created();
-  lastYield = Date.now();
+  // Each build measures again whether Figma shows the file.
+  resetTurns();
   const ctx: Ctx = { vars: new Variables(), fonts: new Fonts(), problems: [], where: '', parts: new Map(), icons: [] };
   const report: ComponentApplyReport = { created: 0, updated: 0, unchanged: 0, orphaned: 0, page: PAGE_NAME, problems: ctx.problems, nodeIds: [], total: plan.components.length, failed: [] };
   try {
@@ -1357,7 +1508,7 @@ export async function applyComponentPlan(plan: ComponentPullPlan, progress: Prog
     ctx.problems.push(`Icons and content slots: ${reasonOf(err)}. Components that use them are built without them.`);
   }
   created.sweep();
-  const place: Placement = {};
+  const place: Placement = { sets: [...existing.values()] };
   const interactionsFailed: string[] = [];
   const todo = plan.components.length;
   try {
@@ -1378,6 +1529,8 @@ export async function applyComponentPlan(plan: ComponentPullPlan, progress: Prog
         report.failed!.push({ name: comp.name, reason: err instanceof NotBuilt ? err.message : reasonOf(err) });
       }
       created.sweep();
+      // Still building: a teammate's pull waits.
+      holdBuildLock(started);
       await breathe();
     }
   } finally {

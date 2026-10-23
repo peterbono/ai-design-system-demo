@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  joinNeed,
   rowAction,
   holdsReviewRight,
   waitsOnContributor,
@@ -281,5 +282,37 @@ describe('contributors: what waits on someone without a review right', () => {
   it('names the row verb, the row first', () => {
     expect(rowAction('own', 'Update')).toBe('Update');
     expect(rowAction('own')).toBe('Open');
+  });
+});
+
+describe('join requests on the home (board E7b)', () => {
+  const now = Date.parse('2026-10-23T12:00:00Z');
+  const row = joinNeed({ id: 'r1', name: 'Jordan Lee', email: 'jordan.lee@acme.com', createdAt: '2026-10-23T11:00:00Z' }, 'Acme Design', now);
+
+  it('reads as a person at the door: name, what they ask, email and role, how long they wait', () => {
+    expect(row).toMatchObject({
+      key: 'join-r1',
+      kind: 'join',
+      title: 'Jordan Lee',
+      line: 'asks to join Acme Design',
+      detail: 'jordan.lee@acme.com · joins as Can edit',
+      waitsOnYou: true,
+      pill: { label: 'Waiting 1 h', tone: 'warning' },
+      request: { id: 'r1', name: 'Jordan Lee' },
+    });
+    expect(row.person?.name).toBe('Jordan');
+    expect(row.href).toMatch(/settings\/#members$/);
+    expect(joinNeed({ id: 'r2', name: 'A', email: 'a@b.co', createdAt: '2026-10-21T11:00:00Z' }, 'T', now).pill?.label).toBe('Waiting 2 days');
+    expect(joinNeed({ id: 'r3', name: 'A', email: 'a@b.co', createdAt: '2026-10-23T11:45:00Z' }, 'T', now).pill?.label).toBe('New');
+  });
+
+  it('comes first, and folds into N more past three like any row', () => {
+    const review = { ...row, key: 'change-1', kind: 'review' as const, since: '2026-10-20T00:00:00Z' };
+    expect(sortNeeds([review, row]).map((r) => r.key)).toEqual(['join-r1', 'change-1']);
+    const rows = [review, { ...review, key: 'c2' }, { ...review, key: 'c3' }, row];
+    const { shown, more } = splitNeeds(sortNeeds(rows));
+    expect(shown[0]!.key).toBe('join-r1');
+    expect(more).toMatchObject({ count: 1, parts: '1 review' });
+    expect(splitNeeds([review, review, review, row, { ...row, key: 'j2' }]).more?.parts).toBe('2 join requests');
   });
 });

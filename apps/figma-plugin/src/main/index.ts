@@ -9,20 +9,23 @@ import {
   type ResponseEnvelope,
   type SyncState,
   isRequest,
+  syncResetOnSettings,
 } from '../shared/messages';
 import { applyPullPlan } from './apply';
 import { applyComponentPlan, scanGenerated } from './build-components';
 import { exportVariants } from './fidelity';
 import { clearClaudeKey, readClaudeSettings, saveClaudeSettings } from './claude-settings';
-import { baselineImage, exportImage, exportThumbnails, markPushed, rebaseline, saveSignatures, scanComponents, selectionInfo, setExperimental } from './components';
+import { baselineImage, exportImage, exportThumbnails, markPushed, rebaseline, renameInBaselines, saveSignatures, scanComponents, selectionInfo, setExperimental } from './components';
 import { clearGitHubToken, readGitHubToken, saveGitHubToken, setGitHubTokenState } from './github-token';
 import { takeSnapshot, writePluginData } from './snapshot';
+import { enableUiTurns, isTurnReply, turnReply } from './turns';
 
 const NS = 'dsbridge';
 /** Set by "Stop" in the plugin: the component build stops after the set in progress. */
 let cancelBuild = false;
 
 figma.showUI(__html__, { width: 480, height: 640, themeColors: true, title: 'DS Bridge' });
+enableUiTurns();
 
 function readShared(): { settings: RepoSettings; sync: SyncState } {
   const get = (key: string) => figma.root.getSharedPluginData(NS, key);
@@ -56,10 +59,9 @@ const handlers: Handlers = {
     return { settings, sync, hasToken: !!token, token, tokenState, fileName: figma.root.name, claude: await readClaudeSettings() };
   },
   async 'save-settings'({ settings }) {
-    const repoChanged = settings.repo !== readShared().settings.repo || settings.branch !== readShared().settings.branch;
+    const before = readShared().settings;
     writeShared({ repo: settings.repo.trim(), branch: settings.branch.trim(), tokensPath: settings.tokensPath.trim().replace(/^\/+|\/+$/g, '') });
-    // A different repository or branch means the stored base no longer applies.
-    if (repoChanged) writeShared({ baseSha: '', lastPullAt: '', lastPrBranch: '', lastPrUrl: '' });
+    writeShared(syncResetOnSettings(before, readShared().settings));
     return readShared().settings;
   },
   async 'save-token'({ token }) {
@@ -86,6 +88,8 @@ const handlers: Handlers = {
   async 'apply-pull'({ plan }) {
     const report = await applyPullPlan(plan, (message) => figma.ui.postMessage({ kind: 'progress', message }));
     writeShared({ baseSha: plan.headSha, lastPullAt: new Date().toISOString() });
+    // Renamed in code, renamed here: component baselines follow, so a Push does not read the bindings as edits.
+    if (report.renamed?.length) await renameInBaselines(report.renamed);
     return report;
   },
   async 'save-sync'({ sync }) {
@@ -114,8 +118,8 @@ const handlers: Handlers = {
     figma.ui.resize(Math.max(360, Math.min(900, width)), Math.max(400, Math.min(1000, height)));
     return { resized: true };
   },
-  async 'scan-components'() {
-    return scanComponents((message) => figma.ui.postMessage({ kind: 'progress', message }));
+  async 'scan-components'(scope) {
+    return scanComponents((message) => figma.ui.postMessage({ kind: 'progress', message }), scope);
   },
   async 'save-signatures'({ items }) {
     return { saved: await saveSignatures(items) };
@@ -159,6 +163,8 @@ const handlers: Handlers = {
 figma.on('selectionchange', () => figma.ui.postMessage({ kind: 'selection', selection: selectionInfo() ?? null }));
 
 figma.ui.onmessage = async (msg: unknown) => {
+  // A turn answered by the UI (a long build gives Figma turns through it when the file is not shown).
+  if (isTurnReply(msg)) return turnReply(msg);
   if (!isRequest(msg)) return;
   let response: ResponseEnvelope;
   try {

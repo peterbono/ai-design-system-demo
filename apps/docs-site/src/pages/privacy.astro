@@ -23,6 +23,8 @@ import { GITHUB_URL } from '../lib/repo';
         <li>Your GitHub login, when you link GitHub.</li>
         <li>The teams you belong to, and your role on each.</li>
         <li>Invitations waiting for you or sent by you.</li>
+        <li>Your requests to join a team: your name and email, shown to that team's admins, for 14 days at most.</li>
+        <li>For teams an admin opened to their work domain: that domain and who opened it. People with an email at that domain see the team's name, its size and the admin's name, never anyone's email. Public mailboxes like Gmail or Outlook never match.</li>
         <li>The one-time sign-in codes, hashed, for 10 minutes.</li>
       </ul>
     </section>
@@ -43,7 +45,7 @@ import { GITHUB_URL } from '../lib/repo';
 
     <section class="pv-section" aria-labelledby="pv-delete">
       <h2 id="pv-delete" class="pv-h">How to delete it</h2>
-      <p>Open Settings, Account, then Delete my account. Bridge removes your account, your email memberships and your sessions at once. If you are the only admin of a team with other members, make someone else an admin first.</p>
+      <p>Open Settings, Account, then Delete my account. Bridge removes your account, your email memberships, your join requests and your sessions at once. If you are the only admin of a team with other members, make someone else an admin first.</p>
       <p><Link href={SIGNIN_PAGE}>Sign in to Bridge</Link> to get there. Questions? <Link href={GITHUB_URL}>Open an issue on GitHub</Link>.</p>
     </section>
   </article>

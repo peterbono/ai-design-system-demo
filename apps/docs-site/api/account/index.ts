@@ -15,7 +15,7 @@
 //   POST { action: 'rename', name }            { account }
 //   POST { action: 'sign-out' }                clears the cookie on this browser
 //   POST { action: 'sign-out-everywhere' }     bumps the account version: every session ends
-//   POST { action: 'delete' }                  deletes the account, its email memberships and sessions; 409 last-admin
+//   POST { action: 'delete' }                  deletes the account, its email memberships, join requests and sessions; 409 last-admin
 //                                              when the person is the only admin of a team with other members (checked
 //                                              on GitHub when the request carries their GitHub token as Bearer)
 // Every request other than GET carries `X-Bridge-Account: 1`, JSON, and an Origin of this very site (CSRF).
@@ -44,6 +44,7 @@ import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_
 import { clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, readBody, sameOrigin, secondsToTomorrow, sha256, type FetchLike } from '../_lib/http.js';
 import { accountTeamsKey, memberStore, type MemberStore } from '../_lib/members.js';
 import { globEscape, redisRest, type Redis } from '../_lib/redis.js';
+import { removeAllRequests } from '../_lib/teams.js';
 import { readCookie } from '../_lib/session.js';
 import { teamDisplayName } from '../../src/lib/demo.js';
 import { STUDIO_ROOT } from '../../src/lib/team-path.js';
@@ -112,7 +113,7 @@ export const GITHUB_PER_IP_DAY = 60;
 export const BACKUPS_KEPT = 30;
 export const BACKUP_PREFIX = 'bridge-backups/accounts-';
 /** What the backup holds. Codes and counters never leave Redis. */
-export const EXPORT_PATTERNS = ['bridge:account:*', 'bridge:member:*', 'bridge:members:*', 'bridge:invite:*'];
+export const EXPORT_PATTERNS = ['bridge:account:*', 'bridge:member:*', 'bridge:members:*', 'bridge:invite:*', 'bridge:team:*'];
 const EXPORT_SKIP = /^bridge:account:(code|codefor|codetries|count):/;
 const MAX_ACTION_BODY = 4096;
 const COUNTER_TTL_S = 2 * 24 * 60 * 60;
@@ -506,6 +507,8 @@ async function onDelete(ctx: Ctx, req: Request, a: Account): Promise<Response> {
   const repos = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [];
   // Each membership goes, which also ends that team's contributor sessions.
   for (const repo of repos) await svc.members.remove(repo, a.email);
+  // Their pending join requests go too (api/entry).
+  await removeAllRequests(svc.redis, a.email);
   const pointer = codeForKey(svc.secret, a.email);
   const live = await svc.redis.cmd('GET', pointer);
   const gh = a.github ? await svc.redis.cmd('GET', githubKey(a.github.id)) : null;

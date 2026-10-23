@@ -179,6 +179,22 @@
   display: inline;
 }
 
+/* A join request's email and role (board E7b), under its one line. */
+.sh-row-detail {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Decline and Approve on a join request: the row's own decision, at the far end like a row button. */
+.sh-row-body > .sh-join {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+
 .sh-row-chips {
   display: inline-flex;
   flex: none;

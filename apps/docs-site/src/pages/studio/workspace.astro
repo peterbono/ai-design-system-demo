@@ -7,6 +7,9 @@
 //     team's Studio at the next step.
 //   - Otherwise the home (components/ds/studio/WorkspaceHome.tsx): "Welcome, Ann.", "Connect your design system"
 //     (it resumes the steps where the visitor left them) and "1 of 6 connected" by the greeting.
+// Signed in with a Bridge account (email, Entry), the steps are "Create your team" (board E6): ?setup=create, where
+// lib/entry.ts sends an account that matched nothing. Signed out on a site with accounts, step 1 opens the one sign-in
+// screen (/signin/) and comes back here.
 // Reads no repository and asks GitHub nothing for a guest (<html data-no-repo>).
 import '../../styles/studio-home.css';
 import '../../styles/onboarding.css';
@@ -40,7 +43,9 @@ const signIn = Boolean(signInConfig(true));
     import { readStart, rememberStart } from '../../scripts/start';
     import { FinishConnecting, Onboarding } from '../../components/ds/studio/Onboarding';
     import { paintWorkspaceHome } from '../../components/ds/studio/WorkspaceHome';
-    import { onboardingSteps, STEP_IDS, type StepId } from '../../lib/onboarding';
+    import { ANY_STEP_IDS, onboardingSteps, type StepId } from '../../lib/onboarding';
+    import { accountName, signInHref, type Account } from '../../lib/account';
+    import { workDomain } from '../../../api/_lib/domains';
     import { resumeStep } from '../../lib/start';
     import { shortName } from '../../lib/home-model';
     import { ghButton } from '../../lib/gh-wording';
@@ -56,7 +61,11 @@ const signIn = Boolean(signInConfig(true));
     // The steps open from the address (?setup=library, the start screen's "Connect my design system"), from the
     // home's "Connect your design system", or from a step in "1 of 6 connected".
     const asked = new URLSearchParams(location.search).get('setup');
-    let stepsAt: StepId | null = asked && (STEP_IDS as readonly string[]).includes(asked) ? (asked as StepId) : null;
+    let stepsAt: StepId | null = asked && (ANY_STEP_IDS as readonly string[]).includes(asked) ? (asked as StepId) : null;
+    // The Bridge account (email), read once; `accounts`: this site signs people in with an email.
+    let account: Account | null = null;
+    let accounts = false;
+    let accountRead = false;
     const setAddress = (step: StepId | null) => {
       const url = new URL(location.href);
       if (step) url.searchParams.set('setup', step);
@@ -69,16 +78,31 @@ const signIn = Boolean(signInConfig(true));
     };
 
     function paint() {
+      // "Create your team" waits for the account, so it never opens on the wrong step first.
+      if (stepsAt === 'create' && !accountRead) return;
       const v = currentViewer();
-      const name = v ? (shortName(v.name) ?? v.login) : null;
-      const steps = onboardingSteps({ login: v?.login ?? null, repo: '', storybook: null, quickStart: workspace.storybook, products: [], changes: null, workspace: true });
-      if (stepsAt) {
+      const name = account ? shortName(accountName(account)) : v ? (shortName(v.name) ?? v.login) : null;
+      const team = readStart().team;
+      const steps = onboardingSteps({
+        login: v?.login ?? null,
+        repo: '',
+        storybook: null,
+        quickStart: workspace.storybook,
+        products: [],
+        changes: null,
+        workspace: true,
+        account: account ? { teamName: team?.name ?? null } : null,
+      });
+      // "Create your team" has no step 1 to sign in: an old address on it opens "Your team"; without an account,
+      // ?setup=create is the design system step.
+      const at: StepId | null = account ? (stepsAt === 'signin' ? 'create' : stepsAt) : stepsAt === 'create' ? 'library' : stepsAt;
+      if (at) {
         // Signed out, step 1 first: the sign-in comes back to this address, on the step asked for.
-        const initial = v ? stepsAt : 'signin';
+        const initial = v || account ? at : 'signin';
         root = root ?? createRoot(el);
         root.render(
           createElement(Onboarding, {
-            key: `${initial}-${Boolean(v)}`,
+            key: `${initial}-${Boolean(v)}-${Boolean(account)}`,
             steps,
             name,
             initial,
@@ -93,13 +117,21 @@ const signIn = Boolean(signInConfig(true));
               claudeHref: '/agents/#claude-code',
               team: { owner: '', repo: '', link: '', access: null, changes: null },
               workspace: true,
-              signIn: { button: ghButton(direct), direct },
+              signIn: { button: ghButton(direct), direct, href: accounts ? signInHref(location.pathname + location.search) : undefined },
+              account: account ? { email: account.email, domain: workDomain(account.email), teamName: team?.name ?? null, github: Boolean(v) } : null,
             },
             actions: {
               propose: async () => {
                 throw new Error('Connect the repository first.');
               },
               mark: () => undefined,
+              createTeam: (teamName: string, discover: boolean) => {
+                rememberStart({ team: { name: teamName, discover } });
+                paint();
+              },
+              connectGitHub: () => {
+                void import('../../scripts/account-session').then(({ linkGitHub }) => linkGitHub(location.pathname + location.search)).then((linked) => linked && paint());
+              },
               later: (at: StepId) => {
                 rememberStart({ step: at });
                 stepsAt = null;
@@ -124,7 +156,7 @@ const signIn = Boolean(signInConfig(true));
         {
           name,
           storybook: workspace.storybook,
-          setup: v ? createElement(FinishConnecting, { steps, onOpen: open, onHide: () => undefined, hideable: false, description: 'Connect your design system first. The rest can wait.' }) : undefined,
+          setup: v || account ? createElement(FinishConnecting, { steps, onOpen: open, onHide: () => undefined, hideable: false, description: 'Connect your design system first. The rest can wait.' }) : undefined,
           // With a Storybook added, the action is the repository: step 2.
           onConnect: () => open(workspace.storybook ? 'library' : resumeStep(steps, readStart().step)),
         },
@@ -135,6 +167,14 @@ const signIn = Boolean(signInConfig(true));
     onWorkspaceChange((w) => {
       workspace = w;
       paint();
+    });
+    // Who is signed in with a Bridge account: the steps become "Create your team".
+    void import('../../scripts/account-session').then(async ({ getAccount }) => {
+      const info = await getAccount();
+      account = info.account;
+      accounts = info.available;
+      accountRead = true;
+      if (known || account) paint();
     });
     if (known) paint();
     initGitHubConnect(() => {
