@@ -3,7 +3,8 @@
 // counts), their statuses (scripts/pr-status, the same rules as the change detail), then for the rows that
 // wait on the viewer who asked and since when (the timeline), the display names (GET /users), and for what is shown
 // the before/after (the token diff, else the visual impact run). Paints progressively through `onUpdate`. The rules
-// are pure in lib/home-model.ts and lib/branch-thumb.ts.
+// are pure in lib/home-model.ts and lib/branch-thumb.ts. Admins of a real team on the hosted site also get the people
+// asking to join it (board E7b, GET /api/entry?requests=), first in the list.
 import { requesterOf } from '@bridge-ds/core';
 import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, readRepo, RateLimitError } from './github-session';
 import { loadStatuses, owners, rowWho, shippers, type PullStatus } from './pr-status';
@@ -20,6 +21,7 @@ import { branchThumb, type ThumbInput, type ThumbSpec } from '../lib/branch-thum
 import {
   CLAUDE,
   changeNeed,
+  joinNeed,
   contrastNeed,
   guidanceNeed,
   holdsReviewRight,
@@ -35,7 +37,8 @@ import {
   type Person,
   type TimelineEvent,
 } from '../lib/home-model';
-import { studioHref } from '../lib/team-path';
+import { isHosted, studioHref } from '../lib/team-path';
+import { isDemoRepo, teamDisplayName } from '../lib/demo';
 
 export interface HomePull extends QueuePullFull {
   html_url: string;
@@ -165,6 +168,26 @@ interface Classified {
 }
 
 /**
+ * The people asking to join the team, for its admins only (the server checks it again): none on the demo, on a
+ * self-hosted site, or when the account cannot manage requests (no GitHub admin linked).
+ */
+export async function loadJoinNeeds(now: number): Promise<NeedRow[]> {
+  const a = currentAccess();
+  if (!a?.admin && !a?.repoAdmin) return [];
+  const { owner, repo } = readRepo();
+  const full = `${owner}/${repo}`;
+  if (!isHosted() || isDemoRepo(full)) return [];
+  try {
+    const { listJoinRequests } = await import('./entry-session');
+    const { siteConfig } = await import('./repo-context');
+    const team = teamDisplayName(full, siteConfig());
+    return (await listJoinRequests(full)).map((r) => joinNeed(r, team, now));
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Loads everything, painting as it goes. Signed out (or no working token) it reads nothing: the page asks to sign in.
  */
 export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void): Promise<void> {
@@ -174,14 +197,17 @@ export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void
   const contributor = Boolean(currentContributor()) || currentAccess()?.contributor === true;
   const rightNow = () => holdsReviewRight({ viewer, contributor, approvers: [...owners().design, ...owners().tech], shippers: shippers(), write: currentAccess()?.write ?? null });
   let reviewer = rightNow();
+  // People asking to join: admins only, read next to the branches.
+  let joins: NeedRow[] = [];
   // Library checks and guidance drafts wait on the reviewers, not on someone who cannot approve them.
-  const staticNeeds = (): NeedRow[] => (reviewer ? [...(contrastNeed(stat.contrastFail) ? [contrastNeed(stat.contrastFail)!] : []), ...stat.guidance.map((g) => guidanceNeed(g, now))] : []);
+  const staticNeeds = (): NeedRow[] => [...joins, ...(reviewer ? [...(contrastNeed(stat.contrastFail) ? [contrastNeed(stat.contrastFail)!] : []), ...stat.guidance.map((g) => guidanceNeed(g, now))] : [])];
   const empty: HomeData = { viewer, loading: true, settled: false, failed: null, needs: [], branches: [], decisions: 0, reviewer };
   if (!viewer || !hasWorkingToken()) {
     onUpdate({ ...empty, loading: false, settled: true });
     return;
   }
   onUpdate({ ...empty, needs: sortNeeds(staticNeeds()) });
+  const joinsRead = loadJoinNeeds(now).then((rows) => (joins = rows));
   const { owner, repo } = readRepo();
   let pulls: HomePull[];
   try {
@@ -291,6 +317,7 @@ export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void
       statuses.set(p.number, st);
     }),
     suggestionsRead,
+    joinsRead,
   ]);
   loading = false;
   paint();

@@ -167,10 +167,10 @@ export function oldestLabel(rows: Pick<NeedRow, 'since' | 'waitsOnYou'>[], now: 
 // Needs you
 
 /**
- * What the row is: a review someone waits for, the library health on main, the viewer's own branch, usage guidance
- * Claude drafted, or a setup step for owners.
+ * What the row is: someone asking to join the team (admins only, board E7b), a review someone waits for, the library
+ * health on main, the viewer's own branch, usage guidance Claude drafted, or a setup step for owners.
  */
-export type NeedKind = 'review' | 'health' | 'own' | 'guidance' | 'setup';
+export type NeedKind = 'join' | 'review' | 'health' | 'own' | 'guidance' | 'setup';
 
 export type PillTone = 'warning' | 'danger' | 'success' | 'neutral';
 
@@ -198,11 +198,15 @@ export interface NeedRow {
   sample?: boolean;
   /** The verb on its button when it is not the kind's (rowAction): "Update" on a branch a reviewer sent back. */
   action?: string;
+  /** A second muted line ("jordan.lee@acme.com · joins as Can edit"). */
+  detail?: string;
+  /** A join request: its id, for Approve and Decline in the row. */
+  request?: { id: string; name: string };
 }
 
 /** The verb on a Needs you row's button: the row's own, else the kind's. */
 export function rowAction(kind: NeedKind, action?: string): string {
-  return action ?? { review: 'Review', health: 'Fix', own: 'Open', guidance: 'Review', setup: 'Set up' }[kind];
+  return action ?? { join: 'Review', review: 'Review', health: 'Fix', own: 'Open', guidance: 'Review', setup: 'Set up' }[kind];
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -246,9 +250,12 @@ const CONTRIBUTOR_TOUR: Record<ContributorTourAt, { title: string; text: string 
 
 export const contributorTour = (at: ContributorTourAt): { title: string; text: string } => CONTRIBUTOR_TOUR[at];
 
-const RANK: Record<NeedKind, number> = { review: 0, health: 1, own: 2, guidance: 3, setup: 4 };
+const RANK: Record<NeedKind, number> = { join: 0, review: 1, health: 2, own: 3, guidance: 4, setup: 5 };
 
-/** Blocked by you first (oldest first), then health, your own branches, guidance drafts (oldest first), setup. */
+/**
+ * Someone at the door first (join requests, oldest first), then blocked by you (oldest first), health, your own
+ * branches, guidance drafts (oldest first), setup.
+ */
 export function sortNeeds<R extends Pick<NeedRow, 'kind' | 'since' | 'key'>>(rows: R[]): R[] {
   const t = (r: R) => (r.since ? new Date(r.since).getTime() : Number.POSITIVE_INFINITY);
   return rows
@@ -265,6 +272,7 @@ export function splitNeeds<R extends Pick<NeedRow, 'kind'>>(rows: R[], max = NEE
   const rest = rows.slice(max);
   const n = (k: NeedKind[]) => rest.filter((r) => k.includes(r.kind)).length;
   const parts = [
+    n(['join']) ? plural(n(['join']), 'join request', 'join requests') : '',
     n(['review']) ? plural(n(['review']), 'review', 'reviews') : '',
     n(['own']) ? plural(n(['own']), `of your ${VOCAB.branches}`, `of your ${VOCAB.branches}`) : '',
     n(['guidance']) ? plural(n(['guidance']), 'documentation draft', 'documentation drafts') : '',
@@ -370,6 +378,38 @@ export function contrastNeed(fail: number): NeedRow | null {
     pill: { label: plural(fail, 'check fails', 'checks fail'), tone: 'danger' },
     thumb: { kind: 'icon', icon: 'contrast' },
   };
+}
+
+/**
+ * Someone asks to join the team with their work email (board E7b, admins only): their name, "asks to join Acme
+ * Design", their email and the role they get. Approve and Decline sit in the row while 3 things or fewer wait; past
+ * that it folds into "N more" like any row and opens Settings, Members (E7c).
+ */
+export function joinNeed(r: { id: string; name: string; email: string; createdAt: string }, team: string, now: number): NeedRow {
+  const since = r.createdAt && Number.isFinite(Date.parse(r.createdAt)) ? r.createdAt : null;
+  return {
+    key: `join-${r.id}`,
+    kind: 'join',
+    title: r.name,
+    href: studioHref('settings/#members'),
+    person: { login: r.email, name: shortName(r.name) ?? r.name, avatar: null },
+    line: `asks to join ${team}`,
+    detail: `${r.email} · joins as Can edit`,
+    since,
+    waitsOnYou: true,
+    pill: since ? { label: askedPill(since, now), tone: 'warning' } : null,
+    thumb: { kind: 'icon', icon: 'person' },
+    request: { id: r.id, name: r.name },
+  };
+}
+
+/** "Waiting 1 h", "Waiting 2 days", "New" under an hour: a join request is a matter of hours, not days. */
+function askedPill(iso: string, now: number): string {
+  const h = Math.floor((now - Date.parse(iso)) / 3_600_000);
+  if (h < 1) return 'New';
+  if (h < 24) return `Waiting ${h} h`;
+  const d = Math.floor(h / 24);
+  return `Waiting ${d} ${d === 1 ? 'day' : 'days'}`;
 }
 
 /** Owners only, nothing protects the library: one setup row. */

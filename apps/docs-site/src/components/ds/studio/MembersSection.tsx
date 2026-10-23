@@ -9,6 +9,8 @@
 // Contexts (scripts/members.ts): the sample team shows its sample people and every change opens the demo dialog; a real
 // team reads GitHub and sends changes to the invites server; the browser workspace has no team yet.
 // Mounted by both Settings pages (pages/studio/settings, pages/team-shell/settings), and it mounts the dialog.
+// Admins of a real team on the hosted site also see who asks to join and who can find the team (JoinRequests.tsx,
+// boards E7a and E7c): "Asks to join" above the members, the discovery line under the intro.
 import { useState } from 'react';
 import { Link2Off, MoreHorizontal, UserPlus } from 'lucide-react';
 import { Alert, Button, ButtonGroup, EmptyState, IconButton, Menu, MenuContent, MenuItem, MenuTrigger, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
@@ -16,6 +18,8 @@ import RolePicker from './RolePicker';
 import { NoticeLine, PersonCell } from './MemberParts';
 import InviteDialog from './InviteDialog';
 import { memberActions, useMembers, type Notice } from './members-state';
+import { DiscoveryLine, JoinRequests, useEntryAdmin } from './JoinRequests';
+import { isHosted } from '../../../lib/team-path';
 import { adminCount, choiceOf, inviteChoice, memberActions as allowed, MEMBERS_WORDS, memberLine, pendingLine, roleText, roleLabel, SAMPLE_NOW, sortMembers, type Member, type PendingInvite } from '../../../lib/invites';
 import type { MembersData } from '../../../scripts/members';
 import '../../../styles/invites.css';
@@ -143,9 +147,11 @@ function PendingRow({ p, data, act, onNotice }: { p: PendingInvite; data: Member
 }
 
 export default function MembersSection() {
-  const { load, update } = useMembers();
+  const { load, update, reload } = useMembers();
   const [inviting, setInviting] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const ready = load.status === 'ready' ? load.data : null;
+  const entry = useEntryAdmin(ready?.repo ?? '', Boolean(ready && ready.context === 'real' && ready.canManage && isHosted()));
 
   if (load.status === 'loading')
     return (
@@ -164,12 +170,23 @@ export default function MembersSection() {
   const count = data.members.length + data.pending.length;
   return (
     <div className="mem">
+      {data.canManage && data.context === 'real' && (
+        <JoinRequests
+          repo={data.repo}
+          requests={entry.requests}
+          onDone={(r, approved) => {
+            entry.setRequests((xs) => xs.filter((x) => x.id !== r.id));
+            if (approved) reload();
+          }}
+        />
+      )}
       <div className="mem-head">
         <div className="mem-head-text">
           <h2 id="set-members" className="mem-title">
             {MEMBERS_WORDS.membersTitle} <span className="mem-count">{count}</span>
           </h2>
           <p className="mem-intro">{data.canManage ? MEMBERS_WORDS.membersIntro(data.team) : MEMBERS_WORDS.membersIntroReader(data.team)}</p>
+          {data.canManage && data.context === 'real' && <DiscoveryLine repo={data.repo} discovery={entry.discovery} github={entry.github} onChange={entry.setDiscovery} />}
         </div>
         {data.canManage && (
           <Button variant="primary" size="lg" iconStart={UserPlus} onClick={() => setInviting(true)}>

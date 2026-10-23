@@ -127,7 +127,13 @@ describe('start memory', () => {
     expect(parseStartMemory(null)).toEqual(EMPTY_START);
     expect(parseStartMemory('nope')).toEqual(EMPTY_START);
     expect(parseStartMemory('{"connect":"yes","step":"nowhere","demo":1}')).toEqual(EMPTY_START);
-    expect(parseStartMemory('{"connect":true,"step":"figma","demo":true}')).toEqual({ connect: true, step: 'figma', demo: true });
+    expect(parseStartMemory('{"connect":true,"step":"figma","demo":true}')).toEqual({ connect: true, step: 'figma', demo: true, team: null });
+  });
+
+  it('keeps the team typed in Create your team until a repository names it (board E6)', () => {
+    expect(parseStartMemory('{"step":"create","team":{"name":"  Lumen   Studio ","discover":true}}')).toEqual({ connect: false, step: 'create', demo: false, team: { name: 'Lumen Studio', discover: true } });
+    expect(parseStartMemory('{"team":{"name":"","discover":true}}').team).toBeNull();
+    expect(parseStartMemory('{"team":{"name":"Acme","discover":"yes"}}').team).toEqual({ name: 'Acme', discover: false });
   });
 });
 

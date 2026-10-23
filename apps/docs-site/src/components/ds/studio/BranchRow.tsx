@@ -38,9 +38,11 @@ export interface BranchRowProps {
   compact?: boolean;
   /** Chips before the pill ("Sample" on the demo). */
   tags?: ReactNode;
+  /** Compact rows only: a second muted line under the title (a join request's email and role). */
+  detail?: string | null;
 }
 
-export function BranchRow({ thumb, who, title, href, onClick, linkAttributes, selected, jira, line, pill, lead, end, className, compact, tags }: BranchRowProps) {
+export function BranchRow({ thumb, who, title, href, onClick, linkAttributes, selected, jira, line, pill, lead, end, className, compact, tags, detail }: BranchRowProps) {
   const chip = pill && (
     <Badge tone={TONE[pill.tone]} size="md" className="sh-row-pill">
       {pill.label}
@@ -62,6 +64,7 @@ export function BranchRow({ thumb, who, title, href, onClick, linkAttributes, se
                 {jira && <span className="t-ui t-muted sh-mono"> {jira}</span>}
                 {line && <span className="t-ui t-muted"> · {line}</span>}
               </Link>
+              {detail && <span className="t-ui t-muted sh-row-detail">{detail}</span>}
             </span>
             {(tags || chip) && (
               <span className="sh-row-chips">
