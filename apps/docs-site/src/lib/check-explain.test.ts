@@ -113,6 +113,12 @@ describe('failingSentence', () => {
   it('lets a design owner approve while developer tests fail', () => {
     expect(failingSentence({ story, author: 'ana', viewerIsAuthor: false, viewerApprovesDesign: true, approvalsMissing: true })).toEqual({ sentence: 'Your turn: approve the design. Merging waits for a developer to update 3 tests.', yourTurn: true });
   });
+  it('tells a designer who is on it, never which tests', () => {
+    const d = { story, author: 'ana', forDesigner: true, approvalsMissing: true };
+    expect(failingSentence({ ...d, viewerIsAuthor: false, viewerApprovesDesign: true })).toEqual({ sentence: 'Your turn: approve the design. A developer is on the code checks meanwhile.', yourTurn: true });
+    expect(failingSentence({ ...d, viewerIsAuthor: true, viewerApprovesDesign: false })).toEqual({ sentence: 'A developer is on the code checks. Your design is not the problem. Approvals come next.', yourTurn: false });
+    expect(failingSentence({ ...d, viewerIsAuthor: false, viewerApprovesDesign: false }).sentence).toBe('A developer is on the code checks. The design checks pass.');
+  });
   it('names the author when a design rule fails', () => {
     const bad = { ...story, designFails: true };
     expect(failingSentence({ story: bad, author: 'ana', viewerIsAuthor: false, viewerApprovesDesign: false, approvalsMissing: true }).sentence).toBe('Waiting for @ana to fix a design rule.');

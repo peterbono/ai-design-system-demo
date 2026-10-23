@@ -429,12 +429,19 @@ export interface ChecksLine {
   rows: { label: string; state: 'pass' | 'fail' | 'pending'; text: string }[];
 }
 
-export function checksLine(story: CheckStory): ChecksLine {
-  const rows = [story.design ? { label: 'Design rules', ...story.design } : null, story.developer ? { label: 'Developer tests', ...story.developer } : null].filter((r): r is NonNullable<typeof r> => Boolean(r));
+/**
+ * The checks of a change in one line, and the rows behind it. A designer (`forDesigner`) reads the design rules as they
+ * are and the developer checks as who acts on them: "Code checks: a developer is on it.", never which tests fail
+ * (that stays in the developers' part of the page).
+ */
+export function checksLine(story: CheckStory, opts: { forDesigner?: boolean } = {}): ChecksLine {
+  const dev = story.developer && opts.forDesigner ? { ...story.developer, text: story.developer.state === 'fail' ? 'A developer is on it.' : story.developer.text } : story.developer;
+  const devLabel = opts.forDesigner ? 'Code checks' : 'Developer tests';
+  const rows = [story.design ? { label: 'Design rules', ...story.design } : null, dev ? { label: devLabel, ...dev } : null].filter((r): r is NonNullable<typeof r> => Boolean(r));
   // No automated checks is a calm state of its own (core CI_STATE_LABEL): the approvals still say where it stands.
   if (!rows.length) return { state: 'none', text: `${CI_STATE_LABEL.none}.`, rows };
   const fail = rows.filter((r) => r.state === 'fail');
-  if (fail.length) return { state: 'fail', text: fail.map((r) => r.text).join(' '), rows };
+  if (fail.length) return { state: 'fail', text: fail.map((r) => (opts.forDesigner && r.label === devLabel ? 'Code checks fail: a developer is on it.' : r.text)).join(' '), rows };
   if (rows.some((r) => r.state === 'pending')) return { state: 'pending', text: rows.find((r) => r.state === 'pending')!.text, rows };
   const contrast = story.design && /^(\d[\d,]*) contrast checks? still pass/.exec(story.design.text);
   return { state: 'pass', text: contrast ? `All ${contrast[1]} contrast checks pass` : 'All checks pass', rows };

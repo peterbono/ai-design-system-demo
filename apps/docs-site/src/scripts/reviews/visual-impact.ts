@@ -88,7 +88,8 @@ export interface VisualSummary {
 
 export async function loadVisualImpact(
   slot: HTMLElement,
-  o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string },
+  /** `designer`: say who starts a run, never GitHub steps (a label to add, a run to follow). */
+  o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string; designer?: boolean },
   /** The before/after slot on top of the pull request: on demand, the ask lives there, not in the collapsed list. */
   topSlot?: HTMLElement,
 ): Promise<VisualSummary> {
@@ -213,15 +214,20 @@ function visualMode(): 'auto' | 'on-demand' {
  * No manifest for this commit. Automatic mode: the run is on its way, link to it. On demand: one button that adds
  * the visual-check label (the workflow runs on that label), or the way to do it on GitHub without a write token.
  */
-async function notRun(slot: HTMLElement, o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string }): Promise<boolean> {
+async function notRun(slot: HTMLElement, o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string; designer?: boolean }): Promise<boolean> {
   const mode = visualMode();
   const run = `<a href="${attrUrl(o.actionsUrl)}" target="_blank" rel="noopener">Follow the run</a>`;
   let labels = mode === 'on-demand' ? await ghGet<{ name: string }[]>(`/repos/${o.owner}/${o.repo}/issues/${o.pr}/labels`).then((f) => f.data, () => null) : null;
   const paint = (canWrite: boolean) => {
     const ask = visualAsk({ mode, labels, canWrite, label: VISUAL_CHECK_LABEL });
     const lead = '<p class="cg-line">Your team shows the before and after on demand.</p>';
-    slot.innerHTML =
-      ask === 'auto'
+    slot.innerHTML = o.designer && ask !== 'ask'
+      ? ask === 'auto'
+        ? '<p class="cg-line">Not run yet for the latest edits. The before and after shows here once it runs.</p>'
+        : ask === 'asked'
+          ? '<p class="cg-line">The before and after shows here once the run finishes.</p>'
+          : `<div class="vi-ask">${lead}<p class="cg-line">A developer can start it for this branch.</p></div>`
+      : ask === 'auto'
         ? `<p class="cg-line">Not run yet for the latest edits. <a href="${attrUrl(o.actionsUrl)}" target="_blank" rel="noopener">Run it on GitHub</a></p>`
         : ask === 'asked'
           ? `<p class="cg-line">The before and after shows here once the run on GitHub finishes. ${run}</p>`

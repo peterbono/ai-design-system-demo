@@ -107,7 +107,7 @@ function showSuggestion(n: number, push: boolean) {
   if (push) history.pushState({ suggestion: n }, '', `?suggestion=${n}`);
   window.scrollTo({ top: 0 });
   const el = sgHost();
-  if (el) void openSuggestion(n, { el, crumbs: [{ label: 'Branches', href: studioHref('changes/') }, { label: `Suggestion #${n}` }] });
+  if (el) void openSuggestion(n, { el, crumbs: [{ label: 'Branches', href: studioHref('changes/') }, { label: 'Suggestion' }] });
 }
 
 function showView(view: View) {
