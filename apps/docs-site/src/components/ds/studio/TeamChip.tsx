@@ -22,7 +22,8 @@ import type { ReactElement, ReactNode } from 'react';
 import { Avatar, Badge, Button, Icon, Menu, MenuContent, MenuGroup, MenuItem, MenuSeparator, MenuTrigger } from '@bridge-ds/react';
 import type { RepoAccessState } from '@bridge-ds/core';
 import { chipIdentity, isDemoTeam, memberRole, ownerAvatarUrl, recentTeamName } from '../../../lib/access-view';
-import { forgetRecentTeam, loadRecentTeams, loadTeamNames, loadTeamRoles, noteTeamAccess, noteTeamName, noteTeamRole } from '../../../lib/recent-teams';
+import { forgetRecentTeam, knownTeamName, loadRecentTeams, loadTeamNames, loadTeamRoles, noteTeamAccess, noteTeamName, noteTeamRole } from '../../../lib/recent-teams';
+import { pillState } from '../../../lib/access';
 import { teamHref } from '../../../lib/team-path';
 import { ghButton } from '../../../lib/gh-wording';
 import { ACCOUNT_WORDS, roleWord, signInHref } from '../../../lib/account';
@@ -126,7 +127,17 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
         setViewerName(v ? (shortName(v.name) ?? v.login) : null);
         if (!v) setAccess(r.hosted ? (session.currentAccess()?.state ?? null) : null);
       });
-      session.onAccess((a) => setAccess(a?.state ?? null));
+      // An email member's role comes from /api/contribute (one GET per team and page, shared with the session): an admin
+      // reads "Admin" here like in the account row, never "Can edit".
+      const contributeRole = async (a: { contributor?: boolean } | null): Promise<string | null> => {
+        if (!a?.contributor || !team) return null;
+        const { contributeInfo } = await import('../../../scripts/contribute-session');
+        return (await contributeInfo(team)).member?.role ?? null;
+      };
+      session.onAccess((a) => {
+        setAccess(pillState(a));
+        void contributeRole(a).then((role) => live && a && setAccess(pillState(a, role)));
+      });
     })();
     return () => {
       live = false;
@@ -159,7 +170,8 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   const wsLine = facts?.storybook ? 'Storybook connected' : MENU_WORDS.workspaceLine;
   const chip = workspace
     ? { kind: 'workspace' as const, name: wsName, title: `${wsName}, ${WORKSPACE_WORDS.kept.toLowerCase()}`, badge: { label: facts?.storybook ? 'Storybook' : WORKSPACE_WORDS.notConnected, tone: 'neutral' as const } }
-    : chipIdentity(name, { demo: isDemoTeam(name, hosted), state: access, signedIn: ghSignedIn, name: cfg.name });
+    : // Before its settings are read, the name this browser already knows (the server keeps it): the name never flips.
+      chipIdentity(name, { demo: isDemoTeam(name, hosted), state: access, signedIn: ghSignedIn, name: cfg.read ? cfg.name : (cfg.name ?? (name ? knownTeamName(name) : null)) });
   const badge = chip.badge;
   const offerTeams = launcher || hosted;
   // "Your teams": the teams the signed-in person belongs to (their role known in this browser), the one you are on first
@@ -214,7 +226,8 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     const a = await resolveAccess({ owner: o, repo: r }, { anonymous: true, probe: true });
     return a && { state: a.state, repoAdmin: a.repoAdmin };
   }, []);
-  const label = name || workspace ? `${chip.title}, ${badge.label}. Team menu` : 'Team menu';
+  // The team by its name and the role, never its repository: "Mobile kit, Can edit, Team menu".
+  const label = name || workspace ? `${chip.name}, ${badge.label}, Team menu` : 'Team menu';
   // The menu's parts in order, a separator between two: the teams to switch to (board EmptyB), what to do here, the
   // recent teams, then "Create a new team" once signed in (signed out it comes first among the actions).
   const blocks: { key: string; node: ReactNode }[] = [];

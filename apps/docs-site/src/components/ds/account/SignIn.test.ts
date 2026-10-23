@@ -288,7 +288,7 @@ describe('entry: Bridge picks the room after the code (E3 to E6)', () => {
       }),
     );
     expect(await screen.findByRole('heading', { name: 'Pick a team' })).toBeInTheDocument();
-    expect(screen.getByText('You are in 3 teams. Switch any time from the top bar.')).toBeInTheDocument();
+    expect(screen.getByText('You are in 3 teams. Switch any time from the team menu.')).toBeInTheDocument();
     const links = screen.getAllByRole('link').filter((a) => a.getAttribute('href')?.startsWith('/studio/~/'));
     expect(links.map((a) => a.textContent)).toEqual(['Acme Brand', 'Acme Design', 'Acme Mobile']);
     expect(screen.getByText('You are admin')).toBeInTheDocument();

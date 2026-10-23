@@ -99,6 +99,7 @@ import {
 } from '../_lib/http.js';
 import { memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
+import { configName, putTeamName } from '../_lib/teams.js';
 import { cookieAttrs, readCookie, signClaims, verifyClaims } from '../_lib/session.js';
 import { inviteStoreOn, type InviteStore } from '../invites/index.js';
 
@@ -622,6 +623,8 @@ async function designPaths(ctx: Ctx, c: Call, defaultBranch: string): Promise<De
       config = null;
     }
   } else if (res.status !== 404) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+  // The name the team goes by, kept with it for the team pickers and emails (api/_lib/teams.ts). Never throws.
+  if (res.status === 404 || config) await putTeamName(ctx.svc.redis, c.full, configName(config), ctx.now());
   const paths = designPathsFrom(config);
   configCache.set(key, { at: ctx.now(), paths });
   return paths;

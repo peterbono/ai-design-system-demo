@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GitHubClient, resolveRepoAccess, type FetchLike } from '@bridge-ds/core';
-import { accessFromCheck, accessLabel, accessStorageKey, accessView, ACCESS_MAX_AGE_MS, freshAccess } from './access';
+import { accessFromCheck, accessLabel, accessStorageKey, accessView, ACCESS_MAX_AGE_MS, contributorAccess, freshAccess, pillState } from './access';
 
 const TOKEN = 'test-token-not-real';
 const noSleep = { attempts: 1, baseDelayMs: 0, sleep: async () => {} };
@@ -116,5 +116,16 @@ describe('access cache', () => {
     expect(accessLabel(true, null)).toBe('Unknown');
     expect(accessLabel(true, { state: 'not-installed', write: false, admin: false, reach: false })).toBe('No access');
     expect(accessLabel(true, { state: 'writer', write: true, admin: false })).toBe('Read and write');
+  });
+});
+
+describe('pillState', () => {
+  it("shows an email member's role from /api/contribute, GitHub's state for everyone else", () => {
+    expect(pillState(null)).toBeNull();
+    expect(pillState(contributorAccess(false))).toBe('writer');
+    expect(pillState(contributorAccess(true))).toBe('admin');
+    expect(pillState(contributorAccess(false), 'admin')).toBe('admin');
+    expect(pillState(contributorAccess(true), 'edit')).toBe('writer');
+    expect(pillState({ state: 'reader', admin: false }, 'admin')).toBe('reader');
   });
 });

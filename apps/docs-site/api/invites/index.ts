@@ -69,6 +69,7 @@ import { githubApp as sharedGithubApp, type AppTokens } from '../_lib/github-app
 import { b64url, clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody as readJsonBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin as originOf, type FetchLike } from '../_lib/http.js';
 import { memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
+import { configName, getTeamNames, putTeamName } from '../_lib/teams.js';
 import { onBridge, teamDisplayName } from '../../src/lib/demo.js';
 
 export { appJwt } from '../_lib/github-app.js';
@@ -189,6 +190,8 @@ export interface InvitesDeps {
   members?: MemberStore;
   /** Bridge account names by GitHub id (the inviter's name); read from the same Redis otherwise. */
   accountName?: (githubId: number) => Promise<string | null>;
+  /** Where team names are kept (api/_lib/teams.ts); the env's Redis otherwise. */
+  redis?: Redis;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -619,6 +622,8 @@ interface Services {
   /** Email contributors; null only when a test injects an invite store without one. */
   members: MemberStore | null;
   accountName: ((githubId: number) => Promise<string | null>) | null;
+  /** Team names kept with the team (api/_lib/teams.ts); null when a test injects stores without Redis. */
+  redis: Redis | null;
 }
 
 /** The services from the env (and injected ones), or null when any of storage, email or the app is missing. */
@@ -626,7 +631,7 @@ export function services(env: InvitesEnv, deps: InvitesDeps): Services | null {
   const now = deps.now ?? Date.now;
   const kvUrl = (env.KV_REST_API_URL ?? env.UPSTASH_REDIS_REST_URL)?.trim();
   const kvToken = (env.KV_REST_API_TOKEN ?? env.UPSTASH_REDIS_REST_TOKEN)?.trim();
-  const redis = kvUrl && kvToken ? redisRest(kvUrl, kvToken, deps.fetch, STORAGE_DOWN) : null;
+  const redis = deps.redis ?? (kvUrl && kvToken ? redisRest(kvUrl, kvToken, deps.fetch, STORAGE_DOWN) : null);
   const store = deps.store ?? (redis ? inviteStoreOn(redis, now) : null);
   const members = deps.members ?? (redis ? memberStore(redis) : null);
   const key = env.RESEND_API_KEY?.trim();
@@ -636,7 +641,7 @@ export function services(env: InvitesEnv, deps: InvitesDeps): Services | null {
   const pem = env.GITHUB_APP_PRIVATE_KEY?.trim();
   const app = deps.app ?? (appId && pem ? githubApp(appId, pem, deps.fetch, now) : null);
   const accountName = deps.accountName ?? (redis ? (id: number) => accountNameByGithub(redis, id) : null);
-  return store && email && app ? { store, email, app, members, accountName } : null;
+  return store && email && app ? { store, email, app, members, accountName, redis } : null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -824,21 +829,30 @@ interface Ctx {
  * anything GitHub does not answer falls back.
  */
 async function teamNameOf(ctx: Ctx, full: string): Promise<string> {
+  const redis = ctx.svc.redis;
   try {
     const [owner, repo] = full.split('/');
     const token = owner && repo ? await ctx.svc.app.installationToken(owner, repo) : null;
     if (token) {
       const file = await gh(ctx.f, token, 'GET', `/repos/${owner}/${repo}/contents/${CONFIG_FILE}`);
       if (file.status === 200 && typeof file.data?.content === 'string') {
-        const name: unknown = JSON.parse(Buffer.from(file.data.content, 'base64').toString('utf8'))?.name;
-        // bridge.config.json `name`: 1 to 60 characters (the schema); anything else falls back.
-        if (typeof name === 'string' && name.trim() && name.trim().length <= 60) return teamDisplayName(full, { name });
+        // bridge.config.json `name`: 1 to 60 characters (the schema); anything else falls back. Kept with the team.
+        const name = configName(JSON.parse(Buffer.from(file.data.content, 'base64').toString('utf8')));
+        if (redis) await putTeamName(redis, full, name, ctx.now());
+        if (name) return teamDisplayName(full, { name });
+        return teamDisplayName(full);
       }
     }
   } catch {
     // Fall back below.
   }
-  return teamDisplayName(full);
+  // GitHub did not answer: the name kept with the team, else the repository in words.
+  try {
+    const kept = redis ? (await getTeamNames(redis, [full])).get(full.toLowerCase())?.name : undefined;
+    return teamDisplayName(full, { name: kept });
+  } catch {
+    return teamDisplayName(full);
+  }
 }
 
 async function appFor(ctx: Ctx, owner: string, repo: string): Promise<string> {
@@ -1209,7 +1223,7 @@ export async function acceptInviteForGithub(
   githubId: number,
   userToken: string | null,
 ): Promise<AcceptedInvite> {
-  const ctx: Ctx = { f: d.f, now: d.now, random: d.random ?? ((n) => randomBytes(n)), svc: { store: d.store, email: null as unknown as EmailSender, app: d.app, members: d.members, accountName: null }, limits: { admin: 0, team: 0, site: 0 } };
+  const ctx: Ctx = { f: d.f, now: d.now, random: d.random ?? ((n) => randomBytes(n)), svc: { store: d.store, email: null as unknown as EmailSender, app: d.app, members: d.members, accountName: null, redis: null }, limits: { admin: 0, team: 0, site: 0 } };
   const { owner, repo } = parseRepo(inv.repo);
   const appToken = await appFor(ctx, owner, repo);
   const u = await gh(ctx.f, appToken, 'GET', `/user/${githubId}`);

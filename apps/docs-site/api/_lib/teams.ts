@@ -8,6 +8,8 @@
 //   bridge:joinreqs:<repo>              sorted set of requester emails by expiry (ms)
 //   bridge:joinreq:mine:<email>         set of the teams that email asked to join, 14 days after the last request
 //   bridge:joinreq:count:<kind>:<who>:<day>   daily caps, 2 days
+//   bridge:joinreq:undo:<repo>:<id>     an approve or decline the admin can still undo { request, approved, added }, 30 s
+//   bridge:team:name:<repo>             { name, at }  the team's bridge.config.json `name` as last read, no expiry
 
 import type { Redis } from './redis.js';
 
@@ -39,6 +41,13 @@ export const domainKey = (domain: string) => `bridge:team:domain:${lc(domain)}`;
 export const requestKey = (repo: string, email: string) => `bridge:joinreq:${lc(repo)}:${lc(email)}`;
 export const requestsKey = (repo: string) => `bridge:joinreqs:${lc(repo)}`;
 export const myRequestsKey = (email: string) => `bridge:joinreq:mine:${lc(email)}`;
+export const undoKey = (repo: string, id: string) => `bridge:joinreq:undo:${lc(repo)}:${id}`;
+export const teamNameKey = (repo: string) => `bridge:team:name:${lc(repo)}`;
+
+/** How long an admin can take back an approve or decline (the home's Undo toast is shorter). */
+export const UNDO_TTL_S = 30;
+/** A stored team name older than this is read again from bridge.config.json when GitHub can be asked. */
+export const TEAM_NAME_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 function parse<T>(raw: unknown, ok: (v: any) => boolean): T | null {
   if (typeof raw !== 'string') return null;
@@ -135,4 +144,65 @@ export async function removeAllRequests(redis: Redis, email: string): Promise<vo
   const repos = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [];
   for (const repo of repos) await removeRequest(redis, repo, email);
   await redis.cmd('DEL', myRequestsKey(email));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Undo of an approve or decline (the home's join request rows)
+
+export interface Decided {
+  request: JoinRequest;
+  approved: boolean;
+  /** The approve made them a member (they were not one already): undo removes them again. */
+  added: boolean;
+}
+
+export async function putDecided(redis: Redis, d: Decided): Promise<void> {
+  await redis.cmd('SET', undoKey(d.request.repo, d.request.id), JSON.stringify(d), 'EX', UNDO_TTL_S);
+}
+
+/** The decision to undo, read once: a second undo finds nothing. */
+export async function takeDecided(redis: Redis, repo: string, id: string): Promise<Decided | null> {
+  const raw = await redis.cmd('GETDEL', undoKey(repo, id));
+  const d = parse<Decided>(raw, (v) => typeof v.approved === 'boolean' && typeof v.added === 'boolean' && v.request && isRequest(v.request));
+  return d && lc(d.request.repo) === lc(repo) ? d : null;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Team names: bridge.config.json `name`, kept with the team when a function reads it (invites, contributions, entry)
+
+/** bridge.config.json `name`: 1 to 60 characters once trimmed (the schema), anything else is no name. */
+export function configName(config: unknown): string | null {
+  const name = config && typeof config === 'object' ? (config as { name?: unknown }).name : undefined;
+  if (typeof name !== 'string') return null;
+  const t = name.trim().replace(/\s+/g, ' ');
+  return t && t.length <= 60 ? t : null;
+}
+
+export interface StoredTeamName {
+  name: string;
+  at: number;
+}
+
+/** The names kept for `repos` (lower case keys); a team without one is absent. */
+export async function getTeamNames(redis: Redis, repos: readonly string[]): Promise<Map<string, StoredTeamName>> {
+  const out = new Map<string, StoredTeamName>();
+  const list = [...new Set(repos.map(lc))];
+  if (!list.length) return out;
+  const raw = (await redis.cmd('MGET', ...list.map(teamNameKey))) as unknown[] | null;
+  list.forEach((repo, i) => {
+    const v = parse<StoredTeamName>(raw?.[i], (x) => typeof x.name === 'string' && typeof x.at === 'number');
+    const name = v ? configName({ name: v.name }) : null;
+    if (v && name) out.set(repo, { name, at: v.at });
+  });
+  return out;
+}
+
+/** Keeps the name a team's settings gave (`null`: the file has none, so the kept one goes). Never throws. */
+export async function putTeamName(redis: Redis, repo: string, name: string | null, now: number): Promise<void> {
+  try {
+    if (name) await redis.cmd('SET', teamNameKey(repo), JSON.stringify({ name, at: now }));
+    else await redis.cmd('DEL', teamNameKey(repo));
+  } catch {
+    // A name is a nicety: the team still goes by its repository in words.
+  }
 }

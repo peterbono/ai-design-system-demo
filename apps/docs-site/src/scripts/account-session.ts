@@ -6,6 +6,7 @@
 import { ACCOUNT_API, ACCOUNT_HEADER, ACCOUNT_WORDS, accountErrorText, GITHUB_PENDING_KEY, isPersonalKey, parseAccount, signInHref, type Account, type AccountInfo, type SignedIn } from '../lib/account';
 import { forgetContributors, seedContributors } from './contribute-session';
 import { isContribAuth } from '../lib/contribute';
+import { noteAccountTeamNames } from '../lib/recent-teams';
 
 /** The site has no account server, or it is not set up. */
 export class AccountUnavailable extends Error {
@@ -80,6 +81,8 @@ export function getAccount(fresh = false): Promise<AccountInfo> {
   info = call<{ available?: boolean; account?: unknown }>('GET', '').then(
     (r) => {
       const a = parseAccount(r.account);
+      // The server answered: its team names name each team from the first paint of the next page.
+      noteAccountTeamNames(a?.teams ?? null);
       publish(a);
       return { available: r.available !== false, account: a };
     },
@@ -95,6 +98,7 @@ function signedIn(r: { account?: unknown; created?: unknown; next?: unknown }): 
   const account = parseAccount(r.account);
   if (!account) throw new AccountError(ACCOUNT_WORDS.failed, 'failed', 500);
   info = Promise.resolve({ available: true, account });
+  noteAccountTeamNames(account.teams);
   publish(account);
   return { account, created: r.created === true, next: typeof r.next === 'string' ? r.next : '' };
 }

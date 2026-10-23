@@ -38,7 +38,7 @@ const stored = () => JSON.parse(localStorage.getItem(RECENT_TEAMS_KEY) ?? '[]') 
 async function openMenu() {
   const user = userEvent.setup();
   render(createElement(TeamChip, { launcher: true }));
-  const trigger = await screen.findByRole('button', { name: /acme\/ds/ });
+  const trigger = await screen.findByRole('button', { name: /, Team menu$/ });
   await user.click(trigger);
   const menu = await screen.findByRole('menu');
   return { user, menu };
@@ -112,7 +112,8 @@ describe('TeamChip names the team', () => {
   it("goes by the team's name from bridge.config.json, owner/repo in its title, and remembers it for the recent teams", async () => {
     page.site = { name: 'Acme Studio' };
     render(createElement(TeamChip, { launcher: true }));
-    const trigger = await screen.findByRole('button', { name: /^Acme Studio, acme\/ds/ });
+    // The menu button says the name, the role and the menu, never the repository.
+    const trigger = await screen.findByRole('button', { name: 'Acme Studio, Guest, Team menu' });
     expect(within(trigger).getByText('Acme Studio')).toHaveAttribute('title', 'Acme Studio, acme/ds');
     await waitFor(() => expect(page.listeners.length).toBeGreaterThan(0));
     act(() => page.listeners.forEach((l) => l({ state: 'reader' })));
@@ -139,7 +140,7 @@ describe('TeamChip "Your teams"', () => {
     render(createElement(TeamChip, { launcher: true }));
     await waitFor(() => expect(page.listeners.length).toBeGreaterThan(0));
     act(() => page.listeners.forEach((l) => l({ state: 'admin' })));
-    await user.click(await screen.findByRole('button', { name: /^Bridge DS design system/ }));
+    await user.click(await screen.findByRole('button', { name: /^Bridge DS, .*Team menu$/ }));
     const menu = await screen.findByRole('menu');
     const yours = within(menu).getByRole('group', { name: 'Your teams' });
     const here = within(yours).getByRole('menuitem', { name: /^Bridge DS/ });
@@ -241,5 +242,25 @@ describe('TeamChip teams to switch to (board EmptyB)', () => {
     await user.click(await screen.findByRole('button', { name: /Acme Design/ }));
     const menu = await screen.findByRole('menu');
     expect(within(menu).queryByRole('group', { name: 'Your teams' })).toBeNull();
+  });
+});
+
+describe('TeamChip pill and name, from the server', () => {
+  it("shows an email admin's role from /api/contribute, Admin and never Can edit", async () => {
+    const { setContributeFetch } = await import('../../../scripts/contribute-session');
+    setContributeFetch(async () => new Response(JSON.stringify({ available: true, member: { email: 'leo@acme.design', name: 'Leo', role: 'admin' } }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    page.viewer = { login: 'leo', name: 'Leo' };
+    render(createElement(TeamChip, { launcher: true }));
+    await waitFor(() => expect(page.listeners.length).toBeGreaterThan(0));
+    act(() => page.listeners.forEach((l) => l({ state: 'writer', contributor: true, admin: false } as never)));
+    expect(await screen.findByRole('button', { name: 'Ds, Admin, Team menu' })).toBeInTheDocument();
+    setContributeFetch(null);
+  });
+
+  it('names the team from the first paint with the name the account keeps, before its settings are read', async () => {
+    localStorage.setItem('bridge.accountTeamNames', JSON.stringify({ 'acme/ds': 'Mobile Kit Pro' }));
+    render(createElement(TeamChip, { launcher: true }));
+    expect(await screen.findByRole('button', { name: /^Mobile Kit Pro, .*Team menu$/ })).toBeInTheDocument();
+    expect(screen.queryByText('Ds')).toBeNull();
   });
 });
