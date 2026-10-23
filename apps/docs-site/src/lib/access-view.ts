@@ -165,6 +165,19 @@ export function accessScreen(state: RepoAccessState, f: AccessScreenInput): Acce
   }
 }
 
+/** Set in this tab when the session ended in another one (scripts/github-session.ts): the page says so once. */
+export const SIGNED_OUT_ELSEWHERE_KEY = 'bridge.signedOutElsewhere';
+
+/** The screen of a tab whose session ended in another tab: "You signed out", and Sign in back to this page. */
+export function signedOutScreen(owner: string, repo: string): AccessScreen {
+  return {
+    layout: 'block',
+    title: 'You signed out',
+    body: `You signed out in another tab. Sign in again to open ${teamDisplayName(`${owner}/${repo}`)}: Bridge sends a code to your email.`,
+    primary: { kind: 'email', label: 'Sign in' },
+  };
+}
+
 /** The old team sign-in screen's search parameter: such an address now opens the one sign-in screen (/signin/). */
 export const SIGN_IN_PARAM = 'signin';
 

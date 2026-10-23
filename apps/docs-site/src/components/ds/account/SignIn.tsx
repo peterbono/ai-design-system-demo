@@ -13,8 +13,8 @@ import { Mail } from 'lucide-react';
 import { Alert, Button, Icon, Input, Link } from '@bridge-ds/react';
 import { GitHubMark } from '../studio/brand-icons';
 import { Drawing } from '../studio/Drawing';
-import { ACCOUNT_WORDS as W, codeDigits, GITHUB_PENDING_KEY, CODE_LENGTH, defaultNext, PRIVACY_PAGE, readSignInQuery, RESEND_COOLDOWN, type SignedIn } from '../../../lib/account';
-import { routeEntry, type EntryRoute } from '../../../lib/entry';
+import { ACCOUNT_WORDS as W, codeDigits, GITHUB_PENDING_KEY, CODE_LENGTH, defaultNext, PRIVACY_PAGE, readSignInQuery, RESEND_COOLDOWN, SIGNED_OUT_PARAM, signedOutNote, type SignedIn } from '../../../lib/account';
+import { routeEntry, type Entry, type EntryRoute } from '../../../lib/entry';
 import { DomainRoom, InviteRoom, PickRoom } from './EntryRooms';
 import { isEmail } from '../../../lib/invites';
 import { maskEmail } from '../../../lib/library-access';
@@ -42,6 +42,8 @@ function useCooldown(): [number, () => void] {
 
 export default function SignIn() {
   const [{ next }] = useState(() => readSignInQuery(location.search));
+  // Just signed out, or the account was just deleted: said once, above the email field.
+  const [bye, setBye] = useState(() => signedOutNote(location.search));
   const [step, setStep] = useState<Step>('loading');
   const [available, setAvailable] = useState(true);
   const [email, setEmail] = useState('');
@@ -58,6 +60,9 @@ export default function SignIn() {
   const nameField = useRef<HTMLInputElement>(null);
   const emailField = useRef<HTMLInputElement>(null);
   const verifying = useRef(false);
+  /** The code was accepted: no second check (it works once), the page is on its way. */
+  const verified = useRef(false);
+  const signedInAs = useRef<SignedIn['account'] | null>(null);
 
   const leave = (href: string) => {
     setStep('leaving');
@@ -71,7 +76,9 @@ export default function SignIn() {
   const enter = async (fallback: string) => {
     const api = await import('../../../scripts/entry-session');
     try {
-      const r = routeEntry(await api.getEntry(), loadRecentTeams());
+      const entry = await api.getEntry();
+      await seedEntry(entry);
+      const r = routeEntry(entry, loadRecentTeams());
       if (r.to === 'go' || r.to === 'create') return leave(r.href);
       setRoom(r);
       setStep('room');
@@ -80,8 +87,18 @@ export default function SignIn() {
     }
   };
 
+  /** Every team /api/entry names as an email membership knows its member at once (scripts/contribute-session.ts). */
+  const seedEntry = async (entry: Entry) => {
+    const who = signedInAs.current;
+    if (entry.kind !== 'teams' || !who) return;
+    const { seedContributors } = await import('../../../scripts/contribute-session');
+    seedContributors(who, entry.teams);
+  };
+
   /** Where a signed-in person goes: the page that sent them here, else the room Bridge picks for them. */
   const go = (r: SignedIn) => {
+    // The account's email teams know their member already (scripts/account-session.ts seeds them on sign-in).
+    signedInAs.current = r.account;
     if (next) return leave(next);
     void enter(r.created ? r.next || START_PAGE : r.next || defaultNext(r.account, loadRecentTeams()));
   };
@@ -145,6 +162,14 @@ export default function SignIn() {
     };
   }, []);
 
+  // The note is said once: a reload or a shared address does not repeat it.
+  useEffect(() => {
+    const url = new URL(location.href);
+    if (!url.searchParams.has(SIGNED_OUT_PARAM)) return;
+    url.searchParams.delete(SIGNED_OUT_PARAM);
+    history.replaceState(history.state, '', url.pathname + url.search + url.hash);
+  }, []);
+
   useEffect(() => {
     if (step === 'code') codeField.current?.focus();
     if (step === 'name') nameField.current?.focus();
@@ -181,6 +206,8 @@ export default function SignIn() {
     setError(null);
     setAlert(null);
     setBusy('send');
+    setBye(null);
+    verified.current = false;
     const api = await import('../../../scripts/account-session');
     try {
       await api.sendCode(value);
@@ -197,7 +224,8 @@ export default function SignIn() {
   };
 
   const verify = async (value = code) => {
-    if (verifying.current) return;
+    // In flight or already accepted: the 6th digit checks it at once, so an Enter right after must not send it again.
+    if (verifying.current || verified.current) return;
     if (value.length !== CODE_LENGTH) {
       setError(W.badCode);
       codeField.current?.focus();
@@ -208,7 +236,9 @@ export default function SignIn() {
     setBusy('verify');
     const api = await import('../../../scripts/account-session');
     try {
-      done(await api.verifyCode(email, value));
+      const r = await api.verifyCode(email, value);
+      verified.current = true;
+      done(r);
     } catch (err) {
       setError(err instanceof Error ? err.message : W.failed);
       codeField.current?.select();
@@ -294,6 +324,11 @@ export default function SignIn() {
         <Drawing name="guide" width={96} />
       </div>
       {header({ title, lead })}
+      {bye && step !== 'code' && step !== 'name' && (
+        <Alert tone="success" className="acc-alert" onDismiss={() => setBye(null)}>
+          {bye}
+        </Alert>
+      )}
       {alert && (
         <Alert tone="danger" className="acc-alert">
           {alert}

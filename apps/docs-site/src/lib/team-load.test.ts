@@ -14,8 +14,14 @@ describe('teamFailure', () => {
     expect(teamFailure('weird', 'acme/ds').kind).toBe('unknown');
   });
 
+  it('says "You signed out" with a way back in when the session ended in another tab, never the server sentence', () => {
+    const f = teamFailure(err(401, 'You signed out. Sign in again with your email: Bridge sends you a code.'), 'acme/ds');
+    expect(f).toEqual({ kind: 'signed-out', title: 'You signed out', body: 'Sign in again to open Ds. Bridge sends a code to your email.' });
+    expect(`${f.title} ${f.body}`).not.toMatch(/GitHub answered|link/);
+  });
+
   it('never uses an em dash', () => {
-    for (const s of [429, 404, 413, 0, 500]) {
+    for (const s of [401, 429, 404, 413, 0, 500]) {
       const f = teamFailure(err(s), 'acme/ds');
       expect(`${f.title} ${f.body}`).not.toMatch(/\u2014/);
     }

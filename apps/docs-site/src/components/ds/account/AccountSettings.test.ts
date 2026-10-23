@@ -129,16 +129,26 @@ describe('Settings > Account', () => {
     expect(await screen.findByText('GitHub @leo')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Delete my account' }));
     await user.type(screen.getByRole('textbox', { name: 'Type DELETE to confirm' }), 'DELETE{Enter}');
-    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/'));
+    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/signin/?bye=deleted'));
     expect(posts('delete')[0]!.headers.Authorization).toBe('Bearer ghu_abc');
     expect(posts('delete')[0]!.headers['X-Bridge-Account']).toBe('1');
   });
 
-  it('signs out everywhere and leaves', async () => {
+  it('signs out everywhere, forgets what this browser kept about the person, and says so', async () => {
+    localStorage.setItem('bridge.contribute.member:acme/ds', JSON.stringify({ email: 'leo@acme.com', name: 'Leo', role: 'edit' }));
+    localStorage.setItem('bridge.recentTeams', JSON.stringify(['acme/ds']));
+    localStorage.setItem('bridge.teamRoles', '{}');
+    localStorage.setItem('bridge.reviews.mine', '3');
+    localStorage.setItem('bridge.gh.cache:https://api.github.com/repos/acme/ds/pulls', '{}');
+    localStorage.setItem('bridge.theme', 'dark');
+    sessionStorage.setItem('bridge.github.access:anonymous:acme/ds', '{}');
     render(createElement(AccountSettings));
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Sign out everywhere' }));
-    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/'));
+    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/signin/?bye=out'));
     expect(posts('sign-out-everywhere')).toHaveLength(1);
+    expect(Object.keys(localStorage)).toEqual(['bridge.theme']);
+    expect(sessionStorage.getItem('bridge.github.access:anonymous:acme/ds')).toBeNull();
+    localStorage.clear();
   });
 
   it('keeps the GitHub connection as it was when there is no account', async () => {

@@ -122,6 +122,44 @@ export const roleWord = (role: string): string => (role in ROLE_WORDS ? ROLE_WOR
 /** Reviewers and admins approve on GitHub: an account with such a role and no GitHub linked needs it. */
 export const needsGitHub = (a: Account): boolean => !a.github && a.teams.some((t) => t.role === 'reviewer' || t.role === 'admin');
 
+/**
+ * What this browser keeps about the person and their teams, forgotten on sign-out and when the account is deleted:
+ * their email memberships, their teams, roles and team names, their counts, and every read kept from GitHub (private
+ * bodies must not outlive the session). Preferences that say nothing about the person (theme, a tour seen) stay.
+ */
+const PERSONAL_KEYS = new Set(['bridge.reviews.mine', 'bridge.reviews.open', 'bridge.teamRoles', 'bridge.recentTeams', 'bridge.teamNames', 'bridge.gh.maintainer', 'bridge.xp.rows']);
+const PERSONAL_PREFIXES = [
+  'bridge.contribute.member:',
+  'bridge.gh.cache:',
+  'bridge.github.access:',
+  'bridge.requests:',
+  'bridge.changes.list:',
+  'bridge.prstatus:',
+  'bridge.view.',
+  'bridge.people.names.',
+  'bridge.suggestions.needs.',
+  'bridge.review.looked.',
+];
+
+/** A browser storage key that holds something personal (see above). */
+export const isPersonalKey = (k: string): boolean => PERSONAL_KEYS.has(k) || PERSONAL_PREFIXES.some((p) => k.startsWith(p));
+
+/** Set for the next page when the session ended here: the sign-in screen says so once. */
+export const SIGNED_OUT_PARAM = 'bye';
+export type SignedOutKind = 'out' | 'deleted';
+
+/** The sign-in screen after a sign-out or a deleted account, back to `next` once signed in again. */
+export function signedOutHref(kind: SignedOutKind, next?: string | null): string {
+  const base = signInHref(next);
+  return `${base}${base.includes('?') ? '&' : '?'}${SIGNED_OUT_PARAM}=${kind}`;
+}
+
+/** What the sign-in screen says once after a sign-out, or null. */
+export function signedOutNote(search: string): string | null {
+  const v = new URLSearchParams(search).get(SIGNED_OUT_PARAM);
+  return v === 'out' ? ACCOUNT_WORDS.signedOut : v === 'deleted' ? ACCOUNT_WORDS.deleted : null;
+}
+
 /** The name the account goes by: its name, else the part of the email before the @. */
 export const accountName = (a: Pick<Account, 'name' | 'email'>): string => a.name || a.email.split('@')[0] || a.email;
 
@@ -184,6 +222,8 @@ export const ACCOUNT_WORDS = {
   signOut: 'Sign out',
   signOutEverywhere: 'Sign out everywhere',
   signOutEverywhereHelp: 'Ends your sessions on every device, this one included.',
+  signedOut: "You're signed out.",
+  deleted: 'Your account is deleted.',
   deleteTitle: 'Delete my account',
   deleteHelp: 'Removes your account, your email memberships and your sessions. Your teams keep the changes you made.',
   deleteConfirmLabel: 'Type DELETE to confirm',

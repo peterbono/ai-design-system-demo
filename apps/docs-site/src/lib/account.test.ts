@@ -72,3 +72,22 @@ describe('accounts, rules and words', () => {
     for (const w of all) expect(w).not.toMatch(/\u2014/);
   });
 });
+
+describe('signing out forgets the person', () => {
+  it('names the personal keys of this browser, and keeps preferences', async () => {
+    const { isPersonalKey } = await import('./account');
+    for (const k of ['bridge.reviews.mine', 'bridge.contribute.member:acme/ds', 'bridge.teamRoles', 'bridge.recentTeams', 'bridge.teamNames', 'bridge.gh.cache:https://api.github.com/repos/acme/ds', 'bridge.github.access:anonymous:acme/ds', 'bridge.requests:acme/ds:issues', 'bridge.changes.list:acme/ds', 'bridge.prstatus:acme/ds#1@abc'])
+      expect(isPersonalKey(k), k).toBe(true);
+    for (const k of ['bridge.theme', 'bridge.home.contributor-tour', 'bridge.demo.tour', 'other']) expect(isPersonalKey(k), k).toBe(false);
+  });
+
+  it('says it once on the sign-in screen, and still goes back to the page', async () => {
+    const { signedOutHref, signedOutNote } = await import('./account');
+    expect(signedOutHref('out')).toBe('/signin/?bye=out');
+    expect(signedOutHref('out', '/studio/~/acme/ds/')).toBe('/signin/?next=%2Fstudio%2F%7E%2Facme%2Fds%2F&bye=out');
+    expect(signedOutHref('deleted')).toBe('/signin/?bye=deleted');
+    expect(signedOutNote('?bye=out')).toBe("You're signed out.");
+    expect(signedOutNote('?bye=deleted')).toBe('Your account is deleted.');
+    expect(signedOutNote('?bye=nope')).toBeNull();
+  });
+});

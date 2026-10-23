@@ -19,7 +19,7 @@ import { GitHubMark } from './brand-icons';
 import { Drawing } from './Drawing';
 import { useCopy } from './TeamLink';
 import { HostedOnboarding, setupStepFromUrl } from './Onboarding';
-import { accessScreen, SIGN_IN_PARAM, teamLink, type AccessAction, type AccessScreen } from '../../../lib/access-view';
+import { accessScreen, SIGN_IN_PARAM, SIGNED_OUT_ELSEWHERE_KEY, signedOutScreen, teamLink, type AccessAction, type AccessScreen } from '../../../lib/access-view';
 import { signInHref } from '../../../lib/account';
 import { studioBase } from '../../../lib/team-path';
 import { isDemoRepo } from '../../../lib/demo';
@@ -86,7 +86,7 @@ export function NoAccess({ screen, updatedAt, repo = '', emailExpired = false }:
   // "Invited with your email? Continue with email": the one sign-in screen, back here afterwards.
   const emailLink = repo ? screen.links?.find((l) => l.action.kind === 'email') : undefined;
   // While this screen asks to sign in, the side nav's own "Connect GitHub" would be a second call to action: hidden.
-  const asksSignIn = screen.layout === 'block' && screen.primary.kind === 'signin';
+  const asksSignIn = screen.layout === 'block' && (screen.primary.kind === 'signin' || screen.primary.kind === 'email');
   useEffect(() => {
     const root = document.documentElement;
     root.toggleAttribute('data-signin-card', asksSignIn);
@@ -212,6 +212,16 @@ export function TeamAccessGate() {
   const [setupAt, setSetupAt] = useState<ReturnType<typeof setupStepFromUrl>>(null);
   // A guest page answered from the team's published activity: the banner says how recent it is.
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  // Signed out in another tab (this tab reloaded on it): said once, with Sign in back to this page.
+  const [signedOutElsewhere] = useState(() => {
+    try {
+      const on = sessionStorage.getItem(SIGNED_OUT_ELSEWHERE_KEY) === '1';
+      sessionStorage.removeItem(SIGNED_OUT_ELSEWHERE_KEY);
+      return on;
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     let live = true;
@@ -257,7 +267,7 @@ export function TeamAccessGate() {
   // The demo greets a guest itself (its demo banner, lib/demo.ts): no guest banner over it.
   const guestOnDemo = g?.access === 'anonymous-public' && isDemoRepo(`${g.owner}/${g.repo}`);
   const stateScreen = g?.access && !guestOnDemo ? accessScreen(g.access, { owner: g.owner, repo: g.repo, login: g.login, link, admin: g.repoAdmin, email: Boolean(g.email) }) : null;
-  const screen = stateScreen;
+  const screen = signedOutElsewhere && g && !g.login ? signedOutScreen(g.owner, g.repo) : stateScreen;
   const block = screen?.layout === 'block';
   const setup = Boolean(g?.login && setupAt && !block);
   useTakeover(Boolean(block || setup));

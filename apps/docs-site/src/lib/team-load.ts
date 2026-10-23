@@ -6,7 +6,7 @@ import { teamDisplayName } from './demo';
 export type TeamDataSource = 'cache' | 'snapshot' | 'live';
 
 /** What went wrong reading a team's repository, in the words the page shows. */
-export type TeamFailureKind = 'rate-limit' | 'not-found' | 'too-large' | 'network' | 'unknown';
+export type TeamFailureKind = 'rate-limit' | 'not-found' | 'too-large' | 'network' | 'signed-out' | 'unknown';
 
 export interface TeamFailure {
   kind: TeamFailureKind;
@@ -24,6 +24,9 @@ const statusOf = (err: unknown): number | undefined => {
   return typeof s === 'number' ? s : undefined;
 };
 
+/** Signed out meanwhile: the page says so and offers Sign in (back to the same page with a code). */
+const SIGNED_OUT_FAILURE = (repo: string): TeamFailure => ({ kind: 'signed-out', title: 'You signed out', body: `Sign in again to open ${repo}. Bridge sends a code to your email.` });
+
 /** A failure to read `repo` ("owner/name") as the page says it. Never shows a stack or a raw API body. */
 export function teamFailure(err: unknown, full: string): TeamFailure {
   const status = statusOf(err);
@@ -36,6 +39,8 @@ export function teamFailure(err: unknown, full: string): TeamFailure {
       ? { kind: 'network', title: 'Bridge did not answer', body: 'Check your connection, then try again.' }
       : { kind: 'unknown', title: `Bridge cannot open ${repo} yet`, body: message || 'Something went wrong while opening the library. Try again.' };
   }
+  // The session ended (signed out in another tab, or on another device): a way back in, never the server's sentence.
+  if (status === 401) return SIGNED_OUT_FAILURE(repo);
   if (status === 429 || (status === 403 && /rate limit/i.test(message))) {
     return {
       kind: 'rate-limit',

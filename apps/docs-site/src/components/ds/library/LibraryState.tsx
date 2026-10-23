@@ -3,7 +3,8 @@
 // reuses the team pages' reader and progress (components/ds/studio/TeamState.tsx).
 // Repo content never reaches HTML here: React text nodes only.
 import { useEffect, useState, type ReactNode } from 'react';
-import { CloudOff, FileWarning, RefreshCw, SearchX, Timer } from 'lucide-react';
+import { CloudOff, FileWarning, LogIn, RefreshCw, SearchX, Timer } from 'lucide-react';
+import { signInHref } from '../../../lib/account';
 import { Button, EmptyState, IconButton, Link } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
 import { GitHubMark } from '../studio/brand-icons';
@@ -64,7 +65,7 @@ export function LibrarySourceNote({ data, refreshing, onRefresh }: { data: TeamD
   );
 }
 
-const FAILURE_ICON = { 'rate-limit': Timer, 'not-found': SearchX, 'too-large': FileWarning, network: CloudOff, unknown: CloudOff } as const;
+const FAILURE_ICON = { 'rate-limit': Timer, 'not-found': SearchX, 'too-large': FileWarning, network: CloudOff, 'signed-out': LogIn, unknown: CloudOff } as const;
 
 /**
  * What went wrong, and Try again. A repository GitHub does not show this visitor (missing, or private) offers its
@@ -82,7 +83,11 @@ export function LibraryLoadError({ failure, onRetry }: { failure: TeamFailure; o
       description={failure.kind === 'not-found' ? 'GitHub says this repository does not exist, or it is private. Check the address. If it is private, sign in to its Studio with a GitHub account that can see it, then come back.' : failure.body}
       actions={
         <>
-          {failure.kind === 'not-found' && team ? (
+          {failure.kind === 'signed-out' ? (
+            <ButtonLink variant="primary" iconStart={LogIn} href={signInHref(location.pathname + location.search + location.hash)}>
+              Sign in
+            </ButtonLink>
+          ) : failure.kind === 'not-found' && team ? (
             <ButtonLink variant="primary" href={teamHref(team.owner, team.repo, null)} iconStart={GitHubMark}>
               Sign in from Studio
             </ButtonLink>
