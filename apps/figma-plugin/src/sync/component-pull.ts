@@ -729,7 +729,11 @@ export function buildComponentPlan(
 
 /** What the Pull screen says about coverage: the count, then the components not in Figma with a plain reason each. */
 export interface CoverageView {
-  /** "26 of 47 components are in Figma", or "6 components are in Figma" when the file does not list the others. */
+  /**
+   * What the code brings to Figma (not what this file holds yet): "26 of 47 components can be pulled into Figma", or
+   * "6 components can be pulled into Figma. The code does not list the others yet" without a coverage list. No final
+   * period: the Pull screen goes on after it.
+   */
   headline: string;
   /** Components in Figma that Claude drafted (the generator cannot read them): check them against the code. */
   drafted: { name: string; reason: string }[];
@@ -746,7 +750,7 @@ export function coverageView(plan: Pick<ComponentPullPlan, 'coverage' | 'compone
   if (!list) {
     // An older specs file: it names the sets it has, not the components it leaves out. Never claim it is complete.
     const n = new Set(plan.components.map((c) => c.name)).size;
-    return { headline: `${n} ${n === 1 ? 'component is' : 'components are'} in Figma. The code does not list the others yet.`, missing: [], drafted: [], layout: [], complete: false };
+    return { headline: `${n} ${n === 1 ? 'component' : 'components'} can be pulled into Figma. The code does not list the others yet`, missing: [], drafted: [], layout: [], complete: false };
   }
   const visual = list.filter((c) => c.status !== 'layout');
   // Drafted with Claude: in Figma, never counted as generated, named so designers check them.
@@ -754,7 +758,7 @@ export function coverageView(plan: Pick<ComponentPullPlan, 'coverage' | 'compone
   const inFigma = visual.filter((c) => c.status === 'generated').length + drafted.length;
   const missing = visual.filter((c) => c.status !== 'generated' && c.status !== 'drafted').map((c) => ({ name: c.name, reason: c.reason ? `Not supported yet: ${c.reason}` : 'Not added yet' }));
   const layout = list.filter((c) => c.status === 'layout').map((c) => c.name);
-  const headline = `${inFigma} of ${visual.length} components are in Figma${drafted.length ? `, ${drafted.length} drafted with Claude` : ''}`;
+  const headline = `${inFigma} of ${visual.length} components can be pulled into Figma${drafted.length ? `, ${drafted.length} drafted with Claude` : ''}`;
   return { headline, missing, drafted, layout, complete: missing.length === 0 };
 }
 
