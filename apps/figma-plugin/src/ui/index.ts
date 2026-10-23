@@ -358,10 +358,10 @@ function valueParts(index: PathIndex, t: LogicalToken | undefined, mode: string)
   return { name: formatValue(t.type, v), resolved: r.value === undefined ? 'does not resolve' : formatValue(t.type, r.value) };
 }
 
-/** Token paths break after dots, never inside a segment. */
+/** Token paths break after a dot, a slash or a comma ("font.weight." / "semibold"), never inside a segment. */
 function breakable(text: string): Child[] {
-  const parts = text.split('.');
-  return parts.flatMap((part, i) => (i < parts.length - 1 ? [`${part}.`, h('wbr')] : [part]));
+  const parts = text.split(/(?<=[./,])/);
+  return parts.flatMap((part, i) => (i < parts.length - 1 ? [part, h('wbr')] : [part]));
 }
 
 function valueChip(index: PathIndex, t: LogicalToken | undefined, mode: string, dim = false): HTMLElement {
@@ -2138,12 +2138,12 @@ const isProse = (v: string) => /^[A-Z][a-z]+ [a-z]+ /.test(v);
 /** The detail of a change row: one font size, token and variant values in Plex Mono at that same size. */
 function changeTable(changes: { field: string; before?: string | undefined; after?: string | undefined }[], head: [string, string, string] = ['What', 'Now', 'Requested']): Child {
   if (!changes.length) return null;
-  const val = (v: string, cls: string) => h('td', { class: `${cls}${isProse(v) ? '' : ' mono'}` }, v);
+  const val = (v: string, cls: string) => h('td', { class: `${cls}${isProse(v) ? '' : ' mono'}` }, ...(isProse(v) ? [v] : breakable(v)));
   return h(
     'table',
     { class: 'changes' },
     h('thead', null, h('tr', null, head.map((x) => h('th', null, x)))),
-    h('tbody', null, changes.map((c) => h('tr', null, h('td', null, c.field), val(c.before || 'none', 'before'), val(c.after || 'removed', 'after')))),
+    h('tbody', null, changes.map((c) => h('tr', null, h('td', { class: 'what' }, c.field), val(c.before || 'none', 'before'), val(c.after || 'removed', 'after')))),
   );
 }
 
