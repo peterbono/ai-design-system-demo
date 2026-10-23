@@ -61,7 +61,8 @@ import { studioHref } from '../lib/team-path';
 import { clearGuestReads, guestFetch } from './guest-activity';
 import { CONTRIB_TOKEN, CONTRIBUTE_WORDS, contributeEligible, isContribAuth, type ContributeMember } from '../lib/contribute';
 import { ROLE_WORDS } from '../lib/invites';
-import { contributeFetch, contributeInfo, contributorFor, contributorKey, onContributeChange, signOutEmail, takeContributeHash, verifyEmailSignIn } from './contribute-session';
+import { contributeFetch, contributeInfo, contributorFor, contributorKey, onContributeChange, publicTeamRead, signOutEmail, takeContributeHash, verifyEmailSignIn } from './contribute-session';
+import { busyText } from '../lib/team-load';
 
 export { GitHubError };
 
@@ -647,10 +648,11 @@ export const studioFetch: FetchLike = async (url, init = {}) => {
       return res;
     }
   }
-  // A guest's read: the team's activity, this tab's recent answer, or GitHub (scripts/guest-activity.ts).
+  // A guest's read: the team's activity, this tab's recent answer, Bridge for a public demo team, or GitHub
+  // (scripts/guest-activity.ts). GitHub's hourly limit is said in Bridge's words, never "add a GitHub token".
   if (method === 'GET' && !headers.Authorization && url.startsWith(API)) {
     const h = headers;
-    return guestFetch(url, h.Accept ?? '', () => fetch(url, { ...init, headers: h }));
+    return busyIfLimited(await guestFetch(url, h.Accept ?? '', async () => (await publicTeamRead(pageRepo(), url, h.Accept ?? '')) ?? fetch(url, { ...init, headers: h })));
   }
   const res = await fetch(url, { ...init, headers });
   if (res.status === 401 && headers.Authorization) {
@@ -662,6 +664,17 @@ export const studioFetch: FetchLike = async (url, init = {}) => {
   }
   return res;
 };
+
+/**
+ * An anonymous answer GitHub refused for its hourly limit becomes Bridge's sentence ("Bridge is busy, try again in N
+ * min."), thrown as the GitHubError the core client keeps: a designer never reads "add a GitHub token".
+ */
+function busyIfLimited(res: Response): Response {
+  if ((res.status !== 403 && res.status !== 429) || res.headers.get('x-ratelimit-remaining') !== '0') return res;
+  const reset = Number(res.headers.get('x-ratelimit-reset'));
+  const resetsAt = Number.isFinite(reset) && reset > 0 ? new Date(reset * 1000) : undefined;
+  throw new GitHubError(429, busyText(resetsAt ? (resetsAt.getTime() - Date.now()) / 1000 : null), 'rate-limit', { resetsAt });
+}
 
 /** The core GitHub client the Studio uses: the saved token, the session-aware fetch. */
 export function studioClient(repo: string, token: string | null = getToken(), options?: ClientOptions): GitHubClient {
@@ -781,7 +794,7 @@ async function ghGetOnce<T>(url: string, path: string, key: string, opts: { acce
     const isApi = url.startsWith(API);
     const h = headers(opts.accept ? { Accept: opts.accept } : {});
     // A guest's read: the team's activity, this tab's recent answer, or GitHub (scripts/guest-activity.ts).
-    let res = isApi && !h.Authorization ? await guestFetch(url, h.Accept ?? '', () => fetch(url, { headers: h })) : isApi ? await ghFetch(url, { headers: h }) : await fetch(url);
+    let res = isApi && !h.Authorization ? await guestFetch(url, h.Accept ?? '', async () => (await publicTeamRead(pageRepo(), url, h.Accept ?? '')) ?? fetch(url, { headers: h })) : isApi ? await ghFetch(url, { headers: h }) : await fetch(url);
     // GitHub refused the token: mark it, then read anonymously (public repos keep working).
     if (res.status === 401 && isApi && hasWorkingToken()) {
       markTokenRejected();
@@ -796,7 +809,9 @@ async function ghGetOnce<T>(url: string, path: string, key: string, opts: { acce
     const data = (opts.raw ? await res.text() : await res.json()) as T;
     cacheSet(key, data);
     return { data, stale: false };
-  } catch (err) {
+  } catch (caught) {
+    // Bridge's own limit (a read through Bridge): the same as GitHub's for the callers.
+    const err = caught instanceof GitHubError && caught.status === 429 ? new RateLimitError(caught.resetsAt ?? null) : caught;
     const cached = cacheGet<T>(key);
     if (cached && (err instanceof RateLimitError || err instanceof TypeError)) {
       return { data: cached.data, stale: true, cachedAt: cached.at, resetAt: err instanceof RateLimitError ? err.resetAt : null };

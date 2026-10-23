@@ -12,6 +12,8 @@
 // never spends the 60 requests an hour GitHub gives an address. Only a team without a snapshot is read live.
 import { loadRepoModel, parseSnapshot, SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, SNAPSHOT_MAX_BYTES, snapshotSource, storybookUrl, type GitHubClient, type RepoModel, type RepoSnapshot } from '@bridge-ds/core';
 import { getToken, hasWorkingToken, studioClient } from './github-session';
+import { contributeBlobs } from './contribute-session';
+import { isContribAuth } from '../lib/contribute';
 import { loadTeamModel, type SnapshotReader, type TeamModelSource } from './repo-context';
 import { isHosted, pageTeamFromPath } from '../lib/team-path';
 import { libraryFromPath } from '../lib/library-shells';
@@ -168,7 +170,9 @@ export function loadTeamData(): Promise<TeamData> {
     }
     let read: Awaited<ReturnType<typeof loadTeamModel>>;
     try {
-      read = await loadTeamModel(client, { snapshot: readTeamSnapshot, onProgress: report });
+      // An email member reads through Bridge: the bodies in a few requests, not one per file.
+      const batch = isContribAuth(getToken()) ? contributeBlobs(`${team.owner}/${team.repo}`) : undefined;
+      read = await loadTeamModel(client, { snapshot: readTeamSnapshot, onProgress: report, ...(batch ? { batch } : {}) });
     } catch (err) {
       // A guest past GitHub's hourly limit: the published snapshot still opens the team (it costs no API request),
       // as the Library reads it. The views that need GitHub say so on their own.

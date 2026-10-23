@@ -27,6 +27,8 @@ export interface GitHubErrorInfo {
   auth?: GitHubAuthState | undefined;
   /** The permission the call needed, when GitHub or the endpoint tells (only with auth "missing-permission"). */
   permission?: GitHubPermission | undefined;
+  /** For a rate limit (status 429): when the limit resets, when GitHub or Bridge said. */
+  resetsAt?: Date | undefined;
 }
 
 export class GitHubError extends Error {
@@ -34,6 +36,8 @@ export class GitHubError extends Error {
   readonly auth: GitHubAuthState | undefined;
   /** With auth "missing-permission": the permission the call needed, when known. */
   readonly permission: GitHubPermission | undefined;
+  /** For a rate limit (status 429): when the limit resets, when known. */
+  readonly resetsAt: Date | undefined;
 
   constructor(
     readonly status: number,
@@ -45,6 +49,7 @@ export class GitHubError extends Error {
     this.name = 'GitHubError';
     this.auth = info.auth;
     this.permission = info.permission;
+    this.resetsAt = info.resetsAt;
   }
 }
 
@@ -629,7 +634,7 @@ export class GitHubClient {
           return copy(cached.body) as T;
         }
         const resetsAt = reset ? new Date(Number(reset) * 1000) : undefined;
-        const limited = new GitHubError(429, rateLimitMessage({ withToken: Boolean(this.token), resetsAt, tokenHint: this.options.tokenHint }), detail);
+        const limited = new GitHubError(429, rateLimitMessage({ withToken: Boolean(this.token), resetsAt, tokenHint: this.options.tokenHint }), detail, { resetsAt });
         hourlyLimitErrors.add(limited);
         throw limited;
       }

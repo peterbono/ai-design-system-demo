@@ -8,6 +8,7 @@
 // feature, and the session's fetch sends each call that carries it here (contributeFetch). No feature changes.
 import { GitHubError } from '@bridge-ds/core';
 import { CONTRIB_REFUSAL, CONTRIBUTE_API, GITHUB_API, CONTRIBUTE_HEADER, CONTRIBUTE_WORDS, contributeHashToken, localDevHost, parseMember, proxyUrl, type ContributeMember } from '../lib/contribute';
+import { isDemoRepo } from '../lib/demo';
 
 /** The site cannot sign in with an email (no server piece, or not set up). */
 export class ContributeUnavailable extends Error {
@@ -37,6 +38,7 @@ export function setContributeFetch(f: Fetch | null) {
   fetchImpl = f ?? ((input, init) => fetch(input, init));
   infos.clear();
   mines.clear();
+  publicReads.clear();
 }
 
 const HINT_PREFIX = 'bridge.contribute.member:';
@@ -314,4 +316,65 @@ export async function contributeFetch(repo: string, url: string, init: RequestIn
     if (body && typeof body.error === 'string' && typeof body.message === 'string' && body.message) throw new GitHubError(res.status, body.message, `${CONTRIB_REFUSAL}${body.error}`);
   }
   return res;
+}
+
+// --- Reads through Bridge (api/_lib/team-read.ts) -----------------------------------------------------------------
+// A member's reads already go through the proxy above (contributeFetch). Two more pieces: many blobs at once for a
+// member (the design system loads in a few requests instead of one per file), and the public demo teams for a visitor
+// without GitHub (Bridge's GitHub App reads them, cached, instead of this browser's 60 anonymous reads an hour).
+
+/**
+ * Reads blobs of `repo` in one request through Bridge, for an email member (their session cookie): the text of each
+ * sha, null for one GitHub does not have; shas the server left for later are not in the answer (read them alone).
+ * Throws when the server refuses (the caller reads each blob on its own then).
+ */
+export function contributeBlobs(repo: string): (shas: string[]) => Promise<Record<string, string | null>> {
+  return async (shas) => {
+    const res = await fetchImpl(`${CONTRIBUTE_API}?repo=${encodeURIComponent(repo)}&blobs=${shas.join(',')}`, { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+    if (res.status === 401) endedEmailSession(repo);
+    if (!res.ok || !/json/i.test(res.headers.get('content-type') ?? '')) throw new ContributeError(CONTRIBUTE_WORDS.network, 'blobs', res.status);
+    const data = (await res.json()) as { blobs?: Record<string, unknown> };
+    const out: Record<string, string | null> = {};
+    for (const [sha, text] of Object.entries(data.blobs ?? {})) if (typeof text === 'string' || text === null) out[sha] = text;
+    return out;
+  };
+}
+
+/** Per team on this page: Bridge cannot read it for visitors (not set up, the app missing): go to GitHub directly. */
+const publicReads = new Map<string, 'down'>();
+
+/**
+ * A visitor's read of a public demo team (lib/demo.ts DEMO_REPOS) through Bridge: the server's answer, or null when
+ * this read should go to GitHub as before (another team, another call, or Bridge cannot read it here). Bridge's own
+ * limit throws a GitHubError with its sentence ("Bridge is busy, try again in N min."), never GitHub's token advice.
+ */
+export async function publicTeamRead(repo: string, url: string, accept: string): Promise<Response | null> {
+  if (!isDemoRepo(repo) || publicReads.get(key(repo)) === 'down') return null;
+  const target = proxyUrl(url, repo);
+  if (!target) return null;
+  let res: Response;
+  try {
+    res = await fetchImpl(target, { headers: { Accept: accept || 'application/vnd.github+json' }, credentials: 'same-origin' });
+  } catch {
+    return null;
+  }
+  // No function here (the static host's page, an older deploy): GitHub directly for the rest of the page.
+  if (!/json|vnd\.github|text\/plain/i.test(res.headers.get('content-type') ?? '') || res.status === 405) {
+    publicReads.set(key(repo), 'down');
+    return null;
+  }
+  if (res.ok || res.status === 304) return res;
+  const body = (await res
+    .clone()
+    .json()
+    .catch(() => null)) as { error?: unknown; message?: unknown; retryAfter?: unknown } | null;
+  const code = typeof body?.error === 'string' ? body.error : null;
+  // GitHub's own answer (a 404 of a missing file): as it is.
+  if (!code) return res;
+  if (code === 'busy') {
+    const wait = typeof body?.retryAfter === 'number' ? body.retryAfter : null;
+    throw new GitHubError(429, typeof body?.message === 'string' ? body.message : 'Bridge is busy, try again in a few minutes.', `${CONTRIB_REFUSAL}busy`, wait ? { resetsAt: new Date(Date.now() + wait * 1000) } : {});
+  }
+  if (code !== 'not-allowed') publicReads.set(key(repo), 'down');
+  return null;
 }

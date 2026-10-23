@@ -377,7 +377,7 @@ Deny by default: anything not listed answers 403 `not-allowed`, and only paths u
 
 | Call                                   | Allowed when                                                                    |
 | -------------------------------------- | ------------------------------------------------------------------------------- |
-| `GET` anything in the repository       | always (read)                                                                   |
+| `GET` the read allow-list (below)      | always (read, read-only token, cached: see "Team reads through Bridge")         |
 | `POST git/blobs`                       | always                                                                          |
 | `POST git/trees`                       | every entry a design file (below); no submodule, symlink or executable          |
 | `POST git/commits`                     | always; author set to the member (date kept), committer dropped                 |
@@ -442,6 +442,56 @@ It reuses what invites and Library access need: storage, Resend, `LIBRARY_SESSIO
 which must have **Contents**, **Pull requests** and **Issues: Read and write** on each installation (Issues is new if
 the app was set up for invites only). Optional, not sensitive: `CONTRIB_MAX_WRITES`. Redeploy;
 `GET /api/contribute?repo=<owner/repo>` answers `{ "available": true, "member": null }` once everything is set.
+
+## Team reads through Bridge
+
+Members of a team without a GitHub token of their own (email members, Bridge accounts) and signed-out visitors of the
+public demo teams read the team's repository through Bridge, never with anonymous browser calls to `api.github.com`
+(GitHub gives an address 60 of those an hour, about three page views). People signed in with GitHub keep reading with
+their own token. The code is `apps/docs-site/api/_lib/team-read.ts`, wired in `/api/contribute` (its session cookie is
+scoped there).
+
+### The contract
+
+| Request | Answer |
+| ------- | ------ |
+| `GET /api/contribute?repo=<owner/repo>&gh=<GitHub REST path, URL-encoded>` | GitHub's status, body, `Content-Type`, `Link` and `ETag`; `X-Bridge-Cache: hit`, `revalidated`, `miss` or `stale`; `304` when `If-None-Match` matches the kept `ETag` |
+| `GET /api/contribute?repo=<owner/repo>&blobs=<sha>,<sha>,...` (1 to 100 full shas) | `{ "blobs": { "<sha>": "<text>" or null }, "later": ["<sha>"] }`: many file bodies at once (null: no such blob); `later` keeps one answer under 3 MB, ask again |
+
+Studio uses the batch to load a design system in a few requests (core `RepoSource.prefetch`, `gitHubSource` `batch`)
+instead of one request per file.
+
+### Who, and what
+
+- **Who**: a member of the team (the team's email session cookie, or a Bridge account whose email is a member: its
+  `bridge:account:teams:<email>` set, or a local admin in `npm run dev:full`), else anyone on a public demo team
+  (`peterbono/bridge-demo-ds`, `peterbono/ai-design-system-demo`) while GitHub says the repository is public. Anyone
+  else: 401 `signin`. A member reads only the team of the request, and the path must be under `/repos/<that team>`.
+- **Read only**: `GET` only (every other verb is the email contributor policy above, which needs a member and the CSRF
+  header); the installation token is narrowed to read permissions (Contents, Pull requests, Issues, and Commit
+  statuses and Checks when the installation has them), minted on the server, never sent to the browser and never
+  stored. No header of the browser goes to GitHub but a checked `Accept`.
+- **Deny by default**: the repository itself, `branches`, `commits`, `compare`, `contents`, `readme`, `git/trees`,
+  `git/blobs`, `git/commits`, `git/ref(s)`, `git/matching-refs`, `pulls` and `issues` (and one level below a number:
+  files, reviews, comments, timeline...), `labels`, `tags`, `deployments` and their statuses, `rulesets`,
+  `rules/branches`, `check-runs/<n>`, `actions/jobs/<n>`, `actions/runs/<n>`; `collaborators` for members only.
+  Anything else (hooks, keys, secrets, invitations, environments, traffic, settings, another repository, `/user`,
+  GraphQL) answers 403 `not-allowed` without calling GitHub.
+
+### Cache and limits
+
+- **Cache** (Upstash Redis): an answer is fresh 30 seconds, then revalidated with its `ETag` (GitHub does not count a
+  `304`), kept 10 minutes to stand in when GitHub says slow down. A write made through Bridge
+  (`bridge:read:wrote:<repo>`) makes older answers be checked again at once. Answers that never change (a blob, a tree
+  or a commit by its sha, contents at a full sha) are kept a day (blobs a week) and in the function's memory. Keys:
+  `bridge:read:get:<repo>:<hash>`, `bridge:read:blob:<repo>:<sha>`. Bodies of private repositories land there: access
+  is checked on every request, never by the key.
+- **Limits** per 10 minutes: 1,200 requests per address for members, 400 per address on a demo team, 6,000 per team
+  (`READ_MAX_IP`, `READ_MAX_GUEST`, `READ_MAX_TEAM`, optional; a blob batch counts 1 per 20 blobs). Over a limit, or
+  when GitHub says slow down and nothing is kept: 429 `busy`, `Retry-After`, `{ "message": "Bridge is busy, try again
+  in N min.", "retryAfter": <seconds> }`. Studio shows that sentence, never "add a GitHub token".
+- **Fallback**: when the server answers that it cannot read (not set up, the app not on the repository), a demo
+  team's visitor reads GitHub directly for the rest of the page, as before.
 
 ## Accounts
 
