@@ -58,6 +58,8 @@ import {
   soloOwnerSentence,
   summarizeCi,
   TeamDirectory,
+  localTryCommand,
+  noOnlinePreview,
   tryInProductUrl,
   tryTogetherUrl,
   branchPreviewUrls,
@@ -324,10 +326,13 @@ export async function tryBranch(ctx: BridgeContext, a: { pr: number | string }) 
   const share = shareState({ lifecycle, files: files.map((f) => f.filename), packages, comment: comments.find((c) => c.body.includes('<!-- bridge-branch-preview -->'))?.body, headSha: pr.headSha });
   const tryUrl = products.find((p) => p.url && p.how === 'reported by Vercel')?.url ?? null;
   const message = shareMessage({ title: pr.title, state: share, packages, tryUrl, url: pr.url });
+  // Nothing online reported (explorations and library branches are not deployed): try it on a developer's machine.
+  const local = noOnlinePreview(previews) ? { branch: pr.headRef, command: localTryCommand(pr.headRef) } : null;
   return {
     pr: n,
     title: pr.title,
     tryInProduct: products,
+    local,
     previews: previews.map((p) => ({ app: p.app, label: p.label, url: p.url, state: p.state })),
     share: {
       state: share.kind,

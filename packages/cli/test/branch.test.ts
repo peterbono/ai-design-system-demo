@@ -124,7 +124,9 @@ describe('bridge branch', () => {
     await expect(runDocsSave(args('docs', 'save', 'Button'), dir, d.io)).rejects.toThrow(/--file docs.json/);
     const t = io(gh, {});
     await runBranch(args('branch', 'try', '1'), dir, t.io);
-    expect(t.out()).toContain('Admin demo: no preview reported yet');
+    // Nothing reported a preview (branches are not deployed): the local way, not one 'no preview' line per app.
+    expect(t.out()).toMatch(/Not online: try it locally with git fetch origin && git switch \S+, then start Storybook/);
+    expect(t.out()).not.toContain('no preview reported yet');
     expect(t.out()).toContain('Share with a product team: The preview version is being prepared.');
   });
 });

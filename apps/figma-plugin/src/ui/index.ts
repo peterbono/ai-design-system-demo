@@ -29,7 +29,7 @@ import { IMAGES_NEED_WRITE, type SentComponentPush, sendLabel, sentTitle, sugges
 import { type Destination, type PublishItem, type PublishResult, sendComponentPush, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
 import { type ComponentsReadProblem, NEW_TOKEN_REFUSED, TOKEN_REJECTED_CALLOUT, TOKEN_REJECTED_DETAIL, TOKEN_SETTINGS_URL, type TokenProblem, checkToken, componentsReadProblem, errorText, friendlyError, tokenProblem } from '../sync/token-health';
 import { type BuildItem, type StudioTarget, developerMessage, sentLinks, studioChangeUrl } from '../sync/studio';
-import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, tryItLinks } from '../sync/explorations';
+import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, triedLocally, tryItLinks } from '../sync/explorations';
 import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
 import { type Selection, onProgress, onSelection, request } from './bridge';
 import { type FidelityOutcome, NO_REFERENCES_TEXT, fidelitySummary, runFidelityCheck } from '../sync/fidelity';
@@ -2922,7 +2922,9 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
     : statusText !== null
       ? statusLine(statusText, r)
       : h('p', { class: 'lede', 'data-region': 'tryit-status', 'data-sig': 'ready' }, 'A developer installs it in a staging branch of your product. The message has the command, the previews and the link.');
-  const linksSig = JSON.stringify(links.map((l) => [l.app, l.url, l.state]));
+  // Nothing online reported: explorations are not deployed, a developer opens it on their machine (Share with a developer).
+  const local = triedLocally(r.previews);
+  const linksSig = JSON.stringify([local, links.map((l) => [l.app, l.url, l.state])]);
   return [
     intro({ title: `Sent to ${e.name}`, text: text.join(' '), art: 'review' }),
     forDevelopers([...repoRows(), ['Exploration branch', e.branch], ['Pull request', e.url]]),
@@ -2930,8 +2932,16 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
       'section',
       { class: 'try', 'data-region': 'tryit-links', 'data-sig': linksSig },
       h('h2', null, 'Try it'),
-      h('p', { class: 'lede' }, 'Previews rebuild from the exploration in a few minutes.'),
-      links.length
+      h(
+        'p',
+        { class: 'lede' },
+        local
+          ? 'This exploration is not put online. A developer opens it on their computer and shows you: Share with a developer sends them how.'
+          : 'Previews rebuild from the exploration in a few minutes.',
+      ),
+      local
+        ? null
+        : links.length
         ? h(
             'ul',
             { class: 'rows' },
