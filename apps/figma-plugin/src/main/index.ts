@@ -15,7 +15,7 @@ import { applyPullPlan } from './apply';
 import { applyComponentPlan, scanGenerated } from './build-components';
 import { exportVariants } from './fidelity';
 import { clearClaudeKey, readClaudeSettings, saveClaudeSettings } from './claude-settings';
-import { baselineImage, exportImage, exportThumbnails, markPushed, rebaseline, saveSignatures, scanComponents, selectionInfo, setExperimental } from './components';
+import { baselineImage, exportImage, exportThumbnails, markPushed, rebaseline, renameInBaselines, saveSignatures, scanComponents, selectionInfo, setExperimental } from './components';
 import { clearGitHubToken, readGitHubToken, saveGitHubToken, setGitHubTokenState } from './github-token';
 import { takeSnapshot, writePluginData } from './snapshot';
 import { enableUiTurns, isTurnReply, turnReply } from './turns';
@@ -88,6 +88,8 @@ const handlers: Handlers = {
   async 'apply-pull'({ plan }) {
     const report = await applyPullPlan(plan, (message) => figma.ui.postMessage({ kind: 'progress', message }));
     writeShared({ baseSha: plan.headSha, lastPullAt: new Date().toISOString() });
+    // Renamed in code, renamed here: component baselines follow, so a Push does not read the bindings as edits.
+    if (report.renamed?.length) await renameInBaselines(report.renamed);
     return report;
   },
   async 'save-sync'({ sync }) {

@@ -360,10 +360,14 @@ export function snapshotToTokens(snapshot: FigmaSnapshot, repoLayout: RepoLayout
     return undefined;
   };
 
+  const contextIds = new Set(context ? [...context.tokens.values()].map((t) => t.id) : []);
   const take = (v: SnapshotVariable, tier: Tier, mode: string, figmaValue: FigmaValue | undefined) => {
     const path = nameToPath(v.name);
     if (!path) return;
     const pd = v.pluginData;
+    // A variable kept as an orphan (its token was deleted in code) is not a Figma edit: a Push never adds the token
+    // back. To bring it back, add it in code; the next pull clears the orphan mark.
+    if (pd.orphan && context && !context.byPath.has(path) && !(pd.id && contextIds.has(pd.id))) return;
     let t = tokenByPath.get(path);
     if (!t) {
       if (!pd.id) untagged.add(v.id);

@@ -303,7 +303,7 @@ test('pull keeps local edits and flags tokens removed on main as orphans', async
   assert.match(lg.description, /^\[orphan\] /);
   // After the pull the orphan is not reported as a Figma-side addition.
   const next = await analyze(client, DEFAULT_SETTINGS, { baseSha: pull.plan.headSha }, after);
-  assert.deepEqual(next.diff.local.map((e) => [e.path, e.local!.kind]).sort(), [['radius.3xl', 'added'], ['radius.sm', 'changed']]);
+  assert.deepEqual(next.diff.local.map((e) => [e.path, e.local!.kind]).sort(), [['radius.sm', 'changed']]);
 });
 
 test('a pull recreates variables deleted in Figma that other tokens still alias, and keeps other deletions', async () => {

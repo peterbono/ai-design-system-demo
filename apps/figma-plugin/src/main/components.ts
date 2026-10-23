@@ -304,6 +304,32 @@ export async function readComponent(node: ComponentSetNode | ComponentNode, read
   return { nodeId: node.id, name: node.name, page: pageOf(node), definitions: await readDefinitions(node), variants };
 }
 
+/**
+ * Variables a pull renamed (a token renamed in code): the stored baselines name the old variables, so a Push would
+ * read every binding as changed in Figma. Each name equal to a renamed variable's old name becomes its new one.
+ */
+export async function renameInBaselines(renames: readonly { from: string; to: string }[]): Promise<number> {
+  if (!renames.length) return 0;
+  const map = new Map(renames.map((r) => [r.from, r.to]));
+  const swap = (v: unknown): unknown => (typeof v === 'string' ? (map.get(v) ?? v) : Array.isArray(v) ? v.map(swap) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, swap(x)])) : v);
+  let updated = 0;
+  for (const node of await localComponents()) {
+    const raw = node.getSharedPluginData(NS, SIGNATURE_KEY);
+    if (!raw) continue;
+    let next: string;
+    try {
+      next = JSON.stringify(swap(JSON.parse(raw)));
+    } catch {
+      continue;
+    }
+    if (next !== raw) {
+      node.setSharedPluginData(NS, SIGNATURE_KEY, next);
+      updated++;
+    }
+  }
+  return updated;
+}
+
 export async function scanComponents(progress: Progress, scope: ScanComponentsRequest = {}): Promise<ScannedComponentsPayload> {
   const only = scope.nodeIds ? new Set(scope.nodeIds) : undefined;
   const skip = new Set(scope.skip ?? []);
