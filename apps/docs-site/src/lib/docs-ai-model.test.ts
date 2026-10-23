@@ -172,3 +172,16 @@ describe('answers', () => {
     expect(() => resultFromExchange(sel, {})).toThrow(/no rewritten passage/);
   });
 });
+
+describe('the my-Claude way, for a developer', () => {
+  it('is a message to copy: the setup with a token placeholder, the page and the phrase', async () => {
+    const { COPY_SETUP, developerSetupMessage } = await import('./docs-ai-model');
+    expect(COPY_SETUP.label).toBe('Copy setup for a developer');
+    const m = developerSetupMessage({ repo: 'acme/ds', component: 'Button', page: 'https://bridge.test/components/button/?edit=1', phrase: 'draft bridge docs' });
+    expect(m).toContain('Button usage guidance');
+    expect(m).toContain('Page: https://bridge.test/components/button/?edit=1');
+    expect(m).toContain('claude mcp add bridge -s user -e GITHUB_TOKEN=your-github-token -- npx -y @bridge-ds/mcp --repo acme/ds');
+    expect(m).toContain('say "draft bridge docs" in Claude Code');
+    expect(m.includes(String.fromCharCode(0x2014))).toBe(false);
+  });
+});

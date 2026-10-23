@@ -5,7 +5,7 @@
 // sentence, ONE live preview with a Light/Dark switch, the facts in one line (a badge only when something waits for
 // someone), then one row of actions with a single primary (the guidance while it is missing or in review, else
 // "Change this component"). The designer drives a change: the drawer asks what she wants to change, in place, and
-// leads to her component's tokens, to an exploration Claude builds from her Figma frame, or to a mismatch report
+// leads to her component's tokens, to an exploration a developer builds with Claude from her Figma frame, or to a mismatch report
 // (scripts/request-form.ts, lib/change-intent.ts). No developer fold: the code is one "Open on GitHub" link on the
 // summary line, next to "Open in the Library".
 import { jsonForScript } from '../../../lib/html';
@@ -22,7 +22,7 @@ import ComponentsSearch from '../../../components/ds/studio/ComponentsSearch';
 import BridgedSelect from '../../../components/ds/BridgedSelect';
 import ComponentsList, { exceptions, type ComponentListRow } from '../../../components/ds/studio/ComponentsList';
 import { Badge, Button, IconButton, Input, Link, SegmentedControl, Textarea } from '@bridge-ds/react';
-import { FileText, ImagePlus, Moon, Pencil, Sun, X } from 'lucide-react';
+import { Copy, FileText, ImagePlus, Moon, Pencil, Sun, X } from 'lucide-react';
 import ChangeIntent from '../../../components/ds/studio/ChangeIntent';
 import { GitHubMark } from '../../../components/ds/studio/brand-icons';
 import { docsEditHref, editTokensHref, guidanceState, loadComponents, type ComponentInfo } from '../../../lib/components';
@@ -33,6 +33,7 @@ import { PREVIEW_APPS, PREVIEW_PACKAGES, sourceUrl } from '../../../lib/repo';
 import { VOCAB } from '../../../lib/vocabulary';
 import { siteRepo } from '../../../lib/config';
 import { ghAction } from '../../../lib/gh-wording';
+import { COPY_MESSAGE, FRAME_MISSING } from '../../../lib/change-intent';
 import { signInConfig } from '../../../lib/signin-config';
 import { PAGE_SOURCES, freshness } from '../../../lib/sources';
 import { studioHref } from '../../../lib/team-path';
@@ -201,9 +202,10 @@ const signIn = Boolean(signInConfig());
         <h3 class="cm-chg-title" id="cm-chg-form-title" data-cm-form-title>Describe the new option</h3>
         <Input label="What to add" name="title" autoComplete="off" placeholder="A danger ghost variant" required />
         <Textarea label="What it is for" name="summary" rows={3} placeholder="Where you need it, and how it differs from what we have." required />
-        <Input label="Figma link (optional)" name="figma" type="url" inputMode="url" autoComplete="off" placeholder="https://www.figma.com/design/..." hint="In Figma, right-click the frame, then Copy link to selection." />
+        <p class="cm-req-frame-rule" id="cm-req-frame-rule" data-rq-frame-rule>{FRAME_MISSING}</p>
+        <Input label="Figma link" name="figma" type="url" inputMode="url" autoComplete="off" placeholder="https://www.figma.com/design/..." hint="In Figma, right-click the frame, then Copy link to selection." />
         <div class="cm-req-img" data-rq-image-box>
-          <span class="cm-req-img-label" id="cm-req-img-label">Image (optional)</span>
+          <span class="cm-req-img-label" id="cm-req-img-label">Image</span>
           <p class="cm-req-img-hint" data-rq-image-hint>Paste a screenshot anywhere in this form, or attach a file. PNG, JPEG, GIF or WebP, up to 5 MB.</p>
           <!-- bridge-audit-ignore-next-line: hidden file picker behind the DS Button "Attach an image"; the DS has no file input -->
           <input class="sr-only" type="file" accept="image/png,image/jpeg,image/gif,image/webp" tabindex="-1" aria-hidden="true" data-rq-image-file />
@@ -228,10 +230,15 @@ const signIn = Boolean(signInConfig());
           <Button variant="primary" iconStart={GitHubMark} data-gh-open data-no-gh data-cm-connect data-demo-write="start an exploration">{ghAction('start', signIn)}</Button>
           <Button variant="ghost" data-cm-chg-cancel>Cancel</Button>
         </div>
-        <Button variant="ghost" size="sm" className="cm-req-start" data-cm-ask>Ask a developer instead</Button>
+        <Button variant="ghost" size="sm" className="cm-req-start" data-cm-ask>Send a plain request instead</Button>
       </form>
     </section>
     <div class="rq-done cm-chg-done" role="status" data-rq-done hidden></div>
+    {/* Once an exploration started: the message for the developer who builds it with Claude (scripts/request-form.ts). */}
+    <div class="cm-dev-msg" data-rq-devmsg hidden>
+      <Textarea label={COPY_MESSAGE.field} name="devmsg" rows={7} readOnly />
+      <Button variant="primary" iconStart={Copy} type="button" data-rq-devmsg-copy>{COPY_MESSAGE.label}</Button>
+    </div>
   </aside>
 
   <script type="application/json" id="bridge-branches" set:html={branchesJson} />

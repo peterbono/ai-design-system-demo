@@ -56,7 +56,7 @@ const intentLabel = (v: ChangeIntent) => CHANGE_INTENTS.find((o) => o.value === 
 /** The library choices, one plain line under each: what it leads to. */
 const LIBRARY: { value: LibraryChoice; label: string; line: string }[] = [
   { value: 'look', label: intentLabel('look'), line: 'Colors, radius, spacing and type, in the tokens.' },
-  { value: 'variant', label: intentLabel('variant'), line: 'Claude builds it from your Figma frame.' },
+  { value: 'variant', label: intentLabel('variant'), line: 'A developer builds it with Claude from your Figma frame.' },
   { value: 'new', label: 'New component', line: 'Try it first in an exploration.' },
 ];
 

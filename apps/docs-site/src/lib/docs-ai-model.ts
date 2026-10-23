@@ -31,7 +31,10 @@ export type DraftScope =
   | { kind: 'section'; key: ProseKey } // one section
   | { kind: 'selection'; key: ProseKey; text: string; mode: 'clearer' | 'shorter' | 'voice' }; // rewrite a selected passage in the Bridge voice
 
-/** Who writes: the designer's own API key from this browser, or their own Claude through the Bridge MCP server. */
+/**
+ * Who writes: the designer's own API key from this browser, or a developer's Claude through the Bridge MCP server
+ * (set up from the message of developerSetupMessage, never shown to the designer as terminal steps).
+ */
 export type DraftWay = 'api-key' | 'my-claude';
 
 export interface DraftAvailability {
@@ -160,3 +163,23 @@ export function apiErrorMessage(status: number | 'network'): string {
   if (status === 529 || status >= 500) return 'Claude is busy right now. Try again in a moment.';
   return `Claude answered with an error (${status}). Try again, or write the text yourself.`;
 }
+
+/** The label of the my-Claude way for a designer: a message to copy, never a terminal command or a GitHub token. */
+export const COPY_SETUP = { label: 'Copy setup for a developer', done: 'Setup copied' } as const;
+
+/**
+ * What a designer sends a developer so their Claude can draft this page's guidance: the one-time setup (the Bridge MCP
+ * server for this repository, with their own GitHub token) and the phrase that drafts. The token stays a placeholder.
+ */
+export function developerSetupMessage(x: { repo: string; component: string; page: string; phrase: string }): string {
+  return [
+    `Hi, can you draft the ${x.component} usage guidance with Claude? I review each section before it is sent.`,
+    `Page: ${x.page}`,
+    '',
+    'One-time setup in a terminal, with your GitHub token (Contents read and write on the repository):',
+    `claude mcp add bridge -s user -e GITHUB_TOKEN=your-github-token -- npx -y @bridge-ds/mcp --repo ${x.repo}`,
+    '',
+    `Then, when I start a draft on the page, say "${x.phrase}" in Claude Code.`,
+  ].join('\n');
+}
+
