@@ -180,7 +180,7 @@ export async function openComponentPushOnGitHub(gh: GitHubClient, input: OpenCom
   await gh.commitToNewBranch({
     base: input.base,
     branch,
-    message: `chore(figma): spec for ${figmaBranchTitle(d)}\n\nSent from Figma with ${input.tool ?? 'the DS Bridge Figma plugin'}. Claude AI drafts the code on this branch; a person reviews it.`,
+    message: `chore(figma): spec for ${figmaBranchTitle(d)}\n\nSent from Figma with ${input.tool ?? 'the Bridge Figma plugin'}. A developer builds the code on this branch with Claude; a person reviews it.`,
     files: [{ path: spec, content: formatFigmaSpec(d, plan) }],
   });
   const pr = await gh.createPullRequest({ base: input.base, head: branch, title: figmaBranchTitle(d), body: figmaDraftBody(d, plan, o), draft: true });
@@ -225,7 +225,7 @@ export async function figmaChangeOnGitHub(gh: GitHubClient, n: number, opts: { c
 }
 
 /**
- * Claude wrote the code: the branch is labelled drafted by Claude AI (no longer waiting) and its description says so.
+ * Claude wrote the code: the branch is labelled drafted-by-claude (no longer waiting) and its description says so.
  * Refused while the branch only carries the spec, so the label never claims code that is not there.
  */
 export async function markFigmaChangeDraftedOnGitHub(gh: GitHubClient, n: number): Promise<{ status: FigmaPushStatus; files: string[] }> {

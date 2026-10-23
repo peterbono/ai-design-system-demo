@@ -3,7 +3,7 @@
 //
 // Idempotent: a set is found by shared plugin data (dsbridge / componentId), a variant by (dsbridge / variant), a layer
 // by (dsbridge / part). Re-pulling updates them in place (same node ids, so instances keep their overrides), adds new
-// variants, and flags variants removed in code with "[orphan]". Layers DS Bridge did not create are never removed.
+// variants, and flags variants removed in code with "[orphan]". Layers Bridge did not create are never removed.
 //
 // Swappable parts (icons, content slots) are instances of generated components: one COMPONENT per icon ("Icon/Plus")
 // on the Icons page (dsbridge / iconId) and one per content slot ("Slot/Media") on the Slots page (dsbridge / slotId),
@@ -51,7 +51,7 @@ export function reasonOf(err: unknown): string {
   return `Figma refused a change (${short || 'no details'})`;
 }
 
-/** A generated node DS Bridge keeps on a page: a component set, an icon or a slot component. */
+/** A generated node Bridge keeps on a page: a component set, an icon or a slot component. */
 function isGenerated(n: BaseNode): boolean {
   if (n.type === 'COMPONENT_SET') return !!n.getSharedPluginData(NS, 'componentId');
   if (n.type === 'COMPONENT') return !!(n.getSharedPluginData(NS, 'iconId') || n.getSharedPluginData(NS, 'slotId'));
@@ -118,7 +118,7 @@ async function generatedSets(): Promise<ComponentSetNode[]> {
   return figma.root.findAllWithCriteria({ types: ['COMPONENT_SET'] }).filter((s) => !!s.getSharedPluginData(NS, 'componentId'));
 }
 
-/** Component sets DS Bridge generated, for the pull preview (new, updated or unchanged). */
+/** Component sets Bridge generated, for the pull preview (new, updated or unchanged). */
 export async function scanGenerated(): Promise<GeneratedSet[]> {
   return (await generatedSets()).map((s) => ({
     componentId: s.getSharedPluginData(NS, 'componentId'),
@@ -322,7 +322,7 @@ function bind(node: SceneNode, field: string, variable: Variable | null): void {
   (node as unknown as Bindable).setBoundVariable(field, variable);
 }
 
-/** Resets a field DS Bridge manages to its neutral value (no binding), before the variant's own value is applied. */
+/** Resets a field Bridge manages to its neutral value (no binding), before the variant's own value is applied. */
 function reset(node: SceneNode, field: SpecField): void {
   const n = node as unknown as Record<string, unknown>;
   try {
@@ -530,7 +530,7 @@ function placeParts(variant: ComponentNode, comp: PlannedComponent, nodes: Map<s
       if ((box as Box).children[i] !== kid) (box as Box).insertChild(i, kid);
     });
   }
-  // Layers DS Bridge generated for parts code no longer has (a wrapper merged into the root): removed once empty.
+  // Layers Bridge generated for parts code no longer has (a wrapper merged into the root): removed once empty.
   const ids = new Set(comp.parts.map((p) => p.id));
   const stale = variant.findAll((n) => {
     const id = n.getSharedPluginData(NS, 'part');
@@ -1192,8 +1192,8 @@ function reactionFor(r: NonNullable<PlannedComponent['interactions']>[number], d
 
 /**
  * Prototype reactions on the variants of a generated set: hover, press and click change to another variant with the
- * code's motion. The reactions DS Bridge set last time are kept in shared plugin data (dsbridge / reactions) and
- * replaced; reactions designers added are kept, and when one uses the same trigger, DS Bridge leaves that trigger to
+ * code's motion. The reactions Bridge set last time are kept in shared plugin data (dsbridge / reactions) and
+ * replaced; reactions designers added are kept, and when one uses the same trigger, Bridge leaves that trigger to
  * it. Nothing is written when the variant already has exactly these reactions (a second pull changes nothing).
  */
 async function wireReactions(set: ComponentSetNode, comp: PlannedComponent, ctx: Ctx): Promise<void> {
@@ -1203,7 +1203,7 @@ async function wireReactions(set: ComponentSetNode, comp: PlannedComponent, ctx:
   for (const [key, node] of byKey) {
     let previous: string[] = [];
     try {
-      // Written by an earlier DS Bridge: anything but a list of keys means none of the reactions are known as ours.
+      // Written by an earlier Bridge: anything but a list of keys means none of the reactions are known as ours.
       const stored: unknown = JSON.parse(node.getSharedPluginData(NS, 'reactions') || '[]');
       previous = Array.isArray(stored) ? stored.filter((k): k is string => typeof k === 'string') : [];
     } catch {
@@ -1218,7 +1218,7 @@ async function wireReactions(set: ComponentSetNode, comp: PlannedComponent, ctx:
       const dest = byKey.get(r.toKey);
       if (!dest) continue;
       if (taken.has(r.trigger)) {
-        ctx.problems.push(`${comp.name} ${node.name}: kept your own "${r.label}" interaction, so DS Bridge did not add its own`);
+        ctx.problems.push(`${comp.name} ${node.name}: kept your own "${r.label}" interaction, so Bridge did not add its own`);
         continue;
       }
       wanted.push(reactionFor(r, dest.id));
@@ -1243,7 +1243,7 @@ function bottomOf(page: PageNode): number {
   return page.children.reduce((m, n) => Math.max(m, n.y + n.height), 0);
 }
 
-/** A variant's key: the one DS Bridge stored, else read from its name (its properties throw while the set is in error). */
+/** A variant's key: the one Bridge stored, else read from its name (its properties throw while the set is in error). */
 function keyOfVariant(c: ComponentNode): string {
   const stored = c.getSharedPluginData(NS, 'variant');
   if (stored) return stored;
@@ -1396,7 +1396,7 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
       await wireReactions(set, comp, ctx);
     } catch (err) {
       interactionsFailed.push(comp.name);
-      console.warn(`DS Bridge: interactions on ${comp.name} not added: ${errorText(err)}`);
+      console.warn(`Bridge: interactions on ${comp.name} not added: ${errorText(err)}`);
     }
     // Always: an update can change variant sizes (a padding, a fixed width), not only add variants.
     try {

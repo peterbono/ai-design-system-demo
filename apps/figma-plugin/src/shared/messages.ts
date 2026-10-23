@@ -5,7 +5,7 @@ import { TIER_NAMES, type Tier, defineConfig } from '@bridge-ds/core';
 import type { ComponentApplyReport, ComponentPullPlan, GeneratedSet } from '../sync/component-pull';
 import type { ScannedComponent } from '../sync/components';
 import type { ClaudeModel } from '../sync/claude';
-// The repo's own bridge.config.json prefills the settings; every file can point elsewhere in Settings.
+// This repo's bridge.config.json gives the fallback tokens folder and the repository older versions defaulted to.
 import rootConfig from '../../../../bridge.config.json';
 
 /** Shared plugin data key (namespace dsbridge) of the "Experimental" mark, on a variable or a component set. */
@@ -23,7 +23,7 @@ export type FigmaValue =
   /** Alias to another variable. `name` is filled for targets outside the local collections. */
   | { kind: 'alias'; id: string; name?: string | undefined };
 
-/** Plugin data DS Bridge stores on each variable it manages (string values in Figma). */
+/** Plugin data Bridge stores on each variable it manages (string values in Figma). */
 export interface VariablePluginData {
   /** Stable token id, same as `$extensions["com.dsbridge.id"]` or "path:<path at first sync>". */
   id?: string | undefined;
@@ -219,7 +219,7 @@ export interface RequestMap {
   /** PNG 2x as base64: the selected variant of `nodeId`, the component itself, or the selection without `nodeId`. */
   'export-image': { request: { nodeId?: string | undefined }; response: { base64: string; name: string } | null };
   selection: { request: Record<string, never>; response: { nodeId: string; name: string } | null };
-  /** Component sets DS Bridge generated (shared plugin data dsbridge / componentId). */
+  /** Component sets Bridge generated (shared plugin data dsbridge / componentId). */
   'scan-generated': { request: Record<string, never>; response: GeneratedSet[] };
   /** Marks variables or component sets "Experimental" (or clears the mark): unchecked by default on every push. */
   'set-experimental': { request: { targets: { kind: 'variable' | 'component'; id: string }[]; value: boolean }; response: { updated: number } };
@@ -257,16 +257,25 @@ export function isProgress(msg: unknown): msg is ProgressEnvelope {
 }
 
 const defaults = defineConfig(rootConfig as Parameters<typeof defineConfig>[0]);
-const defaultRepo = defaults.repo ?? { owner: '', name: '', defaultBranch: 'main' };
 /**
- * Prefilled settings, from bridge.config.json at the root of this repo. At scan time the plugin also
- * reads bridge.config.json from the configured repository, which decides the token paths there.
+ * Settings of a file nobody connected yet. No repository: a new file never points at a design system it was not
+ * connected to, the first run asks which one. The branch and tokens folder are fallbacks only: bridge.config.json in
+ * the connected repository decides the token paths there.
  */
 export const DEFAULT_SETTINGS: RepoSettings = {
-  repo: defaultRepo.owner ? `${defaultRepo.owner}/${defaultRepo.name}` : '',
-  branch: defaultRepo.defaultBranch,
+  repo: '',
+  branch: 'main',
   tokensPath: defaults.tokens.root,
 };
+
+/**
+ * The repository older plugin versions filled in for every file (from this repo's bridge.config.json). A file that
+ * pulled from it before this version stored no repository of its own: it keeps pointing there (see sharedSettings).
+ */
+export const LEGACY_DEFAULT_REPO = defaults.repo?.owner ? `${defaults.repo.owner}/${defaults.repo.name}` : '';
+
+/** Hosted Bridge Studio, where a team reviews what designers send (each repository is a team: /studio/~/<owner>/<repo>/). */
+export const STUDIO_ORIGIN = 'https://bridge.floriangouloubi.com';
 
 /** Figma collection of each tier. */
 /** Figma collection of each tier (same names as the tiers in @bridge-ds/core). */

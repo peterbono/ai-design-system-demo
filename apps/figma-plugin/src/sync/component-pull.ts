@@ -42,7 +42,7 @@ import { COLLECTIONS, type FigmaResolvedType } from '../shared/messages';
 import { isUnmappable, pathToName, tokenToPlanned } from './mapping';
 import { checkComponentSpecs } from './spec-check';
 
-/** A component set DS Bridge generated, as the main thread finds it (shared plugin data). */
+/** A component set Bridge generated, as the main thread finds it (shared plugin data). */
 export interface GeneratedSet {
   componentId: string;
   nodeId: string;
@@ -53,11 +53,11 @@ export interface GeneratedSet {
   variants: string[];
   /** The library branch this set was pushed to from Figma (shared plugin data dsbridge / pushed), until a pull rebuilds it. */
   pushed?: PushedMark | undefined;
-  /** Figma holds the set in error (left by an older DS Bridge): the pull rebuilds it even when its spec did not change. */
+  /** Figma holds the set in error (left by an older Bridge): the pull rebuilds it even when its spec did not change. */
   inError?: boolean | undefined;
 }
 
-/** Where a set's change from Figma went: its library branch (a token change or a branch Claude AI drafts). */
+/** Where a set's change from Figma went: its library branch (a token change or a branch a developer builds with Claude). */
 export interface PushedMark {
   number: number;
   url: string;
@@ -281,7 +281,7 @@ export interface ComponentPullPlan {
   slots?: PlannedSlot[] | undefined;
   /** Every component of the design system and whether it is in Figma (component-specs.json coverage). */
   coverage?: SpecCoverage[] | undefined;
-  /** Entries of component-specs.json left out because DS Bridge cannot read them, with the reason. Never built. */
+  /** Entries of component-specs.json left out because Bridge cannot read them, with the reason. Never built. */
   skipped?: { name: string; reason: string }[] | undefined;
 }
 
@@ -472,7 +472,7 @@ function planValueOf(field: SpecField, value: unknown, head: TokenSet): PlannedV
     if (COLOR_FIELDS.has(field)) return { problem: `${value}: a color cannot be a number` };
     return Number.isFinite(value) ? { kind: 'number', value } : { problem: `${value} is not a finite number` };
   }
-  if (typeof value !== 'string') return { problem: `${unknownShape(value)} is not a value this version of DS Bridge reads: update DS Bridge` };
+  if (typeof value !== 'string') return { problem: `${unknownShape(value)} is not a value this version of Bridge reads: update Bridge` };
   if (value.startsWith('calc(')) {
     if (COLOR_FIELDS.has(field)) return { problem: `${value}: a color cannot be a calc()` };
     const n = evaluateCalc(value, head);
@@ -611,7 +611,7 @@ export function buildComponentPlan(
       planOne(spec);
     } catch (err) {
       problems.splice(mark);
-      skipped.push({ name: spec.name, reason: `could not be read (${err instanceof Error ? err.message : String(err)}): update DS Bridge` });
+      skipped.push({ name: spec.name, reason: `could not be read (${err instanceof Error ? err.message : String(err)}): update Bridge` });
     }
   }
   function planOne(spec: ComponentSpec): void {
@@ -788,7 +788,7 @@ export function writablePlan(plan: ComponentPullPlan): ComponentPullPlan {
 /** Library branch numbers of the generated sets pushed from Figma, to read where each stands before planning a pull. */
 export const pushedNumbers = (generated: readonly GeneratedSet[]) => [...new Set(generated.flatMap((g) => (g.pushed ? [g.pushed.number] : [])))];
 
-/** Sets pushed from Figma whose library branch is still open: "Button (Waiting for Claude AI)". */
+/** Sets pushed from Figma whose library branch is still open: "Button (Waiting for a developer)". */
 export function pushedInReview(generated: readonly GeneratedSet[], statuses: ReadonlyMap<number, FigmaPushStatus>): { name: string; number: number; url: string; status: FigmaPushStatus }[] {
   return generated.flatMap((g) => {
     const st = g.pushed ? statuses.get(g.pushed.number) : undefined;

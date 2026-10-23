@@ -135,11 +135,31 @@ export type PollerOptions = DraftPollerOptions;
 /** The Bridge MCP server from npm: no clone, no build. */
 export const MCP_PACKAGE = '@bridge-ds/mcp';
 
-/** The Claude Desktop config and the Claude Code command for this repo. The token stays a placeholder: never copied. */
-export function mcpSnippets(repo: string): { desktop: string; code: string } {
+/** What the setup shows in place of the token: the token itself is never rendered. */
+export const TOKEN_PLACEHOLDER = 'your-github-token';
+
+/**
+ * The Claude Desktop config and the Claude Code command for this repo. On screen the token is a placeholder; the
+ * copied text carries the token saved in Settings (`token`), so nobody has to find a token that is never shown again.
+ */
+export function mcpSnippets(repo: string, token?: string | undefined): { desktop: string; code: string } {
   const r = repo.trim() || 'owner/name';
-  const desktop = JSON.stringify({ mcpServers: { bridge: { command: 'npx', args: ['-y', MCP_PACKAGE, '--repo', r], env: { GITHUB_TOKEN: 'your GitHub token' } } } }, null, 2);
-  const code = `claude mcp add bridge -s user -e GITHUB_TOKEN=your-github-token -- npx -y ${MCP_PACKAGE} --repo ${r}`;
+  const t = token?.trim() || TOKEN_PLACEHOLDER;
+  const desktop = JSON.stringify({ mcpServers: { bridge: { command: 'npx', args: ['-y', MCP_PACKAGE, '--repo', r], env: { GITHUB_TOKEN: t } } } }, null, 2);
+  const code = `claude mcp add bridge -s user -e GITHUB_TOKEN=${t} -- npx -y ${MCP_PACKAGE} --repo ${r}`;
   return { desktop, code };
+}
+
+/** Said when the token cannot write contents: Claude's drafts go through a file in the repository. */
+export const MY_CLAUDE_NEEDS_WRITE =
+  'Drafting with your Claude plan needs "Contents" set to "Read and write" on your GitHub token: Claude reads and writes the drafts in a file of the repository. Edit the token on GitHub, then try again.';
+
+/**
+ * Checked before anything is written or waited for: can this token write to the repository? The message to show when
+ * it cannot, undefined when it can or when GitHub does not say (the write then reports its own error at once).
+ */
+export async function myClaudeAccess(client: Pick<GitHubClient, 'getRepo'>): Promise<string | undefined> {
+  const info = await client.getRepo().catch(() => undefined);
+  return info?.permissions && info.permissions.push === false ? MY_CLAUDE_NEEDS_WRITE : undefined;
 }
 

@@ -132,7 +132,7 @@ test('components that cannot be read: what happened and what to do, the raw erro
   assert.equal(crash.title, 'Components could not be read');
   assert.equal(
     crash.text,
-    'Bridge could not compare your Figma components with main. Variables still pull as usual. Check again, and if it keeps failing, update DS Bridge and report it with the details below.',
+    'Bridge could not compare your Figma components with the design system. Variables still update as usual. Check again, and if it keeps failing, update Bridge and report it with the details below.',
   );
   assert.equal(crash.detail, 't.startsWith is not a function');
   assert.doesNotMatch(crash.text, /startsWith|—/);
