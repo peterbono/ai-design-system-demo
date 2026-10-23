@@ -28,15 +28,18 @@ export interface RepoAccess {
    */
   repoAdmin?: boolean;
   /**
-   * An email contributor (lib/contribute.ts): edits through Bridge's proxy, never admin, and reviews nothing (no
+   * An email contributor (lib/contribute.ts): edits through Bridge's proxy, never admin (but in local mode), and reviews nothing (no
    * approve, request changes, merge or owner override). Absent for a GitHub account.
    */
   contributor?: true;
 }
 
-/** What an email contributor may do: edit, never administer, never review. Reachable through Bridge's own app. */
-export function contributorAccess(): RepoAccess {
-  return { state: 'writer', write: true, admin: false, reach: true, contributor: true };
+/**
+ * What an email contributor may do: edit, never review. Never administer, except a member seeded as admin in
+ * `npm run dev:full` (`admin`, api/_lib/local-admin.ts). Reachable through Bridge's own app.
+ */
+export function contributorAccess(admin = false): RepoAccess {
+  return { state: 'writer', write: true, admin, reach: true, contributor: true };
 }
 
 /** May approve, request changes, merge or override: a GitHub account with write access, never an email contributor. */

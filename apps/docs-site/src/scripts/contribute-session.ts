@@ -7,7 +7,7 @@
 // scripts/github-session.ts uses it: getToken() gives the stand-in token (lib/contribute CONTRIB_TOKEN) to every
 // feature, and the session's fetch sends each call that carries it here (contributeFetch). No feature changes.
 import { GitHubError } from '@bridge-ds/core';
-import { CONTRIB_REFUSAL, CONTRIBUTE_API, GITHUB_API, CONTRIBUTE_HEADER, CONTRIBUTE_WORDS, contributeHashToken, parseMember, proxyUrl, type ContributeMember } from '../lib/contribute';
+import { CONTRIB_REFUSAL, CONTRIBUTE_API, GITHUB_API, CONTRIBUTE_HEADER, CONTRIBUTE_WORDS, contributeHashToken, localDevHost, parseMember, proxyUrl, type ContributeMember } from '../lib/contribute';
 
 /** The site cannot sign in with an email (no server piece, or not set up). */
 export class ContributeUnavailable extends Error {
@@ -137,7 +137,8 @@ export interface TeamCollaborator {
 export interface TeamPeople {
   collaborators: TeamCollaborator[];
   /** Email members by name and role; `you` marks the signed-in one. Never another member's email. */
-  members: { name: string; role: 'edit'; you?: boolean }[];
+  /** 'admin' only in `npm run dev:full`, for a member seeded as admin (api/_lib/local-admin.ts). */
+  members: { name: string; role: 'edit' | 'admin'; you?: boolean }[];
 }
 
 /**
@@ -148,7 +149,7 @@ export async function contributeTeam(repo: string, githubToken: string | null = 
   const r = await call<Partial<TeamPeople>>('GET', `?repo=${encodeURIComponent(repo)}&members=1`, undefined, githubToken ? { Authorization: `Bearer ${githubToken}` } : {});
   const collaborators = Array.isArray(r.collaborators) ? r.collaborators.filter((c): c is TeamCollaborator => Boolean(c && typeof c.login === 'string')) : [];
   const members = Array.isArray(r.members)
-    ? r.members.filter((m) => m && typeof m.name === 'string').map((m) => ({ name: m.name.trim() || 'Contributor', role: 'edit' as const, ...(m.you ? { you: true } : {}) }))
+    ? r.members.filter((m) => m && typeof m.name === 'string').map((m) => ({ name: m.name.trim() || 'Contributor', role: localDevHost() && m.role === 'admin' ? ('admin' as const) : ('edit' as const), ...(m.you ? { you: true } : {}) }))
     : [];
   return { collaborators, members };
 }

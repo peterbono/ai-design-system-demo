@@ -34,7 +34,8 @@
 //
 // Admins: the account's linked GitHub account is an admin of the repository, read with the Bridge app's installation
 // token on every call (the GitHub id must match, so a renamed login never passes for another). Nothing the browser
-// says about its role is trusted.
+// says about its role is trusted. `npm run dev:full` only: an account seeded as admin (api/_lib/local-admin.ts) passes
+// without GitHub; the Vercel exports never pass that dependency and it is ignored outside local mode.
 //
 // Privacy: other members' emails never leave here. A domain team or an invite shows the admin or inviter by their
 // display name (GitHub profile name, else Bridge account name, else GitHub login: displayName in api/_lib/account.ts),
@@ -52,6 +53,7 @@ import { type Account, accountNameByGithub, displayName, sessionAccount } from '
 import { workDomain } from '../_lib/domains.js';
 import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
+import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import { clientIp, dayOf, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody, sameOrigin, secondsToTomorrow, siteOrigin, type FetchLike } from '../_lib/http.js';
 import { accountTeamsKey, memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
@@ -102,6 +104,8 @@ export interface EntryDeps {
   app?: AppTokens;
   /** Installation tokens with Administration write (reviewer and admin invites). */
   grantApp?: AppTokens;
+  /** `npm run dev:full` only (api/_lib/local-admin.ts): admins seeded locally, ignored outside local mode. */
+  localAdmins?: LocalAdmins;
 }
 
 export type EntryTeamRole = 'edit' | 'reviewer' | 'admin';
@@ -154,6 +158,8 @@ interface Services {
   app: AppTokens | null;
   grantApp: AppTokens | null;
   secret: string;
+  /** Local mode only (api/_lib/local-admin.ts); always null in production. */
+  localAdmins: LocalAdmins | null;
 }
 
 export function services(env: EntryEnv, deps: EntryDeps): Services | null {
@@ -175,6 +181,7 @@ export function services(env: EntryEnv, deps: EntryDeps): Services | null {
     email: deps.email ?? (key && from ? resendSender(key, from, deps.fetch) : null),
     app: deps.app ?? (appId && pem ? githubApp(appId, pem, deps.fetch, now, { userAgent: 'bridge-entry' }) : null),
     grantApp: deps.grantApp ?? (appId && pem ? invitesApp(appId, pem, deps.fetch, now) : null),
+    localAdmins: activeLocalAdmins(deps.localAdmins),
   };
 }
 
@@ -350,8 +357,10 @@ async function teamPeople(ctx: Ctx, repo: string): Promise<{ memberCount: number
 // GET: the routing
 
 export async function entryFor(ctx: Ctx, req: Request, a: Account): Promise<Entry> {
-  // 1. Teams they are on.
-  const email = (await membershipsOf(ctx, a.email)).map(({ repo }) => ({ repo, name: teamDisplayName(repo), role: 'edit' as EntryTeamRole, via: 'email' as const }));
+  // 1. Teams they are on (in local mode, a team they were seeded admin of counts, as admin).
+  const local = ctx.svc.localAdmins ? await ctx.svc.localAdmins.teamsOf(a.email) : [];
+  const memberOf = (await membershipsOf(ctx, a.email)).map(({ repo }) => repo);
+  const email = [...new Set([...memberOf, ...local])].map((repo) => ({ repo, name: teamDisplayName(repo), role: (local.includes(repo) ? 'admin' : 'edit') as EntryTeamRole, via: 'email' as const }));
   const github = (await githubTeams(ctx, req, a)).filter((t) => !email.some((e) => e.repo === t.repo)).map((t) => ({ ...t, name: teamDisplayName(t.repo), via: 'github' as const }));
   const teams = [...email, ...github].sort((x, y) => x.name.localeCompare(y.name));
   if (teams.length) return { kind: 'teams', teams };
@@ -392,9 +401,23 @@ export async function entryFor(ctx: Ctx, req: Request, a: Account): Promise<Entr
 // ---------------------------------------------------------------------------------------------------------------
 // Admins
 
-/** The account's linked GitHub account is an admin of the repository (read by the app, matched by GitHub id). */
-async function requireAdmin(ctx: Ctx, a: Account, repoArg: unknown): Promise<{ owner: string; repo: string; full: string; login: string; token: string }> {
+interface Admin {
+  owner: string;
+  repo: string;
+  full: string;
+  login: string;
+  token: string;
+  /** Seeded admin of `npm run dev:full` (api/_lib/local-admin.ts): no GitHub account behind it. */
+  local?: true;
+}
+
+/**
+ * The account's linked GitHub account is an admin of the repository (read by the app, matched by GitHub id). In local
+ * mode only, an account seeded as admin of the team passes without GitHub.
+ */
+async function requireAdmin(ctx: Ctx, a: Account, repoArg: unknown): Promise<Admin> {
   const { owner, repo, full } = parseRepo(repoArg);
+  if (ctx.svc.localAdmins && (await ctx.svc.localAdmins.isAdmin(full, a.email))) return { owner, repo, full, login: a.github?.login ?? 'local-admin', token: '', local: true };
   if (!a.github) throw new HttpError(403, 'forbidden', ADMIN_ONLY);
   if (!ctx.svc.app) throw new HttpError(503, 'not_configured', APP_MISSING);
   const token = await ctx.svc.app.installationToken(owner, repo);
@@ -406,13 +429,14 @@ async function requireAdmin(ctx: Ctx, a: Account, repoArg: unknown): Promise<{ o
 
 /** The emails of the team's admins that have a Bridge account (GitHub admins matched by id to linked accounts). */
 async function adminEmails(ctx: Ctx, repo: string): Promise<string[]> {
+  const local = ctx.svc.localAdmins ? await ctx.svc.localAdmins.adminsOf(repo) : [];
   let people: any[] | null = null;
   try {
     people = await collaboratorsOf(ctx, repo);
   } catch {
     people = null;
   }
-  const out: string[] = [];
+  const out: string[] = [...local];
   for (const p of people ?? []) {
     if (p?.permissions?.admin !== true || !Number.isSafeInteger(p.id)) continue;
     const email = await ctx.svc.redis.cmd('GET', `bridge:account:gh:${p.id}`);
@@ -559,7 +583,7 @@ async function onApprove(ctx: Ctx, req: Request, a: Account, body: Record<string
   if (ctx.svc.email && !prev) {
     const link = `${siteOrigin(req, ctx.env.PUBLIC_SITE_URL)}${STUDIO_ROOT}${encodeURIComponent(admin.owner)}/${encodeURIComponent(admin.repo)}/`;
     try {
-      await ctx.svc.email.send(approvedEmail({ to: r.email, admin: await adminDisplayName(ctx, admin.token, a), team: teamDisplayName(admin.full), link }));
+      await ctx.svc.email.send(approvedEmail({ to: r.email, admin: admin.local ? a.name : await adminDisplayName(ctx, admin.token, a), team: teamDisplayName(admin.full), link }));
     } catch {
       // They are on the team; Bridge shows it at their next sign-in.
     }
@@ -579,7 +603,10 @@ async function onDiscovery(ctx: Ctx, a: Account, body: Record<string, unknown>):
   const admin = await requireAdmin(ctx, a, body.repo);
   const domain = workDomain(a.email);
   const prev = await getDiscovery(ctx.svc.redis, admin.full);
-  const by = { byGithubId: a.github!.id, byLogin: a.github!.login, byName: await adminDisplayName(ctx, admin.token, a), at: new Date(ctx.now()).toISOString() };
+  const at = new Date(ctx.now()).toISOString();
+  const by = admin.local
+    ? { byGithubId: a.github?.id ?? 0, byLogin: admin.login, byName: a.name, at }
+    : { byGithubId: a.github!.id, byLogin: a.github!.login, byName: await adminDisplayName(ctx, admin.token, a), at };
   if (body.enabled) {
     if (!domain) return fail(409, 'public-domain', PUBLIC_DOMAIN);
     await putDiscovery(ctx.svc.redis, admin.full, { domain, enabled: true, ...by });

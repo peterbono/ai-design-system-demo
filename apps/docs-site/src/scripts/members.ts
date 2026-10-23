@@ -133,8 +133,8 @@ export async function loadMembers(): Promise<MembersData> {
       });
       fromServer = r.members.map((m, i) =>
         m.you && viewer.email
-          ? { login: viewer.email.toLowerCase(), name: m.name, role: 'edit' as const, reviews: [], email: viewer.email.toLowerCase(), via: 'email' as const, you: true }
-          : { login: `email-member-${i}`, name: m.name, role: 'edit' as const, reviews: [], via: 'email' as const },
+          ? { login: viewer.email.toLowerCase(), name: m.name, role: m.role, reviews: [], email: viewer.email.toLowerCase(), via: 'email' as const, you: true }
+          : { login: `email-member-${i}`, name: m.name, role: m.role, reviews: [], via: 'email' as const },
       );
       members = [...members, ...fromServer];
       complete = true;
