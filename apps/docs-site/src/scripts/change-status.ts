@@ -176,7 +176,7 @@ export async function statusActionFor(
   const runs: Record<Exclude<typeof kind, null>, () => Promise<string | void>> = {
     'mark-ready': async () => {
       await studioClient(`${owner}/${repo}`).markReadyForReview(pull.number);
-      pending = 'Review requested. Reviewers can see it now.';
+      pending = 'Sent for review. Reviewers can see it now.';
       await x.reload();
     },
     reopen: async () => {

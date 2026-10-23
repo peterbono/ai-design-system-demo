@@ -290,7 +290,7 @@ describe('reviewActions', () => {
   });
   it('asks the author of a draft to request review', () => {
     const a = reviewActions({ ...base, lifecycle: 'draft', isAuthor: true });
-    expect(a.primary).toEqual({ kind: 'request-review', label: 'Request review' });
+    expect(a.primary).toEqual({ kind: 'request-review', label: 'Send for review' });
     expect(a.suggest).toBe(false);
     expect(reviewActions({ ...base, lifecycle: 'draft' }).primary).toBeNull();
   });
@@ -308,7 +308,7 @@ describe('reviewActions', () => {
     expect(a.menu).toEqual({ override: null, share: false, draft: false, close: false });
   });
   it('speaks designer words', () => {
-    for (const l of ['Approve', 'Approve and merge', 'Request review', 'Reopen', 'Start again from this']) expect(jargonIn(l)).toEqual([]);
+    for (const l of ['Approve', 'Approve and merge', 'Send for review', 'Reopen', 'Start again from this']) expect(jargonIn(l)).toEqual([]);
     expect(jargonIn(reviewActions({ ...base, overrideOnly: true }).menu.override!)).toEqual([]);
   });
 });

@@ -36,33 +36,38 @@ export type SendMode = 'suggest' | 'direct';
 export type SendWhat = 'tokens' | 'piece' | 'docs' | 'brand' | 'revert';
 
 const SEND_BUTTON: Record<SendWhat, Record<SendMode, string>> = {
-  tokens: { suggest: 'Send suggestion', direct: 'Request review' },
-  piece: { suggest: 'Suggest to the library', direct: 'Open a library branch' },
-  docs: { suggest: 'Suggest docs change', direct: 'Request review' },
-  brand: { suggest: 'Send suggestion', direct: 'Create branch' },
-  revert: { suggest: 'Send suggestion', direct: 'Request review' },
+  tokens: { suggest: 'Send suggestion', direct: 'Send for review' },
+  piece: { suggest: 'Send suggestion', direct: 'Send for review' },
+  docs: { suggest: 'Send suggestion', direct: 'Send for review' },
+  brand: { suggest: 'Send suggestion', direct: 'Send for review' },
+  revert: { suggest: 'Send suggestion', direct: 'Send for review' },
 };
 
-/** The button that sends: "Send suggestion" in suggest mode; the branch words ("Request review") in direct mode. */
+/**
+ * The one verb that sends, whatever is sent (tokens, a product piece, docs, a brand, an undo): "Send suggestion" in
+ * suggest mode, "Send for review" in direct mode. Branch and pull request words stay internal or under "For developers".
+ */
 export function sendButton(what: SendWhat, mode: SendMode): string {
   return SEND_BUTTON[what][mode];
 }
 
-/** The goal after "Sign in to": "send a suggestion", or the direct one ("request review", "create the branch"). */
-export function sendGoal(what: SendWhat, mode: SendMode): string {
-  if (mode === 'suggest') return what === 'piece' ? 'suggest it to the library' : 'send a suggestion';
-  return what === 'brand' ? 'create the branch' : what === 'piece' ? 'open a library branch' : 'request review';
+/** The goal after "Sign in to": "send a suggestion" or "send it for review". */
+export function sendGoal(_what: SendWhat, mode: SendMode): string {
+  return mode === 'suggest' ? 'send a suggestion' : 'send it for review';
 }
 
-/** Title of the send dialog: "Send a suggestion" or "Create branch". */
+/** Title of the send dialog: "Send a suggestion" or "Send for review". */
 export function sendDialogTitle(mode: SendMode): string {
-  return mode === 'suggest' ? 'Send a suggestion' : 'Create branch';
+  return mode === 'suggest' ? 'Send a suggestion' : 'Send for review';
 }
 
-/** The status line while it goes out: "Sending your suggestion" or "Creating the branch". */
+/** The status line while it goes out: "Sending your suggestion" or "Sending it for review". */
 export function sendingLine(mode: SendMode): string {
-  return mode === 'suggest' ? 'Sending your suggestion' : 'Creating the branch';
+  return mode === 'suggest' ? 'Sending your suggestion' : 'Sending it for review';
 }
+
+/** The done state of a send in direct mode: "Sent for review". */
+export const SENT_FOR_REVIEW = 'Sent for review';
 
 /** What happens after a suggestion, in one sentence: who reviews it and who applies it. */
 export const SUGGEST_NEXT = 'Your DS lead reviews it. Once approved, a developer applies it to the code.';
@@ -78,9 +83,9 @@ export const SUGGESTION_SENT = 'Suggestion sent';
 /** Link to a sent suggestion: plain words, the GitHub page behind it. */
 export const SEE_SUGGESTION = 'See the suggestion';
 
-/** The error line when nothing went out: "Not sent: ..." for a suggestion, "Not created: ..." for a branch. */
-export function notSentLine(mode: SendMode, why: string): string {
-  return `${mode === 'suggest' ? 'Not sent' : 'Not created'}: ${why}`;
+/** The error line when nothing went out: "Not sent: ...", whatever the mode. */
+export function notSentLine(_mode: SendMode, why: string): string {
+  return `Not sent: ${why}`;
 }
 
 /**

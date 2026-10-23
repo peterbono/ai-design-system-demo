@@ -1,6 +1,6 @@
 // Studio new brand flow: four focused steps on one page (Start from, Colors, Shape and type, Review), one primary
 // action per step. A hydrated island (client:load) because it renders real Bridge components in the preview,
-// scoped to the draft brand with CSS variable overrides. The draft stays in this browser until "Propose brand".
+// scoped to the draft brand with CSS variable overrides. The draft stays in this browser until "Send for review" (or "Send suggestion").
 // Planning, ramps and the contrast gate come from @bridge-ds/core (planNewBrand), the same code the CLI, the MCP
 // server and the Figma plugin run.
 import { type CSSProperties, useDeferredValue, useEffect, useId, useMemo, useState } from 'react';
@@ -42,7 +42,7 @@ import { currentContributor, ghAuthFailure, hasWorkingToken, isDirectWait, token
 import { CONTRIBUTE_WORDS } from '../../../lib/contribute';
 import { type ProposedBrand, proposeBrand } from '../../../scripts/new-brand';
 import { ghAction, SEE_SUGGESTION, sendButton, sendGoal, SUGGEST_NEXT, SUGGESTION_SENT, suggestionSentLine } from '../../../lib/gh-wording';
-import { parseJiraKey, VOCAB } from '../../../lib/vocabulary';
+import { parseJiraKey } from '../../../lib/vocabulary';
 import { studioHref } from '../../../lib/team-path';
 
 export interface NewBrandFlowProps {
@@ -477,18 +477,18 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
           </Button>
         ) : connected && contributor ? (
           <Button key="propose" variant="primary" iconStart={suggest ? Send : GitBranch} disabled aria-describedby="nb-email-off">
-            {suggest ? sendButton('brand', mode) : VOCAB.createBranch}
+            {sendButton('brand', mode)}
           </Button>
         ) : connected ? (
           <Button key="propose" variant="primary" iconStart={suggest ? Send : GitBranch} loading={busy} disabled={!ready} onClick={propose}>
-            {suggest ? sendButton('brand', mode) : VOCAB.createBranch}
+            {sendButton('brand', mode)}
           </Button>
         ) : (
           <Button key="connect" variant="primary" data-gh-open="">
             {ghAction(sendGoal('brand', mode), signIn, rejected)}
           </Button>
         )}
-        {draft.step === 3 && !ready && <span className="nb-actions-note">{plan.contrast.failing.length ? `${suggest ? 'Sending it' : 'Creating the branch'} needs every contrast pair to pass.` : `Fix the problems above to ${suggest ? 'send it' : 'create the branch'}.`}</span>}
+        {draft.step === 3 && !ready && <span className="nb-actions-note">{plan.contrast.failing.length ? `${suggest ? 'Sending it' : 'Sending it for review'} needs every contrast pair to pass.` : `Fix the problems above to ${suggest ? 'send it' : 'send it for review'}.`}</span>}
         {draft.step === 3 && connected && contributor && (
           <span className="nb-actions-note" id="nb-email-off">
             {CONTRIBUTE_WORDS.newBrandOff}

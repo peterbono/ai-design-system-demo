@@ -620,7 +620,7 @@ const PRIMARY_LABEL: Record<PrimaryKind, string> = {
   approve: 'Approve',
   'approve-merge': 'Approve and merge',
   merge: 'Merge',
-  'request-review': 'Request review',
+  'request-review': 'Send for review',
   reopen: 'Reopen',
   restart: 'Start again from this',
   connect: 'Connect GitHub to review',
