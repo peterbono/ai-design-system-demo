@@ -136,7 +136,7 @@ export default function PropsPlayground({ spec, storybook, storyId, brands, dens
             Reset props
           </Button>
         </div>
-        <div className="pg-stage pg-stage-frame" data-theme={theme}>
+        <div className="pg-stage pg-stage-frame" data-theme={theme} data-sb-needs-story="">
           <iframe className="sb-frame" src={src} title={`${spec.component} playground, ${theme} theme`} sandbox="allow-scripts allow-same-origin allow-popups" referrerPolicy="no-referrer" loading="lazy" />
         </div>
         <CodeBlock className="pg-code" code={code} label="Code for these props" />

@@ -139,7 +139,7 @@ function pairRow(d: ExplorerData, r: PairRow, edit: boolean, through = false): s
 
 /** Contrast pairs of a color token: the list (direct pairs, then the pairs that resolve through it) and counts. */
 function contrastParts(d: ExplorerData, path: string): { body: string; pairs: number; failing: number } {
-  const { direct, through } = contrastFor(path, d.results);
+  const { direct, through } = contrastFor(path, d.results, [], d.usage);
   const failing = [...direct, ...through].filter((r) => r.failing).length;
   const list = direct.length ? `<ul class="xp-pairs">${direct.map((r) => pairRow(d, r, false)).join('')}</ul>` : '';
   const via = through.length

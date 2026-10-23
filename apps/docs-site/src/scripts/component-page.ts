@@ -5,7 +5,26 @@
 //   - the "On this page" rail of the open tab,
 //   - the Storybook previews (data-sb-preview), which follow the preview brand and density (bridge:scope).
 // And the Components page: a link to #fam-<family> opens that family even if it was collapsed.
-import { COMPONENT_TABS, LEGACY_ANCHORS, previewUrl } from '../lib/library/component-page';
+import { COMPONENT_TABS, LEGACY_ANCHORS, previewUrl, storyInIndex } from '../lib/library/component-page';
+
+/**
+ * Checks that the published Storybook lists the story the previews play. When it does not (the code is ahead of the
+ * last Storybook build), the previews would show Storybook's own error: the page shows the code example instead and
+ * says the preview comes with the next Storybook update. An index that cannot be read leaves the previews as they are.
+ */
+export async function checkPreviewStory(doc: Document = document) {
+  const page = doc.querySelector<HTMLElement>('[data-sb-check-story]');
+  const base = page?.dataset.sbCheckBase;
+  const story = page?.dataset.sbCheckStory;
+  if (!page || !base || !story) return;
+  try {
+    const { loadStorybook } = await import('./storybook-source');
+    const { index } = await loadStorybook(base);
+    if (!storyInIndex(index.entries, story)) page.dataset.sbMissing = '';
+  } catch {
+    // Not readable from here (offline, a private Storybook): keep the previews.
+  }
+}
 
 const started = new WeakSet<Document>();
 
@@ -30,6 +49,7 @@ export function syncPreviews(root: ParentNode = document) {
 export function initComponentPage(doc: Document = document) {
   if (started.has(doc)) return;
   started.add(doc);
+  void checkPreviewStory(doc);
   // The checked segment decides the view: shell.ts paints it on a static control, Base UI on a rendered one.
   doc.querySelectorAll<HTMLElement>('.hero-stage').forEach((stage) => {
     const control = stage.querySelector('[data-hero-view]');

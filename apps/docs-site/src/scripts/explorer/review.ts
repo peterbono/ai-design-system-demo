@@ -3,8 +3,8 @@
 // components using it, a visual preview of those real components on that background), and one primary action:
 // Propose change (Connect GitHub to propose without a token). Proposing still goes through scripts/token-editor.ts.
 import type { ContrastResult } from '@bridge-ds/core';
-import { contrastCountLine, shortName, summarizePairs } from '../../lib/explorer/contrast-summary';
-import { componentsUsing, stylesUsing, transitiveDependents, usedByLine } from '../../lib/explorer/flow';
+import { contrastCountLine, sendBlocked, shortName, summarizePairs } from '../../lib/explorer/contrast-summary';
+import { componentsUsing, pairUsage, stylesUsing, transitiveDependents, usedByLine } from '../../lib/explorer/flow';
 import { cellValue, tierAxis } from '../../lib/explorer/model';
 import { swatchLabel } from '../../lib/explorer/swatch-ramp';
 import { isAlias, aliasTarget } from '@bridge-ds/core';
@@ -44,15 +44,45 @@ export function initReview(d: ExplorerData) {
   const signedOutNote = note?.textContent ?? '';
   let signedIn = false;
   const paintFoot = () => {
+    // A failing guardrail blocks sending whoever is signed in: the note and the button say why, and the button never
+    // offers to connect GitHub for a draft that could not be sent anyway.
+    const checks = editorSnapshot()?.checks;
+    const blocked = checks && editorSnapshot()?.draft.edits.some((e) => e.kind !== 'docs') ? sendBlocked(checks.blocking, changesModeOnPage() === 'suggest' ? 'send it as a suggestion' : 'send for review') : null;
     if (propose) {
-      setButtonLabel(propose, signedIn ? sendLabel() : ghAction(sendGoal('tokens', changesModeOnPage()), prefersSignIn()));
-      propose.toggleAttribute('data-gh-open', !signedIn);
+      setButtonLabel(propose, blocked ? blocked.button : signedIn ? sendLabel() : ghAction(sendGoal('tokens', changesModeOnPage()), prefersSignIn()));
+      propose.toggleAttribute('data-gh-open', !signedIn && !blocked);
     }
     if (!note) return;
+    if (blocked) {
+      note.textContent = `${blocked.note} `;
+      if (blocked.contrast) {
+        const see = document.createElement('a');
+        see.href = '#xe-contrast';
+        see.dataset.xeShowPairs = '';
+        see.textContent = 'See the pairs';
+        note.append(see);
+      }
+      note.hidden = false;
+      note.classList.add('is-fail');
+      return;
+    }
+    note.classList.remove('is-fail');
     const where = signedIn ? destinationNote() : null;
     note.textContent = where ?? signedOutNote;
     note.hidden = signedIn && !where;
   };
+  // "See the pairs" opens the Contrast section of the sheet and brings it into view.
+  note?.addEventListener('click', (e) => {
+    const link = (e.target as HTMLElement).closest('[data-xe-show-pairs]');
+    if (!link) return;
+    e.preventDefault();
+    open.add('contrast');
+    const sec = sheet.querySelector<HTMLDetailsElement>('[data-xe-sec="contrast"]');
+    if (!sec) return;
+    sec.open = true;
+    sec.scrollIntoView({ block: 'start' });
+    sec.querySelector('summary')?.focus();
+  });
   initGitHubConnect((viewer) => {
     // Without GitHub the primary action connects first (the shared dialog), then proposes: the draft is kept.
     signedIn = Boolean(viewer);
@@ -138,7 +168,12 @@ export function initReview(d: ExplorerData) {
     const failing = rows.filter((r) => !r.passes).length;
     const contrastMeta = contrastCountLine({ pairs: rows.length, failing });
     const pairList = results
-      .sort((a, b) => Number((a.ratio ?? 0) >= a.pair.min) - Number((b.ratio ?? 0) >= b.pair.min))
+      // Failing first, then the pairs the most components read: a pair of unused tokens never leads the list.
+      .sort(
+        (a, b) =>
+          Number((a.ratio ?? 0) >= a.pair.min) - Number((b.ratio ?? 0) >= b.pair.min) ||
+          pairUsage(b.pair.foreground, b.pair.background, d.usage) - pairUsage(a.pair.foreground, a.pair.background, d.usage),
+      )
       .slice(0, 24)
       .map((r) => {
         const fail = (r.ratio ?? 0) < r.pair.min;
@@ -167,7 +202,7 @@ export function initReview(d: ExplorerData) {
     const previewMeta = shown.join(', ');
 
     const sec = (key: string, ic: 'contrast' | 'box' | 'eye', label: string, meta: string, content: string, tone = '') =>
-      `<details class="xe-acc" data-xe-sec="${key}" ${open.has(key) ? 'open' : ''}><summary>${icon(ic, 18)}<span class="xe-acc-label">${esc(label)}</span><span class="xe-acc-meta ${tone}">${
+      `<details class="xe-acc" id="xe-${key}" data-xe-sec="${key}" ${open.has(key) ? 'open' : ''}><summary>${icon(ic, 18)}<span class="xe-acc-label">${esc(label)}</span><span class="xe-acc-meta ${tone}">${
         tone === 'is-pass' ? icon('check', 14) : tone === 'is-fail' ? icon('alert', 14) : ''
       }${esc(meta)}</span><span class="xe-acc-chev">${icon('chevron', 16)}</span></summary><div class="xe-acc-body">${content}</div></details>`;
     return `<p class="xe-lab">Impact</p>

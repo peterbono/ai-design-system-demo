@@ -8,16 +8,15 @@ import type { LibraryChange } from '../../components/ds/library/library-data';
 import { changeHeadline, mdTitleText } from '../../lib/markdown';
 import { siteLibraryData } from '../../lib/library-site';
 import { siteSnapshot } from '../../lib/site-snapshot';
+import { libraryNotes } from '../../lib/library/home';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 import { repoStatus } from '../../lib/stats';
 
 const repo = repoStatus();
 
-// What changed: the latest entries people notice (internal tooling left out), newest first.
-const latest = (siteSnapshot.releases ?? [])
-  .flatMap((r) => r.entries.map((e) => ({ ...e, date: e.date ?? r.date })))
-  .filter((e) => e.kind !== 'Internal')
-  .slice(0, 3);
+// What changed: the latest entries a designer notices (tokens and components; the site and the tooling left out),
+// newest first.
+const latest = libraryNotes((siteSnapshot.releases ?? []).flatMap((r) => r.entries.map((e) => ({ ...e, date: e.date ?? r.date })))).slice(0, 3);
 // "This week" only when every entry shown is less than 7 days older than the build's last commit.
 const DAY = 86_400_000;
 const ref = repo.lastChange ? Date.parse(`${repo.lastChange}T00:00:00Z`) : Date.now();

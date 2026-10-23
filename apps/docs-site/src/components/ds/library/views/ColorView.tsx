@@ -68,7 +68,7 @@ export default function ColorView({ data }: { data: LibraryData }) {
                       <strong>{p.segments.slice(2).join('.') || p.segments.slice(1).join('.')}</strong>
                     </span>
                     <span className="ramp-meta">
-                      <Button variant="link" size="sm" className="ramp-copy" data-copy={`var(${p.cssVar})`} aria-label={`Copy CSS variable var(${p.cssVar})`} title={`Copy var(${p.cssVar})`}>
+                      <Button variant="link" size="sm" className="ramp-copy" data-copy={`var(${p.cssVar})`} aria-label={`${p.hex}, copy CSS variable var(${p.cssVar})`} title={`Copy var(${p.cssVar})`}>
                         {p.hex}
                       </Button>
                       <span className={n ? 'ramp-n' : 'ramp-n is-unused'}>{n > 0 ? `${n} semantic` : 'Unused'}</span>
