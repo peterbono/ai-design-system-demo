@@ -824,7 +824,7 @@ test('interactions: a designer reaction on the same trigger wins, and the pull s
   const forced = { ...again.plan, components: again.plan.components.filter((c) => c.name === 'Button').map((c) => ({ ...c, status: 'updated' as const })) };
   const report = await applyComponentPlan(forced);
   assert.deepEqual(reactionsOf(def).map((r) => r.actions[0]!.destinationId), [pressed.id]);
-  assert.deepEqual(report.problems.filter((p) => /interaction/.test(p)), ['Button Variant=primary, Size=md, State=Default: kept your own "While hovering" interaction, so DS Bridge did not add its own']);
+  assert.deepEqual(report.problems.filter((p) => /interaction/.test(p)), ['Button Variant=primary, Size=md, State=Default: kept your own "While hovering" interaction, so Bridge did not add its own']);
 });
 
 test('interactions: reactions are cleaned to the documented shape before setReactionsAsync', () => {
@@ -915,14 +915,14 @@ test('spec values: numbers, tokens and calc() plan; any other shape is a problem
     const pv = planValue('paddingTop', odd, head);
     assert.ok('problem' in pv, `${String(odd)} is a problem`);
   }
-  assert.deepEqual(planValue('paddingTop', { value: 4, unit: 'px' }, head), { problem: '{"value":4,"unit":"px"} is not a value this version of DS Bridge reads: update DS Bridge' });
+  assert.deepEqual(planValue('paddingTop', { value: 4, unit: 'px' }, head), { problem: '{"value":4,"unit":"px"} is not a value this version of Bridge reads: update Bridge' });
   // In a plan: the field is listed with the others that cannot be bound, the rest of the components still plan.
   const odd: ComponentSpecsFile = structuredClone(specs);
   const button = odd.components.find((c) => c.name === 'Button')!;
   (button.variants[0]!.values.root as Record<string, unknown>).paddingTop = { value: 4, unit: 'px' };
   const plan = buildComponentPlan(odd, SPECS_PATH, [], head);
   assert.equal(plan.components.length, SPEC_COMPONENTS.length);
-  assert.ok(plan.problems.some((p) => p.component === 'Button' && p.property === 'paddingTop' && /update DS Bridge$/.test(p.reason)));
+  assert.ok(plan.problems.some((p) => p.component === 'Button' && p.property === 'paddingTop' && /update Bridge$/.test(p.reason)));
 });
 
 test('older kit: a file generated before swaps and interactions reviews main like Pull does, with thumbnails', async () => {

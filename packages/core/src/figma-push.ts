@@ -3,7 +3,7 @@
 // - exact, no AI: the only change is a token swap (a padding, a radius, a colour now bound to another variable) on a
 //   property code paints through a component token used nowhere else. It becomes a token change: that component token
 //   now points to the new variable, checked for contrast and reviewed like any token change.
-// - drafted by Claude AI, reviewed by a person: a new variant, a new property, layers added or moved, a new component,
+// - built by a developer with Claude, reviewed by a person: a new variant, a new property, layers added or moved, a new component,
 //   or a token swap code cannot express with a token alone. The structured diff (variant matrix, properties, bound
 //   variables, layers, screenshot) goes on a library branch as a spec; Claude writes the code there through the MCP
 //   server. Until it has, the branch says so: it carries the spec as a request, labelled "waiting for Claude".
@@ -123,7 +123,7 @@ const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 /**
  * How a component change from Figma goes back to the library. A token swap is exact when the property was painted by a
  * component token (one variable before, one after), that token paints nothing else, and the new variable is a token
- * the library has: the token then points to the new variable. Anything else that needs code is drafted by Claude AI;
+ * the library has: the token then points to the new variable. Anything else that needs code is built by a developer with Claude;
  * what cannot be read with confidence is listed with what to do.
  */
 export function planComponentPush(d: ComponentPushDiff, ctx: PushTokenContext): ComponentPushPlan {
@@ -134,25 +134,25 @@ export function planComponentPush(d: ComponentPushDiff, ctx: PushTokenContext): 
   for (const r of d.rebinds) {
     const label = `${cap(r.kind)} in ${where(r)}`;
     if (!r.after.length) {
-      issues.push({ what: `${label} is no longer bound to a variable: it uses a raw value.`, todo: 'Bind it to a variable, or create the variable and push it with the variables, then push again.' });
+      issues.push({ what: `${label} is no longer bound to a variable: it uses a raw value.`, todo: 'Bind it to a variable, or create the variable and send it with the variables, then scan again.' });
       continue;
     }
     const missing = r.after.filter((p) => !ctx.tierOf(p));
     if (missing.length) {
-      issues.push({ what: `${label} uses ${missing.join(', ')}, a variable the library does not have yet.`, todo: 'Push the variable first (Variables, above), then push this component again.' });
+      issues.push({ what: `${label} uses ${missing.join(', ')}, a variable the library does not have yet.`, todo: 'Send the variable first (Variables, above), then scan again.' });
       continue;
     }
     if (!r.before.length) {
-      reasons.push(`${label} is bound to ${r.after.join(', ')} where code paints nothing: Claude AI adds it to the CSS.`);
+      reasons.push(`${label} is bound to ${r.after.join(', ')} where code paints nothing: the CSS needs it added.`);
       continue;
     }
     if (r.before.length !== 1 || r.after.length !== 1) {
-      reasons.push(`${label} moved from ${r.before.join(', ')} to ${r.after.join(', ')}: several variables on one property, so Claude AI writes the CSS.`);
+      reasons.push(`${label} moved from ${r.before.join(', ')} to ${r.after.join(', ')}: several variables on one property, so the CSS needs writing.`);
       continue;
     }
     const [from, to] = [r.before[0]!, r.after[0]!];
     if (ctx.tierOf(from) !== 'component') {
-      reasons.push(`Code paints ${r.kind} with ${from} directly, not through a ${d.component} token: Claude AI changes the CSS to ${to}.`);
+      reasons.push(`Code paints ${r.kind} with ${from} directly, not through a ${d.component} token: the CSS needs to change to ${to}.`);
       continue;
     }
     // Other variants of this component still paint with it: the designer changed only some, so a new token is needed.
@@ -161,13 +161,13 @@ export function planComponentPush(d: ComponentPushDiff, ctx: PushTokenContext): 
     if (elsewhere.variants.length) {
       const v = elsewhere.variants;
       const list = v.length > 3 ? `${shortVariants(v.slice(0, 3).join('; ')).replace(/ and /, ', ')} and ${v.length - 3} more` : shortVariants(v.join('; '));
-      reasons.push(`${from} also paints ${list}: pointing it to ${to} would change them too, so Claude AI adds a token for ${where(r)}.`);
+      reasons.push(`${from} also paints ${list}: pointing it to ${to} would change them too, so it needs a new token for ${where(r)}.`);
       continue;
     }
     for (const c of elsewhere.components) also.add(c);
     const prev = edits.get(from);
     if (prev && prev.value !== `{${to}}`) {
-      reasons.push(`${from} moved to two different variables (${String(prev.value).slice(1, -1)} and ${to}): Claude AI splits it.`);
+      reasons.push(`${from} moved to two different variables (${String(prev.value).slice(1, -1)} and ${to}): it needs splitting in two.`);
       edits.delete(from);
       continue;
     }
@@ -177,7 +177,7 @@ export function planComponentPush(d: ComponentPushDiff, ctx: PushTokenContext): 
   if (d.needsCode || reasons.length) {
     return {
       route: 'claude-draft',
-      said: `Claude AI drafts the code from what you changed, then a person reviews it.${list.length ? ` ${list.length === 1 ? 'Its token swap goes' : 'Its token swaps go'} with it.` : ''}`,
+      said: `A developer builds it with Claude from what you changed, then a person reviews it.${list.length ? ` ${list.length === 1 ? 'Its token swap goes' : 'Its token swaps go'} with it.` : ''}`,
       edits: list,
       reasons,
       issues,
@@ -291,9 +291,9 @@ export function figmaOriginSection(o: FigmaOrigin): string {
     o.route === 'token-change'
       ? 'Exact token change, no AI: Bridge read the token swap from the Figma component.'
       : o.status === 'drafted'
-        ? '**Drafted by Claude AI** from the Figma spec. A person reviews it before it ships.'
-        : `**Waiting for Claude AI:** this branch carries the spec only, as a request. Claude writes the code here (\`bridge_get_figma_change\`, or \`bridge figma show <number>\`), then it is labelled ${DRAFTED_BY_CLAUDE_LABEL}.`;
-  return [`**From Figma:** ${design}${who}. Once it ships, a pull in the DS Bridge plugin rebuilds the component from this code.`, '', status, '', hidden(o)].join('\n');
+        ? '**Drafted with Claude** from the Figma spec. A person reviews it before it ships.'
+        : `**Waiting for a developer:** this branch carries the spec only, as a request. A developer builds the code here with Claude (\`bridge_get_figma_change\`, or \`bridge figma show <number>\`), then it is labelled ${DRAFTED_BY_CLAUDE_LABEL}.`;
+  return [`**From Figma:** ${design}${who}. Once it ships, a pull in the Bridge Figma plugin rebuilds the component from this code.`, '', status, '', hidden(o)].join('\n');
 }
 
 /** The body with the "From Figma" section first (replacing an earlier one). */
@@ -415,7 +415,7 @@ export type FigmaPushStatusKey = 'waiting-for-claude' | 'drafted' | 'in-review' 
 
 export interface FigmaPushStatus {
   key: FigmaPushStatusKey;
-  /** "Waiting for Claude AI", "Shipped". */
+  /** "Waiting for a developer", "Shipped". */
   label: string;
   /** One sentence for the designer. */
   sentence: string;
@@ -428,7 +428,7 @@ export function figmaPushStatus(x: { state: string; draft?: boolean | undefined;
   const labels = x.labels ?? [];
   if (x.state === 'merged') return { key: 'shipped', label: 'Shipped', sentence: 'It shipped. Pull to rebuild the component from the reviewed code.', rebuild: true };
   if (x.state !== 'open') return { key: 'closed', label: 'Closed', sentence: 'The library closed it without shipping. Pull to bring the component back to the code.', rebuild: true };
-  if (labels.includes(WAITING_FOR_CLAUDE_LABEL)) return { key: 'waiting-for-claude', label: 'Waiting for Claude AI', sentence: 'The spec is on the library branch. Claude AI writes the code there, then a person reviews it.', rebuild: false };
-  if (labels.includes(DRAFTED_BY_CLAUDE_LABEL)) return { key: 'drafted', label: 'Drafted by Claude AI', sentence: 'Claude AI drafted the code. A person reviews it before it ships.', rebuild: false };
+  if (labels.includes(WAITING_FOR_CLAUDE_LABEL)) return { key: 'waiting-for-claude', label: 'Waiting for a developer', sentence: 'The spec is on the library branch. A developer builds it there with Claude, then a person reviews it.', rebuild: false };
+  if (labels.includes(DRAFTED_BY_CLAUDE_LABEL)) return { key: 'drafted', label: 'Drafted with Claude', sentence: 'The code is drafted. A person reviews it before it ships.', rebuild: false };
   return { key: 'in-review', label: 'In review', sentence: x.route === 'token-change' ? 'Owners review the token change.' : 'Owners review it.', rebuild: false };
 }

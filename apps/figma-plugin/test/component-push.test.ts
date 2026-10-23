@@ -168,7 +168,7 @@ test('a swap on a token other variants still use goes to Claude AI, with the rea
   const r = await scanAndRoute(client, sync);
   const push = r.pushes.find((p) => p.diff.component === 'Button')!;
   assert.equal(push.plan.route, 'claude-draft');
-  assert.match(push.plan.reasons[0]!, /^button\.primary\.bg also paints primary sm and primary lg: pointing it to color\.action\.primary\.bg-active would change them too, so Claude AI adds a token for primary md\.$/);
+  assert.match(push.plan.reasons[0]!, /^button\.primary\.bg also paints primary sm and primary lg: pointing it to color\.action\.primary\.bg-active would change them too, so it needs a new token for primary md\.$/);
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -212,7 +212,7 @@ test('claude draft: a new variant opens a draft branch carrying the spec and a s
   assert.equal(pr.draft, true);
   assert.deepEqual(pr.labels.filter((l) => [FROM_FIGMA_LABEL, WAITING_FOR_CLAUDE_LABEL, 'component-change', 'source: figma'].includes(l)).sort(), ['component-change', FROM_FIGMA_LABEL, 'source: figma', WAITING_FOR_CLAUDE_LABEL].sort());
   assert.match(pr.body, /^\*\*From Figma:\*\* \[Button\]\(https:\/\/www\.figma\.com\/design\/FILE\/\?node-id=1-1\)/);
-  assert.match(pr.body, /\*\*Waiting for Claude AI:\*\* this branch carries the spec only, as a request/);
+  assert.match(pr.body, /\*\*Waiting for a developer:\*\* this branch carries the spec only, as a request/);
   const origin = parseFigmaOrigin(pr.body)!;
   const spec = parseFigmaSpec(gh.filesAt(b.branch)[origin.spec!])!;
   assert.equal(spec.component, 'Button');
@@ -231,7 +231,7 @@ test('claude draft: a new variant opens a draft branch carrying the spec and a s
   const done = await markFigmaChangeDraftedOnGitHub(client, b.number);
   assert.equal(done.status.key, 'drafted');
   assert.ok(pr.labels.includes(DRAFTED_BY_CLAUDE_LABEL) && !pr.labels.includes(WAITING_FOR_CLAUDE_LABEL));
-  assert.match(pr.body, /\*\*Drafted by Claude AI\*\* from the Figma spec/);
+  assert.match(pr.body, /\*\*Drafted with Claude\*\* from the Figma spec/);
 });
 
 test('fix in Figma: a detached layer, a raw value and a variable code lacks are listed with what to do, never sent', async () => {
@@ -256,7 +256,7 @@ test('fix in Figma: a detached layer, a raw value and a variable code lacks are 
   assert.match(by('Card').plan.issues[0]!.todo, /Reset instance/);
   assert.match(by('Badge').plan.issues[0]!.what, /^The look of Size=md changed with the same variables: a value was set by hand/);
   assert.match(by('Button').plan.issues[0]!.what, /uses brand-new\.only-in-figma, a variable the library does not have yet/);
-  assert.match(by('Button').plan.issues[0]!.todo, /^Push the variable first/);
+  assert.match(by('Button').plan.issues[0]!.todo, /^Send the variable first/);
   const res = await publish(client, { analysis: a, proposal: buildPush(a, new Map()), components: scan.changed, pushes, unchecked: new Set(), description: '', title: '', fileName: 'Test', coded: scan.coded });
   assert.deepEqual(res.branches, []);
   assert.deepEqual(res.held.map((x) => x.component).sort(), ['Badge', 'Button', 'Card']);

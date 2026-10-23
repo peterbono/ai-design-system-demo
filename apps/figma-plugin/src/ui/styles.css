@@ -1,4 +1,4 @@
-/* DS Bridge UI.
+/* Bridge UI.
    Operate surface inside Figma: it borrows Figma's own theme (themeColors: true exposes
    var(--figma-color-*), switching with the editor's light/dark theme) and Figma's compact
    rhythm, so it feels native. Bridge brand on top (Field Guide, docs/DESIGN-LANGUAGE.md): Deep Harbor for
@@ -421,3 +421,9 @@ button.link:hover { text-decoration-thickness: 2px; }
 details.command pre { margin: var(--s1) 0 0; padding: var(--s2); border-radius: var(--r-sm); background: var(--bg-sunken); border: 1px solid var(--border); font-family: var(--mono); font-size: 11px; line-height: 16px; white-space: pre-wrap; word-break: break-all; color: var(--text); }
 .command-slot:empty { display: none; }
 .row-head .row-wait { margin-left: auto; flex: none; }
+
+/* "For developers": repository, branch and commits, folded away from the designer's sentences. */
+.dev-list { display: grid; grid-template-columns: auto 1fr; gap: var(--s1) var(--s3); margin: var(--s2) 0 0; }
+.dev-list dt { color: var(--text-3); }
+.dev-list dd { margin: 0; font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; min-width: 0; }
+.dev-details .field { margin-top: var(--s2); }
