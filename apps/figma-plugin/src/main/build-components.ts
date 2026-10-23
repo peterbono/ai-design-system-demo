@@ -318,6 +318,22 @@ interface Ctx {
 
 type Bindable = { setBoundVariable(field: string, variable: Variable | null): void };
 
+/**
+ * A paint bound to a color variable, whose own color is the value the node resolves now. Figma shows a bound paint's
+ * own color until something refreshes it (a variable write in the session, a mode change): with a black base, an
+ * update that writes no variable left the whole set black, on the canvas and in exports.
+ */
+function boundPaint(node: SceneNode, variable: Variable): SolidPaint {
+  let base: SolidPaint = BLACK;
+  try {
+    const v = variable.resolveForConsumer(node).value as Partial<RGBA> | undefined;
+    if (v && typeof v.r === 'number' && typeof v.g === 'number' && typeof v.b === 'number') base = { type: 'SOLID', color: { r: v.r, g: v.g, b: v.b }, opacity: typeof v.a === 'number' ? v.a : 1 };
+  } catch {
+    /* unresolvable here: the black base, as before */
+  }
+  return figma.variables.setBoundVariableForPaint(base, 'color', variable);
+}
+
 function bind(node: SceneNode, field: string, variable: Variable | null): void {
   (node as unknown as Bindable).setBoundVariable(field, variable);
 }
@@ -444,10 +460,10 @@ function apply(node: SceneNode, f: PlannedField, ctx: Ctx): void {
     switch (f.field) {
       case 'fill':
       case 'textFill':
-        n.fills = [figma.variables.setBoundVariableForPaint(BLACK, 'color', variable)];
+        n.fills = [boundPaint(node, variable)];
         return;
       case 'stroke':
-        n.strokes = [figma.variables.setBoundVariableForPaint(BLACK, 'color', variable)];
+        n.strokes = [boundPaint(node, variable)];
         return;
       case 'cornerRadius':
         for (const c of CORNERS) bind(node, c, variable);

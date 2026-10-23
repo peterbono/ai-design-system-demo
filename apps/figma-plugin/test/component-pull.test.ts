@@ -240,6 +240,25 @@ test('variables missing in Figma: the part is reported, never bound to something
 // ---------------------------------------------------------------------------------------------
 // Fixes seen in real Figma on the Components page (Badge md padding, Card layout, Tag wrapper, grid spacing).
 
+test('bound paints carry the color they resolve to: Figma shows that color until something refreshes it', async () => {
+  const { sim, plan } = await pulledFile();
+  await applyComponentPlan(writablePlan(plan));
+  const set = sim.sets().find((s) => s.name === 'Badge')!;
+  let checked = 0;
+  for (const v of set.children) {
+    for (const node of [v, ...v.findAll(() => true)]) {
+      for (const paint of [...((node.fills as Record<string, unknown>[] | undefined) ?? []), ...((node.strokes as Record<string, unknown>[] | undefined) ?? [])]) {
+        const id = (paint.boundVariables as { color?: { id: string } } | undefined)?.color?.id;
+        if (!id) continue;
+        const want = sim.resolveVariable(sim.variables.find((x) => x.id === id)!) as { r: number; g: number; b: number };
+        assert.deepEqual(paint.color, { r: want.r, g: want.g, b: want.b }, `${v.name} / ${node.name}: not the black base`);
+        checked++;
+      }
+    }
+  }
+  assert.ok(checked > 20, `bound paints checked: ${checked}`);
+});
+
 test('calc(): Badge md padding and min height are resolved from the tokens and set, not bound', async () => {
   const { sim, plan, a } = await pulledFile();
   assert.equal(evaluateCalc('calc(space.2 + space.0-5)', a.head), 10);
