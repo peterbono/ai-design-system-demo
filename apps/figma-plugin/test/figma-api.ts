@@ -62,6 +62,7 @@ export class SimVariable {
     private api: SimFigma,
   ) {}
   setValueForMode(modeId: string, value: unknown) {
+    this.api.valueWrites++;
     this.valuesByMode[modeId] = value && typeof value === 'object' && 'r' in (value as Dict) ? { ...(value as Dict) } : value;
   }
   getPluginData(k: string) {
@@ -546,6 +547,8 @@ export class SimNode {
 
 export class SimFigma {
   nodes = new Map<string, SimNode>();
+  /** setValueForMode calls, on every variable. */
+  valueWrites = 0;
   collections: SimCollection[] = [];
   variables: SimVariable[] = [];
   loadedFonts = new Set<string>();
