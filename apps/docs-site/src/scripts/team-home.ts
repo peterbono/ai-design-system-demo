@@ -96,11 +96,29 @@ export function joinHandlers(repo: () => string, onGone: (key: string) => void, 
   };
 }
 
-/** Paints the team home into `el` (the [data-studio-home] mount), and the source line into `sourceEl`. */
-export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
+/**
+ * The home's repo facts before the team's design system is read: no components, no failing pair, no guidance draft.
+ * The greeting and what Bridge itself knows (join requests) paint with it at once; the rest fills in once read.
+ */
+export function placeholderHomeStatic(): TeamHomeStatic {
+  return { contrastFail: 0, components: [], guidance: [], startHrefs: { tokens: startChangeHref('look'), component: startChangeHref('variant'), guidance: studioHref('components/') } };
+}
+
+/**
+ * Paints the team home into `el` (the [data-studio-home] mount), the source line into `sourceEl`, and the design
+ * system read (its progress, or why it failed) into `dsEl`. Bridge's own parts (the greeting, join requests) never wait
+ * for that read: GitHub can be slow, refuse, or the team be large; the home is there at once and fills in.
+ */
+export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null, dsEl: HTMLElement | null = null) {
   let root: Root | null = null;
   let sourceRoot: Root | null = null;
+  let dsRoot: Root | null = null;
+  /** The repo facts, once the team's design system is read; null until then (placeholderHomeStatic stands in). */
   let stat: TeamHomeStatic | null = null;
+  const placeholder = placeholderHomeStatic();
+  const facts = () => stat ?? placeholder;
+  /** Repaints the running loadHome with the facts now known (no GitHub read). */
+  let repaintHome: (() => void) | null = null;
   let data: HomeData | null = null;
   let known = false;
   let run = 0;
@@ -148,8 +166,13 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
   }
 
   function paint() {
-    if (!stat) return;
     if (exploring()) {
+      // The demo's home is all repository data: it waits for the read, as before.
+      if (!stat) {
+        root ??= createRoot(el);
+        root.render(createElement(TeamLoadProgress, { label: "Reading this team's design system" }));
+        return;
+      }
       readDemo();
       root = paintDemoHome(
         el,
@@ -169,6 +192,7 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
       );
       return;
     }
+    const f = facts();
     const now = Date.now();
     const v = currentViewer();
     const signedIn = Boolean(v) || (!known && Boolean(getToken()));
@@ -183,10 +207,10 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
         branches: d?.branches ?? [],
         health: health(),
         now,
-        components: stat.components,
+        components: f.components,
         signedOut: { line: signedOutLine(signIn), button: ghButton(signIn), signIn },
         failed: d?.failed ?? null,
-        startHrefs: stat.startHrefs,
+        startHrefs: f.startHrefs,
         // No review right: only what waits on them, and their tour (once the owner teams are read).
         contributor: Boolean(d && !d.loading && !d.reviewer),
         join,
@@ -196,44 +220,68 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
   }
 
   function reload() {
-    if (!stat) return;
     if (exploring()) {
       paint();
       return;
     }
     data = null;
+    repaintHome = null;
     const mine = ++run;
     paint();
-    void loadHome(stat, (d) => {
-      if (mine !== run) return;
-      data = d;
-      paint();
-      if (!d.loading && !d.failed && d.viewer) {
-        setReviewCount(d.decisions);
-        rememberMine(d.decisions);
-      }
-      if (!d.viewer) setReviewCount(null);
-    });
+    void loadHome(
+      facts,
+      (d) => {
+        if (mine !== run) return;
+        data = d;
+        paint();
+        if (!d.loading && !d.failed && d.viewer) {
+          setReviewCount(d.decisions);
+          rememberMine(d.decisions);
+        }
+        if (!d.viewer) setReviewCount(null);
+      },
+      (fn) => {
+        if (mine === run) repaintHome = fn;
+      },
+    );
+  }
+
+  /** The design system part: its progress while it is read, why it failed, or nothing once it is there. */
+  function paintDs(node: Parameters<Root['render']>[0] | null) {
+    if (!dsEl) return;
+    dsRoot ??= createRoot(dsEl);
+    dsRoot.render(node);
   }
 
   function start() {
-    // How far the read has gone, until the home can paint (a Refresh keeps the home on screen instead).
-    if (!stat) {
-      root ??= createRoot(el);
-      root.render(createElement(TeamLoadProgress, { label: "Reading this team's design system" }));
-    }
+    // How far the read has gone, under the home (a Refresh keeps the home and its facts on screen instead).
+    if (!stat) paintDs(createElement(TeamLoadProgress, { label: "Reading this team's design system" }));
+    paint();
     loadTeamData().then(
       (loaded) => {
+        const first = !stat;
         stat = teamHomeStatic(loaded);
+        paintDs(null);
         sourceRoot ??= sourceEl ? createRoot(sourceEl) : null;
         sourceRoot?.render(createElement(TeamSourceNote, { data: loaded, refreshing: false, onRefresh: () => (resetTeamData(), start()) }));
-        paint();
-        if (known) reload();
+        // The demo waited for this read; a team's home only takes the facts in (contrast, guidance drafts).
+        if (exploring()) {
+          paint();
+          if (known && first) reload();
+        } else if (repaintHome) repaintHome();
+        else paint();
       },
       (err: unknown) => {
         const team = teamOfPage();
-        root ??= createRoot(el);
-        root.render(createElement(TeamLoadError, { failure: teamFailure(err, team ? `${team.owner}/${team.repo}` : 'this repository'), onRetry: () => (resetTeamData(), start()) }));
+        const failure = teamFailure(err, team ? `${team.owner}/${team.repo}` : 'this repository');
+        const retry = () => (resetTeamData(), start());
+        // Without a slot for it (or on the demo, all repository data), the failure takes the home's place, as before.
+        if (!dsEl || exploring()) {
+          root ??= createRoot(el);
+          root.render(createElement(TeamLoadError, { failure, onRetry: retry }));
+          return;
+        }
+        paintDs(createElement(TeamLoadError, { failure, onRetry: retry, compact: true }));
       },
     );
   }

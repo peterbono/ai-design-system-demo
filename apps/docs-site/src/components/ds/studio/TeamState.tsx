@@ -72,12 +72,16 @@ const FAILURE_ICON = { 'rate-limit': Timer, 'not-found': SearchX, 'too-large': F
 /** The sign-in screen, back to this page once signed in again. */
 export const signInHereHref = () => signInHref(typeof location === 'undefined' ? null : location.pathname + location.search + location.hash);
 
-/** What went wrong, and Try again (Sign in when the session ended). A repository too large to read also gets the snapshot workflow to copy. */
-export function TeamLoadError({ failure, onRetry }: { failure: TeamFailure; onRetry: () => void }) {
+/**
+ * What went wrong, and Try again (Sign in when the session ended). A repository too large to read also gets the
+ * snapshot workflow to copy. `compact`: under content the page shows anyway (Home's greeting and join requests), so
+ * the failure of the design system read is one calm block among others, not the whole page.
+ */
+export function TeamLoadError({ failure, onRetry, compact = false }: { failure: TeamFailure; onRetry: () => void; compact?: boolean }) {
   return (
     <EmptyState
       className="tp-error"
-      size="lg"
+      size={compact ? 'md' : 'lg'}
       headingLevel={2}
       icon={FAILURE_ICON[failure.kind]}
       title={failure.title}
