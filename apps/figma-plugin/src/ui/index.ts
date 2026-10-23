@@ -416,7 +416,7 @@ interface RowSides {
   afterIndex: PathIndex;
 }
 
-const KIND_LABEL: Record<string, string> = { added: 'New', changed: 'Edited', renamed: 'Renamed', removed: 'Deleted', restored: 'Recreated', replaced: 'From main' };
+const KIND_LABEL: Record<string, string> = { added: 'New', changed: 'Edited', renamed: 'Renamed', removed: 'Deleted', restored: 'Recreated', replaced: 'From code' };
 
 function diffRow(a: Analysis, kind: string, sides: RowSides, extra?: Child, edge?: { lead?: Child; tail?: Child }): HTMLElement {
   const t = (sides.after ?? sides.before)!;
@@ -531,7 +531,7 @@ function conflictBlock(a: Analysis, e: DiffEntry, choices: Map<string, ConflictC
     'li',
     { class: 'conflict' },
     h('div', { class: 'row-head' }, edge?.lead, h('span', { class: 'kind conflict' }, 'Conflict'), h('span', { class: 'path' }, e.path), edge?.tail),
-    h('div', { class: 'choices', role: 'radiogroup', 'aria-label': `Version to keep for ${e.path}` }, side('figma', 'Keep Figma', e.figma, fi), side('main', 'Use main', e.head, a.head.byPath)),
+    h('div', { class: 'choices', role: 'radiogroup', 'aria-label': `Version to keep for ${e.path}` }, side('figma', 'Keep Figma', e.figma, fi), side('main', 'Use code', e.head, a.head.byPath)),
   );
 }
 
@@ -549,7 +549,7 @@ function conflictSection(a: Analysis, choices: Map<string, ConflictChoice>, edge
           'div',
           { class: 'inline-actions' },
           h('button', { class: 'btn ghost', onClick: () => { list.forEach((e) => choices.set(e.id, 'figma')); refreshProposals(); } }, 'Keep Figma for all'),
-          h('button', { class: 'btn ghost', onClick: () => { list.forEach((e) => choices.set(e.id, 'main')); refreshProposals(); } }, 'Use main for all'),
+          h('button', { class: 'btn ghost', onClick: () => { list.forEach((e) => choices.set(e.id, 'main')); refreshProposals(); } }, 'Use code for all'),
           open ? h('span', { class: 'muted' }, `${open} left to decide`) : null,
         )
       : null,
@@ -718,7 +718,7 @@ function updateComponent(componentId: string): void {
       const notBuilt = report.failed?.[0] ?? report.partial?.[0];
       if (notBuilt) state.error = { message: `${comp.name} was not fully updated: ${notBuilt.reason}. Nothing half built was left.`, retry: () => updateComponent(componentId) };
       else if (report.problems.length) state.error = { message: `${comp.name} updated, with problems: ${report.problems.slice(0, 3).join('; ')}` };
-      void request('notify', { message: `${comp.name} updated${withVariables ? ', with the variables from main' : ''}` });
+      void request('notify', { message: `${comp.name} updated${withVariables ? `, with the variables from ${state.init!.settings.branch}` : ''}` });
     },
     () => updateComponent(componentId),
   );
@@ -1679,7 +1679,8 @@ function viewPull(): View {
     counts.added ? `${counts.added} new` : '',
     counts.changed ? `${counts.changed} edited` : '',
     counts.renamed ? `${counts.renamed} renamed` : '',
-    counts.removed ? `${counts.removed} deleted on main` : '',
+    // The headline names the branch once ("2 new, 1 deleted on next").
+    counts.removed ? `${counts.removed} deleted` : '',
   ].filter(Boolean);
 
   // Summary first: one sentence for the whole screen, then one line of where it comes from.
