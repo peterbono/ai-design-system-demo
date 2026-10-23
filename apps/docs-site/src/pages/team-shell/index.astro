@@ -12,14 +12,16 @@ import Layout from '../../layouts/Layout.astro';
 <Layout title="Home" description="What needs you now and your branches, for this team's design system." hosted wide>
   <div class="sh-root">
     <div data-team-source class="sh-team-source"></div>
-    {/* scripts/team-home.ts: how far the read has gone (LoadProgress), then the home. */}
-    <div data-studio-home>
+    {/* scripts/team-home.ts: the home at once (greeting, join requests), its repo facts once the team is read. */}
+    <div data-studio-home></div>
+    {/* The design system read: how far it has gone, or why it failed. Never in the way of the home above. */}
+    <div data-team-ds class="sh-team-ds">
       <div class="lp-wait" aria-busy="true" aria-label="Reading this team's design system"></div>
     </div>
   </div>
   <script>
     import { initTeamHome } from '../../scripts/team-home';
     const el = document.querySelector<HTMLElement>('[data-studio-home]');
-    if (el) initTeamHome(el, document.querySelector<HTMLElement>('[data-team-source]'));
+    if (el) initTeamHome(el, document.querySelector<HTMLElement>('[data-team-source]'), document.querySelector<HTMLElement>('[data-team-ds]'));
   </script>
 </Layout>

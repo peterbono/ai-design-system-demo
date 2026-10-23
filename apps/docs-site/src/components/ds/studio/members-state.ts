@@ -34,6 +34,15 @@ export function useMembers(enabled = true): { load: MembersLoad; reload: () => v
       live = false;
     };
   }, [enabled, run]);
+  // Painted before the team's settings were read (scripts/members.ts ownersOfTeam): read again, quietly, once they
+  // land, so review roles fill in. The list stays on screen meanwhile.
+  const waiting = load.status === 'ready' && load.data.ownersKnown === false;
+  useEffect(() => {
+    if (!enabled || !waiting || typeof document === 'undefined') return;
+    const again = () => setRun((n) => n + 1);
+    document.addEventListener('bridge:team-model', again, { once: true });
+    return () => document.removeEventListener('bridge:team-model', again);
+  }, [enabled, waiting]);
   const reload = useCallback(() => setRun((n) => n + 1), []);
   const update = useCallback((fn: (d: MembersData) => MembersData) => setLoad((l) => (l.status === 'ready' ? { status: 'ready', data: fn(l.data) } : l)), []);
   return { load, reload, update };

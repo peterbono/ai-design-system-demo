@@ -35,6 +35,11 @@ export interface MembersData {
   complete: boolean;
   /** This site can send invites (its invites server answers and is set up). */
   invites: boolean;
+  /**
+   * The team's reviewers (its settings) were known when this was read. False on a team whose design system is still
+   * being read, or could not be: review roles are missing until it lands, then Members reads again.
+   */
+  ownersKnown?: boolean;
 }
 
 interface Collaborator {
@@ -65,17 +70,26 @@ export function peopleFromCommits(commits: readonly CommitLike[]): KnownPerson[]
   return [...out.values()];
 }
 
-async function ownersOfTeam(hosted: boolean): Promise<Owners> {
-  if (hosted) {
-    const { loadTeamData } = await import('./team-data');
-    try {
-      return (await loadTeamData()).model.site.owners;
-    } catch {
-      return { design: [], tech: [] };
-    }
-  }
+/** How long Members waits for the team's settings before it paints without them (they fill in once read). */
+export const OWNERS_WAIT_MS = 800;
+
+/**
+ * The reviewers of the team, and whether they are known yet. On a team shell they come from the repository model:
+ * Members never waits for the whole design system read (a large team takes a while, GitHub may be slow or refuse).
+ * Already read: at once. Else the read gets OWNERS_WAIT_MS; past that, or when it fails, the people paint without
+ * review roles and Members reads again when the settings land (bridge:team-model, components/ds/studio/members-state).
+ */
+async function ownersOfTeam(hosted: boolean): Promise<{ owners: Owners; known: boolean }> {
   const o = siteConfig().owners;
-  return { design: o?.design ?? [], tech: o?.tech ?? [] };
+  if (o) return { owners: { design: o.design ?? [], tech: o.tech ?? [] }, known: true };
+  if (!hosted) return { owners: { design: [], tech: [] }, known: true };
+  const { loadTeamData } = await import('./team-data');
+  const read = loadTeamData().then(
+    (d) => ({ owners: d.model.site.owners, known: true }),
+    () => null,
+  );
+  const late = new Promise<null>((resolve) => setTimeout(() => resolve(null), OWNERS_WAIT_MS));
+  return (await Promise.race([read, late])) ?? { owners: { design: [], tech: [] }, known: false };
 }
 
 /** The name the team goes by (lib/demo.ts teamDisplayName): its own once its settings are read. */
@@ -100,7 +114,9 @@ export async function loadMembers(): Promise<MembersData> {
   }
 
   const viewer = currentViewer();
-  const [access, owners, invites] = await Promise.all([resolveAccess({ owner: ctx.owner, repo: ctx.repo }, { anonymous: ctx.hosted }), ownersOfTeam(ctx.hosted), invitesAvailable()]);
+  // Bridge's own lists (members by email, invites) never wait on GitHub: a failed access check reads as no access.
+  const [access, team0, invites] = await Promise.all([resolveAccess({ owner: ctx.owner, repo: ctx.repo }, { anonymous: ctx.hosted }).catch(() => null), ownersOfTeam(ctx.hosted), invitesAvailable().catch(() => false)]);
+  const owners = team0.owners;
   const canManage = Boolean(viewer && access?.admin);
   const names = knownNames();
   const you = (login: string) => Boolean(viewer && loginKey(viewer.login) === loginKey(login));
@@ -186,5 +202,5 @@ export async function loadMembers(): Promise<MembersData> {
       people = [];
     }
   }
-  return { context, repo, team, members, pending, people, canManage, personal, complete, invites };
+  return { context, repo, team, members, pending, people, canManage, personal, complete, invites, ownersKnown: team0.known };
 }

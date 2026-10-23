@@ -10,6 +10,7 @@ const s = vi.hoisted(() => ({
   token: null as string | null,
   team: vi.fn(),
   ghGet: vi.fn(),
+  teamData: null as null | (() => Promise<unknown>),
 }));
 
 vi.mock('./github-session', () => ({
@@ -22,7 +23,7 @@ vi.mock('./contribute-session', () => ({ contributeTeam: s.team }));
 vi.mock('./invites-api', () => ({ invitesAvailable: async () => true, listInvites: vi.fn(async () => ({ invites: [], members: [], personal: false })) }));
 vi.mock('./people', () => ({ knownNames: () => ({}) }));
 vi.mock('./repo-context', () => ({ repoContext: () => ({ owner: 'acme', repo: 'ds', defaultBranch: 'main', hosted: true }), siteConfig: () => ({}) }));
-vi.mock('./team-data', () => ({ loadTeamData: async () => ({ model: { site: { owners: { design: ['peterbono'], tech: ['peterbono'] } } } }) }));
+vi.mock('./team-data', () => ({ loadTeamData: () => (s.teamData ? s.teamData() : Promise.resolve({ model: { site: { owners: { design: ['peterbono'], tech: ['peterbono'] } } } })) }));
 
 import { loadMembers } from './members';
 
@@ -33,6 +34,7 @@ const PEOPLE = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  s.teamData = null;
   s.team.mockResolvedValue(PEOPLE);
 });
 
@@ -70,5 +72,25 @@ describe('loadMembers for a member who cannot list the team on GitHub', () => {
     const d = await loadMembers();
     expect(d.complete).toBe(false);
     expect(d.members.map((m) => m.login)).toEqual(['peterbono']);
+  });
+
+  it('never waits for the design system read: the people paint without review roles, marked to read again', async () => {
+    s.viewer = { login: 'goulou@example.com', name: 'Goulou Photographie', email: 'goulou@example.com' };
+    s.access = { state: 'writer', write: true, admin: false, reach: true, contributor: true };
+    s.token = 'contrib';
+    s.teamData = () => new Promise(() => undefined);
+    // Past OWNERS_WAIT_MS (real time, under a second).
+    const d = await loadMembers();
+    expect(d.ownersKnown).toBe(false);
+    expect(d.members.map((m) => m.name)).toEqual(['peterbono', 'Goulou Photographie']);
+  });
+
+  it('paints the people when the design system read fails', async () => {
+    s.viewer = { login: 'goulou@example.com', email: 'goulou@example.com' };
+    s.access = { state: 'writer', write: true, admin: false, reach: true, contributor: true };
+    s.teamData = () => Promise.reject(Object.assign(new Error('API rate limit exceeded'), { status: 429 }));
+    const d = await loadMembers();
+    expect(d.ownersKnown).toBe(false);
+    expect(d.complete).toBe(true);
   });
 });
