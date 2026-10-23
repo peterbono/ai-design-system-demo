@@ -402,6 +402,12 @@
   font-weight: var(--font-weight-medium);
 }
 
+/* For developers: the technical side of the branch, folded, for tech owners only. */
+.br-dev .br-dev-list {
+  margin: 0 0 var(--space-3);
+  padding-inline-start: var(--space-5);
+}
+
 /* Update from main: one line above the bar, only when behind or in conflict. */
 .br-update {
   display: flex;

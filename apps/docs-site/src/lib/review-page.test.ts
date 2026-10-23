@@ -220,6 +220,13 @@ describe('checksLine', () => {
     expect(l).toMatchObject({ state: 'fail', text: '2 developer tests fail. A developer fixes them.' });
     expect(l.rows).toHaveLength(1);
   });
+  it('tells a designer who acts on failing developer tests, never which tests', () => {
+    const story = { design: { state: 'pass' as const, text: '304 contrast checks still pass.' }, developer: { state: 'fail' as const, text: '2 developer tests fail. A developer fixes them.' }, designFails: false, developerFailing: 2, oldValue: false };
+    const l = checksLine(story, { forDesigner: true });
+    expect(l).toMatchObject({ state: 'fail', text: 'Code checks fail: a developer is on it.' });
+    expect(l.rows[1]).toEqual({ label: 'Code checks', state: 'fail', text: 'A developer is on it.' });
+    expect(JSON.stringify(l)).not.toMatch(/developer tests?/);
+  });
   it('says when checks run or none ran', () => {
     expect(checksLine({ design: null, developer: { state: 'pending', text: '3 checks still running.' }, designFails: false, developerFailing: 0, oldValue: false }).state).toBe('pending');
     expect(checksLine({ design: null, developer: null, designFails: false, developerFailing: 0, oldValue: false }).state).toBe('none');

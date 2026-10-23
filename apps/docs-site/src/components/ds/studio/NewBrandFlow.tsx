@@ -394,7 +394,14 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
             <div>
               <dt>Brand</dt>
               <dd>
-                {draft.name.trim() || <span className="muted">No name yet</span>} <span className="mono muted">{slug}</span>
+                {draft.name.trim() || <span className="muted">No name yet</span>}
+                {/* The slug only when it reads differently from the name: never "Forest forest". */}
+                {slug && slug !== draft.name.trim().toLowerCase() && (
+                  <>
+                    {' '}
+                    <span className="mono muted">{slug}</span>
+                  </>
+                )}
               </dd>
             </div>
             <div>
@@ -421,7 +428,6 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
             <div>
               <dt>Review</dt>
               <dd className="nb-tier">
-                <Badge tone="neutral">Tier 3</Badge>
                 <span>{suggest ? `Needs design and tech approval. ${SUGGEST_NEXT}` : 'Needs design and tech approval. Starts as a draft branch.'}</span>
               </dd>
             </div>
@@ -571,7 +577,7 @@ function BrandPreview({ theme, vars, name }: { theme: 'light' | 'dark'; vars: Re
         </div>
         <div className="nb-pv-row">
           <Badge tone="success">Passing</Badge>
-          <Badge tone="info">Tier 3</Badge>
+          <Badge tone="info">New</Badge>
           <Badge tone="neutral">Draft</Badge>
         </div>
       </div>

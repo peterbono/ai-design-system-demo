@@ -26,8 +26,10 @@ import {
   type SuggestionGovernance,
   type SuggestionStatus,
 } from '@bridge-ds/core';
-import { currentViewer, getToken, hasWorkingToken, initGitHubConnect, onAccess, prefersSignIn, readRepo, studioClient, ghGet } from './github-session';
+import { currentContributor, currentViewer, getToken, hasWorkingToken, initGitHubConnect, onAccess, prefersSignIn, readRepo, studioClient, ghGet } from './github-session';
 import { loadTeams, siteApprovers, siteRoles, siteSoloOwner } from './teams';
+import { siteConfig } from './repo-context';
+import { isSampleTeam } from '../lib/demo';
 import { ghAction } from '../lib/gh-wording';
 import { canReview } from '../lib/access';
 import { person, requesterPerson, type NeedRow, type Person } from '../lib/home-model';
@@ -332,6 +334,12 @@ export async function openSuggestion(n: number, host: SuggestionHost): Promise<v
   const nameMap: Record<string, string> = {};
   await Promise.all([...new Set(logins.map((l) => l.toLowerCase()))].map(async (l) => (nameMap[l] = await nameOf(l))));
   if (mine !== seq) return;
+  // The demo seat (lib/demo.ts): on the sample team a visitor without an account sits where Dana sits, so the owners
+  // read as Dana and the author as who asked for it, never a real account (the branch page does the same).
+  const seat = !viewer && !currentContributor() && isSampleTeam(repoKey()) ? ((siteConfig() as { demo?: { viewer?: string } }).demo?.viewer ?? null) : null;
+  const asker = seat ? requesterOf(d.issue.body) : null;
+  if (seat) for (const o of [...owners.design, ...owners.tech]) nameMap[o.toLowerCase()] = seat;
+  const authorName = seat ? (asker?.name?.split(/\s+/)[0] ?? asker?.login ?? 'A teammate') : (nameMap[d.issue.author.toLowerCase()] ?? d.issue.author);
   const title = shortTitle(payload.title || d.issue.title);
   let today: TodayChecks | null = null;
   let conflicts: { path: string; detail: string; now?: unknown }[] | undefined;
@@ -348,7 +356,7 @@ export async function openSuggestion(n: number, host: SuggestionHost): Promise<v
       title,
       kind: kindLabel(payload.kind),
       summary: payload.summary,
-      author: { login: d.issue.author, name: nameMap[d.issue.author.toLowerCase()] ?? d.issue.author, avatarUrl: `https://github.com/${d.issue.author}.png?size=64`, agent: payload.source === 'mcp' && /claude/i.test(d.issue.author) },
+      author: seat ? { login: `~${authorName.toLowerCase()}`, name: authorName, avatarUrl: null, agent: false } : { login: d.issue.author, name: authorName, avatarUrl: `https://github.com/${d.issue.author}.png?size=64`, agent: payload.source === 'mcp' && /claude/i.test(d.issue.author) },
       source: payload.source,
       createdAt: d.issue.createdAt,
       status: statusBadge(status),

@@ -147,7 +147,7 @@ export function checkStory(input: {
     designLine = {
       state: 'fail',
       text: visual
-        ? 'The before and after could not be captured. Run the visual check again on GitHub.'
+        ? 'The before and after could not be captured. A developer can run it again.'
         : `${designChecks.map((c) => c.name).join(' and ')} ${designChecks.length === 1 ? 'fails' : 'fail'} on a design rule. Open it on GitHub to see what it found.`,
     };
   } else if (design) {
@@ -190,6 +190,8 @@ export function failingSentence(input: {
   viewerApprovesDesign: boolean;
   /** Approvals are still missing. */
   approvalsMissing: boolean;
+  /** A designer reads who acts on failing developer checks, never which tests fail. */
+  forDesigner?: boolean;
 }): { sentence: string; yourTurn: boolean } {
   const { story } = input;
   if (story.designFails) {
@@ -200,6 +202,12 @@ export function failingSentence(input: {
   const tests = plural(story.developerFailing, 'test');
   const fix = story.oldValue ? 'update' : 'fix';
   const designPasses = story.design?.state === 'pass';
+  if (input.forDesigner) {
+    if (input.viewerApprovesDesign) return { sentence: 'Your turn: approve the design. A developer is on the code checks meanwhile.', yourTurn: true };
+    const after = input.viewerIsAuthor && input.approvalsMissing ? ' Approvals come next.' : '';
+    const mine = designPasses ? (input.viewerIsAuthor ? ' Your design is not the problem.' : ' The design checks pass.') : '';
+    return { sentence: `A developer is on the code checks.${mine}${after}`, yourTurn: false };
+  }
   if (input.viewerApprovesDesign) return { sentence: `Your turn: approve the design. Merging waits for a developer to ${fix} ${tests}.`, yourTurn: true };
   if (input.viewerIsAuthor)
     return {

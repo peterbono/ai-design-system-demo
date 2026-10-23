@@ -9,6 +9,8 @@ import { flushSync } from 'react-dom';
 import { Who } from './faces';
 import { ArrowRight, Check, ChevronLeft, Circle, Ellipsis, Pencil } from 'lucide-react';
 import {
+  Accordion,
+  AccordionItem,
   AlertDialog,
   AlertDialogContent,
   Badge,
@@ -114,7 +116,8 @@ export interface BranchReviewProps {
   crumbs: { label: string; href?: string }[];
   title: string;
   jira: string | null;
-  status: { label: string; tone: LifecycleTone; lifecycle: Lifecycle };
+  /** Warning only in the demo seat: the list's "Waiting 1 day" pill for the same branch. */
+  status: { label: string; tone: LifecycleTone | 'warning'; lifecycle: Lifecycle };
   who: { person: PersonRef | null; lead: string | null; rest: string };
   /** Back from the token editor: what was just added. */
   added?: string | null;
@@ -140,6 +143,11 @@ export interface BranchReviewProps {
   /** Line comments by file path, for the change they belong to. */
   fileComments: ConvEntry[];
   checks: ChecksLine;
+  /**
+   * The viewer is a developer (a tech owner): the technical side of the branch, folded under "For developers". Null
+   * for designers, who read who acts instead ("A developer is on it").
+   */
+  developer?: { tests: string | null; failing: string[]; url: string; number: number } | null;
   approvals: { label: string; state: 'approved' | 'changes' | 'waiting'; text: string }[];
   /** The branch is behind or conflicts with main: the line above the bar (filled by scripts/reviews.ts). */
   update: 'behind' | 'conflict' | 'done' | null;
@@ -504,7 +512,7 @@ function ChangeBody(p: BranchReviewProps & { change: ReviewChange; multi: boolea
       ) : (
         <p className="br-muted">No visual change.</p>
       )}
-      <p className="br-muted">The code is a developer's to review, on GitHub.</p>
+      <p className="br-muted">The code is a developer's to review.</p>
     </>
   );
 }
@@ -706,23 +714,54 @@ function ChecksRow({ checks, approvals }: { checks: ChecksLine; approvals: Branc
   const tone = checks.state === 'pass' ? 'is-pass' : checks.state === 'fail' ? 'is-fail' : '';
   return (
     <section className="br-checks" aria-label="Checks and approvals">
-      <div className="br-line is-tight">
-        <p className={`br-checks-line ${tone}`}>{checks.text}</p>
-        <Button variant="ghost" size="sm" aria-expanded={open} aria-controls="br-checks-detail" onClick={() => setOpen(!open)}>
-          {open ? 'Hide details' : 'Details'}
-        </Button>
-      </div>
-      <div id="br-checks-detail" hidden={!open}>
-        <Checklist label="What it needs to merge">
-          {checks.rows.map((r) => (
-            <ChecklistRow key={r.label} status={CHECK_STATUS[r.state]} title={r.label} detail={r.text} />
-          ))}
+      {/* The approvals it needs, always in view: who approves the design and who approves the code. */}
+      {approvals.length > 0 && (
+        <Checklist label="Approvals it needs">
           {approvals.map((a) => (
             <ChecklistRow key={a.label} status={APPROVAL_STATUS[a.state]} title={a.label} detail={a.text} />
           ))}
         </Checklist>
+      )}
+      <div className="br-line is-tight">
+        <p className={`br-checks-line ${tone}`}>{checks.text}</p>
+        {checks.rows.length > 0 && (
+          <Button variant="ghost" size="sm" aria-expanded={open} aria-controls="br-checks-detail" onClick={() => setOpen(!open)}>
+            {open ? 'Hide details' : 'Details'}
+          </Button>
+        )}
+      </div>
+      <div id="br-checks-detail" hidden={!open}>
+        <Checklist label="Checks">
+          {checks.rows.map((r) => (
+            <ChecklistRow key={r.label} status={CHECK_STATUS[r.state]} title={r.label} detail={r.text} />
+          ))}
+        </Checklist>
       </div>
     </section>
+  );
+}
+
+/** The technical side of the branch, for developers only: what fails, and the branch on GitHub. */
+function ForDevelopers({ dev }: { dev: NonNullable<BranchReviewProps['developer']> }) {
+  return (
+    <Accordion appearance="flush" headingLevel={2} className="br-dev">
+      <AccordionItem value="developers" title="For developers">
+        {dev.tests && <p>{dev.tests}</p>}
+        {dev.failing.length > 0 && (
+          <ul className="br-dev-list">
+            {dev.failing.map((name) => (
+              <li key={name} className="br-mono">
+                {name}
+              </li>
+            ))}
+          </ul>
+        )}
+        {!dev.tests && !dev.failing.length && <p className="br-muted">Nothing fails on the code side.</p>}
+        <Link href={dev.url} target="_blank" rel="noopener">
+          Open #{dev.number} on GitHub
+        </Link>
+      </AccordionItem>
+    </Accordion>
   );
 }
 
@@ -948,6 +987,7 @@ export function BranchReview(p: BranchReviewProps) {
             <MultiBody {...p} current={current} seen={looked} pick={pick} mark={mark} />
             <Conversation p={p} onReply={reply} />
             <ChecksRow checks={p.checks} approvals={p.approvals} />
+            {p.developer && <ForDevelopers dev={p.developer} />}
             {/* The visual impact reads into these (scripts/reviews.ts); on a busy branch the before and after shows per change. */}
             {p.visual && <div id="rv-visual" hidden />}
             {p.visual && <div id="rv-visual-ask" hidden={!(p.visual.state === 'not-run' && p.visual.ask)} />}
@@ -958,10 +998,11 @@ export function BranchReview(p: BranchReviewProps) {
           {single && single.kind !== 'component' && <ChangeBody {...p} change={single} multi={false} />}
           {p.motion && <MotionChanges {...p.motion} />}
           {visualOnTop && <WhereItShows visual={p.visual!} product={p.product} tryUrl={p.tryUrl} components={[]} />}
-          {!single && <p className="br-muted">Nothing here for design review: the changes are code, a developer reviews them on GitHub.</p>}
-          {single?.kind === 'component' && <p className="br-muted">The code is a developer's to review, on GitHub.</p>}
+          {!single && <p className="br-muted">Nothing here for design review: the changes are code, a developer reviews them.</p>}
+          {single?.kind === 'component' && <p className="br-muted">The code is a developer's to review.</p>}
           <Conversation p={p} onReply={reply} />
           <ChecksRow checks={p.checks} approvals={p.approvals} />
+          {p.developer && <ForDevelopers dev={p.developer} />}
         </div>
       )}
 
