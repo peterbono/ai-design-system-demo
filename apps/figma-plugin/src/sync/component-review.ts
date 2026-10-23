@@ -27,8 +27,10 @@ export function plannedSignature(c: PlannedComponent): ComponentSignature {
     const by: Record<string, string[]> = {};
     for (const fields of [...Object.values(v.parts), v.inner ?? []])
       for (const f of fields) {
-        if (f.value.kind !== 'variable') continue;
-        (by[bindingKind(FIGMA_FIELD[f.field] ?? f.field)] ??= []).push(f.value.name);
+        // A text's family is bound to its token's variable (the build skips it only for a font Figma lacks).
+        const name = f.value.kind === 'variable' ? f.value.name : f.value.kind === 'font' ? f.value.variable?.name : undefined;
+        if (!name) continue;
+        (by[bindingKind(FIGMA_FIELD[f.field] ?? f.field)] ??= []).push(name);
       }
     // Vector parts: each shape's stroke.
     for (const vec of Object.values(v.vectors ?? {})) for (const st of vec.strokes) if (st.kind === 'variable') (by[bindingKind('strokes')] ??= []).push(st.name);

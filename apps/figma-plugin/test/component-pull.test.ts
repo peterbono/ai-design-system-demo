@@ -324,8 +324,7 @@ test('grid: rows of different heights are evenly spaced, columns as wide as thei
   const comp = plan.components.find((c) => c.name === 'Button')!;
   // What Figma measures after auto layout: sm 32, md 44, lg 48 tall; Hover a bit wider.
   for (const c of set.children) {
-    c.height = /Size=sm/.test(c.name) ? 32 : /Size=md/.test(c.name) ? 44 : 48;
-    c.width = /State=Hover/.test(c.name) ? 120 : 100;
+    c.resize(/State=Hover/.test(c.name) ? 120 : 100, /Size=sm/.test(c.name) ? 32 : /Size=md/.test(c.name) ? 44 : 48);
   }
   layoutVariants(set as unknown as ComponentSetNode, comp);
   const rows = [...new Set(set.children.map((c) => c.y))].sort((x, y) => x - y);
@@ -710,8 +709,8 @@ test('coverage: the count of components in Figma, drafted ones named, the others
   const visual = cov.filter((c) => c.status !== 'layout');
   const drafted = visual.filter((c) => c.status === 'drafted');
   // Every visual component is in Figma: generated, or drafted with Claude (counted in Figma, never as generated).
-  assert.equal(view.headline, `${visual.filter((c) => c.status === 'generated').length + drafted.length} of ${visual.length} components are in Figma, ${drafted.length} drafted with Claude`);
-  assert.equal(view.headline, '47 of 47 components are in Figma, 1 drafted with Claude');
+  assert.equal(view.headline, `${visual.filter((c) => c.status === 'generated').length + drafted.length} of ${visual.length} components can be pulled into Figma, ${drafted.length} drafted with Claude`);
+  assert.equal(view.headline, '47 of 47 components can be pulled into Figma, 1 drafted with Claude');
   assert.deepEqual(view.drafted.map((d) => d.name), ['Toast']);
   assert.ok(view.drafted[0]!.reason.startsWith('Drafted with Claude, the generator cannot read it: it is shown from a hook'));
   assert.equal(view.missing.length, 0);
@@ -725,12 +724,12 @@ test('coverage: the count of components in Figma, drafted ones named, the others
   assert.ok(toast.description.startsWith('Drafted with Claude from packages/react/src/components/Toast'));
   // Not supported yet: listed with the generator's reason, and the file is not complete.
   const partial = coverageView({ components: plan.components, coverage: [{ name: 'Button', status: 'generated' }, { name: 'Tabs', status: 'unsupported', reason: 'draws with ::before or ::after' }, { name: 'Stack', status: 'layout' }] });
-  assert.equal(partial.headline, '1 of 2 components are in Figma');
+  assert.equal(partial.headline, '1 of 2 components can be pulled into Figma');
   assert.deepEqual(partial.missing, [{ name: 'Tabs', reason: 'Not supported yet: draws with ::before or ::after' }]);
   assert.equal(partial.complete, false);
   // An older file with no coverage list: the count of what it has, and no claim that nothing is missing.
   const old = coverageView({ components: plan.components.slice(0, 6) });
-  assert.equal(old.headline, '6 components are in Figma. The code does not list the others yet.');
+  assert.equal(old.headline, '6 components can be pulled into Figma. The code does not list the others yet');
   assert.equal(old.complete, false);
   assert.equal(coverageView({ components: plan.components, coverage: [{ name: 'Button', status: 'generated' }, { name: 'Box', status: 'unsupported' }] }).missing[0]!.reason, 'Not added yet');
 });
