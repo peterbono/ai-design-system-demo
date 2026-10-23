@@ -12,7 +12,7 @@ import { loadSuggestionNeeds } from './suggestions';
 import { siteOwners, todoChange, type QueuePullFull } from './needs-you';
 import { reviewQueue } from '../lib/review-queue';
 import { byUrgency, statusPill } from '../lib/changes';
-import { blockerOf, overviewTodo } from '../lib/overview-todo';
+import { overviewTodo } from '../lib/overview-todo';
 import { analyzeTokenFiles, isTokenFile } from './reviews/token-review';
 import { manifestPublished } from './reviews/visual-impact';
 import { visualBase, visualState, type VisualManifest } from '../lib/visual-impact';
@@ -232,7 +232,8 @@ export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void
       if (!author && row && (row.task === 'design' || row.task === 'ship' || row.task === 'guidance')) return { ...base, task: row.task, onlyReviewer: only };
       if (author && row?.task === 'ship') return { ...base, task: 'own-ship' };
       if (author && c.who.action === 'address-changes') return { ...base, task: 'own-changes', changesBy: c.changesBy ?? [] };
-      if (author && (c.who.action === 'fix-checks' || c.who.action === 'resolve-conflict')) return { ...base, task: 'own-blocked', blocker: blockerOf(c, c.who, viewer)?.what };
+      // Failing tests and conflicts are technical: a developer fixes them in GitHub, the home never shows them.
+      if (author && (c.who.action === 'fix-checks' || c.who.action === 'resolve-conflict')) return base;
       if (!author && !pull.draft && requested.some((l) => same(l, viewer))) return { ...base, task: 'requested', onlyReviewer: only };
       return base;
     }).map((x): Classified => (reviewer || waitsOnContributor(x.task) ? x : { ...x, task: null }));
