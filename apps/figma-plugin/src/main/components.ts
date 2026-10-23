@@ -226,7 +226,17 @@ async function readDefinitions(node: ComponentSetNode | ComponentNode): Promise<
   }
   const out: RawComponent['definitions'] = [];
   const lone = node.type === 'COMPONENT_SET' && node.children.length === 1 && isLoneVariant(node.children[0]!);
-  for (const [name, d] of Object.entries(defs)) {
+  // Figma keeps property names unique across types: the swap of a part whose BOOLEAN is "Icon" becomes "Icon2" (or
+  // was named "Icon (swap)"). Read under the code's name, so it compares with the spec and with older baselines.
+  const baseOf = (k: string) => k.replace(/#[^#]*$/, '');
+  const plain = new Set(Object.entries(defs).filter(([, d]) => d.type !== 'INSTANCE_SWAP').map(([k]) => baseOf(k)));
+  const swapName = (k: string) => {
+    const b = baseOf(k);
+    const m = /^(.*?)(?:\d+| \(swap\))$/.exec(b);
+    return m && plain.has(m[1]!) ? `${m[1]}${k.slice(b.length)}` : k;
+  };
+  for (const [key, d] of Object.entries(defs)) {
+    const name = d.type === 'INSTANCE_SWAP' ? swapName(key) : key;
     if (lone && d.type === 'VARIANT') continue;
     let def = String(d.defaultValue);
     if (d.type === 'INSTANCE_SWAP' && typeof d.defaultValue === 'string') {

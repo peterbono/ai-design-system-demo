@@ -788,6 +788,16 @@ function coverParent(node: SceneNode, ctx: Ctx): void {
  * swappable part (default: the spec's component, preferred values: every icon or the slot's options). Returns
  * name -> Figma property key, and `swap:<part id>` -> key for swaps.
  */
+/** INSTANCE_SWAP property keys the set's instance layers point to. */
+function swapKeysInUse(set: ComponentSetNode): Set<string> {
+  const out = new Set<string>();
+  for (const n of set.findAllWithCriteria({ types: ['INSTANCE'] })) {
+    const key = n.componentPropertyReferences?.mainComponent;
+    if (key) out.add(key);
+  }
+  return out;
+}
+
 function ensureProperties(set: ComponentSetNode, comp: PlannedComponent, ctx: Ctx): Map<string, string> {
   const keys = new Map<string, string>();
   const base = (k: string) => k.replace(/#[^#]*$/, '');
@@ -833,7 +843,23 @@ function ensureProperties(set: ComponentSetNode, comp: PlannedComponent, ctx: Ct
       .map((c) => ({ type: 'COMPONENT' as const, key: c.key }));
     const name = part.swap.property;
     const fallback = `${name} (swap)`;
-    const existing = Object.keys(defs).find((k) => (base(k) === name || base(k) === fallback) && defs[k]!.type === 'INSTANCE_SWAP');
+    // Figma renames a property whose name is taken by another type (the part's BOOLEAN "Icon" makes the swap "Icon2"):
+    // the swap is found under that name too, never added again (each update used to add "Icon3", "Icon4"...).
+    const others = new Set(comp.parts.filter((x) => x.swap && x.id !== part.id).map((x) => x.swap!.property));
+    const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const same = new RegExp(`^(?:${esc}\\d*|${esc} \\(swap\\))$`);
+    const matches = Object.keys(defs).filter((k) => defs[k]!.type === 'INSTANCE_SWAP' && same.test(base(k)) && !others.has(base(k)));
+    const used = swapKeysInUse(set);
+    const existing = matches.find((k) => used.has(k)) ?? matches[0];
+    // Duplicates an earlier update added and no layer uses: removed, so the set shows one Icon property.
+    for (const k of matches) {
+      if (k === existing || used.has(k)) continue;
+      try {
+        set.deleteComponentProperty(k);
+      } catch (err) {
+        ctx.problems.push(`${comp.name}, property ${base(k)}: ${errorText(err)}`);
+      }
+    }
     let key: string;
     if (existing) {
       set.editComponentProperty(existing, { defaultValue: def.id, preferredValues });

@@ -10,7 +10,7 @@ import { generateRepoComponentSpecs } from '@bridge-ds/core/node';
 import { applyPullPlan } from '../src/main/apply';
 import { applyComponentPlan, interactionsNote, layoutVariants, scanGenerated } from '../src/main/build-components';
 import { cleanReaction, cleanReactions } from '../src/main/reactions';
-import { exportThumbnails, scanComponents } from '../src/main/components';
+import { exportThumbnails, readComponent, scanComponents } from '../src/main/components';
 import { onlyComponent, plannedSignature, reviewUpdates, withoutComponents } from '../src/sync/component-review';
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
@@ -128,7 +128,8 @@ test('apply: every generated set on a Components page, bound to the variables, w
   const defs = button.componentPropertyDefinitions;
   assert.deepEqual(
     Object.entries(defs).map(([k, d]) => `${k.replace(/#.*$/, '')}:${d.type}`).sort(),
-    ['Icon end:BOOLEAN', 'Icon end:INSTANCE_SWAP', 'Icon start:BOOLEAN', 'Icon start:INSTANCE_SWAP', 'Label:TEXT', 'Size:VARIANT', 'State:VARIANT', 'Variant:VARIANT'],
+    // Figma keeps names unique across types: each part's swap is renamed next to its BOOLEAN ("Icon start2").
+    ['Icon end2:INSTANCE_SWAP', 'Icon end:BOOLEAN', 'Icon start2:INSTANCE_SWAP', 'Icon start:BOOLEAN', 'Label:TEXT', 'Size:VARIANT', 'State:VARIANT', 'Variant:VARIANT'],
   );
   const v = variantOf(button, 'Variant=secondary, Size=lg, State=Hover');
   assert.equal(boundName(sim, v, 'fills'), 'Component:button/secondary/bg-hover');
@@ -146,8 +147,7 @@ test('apply: every generated set on a Components page, bound to the variables, w
   assert.match(String(Object.keys(defs).find((k) => k.startsWith('Label#'))), /^Label#/);
   assert.deepEqual(label.componentPropertyReferences, { characters: Object.keys(defs).find((k) => k.startsWith('Label#')) });
   const icon = partOf(v, 'icon-start');
-  const key = (name: string, type: string) => Object.keys(defs).find((k) => k.replace(/#.*$/, '') === name && defs[k]!.type === type);
-  assert.deepEqual(icon.componentPropertyReferences, { mainComponent: key('Icon start', 'INSTANCE_SWAP'), visible: key('Icon start', 'BOOLEAN') });
+  assert.deepEqual(icon.componentPropertyReferences, { mainComponent: propKey(button, 'Icon start', 'INSTANCE_SWAP'), visible: propKey(button, 'Icon start', 'BOOLEAN') });
   assert.equal(boundName(sim, icon, 'width'), 'Base:icon/size/sm');
   // Disabled ghost: no fill at all, disabled text color.
   const ghost = variantOf(button, 'Variant=ghost, Size=md, State=Disabled');
@@ -420,7 +420,12 @@ test('thumbnails: a PNG per set for the before and after previews', async () => 
 const mainOf = async (n: SimNode) => (await n.getMainComponentAsync())!.name;
 const pageNamed = (sim: SimFigma, name: string) => sim.root.children.filter((p) => p.name === name);
 const defsOf = (set: SimNode) => set.componentPropertyDefinitions;
-const propKey = (set: SimNode, name: string, type: string) => Object.keys(defsOf(set)).find((k) => k.replace(/#.*$/, '') === name && defsOf(set)[k]!.type === type);
+/** A property by the code's name; a swap also under the name Figma gave it when a BOOLEAN took it ("Icon2"). */
+const propKey = (set: SimNode, name: string, type: string) =>
+  Object.keys(defsOf(set)).find((k) => {
+    const b = k.replace(/#.*$/, '');
+    return defsOf(set)[k]!.type === type && (b === name || (type === 'INSTANCE_SWAP' && b.startsWith(name) && /^\d+$/.test(b.slice(name.length))));
+  });
 
 /** The spec as it was before swaps: icon placeholders, Card body as a TEXT property, no icons or slots. */
 function specsBeforeSwaps(specs: ComponentSpecsFile): ComponentSpecsFile {
@@ -470,6 +475,25 @@ test('icons: one component per icon on an Icons page, drawn from the SVG, bound 
   assert.equal(pageNamed(sim, 'Slots').length, 1);
   assert.deepEqual(page.children.map((c) => c.id), ids);
   assert.equal(sim.root.findAll((n) => n.type === 'COMPONENT' && !!n.getSharedPluginData('dsbridge', 'iconId')).length, specs.icons!.length);
+});
+
+test('swap properties: Figma renames the one next to its BOOLEAN; updates find it, never add it again, and drop old duplicates', async () => {
+  const { sim, plan } = await pulledFile();
+  await applyComponentPlan(writablePlan(plan));
+  const badge = sim.sets().find((s) => s.name === 'Badge')!;
+  const swaps = () => Object.keys(defsOf(badge)).filter((k) => defsOf(badge)[k]!.type === 'INSTANCE_SWAP').map((k) => k.replace(/#.*$/, ''));
+  assert.deepEqual(swaps(), ['Icon2'], 'Figma named the swap Icon2: the BOOLEAN has Icon');
+  // An update (here the same plan applied again, as Update all does) finds Icon2.
+  await applyComponentPlan(writablePlan(plan));
+  assert.deepEqual(swaps(), ['Icon2'], 'no Icon3');
+  // A file an earlier version updated: an unused Icon3 next to the Icon2 the layers use. The next update removes it.
+  badge.addComponentProperty('Icon', 'INSTANCE_SWAP', String(defsOf(badge)[propKey(badge, 'Icon', 'INSTANCE_SWAP')!]!.defaultValue));
+  assert.deepEqual(swaps().sort(), ['Icon2', 'Icon3']);
+  await applyComponentPlan(writablePlan(plan));
+  assert.deepEqual(swaps(), ['Icon2']);
+  // Read back under the code's name: Review compares Icon with Icon, no prop change.
+  const read = await readComponent(badge as unknown as ComponentSetNode);
+  assert.ok(read.definitions.some((d) => d.type === 'INSTANCE_SWAP' && d.name.replace(/#.*$/, '') === 'Icon'));
 });
 
 test('IconButton: every variant holds an instance of the default icon, sized and colored by the variant, swappable', async () => {
