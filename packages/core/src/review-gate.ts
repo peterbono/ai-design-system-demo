@@ -119,7 +119,16 @@ export interface ApprovalSummary {
   changesRequested: string[];
   design: boolean;
   tech: boolean;
+  /**
+   * One owner approved (design or tech list, teams expanded): the Tier 1 rule of docs/GOVERNANCE.md, "1 code owner",
+   * the same as Settings says ("one owner"). With no owner configured, any approval counts. Absent (a summary built by
+   * hand): any approval counts.
+   */
+  owner?: boolean;
 }
+
+/** Whether the Tier 1 approval is in: one owner approved (GOVERNANCE.md "1 code owner"), else any approval without owners. */
+export const hasOwnerApproval = (a: ApprovalSummary): boolean => a.owner ?? a.approvers.length > 0;
 
 export interface ApprovalRules {
   /**
@@ -146,6 +155,7 @@ export function summarizeApprovals(reviews: ReviewLike[], owners: { design: stri
   const a = lower(approvers);
   let design: boolean;
   let tech: boolean;
+  const owner = d.length || t.length ? a.some((x) => d.includes(x) || t.includes(x)) : a.length > 0;
   if (d.length || t.length) {
     design = d.length ? a.some((x) => d.includes(x)) : a.length > 0;
     // One person holding both roles cannot cover both approvals alone, unless the team opted in and that person is
@@ -158,7 +168,24 @@ export function summarizeApprovals(reviews: ReviewLike[], owners: { design: stri
     design = a.length >= 1;
     tech = a.length >= 2;
   }
-  return { approvers, changesRequested, design, tech };
+  return { approvers, changesRequested, design, tech, owner };
+}
+
+/**
+ * The approvals a pull request carries from the Bridge suggestion it applies (its body says "Closes #n"): the owners
+ * approved that exact change on the suggestion, so the pull request that applies it is not gated a second time for the
+ * same approval (docs/GOVERNANCE.md, Suggestions). Only when the suggestion is approved (every approval its tier needs,
+ * no changes requested) and the pull request's tier is not higher than the tier it was approved at. Changes requested
+ * on the pull request itself still block, and CI, conflicts and the ship right gate the merge as before.
+ */
+export function withSuggestionApprovals(pr: ApprovalSummary, suggestion: { approvals: ApprovalSummary; tier: RiskTier } | null | undefined, prTier: RiskTier | null | undefined): ApprovalSummary {
+  if (!suggestion) return pr;
+  const s = suggestion.approvals;
+  if (s.changesRequested.length || (prTier ?? 3) > suggestion.tier) return pr;
+  const covered = suggestion.tier >= 2 ? s.design && s.tech : hasOwnerApproval(s);
+  if (!covered) return pr;
+  const approvers = [...pr.approvers, ...s.approvers.filter((l) => !pr.approvers.some((x) => normLogin(x) === normLogin(l)))];
+  return { ...pr, approvers, design: pr.design || s.design, tech: pr.tech || s.tech, owner: hasOwnerApproval(pr) || hasOwnerApproval(s) };
 }
 
 export type MissingApproval = 'design approval' | 'tech approval' | 'approval';
@@ -181,6 +208,24 @@ export function canOverride(login: string | null | undefined, policy: OverridePo
   if (!login || !policy?.allowed.length) return false;
   return policy.allowed.map(normLogin).includes(normLogin(login));
 }
+
+/**
+ * Who may use the owner override: the logins `governance.override.allowed` names that are also owners (design or
+ * tech lists, teams expanded). docs/GOVERNANCE.md: "A listed owner may merge past missing approvals only". Settings,
+ * the Home and the branch page read this one list, so the override is never offered to someone who is not an owner.
+ * When an owner entry is a team whose members are not known (a "/" entry), the allowed list stands as it is.
+ */
+export function overrideHolders(policy: OverridePolicy | null | undefined, owners: { design: string[]; tech: string[] }): string[] {
+  const allowed = policy?.allowed ?? [];
+  const all = [...owners.design, ...owners.tech];
+  if (!all.length || all.some((o) => o.includes('/'))) return allowed;
+  const named = all.map(normLogin);
+  return allowed.filter((l) => named.includes(normLogin(l)));
+}
+
+/** The override policy limited to its holders (overrideHolders): what the gate and the who-acts rules read. */
+export const ownerOverridePolicy = (policy: OverridePolicy | null | undefined, owners: { design: string[]; tech: string[] }): OverridePolicy | null =>
+  policy ? { ...policy, allowed: overrideHolders(policy, owners) } : null;
 
 /**
  * Whether the Merge button is enabled, and why not. Mirrors docs/GOVERNANCE.md.
@@ -225,8 +270,9 @@ export function mergeGate(input: {
       approvalReasons.push('It needs a tech owner approval.');
       missing.push('tech approval');
     }
-  } else if (!input.approvals.approvers.length) {
-    approvalReasons.push('It needs one approval.');
+  } else if (!hasOwnerApproval(input.approvals)) {
+    // Tier 1: one owner approval (GOVERNANCE.md "1 code owner", Settings "one owner"); anyone when no owner is set.
+    approvalReasons.push('It needs one owner approval.');
     missing.push('approval');
   }
   const conflict = input.mergeable === false ? [CONFLICT_REASON] : [];
@@ -247,12 +293,21 @@ export const CONFLICT_REASON = 'It conflicts with main: resolve it with Update f
 
 export const OVERRIDE_HEADING = '**Bridge owner override**';
 
+/**
+ * The shortest override reason accepted. docs/GOVERNANCE.md: the reason is always required, at least
+ * `minReasonLength` characters (20 by default). `requireReason: false` no longer waives it: an override without a
+ * reason would leave the audit trail empty.
+ */
+export function overrideReasonMin(policy: Pick<OverridePolicy, 'minReasonLength'>): number {
+  return policy.minReasonLength > 0 ? policy.minReasonLength : 20;
+}
+
 /** Problem with an override reason, or null when it is accepted. */
 export function overrideReasonProblem(reason: string, policy: OverridePolicy): string | null {
-  if (!policy.requireReason) return null;
+  const min = overrideReasonMin(policy);
   const n = reason.trim().length;
-  if (n === 0) return `Write why this merges without the missing approvals, in at least ${policy.minReasonLength} characters.`;
-  if (n < policy.minReasonLength) return `Write at least ${policy.minReasonLength} characters (${n} so far), so the history says why.`;
+  if (n === 0) return `Write why this merges without the missing approvals, in at least ${min} characters.`;
+  if (n < min) return `Write at least ${min} characters (${n} so far), so the history says why.`;
   return null;
 }
 
@@ -372,7 +427,7 @@ export function reviewStatusKind(input: {
   if (tier >= 2) {
     if (!input.approvals.design) return out('needs-design');
     if (!input.approvals.tech) return out('needs-tech');
-  } else if (!input.approvals.approvers.length) return out('needs-approval');
+  } else if (!hasOwnerApproval(input.approvals)) return out('needs-approval');
   if (input.mergeable === null) return out('checking');
   const gate = mergeGate({ tier: input.tier, ci: input.ci, approvals: input.approvals, draft: Boolean(input.draft), mergeable: input.mergeable, state: input.state ?? 'open', merged_at: input.merged_at });
   return gate.allowed ? out('ready') : out('unknown');

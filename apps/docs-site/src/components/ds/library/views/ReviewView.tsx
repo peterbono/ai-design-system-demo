@@ -181,7 +181,7 @@ export default function ReviewView({ data }: { data: LibraryData }) {
               <strong>When.</strong> Only when approvals are the one thing missing: never while CI fails or runs, after a request for changes, on a draft, or with a merge conflict.
             </li>
             <li>
-              <strong>Trail.</strong> Bridge posts the reason on the pull request{override?.requireReason ? ` (${override.minReasonLength} characters or more)` : ''} before it merges, and History
+              <strong>Trail.</strong> Bridge posts the reason on the pull request{override ? ` (${override.minReasonLength > 0 ? override.minReasonLength : 20} characters or more)` : ''} before it merges, and History
               shows it.
             </li>
             <li>

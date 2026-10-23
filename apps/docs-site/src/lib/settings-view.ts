@@ -5,7 +5,7 @@
 // - The Account block for each connection state.
 // - How changes reach your code: the two modes in words (shared with the onboarding checklist), what the GitHub App
 //   may do on the repository, and the format-preserving edit of `changes` in bridge.config.json.
-import { fromPlain, getEntry, parseJson, serializeJson, soloOwnerOf, soloOwnerSentence, toPlain, type ChangesMode, type JsonObject, type Owners, type Rights } from '@bridge-ds/core';
+import { fromPlain, getEntry, overrideHolders, overrideReasonMin, parseJson, serializeJson, soloOwnerOf, soloOwnerSentence, toPlain, type ChangesMode, type JsonObject, type Owners, type Rights } from '@bridge-ds/core';
 import type { TierSummary } from './governance';
 import { accessBadge, type ChipTone } from './access-view';
 import type { RepoAccessState } from './access';
@@ -163,6 +163,21 @@ export function soloOwnerRow(gov: { owners: Owners; rights: Rights | null; soloO
   const login = soloOwnerOf(gov);
   if (!login) return null;
   return { label: 'Only owner', help: 'A design system run by one person.', value: soloOwnerSentence(login) };
+}
+
+/**
+ * Settings > Review rules: who may use the owner override, owners only (core overrideHolders, the same list the Home
+ * and the branch page read), and the reason it always needs (docs/GOVERNANCE.md). Null when nobody may.
+ */
+export function overrideRow(gov: { owners: Owners; override: { allowed: string[]; requireReason: boolean; minReasonLength: number } }, nameOf?: (login: string) => string): { label: string; help: string; value: string } | null {
+  const who = overrideHolders(gov.override, gov.owners);
+  if (!who.length) return null;
+  const names = [...new Set(who.map((l) => (nameOf ? nameOf(l) : `@${l.replace(/^@/, '')}`)))].join(', ');
+  return {
+    label: 'Owner override',
+    help: 'Merges a branch before every approval is in. Owners only: it never shows as a review step.',
+    value: `${names}, with a written reason of at least ${overrideReasonMin(gov.override)} characters, posted on the branch.`,
+  };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

@@ -14,7 +14,7 @@ import { parseOwnerEntry } from '@bridge-ds/core';
 import ChangeRules from './ChangeRules';
 import { TeamLoadError, TeamLoadProgress, useTeamData } from './TeamState';
 import { OWNER_GROUP_HELP, OWNER_GROUP_LABEL, roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL } from '../../../lib/roles-view';
-import { CHANGES_CHOICE, soloOwnerRow } from '../../../lib/settings-view';
+import { CHANGES_CHOICE, overrideRow, soloOwnerRow } from '../../../lib/settings-view';
 import { demoSettingsPeople, isSampleTeam } from '../../../lib/demo';
 
 export interface TeamSettingsProps {
@@ -80,6 +80,8 @@ export default function TeamSettings({ rules }: TeamSettingsProps) {
   const roles = roleRows(site.owners, site.rights);
   const realSolo = soloOwnerRow(site);
   const solo = demo ? (realSolo && demo.solo ? { ...realSolo, value: demo.solo } : null) : realSolo;
+  // Who may use the owner override: owners only, the same list the Home and the branch page read (the persona on the demo).
+  const override = overrideRow(site, demo?.nameOf);
   const mode = site.visualImpact.mode;
   return (
     <>
@@ -132,6 +134,15 @@ export default function TeamSettings({ rules }: TeamSettingsProps) {
                     <p className="set-row-help">{solo.help}</p>
                   </div>
                   <p className="set-row-value set-row-span set-who">{solo.value}</p>
+                </div>
+              )}
+              {override && (
+                <div className="set-row">
+                  <div>
+                    <p className="set-row-label">{override.label}</p>
+                    <p className="set-row-help">{override.help}</p>
+                  </div>
+                  <p className="set-row-value set-row-span set-who">{override.value}</p>
                 </div>
               )}
             </div>

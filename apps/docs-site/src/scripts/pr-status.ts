@@ -14,9 +14,10 @@ import { needFromStatus, pendingApprovals, statusPill, whoActs, type ApprovalRol
 import { developerOnlyFailures } from '../lib/check-explain';
 import { guestActivity } from './guest-activity';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
-import { canOverride, DEFAULT_OVERRIDE, type OverridePolicy, type TeamStates } from '@bridge-ds/core';
+import { canOverride, closingIssueNumbers, DEFAULT_OVERRIDE, ownerOverridePolicy, withSuggestionApprovals, type OverridePolicy, type TeamStates } from '@bridge-ds/core';
+import { approvedSuggestionOf } from './suggestions';
 import { siteConfig } from './repo-context';
-import { loadTeams, siteApprovalRules, siteApproverEntries, siteApprovers, siteShipPolicy, teamSnapshot } from './teams';
+import { loadTeams, siteApprovalRules, siteApproverEntries, siteApprovers, siteShipPolicy, siteSoloOwner, teamSnapshot } from './teams';
 import {
   parseTier,
   pullState,
@@ -142,8 +143,10 @@ export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}
           .then((f) => f.data)
           .catch(() => null),
   ]);
-  const approvals = reviews ? summarizeApprovals(reviews, owners(), p.user.login, siteApprovalRules()) : null;
   const tier = effectiveTier(p.labels ?? [], p.body, files);
+  // The pull request that applies an approved suggestion carries its approvals: never gated twice for the same one.
+  const own = reviews ? summarizeApprovals(reviews, owners(), p.user.login, siteApprovalRules()) : null;
+  const approvals = own && closingIssueNumbers(p.body).length ? withSuggestionApprovals(own, await approvedSuggestionOf(p.body), tier) : own;
   const before = reviewStatus({ state: p.state, draft: p.draft, merged_at: p.merged_at, ci, approvals, tier });
   // Only an open change that nothing else blocks needs to know whether it merges cleanly.
   const needsMergeable = pullState(p) === 'open' && !['ci-failing', 'changes-requested', 'ci-running', 'unknown'].includes(before.kind);
@@ -186,12 +189,15 @@ export function statusChip(s: ReviewStatus | null, opts: { skipped?: boolean } =
 type RowFacts = { author: string; approvers?: string[]; changesRequested?: string[]; failing?: number; failingChecks?: string[]; pending?: ApprovalRole[]; skipped?: boolean };
 
 /** governance.override from bridge.config.json, as the layout embeds it (none when the site has no config). */
+/** The owner override, limited to the owners it names (core overrideHolders): Settings, Home and the branch page agree. */
 function overridePolicy(): OverridePolicy {
+  let policy: OverridePolicy;
   try {
-    return (siteConfig() as { override?: OverridePolicy }).override ?? DEFAULT_OVERRIDE;
+    policy = (siteConfig() as { override?: OverridePolicy }).override ?? DEFAULT_OVERRIDE;
   } catch {
-    return DEFAULT_OVERRIDE;
+    policy = DEFAULT_OVERRIDE;
   }
+  return ownerOverridePolicy(policy, owners()) ?? DEFAULT_OVERRIDE;
 }
 
 /**
@@ -212,6 +218,7 @@ export function rowWho(kind: ReviewStatusKind | null, o: RowFacts): WhoActs | nu
     approvers: o.approvers,
     overrideBy: policy.allowed,
     overridable: canOverride(viewer, policy),
+    soloOwner: siteSoloOwner(),
   });
 }
 

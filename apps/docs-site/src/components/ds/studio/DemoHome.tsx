@@ -2,7 +2,7 @@
 // signed-in home itself (StudioHome.tsx), from the DS lead's seat, with the demo's real activity read-only.
 //   - The Harbor zone as the lead has it: "Good morning, Dana." by the Field Guide drawing, "8 changes need your
 //     review. Ann and Claude AI are waiting on you.", three Needs you rows each with
-//     its Review button, and beyond them the grouped row with its one primary "Review all (8)" (the review queue, which
+//     its Review button, and beyond them the grouped row with its one primary "Review all" (the Review page, which
 //     a visitor browses read-only).
 //   - The library health line, then "Explorations and branches": "+ Create branch" first, as on the signed-in home
 //     (its click opens the demo's sign-in dialog, scripts/demo-gate.ts), then the team's work as the home's cards.

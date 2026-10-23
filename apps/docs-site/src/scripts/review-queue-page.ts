@@ -15,11 +15,15 @@
 // The URL keeps the selection (?pr=N or ?item=key) with replaceState only. Rules: lib/queue-nav.ts.
 import { createElement as h, Fragment, type ComponentProps } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { Button, Card, CardBody, EmptyState, Progress, Select, Skeleton, type UseToastReturn } from '@bridge-ds/react';
+import { Badge, Button, Card, CardBody, EmptyState, Progress, Select, Skeleton, type UseToastReturn } from '@bridge-ds/react';
 import { Inbox } from 'lucide-react';
 import ButtonLink from '../components/ds/ButtonLink';
 import { QueueBar, QueueList, QueueToasts } from '../components/ds/studio/ReviewQueue';
-import { currentViewer, initGitHubConnect, prefersSignIn } from './github-session';
+import { currentAccess, currentViewer, initGitHubConnect, prefersSignIn, readRepo } from './github-session';
+import { joinHandlers } from './join-handlers';
+import { loadDemoHome } from './demo-home';
+import { exploresDemo } from '../lib/demo';
+import { ENTRY_WORDS } from '../lib/entry';
 import { setReviewCount } from './shell';
 import { loadHome, type HomeStatic } from './home-data';
 import { approveBranch, askSomeoneElse, closePr, openPr, suggestChanges } from './reviews';
@@ -162,6 +166,10 @@ export function initReviewQueue() {
   }
 
   function show(key: string | null) {
+    if (key !== selected) {
+      joinSaid = '';
+      joinGitHub = false;
+    }
     selected = key;
     const row = rowOf(key);
     const n = branchNumber(row, key);
@@ -302,6 +310,51 @@ export function initReviewQueue() {
     }
   }
 
+  // Join requests: Approve and Decline in the queue card (scripts/join-handlers, the same calls as the Home).
+  const { owner: repoOwner, repo: repoName } = readRepo();
+  let joinBusy: 'approve' | 'decline' | null = null;
+  let joinSaid = '';
+  let joinGitHub = false;
+  const join = joinHandlers(
+    () => `${repoOwner}/${repoName}`,
+    () => undefined,
+  );
+  async function decideJoin(row: NeedRow, approve: boolean) {
+    if (joinBusy) return;
+    joinBusy = approve ? 'approve' : 'decline';
+    joinSaid = '';
+    paint();
+    const o = await join.decide(row, approve);
+    joinBusy = null;
+    if (!o.ok) {
+      joinGitHub = o.github;
+      joinSaid = o.github ? '' : o.text;
+      paint();
+      return;
+    }
+    const d = decide(approve ? 'approved' : 'declined');
+    if (!d) return;
+    toasts?.add({
+      title: o.text,
+      tone: 'success',
+      action:
+        o.undo && join.undo
+          ? {
+              label: ENTRY_WORDS.undo,
+              onClick: () => {
+                void join.undo!(row).then((u) => {
+                  if (!u.ok) return toasts?.error(u.text || ENTRY_WORDS.githubToManage);
+                  outcomes.delete(row.key);
+                  toasts?.info(u.text);
+                  paint();
+                });
+              },
+            }
+          : undefined,
+    });
+    advance(d.i);
+  }
+
   function emptyState() {
     const signIn = prefersSignIn();
     return h(EmptyState, {
@@ -377,7 +430,24 @@ export function initReviewQueue() {
               { className: 'rq-item-body' },
               h('h2', { className: 'rq-item-title', tabIndex: -1 }, row.title),
               h('p', { className: 't-body t-muted rq-item-line' }, row.line),
-              h(ButtonLink, { variant: 'primary', href: row.href }, OPEN_LABEL[row.kind]),
+              // A join request: the role it gets and how long it waits, then Decline and Approve right here.
+              row.kind === 'join' && row.detail ? h('p', { className: 't-ui t-muted rq-item-line' }, row.detail) : null,
+              row.kind === 'join' && row.pill ? h(Badge, { tone: row.pill.tone, size: 'sm' }, row.pill.label) : null,
+              row.kind === 'join' && row.request
+                ? h(
+                    'div',
+                    { className: 'rq-join' },
+                    joinSaid ? h('p', { className: 't-ui t-muted', role: 'status' }, joinSaid) : null,
+                    joinGitHub
+                      ? h(Button, { variant: 'link', onClick: () => join.connectGitHub() }, ENTRY_WORDS.githubToManage)
+                      : h(
+                          Fragment,
+                          null,
+                          h(Button, { variant: 'secondary', loading: joinBusy === 'decline', disabled: Boolean(joinBusy), 'aria-label': `${ENTRY_WORDS.decline} ${row.request.name}`, onClick: () => void decideJoin(row, false) }, ENTRY_WORDS.decline),
+                          h(Button, { variant: 'primary', loading: joinBusy === 'approve', disabled: Boolean(joinBusy), 'aria-label': `${ENTRY_WORDS.approve} ${row.request.name}`, onClick: () => void decideJoin(row, true) }, ENTRY_WORDS.approve),
+                        ),
+                  )
+                : h(ButtonLink, { variant: 'primary', href: row.href }, OPEN_LABEL[row.kind]),
             ),
           )
         : null,
@@ -478,6 +548,24 @@ export function initReviewQueue() {
     failed = null;
     signedIn = Boolean(login ?? currentViewer());
     paint();
+    // The demo, for a visitor who cannot change it: the lead's queue, the same rows as its home (lib/waiting-on),
+    // read-only. "Review all" on the home always lands here.
+    const { owner, repo } = readRepo();
+    if (exploresDemo({ repo: `${owner}/${repo}`, signedIn: Boolean(login), write: login ? (currentAccess()?.write ?? null) : false })) {
+      signedIn = false;
+      void loadDemoHome(stat, (d) => {
+        if (mine !== run) return;
+        failed = d.failed;
+        loading = d.loading;
+        rows = d.needs;
+        if (!loading && rows.length && !rowOf(selected) && !(selected && (branchNumber(null, selected) || suggestionOfKey(selected)))) {
+          show(rows[0]!.key);
+          return;
+        }
+        paint();
+      });
+      return;
+    }
     void loadHome(stat, (d) => {
       if (mine !== run) return;
       signedIn = Boolean(d.viewer);
