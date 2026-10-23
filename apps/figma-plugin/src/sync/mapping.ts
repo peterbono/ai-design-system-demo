@@ -293,7 +293,10 @@ function figmaToDtcg(type: string, v: FigmaValue, pd: VariablePluginData, aliasP
     case 'float':
       if (type === 'dimension') return { value: round(v.value), unit: pd.unit ?? 'px' };
       return round(v.value);
-    case 'string':
+    case 'string': {
+      // The family Figma shows for a stack the token holds: the stack, unchanged.
+      const stack = type === 'fontFamily' ? pd.stacks?.find((x) => stackFamilies(x).includes(familyKey(v.value))) : undefined;
+      if (stack !== undefined) return pd.shape === 'array' ? stack.split(',').map((s) => s.trim()).filter(Boolean) : stack;
       if (type === 'fontFamily' && pd.shape === 'array') {
         return v.value
           .split(',')
@@ -301,10 +304,31 @@ function figmaToDtcg(type: string, v: FigmaValue, pd: VariablePluginData, aliasP
           .filter(Boolean);
       }
       return v.value;
+    }
     case 'boolean':
       return v.value;
   }
 }
+
+const GENERIC = /^(system-ui|-apple-system|blinkmacsystemfont|sans-serif|serif|monospace|cursive|fantasy|ui-[\w-]+)$/i;
+
+/**
+ * The family of a CSS stack a Figma variable shows, so text can be bound to it: the first one installed in Figma
+ * (`installed`: familyKey -> Figma's name), else the first that is not a generic family, without " Variable".
+ */
+export function stackFamily(stack: string, installed: ReadonlyMap<string, string>): string {
+  const names = stack.split(',').map((x) => x.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+  for (const n of names) {
+    const hit = installed.get(familyKey(n));
+    if (hit) return hit;
+  }
+  const first = names.find((n) => !GENERIC.test(n)) ?? names[0] ?? stack;
+  return first.replace(/ Variable$/i, '');
+}
+
+/** A family name as Figma and CSS both say it: lowercased, without the " Variable" of variable fonts. */
+export const familyKey = (family: string) => family.trim().replace(/^["']|["']$/g, '').replace(/ Variable$/i, '').toLowerCase();
+const stackFamilies = (stack: string) => stack.split(',').map(familyKey);
 
 /**
  * Read the managed collections of a Figma snapshot back into logical tokens.

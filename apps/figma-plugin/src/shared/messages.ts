@@ -35,6 +35,11 @@ export interface VariablePluginData {
   unit?: string | undefined;
   /** "array" when a fontFamily value is a list joined with ", " in Figma. */
   shape?: string | undefined;
+  /**
+   * fontFamily: the CSS stacks the token holds ("IBM Plex Sans Variable, IBM Plex Sans, system-ui"), when the variable
+   * shows the family of it Figma has ("IBM Plex Sans") so text can be bound to it. Read back as the stack.
+   */
+  stacks?: string[] | undefined;
   /** Set when the token was removed on main: kept in Figma, never deleted silently. */
   orphan?: boolean | undefined;
   /** Modes in which the token does not exist in Git (single-collection layout only). */
@@ -43,7 +48,7 @@ export interface VariablePluginData {
   unlinkedModes?: string[] | undefined;
 }
 
-export const PLUGIN_DATA_KEYS = ['id', 'dtcgType', 'file', 'unit', 'shape', 'orphan', 'absentModes', 'unlinkedModes'] as const;
+export const PLUGIN_DATA_KEYS = ['id', 'dtcgType', 'file', 'unit', 'shape', 'stacks', 'orphan', 'absentModes', 'unlinkedModes'] as const;
 
 export interface SnapshotVariable {
   id: string;
@@ -132,6 +137,28 @@ export interface SyncState {
   lastPrUrl?: string | undefined;
 }
 
+/**
+ * Sync state to clear when Settings change. The base is the commit the file was last pulled from, so it still holds
+ * on another branch of the same repository: the diff against the new branch stays three-way, and the file's own edits
+ * stay edits (clearing it made every token the branch changes a conflict, such as each brand token when a brand is
+ * added). Another repository has none of it.
+ */
+export function syncResetOnSettings(before: RepoSettings, after: RepoSettings): Partial<Record<keyof SyncState, ''>> {
+  if (before.repo.trim().toLowerCase() !== after.repo.trim().toLowerCase()) return { baseSha: '', lastPullAt: '', lastPrBranch: '', lastPrUrl: '' };
+  if (before.branch.trim() !== after.branch.trim()) return { lastPrBranch: '', lastPrUrl: '' };
+  return {};
+}
+
+/**
+ * Which components a scan reads (each read exports a small image per variant, so a big file takes minutes): all by
+ * default, only `nodeIds`, all but `skip`, or only the ones with no baseline yet.
+ */
+export interface ScanComponentsRequest {
+  nodeIds?: string[] | undefined;
+  skip?: string[] | undefined;
+  withoutBaseline?: boolean | undefined;
+}
+
 /** What GitHub last said about the saved token: "rejected" after a 401 (revoked, regenerated or expired). */
 export type TokenState = 'ok' | 'rejected';
 
@@ -180,7 +207,7 @@ export interface RequestMap {
   'open-url': { request: { url: string }; response: { opened: true } };
   notify: { request: { message: string; error?: boolean }; response: { shown: true } };
   resize: { request: { width: number; height: number }; response: { resized: true } };
-  'scan-components': { request: Record<string, never>; response: ScannedComponentsPayload };
+  'scan-components': { request: ScanComponentsRequest; response: ScannedComponentsPayload };
   /** Store signatures (JSON) as baselines on component nodes. */
   'save-signatures': { request: { items: { nodeId: string; signature: string }[] }; response: { saved: number } };
   /** Store where a component's change from Figma went (its library branch), as shared plugin data on the set. */

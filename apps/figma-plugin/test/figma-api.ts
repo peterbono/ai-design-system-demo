@@ -62,7 +62,9 @@ export class SimVariable {
     private api: SimFigma,
   ) {}
   setValueForMode(modeId: string, value: unknown) {
-    this.valuesByMode[modeId] = value && typeof value === 'object' && 'r' in (value as Dict) ? { ...(value as Dict) } : value;
+    this.api.valueWrites++;
+    // Like Figma, numbers are kept as 32-bit floats (0.1 reads back as 0.10000000149011612).
+    this.valuesByMode[modeId] = value && typeof value === 'object' && 'r' in (value as Dict) ? { ...(value as Dict) } : typeof value === 'number' ? Math.fround(value) : value;
   }
   getPluginData(k: string) {
     return this.pd.get(k) ?? '';
@@ -102,8 +104,14 @@ export class SimNode {
   children: SimNode[] = [];
   x = 0;
   y = 0;
-  width = 100;
-  height = 40;
+  // Like Figma: read only, changed with resize().
+  private size = { width: 100, height: 40 };
+  get width(): number {
+    return this.size.width;
+  }
+  get height(): number {
+    return this.size.height;
+  }
   description = '';
   fills: Dict[] = [];
   strokes: Dict[] = [];
@@ -138,6 +146,8 @@ export class SimNode {
   // parent's cross axis, layoutGrow on its main axis). Hugging an axis drops a fill on it, as in Figma.
   layoutAlign = 'INHERIT';
   layoutGrow = 0;
+  /** ABSOLUTE: out of its parent's auto layout, so it cannot fill it (Figma refuses). */
+  layoutPositioning = 'AUTO';
   /** How a layer follows its parent's resizing (absolute layers: pinned edges, stretched, centered). */
   constraints: { horizontal: string; vertical: string } = { horizontal: 'MIN', vertical: 'MIN' };
   private axisSizing = { primary: 'FIXED', counter: 'FIXED' };
@@ -184,6 +194,7 @@ export class SimNode {
     if (v === 'FILL') {
       const p = this.parent;
       if (!p || !this.autoLayout(p)) throw new Error('FILL can only be set on children of auto-layout frames');
+      if (this.layoutPositioning === 'ABSOLUTE') throw new Error('FILL cannot be set on absolute positioned auto-layout children');
       if ((p.layoutMode === 'HORIZONTAL') === horizontal) this.layoutGrow = 1;
       else this.layoutAlign = 'STRETCH';
       if (this.type === 'TEXT' && horizontal && this.textAutoResize === 'WIDTH_AND_HEIGHT') this.textAutoResize = 'HEIGHT';
@@ -346,8 +357,7 @@ export class SimNode {
     return this.findAll((n) => c.types.includes(n.type));
   }
   resize(w: number, h: number) {
-    this.width = w;
-    this.height = h;
+    this.size = { width: w, height: h };
   }
   resizeWithoutConstraints(w: number, h: number) {
     this.resize(w, h);
@@ -439,12 +449,18 @@ export class SimNode {
   // Components
   get variantProperties(): Record<string, string> | null {
     if (this.type !== 'COMPONENT' || this.parent?.type !== 'COMPONENT_SET') return null;
-    return Object.fromEntries(
-      this.name
-        .split(',')
-        .map((p) => p.split('=').map((x) => x.trim()))
-        .filter((p) => p.length === 2) as [string, string][],
-    );
+    // Like Figma: every variant of a set is named "Prop=value, ...", with the same properties and no two alike, or
+    // the set is in error and reading any of its variants throws.
+    const parse = (name: string) => {
+      const pairs = name.split(',').map((p) => p.split('=').map((x) => x.trim()));
+      return pairs.every((p) => p.length === 2 && p[0] && p[1]) ? (Object.fromEntries(pairs) as Record<string, string>) : null;
+    };
+    const siblings = this.parent.children.filter((c) => c.type === 'COMPONENT').map((c) => parse(c.name));
+    const shape = (p: Record<string, string>) => Object.keys(p).sort().join('|');
+    const combos = siblings.map((p) => (p ? JSON.stringify(Object.entries(p).sort()) : ''));
+    const broken = siblings.some((p) => !p || shape(p) !== shape(siblings[0]!)) || new Set(combos).size !== combos.length;
+    if (broken) throw new Error('in get_variantProperties: Component set for node has existing errors');
+    return parse(this.name);
   }
   get componentPropertyDefinitions(): Record<string, { type: string; defaultValue: string | boolean; variantOptions?: string[]; preferredValues?: { type: string; key: string }[] }> {
     if (this.type !== 'COMPONENT_SET' && this.type !== 'COMPONENT') throw new Error('Not a component');
@@ -559,6 +575,8 @@ export class SimFigma {
   nodes = new Map<string, SimNode>();
   /** exportAsync calls (images), on every node. */
   exports = 0;
+  /** setValueForMode calls, on every variable. */
+  valueWrites = 0;
   collections: SimCollection[] = [];
   variables: SimVariable[] = [];
   loadedFonts = new Set<string>();

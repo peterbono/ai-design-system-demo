@@ -358,10 +358,10 @@ function valueParts(index: PathIndex, t: LogicalToken | undefined, mode: string)
   return { name: formatValue(t.type, v), resolved: r.value === undefined ? 'does not resolve' : formatValue(t.type, r.value) };
 }
 
-/** Token paths break after dots, never inside a segment. */
+/** Token paths break after a dot, a slash or a comma ("font.weight." / "semibold"), never inside a segment. */
 function breakable(text: string): Child[] {
-  const parts = text.split('.');
-  return parts.flatMap((part, i) => (i < parts.length - 1 ? [`${part}.`, h('wbr')] : [part]));
+  const parts = text.split(/(?<=[./,])/);
+  return parts.flatMap((part, i) => (i < parts.length - 1 ? [part, h('wbr')] : [part]));
 }
 
 function valueChip(index: PathIndex, t: LogicalToken | undefined, mode: string, dim = false): HTMLElement {
@@ -416,7 +416,7 @@ interface RowSides {
   afterIndex: PathIndex;
 }
 
-const KIND_LABEL: Record<string, string> = { added: 'New', changed: 'Edited', renamed: 'Renamed', removed: 'Deleted', restored: 'Recreated', replaced: 'From main' };
+const KIND_LABEL: Record<string, string> = { added: 'New', changed: 'Edited', renamed: 'Renamed', removed: 'Deleted', restored: 'Recreated', replaced: 'From code' };
 
 function diffRow(a: Analysis, kind: string, sides: RowSides, extra?: Child, edge?: { lead?: Child; tail?: Child }): HTMLElement {
   const t = (sides.after ?? sides.before)!;
@@ -531,7 +531,7 @@ function conflictBlock(a: Analysis, e: DiffEntry, choices: Map<string, ConflictC
     'li',
     { class: 'conflict' },
     h('div', { class: 'row-head' }, edge?.lead, h('span', { class: 'kind conflict' }, 'Conflict'), h('span', { class: 'path' }, e.path), edge?.tail),
-    h('div', { class: 'choices', role: 'radiogroup', 'aria-label': `Version to keep for ${e.path}` }, side('figma', 'Keep Figma', e.figma, fi), side('main', 'Use main', e.head, a.head.byPath)),
+    h('div', { class: 'choices', role: 'radiogroup', 'aria-label': `Version to keep for ${e.path}` }, side('figma', 'Keep Figma', e.figma, fi), side('main', 'Use code', e.head, a.head.byPath)),
   );
 }
 
@@ -549,7 +549,7 @@ function conflictSection(a: Analysis, choices: Map<string, ConflictChoice>, edge
           'div',
           { class: 'inline-actions' },
           h('button', { class: 'btn ghost', onClick: () => { list.forEach((e) => choices.set(e.id, 'figma')); refreshProposals(); } }, 'Keep Figma for all'),
-          h('button', { class: 'btn ghost', onClick: () => { list.forEach((e) => choices.set(e.id, 'main')); refreshProposals(); } }, 'Use main for all'),
+          h('button', { class: 'btn ghost', onClick: () => { list.forEach((e) => choices.set(e.id, 'main')); refreshProposals(); } }, 'Use code for all'),
           open ? h('span', { class: 'muted' }, `${open} left to decide`) : null,
         )
       : null,
@@ -610,7 +610,8 @@ async function loadPull(prev?: PullState): Promise<PullState> {
     const updated = components?.components.filter((c) => c.status === 'updated' && c.nodeId) ?? [];
     if (components && updated.length) {
       // Review updates: the sets as they are now, compared with what the update builds, and their thumbnails.
-      const scanned = await request('scan-components', {});
+      // Only the sets to update: reading every component of a big file takes minutes.
+      const scanned = await request('scan-components', { nodeIds: updated.map((c) => c.nodeId!) });
       reviews = reviewUpdates(components, new Map<string, ComponentSignature>(scanned.components.map((c) => [c.nodeId, c.signature])));
       const missing = updated.map((c) => c.nodeId!).filter((id) => !before[id]);
       if (missing.length) Object.assign(before, await request('thumbnails', { nodeIds: missing, width: THUMB_W }).catch(() => ({})));
@@ -650,10 +651,14 @@ function componentsToBuild(p: PullState): PlannedComponent[] {
   return (p.components?.components ?? []).filter((c) => (c.status === 'updated' && !p.done.has(c.componentId)) || (c.status === 'new' && p.includeComponents));
 }
 
-/** After a pull: components now render with main's values, so refresh their baselines (pending changes are kept). */
-async function refreshBaselines(p: PullState): Promise<void> {
+/**
+ * After a pull: components now render with main's values, so refresh their baselines (pending changes are kept). The
+ * sets just built already carry theirs. Without a variable change nothing else renders differently, so only the
+ * components with no baseline yet are read: reading every component of a big file takes minutes.
+ */
+async function refreshBaselines(p: PullState, pulled: { variables: boolean; built: readonly string[] }): Promise<void> {
   try {
-    const scanned = await request('scan-components', {});
+    const scanned = await request('scan-components', { skip: [...pulled.built], withoutBaseline: !pulled.variables });
     const coded = await loadCodedComponents(getClient(), p.analysis.headFiles.treeSha, p.analysis.headFiles.config);
     const items = pullBaselines(scanned.components, coded);
     if (items.length) await request('save-signatures', { items: items.map((x) => ({ nodeId: x.nodeId, signature: JSON.stringify(x.signature) })) });
@@ -704,7 +709,7 @@ function updateComponent(componentId: string): void {
         if (report.errors.length) throw new Error(`Variables were written with problems, so ${comp.name} was not updated: ${report.errors[0]}`);
       }
       const report = await buildComponents(p, onlyComponent(p.components!, componentId).components);
-      await refreshBaselines(p);
+      await refreshBaselines(p, { variables: withVariables, built: report.nodeIds });
       if (withVariables) await loadInit();
       // Re-read main and the file: the updated set is now up to date; what is left stays to review.
       const next = await loadPull(p);
@@ -713,7 +718,7 @@ function updateComponent(componentId: string): void {
       const notBuilt = report.failed?.[0] ?? report.partial?.[0];
       if (notBuilt) state.error = { message: `${comp.name} was not fully updated: ${notBuilt.reason}. Nothing half built was left.`, retry: () => updateComponent(componentId) };
       else if (report.problems.length) state.error = { message: `${comp.name} updated, with problems: ${report.problems.slice(0, 3).join('; ')}` };
-      void request('notify', { message: `${comp.name} updated${withVariables ? ', with the variables from main' : ''}` });
+      void request('notify', { message: `${comp.name} updated${withVariables ? `, with the variables from ${state.init!.settings.branch}` : ''}` });
     },
     () => updateComponent(componentId),
   );
@@ -732,11 +737,12 @@ function applyPull(): void {
   void run(
     variablesUpToDate(p) && build.length ? 'Building components' : 'Writing variables',
     async () => {
-      if (!variablesUpToDate(p) || !build.length) p.report = await request('apply-pull', { plan: p.proposal.plan });
+      const variables = !variablesUpToDate(p);
+      if (variables || !build.length) p.report = await request('apply-pull', { plan: p.proposal.plan });
       // Components after the variables, so every binding finds its variable.
       if (build.length) p.componentsReport = await buildComponents(p, build);
       const report = p.report;
-      await refreshBaselines(p);
+      await refreshBaselines(p, { variables, built: p.componentsReport?.nodeIds ?? [] });
       await loadInit();
       state.push = undefined;
       const cr = p.componentsReport;
@@ -761,7 +767,7 @@ function retryComponents(): void {
       const build = componentsToBuild(next);
       if (build.length) next.componentsReport = await buildComponents(next, build);
       next.report = prev.report;
-      await refreshBaselines(next);
+      await refreshBaselines(next, { variables: false, built: next.componentsReport?.nodeIds ?? [] });
       state.pull = next;
       const cr = next.componentsReport;
       void request('notify', { message: cr ? componentReportView(cr).headline : 'Every component is built.' });
@@ -1673,7 +1679,8 @@ function viewPull(): View {
     counts.added ? `${counts.added} new` : '',
     counts.changed ? `${counts.changed} edited` : '',
     counts.renamed ? `${counts.renamed} renamed` : '',
-    counts.removed ? `${counts.removed} deleted on main` : '',
+    // The headline names the branch once ("2 new, 1 deleted on next").
+    counts.removed ? `${counts.removed} deleted` : '',
   ].filter(Boolean);
 
   // Summary first: one sentence for the whole screen, then one line of where it comes from.
@@ -2138,12 +2145,12 @@ const isProse = (v: string) => /^[A-Z][a-z]+ [a-z]+ /.test(v);
 /** The detail of a change row: one font size, token and variant values in Plex Mono at that same size. */
 function changeTable(changes: { field: string; before?: string | undefined; after?: string | undefined }[], head: [string, string, string] = ['What', 'Now', 'Requested']): Child {
   if (!changes.length) return null;
-  const val = (v: string, cls: string) => h('td', { class: `${cls}${isProse(v) ? '' : ' mono'}` }, v);
+  const val = (v: string, cls: string) => h('td', { class: `${cls}${isProse(v) ? '' : ' mono'}` }, ...(isProse(v) ? [v] : breakable(v)));
   return h(
     'table',
     { class: 'changes' },
     h('thead', null, h('tr', null, head.map((x) => h('th', null, x)))),
-    h('tbody', null, changes.map((c) => h('tr', null, h('td', null, c.field), val(c.before || 'none', 'before'), val(c.after || 'removed', 'after')))),
+    h('tbody', null, changes.map((c) => h('tr', null, h('td', { class: 'what' }, c.field), val(c.before || 'none', 'before'), val(c.after || 'removed', 'after')))),
   );
 }
 
