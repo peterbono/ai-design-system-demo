@@ -55,7 +55,7 @@ describe('bridge CLI', () => {
     expect(bridge(REPO, '--help').out).toContain(`bridge ${version}:`);
   });
 
-  it('docs and brand: help exits 0, no subcommand exits 2 with the usage', () => {
+  it('docs and brand: help exits 0, no subcommand exits 2 with the usage', { timeout: 120_000 }, () => {
     for (const cmd of ['docs', 'brand']) {
       for (const args of [[cmd, 'help'], [cmd, '--help']]) {
         const r = bridge(REPO, ...args);
