@@ -416,7 +416,7 @@ interface RowSides {
   afterIndex: PathIndex;
 }
 
-const KIND_LABEL: Record<string, string> = { added: 'New', changed: 'Edited', renamed: 'Renamed', removed: 'Deleted', restored: 'Recreated', replaced: 'From main' };
+const KIND_LABEL: Record<string, string> = { added: 'New', changed: 'Edited', renamed: 'Renamed', removed: 'Deleted', restored: 'Recreated', replaced: 'From code' };
 
 function diffRow(a: Analysis, kind: string, sides: RowSides, extra?: Child, edge?: { lead?: Child; tail?: Child }): HTMLElement {
   const t = (sides.after ?? sides.before)!;
@@ -713,7 +713,7 @@ function updateComponent(componentId: string): void {
       const notBuilt = report.failed?.[0] ?? report.partial?.[0];
       if (notBuilt) state.error = { message: `${comp.name} was not fully updated: ${notBuilt.reason}. Nothing half built was left.`, retry: () => updateComponent(componentId) };
       else if (report.problems.length) state.error = { message: `${comp.name} updated, with problems: ${report.problems.slice(0, 3).join('; ')}` };
-      void request('notify', { message: `${comp.name} updated${withVariables ? ', with the variables from main' : ''}` });
+      void request('notify', { message: `${comp.name} updated${withVariables ? `, with the variables from ${state.init!.settings.branch}` : ''}` });
     },
     () => updateComponent(componentId),
   );
@@ -1673,7 +1673,7 @@ function viewPull(): View {
     counts.added ? `${counts.added} new` : '',
     counts.changed ? `${counts.changed} edited` : '',
     counts.renamed ? `${counts.renamed} renamed` : '',
-    counts.removed ? `${counts.removed} deleted on main` : '',
+    counts.removed ? `${counts.removed} deleted on ${state.init!.settings.branch}` : '',
   ].filter(Boolean);
 
   // Summary first: one sentence for the whole screen, then one line of where it comes from.
