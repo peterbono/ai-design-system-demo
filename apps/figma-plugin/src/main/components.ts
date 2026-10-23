@@ -1,7 +1,7 @@
 // Main thread: reads local components (sets and single components) into raw signatures data, stores baselines in
 // shared plugin data, and exports PNGs to attach to requests. No network. The diff logic is in src/sync/components.ts.
 
-import { type RawBinding, type RawComponent, type RawLayer, type RawVariant, buildSignature, fnv1a, bindingKind, parseSignature, propName } from '../sync/components';
+import { RENDER_VERSION, type RawBinding, type RawComponent, type RawLayer, type RawVariant, buildSignature, fnv1a, bindingKind, parseSignature, propName } from '../sync/components';
 import { EXPERIMENTAL_KEY, PUSHED_KEY, type ScanComponentsRequest, type ScannedComponentsPayload } from '../shared/messages';
 import { variantKeyOf } from '@bridge-ds/core';
 import { LONE_VARIANT, isRemovedValue, propsOfKey } from '../sync/component-pull';
@@ -15,8 +15,6 @@ const SIGNATURE_KEY = 'signature';
 const BASELINE_IMAGE_KEY = 'baselineImage';
 const BASELINE_IMAGE_WIDTH = 400;
 const BASELINE_IMAGE_MAX = 90000;
-/** Scale of the render hash export: small enough to stay fast, large enough to see a 1px change. */
-const HASH_SCALE = 1;
 
 type Progress = (message: string) => void;
 
@@ -124,9 +122,96 @@ async function layersOf(variant: ComponentNode): Promise<RawLayer[]> {
   return out;
 }
 
+/** What a painted layer looks like, read when it has it (a value Figma reports as mixed reads as "mixed"). */
+const PAINT_FIELDS = [
+  'blendMode', 'isMask', 'fills', 'strokes', 'strokeWeight', 'strokeTopWeight', 'strokeRightWeight', 'strokeBottomWeight',
+  'strokeLeftWeight', 'strokeAlign', 'strokeCap', 'strokeJoin', 'dashPattern', 'cornerRadius', 'topLeftRadius',
+  'topRightRadius', 'bottomLeftRadius', 'bottomRightRadius', 'cornerSmoothing', 'effects', 'characters', 'fontName',
+  'fontSize', 'lineHeight', 'letterSpacing', 'paragraphSpacing', 'textCase', 'textDecoration', 'textAlignHorizontal',
+  'textAlignVertical', 'vectorPaths',
+] as const;
+const TEXT_SEGMENT_FIELDS = ['fontName', 'fontSize', 'fills', 'lineHeight', 'letterSpacing', 'textCase', 'textDecoration'] as const;
+
+/**
+ * Paints and effects with a variable bound to their color, by that variable: the color a bound paint stores is a
+ * fallback Figma refreshes when it likes (adding a mode to a collection did), not what it shows. What the variable
+ * resolves to is in the bindings' values.
+ */
+function unbound(list: unknown): unknown {
+  if (!Array.isArray(list)) return list;
+  return list.map((p) => {
+    const bound = (p as { boundVariables?: { color?: { id?: string } } }).boundVariables?.color?.id;
+    if (!bound || typeof p !== 'object') return p;
+    const { color: _color, ...rest } = p as Record<string, unknown>;
+    return { ...rest, color: { variable: bound } };
+  });
+}
+
+const shows = (list: unknown) => Array.isArray(list) && list.some((p) => (p as { visible?: boolean }).visible !== false);
+
+/**
+ * What a variant looks like: the layers that paint something, in drawing order, each with its place in the variant,
+ * its size, its opacity (with its parents') and how it paints. Resolved values, so a bound variable's value counts.
+ * Frames and groups that paint nothing are left out, so regrouping layers is not a new look, as with an image.
+ */
+function look(variant: SceneNode): unknown[] {
+  const out: unknown[] = [];
+  const origin = 'absoluteTransform' in variant ? variant.absoluteTransform : undefined;
+  const walk = (node: SceneNode, opacity: number, dx: number, dy: number) => {
+    if (node.visible === false) return;
+    const n = node as unknown as Record<string, unknown>;
+    const alpha = opacity * (typeof n.opacity === 'number' ? (n.opacity as number) : 1);
+    const x = dx + (node === variant ? 0 : node.x);
+    const y = dy + (node === variant ? 0 : node.y);
+    // Clipping changes the look only when something overflows.
+    const clips =
+      'clipsContent' in node &&
+      node.clipsContent &&
+      'children' in node &&
+      (node as ChildrenMixin).children.some((k) => k.visible !== false && (k.x < 0 || k.y < 0 || k.x + k.width > node.width || k.y + k.height > node.height));
+    const paints = shows(n.fills) || shows(n.strokes) || shows(n.effects) || node.type === 'TEXT' || 'vectorPaths' in node || n.isMask === true;
+    if (paints || clips) {
+      const at = origin && 'absoluteTransform' in node ? node.absoluteTransform : undefined;
+      const entry: Record<string, unknown> = {
+        at: at && origin ? [at[0][0], at[0][1], at[1][0], at[1][1], at[0][2] - origin[0][2], at[1][2] - origin[1][2]] : [x, y],
+        size: [node.width, node.height],
+        opacity: alpha,
+        ...(clips ? { clips: true } : {}),
+      };
+      for (const f of PAINT_FIELDS) {
+        if (!(f in node)) continue;
+        try {
+          entry[f] = f === 'fills' || f === 'strokes' || f === 'effects' ? unbound(n[f]) : n[f];
+        } catch {
+          /* a field this node refuses to read */
+        }
+      }
+      // Text with mixed styles: each run with its own.
+      if (node.type === 'TEXT' && Object.values(entry).some((v) => v === figma.mixed)) {
+        try {
+          entry.segments = node.getStyledTextSegments([...TEXT_SEGMENT_FIELDS]);
+        } catch {
+          /* fonts not loaded: the mixed marks stay */
+        }
+      }
+      out.push(entry);
+    }
+    if ('children' in node) for (const c of (node as ChildrenMixin).children) walk(c, alpha, x, y);
+  };
+  walk(variant, 1, 0, 0);
+  return out;
+}
+
+/** Numbers to 2 decimals (sub-pixel noise is not a change), mixed values as "mixed". */
+const lookJson = (value: unknown) => JSON.stringify(value, (_k, v) => (typeof v === 'symbol' ? 'mixed' : typeof v === 'number' ? Math.round(v * 100) / 100 : v));
+
+/**
+ * What a variant looks like, as a hash of its layers' visual properties. An exported image did the same at about
+ * 0.3 s a variant in a big file (40 minutes to scan 8800 variants); reading properties takes milliseconds.
+ */
 async function renderHash(node: SceneNode): Promise<string | undefined> {
   try {
-    return fnv1a(await node.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: HASH_SCALE } }));
+    return RENDER_VERSION + fnv1a(lookJson(look(node)));
   } catch {
     return undefined;
   }
