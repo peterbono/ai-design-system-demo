@@ -11,6 +11,7 @@ import {
   commitFileOnGitHub,
   coverageSummary,
   DEFAULT_COMPONENT_SPECS_FILE,
+  DOCS_CLI_ORIGIN,
   DOCS_MCP_ORIGIN,
   docsFileText,
   docsSlug,
@@ -39,6 +40,7 @@ import {
 import { branchNumber, productMarks, resolveProduct, RIGHTS, viewerOf } from './branches.js';
 import { appliedNext, changesFor, noSuggestionAccess, suggestionBase } from './suggestions.js';
 import type { BridgeContext } from './context.js';
+import { addToken, say, sourceOf } from './say.js';
 
 const DOC_KEYS = ['summary', 'preview', 'whenToUse', 'whenNotToUse', 'dos', 'donts', 'accessibility', 'contentGuidelines', 'anatomy'] as const;
 
@@ -66,7 +68,7 @@ export async function saveDocs(
   const { config } = await ctx.config();
   if (!config.components) throw new Error('No components.dir in bridge.config.json: Bridge does not know where component docs live.');
   const name = a.component.trim();
-  if (!/^[A-Z][A-Za-z0-9]*$/.test(name)) throw new Error(`"${a.component}" is not a component name. Use the exported name, like Button (bridge_list_components lists them).`);
+  if (!/^[A-Z][A-Za-z0-9]*$/.test(name)) throw new Error(`"${a.component}" is not a component name. Use the exported name, like Button (${say(ctx, 'bridge_list_components lists them', '`bridge coverage` lists them')}).`);
   const unknown = Object.keys(a.docs).filter((k) => !(DOC_KEYS as readonly string[]).includes(k));
   if (unknown.length) throw new Error(`Unknown docs sections: ${unknown.join(', ')}. Use ${DOC_KEYS.join(', ')}.`);
   const path = `${config.components.dir}/${name}/${name}${config.components.docsSuffix}`;
@@ -103,9 +105,9 @@ export async function saveDocs(
     if (current === null) throw new Error(`${path} is not on #${n}. Save the docs on a new branch instead (leave pr out), or check the component name.`);
     const text = next(current);
     if (a.dryRun) return { status: 'dry-run' as const, pr: n, path, content: text };
-    if (!ctx.canWriteRemote && open) return { status: 'preview' as const, pr: n, path, content: text, said: `Nothing sent: the ${name} docs have an open proposal (#${n}) and adding to it needs a GitHub token with ${RIGHTS.docs}. Set GITHUB_TOKEN.` };
-    if (!ctx.canWriteRemote) throw new Error(`Saving docs on #${n} needs a GitHub token with ${RIGHTS.docs}. Set GITHUB_TOKEN where the Bridge MCP server runs, or save it in the Library edit mode.`);
-    const sha = await commitFileOnGitHub(gh.withBranchPrefix(undefined), { path, branch: pr.headRef, message: `docs(${name.toLowerCase()}): edit usage guidance with Claude (Bridge MCP)`, next });
+    if (!ctx.canWriteRemote && open) return { status: 'preview' as const, pr: n, path, content: text, said: `Nothing sent: the ${name} docs have an open proposal (#${n}) and adding to it needs a GitHub token with ${RIGHTS.docs}: ${addToken(ctx)}.` };
+    if (!ctx.canWriteRemote) throw new Error(`Saving docs on #${n} needs a GitHub token with ${RIGHTS.docs}: ${addToken(ctx)}, or save it in the Library edit mode.`);
+    const sha = await commitFileOnGitHub(gh.withBranchPrefix(undefined), { path, branch: pr.headRef, message: `docs(${name.toLowerCase()}): edit usage guidance ${sourceOf(ctx, a.source) === 'cli' ? 'with the bridge CLI' : 'with Claude (Bridge MCP)'}`, next });
     const joined = open ? ` It continues the open ${name} docs proposal by @${open.author} (one open proposal per component).` : '';
     return {
       status: sha ? ('committed' as const) : ('unchanged' as const),
@@ -130,7 +132,7 @@ export async function saveDocs(
       content: text,
       product: product.name,
       changesMode: mode,
-      ...(a.dryRun ? {} : { said: mode === 'suggest' ? noSuggestionAccess(ctx, gh) : `Nothing sent: saving docs for review needs a GitHub token with ${RIGHTS.docs}. Set GITHUB_TOKEN, or write the file yourself on a branch.` }),
+      ...(a.dryRun ? {} : { said: mode === 'suggest' ? noSuggestionAccess(ctx, gh) : `Nothing sent: saving docs for review needs a GitHub token with ${RIGHTS.docs}: ${addToken(ctx)}, or write the file yourself on a branch.` }),
     };
   }
   if (mode === 'suggest') {
@@ -143,9 +145,9 @@ export async function saveDocs(
       title: a.title,
       notes,
       jira,
-      origin: DOCS_MCP_ORIGIN,
+      origin: sourceOf(ctx, a.source) === 'cli' ? DOCS_CLI_ORIGIN : DOCS_MCP_ORIGIN,
       extraLabels: marks.labels,
-      source: a.source ?? 'mcp',
+      source: sourceOf(ctx, a.source),
       ...(viewer ? { suggestedBy: viewer } : {}),
     });
     return {
@@ -158,7 +160,7 @@ export async function saveDocs(
       changesMode: mode,
       ...('warnings' in r && r.warnings.length ? { warnings: r.warnings } : {}),
       said: `Suggested the ${name} docs as #${r.number}. Docs only: one approval, then a developer applies it.`,
-      next: appliedNext(r.number),
+      next: appliedNext(r.number, ctx),
     };
   }
   const r = await proposeDocsOnGitHub(gh.withBranchPrefix('docs/'), [edit], {
@@ -166,9 +168,9 @@ export async function saveDocs(
     title: a.title,
     notes,
     jira,
-    origin: DOCS_MCP_ORIGIN,
+    origin: sourceOf(ctx, a.source) === 'cli' ? DOCS_CLI_ORIGIN : DOCS_MCP_ORIGIN,
     extraLabels: marks.labels,
-    commitNote: 'Proposed with Claude through the Bridge MCP server.',
+    commitNote: sourceOf(ctx, a.source) === 'cli' ? 'Proposed with the bridge CLI.' : 'Proposed with Claude through the Bridge MCP server.',
   });
   return { status: 'sent-for-review' as const, pr: r.number, url: r.url, title: r.title, path, product: product.name, said: `Sent the ${name} docs for review as #${r.number}. Docs only: one approval ships them.` };
 }
@@ -207,6 +209,18 @@ export async function getSettings(ctx: BridgeContext) {
   };
 }
 
+/**
+ * One count of components everywhere: the component folders (snapshot.json and llms.txt count the same), then what the
+ * other numbers are: layout helpers have no Figma component, and in Figma popups and items are sets of their own.
+ */
+export function coverageLine(s: { inFigma: number; drafted: number; layout: number; total: number }, figmaSets: number): string {
+  const rest = s.total - s.inFigma;
+  const helpers = s.layout === 1 ? 'is a layout helper' : 'are layout helpers';
+  const others = !rest ? '' : rest === s.layout ? `; the other ${rest} ${helpers}, built with auto layout instead of a Figma component` : `; ${rest} are not (${s.layout} of them layout helpers)`;
+  const sets = figmaSets > s.inFigma ? ` In Figma they make ${figmaSets} component sets: popups, items and some variants are sets of their own.` : '';
+  return `${s.inFigma} of the ${s.total} components are in Figma${s.drafted ? ` (${s.drafted} drafted with Claude)` : ''}${others}.${sets}`;
+}
+
 /** Which components are in Figma (Studio's "In Figma" column), and whether code images exist for the fidelity check. */
 export async function figmaCoverage(ctx: BridgeContext, a: { component?: string | undefined } = {}) {
   const text = await ctx.source.read(DEFAULT_COMPONENT_SPECS_FILE);
@@ -223,9 +237,9 @@ export async function figmaCoverage(ctx: BridgeContext, a: { component?: string 
     references = null;
   }
   const list = (file.coverage ?? []).filter((c) => !a.component || c.name.toLowerCase() === a.component.toLowerCase());
-  if (a.component && !list.length) throw new Error(`${a.component} is not in the coverage list. bridge_list_components lists the components.`);
+  if (a.component && !list.length) throw new Error(`${a.component} is not in the coverage list. ${say(ctx, 'bridge_list_components lists', '`bridge coverage` lists')} the components.`);
   return {
-    summary: `${s.inFigma} of ${s.visual} components are in Figma${s.drafted ? ` (${s.drafted} drafted with Claude)` : ''}; ${s.layout} layout helpers use auto layout.`,
+    summary: coverageLine(s, file.components.length),
     components: list.map((c) => ({ name: c.name, inFigma: figmaCell(c)?.label ?? 'Unknown', ...(c.reason ? { why: c.reason } : {}) })),
     fidelity:
       references === null

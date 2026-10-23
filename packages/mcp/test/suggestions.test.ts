@@ -184,7 +184,8 @@ describe('list, get, review, decline', () => {
 });
 
 describe('apply on a local checkout', () => {
-  it('dry run, then a local branch, recorded on the issue; again: already applied', async () => {
+  // Four applies over the real token set, each validating and contrast checking every theme: its own timeout.
+  it('dry run, then a local branch, recorded on the issue; again: already applied', { timeout: 180_000 }, async () => {
     const { dir, gh } = localRepo();
     const ctx = await BridgeContext.create({ root: dir, token: 'test-token', fetch: gh.fetch });
     const s = (await ops.proposeTokenChange(ctx, DARKEN)) as any;

@@ -28,6 +28,7 @@ import { core } from './core-adapter.js';
 import { settingsOf } from './explorations.js';
 import { appliedNext, changesFor, SUGGEST_RIGHTS, suggestionBase } from './suggestions.js';
 import { designSystemIndex } from './ops.js';
+import { say } from './say.js';
 
 const NEED = 'Contents, Pull requests and Issues: read and write';
 
@@ -70,7 +71,7 @@ export async function missingPiecesOp(ctx: BridgeContext, a: { pr: number | stri
     fixes: { count: r.fixes.length, sample: r.fixes.slice(0, 10).map((f) => `${f.file}:${f.line} ${f.what} -> use ${f.use}`) },
     recorded: Boolean(recorded),
     next: r.pieces.length
-      ? `${a.record ? '' : 'Record them (record: true) so Studio shows them, then '}open a library branch for each with bridge_open_library_branch { pr: ${n}, piece: "<id>" }. Fixes are values and components the library already has: use them in the product code instead.`
+      ? `${a.record ? '' : `Record them (${say(ctx, 'record: true', `\`bridge pieces ${n} --record\``)}) so Studio shows them, then `}open a library branch for each with ${say(ctx, `bridge_open_library_branch { pr: ${n}, piece: "<id>" }`, `\`bridge pieces open ${n} <id>\``)}. Fixes are values and components the library already has: use them in the product code instead.`
       : 'Nothing is missing from the library. Fix the values that equal a token, if any.',
   };
 }
@@ -85,7 +86,7 @@ function tokenWriter(ctx: BridgeContext, gh: GitHubClient, source: PiecesSource,
     const [before, pairs] = await Promise.all([ctx.tokens(), core.readContrastPairs(ctx.source, config).catch(() => [])]);
     const p = planTokenProposal({ before, pairs, edits: plan.edits, title: plan.title, summary: plan.summary, config, tool: source === 'mcp' ? 'Bridge MCP' : 'the bridge CLI' });
     if (!p) throw new Error('The token already exists with that value: nothing to add.');
-    if (p.blocked) throw new Error(`The library ${how.mode === 'suggest' ? 'suggestion was not sent' : 'branch was not opened'}: ${p.blocked}. Change the value (bridge_propose_token_change with dryRun shows why).`);
+    if (p.blocked) throw new Error(`The library ${how.mode === 'suggest' ? 'suggestion was not sent' : 'branch was not opened'}: ${p.blocked}. Change the value (${say(ctx, 'bridge_propose_token_change with dryRun shows why', '`bridge propose ... --dry-run` shows why')}).`);
     if (how.mode === 'suggest') {
       const base = await suggestionBase(ctx, gh, config);
       const s = await suggestTokenProposalOnGitHub(gh, p, { base: base.ref, baseSha: base.sha, source, ...(viewer ? { suggestedBy: viewer } : {}), labels: config.governance.labels, labelsAfter: [NEEDED_BY_LABEL], neededBy: plan.neededBy });
@@ -130,16 +131,16 @@ export async function openLibraryBranchOp(
   const what = plan.kind === 'token-change' ? (mode === 'suggest' ? 'token suggestion' : 'token change') : plan.kind === 'exploration' ? 'library exploration' : 'component request';
   const next =
     r.status === 'dry-run'
-      ? `Run it without dryRun to open the ${what}.`
+      ? `Run it without ${say(ctx, 'dryRun', '--dry-run')} to open the ${what}.`
       : r.status === 'suggested' && r.link
-        ? appliedNext(r.link.number)
+        ? appliedNext(r.link.number, ctx)
       : plan.kind === 'exploration'
-        ? `Build it on ${r.link?.branch}: ${plan.brief} Then bridge_use_library_preview { pr: ${n}, piece: "${a.piece}" } so the product branch shows it.`
+        ? `Build it on ${r.link?.branch}: ${plan.brief} Then ${say(ctx, `bridge_use_library_preview { pr: ${n}, piece: "${a.piece}" }`, `\`bridge pieces preview ${n} ${a.piece}\``)} so the product branch shows it.`
         : plan.kind === 'request'
-          ? 'A person or Claude builds the component from the request (bridge_get_request). The product branch keeps its own version until it ships.'
+          ? `A person or Claude builds the component from the request (${say(ctx, 'bridge_get_request', `\`bridge request implement ${r.link?.number ?? '<n>'}\``)}). The product branch keeps its own version until it ships.`
           : r.preview?.status === 'conflict'
             ? r.preview.said
-            : 'Design and tech owners review the token change. Once it ships, bridge_switch_to_published moves the product branch to the real version.';
+            : `Design and tech owners review the token change. Once it ships, ${say(ctx, 'bridge_switch_to_published', `\`bridge pieces switch ${n}\``)} moves the product branch to the real version.`;
   return {
     status: r.status,
     pr: n,
@@ -176,10 +177,10 @@ export async function productBranchOp(ctx: BridgeContext, a: { pr: number | stri
       library: { kind: l.link.kind, number: l.link.number, url: l.link.url },
       status: l.status.line,
       preview: l.preview.sentence,
-      ...(l.preview.action ? { action: l.preview.action.label, tool: l.preview.action.kind === 'switch' ? `bridge_switch_to_published { pr: ${n} }` : `bridge_use_library_preview { pr: ${n}, piece: "${l.link.piece}" }` } : {}),
+      ...(l.preview.action ? { action: l.preview.action.label, tool: l.preview.action.kind === 'switch' ? say(ctx, `bridge_switch_to_published { pr: ${n} }`, `bridge pieces switch ${n}`) : say(ctx, `bridge_use_library_preview { pr: ${n}, piece: "${l.link.piece}" }`, `bridge pieces preview ${n} ${l.link.piece}`) } : {}),
     })),
     notLinked: v.open.map(short),
-    ...(v.record ? {} : { next: `Find its missing pieces: bridge_missing_pieces { pr: ${n}, record: true }.` }),
+    ...(v.record ? {} : { next: `Find its missing pieces: ${say(ctx, `bridge_missing_pieces { pr: ${n}, record: true }`, `\`bridge pieces ${n} --record\``)}.` }),
   };
 }
 
@@ -190,9 +191,9 @@ export async function useLibraryPreviewOp(ctx: BridgeContext, a: { pr: number | 
   const { config } = await ctx.config();
   const v = await productBranchViewOnGitHub(gh, n, { products: productsOf(config) });
   const l = v.linked.find((x) => x.link.piece === a.piece);
-  if (!l) throw new Error(`No library branch for "${a.piece}" on #${n}. Open one first: bridge_open_library_branch.`);
+  if (!l) throw new Error(`No library branch for "${a.piece}" on #${n}. Open one first: ${say(ctx, 'bridge_open_library_branch', `\`bridge pieces open ${n} ${a.piece}\``)}.`);
   if (l.link.kind === 'request' || !l.link.branch) throw new Error(`"${l.link.title}" is a request: there is nothing to preview until it is built.`);
-  if (l.status.key === 'shipped') throw new Error('The library already shipped it: use bridge_switch_to_published instead.');
+  if (l.status.key === 'shipped') throw new Error(`The library already shipped it: use ${say(ctx, 'bridge_switch_to_published', `\`bridge pieces switch ${n}\``)} instead.`);
   if (l.status.key === 'closed') throw new Error('The library branch is closed: there is nothing to preview.');
   const r = await useLibraryPreviewOnGitHub(gh, { productBranch: v.pull.headRef, libraryBranch: l.link.branch, libraryNumber: l.link.number });
   return { pr: n, piece: a.piece, library: l.link.number, ...r };

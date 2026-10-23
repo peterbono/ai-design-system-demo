@@ -27,7 +27,7 @@ describe('real repo tokens', () => {
     expect(c.configOrigin).toBe('bridge.config.json');
     expect(Object.keys(c.tokensPerTier)).toEqual(['primitive', 'brand', 'base', 'semantic', 'density', 'component']);
     expect(c.modeCombinations).toBe(8);
-    expect(c.write).toMatch(/local branches only/);
+    expect(c.write).toMatch(/local bridge\/\* branches, never pushed/);
     expect(c.repo).toBe('peterbono/ai-design-system-demo');
   });
 

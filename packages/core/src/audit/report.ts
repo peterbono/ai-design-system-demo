@@ -3,7 +3,7 @@
 import { scanCode } from './code';
 import { lineCol, scanCssText } from './css';
 import type { DesignSystemIndex } from './ds-index';
-import { applyAllowlist, applyIgnoreComments } from './ignore';
+import { applyAllowlist, applyIgnoreComments, ignoreDirectives } from './ignore';
 import { MARKUP_EXTENSIONS, scanMarkup } from './markup';
 import type { ValueHit } from './scan-value';
 import { auditCssText, isSafeFix } from './style';
@@ -320,11 +320,27 @@ export interface CssFixEdit {
   token: string;
 }
 
-/** Safe autofix for a CSS/SCSS/Less file: exact token matches become var(--token). Returns the edits and the new text. */
-export function planCssFixes(text: string, lang: 'css' | 'scss' | 'less', ds: DesignSystemIndex): { edits: CssFixEdit[]; output: string } {
+/** A value the fix leaves as it is, like the audit leaves it out of the counts: an ignore comment or the allowlist. */
+export interface CssFixKept {
+  line: number;
+  column: number;
+  from: string;
+  reason: string;
+  via: 'comment' | 'allowlist';
+}
+
+/**
+ * Safe autofix for a CSS/SCSS/Less file: exact token matches become var(--token). Returns the edits and the new text.
+ * The same exceptions as the audit: a `bridge-audit-ignore-next-line: reason` comment on the line above, and the
+ * allowlist entries of this file, keep the value (listed in `kept`).
+ */
+export function planCssFixes(text: string, lang: 'css' | 'scss' | 'less', ds: DesignSystemIndex, opts: { allowlist?: AllowlistEntry[] | undefined } = {}): { edits: CssFixEdit[]; output: string; kept: CssFixKept[] } {
   const at = lineCol(text);
   const scan = scanCssText(text, lang);
   const edits: (CssFixEdit & { start: number; end: number })[] = [];
+  const kept: CssFixKept[] = [];
+  const byComment = new Map(ignoreDirectives(text).filter((d) => d.reason).map((d) => [d.target, d.reason] as const));
+  const allow = opts.allowlist ?? [];
   for (const d of scan.decls) {
     const property = d.property.toLowerCase();
     // A shadow is one value; other categories replace the literal inside the value.
@@ -332,10 +348,17 @@ export function planCssFixes(text: string, lang: 'css' | 'scss' | 'less', ds: De
       const s = ds.suggest(h.category, h.text, property);
       if (!isSafeFix(h, s)) continue;
       const start = d.valueStart + h.index;
-      edits.push({ ...at(start), start, end: start + h.text.length, from: h.text, to: `var(${s!.cssVar})`, token: s!.token });
+      const pos = at(start);
+      const comment = byComment.get(pos.line);
+      const listed = allow.find((e) => e.line === pos.line && (e.what === undefined || e.what === h.text));
+      if (comment !== undefined || listed) {
+        kept.push({ ...pos, from: h.text, reason: comment ?? listed!.reason, via: comment !== undefined ? 'comment' : 'allowlist' });
+        continue;
+      }
+      edits.push({ ...pos, start, end: start + h.text.length, from: h.text, to: `var(${s!.cssVar})`, token: s!.token });
     }
   }
   let output = text;
   for (const e of [...edits].sort((a, b) => b.start - a.start)) output = output.slice(0, e.start) + e.to + output.slice(e.end);
-  return { edits: edits.map(({ start: _s, end: _e, ...e }) => e), output };
+  return { edits: edits.map(({ start: _s, end: _e, ...e }) => e), output, kept };
 }

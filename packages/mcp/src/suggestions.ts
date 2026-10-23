@@ -53,6 +53,7 @@ import {
 import { applySuggestionLocally, git, type LocalApplyMode } from '@bridge-ds/core/node';
 import { reader, viewerOf, writer } from './branches.js';
 import type { BridgeContext } from './context.js';
+import { addToken, say } from './say.js';
 
 /** Rights a suggestion needs: an issue, never code. */
 export const SUGGEST_RIGHTS = 'Issues: read and write (Contents: read is enough)';
@@ -68,14 +69,18 @@ export async function changesFor(ctx: BridgeContext, explicit?: ChangesMode | un
 }
 
 /** What to do next once a suggestion is filed. The wording matches the issue's "How to apply". */
-export const appliedNext = (n: number) =>
-  `The owners review it on the issue (bridge_review_suggestion, or Bridge Studio). Once approved, a developer applies it: \`bridge apply ${n}\` in the repo, or in Claude Code with the Bridge MCP server, "Apply Bridge suggestion #${n}" (bridge_apply_suggestion).`;
+export const appliedNext = (n: number, ctx: { surface: 'mcp' | 'cli' } = { surface: 'mcp' }) =>
+  say(
+    ctx,
+    `The owners review it on the issue (bridge_review_suggestion, or Bridge Studio). Once approved, a developer applies it: \`bridge apply ${n}\` in the repo, or in Claude Code with the Bridge MCP server, "Apply Bridge suggestion #${n}" (bridge_apply_suggestion).`,
+    `The owners review it on the issue (\`bridge review ${n} --approve\`, or Bridge Studio). Once approved, a developer applies it: \`bridge apply ${n}\` in the repo.`,
+  );
 
 /** Why nothing was filed: no GitHub repo, or no token that can write issues. */
 export function noSuggestionAccess(ctx: BridgeContext, gh: GitHubClient | null): string {
-  const local = ctx.mode === 'local' && ctx.isGit ? ', or pass changes "direct" (the CLI: --direct) to commit it on a new local branch instead' : '';
+  const local = ctx.mode === 'local' && ctx.isGit ? `, or ${say(ctx, 'pass changes "direct"', 'add --direct')} to commit it on a new local branch instead` : '';
   if (!gh) return `Nothing sent: a suggestion is a GitHub issue and no GitHub repo is known. Set "repo" in ${CONFIG_FILE} or add an origin remote${local}.`;
-  return `Nothing sent: a suggestion is a GitHub issue, which needs a GitHub token with ${SUGGEST_RIGHTS} on ${gh.fullName}. Set GITHUB_TOKEN (or BRIDGE_GITHUB_TOKEN)${local}.`;
+  return `Nothing sent: a suggestion is a GitHub issue, which needs a GitHub token with ${SUGGEST_RIGHTS} on ${gh.fullName}: ${addToken(ctx)}${local}.`;
 }
 
 /**
@@ -161,7 +166,7 @@ export async function fileSuggestion(
   if (problems.length) throw new Error(`Not suggested: ${problems.join(' ')}`);
   const labels = [...new Set([...config.governance.labels, ...(opts.labels ?? [])])];
   const created = await createSuggestionOnGitHub(gh, payload, { labels, details: opts.details, assignees: config.integrations?.requests?.assignees ?? [] });
-  return { status: 'suggested', number: created.number, url: created.url, sha: created.sha, labels, warnings: created.warnings, next: appliedNext(created.number) };
+  return { status: 'suggested', number: created.number, url: created.url, sha: created.sha, labels, warnings: created.warnings, next: appliedNext(created.number, ctx) };
 }
 
 /** 42, "#42" or an issue link: the suggestion number. Throws how to fix it otherwise. */
@@ -253,9 +258,9 @@ export async function listSuggestionsOp(ctx: BridgeContext, a: { status?: Sugges
       linkedPrs: r.linkedPrs,
     })),
     next: approved.length
-      ? `Ready to apply: ${approved.map((r) => `#${r.number}`).join(', ')}. Apply one with bridge_apply_suggestion { number } (dry run first), or \`bridge apply <n>\`.`
+      ? `Ready to apply: ${approved.map((r) => `#${r.number}`).join(', ')}. Apply one with ${say(ctx, 'bridge_apply_suggestion { number } (dry run first), or `bridge apply <n>`', '`bridge apply <n> --dry-run` first, then `bridge apply <n>`')}.`
       : rows.length
-        ? 'Read one with bridge_get_suggestion { number }: its change, checks and who still has to approve it. Statuses come from labels here; bridge_get_suggestion counts the approvals.'
+        ? say(ctx, 'Read one with bridge_get_suggestion { number }: its change, checks and who still has to approve it. Statuses come from labels here; bridge_get_suggestion counts the approvals.', 'Read one with `bridge suggestions show <n>`: its change, checks and who still has to approve it. Statuses come from labels here; `bridge suggestions show` counts the approvals.')
         : 'No suggestion matches.',
   };
 }
@@ -315,9 +320,9 @@ export async function getSuggestionOp(ctx: BridgeContext, a: { number: number | 
     ...(p.componentSpec ? { brief: p.componentSpec.brief } : {}),
     next:
       d.status === 'approved'
-        ? `Approved. Apply it: bridge_apply_suggestion { number: ${n}, mode: "dry-run" } first, then mode "branch" (or \`bridge apply ${n}\`). The pull request must say "Closes #${n}".`
+        ? `Approved. Apply it: ${say(ctx, `bridge_apply_suggestion { number: ${n}, mode: "dry-run" } first, then mode "branch" (or \`bridge apply ${n}\`)`, `\`bridge apply ${n} --dry-run\` first, then \`bridge apply ${n}\``)}. The pull request must say "Closes #${n}".`
         : d.status === 'needs-review'
-          ? `Waiting for ${missing.map(roleText).join(' and ') || 'a review'} from the owners in ${CONFIG_FILE}: bridge_review_suggestion { number: ${n}, event: "approve" }.`
+          ? `Waiting for ${missing.map(roleText).join(' and ') || 'a review'} from the owners in ${CONFIG_FILE}: ${say(ctx, `bridge_review_suggestion { number: ${n}, event: "approve" }`, `\`bridge review ${n} --approve\``)}.`
           : d.status === 'changes-requested'
             ? 'Changes requested: the author sends a new version (approvals then start again).'
             : d.status === 'applying'
@@ -344,7 +349,7 @@ export async function reviewSuggestionOp(ctx: BridgeContext, a: { number: number
     if (!a.message?.trim()) throw new Error('Say why it is declined, in a sentence: the author reads it.');
     if (a.payloadSha) {
       const d = await getSuggestionOnGitHub(gh, n, gov);
-      if (d.parsed.ok && !d.parsed.sha.startsWith(a.payloadSha)) throw new Error(`#${n} changed since you read it. Read it again (bridge_get_suggestion) before declining.`);
+      if (d.parsed.ok && !d.parsed.sha.startsWith(a.payloadSha)) throw new Error(`#${n} changed since you read it. Read it again (${say(ctx, 'bridge_get_suggestion', `\`bridge suggestions show ${n}\``)}) before declining.`);
     }
     const r = await declineSuggestionOnGitHub(gh, n, a.message.trim(), viewer);
     return { number: n, status: 'declined' as SuggestionStatus, said: SUGGESTION_STATUS_LABEL.declined, ...(r.warnings.length ? { warnings: r.warnings } : {}), next: 'Closed as not planned, with your reason. Reopen it on GitHub to look at it again.' };
@@ -359,7 +364,7 @@ export async function reviewSuggestionOp(ctx: BridgeContext, a: { number: number
   const payloadSha = a.payloadSha && /^[0-9a-f]{64}$/.test(a.payloadSha) ? a.payloadSha : undefined;
   if (a.payloadSha && !payloadSha) {
     const d = await getSuggestionOnGitHub(gh, n, gov);
-    if (d.parsed.ok && !d.parsed.sha.startsWith(a.payloadSha)) throw new Error(`#${n} changed since you read it. Read it again (bridge_get_suggestion) and review the new version.`);
+    if (d.parsed.ok && !d.parsed.sha.startsWith(a.payloadSha)) throw new Error(`#${n} changed since you read it. Read it again (${say(ctx, 'bridge_get_suggestion', `\`bridge suggestions show ${n}\``)}) and review the new version.`);
   }
   const r = await reviewSuggestionOnGitHub(gh, n, { event: a.event, role: a.role, message: a.message, payloadSha, ...(viewer ? { by: viewer } : {}) }, gov);
   return {
@@ -371,7 +376,7 @@ export async function reviewSuggestionOp(ctx: BridgeContext, a: { number: number
     said: SUGGESTION_STATUS_LABEL[r.status],
     comment: r.commentUrl,
     ...(r.warnings.length ? { warnings: r.warnings } : {}),
-    next: r.status === 'approved' ? `Approved: a developer applies it with \`bridge apply ${n}\` or bridge_apply_suggestion.` : r.status === 'changes-requested' ? 'The author sends a new version; approvals start again on it.' : 'Waiting for the other approvals.',
+    next: r.status === 'approved' ? `Approved: a developer applies it with \`bridge apply ${n}\`${say(ctx, ' or bridge_apply_suggestion', '')}.` : r.status === 'changes-requested' ? 'The author sends a new version; approvals start again on it.' : 'Waiting for the other approvals.',
   };
 }
 
@@ -456,7 +461,7 @@ export async function applySuggestionOp(
       ...(plan.outcome === 'ready' ? { files: plan.writes } : {}),
       next:
         plan.outcome === 'ready'
-          ? `Bridge reads ${gh.fullName} over the API and writes nothing here. Write these files on a new branch, commit, push, and open a pull request whose body says "Closes #${n}", then bridge_link_suggestion { number: ${n}, pr }.`
+          ? `Bridge reads ${gh.fullName} over the API and writes nothing here. Write these files on a new branch, commit, push, and open a pull request whose body says "Closes #${n}", then ${say(ctx, `bridge_link_suggestion { number: ${n}, pr }`, `\`bridge suggestions link ${n} --pr <number>\``)}.`
           : plan.message,
     };
   }
@@ -489,11 +494,11 @@ export async function applySuggestionOp(
   }
   const next =
     r.status === 'dry-run'
-      ? `Nothing written. Apply it: bridge_apply_suggestion { number: ${n}, mode: "branch" } (or "write" for the working tree, "patch" for a patch).`
+      ? `Nothing written. Apply it: ${say(ctx, `bridge_apply_suggestion { number: ${n}, mode: "branch" } (or "write" for the working tree, "patch" for a patch)`, `\`bridge apply ${n}\` (or --write for the working tree, --patch for a patch)`)}.`
       : r.status === 'branch-created' || r.status === 'branch-exists'
-        ? `Push ${r.branch} (git push -u origin ${r.branch}) and open a pull request whose body says "Closes #${n}", then bridge_link_suggestion { number: ${n}, pr }.`
+        ? `Push ${r.branch} (git push -u origin ${r.branch}) and open a pull request whose body says "Closes #${n}", then ${say(ctx, `bridge_link_suggestion { number: ${n}, pr }`, `\`bridge suggestions link ${n} --pr <number>\``)}.`
         : r.status === 'written'
-          ? `Review the files, commit them on a branch, push, and open a pull request whose body says "Closes #${n}", then bridge_link_suggestion { number: ${n}, pr }.`
+          ? `Review the files, commit them on a branch, push, and open a pull request whose body says "Closes #${n}", then ${say(ctx, `bridge_link_suggestion { number: ${n}, pr }`, `\`bridge suggestions link ${n} --pr <number>\``)}.`
           : r.status === 'patch'
             ? `Apply the patch with \`git am\` on a branch, then open a pull request whose body says "Closes #${n}".`
             : r.message;

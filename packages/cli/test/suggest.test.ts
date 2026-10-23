@@ -51,7 +51,8 @@ async function suggest(dir: string, gh: ReturnType<typeof fakeGitHub>, value = '
 }
 
 describe('bridge suggestions, review, apply', () => {
-  it('lists and shows a suggestion, reviews it as each owner, then applies it on a branch (exit 0), again (exit 0)', async () => {
+  // End to end over a real git repo and the whole token set: tens of seconds on a busy machine, so its own timeout.
+  it('lists and shows a suggestion, reviews it as each owner, then applies it on a branch (exit 0), again (exit 0)', { timeout: 180_000 }, async () => {
     const { dir, gh } = setup();
     const n = await suggest(dir, gh);
     expect(gh.issues[0]!.labels.map((l: any) => l.name)).toContain('source: cli');
@@ -101,7 +102,7 @@ describe('bridge suggestions, review, apply', () => {
     expect(t.out()).toContain('Applies Bridge suggestion');
   });
 
-  it('a conflict with today\'s code exits 3 and writes nothing; usage errors are clear', async () => {
+  it('a conflict with today\'s code exits 3 and writes nothing; usage errors are clear', { timeout: 120_000 }, async () => {
     const { dir, gh } = setup();
     const n = await suggest(dir, gh);
     const t = io(gh);

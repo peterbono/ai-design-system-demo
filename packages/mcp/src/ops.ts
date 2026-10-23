@@ -14,6 +14,7 @@ import { explorationContext, explorationRules, writeToExploration } from './expl
 import { addableBranch, branchNumber, productMarks, resolveProduct, viewerOf } from './branches.js';
 import { appliedNext, changesFor, noSuggestionAccess, suggestionBase } from './suggestions.js';
 import { BridgeContext } from './context.js';
+import { addToken, readOnlyPreview, say, sourceOf, toolName, toolTag } from './say.js';
 
 const prefixPath = (set: TokenSet, f: string) => set.repoPath(f);
 
@@ -37,11 +38,11 @@ export async function getConfig(ctx: BridgeContext) {
   return {
     source: ctx.describe(),
     configOrigin: origin === 'file' ? 'bridge.config.json' : 'detected (no bridge.config.json; run `bridge init` to pin it)',
-    write: ctx.mode === 'local' ? (ctx.isGit ? 'local branches only (never pushes)' : 'none (not a git repo)') : ctx.canWriteRemote ? 'pull requests on new bridge/* branches' : 'read-only (set GITHUB_TOKEN to open PRs)',
+    write: ctx.access(),
     changes:
       changesMode(config) === 'suggest'
-        ? `suggest: token, docs, brand, revert and Figma changes are filed as suggestions (GitHub issues a developer applies with bridge apply or bridge_apply_suggestion)${ctx.canWriteRemote ? '' : '; filing one needs GITHUB_TOKEN with Issues write'}. Pass changes "direct" to a tool to open a branch instead.`
-        : 'direct: changes open branches and pull requests. Pass changes "suggest" to a tool to file a suggestion instead.',
+        ? `suggest: token, docs, brand, revert and Figma changes are filed as suggestions (GitHub issues a developer applies with ${say(ctx, 'bridge apply or bridge_apply_suggestion', 'bridge apply')})${ctx.canWriteRemote ? '' : `; filing one needs a token with Issues write: ${addToken(ctx)}`}. ${say(ctx, 'Pass changes "direct" to a tool', 'Add --direct to a command')} to open a branch instead.`
+        : `direct: changes open branches and pull requests. ${say(ctx, 'Pass changes "suggest" to a tool', 'Add --suggest to a command')} to file a suggestion instead.`,
     repo: gh ? gh.fullName : null,
     tokenFiles: set.fileNames.length,
     tokens: set.allPaths().length,
@@ -85,7 +86,7 @@ export async function getToken(ctx: BridgeContext, a: { path: string }) {
   const defs = set.defsOf(path);
   if (!defs.length) {
     const near = set.allPaths().filter((p) => p.includes(path.split('.').pop() ?? path)).slice(0, 10);
-    throw new Error(`No token "${a.path}".${near.length ? ` Close: ${near.join(', ')}.` : ''} Use bridge_search_tokens.`);
+    throw new Error(`No token "${a.path}".${near.length ? ` Close: ${near.join(', ')}.` : ''} ${say(ctx, 'Use bridge_search_tokens.', '`bridge tokens <query>` searches them.')}`);
   }
   // Values per mode combination, collapsed where they agree.
   const groups = new Map<string, { value: string; chain: string[]; modes: string[] }>();
@@ -162,7 +163,15 @@ export async function searchTokens(ctx: BridgeContext, a: { query: string; type?
     return [{ path, score: Math.round(score), type: r.type, tier: set.tierOf(path), value: r.css, ...(desc ? { description: set.defsOf(path).find((d) => d.description)!.description } : {}) }];
   });
   scored.sort((x, y) => y.score - x.score || x.path.localeCompare(y.path));
-  return { query: a.query, mode: combo, total: scored.length, results: scored.slice(0, a.limit ?? 20) };
+  const limit = a.limit ?? 20;
+  const shown = Math.min(limit, scored.length);
+  return {
+    query: a.query,
+    mode: combo,
+    total: scored.length,
+    results: scored.slice(0, limit),
+    ...(scored.length > limit ? { truncated: `Showing the best ${shown} of ${scored.length} matches. ${say(ctx, 'Pass a higher limit, or a narrower query, for the rest.', '--limit <n> shows more, or narrow the query.')}` } : {}),
+  };
 }
 
 // --- checks ---------------------------------------------------------------------------------------------
@@ -232,7 +241,7 @@ export async function getComponentOp(ctx: BridgeContext, a: { name: string; incl
   const { config } = await ctx.config();
   if (!config.components) throw new Error('No components.dir in bridge.config.json.');
   const set = await ctx.tokens();
-  const c = await getComponent(ctx.source, config, set, a.name);
+  const c = await getComponent(ctx.source, config, set, a.name, ctx);
   if (a.include?.length && c.docs) {
     const keep = new Set(a.include);
     c.docs = Object.fromEntries(Object.entries(c.docs).filter(([k]) => keep.has(k)));
@@ -322,6 +331,7 @@ export function pagedDraftDocs<D extends { component: string; prompt: string; pr
     promptPage: {
       page,
       pages: pages.length,
+      // MCP only: the CLI prints the whole draft.
       ...(page < pages.length ? { next: `The prompt continues: call bridge_draft_docs again with page ${page + 1} (of ${pages.length}) and read every page before writing.` } : {}),
     },
   };
@@ -334,7 +344,7 @@ export async function draftDocsOp(ctx: BridgeContext, a: { name: string; branch?
   const { config } = await ctx.config();
   if (!config.components) throw new Error('No components.dir in bridge.config.json.');
   const set = await ctx.tokens();
-  const c = await getComponent(ctx.source, config, set, a.name);
+  const c = await getComponent(ctx.source, config, set, a.name, ctx);
   const dir = `${config.components.dir}/${c.name}`;
   const pick = (re: RegExp) => c.files.find((f) => re.test(f.split('/').pop()!));
   const tsxPath = pick(new RegExp(`^${c.name}\\.(tsx|ts|vue|svelte)$`));
@@ -483,7 +493,8 @@ export async function proposeTokenChange(
   const pairs = await core.readContrastPairs(ctx.source, config).catch(() => []);
   const marks = productMarks(productsOf(config), product);
   // The same plan Studio and the CLI write: token diff, validation, contrast gate, tier, body and changeset.
-  const plan = planTokenProposal({ before, pairs, edits: a.edits, title: a.title, summary: a.summary, config, tool: 'Bridge MCP', bodyExtra: [marks.line] });
+  const src = sourceOf(ctx, a.source);
+  const plan = planTokenProposal({ before, pairs, edits: a.edits, title: a.title, summary: a.summary, config, tool: toolName(src), bodyExtra: [marks.line] });
   if (!plan) return { status: 'no-change', message: 'The edits leave every token as it was.' };
   const { after, changes, tier, contrast: delta, newFailures, newErrors, impact: imp, notes, files, body, slug: slugTitle } = plan;
   const summary = plan.summary;
@@ -519,13 +530,13 @@ export async function proposeTokenChange(
       labelsAfter: marks.labels,
       assignees: config.integrations?.requests?.assignees ?? [],
     });
-    return { status: 'suggested', ...shown, number: s.number, url: s.url, version: s.sha.slice(0, 7), labels: s.labels, ...(s.warnings.length ? { warnings: s.warnings } : {}), product: product.name, next: appliedNext(s.number) };
+    return { status: 'suggested', ...shown, number: s.number, url: s.url, version: s.sha.slice(0, 7), labels: s.labels, ...(s.warnings.length ? { warnings: s.warnings } : {}), product: product.name, next: appliedNext(s.number, ctx) };
   }
   let branch = target ? target.branch : branchWithJiraKey(`${config.governance.branchPrefix}${slugTitle}`, jira);
   const preview = { ...report, branch, files: files.map((f) => f.path), prBody: body };
   if (a.dryRun) return { status: 'dry-run', ...preview, fileContents: files };
   if (target) {
-    const message = `${tier.bump === 'major' ? 'feat(tokens)!' : 'feat(tokens)'}: ${a.title}\n\n${summary}\n\nExploration ${target.branch}: not merged as is. Proposed through Bridge MCP (source: mcp).`;
+    const message = `${tier.bump === 'major' ? 'feat(tokens)!' : 'feat(tokens)'}: ${a.title}\n\n${summary}\n\nExploration ${target.branch}: not merged as is. Proposed through ${toolTag(src)}.`;
     return { ...preview, exploration: true, ...(await writeToExploration(ctx, target.branch, { message, files })) };
   }
 
@@ -534,7 +545,7 @@ export async function proposeTokenChange(
     const protectedBranches = [...new Set([...protectedBranchesOf(config), baseBranchOf(config)])];
     for (let i = 2; await branchExists(ctx.root!, branch); i++) branch = branchWithJiraKey(`${config.governance.branchPrefix}${slugTitle}-${i}`, jira);
     const base = await currentBranch(ctx.root!);
-    const message = `${tier.bump === 'major' ? 'feat(tokens)!' : 'feat(tokens)'}: ${a.title}\n\n${summary}\n\nTier ${tier.tier}. Proposed through Bridge MCP (source: mcp).`;
+    const message = `${tier.bump === 'major' ? 'feat(tokens)!' : 'feat(tokens)'}: ${a.title}\n\n${summary}\n\nTier ${tier.tier}. Proposed through ${toolTag(src)}.`;
     const res = await commitToNewLocalBranch(ctx.root!, { base: 'HEAD', branch, message, files, protectedBranches, branchPrefix: config.governance.branchPrefix });
     return {
       status: 'branch-created',
@@ -543,13 +554,13 @@ export async function proposeTokenChange(
       base,
       commit: res.sha,
       diff: res.diff.length > 12000 ? `${res.diff.slice(0, 12000)}\n... (truncated)` : res.diff,
-      next: `Your working tree is untouched. Review with \`git diff ${base}...${branch}\` or bridge_get_review { branch: "${branch}" }; push and open a PR yourself when the design owner agrees.`,
+      next: `Your working tree is untouched. Review with \`git diff ${base}...${branch}\`${say(ctx, ` or bridge_get_review { branch: "${branch}" }`, '')}; push and open a PR yourself when the design owner agrees.`,
     };
   }
   const gh = (await ctx.github())!;
-  if (!ctx.canWriteRemote) return { status: 'preview', message: 'Read-only: set GITHUB_TOKEN to open this as a pull request.', ...preview, fileContents: files };
+  if (!ctx.canWriteRemote) return { status: 'preview', message: readOnlyPreview(ctx), ...preview, fileContents: files };
   const base = ctx.ref ?? baseBranchOf(config);
-  const opened = await writeTokenProposalOnGitHub(gh, plan, { base, branchPrefix: config.governance.branchPrefix, jira, labels: config.governance.labels, labelsAfter: marks.labels, tool: 'Bridge MCP (source: mcp)' });
+  const opened = await writeTokenProposalOnGitHub(gh, plan, { base, branchPrefix: config.governance.branchPrefix, jira, labels: config.governance.labels, labelsAfter: marks.labels, tool: toolTag(src) });
   branch = opened.branch;
   const commit = { sha: opened.commit };
   const pr = { number: opened.pr, url: opened.url };
@@ -587,7 +598,7 @@ async function addToBranch(ctx: BridgeContext, a: { edits: TokenEdit[]; title: s
     ...(config.changesets ? [{ path: `${config.changesets.dir ?? '.changeset'}/bridge-${core.slugify(a.title)}-${n}-${Date.now().toString(36)}.md`, content: core.changeset(config.changesets.package, tier.bump, summary) }] : []),
   ];
   if (a.dryRun) return { status: 'dry-run', ...report, files: files.map((f) => f.path) };
-  const message = `tokens: ${a.title}\n\n${paths.map((p) => `- ${p}`).join('\n')}\n\nAdded with Claude through the Bridge MCP server.`;
+  const message = `tokens: ${a.title}\n\n${paths.map((p) => `- ${p}`).join('\n')}\n\nAdded ${ctx.surface === 'cli' ? 'with the bridge CLI' : 'with Claude through the Bridge MCP server'}.`;
   const res = await target.gh.commitToBranch({ branch: target.pr.headRef, message, files });
   await target.gh.createIssueComment(n, target.comment(paths)).catch(() => undefined);
   return { status: 'added', ...report, commit: res.sha, url: target.pr.url, said: `Added ${paths.length} edit${paths.length === 1 ? '' : 's'} to #${n}. Reviewers see ${paths.length === 1 ? 'it' : 'them'} now; GitHub may ask for approvals again.` };
@@ -726,13 +737,13 @@ export async function reviewRoles(gh: GitHubClient, config: BridgeConfig, approv
 export async function reviewPr(ctx: BridgeContext, a: { pr: number; event: 'comment' | 'approve' | 'request_changes'; body: string }) {
   const gh = await ctx.github();
   if (!gh) throw new Error('No GitHub repo known: set "repo" in bridge.config.json.');
-  if (!ctx.canWriteRemote) throw new Error('Reviewing needs GITHUB_TOKEN. Without it Bridge is read-only.');
+  if (!ctx.canWriteRemote) throw new Error(`Reviewing needs a GitHub token: ${addToken(ctx)}. Without it Bridge is read-only.`);
   if (!a.body.trim()) throw new Error('A review needs a body that says what to fix or why it is fine.');
   const event = ({ comment: 'COMMENT', approve: 'APPROVE', request_changes: 'REQUEST_CHANGES' } as const)[a.event];
   // The same write as Studio's review box (core reviewOnGitHub), on the head the reviewer saw.
   const head = (await gh.getPullRequest(a.pr)).headSha;
   const r = await reviewOnGitHub(gh, { number: a.pr, event, body: `${a.body.trim()}\n\n_Review drafted with Bridge MCP by an AI agent on behalf of the token owner._`, headSha: head });
-  return { pr: a.pr, event, id: r.id, state: r.state, note: event === 'APPROVE' ? 'Approval recorded under your GitHub account. Merging is a separate step (bridge_merge_branch), only when the person asks.' : undefined };
+  return { pr: a.pr, event, id: r.id, state: r.state, note: event === 'APPROVE' ? `Approval recorded under your GitHub account. Merging is a separate step (${say(ctx, 'bridge_merge_branch', `\`bridge branch merge ${a.pr}\``)}), only when the person asks.` : undefined };
 }
 
 // --- scaffold -------------------------------------------------------------------------------------------
@@ -852,6 +863,7 @@ export async function designSystemIndex(ctx: BridgeContext): Promise<DesignSyste
 
 /** Audit a product folder or file (local only): adoption metrics, top files, top fixes, and findings for one file. */
 export async function auditOp(ctx: BridgeContext, a: { path: string; baseline?: string; label?: string; limit?: number; findings?: boolean; allowlist?: string }) {
+  // MCP only: the CLI runs `bridge audit` with @bridge-ds/core directly.
   if (ctx.mode !== 'local' || !ctx.root) throw new Error('bridge_audit reads product code from disk: start the server on a local design system repo (--root).');
   const { config } = await ctx.config();
   const target = isAbsolute(a.path) ? a.path : resolve(ctx.root, a.path);
@@ -892,6 +904,7 @@ export async function auditOp(ctx: BridgeContext, a: { path: string; baseline?: 
             })),
         }
       : {}),
+    // MCP only (bridge_audit), like the error above.
     next: single
       ? 'Rewrite the file with the DS components and tokens listed (bridge_get_component for props). Keep behavior; when no token fits, say which one is missing.'
       : 'Start with the top files; the migrate-file-to-ds prompt rewrites one file. `bridge audit <path> --fix` replaces exact CSS matches; `--json` writes the full report.',

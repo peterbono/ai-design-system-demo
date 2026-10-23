@@ -257,7 +257,8 @@ What stays in Studio, and why:
   what, so they go through a reviewed branch of `bridge.config.json` or GitHub's own settings, which need admin
   rights. Claude and the CLI read them (`bridge_get_settings`, `bridge check`) and can propose the
   `bridge.config.json` change like any other file.
-- **Signing in with GitHub.** In a terminal the token comes from `GITHUB_TOKEN` or `gh auth token`.
+- **Signing in with GitHub.** In a terminal the token comes from `GITHUB_TOKEN` (or `--token`). Writes never use
+  your `gh` sign-in on their own: add `--use-gh-auth` for that. Reads may use it, and say so in one line.
 - **Seeing the work.** The visual editors (color pickers, the Library edit mode with its live preview), the
   before and after images CI built for a branch, the quality trend charts of past audits and the fidelity scores
   (computed in the DS Bridge Figma plugin, they live in Figma). Claude edits by value, reads the same facts as

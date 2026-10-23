@@ -3,9 +3,10 @@
 // same @bridge-ds/core functions as Studio. Reads work without a token on a public repo; writes need one.
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { BridgeContext, branches, studio } from '@bridge-ds/mcp';
+import { branches, isBlocked, studio } from '@bridge-ds/mcp';
 import { defaultIO, RequestUsageError, type RequestArgs, type RequestIO } from './request.js';
 import { changesFlag } from './suggest.js';
+import { cliContext, TOKEN_HELP, type Access } from './auth.js';
 
 export const BRANCH_HELP = `bridge branch: branches in review, the same actions as Bridge Studio
 
@@ -35,15 +36,15 @@ Usage:
                                                 save usage guidance as in the Library edit mode
 
 Start work for a product: bridge propose|explore start|request create ... --product <key> [--jira DS-42].
-GitHub token: GITHUB_TOKEN or BRIDGE_GITHUB_TOKEN, else \`gh auth token\`. Exit codes: 0 ok, 2 usage or setup error.`;
+${TOKEN_HELP}
+Exit codes: 0 ok, 1 blocked (merge: the gate said no), 2 usage or setup error.`;
 
 const flag = (a: RequestArgs, k: string) => a.flags[k]?.[a.flags[k]!.length - 1];
 const has = (a: RequestArgs, k: string) => Boolean(a.flags[k]);
 
-async function context(root: string, io: RequestIO): Promise<BridgeContext> {
-  const token = io.env.BRIDGE_GITHUB_TOKEN || io.env.GITHUB_TOKEN || io.ghToken();
-  return BridgeContext.create({ root, ...(token ? { token } : {}), ...(io.fetch ? { fetch: io.fetch } : {}) });
-}
+/** What each branch command does on GitHub: the reads may borrow the gh sign-in, the writes never do. */
+const BRANCH_WRITES = new Set(['ready', 'draft', 'review', 'ask', 'comment', 'merge', 'close', 'reopen', 'update']);
+const context = (root: string, io: RequestIO, a: RequestArgs, access: Access) => cliContext(root, io, a, access);
 
 function number(a: RequestArgs, at: number, usage: string): number {
   const raw = a._[at];
@@ -71,7 +72,7 @@ export async function runBranch(a: RequestArgs, root: string, io: RequestIO = de
     return sub || has(a, 'help') ? 0 : 2;
   }
   const json = has(a, 'json');
-  const ctx = await context(root, io);
+  const ctx = await context(root, io, a, BRANCH_WRITES.has(sub) && !has(a, 'dry-run') ? 'write' : 'read');
   const out = (r: unknown, text: () => void) => (json ? io.print(JSON.stringify(r, null, 2)) : text(), 0);
   switch (sub) {
     case 'list': {
@@ -132,8 +133,18 @@ export async function runBranch(a: RequestArgs, root: string, io: RequestIO = de
     case 'merge': {
       const n = number(a, 2, 'bridge branch merge <n> [--override "reason"] [--dry-run]');
       const reason = flag(a, 'override');
-      const r = await branches.mergeBranch(ctx, { pr: n, ...(reason ? { overrideReason: reason } : {}), dryRun: has(a, 'dry-run') });
-      return out(r, () => io.print(r.said));
+      let r: Awaited<ReturnType<typeof branches.mergeBranch>>;
+      try {
+        r = await branches.mergeBranch(ctx, { pr: n, ...(reason ? { overrideReason: reason } : {}), dryRun: has(a, 'dry-run') });
+      } catch (e) {
+        // A rule said no (the merge gate, the owner override): exit 1, not a usage error.
+        if (!isBlocked(e)) throw e;
+        if (json) io.print(JSON.stringify({ pr: n, status: 'blocked', said: e.message }, null, 2));
+        else io.error(`bridge: ${e.message}`);
+        return 1;
+      }
+      out(r, () => io.print(r.said));
+      return r.status === 'blocked' ? 1 : 0;
     }
     case 'close': {
       const r = await branches.closeBranch(ctx, { pr: number(a, 2, 'bridge branch close <n>') });
@@ -178,7 +189,7 @@ export async function runBranch(a: RequestArgs, root: string, io: RequestIO = de
 
 /** bridge products | settings | coverage [Component] | docs save. */
 export async function runStudioRead(cmd: 'products' | 'settings' | 'coverage', a: RequestArgs, root: string, io: RequestIO = defaultIO()): Promise<number> {
-  const ctx = await context(root, io);
+  const ctx = await context(root, io, a, 'read');
   const json = has(a, 'json');
   if (cmd === 'products') {
     const r = await branches.listProducts(ctx);
@@ -217,7 +228,7 @@ export async function runDocsSave(a: RequestArgs, root: string, io: RequestIO = 
   } catch (e) {
     throw new RequestUsageError(`${file} is not a readable JSON file: ${(e as Error).message}`);
   }
-  const ctx = await context(root, io);
+  const ctx = await context(root, io, a, has(a, 'dry-run') ? 'read' : 'write');
   const pr = flag(a, 'pr');
   const changes = changesFlag(a);
   const r = (await studio.saveDocs(ctx, {
