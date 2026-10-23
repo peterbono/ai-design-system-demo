@@ -1067,15 +1067,25 @@ function saveSettings(): void {
           }
           throw err;
         });
-        // Read-only on code is enough when the repo takes suggestions (issues only); direct mode needs to write.
-        let readOnly = false;
-        if (info.permissions && info.permissions.push === false) {
-          if ((await repoChangesMode(gh, draft.branch.trim())) === 'direct') {
-            throw new Error(`This token can read ${info.fullName} but cannot write to it. Give it "Contents", "Pull requests" and "Issues" set to "Read and write".`);
-          }
-          readOnly = true;
-        }
         if (!(await gh.getBranchSha(draft.branch.trim()))) throw new Error(`Branch "${draft.branch.trim()}" does not exist in ${info.fullName}.`);
+        // What the token may write, probed without writing (the user's role on the repo says nothing about a
+        // fine-grained token). Suggestions need Issues only; direct mode needs Contents and Pull requests too.
+        // Refused before saving: the token that works stays.
+        const mode = await repoChangesMode(gh, draft.branch.trim());
+        const probed = await gh.writeAccess(draft.branch.trim()).catch(() => undefined);
+        const push = info.permissions?.push !== false;
+        const can = probed ?? { contents: push, pullRequests: push, issues: true };
+        const missing = [
+          mode === 'direct' && !can.contents ? '"Contents"' : '',
+          mode === 'direct' && !can.pullRequests ? '"Pull requests"' : '',
+          !can.issues ? '"Issues"' : '',
+        ].filter(Boolean);
+        if (missing.length) {
+          const list = missing.length > 1 ? `${missing.slice(0, -1).join(', ')} and ${missing[missing.length - 1]}` : missing[0];
+          throw new Error(`This token can read ${info.fullName} but cannot ${mode === 'direct' ? 'send changes to it' : 'open suggestions on it'}. Give it ${list} set to "Read and write" on GitHub, then paste it again.`);
+        }
+        // Read-only on code is enough when the repo takes suggestions (issues only).
+        const readOnly = mode === 'suggest' && !can.contents;
         if (newToken) await request('save-token', { token: newToken });
         else setTokenState('ok');
         message = `Connected to ${info.fullName}.${newToken ? ' The token is saved on this computer only.' : ''}${readOnly ? ' This token sends suggestions only. Screenshots and drafting with your Claude plan need "Contents: Read and write".' : ''}`;
