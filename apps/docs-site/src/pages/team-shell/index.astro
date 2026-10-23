@@ -13,7 +13,10 @@ import Layout from '../../layouts/Layout.astro';
   <div class="sh-root">
     <div data-team-source class="sh-team-source"></div>
     {/* scripts/team-home.ts: the home at once (greeting, join requests), its repo facts once the team is read. */}
-    <div data-studio-home></div>
+    <div data-studio-home>
+      {/* The page's h1 until the home paints its own greeting. */}
+      <h1 class="sr-only">Home</h1>
+    </div>
     {/* The design system read: how far it has gone, or why it failed. Never in the way of the home above. */}
     <div data-team-ds class="sh-team-ds">
       <div class="lp-wait" aria-busy="true" aria-label="Reading this team's design system"></div>

@@ -157,3 +157,10 @@ describe('the addresses and words', () => {
     expect(all).not.toMatch(/—|localStorage|pull request/);
   });
 });
+
+describe('the start screen line', () => {
+  it('never points a visitor without a team at a team menu', () => {
+    expect(START_WORDS.sub).not.toMatch(/team menu/i);
+    expect(START_WORDS.sub).not.toMatch(/\u2014/);
+  });
+});

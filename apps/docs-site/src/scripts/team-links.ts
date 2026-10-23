@@ -1,7 +1,8 @@
 // Team shells (multi-team plan 4.1, PR 3a): the layout and the pages render their Studio links at build time, when the
 // team is unknown, so they say /studio/<path>. On a team shell this points each of them at the team in the address
 // (studioHref), before anyone can click. Links the islands render go through studioHref already and are left alone.
-import { isHosted, pageTeamFromPath, repoFromPath, STUDIO_ROOT, studioBase, studioHref } from '../lib/team-path';
+import { canonicalTeamPath, isHosted, pageTeamFromPath, repoFromPath, STUDIO_ROOT, studioBase, studioHref } from '../lib/team-path';
+import { loadReserved } from '../lib/team-open';
 import { libraryHref } from '../lib/library-shells';
 import { teamDisplayName } from '../lib/demo';
 import { siteConfig } from './repo-context';
@@ -49,4 +50,18 @@ export function fillTeamShell(root: ParentNode = document) {
   if (!knownTeamName(name)) void import('./account-session').then(({ getAccount }) => getAccount().then(paintName));
   for (const el of root.querySelectorAll<HTMLElement>('[data-team-name]')) el.textContent = name;
   for (const a of root.querySelectorAll<HTMLAnchorElement>('a[data-team-github]')) a.href = `https://github.com/${encodeURIComponent(team.owner)}/${encodeURIComponent(team.repo)}`;
+  void canonicalizeTeamAddress();
+}
+
+/**
+ * /studio/~/acme/ds/ and /studio/acme/ds/ are the same page: the address bar keeps the plain one when no Studio file
+ * takes the pair (lib/team-path.ts canonicalTeamPath), so a shared or bookmarked link is always the same. Links already
+ * on the page keep working either way.
+ */
+export async function canonicalizeTeamAddress(load: typeof loadReserved = loadReserved): Promise<boolean> {
+  if (typeof location === 'undefined' || !location.pathname.startsWith(`${STUDIO_ROOT}~/`)) return false;
+  const to = canonicalTeamPath(location.pathname, await load());
+  if (!to) return false;
+  history.replaceState(history.state, '', `${to}${location.search}${location.hash}`);
+  return true;
 }

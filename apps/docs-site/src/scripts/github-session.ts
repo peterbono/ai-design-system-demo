@@ -195,6 +195,12 @@ export function getToken(): string | null {
   return githubToken() ?? (currentContributor() ? CONTRIB_TOKEN : null);
 }
 
+/**
+ * Signed in with GitHub on this browser (a developer, or anyone who chose GitHub), not an email member or a guest: the
+ * one viewer who reads commit SHAs and GitHub's own error words.
+ */
+export const signedInWithGitHub = (): boolean => Boolean(githubToken());
+
 export function setToken(token: string | null) {
   try {
     if (token) localStorage.setItem(key(TOKEN_BASE), token.trim());
