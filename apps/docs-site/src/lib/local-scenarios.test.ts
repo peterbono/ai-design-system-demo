@@ -116,8 +116,9 @@ describe('what each scenario is for', () => {
     await w.seed();
     const taylor = await w.cookieFor('taylor@acme.com', 'Taylor Brooks');
     const { body } = await w.entry(taylor);
-    expect(body.teams).toEqual([expect.objectContaining({ repo: 'acme/acme-product', adminName: 'Sam Rivera', memberCount: 3, requested: false })]);
-    expect((await w.post(taylor, { action: 'request', repo: 'acme/acme-product' })).status).toBe(200);
+    expect(body.teams).toEqual([expect.objectContaining({ name: expect.stringMatching(/^Acme product$/i), adminName: 'Sam Rivera', memberCount: 3, requested: false })]);
+    expect(body.teams[0].repo).toBeUndefined();
+    expect((await w.post(taylor, { action: 'request', team: body.teams[0].id })).status).toBe(200);
     expect(w.sent.some((m) => m.to === 'sam@acme.com' && m.subject.includes('asked to join'))).toBe(true);
   });
 
@@ -126,7 +127,7 @@ describe('what each scenario is for', () => {
     await w.seed();
     const { body } = await w.entry(await w.cookieFor('nora@lumen.studio', 'Nora Lind'));
     expect(body.teams.map((t: any) => t.memberCount)).toEqual([6, 4, 3, 2, 1]);
-    expect(body.teams.every((t: any) => t.repo.startsWith('lumen/'))).toBe(true);
+    expect(body.teams.every((t: any) => t.repo === undefined && /^t[a-f0-9]{20}$/.test(t.id))).toBe(true);
   });
 
   it('S5: a closed team answers like one that does not exist', async () => {
@@ -193,11 +194,12 @@ describe('what each scenario is for', () => {
     const w = world(findScenario('S13')!);
     await w.seed();
     const taylor = await w.cookieFor('taylor@acme.com', 'Taylor Brooks');
-    const requested = async () => Object.fromEntries((await w.entry(taylor)).body.teams.map((t: any) => [t.repo, t.requested]));
-    expect(await requested()).toEqual({ 'acme/acme-product': true, 'acme/acme-mobile': true });
+    const requested = async () => Object.fromEntries((await w.entry(taylor)).body.teams.map((t: any) => [t.name.toLowerCase(), t.requested ? 'pending' : t.expired ? 'expired' : 'none']));
+    expect(await requested()).toEqual({ 'acme product': 'pending', 'acme mobile': 'pending' });
     expect((await w.post(taylor, { action: 'cancel-request', repo: 'acme/acme-product' })).body).toEqual({ cancelled: true });
     w.advance(3 * 60_000 + 1000);
-    expect(await requested()).toEqual({ 'acme/acme-product': false, 'acme/acme-mobile': false });
+    // Cancelled: as if never asked. Lapsed: "Your request expired, ask again".
+    expect(await requested()).toEqual({ 'acme product': 'none', 'acme mobile': 'expired' });
   });
 
   it('S14: joining with the invite removes the pending request', async () => {

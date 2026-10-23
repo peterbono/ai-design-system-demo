@@ -15,7 +15,7 @@ import { loadDemoHome, type DemoHomeData } from './demo-home';
 import { paintDemoHome } from '../components/ds/studio/DemoHome';
 import { exploresDemo } from '../lib/demo';
 import { paintStudioHome, type HealthLine, type HomeComponent, type JoinHandlers, type StudioHomeProps } from '../components/ds/studio/StudioHome';
-import { ENTRY_WORDS } from '../lib/entry';
+import { ENTRY_WORDS, JOINED_KEY, joinedNote } from '../lib/entry';
 import { TeamLoadError, TeamLoadProgress, TeamSourceNote } from '../components/ds/studio/TeamState';
 import { greeting, homeState } from '../lib/home-model';
 import { startChangeHref } from '../lib/overview-board';
@@ -121,6 +121,15 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null, dsEl
   let repaintHome: (() => void) | null = null;
   let data: HomeData | null = null;
   let known = false;
+  // Just joined from Entry: the home says so once (lib/entry.ts JOINED_KEY), then the note is gone.
+  let note: string | null = null;
+  try {
+    const t = teamOfPage();
+    note = t ? joinedNote(sessionStorage.getItem(JOINED_KEY), `${t.owner}/${t.repo}`) : null;
+    if (note) sessionStorage.removeItem(JOINED_KEY);
+  } catch {
+    note = null;
+  }
   let run = 0;
   // Join requests decided on this page: gone from the list until the next read.
   const gone = new Set<string>();
@@ -214,6 +223,7 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null, dsEl
         // No review right: only what waits on them, and their tour (once the owner teams are read).
         contributor: Boolean(d && !d.loading && !d.reviewer),
         join,
+        note,
       },
       root,
     );

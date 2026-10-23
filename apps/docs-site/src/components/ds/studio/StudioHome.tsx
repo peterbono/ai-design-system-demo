@@ -13,7 +13,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { useState, type MouseEvent, type ReactNode } from 'react';
 import { Check, CircleAlert, CircleCheck, TriangleAlert } from 'lucide-react';
 import { Who } from './faces';
-import { AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, SegmentedControl, Skeleton, ToastProvider, useToast } from '@bridge-ds/react';
+import { Alert, AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, SegmentedControl, Skeleton, ToastProvider, useToast } from '@bridge-ds/react';
 import { BranchThumb } from './BranchThumb';
 import { BranchRow } from './BranchRow';
 import { Drawing } from './Drawing';
@@ -397,6 +397,8 @@ function Start({ hrefs }: { hrefs: Record<(typeof CHOICES)[number]['key'], strin
 
 export interface StudioHomeProps {
   state: HomeState;
+  /** Once, right after Entry opened a team the person just joined: "You joined Acme Design." */
+  note?: string | null;
   greeting: string;
   needs: NeedRow[];
   branches: BranchCard[];
@@ -435,6 +437,17 @@ const CONTRIBUTOR_TOUR_KEY = 'bridge.home.contributor-tour';
 /** The review drawing without its empty sky: the scene only, so it never makes the greeting taller than its text. */
 const REVIEW_CROP = '0 98 232 86';
 
+/** "You joined Acme Design.": said once, dismissible. */
+function JoinedNote({ text }: { text: string }) {
+  const [open, setOpen] = useState(true);
+  if (!open) return null;
+  return (
+    <Alert tone="success" className="sh-note" onDismiss={() => setOpen(false)}>
+      {text}
+    </Alert>
+  );
+}
+
 export function StudioHome(p: StudioHomeProps) {
   // The toasts of the home: a join request approved or declined, with Undo.
   return (
@@ -470,9 +483,11 @@ function HomeBody(p: StudioHomeProps) {
       </div>
     );
   }
+  const note = p.note ? <JoinedNote text={p.note} /> : null;
   if (p.state === 'empty' && !p.demo) {
     return (
       <div className="sh">
+        {note}
         <section className="zone sh-zone sh-zone-empty" aria-labelledby="sh-hello">
           <div className="sh-head-text">
             {p.setup && <div className="sh-setup">{p.setup}</div>}
@@ -495,6 +510,7 @@ function HomeBody(p: StudioHomeProps) {
   const loading = p.state === 'loading';
   return (
     <div className="sh">
+      {note}
       <section className="zone sh-zone" aria-labelledby="sh-hello" aria-busy={loading || undefined}>
         <div className="sh-head">
           <div className="sh-head-text">
@@ -508,11 +524,15 @@ function HomeBody(p: StudioHomeProps) {
           </div>
         </div>
         {loading ? (
-          <ul className="sh-rows" aria-hidden="true">
-            <li className="sh-row-item">
-              <Skeleton variant="rect" className="sh-skel" />
-            </li>
-          </ul>
+          <>
+            {/* Join requests come from Bridge, not GitHub: they show while the rest still loads. */}
+            {p.needs.some((r) => r.kind === 'join') && <Needs needs={p.needs.filter((r) => r.kind === 'join')} now={p.now} snoozed={snoozed} join={p.join} />}
+            <ul className="sh-rows" aria-hidden="true">
+              <li className="sh-row-item">
+                <Skeleton variant="rect" className="sh-skel" />
+              </li>
+            </ul>
+          </>
         ) : (
           p.needs.length > 0 && <Needs needs={p.needs} now={p.now} snoozed={snoozed} demo={Boolean(p.demo)} tour={tour} join={p.join} />
         )}

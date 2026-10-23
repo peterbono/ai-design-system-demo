@@ -19,6 +19,8 @@ export type EntryRole = 'edit' | 'reviewer' | 'admin';
 
 export interface EntryTeam {
   repo: string;
+  /** The team's opaque id (the same as on a domain card: E4b knows its team joined by it). */
+  id: string;
   name: string;
   role: EntryRole;
   via: string;
@@ -40,12 +42,15 @@ export interface EntryInvite {
 }
 
 export interface DomainTeam {
-  repo: string;
+  /** An opaque id: the person is not on the team, so its repository is never named (requests use it). */
+  id: string;
   name: string;
   memberCount: number;
   people: string[];
   adminName: string;
   requested: boolean;
+  /** Their last request ran out before an admin answered: "Your request expired, ask again". */
+  expired: boolean;
 }
 
 export type Entry =
@@ -101,7 +106,7 @@ export function parseEntry(v: unknown): Entry | null {
         const repo = repoOf(t.repo);
         if (!repo) return [];
         const role = ROLES.includes(t.role as EntryRole) ? (t.role as EntryRole) : 'edit';
-        return [{ repo, name: str(t.name) ?? repo, role, via: str(t.via) ?? 'email' }];
+        return [{ repo, id: str(t.id) ?? '', name: str(t.name) ?? repo, role, via: str(t.via) ?? 'email' }];
       });
       return teams.length ? { kind: 'teams', teams } : { kind: 'create' };
     }
@@ -117,9 +122,11 @@ export function parseEntry(v: unknown): Entry | null {
     case 'domain': {
       const domain = str(o.domain);
       const teams = list(o.teams).flatMap((t): DomainTeam[] => {
-        const repo = repoOf(t.repo);
-        if (!repo) return [];
-        return [{ repo, name: str(t.name) ?? repo, memberCount: countOf(t.memberCount), people: namesOf(t.people), adminName: str(t.adminName) ?? '', requested: t.requested === true }];
+        const id = str(t.id);
+        const name = str(t.name);
+        if (!id || !name) return [];
+        const requested = t.requested === true;
+        return [{ id, name, memberCount: countOf(t.memberCount), people: namesOf(t.people), adminName: str(t.adminName) ?? '', requested, expired: !requested && t.expired === true }];
       });
       return domain && teams.length ? { kind: 'domain', domain, teams: sortDomainTeams(teams) } : { kind: 'create' };
     }
@@ -170,6 +177,20 @@ export function parseInviteLink(v: unknown): InviteLink | null {
     ...(member && repo ? { repo } : {}),
     ...(invite ? { invite } : {}),
   };
+}
+
+/** Set when Entry opens a team the person just joined: its home says "You joined <team>" once (sessionStorage). */
+export const JOINED_KEY = 'bridge.entry.joined';
+
+/** The "You joined" note for this team, if Entry left one: { repo, team }. Pure: `raw` is what the storage held. */
+export function joinedNote(raw: string | null, repo: string): string | null {
+  try {
+    const v = raw ? (JSON.parse(raw) as { repo?: unknown; team?: unknown }) : null;
+    if (!v || typeof v.repo !== 'string' || v.repo.toLowerCase() !== repo.toLowerCase()) return null;
+    return ENTRY_WORDS.joinedNote(typeof v.team === 'string' && v.team.trim() ? v.team.trim() : 'the team');
+  } catch {
+    return null;
+  }
 }
 
 /** Where an invite link keeps its token in this tab (sessionStorage) while the person signs in or links GitHub. */
@@ -330,6 +351,14 @@ export const ENTRY_WORDS = {
   ask: 'Ask to join',
   askTeam: (team: string) => `Ask to join ${team}`,
   asked: 'Request sent',
+  cancelShort: 'Cancel',
+  cancelTeam: (team: string) => `Cancel the request to ${team}`,
+  askAgain: 'Ask again',
+  askAgainTeam: (team: string) => `Ask again to join ${team}`,
+  expiredLine: 'Your request expired, ask again',
+  expiredLead: (admin: string) => `Your request expired before ${admin || 'an admin'} answered. Ask again, and they get a new email.`,
+  sentListTitle: (n: number) => (n === 1 ? 'Request sent' : `${n} requests sent`),
+  sentListLead: "We asked the admins to let you in. You'll get an email. You can ask other teams too.",
   more: (n: number) => `${n} more`,
   showMore: (n: number) => `Show ${n} more ${n === 1 ? 'team' : 'teams'}`,
   createInstead: 'Create a new team instead',
@@ -340,6 +369,9 @@ export const ENTRY_WORDS = {
   exploreDemo: 'Explore the demo while you wait',
   changedMind: 'Changed your mind?',
   cancelRequest: 'Cancel the request',
+  inTitle: "You're in",
+  inLead: (admin: string, team: string) => `${admin ? firstName(admin) : 'An admin'} let you in. You join ${team} as Can edit.`,
+  joinedNote: (team: string) => `You joined ${team}.`,
   // E5
   pickTitle: 'Pick a team',
   pickLead: (n: number) => `You are in ${n} teams. Switch any time from the team menu.`,
