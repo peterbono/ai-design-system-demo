@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { askedAgo, CREATE_TEAM_HREF, discoveryLine, emailDomain, ENTRY_WORDS, parseDiscovery, parseEntry, parseRequests, routeEntry, sortDomainTeams, splitDomainTeams, teamHome, teamNameFromDomain, yourRole, type Entry } from './entry';
+import { PEOPLE_SHOWN, invitedOn, teamAvatars, askedAgo, CREATE_TEAM_HREF, discoveryLine, emailDomain, ENTRY_WORDS, parseDiscovery, parseEntry, parseRequests, routeEntry, sortDomainTeams, splitDomainTeams, teamHome, teamNameFromDomain, yourRole, type Entry } from './entry';
 
 const team = (repo: string, name: string, role = 'edit') => ({ repo, name, role, via: 'email' });
 
 describe('parseEntry: the /api/entry answer', () => {
   it('reads each kind and drops malformed rows', () => {
     expect(parseEntry({ kind: 'teams', teams: [team('acme/ds', 'Acme Design', 'admin'), { repo: 'not a repo' }, null] })).toEqual({ kind: 'teams', teams: [{ repo: 'acme/ds', name: 'Acme Design', role: 'admin', via: 'email' }] });
-    expect(parseEntry({ kind: 'invites', invites: [{ id: 'a1', team: 'Acme', repo: 'acme/ds', role: 'reviewer', invitedBy: 'Sam' }, { repo: 'acme/ds' }] })).toEqual({ kind: 'invites', invites: [{ id: 'a1', team: 'Acme', repo: 'acme/ds', role: 'reviewer', invitedBy: 'Sam' }] });
+    expect(parseEntry({ kind: 'invites', invites: [{ id: 'a1', team: 'Acme', repo: 'acme/ds', role: 'reviewer', invitedBy: 'Sam' }, { repo: 'acme/ds' }] })).toEqual({ kind: 'invites', invites: [{ id: 'a1', team: 'Acme', repo: 'acme/ds', role: 'reviewer', invitedBy: 'Sam', invitedAt: '', memberCount: 0, people: [] }] });
+    const full = parseEntry({ kind: 'invites', invites: [{ id: 'a1', repo: 'acme/ds', invitedAt: '2026-10-21T09:00:00Z', memberCount: 12.7, people: ['Sam Rivera', 'leak@acme.com', 3, '', 'Lea', 'Kim', 'Ola', 'Six'] }] });
+    expect(full?.kind === 'invites' && full.invites[0]).toMatchObject({ invitedAt: '2026-10-21T09:00:00Z', memberCount: 12, people: ['Sam Rivera', 'Lea', 'Kim', 'Ola'] });
+    const bad = parseEntry({ kind: 'invites', invites: [{ id: 'a1', repo: 'acme/ds', invitedAt: 'yesterday', memberCount: -3, people: 'Sam' }] });
+    expect(bad?.kind === 'invites' && bad.invites[0]).toMatchObject({ invitedAt: '', memberCount: 0, people: [] });
     expect(parseEntry({ kind: 'create' })).toEqual({ kind: 'create' });
     expect(parseEntry({ kind: 'nope' })).toBeNull();
     expect(parseEntry(null)).toBeNull();
@@ -20,14 +24,14 @@ describe('parseEntry: the /api/entry answer', () => {
   });
 
   it('keeps every domain team, largest first', () => {
-    const e = parseEntry({ kind: 'domain', domain: 'acme.com', teams: [{ repo: 'a/b', name: 'B', memberCount: 2 }, { repo: 'a/c', name: 'C', memberCount: 12, adminName: 'Sam', requested: true }, { repo: 'a/a', name: 'A', memberCount: 2 }] });
+    const e = parseEntry({ kind: 'domain', domain: 'acme.com', teams: [{ repo: 'a/b', name: 'B', memberCount: 2 }, { repo: 'a/c', name: 'C', memberCount: 12, people: ['Sam Rivera'], adminName: 'Sam', requested: true }, { repo: 'a/a', name: 'A', memberCount: 2 }] });
     expect(e).toEqual({
       kind: 'domain',
       domain: 'acme.com',
       teams: [
-        { repo: 'a/c', name: 'C', memberCount: 12, adminName: 'Sam', requested: true },
-        { repo: 'a/a', name: 'A', memberCount: 2, adminName: '', requested: false },
-        { repo: 'a/b', name: 'B', memberCount: 2, adminName: '', requested: false },
+        { repo: 'a/c', name: 'C', memberCount: 12, people: ['Sam Rivera'], adminName: 'Sam', requested: true },
+        { repo: 'a/a', name: 'A', memberCount: 2, people: [], adminName: '', requested: false },
+        { repo: 'a/b', name: 'B', memberCount: 2, people: [], adminName: '', requested: false },
       ],
     });
   });
@@ -47,11 +51,31 @@ describe('routeEntry: first match wins', () => {
   });
 
   it('shows the first invite, the domain teams, or Create your team', () => {
-    const inv = { id: 'i', team: 'Acme', repo: 'acme/ds', role: 'edit', invitedBy: 'Sam' };
+    const inv = { id: 'i', team: 'Acme', repo: 'acme/ds', role: 'edit', invitedBy: 'Sam', invitedAt: '', memberCount: 0, people: [] };
     expect(routeEntry({ kind: 'invites', invites: [inv, { ...inv, id: 'j' }] })).toEqual({ to: 'invite', invite: inv, more: 1 });
     expect(routeEntry({ kind: 'domain', domain: 'acme.com', teams: [] })).toEqual({ to: 'domain', domain: 'acme.com', teams: [] });
     expect(routeEntry({ kind: 'create' })).toEqual({ to: 'create', href: CREATE_TEAM_HREF });
     expect(CREATE_TEAM_HREF).toBe('/studio/workspace/?setup=create');
+  });
+});
+
+describe('team cards', () => {
+  it('shows up to four avatars, then +N for everyone else counted', () => {
+    expect(teamAvatars(['Sam', 'Ada', 'Lea', 'Kim'], 12)).toEqual({ names: ['Sam', 'Ada', 'Lea', 'Kim'], more: 8 });
+    expect(teamAvatars(['Sam', 'Ada'], 2)).toEqual({ names: ['Sam', 'Ada'], more: 0 });
+    expect(teamAvatars(['A', 'B', 'C', 'D', 'E'], 5)).toEqual({ names: ['A', 'B', 'C', 'D'], more: 1 });
+    expect(teamAvatars([], 3)).toEqual({ names: [], more: 3 });
+    expect(teamAvatars(['Sam', 'Ada'], 1)).toEqual({ names: ['Sam', 'Ada'], more: 0 });
+    expect(PEOPLE_SHOWN).toBe(4);
+  });
+
+  it('says the invite day like "21 October", with the year only when it is not this year', () => {
+    const now = Date.parse('2026-10-23T10:00:00Z');
+    expect(invitedOn('2026-10-21T12:00:00Z', now)).toBe('21 October');
+    expect(invitedOn('2025-12-03T12:00:00Z', now)).toBe('3 December 2025');
+    expect(invitedOn('', now)).toBe('');
+    expect(ENTRY_WORDS.invitedOn('21 October')).toBe(' on 21 October');
+    expect(ENTRY_WORDS.invitedOn('')).toBe('');
   });
 });
 

@@ -8,9 +8,12 @@
 //               email; GitHub is never needed here
 //               { kind: 'teams', teams: [{ repo, name, role: 'edit' | 'reviewer' | 'admin', via: 'email' | 'github' }] }
 //   2. invites  invites wait for their email
-//               { kind: 'invites', invites: [{ id, team, repo, role, invitedBy }] }   (accept-invite joins directly)
+//               { kind: 'invites', invites: [{ id, team, repo, role, invitedBy, invitedAt, memberCount, people }] }
+//               (accept-invite joins directly)
 //   3. domain   teams whose admin opened them to the person's work domain, all of them, largest first
-//               { kind: 'domain', domain, teams: [{ repo, name, memberCount, adminName, requested }] }
+//               { kind: 'domain', domain, teams: [{ repo, name, memberCount, people, adminName, requested }] }
+//   `people`: the names of the first few people on the team (admins first, at most PEOPLE_SHOWN), for the avatars of
+//   the team card; the card shows the rest as "+N" from memberCount. Names only, never an email.
 //   4. create   { kind: 'create' }
 // Public and free mailbox domains (api/_lib/domains.ts) never match and can never be opened.
 //
@@ -21,6 +24,8 @@
 //                                                { joined: true, status, repo, role, next }
 //   POST { action: 'request', repo }        asks to join a team open to their work domain (an invite for that team
 //                                           is accepted instead: { joined: true, ... }); { requested: true, expiresAt }
+//   POST { action: 'cancel-request', repo }  the requester takes back their own pending request (keyed by the
+//                                           account email, so nobody else's); { cancelled: true }, 404 when none waits
 //   POST { action: 'approve', repo, id }    admin: the requester joins with Can edit; { member: { name, role }, repo }
 //   POST { action: 'decline', repo, id }    admin: { ok: true }
 //   POST { action: 'discovery', repo, enabled }  admin: opens the team to the admin's own work domain, or closes it;
@@ -31,8 +36,8 @@
 // token on every call (the GitHub id must match, so a renamed login never passes for another). Nothing the browser
 // says about its role is trusted.
 //
-// Privacy: other members' emails never leave here. A domain team shows the admin by name (their Bridge account name,
-// else their GitHub login), and its size. Admins see a requester's name and email, like an invite. A team that did
+// Privacy: other members' emails never leave here. A domain team or an invite shows the admin by name (their Bridge
+// account name, else their GitHub login), the team's size and the names of its first few people. Admins see a requester's name and email, like an invite. A team that did
 // not open itself to a domain is never listed, and asking to join it answers the same 404 as a team that does not
 // exist. Requests expire after 14 days; deleting the account deletes them.
 //
@@ -102,10 +107,12 @@ export type EntryTeamRole = 'edit' | 'reviewer' | 'admin';
 
 export type Entry =
   | { kind: 'teams'; teams: { repo: string; name: string; role: EntryTeamRole; via: 'email' | 'github' }[] }
-  | { kind: 'invites'; invites: { id: string; team: string; repo: string; role: string; invitedBy: string }[] }
-  | { kind: 'domain'; domain: string; teams: { repo: string; name: string; memberCount: number; adminName: string; requested: boolean }[] }
+  | { kind: 'invites'; invites: { id: string; team: string; repo: string; role: string; invitedBy: string; invitedAt: string; memberCount: number; people: string[] }[] }
+  | { kind: 'domain'; domain: string; teams: { repo: string; name: string; memberCount: number; people: string[]; adminName: string; requested: boolean }[] }
   | { kind: 'create' };
 
+/** Names sent per team card (its avatars); the card counts the rest from memberCount. */
+export const PEOPLE_SHOWN = 4;
 /** Requests per UTC day: per person, per network, and admin emails per team. */
 export const REQUEST_LIMITS = { email: 10, ip: 30, team: 20 } as const;
 const MAX_BODY = 4096;
@@ -264,20 +271,23 @@ async function githubTeams(ctx: Ctx, req: Request, a: Account): Promise<{ repo: 
   return [...out].map(([repo, role]) => ({ repo, role })).sort((x, y) => x.repo.localeCompare(y.repo));
 }
 
-/** The admin's name for a domain team card: their Bridge account name, else their GitHub login. Never an email. */
-async function adminNameOf(ctx: Ctx, d: Discovery): Promise<string> {
-  const email = await ctx.svc.redis.cmd('GET', `bridge:account:gh:${d.byGithubId}`);
+/** A GitHub person's name: the name of the Bridge account linked to that GitHub id, else the login. Never an email. */
+async function githubNameOf(ctx: Ctx, githubId: number, login: string): Promise<string> {
+  const email = await ctx.svc.redis.cmd('GET', `bridge:account:gh:${githubId}`);
   if (typeof email === 'string') {
     const raw = await ctx.svc.redis.cmd('GET', `bridge:account:${email}`);
     try {
       const a = typeof raw === 'string' ? (JSON.parse(raw) as Account) : null;
-      if (a?.github?.id === d.byGithubId && typeof a.name === 'string' && a.name) return a.name;
+      if (a?.github?.id === githubId && typeof a.name === 'string' && a.name) return a.name;
     } catch {
       /* the login below */
     }
   }
-  return d.byLogin;
+  return login;
 }
+
+/** The admin's name for a domain team card. */
+const adminNameOf = (ctx: Ctx, d: Discovery): Promise<string> => githubNameOf(ctx, d.byGithubId, d.byLogin);
 
 /** GitHub collaborators of a team, through the app; null when the app cannot read it. */
 async function collaboratorsOf(ctx: Ctx, repo: string): Promise<any[] | null> {
@@ -289,14 +299,33 @@ async function collaboratorsOf(ctx: Ctx, repo: string): Promise<any[] | null> {
   return r.status === 200 && Array.isArray(r.data) ? r.data : null;
 }
 
-/** People on a team: email members, plus GitHub collaborators when the app can read them. */
-async function memberCount(ctx: Ctx, repo: string): Promise<number> {
-  const emails = (await ctx.svc.members.list(repo)).length;
+/**
+ * People on a team, for its card: how many (email members, plus GitHub collaborators when the app can read them) and
+ * the names of the first PEOPLE_SHOWN (GitHub admins first, then the other collaborators, then email members). Only
+ * names: an email never leaves here, a member without a name is counted but not named.
+ */
+async function teamPeople(ctx: Ctx, repo: string): Promise<{ memberCount: number; people: string[] }> {
+  const emails = await ctx.svc.members.list(repo);
+  let collaborators: any[] = [];
   try {
-    return emails + ((await collaboratorsOf(ctx, repo))?.length ?? 0);
+    collaborators = (await collaboratorsOf(ctx, repo)) ?? [];
   } catch {
-    return emails;
+    collaborators = [];
   }
+  const github = collaborators
+    .filter((c) => Number.isSafeInteger(c?.id) && typeof c?.login === 'string' && c.login)
+    .sort((x, y) => Number(y.permissions?.admin === true) - Number(x.permissions?.admin === true));
+  const people: string[] = [];
+  for (const c of github) {
+    if (people.length >= PEOPLE_SHOWN) break;
+    people.push(await githubNameOf(ctx, c.id, c.login));
+  }
+  for (const m of emails) {
+    if (people.length >= PEOPLE_SHOWN) break;
+    const name = typeof m.name === 'string' ? m.name.trim() : '';
+    if (name && !name.includes('@')) people.push(name);
+  }
+  return { memberCount: emails.length + collaborators.length, people };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -311,7 +340,13 @@ export async function entryFor(ctx: Ctx, req: Request, a: Account): Promise<Entr
 
   // 2. Invites waiting for their email.
   const invites = await ctx.svc.invites.byEmail(a.email);
-  if (invites.length) return { kind: 'invites', invites: invites.map((inv) => ({ id: inv.id, team: teamDisplayName(inv.repo), repo: inv.repo, role: inv.role, invitedBy: inv.invitedBy })) };
+  if (invites.length) {
+    const out: Extract<Entry, { kind: 'invites' }>['invites'] = [];
+    for (const inv of invites) {
+      out.push({ id: inv.id, team: teamDisplayName(inv.repo), repo: inv.repo, role: inv.role, invitedBy: inv.invitedBy, invitedAt: inv.createdAt, ...(await teamPeople(ctx, inv.repo)) });
+    }
+    return { kind: 'invites', invites: out };
+  }
 
   // 3. Teams open to their work domain.
   const domain = workDomain(a.email);
@@ -321,7 +356,8 @@ export async function entryFor(ctx: Ctx, req: Request, a: Account): Promise<Entr
       const asked = await myRequests(ctx.svc.redis, a.email, ctx.now());
       const out: Extract<Entry, { kind: 'domain' }>['teams'] = [];
       for (const { repo, discovery } of open) {
-        out.push({ repo, name: teamDisplayName(repo), memberCount: await memberCount(ctx, repo), adminName: await adminNameOf(ctx, discovery), requested: asked.has(repo) });
+        const { memberCount, people } = await teamPeople(ctx, repo);
+        out.push({ repo, name: teamDisplayName(repo), memberCount, people, adminName: await adminNameOf(ctx, discovery), requested: asked.has(repo) });
       }
       // Every matching team, the largest first (the UI shows a few, then "N more").
       out.sort((x, y) => y.memberCount - x.memberCount || x.name.localeCompare(y.name));
@@ -477,6 +513,15 @@ async function onRequest(ctx: Ctx, req: Request, a: Account, body: Record<string
   return json(200, { requested: true, expiresAt: r.expiresAt });
 }
 
+/** The requester takes back their own request: only the one keyed by the account's email, never someone else's. */
+async function onCancel(ctx: Ctx, a: Account, body: Record<string, unknown>): Promise<Response> {
+  const { full } = parseRepo(body.repo);
+  const email = a.email.toLowerCase();
+  if (!(await getRequest(ctx.svc.redis, full, email, ctx.now()))) return fail(404, 'not_found', REQUEST_GONE);
+  await removeRequest(ctx.svc.redis, full, email);
+  return json(200, { cancelled: true });
+}
+
 async function findRequest(ctx: Ctx, repo: string, id: unknown): Promise<JoinRequest> {
   if (typeof id !== 'string' || !ID.test(id)) throw new HttpError(404, 'not_found', REQUEST_GONE);
   const r = (await listRequests(ctx.svc.redis, repo, ctx.now())).find((x) => x.id === id);
@@ -537,6 +582,8 @@ async function onAction(ctx: Ctx, req: Request, a: Account): Promise<Response> {
     }
     case 'request':
       return onRequest(ctx, req, a, body);
+    case 'cancel-request':
+      return onCancel(ctx, a, body);
     case 'approve':
       return onApprove(ctx, req, a, body);
     case 'decline':

@@ -1,18 +1,20 @@
 // The rooms of Entry after the email code (lib/entry.ts routes there; SignIn.tsx hosts them in its Harbor zone):
-//   E3  "Acme Design invited you": who invited which email, the team card ("You join as Can edit"), Join. A reviewer
+//   E3  "Acme Design invited you": who invited which email and when, the team card (its people: a few avatars, "+N"
+//       and "12 members"; "You join as Can edit"), Join. A reviewer
 //       or admin invite without GitHub linked says so calmly, with "Connect GitHub to accept".
 //   E4  "Your colleagues already use Bridge": the teams open to the work domain, largest first, three then "Show N
 //       more". One team: its card and the one primary action, Ask to join. Several: each card keeps its own button.
 //       "Create a new team instead" stays quiet.
-//   E4b "Request sent": the same card, waiting for the admin, the demo while they wait.
+//   E4b "Request sent": the same card, waiting for the admin, the demo while they wait. "Changed your mind? Cancel the
+//       request" takes it back and returns to E4.
 //   E5  "Pick a team": two or more teams and none opened recently in this browser; each row opens its Studio home.
 // "Not you? Use another email" signs out and goes back to the email.
 import { useState, type ReactNode } from 'react';
 import { ChevronRight, ExternalLink } from 'lucide-react';
-import { Alert, Avatar, Badge, Button, Card, Icon, Link } from '@bridge-ds/react';
+import { Alert, Avatar, AvatarGroup, Badge, Button, Card, Icon, Link } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
 import { roleWord } from '../../../lib/account';
-import { CREATE_TEAM_HREF, ENTRY_WORDS as W, membersLabel, splitDomainTeams, teamHome, yourRole, type DomainTeam, type EntryInvite, type EntryTeam } from '../../../lib/entry';
+import { CREATE_TEAM_HREF, ENTRY_WORDS as W, invitedOn, membersLabel, splitDomainTeams, teamAvatars, teamHome, yourRole, type DomainTeam, type EntryInvite, type EntryTeam } from '../../../lib/entry';
 import { DEMO_HOME } from '../../../lib/start';
 
 /** The team's mark (its initials, like a team without a picture), its name, and up to two muted lines. */
@@ -34,6 +36,31 @@ function TeamCard({ name, lines, end, id }: { name: string; lines: ReactNode[]; 
         {end && <span className="ent-card-end">{end}</span>}
       </span>
     </Card>
+  );
+}
+
+/** Most "+N" counters a card builds (the counter shows the number, the avatars behind it are never drawn). */
+const MAX_HIDDEN = 999;
+
+/** The people line of a team card: a few initials avatars, "+N" for everyone else, then "12 members". Names only. */
+export function TeamPeople({ team, people, count }: { team: string; people: string[]; count: number }) {
+  const { names, more } = teamAvatars(people, count);
+  return (
+    <span className="ent-people">
+      {names.length > 0 && (
+        <span aria-hidden="true" className="ent-people-stack">
+          <AvatarGroup aria-label={`People on ${team}`} max={names.length} size="md">
+            {names.map((n, i) => (
+              <Avatar key={`${i}-${n}`} name={n} size="md" decorative />
+            ))}
+            {Array.from({ length: Math.min(more, MAX_HIDDEN) }, (_, i) => (
+              <Avatar key={`more-${i}`} name="" size="md" decorative />
+            ))}
+          </AvatarGroup>
+        </span>
+      )}
+      <span>{membersLabel(count)}</span>
+    </span>
   );
 }
 
@@ -109,13 +136,15 @@ export function InviteRoom({ invite, email, more, leave, onOtherEmail, onConnect
         title: W.invitedTitle(invite.team),
         lead: (
           <>
-            {W.invitedBy(invite.invitedBy)} <strong className="ent-strong">{email}</strong>.
+            {W.invitedBy(invite.invitedBy)} <strong className="ent-strong">{email}</strong>
+            {W.invitedOn(invitedOn(invite.invitedAt))}.
           </>
         ),
       })}
       <TeamCard
         name={invite.team}
         lines={[
+          ...(invite.memberCount > 0 ? [<TeamPeople key="people" team={invite.team} people={invite.people} count={invite.memberCount} />] : []),
           <>
             {W.joinAs} <strong className="ent-strong">{role}</strong>
           </>,
@@ -158,13 +187,14 @@ export function InviteRoom({ invite, email, more, leave, onOtherEmail, onConnect
 // ---------------------------------------------------------------------------------------------------------------
 // E4 and E4b
 
-const teamLines = (t: DomainTeam) => [membersLabel(t.memberCount), ...(t.adminName ? [W.admin(t.adminName)] : [])];
+const teamLines = (t: DomainTeam): ReactNode[] => [<TeamPeople key="people" team={t.name} people={t.people} count={t.memberCount} />, ...(t.adminName ? [W.admin(t.adminName)] : [])];
 
 export function DomainRoom({ domain, teams: initial, leave, onOtherEmail, header }: RoomProps & { domain: string; teams: DomainTeam[]; header: (h: Header) => ReactNode }) {
   const [teams, setTeams] = useState(initial);
   const [all, setAll] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
   // E4b: the request just sent (or sent before, for a lone team).
   const [sent, setSent] = useState<DomainTeam | null>(() => (initial.length === 1 && initial[0]!.requested ? initial[0]! : null));
 
@@ -183,6 +213,22 @@ export function DomainRoom({ domain, teams: initial, leave, onOtherEmail, header
       setProblem(err instanceof Error ? err.message : null);
     } finally {
       setBusy(null);
+    }
+  };
+
+  // E4b: takes the request back, then E4 again with Ask to join.
+  const cancel = async (t: DomainTeam) => {
+    setCancelling(true);
+    setProblem(null);
+    const api = await import('../../../scripts/entry-session');
+    try {
+      await api.cancelJoinRequest(t.repo);
+      setTeams((xs) => xs.map((x) => (x.repo === t.repo ? { ...x, requested: false } : x)));
+      setSent(null);
+    } catch (err) {
+      setProblem(err instanceof Error ? err.message : null);
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -206,6 +252,19 @@ export function DomainRoom({ domain, teams: initial, leave, onOtherEmail, header
           <ButtonLink href={CREATE_TEAM_HREF} variant="ghost" size="lg" fullWidth>
             {W.createInstead}
           </ButtonLink>
+        </div>
+        {problem && (
+          <Alert tone="warning" className="acc-alert">
+            {problem}
+          </Alert>
+        )}
+        <div className="acc-foot">
+          <p className="acc-quiet">
+            {W.changedMind}{' '}
+            <Button variant="link" size="sm" className="ent-inline" loading={cancelling} onClick={() => void cancel(sent)}>
+              {W.cancelRequest}
+            </Button>
+          </p>
         </div>
       </>
     );

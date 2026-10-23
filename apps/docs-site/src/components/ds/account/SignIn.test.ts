@@ -264,13 +264,18 @@ describe('entry: Bridge picks the room after the code (E3 to E6)', () => {
   it('E3: joins with an invite, no approval', async () => {
     const { container } = signedIn((c) =>
       c.method === 'GET'
-        ? json(200, { kind: 'invites', invites: [{ id: 'inv1', team: 'Acme Design', repo: 'acme/ds', role: 'edit', invitedBy: 'Sam Rivera' }] })
+        ? json(200, { kind: 'invites', invites: [{ id: 'inv1', team: 'Acme Design', repo: 'acme/ds', role: 'edit', invitedBy: 'Sam Rivera', invitedAt: new Date().toISOString().slice(0, 4) + '-10-21T12:00:00Z', memberCount: 12, people: ['Sam Rivera', 'Ada Lovelace', 'Lea Eng', 'Kim'] }] })
         : json(200, { joined: true, status: 'joined', repo: 'acme/ds', role: 'edit', next: '/studio/acme/ds/' }),
     );
     expect(await screen.findByRole('heading', { name: 'Acme Design invited you' })).toBeInTheDocument();
     expect(screen.getByText('jordan.lee@acme.com')).toBeInTheDocument();
-    expect(screen.getByText(/Sam Rivera invited/)).toBeInTheDocument();
+    expect(screen.getByText(/Sam Rivera invited/).textContent).toBe('Sam Rivera invited jordan.lee@acme.com on 21 October.');
     expect(screen.getByText('Can edit')).toBeInTheDocument();
+    // The team's people: four initials avatars, +8 for the rest, then the size. Names only, hidden from the reader.
+    expect(screen.getByText('12 members')).toBeInTheDocument();
+    const stack = container.querySelector('.ent-people-stack')!;
+    expect(stack).toHaveAttribute('aria-hidden', 'true');
+    expect(stack.textContent).toBe('SRALLEK+8');
     await expectNoAxeViolations(container);
     await userEvent.setup().click(screen.getByRole('button', { name: 'Join Acme Design' }));
     await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/acme/ds/'));
@@ -306,11 +311,12 @@ describe('entry: Bridge picks the room after the code (E3 to E6)', () => {
 
   it('E4 then E4b: asks to join the team found by work domain', async () => {
     const { container } = signedIn((c) =>
-      c.method === 'GET' ? json(200, { kind: 'domain', domain: 'acme.com', teams: [{ repo: 'acme/ds', name: 'Acme Design', memberCount: 12, adminName: 'Sam Rivera', requested: false }] }) : json(200, { requested: true, expiresAt: '2026-11-06T00:00:00Z' }),
+      c.method === 'GET' ? json(200, { kind: 'domain', domain: 'acme.com', teams: [{ repo: 'acme/ds', name: 'Acme Design', memberCount: 12, people: ['Sam Rivera', 'Ada Lovelace', 'Lea Eng', 'Kim'], adminName: 'Sam Rivera', requested: false }] }) : json(200, { requested: true, expiresAt: '2026-11-06T00:00:00Z' }),
     );
     expect(await screen.findByRole('heading', { name: 'Your colleagues already use Bridge' })).toBeInTheDocument();
     expect(screen.getByText('@acme.com')).toBeInTheDocument();
     expect(screen.getByText('12 members')).toBeInTheDocument();
+    expect(container.querySelector('.ent-people-stack')!.textContent).toBe('SRALLEK+8');
     expect(screen.getByText('Admin: Sam Rivera')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Create a new team instead' })).toHaveAttribute('href', '/studio/workspace/?setup=create');
     await expectNoAxeViolations(container);
@@ -338,6 +344,41 @@ describe('entry: Bridge picks the room after the code (E3 to E6)', () => {
   it('E4b straight away when the one team was asked before', async () => {
     signedIn(() => json(200, { kind: 'domain', domain: 'acme.com', teams: [{ repo: 'acme/ds', name: 'Acme Design', memberCount: 12, adminName: 'Sam Rivera', requested: true }] }));
     expect(await screen.findByRole('heading', { name: 'Request sent' })).toBeInTheDocument();
+  });
+
+  it('E4b: Cancel the request takes it back and returns to E4', async () => {
+    const { container } = signedIn((c) => (c.method === 'GET' ? json(200, { kind: 'domain', domain: 'acme.com', teams: [{ repo: 'acme/ds', name: 'Acme Design', memberCount: 2, people: ['Sam Rivera', 'Lea Eng'], adminName: 'Sam Rivera', requested: true }] }) : json(200, { cancelled: true })));
+    expect(await screen.findByRole('heading', { name: 'Request sent' })).toBeInTheDocument();
+    expect(screen.getByText(/Changed your mind\?/)).toBeInTheDocument();
+    expect(container.querySelector('.ent-people-stack')!.textContent).toBe('SRLE');
+    await expectNoAxeViolations(container);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Cancel the request' }));
+    expect(await screen.findByRole('heading', { name: 'Your colleagues already use Bridge' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ask to join' })).toBeInTheDocument();
+    expect(entryPosts('cancel-request')[0]!.body).toEqual({ action: 'cancel-request', repo: 'acme/ds' });
+    expect(entryPosts('cancel-request')[0]!.headers['X-Bridge-Contribute']).toBe('1');
+  });
+
+  it('E4b: a request already gone (expired, answered) still returns to E4', async () => {
+    signedIn((c) =>
+      c.method === 'GET'
+        ? json(200, { kind: 'domain', domain: 'acme.com', teams: [{ repo: 'acme/ds', name: 'Acme Design', memberCount: 12, adminName: 'Sam Rivera', requested: true }] })
+        : json(404, { error: 'not_found', message: 'This request expired or was already answered.' }),
+    );
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Cancel the request' }));
+    expect(await screen.findByRole('heading', { name: 'Your colleagues already use Bridge' })).toBeInTheDocument();
+    expect(screen.queryByText('This request expired or was already answered.')).toBeNull();
+  });
+
+  it('E4b: a cancel that fails keeps the request and says why', async () => {
+    signedIn((c) =>
+      c.method === 'GET'
+        ? json(200, { kind: 'domain', domain: 'acme.com', teams: [{ repo: 'acme/ds', name: 'Acme Design', memberCount: 12, adminName: 'Sam Rivera', requested: true }] })
+        : json(502, { error: 'unreachable', message: 'Bridge could not reach its storage. Try again in a minute.' }),
+    );
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Cancel the request' }));
+    expect(await screen.findByText('Bridge could not reach its storage. Try again in a minute.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Request sent' })).toBeInTheDocument();
   });
 
   it('E6: nothing matched, Create your team', async () => {

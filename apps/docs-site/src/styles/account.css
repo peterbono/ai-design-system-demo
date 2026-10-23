@@ -132,6 +132,17 @@
   line-height: var(--typography-ui-line-height);
 }
 
+.ent-people {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ent-people-stack {
+  display: inline-flex;
+}
+
 .ent-card-end {
   display: flex;
   flex: none;
