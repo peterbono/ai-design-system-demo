@@ -119,6 +119,7 @@ describe('Settings > Account', () => {
     expect(screen.queryByRole('textbox', { name: 'Type DELETE to confirm' })).toBeNull();
     await expectNoAxeViolations(container);
     await user.click(screen.getByRole('button', { name: 'Make Kim Lee admin' }));
+    await waitFor(() => expect(invites).toHaveLength(1));
     expect(invites[0]!.body).toEqual({ action: 'set-role', repo: '_team/c0ffee0000000017', email: 'kim@northwind.io', role: 'admin' });
     expect(invites[0]!.headers['X-Bridge-Account']).toBe('1');
     expect(await screen.findByRole('textbox', { name: 'Type DELETE to confirm' })).toBeInTheDocument();
