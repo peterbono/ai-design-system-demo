@@ -172,6 +172,17 @@ export function isReservedTeam(owner: string, repo: string, reserved: ReservedPa
 }
 
 /**
+ * One address per team page: the plain form of an escaped address (/studio/~/acme/ds/x/ -> /studio/acme/ds/x/) when no
+ * Studio file takes the pair, so a team never has two URLs for one page. Null when the address is already canonical,
+ * is not a team, or the reserved list is unknown (the escape form always works then).
+ */
+export function canonicalTeamPath(pathname: string, reserved: ReservedPaths | null): string | null {
+  const team = teamAddress(pathname);
+  if (!team?.escaped || !reserved || isReservedTeam(team.owner, team.repo, reserved)) return null;
+  return pathname.replace(/^\/studio\/~\//, STUDIO_ROOT);
+}
+
+/**
  * The Studio address of a team: /studio/<owner>/<repo>/, or the escape form /studio/~/<owner>/<repo>/ when a Studio
  * file takes that pair. Without the reserved list (it failed to load), the escape form, which always works.
  */

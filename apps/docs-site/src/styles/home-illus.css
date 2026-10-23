@@ -3046,7 +3046,8 @@
   gap: calc(var(--_u) * 8);
   font-size: var(--font-size-100);
   line-height: var(--font-leading-16);
-  color: var(--color-text-muted);
+  /* Default text, not muted: the waiting cards fade (opacity) and muted text under it drops below 4.5:1. */
+  color: var(--color-text-default);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -3162,7 +3163,7 @@
 }
 
 .hp-ldec-dot {
-  color: var(--color-text-disabled);
+  color: var(--color-text-muted);
 }
 
 .hp-ldec-ba {

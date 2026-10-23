@@ -4,7 +4,7 @@
 // drafts waiting for review. Adoption is not compared here: a team's audits are not paired before and after a move
 // the way the demo's are, so its figures live on Quality only. The setup steps are not shown here (they belong to the
 // onboarding of hosted teams, multi-team PR 3c).
-import { createElement } from 'react';
+import { createElement, Fragment } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { currentAccess, currentContributor, currentViewer, getToken, initGitHubConnect, onAccess, prefersSignIn } from './github-session';
 import { setReviewCount } from './shell';
@@ -103,6 +103,9 @@ export function joinHandlers(repo: () => string, onGone: (key: string) => void, 
 export function placeholderHomeStatic(): TeamHomeStatic {
   return { contrastFail: 0, components: [], guidance: [], startHrefs: { tokens: startChangeHref('look'), component: startChangeHref('variant'), guidance: studioHref('components/') } };
 }
+
+/** The page's h1 when the failure takes the home's place: the home paints its own otherwise. */
+const loadingHeading = () => createElement('h1', { className: 'sr-only' }, 'Home');
 
 /**
  * Paints the team home into `el` (the [data-studio-home] mount), the source line into `sourceEl`, and the design
@@ -288,7 +291,7 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null, dsEl
         // Without a slot for it (or on the demo, all repository data), the failure takes the home's place, as before.
         if (!dsEl || exploring()) {
           root ??= createRoot(el);
-          root.render(createElement(TeamLoadError, { failure, onRetry: retry }));
+          root.render(createElement(Fragment, null, loadingHeading(), createElement(TeamLoadError, { failure, onRetry: retry })));
           return;
         }
         paintDs(createElement(TeamLoadError, { failure, onRetry: retry, compact: true }));

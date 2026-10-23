@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The build-time Studio links of a team shell follow the team in the address; nothing changes elsewhere.
 import { afterEach, describe, expect, it } from 'vitest';
-import { fillTeamShell, pointLinksAtTeam } from './team-links';
+import { canonicalizeTeamAddress, fillTeamShell, pointLinksAtTeam } from './team-links';
 
 const page = (path: string, hosted: boolean) => {
   document.documentElement.toggleAttribute('data-hosted', hosted);
@@ -62,5 +62,29 @@ describe('pointLinksAtTeam', () => {
     fillTeamShell();
     expect(document.querySelector('[data-team-name]')!.textContent).toBe('brands/new');
     expect(href('gh')).toBe('https://github.com/brands/new');
+  });
+});
+
+describe('canonicalizeTeamAddress', () => {
+  afterEach(() => history.replaceState(null, '', '/'));
+
+  it('keeps one address per team page: the plain form when no Studio file takes the pair', async () => {
+    history.replaceState(null, '', '/studio/~/acme/ds/tokens/?focus=color#x');
+    expect(await canonicalizeTeamAddress(async () => ({ firsts: ['changes'], pairs: ['brands/new'] }))).toBe(true);
+    expect(location.pathname + location.search + location.hash).toBe('/studio/acme/ds/tokens/?focus=color#x');
+  });
+
+  it('keeps the escape form for a reserved pair, or when the reserved list did not load', async () => {
+    history.replaceState(null, '', '/studio/~/brands/new/');
+    expect(await canonicalizeTeamAddress(async () => ({ firsts: ['brands'], pairs: ['brands/new'] }))).toBe(false);
+    expect(location.pathname).toBe('/studio/~/brands/new/');
+    history.replaceState(null, '', '/studio/~/acme/ds/');
+    expect(await canonicalizeTeamAddress(async () => null)).toBe(false);
+    expect(location.pathname).toBe('/studio/~/acme/ds/');
+  });
+
+  it('leaves a plain address alone', async () => {
+    history.replaceState(null, '', '/studio/acme/ds/');
+    expect(await canonicalizeTeamAddress(async () => ({ firsts: [], pairs: [] }))).toBe(false);
   });
 });

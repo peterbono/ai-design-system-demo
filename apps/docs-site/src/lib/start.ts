@@ -145,7 +145,8 @@ export const workspaceName = (name: string | null | undefined): string => (name?
 export const startTitle = (name: string | null | undefined): string => (name?.trim() ? `How do you want to start, ${name.trim()}?` : 'How do you want to start?');
 
 export const START_WORDS = {
-  sub: 'You can switch any time from the team menu.',
+  /** Shown to a visitor with no team and no workspace yet: never points at a team menu they do not have. */
+  sub: 'Pick one to begin. The other stays one click away.',
   connectTitle: 'Connect your design system',
   connectText: 'Your Storybook or your repository. Your tokens, components and branches show up in your Studio.',
   connectChecks: ['About 2 minutes with a Storybook URL', 'Read only: Bridge writes nothing in your code'],

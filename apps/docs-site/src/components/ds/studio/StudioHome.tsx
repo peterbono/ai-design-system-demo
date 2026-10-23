@@ -174,6 +174,7 @@ function Waiting({ needs, now, lead }: { needs: NeedRow[]; now: number; lead?: P
   const oldest = oldestLabel(needs, now);
   const demo = lead !== undefined ? demoWaiting(needs.filter((r) => r.waitsOnYou).length, s, lead?.name ?? null) : null;
   if (!s && !demo) return null;
+  // A div, not a p: the avatar group is a block (a div inside a p is invalid HTML).
   return (
     <div className="t-body sh-waiting">
       {people.length > 0 && (
