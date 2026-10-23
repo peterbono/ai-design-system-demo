@@ -2,16 +2,15 @@
 import { generateKeyPairSync, createVerify, createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  acceptInviteForGithub,
   appJwt,
   editOwners,
-  EXPIRED,
   type EmailMessage,
   type FetchLike,
   githubApp,
   handleInvites,
   INVITE_TRACE_MS,
   INVITE_TTL_MS,
-  PEEK_PER_HOUR,
   inviteEmail,
   memoryStore,
   NOT_CONFIGURED,
@@ -25,7 +24,6 @@ import {
   maskEmail,
   MAX_RESENDS_PER_INVITE_DAY,
   RESEND_COOLDOWN_MS,
-  EMAIL_ACCESS,
 } from '../../api/invites/index';
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
@@ -47,9 +45,7 @@ const CONFIG = `{
 `;
 
 interface World {
-  users: Record<string, { login: string; name?: string }>;
-  /** GET /user/emails per user token; a number answers that status instead. */
-  emails: Record<string, { email: string; verified: boolean; primary?: boolean }[] | number>;
+  users: Record<string, { login: string; name?: string; id?: number }>;
   perms: Record<string, string>;
   ownerType: 'User' | 'Organization';
   orgMembers: string[];
@@ -61,8 +57,7 @@ interface World {
 
 function world(over: Partial<World> = {}): World {
   return {
-    users: { ghu_dana: { login: 'dana', name: 'Dana' }, ghu_leo01: { login: 'leo' }, ghu_sofia: { login: 'sofia', name: 'Sofia Reyes' }, ghu_kim01: { login: 'kim' } },
-    emails: { ghu_sofia: [{ email: 'sofia@acme.design', verified: true, primary: true }], ghu_leo01: [{ email: 'leo@acme.design', verified: true, primary: true }] },
+    users: { ghu_dana: { login: 'dana', name: 'Dana', id: 1 }, ghu_leo01: { login: 'leo', id: 2 }, ghu_sofia: { login: 'sofia', name: 'Sofia Reyes', id: 3 }, ghu_kim01: { login: 'kim', id: 4 } },
     perms: { dana: 'admin', leo: 'write', ann: 'read', malik: 'write', kim: 'admin' },
     ownerType: 'Organization',
     orgMembers: ['ann'],
@@ -86,11 +81,12 @@ function github(w: World): FetchLike {
       const user = w.users[auth.replace('Bearer ', '')];
       return user ? res(200, user) : res(401, { message: 'Bad credentials' });
     }
-    if (m === 'GET' && path === '/user/emails') {
-      const e = w.emails[auth.replace('Bearer ', '')] ?? [];
-      return typeof e === 'number' ? res(e, { message: 'Resource not accessible by integration' }) : res(200, e);
-    }
     let x: RegExpExecArray | null;
+    if (m === 'GET' && (x = /^\/user\/(\d+)$/.exec(path))) {
+      expect(auth).toBe('Bearer ghs_app');
+      const user = Object.values(w.users).find((u) => u.id === Number(x![1]));
+      return user ? res(200, user) : res(404, {});
+    }
     if ((x = /^\/repos\/acme\/design\/collaborators\/([^/]+)\/permission$/.exec(path))) {
       expect(auth).toBe('Bearer ghs_app');
       const p = w.perms[x[1]!];
@@ -145,6 +141,19 @@ const get = (query = '', token: string | null = 'ghu_dana') =>
 
 const tokenOf = (msg: EmailMessage) => /#t=([A-Za-z0-9_-]+)/.exec(msg.text)![1]!;
 
+const hashOf = (token: string) => createHash('sha256').update(token).digest('hex');
+
+/** The invite a link names, as api/entry finds it: null once spent, cancelled or replaced. */
+const byLink = (deps: InvitesDeps, token: string) => deps.store!.byTokenHash(hashOf(token));
+
+/** Accepting with GitHub, as api/entry does for the invited Bridge account once its GitHub account is linked. */
+async function accept(deps: InvitesDeps, token: string, userToken = 'ghu_sofia') {
+  const inv = await byLink(deps, token);
+  if (!inv) throw new Error('No invite for this link.');
+  const id = world().users[userToken]!.id!;
+  return acceptInviteForGithub({ f: deps.fetch, now: deps.now!, random: deps.random, app: deps.app!, store: deps.store!, members: deps.members ?? null }, inv, id, userToken);
+}
+
 describe('role mapping', () => {
   it('maps each role to its GitHub permission, reviewers to an owner group', () => {
     expect(ROLE_PERMISSION).toEqual({ view: 'pull', edit: 'push', reviewer: 'push', admin: 'admin' });
@@ -166,7 +175,7 @@ describe('not configured', () => {
   });
 
   it('answers 503 for every action, never a fake success, and calls nobody', async () => {
-    for (const action of ['invite', 'resend', 'invite-role', 'cancel', 'set-role', 'remove', 'accept']) {
+    for (const action of ['invite', 'resend', 'invite-role', 'cancel', 'set-role', 'remove']) {
       const r = await handleInvites(post({ action, repo: REPO }), {}, bare);
       expect(r.status).toBe(503);
       expect(await r.json()).toEqual({ error: 'not_configured', message: NOT_CONFIGURED });
@@ -229,30 +238,12 @@ describe('admin checks on the server', () => {
     expect(sent).toHaveLength(0);
   });
 
-  it('peek: says the team, role and masked address of a link before anyone signs in; 410 when spent; capped per network', async () => {
-    const { deps, store } = setup();
-    const token = 'p'.repeat(43);
-    const hash = createHash('sha256').update(token).digest('hex');
-    await store.put({ id: 'p'.repeat(16), repo: REPO, email: 'sofia@acme.design', role: 'edit', invitedBy: 'dana', createdAt: new Date(T0).toISOString(), sentAt: new Date(T0).toISOString(), expiresAt: new Date(T0 + INVITE_TTL_MS).toISOString(), tokenHash: hash }, 600);
-    const anon = (body: unknown) => new Request(`${ORIGIN}/api/invites`, { method: 'POST', headers: { host: HOST, origin: ORIGIN, 'content-type': 'application/json', 'sec-fetch-site': 'same-origin', 'x-real-ip': '1.2.3.4' }, body: JSON.stringify(body) });
-    const r = await handleInvites(anon({ action: 'peek', token }), {}, deps);
-    expect(r.status).toBe(200);
-    const body = await r.json();
-    expect(body).toEqual({ team: 'Design', repo: REPO, role: 'edit', sentTo: 's•••@acme.design' });
-    expect(JSON.stringify(body)).not.toContain('sofia@');
-    expect((await handleInvites(anon({ action: 'peek', token: 'q'.repeat(43) }), {}, deps)).status).toBe(410);
-    expect((await handleInvites(anon({ action: 'peek', token: 'bad' }), {}, deps)).status).toBe(410);
-    for (let i = 0; i < PEEK_PER_HOUR; i++) await handleInvites(anon({ action: 'peek', token }), {}, deps);
-    expect((await handleInvites(anon({ action: 'peek', token }), {}, deps)).status).toBe(429);
-  });
-
   it('still honours a Can view invite sent before readers moved to Library access', async () => {
     const { deps, store, w } = setup();
     const token = 'v'.repeat(43);
     const hash = createHash('sha256').update(token).digest('hex');
     await store.put({ id: 'a'.repeat(16), repo: REPO, email: 'sofia@acme.design', role: 'view', invitedBy: 'dana', createdAt: new Date(T0).toISOString(), sentAt: new Date(T0).toISOString(), expiresAt: new Date(T0 + INVITE_TTL_MS).toISOString(), tokenHash: hash }, 600);
-    const a = await handleInvites(post({ action: 'accept', token }, 'ghu_sofia'), {}, deps);
-    expect(await a.json()).toMatchObject({ status: 'joined', role: 'view' });
+    expect(await accept(deps, token)).toMatchObject({ status: 'joined', role: 'view' });
     expect(w.calls.find((c) => c.method === 'PUT' && c.path === '/repos/acme/design/collaborators/sofia')!.body).toEqual({ permission: 'pull' });
   });
 
@@ -280,31 +271,12 @@ describe('invite token lifecycle', () => {
     expect(stored!.tokenHash).toBe(createHash('sha256').update(token).digest('hex'));
     expect(stored!.expiresAt).toBe(new Date(T0 + INVITE_TTL_MS).toISOString());
 
-    const a = await handleInvites(post({ action: 'accept', token }, 'ghu_sofia'), {}, deps);
-    expect(await a.json()).toEqual({ status: 'joined', repo: REPO, role: 'edit' });
+    expect(await accept(deps, token)).toEqual({ status: 'joined', repo: REPO, role: 'edit' });
     const put = w.calls.find((c) => c.method === 'PUT' && c.path === '/repos/acme/design/collaborators/sofia')!;
     expect(put.body).toEqual({ permission: 'push' });
     expect(await store.list(REPO)).toHaveLength(0);
 
-    const again = await handleInvites(post({ action: 'accept', token }, 'ghu_sofia'), {}, deps);
-    expect(again.status).toBe(410);
-    expect(await again.json()).toEqual({ error: 'expired', message: EXPIRED });
-  });
-
-  it('refuses an expired link and drops the invite', async () => {
-    const { deps, sent, store, tick } = setup();
-    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
-    tick(INVITE_TTL_MS + 1);
-    expect((await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps)).status).toBe(410);
-    expect((await handleInvites(get(`?repo=${REPO}`), {}, deps)).status).toBe(200);
-    expect(await store.list(REPO)).toHaveLength(0);
-  });
-
-  it('refuses a malformed or unknown token without touching GitHub access', async () => {
-    const { deps, w } = setup();
-    expect((await handleInvites(post({ action: 'accept', token: 'nope' }, 'ghu_sofia'), {}, deps)).status).toBe(410);
-    expect((await handleInvites(post({ action: 'accept', token: 'A'.repeat(43) }, 'ghu_sofia'), {}, deps)).status).toBe(410);
-    expect(w.calls.some((c) => c.method === 'PUT')).toBe(false);
+    expect(await byLink(deps, token)).toBeNull();
   });
 
   it('resend invalidates the old link and keeps the invite', async () => {
@@ -318,8 +290,8 @@ describe('invite token lifecycle', () => {
     expect(body.invite.sentAt).toBe(new Date(T0 + RESEND_COOLDOWN_MS).toISOString());
     expect(sent).toHaveLength(2);
     expect(tokenOf(sent[1]!)).not.toBe(tokenOf(sent[0]!));
-    expect((await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps)).status).toBe(410);
-    expect((await handleInvites(post({ action: 'accept', token: tokenOf(sent[1]!) }, 'ghu_sofia'), {}, deps)).status).toBe(200);
+    expect(await byLink(deps, tokenOf(sent[0]!))).toBeNull();
+    expect(await accept(deps, tokenOf(sent[1]!))).toMatchObject({ status: 'joined' });
   });
 
   it('changes the role of a pending invite without a new email, and the same link grants it', async () => {
@@ -332,7 +304,7 @@ describe('invite token lifecycle', () => {
     const [after] = await store.list(REPO);
     expect(after).toMatchObject({ role: 'reviewer', reviewAs: 'tech', tokenHash: inv!.tokenHash });
     expect((await handleInvites(post({ action: 'invite-role', repo: REPO, id: inv!.id, role: 'edit' }, 'ghu_leo01'), {}, deps)).status).toBe(403);
-    expect((await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps)).status).toBe(200);
+    expect(await accept(deps, tokenOf(sent[0]!))).toMatchObject({ status: 'joined', role: 'reviewer', reviewAs: 'tech' });
     expect(w.calls.find((c) => c.method === 'PUT' && c.path === '/repos/acme/design/collaborators/sofia')!.body).toEqual({ permission: 'push' });
   });
 
@@ -342,7 +314,7 @@ describe('invite token lifecycle', () => {
     const [inv] = await store.list(REPO);
     expect(await (await handleInvites(post({ action: 'cancel', repo: REPO, id: inv!.id }), {}, deps)).json()).toEqual({ ok: true });
     expect(await store.list(REPO)).toHaveLength(0);
-    expect((await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps)).status).toBe(410);
+    expect(await byLink(deps, tokenOf(sent[0]!))).toBeNull();
     expect((await handleInvites(post({ action: 'cancel', repo: REPO, id: inv!.id }), {}, deps)).status).toBe(404);
   });
 
@@ -369,15 +341,14 @@ describe('invite token lifecycle', () => {
   it('sends the invitee to GitHub when the app cannot accept for them', async () => {
     const { deps, sent } = setup({ acceptStatus: 403 });
     await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
-    const a = await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps);
-    expect(await a.json()).toEqual({ status: 'accept-on-github', repo: REPO, role: 'edit', acceptUrl: 'https://github.com/acme/design/invitations' });
+    expect(await accept(deps, tokenOf(sent[0]!))).toEqual({ status: 'accept-on-github', repo: REPO, role: 'edit', acceptUrl: 'https://github.com/acme/design/invitations' });
   });
 
   it('a reviewer who accepts gets push and a pull request listing them as owner', async () => {
     const { deps, sent, w } = setup();
     await handleInvites(post({ action: 'invite', repo: REPO, role: 'reviewer', reviewAs: 'design', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
     expect(sent[0]!.text).toContain('Your role: Reviewer: design. Also approves changes before they ship.');
-    const a = await (await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps)).json();
+    const a = await accept(deps, tokenOf(sent[0]!));
     expect(a).toMatchObject({ status: 'joined', role: 'reviewer', reviewAs: 'design', ownersPr: { number: 12 } });
     const file = w.calls.find((c) => c.method === 'PUT' && c.path.endsWith('/contents/bridge.config.json'))!;
     expect(file.body.branch).toMatch(/^bridge\/members-sofia-[a-f0-9]{6}$/);
@@ -545,57 +516,7 @@ describe('services', () => {
 const invite = (deps: InvitesDeps, emails: string[], env: Record<string, string> = {}, token = 'ghu_dana') =>
   handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: emails.map((email) => ({ email })) }, token), env, deps);
 
-describe('only the invited email can accept', () => {
-  it('accepts when the invited email is a verified email of the account, case and spaces aside', async () => {
-    const { deps, sent, w } = setup({ emails: { ghu_sofia: [{ email: 'other@home.example', verified: true, primary: true }, { email: ' Sofia@ACME.design ', verified: true }] } });
-    await invite(deps, ['sofia@acme.design']);
-    const a = await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps);
-    expect(a.status).toBe(200);
-    // Read with the invitee's own sign-in, never the app.
-    expect(w.calls.find((c) => c.path.startsWith('/user/emails'))!.auth).toBe('Bearer ghu_sofia');
-  });
-
-  it('grants nothing to another account, keeps the invite valid and says where it was sent, masked', async () => {
-    const { deps, sent, store, w } = setup();
-    await invite(deps, ['sofia@acme.design']);
-    const token = tokenOf(sent[0]!);
-    const r = await handleInvites(post({ action: 'accept', token }, 'ghu_leo01'), {}, deps);
-    expect(r.status).toBe(403);
-    const body = await r.json();
-    expect(body).toMatchObject({ error: 'email_mismatch', sentTo: 's•••@acme.design', login: 'leo' });
-    expect(body.message).toContain('s•••@acme.design');
-    expect(body.message).toMatch(/Add and verify it on GitHub.*ask your admin to invite/);
-    expect(JSON.stringify(body)).not.toContain('sofia@acme.design');
-    expect(w.calls.some((c) => c.method === 'PUT')).toBe(false);
-    expect(await store.list(REPO)).toHaveLength(1);
-    // The right person still gets in with the same link.
-    expect((await handleInvites(post({ action: 'accept', token }, 'ghu_sofia'), {}, deps)).status).toBe(200);
-  });
-
-  it('refuses an unverified email and says to verify it', async () => {
-    const { deps, sent, store, w } = setup({ emails: { ghu_sofia: [{ email: 'sofia@acme.design', verified: false }] } });
-    await invite(deps, ['sofia@acme.design']);
-    const r = await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps);
-    expect(r.status).toBe(403);
-    const body = await r.json();
-    expect(body.error).toBe('email_unverified');
-    expect(body.message).toMatch(/not verified yet\. Verify it on GitHub/);
-    expect(w.calls.some((c) => c.method === 'PUT')).toBe(false);
-    expect(await store.list(REPO)).toHaveLength(1);
-  });
-
-  it('asks to sign in again when the sign-in cannot read emails, and keeps the invite', async () => {
-    for (const status of [403, 404]) {
-      const { deps, sent, store, w } = setup({ emails: { ghu_sofia: status } });
-      await invite(deps, ['sofia@acme.design']);
-      const r = await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps);
-      expect(r.status).toBe(403);
-      expect(await r.json()).toEqual({ error: 'email_access', message: EMAIL_ACCESS });
-      expect(w.calls.some((c) => c.method === 'PUT')).toBe(false);
-      expect(await store.list(REPO)).toHaveLength(1);
-    }
-  });
-
+describe('the invited email, masked', () => {
   it('masks an email to its first letter and domain', () => {
     expect(maskEmail('maria@acme.design')).toBe('m•••@acme.design');
     expect(maskEmail('a@b.co')).toBe('a•••@b.co');
@@ -691,7 +612,7 @@ describe('resend frequency', () => {
     expect(r.headers.get('retry-after')).toBe('60');
     expect(sent).toHaveLength(1);
     // The first link still works.
-    expect((await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps)).status).toBe(200);
+    expect(await byLink(deps, tokenOf(sent[0]!))).not.toBeNull();
   });
 
   it(`allows ${MAX_RESENDS_PER_INVITE_DAY} resends per invite per day; a failed email does not count`, async () => {
@@ -764,7 +685,7 @@ describe('what is kept, and for how long', () => {
     const { deps, sent, store } = setup();
     await invite(deps, ['sofia@acme.design']);
     expect(inviteKeys(store.keys())).toHaveLength(2);
-    await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps);
+    await accept(deps, tokenOf(sent[0]!));
     expect(inviteKeys(store.keys())).toEqual([]);
   });
 
@@ -792,7 +713,7 @@ describe('what is kept, and for how long', () => {
     const { deps, sent, store } = setup();
     await invite(deps, ['sofia@acme.design']);
     const hash = createHash('sha256').update(tokenOf(sent[0]!)).digest('hex');
-    await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps);
+    await accept(deps, tokenOf(sent[0]!));
     expect(await store.byTokenHash(hash)).toBeNull();
     const trace = await store.traceByTokenHash(hash);
     expect(trace).toEqual({ repo: REPO, invitedBy: expect.any(String) });
@@ -803,8 +724,7 @@ describe('what is kept, and for how long', () => {
     const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((k) => vi.spyOn(console, k).mockImplementation(() => {}));
     const { deps, sent } = setup({}, { email: { send: async (m) => void sent.push(m) } });
     await invite(deps, ['sofia@acme.design', 'bad email']);
-    await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_leo01'), {}, deps);
-    await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps);
+    await accept(deps, tokenOf(sent[0]!));
     for (const s of spies) {
       expect(s).not.toHaveBeenCalled();
       s.mockRestore();
@@ -859,12 +779,10 @@ describe('email contributors in Members', () => {
     expect(reviewer.text).toContain('You sign in with GitHub.');
   });
 
-  it('peek and the email use bridge.config.json name when the team set one', async () => {
+  it('the email uses bridge.config.json name when the team set one', async () => {
     const { deps, sent } = setup({ config: CONFIG.replace('"version": 1,', '"version": 1,\n  "name": "Acme Studio",') });
     await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
     expect(sent[0]!.subject).toBe('Dana invited you to Acme Studio on Bridge');
-    const r = await handleInvites(post({ action: 'peek', token: tokenOf(sent[0]!) }), {}, deps);
-    expect((await r.json()).team).toBe('Acme Studio');
   });
 
   it("the email names the team, not its repository: Bridge's own design system reads Bridge DS", () => {
@@ -887,8 +805,7 @@ describe('email contributors in Members', () => {
     await members.put(REPO, { email: 'sofia@acme.design', name: 'Sofia', role: 'edit', version: 1, addedBy: 'dana', at: '' });
     const { deps, sent } = setup({}, { members });
     await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
-    const r = await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps);
-    expect(r.status).toBe(200);
+    expect(await accept(deps, tokenOf(sent[0]!))).toMatchObject({ status: 'joined' });
     expect(await members.get(REPO, 'sofia@acme.design')).toBeNull();
   });
 });

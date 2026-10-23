@@ -7,10 +7,9 @@ import { memoryRedis } from '../../api/_lib/redis';
 import {
   cookieName,
   type ContribDeps,
-  EXPIRED,
   type FetchLike,
-  GITHUB_REQUIRED,
   handleContribute,
+  issueSession,
   NOT_ALLOWED,
   SESSION_TTL_MS,
   signSession,
@@ -18,14 +17,13 @@ import {
   WRITE_LIMIT_DEFAULT,
   parseTarget,
   validBranch,
-  cleanName,
   clearDesignPathCache,
   DESIGN_ONLY,
   designPathsFrom,
   isDesignPath,
   publicEmail,
 } from '../../api/contribute/index';
-import { inviteStoreOn, type EmailMessage, type Role, type StoredInvite } from '../../api/invites/index';
+import { type EmailMessage } from '../../api/invites/index';
 import { clearReadMemory } from '../../api/_lib/team-read';
 
 const HOST = 'bridge.example.com';
@@ -109,7 +107,6 @@ function setup(over: Partial<ContribDeps> = {}, world: Partial<World> = {}) {
   let now = T0;
   let seed = 0;
   const redis = memoryRedis(() => now);
-  const invites = inviteStoreOn(redis, () => now);
   const members = memberStore(redis);
   const sent: EmailMessage[] = [];
   const deps: ContribDeps = {
@@ -121,26 +118,7 @@ function setup(over: Partial<ContribDeps> = {}, world: Partial<World> = {}) {
     app: { installationToken: async () => 'ghs_contrib' },
     ...over,
   };
-  let k = 0;
-  /** A pending invite as api/invites stores it; returns its link token. */
-  const invite = async (email = 'mia@acme.design', role: Role = 'edit', repo = REPO) => {
-    const token = (String(++k) + 'x'.repeat(43)).slice(0, 43);
-    const inv: StoredInvite = {
-      id: `${'a'.repeat(15)}${k}`,
-      repo,
-      email,
-      role,
-      ...(role === 'reviewer' ? { reviewAs: 'design' as const } : {}),
-      invitedBy: 'dana',
-      createdAt: new Date(now).toISOString(),
-      sentAt: new Date(now).toISOString(),
-      expiresAt: new Date(now + 7 * 864e5).toISOString(),
-      tokenHash: createHash('sha256').update(token).digest('hex'),
-    };
-    await invites.put(inv, 7 * 86400);
-    return token;
-  };
-  return { w, deps, redis, invites, members, sent, invite, tick: (ms: number) => (now += ms) };
+  return { w, deps, redis, members, sent, tick: (ms: number) => (now += ms) };
 }
 
 const H = { host: HOST, origin: ORIGIN, 'content-type': 'application/json', 'x-bridge-contribute': '1', 'sec-fetch-site': 'same-origin' };
@@ -156,11 +134,15 @@ function gh(method: string, path: string, cookie: string, body?: unknown, extra:
 
 const cookieOf = (r: Response) => (r.headers.get('set-cookie') ?? '').split(';')[0]!;
 
-/** Accepts a fresh "Can edit" invite and returns the session cookie. */
+/**
+ * A "Can edit" member joined (api/entry stores them, a version up on each join) and their session cookie, as
+ * issueSession sets it.
+ */
 async function join(s: ReturnType<typeof setup>, email = 'mia@acme.design', name = 'Mia Chen') {
-  const r = await handleContribute(act({ action: 'accept', token: await s.invite(email), name }), ENV, s.deps);
-  expect(r.status).toBe(200);
-  return cookieOf(r);
+  const prev = await s.members.get(REPO, email);
+  const member = { email, name, role: 'edit' as const, version: (prev?.version ?? 0) + 1, addedBy: 'dana', at: new Date(s.deps.now!()).toISOString() };
+  await s.members.put(REPO, member);
+  return issueSession(member, REPO, SECRET, s.deps.now!()).split(';')[0]!;
 }
 
 const P = '/repos/acme/design';
@@ -188,83 +170,33 @@ describe('availability', () => {
   });
 });
 
-describe('accept with the email', () => {
-  it('joins a Can edit invite, stores the member, spends the invite and sets a scoped cookie', async () => {
+describe('session cookie and CSRF', () => {
+  it('scopes the session cookie to the team and to /api/contribute', async () => {
     const s = setup();
-    const token = await s.invite('Mia@Acme.design');
-    const r = await handleContribute(act({ action: 'accept', token, name: 'Mia Chen' }), ENV, s.deps);
-    expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ member: { email: 'mia@acme.design', name: 'Mia Chen', role: 'edit' }, repo: REPO });
-    const set = r.headers.get('set-cookie')!;
+    const set = issueSession({ email: 'mia@acme.design', name: 'Mia Chen', role: 'edit', version: 1, addedBy: 'dana', at: '' }, REPO, SECRET, T0);
     expect(set.startsWith(`${cookieName(REPO)}=v1.`)).toBe(true);
     expect(cookieName(REPO)).toBe(`bridge_contrib_${createHash('sha256').update(REPO).digest('hex').slice(0, 16)}`);
     for (const part of ['Path=/api/contribute', 'HttpOnly', 'Secure', 'SameSite=Lax', `Max-Age=${SESSION_TTL_MS / 1000}`]) expect(set).toContain(part);
-    expect(await s.members.get(REPO, 'mia@acme.design')).toMatchObject({ email: 'mia@acme.design', role: 'edit', version: 1, addedBy: 'dana' });
-    expect(await s.redis.cmd('SMEMBERS', `bridge:members:${REPO}`)).toEqual(['mia@acme.design']);
-    expect(await s.invites.list(REPO)).toEqual([]);
-    const st = await handleContribute(status(cookieOf(r)), ENV, s.deps);
-    expect(await st.json()).toEqual({ available: true, member: { email: 'mia@acme.design', name: 'Mia Chen', role: 'edit' } });
-    // No GitHub call at all: the inbox is the proof.
-    expect(s.w.calls).toEqual([]);
-  });
-
-  it('accept twice: 410', async () => {
-    const s = setup();
-    const token = await s.invite();
-    expect((await handleContribute(act({ action: 'accept', token, name: 'Mia' }), ENV, s.deps)).status).toBe(200);
-    const again = await handleContribute(act({ action: 'accept', token, name: 'Mia' }), ENV, s.deps);
-    expect(again.status).toBe(410);
-    expect(await again.json()).toEqual({ error: 'expired', message: EXPIRED });
-  });
-
-  it('refuses a reviewer invite with 409 github-required, and keeps it for the GitHub way', async () => {
-    const s = setup();
-    const token = await s.invite('reviewer@acme.design', 'reviewer');
-    const r = await handleContribute(act({ action: 'accept', token, name: 'X' }), ENV, s.deps);
-    expect(r.status).toBe(409);
-    expect(await r.json()).toEqual({ error: 'github-required', message: GITHUB_REQUIRED });
-    expect(r.headers.get('set-cookie')).toBeNull();
-    expect(await s.invites.list(REPO)).toHaveLength(1);
-    expect(await s.members.list(REPO)).toEqual([]);
-  });
-
-  it('joins an admin invite with the email: an admin needs GitHub only to approve on GitHub', async () => {
-    const s = setup();
-    const token = await s.invite('admin@acme.design', 'admin');
-    const r = await handleContribute(act({ action: 'accept', token, name: 'Ada' }), ENV, s.deps);
-    expect(r.status).toBe(200);
-    expect((await r.json()).member).toMatchObject({ email: 'admin@acme.design', role: 'admin' });
-    expect((await s.members.get(REPO, 'admin@acme.design'))?.role).toBe('admin');
-  });
-
-  it('refuses an expired, unknown or malformed token with 410', async () => {
-    const s = setup();
-    const token = await s.invite();
-    s.tick(8 * 864e5);
-    expect((await handleContribute(act({ action: 'accept', token, name: 'Mia' }), ENV, s.deps)).status).toBe(410);
-    for (const bad of ['y'.repeat(43), 'short', 42, undefined]) expect((await handleContribute(act({ action: 'accept', token: bad }), ENV, s.deps)).status).toBe(410);
-  });
-
-  it('keeps a name plain: no markdown, no links, never empty', () => {
-    expect(cleanName('  Mia   Chen ', 'mia@acme.design')).toBe('Mia Chen');
-    expect(cleanName('**Boss** [x](https://evil.example) <b>', 'mia@acme.design')).toBe('Boss x https evil.example b');
-    expect(cleanName('Zoë O\'Neil-Ávila', 'z@acme.design')).toBe("Zoë O'Neil-Ávila");
-    expect(cleanName('', 'mia.chen@acme.design')).toBe('mia.chen');
-    expect(cleanName(undefined, '_@acme.design')).toBe('Contributor');
-    expect(cleanName('x'.repeat(200), 'a@b.co')).toHaveLength(80);
+    const cookie = await join(s);
+    expect(await (await handleContribute(status(cookie), ENV, s.deps)).json()).toEqual({ available: true, member: { email: 'mia@acme.design', name: 'Mia Chen', role: 'edit' } });
   });
 
   it('needs the X-Bridge-Contribute header, JSON, and a page of this site when there is an Origin', async () => {
     const s = setup();
-    const token = await s.invite();
-    const noHeader = new Request(`${ORIGIN}/api/contribute`, { method: 'POST', headers: { host: HOST, origin: ORIGIN, 'content-type': 'application/json' }, body: JSON.stringify({ action: 'accept', token }) });
+    const body = JSON.stringify({ action: 'sign-out', repo: REPO });
+    const noHeader = new Request(`${ORIGIN}/api/contribute`, { method: 'POST', headers: { host: HOST, origin: ORIGIN, 'content-type': 'application/json' }, body });
     expect((await handleContribute(noHeader, ENV, s.deps)).status).toBe(403);
-    expect((await handleContribute(act({ action: 'accept', token }, { origin: 'https://evil.example' }), ENV, s.deps)).status).toBe(403);
-    expect((await handleContribute(act({ action: 'accept', token }, { 'sec-fetch-site': 'cross-site' }), ENV, s.deps)).status).toBe(403);
-    expect((await handleContribute(act({ action: 'accept', token }, { 'content-type': 'text/plain' }), ENV, s.deps)).status).toBe(415);
+    expect((await handleContribute(act({ action: 'sign-out', repo: REPO }, { origin: 'https://evil.example' }), ENV, s.deps)).status).toBe(403);
+    expect((await handleContribute(act({ action: 'sign-out', repo: REPO }, { 'sec-fetch-site': 'cross-site' }), ENV, s.deps)).status).toBe(403);
+    expect((await handleContribute(act({ action: 'sign-out', repo: REPO }, { 'content-type': 'text/plain' }), ENV, s.deps)).status).toBe(415);
     const { origin: _o, ...noOrigin } = H;
-    const ok = new Request(`${ORIGIN}/api/contribute`, { method: 'POST', headers: noOrigin, body: JSON.stringify({ action: 'accept', token, name: 'Mia' }) });
+    const ok = new Request(`${ORIGIN}/api/contribute`, { method: 'POST', headers: noOrigin, body });
     expect((await handleContribute(ok, ENV, s.deps)).status).toBe(200);
+  });
+
+  it('refuses an action it does not know, such as the old accept', async () => {
+    const s = setup();
+    expect((await handleContribute(act({ action: 'accept', token: 'x'.repeat(43), name: 'Mia' }), ENV, s.deps)).status).toBe(400);
   });
 });
 
