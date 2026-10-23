@@ -1,19 +1,19 @@
 // What waits on the connected viewer among the changes in review, shared by the Overview (Needs you, In flight) and
-// the Changes nav badge in the shell, so both read the same rule (lib/overview-todo reviewNeedsYou) from the same
-// statuses. Who acts now: lib/changes whoActs, with the owners, ship rights, teams and override from the config.
-import { needFromStatus, whoActs, type WhoActs } from '../lib/changes';
-import { developerOnlyFailures } from '../lib/check-explain';
+// the Branches nav badge in the shell, so both read the one rule of lib/waiting-on from the same statuses. Who acts
+// now: pr-status rowWho (lib/changes whoActs), with the owners, ship rights, teams, solo owner and override.
+import { type WhoActs } from '../lib/changes';
 import { oneLineTitle } from '../lib/markdown';
 import { humanTitle } from '../lib/pr-title';
-import { isGuidanceChange, reviewNeedsYou, type TodoChange } from '../lib/overview-todo';
+import { isGuidanceChange, type TodoChange } from '../lib/overview-todo';
+import { reviewCount, type ViewerRole, type WaitChange } from '../lib/waiting-on';
+import { holdsReviewRight } from '../lib/home-model';
 import { reviewQueue } from '../lib/review-queue';
-import { currentViewer, hasWorkingToken } from './github-session';
-import { loadStatuses, owners, shippers, teamPeople, type PullForStatus, type PullStatus } from './pr-status';
+import { currentAccess, currentContributor, currentViewer, hasWorkingToken } from './github-session';
+import { loadStatuses, owners, rowWho, shippers, type PullForStatus, type PullStatus } from './pr-status';
 import { loadTeams } from './teams';
 import { loadSuggestionNeeds } from './suggestions';
 import { agentMade, workNature, type VisualSignal } from '../lib/work-nature';
 import { rowLifecycle } from '../lib/change-status';
-import { siteConfig } from './repo-context';
 
 export interface QueuePullFull extends PullForStatus {
   state: string;
@@ -25,33 +25,30 @@ export interface QueuePullFull extends PullForStatus {
 /** Where the badge count is kept between pages, so the nav does not jump while GitHub answers. */
 export const MINE_COUNT_KEY = 'bridge.reviews.mine';
 
-const overrideBy = (): string[] => {
-  try {
-    return (siteConfig() as { override?: { allowed?: string[] } }).override?.allowed ?? [];
-  } catch {
-    return [];
-  }
-};
-
 /** Every owner login, both roles, teams expanded once read. */
 export const siteOwners = () => {
   const o = owners();
   return [...new Set([...o.design, ...o.tech])];
 };
 
-/** Who acts now on a change, for the connected viewer (same rules as the change detail). */
+/** Who acts now on a change, for the connected viewer: the same people as the change detail and the Branches rows (rowWho). */
 export function whoFor(p: PullForStatus, st: PullStatus | null | undefined): WhoActs | null {
-  return st
-    ? whoActs(needFromStatus(st.kind, { failing: st.failing, changesRequestedBy: st.changesRequested, developerOnly: developerOnlyFailures(st.failingChecks), pending: st.pending }), {
-        owners: owners(),
-        shippers: shippers(),
-        ...teamPeople(),
-        overrideBy: overrideBy(),
-        author: p.user.login,
-        viewer: currentViewer()?.login ?? null,
-        approvers: st.approvers,
-      })
-    : null;
+  return st ? rowWho(st.kind, { author: p.user.login, approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing, failingChecks: st.failingChecks, pending: st.pending }) : null;
+}
+
+/**
+ * Whether the connected viewer holds a review right (lib/home-model holdsReviewRight): the role every "waiting on me"
+ * surface passes to lib/waiting-on. An email contributor never does.
+ */
+export function viewerRole(): ViewerRole {
+  const viewer = currentViewer()?.login ?? null;
+  const contributor = Boolean(currentContributor()) || currentAccess()?.contributor === true;
+  return holdsReviewRight({ viewer, contributor, approvers: [...owners().design, ...owners().tech], shippers: shippers(), write: currentAccess()?.write ?? null }) ? 'reviewer' : 'contributor';
+}
+
+/** A change as lib/waiting-on reads it. */
+export function waitChange(p: QueuePullFull & { draft?: boolean; requested_reviewers?: { login: string }[] | null }, c: TodoChange): WaitChange {
+  return { author: p.user.login, draft: p.draft, nature: c.nature, guidance: c.guidance, lifecycle: c.lifecycle, who: c.who, requested: (p.requested_reviewers ?? []).map((r) => r.login), changesRequested: c.changesBy };
 }
 
 /**
@@ -112,7 +109,13 @@ export async function loadReviewNeedsYou(pulls: QueuePullFull[]): Promise<number
   const statuses = new Map<number, PullStatus | null>();
   const suggestions = loadSuggestionNeeds().catch(() => []);
   await loadStatuses(queue, (p, st) => statuses.set(p.number, st));
-  const n = reviewNeedsYou({ changes: queue.map((p) => todoChange(p, statuses.get(p.number))), viewer, owners: siteOwners() }) + (await suggestions).length;
+  // The one rule (lib/waiting-on): the same count as the Home's review rows and the Review page.
+  const role = viewerRole();
+  const branches = reviewCount(
+    queue.map((p) => waitChange(p, todoChange(p, statuses.get(p.number)))),
+    { login: viewer, role },
+  );
+  const n = branches + (role === 'reviewer' ? (await suggestions).length : 0);
   rememberMine(n);
   return n;
 }

@@ -47,7 +47,7 @@ import { exists, GITHUB_URL, lastUpdated, readText } from '../../../lib/repo';
 import { VOCAB } from '../../../lib/vocabulary';
 import { CHOICE_LABEL, OWNER_GROUP_HELP, OWNER_GROUP_LABEL, roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL, type RightChoice } from '../../../lib/roles-view';
 import OwnersField from '../../../components/ds/studio/OwnersField';
-import { approvalRules, changesInConfig, soloOwnerRow } from '../../../lib/settings-view';
+import { approvalRules, changesInConfig, overrideRow, soloOwnerRow } from '../../../lib/settings-view';
 import ChangesModeSetting from '../../../components/ds/studio/ChangesMode';
 import MembersSection from '../../../components/ds/studio/MembersSection';
 import LibraryAccessSection from '../../../components/ds/studio/LibraryAccessSection';
@@ -73,6 +73,7 @@ const list = (xs: string[]) => (xs.length ? xs.join(', ') : 'none');
 // Review rules: who approves design, who approves tech, who merges. Safety: when the visual before and after runs.
 const roles = roleRows(r.owners, r.rights);
 const solo = soloOwnerRow(r);
+const override = overrideRow(r);
 const mode = r.visualImpact.mode;
 const choices = (['design', 'tech', 'both'] as RightChoice[]).map((c) => ({ value: c, label: CHOICE_LABEL[c] }));
 const rolesData = jsonForScript({
@@ -218,6 +219,19 @@ const changes = changesInConfig(config);
                       </div>
                       <div class="set-row-value">
                         <p class="set-who">{solo.value}</p>
+                      </div>
+                    </div>
+                  )
+                }
+                {
+                  override && (
+                    <div class="set-row" data-view>
+                      <div>
+                        <p class="set-row-label">{override.label}</p>
+                        <p class="set-row-help">{override.help}</p>
+                      </div>
+                      <div class="set-row-value">
+                        <p class="set-who">{override.value}</p>
                       </div>
                     </div>
                   )

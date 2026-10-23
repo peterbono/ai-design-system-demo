@@ -125,7 +125,9 @@ describe('override reason and audit comment', () => {
     expect(overrideReasonProblem('', policy)).toMatch(/Write why/);
     expect(overrideReasonProblem('too short', policy)).toMatch(/at least 20 characters \(9 so far\)/);
     expect(overrideReasonProblem('Solo maintainer, CI green, reviewed the diff myself.', policy)).toBeNull();
-    expect(overrideReasonProblem('', { ...policy, requireReason: false })).toBeNull();
+    // GOVERNANCE.md: the reason is always required. requireReason: false no longer waives it.
+    expect(overrideReasonProblem('', { ...policy, requireReason: false })).toMatch(/Write why/);
+    expect(overrideReasonProblem('short', { ...policy, minReasonLength: 0 })).toMatch(/at least 20 characters/);
   });
 
   it('writes a stable comment that reads back', () => {
@@ -262,6 +264,19 @@ describe('reviewStatus', () => {
     expect(st({ tier: 1, approvals: designOnly }).kind).toBe('ready');
     expect(st({ tier: 1, approvals: none }).kind).toBe('needs-approval');
     expect(st({ tier: 2, approvals: none }).kind).toBe('needs-design');
+  });
+
+  it('Tier 1 needs one owner, as GOVERNANCE.md and Settings say: an approval from someone else does not count', () => {
+    const team = { design: ['ann'], tech: ['theo'] };
+    const stranger = summarizeApprovals([{ user: { login: 'lea' }, state: 'APPROVED' }], team, 'sam');
+    const owner = summarizeApprovals([{ user: { login: 'theo' }, state: 'APPROVED' }], team, 'sam');
+    expect(stranger.owner).toBe(false);
+    expect(st({ tier: 1, approvals: stranger }).kind).toBe('needs-approval');
+    expect(mergeGate({ tier: 1, ci: green, approvals: stranger, draft: false, state: 'open' }).reasons).toEqual(['It needs one owner approval.']);
+    expect(st({ tier: 1, approvals: owner }).kind).toBe('ready');
+    // No owner set: any approval counts.
+    const open = summarizeApprovals([{ user: { login: 'lea' }, state: 'APPROVED' }], { design: [], tech: [] }, 'sam');
+    expect(st({ tier: 1, approvals: open }).kind).toBe('ready');
   });
 
   it('without configured owners, two approvers stand in for design and tech', () => {

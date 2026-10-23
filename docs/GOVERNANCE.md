@@ -237,7 +237,10 @@ Tier 3.
 - **Applying.** `bridge apply <n>` and `bridge_apply_suggestion` check the paths (inside the folders the kind may
   change, never a guardrail file except `bridge.config.json` for settings and brands), the approvals, then re-apply
   the change on today's code and re-run validation, contrast and the tier. A tier that went up needs a new approval.
-- **The pull request** that applies it says `Closes #<n>` and goes through the usual gates above.
+- **The pull request** that applies it says `Closes #<n>` and goes through the usual gates above, except the approvals:
+  it carries the suggestion's approvals (`withSuggestionApprovals`), so the same change is not reviewed twice. That
+  holds only while the suggestion is approved and the pull request's tier is not higher than the tier it was approved
+  at. Changes requested on the pull request, CI, conflicts and the ship right still gate the merge.
 
 ## Who approves what
 

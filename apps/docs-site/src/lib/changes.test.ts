@@ -357,9 +357,12 @@ describe('approval rows', () => {
     expect(whoActs({ kind: 'approve', roles: ['design', 'tech'] }, { ...solo, author: 'pat' }).yourTurn).toBe(false);
   });
 
-  it('shows one Approval row below Tier 3', () => {
-    const rows = approvalRows({ tier: 1, approvals: approvals({ approvers: ['zoe'] }), people: { owners, author: 'ann' }, open: true });
-    expect(rows).toEqual([expect.objectContaining({ label: 'Approval', state: 'approved', text: 'Approved by @zoe' })]);
+  it('shows one Approval row below Tier 3, given by an owner (GOVERNANCE.md "1 code owner")', () => {
+    const rows = approvalRows({ tier: 1, approvals: approvals({ approvers: ['dana'], owner: true }), people: { owners, author: 'ann' }, open: true });
+    expect(rows).toEqual([expect.objectContaining({ label: 'Approval', state: 'approved', text: 'Approved by @dana' })]);
+    // Someone who is not an owner: it still waits for one.
+    const stranger = approvalRows({ tier: 1, approvals: approvals({ approvers: ['zoe'], owner: false }), people: { owners, author: 'ann' }, open: true });
+    expect(stranger[0]).toMatchObject({ state: 'waiting' });
   });
 });
 

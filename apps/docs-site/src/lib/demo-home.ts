@@ -7,7 +7,8 @@ import { CLAUDE, changeNeed, person, requesterPerson, type BranchCard, type Need
 import { isGuidanceChange } from './overview-todo';
 import { oneLineTitle } from './markdown';
 import { humanTitle } from './pr-title';
-import { agentMade } from './work-nature';
+import { agentMade, workNature } from './work-nature';
+import { waitsOnMe } from './waiting-on';
 import { shortTitle, suggestionNeed } from './suggestions-view';
 import { studioHref } from './team-path';
 import type { ThumbSpec } from './branch-thumb';
@@ -79,13 +80,25 @@ export function askerOf(p: Pick<DemoPull, 'user' | 'body' | 'labels'>, people?: 
 }
 
 /**
- * The queue a DS lead sees on the demo, the visitor in their seat: every branch ready for review (drafts and
- * automation left out) and every open suggestion, as the Needs you rows of the signed-in home (changeNeed,
- * suggestionNeed).
+ * Whether a branch waits on the DS lead whose seat the visitor takes: the one rule of every "waiting on me" surface
+ * (lib/waiting-on), in the seat (statuses are never read on the demo). Drafts, explorations, developer work and
+ * automation are left out; the Branches "Waiting on me" filter on the demo reads the same rule.
+ */
+export const waitsOnLead = (p: DemoPull): boolean =>
+  !isBotPull(p) &&
+  waitsOnMe(
+    { author: p.user?.login ?? '', draft: p.draft, exploration: isExploration(p), guidance: guidanceBranch(p), nature: workNature({ title: title(p.title), labels: p.labels ?? null }).nature, who: null },
+    { login: null, role: 'reviewer', seat: true },
+  );
+
+/**
+ * The queue a DS lead sees on the demo, the visitor in their seat: every branch that waits on the lead (waitsOnLead)
+ * and every open suggestion, as the Needs you rows of the signed-in home (changeNeed, suggestionNeed). The Review page
+ * lists the same rows.
  */
 export function leadQueue(pulls: DemoPull[], suggestions: DemoSuggestion[], now: number, opts: LeadOptions = {}): NeedRow[] {
   const changes = pulls
-    .filter((p) => !p.draft && !isBotPull(p))
+    .filter(waitsOnLead)
     .map((p) => {
       const guidance = guidanceBranch(p);
       return {

@@ -98,7 +98,7 @@ describe('queue sentence', () => {
       { bucket: 'apply', n: 2 },
       { bucket: 'applying', n: 1 },
     ]);
-    expect(queueSentence(['ready-to-apply'])).toBe('1 branch is approved and ready to apply.');
+    expect(queueSentence(['ready-to-apply'])).toBe('1 branch is approved and waits for a developer to apply it.');
   });
 
   it('counts unread statuses as still being checked', () => {

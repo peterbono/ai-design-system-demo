@@ -6,6 +6,8 @@
 // (planSuggestionApply, nothing written) to say whether it still applies and to re-run its checks.
 // Words and rules: lib/suggestions-view.ts.
 import {
+  closingIssueNumbers,
+  suggestionReviewState,
   declineReasonProblems,
   declineSuggestionOnGitHub,
   getSuggestionOnGitHub,
@@ -51,6 +53,7 @@ import {
   tokenRows,
   waitsOnViewer,
   type TodayChecks,
+  viewerRoles,
 } from '../lib/suggestions-view';
 import type { DeclineAskDetail } from '../components/ds/studio/RequestDecide';
 import type { SuggestionReviewProps, NextCard } from '../components/ds/studio/SuggestionReview';
@@ -76,6 +79,33 @@ async function governance(): Promise<SuggestionGovernance> {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// The pull request that applies a suggestion carries its approvals (core withSuggestionApprovals)
+
+const applied = new Map<number, Promise<{ number: number; approvals: SuggestionDetail['approvals'] & {}; tier: 1 | 2 | 3 } | null>>();
+
+/**
+ * The approved Bridge suggestion a pull request applies, from the issues its body closes ("Closes #n"), read once per
+ * page: its approvals and the tier they were given at. Null when it closes none, or none is an approved suggestion.
+ */
+export async function approvedSuggestionOf(body: string | null | undefined): Promise<{ number: number; approvals: SuggestionDetail['approvals'] & {}; tier: 1 | 2 | 3 } | null> {
+  for (const n of closingIssueNumbers(body).slice(0, 3)) {
+    let p = applied.get(n);
+    if (!p) {
+      p = (async () => {
+        const d = await getSuggestionOnGitHub(client(), n, await governance(), { pulls: [] });
+        if (!d.parsed.ok || !d.approvals) return null;
+        const tier = d.parsed.payload.tier.tier;
+        return suggestionReviewState(tier, d.approvals) === 'approved' ? { number: n, approvals: d.approvals, tier } : null;
+      })().catch(() => null);
+      applied.set(n, p);
+    }
+    const found = await p;
+    if (found) return found;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // What waits on the viewer: one list for Home, the queue and the badge
 
 const NEEDS_KEY = 'bridge.suggestions.needs.v2';
@@ -92,6 +122,8 @@ interface Waiting {
   labels?: string[];
   /** Who asked for it, as Bridge records it in the body ("Requested by Ann Leroy."). */
   requester?: Requester | null;
+  /** Approved: it waits on the viewer, a developer, to apply it. */
+  apply?: boolean;
 }
 
 let needs: { viewer: string; at: number; rows: Promise<Waiting[]> } | null = null;
@@ -128,6 +160,7 @@ async function readWaiting(viewer: string): Promise<Waiting[]> {
         if (!waitsOnViewer({ status: stalenessStatus(d.status, stale), missing: missingRoles(tier, d.approvals), viewer, author: d.issue.author, owners, collaborator: write, reviewed })) return null;
         return {
           number: i.number,
+          ...(d.status === 'approved' ? { apply: true } : {}),
           title: shortTitle(d.parsed.payload.title || i.title),
           author: d.issue.author,
           createdAt: d.issue.createdAt,
@@ -373,6 +406,8 @@ export async function openSuggestion(n: number, host: SuggestionHost): Promise<v
       gate,
       approveLabel: approveLabel(gate, payload.tier.tier),
       apply: status === 'approved' ? applyLines(n) : null,
+      // Developers (tech owners) only: the same rule as the branch page's For developers fold.
+      developer: !seat && viewerRoles(viewer, owners).includes('tech'),
       previews: payload.previews ?? [],
       next: host.next ?? [],
       crumbs: host.crumbs,

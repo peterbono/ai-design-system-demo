@@ -1,7 +1,7 @@
 // Studio Settings: approvals in plain words and the Claude connect command.
 import { describe, expect, it } from 'vitest';
 import { tierSummaries } from './governance';
-import { accountView, appReach, approvalRules, changesInConfig, changesProposal, effectiveChanges, INTERIM_APP_TEXT, READ_ONLY_APP_TEXT, soloOwnerRow, suggestAppText, plainApprovals, ruleSentence, withChanges } from './settings-view';
+import { accountView, appReach, approvalRules, changesInConfig, changesProposal, effectiveChanges, INTERIM_APP_TEXT, overrideRow, READ_ONLY_APP_TEXT, soloOwnerRow, suggestAppText, plainApprovals, ruleSentence, withChanges } from './settings-view';
 
 const GOVERNANCE = `# Governance
 
@@ -171,5 +171,18 @@ describe('how changes reach your code', () => {
     // No GitHub App (a pasted token): nothing to say about an app.
     expect(suggestAppText(null)).toBeNull();
     expect(suggestAppText(undefined)).toBeNull();
+  });
+});
+
+describe('Settings, owner override row', () => {
+  const override = { allowed: ['ann', 'lea'], requireReason: false, minReasonLength: 0 };
+  it('names the owners who may use it, never someone who is not an owner, and the reason it always needs', () => {
+    expect(overrideRow({ owners: { design: ['ann'], tech: ['theo'] }, override })).toEqual({
+      label: 'Owner override',
+      help: 'Merges a branch before every approval is in. Owners only: it never shows as a review step.',
+      value: '@ann, with a written reason of at least 20 characters, posted on the branch.',
+    });
+    expect(overrideRow({ owners: { design: ['ann'], tech: ['theo'] }, override }, () => 'Dana')?.value).toMatch(/^Dana, /);
+    expect(overrideRow({ owners: { design: ['theo'], tech: ['theo'] }, override })).toBeNull();
   });
 });

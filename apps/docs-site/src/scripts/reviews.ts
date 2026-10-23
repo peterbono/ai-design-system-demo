@@ -6,7 +6,7 @@
 // "Copy link", "Link for a developer"; the page itself never links to GitHub.
 // Without a token the bar's primary connects GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
-import { EXPLORATION_USE_CASES, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, canOverride, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
+import { EXPLORATION_USE_CASES, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, canOverride, overrideReasonMin, ownerOverridePolicy, withSuggestionApprovals, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
 import { loadTeams, siteApprovalRules, siteApprovers, siteShipPolicy, siteSoloOwner, teamDirectory } from './teams';
 import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
@@ -53,6 +53,7 @@ import { ghAction, ghVerb } from '../lib/gh-wording';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
 import { loadVisualImpact, visualWorkflowPresent } from './reviews/visual-impact';
 import { ciFor, loadStatuses, rowWho, teamPeople, type PullStatus } from './pr-status';
+import { approvedSuggestionOf } from './suggestions';
 import { mdTitleText } from '../lib/markdown';
 import { humanTitle } from '../lib/pr-title';
 import { jiraKeyOf, VOCAB, withoutJiraKey } from '../lib/vocabulary';
@@ -75,7 +76,9 @@ import { canShare, shareState, showShare, type ShareState } from '../lib/share-c
 import { addedNotice, canAddTo, dismissedApprovals, dismissedSentence, editInChangeHref, isTokenChange } from '../lib/continue-change';
 import { backToDraft, detailStatus, statusActionFor, takeSaid, type StatusActionRun } from './change-status';
 import { ACTION_LABEL } from '../lib/change-status';
-import { contributorTurn, ownedBy, PRODUCTS } from '../lib/branches-page';
+import { ownedBy, PRODUCTS } from '../lib/branches-page';
+import { waitsOnMe } from '../lib/waiting-on';
+import { viewerRole } from './needs-you';
 import { contributeMine, type Mine } from './contribute-session';
 import {
   checksLine,
@@ -174,6 +177,8 @@ const SITE = (() => {
 const OWNERS = () => siteApprovers();
 const SHIP = () => siteShipPolicy();
 const OVERRIDE: OverridePolicy = SITE.override ?? NO_OVERRIDE;
+/** Who may use the owner override: owners only (core overrideHolders), the same list Settings and the Home read. */
+const HOLDERS = (): OverridePolicy => ownerOverridePolicy(OVERRIDE, OWNERS()) ?? NO_OVERRIDE;
 const BRANCHES: BranchesConfig = (() => {
   try {
     return JSON.parse(document.getElementById('bridge-branches')?.textContent || '{}') as BranchesConfig;
@@ -230,17 +235,11 @@ function showNotice(tone: 'warn' | 'fail' | 'info', text: string) {
 
 /** People around a pull request, for the who-acts line (lib/changes whoActs). */
 function people(author: string, extra: Partial<People> = {}): People {
-  return { owners: OWNERS(), ...teamPeople(), author, viewer: currentViewer()?.login ?? null, overrideBy: OVERRIDE.allowed, shippers: SHIP()?.logins, soloOwner: siteSoloOwner(), ...extra };
+  return { owners: OWNERS(), ...teamPeople(), author, viewer: currentViewer()?.login ?? null, overrideBy: HOLDERS().allowed, shippers: SHIP()?.logins, soloOwner: siteSoloOwner(), ...extra };
 }
 
 /** The facts of a row the who-acts rules read (pr-status rowWho, shared with the Home). */
 const facts = (r: Row) => ({ author: r.user.login, approvers: r.approvers, changesRequested: r.changesRequested, failing: r.failing, failingChecks: r.failingChecks, pending: r.pending, skipped: r.skipped });
-/** Who acts now on a row: the viewer's turn feeds Waiting on me. */
-function turnOf(r: Row) {
-  const who = rowWho(r.kind, facts(r));
-  return { yourTurn: who?.yourTurn ?? false, developer: who?.who === 'developer' };
-}
-
 
 // ---------------------------------------------------------------------------------------------------------------
 // The Branches list (components/ds/studio/BranchesList): every open branch, the running explorations with them, and
@@ -285,6 +284,8 @@ interface Row {
   behindBy?: number | null;
   /** Claude made it (lib/work-nature agentMade): the row shows Claude's identity. */
   agent?: boolean;
+  /** Reviewers GitHub asks for a review (open pull requests). */
+  requested?: string[];
 }
 
 /** How many recently closed branches are read for "N merged this month" (one request). */
@@ -344,9 +345,15 @@ function listRow(r: Row): ListRow {
   // changes requested wait on them.
   const contributor = Boolean(currentContributor());
   const own = contributor ? ownedBy({ author: r.user.login, number: r.number, headRef: r.head?.ref ?? null }, listViewer(), contribMine) : undefined;
-  // In the lead's seat on the demo, every branch in review waits on them (drafts are still being made), as on its home.
-  const seat = demoSeat() !== null;
-  const waitsOnSeat = seat && !r.exploration && !r.draft && lifecycle !== 'draft' && lifecycle !== 'shipped' && lifecycle !== 'closed';
+  // Waiting on me: the one rule of every surface (lib/waiting-on), the lead's seat on the demo included (every branch in
+  // review waits on the lead, as on its home). An email contributor's own branches come from the server's list.
+  const seat = demoSeat();
+  const turn =
+    lifecycle !== 'exploration' &&
+    waitsOnMe(
+      { author: own ? (listViewer() ?? r.user.login) : r.user.login, draft: r.draft, nature: r.nature, guidance: r.guidance, lifecycle, who: rowWho(r.kind, facts(r)), requested: r.requested, changesRequested: r.changesRequested },
+      { login: seat ?? listViewer(), role: seat ? 'reviewer' : contributor ? 'contributor' : viewerRole(), seat: seat !== null },
+    );
   return {
     number: r.number,
     title: humanTitle(mdTitleText(withoutJiraKey(r.title))),
@@ -355,13 +362,9 @@ function listRow(r: Row): ListRow {
     agent: Boolean(r.agent) || agentMade({ body: r.body ?? null, labels: r.labels ?? null }),
     opens: r.exploration ? 'exploration' : 'pr',
     // The lead's rows on the demo carry the home's status for the same change ("New today", "Waiting 2 days").
-    pill: waitsOnSeat && r.created_at ? { label: waitingLabel(r.created_at, Date.now()), tone: 'warning' } : pillOf(r, lifecycle),
+    pill: seat !== null && turn && r.created_at ? { label: waitingLabel(r.created_at, Date.now()), tone: 'warning' } : pillOf(r, lifecycle),
     lifecycle,
-    yourTurn:
-      !r.exploration &&
-      lifecycle !== 'shipped' &&
-      lifecycle !== 'closed' &&
-      (seat ? waitsOnSeat : contributor ? contributorTurn({ own: Boolean(own), changesRequested: r.changesRequested, open: !r.merged_at }) : turnOf(r).yourTurn),
+    yourTurn: turn,
     ...(own !== undefined ? { mine: own } : {}),
     behindBy: r.behindBy ?? null,
     signals: r.signals ?? null,
@@ -446,6 +449,7 @@ const toRow = (p: Pull | CachedPull, kind: ReviewStatusKind | null): Row => ({
   ...('labels' in p ? { labels: p.labels } : {}),
   nature: natureOf(p.title, 'labels' in p ? p.labels : undefined),
   agent: 'body' in p ? agentMade({ body: p.body, labels: p.labels }) : Boolean(p.agent),
+  ...('requested_reviewers' in p && Array.isArray(p.requested_reviewers) ? { requested: (p.requested_reviewers as { login: string }[]).map((x) => x.login) } : {}),
 });
 
 /** The most recently closed branches, read once: the "N merged this month" line and Show merged. */
@@ -648,11 +652,13 @@ export async function openPr(n: number, push = true) {
     if (seq !== openSeq) return;
     const tier = effectiveTier(pull.labels, pull.body, files);
     current = { pull, tier };
-    const approvals = summarizeApprovals(reviews, OWNERS(), pull.user.login, siteApprovalRules());
+    // The pull request that applies an approved suggestion carries its approvals (core withSuggestionApprovals).
+    const carried = await approvedSuggestionOf(pull.body);
+    const approvals = withSuggestionApprovals(summarizeApprovals(reviews, OWNERS(), pull.user.login, siteApprovalRules()), carried, tier);
     const ship = await viewerShipPolicy(SHIP(), access?.login);
     if (seq !== openSeq) return;
     const gateOf = (a: typeof approvals) =>
-      mergeGate({ tier, ci, approvals: a, draft: pull.draft, mergeable: pull.mergeable, state: pull.state, merged_at: pull.merged_at, viewer: access?.login, override: OVERRIDE, exploration: isActiveExploration(pull.labels), ship });
+      mergeGate({ tier, ci, approvals: withSuggestionApprovals(a, carried, tier), draft: pull.draft, mergeable: pull.mergeable, state: pull.state, merged_at: pull.merged_at, viewer: access?.login, override: HOLDERS(), exploration: isActiveExploration(pull.labels), ship });
     const gate = gateOf(approvals);
     const tokenFiles = files.filter((f) => isTokenFile(f.filename));
     const docsPaths = files.filter((f) => isDocsFile(f.filename) && f.status !== 'removed').map((f) => f.filename);
@@ -869,7 +875,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   // never disagree. The More menu item still needs the gate and write access (showOverride).
   const who = whoActs(
     needFromDetail({ state: lifecycle, ci, gate, changesRequestedBy: approvals.changesRequested, exploration, mergeable: pull.mergeable }),
-    people(author, { viewer, approvers: approvals.approvers, canMerge: reviewer && gate.canShip, overridable: !seat && canOverride(login, OVERRIDE) }),
+    people(author, { viewer, approvers: approvals.approvers, canMerge: reviewer && gate.canShip, overridable: !seat && canOverride(login, HOLDERS()) }),
   );
   const viewerPeople = people(author, { viewer });
   const rows = approvalRows({ tier, approvals, people: viewerPeople, open });
@@ -1207,7 +1213,8 @@ function wireOverride(pull: Pull, access: Access, gate: ReturnType<typeof mergeG
   const error = part('error');
   const errorText = part('error-text');
   const go = part<HTMLButtonElement>('go');
-  const min = OVERRIDE.requireReason ? OVERRIDE.minReasonLength : 0;
+  // Always required (GOVERNANCE.md): core overrideReasonMin, the same rule as the gate.
+  const min = overrideReasonMin(OVERRIDE);
   const allowed: MergeMethod[] = access.methods.length ? access.methods : ['squash'];
   const countText = () => {
     const n = reason.value.trim().length;

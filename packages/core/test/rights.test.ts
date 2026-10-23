@@ -83,8 +83,8 @@ test('the only owner: one person in both approver lists, never a team, only when
 test('pull request approvals: the only owner covers design and tech once opted in, never on their own change', () => {
   const solo = { design: ['peterbono'], tech: ['peterbono'] };
   const reviews = [{ user: { login: 'peterbono' }, state: 'APPROVED', submitted_at: '1' }];
-  assert.deepEqual(summarizeApprovals(reviews, solo, 'claude'), { approvers: ['peterbono'], changesRequested: [], design: true, tech: false });
-  assert.deepEqual(summarizeApprovals(reviews, solo, 'claude', { soloOwnerCanApproveBoth: true }), { approvers: ['peterbono'], changesRequested: [], design: true, tech: true });
-  assert.deepEqual(summarizeApprovals(reviews, solo, 'peterbono', { soloOwnerCanApproveBoth: true }), { approvers: [], changesRequested: [], design: false, tech: false });
+  assert.deepEqual(summarizeApprovals(reviews, solo, 'claude'), { approvers: ['peterbono'], changesRequested: [], design: true, tech: false, owner: true });
+  assert.deepEqual(summarizeApprovals(reviews, solo, 'claude', { soloOwnerCanApproveBoth: true }), { approvers: ['peterbono'], changesRequested: [], design: true, tech: true, owner: true });
+  assert.deepEqual(summarizeApprovals(reviews, solo, 'peterbono', { soloOwnerCanApproveBoth: true }), { approvers: [], changesRequested: [], design: false, tech: false, owner: false });
   assert.deepEqual(summarizeApprovals(reviews, { design: ['peterbono'], tech: ['peterbono', 'theo'] }, 'claude', { soloOwnerCanApproveBoth: true }).tech, false);
 });
