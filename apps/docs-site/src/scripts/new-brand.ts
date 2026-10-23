@@ -22,7 +22,7 @@ export interface ProposedBrand {
 
 export async function proposeBrand(draft: BrandDraft, repo: { owner: string; name: string; defaultBranch: string }, configTokensRoot: string, jira: string | null = null, mode: ChangesMode = changesModeOnPage()): Promise<ProposedBrand> {
   const token = getToken();
-  if (!token) throw new Error(`${ghAction(mode === 'suggest' ? sendGoal('brand', mode) : 'create this branch', prefersSignIn())}.`);
+  if (!token) throw new Error(`${ghAction(sendGoal('brand', mode), prefersSignIn())}.`);
   const probe = studioClient(`${repo.owner}/${repo.name}`, token);
   const mainSha = await probe.getBranchSha(repo.defaultBranch);
   if (!mainSha) throw new Error(`Branch ${repo.defaultBranch} was not found in ${repo.owner}/${repo.name}.`);

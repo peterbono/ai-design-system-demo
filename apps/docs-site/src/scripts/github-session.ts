@@ -25,7 +25,7 @@ import {
 import { closeDialog, isDialogOpen, openDialog as openDsDialog } from '@bridge-ds/react/dom';
 import { paintAvatar, paintDrawnAvatar } from './avatar';
 import { askDirectInstallMessage, DIRECT_CONSENT, DIRECT_SETUP, directSetupLine, ghAction, ghButton, ghVerb } from '../lib/gh-wording';
-import { installUrl } from '../lib/access-view';
+import { installUrl, SIGNED_OUT_ELSEWHERE_KEY } from '../lib/access-view';
 import { changesModeOnPage } from './changes-mode';
 import { bindDemoGate } from './demo-gate';
 import {
@@ -61,7 +61,8 @@ import { studioHref } from '../lib/team-path';
 import { clearGuestReads, guestFetch } from './guest-activity';
 import { CONTRIB_TOKEN, CONTRIBUTE_WORDS, contributeEligible, isContribAuth, type ContributeMember } from '../lib/contribute';
 import { ROLE_WORDS } from '../lib/invites';
-import { contributeFetch, contributeInfo, contributorFor, onContributeChange, signOutEmail, takeContributeHash, verifyEmailSignIn } from './contribute-session';
+import { contributeFetch, contributeInfo, contributorFor, contributorKey, onContributeChange, publicTeamRead, signOutEmail, takeContributeHash, verifyEmailSignIn } from './contribute-session';
+import { busyText } from '../lib/team-load';
 
 export { GitHubError };
 
@@ -193,6 +194,12 @@ export function currentContributor(): ContributeMember | null {
 export function getToken(): string | null {
   return githubToken() ?? (currentContributor() ? CONTRIB_TOKEN : null);
 }
+
+/**
+ * Signed in with GitHub on this browser (a developer, or anyone who chose GitHub), not an email member or a guest: the
+ * one viewer who reads commit SHAs and GitHub's own error words.
+ */
+export const signedInWithGitHub = (): boolean => Boolean(githubToken());
 
 export function setToken(token: string | null) {
   try {
@@ -647,10 +654,11 @@ export const studioFetch: FetchLike = async (url, init = {}) => {
       return res;
     }
   }
-  // A guest's read: the team's activity, this tab's recent answer, or GitHub (scripts/guest-activity.ts).
+  // A guest's read: the team's activity, this tab's recent answer, Bridge for a public demo team, or GitHub
+  // (scripts/guest-activity.ts). GitHub's hourly limit is said in Bridge's words, never "add a GitHub token".
   if (method === 'GET' && !headers.Authorization && url.startsWith(API)) {
     const h = headers;
-    return guestFetch(url, h.Accept ?? '', () => fetch(url, { ...init, headers: h }));
+    return busyIfLimited(await guestFetch(url, h.Accept ?? '', async () => (await publicTeamRead(pageRepo(), url, h.Accept ?? '')) ?? fetch(url, { ...init, headers: h })));
   }
   const res = await fetch(url, { ...init, headers });
   if (res.status === 401 && headers.Authorization) {
@@ -662,6 +670,17 @@ export const studioFetch: FetchLike = async (url, init = {}) => {
   }
   return res;
 };
+
+/**
+ * An anonymous answer GitHub refused for its hourly limit becomes Bridge's sentence ("Bridge is busy, try again in N
+ * min."), thrown as the GitHubError the core client keeps: a designer never reads "add a GitHub token".
+ */
+function busyIfLimited(res: Response): Response {
+  if ((res.status !== 403 && res.status !== 429) || res.headers.get('x-ratelimit-remaining') !== '0') return res;
+  const reset = Number(res.headers.get('x-ratelimit-reset'));
+  const resetsAt = Number.isFinite(reset) && reset > 0 ? new Date(reset * 1000) : undefined;
+  throw new GitHubError(429, busyText(resetsAt ? (resetsAt.getTime() - Date.now()) / 1000 : null), 'rate-limit', { resetsAt });
+}
 
 /** The core GitHub client the Studio uses: the saved token, the session-aware fetch. */
 export function studioClient(repo: string, token: string | null = getToken(), options?: ClientOptions): GitHubClient {
@@ -781,7 +800,7 @@ async function ghGetOnce<T>(url: string, path: string, key: string, opts: { acce
     const isApi = url.startsWith(API);
     const h = headers(opts.accept ? { Accept: opts.accept } : {});
     // A guest's read: the team's activity, this tab's recent answer, or GitHub (scripts/guest-activity.ts).
-    let res = isApi && !h.Authorization ? await guestFetch(url, h.Accept ?? '', () => fetch(url, { headers: h })) : isApi ? await ghFetch(url, { headers: h }) : await fetch(url);
+    let res = isApi && !h.Authorization ? await guestFetch(url, h.Accept ?? '', async () => (await publicTeamRead(pageRepo(), url, h.Accept ?? '')) ?? fetch(url, { headers: h })) : isApi ? await ghFetch(url, { headers: h }) : await fetch(url);
     // GitHub refused the token: mark it, then read anonymously (public repos keep working).
     if (res.status === 401 && isApi && hasWorkingToken()) {
       markTokenRejected();
@@ -796,7 +815,9 @@ async function ghGetOnce<T>(url: string, path: string, key: string, opts: { acce
     const data = (opts.raw ? await res.text() : await res.json()) as T;
     cacheSet(key, data);
     return { data, stale: false };
-  } catch (err) {
+  } catch (caught) {
+    // Bridge's own limit (a read through Bridge): the same as GitHub's for the callers.
+    const err = caught instanceof GitHubError && caught.status === 429 ? new RateLimitError(caught.resetsAt ?? null) : caught;
     const cached = cacheGet<T>(key);
     if (cached && (err instanceof RateLimitError || err instanceof TypeError)) {
       return { data: cached.data, stale: true, cachedAt: cached.at, resetAt: err instanceof RateLimitError ? err.resetAt : null };
@@ -1194,6 +1215,20 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
         .finally(done);
     }
   };
+  /** Renews a sign-in about to expire, then checks the token (or, signed out, says so at once). */
+  const start = () => {
+    const app = readAppSession();
+    const token = getToken();
+    if (token && app && needsRefresh(app, Date.now())) {
+      // The sign-in expires soon (or has): renew it before the first call. If that fails and the token is already
+      // past its expiry, it is refused without asking GitHub.
+      paint();
+      void refreshSignIn().then((ok) => {
+        if (!ok && app.expiresAt !== null && app.expiresAt <= Date.now()) writeCheck(rejectedCheck(token, Date.now()));
+        boot();
+      });
+    } else boot();
+  };
   // An email contributor (real teams only, no GitHub sign-in): the link from the email is spent first, then the server
   // confirms the session; meanwhile the page shows the member this browser last saw. Without one, the same GET tells
   // whether someone is signed in with an email (a session from another tab), after the page painted signed out.
@@ -1211,6 +1246,17 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     };
     onContributeChange((r, m) => {
       if (r.toLowerCase() === repo.toLowerCase()) settle(m);
+    });
+    // Signed out in another tab (it forgot this team's member): this tab says "You signed out" instead of reading on
+    // as a guest (components/ds/studio/NoAccess.tsx).
+    window.addEventListener('storage', (e) => {
+      if (e.key !== contributorKey(repo) || e.newValue !== null || !viewer?.email || githubToken()) return;
+      try {
+        sessionStorage.setItem(SIGNED_OUT_ELSEWHERE_KEY, '1');
+      } catch {
+        /* storage blocked: the page reloads signed out all the same */
+      }
+      location.reload();
     });
     const known = contributorFor(repo);
     if (link) {
@@ -1234,19 +1280,16 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       void contributeInfo(repo);
       return;
     }
-    void contributeInfo(repo);
-  }
-  const app = readAppSession();
-  const token = getToken();
-  if (token && app && needsRefresh(app, Date.now())) {
-    // The sign-in expires soon (or has): renew it before the first call. If that fails and the token is already
-    // past its expiry, it is refused without asking GitHub.
+    // No member known in this browser (a team opened for the first time, right after a code sign-in): the server says
+    // first whether this account is on the team, so the page never checks access as a guest and shows "Sign in" to a
+    // member. A member: settle() above takes over. Nobody: the page goes on signed out, as a guest.
     paint();
-    void refreshSignIn().then((ok) => {
-      if (!ok && app.expiresAt !== null && app.expiresAt <= Date.now()) writeCheck(rejectedCheck(token, Date.now()));
-      boot();
+    void contributeInfo(repo).then((info) => {
+      if (!info.member && !checked && !githubToken()) start();
     });
-  } else boot();
+    return;
+  }
+  start();
 }
 
 export type { RepoAccess, RepoAccessState };
@@ -1263,7 +1306,9 @@ const repoName = (r: { owner: string; repo: string }) => `${r.owner}/${r.repo}`.
 export const currentAccess = (): RepoAccess | null => accessByRepo.get(repoName(readRepo())) ?? null;
 
 /** Forgets every access read on this page and in this tab (sign-out, another token, a rejected token). */
+let accessEpoch = 0;
 function forgetAccess() {
+  accessEpoch++;
   accessByRepo.clear();
   try {
     for (const k of Object.keys(sessionStorage)) if (k.startsWith('bridge.github.access:')) sessionStorage.removeItem(k);
@@ -1290,10 +1335,11 @@ export async function resolveAccess(repo: { owner: string; repo: string } = read
   const signedIn = Boolean(viewer && token && !tokenRejected());
   if (!signedIn && !opts.anonymous) return null;
   const name = repoName(repo);
-  // An email contributor can edit this team, never more (they approve nothing): no GitHub call to say it.
+  // An email member edits this team, or administers it without GitHub (they approve nothing): no GitHub call to say it.
   if (signedIn && viewer?.email && isContribAuth(token)) {
     if (name !== repoName(readRepo())) return null;
-    // 'admin' only for a member seeded as admin in `npm run dev:full`: the server checks every admin action again.
+    // 'admin' for an email member made Admin (or seeded as admin in `npm run dev:full`): the server checks every admin
+    // action again.
     const a = contributorAccess(contributorFor(pageRepo())?.role === 'admin');
     accessByRepo.set(name, a);
     return a;
@@ -1311,9 +1357,13 @@ export async function resolveAccess(repo: { owner: string; repo: string } = read
   } catch {
     /* storage blocked: ask GitHub */
   }
+  const epoch = accessEpoch;
   try {
     const client = studioClient(`${repo.owner}/${repo.repo}`, signedIn ? token : null);
     const read = accessView(await resolveRepoAccess(client, { app }), app);
+    // Signed in or out meanwhile (an email session confirmed while GitHub answered a guest): this read is stale, and
+    // must not replace what the new session says.
+    if (epoch !== accessEpoch) return accessByRepo.get(name) ?? null;
     // The token may have been refused while reading (studioFetch marks it): nothing to keep then.
     if (signedIn && tokenRejected()) return null;
     // A repository this visitor can no longer see: drop what this browser kept of it.

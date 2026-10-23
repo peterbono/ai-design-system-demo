@@ -60,7 +60,10 @@
   height: 100%;
 }
 
-/* Group: avatars overlap by a quarter, each ringed with the surface color so edges stay readable. */
+/*
+ * Group: avatars overlap by a sixth, each ringed with the surface color so edges stay readable. A quarter covered the
+ * last letter of two initials ("LM" read "LV"); a sixth stays clear of them from sm up.
+ */
 .group {
   display: inline-flex;
   align-items: center;
@@ -71,7 +74,7 @@
 }
 
 .group > * + * {
-  margin-inline-start: calc(var(--_size) / -4);
+  margin-inline-start: calc(var(--_size) / -6);
 }
 
 .overflow {

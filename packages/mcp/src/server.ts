@@ -60,7 +60,8 @@ export function createServer(ctx: BridgeContext): McpServer {
     {
       instructions: [
         'Bridge exposes a design system repo (DTCG tokens, components, docs) to you.',
-        'Every write goes through a branch and a pull request, never straight to the default branch: the library only changes through reviewed pull requests, and on a protected repo GitHub refuses direct pushes anyway.',
+        'Bridge never writes to the default branch: changes become suggestions (GitHub issues), branches and pull requests, or local branches that are never pushed. The library only changes through reviewed pull requests, and on a protected repo GitHub refuses direct pushes anyway.',
+        `Access now: ${ctx.access()} bridge_get_config says the same.`,
         'How changes reach the code is the "changes" setting of bridge.config.json (bridge_get_config says which): "suggest" (the default) files token, docs, brand, revert, missing piece and Figma changes as suggestions, GitHub issues with the exact change that the owners approve (bridge_review_suggestion) and a developer applies (bridge_apply_suggestion, or `bridge apply <n>`); "direct" opens branches and pull requests. Writing tools take "changes" to pick one for a call; only pass it when the person asked. When the person says "Apply Bridge suggestion #n", call bridge_apply_suggestion with mode "dry-run" first, show the result, then apply it on a branch.',
         'Read before you write: bridge_get_guidelines for the repo rules, bridge_search_tokens / bridge_get_token before using or proposing a token.',
         'Never hardcode a value in UI code when a token exists; never invent a token name (check it with bridge_get_token).',
@@ -187,10 +188,11 @@ export function createServer(ctx: BridgeContext): McpServer {
       inputSchema: {
         name: z.string().describe('Component name, e.g. Icon.'),
         branch: z.string().optional().describe('Exploration branch (explore/<slug>): read the component there (GitHub) and save the draft on that branch, not in a pull request to main.'),
+        page: z.number().int().min(1).optional().describe('Page of the prompt (default 1). A long prompt comes in pages; promptPage.next says when there is more.'),
       },
       annotations: RO,
     },
-    run((a) => ops.draftDocsOp(ctx, a)),
+    run(async ({ page, ...a }) => ops.pagedDraftDocs(await ops.draftDocsOp(ctx, a), page)),
   );
 
   server.registerTool(
@@ -375,6 +377,8 @@ export function createServer(ctx: BridgeContext): McpServer {
         resolutions: ResolutionsArg.optional(),
         restoreConflicts: z.boolean().optional().describe('Every conflict uses the value from before the change. Only when the user asked.'),
         includeBody: z.boolean().optional().describe('Include the PR body (default true).'),
+        limit: z.number().int().min(1).max(500).optional().describe('Edits, conflicts, skipped and changes listed per call (default 50). counts gives the totals.'),
+        offset: z.number().int().min(0).optional().describe('Skip that many of each list, to read the next page.'),
       },
       annotations: RO,
     },

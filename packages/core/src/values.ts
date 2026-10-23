@@ -140,6 +140,16 @@ export function formatValue(type: string, value: unknown): string {
     if (d) return `${d.value}${d.unit}`;
   }
   if (Array.isArray(value)) return value.join(', ');
-  if (typeof value === 'object' && value) return JSON.stringify(value);
+  if (typeof value === 'object' && value) {
+    // A duration ({ value: 300, unit: "ms" }) or any other number with a unit reads "300ms", as CSS writes it.
+    const o = value as { value?: unknown; unit?: unknown; hex?: unknown };
+    if (typeof o.value === 'number' && typeof o.unit === 'string') return `${o.value}${o.unit}`;
+    // A color read without its type (a history entry): its hex, never the DTCG object.
+    if (typeof o.hex === 'string') {
+      const c = parseColor(value);
+      return c && c.a < 0.9995 ? `${o.hex.toLowerCase()} @ ${Math.round(c.a * 100)}%` : o.hex.toLowerCase();
+    }
+    return JSON.stringify(value);
+  }
   return String(value);
 }

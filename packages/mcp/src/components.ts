@@ -2,6 +2,7 @@
 import type { BridgeConfig } from './config.js';
 import type { RepoSource } from './source.js';
 import type { TokenSet } from './core-adapter.js';
+import { say } from './say.js';
 
 export interface PropInfo {
   name: string;
@@ -172,12 +173,12 @@ export function cssVarsUsed(css: string): string[] {
   return [...new Set([...css.matchAll(/var\(\s*(--[\w-]+)/g)].map((m) => m[1]!))].sort();
 }
 
-export async function getComponent(source: RepoSource, config: BridgeConfig, set: TokenSet | null, name: string) {
+export async function getComponent(source: RepoSource, config: BridgeConfig, set: TokenSet | null, name: string, ctx: { surface: 'mcp' | 'cli' } = { surface: 'mcp' }) {
   const all = await listComponentNames(source, config);
   const entry = all.find((c) => c.name.toLowerCase() === name.toLowerCase());
   if (!entry) {
     const close = all.filter((c) => c.name.toLowerCase().includes(name.toLowerCase().slice(0, 3))).map((c) => c.name);
-    throw new Error(`No component "${name}".${close.length ? ` Did you mean ${close.join(', ')}?` : ''} Use bridge_list_components.`);
+    throw new Error(`No component "${name}".${close.length ? ` Did you mean ${close.join(', ')}?` : ''} ${say(ctx, 'Use bridge_list_components.', '`bridge coverage` lists the components.')}`);
   }
   const n = entry.name;
   const pick = (re: RegExp) => entry.files.find((f) => re.test(f.split('/').pop()!));
@@ -325,6 +326,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { expectNoAxeViolations } from '../../test/axe';
 import { ${name} } from './${name}';
+import { say } from './say.js';
 
 describe('${name}', () => {
   it('is reachable with the keyboard and has no axe violations', async () => {

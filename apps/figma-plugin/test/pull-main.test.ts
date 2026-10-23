@@ -69,15 +69,16 @@ test("main's component specs read into a plan: every component, no throw, no 'up
   assert.deepEqual(parseComponentSpecs(specsText).components.map((c) => c.name), plan.components.map((c) => c.name));
 });
 
-test('Pull headline: commits on main since the last pull never read "Already up to date"', () => {
-  const base = { baseSha: 'a'.repeat(40), branch: 'main', variablesUpToDate: true, status: [] as string[] };
+test('Pull headline: commits on main since the last pull never read "Already up to date", in designer words', () => {
+  const base = { baseSha: 'a'.repeat(40), variablesUpToDate: true, status: [] as string[] };
   assert.equal(pullHeadline({ ...base, behind: 0 }), 'Already up to date');
-  assert.equal(pullHeadline({ ...base, behind: 2 }), '2 new changes on main');
-  assert.equal(pullHeadline({ ...base, behind: 1, status: ['3 components to build'] }), '1 new change on main, 3 components to build');
-  assert.equal(pullHeadline({ ...base, behind: 0, status: ['3 components to build'] }), 'Up to date with main. 3 components to build.');
-  assert.equal(pullHeadline({ ...base, variablesUpToDate: false, behind: 2, status: ['4 edited on main'] }), '4 edited on main');
-  assert.equal(pullHeadline({ ...base, baseSha: undefined, variablesUpToDate: false, behind: 0 }), 'First pull');
+  assert.equal(pullHeadline({ ...base, behind: 2 }), '2 new changes in the design system');
+  assert.equal(pullHeadline({ ...base, behind: 1, status: ['3 components to build'] }), '1 new change in the design system, 3 components to build');
+  assert.equal(pullHeadline({ ...base, behind: 0, status: ['3 components to build'] }), 'Up to date with the design system. 3 components to build.');
+  assert.equal(pullHeadline({ ...base, variablesUpToDate: false, behind: 2, status: ['4 edited in the design system'] }), '4 edited in the design system');
+  assert.equal(pullHeadline({ ...base, baseSha: undefined, variablesUpToDate: false, behind: 0 }), 'First time in this file');
   for (const behind of [0, 1, 2]) assert.ok(!pullHeadline({ ...base, behind }).includes(String.fromCharCode(0x2014)));
+  for (const behind of [0, 1, 2]) assert.doesNotMatch(pullHeadline({ ...base, behind, status: ['3 components to build'] }), /\bmain\b|[0-9a-f]{7}/);
 
   const head = 'b'.repeat(40);
   assert.equal(commitsBehind({ baseSha: head, headSha: head, compare: undefined }), 0);

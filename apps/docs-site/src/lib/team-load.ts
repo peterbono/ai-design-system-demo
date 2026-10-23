@@ -2,11 +2,12 @@
 // Pure: scripts/team-data.ts loads, components/ds/studio/TeamState.tsx shows, team-load.test.ts covers the wording.
 
 import { teamDisplayName } from './demo';
+import { knownTeamName } from './recent-teams';
 /** Where the team's data came from (scripts/repo-context.ts TeamModelSource). */
 export type TeamDataSource = 'cache' | 'snapshot' | 'live';
 
 /** What went wrong reading a team's repository, in the words the page shows. */
-export type TeamFailureKind = 'rate-limit' | 'not-found' | 'too-large' | 'network' | 'unknown';
+export type TeamFailureKind = 'rate-limit' | 'not-found' | 'too-large' | 'network' | 'signed-out' | 'unknown';
 
 export interface TeamFailure {
   kind: TeamFailureKind;
@@ -24,11 +25,29 @@ const statusOf = (err: unknown): number | undefined => {
   return typeof s === 'number' ? s : undefined;
 };
 
+/** Signed out meanwhile: the page says so and offers Sign in (back to the same page with a code). */
+const SIGNED_OUT_FAILURE = (repo: string): TeamFailure => ({ kind: 'signed-out', title: 'You signed out', body: `Sign in again to open ${repo}. Bridge sends a code to your email.` });
+
+/**
+ * "Bridge is busy, try again in N min." from a wait in seconds (at least 1 minute); "in a few minutes" when the wait
+ * is unknown. The one sentence for any limit a designer meets (Bridge's or GitHub's).
+ */
+export function busyText(waitSeconds?: number | null): string {
+  if (waitSeconds == null || !Number.isFinite(waitSeconds)) return 'Bridge is busy, try again in a few minutes.';
+  return `Bridge is busy, try again in ${Math.max(1, Math.ceil(waitSeconds / 60))} min.`;
+}
+
+/** The wait Bridge's server already put in its sentence ("try again in 5 min."), in seconds, else null. */
+function busyWait(message: string): number | null {
+  const m = /try again in (\d+) min/i.exec(message);
+  return m ? Number(m[1]) * 60 : null;
+}
+
 /** A failure to read `repo` ("owner/name") as the page says it. Never shows a stack or a raw API body. */
 export function teamFailure(err: unknown, full: string): TeamFailure {
   const status = statusOf(err);
   // The team by its name, never owner/repo ("this repository" when the address names none).
-  const repo = full.includes('/') ? teamDisplayName(full) : full;
+  const repo = full.includes('/') ? teamDisplayName(full, { name: knownTeamName(full) }) : full;
   const message = err instanceof Error ? err.message : '';
   // A private Library this site serves (api/library-access): its own sentence, never "GitHub answered".
   if ((err as { source?: unknown } | null)?.source === 'bridge') {
@@ -36,12 +55,13 @@ export function teamFailure(err: unknown, full: string): TeamFailure {
       ? { kind: 'network', title: 'Bridge did not answer', body: 'Check your connection, then try again.' }
       : { kind: 'unknown', title: `Bridge cannot open ${repo} yet`, body: message || 'Something went wrong while opening the library. Try again.' };
   }
+  // The session ended (signed out in another tab, or on another device): a way back in, never the server's sentence.
+  if (status === 401) return SIGNED_OUT_FAILURE(repo);
+  // A limit (Bridge's own, or GitHub's): Bridge's words and when to come back, never "add a GitHub token".
   if (status === 429 || (status === 403 && /rate limit/i.test(message))) {
-    return {
-      kind: 'rate-limit',
-      title: 'GitHub asked Bridge to slow down',
-      body: message || 'GitHub allows a limited number of reads an hour. Sign in with GitHub for a higher limit, or try again in a few minutes.',
-    };
+    const resetsAt = (err as { resetsAt?: unknown } | null)?.resetsAt;
+    const wait = resetsAt instanceof Date ? (resetsAt.getTime() - Date.now()) / 1000 : busyWait(message);
+    return { kind: 'rate-limit', title: busyText(wait), body: 'Bridge reads this design system again then. Nothing you changed is lost.' };
   }
   if (status === 404) {
     return {

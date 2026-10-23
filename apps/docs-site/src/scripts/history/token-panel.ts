@@ -1,6 +1,6 @@
 // "History" panel in the token explorer drawer: every recorded change of the open token (renames followed), each
 // with "Restore this value". Real history by default; demo only with the toggle, under the same banner.
-import { tokenHistory, type TokenHistoryItem } from '@bridge-ds/core';
+import { formatValue, tokenHistory, type TokenHistoryItem } from '@bridge-ds/core';
 import { shortDate } from '../../lib/history-view';
 import { badgeHtml, tokenValueHtml } from '@bridge-ds/react/dom';
 import { esc } from '../github-session';
@@ -8,7 +8,8 @@ import { openRestorePlanner } from './planner';
 import { activeReport, DEMO_AVAILABLE, DEMO_BANNER, DEMO_EVENT, demoOn, loadHistory, setDemo } from './state';
 import { studioHref } from '../../lib/team-path';
 
-const val = (v: unknown) => (v === undefined ? '' : typeof v === 'string' ? v : JSON.stringify(v));
+// Values as designers read them (300ms, #1f6feb), never the DTCG object; aliases keep their {braces} for the chip.
+const val = (v: unknown) => (v === undefined ? '' : typeof v === 'string' ? v : formatValue('', v));
 const chip = (raw: unknown, css?: string, previous = false) =>
   raw === undefined ? '<span class="muted">none</span>' : tokenValueHtml(val(raw), { swatch: css && /^#[0-9a-f]{6,8}$/i.test(css) ? css : false, previous });
 
@@ -32,7 +33,7 @@ function itemHtml(it: TokenHistoryItem, i: number, demo: boolean): string {
   const editable = document.querySelector('[data-explorer-mode="edit"]') !== null;
   const canRestore = editable && it.after !== undefined && it.kind !== 'removed' && (it.kind !== 'changed' || it.fields.includes('value'));
   return `<li class="hs-ti">
-    <p class="hs-ti-head">${badgeHtml(it.modeLabel, { size: 'sm' })} <span class="small muted">${esc(shortDate(it.date))}, ${esc(it.author)}${it.pr ? `, #${esc(String(it.pr.number))}` : ''}</span></p>
+    <p class="hs-ti-head">${badgeHtml(it.modeLabel, { size: 'sm' })} <span class="small muted">${esc(shortDate(it.date))}, ${esc(it.author)}</span></p>
     <p class="hs-ti-what">${what}</p>
     <p class="small">${title}</p>
     ${canRestore ? `<button type="button" class="btn btn-secondary btn-sm" data-hs-restore="${i}">Restore this value</button>` : ''}

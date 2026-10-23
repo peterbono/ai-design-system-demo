@@ -25,6 +25,8 @@ export interface LocalAdmins {
   /** The admins of a team, sorted. */
   adminsOf(repo: string): Promise<string[]>;
   add(repo: string, email: string): Promise<void>;
+  /** Takes one admin seat away (a team made in Bridge moving to its repository). */
+  remove(repo: string, email: string): Promise<void>;
   /** Forgets every admin seat of this email (account deletion). */
   removeEmail(email: string): Promise<void>;
 }
@@ -56,6 +58,12 @@ export function localAdminStore(redis: Redis): LocalAdmins {
       await redis.pipe([
         ['SADD', localAdminsKey(repo), lc(email)],
         ['SADD', localAdminOfKey(email), lc(repo)],
+      ]);
+    },
+    async remove(repo, email) {
+      await redis.pipe([
+        ['SREM', localAdminsKey(repo), lc(email)],
+        ['SREM', localAdminOfKey(email), lc(repo)],
       ]);
     },
     async removeEmail(email) {

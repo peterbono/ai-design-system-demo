@@ -20,10 +20,9 @@ import '../../styles/branch-thumb.css';
 import '../../styles/review-queue.css';
 import '../../styles/suggestion-review.css';
 import Layout from '../../layouts/Layout.astro';
-import ScriptDialog from '../../components/ds/ScriptDialog.astro';
 import PromoteToReview from '../../components/ds/studio/PromoteToReview';
 import RequestDecide from '../../components/ds/studio/RequestDecide';
-import { Alert, Button, ButtonGroup, Skeleton, Textarea } from '@bridge-ds/react';
+import { Skeleton } from '@bridge-ds/react';
 import { docsEditHref, guidanceState, loadComponents } from '../../lib/components';
 import { git, PREVIEW_APPS, PREVIEW_PACKAGES, readText } from '../../lib/repo';
 import { CONTRAST_FILE } from '../../lib/contrast';
@@ -31,6 +30,7 @@ import { siteRepo } from '../../lib/config';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 import { dashboard } from '../../lib/stats';
 import type { BranchesConfig } from '../../lib/branches';
+import OverrideDialog from '../../components/OverrideDialog.astro';
 
 // The same build-time facts as the home (pages/studio/index.astro), so the queue lists the same rows.
 const s = dashboard();
@@ -72,24 +72,7 @@ const cfg: BranchesConfig = { owner: r.owner, repo: r.repo, defaultBranch: r.def
     <div data-rq-toasts></div>
   </div>
 
-  {/* The owner override confirmation, as on Branches (scripts/reviews.ts wireOverride fills and opens it). */}
-  <ScriptDialog id="rv-ov" title="Merge as owner override?" closeLabel="Close" disablePointerDismissal popup={{ role: 'alertdialog', 'aria-describedby': 'rv-ov-desc' }}>
-    <div class="gh-dialog-body">
-      <div id="rv-ov-desc" class="rv-ov-desc">
-        <p>This merges the branch into main without:</p>
-        <ul class="rv-ov-missing" data-rv-ov="missing"></ul>
-        <p>Your reason is posted on the branch and shown in History.</p>
-      </div>
-      <Textarea label="Reason" data-rv-ov="reason" rows={3} hint="Shown on the branch." placeholder="Solo maintainer, tests pass, I reviewed the token diff and contrast." />
-      <Alert tone="danger" className="st-hideable" data-rv-ov="error" hidden><span data-rv-ov="error-text"></span></Alert>
-    </div>
-    <Fragment slot="footer">
-      <ButtonGroup align="end">
-        <Button variant="secondary" data-dialog-close>Cancel</Button>
-        <Button variant="primary" data-rv-ov="go">Post reason and merge</Button>
-      </ButtonGroup>
-    </Fragment>
-  </ScriptDialog>
+  <OverrideDialog />
   <PromoteToReview client:only="react" />
   <RequestDecide client:only="react" />
   <script type="application/json" id="home-static" set:html={jsonForScript(homeStatic)} />

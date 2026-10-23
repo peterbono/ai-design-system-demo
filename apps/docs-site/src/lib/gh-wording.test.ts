@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { askDirectInstallMessage, DIRECT_CONSENT, DIRECT_SETUP, directSetupLine, ghAction, ghButton, ghVerb, notSentLine, rateLimitedLine, SEE_SUGGESTION, sendButton, sendDialogTitle, sendGoal, sendingLine, SUGGEST_NEXT, suggestionSentLine, SUGGESTION_SENT, suggestOnlyLine } from './gh-wording';
+import { askDirectInstallMessage, DIRECT_CONSENT, DIRECT_SETUP, directSetupLine, ghAction, ghButton, ghVerb, notSentLine, rateLimitedLine, SEE_SUGGESTION, SENT_FOR_REVIEW, sendButton, sendDialogTitle, sendGoal, sendingLine, SUGGEST_NEXT, suggestionSentLine, SUGGESTION_SENT, suggestOnlyLine } from './gh-wording';
 
 describe('gh-wording', () => {
   it('says Sign in when the site has a GitHub App', () => {
@@ -27,8 +27,8 @@ describe('gh-wording', () => {
 describe('send words per mode', () => {
   it('says suggestion in suggest mode, never issue', () => {
     expect(sendButton('tokens', 'suggest')).toBe('Send suggestion');
-    expect(sendButton('piece', 'suggest')).toBe('Suggest to the library');
-    expect(sendButton('docs', 'suggest')).toBe('Suggest docs change');
+    expect(sendButton('piece', 'suggest')).toBe('Send suggestion');
+    expect(sendButton('docs', 'suggest')).toBe('Send suggestion');
     expect(sendGoal('tokens', 'suggest')).toBe('send a suggestion');
     expect(ghAction(sendGoal('brand', 'suggest'), true)).toBe('Sign in to send a suggestion');
     expect(sendDialogTitle('suggest')).toBe('Send a suggestion');
@@ -42,14 +42,18 @@ describe('send words per mode', () => {
     }
   });
 
-  it('keeps the branch words in direct mode', () => {
-    expect(sendButton('tokens', 'direct')).toBe('Request review');
-    expect(sendButton('brand', 'direct')).toBe('Create branch');
-    expect(sendGoal('tokens', 'direct')).toBe('request review');
-    expect(sendGoal('brand', 'direct')).toBe('create the branch');
-    expect(sendDialogTitle('direct')).toBe('Create branch');
-    expect(sendingLine('direct')).toBe('Creating the branch');
-    expect(notSentLine('direct', 'no access.')).toBe('Not created: no access.');
+  it('says one verb in direct mode, never branch words', () => {
+    for (const w of ['tokens', 'piece', 'docs', 'brand', 'revert'] as const) {
+      expect(sendButton(w, 'direct')).toBe('Send for review');
+      expect(sendButton(w, 'suggest')).toBe('Send suggestion');
+      expect(sendGoal(w, 'direct')).toBe('send it for review');
+    }
+    expect(ghAction(sendGoal('brand', 'direct'), true)).toBe('Sign in to send it for review');
+    expect(sendDialogTitle('direct')).toBe('Send for review');
+    expect(sendingLine('direct')).toBe('Sending it for review');
+    expect(SENT_FOR_REVIEW).toBe('Sent for review');
+    expect(notSentLine('direct', 'no access.')).toBe('Not sent: no access.');
+    for (const line of [sendDialogTitle('direct'), sendingLine('direct'), sendGoal('tokens', 'direct')]) expect(line).not.toMatch(/branch|pull request|commit/i);
   });
 
   it('says why a branch action is not offered', () => {

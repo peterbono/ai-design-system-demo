@@ -28,6 +28,14 @@ export interface GitHubSourceOptions {
    * lands, saying whether it came from the blob cache (no request) or from GitHub.
    */
   onProgress?: (event: GitHubSourceProgress) => void;
+  /**
+   * Reads many blob bodies in one request (the Bridge read path, /api/contribute?blobs=): the text of each sha it
+   * could read, null for a blob that does not exist; a sha left out is read on its own. Used by `prefetch` in 'api'
+   * mode only, `batchSize` shas per request (default 80), `batchConcurrency` requests at once (default 3).
+   */
+  batch?: (shas: string[]) => Promise<Record<string, string | null>>;
+  batchSize?: number;
+  batchConcurrency?: number;
 }
 
 /** What a GitHub source reports through `onProgress`. */
@@ -88,6 +96,9 @@ export function gitHubSource(client: GitHubClient, sha: string, opts: GitHubSour
   };
 
   const bodies = new Map<string, Promise<string>>();
+  /** Bodies a batch read brought (text, or null: the blob is not there), taken by readBody instead of a request. */
+  const batched = new Map<string, Promise<string | null | undefined>>();
+  const batchRun = limiter(Math.max(1, opts.batchConcurrency ?? 3));
 
   const readBody = async (path: string, blobSha: string): Promise<string> => {
     const kept = await opts.blobCache?.get(blobSha);
@@ -95,7 +106,9 @@ export function gitHubSource(client: GitHubClient, sha: string, opts: GitHubSour
       opts.onProgress?.({ kind: 'file', path, cached: true });
       return kept;
     }
-    const text = mode === 'api' ? await client.getBlobRaw(blobSha) : await client.readRawFile(path, sha);
+    const fromBatch = batched.has(blobSha) ? await batched.get(blobSha)! : undefined;
+    batched.delete(blobSha);
+    const text = typeof fromBatch === 'string' ? fromBatch : mode === 'api' ? await client.getBlobRaw(blobSha) : await client.readRawFile(path, sha);
     if (text === undefined) {
       const hint = mode === 'raw' ? ' Sign in with GitHub to read a private repository.' : '';
       throw new GitHubError(404, `${path} is listed at ${sha.slice(0, 7)} but GitHub did not return it.${hint}`);
@@ -109,9 +122,30 @@ export function gitHubSource(client: GitHubClient, sha: string, opts: GitHubSour
     return text;
   };
 
+  /** Starts batch reads of these blobs (api mode with a batch reader only); each sha gets its promise at once. */
+  const prefetch = async (paths: string[]) => {
+    const batch = opts.batch;
+    if (!batch || mode !== 'api' || !paths.length) return;
+    const files = await readTree();
+    const want: string[] = [];
+    for (const p of paths) {
+      const e = files.get(normalizeRepoPath(p));
+      if (!e || (e.size !== undefined && e.size > maxBytes) || bodies.has(e.sha) || batched.has(e.sha) || want.includes(e.sha)) continue;
+      if ((await opts.blobCache?.get(e.sha)) !== undefined) continue;
+      want.push(e.sha);
+    }
+    const size = Math.max(1, opts.batchSize ?? 80);
+    for (let i = 0; i < want.length; i += size) {
+      const chunk = want.slice(i, i + size);
+      const read = batchRun(() => batch(chunk)).catch(() => ({}) as Record<string, string | null>);
+      for (const s of chunk) batched.set(s, read.then((r) => (s in r ? r[s] : undefined)));
+    }
+  };
+
   return {
     ref: { owner: client.owner, repo: client.name, sha },
     mode,
+    prefetch,
     async list(prefix?: string) {
       // Sorted, like every RepoSource.
       return [...(await readTree()).keys()].filter((f) => isUnder(f, prefix)).sort();

@@ -4,8 +4,8 @@
 // role picker (RolePicker, the one the invite dialog uses) and a "More" menu with Make admin and Remove from team.
 // Remove asks once, in the row itself, before anything happens. Pending invites close the list, with Resend on their
 // line. Someone who is not an admin reads the same list with roles as text and no controls (board I4).
-// An email contributor (lib/contribute.ts) reads as any member, with no tag of their own; they stay Can edit (Reviewer
-// and Admin are disabled in their picker, with the reason) and an admin may remove them.
+// An email member (lib/contribute.ts) reads as any member, with no tag of their own; an admin makes them Admin or Can
+// edit (Reviewer is disabled in their picker, with the reason: reviewers approve on GitHub) or removes them.
 // Contexts (scripts/members.ts): the sample team shows its sample people and every change opens the demo dialog; a real
 // team reads GitHub and sends changes to the invites server; the browser workspace has no team yet.
 // Mounted by both Settings pages (pages/studio/settings, pages/team-shell/settings), and it mounts the dialog.
@@ -20,15 +20,24 @@ import InviteDialog from './InviteDialog';
 import { memberActions, useMembers, type Notice } from './members-state';
 import { DiscoveryLine, JoinRequests, useEntryAdmin } from './JoinRequests';
 import { isHosted } from '../../../lib/team-path';
-import { adminCount, choiceOf, inviteChoice, memberActions as allowed, MEMBERS_WORDS, memberLine, pendingLine, roleText, roleLabel, SAMPLE_NOW, sortMembers, type Member, type PendingInvite } from '../../../lib/invites';
+import { adminCount, choiceOf, inviteChoice, memberActions as allowed, MEMBERS_WORDS, membersContext, memberLine, pendingLine, roleText, roleLabel, SAMPLE_NOW, sortMembers, type Member, type PendingInvite } from '../../../lib/invites';
 import type { MembersData } from '../../../scripts/members';
+import { repoContext } from '../../../scripts/repo-context';
 import '../../../styles/invites.css';
+
+/** This page's team and its context, known before anything is read: the join requests start with it. */
+function pageTeam(): { repo: string; context: MembersData['context'] } {
+  const ctx = repoContext();
+  const repo = `${ctx.owner}/${ctx.repo}`;
+  const noRepo = document.documentElement.hasAttribute('data-no-repo');
+  return { repo, context: membersContext(noRepo ? null : repo, noRepo) };
+}
 
 const now = (data: MembersData) => (data.context === 'sample' ? SAMPLE_NOW : Date.now());
 
 function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: MembersData; admins: number; act: ReturnType<typeof memberActions>; onNotice: (n: Notice | null) => void }) {
   const can = allowed(m, { canManage: data.canManage, admins });
-  // An email contributor stays Can edit: Reviewer and Admin approve on GitHub (the picker says why).
+  // An email member: Can edit or Admin, never Reviewer (reviewers approve on GitHub; the picker says why).
   const email = m.via === 'email';
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -39,7 +48,7 @@ function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: Member
     setConfirming(false);
     if (n) onNotice(n);
   };
-  const menu = (can.makeAdmin && !email) || can.remove;
+  const menu = can.makeAdmin || can.remove;
   return (
     <>
       <TableRow>
@@ -57,8 +66,8 @@ function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: Member
               <Menu>
                 <MenuTrigger render={<IconButton icon={MoreHorizontal} label={`More for ${m.name}`} variant="ghost" size="sm" />} />
                 <MenuContent align="end">
-                  {can.makeAdmin && !email && (
-                    <MenuItem disabled={data.personal} onClick={() => void run(() => act.changeRole(m, { role: 'admin' }))}>
+                  {can.makeAdmin && (
+                    <MenuItem disabled={data.personal && !email} onClick={() => void run(() => act.changeRole(m, { role: 'admin' }))}>
                       {MEMBERS_WORDS.makeAdmin}
                     </MenuItem>
                   )}
@@ -151,14 +160,26 @@ export default function MembersSection() {
   const [inviting, setInviting] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const ready = load.status === 'ready' ? load.data : null;
-  const entry = useEntryAdmin(ready?.repo ?? '', Boolean(ready && ready.context === 'real' && ready.canManage && isHosted()));
+  // Asked at once with the page's team, not after the members: the server says who is admin, and the rows paint first.
+  const [page] = useState(pageTeam);
+  const entry = useEntryAdmin(ready?.repo ?? page.repo, isHosted() && (ready ? ready.context === 'real' && ready.canManage : page.context === 'real'));
+  const early = (
+    <JoinRequests
+      repo={page.repo}
+      requests={entry.requests}
+      onDone={(r) => entry.setRequests((xs) => xs.filter((x) => x.id !== r.id))}
+    />
+  );
 
   if (load.status === 'loading')
     return (
-      <div className="mem-loading" aria-busy="true" aria-label="Reading who is in this team">
-        <Skeleton height="var(--size-10)" />
-        <Skeleton height="var(--size-40)" />
-      </div>
+      <>
+        {early}
+        <div className="mem-loading" role="status" aria-busy="true" aria-label="Reading who is in this team">
+          <Skeleton height="var(--size-10)" />
+          <Skeleton height="var(--size-40)" />
+        </div>
+      </>
     );
   if (load.status === 'error') return <Alert tone="danger">{load.message}</Alert>;
   const data = load.data;

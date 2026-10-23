@@ -89,6 +89,8 @@ export interface AccessScreenInput {
   admin?: boolean;
   /** This site signs email contributors in on this team (real teams only): a signed-out screen offers it second. */
   email?: boolean;
+  /** The team's configured name when this browser knows it (bridge.config.json `name`, kept by the server). */
+  name?: string | null;
 }
 
 const EMAIL_ACTION: AccessAction = { kind: 'email', label: CONTRIBUTE_WORDS.continueWithEmail };
@@ -99,7 +101,7 @@ const EMAIL_LINK = { lead: CONTRIBUTE_WORDS.invitedWithEmail, action: EMAIL_ACTI
 export function accessScreen(state: RepoAccessState, f: AccessScreenInput): AccessScreen | null {
   const repo = `${f.owner}/${f.repo}`;
   // Titles name the team (never owner/repo); the messages people copy to a GitHub admin keep the repository.
-  const team = teamDisplayName(repo);
+  const team = teamDisplayName(repo, { name: f.name });
   switch (state) {
     case 'anonymous-unknown':
       // With email sign-in the title names no provider: GitHub stays the main way, the email link a quiet one under it.
@@ -163,6 +165,19 @@ export function accessScreen(state: RepoAccessState, f: AccessScreenInput): Acce
     default:
       return null;
   }
+}
+
+/** Set in this tab when the session ended in another one (scripts/github-session.ts): the page says so once. */
+export const SIGNED_OUT_ELSEWHERE_KEY = 'bridge.signedOutElsewhere';
+
+/** The screen of a tab whose session ended in another tab: "You signed out", and Sign in back to this page. */
+export function signedOutScreen(owner: string, repo: string): AccessScreen {
+  return {
+    layout: 'block',
+    title: 'You signed out',
+    body: `You signed out in another tab. Sign in again to open ${teamDisplayName(`${owner}/${repo}`)}: Bridge sends a code to your email.`,
+    primary: { kind: 'email', label: 'Sign in' },
+  };
 }
 
 /** The old team sign-in screen's search parameter: such an address now opens the one sign-in screen (/signin/). */

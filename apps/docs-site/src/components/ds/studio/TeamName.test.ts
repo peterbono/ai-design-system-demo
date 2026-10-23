@@ -72,7 +72,7 @@ describe('the setup step "Name your team"', () => {
     await user.type(field, 'Acme Design');
     await user.click(screen.getByRole('button', { name: 'Save name' }));
     expect(name).toHaveBeenCalledWith('Acme Design');
-    expect(await screen.findByText(/Review requested, #41\./)).toBeInTheDocument();
+    expect(await screen.findByText(/Sent for review, #41\./)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'See the branch' })).toHaveAttribute('href', expect.stringContaining('pr=41'));
     await user.click(screen.getByRole('button', { name: 'Do this later' }));
     expect(later).toHaveBeenCalledWith('name');
@@ -104,7 +104,7 @@ describe('Settings > General', () => {
     expect(save).toBeEnabled();
     await user.click(save);
     await waitFor(() => expect(page.proposed).toEqual(['Acme Design']));
-    expect(await screen.findByText(/Review requested, #41\./)).toBeInTheDocument();
+    expect(await screen.findByText(/Sent for review, #41\./)).toBeInTheDocument();
   });
 
   it('shows everyone else the name, read only', async () => {

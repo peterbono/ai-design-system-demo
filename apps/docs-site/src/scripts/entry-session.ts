@@ -4,7 +4,8 @@
 // With GitHub linked and signed in on this browser, the GitHub sign-in goes along (Bearer) so the server can find the
 // teams GitHub gives the person and accept reviewer or admin invites; the server never keeps it.
 import { CONTRIBUTE_HEADER } from '../lib/contribute';
-import { ENTRY_API, parseDiscovery, parseEntry, parseRequests, type Discovery, type Entry, type EntryRole, type JoinRequest } from '../lib/entry';
+import { noteAccountTeamNames, noteTeamName } from '../lib/recent-teams';
+import { ENTRY_API, parseDiscovery, parseEntry, parseInviteLink, parseRequests, parseTeamInfo, type Discovery, type Entry, type EntryRole, type InviteLink, type JoinRequest, type TeamInfo } from '../lib/entry';
 
 /** The server refused or failed: its sentence, its code ("github-required", "forbidden", "expired"), the status. */
 export class EntryError extends Error {
@@ -12,6 +13,8 @@ export class EntryError extends Error {
     message: string,
     readonly code: string,
     readonly status: number,
+    /** The rest of the answer: `repo` on 409 already (the person is a member, the team opens). */
+    readonly details: Record<string, unknown> = {},
   ) {
     super(message);
     this.name = 'EntryError';
@@ -57,7 +60,7 @@ async function call<T>(method: 'GET' | 'POST', query: string, body?: unknown, wi
   if (!res.ok) {
     const code = typeof data.error === 'string' ? data.error : 'failed';
     const message = typeof data.message === 'string' && data.message ? data.message : FAILED;
-    throw new EntryError(message, code, res.status);
+    throw new EntryError(message, code, res.status, data);
   }
   return data as T;
 }
@@ -66,7 +69,16 @@ async function call<T>(method: 'GET' | 'POST', query: string, body?: unknown, wi
 export async function getEntry(): Promise<Entry> {
   const e = parseEntry(await call('GET', '', undefined, true));
   if (!e) throw new EntryError(FAILED, 'failed', 500);
+  // The teams by the names the server keeps: the team page names its team from its first paint, no flip.
+  if (e.kind === 'teams') noteAccountTeamNames(e.teams);
   return e;
+}
+
+/** What an invite link is (signed in or not): its team, whom it was sent to (masked), whether it is this account's. */
+export async function openInviteLink(token: string): Promise<InviteLink> {
+  const link = parseInviteLink(await call('POST', '', { action: 'invite-link', token }));
+  if (!link) throw new EntryError(FAILED, 'failed', 500);
+  return link;
 }
 
 export interface Accepted {
@@ -83,17 +95,17 @@ export async function acceptInvite(repo: string, id: string): Promise<Accepted> 
   return { status: r.status === 'accept-on-github' ? 'accept-on-github' : 'joined', repo: r.repo ?? repo, role: r.role ?? 'edit', next: typeof r.next === 'string' ? r.next : '', ...(r.acceptUrl ? { acceptUrl: r.acceptUrl } : {}) };
 }
 
-/** Asks to join a team open to the work domain; an invite for it is accepted instead (`joined`). */
-export async function requestJoin(repo: string): Promise<{ requested: true } | ({ joined: true } & Accepted)> {
-  const r = await call<Record<string, unknown>>('POST', '', { action: 'request', repo }, true);
-  if (r.joined === true) return { joined: true, status: r.status === 'accept-on-github' ? 'accept-on-github' : 'joined', repo: String(r.repo ?? repo), role: String(r.role ?? 'edit'), next: typeof r.next === 'string' ? r.next : '', ...(typeof r.acceptUrl === 'string' ? { acceptUrl: r.acceptUrl } : {}) };
+/** Asks to join a team open to the work domain, by its opaque id; an invite for it is accepted instead (`joined`). */
+export async function requestJoin(team: string): Promise<{ requested: true } | ({ joined: true } & Accepted)> {
+  const r = await call<Record<string, unknown>>('POST', '', { action: 'request', team }, true);
+  if (r.joined === true) return { joined: true, status: r.status === 'accept-on-github' ? 'accept-on-github' : 'joined', repo: String(r.repo ?? ''), role: String(r.role ?? 'edit'), next: typeof r.next === 'string' ? r.next : '', ...(typeof r.acceptUrl === 'string' ? { acceptUrl: r.acceptUrl } : {}) };
   return { requested: true };
 }
 
 /** Takes back the account's own pending request to join a team. A request already gone (404) counts as cancelled. */
-export async function cancelJoinRequest(repo: string): Promise<void> {
+export async function cancelJoinRequest(team: string): Promise<void> {
   try {
-    await call('POST', '', { action: 'cancel-request', repo });
+    await call('POST', '', { action: 'cancel-request', team });
   } catch (err) {
     if (err instanceof EntryError && err.status === 404) return;
     throw err;
@@ -120,6 +132,11 @@ export async function declineRequest(repo: string, id: string): Promise<void> {
   await call('POST', '', { action: 'decline', repo, id });
 }
 
+/** Admins: takes back an approve or decline within 30 seconds; the request waits again. 410 once too late. */
+export async function undoDecision(repo: string, id: string): Promise<void> {
+  await call('POST', '', { action: 'undo', repo, id });
+}
+
 /** Admins: opens the team to their own work domain, or closes it. 409 public-domain for a public email. */
 export async function setDiscovery(repo: string, enabled: boolean): Promise<{ domain: string | null; enabled: boolean }> {
   const r = await call<{ domain?: string | null; enabled?: boolean }>('POST', '', { action: 'discovery', repo, enabled });
@@ -128,3 +145,47 @@ export async function setDiscovery(repo: string, enabled: boolean): Promise<{ do
 
 /** The refusal of an admin action because no GitHub admin account is linked: shown as a calm link, not an error. */
 export const needsGitHubAdmin = (err: unknown): boolean => err instanceof EntryError && err.status === 403 && err.code === 'forbidden';
+
+// ---------------------------------------------------------------------------------------------------------------
+// "Create your team": a real team at step 1, before any repository
+
+function teamOf(r: { team?: unknown }): TeamInfo {
+  const t = parseTeamInfo(r.team);
+  if (!t) throw new EntryError(FAILED, 'failed', 500);
+  return t;
+}
+
+/**
+ * Step 1: makes the team on the server (its creator its admin) and opens it to the work domain when `discover`. Run
+ * again, it renames that same team.
+ */
+export async function createTeam(name: string, discover: boolean): Promise<{ team: TeamInfo; created: boolean }> {
+  const r = await call<{ team?: unknown; created?: unknown }>('POST', '', { action: 'create-team', name, discover });
+  const team = teamOf(r);
+  noteTeamName(team.key, team.name);
+  return { team, created: r.created === true };
+}
+
+/** A team made in Bridge, for one of its members; null when it is gone or they are not on it (404). */
+export async function getTeam(key: string): Promise<TeamInfo | null> {
+  try {
+    return teamOf(await call<{ team?: unknown }>('GET', `?team=${encodeURIComponent(key)}`));
+  } catch (err) {
+    if (err instanceof EntryError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+/** Keeps the Storybook added with the quick start with the team (admins). */
+export const linkStorybook = async (key: string, storybook: string | null): Promise<TeamInfo> =>
+  teamOf(await call<{ team?: unknown }>('POST', '', { action: 'link-team', team: key, storybook: storybook ?? '' }));
+
+/**
+ * Links the repository: the team moves there (members, requests, discovery, invites, name). Needs an admin of the
+ * repository on GitHub, so the GitHub sign-in of this browser goes along. EntryError 409 app_missing while Bridge is not
+ * installed there, 403 forbidden for someone who does not administer it.
+ */
+export async function linkRepo(key: string, repo: string): Promise<{ repo: string; next: string }> {
+  const r = await call<{ repo?: unknown; next?: unknown }>('POST', '', { action: 'link-team', team: key, repo }, true);
+  return { repo: typeof r.repo === 'string' ? r.repo : repo, next: typeof r.next === 'string' ? r.next : '' };
+}

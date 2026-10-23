@@ -9,7 +9,7 @@ import type { EmailMessage } from '../../api/_lib/email';
 import type { FetchLike } from '../../api/_lib/http';
 import { localAdminStore } from '../../api/_lib/local-admin';
 import { memoryRedis } from '../../api/_lib/redis';
-import { handleAccount, LAST_ADMIN } from '../../api/account/index';
+import { handleAccount, lastAdminOf } from '../../api/account/index';
 import { handleContribute } from '../../api/contribute/index';
 import { handleEntry } from '../../api/entry/index';
 import { studioReserved, teamRewrite } from '../../dev/local-api';
@@ -82,8 +82,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('every scenario', () => {
-  it('lists S0 to S16, each found by id, number or slug', () => {
-    expect(SCENARIOS.map((s) => s.id)).toEqual(Array.from({ length: 17 }, (_, i) => `S${i}`));
+  it('lists S0 to S18, each found by id, number or slug', () => {
+    expect(SCENARIOS.map((s) => s.id)).toEqual(Array.from({ length: 19 }, (_, i) => `S${i}`));
     for (const s of SCENARIOS) {
       expect(findScenario(s.id)).toBe(s);
       expect(findScenario(s.id.toLowerCase())).toBe(s);
@@ -116,8 +116,9 @@ describe('what each scenario is for', () => {
     await w.seed();
     const taylor = await w.cookieFor('taylor@acme.com', 'Taylor Brooks');
     const { body } = await w.entry(taylor);
-    expect(body.teams).toEqual([expect.objectContaining({ repo: 'acme/acme-product', adminName: 'Sam Rivera', memberCount: 3, requested: false })]);
-    expect((await w.post(taylor, { action: 'request', repo: 'acme/acme-product' })).status).toBe(200);
+    expect(body.teams).toEqual([expect.objectContaining({ name: expect.stringMatching(/^Acme product$/i), adminName: 'Sam Rivera', memberCount: 3, requested: false })]);
+    expect(body.teams[0].repo).toBeUndefined();
+    expect((await w.post(taylor, { action: 'request', team: body.teams[0].id })).status).toBe(200);
     expect(w.sent.some((m) => m.to === 'sam@acme.com' && m.subject.includes('asked to join'))).toBe(true);
   });
 
@@ -126,7 +127,7 @@ describe('what each scenario is for', () => {
     await w.seed();
     const { body } = await w.entry(await w.cookieFor('nora@lumen.studio', 'Nora Lind'));
     expect(body.teams.map((t: any) => t.memberCount)).toEqual([6, 4, 3, 2, 1]);
-    expect(body.teams.every((t: any) => t.repo.startsWith('lumen/'))).toBe(true);
+    expect(body.teams.every((t: any) => t.repo === undefined && /^t[a-f0-9]{20}$/.test(t.id))).toBe(true);
   });
 
   it('S5: a closed team answers like one that does not exist', async () => {
@@ -145,7 +146,7 @@ describe('what each scenario is for', () => {
     expect((await w7.entry(await w7.cookieFor('mia@acme.com', 'Mia Rossi'))).body.kind).toBe('create');
   });
 
-  it('S9: reviewer and admin invites need GitHub', async () => {
+  it('S9: a reviewer invite needs GitHub; an admin invite joins with the email', async () => {
     const w = world(findScenario('S9')!);
     await w.seed();
     const noah = await w.cookieFor('noah@acme.com', 'Noah Kim');
@@ -154,6 +155,10 @@ describe('what each scenario is for', () => {
     const r = await w.post(noah, { action: 'accept-invite', repo: inv.repo, id: inv.id });
     expect(r.status).toBe(409);
     expect(r.body.error).toBe('github-required');
+    const ava = await w.cookieFor('ava@acme.com', 'Ava Patel');
+    const adm = (await w.entry(ava)).body.invites[0];
+    expect((await w.post(ava, { action: 'accept-invite', repo: adm.repo, id: adm.id })).body).toMatchObject({ joined: true, role: 'admin' });
+    expect((await w.entry(ava)).body).toMatchObject({ kind: 'teams', teams: [{ repo: 'acme/acme-product', role: 'admin' }] });
   });
 
   it('S12: each seeded admin sees their own requests (4, 1, 0) and decides them without GitHub; a member cannot', async () => {
@@ -193,11 +198,12 @@ describe('what each scenario is for', () => {
     const w = world(findScenario('S13')!);
     await w.seed();
     const taylor = await w.cookieFor('taylor@acme.com', 'Taylor Brooks');
-    const requested = async () => Object.fromEntries((await w.entry(taylor)).body.teams.map((t: any) => [t.repo, t.requested]));
-    expect(await requested()).toEqual({ 'acme/acme-product': true, 'acme/acme-mobile': true });
+    const requested = async () => Object.fromEntries((await w.entry(taylor)).body.teams.map((t: any) => [t.name.toLowerCase(), t.requested ? 'pending' : t.expired ? 'expired' : 'none']));
+    expect(await requested()).toEqual({ 'acme product': 'pending', 'acme mobile': 'pending' });
     expect((await w.post(taylor, { action: 'cancel-request', repo: 'acme/acme-product' })).body).toEqual({ cancelled: true });
     w.advance(3 * 60_000 + 1000);
-    expect(await requested()).toEqual({ 'acme/acme-product': false, 'acme/acme-mobile': false });
+    // Cancelled: as if never asked. Lapsed: "Your request expired, ask again".
+    expect(await requested()).toEqual({ 'acme product': 'none', 'acme mobile': 'expired' });
   });
 
   it('S14: joining with the invite removes the pending request', async () => {
@@ -214,7 +220,7 @@ describe('what each scenario is for', () => {
     await w.seed();
     const blocked = await w.account({ action: 'delete' }, await w.cookieFor('sam@acme.com', 'Sam Rivera'));
     expect(blocked.status).toBe(409);
-    expect(blocked.body).toMatchObject({ error: 'last-admin', message: LAST_ADMIN, teams: ['acme/acme-product'] });
+    expect(blocked.body).toMatchObject({ error: 'last-admin', message: lastAdminOf(['Acme product']), teams: ['acme/acme-product'] });
     const done = await w.account({ action: 'delete' }, await w.cookieFor('riley@acme.com', 'Riley Chen'));
     expect(done.status).toBe(200);
     expect(await localAdminStore(w.redis).teamsOf('riley@acme.com')).toEqual([]);

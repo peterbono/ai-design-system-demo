@@ -138,7 +138,7 @@ export async function initTeamBranches(): Promise<void> {
     reviews.closePr();
     if (r.view === 'suggestion') {
       showMain(null);
-      if (sgHost) void suggestions.openSuggestion(r.n, { el: sgHost, crumbs: [{ label: 'Branches', href: studioHref('changes/') }, { label: `Suggestion #${r.n}` }] });
+      if (sgHost) void suggestions.openSuggestion(r.n, { el: sgHost, crumbs: [{ label: 'Branches', href: studioHref('changes/') }, { label: 'Suggestion' }] });
       return;
     }
     if (r.view === 'request') {

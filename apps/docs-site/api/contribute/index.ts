@@ -21,14 +21,18 @@
 //   POST { action: 'sign-in', repo, email }              always { ok: true }; emails a link to members only
 //   POST { action: 'verify', repo, token }               spends that link, sets the session cookie; { member }
 //   POST { action: 'sign-out', repo }                    clears it
-//   ANY  /api/contribute?repo=owner/name&gh=<GitHub REST path and query, URL-encoded, starting with />
-//                                                        the GitHub call, under the policy below; GitHub's status,
+//   GET  /api/contribute?repo=owner/name&gh=<GitHub REST path and query, URL-encoded, starting with />
+//   GET  /api/contribute?repo=owner/name&blobs=<sha>,<sha>,...
+//                                                        a read of the team's repository through Bridge, for its
+//                                                        members and for anyone on a public demo team: allow-listed,
+//                                                        read-only token, cached, rate limited (api/_lib/team-read.ts)
+//   ANY  other than GET, same gh=                         the GitHub call, under the policy below; GitHub's status,
 //                                                        body and Link header come back as they are
 // Every request other than GET must carry `X-Bridge-Contribute: 1` and, when the browser sends an Origin, come from a
 // page of this site (CSRF).
 //
 // The proxy policy (anything else answers 403 { error: 'not-allowed' }). Only paths under /repos/<the session's repo>:
-//   GET    anything under the repository (read)
+//   GET    the read allow-list of api/_lib/team-read.ts (READ_RULES), with a read-only token
 //   POST   git/blobs
 //   POST   git/trees                   every entry a design file (below), no submodule, no symlink
 //   POST   git/commits                 the author is set to the member (date kept), any committer dropped
@@ -99,8 +103,11 @@ import {
 } from '../_lib/http.js';
 import { memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
+import { configName, putTeamName } from '../_lib/teams.js';
 import { cookieAttrs, readCookie, signClaims, verifyClaims } from '../_lib/session.js';
 import { inviteStoreOn, type InviteStore } from '../invites/index.js';
+import { accountTeamsKey } from '../_lib/members.js';
+import { isPublicRepo, noteWrite, onBlobs, onRead, parseBlobList, PUBLIC_TEAMS, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
 
 export type { FetchLike };
 
@@ -119,6 +126,10 @@ export interface ContribEnv {
   GITHUB_APP_PRIVATE_KEY?: string | undefined;
   PUBLIC_SITE_URL?: string | undefined;
   CONTRIB_MAX_WRITES?: string | undefined;
+  /** Reads through Bridge per 10 minutes: per address (members), per address (demo visitors), per team. */
+  READ_MAX_IP?: string | undefined;
+  READ_MAX_GUEST?: string | undefined;
+  READ_MAX_TEAM?: string | undefined;
 }
 
 export interface ContribDeps {
@@ -172,9 +183,9 @@ export const PROXY_PERMISSIONS = { contents: 'write', pull_requests: 'write', is
 
 export const NOT_CONFIGURED = 'Joining with an email is not available yet on this site.';
 export const EXPIRED = 'This link expired or was already used. Ask your admin for a new invitation, or enter your email to get a sign-in link.';
-export const GITHUB_REQUIRED = 'Reviewers and admins approve and merge on GitHub. Sign in with GitHub to join with this role.';
+export const GITHUB_REQUIRED = 'Reviewers approve changes on GitHub. Sign in with GitHub to join with this role.';
 export const NOT_ALLOWED = 'Bridge does not do this for people who joined with their email. Ask a reviewer or an admin.';
-const SIGNIN = 'Your session ended. Enter your email to get a new sign-in link.';
+const SIGNIN = 'You signed out. Sign in again with your email: Bridge sends you a code.';
 const STORAGE_DOWN = 'Bridge could not reach its storage. Try again in a minute.';
 const APP_MISSING = 'Bridge cannot write to this design system yet. An admin of the repository gives the Bridge app access to it.';
 export const LIMIT_WORDS = {
@@ -191,6 +202,8 @@ interface Services {
   members: MemberStore;
   email: EmailSender | null;
   app: AppTokens;
+  /** The read token of api/_lib/team-read.ts: the same app, narrowed to read permissions. */
+  readApp: AppTokens;
   secret: string;
   /** Local mode only (api/_lib/local-admin.ts); always null in production. */
   localAdmins: LocalAdmins | null;
@@ -212,6 +225,31 @@ function cachedApp(app: AppTokens, key: string, now: () => number): AppTokens {
   };
 }
 
+/**
+ * Read tokens: the app narrowed to READ_PERMISSIONS, else to READ_BASE when the installation lacks one of the extra
+ * read permissions (statuses, checks). Never a write permission.
+ */
+function readTokens(appId: string, pem: string, f: FetchLike, now: () => number): AppTokens {
+  const full = cachedApp(githubApp(appId, pem, f, now, { permissions: { ...READ_PERMISSIONS }, require: { ...READ_PERMISSIONS }, userAgent: 'bridge-read' }), `${appId}:read`, now);
+  const base = cachedApp(githubApp(appId, pem, f, now, { permissions: { ...READ_BASE }, require: { ...READ_BASE }, userAgent: 'bridge-read' }), `${appId}:read-base`, now);
+  // What the installation does not grant is not asked again for a while (each ask is two calls to GitHub).
+  const without = new Map<string, number>();
+  return {
+    async installationToken(owner, repo) {
+      const k = `${owner}/${repo}`.toLowerCase();
+      if ((without.get(`full:${k}`) ?? 0) <= now()) {
+        const t = await full.installationToken(owner, repo);
+        if (t) return t;
+        without.set(`full:${k}`, now() + 10 * 60 * 1000);
+      }
+      if ((without.get(`base:${k}`) ?? 0) > now()) return null;
+      const t = await base.installationToken(owner, repo);
+      if (!t) without.set(`base:${k}`, now() + 60 * 1000);
+      return t;
+    },
+  };
+}
+
 /** Storage, the session secret and the app (email for sign-in links), or null when one is missing. */
 export function services(env: ContribEnv, deps: ContribDeps): Services | null {
   const now = deps.now ?? Date.now;
@@ -226,7 +264,8 @@ export function services(env: ContribEnv, deps: ContribDeps): Services | null {
   const app = deps.app ?? (appId && pem ? cachedApp(githubApp(appId, pem, deps.fetch, now, { permissions: { ...PROXY_PERMISSIONS }, require: { ...PROXY_PERMISSIONS }, userAgent: 'bridge-contribute' }), appId, now) : null);
   const secret = env.LIBRARY_SESSION_SECRET?.trim() ?? '';
   if (!redis || !app || secret.length < MIN_SECRET_LENGTH) return null;
-  return { redis, invites: deps.invites ?? inviteStoreOn(redis, now), members: deps.members ?? memberStore(redis), email, app, secret, localAdmins: activeLocalAdmins(deps.localAdmins) };
+  const readApp = deps.app ?? readTokens(appId!, pem!, deps.fetch, now);
+  return { redis, invites: deps.invites ?? inviteStoreOn(redis, now), members: deps.members ?? memberStore(redis), email, app, readApp, secret, localAdmins: activeLocalAdmins(deps.localAdmins) };
 }
 
 interface Ctx {
@@ -350,11 +389,12 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
         await svc.invites.remove(inv);
         return fail(410, 'expired', EXPIRED);
       }
-      // Reviewers and admins approve and merge on GitHub: the invite stays valid for the GitHub way.
-      if (inv.role !== 'edit') return fail(409, 'github-required', GITHUB_REQUIRED);
+      // Reviewers approve on GitHub: the invite stays valid for the GitHub way. An admin needs no GitHub for what
+      // admins do in Bridge (members, requests, settings, invites), so Admin joins with the email too.
+      if (inv.role !== 'edit' && inv.role !== 'admin') return fail(409, 'github-required', GITHUB_REQUIRED);
       const email = inv.email.trim().toLowerCase();
       const prev = await svc.members.get(inv.repo, email);
-      const member: EmailMember = { email, name: cleanName(body.name, email), role: 'edit', version: (prev?.version ?? 0) + 1, addedBy: inv.invitedBy, at: new Date(ctx.now()).toISOString() };
+      const member: EmailMember = { email, name: cleanName(body.name, email), role: inv.role, version: (prev?.version ?? 0) + 1, addedBy: inv.invitedBy, at: new Date(ctx.now()).toISOString() };
       await svc.members.put(inv.repo, member);
       // Single use, the same bookkeeping as the GitHub accept.
       await svc.invites.remove(inv);
@@ -622,6 +662,8 @@ async function designPaths(ctx: Ctx, c: Call, defaultBranch: string): Promise<De
       config = null;
     }
   } else if (res.status !== 404) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+  // The name the team goes by, kept with it for the team pickers and emails (api/_lib/teams.ts). Never throws.
+  if (res.status === 404 || config) await putTeamName(ctx.svc.redis, c.full, configName(config), ctx.now());
   const paths = designPathsFrom(config);
   configCache.set(key, { at: ctx.now(), paths });
   return paths;
@@ -790,6 +832,7 @@ const PASS_TYPE = /^(application\/(json|vnd\.github[^;]*)|text\/plain)\b/i;
 async function onProxy(req: Request, ctx: Ctx, params: URLSearchParams): Promise<Response> {
   const method = req.method.toUpperCase();
   const { owner, repo, full } = parseRepo(params.get('repo'));
+  if (method === 'GET') return onTeamRead(req, ctx, params);
   const member = await sessionMember(ctx, req, full);
   if (!member) return json(401, { error: 'signin', message: SIGNIN }, { 'Set-Cookie': clearSession(full) });
   const target = parseTarget(params.get('gh'), owner, repo);
@@ -842,6 +885,8 @@ async function onProxy(req: Request, ctx: Ctx, params: URLSearchParams): Promise
     return fail(502, 'unreachable', GITHUB_DOWN);
   }
   const text = res.status === 204 || res.status === 304 ? null : await res.text();
+  // Reads kept by Bridge (api/_lib/team-read.ts) are checked again after a change made here.
+  if (res.status >= 200 && res.status < 300) await noteWrite(ctx.svc.redis, full, ctx.now()).catch(() => undefined);
   if (plan.after && res.status >= 200 && res.status < 300) {
     let data: unknown = null;
     try {
@@ -862,6 +907,54 @@ async function onProxy(req: Request, ctx: Ctx, params: URLSearchParams): Promise
     if (v) headers[h === 'link' ? 'Link' : 'ETag'] = v;
   }
   return new Response(text, { status: res.status, headers });
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Reads through Bridge (api/_lib/team-read.ts)
+
+/**
+ * Who may read `full` through Bridge: a member (the team's email session, a Bridge account that is a member of the
+ * team, or in local mode a seeded admin), else anyone when it is a public demo team GitHub says is public. Null:
+ * nobody we know.
+ */
+async function readerOf(ctx: Ctx, req: Request, full: string, rctx: ReadCtx): Promise<Reader | null> {
+  if (await sessionMember(ctx, req, full)) return { kind: 'member' };
+  const a = await sessionAccount(req, ctx.svc.redis, ctx.svc.secret, ctx.now());
+  if (a) {
+    // The account's team set (api/_lib/members.ts keeps it, and team creation adds admins to it).
+    if (Number(await ctx.svc.redis.cmd('SISMEMBER', accountTeamsKey(a.email), full.toLowerCase())) === 1) return { kind: 'member' };
+    if (ctx.svc.localAdmins && (await ctx.svc.localAdmins.isAdmin(full, a.email))) return { kind: 'member' };
+  }
+  if (PUBLIC_TEAMS.includes(full.toLowerCase())) {
+    const { owner, repo } = parseRepo(full);
+    if (await isPublicRepo(rctx, owner, repo)) return { kind: 'guest' };
+  }
+  return null;
+}
+
+/** GET gh= (one GitHub read) or blobs= (many blobs at once), for a member or a visitor of a public demo team. */
+async function onTeamRead(req: Request, ctx: Ctx, params: URLSearchParams): Promise<Response> {
+  const { owner, repo, full } = parseRepo(params.get('repo'));
+  const rctx: ReadCtx = {
+    f: ctx.f,
+    now: ctx.now,
+    redis: ctx.svc.redis,
+    token: (o, r) => ctx.svc.readApp.installationToken(o, r),
+    env: { READ_MAX_IP: ctx.env.READ_MAX_IP, READ_MAX_GUEST: ctx.env.READ_MAX_GUEST, READ_MAX_TEAM: ctx.env.READ_MAX_TEAM },
+  };
+  const blobs = params.get('blobs');
+  // The path is checked before anyone is looked up: a bad address costs no storage call.
+  const target = blobs === null ? parseTarget(params.get('gh'), owner, repo) : null;
+  const shas = blobs !== null ? parseBlobList(blobs) : null;
+  if (target && !readAllowed(target.rest, { kind: 'member' })) throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);
+  const reader = await readerOf(ctx, req, full, rctx);
+  if (!reader) {
+    // A team cookie that no longer holds is cleared, as for any other call.
+    const stale = readCookie(req, cookieName(full)) !== null;
+    return json(401, { error: 'signin', message: SIGNIN }, stale ? { 'Set-Cookie': clearSession(full) } : {});
+  }
+  if (shas) return onBlobs(req, rctx, { owner, repo, full }, shas, reader);
+  return onRead(req, rctx, { owner, repo, full, rest: target!.rest, rawRest: target!.rawRest, query: target!.query }, reader);
 }
 
 /**
@@ -941,8 +1034,9 @@ export async function handleContribute(req: Request, env: ContribEnv, deps: Cont
     const svc = services(env, deps);
     const params = new URL(req.url).searchParams;
     const gh = params.get('gh');
+    const blobs = params.get('blobs');
 
-    if (method === 'GET' && gh === null) {
+    if (method === 'GET' && gh === null && blobs === null) {
       const repoArg = params.get('repo');
       if (repoArg === null || !svc) {
         if (repoArg !== null) parseRepo(repoArg);
@@ -964,7 +1058,7 @@ export async function handleContribute(req: Request, env: ContribEnv, deps: Cont
 
     if (!svc) return fail(503, 'not_configured', NOT_CONFIGURED);
     const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, env };
-    if (gh !== null) return await onProxy(req, ctx, params);
+    if (gh !== null || (blobs !== null && method === 'GET')) return await onProxy(req, ctx, params);
     if (method !== 'POST') return fail(400, 'bad_request', 'Say which GitHub call, with gh.');
     return await onAction(req, ctx);
   } catch (e) {
@@ -985,6 +1079,9 @@ const envFromProcess = (): ContribEnv => ({
   GITHUB_APP_PRIVATE_KEY: process.env.GITHUB_APP_PRIVATE_KEY,
   PUBLIC_SITE_URL: process.env.PUBLIC_SITE_URL,
   CONTRIB_MAX_WRITES: process.env.CONTRIB_MAX_WRITES,
+  READ_MAX_IP: process.env.READ_MAX_IP,
+  READ_MAX_GUEST: process.env.READ_MAX_GUEST,
+  READ_MAX_TEAM: process.env.READ_MAX_TEAM,
 });
 
 const realFetch: FetchLike = (url, init) => fetch(url, init);

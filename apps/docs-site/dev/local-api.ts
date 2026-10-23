@@ -21,6 +21,7 @@ import type { FetchLike } from '../api/_lib/http.js';
 import { localAdminStore, type LocalAdmins } from '../api/_lib/local-admin.js';
 import { type EmailMember, memberStore } from '../api/_lib/members.js';
 import { memoryRedis, type Redis, type RedisArg, type RedisSnapshot } from '../api/_lib/redis.js';
+import { RESERVED_PATHS_URL, reservedFromFiles, type ReservedPaths } from '../src/lib/team-path.js';
 import { fixtureApp, fixtureGithub, gitFiles } from './local-github.js';
 
 /** The folder that holds local data, next to package.json (gitignored). */
@@ -284,6 +285,18 @@ export function routeOf(pathname: string, exists: (rel: string) => boolean): str
   return null;
 }
 
+/**
+ * True for a request under /api/ that is a source module, not a function call: a page script importing
+ * api/_lib/domains.ts makes Vite fetch /api/_lib/domains.ts. Those go on to Vite instead of the 404 of a missing
+ * function. Any `_` segment (helpers are never functions) or a file extension marks one.
+ */
+export function isModuleRequest(pathname: string): boolean {
+  if (!pathname.startsWith('/api/')) return false;
+  const parts = pathname.slice('/api/'.length).split('/').filter(Boolean);
+  if (parts.some((p) => p.startsWith('_'))) return true;
+  return /\.[cm]?[jt]sx?$/.test(parts[parts.length - 1] ?? '');
+}
+
 type Mod = Record<string, unknown>;
 type Handler = (req: Request) => Promise<Response>;
 
@@ -315,7 +328,7 @@ export function handlerFor(rel: string, mod: Mod, local: Local, method: string, 
     case 'api/contribute/index.ts':
       return call('handleContribute', { redis, ...admins, ...apps });
     case 'api/invites/index.ts':
-      return call('handleInvites', { store: extra.invites, members: extra.members, ...apps });
+      return call('handleInvites', { store: extra.invites, members: extra.members, redis, ...admins, ...apps });
     case 'api/library-access/index.ts':
       return call('handleLibraryAccess', { store: extra.library });
     case 'api/github/token.ts': {
@@ -358,6 +371,30 @@ export function studioReserved(dir: string): Set<string> {
   } catch {
     return new Set();
   }
+}
+
+/**
+ * The reserved team paths of the build (/team-shell/reserved.json, astro.config.mjs) read from the page sources:
+ * `x.astro` builds x/index.html, `x.json.ts` builds x.json, `index.astro` builds index.html.
+ */
+export function devReserved(dir: string): ReservedPaths {
+  const files: string[] = [];
+  const walk = (d: string, rel: string) => {
+    let names: string[] = [];
+    try {
+      names = readdirSync(d);
+    } catch {
+      return;
+    }
+    for (const f of names) {
+      const r = rel ? `${rel}/${f}` : f;
+      if (statSync(join(d, f)).isDirectory()) walk(join(d, f), r);
+      else if (/\.(astro|md)$/.test(f)) files.push(/^index\.(astro|md)$/.test(f) ? `${rel ? `${rel}/` : ''}index.html` : `${r.replace(/\.(astro|md)$/, '')}/index.html`);
+      else if (/\.ts$/.test(f)) files.push(r.replace(/\.ts$/, ''));
+    }
+  };
+  walk(dir, '');
+  return reservedFromFiles(files);
 }
 
 const OWNER = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/;
@@ -464,9 +501,18 @@ export function bridgeLocal(opts: { root: string; log?: (s: string) => void }) {
           next();
         });
 
+        // The build writes /team-shell/reserved.json (astro.config.mjs); `astro dev` has no build, so answer it here.
         server.middlewares.use((req, res, next) => {
           const pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
-          if (!pathname.startsWith('/api/')) return next();
+          if (pathname !== RESERVED_PATHS_URL) return next();
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-store');
+          res.end(`${JSON.stringify(devReserved(join(root, 'src', 'pages', 'studio')))}\n`);
+        });
+
+        server.middlewares.use((req, res, next) => {
+          const pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
+          if (!pathname.startsWith('/api/') || isModuleRequest(pathname)) return next();
           void (async () => {
             if (pathname.replace(/\/$/, '') === '/api/dev/outbox') {
               const wantsHtml = (req.headers.accept ?? '').includes('text/html');

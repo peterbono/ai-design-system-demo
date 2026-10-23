@@ -12,6 +12,12 @@ describe('requesterOf', () => {
     expect(requesterOf('Body\n\n<sub>Requested from Figma by @dana with Bridge.</sub>')).toEqual({ name: null, login: 'dana' });
   });
 
+  it('reads a suggestion footer when no Requested by line is there', () => {
+    expect(requesterOf('Body\n\n<sub>Suggested from Figma by @dana with Bridge.</sub>')).toEqual({ name: null, login: 'dana' });
+    expect(requesterOf('Requested by Leo Martin.\n\n<sub>Suggested from Bridge by @peterbono with Bridge.</sub>')).toEqual({ name: 'Leo Martin', login: null });
+    expect(requesterOf('## Suggested change: Softer borders')).toBeNull();
+  });
+
   it('ignores prose and malformed lines', () => {
     expect(requesterOf(null)).toBeNull();
     expect(requesterOf('This was requested by the marketing team in March.')).toBeNull();

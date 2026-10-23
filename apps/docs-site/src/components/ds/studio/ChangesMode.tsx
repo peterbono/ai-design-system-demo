@@ -218,7 +218,7 @@ export default function ChangesModeSetting({ set, repo, prefix, protectedBranche
         {done && (
           <div className="rq-done" role="status">
             <p>
-              <strong>Review requested.</strong> It applies once your team approves and merges the branch.
+              <strong>Sent for review.</strong> It applies once your team approves and merges the branch.
             </p>
             <p>
               <Link href={studioHref(`changes/?pr=${done.number}`)}>See the branch</Link> ·{' '}

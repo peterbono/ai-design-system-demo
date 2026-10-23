@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { commitUrl, fileUrl, sourceLine, teamFailure } from './team-load';
+import { busyText, commitUrl, fileUrl, sourceLine, teamFailure } from './team-load';
 
 const err = (status: number, message = '') => Object.assign(new Error(message), { status });
 
 describe('teamFailure', () => {
   it('names each failure a team page can hit, with a way out', () => {
-    expect(teamFailure(err(429, 'GitHub limit reached. Try again after 14:05.'), 'acme/ds')).toMatchObject({ kind: 'rate-limit', body: 'GitHub limit reached. Try again after 14:05.' });
+    expect(teamFailure(err(429, 'GitHub limit reached. Try again after 14:05.'), 'acme/ds')).toMatchObject({ kind: 'rate-limit', title: 'Bridge is busy, try again in a few minutes.' });
     expect(teamFailure(err(403, 'API rate limit exceeded'), 'acme/ds').kind).toBe('rate-limit');
     expect(teamFailure(err(404), 'acme/ds')).toMatchObject({ kind: 'not-found', title: 'Bridge cannot open Ds' });
     expect(teamFailure(err(413, 'tree too large'), 'acme/ds')).toMatchObject({ kind: 'too-large' });
@@ -14,8 +14,24 @@ describe('teamFailure', () => {
     expect(teamFailure('weird', 'acme/ds').kind).toBe('unknown');
   });
 
+  it('on any limit says Bridge is busy and when to come back, never to add a GitHub token', () => {
+    const tokenWords = "GitHub's hourly limit for requests without a token (60 an hour) is used up. To keep going now, add a GitHub token: a token gets 5,000 requests an hour.";
+    const github = teamFailure(Object.assign(err(429, tokenWords), { resetsAt: new Date(Date.now() + 4 * 60 * 1000 + 5000) }), 'acme/ds');
+    expect(github.title).toBe('Bridge is busy, try again in 5 min.');
+    expect(`${github.title} ${github.body}`).not.toMatch(/token/i);
+    expect(teamFailure(err(429, 'Bridge is busy, try again in 3 min.'), 'acme/ds').title).toBe('Bridge is busy, try again in 3 min.');
+    expect(busyText(20)).toBe('Bridge is busy, try again in 1 min.');
+    expect(busyText(null)).toBe('Bridge is busy, try again in a few minutes.');
+  });
+
+  it('says "You signed out" with a way back in when the session ended in another tab, never the server sentence', () => {
+    const f = teamFailure(err(401, 'You signed out. Sign in again with your email: Bridge sends you a code.'), 'acme/ds');
+    expect(f).toEqual({ kind: 'signed-out', title: 'You signed out', body: 'Sign in again to open Ds. Bridge sends a code to your email.' });
+    expect(`${f.title} ${f.body}`).not.toMatch(/GitHub answered|link/);
+  });
+
   it('never uses an em dash', () => {
-    for (const s of [429, 404, 413, 0, 500]) {
+    for (const s of [401, 429, 404, 413, 0, 500]) {
       const f = teamFailure(err(s), 'acme/ds');
       expect(`${f.title} ${f.body}`).not.toMatch(/\u2014/);
     }

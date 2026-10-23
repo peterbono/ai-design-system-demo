@@ -1,40 +1,48 @@
 // The rooms of Entry after the email code (lib/entry.ts routes there; SignIn.tsx hosts them in its Harbor zone):
 //   E3  "Acme Design invited you": who invited which email and when, the team card (its people: a few avatars, "+N"
-//       and "12 members"; "You join as Can edit"), Join. A reviewer
-//       or admin invite without GitHub linked says so calmly, with "Connect GitHub to accept".
+//       and "12 members"; "You join as Reviewer: design"), Join. A reviewer or admin invite without GitHub linked says
+//       so before the action, in one line (GitHub, the free account where the design system lives), with "Connect
+//       GitHub to accept" and "New to GitHub?"; on a site without GitHub sign-in, that it is not available here and
+//       whom to ask.
+//   The invite link's own states (InviteLinkRoom, /studio/invite/): sent to another email ("Sign in as that email"),
+//       already in the team (Open), a spent link (whom to ask), an incomplete link.
 //   E4  "Your colleagues already use Bridge": the teams open to the work domain, largest first, three then "Show N
 //       more". One team: its card and the one primary action, Ask to join. Several: each card keeps its own button.
 //       "Create a new team instead" stays quiet.
 //   E4b "Request sent": the same card, waiting for the admin, the demo while they wait. "Changed your mind? Cancel the
-//       request" takes it back and returns to E4.
+//       request" takes it back and returns to E4. Several teams: each asked card says "Request sent" with its own
+//       Cancel, and the title says how many were sent. A request that ran out says "Your request expired, ask again".
+//       Bridge checks every APPROVAL_POLL_MS (and when the tab comes back): once the admin lets them in, "You're in"
+//       with Open <team>, and the team's home says "You joined <team>".
 //   E5  "Pick a team": two or more teams and none opened recently in this browser; each row opens its Studio home.
 // "Not you? Use another email" signs out and goes back to the email.
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { ChevronRight, ExternalLink } from 'lucide-react';
 import { Alert, Avatar, AvatarGroup, Badge, Button, Card, Icon, Link } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
-import { roleWord } from '../../../lib/account';
-import { CREATE_TEAM_HREF, ENTRY_WORDS as W, invitedOn, membersLabel, splitDomainTeams, teamAvatars, teamHome, yourRole, type DomainTeam, type EntryInvite, type EntryTeam } from '../../../lib/entry';
+import { ACCOUNT_WORDS, roleWord, SIGNIN_PAGE } from '../../../lib/account';
+import { GITHUB_SIGNUP_URL } from '../../../lib/contribute';
+import { CREATE_TEAM_HREF, ENTRY_WORDS as W, inviteRole, invitedOn, membersLabel, splitDomainTeams, teamAvatars, teamHome, yourRole, type DomainTeam, type EntryInvite, type EntryTeam, type InviteLink } from '../../../lib/entry';
 import { DEMO_HOME } from '../../../lib/start';
 
 /** The team's mark (its initials, like a team without a picture), its name, and up to two muted lines. */
 function TeamCard({ name, lines, end, id }: { name: string; lines: ReactNode[]; end?: ReactNode; id?: string }) {
   return (
     <Card className="ent-card" padding="none">
-      <span className="ent-card-body">
+      <div className="ent-card-body">
         <Avatar name={name} size="lg" className="ent-mark" decorative />
-        <span className="ent-card-text">
+        <div className="ent-card-text">
           <strong className="ent-card-name" id={id}>
             {name}
           </strong>
           {lines.map((l, i) => (
-            <span key={i} className="ent-card-line">
+            <div key={i} className="ent-card-line">
               {l}
-            </span>
+            </div>
           ))}
-        </span>
-        {end && <span className="ent-card-end">{end}</span>}
-      </span>
+        </div>
+        {end && <div className="ent-card-end">{end}</div>}
+      </div>
     </Card>
   );
 }
@@ -46,9 +54,9 @@ const MAX_HIDDEN = 999;
 export function TeamPeople({ team, people, count }: { team: string; people: string[]; count: number }) {
   const { names, more } = teamAvatars(people, count);
   return (
-    <span className="ent-people">
+    <div className="ent-people">
       {names.length > 0 && (
-        <span aria-hidden="true" className="ent-people-stack">
+        <div aria-hidden="true" className="ent-people-stack">
           <AvatarGroup aria-label={`People on ${team}`} max={names.length} size="md">
             {names.map((n, i) => (
               <Avatar key={`${i}-${n}`} name={n} size="md" decorative />
@@ -57,10 +65,10 @@ export function TeamPeople({ team, people, count }: { team: string; people: stri
               <Avatar key={`more-${i}`} name="" size="md" decorative />
             ))}
           </AvatarGroup>
-        </span>
+        </div>
       )}
       <span>{membersLabel(count)}</span>
-    </span>
+    </div>
   );
 }
 
@@ -82,6 +90,8 @@ export interface RoomProps {
   onOtherEmail: () => void;
   /** Links GitHub and comes back here. */
   onConnectGitHub: () => void;
+  /** Joined a team with the email account: its pages know the member before they open, and its home says so. */
+  onJoined?: (repo: string, role: string, team?: string) => Promise<void> | void;
 }
 
 type Header = { title: string; lead: ReactNode };
@@ -89,12 +99,27 @@ type Header = { title: string; lead: ReactNode };
 // ---------------------------------------------------------------------------------------------------------------
 // E3
 
-export function InviteRoom({ invite, email, more, leave, onOtherEmail, onConnectGitHub, header }: RoomProps & { invite: EntryInvite; email: string; more: number; header: (h: Header) => ReactNode }) {
+/** The site offers GitHub sign-in (a GitHub App, data-gh-app on <html>, components/../layouts/Layout.astro). */
+const githubOnSite = () => typeof document !== 'undefined' && Boolean(document.documentElement.dataset.ghApp);
+
+export function InviteRoom({
+  invite,
+  email,
+  more,
+  github,
+  leave,
+  onJoined,
+  onOtherEmail,
+  onConnectGitHub,
+  header,
+}: RoomProps & { invite: EntryInvite; email: string; more: number; /** The account has GitHub linked. */ github: boolean; header: (h: Header) => ReactNode }) {
   const [busy, setBusy] = useState(false);
-  const [needsGitHub, setNeedsGitHub] = useState(false);
+  // Reviewers and admins approve on GitHub: said before Join, not after a refusal (the server's 409 still lands here).
+  // Reviewers approve on GitHub; an admin joins with the email (members, requests, settings need no GitHub).
+  const [needsGitHub, setNeedsGitHub] = useState(() => invite.role === 'reviewer' && !github);
   const [problem, setProblem] = useState<string | null>(null);
   const [onGitHub, setOnGitHub] = useState<{ repo: string; role: string; url: string; next: string } | null>(null);
-  const role = roleWord(invite.role);
+  const role = inviteRole(invite);
 
   const join = async () => {
     setBusy(true);
@@ -107,6 +132,7 @@ export function InviteRoom({ invite, email, more, leave, onOtherEmail, onConnect
         setBusy(false);
         return;
       }
+      await onJoined?.(r.repo, String(r.role), invite.team);
       leave(r.next || teamHome(r.repo));
     } catch (err) {
       setBusy(false);
@@ -156,12 +182,25 @@ export function InviteRoom({ invite, email, more, leave, onOtherEmail, onConnect
         </Alert>
       )}
       <div className="ent-actions">
-        {needsGitHub ? (
+        {needsGitHub && githubOnSite() ? (
           <>
-            <p className="ent-note">{W.githubToAcceptWhy(role)}</p>
+            <p className="ent-note">{W.githubWhy(role)}</p>
             <Button variant="primary" size="lg" fullWidth onClick={onConnectGitHub}>
               {W.githubToAccept}
             </Button>
+            <p className="acc-quiet">
+              {W.newToGitHub}{' '}
+              <Link href={GITHUB_SIGNUP_URL} external>
+                {W.createGitHub}
+              </Link>
+            </p>
+          </>
+        ) : needsGitHub ? (
+          <>
+            <p className="ent-note">{W.githubOff(role, invite.invitedBy)}</p>
+            <ButtonLink href={DEMO_HOME} variant="secondary" size="lg" fullWidth>
+              {ACCOUNT_WORDS.demo}
+            </ButtonLink>
           </>
         ) : (
           !problem && (
@@ -184,53 +223,177 @@ export function InviteRoom({ invite, email, more, leave, onOtherEmail, onConnect
   );
 }
 
+/**
+ * The invite link's states besides E3: sent to another email, already in the team, spent, or incomplete. Never a dead
+ * end: each one has its way on (sign in as the invited email, open the team, sign in, continue).
+ */
+export function InviteLinkRoom({
+  link,
+  email,
+  header,
+  onSignInAs,
+  onContinue,
+}: {
+  link: InviteLink;
+  /** The signed-in account's email, '' when signed out. */
+  email: string;
+  header: (h: Header) => ReactNode;
+  onSignInAs: () => void;
+  onContinue: () => void;
+}) {
+  const goOn = link.signedIn ? (
+    <Button variant="secondary" size="lg" fullWidth onClick={onContinue}>
+      {email ? W.continueAs(email) : W.continueToBridge}
+    </Button>
+  ) : (
+    <ButtonLink href={SIGNIN_PAGE} variant="primary" size="lg" fullWidth>
+      {W.signIn}
+    </ButtonLink>
+  );
+  if (link.state === 'unknown')
+    return (
+      <>
+        {header({ title: W.missingTitle, lead: W.missingLead })}
+        <div className="ent-actions">{goOn}</div>
+      </>
+    );
+  if (link.member && link.repo)
+    return (
+      <>
+        {header({ title: W.alreadyIn(link.team), lead: W.alreadyInLead })}
+        <div className="ent-actions">
+          <ButtonLink href={teamHome(link.repo)} variant="primary" size="lg" fullWidth>
+            {W.openNamed(link.team)}
+          </ButtonLink>
+        </div>
+      </>
+    );
+  if (link.state === 'gone')
+    return (
+      <>
+        {header({ title: W.goneTitle, lead: W.goneLead(link.invitedBy, link.team) })}
+        <div className="ent-actions">{goOn}</div>
+      </>
+    );
+  // Live, and signed in as someone else.
+  return (
+    <>
+      {header({ title: W.otherTitle(link.sentTo), lead: W.otherLead(link.team) })}
+      <div className="ent-actions">
+        <Button variant="primary" size="lg" fullWidth onClick={onSignInAs}>
+          {W.signInAsInvited}
+        </Button>
+        <Button variant="ghost" size="lg" fullWidth onClick={onContinue}>
+          {W.continueAs(email)}
+        </Button>
+      </div>
+    </>
+  );
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // E4 and E4b
 
 const teamLines = (t: DomainTeam): ReactNode[] => [<TeamPeople key="people" team={t.name} people={t.people} count={t.memberCount} />, ...(t.adminName ? [W.admin(t.adminName)] : [])];
 
-export function DomainRoom({ domain, teams: initial, leave, onOtherEmail, header }: RoomProps & { domain: string; teams: DomainTeam[]; header: (h: Header) => ReactNode }) {
+/** How often E4b asks whether the admin let them in (and each time the tab comes back). */
+export const APPROVAL_POLL_MS = 20_000;
+
+export function DomainRoom({ domain, teams: initial, leave, onJoined, onOtherEmail, header }: RoomProps & { domain: string; teams: DomainTeam[]; header: (h: Header) => ReactNode }) {
   const [teams, setTeams] = useState(initial);
   const [all, setAll] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const [cancelling, setCancelling] = useState(false);
+  const [cancelling, setCancelling] = useState<string | null>(null);
   // E4b: the request just sent (or sent before, for a lone team).
   const [sent, setSent] = useState<DomainTeam | null>(() => (initial.length === 1 && initial[0]!.requested ? initial[0]! : null));
+  // E4b, answered: the admin let them in.
+  const [joined, setJoined] = useState<{ team: DomainTeam; repo: string } | null>(null);
+
+  // While a request waits, Bridge checks now and then (and when the tab comes back) whether the admin let them in.
+  const waiting = teams.filter((t) => t.requested);
+  const waitingKey = waiting.map((t) => t.id).join(' ');
+  useEffect(() => {
+    if (!waitingKey || joined) return;
+    let live = true;
+    const check = async () => {
+      const api = await import('../../../scripts/entry-session');
+      const e = await api.getEntry().catch(() => null);
+      if (!live || e?.kind !== 'teams') return;
+      const t = e.teams.find((x) => waitingKey.split(' ').includes(x.id));
+      const team = t && teams.find((x) => x.id === t.id);
+      if (t && team) setJoined({ team, repo: t.repo });
+    };
+    const timer = setInterval(() => void check(), APPROVAL_POLL_MS);
+    const back = () => {
+      if (document.visibilityState === 'visible') void check();
+    };
+    document.addEventListener('visibilitychange', back);
+    return () => {
+      live = false;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', back);
+    };
+  }, [waitingKey, joined]);
 
   const ask = async (t: DomainTeam) => {
-    setBusy(t.repo);
+    setBusy(t.id);
     setProblem(null);
     const api = await import('../../../scripts/entry-session');
     try {
-      const r = await api.requestJoin(t.repo);
-      if ('joined' in r) return leave(r.next || teamHome(r.repo));
-      const done = { ...t, requested: true };
-      setTeams((xs) => xs.map((x) => (x.repo === t.repo ? done : x)));
-      setSent(done);
+      const r = await api.requestJoin(t.id);
+      if ('joined' in r) {
+        if (r.status === 'joined') await onJoined?.(r.repo, String(r.role), t.name);
+        return leave(r.next || teamHome(r.repo));
+      }
+      const done = { ...t, requested: true, expired: false };
+      setTeams((xs) => xs.map((x) => (x.id === t.id ? done : x)));
+      // One team: E4b. Several: the card says it, with Cancel on its line, and the others can still be asked.
+      if (teams.length === 1) setSent(done);
     } catch (err) {
-      if (err instanceof api.EntryError && err.code === 'already') return leave(teamHome(t.repo));
+      const repo = err instanceof api.EntryError ? err.details.repo : undefined;
+      if (err instanceof api.EntryError && err.code === 'already' && typeof repo === 'string') return leave(teamHome(repo));
       setProblem(err instanceof Error ? err.message : null);
     } finally {
       setBusy(null);
     }
   };
 
-  // E4b: takes the request back, then E4 again with Ask to join.
+  // Takes the request back: E4 again with Ask to join.
   const cancel = async (t: DomainTeam) => {
-    setCancelling(true);
+    setCancelling(t.id);
     setProblem(null);
     const api = await import('../../../scripts/entry-session');
     try {
-      await api.cancelJoinRequest(t.repo);
-      setTeams((xs) => xs.map((x) => (x.repo === t.repo ? { ...x, requested: false } : x)));
+      await api.cancelJoinRequest(t.id);
+      setTeams((xs) => xs.map((x) => (x.id === t.id ? { ...x, requested: false } : x)));
       setSent(null);
     } catch (err) {
       setProblem(err instanceof Error ? err.message : null);
     } finally {
-      setCancelling(false);
+      setCancelling(null);
     }
   };
+
+  if (joined)
+    return (
+      <>
+        {header({ title: W.inTitle, lead: W.inLead(joined.team.adminName, joined.team.name) })}
+        <TeamCard name={joined.team.name} lines={teamLines(joined.team)} />
+        <div className="ent-actions">
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
+            onClick={() => {
+              void Promise.resolve(onJoined?.(joined.repo, 'edit', joined.team.name)).then(() => leave(teamHome(joined.repo)));
+            }}
+          >
+            {W.openNamed(joined.team.name)}
+          </Button>
+        </div>
+      </>
+    );
 
   if (sent)
     return (
@@ -261,7 +424,7 @@ export function DomainRoom({ domain, teams: initial, leave, onOtherEmail, header
         <div className="acc-foot">
           <p className="acc-quiet">
             {W.changedMind}{' '}
-            <Button variant="link" size="sm" className="ent-inline" loading={cancelling} onClick={() => void cancel(sent)}>
+            <Button variant="link" size="sm" className="ent-inline" loading={cancelling === sent.id} onClick={() => void cancel(sent)}>
               {W.cancelRequest}
             </Button>
           </p>
@@ -269,35 +432,46 @@ export function DomainRoom({ domain, teams: initial, leave, onOtherEmail, header
       </>
     );
 
-  const [before, after] = W.domainLead(teams.length);
-  const lead = (
-    <>
-      {before} <strong className="ent-strong">@{domain}</strong>
-      {after}
-    </>
-  );
   const one = teams.length === 1;
+  const asked = teams.filter((t) => t.requested).length;
+  const [before, after] = W.domainLead(teams.length);
+  const lead =
+    one && teams[0]!.expired ? (
+      W.expiredLead(teams[0]!.adminName)
+    ) : asked ? (
+      W.sentListLead
+    ) : (
+      <>
+        {before} <strong className="ent-strong">@{domain}</strong>
+        {after}
+      </>
+    );
   const { shown, more } = splitDomainTeams(teams, all);
   return (
     <>
-      {header({ title: W.domainTitle, lead })}
+      {header({ title: asked ? W.sentListTitle(asked) : W.domainTitle, lead })}
       {one ? (
         <TeamCard name={teams[0]!.name} lines={teamLines(teams[0]!)} />
       ) : (
         <ul className="ent-list" aria-label={`Teams for @${domain}`}>
           {shown.map((t) => (
-            <li key={t.repo}>
+            <li key={t.id}>
               <TeamCard
                 name={t.name}
-                lines={teamLines(t)}
+                lines={[...teamLines(t), ...(t.expired ? [W.expiredLine] : [])]}
                 end={
                   t.requested ? (
-                    <Badge tone="warning" size="sm">
-                      {W.asked}
-                    </Badge>
+                    <div className="ent-sent">
+                      <Badge tone="warning" size="sm">
+                        {W.asked}
+                      </Badge>
+                      <Button variant="link" size="sm" loading={cancelling === t.id} disabled={Boolean(cancelling)} aria-label={W.cancelTeam(t.name)} onClick={() => void cancel(t)}>
+                        {W.cancelShort}
+                      </Button>
+                    </div>
                   ) : (
-                    <Button variant="secondary" loading={busy === t.repo} disabled={Boolean(busy)} aria-label={W.askTeam(t.name)} onClick={() => void ask(t)}>
-                      {W.ask}
+                    <Button variant="secondary" loading={busy === t.id} disabled={Boolean(busy)} aria-label={t.expired ? W.askAgainTeam(t.name) : W.askTeam(t.name)} onClick={() => void ask(t)}>
+                      {t.expired ? W.askAgain : W.ask}
                     </Button>
                   )
                 }
@@ -318,9 +492,14 @@ export function DomainRoom({ domain, teams: initial, leave, onOtherEmail, header
       )}
       <div className="ent-actions">
         {one && (
-          <Button variant="primary" size="lg" fullWidth loading={busy === teams[0]!.repo} onClick={() => void ask(teams[0]!)}>
-            {W.ask}
+          <Button variant="primary" size="lg" fullWidth loading={busy === teams[0]!.id} onClick={() => void ask(teams[0]!)}>
+            {teams[0]!.expired ? W.askAgain : W.ask}
           </Button>
+        )}
+        {asked > 0 && (
+          <ButtonLink href={DEMO_HOME} variant="secondary" size="lg" fullWidth>
+            {W.exploreDemo}
+          </ButtonLink>
         )}
         <ButtonLink href={CREATE_TEAM_HREF} variant="ghost" size="lg" fullWidth>
           {W.createInstead}

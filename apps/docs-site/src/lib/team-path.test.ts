@@ -2,7 +2,7 @@
 // studioHref (multi-team plan, section 4.1): self-hosted and build-time addresses stay byte for byte what they were;
 // a team shell keeps its team. The literal scan lives in no-studio-literals.test.ts.
 import { afterEach, describe, expect, it } from 'vitest';
-import { isReservedTeam, parseTeamInput, reservedFromFiles, studioBase, studioHref, studioHrefAt, teamHref } from './team-path';
+import { canonicalTeamPath, isReservedTeam, isTeamKey, isTeamName, pageTeamFromPath, parseTeamInput, reservedFromFiles, studioBase, studioHref, studioHrefAt, teamHref, teamKeyId, teamKeyOf } from './team-path';
 
 describe('studioHref', () => {
   it('returns the self-hosted path unchanged outside a team shell (build time, no data-hosted)', () => {
@@ -114,5 +114,40 @@ describe('teamHref and the reserved paths', () => {
 
   it('falls back to the escape form without the list', () => {
     expect(teamHref('acme', 'ds', null)).toBe('/studio/~/acme/ds/');
+  });
+});
+
+describe('pageTeamFromPath', () => {
+  it('never guesses a team from a Studio page of this site', () => {
+    expect(pageTeamFromPath('/studio/brands/new/', false)).toBeNull();
+    expect(pageTeamFromPath('/studio/components/docs/', false)).toBeNull();
+  });
+  it('reads the team on a team shell, the escape form included', () => {
+    expect(pageTeamFromPath('/studio/acme/ds/changes/', true)).toEqual({ owner: 'acme', repo: 'ds' });
+    expect(pageTeamFromPath('/studio/~/brands/new/', true)).toEqual({ owner: 'brands', repo: 'new' });
+  });
+});
+
+describe('teams made in Bridge, no repository yet', () => {
+  it('go by a key no GitHub owner can take, and open on the workspace page', () => {
+    expect(teamKeyOf('C0FFEE0000000017')).toBe('_team/c0ffee0000000017');
+    expect(teamKeyId('_team/c0ffee0000000017')).toBe('c0ffee0000000017');
+    expect(isTeamKey('_team/c0ffee0000000017')).toBe(true);
+    for (const k of ['acme/ds', '_team/short', 'team/c0ffee0000000017', '_team/c0ffee0000000017x']) expect(isTeamKey(k)).toBe(false);
+    expect(isTeamName('_team', 'c0ffee0000000017')).toBe(false);
+    expect(teamHref('_team', 'c0ffee0000000017', null)).toBe('/studio/workspace/?team=c0ffee0000000017');
+  });
+});
+
+describe('canonicalTeamPath', () => {
+  const reserved = { firsts: ['brands', 'changes'], pairs: ['brands/new'] };
+  it('drops the escape when no Studio file takes the pair', () => {
+    expect(canonicalTeamPath('/studio/~/acme/ds/tokens/', reserved)).toBe('/studio/acme/ds/tokens/');
+  });
+  it('keeps it for a reserved pair, an unknown list, a plain address or another page', () => {
+    expect(canonicalTeamPath('/studio/~/brands/new/', reserved)).toBeNull();
+    expect(canonicalTeamPath('/studio/~/acme/ds/', null)).toBeNull();
+    expect(canonicalTeamPath('/studio/acme/ds/', reserved)).toBeNull();
+    expect(canonicalTeamPath('/studio/changes/', reserved)).toBeNull();
   });
 });

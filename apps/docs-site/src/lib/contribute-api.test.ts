@@ -26,6 +26,7 @@ import {
   publicEmail,
 } from '../../api/contribute/index';
 import { inviteStoreOn, type EmailMessage, type Role, type StoredInvite } from '../../api/invites/index';
+import { clearReadMemory } from '../../api/_lib/team-read';
 
 const HOST = 'bridge.example.com';
 const ORIGIN = `https://${HOST}`;
@@ -103,6 +104,7 @@ function github(w: World): FetchLike {
 
 function setup(over: Partial<ContribDeps> = {}, world: Partial<World> = {}) {
   clearDesignPathCache();
+  clearReadMemory();
   const w: World = { branches: ['main', 'theirs'], private: true, config: CONFIG, compare: { [SHA]: [], [SHA2]: [{ filename: 'design/tokens/color.tokens.json' }], [SHA_BAD]: [{ filename: 'design/tokens/a.tokens.json' }, { filename: 'package.json' }] }, next: 40, calls: [], ...world };
   let now = T0;
   let seed = 0;
@@ -215,17 +217,24 @@ describe('accept with the email', () => {
     expect(await again.json()).toEqual({ error: 'expired', message: EXPIRED });
   });
 
-  it('refuses a reviewer or admin invite with 409 github-required, and keeps it for the GitHub way', async () => {
+  it('refuses a reviewer invite with 409 github-required, and keeps it for the GitHub way', async () => {
     const s = setup();
-    for (const role of ['reviewer', 'admin'] as const) {
-      const token = await s.invite(`${role}@acme.design`, role);
-      const r = await handleContribute(act({ action: 'accept', token, name: 'X' }), ENV, s.deps);
-      expect(r.status).toBe(409);
-      expect(await r.json()).toEqual({ error: 'github-required', message: GITHUB_REQUIRED });
-      expect(r.headers.get('set-cookie')).toBeNull();
-    }
-    expect(await s.invites.list(REPO)).toHaveLength(2);
+    const token = await s.invite('reviewer@acme.design', 'reviewer');
+    const r = await handleContribute(act({ action: 'accept', token, name: 'X' }), ENV, s.deps);
+    expect(r.status).toBe(409);
+    expect(await r.json()).toEqual({ error: 'github-required', message: GITHUB_REQUIRED });
+    expect(r.headers.get('set-cookie')).toBeNull();
+    expect(await s.invites.list(REPO)).toHaveLength(1);
     expect(await s.members.list(REPO)).toEqual([]);
+  });
+
+  it('joins an admin invite with the email: an admin needs GitHub only to approve on GitHub', async () => {
+    const s = setup();
+    const token = await s.invite('admin@acme.design', 'admin');
+    const r = await handleContribute(act({ action: 'accept', token, name: 'Ada' }), ENV, s.deps);
+    expect(r.status).toBe(200);
+    expect((await r.json()).member).toMatchObject({ email: 'admin@acme.design', role: 'admin' });
+    expect((await s.members.get(REPO, 'admin@acme.design'))?.role).toBe('admin');
   });
 
   it('refuses an expired, unknown or malformed token with 410', async () => {
@@ -390,7 +399,7 @@ describe('proxy: what is allowed', () => {
     return { s, cookie, call, branch };
   }
 
-  it('GET reads anything in the repository, with the app token, passing status, body, Link and ETag', async () => {
+  it('GET reads the allowed resources of the repository, with the app token, passing status, body, Link and ETag', async () => {
     const { s, call } = await ready();
     const { r, sent } = await call('GET', `${P}/pulls?state=open&per_page=100`, undefined, { accept: 'application/vnd.github.raw', 'if-none-match': '"e0"' });
     expect(r.status).toBe(200);
@@ -399,7 +408,8 @@ describe('proxy: what is allowed', () => {
     expect(r.headers.get('etag')).toBe('"e1"');
     expect(sent!.auth).toBe('Bearer ghs_contrib');
     expect(sent!.headers.Accept).toBe('application/vnd.github.raw');
-    expect(sent!.headers['If-None-Match']).toBe('"e0"');
+    // The browser's own If-None-Match is answered by Bridge's cache (api/_lib/team-read.ts), never passed on.
+    expect(sent!.headers['If-None-Match']).toBeUndefined();
     expect(JSON.stringify(sent!.headers)).not.toContain('bridge_contrib');
     expect((await call('GET', P)).r.status).toBe(200);
     expect((await call('GET', `${P}/contents/tokens/a%20b.json?ref=main`)).r.status).toBe(200);

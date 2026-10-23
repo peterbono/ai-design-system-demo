@@ -239,6 +239,41 @@ describe('planReference: the code render of each generated variant', () => {
     });
   });
 
+  it('parts of a compound component render the part, inside their parent', () => {
+    expect(planReference(spec('AccordionItem'), variant('AccordionItem', { State: 'Disabled' }), file)).toMatchObject({
+      ok: true,
+      render: { component: 'AccordionItem', within: 'Accordion', props: { value: 'color', disabled: true } },
+    });
+    expect(planReference(spec('Radio'), variant('Radio', { Checked: 'true', State: 'Default' }), file)).toMatchObject({
+      ok: true,
+      render: { component: 'Radio', within: 'RadioGroup', props: { value: 'merge', checked: true } },
+    });
+    // A menu part without a code example is the part itself, not the Menu root.
+    expect(planReference(spec('MenuItem'), variant('MenuItem', { State: 'Default', Tone: 'danger' }), file)).toMatchObject({
+      ok: true,
+      render: { component: 'MenuItem', within: 'Menu', props: { tone: 'danger' }, text: 'MenuItem' },
+    });
+    // A set named Folder/Variant renders its folder's component, and is not a part of it.
+    const full = planReference(spec('Pagination/Full'), spec('Pagination/Full').variants[0]!, file);
+    expect(full.ok && full.render.component).toBe('Pagination');
+    expect(full.ok && full.render.within).toBeUndefined();
+    const parts = planReferences(file).flatMap((j) => (j.plan.ok && j.plan.render.within ? [`${j.plan.render.within} > ${j.component}`] : []));
+    expect([...new Set(parts)]).toEqual([
+      'Accordion > AccordionItem',
+      'Menu > MenuItem',
+      'Menu > MenuCheckboxItem',
+      'Menu > MenuRadioGroup',
+      'Menu > MenuRadioItem',
+      'Menu > MenuGroup',
+      'Menu > MenuSeparator',
+      'Menu > MenuSubmenu',
+      'RadioGroup > Radio',
+      'SidebarNav > SidebarNavSection',
+      'SidebarNav > SidebarNavItem',
+      'Table > TableEmpty',
+    ]);
+  });
+
   it('plans every variant of the current specs, with stable image paths', () => {
     const all = planReferences(file);
     expect(all.length).toBe(file.components.reduce((n, c) => n + c.variants.length, 0));

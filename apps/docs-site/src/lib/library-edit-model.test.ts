@@ -200,7 +200,7 @@ describe('edit bar', () => {
     expect(editBarState({ dirty: true, sent: true, savesLocally: true })).toBe('sent');
     expect(EDIT_BAR_LABEL.saved).toBe('Draft saved in this browser');
     expect(EDIT_BAR_LABEL.unsaved).toBe('Unsaved changes');
-    expect(EDIT_BAR_LABEL.sent).toBe('Review requested');
+    expect(EDIT_BAR_LABEL.sent).toBe('Sent for review');
   });
 
   it('offers Keep all only from two drafts, and names it', () => {
@@ -276,5 +276,14 @@ describe('who wrote the text, and the open proposal', () => {
     expect(editBarLabel('clean', false)).toBe(EDIT_BAR_LABEL.clean);
     expect(editBarLabel('unsaved', true)).toBe(EDIT_BAR_LABEL.unsaved);
     for (const t of [continueLine('a', 'b'), editBarLabel('clean', true)]) expect(t).not.toMatch(/\b(PR|pull request|branch|commit)\b/i);
+  });
+});
+
+describe('editing as a guest', () => {
+  it('says the draft stays in this browser and only the send asks to sign in, never "the demo"', async () => {
+    const { guestEditLine } = await import('./library-edit-model');
+    expect(guestEditLine(true)).toBe('Draft only: your edits stay in this browser. Sign in to send them.');
+    expect(guestEditLine(false)).toBe('Draft only: your edits stay in this browser. Connect GitHub to send them.');
+    expect(/demo/i.test(guestEditLine(true))).toBe(false);
   });
 });

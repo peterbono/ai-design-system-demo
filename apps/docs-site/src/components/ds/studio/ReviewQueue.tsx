@@ -87,7 +87,9 @@ export function QueueToasts({ onReady }: { onReady: (api: UseToastReturn) => voi
 
 function ToastBridge({ onReady }: { onReady: (api: UseToastReturn) => void }) {
   const api = useToast();
-  useEffect(() => onReady(api), [api, onReady]);
+  useEffect(() => {
+    onReady(api);
+  }, [api, onReady]);
   return null;
 }
 
@@ -115,7 +117,9 @@ export function QueueBar(p: QueueBarProps) {
   useEffect(() => {
     if (p.focusComment) field.current?.focus();
   }, [p.focusComment]);
-  useEffect(() => setSaid(p.said), [p.said]);
+  useEffect(() => {
+    setSaid(p.said);
+  }, [p.said]);
   const copy = async (url: string, what: string) => {
     try {
       await navigator.clipboard.writeText(url);

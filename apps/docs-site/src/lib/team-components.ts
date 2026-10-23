@@ -98,11 +98,11 @@ export function httpsStorybook(url: string | null | undefined): string | undefin
 export const pickStorybook = (fromConfig: string | undefined, fromBrowser: string | undefined): string | undefined => httpsStorybook(fromConfig) ?? httpsStorybook(fromBrowser);
 
 /** The drawer preview of a row: its first story in an iframe, and the same story in the full Storybook. */
-export function storyPreview(base: string | undefined, row: Pick<TeamComponentRow, 'stories'>): { src: string; manager: string; story: string } | null {
+export function storyPreview(base: string | undefined, row: Pick<TeamComponentRow, 'stories'>): { base: string; id: string; src: string; manager: string; story: string } | null {
   const sb = httpsStorybook(base);
   const first = row.stories[0];
   if (!sb || !first) return null;
-  return { src: storybookIframeUrl(sb, first.id), manager: storybookManagerUrl(sb, first.id), story: first.name };
+  return { base: sb, id: first.id, src: storybookIframeUrl(sb, first.id), manager: storybookManagerUrl(sb, first.id), story: first.name };
 }
 
 /**

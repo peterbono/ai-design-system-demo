@@ -121,7 +121,7 @@ export function setGroup(items: PublishItem[], unchecked: Set<string>, kind: Pub
 
 /** The summary a request gets: the push description, or a factual line when it is empty. */
 export function requestSummary(description: string, fileName: string): string {
-  return description.trim() || `Changed in Figma${fileName ? ` ("${fileName}")` : ''} and sent for review with DS Bridge.`;
+  return description.trim() || `Changed in Figma${fileName ? ` ("${fileName}")` : ''} and sent for review with Bridge.`;
 }
 
 /**
@@ -231,7 +231,7 @@ export interface PublishResult {
   /** Sent to an exploration: its branch, and whether its files already held the variable edits. */
   exploration?: { branch: string; pr: PullRequest; unchanged: boolean } | undefined;
   requests: { component: string; nodeId: string; number: number; url: string }[];
-  /** Library branches opened from Figma components: exact token changes and branches Claude AI drafts. */
+  /** Library branches opened from Figma components: exact token changes and branches a developer builds with Claude. */
   branches: (SentComponentPush & { branch: string })[];
   /** Suggest mode: the suggestions filed, the variable edits first. */
   suggestions: SentSuggestionItem[];
@@ -258,7 +258,7 @@ export async function publish(client: GitHubClient, input: PublishInput): Promis
   if (!prFiles && !drafts.length) throw new Error('Nothing is checked. Check a variable or a component to push.');
   const mode = input.mode ?? 'direct';
   if (mode === 'suggest' && input.exploration) throw new Error('This repo takes changes as suggestions, and an exploration is a branch: send it for review as a suggestion instead.');
-  const out: PublishResult = { requests: [], branches: [], suggestions: [], held: [], failed: [], ...(input.exploration ? { exploration: { branch: input.exploration.branch, pr: input.exploration.pr, unchanged: !prFiles } } : {}) };
+  const out: PublishResult = { requests: [], branches: [], suggestions: [], held: [], failed: [], ...(input.exploration ? { exploration: { branch: input.exploration.branch, pr: input.exploration.pr, unchanged: false } } : {}) };
   if (prFiles && input.exploration) {
     const res = await commitToExploration(client, input.analysis, input.proposal, { target: input.exploration, title: input.title, notes: input.description, ...(input.now ? { now: input.now } : {}) });
     out.pr = res;
@@ -346,18 +346,18 @@ export async function sendComponentPush(client: GitHubClient, input: SendPushInp
     base: a.settings.branch,
     branchPrefix: config?.governance.branchPrefix ?? 'bridge/',
     labels: ['source: figma'],
-    tool: 'the DS Bridge Figma plugin',
+    tool: 'the Bridge Figma plugin',
     mode,
     ...(input.requestedBy ? { suggestedBy: input.requestedBy } : {}),
     writeTokens: async ({ title, summary, bodyExtra, figma }) => {
-      if (!lib) throw new Error('This repo has no bridge.config.json, so DS Bridge cannot write the token change.');
-      const p = planTokenProposal({ before: lib.before, pairs: pushPairs(a.head, a.pairs, push.plan.edits), edits: push.plan.edits, title, summary, config: lib.config, tool: 'the DS Bridge Figma plugin', bodyExtra });
+      if (!lib) throw new Error('This repo has no bridge.config.json, so Bridge cannot write the token change.');
+      const p = planTokenProposal({ before: lib.before, pairs: pushPairs(a.head, a.pairs, push.plan.edits), edits: push.plan.edits, title, summary, config: lib.config, tool: 'the Bridge Figma plugin', bodyExtra });
       if (!p) throw new Error('The library already paints it this way: nothing to send.');
       if (mode === 'suggest') {
         const s = await suggestTokenProposalOnGitHub(client, p, { base: a.settings.branch, baseSha: a.headSha, source: 'figma', suggestedBy: input.requestedBy, labelsAfter: ['source: figma'], links: { figma } });
         return { status: 'suggested', number: s.number, url: s.url };
       }
-      const opened = await writeTokenProposalOnGitHub(client, p, { base: a.settings.branch, branchPrefix: lib.config.governance.branchPrefix, labels: [], labelsAfter: ['source: figma'], tool: 'the DS Bridge Figma plugin' });
+      const opened = await writeTokenProposalOnGitHub(client, p, { base: a.settings.branch, branchPrefix: lib.config.governance.branchPrefix, labels: [], labelsAfter: ['source: figma'], tool: 'the Bridge Figma plugin' });
       return { number: opened.pr, url: opened.url, branch: opened.branch };
     },
   });
@@ -370,36 +370,39 @@ export async function sendComponentPush(client: GitHubClient, input: SendPushInp
 // ---------------------------------------------------------------------------------------------
 // Wording per change mode (bridge.config.json "changes"): one source for the bar, the result and the token help.
 
-/** The bar's primary action for review. */
-export const sendLabel = (mode: ChangesMode) => (mode === 'suggest' ? 'Send suggestion' : 'Request review');
+/**
+ * The one verb for sending, everywhere in the plugin (the bar, a component row, the request form): "Send for review"
+ * when changes go straight to review, "Send suggestion" when the DS lead decides first.
+ */
+export const sendLabel = (mode: ChangesMode) => (mode === 'suggest' ? 'Send suggestion' : 'Send for review');
 
-/** The result title: "Suggestion #12 sent to your DS lead" (suggest), "Sent for review" (direct). */
+/** The result title: "Suggestion sent to your DS lead" (suggest), "Sent for review" (direct). No issue numbers. */
 export function sentTitle(res: Pick<PublishResult, 'suggestions'>, mode: ChangesMode): string {
   if (mode !== 'suggest' || !res.suggestions.length) return 'Sent for review';
-  return res.suggestions.length === 1 ? `Suggestion #${res.suggestions[0]!.number} sent to your DS lead` : `${res.suggestions.length} suggestions sent to your DS lead`;
+  return res.suggestions.length === 1 ? 'Suggestion sent to your DS lead' : `${res.suggestions.length} suggestions sent to your DS lead`;
 }
 
 /** One line per suggestion filed, for the result text. */
 export function suggestionLines(res: Pick<PublishResult, 'suggestions'>): string[] {
   return res.suggestions.map((s) =>
     s.kind === 'variables'
-      ? `Variable edits: suggestion #${s.number}, checked for contrast.`
+      ? 'Variable edits: suggested, checked for contrast.'
       : s.kind === 'brand'
-        ? `${s.title ?? 'New brand'}: suggestion #${s.number}.`
+        ? `${s.title ?? 'New brand'}: suggested.`
         : s.kind === 'token-change'
-          ? `${s.component}: exact token change, suggestion #${s.number}.`
-          : `${s.component}: suggestion #${s.number}. Claude Code reads the design from the Figma link and drafts the code.`,
+          ? `${s.component}: an exact token change, suggested.`
+          : `${s.component}: suggested. Once it is approved, a developer builds it with Claude from the Figma link.`,
   );
 }
 
 /** Shown when a read-only token could not store screenshots: the suggestion links the Figma nodes instead. */
-export const IMAGES_NEED_WRITE = 'Screenshots need write access: this token cannot write contents, so the suggestion links the Figma nodes instead (Claude Code reads them from Figma). To attach screenshots too, set "Contents" to "Read and write" on the token.';
+export const IMAGES_NEED_WRITE = 'Screenshots need write access: this token cannot write contents, so the suggestion links the Figma nodes instead (Claude reads them from Figma). To attach screenshots too, set "Contents" to "Read and write" on the token.';
 
-/** The token help for the change mode; both when the mode is not known yet (before a scan). */
+/** The token help for the change mode; both when the mode is not known yet (before a scan). Designer words only. */
 export function tokenHelp(mode: ChangesMode | undefined): string {
   const suggest = 'To send suggestions: "Issues" set to "Read and write", "Contents" and "Pull requests" set to "Read". Add "Contents: Read and write" to attach screenshots.';
-  const direct = 'To open branches and pull requests: "Contents", "Pull requests" and "Issues" set to "Read and write".';
+  const direct = 'To send changes for review: "Contents", "Pull requests" and "Issues" set to "Read and write".';
   if (mode === 'suggest') return `A fine-grained token for this repository only. ${suggest}`;
   if (mode === 'direct') return `A fine-grained token for this repository only. ${direct}`;
-  return `A fine-grained token for this repository only. ${suggest} ${direct.replace(/^To/, 'If the repo sets "changes": "direct", to')}`;
+  return `A fine-grained token for this repository only. ${suggest} ${direct.replace(/^To/, 'If your team sends changes straight to review, to')} Not sure? Ask your design system's owner.`;
 }

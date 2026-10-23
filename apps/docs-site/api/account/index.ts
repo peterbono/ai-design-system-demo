@@ -7,17 +7,27 @@
 // creates an account with the primary verified email.
 //
 // Endpoints (JSON, errors are { error, message } in Studio words):
-//   GET  /api/account                          { available, account }  account is { email, name, github, teams } or null
+//   GET  /api/account                          { available, account }  account is { email, name, nameSet, github, teams }
+//                                              or null; nameSet is false until the person typed their name (Bridge
+//                                              then asks it once, before anything shows the name to their team)
 //   GET  /api/account?export=1                 the daily backup (Vercel cron, Authorization: Bearer $CRON_SECRET)
 //   POST { action: 'code', email }             always { ok: true } (a cap answers 429 for everyone alike); emails a code
-//   POST { action: 'verify', email, code, name? }   sets the cookie; { account, created, next }
+//   POST { action: 'code', invite }            the same, to the address an invite link was sent to (the token of
+//                                              /studio/invite/#t=...); the email never comes back. 410 invite-gone
+//   POST { action: 'verify', email | invite, code, name? }   sets the cookie; { account, created, next }
+//                                              (a wrong code answers 400 wrong-code with triesLeft)
 //   POST { action: 'github', token }           links or creates from a GitHub user token, sets the cookie; same answer
 //   POST { action: 'rename', name }            { account }
 //   POST { action: 'sign-out' }                clears the cookie on this browser
 //   POST { action: 'sign-out-everywhere' }     bumps the account version: every session ends
+//   POST { action: 'delete-check' }            before the confirm field: { blocked: [{ repo, name, people }] }, the teams the
+//                                              person is the only admin of while others are on them, each with the email
+//                                              members who could take over ({ name, email }, the admin sees them in
+//                                              Members already); [] when deleting would go through
 //   POST { action: 'delete' }                  deletes the account, its email memberships, join requests and sessions; 409 last-admin
-//                                              when the person is the only admin of a team with other members (checked
-//                                              on GitHub when the request carries their GitHub token as Bearer)
+//                                              (with the same `blocked`) when the person is the only admin of a team with
+//                                              other members (checked on GitHub when the request carries their GitHub
+//                                              token as Bearer). A team made in Bridge they were alone on goes with them.
 // Every request other than GET carries `X-Bridge-Account: 1`, JSON, and an Origin of this very site (CSRF).
 //
 // Security: codes are compared in constant time on their SHA-256, stored only hashed, 10 minutes, single use; 5 wrong
@@ -45,10 +55,11 @@ import { clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, readBody, 
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import { accountTeamsKey, memberStore, type MemberStore } from '../_lib/members.js';
 import { globEscape, redisRest, type Redis } from '../_lib/redis.js';
-import { removeAllRequests } from '../_lib/teams.js';
+import { deleteTeamRecord, forgetTeamKey, getTeamNames, getTeamRecord, removeAllRequests } from '../_lib/teams.js';
+import { inviteStoreOn } from '../invites/index.js';
 import { readCookie } from '../_lib/session.js';
 import { teamDisplayName } from '../../src/lib/demo.js';
-import { STUDIO_ROOT } from '../../src/lib/team-path.js';
+import { isTeamKey, STUDIO_ROOT, teamHref, teamKeyId } from '../../src/lib/team-path.js';
 
 export type { Account, FetchLike };
 
@@ -101,6 +112,7 @@ export interface PublicTeam {
 export interface PublicAccount {
   email: string;
   name: string;
+  nameSet: boolean;
   github: { login: string; id: number } | null;
   teams: PublicTeam[];
 }
@@ -125,6 +137,8 @@ const API = 'https://api.github.com';
 const EMAIL = /^[^\s@<>()[\]\\,;:"]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?)+$/;
 const CODE = /^\d{6}$/;
 const GH_TOKEN = /^[A-Za-z0-9_.-]{20,255}$/;
+/** The token of an invite link (api/invites). */
+const INVITE_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 const REPO = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/;
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -140,7 +154,11 @@ export const GITHUB_AGAIN = 'GitHub did not accept this sign-in. Continue with G
 export const EMAIL_ACCESS = 'Bridge needs to see the verified emails of your GitHub account. Continue with GitHub again and allow it.';
 export const NO_VERIFIED_EMAIL = 'Your GitHub account has no verified email. Verify one on GitHub, then continue with GitHub again.';
 export const GITHUB_TAKEN = 'This Bridge account is already linked to another GitHub account. Sign in with that one.';
+export const INVITE_GONE = 'This invite link no longer works. Ask the person who invited you for a new one.';
 export const LAST_ADMIN = 'You are the only admin of a team that has other members. Make someone else admin first, then delete your account.';
+/** "You are the only admin of Acme Design. Make someone else admin first, then delete your account." */
+export const lastAdminOf = (names: string[]): string =>
+  names.length === 1 ? `You are the only admin of ${names[0]}. Make someone else admin first, then delete your account.` : LAST_ADMIN;
 const STORAGE_DOWN = 'Bridge could not reach its storage. Try again in a minute.';
 export const LIMIT_WORDS = {
   code: 'Bridge already sent a few codes today. Use the latest one, or try again tomorrow.',
@@ -198,9 +216,13 @@ export function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(Buffer.from(sha256(a), 'hex'), Buffer.from(sha256(b), 'hex'));
 }
 
-/** A person's name as Bridge shows it: letters, digits, spaces, . ' - only, at most 80, never empty. */
+/** A name as typed, cleaned: letters, digits, spaces, . ' - only, at most 80. '' when nothing is left. */
+export const typedName = (raw: unknown): string =>
+  typeof raw === 'string' ? raw.normalize('NFC').replace(/[^\p{L}\p{M}\p{N} .'-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 80).trim() : '';
+
+/** A person's name as Bridge shows it: the typed name, else a stand-in from the email. Never empty. */
 export function cleanName(raw: unknown, email: string): string {
-  const s = typeof raw === 'string' ? raw.normalize('NFC').replace(/[^\p{L}\p{M}\p{N} .'-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 80).trim() : '';
+  const s = typedName(raw);
   if (s) return s;
   return email.split('@')[0]!.replace(/[^A-Za-z0-9.-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40) || 'Bridge user';
 }
@@ -260,7 +282,7 @@ async function teamsOf(ctx: Ctx, email: string): Promise<(PublicTeam & { at: str
       await ctx.svc.redis.cmd('SREM', accountTeamsKey(email), repo);
       continue;
     }
-    out.push({ repo, name: teamDisplayName(repo), role: m.role, via: 'email', at: m.at });
+    out.push({ repo, name: teamDisplayName(repo), role: m.role === 'admin' ? 'admin' : 'edit', via: 'email', at: m.at });
   }
   // Local mode only: the teams this email was seeded admin of (api/_lib/local-admin.ts) say admin.
   const local = ctx.svc.localAdmins ? await ctx.svc.localAdmins.teamsOf(email) : [];
@@ -269,12 +291,19 @@ async function teamsOf(ctx: Ctx, email: string): Promise<(PublicTeam & { at: str
     if (t) t.role = 'admin';
     else out.push({ repo, name: teamDisplayName(repo), role: 'admin', via: 'email', at: '' });
   }
+  // Each team by the name its settings gave, as kept with the team (api/entry and the other functions keep it).
+  try {
+    const kept = await getTeamNames(ctx.svc.redis, out.map((t) => t.repo));
+    for (const t of out) t.name = teamDisplayName(t.repo, { name: kept.get(t.repo.toLowerCase())?.name });
+  } catch {
+    // The repository in words.
+  }
   return out.sort((x, y) => x.repo.localeCompare(y.repo));
 }
 
 async function publicAccount(ctx: Ctx, a: Account): Promise<PublicAccount> {
   const teams = (await teamsOf(ctx, a.email)).map(({ at: _at, ...t }) => t);
-  return { email: a.email, name: a.name, github: a.github ? { login: a.github.login, id: a.github.id } : null, teams };
+  return { email: a.email, name: a.name, nameSet: a.nameSet !== false, github: a.github ? { login: a.github.login, id: a.github.id } : null, teams };
 }
 
 /**
@@ -287,13 +316,18 @@ async function nextFor(ctx: Ctx, a: Account, created: boolean): Promise<string> 
   if (teams.length) {
     const last = teams.reduce((x, y) => (Date.parse(y.at || '') > Date.parse(x.at || '') ? y : x));
     const [o, r] = last.repo.split('/') as [string, string];
+    // A team made in Bridge, no repository yet: its home is the workspace page.
+    if (isTeamKey(last.repo)) return teamHref(o, r, null);
     return `${STUDIO_ROOT}${encodeURIComponent(o)}/${encodeURIComponent(r)}/`;
   }
   return a.github ? STUDIO_ROOT : '/start/';
 }
 
-async function createAccount(ctx: Ctx, email: string, name: string, github: Account['github']): Promise<Account> {
-  const a: Account = { id: randomUUID(), email, name, github, createdAt: new Date(ctx.now()).toISOString(), version: 1 };
+/** A new account. `typed`: the name the person gave (or GitHub's profile name); without one, a stand-in from the email. */
+async function createAccount(ctx: Ctx, email: string, typed: unknown, github: Account['github'], login?: string): Promise<Account> {
+  const nameSet = typedName(typed) !== '';
+  const name = cleanName(nameSet ? typed : login, email);
+  const a: Account = { id: randomUUID(), email, name, nameSet, github, createdAt: new Date(ctx.now()).toISOString(), version: 1 };
   await putAccount(ctx.svc.redis, a);
   if (github) await ctx.svc.redis.cmd('SET', githubKey(github.id), email);
   await backfillTeams(ctx, email);
@@ -325,11 +359,26 @@ function codeEmail(to: string, code: string): EmailMessage {
 
 const newCode = (deps: AccountDeps) => (deps.code ? deps.code() : String(randomInt(0, 1_000_000)).padStart(6, '0'));
 
+/**
+ * Where a code goes: the email typed, or the address an invite link was sent to (`invite`, the link's token). The
+ * invite's address never comes back to the browser; a spent or unknown link answers 410 invite-gone.
+ */
+async function codeEmailOf(ctx: Ctx, body: Record<string, unknown>): Promise<string> {
+  if (body.invite !== undefined) {
+    const token = body.invite;
+    const inv = typeof token === 'string' && INVITE_TOKEN.test(token) ? await inviteStoreOn(ctx.svc.redis, ctx.now).byTokenHash(sha256(token)) : null;
+    if (!inv || Date.parse(inv.expiresAt) <= ctx.now() || !validEmail(inv.email)) throw new HttpError(410, 'invite-gone', INVITE_GONE);
+    return inv.email.trim().toLowerCase();
+  }
+  if (!validEmail(body.email)) throw new HttpError(400, 'bad_email', BAD_EMAIL);
+  return body.email.trim().toLowerCase();
+}
+
 async function onCode(ctx: Ctx, req: Request, body: Record<string, unknown>): Promise<Response> {
-  if (!validEmail(body.email)) return fail(400, 'bad_email', BAD_EMAIL);
+  if (body.invite === undefined && !validEmail(body.email)) return fail(400, 'bad_email', BAD_EMAIL);
   const { svc } = ctx;
   if (!svc.email) return fail(503, 'not_configured', EMAIL_NOT_CONFIGURED);
-  const email = body.email.trim().toLowerCase();
+  const email = await codeEmailOf(ctx, body);
   const day = dayOf(ctx.now());
   // Counted for everyone, with an account or not, so the answer never tells who has one.
   const release = await bumpOrRefuse(
@@ -361,11 +410,11 @@ async function onCode(ctx: Ctx, req: Request, body: Record<string, unknown>): Pr
 }
 
 async function onVerify(ctx: Ctx, req: Request, body: Record<string, unknown>): Promise<Response> {
-  if (!validEmail(body.email)) return fail(400, 'bad_email', BAD_EMAIL);
+  if (body.invite === undefined && !validEmail(body.email)) return fail(400, 'bad_email', BAD_EMAIL);
   const code = typeof body.code === 'string' ? body.code.replace(/\s+/g, '') : '';
   if (!CODE.test(code)) return fail(400, 'wrong-code', WRONG_CODE);
   const { svc } = ctx;
-  const email = body.email.trim().toLowerCase();
+  const email = await codeEmailOf(ctx, body);
   await bumpOrRefuse(ctx, [countKey('verify:ip', ipHash(ctx, req), dayOf(ctx.now()))], [VERIFY_PER_IP_DAY], LIMIT_WORDS.verify, 'verify');
   const pointer = codeForKey(svc.secret, email);
   const live = await svc.redis.cmd('GET', pointer);
@@ -402,7 +451,7 @@ async function onVerify(ctx: Ctx, req: Request, body: Record<string, unknown>): 
   if (!rec || rec.email !== email) return fail(410, 'expired', CODE_EXPIRED);
   const known = await getAccount(svc.redis, email);
   if (known) return signedIn(ctx, known, false);
-  return signedIn(ctx, await createAccount(ctx, email, cleanName(body.name, email), null), true);
+  return signedIn(ctx, await createAccount(ctx, email, body.name, null), true);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -468,25 +517,39 @@ async function onGithub(ctx: Ctx, req: Request, body: Record<string, unknown>): 
   }
   const primary = verified.find((e) => e.primary);
   if (!primary) return fail(409, 'no-verified-email', NO_VERIFIED_EMAIL);
-  return signedIn(ctx, await createAccount(ctx, primary.email, cleanName(user.name ?? user.login, primary.email), github), true);
+  return signedIn(ctx, await createAccount(ctx, primary.email, user.name, github, user.login), true);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
 // Delete
 
+/** A team that keeps the person from deleting their account, and who could take it over. */
+export interface Blocked {
+  repo: string;
+  name: string;
+  /** The email members who could be made admin, by name ({ name, email }); empty for a GitHub team. */
+  people: { name: string; email: string }[];
+}
+
 /**
- * The teams this person is the only admin of while others are on them. Email memberships are never admin (admins
- * join with GitHub). On GitHub, checked when the request carries the person's own GitHub token (Bearer) for the
- * linked account: the repositories the Bridge app and the person share, where they are admin.
+ * The teams this person is the only admin of while others are on them. An email admin of a repository's team is never
+ * the last one: the repository always has admins on GitHub. A team made in Bridge has email admins only: the others
+ * there decide. In local mode a seeded admin counts too. On GitHub, checked when the request carries the person's own
+ * GitHub token (Bearer) for the linked account: the repositories the Bridge app and the person share, where they are
+ * admin.
  */
-async function lastAdminOf(ctx: Ctx, req: Request, a: Account): Promise<string[]> {
-  const out: string[] = [];
+async function blockedTeams(ctx: Ctx, req: Request, a: Account): Promise<Blocked[]> {
+  const out: Blocked[] = [];
   for (const t of await teamsOf(ctx, a.email)) {
     if (t.role !== 'admin') continue;
-    const others = (await ctx.svc.members.list(t.repo)).filter((m) => m.email !== a.email);
-    // Local mode: another seeded admin keeps the team (api/_lib/local-admin.ts).
-    const admins = ctx.svc.localAdmins ? (await ctx.svc.localAdmins.adminsOf(t.repo)).filter((e) => e !== a.email) : [];
-    if (others.length && !admins.length) out.push(t.repo);
+    const list = await ctx.svc.members.list(t.repo);
+    const others = list.filter((m) => m.email !== a.email);
+    const local = ctx.svc.localAdmins ? (await ctx.svc.localAdmins.adminsOf(t.repo)).filter((e) => e !== a.email) : [];
+    const seededHere = ctx.svc.localAdmins ? await ctx.svc.localAdmins.isAdmin(t.repo, a.email) : false;
+    // An email admin of a repository's team: the repository's GitHub admins stay (only seeded local teams count here).
+    if (!isTeamKey(t.repo) && !seededHere) continue;
+    const admins = others.filter((m) => m.role === 'admin').length + local.length;
+    if (others.length && !admins) out.push({ repo: t.repo, name: t.name, people: others.map((m) => ({ name: m.name, email: m.email })) });
   }
   const bearer = /^Bearer\s+([A-Za-z0-9_.-]{20,255})$/i.exec(req.headers.get('authorization') ?? '')?.[1];
   if (!a.github || !bearer) return out;
@@ -502,25 +565,38 @@ async function lastAdminOf(ctx: Ctx, req: Request, a: Account): Promise<string[]
     for (const repo of repos) {
       if (repo?.permissions?.admin !== true || typeof repo.full_name !== 'string' || !REPO.test(repo.full_name)) continue;
       const full = repo.full_name.toLowerCase();
-      if (out.includes(full)) continue;
+      if (out.some((x) => x.repo === full)) continue;
       const c = await ghUser(ctx, bearer, `/repos/${repo.full_name}/collaborators?affiliation=all&per_page=100`);
       const people: any[] = c.status === 200 && Array.isArray(c.data) ? c.data : [];
       const admins = people.filter((p) => p?.permissions?.admin === true && p.id !== ghId);
-      const others = people.filter((p) => p?.id !== ghId).length + (await ctx.svc.members.list(full)).filter((m) => m.email !== a.email).length;
-      if (!admins.length && others > 0) out.push(full);
+      const emailMembers = (await ctx.svc.members.list(full)).filter((m) => m.email !== a.email);
+      // An email admin there keeps the team too.
+      if (emailMembers.some((m) => m.role === 'admin')) continue;
+      const others = people.filter((p) => p?.id !== ghId).length + emailMembers.length;
+      if (!admins.length && others > 0) out.push({ repo: full, name: teamDisplayName(full), people: emailMembers.map((m) => ({ name: m.name, email: m.email })) });
     }
   }
   return out;
 }
 
 async function onDelete(ctx: Ctx, req: Request, a: Account): Promise<Response> {
-  const blocked = await lastAdminOf(ctx, req, a);
-  if (blocked.length) return fail(409, 'last-admin', LAST_ADMIN, { teams: blocked });
+  const blocked = await blockedTeams(ctx, req, a);
+  if (blocked.length) return fail(409, 'last-admin', lastAdminOf(blocked.map((b) => b.name)), { teams: blocked.map((b) => b.repo), blocked });
   const { svc } = ctx;
   const raw = await svc.redis.cmd('SMEMBERS', accountTeamsKey(a.email));
   const repos = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [];
   // Each membership goes, which also ends that team's contributor sessions.
   for (const repo of repos) await svc.members.remove(repo, a.email);
+  // A team made in Bridge they were alone on goes with them: nobody is left to see it.
+  for (const repo of repos) {
+    const id = teamKeyId(repo);
+    if (!id || (await svc.members.list(repo)).length) continue;
+    const rec = await getTeamRecord(svc.redis, id);
+    if (rec && !rec.repo) {
+      await forgetTeamKey(svc.redis, repo, ctx.now());
+      await deleteTeamRecord(svc.redis, rec);
+    }
+  }
   // Their pending join requests go too (api/entry).
   await removeAllRequests(svc.redis, a.email);
   if (svc.localAdmins) await svc.localAdmins.removeEmail(a.email);
@@ -556,12 +632,13 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
       return json(200, { ok: true }, { 'Set-Cookie': clearAccountCookie() });
     case 'rename':
     case 'sign-out-everywhere':
+    case 'delete-check':
     case 'delete': {
       const a = await sessionAccount(req, svc.redis, svc.secret, ctx.now());
       if (!a) return json(401, { error: 'signin', message: SIGNIN }, { 'Set-Cookie': clearAccountCookie() });
       if (body.action === 'rename') {
         if (typeof body.name !== 'string' || !body.name.trim()) return fail(400, 'bad_name', 'Enter your name.');
-        const next = { ...a, name: cleanName(body.name, a.email) };
+        const next = { ...a, name: cleanName(body.name, a.email), nameSet: true };
         await putAccount(svc.redis, next);
         return json(200, { account: await publicAccount(ctx, next) });
       }
@@ -569,6 +646,7 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
         await putAccount(svc.redis, { ...a, version: a.version + 1 });
         return json(200, { ok: true }, { 'Set-Cookie': clearAccountCookie() });
       }
+      if (body.action === 'delete-check') return json(200, { blocked: await blockedTeams(ctx, req, a) });
       return onDelete(ctx, req, a);
     }
     default:

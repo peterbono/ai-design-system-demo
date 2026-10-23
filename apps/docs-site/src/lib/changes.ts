@@ -413,13 +413,19 @@ export function whoActs(need: Need, p: People): WhoActs {
         if (mine) return { who: 'you', logins: p.viewer ? [p.viewer] : [], yourTurn: true, action: APPROVE_ACTION[mine], sentence: `Your turn: ${YOUR_APPROVAL[mine]}. A developer fixes ${checks(need.failing)} meanwhile.`, short: YOUR_SHORT[mine] };
       }
       if (need.developerOnly) return { who: 'developer', logins: [], yourTurn: false, action: 'fix-checks', sentence: `Waiting for a developer to fix ${checks(need.failing)}.`, short: 'Blocked by tests' };
-      return authorTurn('fix-checks', `fix ${checks(need.failing)}`, `fix ${checks(need.failing)}`, 'Blocked by tests', 'Your turn: fix tests');
+      // The author's own change: never "Your turn: fix tests" (the Home says the same, lib/overview-todo blockerOf). A
+      // design rule that fails is named on the branch page (lib/check-explain failingSentence), with the fix.
+      if (isAuthor) return { who: 'developer', logins: [], yourTurn: false, action: 'fix-checks', sentence: `Blocked: ${need.failing === 1 ? 'a check fails' : 'checks fail'}. A developer is on it.`, short: 'Blocked by tests' };
+      return authorTurn('fix-checks', `fix ${checks(need.failing)}`, `fix ${checks(need.failing)}`, 'Blocked by tests', 'Blocked by tests');
     case 'address-changes': {
       const by = need.by.length ? ` @${need.by.join(', @')} requested` : ' a reviewer requested';
       return authorTurn('address-changes', `address the changes${by}`, `address the changes${by}`, 'Author to address changes', 'Your turn: address changes');
     }
     case 'resolve-conflict':
-      return authorTurn('resolve-conflict', `resolve a conflict with ${VOCAB.main}`, `resolve a conflict with ${VOCAB.main}`, 'Author to resolve a conflict', 'Your turn: resolve a conflict');
+      // A conflict is a developer's to resolve (token conflicts get their own resolver on the branch page): never
+      // "Your turn: resolve a conflict", the same as the Home.
+      if (isAuthor) return { who: 'developer', logins: [], yourTurn: false, action: 'resolve-conflict', sentence: `Blocked: it clashes with ${VOCAB.main}. A developer is on it.`, short: 'Blocked by a conflict' };
+      return authorTurn('resolve-conflict', `resolve a conflict with ${VOCAB.main}`, `resolve a conflict with ${VOCAB.main}`, 'Blocked by a conflict', 'Blocked by a conflict');
     case 'checks-running': {
       const next = need.then[0];
       const then = next ? ` Then ${namedRole(next, eligibleFor(next, p).logins, p)} approves.` : ' Then it is ready to merge.';

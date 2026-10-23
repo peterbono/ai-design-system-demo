@@ -2,7 +2,6 @@
 // back, who may change what, the email field and the sample team.
 import { describe, expect, it } from 'vitest';
 import {
-  acceptEmailWords,
   adminCount,
   choiceOf,
   GITHUB_PERMISSION,
@@ -185,21 +184,5 @@ describe('contexts', () => {
     expect(s.members[0]!.you).toBe(true);
     expect(s.pending).toEqual([expect.objectContaining({ email: 'sofia@acme.design', role: 'edit' })]);
     expect(sampleTeam('Robin').members[0]!.name).toBe('Robin');
-  });
-});
-
-describe('the invite page when the account is not the invited one', () => {
-  it('names the masked address, the account and how to fix it, in designer words', () => {
-    const m = acceptEmailWords('email_mismatch', 'm\u2022\u2022\u2022@acme.design', 'leo');
-    expect(m.title).toBe('This invitation is for another email');
-    expect(m.sub).toBe(
-      'It was sent to m\u2022\u2022\u2022@acme.design, which is not an email of your GitHub account @leo. Add and verify that email on GitHub, then try again. Or ask your admin to invite the email you use on GitHub.',
-    );
-    expect(acceptEmailWords('email_unverified', 'm\u2022\u2022\u2022@acme.design', 'leo').sub).toMatch(/not verified yet\. Verify it on GitHub, then try again\.$/);
-    expect(acceptEmailWords('email_access', '', '').action).toBe('Sign in with GitHub');
-    for (const code of ['email_mismatch', 'email_unverified', 'email_access'] as const) {
-      const w = acceptEmailWords(code, 'm\u2022\u2022\u2022@acme.design', 'leo');
-      expect(`${w.title}${w.sub}${w.action}`).not.toMatch(/\u2014|repository|permission|scope|token/i);
-    }
   });
 });

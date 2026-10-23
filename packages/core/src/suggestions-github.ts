@@ -6,6 +6,7 @@
 import { GitHubClient, GitHubError, type IssueSummary, type PullRequestSummary } from './github-client';
 import { closingIssueNumbers } from './requests';
 import { declineRequestOnGitHub } from './requests-github';
+import { requesterOf, type Requester } from './requester';
 import {
   composeSuggestionAppliedComment,
   composeSuggestionReviewComment,
@@ -83,6 +84,11 @@ export interface SuggestionListItem {
   title: string;
   url: string;
   author: string;
+  /**
+   * Who asked for it, as Bridge records it in the body ("Requested by Ann Leroy."): the person to show, since the
+   * GitHub author is often a lead or an agent acting for them. Null when the body names nobody.
+   */
+  requester: Requester | null;
   createdAt: string;
   state: 'open' | 'closed';
   stateReason: string | null;
@@ -117,6 +123,7 @@ function listItem(i: IssueSummary, pulls: readonly PullRequestSummary[]): Sugges
     title: i.title,
     url: i.url,
     author: i.author,
+    requester: requesterOf(i.body),
     createdAt: i.createdAt,
     state: i.state,
     stateReason: i.stateReason,

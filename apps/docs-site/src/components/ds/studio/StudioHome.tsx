@@ -13,7 +13,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { useState, type MouseEvent, type ReactNode } from 'react';
 import { Check, CircleAlert, CircleCheck, TriangleAlert } from 'lucide-react';
 import { Who } from './faces';
-import { AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, SegmentedControl, Skeleton } from '@bridge-ds/react';
+import { Alert, AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, SegmentedControl, Skeleton, ToastProvider, useToast } from '@bridge-ds/react';
 import { BranchThumb } from './BranchThumb';
 import { BranchRow } from './BranchRow';
 import { Drawing } from './Drawing';
@@ -43,34 +43,54 @@ import {
 } from '../../../lib/home-model';
 import { VOCAB } from '../../../lib/vocabulary';
 import { studioHref } from '../../../lib/team-path';
-import { demoWaiting, type TourAt } from '../../../lib/demo';
+import { demoTour, demoWaiting, tourSteps, type TourAt } from '../../../lib/demo';
 import { ENTRY_WORDS } from '../../../lib/entry';
 import { useTour } from './HomeTour';
 
-/** What deciding on a join request gave: the line that replaces the buttons, or why it did not happen. */
-export type JoinOutcome = { ok: true; text: string } | { ok: false; github: boolean; text: string };
+/** What deciding on a join request gave: the line for the toast (`undo`: it can be taken back), or why it did not happen. */
+export type JoinOutcome = { ok: true; text: string; undo?: boolean } | { ok: false; github: boolean; text: string };
 
 export interface JoinHandlers {
+  /** Approve or decline; on success the row leaves the list at once and the home recounts. */
   decide: (row: NeedRow, approve: boolean) => Promise<JoinOutcome>;
+  /** Takes the decision back for a short while: the request waits again. */
+  undo?: (row: NeedRow) => Promise<JoinOutcome>;
   /** No GitHub admin account linked: "Connect GitHub to manage requests". */
   connectGitHub: () => void;
 }
 
-/** Decline and Approve on a join request; after a decision, one calm line in their place. */
+/** How long the toast offers Undo (the server keeps the decision undoable for 30 seconds). */
+const UNDO_MS = 8000;
+
+/** Decline and Approve on a join request. After a decision the row goes and a short toast says what happened, with Undo. */
 function JoinActions({ row, join }: { row: NeedRow; join: JoinHandlers }) {
   const [busy, setBusy] = useState<'approve' | 'decline' | null>(null);
   const [out, setOut] = useState<JoinOutcome | null>(null);
+  const toast = useToast();
   const decide = async (approve: boolean) => {
     setBusy(approve ? 'approve' : 'decline');
-    setOut(await join.decide(row, approve));
+    const o = await join.decide(row, approve);
+    if (o.ok) {
+      const undo = join.undo;
+      toast.add({
+        title: o.text,
+        tone: o.undo ? 'success' : 'neutral',
+        timeout: o.undo && undo ? UNDO_MS : undefined,
+        action:
+          o.undo && undo
+            ? {
+                label: ENTRY_WORDS.undo,
+                onClick: () => {
+                  void undo(row).then((u) => (u.ok ? toast.add({ title: u.text, tone: 'neutral' }) : toast.add({ title: u.text || ENTRY_WORDS.githubToManage, tone: 'danger' })));
+                },
+              }
+            : undefined,
+      });
+      return;
+    }
+    setOut(o);
     setBusy(null);
   };
-  if (out?.ok)
-    return (
-      <span className="sh-join t-ui" role="status">
-        {out.text}
-      </span>
-    );
   if (out && !out.ok && out.github)
     return (
       <span className="sh-join">
@@ -154,10 +174,11 @@ function Waiting({ needs, now, lead }: { needs: NeedRow[]; now: number; lead?: P
   const oldest = oldestLabel(needs, now);
   const demo = lead !== undefined ? demoWaiting(needs.filter((r) => r.waitsOnYou).length, s, lead?.name ?? null) : null;
   if (!s && !demo) return null;
+  // A div, not a p: the avatar group is a block (a div inside a p is invalid HTML).
   return (
-    <p className="t-body sh-waiting">
+    <div className="t-body sh-waiting">
       {people.length > 0 && (
-        <AvatarGroup aria-label="Waiting on you" max={AVATARS_SHOWN} size="md" className="sh-stack">
+        <AvatarGroup aria-label={lead === null ? 'Waiting for review' : 'Waiting on you'} max={AVATARS_SHOWN} size="md" className="sh-stack">
           {people.map((p) => (
             <Who key={p.agent ? '#agent' : p.login} p={p} name={p.name} decorative={false} />
           ))}
@@ -179,7 +200,7 @@ function Waiting({ needs, now, lead }: { needs: NeedRow[]; now: number; lead?: P
           {oldest}
         </Badge>
       )}
-    </p>
+    </div>
   );
 }
 
@@ -351,7 +372,7 @@ function Health({ h }: { h: HealthLine }) {
 
 const CHOICES = [
   { drawing: 'tokens', title: 'Edit tokens', line: 'A colour, a spacing, a radius. See every place it shows before you send it.', key: 'tokens' },
-  { drawing: 'components', title: 'Ask for a component change', line: 'Describe what is missing or wrong. Claude builds it, the owner decides.', key: 'component' },
+  { drawing: 'components', title: 'Ask for a component change', line: 'Describe what is missing or wrong. A developer builds it with Claude, the owner decides.', key: 'component' },
   { drawing: 'guide', title: 'Write usage guidance', line: 'When to use a component, and when not to.', key: 'guidance' },
 ] as const;
 
@@ -377,6 +398,8 @@ function Start({ hrefs }: { hrefs: Record<(typeof CHOICES)[number]['key'], strin
 
 export interface StudioHomeProps {
   state: HomeState;
+  /** Once, right after Entry opened a team the person just joined: "You joined Acme Design." */
+  note?: string | null;
   greeting: string;
   needs: NeedRow[];
   branches: BranchCard[];
@@ -403,6 +426,12 @@ export interface StudioHomeProps {
    * their branches sent back with changes, and the contributor tour runs on the first visit.
    */
   contributor?: boolean;
+  /**
+   * A lead of the team: a reviewer, or an admin (an email admin included, who manages without GitHub). They get the
+   * lead tour on the first visit (the rows that wait on the lead, the whole queue, the branches), never the
+   * contributor's.
+   */
+  lead?: boolean;
   /** Admins: Approve and Decline on join requests (board E7b). */
   join?: JoinHandlers;
 }
@@ -411,14 +440,43 @@ export interface StudioHomeProps {
 export type HomeTourAt = TourAt | ContributorTourAt;
 
 const CONTRIBUTOR_TOUR_KEY = 'bridge.home.contributor-tour';
+const LEAD_TOUR_KEY = 'bridge.home.lead-tour';
 
 /** The review drawing without its empty sky: the scene only, so it never makes the greeting taller than its text. */
 const REVIEW_CROP = '0 98 232 86';
 
+/** "You joined Acme Design.": said once, dismissible. */
+function JoinedNote({ text }: { text: string }) {
+  const [open, setOpen] = useState(true);
+  if (!open) return null;
+  return (
+    <Alert tone="success" className="sh-note" onDismiss={() => setOpen(false)}>
+      {text}
+    </Alert>
+  );
+}
+
 export function StudioHome(p: StudioHomeProps) {
+  // The toasts of the home: a join request approved or declined, with Undo.
+  return (
+    <ToastProvider limit={2}>
+      <HomeBody {...p} />
+    </ToastProvider>
+  );
+}
+
+function HomeBody(p: StudioHomeProps) {
   const snoozed = hintSnoozed(readSnooze(), p.now);
   const own = useTour<ContributorTourAt>(CONTRIBUTOR_TOUR_KEY, [...CONTRIBUTOR_TOUR_STEPS], contributorTour, Boolean(p.contributor) && !p.demo && (p.state === 'busy' || p.state === 'empty'));
-  const tour: StudioHomeProps['tour'] = p.tour ?? (p.contributor ? (at) => (at === 'branches' || at === 'start' ? own(at) : null) : undefined);
+  const leadSteps = tourSteps({ rows: p.needs.length > 0, more: Boolean(splitNeeds(p.needs).more), branches: p.branches.length > 0 });
+  const lead = useTour<TourAt>(LEAD_TOUR_KEY, leadSteps, (at) => demoTour(at), Boolean(p.lead) && !p.contributor && !p.demo && p.state === 'busy' && leadSteps.length > 0);
+  const tour: StudioHomeProps['tour'] =
+    p.tour ??
+    (p.contributor
+      ? (at) => (at === 'branches' || at === 'start' ? own(at) : null)
+      : p.lead && !p.demo
+        ? (at) => (at === 'rows' || at === 'more' || at === 'branches' ? lead(at) : null)
+        : undefined);
   if (p.state === 'signed-out' && !p.demo) {
     return (
       <div className="sh">
@@ -441,9 +499,11 @@ export function StudioHome(p: StudioHomeProps) {
       </div>
     );
   }
+  const note = p.note ? <JoinedNote text={p.note} /> : null;
   if (p.state === 'empty' && !p.demo) {
     return (
       <div className="sh">
+        {note}
         <section className="zone sh-zone sh-zone-empty" aria-labelledby="sh-hello">
           <div className="sh-head-text">
             {p.setup && <div className="sh-setup">{p.setup}</div>}
@@ -466,6 +526,7 @@ export function StudioHome(p: StudioHomeProps) {
   const loading = p.state === 'loading';
   return (
     <div className="sh">
+      {note}
       <section className="zone sh-zone" aria-labelledby="sh-hello" aria-busy={loading || undefined}>
         <div className="sh-head">
           <div className="sh-head-text">
@@ -479,11 +540,15 @@ export function StudioHome(p: StudioHomeProps) {
           </div>
         </div>
         {loading ? (
-          <ul className="sh-rows" aria-hidden="true">
-            <li className="sh-row-item">
-              <Skeleton variant="rect" className="sh-skel" />
-            </li>
-          </ul>
+          <>
+            {/* Join requests come from Bridge, not GitHub: they show while the rest still loads. */}
+            {p.needs.some((r) => r.kind === 'join') && <Needs needs={p.needs.filter((r) => r.kind === 'join')} now={p.now} snoozed={snoozed} join={p.join} />}
+            <ul className="sh-rows" aria-hidden="true">
+              <li className="sh-row-item">
+                <Skeleton variant="rect" className="sh-skel" />
+              </li>
+            </ul>
+          </>
         ) : (
           p.needs.length > 0 && <Needs needs={p.needs} now={p.now} snoozed={snoozed} demo={Boolean(p.demo)} tour={tour} join={p.join} />
         )}

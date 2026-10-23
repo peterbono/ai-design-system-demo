@@ -144,7 +144,7 @@ function initForm(form: HTMLFormElement) {
       await gh.commitToNewBranch({ base: repo.defaultBranch, branch, message: p.message, files: [{ path: FILE, content: next }] });
       const pr = await gh.createPullRequest({ title: p.title, head: branch, base: repo.defaultBranch, body: p.body, draft: false });
       await gh.addLabels(pr.number, ['config', 'source: bridge-web', `tier-${risk.tier}`]).catch(() => false);
-      done.innerHTML = `<p><strong>Review requested.</strong> It applies once your team approves and merges the branch.</p>
+      done.innerHTML = `<p><strong>Sent for review.</strong> It applies once your team approves and merges the branch.</p>
         <p>${prLinksHtml(pr)}</p>`;
       setEditing(false);
       done.hidden = false;
@@ -152,7 +152,7 @@ function initForm(form: HTMLFormElement) {
       showGhError(error, err, `GitHub did not create the branch: ${(err as Error).message}`, 'create branches');
       error.hidden = false;
     } finally {
-      setButtonBusy(submit, false, 'Request review');
+      setButtonBusy(submit, false, 'Send for review');
       setButtonDisabled(submit, !changed());
     }
   });

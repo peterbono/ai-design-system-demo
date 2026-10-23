@@ -162,8 +162,8 @@ export interface Member {
   /** Work email, when known (the sample team, an email contributor). */
   email?: string;
   /**
-   * 'email': an email contributor (lib/contribute.ts), no GitHub account. Always Can edit: Reviewers and admins approve
-   * on GitHub. Their `login` is their email.
+   * 'email': an email member (lib/contribute.ts), no GitHub account. Can edit or Admin: Reviewers approve on GitHub.
+   * Their `login` is their email.
    */
   via?: 'email';
 }
@@ -184,7 +184,7 @@ export function emailMembers(rows: readonly unknown[], viewerEmail: string | nul
     if (!r || r.via !== 'email' || typeof r.email !== 'string' || !isEmail(r.email)) continue;
     const email = r.email.toLowerCase();
     const you = Boolean(viewerEmail && viewerEmail.toLowerCase() === email);
-    out.push({ login: email, name: typeof r.name === 'string' && r.name.trim() ? r.name.trim() : email, role: 'edit', reviews: [], email, via: 'email', ...(you ? { you: true } : {}) });
+    out.push({ login: email, name: typeof r.name === 'string' && r.name.trim() ? r.name.trim() : email, role: r.role === 'admin' ? 'admin' : 'edit', reviews: [], email, via: 'email', ...(you ? { you: true } : {}) });
   }
   return out;
 }
@@ -360,36 +360,6 @@ export const MEMBERS_WORDS = {
   reviewerNote: 'Reviewers start once the settings change is approved.',
   limitReached: "You reached today's invite limit. Try again tomorrow.",
 } as const;
-
-/** Where a person adds and verifies the emails of their GitHub account. */
-export const GITHUB_EMAILS_URL = 'https://github.com/settings/emails';
-
-export type AcceptEmailCode = 'email_mismatch' | 'email_unverified' | 'email_access';
-
-/**
- * The invite page when the signed-in GitHub account is not the invited one (api/invites accept): what happened, with
- * the address the invite was sent to (masked by the server, "m•••@acme.design"), and how to fix it.
- */
-export function acceptEmailWords(code: AcceptEmailCode, sentTo: string, login: string): { title: string; sub: string; action: string } {
-  const to = sentTo || 'another email';
-  if (code === 'email_unverified')
-    return {
-      title: 'Verify your email on GitHub first',
-      sub: `This invitation was sent to ${to}. That email is on your GitHub account but not verified yet. Verify it on GitHub, then try again.`,
-      action: 'Verify on GitHub',
-    };
-  if (code === 'email_access')
-    return {
-      title: 'Sign in again to join',
-      sub: 'Bridge needs to see the emails on your GitHub account to check this invitation is yours. Sign in with GitHub again and allow it.',
-      action: 'Sign in with GitHub',
-    };
-  return {
-    title: 'This invitation is for another email',
-    sub: `It was sent to ${to}, which is not an email of your GitHub account${login ? ` @${login}` : ''}. Add and verify that email on GitHub, then try again. Or ask your admin to invite the email you use on GitHub.`,
-    action: 'Add the email on GitHub',
-  };
-}
 
 // --- The sample team ------------------------------------------------------------------------------------------
 

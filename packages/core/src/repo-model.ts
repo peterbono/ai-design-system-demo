@@ -318,6 +318,8 @@ export async function loadRepoModel(source: RepoSource, options: RepoModelOption
     ['docs', fresh(docsRead)],
   ];
   const filesTotal = phases.reduce((n, [, paths]) => n + paths.length, 0);
+  // Every body is known now: a source that batches reads asks for them in a few requests instead of one each.
+  await source.prefetch?.(phases.flatMap(([, paths]) => paths)).catch(() => undefined);
   let before = 0;
   const readPhase = async (phase: RepoModelPhase, paths: string[]) => {
     const offset = before;

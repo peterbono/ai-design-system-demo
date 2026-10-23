@@ -133,8 +133,11 @@ export function switchTarget(ctx: SwitchContext): SwitchTarget {
 /** The other space: where the switch goes. */
 export const otherSpace = (space: SwitchSpace): SwitchSpace => (space === 'library' ? 'studio' : 'library');
 
-/** The link's accessible name: the action, never the visible word (which names where you are). */
-export const switchLabel = (space: SwitchSpace): string => (space === 'library' ? 'Open Studio' : 'Open Library');
+/**
+ * The link's accessible name: the visible word first (where you are, so voice control finds it by what it shows), then
+ * the action.
+ */
+export const switchLabel = (space: SwitchSpace): string => (space === 'library' ? 'Library, open Studio' : 'Studio, open Library');
 
 /** Read after the name (aria-describedby): where the reader is now. */
 export const currentLabel = (space: SwitchSpace): string => (space === 'library' ? "You're in the Library" : "You're in the Studio");

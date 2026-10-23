@@ -12,8 +12,10 @@
 // never spends the 60 requests an hour GitHub gives an address. Only a team without a snapshot is read live.
 import { loadRepoModel, parseSnapshot, SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, SNAPSHOT_MAX_BYTES, snapshotSource, storybookUrl, type GitHubClient, type RepoModel, type RepoSnapshot } from '@bridge-ds/core';
 import { getToken, hasWorkingToken, studioClient } from './github-session';
+import { contributeBlobs } from './contribute-session';
+import { isContribAuth } from '../lib/contribute';
 import { loadTeamModel, type SnapshotReader, type TeamModelSource } from './repo-context';
-import { repoFromPath } from '../lib/team-path';
+import { isHosted, pageTeamFromPath } from '../lib/team-path';
 import { libraryFromPath } from '../lib/library-shells';
 import type { ProductAudit } from '../lib/components-studio';
 import { TEAM_PROGRESS_START, teamProgress, type TeamLoadEvent, type TeamProgress } from '../lib/load-progress';
@@ -42,7 +44,7 @@ export interface TeamData {
 
 /** The team in this page's address (a Studio or a Library team address), null off a team address. */
 export function teamOfPage(): { owner: string; repo: string } | null {
-  return typeof location === 'undefined' ? null : (repoFromPath(location.pathname) ?? libraryFromPath(location.pathname));
+  return typeof location === 'undefined' ? null : (pageTeamFromPath(location.pathname, isHosted()) ?? libraryFromPath(location.pathname));
 }
 
 /** True on a team's Library page (/library/<owner>/<repo>/...). */
@@ -168,7 +170,9 @@ export function loadTeamData(): Promise<TeamData> {
     }
     let read: Awaited<ReturnType<typeof loadTeamModel>>;
     try {
-      read = await loadTeamModel(client, { snapshot: readTeamSnapshot, onProgress: report });
+      // An email member reads through Bridge: the bodies in a few requests, not one per file.
+      const batch = isContribAuth(getToken()) ? contributeBlobs(`${team.owner}/${team.repo}`) : undefined;
+      read = await loadTeamModel(client, { snapshot: readTeamSnapshot, onProgress: report, ...(batch ? { batch } : {}) });
     } catch (err) {
       // A guest past GitHub's hourly limit: the published snapshot still opens the team (it costs no API request),
       // as the Library reads it. The views that need GitHub say so on their own.

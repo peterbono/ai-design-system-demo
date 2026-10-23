@@ -47,7 +47,7 @@ describe('bridge CLI', () => {
 
   it('--version prints the CLI package version, not @bridge-ds/mcp\'s', () => {
     const { version } = JSON.parse(readFileSync(join(REPO, 'packages/cli/package.json'), 'utf8')) as { version: string };
-    for (const args of [['--version'], ['version']]) {
+    for (const args of [['--version'], ['version'], ['-v']]) {
       const r = bridge(REPO, ...args);
       expect(r.code).toBe(0);
       expect(r.out.trim()).toBe(version);
@@ -55,8 +55,39 @@ describe('bridge CLI', () => {
     expect(bridge(REPO, '--help').out).toContain(`bridge ${version}:`);
   });
 
+  it('docs and brand: help exits 0, no subcommand exits 2 with the usage', { timeout: 120_000 }, () => {
+    for (const cmd of ['docs', 'brand']) {
+      for (const args of [[cmd, 'help'], [cmd, '--help']]) {
+        const r = bridge(REPO, ...args);
+        expect(r.code).toBe(0);
+        expect(r.out).toContain(`bridge ${cmd}:`);
+      }
+      const none = bridge(REPO, cmd);
+      expect(none.code).toBe(2);
+      expect(none.out).toContain('Usage:');
+    }
+    expect(bridge(REPO, 'docs', 'save', '--help').out).toContain('bridge docs save <Component>');
+    // Exit codes are documented once, in --help.
+    expect(bridge(REPO, '--help').out).toMatch(/Exit codes \(every command\):\n  0 .*\n  1 .*blocked.*\n  2  usage or setup error/);
+  });
+
+  it('diff <bad ref>: says what a git ref is (exit 2), not a git error', () => {
+    const r = bridge(REPO, 'diff', 'no-such-ref-anywhere');
+    expect(r.code).toBe(2);
+    expect(r.err).toMatch(/"no-such-ref-anywhere" is not a branch, tag or commit/);
+    expect(r.err).not.toMatch(/fatal|ls-tree/);
+  });
+
+  it('tokens <query>: says when it shows only the best matches, --limit for more', () => {
+    const r = bridge(REPO, 'tokens', 'color', '--limit', '3');
+    expect(r.code).toBe(0);
+    expect(r.out).toMatch(/Showing the best 3 of \d+ matches\. --limit <n> shows more/);
+    expect(r.out).not.toMatch(/bridge_|limit:/);
+    expect(bridge(REPO, 'tokens', 'color', '--limit', 'x').code).toBe(2);
+  });
+
   it('--help and help print the usage and exit 0', () => {
-    for (const args of [['--help'], ['help']]) {
+    for (const args of [['--help'], ['help'], ['-h']]) {
       const r = bridge(REPO, ...args);
       expect(r.code).toBe(0);
       expect(r.out).toContain('Usage:');
@@ -174,6 +205,35 @@ describe('bridge CLI', () => {
       expect(readFileSync(join(dir, 'src/styles.css'), 'utf8')).toBe(plan.output);
       expect(bridge(REPO, 'audit').code).toBe(2);
       expect(bridge(tmpdir(), 'audit', dir).code).toBe(2);
+    });
+
+    it('--fix keeps what the audit keeps: ignore comments and --allowlist entries, listed; --json', () => {
+      const dir = tempGitRepo(join(APPS, 'mui-app'), ['src']);
+      const file = join(dir, 'src/styles.css');
+      const css = readFileSync(file, 'utf8');
+      const plan = planCssFixes(css, 'css', loadDesignSystem(REPO).index);
+      expect(plan.edits.length).toBeGreaterThan(1);
+      const first = plan.edits[0]!;
+      const second = plan.edits.find((e) => e.line !== first.line)!;
+      expect(second).toBeDefined();
+      // An ignore comment above the first fixable line; the second line on an allowlist.
+      const lines = css.split('\n');
+      lines.splice(first.line - 1, 0, '/* bridge-audit-ignore-next-line: brand red from the partner logo */');
+      writeFileSync(file, lines.join('\n'));
+      const allow = join(dir, 'known.json');
+      const secondLine = second.line + (second.line >= first.line ? 1 : 0);
+      writeFileSync(allow, JSON.stringify({ entries: [{ file: 'src/styles.css', line: secondLine, reason: 'legacy print sheet' }] }));
+      const r = bridge(REPO, 'audit', dir, '--fix', '--allowlist', allow, '--json');
+      expect(r.code).toBe(0);
+      const j = JSON.parse(r.out);
+      const kept = j.files.flatMap((f: { kept: { line: number; via: string }[] }) => f.kept);
+      expect(kept).toEqual(expect.arrayContaining([expect.objectContaining({ line: first.line + 1, via: 'comment' }), expect.objectContaining({ line: secondLine, via: 'allowlist' })]));
+      expect(j.wouldReplace).toBe(plan.edits.length - kept.length);
+      const text = bridge(REPO, 'audit', dir, '--fix', '--allowlist', allow, '--write');
+      expect(text.out).toMatch(/Left as is on purpose: \d+ value\(s\), by an ignore comment or the allowlist/);
+      const after = readFileSync(file, 'utf8').split('\n');
+      expect(after[first.line]).toContain(first.from);
+      expect(after[secondLine - 1]).toContain(second.from);
     });
   });
 

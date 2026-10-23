@@ -8,6 +8,7 @@
 // feature, and the session's fetch sends each call that carries it here (contributeFetch). No feature changes.
 import { GitHubError } from '@bridge-ds/core';
 import { CONTRIB_REFUSAL, CONTRIBUTE_API, GITHUB_API, CONTRIBUTE_HEADER, CONTRIBUTE_WORDS, contributeHashToken, localDevHost, parseMember, proxyUrl, type ContributeMember } from '../lib/contribute';
+import { isDemoRepo } from '../lib/demo';
 
 /** The site cannot sign in with an email (no server piece, or not set up). */
 export class ContributeUnavailable extends Error {
@@ -37,10 +38,14 @@ export function setContributeFetch(f: Fetch | null) {
   fetchImpl = f ?? ((input, init) => fetch(input, init));
   infos.clear();
   mines.clear();
+  publicReads.clear();
 }
 
 const HINT_PREFIX = 'bridge.contribute.member:';
 const key = (repo: string) => repo.toLowerCase();
+
+/** The storage key of `repo`'s member: another tab removing it means the session ended there. */
+export const contributorKey = (repo: string) => HINT_PREFIX + key(repo);
 
 /** The member this browser last saw signed in on `repo`, or null. Synchronous: the server confirms it on each page. */
 export function contributorFor(repo: string): ContributeMember | null {
@@ -69,6 +74,37 @@ function remember(repo: string, m: ContributeMember | null) {
   }
   infos.set(key(repo), Promise.resolve({ available: infoAvailable.get(key(repo)) ?? true, member: m }));
   if (Boolean(before) !== Boolean(m) || before?.email !== m?.email || before?.name !== m?.name) listeners.forEach((fn) => fn(repo, m));
+}
+
+/**
+ * A Bridge account signed in with its code is a member of its email teams already (api/contribute reads the account
+ * session too): each team page of theirs knows it at once, even one never opened in this browser. Only the hint is
+ * written (the server confirms it on the page); a team whose hint is there already is left as it is.
+ */
+export function seedContributors(account: { email: string; name: string | null }, teams: readonly { repo: string; role: string; via: string }[]) {
+  for (const t of teams) {
+    if (t.via !== 'email' || !/^[^/\s]+\/[^/\s]+$/.test(t.repo)) continue;
+    if (contributorFor(t.repo)) continue;
+    const m = parseMember({ email: account.email, name: account.name ?? '', role: t.role === 'admin' ? 'admin' : 'edit' });
+    if (!m) continue;
+    try {
+      localStorage.setItem(HINT_PREFIX + key(t.repo), JSON.stringify(m));
+    } catch {
+      return;
+    }
+    listeners.forEach((fn) => fn(t.repo, m));
+  }
+}
+
+/** Forgets every team's email member in this browser (sign-out, account deleted). */
+export function forgetContributors() {
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith(HINT_PREFIX)) localStorage.removeItem(k);
+  } catch {
+    /* storage blocked: nothing kept */
+  }
+  infos.clear();
+  mines.clear();
 }
 
 async function call<T>(method: 'GET' | 'POST', query: string, body?: unknown, extra: Record<string, string> = {}): Promise<T> {
@@ -179,15 +215,6 @@ export function endedEmailSession(repo: string) {
   remember(repo, null);
 }
 
-/** Accepts a "Can edit" invite with a name: no GitHub. 409 github-required for a reviewer or admin invite. */
-export async function acceptEmailInvite(token: string, name: string): Promise<{ repo: string; member: ContributeMember }> {
-  const r = await call<{ repo?: unknown; member?: unknown }>('POST', '', { action: 'accept', token, name: name.trim() });
-  const m = parseMember(r.member);
-  if (typeof r.repo !== 'string' || !m) throw new ContributeError('Something went wrong. Try again in a minute.', 'failed', 500);
-  remember(r.repo, m);
-  return { repo: r.repo, member: m };
-}
-
 /** The token of `#contribute=<token>`, taken out of the address at once (never in the history or a shared link). */
 export function takeContributeHash(): string | null {
   if (typeof location === 'undefined') return null;
@@ -289,4 +316,65 @@ export async function contributeFetch(repo: string, url: string, init: RequestIn
     if (body && typeof body.error === 'string' && typeof body.message === 'string' && body.message) throw new GitHubError(res.status, body.message, `${CONTRIB_REFUSAL}${body.error}`);
   }
   return res;
+}
+
+// --- Reads through Bridge (api/_lib/team-read.ts) -----------------------------------------------------------------
+// A member's reads already go through the proxy above (contributeFetch). Two more pieces: many blobs at once for a
+// member (the design system loads in a few requests instead of one per file), and the public demo teams for a visitor
+// without GitHub (Bridge's GitHub App reads them, cached, instead of this browser's 60 anonymous reads an hour).
+
+/**
+ * Reads blobs of `repo` in one request through Bridge, for an email member (their session cookie): the text of each
+ * sha, null for one GitHub does not have; shas the server left for later are not in the answer (read them alone).
+ * Throws when the server refuses (the caller reads each blob on its own then).
+ */
+export function contributeBlobs(repo: string): (shas: string[]) => Promise<Record<string, string | null>> {
+  return async (shas) => {
+    const res = await fetchImpl(`${CONTRIBUTE_API}?repo=${encodeURIComponent(repo)}&blobs=${shas.join(',')}`, { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+    if (res.status === 401) endedEmailSession(repo);
+    if (!res.ok || !/json/i.test(res.headers.get('content-type') ?? '')) throw new ContributeError(CONTRIBUTE_WORDS.network, 'blobs', res.status);
+    const data = (await res.json()) as { blobs?: Record<string, unknown> };
+    const out: Record<string, string | null> = {};
+    for (const [sha, text] of Object.entries(data.blobs ?? {})) if (typeof text === 'string' || text === null) out[sha] = text;
+    return out;
+  };
+}
+
+/** Per team on this page: Bridge cannot read it for visitors (not set up, the app missing): go to GitHub directly. */
+const publicReads = new Map<string, 'down'>();
+
+/**
+ * A visitor's read of a public demo team (lib/demo.ts DEMO_REPOS) through Bridge: the server's answer, or null when
+ * this read should go to GitHub as before (another team, another call, or Bridge cannot read it here). Bridge's own
+ * limit throws a GitHubError with its sentence ("Bridge is busy, try again in N min."), never GitHub's token advice.
+ */
+export async function publicTeamRead(repo: string, url: string, accept: string): Promise<Response | null> {
+  if (!isDemoRepo(repo) || publicReads.get(key(repo)) === 'down') return null;
+  const target = proxyUrl(url, repo);
+  if (!target) return null;
+  let res: Response;
+  try {
+    res = await fetchImpl(target, { headers: { Accept: accept || 'application/vnd.github+json' }, credentials: 'same-origin' });
+  } catch {
+    return null;
+  }
+  // No function here (the static host's page, an older deploy): GitHub directly for the rest of the page.
+  if (!/json|vnd\.github|text\/plain/i.test(res.headers.get('content-type') ?? '') || res.status === 405) {
+    publicReads.set(key(repo), 'down');
+    return null;
+  }
+  if (res.ok || res.status === 304) return res;
+  const body = (await res
+    .clone()
+    .json()
+    .catch(() => null)) as { error?: unknown; message?: unknown; retryAfter?: unknown } | null;
+  const code = typeof body?.error === 'string' ? body.error : null;
+  // GitHub's own answer (a 404 of a missing file): as it is.
+  if (!code) return res;
+  if (code === 'busy') {
+    const wait = typeof body?.retryAfter === 'number' ? body.retryAfter : null;
+    throw new GitHubError(429, typeof body?.message === 'string' ? body.message : 'Bridge is busy, try again in a few minutes.', `${CONTRIB_REFUSAL}busy`, wait ? { resetsAt: new Date(Date.now() + wait * 1000) } : {});
+  }
+  if (code !== 'not-allowed') publicReads.set(key(repo), 'down');
+  return null;
 }

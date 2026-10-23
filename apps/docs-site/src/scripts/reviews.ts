@@ -6,7 +6,7 @@
 // "Copy link", "Link for a developer"; the page itself never links to GitHub.
 // Without a token the bar's primary connects GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
-import { askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
+import { EXPLORATION_USE_CASES, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, canOverride, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
 import { loadTeams, siteApprovalRules, siteApprovers, siteShipPolicy, siteSoloOwner, teamDirectory } from './teams';
 import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
@@ -87,6 +87,8 @@ import {
   namesIn,
   readLooked,
   reviewActions,
+  bodyWhy,
+  productWorkOf,
   reviewCrumbs,
   reviewLink,
   splitChanges,
@@ -100,7 +102,7 @@ import type { ActKind, BranchReviewProps, GuidanceView, PersonRef, TokenRowView,
 const MOTION_CHANGE = 'tokens:motion';
 import { lifecycleOfRow } from './status-filter';
 import { byLifecycle, LIFECYCLE, lifecycleTone, type Lifecycle } from '../lib/change-status';
-import { isRunningExploration } from '../lib/explorations-view';
+import { isRunningExploration, previewName, tryItCopy, tryItFromComments } from '../lib/explorations-view';
 import type { BranchesListProps, ListRow } from '../components/ds/studio/BranchesList';
 import { conflictLine, conflictRows, freshness, libraryLine, nextSteps, resolveLabel, type CompareLike, type Freshness } from '../lib/library-sync';
 import { bringInLatest, checkGuardrail, commitResolution, readCompare, readConflicts, readDismissStale, waitForNewHead } from './reviews/library-sync';
@@ -108,6 +110,7 @@ import { AGENT_NAME, isClaudeLogin } from '../lib/people';
 import { safeUrl } from '../lib/html';
 import { siteConfig } from './repo-context';
 import { isDemoRepo } from '../lib/demo';
+import { viewerRoles } from '../lib/suggestions-view';
 import { waitingLabel } from '../lib/home-model';
 import type { WaitingExtra } from '../lib/review-categories';
 
@@ -574,7 +577,15 @@ function repaint(patch: Partial<BranchReviewProps>) {
 
 /** What a designer reads for a login, until profile names are known: the login, without @ and [bot]. */
 /** A login as people read it; the agent's accounts (claude, bridge-agent) read Claude AI (lib/people). */
-const nameOf = (login: string) => (isClaudeLogin(login) ? AGENT_NAME : login.replace(/^@/, '').replace(/\[bot\]$/i, ''));
+/**
+ * Names that stand in for logins on the page open now: in the demo seat, the repository's owner reads as the persona
+ * (Dana) and the author as who asked for the change (Ann), so the sample team never shows a real account.
+ */
+const aliases = new Map<string, string>();
+const nameOf = (login: string) => {
+  const l = login.replace(/^@/, '');
+  return aliases.get(l.toLowerCase()) ?? (isClaudeLogin(login) ? AGENT_NAME : l.replace(/\[bot\]$/i, ''));
+};
 const named = (text: string) => namesIn(text, nameOf);
 
 /** The docs.json at a commit, parsed, or null (missing or unreadable). */
@@ -679,7 +690,7 @@ export async function openPr(n: number, push = true) {
         if (ctx) repaint({ productContext: { ...ctx, previewUrl: url } });
       });
     }
-    wireLibrary({ pull, fresh, compare, access, checks: ci.total, visual, approvals: approvals.approvers.length, seq });
+    wireLibrary({ pull, fresh, compare, access, checks: ci.total, visual, approvals: approvals.approvers.length, seq, developer: Boolean(props.developer) });
 
     // Motion changes (scripts/reviews/motion-changes, #153): below "What changes" on a single change, its own change
     // under Tokens on a busy branch. Only when the branch touches token files or components; nothing when no motion
@@ -700,7 +711,7 @@ export async function openPr(n: number, push = true) {
     if (visual) {
       const slot = document.getElementById('rv-visual');
       if (slot)
-        loadVisualImpact(slot, { owner: repo.owner, repo: repo.repo, pr: pull.number, sha: pull.head.sha, actionsUrl: `https://github.com/${repo.owner}/${repo.repo}/actions/workflows/visual-impact.yml` }, document.getElementById('rv-visual-ask') ?? undefined)
+        loadVisualImpact(slot, { owner: repo.owner, repo: repo.repo, pr: pull.number, sha: pull.head.sha, actionsUrl: `https://github.com/${repo.owner}/${repo.repo}/actions/workflows/visual-impact.yml`, designer: !view?.developer }, document.getElementById('rv-visual-ask') ?? undefined)
           .then((v) => {
             if (seq !== openSeq) return;
             const state: VisualView['state'] = v.error ? 'error' : v.changed === null ? 'not-run' : v.changed === 0 ? 'no-change' : 'changes';
@@ -839,11 +850,28 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   const showOverride = gate.overridable && reviewer;
   const login = access?.login ?? null;
   const isAuthor = Boolean(login && login.toLowerCase() === pull.user.login.toLowerCase());
+  // The demo seat (lib/demo.ts): a visitor without an account sits where Dana sits, the sample team's design system
+  // lead, as on its home and in Branches. The repository's owner reads as Dana and the author as who asked for the
+  // change, so the page says "Your turn" like the list does, never "owner override needed" with a real account.
+  const seat = demoSeat();
+  const seatOwner = seat ? (OWNERS().design[0] ?? OWNERS().tech[0] ?? null) : null;
+  const asked0 = seat ? requesterOf(pull.body) : null;
+  const seatAuthor = seat ? (asked0?.name ?? asked0?.login ?? 'A teammate') : null;
+  const author = seatAuthor ? seatAuthor.toLowerCase().normalize('NFD').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'teammate' : pull.user.login;
+  aliases.clear();
+  if (seat && seatOwner) aliases.set(seatOwner.toLowerCase(), seat);
+  if (seatAuthor) aliases.set(author, seatAuthor.split(/\s+/)[0]!);
+  const viewer = login ?? seatOwner;
+  // Developers (tech owners) see the technical side: failing tests, updating from main, the GitHub link. Designers
+  // read who acts instead ("A developer is on it").
+  const developer = !seat && viewerRoles(login, OWNERS()).includes('tech');
+  // Who may use the owner override: the same rule as the Branches list (pr-status rowWho), so the list and the page
+  // never disagree. The More menu item still needs the gate and write access (showOverride).
   const who = whoActs(
     needFromDetail({ state: lifecycle, ci, gate, changesRequestedBy: approvals.changesRequested, exploration, mergeable: pull.mergeable }),
-    people(pull.user.login, { viewer: login, approvers: approvals.approvers, canMerge: reviewer && gate.canShip, overridable: showOverride }),
+    people(author, { viewer, approvers: approvals.approvers, canMerge: reviewer && gate.canShip, overridable: !seat && canOverride(login, OVERRIDE) }),
   );
-  const viewerPeople = people(pull.user.login, { viewer: login });
+  const viewerPeople = people(author, { viewer });
   const rows = approvalRows({ tier, approvals, people: viewerPeople, open });
   const review = x.review instanceof Error ? null : x.review;
   const tokenOnly = files.length > 0 && files.every((f) => isTokenFile(f.filename) || f.filename.startsWith('.changeset/'));
@@ -854,7 +882,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   let yourTurn = who.yourTurn;
   const designRow = rows.find((r) => r.role === 'design' && r.canAct);
   if (open && who.action === 'fix-checks') {
-    const f = failingSentence({ story, author: pull.user.login, viewerIsAuthor: isAuthor, viewerApprovesDesign: Boolean(designRow) && !story.designFails, approvalsMissing: gate.missing.length > 0 });
+    const f = failingSentence({ story, author, viewerIsAuthor: isAuthor, viewerApprovesDesign: Boolean(designRow) && !story.designFails, approvalsMissing: gate.missing.length > 0, forDesigner: !developer });
     sentence = f.sentence;
     yourTurn = f.yourTurn;
   } else if (who.yourTurn && who.action === 'override' && showOverride) sentence = 'Your turn: no other owner can approve, so merge it with the owner override.';
@@ -909,6 +937,8 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   if (actions.primary?.kind === 'connect') actions.primary.label = ghAction('review', prefersSignIn());
   if (actions.primary && (actions.primary.kind === 'reopen' || actions.primary.kind === 'restart') && statusRun.kind) actions.primary.label = ACTION_LABEL[statusRun.kind];
   const openOverride = showOverride && access ? wireOverride(pull, access, gate) : null;
+  // A page without the override dialog (components/OverrideDialog.astro) cannot open it: offer no item that does nothing.
+  if (!openOverride) actions.menu.override = null;
 
   // Conversation: people only (bots say what the page shows elsewhere).
   const reviewers = [...OWNERS().design, ...OWNERS().tech];
@@ -923,16 +953,17 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   const conv = conversation(entries, { author: pull.user.login, reviewers });
   const peopleMap: Record<string, PersonRef> = {};
   for (const u of [pull.user, ...reviews.map((r) => r.user), ...comments.map((c) => c.user), ...x.lineComments.map((c) => c.user)]) {
-    if (u) peopleMap[u.login.toLowerCase()] = { login: u.login, name: nameOf(u.login), avatarUrl: u.avatar_url, agent: isClaudeLogin(u.login) || undefined };
+    if (u) peopleMap[u.login.toLowerCase()] = { login: u.login, name: nameOf(u.login), avatarUrl: aliases.has(u.login.toLowerCase()) ? null : u.avatar_url, agent: isClaudeLogin(u.login) || undefined };
   }
 
   const title = humanTitle(mdTitleText(withoutJiraKey(pull.title)));
   const asked = status.yourTurn && !isAuthor && canApprove;
-  const line = whoLine({ author: nameOf(pull.user.login), agent, guidanceOnly, canEdit: canEditGuidance, asked, lifecycle: status.lifecycle, sentence: named(statusRun.sentence) });
+  const line = whoLine({ author: nameOf(author), agent, guidanceOnly, canEdit: canEditGuidance, asked, lifecycle: status.lifecycle, sentence: named(statusRun.sentence) });
   const editable = tokenFilesOf(files) > 0 && isTokenChange(pull, REPO_KEY) && canAddTo(pull, login ?? undefined, write);
   const added = Number(new URLSearchParams(location.search).get('added'));
   if (added > 0) history.replaceState(history.state, '', `?pr=${pull.number}`);
-  const update = x.fresh.state === 'current' && justIn?.pr === pull.number ? 'done' : x.fresh.state === 'behind' || x.fresh.state === 'conflict' ? x.fresh.state : null;
+  // Behind main is a developer's to update: designers only see a conflict (token conflicts have their resolver).
+  const update = x.fresh.state === 'current' && justIn?.pr === pull.number ? 'done' : (x.fresh.state === 'behind' && developer) || x.fresh.state === 'conflict' ? x.fresh.state : null;
   const note = access && !write && (lifecycle === 'open' || lifecycle === 'draft') ? `${nameOf(access.login)} cannot write to this library, so merging and closing are off.` : null;
 
   // A library branch a product branch needs: "Why it exists" (the product preview link is read after the first paint).
@@ -940,15 +971,40 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   const context = neededBy ? productContextOf(pull.body, neededBy.author ? { [neededBy.author]: nameOf(neededBy.author) } : {}) : null;
   const productContext = context ? { ...context, previewUrl: null } : null;
 
+  // An exploration or a product branch: what a designer sees there (lib/review-page productWorkOf), the previews
+  // Vercel reported (never a template it may have shortened), and the product preview with the Bridge toolbar.
+  const explored = parseExplorationBody(pull.body);
+  const previewBase = productPreviewOf(pull, comments, x.statuses);
+  const productWork = productWorkOf({
+    exploration,
+    files: files.map((f) => f.filename),
+    labels: pull.labels,
+    products: SITE.products ?? [],
+    purpose: explored?.purpose ?? bodyWhy(pull.body),
+    useCase: EXPLORATION_USE_CASES.find((u) => u.value === explored?.useCase)?.label ?? null,
+    experimental: explored?.experimental ?? null,
+    previews: resolveBranchPreviews(BRANCHES.apps ?? {}, { branch: pull.head.ref, pr: pull.number, sha: pull.head.sha }, { comments, statuses: x.statuses })
+      // A template URL may point at nothing (Vercel skipped or shortened it): only the ones Vercel reported open.
+      .map((v) => ({ label: previewName(v.app, v.label), url: v.url && v.source !== 'template' ? safeUrl(v.url) || null : null, state: v.state })),
+    tryUrl: previewBase ? safeUrl(tryInProductUrl(previewBase, pull.number, null)) || null : null,
+  });
+  // The technical side of product work, folded for everyone: what a designer never needs to read first.
+  const tryIt = exploration ? tryItCopy(tryItFromComments(comments, pull.head.sha)) : null;
+  const code = productWork ? { files: files.map((f) => f.filename), branch: pull.head.ref, url: pull.html_url, number: pull.number, install: tryIt?.command ?? null } : null;
+
   return {
     pr: pull.number,
     productContext,
-    crumbs: reviewCrumbs(files.map((f) => f.filename), title),
+    crumbs: reviewCrumbs(files.map((f) => f.filename), title, { products: SITE.products ?? [], labels: pull.labels, exploration }),
+    productWork,
+    code,
     title,
     jira: jiraKeyOf(pull.title),
     // In review: the same pill as its row in Branches and on the home (lib/changes statusPill over core reviewStatusKind).
-    status: status.lifecycle === 'ready' && !exploration ? { ...statusPill(reviewStatus({ state: pull.state, draft: pull.draft, merged_at: pull.merged_at, ci, approvals, tier, mergeable: pull.mergeable }).kind, who), lifecycle: status.lifecycle } : { label: status.label, tone: status.tone, lifecycle: status.lifecycle },
-    who: { person: { login: pull.user.login, name: nameOf(pull.user.login), avatarUrl: pull.user.avatar_url, agent }, lead: line.lead, rest: line.rest },
+    // In the demo seat: the list's pill for the same branch ("Waiting 1 day").
+    status: seat && status.lifecycle === 'ready' && !exploration && pull.created_at ? { label: waitingLabel(pull.created_at, Date.now()), tone: 'warning', lifecycle: status.lifecycle } : status.lifecycle === 'ready' && !exploration ? { ...statusPill(reviewStatus({ state: pull.state, draft: pull.draft, merged_at: pull.merged_at, ci, approvals, tier, mergeable: pull.mergeable }).kind, who), lifecycle: status.lifecycle } : { label: status.label, tone: status.tone, lifecycle: status.lifecycle },
+    // In the demo seat, who asked for it, the face the list shows for the same branch.
+    who: { person: seat ? { login: `~${author}`, name: nameOf(author), avatarUrl: null, agent: agent && !asked0 } : { login: pull.user.login, name: nameOf(pull.user.login), avatarUrl: pull.user.avatar_url, agent }, lead: line.lead, rest: line.rest },
     added: added > 0 ? addedNotice(added) : null,
     changes,
     looked: [...readLookedNow(pull.number)],
@@ -981,7 +1037,8 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     people: peopleMap,
     conversation: conv,
     fileComments: conv.all.filter((c) => c.path),
-    checks: checksLine(story),
+    checks: checksLine(story, { forDesigner: !developer }),
+    developer: developer ? { tests: story.developer?.state === 'fail' ? story.developer.text : null, failing: ci.failed.map((c) => c.name), url: pull.html_url, number: pull.number } : null,
     approvals: rows.map((r) => ({ label: r.role === 'approval' ? 'Approval' : `${r.label} approval`, state: r.state, text: named(status.lifecycle === 'draft' && r.state === 'waiting' ? 'Not asked until a review is requested' : r.text) })),
     update,
     actions,
@@ -1167,7 +1224,7 @@ function wireOverride(pull: Pull, access: Access, gate: ReturnType<typeof mergeG
 
   // This branch: its number and the approvals it skips.
   const title = document.getElementById('rv-ov-title');
-  if (title) title.textContent = `Merge #${pull.number} as owner override?`;
+  if (title) title.textContent = `Merge "${humanTitle(mdTitleText(withoutJiraKey(pull.title)))}" with the owner override?`;
   part('missing').innerHTML = gate.missing.map((m) => `<li>${esc(m[0]!.toUpperCase() + m.slice(1))}</li>`).join('');
   reason.value = '';
   reason.removeAttribute('aria-invalid');
@@ -1216,7 +1273,7 @@ function wireOverride(pull: Pull, access: Access, gate: ReturnType<typeof mergeG
       await markSuggestionsAppliedOnGitHub(studioClient(REPO_KEY), pull);
       await openPr(pull.number, false);
       const done = document.getElementById('rv-act-status');
-      if (done) done.textContent = `Merged as owner override. The reason is on #${pull.number}.`;
+      if (done) done.textContent = 'Merged with the owner override. Your reason is in its conversation.';
     },
     { signal },
   );
@@ -1258,7 +1315,7 @@ async function refreshAfterLibrary(pull: Pull, said: string) {
  * with no conflict: GitHub's update-branch. A conflict: what both sides touched decides who resolves it; a pure
  * token-file conflict opens the resolver, anything in code stays with a developer (Open on GitHub, on the author line).
  */
-function wireLibrary(x: { pull: Pull; fresh: Freshness; compare: CompareLike | null; access: Access | null; checks: number; visual: boolean; approvals: number; seq: number }) {
+function wireLibrary(x: { pull: Pull; fresh: Freshness; compare: CompareLike | null; access: Access | null; checks: number; visual: boolean; approvals: number; seq: number; developer: boolean }) {
   const row = document.getElementById('rv-lib');
   const slot = document.getElementById('rv-lib-act');
   const textEl = document.getElementById('rv-lib-text');
@@ -1272,10 +1329,17 @@ function wireLibrary(x: { pull: Pull; fresh: Freshness; compare: CompareLike | n
     return;
   }
   textEl.textContent = x.fresh.state === 'conflict' ? conflictLine({ kind: 'tokens', files: [] }, null) : (libraryLine(x.fresh) ?? '');
-  hintEl.textContent = x.fresh.state === 'conflict' ? ` ${libraryLine(x.fresh) ?? ''}` : '';
+  // How far main moved on is for developers; a designer reads only the conflict and who resolves it.
+  hintEl.textContent = x.fresh.state === 'conflict' && x.developer ? ` ${libraryLine(x.fresh) ?? ''}` : '';
   const sameRepo = !pull.head.repo?.full_name || pull.head.repo.full_name === `${repo.owner}/${repo.repo}`;
   const canAct = Boolean(x.access?.write) && sameRepo;
-  const cannot = !x.access ? `${ghAction('update it from main', prefersSignIn())}.` : !sameRepo ? 'It comes from a fork: its author updates it from main.' : `${nameOf(x.access.login)} cannot write to this branch, so someone with write access updates it from main.`;
+  const cannot = !x.developer
+    ? 'A developer is on it.'
+    : !x.access
+      ? `${ghAction('update it from main', prefersSignIn())}.`
+      : !sameRepo
+        ? 'It comes from a fork: its author updates it from main.'
+        : `${nameOf(x.access.login)} cannot write to this branch, so someone with write access updates it from main.`;
   const mount = (props: Parameters<typeof import('../components/ds/studio/LibraryCatchUp').mountLibraryCatchUp>[1]) =>
     void import('../components/ds/studio/LibraryCatchUp').then(({ mountLibraryCatchUp }) => {
       if (x.seq !== openSeq || !slot.isConnected) return;

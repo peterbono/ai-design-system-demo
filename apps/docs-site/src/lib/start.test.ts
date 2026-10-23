@@ -22,6 +22,8 @@ import {
   WORKSPACE_WORDS,
   workspaceHref,
   workspaceName,
+  workspaceTeamKey,
+  TEAM_HOME_WORDS,
   type StartFacts,
 } from './start';
 import type { ReservedPaths } from './team-path';
@@ -127,13 +129,14 @@ describe('start memory', () => {
     expect(parseStartMemory(null)).toEqual(EMPTY_START);
     expect(parseStartMemory('nope')).toEqual(EMPTY_START);
     expect(parseStartMemory('{"connect":"yes","step":"nowhere","demo":1}')).toEqual(EMPTY_START);
-    expect(parseStartMemory('{"connect":true,"step":"figma","demo":true}')).toEqual({ connect: true, step: 'figma', demo: true, team: null });
+    expect(parseStartMemory('{"connect":true,"step":"figma","demo":true}')).toEqual({ connect: true, step: 'figma', demo: true, link: null });
   });
 
-  it('keeps the team typed in Create your team until a repository names it (board E6)', () => {
-    expect(parseStartMemory('{"step":"create","team":{"name":"  Lumen   Studio ","discover":true}}')).toEqual({ connect: false, step: 'create', demo: false, team: { name: 'Lumen Studio', discover: true } });
-    expect(parseStartMemory('{"team":{"name":"","discover":true}}').team).toBeNull();
-    expect(parseStartMemory('{"team":{"name":"Acme","discover":"yes"}}').team).toEqual({ name: 'Acme', discover: false });
+  it('keeps only a repository link still to make: the team itself lives on the server (board E6)', () => {
+    expect(parseStartMemory('{"step":"create","link":{"team":"_team/c0ffee0000000017","repo":"Acme/DS"}}')).toEqual({ connect: false, step: 'create', demo: false, link: { team: '_team/c0ffee0000000017', repo: 'acme/ds' } });
+    expect(parseStartMemory('{"link":{"team":"acme/ds","repo":"acme/ds"}}').link).toBeNull();
+    // What older browsers kept of step 1 (a name typed, never sent) is dropped.
+    expect(parseStartMemory('{"team":{"name":"Acme","discover":true}}')).toEqual({ connect: false, step: null, demo: false, link: null });
   });
 });
 
@@ -155,5 +158,33 @@ describe('the addresses and words', () => {
   it('writes no em dash and no developer words', () => {
     const all = JSON.stringify([START_WORDS, WORKSPACE_WORDS.nothing, WORKSPACE_WORDS.hint, MENU_WORDS]);
     expect(all).not.toMatch(/—|localStorage|pull request/);
+  });
+});
+
+describe('the start screen line', () => {
+  it('never points a visitor without a team at a team menu', () => {
+    expect(START_WORDS.sub).not.toMatch(/team menu/i);
+    expect(START_WORDS.sub).not.toMatch(/\u2014/);
+  });
+});
+
+describe('the home of a team made in Bridge', () => {
+  const teams = [
+    { repo: 'acme/ds', role: 'edit' },
+    { repo: '_team/aaaaaaaaaaaaaaaa', role: 'edit' },
+    { repo: '_team/bbbbbbbbbbbbbbbb', role: 'admin' },
+  ];
+  it('shows the team the address names, else the one they administer, else the first one', () => {
+    expect(workspaceTeamKey(teams, '?team=aaaaaaaaaaaaaaaa')).toBe('_team/aaaaaaaaaaaaaaaa');
+    expect(workspaceTeamKey(teams, '')).toBe('_team/bbbbbbbbbbbbbbbb');
+    expect(workspaceTeamKey(teams, '?team=cccccccccccccccc')).toBe('_team/bbbbbbbbbbbbbbbb');
+    expect(workspaceTeamKey([teams[1]!], '')).toBe('_team/aaaaaaaaaaaaaaaa');
+    expect(workspaceTeamKey([teams[0]!], '')).toBeNull();
+  });
+
+  it('says what to connect next, and who does it', () => {
+    expect(TEAM_HOME_WORDS.ready('Northwind Design')).toBe('Northwind Design is set up. Connect your design system next, and your tokens, components and branches show up here.');
+    expect(TEAM_HOME_WORDS.waiting('Northwind Design')).toContain('An admin of the team connects it');
+    expect(JSON.stringify(TEAM_HOME_WORDS)).not.toContain(String.fromCharCode(0x2014));
   });
 });

@@ -818,6 +818,25 @@ a.tchip:hover {
   margin-bottom: var(--space-4);
 }
 
+/* The published Storybook does not list the story yet (scripts/component-page.ts checks its index). */
+.cp-sb-missing {
+  display: none;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.cp-sb-missing > p {
+  margin: 0;
+}
+
+.cp-page[data-sb-missing] .cp-sb-missing {
+  display: grid;
+}
+
+.cp-page[data-sb-missing] [data-sb-needs-story] {
+  display: none;
+}
+
 .cp-filter {
   display: grid;
   gap: var(--space-2);

@@ -316,7 +316,7 @@ export const EDIT_BAR_LABEL: Record<EditBarState, string> = {
   clean: 'No changes yet',
   saved: 'Draft saved in this browser',
   unsaved: 'Unsaved changes',
-  sent: 'Review requested',
+  sent: 'Sent for review',
 };
 
 /**
@@ -384,3 +384,12 @@ export function continueLine(author: string, viewer: string | null | undefined):
 
 /** The edit bar's state line: on an open proposal, "nothing changed" says since when. */
 export const editBarLabel = (state: EditBarState, continuing: boolean): string => (state === 'clean' && continuing ? CONTINUE_CLEAN : EDIT_BAR_LABEL[state]);
+
+/**
+ * Editing without a GitHub session (a guest, or signed out): a draft in this browser only. Keep and Discard work, the
+ * send asks to sign in. Never names the site "the demo": Bridge's own design system is real data.
+ */
+export function guestEditLine(signIn: boolean): string {
+  return `Draft only: your edits stay in this browser. ${signIn ? 'Sign in' : 'Connect GitHub'} to send them.`;
+}
+

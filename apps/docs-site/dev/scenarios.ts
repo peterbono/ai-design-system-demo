@@ -1,4 +1,4 @@
-// Audit scenarios S0 to S16 for `npm run dev:full` (docs/HOSTED.md, "Test everything locally"): `npm run dev:scenario
+// Audit scenarios S0 to S18 for `npm run dev:full` (docs/HOSTED.md, "Test everything locally"): `npm run dev:scenario
 // <name>` clears the local accounts, teams, codes and outbox, then writes one scenario with the same storage functions
 // the api/* functions use (accounts, members, invites, discovery, join requests) and, where a scenario needs it, the
 // account function itself (sign-in codes). It prints the emails to sign in with and what each one should see.
@@ -19,7 +19,8 @@ import { b64url, sha256 } from '../api/_lib/http.js';
 import { localAdminStore } from '../api/_lib/local-admin.js';
 import { memberStore } from '../api/_lib/members.js';
 import type { Redis } from '../api/_lib/redis.js';
-import { JOIN_REQUEST_TTL_MS, putDiscovery, putRequest } from '../api/_lib/teams.js';
+import { JOIN_REQUEST_TTL_MS, putDiscovery, putRequest, putTeamName, putTeamRecord } from '../api/_lib/teams.js';
+import { teamKeyOf } from '../src/lib/team-path.js';
 import { handleAccount } from '../api/account/index.js';
 import { INVITE_PATH, INVITE_TTL_MS, inviteEmail, inviteStoreOn, type ReviewAs, type Role } from '../api/invites/index.js';
 import { putFixture } from './local-github.js';
@@ -37,6 +38,9 @@ export interface SignIn {
   /** For `teams`: how many teams, and the role on each ("owner/repo": role). */
   teams?: Record<string, 'edit' | 'admin'>;
 }
+
+/** The fixed id of the team made in Bridge of S17, so its address is the same every run. */
+export const NO_REPO_TEAM_ID = 'c0ffee0000000017';
 
 export interface ScenarioResult {
   signIns: SignIn[];
@@ -98,6 +102,9 @@ const P = {
   limit: { email: 'limit@lumen.studio', name: 'Sasha Vale' },
   alex: { email: 'alex.kim@gmail.com', name: 'Alex Kim' },
   jordan: { email: 'jordan@northwind.io', name: 'Jordan Blake' },
+  dee: { email: 'dee@northwind.io', name: 'Dee Okafor' },
+  sol: { email: 'sol@northwind.io', name: 'Sol Reyes' },
+  kai: { email: 'kai@northwind.io', name: 'Kai Ito' },
 } satisfies Record<string, Person>;
 
 const LUMEN_PEOPLE: Person[] = [
@@ -147,9 +154,23 @@ export class Seed {
     await putAccount(this.ctx.redis, a);
   }
 
-  async member(repo: string, p: Person, addedBy = 'local-seed', ago = 10 * DAY): Promise<void> {
+  async member(repo: string, p: Person, addedBy = 'local-seed', ago = 10 * DAY, role: 'edit' | 'admin' = 'edit'): Promise<void> {
     await this.account(p);
-    await memberStore(this.ctx.redis).put(repo, { email: p.email.toLowerCase(), name: p.name, role: 'edit', version: 1, addedBy, at: iso(this.ctx.now - ago) });
+    await memberStore(this.ctx.redis).put(repo, { email: p.email.toLowerCase(), name: p.name, role, version: 1, addedBy, at: iso(this.ctx.now - ago) });
+  }
+
+  /**
+   * A team made in Bridge ("Create your team"), no repository yet: its record, its name, its creator as its email
+   * admin (no GitHub, no local admin seat: the real thing) and its members. Returns its key, `_team/<id>`.
+   */
+  async teamWithoutRepo(id: string, name: string, admin: Person, members: Person[]): Promise<string> {
+    const key = teamKeyOf(id);
+    const createdAt = iso(this.ctx.now - 3 * DAY);
+    await putTeamRecord(this.ctx.redis, { id, name, createdBy: admin.email.toLowerCase(), createdAt, repo: null, storybook: null });
+    await putTeamName(this.ctx.redis, key, name, this.ctx.now);
+    await this.member(key, admin, admin.name, 3 * DAY, 'admin');
+    for (const [i, m] of members.entries()) await this.member(key, m, admin.name, (2 - i * 0.1) * DAY);
+    return key;
   }
 
   /** The team, its fixture files, its admin (a seeded local admin, also an email member) and its members. */
@@ -324,9 +345,9 @@ export const SCENARIOS: Scenario[] = [
       await s.team(T.product);
       const link = await s.invite(T.product, P.mia.email);
       return result(
-        [{ ...P.mia, kind: 'invites', expect: '"Acme Product invited you" (E3), Sam Rivera invited, You join as Can edit. Join lands on the team home as a contributor.' }],
+        [{ ...P.mia, kind: 'invites', expect: '"Acme Product invited you" (E3), Sam Rivera invited, You join as Can edit. Join lands on the team home, signed in with the account.' }],
         ['The invite email is in the outbox (/api/dev/outbox).'],
-        [{ url: link, expect: 'The invite link: join with the email (no GitHub), then the team.' }],
+        [{ url: link, expect: 'The invite link: "Join Acme Product", the code goes to m•••@acme.com, then the name, then E3 and the team. Signed in as mia: E3 at once.' }],
       );
     },
   },
@@ -341,7 +362,7 @@ export const SCENARIOS: Scenario[] = [
       return result(
         [{ ...P.mia, kind: 'create', expect: 'The expired invite is not offered: "Create your team" (with "Expecting an invite?").' }],
         [],
-        [{ url: link, expect: 'The invite link says it expired and how to get a new one.' }],
+        [{ url: link, expect: 'The invite link says it no longer works and to ask Sam Rivera for a new one, with Sign in.' }],
       );
     },
   },
@@ -360,14 +381,14 @@ export const SCENARIOS: Scenario[] = [
           { ...P.mia, kind: 'invites', expect: 'Control: the invited address sees "Acme Product invited you".' },
         ],
         [],
-        [{ url: link, expect: 'Open it while signed in as mia.rossi@gmail.com: it names the masked address it was sent to.' }],
+        [{ url: link, expect: 'Open it while signed in as mia.rossi@gmail.com: "This invite was sent to m•••@acme.com", Sign in as that email.' }],
       );
     },
   },
   {
     id: 'S9',
     slug: 'invite-reviewer-admin',
-    title: 'Reviewer and admin invites (need GitHub)',
+    title: 'Reviewer invite (needs GitHub) and admin invite (email only)',
     async run(ctx) {
       const s = new Seed(ctx);
       await s.team(T.product);
@@ -375,13 +396,13 @@ export const SCENARIOS: Scenario[] = [
       const adm = await s.invite(T.product, P.ava.email, 'admin');
       return result(
         [
-          { ...P.noah, kind: 'invites', expect: 'E3 as Reviewer: Join asks to connect GitHub first (409 github-required), in words a designer understands.' },
-          { ...P.ava, kind: 'invites', expect: 'E3 as Admin: same GitHub step.' },
+          { ...P.noah, kind: 'invites', expect: 'E3 as Reviewer: design. The GitHub step shows before any Join (reviewers approve on GitHub); without GitHub sign-in on the site, it says it is not available here and to ask Sam Rivera.' },
+          { ...P.ava, kind: 'invites', expect: 'E3 as Admin: Join works with the email, no GitHub. Ava lands on the team as Admin and manages Members.' },
         ],
-        ['Connecting GitHub itself needs a GitHub App (not in local mode): the audit stops at the explanation.'],
+        ['Connecting GitHub itself needs a GitHub App (not in local mode): the reviewer audit stops at the explanation.'],
         [
-          { url: rev, expect: 'Reviewer invite link: the GitHub path.' },
-          { url: adm, expect: 'Admin invite link: the GitHub path.' },
+          { url: rev, expect: 'Reviewer invite link: the code to n•••@acme.com, then E3 with the GitHub step.' },
+          { url: adm, expect: 'Admin invite link: the code to a•••@acme.com, then E3: Join with the email, no GitHub.' },
         ],
       );
     },
@@ -507,6 +528,57 @@ export const SCENARIOS: Scenario[] = [
           { ...P.limit, kind: 'create', expect: 'Already 5 codes today: "Send code" answers the daily limit (429) in words.' },
         ],
         ['111111 and 222222 are in the outbox too. Any other sign-in: read its code at /api/dev/outbox.'],
+      );
+    },
+  },
+  {
+    id: 'S17',
+    slug: 'team-no-repo',
+    title: 'Team created in Bridge, no repository yet',
+    async run(ctx) {
+      const s = new Seed(ctx);
+      const key = await s.teamWithoutRepo(NO_REPO_TEAM_ID, 'Northwind Design', P.jordan, [P.dee]);
+      await putDiscovery(ctx.redis, key, { domain: 'northwind.io', enabled: true, byGithubId: 0, byLogin: '', byName: P.jordan.name, at: iso(ctx.now - 3 * DAY) });
+      await s.request({ repo: key, name: 'Northwind Design', admin: P.jordan, members: [] }, P.sol, 2 * 3_600_000);
+      return result(
+        [
+          {
+            ...P.jordan,
+            kind: 'teams',
+            teams: { [key]: 'admin' },
+            expect: 'Lands on the Northwind Design home (/studio/workspace/?team=...): the chip says Northwind Design, the home says what to connect next, Sol Reyes asks to join. The checklist says "Your team: Done".',
+          },
+          { ...P.dee, kind: 'teams', teams: { [key]: 'edit' }, expect: 'Same home as a member: no connect action, "An admin connects the design system".' },
+          { ...P.kai, kind: 'domain', expect: 'E4: Northwind Design, Admin: Jordan Blake, 2 members. Ask to join.' },
+        ],
+        [
+          'Settings > Account as Jordan: Delete my account says at once that Jordan is the only admin of Northwind Design, with "Make Dee Okafor admin".',
+          'Linking a repository needs GitHub (an admin of it): not in local mode. The tests cover it (link-team).',
+        ],
+      );
+    },
+  },
+  {
+    id: 'S18',
+    slug: 'email-admin',
+    title: 'Email admin, no GitHub',
+    async run(ctx) {
+      const s = new Seed(ctx);
+      await s.team(T.product);
+      await s.member(T.product.repo, P.priya, P.sam.name, 15 * DAY, 'admin');
+      await s.discovery(T.product, true);
+      await s.request(T.product, P.taylor, 3 * 3_600_000);
+      return result(
+        [
+          {
+            ...P.priya,
+            kind: 'teams',
+            teams: teamsOf([T.product, 'admin']),
+            expect: 'Admin without GitHub: the home shows Taylor asking to join (Approve works). Settings > Members: invite by email, make Leo admin, remove him. Reviewer stays greyed with the reason.',
+          },
+          { ...P.leo, kind: 'teams', teams: teamsOf([T.product, 'edit']), expect: 'Can edit: reads Members, changes nothing.' },
+        ],
+        ['Priya is an email admin (role admin on her membership), not a seeded local admin: the real production path.'],
       );
     },
   },

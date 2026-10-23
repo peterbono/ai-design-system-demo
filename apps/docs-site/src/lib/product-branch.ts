@@ -81,7 +81,7 @@ const mainValue = (p: MissingPiece | undefined): string | null => {
 
 /**
  * One row per missing piece, linked ones first in the order they were opened, then the ones still without a library
- * branch (with "Open a library branch"). Links whose piece the latest check no longer finds still show.
+ * branch (with "Send for review"). Links whose piece the latest check no longer finds still show.
  */
 export function pieceRows(input: { record: PiecesRecord | undefined; linked: LinkedLibraryBranch[]; names?: Record<string, string> }): PieceRowView[] {
   const r = input.record;
@@ -100,7 +100,7 @@ export function pieceRows(input: { record: PiecesRecord | undefined; linked: Lin
   });
   for (const p of r.pieces) {
     if (rows.some((x) => x.id === p.id) || r.links.some((l) => l.piece === p.id)) continue;
-    rows.push({ id: p.id, title: p.title, value: mainValue(p), library: null, action: { kind: 'open', label: 'Open a library branch' }, preview: null, previewSentence: null });
+    rows.push({ id: p.id, title: p.title, value: mainValue(p), library: null, action: { kind: 'open', label: 'Send for review' }, preview: null, previewSentence: null });
   }
   return rows;
 }

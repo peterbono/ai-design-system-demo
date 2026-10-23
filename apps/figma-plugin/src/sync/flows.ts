@@ -157,7 +157,7 @@ export async function analyze(
     slug: slugify(m.name, 24),
     modeKey: m.modeKey,
     values: m.values,
-    blocked: headFiles.config ? undefined : `This repo has no bridge.config.json, so DS Bridge cannot list a new brand in it. Add the config (bridge init), or create brands/${slugify(m.name, 24)}.tokens.json in code.`,
+    blocked: headFiles.config ? undefined : `This repo has no bridge.config.json, so Bridge cannot list a new brand in it. Add the config (bridge init), or create brands/${slugify(m.name, 24)}.tokens.json in code.`,
   }));
   return {
     settings,
@@ -310,7 +310,7 @@ export async function openPullRequest(client: GitHubClient, a: Analysis, p: Push
   // A changeset only when the repo's bridge.config.json names the package to bump.
   const pkg = a.headFiles.config?.changeset?.package;
   // Token edits get their changeset; each new brand brings its own (minor) one, under another name.
-  const changeset = pkg && p.changes.length ? composeChangeset(p.changes, { title, branch, packageName: pkg, source: 'from Figma via DS Bridge' }) : undefined;
+  const changeset = pkg && p.changes.length ? composeChangeset(p.changes, { title, branch, packageName: pkg, source: 'from Figma via Bridge' }) : undefined;
   const repoFiles = [...Object.entries(p.files).map(([rel, content]) => ({ path: `${prefix}/${rel}`, content })), ...(changeset ? [changeset] : []), ...p.brandFiles];
 
   const parent = appended ? await client.getBranchSha(branch) : a.headSha;
@@ -319,7 +319,7 @@ export async function openPullRequest(client: GitHubClient, a: Analysis, p: Push
   const blobs = [];
   for (const f of repoFiles) blobs.push({ path: f.path, sha: await client.createBlob(f.content) });
   const tree = await client.createTree(baseTree, blobs);
-  const message = p.changes.length ? commitMessage(title, p.changes, 'Exported from Figma with DS Bridge.') : `${title}\n\n${plans.map((x) => `New brand ${x.name} (${x.slug}) from a Figma Brand mode.`).join('\n')}\n\nExported from Figma with DS Bridge.`;
+  const message = p.changes.length ? commitMessage(title, p.changes, 'Exported from Figma with Bridge.') : `${title}\n\n${plans.map((x) => `New brand ${x.name} (${x.slug}) from a Figma Brand mode.`).join('\n')}\n\nExported from Figma with Bridge.`;
   const commitSha = await client.createCommit(message, tree, [parent]);
 
   let pr: PullRequest;
@@ -327,14 +327,14 @@ export async function openPullRequest(client: GitHubClient, a: Analysis, p: Push
     await client.updateBranch(branch, commitSha);
     pr = opts.appendTo!;
     const lines = [...p.changes.map((c) => `- ${(c.target ?? c.current)!.path}`), ...plans.map((x) => `- New brand ${x.name} (\`${x.slug}\`)`)];
-    await client.addComment(pr.number, `DS Bridge added a commit from Figma:\n\n${lines.join('\n')}`).catch(() => undefined);
+    await client.addComment(pr.number, `Bridge added a commit from Figma:\n\n${lines.join('\n')}`).catch(() => undefined);
   } else {
     await client.createBranch(branch, commitSha);
     const origin = {
-      tool: 'the DS Bridge Figma plugin',
+      tool: 'the Bridge Figma plugin',
       surface: 'Figma',
       location: opts.fileName,
-      authoredBy: 'Human designer in Figma, via the DS Bridge plugin (no AI involved in the values)',
+      authoredBy: 'Human designer in Figma, via the Bridge plugin (no AI involved in the values)',
     };
     const tokenBody = () => composePrBody({
       changes: p.changes,
@@ -416,7 +416,7 @@ export async function commitToExploration(client: GitHubClient, a: Analysis, p: 
     .filter(([rel, content]) => there.files[rel] !== content)
     .map(([rel, content]) => ({ path: `${prefix}/${rel}`, content }));
   const pkg = config?.changeset?.package;
-  const changeset = pkg && tokenFiles.length && p.changes.length ? composeChangeset(p.changes, { title, branch, packageName: pkg, source: 'from Figma via DS Bridge' }) : undefined;
+  const changeset = pkg && tokenFiles.length && p.changes.length ? composeChangeset(p.changes, { title, branch, packageName: pkg, source: 'from Figma via Bridge' }) : undefined;
   const repoFiles = [...tokenFiles, ...(changeset ? [changeset] : []), ...p.brandFiles];
   const tags: VariableTag[] = [];
   for (const c of p.changes) {
@@ -430,12 +430,12 @@ export async function commitToExploration(client: GitHubClient, a: Analysis, p: 
   const blobs = [];
   for (const f of repoFiles) blobs.push({ path: f.path, sha: await client.createBlob(f.content) });
   const tree = await client.createTree(baseTree, blobs);
-  const message = `${p.changes.length ? commitMessage(title, p.changes, 'Exported from Figma with DS Bridge.') : title}\n\nExploration ${branch}: not merged as is.`;
+  const message = `${p.changes.length ? commitMessage(title, p.changes, 'Exported from Figma with Bridge.') : title}\n\nExploration ${branch}: not merged as is.`;
   const commitSha = await client.createCommit(message, tree, [tip]);
   await client.updateBranch(branch, commitSha);
   const lines = [...p.changes.map((c) => `- ${(c.target ?? c.current)!.path}`), ...plans.map((x) => `- New brand ${x.name} (\`${x.slug}\`)`)];
   const why = opts.notes.trim();
-  await client.addComment(pr.number, `DS Bridge added a commit from Figma to this exploration:\n\n${lines.join('\n')}${why ? `\n\n${why}` : ''}`).catch(() => undefined);
+  await client.addComment(pr.number, `Bridge added a commit from Figma to this exploration:\n\n${lines.join('\n')}${why ? `\n\n${why}` : ''}`).catch(() => undefined);
   return { pr, branch, commitSha, appended: true, tags, unchanged: false };
 }
 
@@ -477,12 +477,13 @@ export function commitsBehind(a: Pick<Analysis, 'baseSha' | 'headSha' | 'compare
  * The Pull headline. "Already up to date" only when the file was pulled from the branch head: commits on main that
  * change nothing in Figma still say how many there are, and the screen offers the pull so the file catches up.
  */
-export function pullHeadline(o: { baseSha: string | undefined; branch: string; variablesUpToDate: boolean; behind: number; status: string[] }): string {
-  const changes = o.behind ? `${o.behind} new ${o.behind === 1 ? 'change' : 'changes'} on ${o.branch}` : '';
-  if (!o.baseSha) return 'First pull';
+export function pullHeadline(o: { baseSha: string | undefined; variablesUpToDate: boolean; behind: number; status: string[] }): string {
+  // Designer words: "the design system", never the branch name or a commit.
+  const changes = o.behind ? `${o.behind} new ${o.behind === 1 ? 'change' : 'changes'} in the design system` : '';
+  if (!o.baseSha) return 'First time in this file';
   if (!o.variablesUpToDate) return o.status.join(', ') || changes || 'Already up to date';
   if (o.behind) return [changes, ...o.status].join(', ');
-  return o.status.length ? `Up to date with ${o.branch}. ${o.status.join(', ')}.` : 'Already up to date';
+  return o.status.length ? `Up to date with the design system. ${o.status.join(', ')}.` : 'Already up to date';
 }
 
 /** `overwrite`: main wins over every Figma edit to a token that exists on main (Figma-only variables stay). */
@@ -622,13 +623,13 @@ export async function sendSuggestion(client: GitHubClient, a: Analysis, p: PushP
   if (p.validation.blocking.length) throw new Error('Fix the blocking problems before you send a suggestion.');
   if (!Object.keys(p.files).length && !p.brandFiles.length) throw new Error('Nothing to send: the Figma variables match main.');
   const lib = libraryTokens(a.headFiles);
-  if (!lib) throw new Error('This repo has no bridge.config.json, so DS Bridge cannot send a suggestion. Add the config (bridge init).');
+  if (!lib) throw new Error('This repo has no bridge.config.json, so Bridge cannot send a suggestion. Add the config (bridge init).');
   const plans = p.brands.flatMap((b) => (b.plan ? [b.plan] : []));
   const title = opts.title.trim() || (p.changes.length ? defaultTitle(p.changes) : plans.map((x) => x.title).join(', '));
-  const origin = `Sent from Figma (${opts.fileName || 'a Figma file'}) with the DS Bridge plugin. A human designer set these values; no AI involved.`;
+  const origin = `Sent from Figma (${opts.fileName || 'a Figma file'}) with the Bridge plugin. A human designer set these values; no AI involved.`;
   const out: SentSuggestion[] = [];
   if (p.changes.length) {
-    const plan = planTokenProposal({ before: lib.before, pairs: a.pairs, edits: tokenEditsOf(p.changes), title, summary: opts.notes, config: lib.config, tool: 'the DS Bridge Figma plugin', bodyExtra: [origin] });
+    const plan = planTokenProposal({ before: lib.before, pairs: a.pairs, edits: tokenEditsOf(p.changes), title, summary: opts.notes, config: lib.config, tool: 'the Bridge Figma plugin', bodyExtra: [origin] });
     if (plan) {
       const links = fileLink(opts);
       const r = await suggestTokenProposalOnGitHub(client, plan, { base: a.settings.branch, baseSha: a.headSha, source: 'figma', suggestedBy: opts.suggestedBy, labelsAfter: ['source: figma'], ...(links ? { links } : {}) });

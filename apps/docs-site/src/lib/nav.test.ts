@@ -2,7 +2,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { ABOUT, allPages, COMPARE, DEMO, DOCS_FIGMA_PLUGIN, DOCS_HOME, HOW_REVIEW_WORKS, LANDING, LIBRARY_HOME, locate, navFor, SETTINGS_HOME, SETTINGS_SECTIONS, spaceOf } from './nav';
+import { ABOUT, allPages, COMPARE, DEMO, DOCS_FIGMA_PLUGIN, DOCS_HOME, HOW_REVIEW_WORKS, LANDING, LIBRARY_HOME, locate, navFor, SETTINGS_HOME, SETTINGS_SECTIONS, spaceOf, workspaceNav } from './nav';
+import { WORKSPACE_HOME } from './start';
 import { DEMO_REPOS } from './demo';
 import { REDIRECT_SCRIPT_BODY, REDIRECTS, redirectScript, redirectTarget } from './redirects';
 import { ROOT } from './repo';
@@ -231,5 +232,17 @@ describe('redirects', () => {
   it('never shadows a real page', () => {
     const shadowed = Object.keys(REDIRECTS).filter((from) => pageFile(from));
     expect(shadowed).toEqual([]);
+  });
+});
+
+describe('the browser workspace rail', () => {
+  it('links only to the workspace home, never to the pages of Bridge\'s own design system', () => {
+    const hrefs = workspaceNav().map((e) => e.href);
+    expect(hrefs).toEqual([WORKSPACE_HOME]);
+    for (const own of navFor('studio').slice(1)) expect(hrefs).not.toContain(own.href);
+  });
+
+  it('marks the workspace home as the current page of Studio', () => {
+    expect(locate(WORKSPACE_HOME).space).toBe('studio');
   });
 });

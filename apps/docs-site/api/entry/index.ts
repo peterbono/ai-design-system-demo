@@ -6,35 +6,60 @@
 //               linked and when the request carries that GitHub account's own token (Bearer), the repositories the
 //               Bridge app is installed on where it can push or administer (GitHub proves the rights). Sign-in is by
 //               email; GitHub is never needed here
-//               { kind: 'teams', teams: [{ repo, name, role: 'edit' | 'reviewer' | 'admin', via: 'email' | 'github' }] }
+//               { kind: 'teams', teams: [{ repo, id, name, role: 'edit' | 'reviewer' | 'admin', via: 'email' | 'github' }] }
 //   2. invites  invites wait for their email
-//               { kind: 'invites', invites: [{ id, team, repo, role, invitedBy, invitedAt, memberCount, people }] }
+//               { kind: 'invites', invites: [{ id, team, repo, role, reviewAs?, invitedBy, invitedAt, memberCount, people }] }
 //               (accept-invite joins directly)
 //   3. domain   teams whose admin opened them to the person's work domain, all of them, largest first
-//               { kind: 'domain', domain, teams: [{ repo, name, memberCount, people, adminName, requested }] }
+//               { kind: 'domain', domain, teams: [{ id, name, memberCount, people, adminName, requested, expired }] }
+//               `id`: an opaque team id (the person is not a member: the repository is never named). `expired`:
+//               their last request ran out unanswered.
 //   `people`: the names of the first few people on the team (admins first, at most PEOPLE_SHOWN), for the avatars of
-//   the team card; the card shows the rest as "+N" from memberCount. Names only, never an email.
+//   the team card; the card shows the rest as "+N" from memberCount. Names only, never an email; on a domain card
+//   (people not on the team yet) first names and an initial only ("Sam R.").
 //   4. create   { kind: 'create' }
 // Public and free mailbox domains (api/_lib/domains.ts) never match and can never be opened.
 //
 // Other endpoints (JSON, errors are { error, message } in Studio words). All need the account cookie (api/account):
 //   GET  /api/entry?requests=owner/name     admin: { requests: [{ id, name, email, createdAt, expiresAt }] }
 //   GET  /api/entry?discovery=owner/name    admin: { domain, enabled, configured, eligible }
+//   POST { action: 'invite-link', token }  what an invite link (/studio/invite/#t=<token>) is, signed in or not (the
+//                                           only call without the cookie; capped per network):
+//            { state: 'live', team, invitedBy, role, reviewAs?, sentTo (masked), signedIn, mine, member, invite?, repo? }
+//            { state: 'gone', team, invitedBy, signedIn, member, repo? }   accepted, cancelled or expired
+//            { state: 'unknown', signedIn }                                 a token Bridge never knew
+//            `invite` (an E3 card, as in GET) only when the invite is the signed-in account's own; `repo` only for
+//            a member of that team (to open it). Never the invited email, only masked.
 //   POST { action: 'accept-invite', repo, id }   the invite sent to the account email; joins directly
 //                                                { joined: true, status, repo, role, next }
-//   POST { action: 'request', repo }        asks to join a team open to their work domain (an invite for that team
-//                                           is accepted instead: { joined: true, ... }); { requested: true, expiresAt }
-//   POST { action: 'cancel-request', repo }  the requester takes back their own pending request (keyed by the
+//   POST { action: 'request', team }        asks to join a team open to their work domain, by its opaque id (`repo`
+//                                           works too); an invite for that team is accepted instead: { joined: true,
+//                                           ... }; { requested: true, expiresAt }; 409 already { repo } for a member
+//   POST { action: 'cancel-request', team }  the requester takes back their own pending request (keyed by the
 //                                           account email, so nobody else's); { cancelled: true }, 404 when none waits
 //   POST { action: 'approve', repo, id }    admin: the requester joins with Can edit; { member: { name, role }, repo }
 //   POST { action: 'decline', repo, id }    admin: { ok: true }
+//   POST { action: 'undo', repo, id }       admin, within 30 s of an approve or decline: the request waits again and a
+//                                           person the approve added leaves; { undone: true, request }, 410 after
 //   POST { action: 'discovery', repo, enabled }  admin: opens the team to the admin's own work domain, or closes it;
 //                                           { domain, enabled }
+//   POST { action: 'create-team', name, discover }  "Create your team" step 1: a real team before any repository, its
+//                                           creator its first admin, open to their work domain when `discover` (never a
+//                                           public one). One team without a repository per creator: calling it again
+//                                           renames that team and changes its discovery. { team, created }
+//   GET  /api/entry?team=_team/<id>         a member of a team made in Bridge: { team } (name, role, repo, storybook,
+//                                           discovery, memberCount); 404 for anyone else, like a team that does not exist
+//   POST { action: 'link-team', team, storybook }  admin: keeps the Storybook connected with the quick start. { team }
+//   POST { action: 'link-team', team, repo }  admin of the team and of the repository: the team moves to the repository
+//                                           (members, admins, discovery, requests, invites, name). { repo, next }
+// A team made in Bridge goes by its key `_team/<id>` (src/lib/team-path.ts) until a repository is linked; every
+// action that takes `repo` takes that key too, and an old key resolves to the repository it was linked to.
 // Every POST carries `X-Bridge-Contribute: 1` (or `X-Bridge-Account: 1`), JSON, and an Origin of this site (CSRF).
 //
-// Admins: the account's linked GitHub account is an admin of the repository, read with the Bridge app's installation
-// token on every call (the GitHub id must match, so a renamed login never passes for another). Nothing the browser
-// says about its role is trusted. `npm run dev:full` only: an account seeded as admin (api/_lib/local-admin.ts) passes
+// Admins: an email member the team made Admin (api/_lib/members.ts: members, requests, discovery, settings and invites
+// need no GitHub), or the account's linked GitHub account is an admin of the repository, read with the Bridge app's
+// installation token on every call (the GitHub id must match, so a renamed login never passes for another). A team made
+// in Bridge without a repository has email admins only. Nothing the browser says about its role is trusted. `npm run dev:full` only: an account seeded as admin (api/_lib/local-admin.ts) passes
 // without GitHub; the Vercel exports never pass that dependency and it is ignored outside local mode.
 //
 // Privacy: other members' emails never leave here. A domain team or an invite shows the admin or inviter by their
@@ -54,25 +79,38 @@ import { workDomain } from '../_lib/domains.js';
 import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
-import { clientIp, dayOf, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody, sameOrigin, secondsToTomorrow, siteOrigin, type FetchLike } from '../_lib/http.js';
+import { clientIp, dayOf, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin, type FetchLike } from '../_lib/http.js';
 import { accountTeamsKey, memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
 import {
+  configName,
+  forgetTeamKey,
+  getTeamRecord,
+  parseTeam,
+  resolveTeam as resolveTeamOn,
+  type TeamRef,
+  putTeamRecord,
+  type TeamRecord,
   type Discovery,
   getDiscovery,
+  getTeamNames,
   getRequest,
   JOIN_REQUEST_TTL_MS,
   type JoinRequest,
   listRequests,
   myRequests,
+  putDecided,
   putDiscovery,
   putRequest,
+  putTeamName,
   removeRequest,
+  takeDecided,
+  TEAM_NAME_MAX_AGE_MS,
   teamsForDomain,
 } from '../_lib/teams.js';
-import { acceptInviteForGithub, githubApp as invitesApp, inviteStoreOn, type InviteStore, type StoredInvite } from '../invites/index.js';
+import { acceptInviteForGithub, githubApp as invitesApp, inviteStoreOn, maskEmail, type InviteStore, type StoredInvite } from '../invites/index.js';
 import { teamDisplayName } from '../../src/lib/demo.js';
-import { STUDIO_ROOT } from '../../src/lib/team-path.js';
+import { isTeamKey, STUDIO_ROOT, teamHref as studioTeamHref, teamKeyId, teamKeyOf } from '../../src/lib/team-path.js';
 
 export type { FetchLike };
 
@@ -111,10 +149,22 @@ export interface EntryDeps {
 export type EntryTeamRole = 'edit' | 'reviewer' | 'admin';
 
 export type Entry =
-  | { kind: 'teams'; teams: { repo: string; name: string; role: EntryTeamRole; via: 'email' | 'github' }[] }
-  | { kind: 'invites'; invites: { id: string; team: string; repo: string; role: string; invitedBy: string; invitedAt: string; memberCount: number; people: string[] }[] }
-  | { kind: 'domain'; domain: string; teams: { repo: string; name: string; memberCount: number; people: string[]; adminName: string; requested: boolean }[] }
+  | { kind: 'teams'; teams: { repo: string; id: string; name: string; role: EntryTeamRole; via: 'email' | 'github' }[] }
+  | { kind: 'invites'; invites: EntryInviteCard[] }
+  | { kind: 'domain'; domain: string; teams: { id: string; name: string; memberCount: number; people: string[]; adminName: string; requested: boolean; expired: boolean }[] }
   | { kind: 'create' };
+
+export interface EntryInviteCard {
+  id: string;
+  team: string;
+  repo: string;
+  role: string;
+  reviewAs?: string;
+  invitedBy: string;
+  invitedAt: string;
+  memberCount: number;
+  people: string[];
+}
 
 /** Names sent per team card (its avatars); the card counts the rest from memberCount. */
 export const PEOPLE_SHOWN = 4;
@@ -134,11 +184,19 @@ export const NOT_CONFIGURED = 'Bridge accounts are not available yet on this sit
 export const SIGNIN = 'Your session ended. Sign in again.';
 export const NOT_OPEN = 'This team is not open to your email. Ask an admin of the team to invite you.';
 export const ADMIN_ONLY = 'Only admins of this team can do this. Continue with GitHub with an admin account.';
+export const ADMIN_ONLY_TEAM = 'Only admins of this team can do this. Ask an admin of the team to make you one.';
+export const TEAM_GONE = 'This team no longer exists, or you are not on it.';
+export const BAD_TEAM_NAME = 'Name your team: 1 to 60 characters.';
+export const REPO_ADMIN_ONLY = 'Only an admin of this repository on GitHub can connect it to your team. Ask them, or connect your GitHub account if it is you.';
+export const ALREADY_LINKED = (repo: string) => `This team is already connected to ${repo}.`;
+export const LINK_APP_MISSING = 'Bridge is not installed on this repository yet. Open it and install Bridge: your team moves there once it is.';
+export const BAD_STORYBOOK = 'Paste the address of your published Storybook, starting with https://.';
 export const PUBLIC_DOMAIN = 'Teams open to a work email only. Your account uses a public email, like Gmail or Outlook: sign in with your work email to turn this on.';
-export const GITHUB_REQUIRED = 'Reviewers and admins approve and merge on GitHub. Continue with GitHub, then accept this invite.';
+export const GITHUB_REQUIRED = 'Reviewers approve changes on GitHub. Continue with GitHub, then accept this invite.';
 export const ALREADY = 'You are already on this team.';
 export const INVITE_GONE = 'This invite expired or was cancelled. Ask your admin for a new one.';
 export const REQUEST_GONE = 'This request expired or was already answered.';
+export const UNDO_GONE = 'It is too late to undo this. Change who is on the team from Members.';
 const APP_MISSING = 'Bridge cannot read this team on GitHub yet. An admin of the repository gives the Bridge app access to it.';
 const STORAGE_DOWN = 'Bridge could not reach its storage. Try again in a minute.';
 export const LIMIT_WORDS = {
@@ -197,10 +255,32 @@ interface Ctx {
 // Helpers
 
 const hmacHex = (secret: string, s: string) => createHmac('sha256', secret).update(s).digest('hex').slice(0, 32);
+/**
+ * A member as colleagues outside the team see them on its card: the first name and the initial of the last ("Sam R."),
+ * enough for the avatar's initials, never the whole name (/privacy/ says so).
+ */
+export const firstNameOnly = (name: string): string => {
+  const [first = '', ...rest] = name.trim().split(/\s+/);
+  const last = rest.at(-1);
+  return last ? `${first} ${last.charAt(0).toUpperCase()}.` : first;
+};
+
+/** A team as people outside it know it: an opaque id, stable for the site, that never names the repository. */
+export const teamId = (secret: string, repo: string) => `t${hmacHex(secret, `team:${repo.trim().toLowerCase()}`).slice(0, 20)}`;
+const TEAM_ID = /^t[a-f0-9]{20}$/;
 const teamHref = (repo: string) => {
   const [o, r] = repo.split('/') as [string, string];
+  // A team made in Bridge, no repository yet: its home is the workspace page.
+  if (isTeamKey(repo)) return studioTeamHref(o, r, null);
   return `${STUDIO_ROOT}${encodeURIComponent(o)}/${encodeURIComponent(r)}/`;
 };
+/** Where an admin reviews requests: the team's Settings, or the home of a team made in Bridge. */
+const manageHref = (repo: string) => (isTeamKey(repo) ? teamHref(repo) : `${teamHref(repo)}settings/`);
+
+export { parseTeam, type TeamRef };
+
+/** The team an action names, a key whose team has been linked to a repository since resolving to that repository. */
+const resolveTeam = (ctx: Ctx, v: unknown): Promise<TeamRef> => resolveTeamOn(ctx.svc.redis, v);
 
 function requireCsrf(req: Request): void {
   const header = req.headers.get('x-bridge-contribute') === '1' || req.headers.get('x-bridge-account') === '1';
@@ -311,7 +391,7 @@ async function adminDisplayName(ctx: Ctx, token: string, a: Account): Promise<st
 
 /** GitHub collaborators of a team, through the app; null when the app cannot read it. */
 async function collaboratorsOf(ctx: Ctx, repo: string): Promise<any[] | null> {
-  if (!ctx.svc.app) return null;
+  if (!ctx.svc.app || isTeamKey(repo)) return null;
   const { owner, repo: name } = parseRepo(repo);
   const token = await ctx.svc.app.installationToken(owner, name);
   if (!token) return null;
@@ -340,7 +420,8 @@ async function teamPeople(ctx: Ctx, repo: string): Promise<{ memberCount: number
     if (people.length >= PEOPLE_SHOWN) break;
     people.push(await githubNameOf(ctx, c.id, c.login));
   }
-  for (const m of emails) {
+  // Email admins first (a team made in Bridge has no GitHub people), then the others.
+  for (const m of [...emails].sort((x, y) => Number(y.role === 'admin') - Number(x.role === 'admin'))) {
     if (people.length >= PEOPLE_SHOWN) break;
     const name = typeof m.name === 'string' ? m.name.trim() : '';
     if (name && !name.includes('@')) people.push(name);
@@ -353,27 +434,85 @@ async function teamPeople(ctx: Ctx, repo: string): Promise<{ memberCount: number
   return { memberCount: emails.length + collaborators.length, people, nameOfLogin };
 }
 
+
+// ---------------------------------------------------------------------------------------------------------------
+// Team names
+
+/** bridge.config.json `name` on the default branch, read with the Bridge app; undefined when GitHub cannot say. */
+async function readConfigName(ctx: Ctx, repo: string): Promise<string | null | undefined> {
+  const [owner, name] = repo.split('/');
+  // A team made in Bridge has no settings file: its name is the one it was given.
+  if (!owner || !name || !ctx.svc.app || isTeamKey(repo)) return undefined;
+  try {
+    const token = await ctx.svc.app.installationToken(owner, name);
+    if (!token) return undefined;
+    const file = await gh(ctx.f, token, `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/contents/bridge.config.json`);
+    if (file.status === 404) return null;
+    if (file.status !== 200 || typeof file.data?.content !== 'string') return undefined;
+    return configName(JSON.parse(Buffer.from(file.data.content, 'base64').toString('utf8')));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The name each team goes by (lib/demo.ts teamDisplayName): its bridge.config.json `name` as kept with the team, read
+ * again from GitHub (and kept) when none is kept or it is a day old, else the repository in words. Never fails.
+ */
+export async function teamNamesOf(ctx: Ctx, repos: readonly string[]): Promise<(repo: string) => string> {
+  let kept = new Map<string, { name: string; at: number }>();
+  try {
+    kept = await getTeamNames(ctx.svc.redis, repos);
+  } catch {
+    // Storage hiccup: the repository in words.
+  }
+  const stale = [...new Set(repos.map((r) => r.toLowerCase()))].filter((r) => {
+    const k = kept.get(r);
+    return !k || ctx.now() - k.at > TEAM_NAME_MAX_AGE_MS;
+  });
+  await Promise.all(
+    stale.map(async (repo) => {
+      const read = await readConfigName(ctx, repo);
+      if (read === undefined) return;
+      await putTeamName(ctx.svc.redis, repo, read, ctx.now());
+      if (read) kept.set(repo, { name: read, at: ctx.now() });
+      else kept.delete(repo);
+    }),
+  );
+  return (repo) => teamDisplayName(repo, { name: kept.get(repo.toLowerCase())?.name });
+}
+
+/** An invite as its E3 card shows it: the team, who invited and when, the role, the team's people. */
+async function inviteCard(ctx: Ctx, inv: StoredInvite, team: string): Promise<EntryInviteCard> {
+  const { memberCount, people, nameOfLogin } = await teamPeople(ctx, inv.repo);
+  const invitedBy = inv.invitedByName ? displayName(inv.invitedByName, inv.invitedBy) : await nameOfLogin(inv.invitedBy);
+  return { id: inv.id, team, repo: inv.repo, role: inv.role, ...(inv.reviewAs ? { reviewAs: inv.reviewAs } : {}), invitedBy, invitedAt: inv.createdAt, memberCount, people };
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // GET: the routing
 
 export async function entryFor(ctx: Ctx, req: Request, a: Account): Promise<Entry> {
   // 1. Teams they are on (in local mode, a team they were seeded admin of counts, as admin).
   const local = ctx.svc.localAdmins ? await ctx.svc.localAdmins.teamsOf(a.email) : [];
-  const memberOf = (await membershipsOf(ctx, a.email)).map(({ repo }) => repo);
-  const email = [...new Set([...memberOf, ...local])].map((repo) => ({ repo, name: teamDisplayName(repo), role: (local.includes(repo) ? 'admin' : 'edit') as EntryTeamRole, via: 'email' as const }));
-  const github = (await githubTeams(ctx, req, a)).filter((t) => !email.some((e) => e.repo === t.repo)).map((t) => ({ ...t, name: teamDisplayName(t.repo), via: 'github' as const }));
-  const teams = [...email, ...github].sort((x, y) => x.name.localeCompare(y.name));
+  const memberships = await membershipsOf(ctx, a.email);
+  const emailAdmin = new Set(memberships.filter(({ member }) => member.role === 'admin').map(({ repo }) => repo));
+  const memberOf = memberships.map(({ repo }) => repo);
+  const emailRepos = [...new Set([...memberOf, ...local])];
+  const githubRepos = (await githubTeams(ctx, req, a)).filter((t) => !emailRepos.includes(t.repo));
+  // Each team by its configured name (bridge.config.json), kept with the team: the picker never shows the slug.
+  const nameOf = await teamNamesOf(ctx, [...emailRepos, ...githubRepos.map((t) => t.repo)]);
+  const email = emailRepos.map((repo) => ({ repo, name: nameOf(repo), role: (local.includes(repo) || emailAdmin.has(repo) ? 'admin' : 'edit') as EntryTeamRole, via: 'email' as const }));
+  const github = githubRepos.map((t) => ({ ...t, name: nameOf(t.repo), via: 'github' as const }));
+  const teams = [...email, ...github].map((t) => ({ ...t, id: teamId(ctx.svc.secret, t.repo) })).sort((x, y) => x.name.localeCompare(y.name));
   if (teams.length) return { kind: 'teams', teams };
 
   // 2. Invites waiting for their email.
   const invites = await ctx.svc.invites.byEmail(a.email);
   if (invites.length) {
-    const out: Extract<Entry, { kind: 'invites' }>['invites'] = [];
-    for (const inv of invites) {
-      const { memberCount, people, nameOfLogin } = await teamPeople(ctx, inv.repo);
-      const invitedBy = inv.invitedByName ? displayName(inv.invitedByName, inv.invitedBy) : await nameOfLogin(inv.invitedBy);
-      out.push({ id: inv.id, team: teamDisplayName(inv.repo), repo: inv.repo, role: inv.role, invitedBy, invitedAt: inv.createdAt, memberCount, people });
-    }
+    const out: EntryInviteCard[] = [];
+    const nameOf = await teamNamesOf(ctx, invites.map((inv) => inv.repo));
+    for (const inv of invites) out.push(await inviteCard(ctx, inv, nameOf(inv.repo)));
     return { kind: 'invites', invites: out };
   }
 
@@ -384,9 +523,11 @@ export async function entryFor(ctx: Ctx, req: Request, a: Account): Promise<Entr
     if (open.length) {
       const asked = await myRequests(ctx.svc.redis, a.email, ctx.now());
       const out: Extract<Entry, { kind: 'domain' }>['teams'] = [];
+      const nameOf = await teamNamesOf(ctx, open.map((t) => t.repo));
       for (const { repo, discovery } of open) {
         const { memberCount, people } = await teamPeople(ctx, repo);
-        out.push({ repo, name: teamDisplayName(repo), memberCount, people, adminName: await adminNameOf(ctx, discovery), requested: asked.has(repo) });
+        const state = asked.get(repo);
+        out.push({ id: teamId(ctx.svc.secret, repo), name: nameOf(repo), memberCount, people: people.map(firstNameOnly), adminName: await adminNameOf(ctx, discovery), requested: state === 'pending', expired: state === 'expired' });
       }
       // Every matching team, the largest first (the UI shows a few, then "N more").
       out.sort((x, y) => y.memberCount - x.memberCount || x.name.localeCompare(y.name));
@@ -401,30 +542,34 @@ export async function entryFor(ctx: Ctx, req: Request, a: Account): Promise<Entr
 // ---------------------------------------------------------------------------------------------------------------
 // Admins
 
-interface Admin {
-  owner: string;
-  repo: string;
-  full: string;
+interface Admin extends TeamRef {
+  /** The GitHub login, '' for an email admin without GitHub. */
   login: string;
+  /** The app's installation token, for a GitHub admin only. */
   token: string;
-  /** Seeded admin of `npm run dev:full` (api/_lib/local-admin.ts): no GitHub account behind it. */
-  local?: true;
+  /** github: an admin of the repository on GitHub; email: an email member made Admin; local: seeded by
+   *  `npm run dev:full` (api/_lib/local-admin.ts). Only a GitHub admin has a GitHub profile to read. */
+  via: 'github' | 'email' | 'local';
 }
 
 /**
- * The account's linked GitHub account is an admin of the repository (read by the app, matched by GitHub id). In local
- * mode only, an account seeded as admin of the team passes without GitHub.
+ * An admin of the team: an email member made Admin (no GitHub needed), or the account's linked GitHub account is an
+ * admin of the repository (read by the app, matched by GitHub id). A team made in Bridge without a repository has email
+ * admins only. In local mode only, an account seeded as admin of the team passes too.
  */
 async function requireAdmin(ctx: Ctx, a: Account, repoArg: unknown): Promise<Admin> {
-  const { owner, repo, full } = parseRepo(repoArg);
-  if (ctx.svc.localAdmins && (await ctx.svc.localAdmins.isAdmin(full, a.email))) return { owner, repo, full, login: a.github?.login ?? 'local-admin', token: '', local: true };
+  const t = await resolveTeam(ctx, repoArg);
+  const { owner, repo, full } = t;
+  if (ctx.svc.localAdmins && (await ctx.svc.localAdmins.isAdmin(full, a.email))) return { ...t, login: a.github?.login ?? 'local-admin', token: '', via: 'local' };
+  if ((await ctx.svc.members.get(full, a.email))?.role === 'admin') return { ...t, login: a.github?.login ?? '', token: '', via: 'email' };
+  if (t.id) throw new HttpError(403, 'forbidden', ADMIN_ONLY_TEAM);
   if (!a.github) throw new HttpError(403, 'forbidden', ADMIN_ONLY);
   if (!ctx.svc.app) throw new HttpError(503, 'not_configured', APP_MISSING);
   const token = await ctx.svc.app.installationToken(owner, repo);
   if (!token) throw new HttpError(403, 'forbidden', ADMIN_ONLY);
   const r = await gh(ctx.f, token, `/repos/${owner}/${repo}/collaborators/${encodeURIComponent(a.github.login)}/permission`);
   if (r.status !== 200 || r.data?.permission !== 'admin' || r.data?.user?.id !== a.github.id) throw new HttpError(403, 'forbidden', ADMIN_ONLY);
-  return { owner, repo, full, login: a.github.login, token };
+  return { ...t, login: a.github.login, token, via: 'github' };
 }
 
 /** The emails of the team's admins that have a Bridge account (GitHub admins matched by id to linked accounts). */
@@ -437,6 +582,7 @@ async function adminEmails(ctx: Ctx, repo: string): Promise<string[]> {
     people = null;
   }
   const out: string[] = [...local];
+  for (const m of await ctx.svc.members.list(repo)) if (m.role === 'admin' && !out.includes(m.email)) out.push(m.email);
   for (const p of people ?? []) {
     if (p?.permissions?.admin !== true || !Number.isSafeInteger(p.id)) continue;
     const email = await ctx.svc.redis.cmd('GET', `bridge:account:gh:${p.id}`);
@@ -487,19 +633,25 @@ export function approvedEmail(x: { to: string; admin: string; team: string; link
 // ---------------------------------------------------------------------------------------------------------------
 // Actions
 
-/** Joins with an invite sent to the account's email: Can edit with the email, reviewer and admin with linked GitHub. */
+/**
+ * Joins with an invite sent to the account's email. Can edit and Admin join with the email (an admin needs GitHub only
+ * to approve on GitHub); with GitHub linked, an Admin invite to a repository gives the GitHub admin role as before.
+ * Reviewer needs linked GitHub. A team made in Bridge has no GitHub side: Admin joins as an email admin.
+ */
 async function acceptInvite(ctx: Ctx, req: Request, a: Account, inv: StoredInvite): Promise<Response> {
   const email = a.email.toLowerCase();
   if (inv.email.trim().toLowerCase() !== email || Date.parse(inv.expiresAt) <= ctx.now()) return fail(410, 'expired', INVITE_GONE);
-  if (inv.role === 'edit') {
-    const prev = await ctx.svc.members.get(inv.repo, email);
-    const member: EmailMember = { email, name: a.name, role: 'edit', version: (prev?.version ?? 0) + 1, addedBy: inv.invitedBy, at: new Date(ctx.now()).toISOString() };
-    await ctx.svc.members.put(inv.repo, member);
+  const t = await resolveTeam(ctx, inv.repo);
+  if (inv.role === 'edit' || (inv.role === 'admin' && (!a.github || t.id))) {
+    const role = inv.role === 'admin' ? 'admin' : 'edit';
+    const prev = await ctx.svc.members.get(t.full, email);
+    const member: EmailMember = { email, name: a.name, role: prev?.role === 'admin' ? 'admin' : role, version: (prev?.version ?? 0) + 1, addedBy: inv.invitedBy, at: new Date(ctx.now()).toISOString() };
+    await ctx.svc.members.put(t.full, member);
     await ctx.svc.invites.remove(inv);
-    await removeRequest(ctx.svc.redis, inv.repo, email);
-    return json(200, { joined: true, status: 'joined', repo: inv.repo, role: 'edit', next: teamHref(inv.repo) });
+    await removeRequest(ctx.svc.redis, t.full, email);
+    return json(200, { joined: true, status: 'joined', repo: t.full, role: member.role, next: teamHref(t.full) });
   }
-  if (!a.github) return fail(409, 'github-required', GITHUB_REQUIRED);
+  if (!a.github || t.id) return fail(409, 'github-required', GITHUB_REQUIRED);
   if (!ctx.svc.grantApp) return fail(503, 'not_configured', APP_MISSING);
   const bearer = /^Bearer\s+(\S+)$/i.exec(req.headers.get('authorization') ?? '')?.[1];
   const r = await acceptInviteForGithub(
@@ -512,13 +664,33 @@ async function acceptInvite(ctx: Ctx, req: Request, a: Account, inv: StoredInvit
   return json(200, { joined: true, ...r, repo: inv.repo, next: teamHref(inv.repo) });
 }
 
+/**
+ * The team a request names: its opaque id among the teams open to the person's work domain (or, for a cancel, among
+ * the teams they asked), else a repository. A team the person cannot see answers like one that does not exist.
+ */
+async function requestedTeam(ctx: Ctx, a: Account, body: Record<string, unknown>, among: 'domain' | 'mine'): Promise<string> {
+  // A repository, or the key of a team made in Bridge (an old key resolves to the repository it was linked to).
+  if (body.team === undefined) return (await resolveTeam(ctx, body.repo)).full;
+  if (typeof body.team !== 'string' || !TEAM_ID.test(body.team)) throw new HttpError(404, 'not_found', NOT_OPEN);
+  const domain = workDomain(a.email);
+  const repos =
+    among === 'mine'
+      ? [...(await myRequests(ctx.svc.redis, a.email, ctx.now())).keys()]
+      : domain
+        ? (await teamsForDomain(ctx.svc.redis, domain)).map((t) => t.repo)
+        : [];
+  const repo = repos.find((r) => teamId(ctx.svc.secret, r) === body.team);
+  if (!repo) throw new HttpError(404, 'not_found', among === 'mine' ? REQUEST_GONE : NOT_OPEN);
+  return parseTeam(repo).full;
+}
+
 async function onRequest(ctx: Ctx, req: Request, a: Account, body: Record<string, unknown>): Promise<Response> {
-  const { owner, repo, full } = parseRepo(body.repo);
+  const full = await requestedTeam(ctx, a, body, 'domain');
   const email = a.email.toLowerCase();
   // An invite for this team wins: accepted straight away, no request.
   const inv = (await ctx.svc.invites.byEmail(email)).find((i) => i.repo.toLowerCase() === full);
   if (inv) return acceptInvite(ctx, req, a, inv);
-  if (await ctx.svc.members.get(full, email)) return fail(409, 'already', ALREADY);
+  if (await ctx.svc.members.get(full, email)) return json(409, { error: 'already', message: ALREADY, repo: full });
   // Only a team open to this very work domain; any other answers like a team that does not exist.
   const domain = workDomain(email);
   const d = domain ? await getDiscovery(ctx.svc.redis, full) : null;
@@ -543,8 +715,8 @@ async function onRequest(ctx: Ctx, req: Request, a: Account, body: Record<string
   };
   await putRequest(ctx.svc.redis, r, now);
   if (ctx.svc.email) {
-    const link = `${siteOrigin(req, ctx.env.PUBLIC_SITE_URL)}${STUDIO_ROOT}${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/settings/`;
-    const team = teamDisplayName(full);
+    const link = `${siteOrigin(req, ctx.env.PUBLIC_SITE_URL)}${manageHref(full)}`;
+    const team = (await teamNamesOf(ctx, [full]))(full);
     for (const to of await adminEmails(ctx, full)) {
       if (to === email) continue;
       try {
@@ -559,7 +731,7 @@ async function onRequest(ctx: Ctx, req: Request, a: Account, body: Record<string
 
 /** The requester takes back their own request: only the one keyed by the account's email, never someone else's. */
 async function onCancel(ctx: Ctx, a: Account, body: Record<string, unknown>): Promise<Response> {
-  const { full } = parseRepo(body.repo);
+  const full = await requestedTeam(ctx, a, body, 'mine');
   const email = a.email.toLowerCase();
   if (!(await getRequest(ctx.svc.redis, full, email, ctx.now()))) return fail(404, 'not_found', REQUEST_GONE);
   await removeRequest(ctx.svc.redis, full, email);
@@ -577,13 +749,15 @@ async function onApprove(ctx: Ctx, req: Request, a: Account, body: Record<string
   const admin = await requireAdmin(ctx, a, body.repo);
   const r = await findRequest(ctx, admin.full, body.id);
   const prev = await ctx.svc.members.get(admin.full, r.email);
-  const member: EmailMember = prev ?? { email: r.email, name: r.name, role: 'edit', version: 1, addedBy: admin.login, at: new Date(ctx.now()).toISOString() };
+  const member: EmailMember = prev ?? { email: r.email, name: r.name, role: 'edit', version: 1, addedBy: admin.login || a.name, at: new Date(ctx.now()).toISOString() };
   if (!prev) await ctx.svc.members.put(admin.full, member);
   await removeRequest(ctx.svc.redis, admin.full, r.email);
+  await putDecided(ctx.svc.redis, { request: r, approved: true, added: !prev });
   if (ctx.svc.email && !prev) {
-    const link = `${siteOrigin(req, ctx.env.PUBLIC_SITE_URL)}${STUDIO_ROOT}${encodeURIComponent(admin.owner)}/${encodeURIComponent(admin.repo)}/`;
+    const link = `${siteOrigin(req, ctx.env.PUBLIC_SITE_URL)}${teamHref(admin.full)}`;
     try {
-      await ctx.svc.email.send(approvedEmail({ to: r.email, admin: admin.local ? a.name : await adminDisplayName(ctx, admin.token, a), team: teamDisplayName(admin.full), link }));
+      const team = (await teamNamesOf(ctx, [admin.full]))(admin.full);
+      await ctx.svc.email.send(approvedEmail({ to: r.email, admin: admin.via === 'github' ? await adminDisplayName(ctx, admin.token, a) : a.name, team, link }));
     } catch {
       // They are on the team; Bridge shows it at their next sign-in.
     }
@@ -595,7 +769,21 @@ async function onDecline(ctx: Ctx, a: Account, body: Record<string, unknown>): P
   const admin = await requireAdmin(ctx, a, body.repo);
   const r = await findRequest(ctx, admin.full, body.id);
   await removeRequest(ctx.svc.redis, admin.full, r.email);
+  await putDecided(ctx.svc.redis, { request: r, approved: false, added: false });
   return json(200, { ok: true });
+}
+
+/**
+ * The admin takes back an approve or decline within UNDO_TTL_S: the request waits again, and a person the approve
+ * added leaves the team. Once the window passed, or after a first undo, 410.
+ */
+async function onUndo(ctx: Ctx, a: Account, body: Record<string, unknown>): Promise<Response> {
+  const admin = await requireAdmin(ctx, a, body.repo);
+  const d = typeof body.id === 'string' && ID.test(body.id) ? await takeDecided(ctx.svc.redis, admin.full, body.id) : null;
+  if (!d) return fail(410, 'expired', UNDO_GONE);
+  if (d.approved && d.added) await ctx.svc.members.remove(admin.full, d.request.email);
+  if (Date.parse(d.request.expiresAt) > ctx.now()) await putRequest(ctx.svc.redis, d.request, ctx.now());
+  return json(200, { undone: true, request: { id: d.request.id, name: d.request.name, email: d.request.email, createdAt: d.request.createdAt, expiresAt: d.request.expiresAt } });
 }
 
 async function onDiscovery(ctx: Ctx, a: Account, body: Record<string, unknown>): Promise<Response> {
@@ -604,9 +792,10 @@ async function onDiscovery(ctx: Ctx, a: Account, body: Record<string, unknown>):
   const domain = workDomain(a.email);
   const prev = await getDiscovery(ctx.svc.redis, admin.full);
   const at = new Date(ctx.now()).toISOString();
-  const by = admin.local
-    ? { byGithubId: a.github?.id ?? 0, byLogin: admin.login, byName: a.name, at }
-    : { byGithubId: a.github!.id, byLogin: a.github!.login, byName: await adminDisplayName(ctx, admin.token, a), at };
+  const by =
+    admin.via === 'github'
+      ? { byGithubId: a.github!.id, byLogin: a.github!.login, byName: await adminDisplayName(ctx, admin.token, a), at }
+      : { byGithubId: a.github?.id ?? 0, byLogin: admin.login, byName: a.name, at };
   if (body.enabled) {
     if (!domain) return fail(409, 'public-domain', PUBLIC_DOMAIN);
     await putDiscovery(ctx.svc.redis, admin.full, { domain, enabled: true, ...by });
@@ -616,12 +805,153 @@ async function onDiscovery(ctx: Ctx, a: Account, body: Record<string, unknown>):
   return json(200, { domain: prev?.domain ?? domain, enabled: false });
 }
 
-async function onAction(ctx: Ctx, req: Request, a: Account): Promise<Response> {
-  if (!/^application\/json\b/i.test(req.headers.get('content-type') ?? '')) return fail(415, 'content_type', 'Send JSON.');
-  const body = await readBody(req, MAX_BODY);
+// ---------------------------------------------------------------------------------------------------------------
+// Teams made in Bridge ("Create your team"): a real team before any repository
+
+/** What a member reads of a team made in Bridge. */
+export interface PublicTeam {
+  id: string;
+  /** `_team/<id>`, or the repository once linked. */
+  key: string;
+  name: string;
+  role: 'edit' | 'admin';
+  repo: string | null;
+  storybook: string | null;
+  discovery: { domain: string; enabled: boolean } | null;
+  memberCount: number;
+  createdAt: string;
+}
+
+async function publicTeam(ctx: Ctx, rec: TeamRecord, role: 'edit' | 'admin'): Promise<PublicTeam> {
+  const key = rec.repo ?? teamKeyOf(rec.id);
+  const d = await getDiscovery(ctx.svc.redis, key);
+  const memberCount = (await ctx.svc.members.list(key)).length;
+  return { id: rec.id, key, name: rec.name, role, repo: rec.repo, storybook: rec.storybook, discovery: d ? { domain: d.domain, enabled: d.enabled } : null, memberCount, createdAt: rec.createdAt };
+}
+
+/** The role of the account on a team made in Bridge, or null when it is not on it. */
+async function roleOn(ctx: Ctx, a: Account, key: string): Promise<'edit' | 'admin' | null> {
+  if (ctx.svc.localAdmins && (await ctx.svc.localAdmins.isAdmin(key, a.email))) return 'admin';
+  return (await ctx.svc.members.get(key, a.email))?.role ?? null;
+}
+
+/** The team without a repository this person created and still administers: step 1 renames it, never makes another. */
+async function ownTeamWithoutRepo(ctx: Ctx, a: Account): Promise<TeamRecord | null> {
+  for (const { repo, member } of await membershipsOf(ctx, a.email)) {
+    const id = teamKeyId(repo);
+    if (!id || member.role !== 'admin') continue;
+    const rec = await getTeamRecord(ctx.svc.redis, id);
+    if (rec && !rec.repo && rec.createdBy === a.email.toLowerCase()) return rec;
+  }
+  return null;
+}
+
+async function onCreateTeam(ctx: Ctx, a: Account, body: Record<string, unknown>): Promise<Response> {
+  const name = configName({ name: body.name });
+  if (!name) return fail(400, 'bad_name', BAD_TEAM_NAME);
+  const email = a.email.toLowerCase();
+  const now = ctx.now();
+  const at = new Date(now).toISOString();
+  const kept = await ownTeamWithoutRepo(ctx, a);
+  const rec: TeamRecord = kept ? { ...kept, name } : { id: Buffer.from(ctx.random(8)).toString('hex'), name, createdBy: email, createdAt: at, repo: null, storybook: null };
+  const key = teamKeyOf(rec.id);
+  await putTeamRecord(ctx.svc.redis, rec);
+  if (!kept) await ctx.svc.members.put(key, { email, name: a.name, role: 'admin', version: 1, addedBy: a.name, at });
+  await putTeamName(ctx.svc.redis, key, name, now);
+  // Found by colleagues with the same work domain: only when asked, and never through a public mailbox domain.
+  const domain = workDomain(email);
+  const by = { byGithubId: a.github?.id ?? 0, byLogin: a.github?.login ?? '', byName: a.name, at };
+  const prev = await getDiscovery(ctx.svc.redis, key);
+  if (body.discover === true && domain) await putDiscovery(ctx.svc.redis, key, { domain, enabled: true, ...by });
+  else if (prev?.enabled) await putDiscovery(ctx.svc.redis, key, { ...prev, enabled: false, ...by });
+  return json(200, { team: await publicTeam(ctx, rec, 'admin'), created: !kept });
+}
+
+/** A team made in Bridge, read by one of its members. Anyone else gets the answer of a team that does not exist. */
+async function onGetTeam(ctx: Ctx, a: Account, arg: string): Promise<Response> {
+  const id = teamKeyId(arg);
+  const rec = id ? await getTeamRecord(ctx.svc.redis, id) : null;
+  if (!rec) return fail(404, 'not_found', TEAM_GONE);
+  const role = await roleOn(ctx, a, rec.repo ?? teamKeyOf(rec.id));
+  if (!role) return fail(404, 'not_found', TEAM_GONE);
+  return json(200, { team: await publicTeam(ctx, rec, role) }, { 'Cache-Control': 'private, no-store' });
+}
+
+const STORYBOOK = /^https:\/\/[^\s/$.?#][^\s]*$/i;
+
+/**
+ * Moves everything a team made in Bridge keeps under its key to the repository it is linked to: email members (a role
+ * already there is kept, Admin wins), seeded local admins, discovery (unless the repository chose already), pending
+ * requests and invites, and the name (unless the repository has one). The key is forgotten afterwards.
+ */
+async function moveTeam(ctx: Ctx, from: string, to: string): Promise<void> {
+  const { redis, members, invites } = ctx.svc;
+  const now = ctx.now();
+  for (const m of await members.list(from)) {
+    const prev = await members.get(to, m.email);
+    await members.put(to, prev ? { ...prev, role: prev.role === 'admin' || m.role === 'admin' ? 'admin' : 'edit' } : m);
+    await members.remove(from, m.email);
+  }
+  if (ctx.svc.localAdmins) {
+    for (const e of await ctx.svc.localAdmins.adminsOf(from)) {
+      await ctx.svc.localAdmins.add(to, e);
+      await ctx.svc.localAdmins.remove(from, e);
+    }
+  }
+  const d = await getDiscovery(redis, from);
+  if (d && !(await getDiscovery(redis, to))) await putDiscovery(redis, to, d);
+  for (const r of await listRequests(redis, from, now)) {
+    if (!(await getRequest(redis, to, r.email, now)) && !(await members.get(to, r.email))) await putRequest(redis, { ...r, repo: to }, now);
+  }
+  const names = await getTeamNames(redis, [from, to]);
+  const name = names.get(from)?.name;
+  if (name && !names.get(to)) await putTeamName(redis, to, name, now);
+  for (const inv of await invites.list(from)) {
+    const left = Math.ceil((Date.parse(inv.expiresAt) - now) / 1000);
+    await invites.remove(inv);
+    if (left > 0) await invites.put({ ...inv, repo: to }, left);
+  }
+  await forgetTeamKey(redis, from, now);
+}
+
+async function onLinkTeam(ctx: Ctx, a: Account, body: Record<string, unknown>): Promise<Response> {
+  const id = typeof body.team === 'string' ? teamKeyId(body.team) : null;
+  const rec = id ? await getTeamRecord(ctx.svc.redis, id) : null;
+  if (!rec) return fail(404, 'not_found', TEAM_GONE);
+  const key = teamKeyOf(rec.id);
+  if (body.storybook !== undefined) {
+    await requireAdmin(ctx, a, rec.repo ?? key);
+    const url = typeof body.storybook === 'string' ? body.storybook.trim() : '';
+    if (url && (url.length > 2048 || !STORYBOOK.test(url))) return fail(400, 'bad_storybook', BAD_STORYBOOK);
+    const next = { ...rec, storybook: url || null };
+    await putTeamRecord(ctx.svc.redis, next);
+    return json(200, { team: await publicTeam(ctx, next, 'admin') });
+  }
+  const target = parseRepo(body.repo);
+  if (rec.repo) {
+    if (rec.repo === target.full) return json(200, { repo: rec.repo, next: teamHref(rec.repo) });
+    return fail(409, 'linked', ALREADY_LINKED(rec.repo));
+  }
+  // Admin of the team made in Bridge, and of the repository: an admin there on GitHub, or an admin of its team here.
+  await requireAdmin(ctx, a, key);
+  try {
+    await requireAdmin(ctx, a, target.full);
+  } catch (e) {
+    if (!(e instanceof HttpError) || (e.code !== 'forbidden' && e.code !== 'not_configured')) throw e;
+    // Bridge not installed on the repository yet: the team page installs it, then the link is made from there.
+    const installed = ctx.svc.app && a.github ? Boolean(await ctx.svc.app.installationToken(target.owner, target.repo)) : a.github ? false : true;
+    if (!installed) throw new HttpError(409, 'app_missing', LINK_APP_MISSING);
+    throw new HttpError(403, 'forbidden', REPO_ADMIN_ONLY);
+  }
+  await moveTeam(ctx, key, target.full);
+  await putTeamRecord(ctx.svc.redis, { ...rec, repo: target.full, linkedAt: new Date(ctx.now()).toISOString() });
+  return json(200, { repo: target.full, next: teamHref(target.full) });
+}
+
+async function onAction(ctx: Ctx, req: Request, a: Account, body: Record<string, unknown>): Promise<Response> {
   switch (body.action) {
     case 'accept-invite': {
-      const { full } = parseRepo(body.repo);
+      const { full } = await resolveTeam(ctx, body.repo);
       const inv = typeof body.id === 'string' && ID.test(body.id) ? await ctx.svc.invites.get(full, body.id) : null;
       // Someone else's invite answers like a missing one.
       if (!inv || inv.email.trim().toLowerCase() !== a.email.toLowerCase()) return fail(410, 'expired', INVITE_GONE);
@@ -635,11 +965,70 @@ async function onAction(ctx: Ctx, req: Request, a: Account): Promise<Response> {
       return onApprove(ctx, req, a, body);
     case 'decline':
       return onDecline(ctx, a, body);
+    case 'undo':
+      return onUndo(ctx, a, body);
     case 'discovery':
       return onDiscovery(ctx, a, body);
+    case 'create-team':
+      return onCreateTeam(ctx, a, body);
+    case 'link-team':
+      return onLinkTeam(ctx, a, body);
     default:
       return fail(400, 'bad_request', 'Unknown action.');
   }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Invite links
+
+/** Invite links one network may look at in an hour: enough for a person, not for guessing. */
+export const INVITE_LINK_PER_HOUR = 30;
+const INVITE_TOKEN = /^[A-Za-z0-9_-]{43}$/;
+
+/**
+ * What an invite link is, for the one door of Bridge (components/ds/account/SignIn.tsx on /studio/invite/): signed
+ * out, which team and the masked address the code goes to; signed in, the E3 card when the invite is theirs, "already
+ * in" for a member, or the masked address it was sent to. A spent link still names the team and whom to ask.
+ */
+async function onInviteLink(ctx: Ctx, req: Request, a: Account | null, body: Record<string, unknown>): Promise<Response> {
+  const hour = new Date(ctx.now()).toISOString().slice(0, 13);
+  const [n] = await ctx.svc.redis.pipe([
+    ['INCRBY', `bridge:entry:count:invite-link:${hmacHex(ctx.svc.secret, `ip:${clientIp(req)}`)}:${hour}`, 1],
+    ['EXPIRE', `bridge:entry:count:invite-link:${hmacHex(ctx.svc.secret, `ip:${clientIp(req)}`)}:${hour}`, 2 * 3600],
+  ]);
+  if (Number(n) > INVITE_LINK_PER_HOUR) return fail(429, 'limit', 'Too many tries from this network. Try again in an hour.');
+  const signedIn = Boolean(a);
+  const token = typeof body.token === 'string' && INVITE_TOKEN.test(body.token) ? body.token : null;
+  const hash = token ? sha256(token) : null;
+  const inv = hash ? await ctx.svc.invites.byTokenHash(hash) : null;
+  const live = inv && Date.parse(inv.expiresAt) > ctx.now() ? inv : null;
+  const trace = live ? { repo: live.repo, invitedBy: '' } : hash ? await ctx.svc.invites.traceByTokenHash(hash) : null;
+  if (!live && !trace) return json(200, { state: 'unknown', signedIn });
+  const repo = (live ?? trace)!.repo;
+  const member = a ? await isMemberOf(ctx, a, repo) : false;
+  const team = (await teamNamesOf(ctx, [repo]))(repo);
+  if (!live) return json(200, { state: 'gone', team, invitedBy: displayName(trace!.invitedBy), signedIn, member, ...(member ? { repo } : {}) });
+  const card = await inviteCard(ctx, live, team);
+  const mine = Boolean(a && live.email.trim().toLowerCase() === a.email.toLowerCase());
+  return json(200, {
+    state: 'live',
+    team,
+    invitedBy: card.invitedBy,
+    role: live.role,
+    ...(live.reviewAs ? { reviewAs: live.reviewAs } : {}),
+    sentTo: maskEmail(live.email),
+    signedIn,
+    mine,
+    member,
+    ...(member ? { repo } : {}),
+    ...(mine && !member ? { invite: card } : {}),
+  });
+}
+
+/** The account is on the team: an email membership, or (local mode) a seeded admin. */
+async function isMemberOf(ctx: Ctx, a: Account, repo: string): Promise<boolean> {
+  if (await ctx.svc.members.get(repo, a.email.toLowerCase())) return true;
+  return ctx.svc.localAdmins ? (await ctx.svc.localAdmins.teamsOf(a.email)).some((r) => r.toLowerCase() === repo.toLowerCase()) : false;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -654,8 +1043,15 @@ export async function handleEntry(req: Request, env: EntryEnv, deps: EntryDeps):
     if (!svc) return fail(503, 'not_configured', NOT_CONFIGURED);
     const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, env };
     const a = await sessionAccount(req, svc.redis, svc.secret, ctx.now());
+    if (method === 'POST') {
+      if (!/^application\/json\b/i.test(req.headers.get('content-type') ?? '')) return fail(415, 'content_type', 'Send JSON.');
+      const body = await readBody(req, MAX_BODY);
+      // The one action without the cookie: what an invite link is, before signing in.
+      if (body.action === 'invite-link') return await onInviteLink(ctx, req, a, body);
+      if (!a) return fail(401, 'signin', SIGNIN);
+      return await onAction(ctx, req, a, body);
+    }
     if (!a) return fail(401, 'signin', SIGNIN);
-    if (method === 'POST') return await onAction(ctx, req, a);
     const params = new URL(req.url).searchParams;
     const noStore = { 'Cache-Control': 'private, no-store' };
     const requestsOf = params.get('requests');
@@ -664,6 +1060,8 @@ export async function handleEntry(req: Request, env: EntryEnv, deps: EntryDeps):
       const list = await listRequests(svc.redis, admin.full, ctx.now());
       return json(200, { requests: list.map(({ id, name, email, createdAt, expiresAt }) => ({ id, name, email, createdAt, expiresAt })) }, noStore);
     }
+    const teamOf = params.get('team');
+    if (teamOf !== null) return await onGetTeam(ctx, a, teamOf);
     const discoveryOf = params.get('discovery');
     if (discoveryOf !== null) {
       const admin = await requireAdmin(ctx, a, discoveryOf);

@@ -9,10 +9,12 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   assertLocal,
+  devReserved,
   fileRedis,
   handlerFor,
   highlight,
   insecureCookie,
+  isModuleRequest,
   type Local,
   localEnv,
   outboxSender,
@@ -127,6 +129,27 @@ describe('routing', () => {
     expect(routeOf('/api/nope', exists)).toBeNull();
     expect(routeOf('/api/../secret', exists)).toBeNull();
     expect(routeOf('/studio/', exists)).toBeNull();
+  });
+  it('lets source module requests (a page importing api/_lib) go on to Vite', () => {
+    expect(isModuleRequest('/api/_lib/domains.ts')).toBe(true);
+    expect(isModuleRequest('/api/_lib/redis')).toBe(true);
+    expect(isModuleRequest('/api/entry/index.ts')).toBe(true);
+    expect(isModuleRequest('/api/entry')).toBe(false);
+    expect(isModuleRequest('/api/github/token')).toBe(false);
+    expect(isModuleRequest('/api/dev/outbox')).toBe(false);
+    expect(isModuleRequest('/studio/x.ts')).toBe(false);
+  });
+});
+
+describe('reserved team paths in dev', () => {
+  it('reads them from the Studio page sources the way the build reads its output', () => {
+    const r = devReserved(join(__dirname, '..', 'pages', 'studio'));
+    expect(r.firsts).toEqual(expect.arrayContaining(['changes', 'workspace', 'settings', 'brands', 'components', 'versions']));
+    expect(r.firsts).not.toContain('index.html');
+    expect(r.pairs).toEqual(expect.arrayContaining(['brands/new', 'components/docs', 'versions/data.json', 'changes/index.html']));
+  });
+  it('answers an empty list for a missing folder', () => {
+    expect(devReserved(join(dir, 'nope'))).toEqual({ firsts: [], pairs: [] });
   });
 });
 

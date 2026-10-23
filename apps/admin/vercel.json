@@ -5,5 +5,6 @@
   "buildCommand": "cd ../.. && npm run admin:build",
   "outputDirectory": "dist",
   "ignoreCommand": "node ../../scripts/vercel-ignore.mjs admin",
+  "git": { "deploymentEnabled": { "agent/**": false, "test/**": false, "changeset-release/**": false } },
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }

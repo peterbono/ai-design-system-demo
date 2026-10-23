@@ -18,6 +18,12 @@ export interface RepoSource {
   list(prefix?: string): Promise<string[]>;
   /** Body of a repo-relative file as UTF-8 text, or null when the file does not exist. */
   text(path: string): Promise<string | null>;
+  /**
+   * Optional: these files will be read next. A source that can read many bodies in one request (a GitHub source
+   * with a `batch` reader) starts reading them now; `text` then waits for that read. Never rejects: a body the batch
+   * could not read is read on its own by `text`.
+   */
+  prefetch?(paths: string[]): Promise<void>;
 }
 
 /** "./a//b/" -> "a/b". Paths in a RepoSource are repo-relative and use "/". */

@@ -16,7 +16,7 @@
 // - Structure: each variant keeps a normalized layer outline (the root's children, wrappers one level deep flattened,
 //   so a regroup is not a change). A layer added, removed or moved is a "structure" request when the variant's render
 //   moved with it or the layer is part of the API (its visibility or text is bound to a property). Renames, and hidden
-//   layers bound to nothing, are not. Parts DS Bridge generated are known by their part id (a swap or rename of one is
+//   layers bound to nothing, are not. Parts Bridge generated are known by their part id (a swap or rename of one is
 //   not a structure change: swaps are compared above). An added part that an optional part of the component already
 //   draws in that place (an icon after the label while "Icon end" exists) gets a hint, and starts unchecked.
 
@@ -30,7 +30,7 @@ export interface RawLayer {
   /** Main component name of an instance ("Icon/Pencil"). */
   main?: string | undefined;
   visible: boolean;
-  /** Part id when DS Bridge generated the layer (shared plugin data dsbridge / part). */
+  /** Part id when Bridge generated the layer (shared plugin data dsbridge / part). */
   part?: string | undefined;
   /** BOOLEAN property its visibility is bound to ("Icon end"), without Figma's "#id". */
   visibleProp?: string | undefined;
@@ -117,7 +117,7 @@ export interface ComponentSignature {
 
 /** FNV-1a, 32 bits, as 8 hex digits. Fast enough for small PNGs in the main thread. */
 /**
- * Prefix of the render hash read from layer properties. Renders without it are image hashes from an older DS Bridge:
+ * Prefix of the render hash read from layer properties. Renders without it are image hashes from an older Bridge:
  * the two never compare (an old baseline reads as one without a render until the next pull or send stores a new one).
  */
 export const RENDER_VERSION = 'v2:';

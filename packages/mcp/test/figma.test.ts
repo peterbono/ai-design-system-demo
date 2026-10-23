@@ -105,7 +105,7 @@ describe('Claude drafts a component change from Figma', () => {
     expect(labels(pr)).toEqual(expect.arrayContaining(['from-figma', 'waiting-for-claude', 'component-change']));
 
     const list = await figma.figmaChangesOp(await ro());
-    expect(list.changes).toEqual([expect.objectContaining({ pr: n, component: 'Button', route: 'Claude AI drafts', status: 'Waiting for Claude AI' })]);
+    expect(list.changes).toEqual([expect.objectContaining({ pr: n, component: 'Button', route: 'Claude AI drafts', status: 'Waiting for a developer' })]);
     const one = await figma.getFigmaChangeOp(await ro(), { pr: n });
     expect(one.spec).toMatchObject({ path: '.bridge/figma/button-add-an-xl-size.json', variantAxes: { Size: ['lg', 'md', 'sm', 'xl'] } });
     expect(one.brief).toMatch(/^Draft the code for a component change made in Figma, on the library branch bridge\/figma-button-add-an-xl-size/);
@@ -124,13 +124,14 @@ describe('Claude drafts a component change from Figma', () => {
     const lines: string[] = [];
     const io = { print: (s: string) => lines.push(s), error: (s: string) => lines.push(s), env: { GITHUB_TOKEN: 't' }, fetch: gh.fetch, ghToken: () => null, hasClaude: () => false, runClaude: () => 0 } as any;
     expect(await runFigma({ _: ['figma', 'drafted', String(n)], flags: {} }, REPO, io)).toBe(0);
-    expect(lines[0]).toBe(`#${n}: Drafted by Claude AI. Claude AI drafted the code. A person reviews it before it ships.`);
+    expect(lines[0]).toBe(`#${n}: Drafted with Claude. The code is drafted. A person reviews it before it ships.`);
     expect(labels(pr)).toContain('drafted-by-claude');
     expect(labels(pr)).not.toContain('waiting-for-claude');
-    expect(pr.body).toMatch(/\*\*Drafted by Claude AI\*\* from the Figma spec/);
+    expect(pr.body).toMatch(/\*\*Drafted with Claude\*\* from the Figma spec/);
     lines.length = 0;
     expect(await runFigma({ _: ['figma'], flags: {} }, REPO, io)).toBe(0);
-    expect(lines[0]).toBe(`#${n} Button: add an xl size (Claude AI drafts): Drafted by Claude AI. Claude AI drafted the code. A person reviews it before it ships.`);
+    // Said once: the status names Claude, so the route is not repeated.
+    expect(lines[0]).toBe(`#${n} Button: add an xl size: Drafted with Claude. The code is drafted. A person reviews it before it ships.`);
   });
 
   it('what cannot be read is listed with what to do, and nothing is opened', async () => {

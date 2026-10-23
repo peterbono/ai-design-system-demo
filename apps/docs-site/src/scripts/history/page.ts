@@ -15,6 +15,8 @@ import { loadTeams } from '../teams';
 import { openRevertPlanner } from './planner';
 import { activeReport, DEMO_EVENT, demoOn, loadHistory, setDemo, teamEntryReview, type Loaded } from './state';
 import { isHosted } from '../../lib/team-path';
+import { parseOverrideComment, type OverrideRecord } from '../../lib/review-rules';
+import { overrideLine } from '../../lib/history-view';
 import { onSelectPick, selectValue, setSelect } from '../../lib/select-bridge';
 import { jiraKeyOf, VOCAB, withoutJiraKey } from '../../lib/vocabulary';
 import { agentMade } from '../../lib/work-nature';
@@ -65,11 +67,10 @@ const jiraOf = (e: HistoryEntry) => jiraKeyOf(e.title) ?? jiraKeyOf(historySumma
 
 /** A row: summary and #, what approval it needed in plain words (or Demo), the date. Counts live in the detail. */
 function row(e: HistoryEntry, demo: boolean): string {
-  const num = e.pr ? ` <span class="cg-num">#${esc(String(e.pr.number))}</span>` : '';
   const key = jiraOf(e);
   const tag = `<span class="cg-need">${e.bulk ? 'Import' : `${demo ? 'Demo, ' : ''}${approvalNeedLabel(e.tier)}`}</span>`;
   return `<li class="cg-row"><a class="cg-row-link" href="${entryHref(e)}" data-hs-open="${esc(e.id)}">
-    <span class="cg-row-title">${personHtml(e.author, { agent: agentOf(e), withName: false })}${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}<span class="cg-row-name" title="${esc(title(e))}">${esc(title(e))}</span>${num}</span>
+    <span class="cg-row-title">${personHtml(e.author, { agent: agentOf(e), withName: false })}${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}<span class="cg-row-name" title="${esc(title(e))}">${esc(title(e))}</span></span>
     ${tag}
     <time class="cg-date" datetime="${esc(e.date)}">${esc(dayMonth(e.date))}</time></a></li>`;
 }
@@ -151,17 +152,19 @@ function paintDetail(e: HistoryEntry, demo: boolean) {
     ? '<span>Fixture change</span>'
     : `<a class="cg-gh" href="${attrUrl(e.pr ? (e.pr.url ?? `${repoUrl()}/pull/${e.pr.number}`) : `${repoUrl()}/commit/${e.sha}`)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}<span class="sr-only"> (opens in a new tab)</span></a>`;
   const facts = [e.bulk ? 'Import' : approvalNeedLabel(e.tier), e.breaking ? 'breaking' : '', e.version && e.version !== 'Unreleased' ? e.version : 'next release'].filter(Boolean).join(', ');
-  $('hs-detail').innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${BASE}" data-hs-back>History</a><span aria-hidden="true">/</span><span>${esc(e.pr ? `#${e.pr.number}` : title(e))}</span></nav>
+  $('hs-detail').innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${BASE}" data-hs-back>History</a><span aria-hidden="true">/</span><span>${esc(title(e))}</span></nav>
     <header class="zone cg-pr-open">
       <h2 class="cg-pr-title" tabindex="-1">${esc(withoutJiraKey(historySummary(e, { full: true })))}</h2>
       <p class="cg-pr-meta"><span class="cg-who">${personHtml(e.author, { agent: agentOf(e), size: 'sm' })}<span>, ${esc(shortDate(e.date))}</span></span><span>${esc(facts)}</span>${ref}</p>
       <p class="cg-pr-state">${e.why !== e.title && e.why.replace(/\.$/, '') !== withoutJiraKey(historySummary(e, { full: true })).replace(/\.$/, '') ? mdTitleHtml(e.why) : esc(countsLabel(e.counts))}</p>
+      <p class="cg-pr-state hs-override" data-hs-override hidden></p>
       ${e.bulk ? '' : `<p class="cg-pr-cta"><button type="button" class="btn btn-primary" data-hs-undo="${esc(e.id)}">Undo this change</button></p>`}
     </header>
     <div class="cg-secs">
       <details class="cg-sec" open><summary class="cg-sec-head"><span class="cg-sec-title">Token changes</span><span class="cg-sec-meta">${esc(countsLabel(e.counts))}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary><div class="cg-sec-body">${diff}</div></details>
     </div>`;
   void paintPeople($('hs-detail'));
+  if (!demo && e.pr) void paintOverride(e, e.pr.number);
   if (!review && teamDiff(e, demo) && L) {
     const loaded = L;
     teamEntryReview(e, loaded)
@@ -176,6 +179,30 @@ function paintDetail(e: HistoryEntry, demo: boolean) {
         if (body && new URLSearchParams(location.search).get('entry') === e.id) body.innerHTML = '<p class="cg-muted">GitHub did not send the token files of this change. Open it on GitHub to see them.</p>';
       });
   }
+}
+
+const overrides = new Map<number, Promise<OverrideRecord | null>>();
+
+/**
+ * A branch merged with the owner override: who merged it, why, and which approvals it went without, read back from
+ * the reason posted on it (core parseOverrideComment). One read per branch, kept for the page; nothing when it was
+ * an ordinary merge or GitHub cannot be read.
+ */
+async function paintOverride(e: HistoryEntry, n: number) {
+  let read = overrides.get(n);
+  if (!read) {
+    const r = readRepo();
+    read = ghGet<{ body?: string | null }[]>(`/repos/${r.owner}/${r.repo}/issues/${n}/comments?per_page=100`)
+      .then((f) => f.data.map((c) => parseOverrideComment(c.body)).filter((x): x is OverrideRecord => x !== null && x.merged).pop() ?? null)
+      .catch(() => null);
+    overrides.set(n, read);
+  }
+  const ov = await read;
+  const el = $('hs-detail').querySelector<HTMLElement>('[data-hs-override]');
+  if (!ov || !el || new URLSearchParams(location.search).get('entry') !== e.id) return;
+  el.innerHTML = overrideLine(ov, esc, (login) => personHtml(login, { size: 'sm' }));
+  el.hidden = false;
+  void paintPeople(el);
 }
 
 /** Paints the History view from the URL (?view=history, &entry=). */

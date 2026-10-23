@@ -41,6 +41,12 @@ export const DOCS_MCP_ORIGIN: DocsOrigin = {
   label: 'source: mcp',
 };
 
+export const DOCS_CLI_ORIGIN: DocsOrigin = {
+  where: 'with the bridge CLI',
+  footer: 'Proposed with the bridge CLI on behalf of a person. Docs Claude drafted say "draftedBy": "claude" until a reviewer accepts them.',
+  label: 'source: cli',
+};
+
 export interface DocsIssue {
   field: string;
   message: string;
@@ -322,7 +328,7 @@ export interface SuggestedDocs {
 }
 
 /** The source a docs origin stands for, as suggestions name it. */
-const docsSource = (origin: DocsOrigin): RequestSource => (origin.label === DOCS_MCP_ORIGIN.label ? 'mcp' : 'studio');
+const docsSource = (origin: DocsOrigin): RequestSource => (origin.label === DOCS_MCP_ORIGIN.label ? 'mcp' : origin.label === DOCS_CLI_ORIGIN.label ? 'cli' : 'studio');
 
 /**
  * The suggestion payload (bridge.suggestion/1, kind docs) of a set of docs edits: the cleaned docs object of each

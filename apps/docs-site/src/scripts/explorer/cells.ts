@@ -114,10 +114,16 @@ export function studioCellHtml(d: ExplorerData, path: string, col: Column, edite
 }
 
 /** Accessible text of a cell for screen readers (the visual chip and line are aria-hidden duplicates otherwise). */
-export function cellLabel(d: ExplorerData, path: string, col: Column): string {
+export function cellLabel(d: ExplorerData, path: string, col: Column, studio = false): string {
   const v = cellValue(d.set, path, col.ctx);
-  if (v.error) return `${col.label}: unresolved`;
-  return `${col.label}: ${v.alias ? `points to ${v.alias}, ` : ''}${v.line}`;
+  const type = d.set.byPath.get(path)?.type ?? '';
+  // The visible text first, in the order the cell shows it (voice control finds the cell by what it shows), then the
+  // column and the full alias path.
+  const shown = studio
+    ? [v.alias ? swatchLabel(v.alias) : v.line || cssText(type, v.raw), v.error ? 'Unresolved' : type === 'color' ? (v.hex ?? v.css) : v.alias ? v.line : '']
+    : [v.alias ? aliasLabel(v.alias) : v.line || cssText(type, v.raw), v.alias || v.error ? v.line : ''];
+  const visible = shown.filter(Boolean).join(' ');
+  return `${visible || (v.error ? 'Unresolved' : '')}, ${col.label}${v.alias ? `, points to ${v.alias}` : ''}`;
 }
 
 export const inkClass = (hex?: string) => `ink-${inkOn(hex)}`;

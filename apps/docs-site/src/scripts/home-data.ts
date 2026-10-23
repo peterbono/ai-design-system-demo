@@ -6,7 +6,7 @@
 // are pure in lib/home-model.ts and lib/branch-thumb.ts. Admins of a real team on the hosted site also get the people
 // asking to join it (board E7b, GET /api/entry?requests=), first in the list.
 import { requesterOf } from '@bridge-ds/core';
-import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, readRepo, RateLimitError } from './github-session';
+import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, readRepo, RateLimitError, resolveAccess } from './github-session';
 import { loadStatuses, owners, rowWho, shippers, type PullStatus } from './pr-status';
 import { loadTeams } from './teams';
 import { loadSuggestionNeeds } from './suggestions';
@@ -38,6 +38,7 @@ import {
   type TimelineEvent,
 } from '../lib/home-model';
 import { isHosted, studioHref } from '../lib/team-path';
+import { busyText } from '../lib/team-load';
 import { isDemoRepo, teamDisplayName } from '../lib/demo';
 
 export interface HomePull extends QueuePullFull {
@@ -172,11 +173,12 @@ interface Classified {
  * self-hosted site, or when the account cannot manage requests (no GitHub admin linked).
  */
 export async function loadJoinNeeds(now: number): Promise<NeedRow[]> {
-  const a = currentAccess();
-  if (!a?.admin && !a?.repoAdmin) return [];
   const { owner, repo } = readRepo();
   const full = `${owner}/${repo}`;
   if (!isHosted() || isDemoRepo(full)) return [];
+  // The access may still be on its way (an email admin's is known without GitHub): wait for it, never fail on it.
+  const a = currentAccess() ?? (await resolveAccess({ owner, repo }, { anonymous: true }).catch(() => null));
+  if (!a?.admin && !a?.repoAdmin) return [];
   try {
     const { listJoinRequests } = await import('./entry-session');
     const { siteConfig } = await import('./repo-context');
@@ -189,8 +191,12 @@ export async function loadJoinNeeds(now: number): Promise<NeedRow[]> {
 
 /**
  * Loads everything, painting as it goes. Signed out (or no working token) it reads nothing: the page asks to sign in.
+ * `stat` is read on every paint: a team page passes a getter, so the repo facts (contrast, guidance drafts) fill in
+ * when its design system is read, without reading GitHub again (`onRepaint` hands back the way to repaint). Join
+ * requests are Bridge's own (api/entry): they paint as soon as they are read, whatever GitHub does.
  */
-export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void): Promise<void> {
+export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: (d: HomeData) => void, onRepaint?: (repaint: () => void) => void): Promise<void> {
+  const facts = typeof stat === 'function' ? stat : () => stat;
   const viewer = currentViewer()?.login ?? null;
   const now = Date.now();
   // An email contributor is known at once; a GitHub account once the owner teams are read (below).
@@ -200,27 +206,34 @@ export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void
   // People asking to join: admins only, read next to the branches.
   let joins: NeedRow[] = [];
   // Library checks and guidance drafts wait on the reviewers, not on someone who cannot approve them.
-  const staticNeeds = (): NeedRow[] => [...joins, ...(reviewer ? [...(contrastNeed(stat.contrastFail) ? [contrastNeed(stat.contrastFail)!] : []), ...stat.guidance.map((g) => guidanceNeed(g, now))] : [])];
+  const staticNeeds = (): NeedRow[] => {
+    const f = facts();
+    return [...joins, ...(reviewer ? [...(contrastNeed(f.contrastFail) ? [contrastNeed(f.contrastFail)!] : []), ...f.guidance.map((g) => guidanceNeed(g, now))] : [])];
+  };
   const empty: HomeData = { viewer, loading: true, settled: false, failed: null, needs: [], branches: [], decisions: 0, reviewer };
   if (!viewer || !hasWorkingToken()) {
     onUpdate({ ...empty, loading: false, settled: true });
     return;
   }
-  onUpdate({ ...empty, needs: sortNeeds(staticNeeds()) });
-  const joinsRead = loadJoinNeeds(now).then((rows) => (joins = rows));
+  // What is on screen now, so a join request or the repo facts landing repaint the same state: still reading the
+  // branches, GitHub failed (the requests stay), or the full home (paint, below).
+  let failed: string | null = null;
+  let repaint = () => (failed === null ? onUpdate({ ...empty, needs: sortNeeds(staticNeeds()) }) : onUpdate({ ...empty, loading: false, settled: true, needs: sortNeeds(staticNeeds()), reviewer, failed }));
+  onRepaint?.(() => repaint());
+  repaint();
+  const joinsRead = loadJoinNeeds(now)
+    .catch(() => [] as NeedRow[])
+    .then((rows) => {
+      joins = rows;
+      if (rows.length) repaint();
+    });
   const { owner, repo } = readRepo();
   let pulls: HomePull[];
   try {
     pulls = (await ghGet<HomePull[]>(`/repos/${owner}/${repo}/pulls?state=open&per_page=100`)).data;
   } catch (err) {
-    onUpdate({
-      ...empty,
-      loading: false,
-      settled: true,
-      needs: sortNeeds(staticNeeds()),
-      reviewer,
-      failed: err instanceof RateLimitError ? 'GitHub is busy right now. Your branches come back in a few minutes.' : 'GitHub could not be reached. Reload the page to try again.',
-    });
+    failed = err instanceof RateLimitError ? busyText(err.resetAt ? (err.resetAt.getTime() - Date.now()) / 1000 : null) : 'GitHub could not be reached. Reload the page to try again.';
+    repaint();
     return;
   }
   await loadTeams();
@@ -312,6 +325,7 @@ export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void
     onUpdate({ viewer, loading, settled, failed: null, needs: sorted, branches, decisions: sorted.filter((r) => r.kind === 'review').length, reviewer });
   };
 
+  repaint = paint;
   paint();
   await Promise.all([
     loadStatuses(queue, (p, st) => {

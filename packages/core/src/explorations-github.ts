@@ -26,6 +26,7 @@ import {
 import { GitHubError, type GitHubClient, type PullRequestSummary } from './github-client';
 import { findPreviewComment, previewLinks, previewsSettled, type BranchPreview, type PreviewApps } from './previews';
 import { branchPreviewUrls } from './previews-github';
+import { noOnlinePreview } from './try-in-product';
 
 export interface ExplorationSettings {
   /** Branch explorations start from and pull requests target (the default branch). */
@@ -167,7 +168,8 @@ export async function explorationTestBuildOnGitHub(gh: GitHubClient, e: { number
   const [comments, head] = await Promise.all([gh.listIssueComments(e.number), gh.getBranchSha(e.branch).catch(() => undefined)]);
   const tryIt = explorationTryIt({ comment: findPreviewComment(comments)?.body, headSha: head });
   const previews = await branchPreviewUrls(gh, e.number, config, { branch: e.branch, sha: head, comments }).catch(() => [] as BranchPreview[]);
-  return { tryIt, previews, settled: tryIt.state !== 'building' && previewsSettled(previews) };
+  // Not deployed (nothing reported once the test build is done): nothing more will come, polling can stop.
+  return { tryIt, previews, settled: tryIt.state !== 'building' && (previewsSettled(previews) || noOnlinePreview(previews)) };
 }
 
 /** The open exploration pull request of a branch, slug or number. */

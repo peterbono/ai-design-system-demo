@@ -9,6 +9,8 @@ import { flushSync } from 'react-dom';
 import { Who } from './faces';
 import { ArrowRight, Check, ChevronLeft, Circle, Ellipsis, Pencil } from 'lucide-react';
 import {
+  Accordion,
+  AccordionItem,
   AlertDialog,
   AlertDialogContent,
   Badge,
@@ -65,6 +67,9 @@ import {
   type ReviewActions,
   type ReviewChange,
   type Seg,
+  productWorkEmpty,
+  productWorkLine,
+  type ProductWorkView,
 } from '../../../lib/review-page';
 import type { VisualShot } from '../../../lib/visual-impact';
 import { VISUAL_CHECKS_DOCS } from '@bridge-ds/core';
@@ -114,7 +119,8 @@ export interface BranchReviewProps {
   crumbs: { label: string; href?: string }[];
   title: string;
   jira: string | null;
-  status: { label: string; tone: LifecycleTone; lifecycle: Lifecycle };
+  /** Warning only in the demo seat: the list's "Waiting 1 day" pill for the same branch. */
+  status: { label: string; tone: LifecycleTone | 'warning'; lifecycle: Lifecycle };
   who: { person: PersonRef | null; lead: string | null; rest: string };
   /** Back from the token editor: what was just added. */
   added?: string | null;
@@ -140,6 +146,11 @@ export interface BranchReviewProps {
   /** Line comments by file path, for the change they belong to. */
   fileComments: ConvEntry[];
   checks: ChecksLine;
+  /**
+   * The viewer is a developer (a tech owner): the technical side of the branch, folded under "For developers". Null
+   * for designers, who read who acts instead ("A developer is on it").
+   */
+  developer?: { tests: string | null; failing: string[]; url: string; number: number } | null;
   approvals: { label: string; state: 'approved' | 'changes' | 'waiting'; text: string }[];
   /** The branch is behind or conflicts with main: the line above the bar (filled by scripts/reviews.ts). */
   update: 'behind' | 'conflict' | 'done' | null;
@@ -160,6 +171,10 @@ export interface BranchReviewProps {
   inQueue?: boolean;
   /** A library branch a product branch needs: "Why it exists" (ProductContext). */
   productContext?: ProductContextProps['context'] | null;
+  /** An exploration or a product branch: "See it" for a designer (where, why, previews, Try it, Share). */
+  productWork?: ProductWorkView | null;
+  /** Product work's technical side, folded under "For developers" for everyone. */
+  code?: { files: string[]; branch: string; url: string; number: number; install: string | null } | null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -504,7 +519,7 @@ function ChangeBody(p: BranchReviewProps & { change: ReviewChange; multi: boolea
       ) : (
         <p className="br-muted">No visual change.</p>
       )}
-      <p className="br-muted">The code is a developer's to review, on GitHub.</p>
+      <p className="br-muted">The code is a developer's to review.</p>
     </>
   );
 }
@@ -706,22 +721,134 @@ function ChecksRow({ checks, approvals }: { checks: ChecksLine; approvals: Branc
   const tone = checks.state === 'pass' ? 'is-pass' : checks.state === 'fail' ? 'is-fail' : '';
   return (
     <section className="br-checks" aria-label="Checks and approvals">
-      <div className="br-line is-tight">
-        <p className={`br-checks-line ${tone}`}>{checks.text}</p>
-        <Button variant="ghost" size="sm" aria-expanded={open} aria-controls="br-checks-detail" onClick={() => setOpen(!open)}>
-          {open ? 'Hide details' : 'Details'}
-        </Button>
-      </div>
-      <div id="br-checks-detail" hidden={!open}>
-        <Checklist label="What it needs to merge">
-          {checks.rows.map((r) => (
-            <ChecklistRow key={r.label} status={CHECK_STATUS[r.state]} title={r.label} detail={r.text} />
-          ))}
+      {/* The approvals it needs, always in view: who approves the design and who approves the code. */}
+      {approvals.length > 0 && (
+        <Checklist label="Approvals it needs">
           {approvals.map((a) => (
             <ChecklistRow key={a.label} status={APPROVAL_STATUS[a.state]} title={a.label} detail={a.text} />
           ))}
         </Checklist>
+      )}
+      <div className="br-line is-tight">
+        <p className={`br-checks-line ${tone}`}>{checks.text}</p>
+        {checks.rows.length > 0 && (
+          <Button variant="ghost" size="sm" aria-expanded={open} aria-controls="br-checks-detail" onClick={() => setOpen(!open)}>
+            {open ? 'Hide details' : 'Details'}
+          </Button>
+        )}
       </div>
+      <div id="br-checks-detail" hidden={!open}>
+        <Checklist label="Checks">
+          {checks.rows.map((r) => (
+            <ChecklistRow key={r.label} status={CHECK_STATUS[r.state]} title={r.label} detail={r.text} />
+          ))}
+        </Checklist>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The technical side of the branch, folded: what fails and the branch on GitHub for developers (tech owners); on
+ * product work, for everyone, the branch, its files and the install command of its test build.
+ */
+function ForDevelopers({ dev, code }: { dev?: BranchReviewProps['developer']; code?: BranchReviewProps['code'] }) {
+  const url = dev?.url ?? code?.url;
+  const number = dev?.number ?? code?.number;
+  return (
+    <Accordion appearance="flush" headingLevel={2} className="br-dev">
+      <AccordionItem value="developers" title="For developers">
+        {dev?.tests && <p>{dev.tests}</p>}
+        {dev && dev.failing.length > 0 && (
+          <ul className="br-dev-list">
+            {dev.failing.map((name) => (
+              <li key={name} className="br-mono">
+                {name}
+              </li>
+            ))}
+          </ul>
+        )}
+        {dev && !dev.tests && !dev.failing.length && <p className="br-muted">Nothing fails on the code side.</p>}
+        {code && (
+          <>
+            <p>
+              Branch <span className="br-mono">{code.branch}</span>, {code.files.length} {code.files.length === 1 ? 'file' : 'files'} changed:
+            </p>
+            <ul className="br-dev-list">
+              {code.files.slice(0, 20).map((f) => (
+                <li key={f} className="br-mono">
+                  {f}
+                </li>
+              ))}
+              {code.files.length > 20 && <li className="br-muted">and {code.files.length - 20} more</li>}
+            </ul>
+            {code.install && (
+              <p>
+                Install its test build in a product branch: <span className="br-mono">{code.install}</span>
+              </p>
+            )}
+          </>
+        )}
+        {url && (
+          <Link href={url} target="_blank" rel="noopener">
+            Open #{number} on GitHub
+          </Link>
+        )}
+      </AccordionItem>
+    </Accordion>
+  );
+}
+
+/**
+ * An exploration or a product branch, for a designer: where it is and why, then how to see it (Try it in the
+ * product with the Bridge toolbar, the previews), and Share, which copies the link to this page. The before and
+ * after, when the visual checks captured it, shows right below (WhereItShows).
+ */
+function ProductWork({ work, link, hasVisual }: { work: ProductWorkView; link: string; hasVisual: boolean }) {
+  const [said, setSaid] = useState('');
+  const share = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      setSaid('Link copied. Anyone on the team can open this page with it.');
+    } catch {
+      setSaid('Copy is not available in this browser. Copy the address from the address bar.');
+    }
+  };
+  const seeable = Boolean(work.tryUrl) || work.previews.length > 0;
+  return (
+    <section className="br-work" aria-labelledby="br-work-h">
+      <div className="br-line">
+        <h2 className="br-h2" id="br-work-h">
+          See it {work.useCase && <span className="br-muted br-h2-meta">{work.useCase}</span>}
+        </h2>
+      </div>
+      <p>{productWorkLine(work)}</p>
+      {work.experimental.length > 0 && (
+        <ul className="br-work-list" aria-label="What is experimental">
+          {work.experimental.map((e) => (
+            <li key={e}>{e}</li>
+          ))}
+        </ul>
+      )}
+      {!seeable && !hasVisual && <p className="br-muted">{productWorkEmpty(work)}</p>}
+      <div className="br-work-actions">
+        {work.tryUrl && (
+          <ButtonLink variant="secondary" href={work.tryUrl} target="_blank" rel="noopener">
+            Try it in the product
+          </ButtonLink>
+        )}
+        {work.previews.map((v) => (
+          <ButtonLink key={v.url} variant="secondary" href={v.url} target="_blank" rel="noopener">
+            Open in {v.label}
+          </ButtonLink>
+        ))}
+        <Button variant="secondary" onClick={() => void share()}>
+          Share
+        </Button>
+      </div>
+      <p className="br-said" role="status" aria-live="polite">
+        {said}
+      </p>
     </section>
   );
 }
@@ -904,6 +1031,7 @@ export function BranchReview(p: BranchReviewProps) {
   const visualOnTop = !multi && p.visual && (!single || single.kind !== 'guidance');
   // In the review queue the page heading is the queue's: the branch title is one level down.
   const Heading = p.inQueue ? 'h2' : 'h1';
+  const work = p.productWork ?? null;
 
   return (
     <div className={`br ${multi ? 'is-multi' : 'is-single'}${p.inQueue ? ' is-queue' : ''}`}>
@@ -945,9 +1073,11 @@ export function BranchReview(p: BranchReviewProps) {
         <div className="br-multi">
           <Outline {...p} current={current} seen={looked} pick={pick} />
           <div className="br-main">
+            {work && <ProductWork work={work} link={p.links.review} hasVisual={p.visual?.state === 'changes'} />}
             <MultiBody {...p} current={current} seen={looked} pick={pick} mark={mark} />
             <Conversation p={p} onReply={reply} />
             <ChecksRow checks={p.checks} approvals={p.approvals} />
+            {(p.developer || p.code) && <ForDevelopers dev={p.developer} code={p.code} />}
             {/* The visual impact reads into these (scripts/reviews.ts); on a busy branch the before and after shows per change. */}
             {p.visual && <div id="rv-visual" hidden />}
             {p.visual && <div id="rv-visual-ask" hidden={!(p.visual.state === 'not-run' && p.visual.ask)} />}
@@ -955,13 +1085,15 @@ export function BranchReview(p: BranchReviewProps) {
         </div>
       ) : (
         <div className="br-main">
+          {work && <ProductWork work={work} link={p.links.review} hasVisual={p.visual?.state === 'changes'} />}
           {single && single.kind !== 'component' && <ChangeBody {...p} change={single} multi={false} />}
           {p.motion && <MotionChanges {...p.motion} />}
-          {visualOnTop && <WhereItShows visual={p.visual!} product={p.product} tryUrl={p.tryUrl} components={[]} />}
-          {!single && <p className="br-muted">Nothing here for design review: the changes are code, a developer reviews them on GitHub.</p>}
-          {single?.kind === 'component' && <p className="br-muted">The code is a developer's to review, on GitHub.</p>}
+          {visualOnTop && <WhereItShows visual={p.visual!} product={p.product} tryUrl={work ? null : p.tryUrl} components={[]} />}
+          {!single && !work && <p className="br-muted">Nothing here for design review: the changes are code, a developer reviews them.</p>}
+          {single?.kind === 'component' && <p className="br-muted">The code is a developer's to review.</p>}
           <Conversation p={p} onReply={reply} />
           <ChecksRow checks={p.checks} approvals={p.approvals} />
+          {(p.developer || p.code) && <ForDevelopers dev={p.developer} code={p.code} />}
         </div>
       )}
 

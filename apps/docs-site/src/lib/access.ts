@@ -42,6 +42,17 @@ export function contributorAccess(admin = false): RepoAccess {
   return { state: 'writer', write: true, admin, reach: true, contributor: true };
 }
 
+/**
+ * The state the team pill and the team menu show: GitHub's, except an email member, whose role is the one
+ * /api/contribute gives (`role`, else the access's own admin flag): an admin reads "Admin", never "Can edit".
+ */
+export function pillState(a: Pick<RepoAccess, 'state' | 'admin' | 'contributor'> | null | undefined, role?: string | null): RepoAccessState | null {
+  if (!a) return null;
+  if (!a.contributor) return a.state;
+  if (role === 'admin' || (role == null && a.admin)) return 'admin';
+  return a.state;
+}
+
 /** May approve, request changes, merge or override: a GitHub account with write access, never an email contributor. */
 export const canReview = (a: Pick<RepoAccess, 'write' | 'contributor'> | null | undefined): boolean => Boolean(a?.write && !a.contributor);
 

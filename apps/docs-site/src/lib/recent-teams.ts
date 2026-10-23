@@ -4,6 +4,7 @@
 // Covered by recent-teams.test.ts with an in-memory storage.
 
 import type { RepoAccessState } from '@bridge-ds/core';
+import { teamDisplayName } from './demo';
 import { forgetsTeam, noteName, parseRecentTeams, parseTeamNames, pushRecentTeam, RECENT_TEAMS_KEY, remembersTeam, removeRecentTeam, TEAM_NAMES_KEY, TEAM_ROLES_KEY } from './access-view';
 
 export type RecentStore = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
@@ -95,3 +96,29 @@ export const loadTeamRoles = (store: RecentStore | null = browserStore()) => loa
 
 /** A team page knows the person's access: remember their role there (none: they do not belong to it). */
 export const noteTeamRole = (team: string, role: string | null | undefined, store: RecentStore | null = browserStore()) => noteMap(TEAM_ROLES_KEY, team, role, store);
+
+/**
+ * The names of the signed-in account's teams as the server keeps them (bridge.config.json `name`, GET /api/account),
+ * so a team page names its team right from the first paint, before its own settings are read: the sidebar never
+ * changes names after load. Lower-case "owner/repo" to name; cleared when the server says nobody is signed in.
+ */
+export const ACCOUNT_TEAM_NAMES_KEY = 'bridge.accountTeamNames';
+
+/** Keeps the account's team names (null: nobody signed in, forget them). */
+export function noteAccountTeamNames(teams: readonly { repo: string; name?: string | null }[] | null, store: RecentStore | null = browserStore()): void {
+  if (!store) return;
+  try {
+    // Only names a team set: the repository in words is what every page falls back to anyway.
+    const named = (teams ?? []).filter((t) => t.name?.trim() && t.name.trim() !== teamDisplayName(t.repo));
+    if (!named.length) return store.removeItem(ACCOUNT_TEAM_NAMES_KEY);
+    store.setItem(ACCOUNT_TEAM_NAMES_KEY, JSON.stringify(Object.fromEntries(named.map((t) => [t.repo.toLowerCase(), t.name!.trim()]))));
+  } catch {
+    /* storage blocked: the page names the team once its settings are read */
+  }
+}
+
+/** The name this browser already knows for `team`: the one its page last read, else the account's (server-kept). */
+export function knownTeamName(team: string, store: RecentStore | null = browserStore()): string | null {
+  const k = team.toLowerCase();
+  return loadMap(TEAM_NAMES_KEY, store)[k] ?? loadMap(ACCOUNT_TEAM_NAMES_KEY, store)[k] ?? null;
+}

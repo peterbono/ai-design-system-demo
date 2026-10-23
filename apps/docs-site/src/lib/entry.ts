@@ -8,7 +8,11 @@
 //   invites  "Acme Design invited you" (E3): Join accepts the invite, no approval.
 //   domain   "Your colleagues already use Bridge" (E4): every team open to the work domain, largest first, three then
 //            "N more"; Ask to join, then "Request sent" (E4b).
-//   create   "Create your team" (E6): the workspace setup, step 1.
+//   create   "Create your team" (E6): the workspace setup, step 1. Continue on step 1 makes a real team on the server
+//            (POST create-team): its creator is its admin, colleagues on the work domain can find it, and the next
+//            sign-in lands on it. Until a repository is linked it goes by its key `_team/<id>` (lib/team-path.ts), whose
+//            home is the workspace page (teamHome below).
+import { ROLE_WORDS, roleLabel, type MemberRole } from './invites';
 import { teamHref } from './team-path';
 import { WORKSPACE_HOME } from './start';
 
@@ -18,6 +22,8 @@ export type EntryRole = 'edit' | 'reviewer' | 'admin';
 
 export interface EntryTeam {
   repo: string;
+  /** The team's opaque id (the same as on a domain card: E4b knows its team joined by it). */
+  id: string;
   name: string;
   role: EntryRole;
   via: string;
@@ -28,6 +34,8 @@ export interface EntryInvite {
   team: string;
   repo: string;
   role: string;
+  /** A reviewer invite: what they review ("design" or "tech"). */
+  reviewAs?: string;
   invitedBy: string;
   /** When the invite was sent (ISO), '' when unknown. */
   invitedAt: string;
@@ -37,12 +45,15 @@ export interface EntryInvite {
 }
 
 export interface DomainTeam {
-  repo: string;
+  /** An opaque id: the person is not on the team, so its repository is never named (requests use it). */
+  id: string;
   name: string;
   memberCount: number;
   people: string[];
   adminName: string;
   requested: boolean;
+  /** Their last request ran out before an admin answered: "Your request expired, ask again". */
+  expired: boolean;
 }
 
 export type Entry =
@@ -70,6 +81,23 @@ const isoOf = (v: unknown): string => {
   return s && Number.isFinite(Date.parse(s)) ? s : '';
 };
 
+const REVIEW_AS = ['design', 'tech'];
+
+function inviteOf(i: Record<string, unknown>, id: string, repo: string): EntryInvite {
+  const reviewAs = str(i.reviewAs);
+  return {
+    id,
+    repo,
+    team: str(i.team) ?? repo,
+    role: str(i.role) ?? 'edit',
+    ...(reviewAs && REVIEW_AS.includes(reviewAs) ? { reviewAs } : {}),
+    invitedBy: str(i.invitedBy) ?? '',
+    invitedAt: isoOf(i.invitedAt),
+    memberCount: countOf(i.memberCount),
+    people: namesOf(i.people),
+  };
+}
+
 /** An /api/entry answer, or null when it is not one. Unknown fields and malformed rows are dropped. */
 export function parseEntry(v: unknown): Entry | null {
   if (!v || typeof v !== 'object') return null;
@@ -81,7 +109,7 @@ export function parseEntry(v: unknown): Entry | null {
         const repo = repoOf(t.repo);
         if (!repo) return [];
         const role = ROLES.includes(t.role as EntryRole) ? (t.role as EntryRole) : 'edit';
-        return [{ repo, name: str(t.name) ?? repo, role, via: str(t.via) ?? 'email' }];
+        return [{ repo, id: str(t.id) ?? '', name: str(t.name) ?? repo, role, via: str(t.via) ?? 'email' }];
       });
       return teams.length ? { kind: 'teams', teams } : { kind: 'create' };
     }
@@ -90,16 +118,18 @@ export function parseEntry(v: unknown): Entry | null {
         const repo = repoOf(i.repo);
         const id = str(i.id);
         if (!repo || !id) return [];
-        return [{ id, repo, team: str(i.team) ?? repo, role: str(i.role) ?? 'edit', invitedBy: str(i.invitedBy) ?? '', invitedAt: isoOf(i.invitedAt), memberCount: countOf(i.memberCount), people: namesOf(i.people) }];
+        return [inviteOf(i, id, repo)];
       });
       return invites.length ? { kind: 'invites', invites } : { kind: 'create' };
     }
     case 'domain': {
       const domain = str(o.domain);
       const teams = list(o.teams).flatMap((t): DomainTeam[] => {
-        const repo = repoOf(t.repo);
-        if (!repo) return [];
-        return [{ repo, name: str(t.name) ?? repo, memberCount: countOf(t.memberCount), people: namesOf(t.people), adminName: str(t.adminName) ?? '', requested: t.requested === true }];
+        const id = str(t.id);
+        const name = str(t.name);
+        if (!id || !name) return [];
+        const requested = t.requested === true;
+        return [{ id, name, memberCount: countOf(t.memberCount), people: namesOf(t.people), adminName: str(t.adminName) ?? '', requested, expired: !requested && t.expired === true }];
       });
       return domain && teams.length ? { kind: 'domain', domain, teams: sortDomainTeams(teams) } : { kind: 'create' };
     }
@@ -108,6 +138,71 @@ export function parseEntry(v: unknown): Entry | null {
     default:
       return null;
   }
+}
+
+/**
+ * What an invite link (/studio/invite/#t=...) is, from POST /api/entry { action: 'invite-link' }:
+ *   live     the invite waits. `invite` (its E3 card) when it is the signed-in account's own; `sentTo` masked.
+ *   gone     accepted, cancelled or expired: the team and whom to ask still show.
+ *   unknown  a token Bridge never knew (a cut link).
+ * `member`: the signed-in account is already on the team (`repo` then opens it).
+ */
+export type InviteLink =
+  | { state: 'live'; team: string; invitedBy: string; role: string; reviewAs?: string; sentTo: string; signedIn: boolean; mine: boolean; member: boolean; repo?: string; invite?: EntryInvite }
+  | { state: 'gone'; team: string; invitedBy: string; signedIn: boolean; member: boolean; repo?: string }
+  | { state: 'unknown'; signedIn: boolean };
+
+export function parseInviteLink(v: unknown): InviteLink | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  const signedIn = o.signedIn === true;
+  const repo = repoOf(o.repo);
+  const member = o.member === true && Boolean(repo);
+  const team = str(o.team) ?? '';
+  const invitedBy = str(o.invitedBy) ?? '';
+  if (o.state === 'gone') return { state: 'gone', team, invitedBy, signedIn, member, ...(member && repo ? { repo } : {}) };
+  if (o.state !== 'live') return o.state === 'unknown' ? { state: 'unknown', signedIn } : null;
+  const reviewAs = str(o.reviewAs);
+  const raw = o.invite && typeof o.invite === 'object' ? (o.invite as Record<string, unknown>) : null;
+  const invRepo = raw ? repoOf(raw.repo) : null;
+  const invId = raw ? str(raw.id) : null;
+  const invite = raw && invRepo && invId ? inviteOf(raw, invId, invRepo) : null;
+  return {
+    state: 'live',
+    team: team || invite?.team || '',
+    invitedBy,
+    role: str(o.role) ?? 'edit',
+    ...(reviewAs && REVIEW_AS.includes(reviewAs) ? { reviewAs } : {}),
+    sentTo: str(o.sentTo) ?? '',
+    signedIn,
+    mine: o.mine === true && Boolean(invite),
+    member,
+    ...(member && repo ? { repo } : {}),
+    ...(invite ? { invite } : {}),
+  };
+}
+
+/** Set when Entry opens a team the person just joined: its home says "You joined <team>" once (sessionStorage). */
+export const JOINED_KEY = 'bridge.entry.joined';
+
+/** The "You joined" note for this team, if Entry left one: { repo, team }. Pure: `raw` is what the storage held. */
+export function joinedNote(raw: string | null, repo: string): string | null {
+  try {
+    const v = raw ? (JSON.parse(raw) as { repo?: unknown; team?: unknown }) : null;
+    if (!v || typeof v.repo !== 'string' || v.repo.toLowerCase() !== repo.toLowerCase()) return null;
+    return ENTRY_WORDS.joinedNote(typeof v.team === 'string' && v.team.trim() ? v.team.trim() : 'the team');
+  } catch {
+    return null;
+  }
+}
+
+/** Where an invite link keeps its token in this tab (sessionStorage) while the person signs in or links GitHub. */
+export const INVITE_TOKEN_KEY = 'bridge.invite.token';
+
+/** The token of an invite link's `#t=...`, if the fragment carries one that looks like ours. */
+export function inviteTokenFromHash(hash: string): string | null {
+  const m = /(?:^#|&)t=([A-Za-z0-9_-]{20,128})(?:&|$)/.exec(hash);
+  return m ? m[1]! : null;
 }
 
 /** Largest first, then by name: the order the server sends, kept when a list comes back unsorted. */
@@ -179,6 +274,12 @@ export function routeEntry(e: Entry, recent: readonly string[] = []): EntryRoute
   }
 }
 
+/** The role an invite gives, in the words of the role picker: "Can edit", "Reviewer: design", "Admin". */
+export function inviteRole(i: Pick<EntryInvite, 'role' | 'reviewAs'>): string {
+  if (i.role === 'reviewer') return roleLabel({ role: 'reviewer', reviewAs: i.reviewAs === 'tech' ? 'tech' : 'design' });
+  return i.role in ROLE_WORDS ? ROLE_WORDS[i.role as MemberRole].label : i.role;
+}
+
 /** "12 members", "1 member". */
 export const membersLabel = (n: number): string => `${n} ${n === 1 ? 'member' : 'members'}`;
 
@@ -217,7 +318,30 @@ export const ENTRY_WORDS = {
   notYou: 'Not you?',
   otherEmail: 'Use another email',
   githubToAccept: 'Connect GitHub to accept',
-  githubToAcceptWhy: (role: string) => `You join as ${role}. Reviewers and admins approve on GitHub, so Bridge needs your GitHub account first.`,
+  githubWhy: (role: string) => `As ${role}, you approve changes on GitHub, the free account where your team's design system lives.`,
+  newToGitHub: 'New to GitHub?',
+  createGitHub: 'Create a free account',
+  githubOff: (role: string, inviter: string) => `Joining as ${role} needs GitHub, which is not available on this Bridge site. Ask ${inviter || 'your admin'} to invite you as Can edit or Admin instead.`,
+  // The invite link (/studio/invite/#t=...), before E3.
+  opening: 'Opening your invite',
+  linkTitle: (team: string) => (team ? `Join ${team}` : 'Join your team'),
+  linkLead: (inviter: string) => (inviter ? `${inviter} invited` : 'You were invited with'),
+  linkLeadEnd: '. Bridge sends a 6-digit code there to sign you in.',
+  linkNotYours: (inviter: string) => `Not your email? Ask ${inviter || 'your admin'} to invite the one you use.`,
+  otherTitle: (sentTo: string) => `This invite was sent to ${sentTo || 'another email'}`,
+  otherLead: (team: string) => `You're signed in with another email. Sign in with the invited one to join ${team || 'the team'}.`,
+  signInAsInvited: 'Sign in as that email',
+  continueAs: (email: string) => `Continue as ${email}`,
+  alreadyIn: (team: string) => (team ? `You're already in ${team}` : "You're already on this team"),
+  alreadyInLead: 'This invite is yours, and you are on the team. Open it to pick up where you left off.',
+  openNamed: (team: string) => (team ? `Open ${team}` : 'Open the team'),
+  goneTitle: 'This invite link no longer works',
+  goneLead: (inviter: string, team: string) => `Invites work once, for 7 days. Ask ${inviter || 'your admin'} for a new invite to ${team || 'the team'}.`,
+  goneSignedOut: 'Already on the team? Sign in to open it.',
+  missingTitle: 'This invite link is incomplete',
+  missingLead: 'Open the link from the invite email again, or ask your admin for a new invite.',
+  signIn: 'Sign in',
+  continueToBridge: 'Continue to Bridge',
   inviteGone: 'This invite expired or was cancelled. Ask your admin for a new one.',
   acceptOnGitHubTitle: 'One last step on GitHub',
   acceptOnGitHub: (repo: string, role: string) => `GitHub asks you to accept the invitation to ${repo} once. Then come back: you are ${role}.`,
@@ -230,6 +354,14 @@ export const ENTRY_WORDS = {
   ask: 'Ask to join',
   askTeam: (team: string) => `Ask to join ${team}`,
   asked: 'Request sent',
+  cancelShort: 'Cancel',
+  cancelTeam: (team: string) => `Cancel the request to ${team}`,
+  askAgain: 'Ask again',
+  askAgainTeam: (team: string) => `Ask again to join ${team}`,
+  expiredLine: 'Your request expired, ask again',
+  expiredLead: (admin: string) => `Your request expired before ${admin || 'an admin'} answered. Ask again, and they get a new email.`,
+  sentListTitle: (n: number) => (n === 1 ? 'Request sent' : `${n} requests sent`),
+  sentListLead: "We asked the admins to let you in. You'll get an email. You can ask other teams too.",
   more: (n: number) => `${n} more`,
   showMore: (n: number) => `Show ${n} more ${n === 1 ? 'team' : 'teams'}`,
   createInstead: 'Create a new team instead',
@@ -240,9 +372,12 @@ export const ENTRY_WORDS = {
   exploreDemo: 'Explore the demo while you wait',
   changedMind: 'Changed your mind?',
   cancelRequest: 'Cancel the request',
+  inTitle: "You're in",
+  inLead: (admin: string, team: string) => `${admin ? firstName(admin) : 'An admin'} let you in. You join ${team} as Can edit.`,
+  joinedNote: (team: string) => `You joined ${team}.`,
   // E5
   pickTitle: 'Pick a team',
-  pickLead: (n: number) => `You are in ${n} teams. Switch any time from the top bar.`,
+  pickLead: (n: number) => `You are in ${n} teams. Switch any time from the team menu.`,
   lastOpened: 'Last opened',
   newLead: 'Starting something new?',
   createTeam: 'Create a team',
@@ -261,6 +396,8 @@ export const ENTRY_WORDS = {
   firstOnly: 'Only the first step is needed today.',
   connectGitHub: 'Connect GitHub',
   connectGitHubWhy: 'Bridge reads your repository through GitHub. Connect it once, then pick the repository.',
+  createFailed: 'Bridge could not create your team. Try again in a minute.',
+  linkFailed: 'Bridge could not connect this repository to your team. Try again in a minute.',
   // E7a, E7c: Settings
   discoveryOn: ['People with', 'can find this team and ask to join.'] as [string, string],
   discoveryOff: (domain: string) => `People with @${domain} cannot find this team. They join by invite.`,
@@ -276,6 +413,9 @@ export const ENTRY_WORDS = {
   joined: (name: string) => `${firstName(name)} joined as Can edit.`,
   declined: (name: string) => `${firstName(name)} will not join. Bridge does not tell them why.`,
   githubToManage: 'Connect GitHub to manage requests',
+  undo: 'Undo',
+  /** After Undo: the request waits again (and an approved person left the team). */
+  undone: (name: string) => `${firstName(name)}'s request is back.`,
   requestKind: (n: number) => `${n} ${n === 1 ? 'join request' : 'join requests'}`,
 } as const;
 
@@ -334,4 +474,42 @@ export function discoveryLine(d: Discovery | null): { on: boolean; domain: strin
   if (!d.configured && !d.eligible) return null;
   if (d.configured && !d.eligible) return { on: false, domain: d.domain, canTurnOn: false };
   return { on: false, domain: d.domain, canTurnOn: true };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// A team made in Bridge (POST create-team, GET ?team=): exists before any repository
+
+export interface TeamInfo {
+  id: string;
+  /** `_team/<id>`, or the repository once one is linked. */
+  key: string;
+  name: string;
+  role: 'edit' | 'admin';
+  /** owner/repo once linked: the team lives there now. */
+  repo: string | null;
+  storybook: string | null;
+  discovery: { domain: string; enabled: boolean } | null;
+  memberCount: number;
+}
+
+/** A team answer of /api/entry, or null when it is not one. */
+export function parseTeamInfo(v: unknown): TeamInfo | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  const id = str(o.id);
+  const key = str(o.key);
+  const name = str(o.name);
+  if (!id || !key || !name) return null;
+  const d = o.discovery && typeof o.discovery === 'object' ? (o.discovery as Record<string, unknown>) : null;
+  const domain = d ? str(d.domain) : null;
+  return {
+    id,
+    key,
+    name,
+    role: o.role === 'admin' ? 'admin' : 'edit',
+    repo: repoOf(o.repo),
+    storybook: str(o.storybook),
+    discovery: domain ? { domain, enabled: d!.enabled === true } : null,
+    memberCount: countOf(o.memberCount),
+  };
 }

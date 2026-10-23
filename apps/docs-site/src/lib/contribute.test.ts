@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { canReview, contributorAccess } from './access';
-import { CONTRIB_TOKEN, CONTRIBUTE_WORDS, contributeEligible, contributeHashToken, isContribAuth, parseMember, proxyUrl, teamWord } from './contribute';
+import { CONTRIB_TOKEN, CONTRIBUTE_WORDS, contributeEligible, contributeHashToken, isContribAuth, parseMember, proxyUrl } from './contribute';
 import { accessScreen } from './access-view';
 import { emailMembers } from './invites';
 import { reviewActions, type ActionInput } from './review-page';
@@ -48,12 +48,6 @@ describe('the email session', () => {
     expect(parseMember({ name: 'Leo' })).toBeNull();
   });
 
-  it("names the team for the join button: the server's name, else the repository's", () => {
-    expect(teamWord({ repo: 'acme/ds', team: 'Acme Design' })).toBe('Acme Design');
-    expect(teamWord({ repo: 'acme/ds' })).toBe('Ds');
-    expect(teamWord(null)).toBe('the team');
-  });
-
   it('never writes an em dash', () => {
     const all = JSON.stringify(Object.values(CONTRIBUTE_WORDS).map((v) => (typeof v === 'function' ? (v as (a: string) => string)('x') : v)));
     expect(all).not.toContain(String.fromCharCode(0x2014));
@@ -94,8 +88,12 @@ describe('signed-out screens', () => {
 });
 
 describe('email members', () => {
-  it('reads the rows the server marks via email, as Can edit, with you', () => {
-    const rows = [{ email: 'Leo@acme.design', name: 'Leo', via: 'email', role: 'admin' }, { email: 'x@acme.design', via: 'github' }, null];
-    expect(emailMembers(rows, 'leo@acme.design')).toEqual([{ login: 'leo@acme.design', name: 'Leo', role: 'edit', reviews: [], email: 'leo@acme.design', via: 'email', you: true }]);
+  it('reads the rows the server marks via email, Can edit or Admin, with you', () => {
+    const rows = [{ email: 'Leo@acme.design', name: 'Leo', via: 'email', role: 'admin' }, { email: 'x@acme.design', via: 'github' }, { email: 'kim@acme.design', via: 'email', role: 'reviewer' }, null];
+    expect(emailMembers(rows, 'leo@acme.design')).toEqual([
+      { login: 'leo@acme.design', name: 'Leo', role: 'admin', reviews: [], email: 'leo@acme.design', via: 'email', you: true },
+      // Anything else reads as Can edit: an email member is never Reviewer.
+      { login: 'kim@acme.design', name: 'kim@acme.design', role: 'edit', reviews: [], email: 'kim@acme.design', via: 'email' },
+    ]);
   });
 });

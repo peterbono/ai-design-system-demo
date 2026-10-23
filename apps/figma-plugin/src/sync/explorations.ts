@@ -13,6 +13,8 @@ import {
   explorationTestBuildOnGitHub,
   explorationTryItOnGitHub,
   listExplorationsOnGitHub,
+  localTryCommand,
+  noOnlinePreview,
   startExplorationOnGitHub,
 } from '@bridge-ds/core';
 import type { ExplorationTarget } from './flows';
@@ -99,14 +101,23 @@ export const explorationTestBuild = (client: GitHubClient, config: BridgeConfig 
 
 /** The message "Share with a developer" copies: the working command when it is ready, the previews, the pull request. */
 export function shareMessage(e: Pick<ExplorationChoice, 'name' | 'branch' | 'url' | 'previews'>, tryIt: ExplorationTryIt | undefined, real?: BranchPreview[] | undefined): string {
+  const local = triedLocally(real);
   return explorationShareMessage({
     name: e.name,
     branch: e.branch,
     url: e.url,
     command: tryIt?.state === 'ready' ? tryIt.command : undefined,
-    previews: tryItLinks(e, real).flatMap((l) => (l.url ? [{ label: l.label, url: l.url }] : [])),
+    // Not deployed: template URLs point nowhere, the message says how to open it locally instead.
+    previews: local ? [] : tryItLinks(e, real).flatMap((l) => (l.url ? [{ label: l.label, url: l.url }] : [])),
+    ...(local ? { local: localTryCommand(e.branch) } : {}),
   });
 }
+
+/**
+ * Read from GitHub and nothing online reported (not deployed): it is tried on a developer's machine. Before the first
+ * read, false: the result screen keeps the configured previews until GitHub says otherwise.
+ */
+export const triedLocally = (real: BranchPreview[] | undefined): boolean => !!real && noOnlinePreview(real);
 
 export const TEST_BUILD_POLL_MS = 15_000;
 export const TEST_BUILD_TIMEOUT_MS = 10 * 60_000;

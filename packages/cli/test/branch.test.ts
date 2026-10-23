@@ -14,8 +14,9 @@ const edit = { op: 'set' as const, path: 'color.text.muted', value: '{palette.ne
 
 function io(gh: ReturnType<typeof fakeGitHub>, env: NodeJS.ProcessEnv = { GITHUB_TOKEN: 't' }) {
   const out: string[] = [];
-  const value: RequestIO = { print: (s) => out.push(s), error: () => undefined, env, fetch: gh.fetch, ghToken: () => undefined, hasClaude: () => false, runClaude: () => 0 };
-  return { io: value, out: () => out.join('\n') };
+  const err: string[] = [];
+  const value: RequestIO = { print: (s) => out.push(s), error: (s) => err.push(s), env, fetch: gh.fetch, ghToken: () => undefined, hasClaude: () => false, runClaude: () => 0 };
+  return { io: value, out: () => out.join('\n'), err: () => err.join('\n') };
 }
 
 const args = (...argv: string[]) => {
@@ -89,7 +90,18 @@ describe('bridge branch', () => {
     expect(status.out()).toContain('Needs tech approval. Design and tech approval needed; approved by @peterbono.');
     expect(status.out()).toContain('Next: Only approvals are missing and you may use the owner override');
 
-    await expect(runBranch(args('branch', 'merge', '1'), dir, io(gh).io)).rejects.toThrow(/cannot be merged yet/);
+    // Blocked by the gate: exit 1 (not 2, a usage error), the reason on stderr with the CLI flag, never a tool argument.
+    const blocked = io(gh);
+    expect(await runBranch(args('branch', 'merge', '1'), dir, blocked.io)).toBe(1);
+    expect(blocked.err()).toMatch(/cannot be merged yet/);
+    expect(blocked.err()).toContain('bridge branch merge 1 --override "why"');
+    expect(blocked.err()).not.toMatch(/overrideReason|bridge_[a-z]/);
+    expect(status.out()).toContain('`bridge branch merge 1 --override "why"`');
+    expect(status.out()).not.toMatch(/bridge_[a-z]|overrideReason/);
+    // A dry run that would be blocked says why and exits 1 too.
+    const dry = io(gh);
+    expect(await runBranch(args('branch', 'merge', '1', '--dry-run'), dir, dry.io)).toBe(1);
+    expect(dry.out()).toMatch(/cannot be merged yet/);
     const merged = io(gh);
     await runBranch(args('branch', 'merge', '1', '--override', 'Release blocker, tech owner on leave this week'), dir, merged.io);
     expect(merged.out()).toBe('Merged as owner override. The reason is on #1.');
@@ -112,7 +124,9 @@ describe('bridge branch', () => {
     await expect(runDocsSave(args('docs', 'save', 'Button'), dir, d.io)).rejects.toThrow(/--file docs.json/);
     const t = io(gh, {});
     await runBranch(args('branch', 'try', '1'), dir, t.io);
-    expect(t.out()).toContain('Admin demo: no preview reported yet');
+    // Nothing reported a preview (branches are not deployed): the local way, not one 'no preview' line per app.
+    expect(t.out()).toMatch(/Not online: try it locally with git fetch origin && git switch \S+, then start Storybook/);
+    expect(t.out()).not.toContain('no preview reported yet');
     expect(t.out()).toContain('Share with a product team: The preview version is being prepared.');
   });
 });

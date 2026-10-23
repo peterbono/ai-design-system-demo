@@ -246,3 +246,26 @@ test('a fetch that answers with its own GitHubError keeps it; any other throw is
   };
   await assert.rejects(new GitHubClient('o/r', 'tok', offline).createBranch('feature/x', 'abc'), (e: unknown) => e instanceof GitHubError && e.status === 0 && /Could not reach GitHub/.test(e.message));
 });
+
+test('writeAccess: what a token may write, from probes that write nothing (422 yes, 403 permission no)', async () => {
+  const refused = { status: 403, body: { message: 'Resource not accessible by personal access token' } };
+  const invalid = { status: 422, body: { message: 'Validation Failed' } };
+  const { calls, fetchImpl } = stub({ 'POST /repos/o/r/git/refs': invalid, 'POST /repos/o/r/pulls': refused, 'POST /repos/o/r/issues': invalid });
+  const client = new GitHubClient('o/r', 'tok', fetchImpl);
+  assert.deepEqual(await client.writeAccess('main'), { contents: true, pullRequests: false, issues: true });
+  // Every probe is invalid on purpose: a zero sha, a head branch that does not exist, an empty title.
+  assert.deepEqual(calls.map((c) => [c.method, c.url.replace('https://api.github.com', '')]).sort(), [
+    ['POST', '/repos/o/r/git/refs'],
+    ['POST', '/repos/o/r/issues'],
+    ['POST', '/repos/o/r/pulls'],
+  ]);
+  assert.equal((calls.find((c) => c.url.endsWith('/git/refs'))!.body as { sha: string }).sha, '0'.repeat(40));
+  assert.equal((calls.find((c) => c.url.endsWith('/issues'))!.body as { title: string }).title, '');
+  // A rate limit is a 403 too: it is not read as a missing permission.
+  const limited = stub({
+    'POST /repos/o/r/git/refs': { status: 403, body: { message: 'API rate limit exceeded for user' } },
+    'POST /repos/o/r/pulls': invalid,
+    'POST /repos/o/r/issues': invalid,
+  });
+  await assert.rejects(new GitHubClient('o/r', 'tok', limited.fetchImpl).writeAccess('main'));
+});

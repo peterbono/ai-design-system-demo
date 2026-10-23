@@ -69,7 +69,7 @@ describe('initSpaceSwitch', () => {
     initSpaceSwitch({ navigate: vi.fn(), reducedMotion: false, store: memory(true) });
     expect(a.getAttribute('href')).toBe('/components/button/');
     expect(a.getAttribute('data-tooltip')).toBe('Open Button in the Library');
-    expect(a.getAttribute('aria-label')).toBe('Open Library');
+    expect(a.getAttribute('aria-label')).toBe('Studio, open Library');
     // The drawer closes: the next use opens the catalog.
     history.replaceState(null, '', '/studio/components/');
     a.dispatchEvent(new Event('pointerenter'));

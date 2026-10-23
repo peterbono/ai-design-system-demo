@@ -244,9 +244,9 @@ describe('who acts now', () => {
     expect(whoActs(detail({}), { owners, author: 'ann', viewer: 'zoe' }).yourTurn).toBe(false);
   });
 
-  it('asks the author to fix failing checks before anything else', () => {
+  it('puts failing checks before anything else, a developer on them when the viewer made it', () => {
     expect(whoActs(detail({ ci: red }), { owners, author: 'ann', viewer: 'dana' }).sentence).toBe('Waiting for @ann to fix 2 failing checks.');
-    expect(whoActs(detail({ ci: red }), { owners, author: 'ann', viewer: 'ann' })).toMatchObject({ yourTurn: true, action: 'fix-checks', sentence: 'Your turn: fix 2 failing checks.' });
+    expect(whoActs(detail({ ci: red }), { owners, author: 'ann', viewer: 'ann' })).toMatchObject({ yourTurn: false, action: 'fix-checks', sentence: 'Blocked: checks fail. A developer is on it.' });
     expect(whoActs(detail({ a: { changesRequested: ['dana'] } }), { owners, author: 'ann' }).sentence).toBe('Waiting for @ann to address the changes @dana requested.');
     expect(whoActs(detail({ state: 'draft' }), { owners, author: 'ann' }).sentence).toBe('Waiting for @ann to request a review of this draft.');
     expect(whoActs(detail({ mergeable: false, a: { approvers: ['dana', 'theo'], design: true, tech: true } }), { owners, author: 'ann' }).action).toBe('resolve-conflict');
@@ -372,8 +372,14 @@ describe('failing developer tests on a list row', () => {
       short: 'Blocked by tests',
       sentence: 'Waiting for a developer to fix the failing check.',
     });
-    // A failing design rule, or failures not named yet, stay with the author.
-    expect(whoActs(needFromStatus('ci-failing', { failing: 1 }), p)).toMatchObject({ yourTurn: true, short: 'Your turn: fix tests' });
+    // Failures not named yet: never "Your turn: fix tests" on the pill, the same as the Home (a developer is on it).
+    expect(whoActs(needFromStatus('ci-failing', { failing: 1 }), p)).toMatchObject({ who: 'developer', yourTurn: false, short: 'Blocked by tests', sentence: 'Blocked: a check fails. A developer is on it.' });
+  });
+
+  it('never makes a conflict the author\'s turn either', () => {
+    const p = { owners: { design: ['dana'], tech: ['theo'] }, author: 'ann', viewer: 'ann' };
+    expect(whoActs({ kind: 'resolve-conflict' }, p)).toMatchObject({ who: 'developer', yourTurn: false, short: 'Blocked by a conflict', sentence: 'Blocked: it clashes with main. A developer is on it.' });
+    expect(whoActs({ kind: 'resolve-conflict' }, { ...p, viewer: 'dana' })).toMatchObject({ who: 'author', yourTurn: false, short: 'Blocked by a conflict' });
   });
 
   it('puts an approval the viewer can give before the developer fix', () => {

@@ -13,12 +13,14 @@ import {
   CODE_LIMITS,
   CODE_TTL_S,
   handleAccount,
-  LAST_ADMIN,
+  INVITE_GONE,
+  lastAdminOf,
   MAX_TRIES,
   WRONG_CODE,
 } from '../../api/account/index';
 import { handleContribute } from '../../api/contribute/index';
-import type { EmailMessage } from '../../api/invites/index';
+import { type EmailMessage, inviteStoreOn, INVITE_TTL_MS } from '../../api/invites/index';
+import { sha256 } from '../../api/_lib/http';
 
 const HOST = 'bridge.example.com';
 const ORIGIN = `https://${HOST}`;
@@ -136,14 +138,57 @@ describe('email codes', () => {
 
     const r = await handleAccount(act({ action: 'verify', email: 'MIA@acme.design', code: '123 456', name: 'Mia **Chen**' }), ENV, s.deps);
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ account: { email: 'mia@acme.design', name: 'Mia Chen', github: null, teams: [] }, created: true, next: '/start/' });
+    expect(await r.json()).toEqual({ account: { email: 'mia@acme.design', name: 'Mia Chen', nameSet: true, github: null, teams: [] }, created: true, next: '/start/' });
     const set = r.headers.get('set-cookie')!;
     expect(set.startsWith(`${ACCOUNT_COOKIE}=v1.`)).toBe(true);
     for (const part of ['Path=/;', 'HttpOnly', 'Secure', 'SameSite=Lax', `Max-Age=${ACCOUNT_SESSION_TTL_MS / 1000}`]) expect(set).toContain(part);
     const a = await getAccount(s.redis, 'mia@acme.design');
     expect(a).toMatchObject({ email: 'mia@acme.design', name: 'Mia Chen', github: null, version: 1 });
     expect(a!.id).toMatch(/^[0-9a-f-]{36}$/);
-    expect(await (await handleAccount(me(cookieOf(r)), ENV, s.deps)).json()).toEqual({ available: true, account: { email: 'mia@acme.design', name: 'Mia Chen', github: null, teams: [] } });
+    expect(await (await handleAccount(me(cookieOf(r)), ENV, s.deps)).json()).toEqual({ available: true, account: { email: 'mia@acme.design', name: 'Mia Chen', nameSet: true, github: null, teams: [] } });
+  });
+
+  it('a new account without a typed name gets a stand-in from the email, and says nameSet false until renamed', async () => {
+    const s = setup();
+    const { body, cookie } = await signInWithCode(s, 'leo.martin@acme.design');
+    expect(body.account).toMatchObject({ name: 'leo.martin', nameSet: false });
+    const renamed = await handleAccount(act({ action: 'rename', name: 'Leo Martin' }, { cookie }), ENV, s.deps);
+    expect((await renamed.json()).account).toMatchObject({ name: 'Leo Martin', nameSet: true });
+    // Accounts made before the flag read as named.
+    const old = { ...(await getAccount(s.redis, 'leo.martin@acme.design'))! };
+    delete old.nameSet;
+    await s.redis.cmd('SET', 'bridge:account:leo.martin@acme.design', JSON.stringify(old));
+    expect((await (await handleAccount(me(cookie), ENV, s.deps)).json()).account.nameSet).toBe(true);
+  });
+
+  it('sends the code of an invite link to the invited address, never naming it, and verifies with the token', async () => {
+    const s = setup();
+    const token = 'T'.repeat(43);
+    const store = inviteStoreOn(s.redis, () => T0);
+    await store.put({ id: 'a'.repeat(16), repo: 'acme/ds', email: 'Mia@Acme.design', role: 'edit', invitedBy: 'sam', createdAt: '', sentAt: '', expiresAt: new Date(T0 + INVITE_TTL_MS).toISOString(), tokenHash: sha256(token) }, INVITE_TTL_MS / 1000);
+    const r1 = await handleAccount(act({ action: 'code', invite: token }), ENV, s.deps);
+    const text = await r1.text();
+    expect(JSON.parse(text)).toEqual({ ok: true });
+    expect(text).not.toContain('mia');
+    expect(s.sent.at(-1)!.to).toBe('mia@acme.design');
+    const r2 = await handleAccount(act({ action: 'verify', invite: token, code: codeIn(s.sent.at(-1)!) }), ENV, s.deps);
+    expect(r2.status).toBe(200);
+    expect((await r2.json()).account).toMatchObject({ email: 'mia@acme.design', nameSet: false });
+    // A link Bridge does not know, or one that looks wrong: gone, and no email sent.
+    const sent = s.sent.length;
+    for (const bad of ['U'.repeat(43), 'short', 42]) {
+      const r = await handleAccount(act({ action: 'code', invite: bad }), ENV, s.deps);
+      expect(r.status).toBe(410);
+      expect(await r.json()).toEqual({ error: 'invite-gone', message: INVITE_GONE });
+    }
+    expect(s.sent).toHaveLength(sent);
+  });
+
+  it('says how many tries are left on a wrong code', async () => {
+    const s = setup();
+    await handleAccount(act({ action: 'code', email: 'mia@acme.design' }), ENV, s.deps);
+    const r = await handleAccount(act({ action: 'verify', email: 'mia@acme.design', code: '000000' }), ENV, s.deps);
+    expect(await r.json()).toMatchObject({ error: 'wrong-code', triesLeft: MAX_TRIES - 1 });
   });
 
   it('a code works once', async () => {
@@ -257,7 +302,7 @@ describe('GitHub', () => {
     const s = setup({ emails: [{ email: 'old@acme.design', verified: false, primary: false }, { email: 'Mia@Acme.design', verified: true, primary: true }] });
     const r = await handleAccount(act({ action: 'github', token: GH_TOKEN }), ENV, s.deps);
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ account: { email: 'mia@acme.design', name: 'Mia Chen', github: { login: 'mia-gh', id: 77 }, teams: [] }, created: true, next: '/start/' });
+    expect(await r.json()).toEqual({ account: { email: 'mia@acme.design', name: 'Mia Chen', nameSet: true, github: { login: 'mia-gh', id: 77 }, teams: [] }, created: true, next: '/start/' });
     expect(r.headers.get('set-cookie')).toContain(`${ACCOUNT_COOKIE}=v1.`);
     expect(await s.redis.cmd('GET', 'bridge:account:gh:77')).toBe('mia@acme.design');
   });
@@ -367,7 +412,7 @@ describe('delete', () => {
     const cookie = cookieOf(await handleAccount(act({ action: 'github', token: GH_TOKEN }), ENV, s.deps));
     const r = await handleAccount(act({ action: 'delete' }, { cookie, authorization: `Bearer ${GH_TOKEN}` }), ENV, s.deps);
     expect(r.status).toBe(409);
-    expect(await r.json()).toEqual({ error: 'last-admin', message: LAST_ADMIN, teams: ['acme/design'] });
+    expect(await r.json()).toEqual({ error: 'last-admin', message: lastAdminOf(['Design']), teams: ['acme/design'], blocked: [{ repo: 'acme/design', name: 'Design', people: [{ name: 'Mia', email: 'lee@acme.design' }] }] });
     expect(await getAccount(s.redis, 'mia@acme.design')).not.toBeNull();
     // Another admin on the team: delete goes through.
     s.w.collaborators['acme/design'] = [{ id: 77, login: 'mia-gh', permissions: { admin: true } }, { id: 9, login: 'lee-gh', permissions: { admin: true } }];

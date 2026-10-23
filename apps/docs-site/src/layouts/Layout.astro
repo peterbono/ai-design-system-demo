@@ -21,7 +21,7 @@ import { switchTarget } from '../lib/space-switch';
 import { loadComponents } from '../lib/components';
 import { shellMarker, studioPathOfShell } from '../lib/team-shells';
 import { COMPONENT_SHELL_ROUTE, LIBRARY_SHELL_ROOT, LIBRARY_TEAM_NAV, libraryShellMarker, routeOfShell } from '../lib/library-shells';
-import { COMPARE, LANDING, LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, type NavEntry, type Space } from '../lib/nav';
+import { COMPARE, LANDING, LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, workspaceNav, type NavEntry, type Space } from '../lib/nav';
 import type { IconName } from '../brand/icons';
 import { PRIVACY_PAGE } from '../lib/account';
 import { siteRepo, siteRepoJson } from '../lib/config';
@@ -95,7 +95,9 @@ const nav: NavEntry[] = library
         ? { label: e.label, icon: e.icon as IconName, children: e.children.map((c) => ({ href: shellHref(c.route), label: c.label, icon: c.icon as IconName, apart: c.apart, meta: c.meta })) }
         : { href: shellHref(e.route), label: e.label, icon: e.icon as IconName, meta: e.meta },
     )
-  : navFor(space);
+  : workspace
+    ? workspaceNav()
+    : navFor(space);
 const isStudio = space === 'studio';
 const isHome = path === LIBRARY_HOME || path === STUDIO_HOME;
 // Tokens, Components and Quality can show the library as an open change (lib/view-scope): the selector and the banner.
@@ -181,11 +183,12 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
   <body>
     <Link variant="subtle" className="skip" href="#main">Skip to content</Link>
     <header class="topbar">
-      <Link variant="subtle" className="topbar-brand" href={isStudio ? STUDIO_HOME : library ? LIBRARY_SHELL_ROOT : LIBRARY_HOME} aria-label={isStudio ? 'Bridge Studio, overview' : library ? 'Library, home' : 'Bridge Library, home'}>
+      <Link variant="subtle" className="topbar-brand" href={isStudio ? STUDIO_HOME : library ? LIBRARY_SHELL_ROOT : LIBRARY_HOME} aria-label={isStudio ? 'Bridge Studio, overview' : 'Bridge Library, home'}>
         <Logo />
         {isStudio && <span class="topbar-space" aria-hidden="true">Studio</span>}
       </Link>
-      {!bare && <Button variant="ghost" size="sm" iconStart={Search} className="shell-search" id="search-open" aria-haspopup="dialog" aria-controls="palette" aria-label={searchLabel}>
+      {/* The workspace reads no design system: nothing to search, and Bridge's own would be another context. */}
+      {!noRepo && <Button variant="ghost" size="sm" iconStart={Search} className="shell-search" id="search-open" aria-haspopup="dialog" aria-controls="palette" aria-label={searchLabel}>
         <span class="shell-search-text">
           <span class="shell-search-label">{searchLabel}</span>
         </span>
@@ -193,7 +196,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
       <div class="topbar-actions">
         {viewAware && <ViewAsChange />}
         {/* Library <-> Studio: one link that names the space you are in and carries the page's item across. */}
-        {!bare && <SpaceSwitch space={space} href={switchTo.href} item={switchTo.item} />}
+        {!noRepo && <SpaceSwitch space={space} href={switchTo.href} item={switchTo.item} />}
         {bare ? (
           // Who is signed in, painted by scripts/github-session.ts ([data-gh-acct] [data-gh-avatar]); hidden signed out.
           <>

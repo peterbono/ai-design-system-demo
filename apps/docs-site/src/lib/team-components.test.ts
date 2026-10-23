@@ -89,6 +89,8 @@ describe('team components', () => {
     expect(pickStorybook('https://a.example.com', 'https://b.example.com')).toBe('https://a.example.com');
     const rows = teamComponentRows(model);
     expect(storyPreview('https://sb.example.com', rows[1]!)).toEqual({
+      base: 'https://sb.example.com',
+      id: 'actions-button--primary',
       src: 'https://sb.example.com/iframe.html?id=actions-button--primary&viewMode=story',
       manager: 'https://sb.example.com/?path=/story/actions-button--primary',
       story: 'Primary',

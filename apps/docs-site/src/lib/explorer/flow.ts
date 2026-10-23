@@ -156,6 +156,19 @@ export interface PairRow {
   failing: number;
 }
 
+/**
+ * How much a contrast pair is read: the components and global stylesheets using its foreground or background. Ranks
+ * pair lists so the pairs people see come first and a pair of unused tokens comes last.
+ */
+export function pairUsage(fg: string, bg: string, usage: UsageMap): number {
+  const users = new Set<string>();
+  for (const p of [fg, bg]) {
+    for (const c of usage[p]?.usedBy ?? []) users.add(`c:${c.name}`);
+    for (const f of usage[p]?.styles ?? []) users.add(`s:${f}`);
+  }
+  return users.size;
+}
+
 const pairKey = (r: ContrastResult) => `${r.pair.foreground}|${r.pair.background}`;
 const cellKey = (r: { brand: string | undefined; theme: string }) => `${r.brand ?? ''}/${r.theme}`;
 
@@ -163,7 +176,7 @@ const cellKey = (r: { brand: string | undefined; theme: string }) => `${r.brand 
  * Pairs that involve a token. Direct: the token is the foreground or background. Through: the pair resolves through
  * it (a palette role or primitive under a semantic pair). `before` adds the ratios before a draft.
  */
-export function contrastFor(path: string, results: ContrastResult[], before: ContrastResult[] = []): { direct: PairRow[]; through: PairRow[] } {
+export function contrastFor(path: string, results: ContrastResult[], before: ContrastResult[] = [], usage?: UsageMap): { direct: PairRow[]; through: PairRow[] } {
   const prev = new Map(before.map((r) => [`${pairKey(r)}@${cellKey(r)}`, r.ratio]));
   const rows = new Map<string, PairRow>();
   for (const r of results) {
@@ -192,7 +205,8 @@ export function contrastFor(path: string, results: ContrastResult[], before: Con
     row.cells.push({ brand: r.brand, theme: r.theme, ratio: r.ratio, badge: badgeFor(r.ratio, r.pair.kind), passes, before: prev.get(`${k}@${cellKey(r)}`) });
     if (!passes) row.failing++;
   }
-  const all = [...rows.values()].sort((a, b) => b.failing - a.failing);
+  // Failing first, then the pairs the most components read: a pair of unused tokens never leads.
+  const all = [...rows.values()].sort((a, b) => b.failing - a.failing || (usage ? pairUsage(b.fg, b.bg, usage) - pairUsage(a.fg, a.bg, usage) : 0));
   return {
     direct: all.filter((r) => r.fg === path || r.bg === path),
     through: all.filter((r) => r.fg !== path && r.bg !== path),

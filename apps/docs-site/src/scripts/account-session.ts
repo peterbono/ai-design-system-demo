@@ -3,8 +3,10 @@
 // and deletes. The session is an httpOnly cookie this page never sees. When the site has no account server (an older
 // deploy, a fork, `astro dev`) the GET says unavailable and the screens fall back to GitHub; never a fake success.
 // Signed in, <html data-account> is set so the GitHub-only account blocks step aside (styles/account.css).
-import { ACCOUNT_API, ACCOUNT_HEADER, ACCOUNT_WORDS, accountErrorText, GITHUB_PENDING_KEY, parseAccount, signInHref, type Account, type AccountInfo, type SignedIn } from '../lib/account';
+import { ACCOUNT_API, ACCOUNT_HEADER, ACCOUNT_WORDS, accountErrorText, GITHUB_PENDING_KEY, isPersonalKey, parseAccount, parseBlocked, signInHref, type Account, type AccountInfo, type BlockedTeam, type SignedIn } from '../lib/account';
+import { forgetContributors, seedContributors } from './contribute-session';
 import { isContribAuth } from '../lib/contribute';
+import { noteAccountTeamNames } from '../lib/recent-teams';
 
 /** The site has no account server, or it is not set up. */
 export class AccountUnavailable extends Error {
@@ -20,6 +22,8 @@ export class AccountError extends Error {
     message: string,
     readonly code: string,
     readonly status: number,
+    /** The rest of the answer: `triesLeft` on a wrong code. */
+    readonly details: Record<string, unknown> = {},
   ) {
     super(message);
     this.name = 'AccountError';
@@ -45,6 +49,8 @@ export function onAccountChange(fn: (a: Account | null) => void): () => void {
 
 function publish(a: Account | null) {
   if (typeof document !== 'undefined') document.documentElement.toggleAttribute('data-account', Boolean(a));
+  // Each of the account's email teams knows its member at once, even one this browser never opened.
+  if (a) seedContributors(a, a.teams);
   listeners.forEach((fn) => fn(a));
 }
 
@@ -66,7 +72,7 @@ async function call<T>(method: 'GET' | 'POST', query: string, body?: unknown, ex
   if (!res.ok) {
     const code = typeof data.error === 'string' ? data.error : 'failed';
     const message = typeof data.message === 'string' && data.message ? data.message : null;
-    throw new AccountError(accountErrorText(res.status, code, message), code, res.status);
+    throw new AccountError(accountErrorText(res.status, code, message), code, res.status, data);
   }
   return data as T;
 }
@@ -77,6 +83,8 @@ export function getAccount(fresh = false): Promise<AccountInfo> {
   info = call<{ available?: boolean; account?: unknown }>('GET', '').then(
     (r) => {
       const a = parseAccount(r.account);
+      // The server answered: its team names name each team from the first paint of the next page.
+      noteAccountTeamNames(a?.teams ?? null);
       publish(a);
       return { available: r.available !== false, account: a };
     },
@@ -92,18 +100,24 @@ function signedIn(r: { account?: unknown; created?: unknown; next?: unknown }): 
   const account = parseAccount(r.account);
   if (!account) throw new AccountError(ACCOUNT_WORDS.failed, 'failed', 500);
   info = Promise.resolve({ available: true, account });
+  noteAccountTeamNames(account.teams);
   publish(account);
   return { account, created: r.created === true, next: typeof r.next === 'string' ? r.next : '' };
 }
 
+/** Who a code is for: an email typed, or an invite link's token (the code goes to the invited address, never shown). */
+export type CodeFor = string | { invite: string };
+
+const codeTarget = (to: CodeFor) => (typeof to === 'string' ? { email: to.trim() } : { invite: to.invite });
+
 /** Emails a 6-digit code. The server answers the same whether or not the email has an account. */
-export async function sendCode(email: string): Promise<void> {
-  await call('POST', '', { action: 'code', email: email.trim() });
+export async function sendCode(to: CodeFor): Promise<void> {
+  await call('POST', '', { action: 'code', ...codeTarget(to) });
 }
 
 /** Checks the code; sets the session cookie. */
-export async function verifyCode(email: string, code: string, name?: string): Promise<SignedIn> {
-  return signedIn(await call('POST', '', { action: 'verify', email: email.trim(), code, ...(name ? { name } : {}) }));
+export async function verifyCode(to: CodeFor, code: string, name?: string): Promise<SignedIn> {
+  return signedIn(await call('POST', '', { action: 'verify', ...codeTarget(to), code, ...(name ? { name } : {}) }));
 }
 
 /** Signs in with (or links) the GitHub account of a GitHub sign-in token; the token is not kept by the server. */
@@ -123,19 +137,52 @@ async function update(body: Record<string, unknown>): Promise<Account | null> {
 
 export const renameAccount = (name: string) => update({ action: 'rename', name: name.trim() });
 
-function ended() {
+/**
+ * Forgets what this browser keeps about the person (lib/account.ts isPersonalKey): email memberships, teams, roles,
+ * counts and cached reads, and the private bodies kept in IndexedDB.
+ */
+export async function forgetPersonalData(): Promise<void> {
+  for (const store of [() => localStorage, () => sessionStorage]) {
+    try {
+      const s = store();
+      for (const k of Object.keys(s)) if (isPersonalKey(k)) s.removeItem(k);
+    } catch {
+      /* storage blocked: nothing kept */
+    }
+  }
+  forgetContributors();
+  try {
+    const { clearPrivateRepoCaches } = await import('./repo-cache');
+    await clearPrivateRepoCaches();
+  } catch {
+    /* no IndexedDB here */
+  }
+}
+
+async function ended() {
   info = Promise.resolve({ available: true, account: null });
+  await forgetPersonalData();
   publish(null);
 }
 
 export async function signOut(): Promise<void> {
   await call('POST', '', { action: 'sign-out' });
-  ended();
+  await ended();
 }
 
 export async function signOutEverywhere(): Promise<void> {
   await call('POST', '', { action: 'sign-out-everywhere' });
-  ended();
+  await ended();
+}
+
+/**
+ * Before the confirm field: the teams the person is the only admin of while others are on them, each with who could
+ * take over. Empty when deleting would go through. With GitHub linked, the GitHub sign-in goes along, as for delete.
+ */
+export async function deleteCheck(): Promise<BlockedTeam[]> {
+  const token = await workingGitHubToken().catch(() => null);
+  const r = await call<{ blocked?: unknown }>('POST', '', { action: 'delete-check' }, token ? { Authorization: `Bearer ${token}` } : {});
+  return parseBlocked(r.blocked);
 }
 
 /**
@@ -145,7 +192,7 @@ export async function signOutEverywhere(): Promise<void> {
 export async function deleteAccount(): Promise<void> {
   const token = await workingGitHubToken().catch(() => null);
   await call('POST', '', { action: 'delete' }, token ? { Authorization: `Bearer ${token}` } : {});
-  ended();
+  await ended();
 }
 
 /** The GitHub sign-in token this browser holds and GitHub still takes; never an email contributor's stand-in. */

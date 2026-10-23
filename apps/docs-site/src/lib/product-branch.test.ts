@@ -53,12 +53,12 @@ describe('rows', () => {
     ]);
   });
 
-  it('pieces without a library branch come after, with Open a library branch; nothing before a check', () => {
+  it('pieces without a library branch come after, with Send for review; nothing before a check', () => {
     const record: PiecesRecord = { checkedAt: '', pieces: [piece(), piece({ id: 'color-c2410c', title: 'New color #C2410C', values: [{ category: 'color', value: '#c2410c' }] })], links: [linked().link] };
     const rows = pieceRows({ record, linked: [linked()] });
     expect(rows.map((r) => [r.id, r.action?.label ?? null])).toEqual([
       ['badge-overdue-tone', null],
-      ['color-c2410c', 'Open a library branch'],
+      ['color-c2410c', 'Send for review'],
     ]);
     expect(rows[0]!.library!.line).toBe('In review · @dana reviews');
     expect(pieceRows({ record: undefined, linked: [] })).toEqual([]);

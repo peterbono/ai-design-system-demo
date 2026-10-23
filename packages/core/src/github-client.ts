@@ -27,6 +27,8 @@ export interface GitHubErrorInfo {
   auth?: GitHubAuthState | undefined;
   /** The permission the call needed, when GitHub or the endpoint tells (only with auth "missing-permission"). */
   permission?: GitHubPermission | undefined;
+  /** For a rate limit (status 429): when the limit resets, when GitHub or Bridge said. */
+  resetsAt?: Date | undefined;
 }
 
 export class GitHubError extends Error {
@@ -34,6 +36,8 @@ export class GitHubError extends Error {
   readonly auth: GitHubAuthState | undefined;
   /** With auth "missing-permission": the permission the call needed, when known. */
   readonly permission: GitHubPermission | undefined;
+  /** For a rate limit (status 429): when the limit resets, when known. */
+  readonly resetsAt: Date | undefined;
 
   constructor(
     readonly status: number,
@@ -45,6 +49,7 @@ export class GitHubError extends Error {
     this.name = 'GitHubError';
     this.auth = info.auth;
     this.permission = info.permission;
+    this.resetsAt = info.resetsAt;
   }
 }
 
@@ -629,7 +634,7 @@ export class GitHubClient {
           return copy(cached.body) as T;
         }
         const resetsAt = reset ? new Date(Number(reset) * 1000) : undefined;
-        const limited = new GitHubError(429, rateLimitMessage({ withToken: Boolean(this.token), resetsAt, tokenHint: this.options.tokenHint }), detail);
+        const limited = new GitHubError(429, rateLimitMessage({ withToken: Boolean(this.token), resetsAt, tokenHint: this.options.tokenHint }), detail, { resetsAt });
         hourlyLimitErrors.add(limited);
         throw limited;
       }
@@ -667,6 +672,33 @@ export class GitHubClient {
       this.repoPath,
     );
     return { fullName: r.full_name, defaultBranch: r.default_branch, private: r.private, permissions: r.permissions };
+  }
+
+  /**
+   * What the token may write here, found without writing anything: each probe is invalid on purpose (a zero sha, a
+   * missing head branch, an empty title), so GitHub answers 422 when the token has the permission and 403 or 404 when
+   * it does not. repo.permissions.push says what the user may do, not what a fine-grained token may do.
+   */
+  async writeAccess(base: string): Promise<{ contents: boolean; pullRequests: boolean; issues: boolean }> {
+    this.assertToken('Checking the token');
+    const probe = async (path: string, body: unknown): Promise<boolean> => {
+      try {
+        await this.request('POST', `${this.repoPath}${path}`, body);
+        return true; // never expected: every probe is invalid
+      } catch (err) {
+        if (!(err instanceof GitHubError)) throw err;
+        if (err.status === 422) return true;
+        // A rate limit is a 403 too: only a refused permission (or a feature turned off) means no.
+        if (err.auth === 'missing-permission' || err.status === 404 || err.status === 410) return false;
+        throw err;
+      }
+    };
+    const [contents, pullRequests, issues] = await Promise.all([
+      probe('/git/refs', { ref: 'refs/heads/bridge-permission-probe', sha: '0'.repeat(40) }),
+      probe('/pulls', { title: 'Bridge permission probe', head: 'bridge-permission-probe-missing-branch', base }),
+      probe('/issues', { title: '' }),
+    ]);
+    return { contents, pullRequests, issues };
   }
 
   /** Commit sha a branch points to, or undefined when the branch does not exist. */

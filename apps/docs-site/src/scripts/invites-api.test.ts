@@ -6,9 +6,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const session = vi.hoisted(() => ({ token: 'ghu_test' as string | null }));
 vi.mock('./github-session', () => ({ getToken: () => session.token }));
 
-import { acceptInvite, InvitesError, InvitesUnavailable, listInvites, sendInvites, setInvitesFetch } from './invites-api';
+import { InvitesError, removeMember, InvitesUnavailable, listInvites, sendInvites, setInvitesFetch } from './invites-api';
 import { peopleFromCommits } from './members';
-import { tokenFromHash } from '../components/ds/studio/InviteAccept';
+import { inviteTokenFromHash as tokenFromHash } from '../lib/entry';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
@@ -35,18 +35,22 @@ describe('invites api', () => {
     }
   });
 
-  it("passes the server's sentence through on a refusal, and asks to sign in without a token", async () => {
+  it("passes the server's sentence through on a refusal; without a GitHub sign-in it goes as the Bridge account", async () => {
     setInvitesFetch(async () => json(403, { error: 'not_admin', message: 'Only admins of acme/ds can invite people.' }));
-    await expect(acceptInvite('t'.repeat(43))).rejects.toMatchObject({ message: 'Only admins of acme/ds can invite people.', status: 403 });
+    await expect(removeMember('acme/ds', 'leo')).rejects.toMatchObject({ message: 'Only admins of acme/ds can invite people.', status: 403 });
     session.token = null;
-    const f = vi.fn();
+    const f = vi.fn(async () => json(401, { error: 'signin', message: 'Your session ended. Sign in again.' }));
     setInvitesFetch(f);
     await expect(listInvites('acme/ds')).rejects.toBeInstanceOf(InvitesError);
-    expect(f).not.toHaveBeenCalled();
+    const [, init] = f.mock.calls[0] as unknown as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Authorization).toBeUndefined();
+    // An email admin: the account cookie speaks for them, checked by the server.
+    expect(headers['X-Bridge-Account']).toBe('1');
   });
 });
 
-describe('caps and the invited email', () => {
+describe('caps', () => {
   it('turns a 429 into a sentence, never silent, with the server words or the default', async () => {
     setInvitesFetch(async () => json(429, { error: 'limit', message: "This team reached today's invite limit. Try again tomorrow.", limit: 'team' }));
     await expect(sendInvites('acme/ds', { role: 'view' }, [{ email: 'a@b.co' }])).rejects.toMatchObject({ status: 429, code: 'limit', message: "This team reached today's invite limit. Try again tomorrow.", details: { limit: 'team' } });
@@ -54,10 +58,6 @@ describe('caps and the invited email', () => {
     await expect(sendInvites('acme/ds', { role: 'view' }, [{ email: 'a@b.co' }])).rejects.toMatchObject({ status: 429, message: "You reached today's invite limit. Try again tomorrow." });
   });
 
-  it('carries the masked address and the account when an invite is for another email', async () => {
-    setInvitesFetch(async () => json(403, { error: 'email_mismatch', message: 'x', sentTo: 'm\u2022\u2022\u2022@acme.design', login: 'leo' }));
-    await expect(acceptInvite('t'.repeat(43))).rejects.toMatchObject({ code: 'email_mismatch', details: { sentTo: 'm\u2022\u2022\u2022@acme.design', login: 'leo' } });
-  });
 });
 
 describe('people the email field suggests', () => {

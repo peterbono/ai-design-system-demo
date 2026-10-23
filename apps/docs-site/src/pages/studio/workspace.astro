@@ -9,7 +9,10 @@
 //     (it resumes the steps where the visitor left them) and "1 of 6 connected" by the greeting.
 // Signed in with a Bridge account (email, Entry), the steps are "Create your team" (board E6): ?setup=create, where
 // lib/entry.ts sends an account that matched nothing. Signed out on a site with accounts, step 1 opens the one sign-in
-// screen (/signin/) and comes back here.
+// screen (/signin/) and comes back here. Step 1 creates the team on the server (api/entry create-team); from then on
+// this page is that team's home (?team=<id>, lib/start.ts workspaceTeamKey) until a repository is linked: the real team,
+// named on the chip, saying what to connect next (WorkspaceHome team), never the sample team nor Bridge's own. A
+// Storybook added here is kept with the team; a repository picked on step 2 links it and the team moves there.
 // Reads no repository and asks GitHub nothing for a guest (<html data-no-repo>).
 import '../../styles/studio-home.css';
 import '../../styles/onboarding.css';
@@ -41,12 +44,14 @@ const signIn = Boolean(signInConfig(true));
     import { currentViewer, getToken, initGitHubConnect } from '../../scripts/github-session';
     import { onWorkspaceChange, readWorkspace } from '../../scripts/workspace';
     import { readStart, rememberStart } from '../../scripts/start';
+    import type { TeamInfo } from '../../lib/entry';
+    import { teamHome } from '../../lib/entry';
     import { FinishConnecting, Onboarding } from '../../components/ds/studio/Onboarding';
     import { paintWorkspaceHome } from '../../components/ds/studio/WorkspaceHome';
     import { ANY_STEP_IDS, onboardingSteps, type StepId } from '../../lib/onboarding';
     import { accountName, signInHref, type Account } from '../../lib/account';
     import { workDomain } from '../../../api/_lib/domains';
-    import { resumeStep } from '../../lib/start';
+    import { resumeStep, workspaceTeamKey } from '../../lib/start';
     import { shortName } from '../../lib/home-model';
     import { ghButton } from '../../lib/gh-wording';
 
@@ -66,6 +71,9 @@ const signIn = Boolean(signInConfig(true));
     let account: Account | null = null;
     let accounts = false;
     let accountRead = false;
+    // The team made in Bridge (server), once step 1 created it or the account is on one: null until then.
+    let team: TeamInfo | null = null;
+    const entry = () => import('../../scripts/entry-session');
     const setAddress = (step: StepId | null) => {
       const url = new URL(location.href);
       if (step) url.searchParams.set('setup', step);
@@ -79,10 +87,10 @@ const signIn = Boolean(signInConfig(true));
 
     function paint() {
       // "Create your team" waits for the account, so it never opens on the wrong step first.
-      if (stepsAt === 'create' && !accountRead) return;
+      // So does a team's home (?team=): it never shows the empty workspace first.
+      if ((stepsAt === 'create' || new URLSearchParams(location.search).has('team')) && !accountRead) return;
       const v = currentViewer();
       const name = account ? shortName(accountName(account)) : v ? (shortName(v.name) ?? v.login) : null;
-      const team = readStart().team;
       const steps = onboardingSteps({
         login: v?.login ?? null,
         repo: '',
@@ -91,6 +99,7 @@ const signIn = Boolean(signInConfig(true));
         products: [],
         changes: null,
         workspace: true,
+        // "Your team" is done only once the server has the team.
         account: account ? { teamName: team?.name ?? null } : null,
       });
       // "Create your team" has no step 1 to sign in: an old address on it opens "Your team"; without an account,
@@ -118,16 +127,38 @@ const signIn = Boolean(signInConfig(true));
               team: { owner: '', repo: '', link: '', access: null, changes: null },
               workspace: true,
               signIn: { button: ghButton(direct), direct, href: accounts ? signInHref(location.pathname + location.search) : undefined },
-              account: account ? { email: account.email, domain: workDomain(account.email), teamName: team?.name ?? null, github: Boolean(v) } : null,
+              account: account ? { email: account.email, domain: workDomain(account.email), teamName: team?.name ?? null, discover: team ? Boolean(team.discovery?.enabled) : true, github: Boolean(v) } : null,
             },
             actions: {
               propose: async () => {
                 throw new Error('Connect the repository first.');
               },
               mark: () => undefined,
-              createTeam: (teamName: string, discover: boolean) => {
-                rememberStart({ team: { name: teamName, discover } });
+              createTeam: async (teamName: string, discover: boolean) => {
+                const api = await entry();
+                const r = await api.createTeam(teamName, discover);
+                team = r.team;
+                setTeamAddress(team.id);
+                // A Storybook added before the team existed goes with it.
+                if (workspace.storybook) void api.linkStorybook(team.key, workspace.storybook.url).catch(() => undefined);
                 paint();
+              },
+              linkRepo: async (owner: string, repo: string) => {
+                if (!team || team.role !== 'admin') return null;
+                const full = `${owner}/${repo}`;
+                const api = await entry();
+                try {
+                  await api.linkRepo(team.key, full);
+                  rememberStart({ link: null });
+                  return null;
+                } catch (err) {
+                  // Bridge not installed there yet: its page installs it, and links the team once its admin is back.
+                  if (err instanceof api.EntryError && (err.code === 'app_missing' || err.code === 'not_configured')) {
+                    rememberStart({ link: { team: team.key, repo: full.toLowerCase() } });
+                    return null;
+                  }
+                  return err instanceof Error ? err.message : null;
+                }
               },
               connectGitHub: () => {
                 void import('../../scripts/account-session').then(({ linkGitHub }) => linkGitHub(location.pathname + location.search)).then((linked) => linked && paint());
@@ -155,8 +186,10 @@ const signIn = Boolean(signInConfig(true));
         el,
         {
           name,
+          team: team ? { key: team.key, name: team.name, admin: team.role === 'admin', memberCount: team.memberCount, discovery: team.discovery } : null,
           storybook: workspace.storybook,
-          setup: v || account ? createElement(FinishConnecting, { steps, onOpen: open, onHide: () => undefined, hideable: false, description: 'Connect your design system first. The rest can wait.' }) : undefined,
+          // A member of the team (not its admin) has nothing to connect: an admin does it.
+          setup: (v || account) && (!team || team.role === 'admin') ? createElement(FinishConnecting, { steps, onOpen: open, onHide: () => undefined, hideable: false, description: 'Connect your design system first. The rest can wait.' }) : undefined,
           // With a Storybook added, the action is the repository: step 2.
           onConnect: () => open(workspace.storybook ? 'library' : resumeStep(steps, readStart().step)),
         },
@@ -164,15 +197,37 @@ const signIn = Boolean(signInConfig(true));
       );
     }
 
+    // The address names the team shown (?team=<id>), so a reload or a shared link opens the same one.
+    function setTeamAddress(id: string | null) {
+      const url = new URL(location.href);
+      if (id) url.searchParams.set('team', id);
+      else url.searchParams.delete('team');
+      history.replaceState(history.state, '', url);
+    }
+
     onWorkspaceChange((w) => {
+      const added = w.storybook?.url ?? null;
+      // A Storybook added here is the team's: kept with it on the server (admins).
+      if (team?.role === 'admin' && added !== team.storybook) void entry().then((api) => api.linkStorybook(team!.key, added).then((t) => (team = t)).catch(() => undefined));
       workspace = w;
       paint();
     });
-    // Who is signed in with a Bridge account: the steps become "Create your team".
+    // Who is signed in with a Bridge account: the steps become "Create your team", or this is their team's home.
     void import('../../scripts/account-session').then(async ({ getAccount }) => {
       const info = await getAccount();
       account = info.account;
       accounts = info.available;
+      const key = account ? workspaceTeamKey(account.teams, location.search) : null;
+      if (key) {
+        try {
+          team = await (await entry()).getTeam(key);
+        } catch {
+          team = null;
+        }
+        // Linked to a repository since: the team lives there now.
+        if (team?.repo) return location.replace(teamHome(team.repo));
+        if (team) setTeamAddress(team.id);
+      }
       accountRead = true;
       if (known || account) paint();
     });

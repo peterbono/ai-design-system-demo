@@ -93,7 +93,14 @@ describe('MCP over stdio', () => {
   it('initializes with server info and instructions', () => {
     expect(client.getServerVersion()).toMatchObject({ name: 'bridge', version: pkg.version });
     expect(client.getInstructions()).toMatch(/never writes to main/);
-    expect(client.getInstructions()).toMatch(/Every write goes through a branch and a pull request, never straight to the default branch/);
+    expect(client.getInstructions()).toMatch(/Bridge never writes to the default branch/);
+  });
+
+  it('says what it may write in the same words in its instructions and bridge_get_config (no token: read-only on GitHub)', async () => {
+    const config = JSON.parse(text(await client.callTool({ name: 'bridge_get_config', arguments: {} })));
+    expect(config.write).toMatch(/^Read-only on GitHub: suggestions, requests, reviews, merges and pull requests need GITHUB_TOKEN\. Direct changes become local bridge\/\* branches, never pushed\.$/);
+    expect(client.getInstructions()).toContain(`Access now: ${config.write}`);
+    expect(config.source).toContain(config.write);
   });
 
   it('lists the 67 tools with JSON schemas and read-only hints', async () => {

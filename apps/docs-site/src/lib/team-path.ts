@@ -19,6 +19,24 @@ const REPO = /^[A-Za-z0-9._-]{1,100}$/;
 /** True for an owner and repository name GitHub accepts (what a team address and the Vercel rewrite match). */
 export const isTeamName = (owner: string, repo: string): boolean => OWNER.test(owner) && REPO.test(repo) && repo !== '.' && repo !== '..';
 
+/**
+ * A team created in Bridge before it has a repository ("Create your team", api/entry create-team) goes by a team key
+ * shaped like a repository so every repo-keyed store keeps working: `_team/<16 hex>`. GitHub never gives an owner a
+ * name that starts with `_`, so a key never meets a real repository. Once a repository is linked the team moves to it
+ * (api/entry link-team) and the key only resolves to it.
+ */
+export const TEAM_KEY_OWNER = '_team';
+const TEAM_KEY = /^_team\/([a-f0-9]{16})$/;
+
+/** The team key of a team id. */
+export const teamKeyOf = (id: string): string => `${TEAM_KEY_OWNER}/${id.toLowerCase()}`;
+
+/** The id of a team key (`_team/<id>`), else null (a repository, anything else). */
+export const teamKeyId = (key: string): string | null => TEAM_KEY.exec(key.trim().toLowerCase())?.[1] ?? null;
+
+/** True for a team created in Bridge that has no repository yet. */
+export const isTeamKey = (key: string): boolean => teamKeyId(key) !== null;
+
 /** The same rules as Vercel path-to-regexp groups, for the rewrites in vercel.json (team-shells.ts checks them). */
 export const OWNER_PATTERN = '[A-Za-z0-9][A-Za-z0-9-]{0,38}';
 export const REPO_PATTERN = '[A-Za-z0-9._-]{1,100}';
@@ -49,6 +67,15 @@ function teamAddress(pathname: string): { owner: string; repo: string; escaped: 
 export function repoFromPath(pathname: string): { owner: string; repo: string } | null {
   const team = teamAddress(pathname);
   return team && { owner: team.owner, repo: team.repo };
+}
+
+/**
+ * The team of a page's Studio address, only on a team shell. A Studio page of this site (/studio/brands/new/,
+ * /studio/components/docs/) has the same shape as a team address but is a reserved path: the build serves it, not the
+ * team shell, so it never sets <html data-hosted> and is never guessed as a team "brands/new".
+ */
+export function pageTeamFromPath(pathname: string, hosted: boolean): { owner: string; repo: string } | null {
+  return hosted ? repoFromPath(pathname) : null;
 }
 
 /** True on a team shell (the layout sets <html data-hosted>). False at build time. */
@@ -163,10 +190,23 @@ export function isReservedTeam(owner: string, repo: string, reserved: ReservedPa
 }
 
 /**
+ * One address per team page: the plain form of an escaped address (/studio/~/acme/ds/x/ -> /studio/acme/ds/x/) when no
+ * Studio file takes the pair, so a team never has two URLs for one page. Null when the address is already canonical,
+ * is not a team, or the reserved list is unknown (the escape form always works then).
+ */
+export function canonicalTeamPath(pathname: string, reserved: ReservedPaths | null): string | null {
+  const team = teamAddress(pathname);
+  if (!team?.escaped || !reserved || isReservedTeam(team.owner, team.repo, reserved)) return null;
+  return pathname.replace(/^\/studio\/~\//, STUDIO_ROOT);
+}
+
+/**
  * The Studio address of a team: /studio/<owner>/<repo>/, or the escape form /studio/~/<owner>/<repo>/ when a Studio
  * file takes that pair. Without the reserved list (it failed to load), the escape form, which always works.
  */
 export function teamHref(owner: string, repo: string, reserved: ReservedPaths | null): string {
+  // A team created in Bridge before any repository (TEAM_KEY_OWNER): its home is the workspace page.
+  if (owner === TEAM_KEY_OWNER) return `${STUDIO_ROOT}workspace/?team=${encodeURIComponent(repo)}`;
   const escaped = !reserved || isReservedTeam(owner, repo, reserved);
   return `${STUDIO_ROOT}${escaped ? '~/' : ''}${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/`;
 }

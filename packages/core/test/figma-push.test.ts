@@ -66,10 +66,10 @@ describe('planComponentPush', () => {
     expect(p.route).toBe('claude-draft');
     expect(p.edits).toEqual([]);
     expect(p.reasons).toEqual([
-      'Code paints fill with color.action.primary.bg directly, not through a Button token: Claude AI changes the CSS to color.bg.default.',
-      'button.radius also paints primary sm and primary lg: pointing it to radius.control would change them too, so Claude AI adds a token for primary md.',
-      'Stroke in primary md is bound to color.bg.default where code paints nothing: Claude AI adds it to the CSS.',
-      'Fill in primary sm moved from button.primary.bg, color.bg.default to color.action.primary.bg: several variables on one property, so Claude AI writes the CSS.',
+      'Code paints fill with color.action.primary.bg directly, not through a Button token: the CSS needs to change to color.bg.default.',
+      'button.radius also paints primary sm and primary lg: pointing it to radius.control would change them too, so it needs a new token for primary md.',
+      'Stroke in primary md is bound to color.bg.default where code paints nothing: the CSS needs it added.',
+      'Fill in primary sm moved from button.primary.bg, color.bg.default to color.action.primary.bg: several variables on one property, so the CSS needs writing.',
     ]);
   });
 
@@ -77,7 +77,7 @@ describe('planComponentPush', () => {
     const p = planComponentPush(diff({ needsCode: true, kind: 'new-variant', rebinds: [rebind(['button.primary.bg'], ['color.action.primary.bg-active'])] }), ctx());
     expect(p.route).toBe('claude-draft');
     expect(p.edits).toHaveLength(1);
-    expect(p.said).toBe('Claude AI drafts the code from what you changed, then a person reviews it. Its token swap goes with it.');
+    expect(p.said).toBe('A developer builds it with Claude from what you changed, then a person reviews it. Its token swap goes with it.');
   });
 
   it('the same token moved to two variables is split by Claude AI', () => {
@@ -116,13 +116,13 @@ describe('the library branch', () => {
   it('says where it came from, and tools read it back', () => {
     const o = { component: 'Button', figmaName: 'Button', route: 'claude-draft' as const, kind: 'new-variant' as const, url: 'https://www.figma.com/design/F/?node-id=1-1', spec: '.bridge/figma/button-add-a-lg-size.json', status: 'spec' as const };
     const body = withFigmaOrigin('Body.', o);
-    expect(body.startsWith('**From Figma:** [Button](https://www.figma.com/design/F/?node-id=1-1). Once it ships, a pull in the DS Bridge plugin rebuilds the component from this code.')).toBe(true);
-    expect(body).toMatch(/\*\*Waiting for Claude AI:\*\*/);
+    expect(body.startsWith('**From Figma:** [Button](https://www.figma.com/design/F/?node-id=1-1). Once it ships, a pull in the Bridge Figma plugin rebuilds the component from this code.')).toBe(true);
+    expect(body).toMatch(/\*\*Waiting for a developer:\*\*/);
     expect(body.endsWith('Body.')).toBe(true);
     expect(parseFigmaOrigin(body)).toEqual(o);
     const drafted = withFigmaOrigin(body, { ...o, status: 'drafted' });
     expect(drafted.match(/\*\*From Figma:\*\*/g)).toHaveLength(1);
-    expect(drafted).toMatch(/\*\*Drafted by Claude AI\*\* from the Figma spec/);
+    expect(drafted).toMatch(/\*\*Drafted with Claude\*\* from the Figma spec/);
     expect(figmaOriginSection({ ...o, route: 'token-change' })).toMatch(/Exact token change, no AI/);
     expect(body).not.toMatch(/\u2014/);
   });
@@ -143,7 +143,7 @@ describe('the library branch', () => {
 
   it('says where it stands, and when the Figma component is rebuilt', () => {
     expect(figmaPushStatus({ state: 'open', labels: ['from-figma', 'waiting-for-claude'] }).key).toBe('waiting-for-claude');
-    expect(figmaPushStatus({ state: 'open', labels: ['drafted-by-claude'] }).label).toBe('Drafted by Claude AI');
+    expect(figmaPushStatus({ state: 'open', labels: ['drafted-by-claude'] }).label).toBe('Drafted with Claude');
     expect(figmaPushStatus({ state: 'open', labels: [], route: 'token-change' }).sentence).toBe('Owners review the token change.');
     expect(figmaPushStatus({ state: 'merged' })).toMatchObject({ key: 'shipped', rebuild: true });
     expect(figmaPushStatus({ state: 'closed' })).toMatchObject({ key: 'closed', rebuild: true });

@@ -14,7 +14,9 @@
 // role remembered in this browser), the one they are on first with a check and their role; the empty browser
 // workspace only while they are in it or have no team of their own (lib/start.ts); and "Try it" with Acme Design, the
 // sample team. The browser workspace (no repository yet,
-// pages/studio/workspace.astro) names itself on the chip: "Ann's workspace", kept in this browser.
+// pages/studio/workspace.astro) names itself on the chip: "Ann's workspace", kept in this browser. Once "Create your
+// team" made the team on the server (no repository yet), the workspace page is that team's home and the chip names the
+// team with the person's role ("Northwind Design", Admin), never "Your workspace".
 // Mounted by layouts/Layout.astro on every Studio page, both modes: a self-hosted Studio is its own one team.
 import { Fragment, lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Check, ChevronsUpDown, LogIn, Plus, UserPlus, X } from 'lucide-react';
@@ -22,7 +24,8 @@ import type { ReactElement, ReactNode } from 'react';
 import { Avatar, Badge, Button, Icon, Menu, MenuContent, MenuGroup, MenuItem, MenuSeparator, MenuTrigger } from '@bridge-ds/react';
 import type { RepoAccessState } from '@bridge-ds/core';
 import { chipIdentity, isDemoTeam, memberRole, ownerAvatarUrl, recentTeamName } from '../../../lib/access-view';
-import { forgetRecentTeam, loadRecentTeams, loadTeamNames, loadTeamRoles, noteTeamAccess, noteTeamName, noteTeamRole } from '../../../lib/recent-teams';
+import { forgetRecentTeam, knownTeamName, loadRecentTeams, loadTeamNames, loadTeamRoles, noteTeamAccess, noteTeamName, noteTeamRole } from '../../../lib/recent-teams';
+import { pillState } from '../../../lib/access';
 import { teamHref } from '../../../lib/team-path';
 import { ghButton } from '../../../lib/gh-wording';
 import { ACCOUNT_WORDS, roleWord, signInHref } from '../../../lib/account';
@@ -35,7 +38,8 @@ import { GitHubMark } from './brand-icons';
 import { Drawing } from './Drawing';
 import { shortName } from '../../../lib/home-model';
 import { isSampleTeam } from '../../../lib/demo';
-import { DEMO_HOME, MENU_WORDS, ownTeams, WORKSPACE_HOME, WORKSPACE_WORDS, workspaceHref, workspaceName, type StartFacts } from '../../../lib/start';
+import { DEMO_HOME, MENU_WORDS, ownTeams, TEAM_HOME_WORDS, WORKSPACE_HOME, WORKSPACE_WORDS, workspaceHref, workspaceName, workspaceTeamKey, type StartFacts } from '../../../lib/start';
+import { isTeamKey } from '../../../lib/team-path';
 
 export interface TeamChipProps {
   /** owner/repo known at build time (self-hosted). Null on a team shell: read from the address. */
@@ -126,7 +130,17 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
         setViewerName(v ? (shortName(v.name) ?? v.login) : null);
         if (!v) setAccess(r.hosted ? (session.currentAccess()?.state ?? null) : null);
       });
-      session.onAccess((a) => setAccess(a?.state ?? null));
+      // An email member's role comes from /api/contribute (one GET per team and page, shared with the session): an admin
+      // reads "Admin" here like in the account row, never "Can edit".
+      const contributeRole = async (a: { contributor?: boolean } | null): Promise<string | null> => {
+        if (!a?.contributor || !team) return null;
+        const { contributeInfo } = await import('../../../scripts/contribute-session');
+        return (await contributeInfo(team)).member?.role ?? null;
+      };
+      session.onAccess((a) => {
+        setAccess(pillState(a));
+        void contributeRole(a).then((role) => live && a && setAccess(pillState(a, role)));
+      });
     })();
     return () => {
       live = false;
@@ -155,19 +169,33 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   const forget = (team: string) => setRecent(others(forgetRecentTeam(team), name));
 
   const [owner = ''] = (name ?? '').split('/');
-  const wsName = workspaceName(viewerName);
-  const wsLine = facts?.storybook ? 'Storybook connected' : MENU_WORDS.workspaceLine;
+  // The team made in Bridge this workspace page is the home of (the same rule as the page, lib/start.ts).
+  const wsKey = workspace && account ? workspaceTeamKey(account.teams, typeof location === 'undefined' ? '' : location.search) : null;
+  const wsTeam = wsKey ? (account?.teams.find((t) => t.repo.toLowerCase() === wsKey) ?? null) : null;
+  const wsName = wsTeam ? (wsTeam.name ?? knownTeamName(wsTeam.repo) ?? 'Your team') : workspaceName(viewerName);
+  const wsLine = wsTeam ? TEAM_HOME_WORDS.chipLine : facts?.storybook ? 'Storybook connected' : MENU_WORDS.workspaceLine;
   const chip = workspace
-    ? { kind: 'workspace' as const, name: wsName, title: `${wsName}, ${WORKSPACE_WORDS.kept.toLowerCase()}`, badge: { label: facts?.storybook ? 'Storybook' : WORKSPACE_WORDS.notConnected, tone: 'neutral' as const } }
-    : chipIdentity(name, { demo: isDemoTeam(name, hosted), state: access, signedIn: ghSignedIn, name: cfg.name });
+    ? wsTeam
+      ? { kind: 'workspace' as const, name: wsName, title: `${wsName}, ${TEAM_HOME_WORDS.chipLine.toLowerCase()}`, badge: { label: roleWord(wsTeam.role), tone: 'neutral' as const } }
+      : { kind: 'workspace' as const, name: wsName, title: `${wsName}, ${WORKSPACE_WORDS.kept.toLowerCase()}`, badge: { label: facts?.storybook ? 'Storybook' : WORKSPACE_WORDS.notConnected, tone: 'neutral' as const } }
+    : // Before its settings are read, the name this browser already knows (the server keeps it): the name never flips.
+      chipIdentity(name, { demo: isDemoTeam(name, hosted), state: access, signedIn: ghSignedIn, name: cfg.read ? cfg.name : (cfg.name ?? (name ? knownTeamName(name) : null)) });
   const badge = chip.badge;
   const offerTeams = launcher || hosted;
   // "Your teams": the teams the signed-in person belongs to (their role known in this browser), the one you are on first
   // with a check and your role. The browser workspace shows only while you are in it or have no team of your own; from
   // the sample team or a team you are a guest of, the place you came from. The sample team stays under "Try it".
   type TeamRow = { key: string; mark: ReactElement; title: string; line?: string; role?: string; href: string; current: boolean };
-  const wsMark = <Avatar name={viewerName ?? 'Workspace'} size="xs" decorative />;
-  const teamMark = (t: string) => (isDemoTeam(t) && !isSampleTeam(t) ? <DemoMark /> : <Avatar name={t.split('/')[0] ?? ''} src={ownerAvatarUrl(t.split('/')[0] ?? '', 32)} size="xs" decorative />);
+  const wsMark = <Avatar name={wsTeam ? wsName : (viewerName ?? 'Workspace')} size="xs" decorative />;
+  // A team made in Bridge has no GitHub owner: its initials.
+  const teamMark = (t: string) =>
+    isTeamKey(t) ? (
+      <Avatar name={account?.teams.find((x) => x.repo.toLowerCase() === t.toLowerCase())?.name ?? 'Team'} size="xs" decorative />
+    ) : isDemoTeam(t) && !isSampleTeam(t) ? (
+      <DemoMark />
+    ) : (
+      <Avatar name={t.split('/')[0] ?? ''} src={ownerAvatarUrl(t.split('/')[0] ?? '', 32)} size="xs" decorative />
+    );
   const teamRowOf = (t: string, current: boolean, role?: string): TeamRow => {
     const [o = '', r = ''] = t.split('/');
     return { key: t, mark: teamMark(t), title: current ? chip.name : recentTeamName(t, names), role, href: teamHref(o, r, null), current };
@@ -175,7 +203,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   const yours: TeamRow[] = (() => {
     if (!offerTeams) return [];
     const rows: TeamRow[] = [];
-    if (chip.kind === 'workspace') rows.push({ key: 'ws', mark: wsMark, title: wsName, line: wsLine, href: WORKSPACE_HOME, current: true });
+    if (chip.kind === 'workspace') rows.push({ key: wsTeam?.repo ?? 'ws', mark: wsMark, title: wsName, line: wsLine, ...(wsTeam ? { role: roleWord(wsTeam.role) } : {}), href: WORKSPACE_HOME, current: true });
     const here = chip.kind !== 'workspace' && name && !isSampleTeam(name) ? name : null;
     const mine = (t: string) => account?.teams.find((x) => x.repo.toLowerCase() === t.toLowerCase());
     const here_ = here ? mine(here) : undefined;
@@ -214,7 +242,8 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     const a = await resolveAccess({ owner: o, repo: r }, { anonymous: true, probe: true });
     return a && { state: a.state, repoAdmin: a.repoAdmin };
   }, []);
-  const label = name || workspace ? `${chip.title}, ${badge.label}. Team menu` : 'Team menu';
+  // The team by its name and the role, never its repository: "Mobile kit, Can edit, Team menu".
+  const label = name || workspace ? `${chip.name}, ${badge.label}, Team menu` : 'Team menu';
   // The menu's parts in order, a separator between two: the teams to switch to (board EmptyB), what to do here, the
   // recent teams, then "Create a new team" once signed in (signed out it comes first among the actions).
   const blocks: { key: string; node: ReactNode }[] = [];
@@ -316,7 +345,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
           ) : chip.kind === 'demo' ? (
             <DemoMark />
           ) : chip.kind === 'workspace' ? (
-            <Avatar name={viewerName ?? 'Workspace'} size="sm" decorative className="tc-avatar" />
+            <Avatar name={wsTeam ? wsName : (viewerName ?? 'Workspace')} size="sm" decorative className="tc-avatar" />
           ) : (
             <Avatar name={owner || 'Team'} src={owner ? ownerAvatarUrl(owner) : undefined} size="sm" decorative className="tc-avatar" />
           )}

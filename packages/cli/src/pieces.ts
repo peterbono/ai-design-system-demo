@@ -1,9 +1,10 @@
 // bridge pieces: what a product branch adds outside the library, and the library branches that bring it back, from the
 // terminal. The same operations as the MCP server (packages/mcp/src/pieces.ts), over the same @bridge-ds/core functions
 // as Bridge Studio. Reads work without a token on a public repo; writes need one.
-import { BridgeContext, branches, pieces } from '@bridge-ds/mcp';
+import { branches, pieces } from '@bridge-ds/mcp';
 import { defaultIO, RequestUsageError, type RequestArgs, type RequestIO } from './request.js';
 import { changesFlag } from './suggest.js';
+import { cliContext, TOKEN_HELP, type Access } from './auth.js';
 
 export const PIECES_HELP = `bridge pieces: a product branch and the library
 
@@ -18,14 +19,12 @@ Usage:
   bridge pieces preview <n> <piece>              the product branch takes the latest library branch (merged in)
   bridge pieces switch <n>                       once the library shipped: main into the product branch
 
-GitHub token: GITHUB_TOKEN or BRIDGE_GITHUB_TOKEN, else \`gh auth token\`. Exit codes: 0 ok, 2 usage or setup error.`;
+${TOKEN_HELP}
+Exit codes: 0 ok, 2 usage or setup error.`;
 
 const has = (a: RequestArgs, k: string) => Boolean(a.flags[k]);
 
-async function context(root: string, io: RequestIO): Promise<BridgeContext> {
-  const token = io.env.BRIDGE_GITHUB_TOKEN || io.env.GITHUB_TOKEN || io.ghToken();
-  return BridgeContext.create({ root, ...(token ? { token } : {}), ...(io.fetch ? { fetch: io.fetch } : {}) });
-}
+const context = (root: string, io: RequestIO, a: RequestArgs, access: Access) => cliContext(root, io, a, access);
 
 function number(a: RequestArgs, at: number, usage: string): number {
   const raw = a._[at];
@@ -46,7 +45,9 @@ export async function runPieces(a: RequestArgs, root: string, io: RequestIO = de
     return sub || has(a, 'help') ? 0 : 2;
   }
   const json = has(a, 'json');
-  const ctx = await context(root, io);
+  // status reads; open, preview, switch and --record write (open --dry-run only reads).
+  const writes = sub === 'status' ? false : sub === 'open' ? !has(a, 'dry-run') : sub === 'preview' || sub === 'switch' ? true : has(a, 'record');
+  const ctx = await context(root, io, a, writes ? 'write' : 'read');
   const out = (r: unknown, text: () => void) => (json ? io.print(JSON.stringify(r, null, 2)) : text(), 0);
   switch (sub) {
     case 'status': {

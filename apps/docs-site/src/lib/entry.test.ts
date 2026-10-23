@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { PEOPLE_SHOWN, invitedOn, teamAvatars, askedAgo, CREATE_TEAM_HREF, discoveryLine, emailDomain, ENTRY_WORDS, parseDiscovery, parseEntry, parseRequests, routeEntry, sortDomainTeams, splitDomainTeams, teamHome, teamNameFromDomain, yourRole, type Entry } from './entry';
+import { PEOPLE_SHOWN, invitedOn, teamAvatars, askedAgo, CREATE_TEAM_HREF, discoveryLine, emailDomain, ENTRY_WORDS, inviteRole, joinedNote, inviteTokenFromHash, parseDiscovery, parseInviteLink, parseEntry, parseRequests, parseTeamInfo, routeEntry, sortDomainTeams, splitDomainTeams, teamHome, teamNameFromDomain, yourRole, type Entry } from './entry';
 
 const team = (repo: string, name: string, role = 'edit') => ({ repo, name, role, via: 'email' });
 
 describe('parseEntry: the /api/entry answer', () => {
   it('reads each kind and drops malformed rows', () => {
-    expect(parseEntry({ kind: 'teams', teams: [team('acme/ds', 'Acme Design', 'admin'), { repo: 'not a repo' }, null] })).toEqual({ kind: 'teams', teams: [{ repo: 'acme/ds', name: 'Acme Design', role: 'admin', via: 'email' }] });
+    expect(parseEntry({ kind: 'teams', teams: [team('acme/ds', 'Acme Design', 'admin'), { repo: 'not a repo' }, null] })).toEqual({ kind: 'teams', teams: [{ repo: 'acme/ds', id: '', name: 'Acme Design', role: 'admin', via: 'email' }] });
     expect(parseEntry({ kind: 'invites', invites: [{ id: 'a1', team: 'Acme', repo: 'acme/ds', role: 'reviewer', invitedBy: 'Sam' }, { repo: 'acme/ds' }] })).toEqual({ kind: 'invites', invites: [{ id: 'a1', team: 'Acme', repo: 'acme/ds', role: 'reviewer', invitedBy: 'Sam', invitedAt: '', memberCount: 0, people: [] }] });
     const full = parseEntry({ kind: 'invites', invites: [{ id: 'a1', repo: 'acme/ds', invitedAt: '2026-10-21T09:00:00Z', memberCount: 12.7, people: ['Sam Rivera', 'leak@acme.com', 3, '', 'Lea', 'Kim', 'Ola', 'Six'] }] });
     expect(full?.kind === 'invites' && full.invites[0]).toMatchObject({ invitedAt: '2026-10-21T09:00:00Z', memberCount: 12, people: ['Sam Rivera', 'Lea', 'Kim', 'Ola'] });
@@ -20,30 +20,38 @@ describe('parseEntry: the /api/entry answer', () => {
     expect(parseEntry({ kind: 'teams', teams: [] })).toEqual({ kind: 'create' });
     expect(parseEntry({ kind: 'invites', invites: [] })).toEqual({ kind: 'create' });
     expect(parseEntry({ kind: 'domain', domain: 'acme.com', teams: [] })).toEqual({ kind: 'create' });
-    expect(parseEntry({ kind: 'teams', teams: [{ repo: 'acme/ds', role: 'owner' }] })).toEqual({ kind: 'teams', teams: [{ repo: 'acme/ds', name: 'acme/ds', role: 'edit', via: 'email' }] });
+    expect(parseEntry({ kind: 'teams', teams: [{ repo: 'acme/ds', role: 'owner' }] })).toEqual({ kind: 'teams', teams: [{ repo: 'acme/ds', id: '', name: 'acme/ds', role: 'edit', via: 'email' }] });
   });
 
-  it('keeps every domain team, largest first', () => {
-    const e = parseEntry({ kind: 'domain', domain: 'acme.com', teams: [{ repo: 'a/b', name: 'B', memberCount: 2 }, { repo: 'a/c', name: 'C', memberCount: 12, people: ['Sam Rivera'], adminName: 'Sam', requested: true }, { repo: 'a/a', name: 'A', memberCount: 2 }] });
+  it('keeps every domain team, largest first, by its opaque id (never a repository)', () => {
+    const e = parseEntry({ kind: 'domain', domain: 'acme.com', teams: [{ id: 'tb', name: 'B', memberCount: 2, expired: true }, { id: 'tc', repo: 'a/c', name: 'C', memberCount: 12, people: ['Sam R.'], adminName: 'Sam', requested: true, expired: true }, { id: 'ta', name: 'A', memberCount: 2 }, { name: 'No id' }] });
     expect(e).toEqual({
       kind: 'domain',
       domain: 'acme.com',
       teams: [
-        { repo: 'a/c', name: 'C', memberCount: 12, people: ['Sam Rivera'], adminName: 'Sam', requested: true },
-        { repo: 'a/a', name: 'A', memberCount: 2, people: [], adminName: '', requested: false },
-        { repo: 'a/b', name: 'B', memberCount: 2, people: [], adminName: '', requested: false },
+        { id: 'tc', name: 'C', memberCount: 12, people: ['Sam R.'], adminName: 'Sam', requested: true, expired: false },
+        { id: 'ta', name: 'A', memberCount: 2, people: [], adminName: '', requested: false, expired: false },
+        { id: 'tb', name: 'B', memberCount: 2, people: [], adminName: '', requested: false, expired: true },
       ],
     });
+  });
+
+  it('says "You joined" once, for the team Entry opened', () => {
+    const raw = JSON.stringify({ repo: 'Acme/DS', team: 'Acme Design' });
+    expect(joinedNote(raw, 'acme/ds')).toBe('You joined Acme Design.');
+    expect(joinedNote(raw, 'acme/other')).toBeNull();
+    expect(joinedNote('not json', 'acme/ds')).toBeNull();
+    expect(joinedNote(null, 'acme/ds')).toBeNull();
   });
 });
 
 describe('routeEntry: first match wins', () => {
   it('opens the one team', () => {
-    expect(routeEntry({ kind: 'teams', teams: [{ repo: 'acme/ds', name: 'Acme', role: 'edit', via: 'email' }] })).toEqual({ to: 'go', href: '/studio/~/acme/ds/' });
+    expect(routeEntry({ kind: 'teams', teams: [{ repo: 'acme/ds', id: '', name: 'Acme', role: 'edit', via: 'email' }] })).toEqual({ to: 'go', href: '/studio/~/acme/ds/' });
   });
 
   it('reopens the most recent of 2+ teams, else the picker by name', () => {
-    const e: Entry = { kind: 'teams', teams: [{ repo: 'acme/ds', name: 'Acme Design', role: 'edit', via: 'email' }, { repo: 'Acme/Brand', name: 'Acme Brand', role: 'admin', via: 'github' }] };
+    const e: Entry = { kind: 'teams', teams: [{ repo: 'acme/ds', id: '', name: 'Acme Design', role: 'edit', via: 'email' }, { repo: 'Acme/Brand', id: '', name: 'Acme Brand', role: 'admin', via: 'github' }] };
     expect(routeEntry(e, ['other/x', 'acme/brand'])).toEqual({ to: 'go', href: '/studio/~/Acme/Brand/' });
     const pick = routeEntry(e, ['other/x']);
     expect(pick.to).toBe('pick');
@@ -125,5 +133,62 @@ describe('admin side', () => {
     expect(discoveryLine({ domain: 'acme.com', enabled: false, configured: true, eligible: false })).toEqual({ on: false, domain: 'acme.com', canTurnOn: false });
     expect(discoveryLine({ domain: null, enabled: false, configured: false, eligible: false })).toBeNull();
     expect(discoveryLine(null)).toBeNull();
+  });
+});
+
+describe('invite links', () => {
+  it('reads the token from the fragment only', () => {
+    const t = 'A'.repeat(43);
+    expect(inviteTokenFromHash(`#t=${t}`)).toBe(t);
+    expect(inviteTokenFromHash(`#x=1&t=${t}`)).toBe(t);
+    expect(inviteTokenFromHash('#t=short')).toBeNull();
+    expect(inviteTokenFromHash('')).toBeNull();
+  });
+
+  it('parses each state and keeps the E3 card only with a valid repository', () => {
+    expect(parseInviteLink({ state: 'unknown', signedIn: true })).toEqual({ state: 'unknown', signedIn: true });
+    expect(parseInviteLink({ state: 'gone', team: 'Acme', invitedBy: 'Sam', member: true, repo: 'acme/ds', signedIn: true })).toEqual({ state: 'gone', team: 'Acme', invitedBy: 'Sam', signedIn: true, member: true, repo: 'acme/ds' });
+    // A member without a repository to open is not one.
+    expect(parseInviteLink({ state: 'gone', member: true })).toMatchObject({ member: false });
+    const l = parseInviteLink({ state: 'live', team: 'Acme', invitedBy: 'Sam', role: 'reviewer', reviewAs: 'design', sentTo: 'm•••@acme.com', signedIn: true, mine: true, invite: { id: 'i1', repo: 'acme/ds', role: 'reviewer', reviewAs: 'design' } });
+    expect(l).toMatchObject({ state: 'live', mine: true, reviewAs: 'design', invite: { id: 'i1', repo: 'acme/ds', reviewAs: 'design' } });
+    expect(parseInviteLink({ state: 'live', mine: true, invite: { id: 'i1', repo: 'not a repo' } })).toMatchObject({ mine: false });
+    expect(parseInviteLink({ state: 'weird' })).toBeNull();
+    expect(parseInviteLink(null)).toBeNull();
+  });
+
+  it('names the role like the role picker', () => {
+    expect(inviteRole({ role: 'reviewer', reviewAs: 'design' })).toBe('Reviewer: design');
+    expect(inviteRole({ role: 'reviewer' })).toBe('Reviewer: design');
+    expect(inviteRole({ role: 'admin' })).toBe('Admin');
+    expect(inviteRole({ role: 'edit' })).toBe('Can edit');
+  });
+
+  it('never writes an em dash in the invite link words', () => {
+    const words = [ENTRY_WORDS.githubWhy('Admin'), ENTRY_WORDS.githubOff('Admin', 'Sam'), ENTRY_WORDS.goneLead('Sam', 'Acme'), ENTRY_WORDS.otherLead('Acme'), ENTRY_WORDS.alreadyInLead, ENTRY_WORDS.missingLead];
+    for (const w of words) expect(w).not.toContain(String.fromCharCode(0x2014));
+  });
+});
+
+describe('a team made in Bridge', () => {
+  it('routes its member to its home, the workspace page', () => {
+    const e = parseEntry({ kind: 'teams', teams: [{ repo: '_team/c0ffee0000000017', name: 'Northwind Design', role: 'admin', via: 'email' }] })!;
+    expect(routeEntry(e)).toEqual({ to: 'go', href: '/studio/workspace/?team=c0ffee0000000017' });
+    expect(teamHome('_team/c0ffee0000000017')).toBe('/studio/workspace/?team=c0ffee0000000017');
+  });
+
+  it('reads the team answer, dropping what is malformed', () => {
+    expect(parseTeamInfo({ id: 'c0ffee0000000017', key: '_team/c0ffee0000000017', name: 'Northwind Design', role: 'admin', repo: null, storybook: null, discovery: { domain: 'northwind.io', enabled: true }, memberCount: 2 })).toEqual({
+      id: 'c0ffee0000000017',
+      key: '_team/c0ffee0000000017',
+      name: 'Northwind Design',
+      role: 'admin',
+      repo: null,
+      storybook: null,
+      discovery: { domain: 'northwind.io', enabled: true },
+      memberCount: 2,
+    });
+    expect(parseTeamInfo({ id: 'x', key: 'k', name: 'N', role: 'owner', repo: 'acme/ds', discovery: {} })).toMatchObject({ role: 'edit', repo: 'acme/ds', discovery: null, memberCount: 0 });
+    expect(parseTeamInfo({ name: 'No id' })).toBeNull();
   });
 });
