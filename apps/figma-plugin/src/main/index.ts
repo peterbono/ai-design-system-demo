@@ -9,6 +9,7 @@ import {
   type ResponseEnvelope,
   type SyncState,
   isRequest,
+  syncResetOnSettings,
 } from '../shared/messages';
 import { applyPullPlan } from './apply';
 import { applyComponentPlan, scanGenerated } from './build-components';
@@ -56,10 +57,9 @@ const handlers: Handlers = {
     return { settings, sync, hasToken: !!token, token, tokenState, fileName: figma.root.name, claude: await readClaudeSettings() };
   },
   async 'save-settings'({ settings }) {
-    const repoChanged = settings.repo !== readShared().settings.repo || settings.branch !== readShared().settings.branch;
+    const before = readShared().settings;
     writeShared({ repo: settings.repo.trim(), branch: settings.branch.trim(), tokensPath: settings.tokensPath.trim().replace(/^\/+|\/+$/g, '') });
-    // A different repository or branch means the stored base no longer applies.
-    if (repoChanged) writeShared({ baseSha: '', lastPullAt: '', lastPrBranch: '', lastPrUrl: '' });
+    writeShared(syncResetOnSettings(before, readShared().settings));
     return readShared().settings;
   },
   async 'save-token'({ token }) {
