@@ -83,3 +83,13 @@ describe('vercel-ignore decide', () => {
     expect(decide('docs', { ref: 'main', previousSha: 'gone' }, fakeGit().git)).toMatchObject({ build: true, base: 'gone' });
   });
 });
+
+describe('vercel-ignore agent branches', () => {
+  it('never previews agent/* branches, without touching git', () => {
+    const git = () => {
+      throw new Error('git must not run');
+    };
+    expect(decide('docs', { ref: 'agent/library-phase-5' }, git)).toMatchObject({ build: false });
+    expect(decide('storybook', { ref: 'agent/x' }, git).build).toBe(false);
+  });
+});
