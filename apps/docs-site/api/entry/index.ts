@@ -6,14 +6,17 @@
 //               linked and when the request carries that GitHub account's own token (Bearer), the repositories the
 //               Bridge app is installed on where it can push or administer (GitHub proves the rights). Sign-in is by
 //               email; GitHub is never needed here
-//               { kind: 'teams', teams: [{ repo, name, role: 'edit' | 'reviewer' | 'admin', via: 'email' | 'github' }] }
+//               { kind: 'teams', teams: [{ repo, id, name, role: 'edit' | 'reviewer' | 'admin', via: 'email' | 'github' }] }
 //   2. invites  invites wait for their email
 //               { kind: 'invites', invites: [{ id, team, repo, role, reviewAs?, invitedBy, invitedAt, memberCount, people }] }
 //               (accept-invite joins directly)
 //   3. domain   teams whose admin opened them to the person's work domain, all of them, largest first
-//               { kind: 'domain', domain, teams: [{ repo, name, memberCount, people, adminName, requested }] }
+//               { kind: 'domain', domain, teams: [{ id, name, memberCount, people, adminName, requested, expired }] }
+//               `id`: an opaque team id (the person is not a member: the repository is never named). `expired`:
+//               their last request ran out unanswered.
 //   `people`: the names of the first few people on the team (admins first, at most PEOPLE_SHOWN), for the avatars of
-//   the team card; the card shows the rest as "+N" from memberCount. Names only, never an email.
+//   the team card; the card shows the rest as "+N" from memberCount. Names only, never an email; on a domain card
+//   (people not on the team yet) first names and an initial only ("Sam R.").
 //   4. create   { kind: 'create' }
 // Public and free mailbox domains (api/_lib/domains.ts) never match and can never be opened.
 //
@@ -29,9 +32,10 @@
 //            a member of that team (to open it). Never the invited email, only masked.
 //   POST { action: 'accept-invite', repo, id }   the invite sent to the account email; joins directly
 //                                                { joined: true, status, repo, role, next }
-//   POST { action: 'request', repo }        asks to join a team open to their work domain (an invite for that team
-//                                           is accepted instead: { joined: true, ... }); { requested: true, expiresAt }
-//   POST { action: 'cancel-request', repo }  the requester takes back their own pending request (keyed by the
+//   POST { action: 'request', team }        asks to join a team open to their work domain, by its opaque id (`repo`
+//                                           works too); an invite for that team is accepted instead: { joined: true,
+//                                           ... }; { requested: true, expiresAt }; 409 already { repo } for a member
+//   POST { action: 'cancel-request', team }  the requester takes back their own pending request (keyed by the
 //                                           account email, so nobody else's); { cancelled: true }, 404 when none waits
 //   POST { action: 'approve', repo, id }    admin: the requester joins with Can edit; { member: { name, role }, repo }
 //   POST { action: 'decline', repo, id }    admin: { ok: true }
@@ -126,9 +130,9 @@ export interface EntryDeps {
 export type EntryTeamRole = 'edit' | 'reviewer' | 'admin';
 
 export type Entry =
-  | { kind: 'teams'; teams: { repo: string; name: string; role: EntryTeamRole; via: 'email' | 'github' }[] }
+  | { kind: 'teams'; teams: { repo: string; id: string; name: string; role: EntryTeamRole; via: 'email' | 'github' }[] }
   | { kind: 'invites'; invites: EntryInviteCard[] }
-  | { kind: 'domain'; domain: string; teams: { repo: string; name: string; memberCount: number; people: string[]; adminName: string; requested: boolean }[] }
+  | { kind: 'domain'; domain: string; teams: { id: string; name: string; memberCount: number; people: string[]; adminName: string; requested: boolean; expired: boolean }[] }
   | { kind: 'create' };
 
 export interface EntryInviteCard {
@@ -225,6 +229,19 @@ interface Ctx {
 // Helpers
 
 const hmacHex = (secret: string, s: string) => createHmac('sha256', secret).update(s).digest('hex').slice(0, 32);
+/**
+ * A member as colleagues outside the team see them on its card: the first name and the initial of the last ("Sam R."),
+ * enough for the avatar's initials, never the whole name (/privacy/ says so).
+ */
+export const firstNameOnly = (name: string): string => {
+  const [first = '', ...rest] = name.trim().split(/\s+/);
+  const last = rest.at(-1);
+  return last ? `${first} ${last.charAt(0).toUpperCase()}.` : first;
+};
+
+/** A team as people outside it know it: an opaque id, stable for the site, that never names the repository. */
+export const teamId = (secret: string, repo: string) => `t${hmacHex(secret, `team:${repo.trim().toLowerCase()}`).slice(0, 20)}`;
+const TEAM_ID = /^t[a-f0-9]{20}$/;
 const teamHref = (repo: string) => {
   const [o, r] = repo.split('/') as [string, string];
   return `${STUDIO_ROOT}${encodeURIComponent(o)}/${encodeURIComponent(r)}/`;
@@ -448,7 +465,7 @@ export async function entryFor(ctx: Ctx, req: Request, a: Account): Promise<Entr
   const nameOf = await teamNamesOf(ctx, [...emailRepos, ...githubRepos.map((t) => t.repo)]);
   const email = emailRepos.map((repo) => ({ repo, name: nameOf(repo), role: (local.includes(repo) ? 'admin' : 'edit') as EntryTeamRole, via: 'email' as const }));
   const github = githubRepos.map((t) => ({ ...t, name: nameOf(t.repo), via: 'github' as const }));
-  const teams = [...email, ...github].sort((x, y) => x.name.localeCompare(y.name));
+  const teams = [...email, ...github].map((t) => ({ ...t, id: teamId(ctx.svc.secret, t.repo) })).sort((x, y) => x.name.localeCompare(y.name));
   if (teams.length) return { kind: 'teams', teams };
 
   // 2. Invites waiting for their email.
@@ -470,7 +487,8 @@ export async function entryFor(ctx: Ctx, req: Request, a: Account): Promise<Entr
       const nameOf = await teamNamesOf(ctx, open.map((t) => t.repo));
       for (const { repo, discovery } of open) {
         const { memberCount, people } = await teamPeople(ctx, repo);
-        out.push({ repo, name: nameOf(repo), memberCount, people, adminName: await adminNameOf(ctx, discovery), requested: asked.has(repo) });
+        const state = asked.get(repo);
+        out.push({ id: teamId(ctx.svc.secret, repo), name: nameOf(repo), memberCount, people: people.map(firstNameOnly), adminName: await adminNameOf(ctx, discovery), requested: state === 'pending', expired: state === 'expired' });
       }
       // Every matching team, the largest first (the UI shows a few, then "N more").
       out.sort((x, y) => y.memberCount - x.memberCount || x.name.localeCompare(y.name));
@@ -596,13 +614,32 @@ async function acceptInvite(ctx: Ctx, req: Request, a: Account, inv: StoredInvit
   return json(200, { joined: true, ...r, repo: inv.repo, next: teamHref(inv.repo) });
 }
 
+/**
+ * The team a request names: its opaque id among the teams open to the person's work domain (or, for a cancel, among
+ * the teams they asked), else a repository. A team the person cannot see answers like one that does not exist.
+ */
+async function requestedTeam(ctx: Ctx, a: Account, body: Record<string, unknown>, among: 'domain' | 'mine'): Promise<string> {
+  if (body.team === undefined) return parseRepo(body.repo).full;
+  if (typeof body.team !== 'string' || !TEAM_ID.test(body.team)) throw new HttpError(404, 'not_found', NOT_OPEN);
+  const domain = workDomain(a.email);
+  const repos =
+    among === 'mine'
+      ? [...(await myRequests(ctx.svc.redis, a.email, ctx.now())).keys()]
+      : domain
+        ? (await teamsForDomain(ctx.svc.redis, domain)).map((t) => t.repo)
+        : [];
+  const repo = repos.find((r) => teamId(ctx.svc.secret, r) === body.team);
+  if (!repo) throw new HttpError(404, 'not_found', among === 'mine' ? REQUEST_GONE : NOT_OPEN);
+  return parseRepo(repo).full;
+}
+
 async function onRequest(ctx: Ctx, req: Request, a: Account, body: Record<string, unknown>): Promise<Response> {
-  const { owner, repo, full } = parseRepo(body.repo);
+  const { owner, repo, full } = parseRepo(await requestedTeam(ctx, a, body, 'domain'));
   const email = a.email.toLowerCase();
   // An invite for this team wins: accepted straight away, no request.
   const inv = (await ctx.svc.invites.byEmail(email)).find((i) => i.repo.toLowerCase() === full);
   if (inv) return acceptInvite(ctx, req, a, inv);
-  if (await ctx.svc.members.get(full, email)) return fail(409, 'already', ALREADY);
+  if (await ctx.svc.members.get(full, email)) return json(409, { error: 'already', message: ALREADY, repo: full });
   // Only a team open to this very work domain; any other answers like a team that does not exist.
   const domain = workDomain(email);
   const d = domain ? await getDiscovery(ctx.svc.redis, full) : null;
@@ -643,7 +680,7 @@ async function onRequest(ctx: Ctx, req: Request, a: Account, body: Record<string
 
 /** The requester takes back their own request: only the one keyed by the account's email, never someone else's. */
 async function onCancel(ctx: Ctx, a: Account, body: Record<string, unknown>): Promise<Response> {
-  const { full } = parseRepo(body.repo);
+  const full = await requestedTeam(ctx, a, body, 'mine');
   const email = a.email.toLowerCase();
   if (!(await getRequest(ctx.svc.redis, full, email, ctx.now()))) return fail(404, 'not_found', REQUEST_GONE);
   await removeRequest(ctx.svc.redis, full, email);

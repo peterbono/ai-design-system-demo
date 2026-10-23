@@ -399,7 +399,7 @@ describe('entry: Bridge picks the room after the code (E3 to E6)', () => {
 
   it('E4 then E4b: asks to join the team found by work domain', async () => {
     const { container } = signedIn((c) =>
-      c.method === 'GET' ? json(200, { kind: 'domain', domain: 'acme.com', teams: [{ repo: 'acme/ds', name: 'Acme Design', memberCount: 12, people: ['Sam Rivera', 'Ada Lovelace', 'Lea Eng', 'Kim'], adminName: 'Sam Rivera', requested: false }] }) : json(200, { requested: true, expiresAt: '2026-11-06T00:00:00Z' }),
+      c.method === 'GET' ? json(200, { kind: 'domain', domain: 'acme.com', teams: [{ id: 'tacmeds', name: 'Acme Design', memberCount: 12, people: ['Sam Rivera', 'Ada Lovelace', 'Lea Eng', 'Kim'], adminName: 'Sam Rivera', requested: false }] }) : json(200, { requested: true, expiresAt: '2026-11-06T00:00:00Z' }),
     );
     expect(await screen.findByRole('heading', { name: 'Your colleagues already use Bridge' })).toBeInTheDocument();
     expect(screen.getByText('@acme.com')).toBeInTheDocument();
@@ -413,29 +413,73 @@ describe('entry: Bridge picks the room after the code (E3 to E6)', () => {
     expect(screen.getByText("We asked Sam Rivera to let you in. You'll get an email.")).toBeInTheDocument();
     expect(screen.getByText('Waiting for Sam')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Explore the demo while you wait' })).toBeInTheDocument();
-    expect(entryPosts('request')[0]!.body).toEqual({ action: 'request', repo: 'acme/ds' });
+    expect(entryPosts('request')[0]!.body).toEqual({ action: 'request', team: 'tacmeds' });
     await expectNoAxeViolations(container);
   });
 
   it('E4: several teams, largest first, three then Show N more, each with its own Ask to join', async () => {
-    const team = (repo: string, name: string, memberCount: number, requested = false) => ({ repo, name, memberCount, adminName: 'Sam Rivera', requested });
-    signedIn(() => json(200, { kind: 'domain', domain: 'acme.com', teams: [team('acme/a', 'Acme A', 2), team('acme/b', 'Acme B', 30), team('acme/c', 'Acme C', 8, true), team('acme/d', 'Acme D', 12), team('acme/e', 'Acme E', 1)] }));
+    const team = (id: string, name: string, memberCount: number, requested = false) => ({ id, name, memberCount, adminName: 'Sam Rivera', requested });
+    signedIn(() => json(200, { kind: 'domain', domain: 'acme.com', teams: [team('ta', 'Acme A', 2), team('tb', 'Acme B', 30), team('tc', 'Acme C', 8), team('td', 'Acme D', 12), team('te', 'Acme E', 1)] }));
     expect(await screen.findByText(/Bridge found 5 teams for/)).toBeInTheDocument();
     const names = () => screen.getAllByRole('listitem').map((li) => li.querySelector('strong')?.textContent);
     expect(names()).toEqual(['Acme B', 'Acme D', 'Acme C']);
     expect(screen.getByRole('button', { name: 'Ask to join Acme B' })).toBeInTheDocument();
-    expect(screen.getByText('Request sent')).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Show 2 more teams' }));
     expect(names()).toEqual(['Acme B', 'Acme D', 'Acme C', 'Acme A', 'Acme E']);
   });
 
+  it('E4, several teams: once asked, the title says so, the card has its own Cancel, a lapsed request says ask again', async () => {
+    const team = (id: string, name: string, memberCount: number, x: Record<string, unknown> = {}) => ({ id, name, memberCount, adminName: 'Sam Rivera', requested: false, ...x });
+    const { container } = signedIn((c) =>
+      c.method === 'GET'
+        ? json(200, { kind: 'domain', domain: 'acme.com', teams: [team('tb', 'Acme B', 30), team('tc', 'Acme C', 8, { expired: true })] })
+        : c.body?.action === 'request'
+          ? json(200, { requested: true, expiresAt: '2026-11-06T00:00:00Z' })
+          : json(200, { cancelled: true }),
+    );
+    expect(await screen.findByRole('heading', { name: 'Your colleagues already use Bridge' })).toBeInTheDocument();
+    expect(screen.getByText('Your request expired, ask again')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ask again to join Acme C' })).toHaveTextContent('Ask again');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Ask to join Acme B' }));
+    expect(await screen.findByRole('heading', { name: 'Request sent' })).toBeInTheDocument();
+    expect(screen.getByText("We asked the admins to let you in. You'll get an email. You can ask other teams too.")).toBeInTheDocument();
+    expect(entryPosts('request')[0]!.body).toEqual({ action: 'request', team: 'tb' });
+    await user.click(screen.getByRole('button', { name: 'Ask again to join Acme C' }));
+    expect(await screen.findByRole('heading', { name: '2 requests sent' })).toBeInTheDocument();
+    await expectNoAxeViolations(container);
+    await user.click(screen.getByRole('button', { name: 'Cancel the request to Acme B' }));
+    expect(await screen.findByRole('heading', { name: 'Request sent' })).toBeInTheDocument();
+    expect(entryPosts('cancel-request')[0]!.body).toEqual({ action: 'cancel-request', team: 'tb' });
+    expect(screen.getByRole('button', { name: 'Ask to join Acme B' })).toBeInTheDocument();
+  });
+
+  it('E4b turns into "You\'re in" once the admin lets them in, and the team opens with its note', async () => {
+    let approved = false;
+    signedIn((c) =>
+      c.method === 'GET'
+        ? approved
+          ? json(200, { kind: 'teams', teams: [{ repo: 'acme/ds', id: 'tacmeds', name: 'Acme Design', role: 'edit', via: 'email' }] })
+          : json(200, { kind: 'domain', domain: 'acme.com', teams: [{ id: 'tacmeds', name: 'Acme Design', memberCount: 12, adminName: 'Sam Rivera', requested: true }] })
+        : json(200, {}),
+    );
+    expect(await screen.findByRole('heading', { name: 'Request sent' })).toBeInTheDocument();
+    approved = true;
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(await screen.findByRole('heading', { name: "You're in" })).toBeInTheDocument();
+    expect(screen.getByText('Sam let you in. You join Acme Design as Can edit.')).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Open Acme Design' }));
+    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/~/acme/ds/'));
+    expect(JSON.parse(sessionStorage.getItem('bridge.entry.joined')!)).toEqual({ repo: 'acme/ds', team: 'Acme Design' });
+  });
+
   it('E4b straight away when the one team was asked before', async () => {
-    signedIn(() => json(200, { kind: 'domain', domain: 'acme.com', teams: [{ repo: 'acme/ds', name: 'Acme Design', memberCount: 12, adminName: 'Sam Rivera', requested: true }] }));
+    signedIn(() => json(200, { kind: 'domain', domain: 'acme.com', teams: [{ id: 'tacmeds', name: 'Acme Design', memberCount: 12, adminName: 'Sam Rivera', requested: true }] }));
     expect(await screen.findByRole('heading', { name: 'Request sent' })).toBeInTheDocument();
   });
 
   it('E4b: Cancel the request takes it back and returns to E4', async () => {
-    const { container } = signedIn((c) => (c.method === 'GET' ? json(200, { kind: 'domain', domain: 'acme.com', teams: [{ repo: 'acme/ds', name: 'Acme Design', memberCount: 2, people: ['Sam Rivera', 'Lea Eng'], adminName: 'Sam Rivera', requested: true }] }) : json(200, { cancelled: true })));
+    const { container } = signedIn((c) => (c.method === 'GET' ? json(200, { kind: 'domain', domain: 'acme.com', teams: [{ id: 'tacmeds', name: 'Acme Design', memberCount: 2, people: ['Sam Rivera', 'Lea Eng'], adminName: 'Sam Rivera', requested: true }] }) : json(200, { cancelled: true })));
     expect(await screen.findByRole('heading', { name: 'Request sent' })).toBeInTheDocument();
     expect(screen.getByText(/Changed your mind\?/)).toBeInTheDocument();
     expect(container.querySelector('.ent-people-stack')!.textContent).toBe('SRLE');
@@ -443,14 +487,14 @@ describe('entry: Bridge picks the room after the code (E3 to E6)', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Cancel the request' }));
     expect(await screen.findByRole('heading', { name: 'Your colleagues already use Bridge' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ask to join' })).toBeInTheDocument();
-    expect(entryPosts('cancel-request')[0]!.body).toEqual({ action: 'cancel-request', repo: 'acme/ds' });
+    expect(entryPosts('cancel-request')[0]!.body).toEqual({ action: 'cancel-request', team: 'tacmeds' });
     expect(entryPosts('cancel-request')[0]!.headers['X-Bridge-Contribute']).toBe('1');
   });
 
   it('E4b: a request already gone (expired, answered) still returns to E4', async () => {
     signedIn((c) =>
       c.method === 'GET'
-        ? json(200, { kind: 'domain', domain: 'acme.com', teams: [{ repo: 'acme/ds', name: 'Acme Design', memberCount: 12, adminName: 'Sam Rivera', requested: true }] })
+        ? json(200, { kind: 'domain', domain: 'acme.com', teams: [{ id: 'tacmeds', name: 'Acme Design', memberCount: 12, adminName: 'Sam Rivera', requested: true }] })
         : json(404, { error: 'not_found', message: 'This request expired or was already answered.' }),
     );
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Cancel the request' }));
@@ -461,7 +505,7 @@ describe('entry: Bridge picks the room after the code (E3 to E6)', () => {
   it('E4b: a cancel that fails keeps the request and says why', async () => {
     signedIn((c) =>
       c.method === 'GET'
-        ? json(200, { kind: 'domain', domain: 'acme.com', teams: [{ repo: 'acme/ds', name: 'Acme Design', memberCount: 12, adminName: 'Sam Rivera', requested: true }] })
+        ? json(200, { kind: 'domain', domain: 'acme.com', teams: [{ id: 'tacmeds', name: 'Acme Design', memberCount: 12, adminName: 'Sam Rivera', requested: true }] })
         : json(502, { error: 'unreachable', message: 'Bridge could not reach its storage. Try again in a minute.' }),
     );
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Cancel the request' }));
@@ -475,7 +519,7 @@ describe('entry: Bridge picks the room after the code (E3 to E6)', () => {
   });
 
   it('Not you? signs out and goes back to the email', async () => {
-    signedIn(() => json(200, { kind: 'domain', domain: 'acme.com', teams: [{ repo: 'acme/ds', name: 'Acme Design', memberCount: 12, adminName: 'Sam Rivera', requested: false }] }));
+    signedIn(() => json(200, { kind: 'domain', domain: 'acme.com', teams: [{ id: 'tacmeds', name: 'Acme Design', memberCount: 12, adminName: 'Sam Rivera', requested: false }] }));
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Use another email' }));
     expect(await screen.findByRole('textbox', { name: 'Work email' })).toBeInTheDocument();
     expect(posts('sign-out')).toHaveLength(1);

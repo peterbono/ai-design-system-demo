@@ -47,10 +47,9 @@ export function useEntryAdmin(repo: string, on: boolean) {
           return null;
         }
       };
-      const [r, d] = await Promise.all([read(() => a.listJoinRequests(repo)), read(() => a.getDiscovery(repo))]);
-      if (!live) return;
-      setRequests(r ?? []);
-      setDiscovery(d);
+      // Each on its own: the requests paint as soon as they land, before the members and the discovery line.
+      void read(() => a.listJoinRequests(repo)).then((r) => live && setRequests(r ?? []));
+      void read(() => a.getDiscovery(repo)).then((d) => live && setDiscovery(d));
     })();
     return () => {
       live = false;

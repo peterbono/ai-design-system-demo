@@ -6,7 +6,8 @@
 //   bridge:team:domain:<domain>         set of "owner/repo" open to people with that work domain (enabled only)
 //   bridge:joinreq:<repo>:<email>       a pending request { id, repo, email, name, createdAt, expiresAt }, 14 days
 //   bridge:joinreqs:<repo>              sorted set of requester emails by expiry (ms)
-//   bridge:joinreq:mine:<email>         set of the teams that email asked to join, 14 days after the last request
+//   bridge:joinreq:mine:<email>         set of the teams that email asked to join, 28 days after the last request (a
+//                                       request that ran out says so)
 //   bridge:joinreq:count:<kind>:<who>:<day>   daily caps, 2 days
 //   bridge:joinreq:undo:<repo>:<id>     an approve or decline the admin can still undo { request, approved, added }, 30 s
 //   bridge:team:name:<repo>             { name, at }  the team's bridge.config.json `name` as last read, no expiry
@@ -101,7 +102,8 @@ export async function putRequest(redis: Redis, r: JoinRequest, now: number): Pro
     ['SET', requestKey(r.repo, r.email), JSON.stringify(r), 'EX', ttl],
     ['ZADD', requestsKey(r.repo), Date.parse(r.expiresAt), lc(r.email)],
     ['SADD', myRequestsKey(r.email), lc(r.repo)],
-    ['EXPIRE', myRequestsKey(r.email), Math.ceil(JOIN_REQUEST_TTL_MS / 1000)],
+    // Twice a request's life: a request that ran out unanswered can still say "Your request expired, ask again".
+    ['EXPIRE', myRequestsKey(r.email), Math.ceil((2 * JOIN_REQUEST_TTL_MS) / 1000)],
   ]);
 }
 
@@ -129,12 +131,15 @@ export async function listRequests(redis: Redis, repo: string, now: number): Pro
   return out.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-/** The teams this email has a pending request for. */
-export async function myRequests(redis: Redis, email: string, now: number): Promise<Set<string>> {
+/**
+ * The teams this email asked to join: 'pending' while the request waits, 'expired' once it ran out unanswered (an
+ * approved, declined or cancelled request leaves the set, so it is never called expired).
+ */
+export async function myRequests(redis: Redis, email: string, now: number): Promise<Map<string, 'pending' | 'expired'>> {
   const raw = await redis.cmd('SMEMBERS', myRequestsKey(email));
   const repos = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [];
-  const out = new Set<string>();
-  for (const repo of repos) if (await getRequest(redis, repo, email, now)) out.add(repo);
+  const out = new Map<string, 'pending' | 'expired'>();
+  for (const repo of repos) out.set(repo, (await getRequest(redis, repo, email, now)) ? 'pending' : 'expired');
   return out;
 }
 

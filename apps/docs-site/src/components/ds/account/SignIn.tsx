@@ -21,7 +21,7 @@ import { Alert, Button, Icon, Input, Link } from '@bridge-ds/react';
 import { GitHubMark } from '../studio/brand-icons';
 import { Drawing } from '../studio/Drawing';
 import { ACCOUNT_WORDS as W, codeDigits, GITHUB_PENDING_KEY, CODE_LENGTH, defaultNext, PRIVACY_PAGE, readSignInQuery, RESEND_COOLDOWN, SIGNED_OUT_PARAM, signedOutNote, type Account, type SignedIn } from '../../../lib/account';
-import { ENTRY_WORDS as EW, INVITE_TOKEN_KEY, inviteTokenFromHash, routeEntry, type Entry, type EntryRoute, type InviteLink } from '../../../lib/entry';
+import { ENTRY_WORDS as EW, INVITE_TOKEN_KEY, JOINED_KEY, inviteTokenFromHash, routeEntry, type Entry, type EntryRoute, type InviteLink } from '../../../lib/entry';
 import { DomainRoom, InviteLinkRoom, InviteRoom, PickRoom } from './EntryRooms';
 import { isEmail } from '../../../lib/invites';
 import { maskEmail } from '../../../lib/library-access';
@@ -134,7 +134,12 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
   };
 
   /** Just joined a team with the email account: the team's pages open signed in, not as a guest. */
-  const onJoined = async (repo: string, role: string) => {
+  const onJoined = async (repo: string, role: string, team?: string) => {
+    try {
+      sessionStorage.setItem(JOINED_KEY, JSON.stringify({ repo, team: team ?? '' }));
+    } catch {
+      /* storage blocked: the team opens without the note */
+    }
     const who = signedInAs.current ?? me;
     if (!who) return;
     const { seedContributors } = await import('../../../scripts/contribute-session');

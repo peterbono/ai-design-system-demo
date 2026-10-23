@@ -241,3 +241,19 @@ describe('Settings, Members (E7c, E7a)', () => {
     expect(screen.getByRole('button', { name: 'Connect GitHub to manage requests' })).toBeInTheDocument();
   });
 });
+
+describe('join requests paint first', () => {
+  it('shows the requests while the home still loads, with Approve and Decline', () => {
+    render(createElement(StudioHome, home({ state: 'loading', needs: [jordan, review(1)], join: joinHandlers(() => 'acme/ds', () => undefined) })));
+    expect(screen.getByRole('button', { name: 'Approve Jordan Lee' })).toBeInTheDocument();
+    // Only the requests: the GitHub rows wait for the load.
+    expect(screen.queryByText('Change 1')).toBeNull();
+  });
+
+  it('says "You joined" once on the home, and it can be dismissed', async () => {
+    render(createElement(StudioHome, home({ note: 'You joined Acme Design.' })));
+    expect(screen.getByText('You joined Acme Design.')).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: /dismiss|close/i }));
+    expect(screen.queryByText('You joined Acme Design.')).toBeNull();
+  });
+});

@@ -13,6 +13,8 @@ export class EntryError extends Error {
     message: string,
     readonly code: string,
     readonly status: number,
+    /** The rest of the answer: `repo` on 409 already (the person is a member, the team opens). */
+    readonly details: Record<string, unknown> = {},
   ) {
     super(message);
     this.name = 'EntryError';
@@ -58,7 +60,7 @@ async function call<T>(method: 'GET' | 'POST', query: string, body?: unknown, wi
   if (!res.ok) {
     const code = typeof data.error === 'string' ? data.error : 'failed';
     const message = typeof data.message === 'string' && data.message ? data.message : FAILED;
-    throw new EntryError(message, code, res.status);
+    throw new EntryError(message, code, res.status, data);
   }
   return data as T;
 }
@@ -93,17 +95,17 @@ export async function acceptInvite(repo: string, id: string): Promise<Accepted> 
   return { status: r.status === 'accept-on-github' ? 'accept-on-github' : 'joined', repo: r.repo ?? repo, role: r.role ?? 'edit', next: typeof r.next === 'string' ? r.next : '', ...(r.acceptUrl ? { acceptUrl: r.acceptUrl } : {}) };
 }
 
-/** Asks to join a team open to the work domain; an invite for it is accepted instead (`joined`). */
-export async function requestJoin(repo: string): Promise<{ requested: true } | ({ joined: true } & Accepted)> {
-  const r = await call<Record<string, unknown>>('POST', '', { action: 'request', repo }, true);
-  if (r.joined === true) return { joined: true, status: r.status === 'accept-on-github' ? 'accept-on-github' : 'joined', repo: String(r.repo ?? repo), role: String(r.role ?? 'edit'), next: typeof r.next === 'string' ? r.next : '', ...(typeof r.acceptUrl === 'string' ? { acceptUrl: r.acceptUrl } : {}) };
+/** Asks to join a team open to the work domain, by its opaque id; an invite for it is accepted instead (`joined`). */
+export async function requestJoin(team: string): Promise<{ requested: true } | ({ joined: true } & Accepted)> {
+  const r = await call<Record<string, unknown>>('POST', '', { action: 'request', team }, true);
+  if (r.joined === true) return { joined: true, status: r.status === 'accept-on-github' ? 'accept-on-github' : 'joined', repo: String(r.repo ?? ''), role: String(r.role ?? 'edit'), next: typeof r.next === 'string' ? r.next : '', ...(typeof r.acceptUrl === 'string' ? { acceptUrl: r.acceptUrl } : {}) };
   return { requested: true };
 }
 
 /** Takes back the account's own pending request to join a team. A request already gone (404) counts as cancelled. */
-export async function cancelJoinRequest(repo: string): Promise<void> {
+export async function cancelJoinRequest(team: string): Promise<void> {
   try {
-    await call('POST', '', { action: 'cancel-request', repo });
+    await call('POST', '', { action: 'cancel-request', team });
   } catch (err) {
     if (err instanceof EntryError && err.status === 404) return;
     throw err;
