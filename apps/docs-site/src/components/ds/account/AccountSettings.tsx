@@ -1,16 +1,15 @@
-// Settings > Account, for a Bridge account (GET /api/account): one card, one row per thing, each action on the line of
-// what it acts on. The name and email with Rename (inline form); GitHub linked, or Link GitHub with the one line saying
+// The account, for a Bridge account (GET /api/account), in the Account dialog of the account menu (AccountMenu.tsx):
+// Settings starts with the team, never the person (board D9). One row per thing, each action on the line of what it
+// acts on. The name and email with Rename (inline form); GitHub linked, or Link GitHub with the one line saying
 // why (reviewers and admins approve on GitHub); the person's teams, each opening its space with its role; Sign out and
 // Sign out everywhere; then Delete my account, confirmed in the page (type DELETE), never window.confirm. Before the
 // confirm field, Bridge asks the server whether a team would refuse it (the only admin of a team with other members):
 // that team is named first, with "Make <name> admin" inline or "Hand over the team", and the field comes once it is
-// clear. Nothing shows signed out or on a site
-// without accounts. AccountBand wraps it in a team Settings band and falls back to the email contributor's row.
-import { useState, type FormEvent, type ReactNode } from 'react';
+// clear. Nothing shows signed out or on a site without accounts.
+import { useState, type FormEvent } from 'react';
 import { LogOut, Trash2 } from 'lucide-react';
-import { Alert, Avatar, Badge, Button, Card, CardBody, Divider, Icon, Input, Link } from '@bridge-ds/react';
+import { Alert, Avatar, Badge, Button, Dialog, DialogContent, Divider, Icon, Input, Link } from '@bridge-ds/react';
 import { GitHubMark } from '../studio/brand-icons';
-import { ContributorAccountBand } from '../studio/SettingsAccount';
 import { useAccount, useFace } from './AccountMenu';
 import { ACCOUNT_WORDS as W, accountName, PRIVACY_PAGE, roleWord, signedOutHref, type Account, type BlockedTeam } from '../../../lib/account';
 import { teamDisplayName } from '../../../lib/demo';
@@ -332,44 +331,36 @@ function DeleteRow() {
   );
 }
 
-/** The account card, for a given account (tests) or the signed-in one. */
-export function AccountCard({ account }: { account: Account }) {
+/** Every row of the account, for a given account. */
+export function AccountRows({ account }: { account: Account }) {
   return (
-    <Card data-account-card>
-      <CardBody>
-        <div className="acc-set">
-          <NameRow account={account} />
-          <GitHubRow account={account} />
-          <TeamsRow account={account} />
-          <SessionRow />
-          <Divider spacing="none" />
-          <DeleteRow />
-          <p className="acc-set-sub">
-            <Link href={PRIVACY_PAGE}>{W.privacy}</Link>
-          </p>
-        </div>
-      </CardBody>
-    </Card>
+    <div className="acc-set" data-account-card>
+      <NameRow account={account} />
+      <GitHubRow account={account} />
+      <TeamsRow account={account} />
+      <SessionRow />
+      <Divider spacing="none" />
+      <DeleteRow />
+      <p className="acc-set-sub">
+        <Link href={PRIVACY_PAGE}>{W.privacy}</Link>
+      </p>
+    </div>
   );
 }
 
-/** Studio Settings, Account band body: the account card above the GitHub connection, when signed in with an account. */
-export default function AccountSettings({ children }: { children?: ReactNode }) {
-  const account = useAccount();
-  return account ? <AccountCard account={account} /> : <>{children}</>;
+/** The Account dialog of the account menu: the signed-in account's rows. */
+export function AccountDialog({ account, open, onOpenChange }: { account: Account; open: boolean; onOpenChange: (open: boolean) => void }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent title={W.accountTitle} description={W.accountIntro} size="md">
+        <AccountRows account={account} />
+      </DialogContent>
+    </Dialog>
+  );
 }
 
-/** A team's Settings: the Account band first, for an account; else the email contributor's band, as before. */
-export function AccountBand() {
+/** The signed-in account's rows, or nothing signed out. */
+export default function AccountSettings() {
   const account = useAccount();
-  if (!account) return <ContributorAccountBand />;
-  return (
-    <section className="ts-band" id="account" aria-labelledby="ts-account">
-      <h2 id="ts-account" className="ts-h">
-        {W.accountTitle}
-      </h2>
-      <p className="ts-intro">{W.accountIntro}</p>
-      <AccountCard account={account} />
-    </section>
-  );
+  return account ? <AccountRows account={account} /> : null;
 }

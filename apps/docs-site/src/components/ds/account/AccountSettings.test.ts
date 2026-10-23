@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Settings > Account and the account menu, against the /api/account contract with the network mocked: the name and
+// The Account dialog of the account menu (Settings starts with the team, board D9), against the /api/account contract with the network mocked: the name and
 // email with Rename, Link GitHub with the reason, the teams with their role, Sign out everywhere, Delete my account
 // confirmed in the page (type DELETE, never window.confirm) with the last-admin refusal said in place. The side nav
 // row and its menu read the same account. Axe clean.
@@ -10,7 +10,7 @@ import { userEvent } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import { setAccountFetch } from '../../../scripts/account-session';
-import AccountSettings, { AccountBand, navigate } from './AccountSettings';
+import AccountSettings, { navigate } from './AccountSettings';
 import AccountMenu from './AccountMenu';
 
 const gh = vi.hoisted(() => ({ token: null as string | null, startSignIn: vi.fn(async () => {}) }));
@@ -61,11 +61,10 @@ afterEach(() => {
 
 const posts = (action: string) => calls.filter((c) => c.body?.action === action);
 
-describe('Settings > Account', () => {
+describe('the account', () => {
   it('shows the account, its teams and roles, and why to link GitHub', async () => {
-    const { container } = render(createElement(AccountBand));
-    expect(await screen.findByRole('heading', { name: 'Account' })).toBeInTheDocument();
-    expect(screen.getByText('leo@acme.design')).toBeInTheDocument();
+    const { container } = render(createElement(AccountSettings));
+    expect(await screen.findByText('leo@acme.design')).toBeInTheDocument();
     expect(screen.getByText('GitHub not linked')).toBeInTheDocument();
     expect(screen.getByText('Reviewers approve changes on GitHub, and admins merge there: link your GitHub account.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Acme Design' })).toHaveAttribute('href', '/studio/~/acme/ds/');
@@ -184,10 +183,11 @@ describe('Settings > Account', () => {
     localStorage.clear();
   });
 
-  it('keeps the GitHub connection as it was when there is no account', async () => {
+  it('shows nothing signed out', async () => {
     reply = () => json(200, { available: true, account: null });
-    render(createElement(AccountSettings, null, createElement('p', null, 'GitHub connection')));
-    expect(await screen.findByText('GitHub connection')).toBeInTheDocument();
+    const { container } = render(createElement(AccountSettings));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(container.innerHTML).toBe('');
   });
 });
 
@@ -204,6 +204,25 @@ describe('the account menu', () => {
     expect(within(menu).getByRole('menuitem', { name: 'Link GitHub' })).toBeInTheDocument();
     expect(within(menu).getByRole('menuitem', { name: 'Account settings' })).toBeInTheDocument();
     expect(within(menu).getByRole('menuitem', { name: 'Sign out' })).toBeInTheDocument();
+  });
+
+  it('opens the account in a dialog from Account settings, on the page the person is on', async () => {
+    const user = userEvent.setup();
+    render(createElement(AccountMenu));
+    await user.click(await screen.findByRole('button', { name: 'Signed in as Leo. Account menu' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Account settings' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Account' });
+    expect(within(dialog).getByText('leo@acme.design')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Sign out everywhere' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Delete my account' })).toBeInTheDocument();
+    expect(navigate.to).not.toHaveBeenCalled();
+    await expectNoAxeViolations(dialog);
+  });
+
+  it('opens the dialog for an old #account link', async () => {
+    history.replaceState(null, '', '/studio/acme/ds/settings/#account');
+    render(createElement(AccountMenu));
+    expect(await screen.findByRole('dialog', { name: 'Account' })).toBeInTheDocument();
   });
 
   it('shows nothing signed out', async () => {

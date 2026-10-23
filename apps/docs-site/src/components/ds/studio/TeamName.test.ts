@@ -112,7 +112,7 @@ describe('Settings > General', () => {
     page.site = { name: 'Acme Design' };
     const { container } = render(createElement(TeamNameSetting));
     expect(await screen.findByText('Acme Design')).toBeInTheDocument();
-    expect(screen.getByText('Only an admin of the repository changes it.')).toBeInTheDocument();
+    expect(screen.getByText('Only an admin of this team can change this.')).toBeInTheDocument();
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(screen.queryByRole('button')).toBeNull();
     await expectNoAxeViolations(container);

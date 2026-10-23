@@ -43,6 +43,7 @@ const signIn = Boolean(signInConfig(true));
     import { createRoot } from 'react-dom/client';
     import { currentViewer, getToken, initGitHubConnect } from '../../scripts/github-session';
     import { onWorkspaceChange, readWorkspace } from '../../scripts/workspace';
+    import { paintWorkspaceNav } from '../../scripts/workspace-nav';
     import { readStart, rememberStart } from '../../scripts/start';
     import type { TeamInfo } from '../../lib/entry';
     import { teamHome } from '../../lib/entry';
@@ -203,7 +204,9 @@ const signIn = Boolean(signInConfig(true));
       if (id) url.searchParams.set('team', id);
       else url.searchParams.delete('team');
       history.replaceState(history.state, '', url);
+      paintWorkspaceNav();
     }
+    paintWorkspaceNav();
 
     onWorkspaceChange((w) => {
       const added = w.storybook?.url ?? null;

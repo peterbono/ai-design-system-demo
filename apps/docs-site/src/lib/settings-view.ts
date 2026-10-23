@@ -1,16 +1,12 @@
-// Studio Settings: the plain words behind two rows. Pure helpers, covered by settings-view.test.ts.
+// Studio Settings: the plain words behind its rows. Pure helpers, covered by settings-view.test.ts.
 //
 // - Approvals as a rule list without tier numbers, built from the Risk tiers table of docs/GOVERNANCE.md (the same
 //   rows How review works shows), so the plain list never drifts from the rules.
-// - The Account block for each connection state.
 // - How changes reach your code: the two modes in words (shared with the onboarding checklist), what the GitHub App
 //   may do on the repository, and the format-preserving edit of `changes` in bridge.config.json.
 import { fromPlain, getEntry, overrideHolders, overrideReasonMin, parseJson, serializeJson, soloOwnerOf, soloOwnerSentence, toPlain, type ChangesMode, type JsonObject, type Owners, type Rights } from '@bridge-ds/core';
 import type { TierSummary } from './governance';
-import { accessBadge, type ChipTone } from './access-view';
-import type { RepoAccessState } from './access';
-import { teamDisplayName } from './demo';
-import { noReachText, readOnlyText, type SignInApp } from './github-signin';
+import type { SignInApp } from './github-signin';
 
 export interface ApprovalRule {
   tier: number;
@@ -57,103 +53,6 @@ export function approvalRules(tiers: Pick<TierSummary, 'tier' | 'approvals' | 'e
 
 /** The rule as one sentence: "Token changes: design owner + tech owner." */
 export const ruleSentence = (r: ApprovalRule) => `${r.what}: ${r.who}.`;
-
-/** Settings > Account: the four states of the GitHub connection, as the page shows them. */
-export type AccountState = 'checking' | 'connected' | 'readonly' | 'rejected';
-
-export interface AccountView {
-  /** Read only or refused: the page's one Harbor zone, with a drawing and the primary action. */
-  zone: boolean;
-  title: string;
-  detail?: string;
-  /**
-   * The one action: connect or sign in (primary, in the zone), or change the token or sign out (quiet, on the
-   * connected row).
-   */
-  action?: string;
-  /** What the action does: sign in with GitHub, open the token dialog, or sign out. */
-  actionKind?: 'signin' | 'token' | 'signout';
-  /** What the token may do on the library, once GitHub said so. */
-  badge?: { label: string; tone: ChipTone };
-}
-
-export interface AccountFacts {
-  login?: string;
-  write: boolean | null;
-  repo: string;
-  /** How the browser holds access: a pasted token (default) or a Sign in with GitHub session. */
-  mode?: 'token' | 'app';
-  /** The site has a GitHub App, so Sign in with GitHub is the way in (docs/SIGN-IN.md). */
-  signIn?: boolean;
-  /** Signed in: false when the app does not reach the repository for this account (wrong account, not installed). */
-  reach?: boolean | null;
-  /** The access state GitHub gave (lib/access): the badge says it in the team chip's words (Admin, Can edit). */
-  state?: RepoAccessState | null;
-}
-
-export function accountView(state: AccountState, at: AccountFacts): AccountView {
-  const app = at.mode === 'app';
-  switch (state) {
-    case 'checking':
-      return { zone: false, title: 'Checking your GitHub connection.' };
-    case 'connected': {
-      const login = at.login ?? 'This account';
-      const noReach = app && at.reach === false;
-      const readOnly = app && !noReach && at.write === false;
-      return {
-        zone: false,
-        title: at.login ? `Connected as @${at.login}` : 'Connected to GitHub',
-        detail: noReach ? noReachText(login, at.repo) : readOnly ? readOnlyText(login, at.repo, true) : teamDisplayName(at.repo),
-        // A token pasted before the site had Sign in with GitHub: no token paste any more, only the way out.
-        action: app ? 'Sign out' : at.signIn ? 'Disconnect' : 'Reconnect GitHub',
-        actionKind: app || at.signIn ? 'signout' : 'token',
-        // The same words and source as the team chip (accessBadge): an owner reads Admin, not Can edit.
-        badge: noReach
-          ? { label: 'No access', tone: 'neutral' }
-          : at.state
-            ? accessBadge(at.state, true)
-            : at.write === null
-            ? undefined
-            : at.write
-              ? { label: 'Can edit', tone: 'success' }
-              : { label: 'Read only', tone: 'neutral' },
-      };
-    }
-    case 'rejected':
-      return app
-        ? {
-            zone: true,
-            title: 'Your GitHub sign-in expired.',
-            detail: 'Studio could not renew it. Sign in again to keep editing.',
-            action: 'Sign in again',
-            actionKind: 'signin',
-          }
-        : {
-            zone: true,
-            title: 'Your GitHub token stopped working.',
-            detail: 'GitHub no longer accepts it: it was revoked, regenerated or has expired. Connect again to keep editing.',
-            action: 'Reconnect GitHub',
-            actionKind: at.signIn ? 'signin' : 'token',
-            ...(at.signIn ? { detail: 'GitHub no longer accepts it: it was revoked, regenerated or has expired. Sign in to keep editing.', action: 'Sign in with GitHub' } : {}),
-          };
-    case 'readonly':
-      return at.signIn
-        ? {
-            zone: true,
-            title: 'Sign in with GitHub to approve and request reviews.',
-            detail: `Until then Studio only reads ${at.repo}.`,
-            action: 'Sign in with GitHub',
-            actionKind: 'signin',
-          }
-        : {
-            zone: true,
-            title: 'Connect GitHub to approve and request reviews.',
-            detail: `Until then Studio only reads ${at.repo}.`,
-            action: 'Connect GitHub',
-            actionKind: 'token',
-          };
-  }
-}
 
 /**
  * Settings > Review rules: the only-owner line, shown when governance.soloOwnerCanApproveBoth is on and the owners
@@ -311,3 +210,68 @@ export function changesProposal(mode: ChangesMode, opts: { date: Date; prefix?: 
   ].join('\n');
   return { branch: `${opts.prefix ?? ''}changes-${mode}-${stamp}`, title, body, message: `${title}\n\nProposed from Bridge Studio.` };
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Team Settings in designer words (board D9): no repository, pull request, branch or main on the screen, people by
+// name. The technical side of each section sits in its "For developers" fold.
+
+/** How changes reach your code, as a designer reads it. */
+export const CHANGES_PLAIN: Record<ChangesMode, { title: string; text: string }> = {
+  suggest: {
+    title: 'Your developers apply each change',
+    text: 'When your team keeps a change, Bridge hands it to your developers with its previews and checks. Bridge never edits your code itself.',
+  },
+  direct: {
+    title: 'Bridge writes each change for your developers',
+    text: 'When your team keeps a change, Bridge writes it into the code for you, and your developers check it before it ships.',
+  },
+};
+
+/** The same, the way a developer reads it (the fold). */
+export const CHANGES_DEV: Record<ChangesMode, string> = {
+  suggest: 'Each kept change becomes a GitHub issue with the exact change. A developer applies it with bridge apply <issue>, or asks Claude Code with the Bridge MCP.',
+  direct: 'Bridge commits each kept change on a new branch and opens a pull request against the default branch.',
+};
+
+/** The three rights of Review rules, as a designer reads them. */
+export const RIGHT_PLAIN: Record<'approveDesign' | 'approveTech' | 'ship', { label: string; help: string }> = {
+  approveDesign: { label: 'Checks the look', help: 'Says a change looks right.' },
+  approveTech: { label: 'Checks the code', help: 'Says the code behind it is sound.' },
+  ship: { label: 'Adds it to the library', help: 'Puts an approved change in the library your products use.' },
+};
+
+/** Nobody is named for a right (owner lists empty), or merging is left to anyone with write access. */
+export const NOBODY_NAMED = 'Nobody named yet';
+export const ANYONE_WHO_CODES = 'Any developer of the team';
+
+/** The owner exception (core overrideHolders, docs/GOVERNANCE.md), as a designer reads it. */
+export const overridePlain = (names: readonly string[], min: number) => ({
+  label: 'Exception',
+  help: 'Adds a change before every check is in. Owners only.',
+  value: `${andList(names)}, with a written reason of at least ${min} characters.`,
+});
+
+/** "Sam", "Sam or Lee", "Sam, Lee or Ana". */
+export function orList(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`;
+}
+
+/** "Sam and Lee", for who holds a right. */
+export function andList(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+/** The line a non-admin reads under a setting: who can change it, by name (BR-20: no disabled control instead). */
+export function adminOnlyText(admins: readonly string[], does = 'can change this'): string {
+  const names = [...new Set(admins.map((a) => a.trim()).filter(Boolean))];
+  if (!names.length) return `Only an admin of this team ${does}.`;
+  return `Only ${orList(names)} (${names.length === 1 ? 'admin' : 'admins'}) ${does}.`;
+}
+
+/** The only-owner line in names: "As the only owner, Sam Rivera checks the look and the code in one review." */
+export const soloPlain = (name: string) => `As the only owner, ${name} checks the look and the code in one review.`;
+
+/** A GitHub team as a designer reads it: "@acme/design" -> "the design team". */
+export const teamPlain = (slug: string) => `the ${slug.replace(/[-_]+/g, ' ')} team`;

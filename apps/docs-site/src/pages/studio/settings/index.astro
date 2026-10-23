@@ -2,10 +2,10 @@
 // Studio Settings: one page for designers and design system owners. Each section is a band: on wide screens its
 // title and one sentence sit in a left column, its rows in a DS Card on the right, with every value close to its
 // label; the page stops at 1200px so nothing stretches across a wide monitor. In order:
+// It starts with the team, never the personal account (board D9): the account (name, email, sign out, delete) is the
+// Account dialog of the account menu, the GitHub connection the block at the foot of the side nav.
 //   General       the team's name (bridge.config.json `name`): an admin edits it, a review is requested on a branch;
 //                 everyone else reads it (components/ds/studio/TeamNameSetting.tsx).
-//   Account       the GitHub connection: a compact row once connected, the page's one Harbor zone (with a Field
-//                 Guide drawing and Connect GitHub) while Studio is read only.
 //   Members       who is in the team and what each person can do, with Invite collaborators for an admin
 //                 (components/ds/studio/MembersSection.tsx, boards I3 and I4; anchor #team kept for old links).
 //   Library access who reads the team's Library without a GitHub account, and its link to share
@@ -15,14 +15,13 @@
 //                 as a pull request (components/ds/studio/ChangesMode.tsx, scripts/roles.ts).
 //   Review rules  who the design and tech owners are (people or GitHub teams, read from GitHub), who approves design,
 //                 who approves tech and who merges (edited in place, a review is requested on a branch that edits
-//                 bridge.config.json), what each kind of branch needs (plain rules from docs/GOVERNANCE.md, no tier
+//                 bridge.config.json), what each kind of change needs (plain rules from docs/GOVERNANCE.md, no tier
 //                 numbers).
 //   Safety        protection of the library and when the visual before and after runs, each with its action.
 //   Figma and Claude, then Integrations (Jira), then Appearance: light or dark, a preference of this browser,
 //   not a team rule (components/ds/studio/AppearanceSetting.tsx).
-//   Settings speak designer words (lib/vocabulary): no developer section;
-//   a setting with GitHub machinery behind it carries one "How it works on GitHub" link, the library itself one
-//   "Open on GitHub" link on its Account line.
+//   Settings speak designer words (lib/vocabulary): no developer section; the repository, branch, file and keys behind
+//   a section sit in its "For developers" fold (components/ds/studio/SettingsParts.tsx DevFold).
 // The old Repository, Governance and Integrations pages redirect to these anchors (lib/redirects.ts); the anchors of
 // the former developer section (#developer, #tiers-and-modes, #mcp...) land on the section that now says it.
 import { jsonForScript } from '../../../lib/html';
@@ -33,17 +32,15 @@ import Layout from '../../../layouts/Layout.astro';
 import StudioHeader from '../../../components/StudioHeader.astro';
 import ProtectionRow from '../../../components/ds/studio/ProtectionRow';
 import ChangeRules from '../../../components/ds/studio/ChangeRules';
-import SettingsAccount from '../../../components/ds/studio/SettingsAccount';
-import AccountSettings from '../../../components/ds/account/AccountSettings';
 import AppearanceSetting from '../../../components/ds/studio/AppearanceSetting';
 import { signInConfig } from '../../../lib/signin-config';
-import Illustration from '../../../components/Illustration.astro';
 import { Badge, Button, Card, CardBody, CardHeader, Input, Link, SegmentedControl } from '@bridge-ds/react';
+import { Code, DevFold } from '../../../components/ds/studio/SettingsParts';
 import { siteRepo } from '../../../lib/config';
 import { GOVERNANCE_FILE, pluginListing, tierSummaries } from '../../../lib/governance';
 import { mcpTools } from '../../../lib/mcp';
 import { HOW_REVIEW_WORKS } from '../../../lib/nav';
-import { exists, GITHUB_URL, lastUpdated, readText } from '../../../lib/repo';
+import { exists, lastUpdated, readText } from '../../../lib/repo';
 import { VOCAB } from '../../../lib/vocabulary';
 import { CHOICE_LABEL, OWNER_GROUP_HELP, OWNER_GROUP_LABEL, roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL, type RightChoice } from '../../../lib/roles-view';
 import OwnersField from '../../../components/ds/studio/OwnersField';
@@ -104,11 +101,13 @@ const intData = jsonForScript({
   workflowUrl,
   secretsUrl,
 });
-const signIn = Boolean(signInConfig());
 const changes = changesInConfig(config);
+const protectedBranches: string[] = config.governance?.protectedBranches ?? ['main', 'master'];
+const branchPrefix: string = config.governance?.branchPrefix ?? '';
+const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? x : `@${x.replace(/^@/, '')}`)).join(', ') : 'none');
 ---
 
-<Layout title="Settings" description="Your GitHub connection, how changes reach your code, who approves what, how the library stays safe, and the tools that work on it." sources={sources} updated={lastUpdated(sources)} wide>
+<Layout title="Settings" description="Your team: its name, its people, how changes reach your code, who checks them, and the tools that work on it." sources={sources} updated={lastUpdated(sources)} wide>
   <div class="set-page">
     <StudioHeader title="Settings" />
 
@@ -119,24 +118,6 @@ const changes = changesInConfig(config);
       </div>
       <div class="set-band-body">
         <TeamNameSetting client:only="react" prefix={config.governance?.branchPrefix ?? ''} protectedBranches={config.governance?.protectedBranches ?? ['main', 'master']} />
-      </div>
-    </section>
-
-    <section class="set-band" id="connection" aria-labelledby="set-account">
-      <div class="set-band-intro">
-        <h2 id="set-account" class="set-h">Account</h2>
-        <p class="set-intro">{signIn ? 'Studio acts on GitHub as you, once you sign in. Your sign-in stays in this browser.' : 'Studio acts on GitHub with your own token. It stays in this browser.'}</p>
-      </div>
-      <div class="set-band-body">
-        {/* A Bridge account (name, email, GitHub, teams, sign out, delete), above the GitHub connection. */}
-        <div id="account"><AccountSettings client:only="react" /></div>
-        <SettingsAccount client:load repo={repoName} signIn={signIn}>
-          <Illustration name="review" width={132} />
-        </SettingsAccount>
-        <p class="set-library" id="repository">
-          <span>Repository <span class="mono">{repoName}</span>, branch <span class="mono">{r.defaultBranch}</span></span>
-          <Link href={GITHUB_URL} external>{VOCAB.openOnGitHub}</Link>
-        </p>
       </div>
     </section>
 
@@ -151,7 +132,7 @@ const changes = changesInConfig(config);
     <section class="set-band" id="changes" aria-labelledby="set-changes">
       <div class="set-band-intro">
         <h2 id="set-changes" class="set-h">How changes reach your code</h2>
-        <p class="set-intro">When your team keeps a change, Bridge hands it to your developers as a suggestion, or opens a pull request itself.</p>
+        <p class="set-intro">What happens once your team keeps a change.</p>
       </div>
       <div class="set-band-body">
         <ChangesModeSetting
@@ -162,13 +143,28 @@ const changes = changesInConfig(config);
           protectedBranches={config.governance?.protectedBranches ?? ['main', 'master']}
           suggestApp={signInConfig()?.suggestApp ?? null}
         />
+        <Card id="repository">
+          <CardBody>
+            <DevFold
+              facts={[
+                { term: 'Repository', value: <Code>{repoName}</Code> },
+                { term: 'Default branch', value: <Code>{r.defaultBranch}</Code> },
+                { term: 'Tokens', value: <Code>{r.tokensRoot}</Code> },
+                { term: 'Mode', value: <Code>{changes ? `"changes": "${changes}"` : 'not set: suggestions'}</Code> },
+                { term: 'Set in', value: <Code>{file}</Code> },
+              ]}
+            >
+              <p><Link href={ghRepo} external>{VOCAB.openOnGitHub}</Link></p>
+            </DevFold>
+          </CardBody>
+        </Card>
       </div>
     </section>
 
     <section class="set-band" id="roles" aria-labelledby="set-rules">
       <div class="set-band-intro">
         <h2 id="set-rules" class="set-h">Review rules</h2>
-        <p class="set-intro">Who approves a branch before it is merged into main, and what each kind of branch needs. <Link href={HOW_REVIEW_WORKS}>How review works</Link></p>
+        <p class="set-intro">Who checks a change before it reaches the library your products use, and what each kind of change needs. <Link href={HOW_REVIEW_WORKS}>How review works</Link></p>
       </div>
       <div class="set-band-body">
         <Card aria-labelledby="set-roles-title">
@@ -252,13 +248,28 @@ const changes = changesInConfig(config);
         <div id="approvals">
           <ChangeRules client:visible rules={rules.map((x) => ({ what: x.what, who: cap(x.who) }))} />
         </div>
+        <Card>
+          <CardBody>
+            <DevFold
+              facts={[
+                { term: 'Design owners', value: <Code>{entries(r.owners.design)}</Code> },
+                { term: 'Tech owners', value: <Code>{entries(r.owners.tech)}</Code> },
+                { term: 'Protected branches', value: <Code>{protectedBranches.join(', ') || 'none'}</Code> },
+                { term: 'Branch prefix', value: <Code>{branchPrefix || 'none'}</Code> },
+                { term: 'Set in', value: <Code>{`${file}, governance; ${GOVERNANCE_FILE}`}</Code> },
+              ]}
+            >
+              <p>Bridge counts approvals on GitHub reviews. A ruleset or branch protection on {r.defaultBranch} keeps unreviewed pull requests out.</p>
+            </DevFold>
+          </CardBody>
+        </Card>
       </div>
     </section>
 
     <section class="set-band" id="safety" aria-labelledby="set-safety">
       <div class="set-band-intro">
         <h2 id="set-safety" class="set-h">Safety</h2>
-        <p class="set-intro">What keeps unreviewed branches out of main, and when the visual before and after runs.</p>
+        <p class="set-intro">What keeps unchecked changes out of the library, and when Bridge shows a change before and after.</p>
       </div>
       <div class="set-band-body">
         <Card>
@@ -416,6 +427,7 @@ const changes = changesInConfig(config);
     // Anchors of the former developer section land on the section that now says the same thing.
     const MOVED: Record<string, string> = {
       developer: 'repository',
+      connection: 'general',
       'for-developers': 'repository',
       'tiers-and-modes': 'approvals',
       'owners-and-previews': 'safety',

@@ -37,6 +37,16 @@ export const teamKeyId = (key: string): string | null => TEAM_KEY.exec(key.trim(
 /** True for a team created in Bridge that has no repository yet. */
 export const isTeamKey = (key: string): boolean => teamKeyId(key) !== null;
 
+/**
+ * A team made in Bridge before any repository (`_team/<id>`), on its own Settings (pages/studio/workspace/settings,
+ * <html data-team-settings>, ?team=<id>): its key, else null.
+ */
+export function teamKeyOfPage(): string | null {
+  if (typeof document === 'undefined' || !document.documentElement.hasAttribute('data-team-settings')) return null;
+  const id = new URLSearchParams(location.search).get('team')?.trim().toLowerCase() ?? '';
+  return /^[a-f0-9]{16}$/.test(id) ? teamKeyOf(id) : null;
+}
+
 /** The same rules as Vercel path-to-regexp groups, for the rewrites in vercel.json (team-shells.ts checks them). */
 export const OWNER_PATTERN = '[A-Za-z0-9][A-Za-z0-9-]{0,38}';
 export const REPO_PATTERN = '[A-Za-z0-9._-]{1,100}';

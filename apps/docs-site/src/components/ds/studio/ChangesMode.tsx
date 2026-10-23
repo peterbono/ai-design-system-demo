@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Lock } from 'lucide-react';
 import { bridgeMcpInstallCommand, type ChangesMode } from '@bridge-ds/core';
 import { Alert, Badge, Button, Card, CardBody, ChoiceCard, ChoiceCardGroup, CodeBlock, Icon, Link } from '@bridge-ds/react';
-import { appReach, CHANGES_CHOICE, CHANGES_ORDER, effectiveChanges, suggestAppText, type AppReach } from '../../../lib/settings-view';
+import { appReach, CHANGES_CHOICE, CHANGES_ORDER, CHANGES_PLAIN, effectiveChanges, suggestAppText, type AppReach } from '../../../lib/settings-view';
 import type { SignInApp } from '../../../lib/github-signin';
 import { ghAction } from '../../../lib/gh-wording';
 import { VOCAB } from '../../../lib/vocabulary';
@@ -112,7 +112,8 @@ export default function ChangesModeSetting({ set, repo, prefix, protectedBranche
     setViewer(currentViewer());
   }, []);
 
-  const c = CHANGES_CHOICE[current];
+  // Read in designer words (board D9); the choice cards say what each mode needs on GitHub.
+  const plain = CHANGES_PLAIN[current];
   const cancel = () => {
     setEditing(false);
     setValue(current);
@@ -144,12 +145,8 @@ export default function ChangesModeSetting({ set, repo, prefix, protectedBranche
                 Kept changes
               </p>
               <div className="set-row-value">
-                <p className="cm-strong">{c.title}</p>
-                <p className="set-row-help">
-                  {c.lead ? `${c.lead} ` : ''}
-                  {c.text}
-                </p>
-                {!set && <p className="set-row-help">Not set in bridge.config.json, so Bridge uses the default.</p>}
+                <p className="cm-strong">{plain.title}</p>
+                <p className="set-row-help">{plain.text}</p>
               </div>
               <div className="set-row-action">
                 <Button

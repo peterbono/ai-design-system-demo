@@ -57,8 +57,6 @@ export const ACCESS_WORDS = {
   domainsHint: 'Separate several with a comma.',
   domainsPlaceholder: 'acme.design',
   readOnly: 'Only admins can change who reads the library.',
-  /** Under the disabled Change, for everyone who is not an admin. */
-  adminsOnly: 'Only admins can change this.',
   unavailable: 'Library access is not available yet on this site. The library opens as GitHub allows: anyone for a public repository, the team for a private one.',
   publicRepo: 'The repository is public on GitHub, so its files stay readable there.',
   saved: (label: string) => `Saved. ${label} reads the library now.`,

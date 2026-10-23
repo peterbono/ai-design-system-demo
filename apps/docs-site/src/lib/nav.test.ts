@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { ABOUT, allPages, COMPARE, DEMO, DOCS_FIGMA_PLUGIN, DOCS_HOME, HOW_REVIEW_WORKS, LANDING, LIBRARY_HOME, locate, navFor, SETTINGS_HOME, SETTINGS_SECTIONS, spaceOf, workspaceNav } from './nav';
+import { ABOUT, allPages, COMPARE, DEMO, DOCS_FIGMA_PLUGIN, DOCS_HOME, HOW_REVIEW_WORKS, LANDING, LIBRARY_HOME, locate, navFor, SETTINGS_HOME, SETTINGS_SECTIONS, spaceOf, WORKSPACE_SETTINGS, workspaceNav } from './nav';
 import { WORKSPACE_HOME } from './start';
 import { DEMO_REPOS } from './demo';
 import { REDIRECT_SCRIPT_BODY, REDIRECTS, redirectScript, redirectTarget } from './redirects';
@@ -148,18 +148,18 @@ describe('settings', () => {
     for (const gone of ['/studio/settings/governance/', '/studio/settings/integrations/']) expect(hrefs).not.toContain(gone);
   });
 
-  it('has its sections in order, the Repository line in the Account band, no developer section', () => {
+  it('has its sections in order, the team first, the Repository facts in a For developers fold', () => {
     const at = SETTINGS_SECTIONS.map((id) => page.indexOf(`id="${id}"`));
     expect(at.every((i) => i > 0)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
-    expect(SETTINGS_SECTIONS).toEqual(['connection', 'repository', 'roles', 'approvals', 'tools', 'integrations']);
-    expect(page).not.toContain('For developers');
-    expect(page).not.toContain('data-dev-fold');
+    expect(SETTINGS_SECTIONS).toEqual(['general', 'repository', 'roles', 'approvals', 'tools', 'integrations']);
+    // The account is the account menu's dialog (board D9): no Account band, no GitHub connection here.
+    expect(page).not.toContain('SettingsAccount');
+    expect(page).not.toContain('AccountSettings');
+    expect(page.match(/<DevFold/g)).toHaveLength(2);
   });
 
-  it('opens on the Account band, keeps one primary per edit mode and a GitHub link instead of developer details', () => {
-    // The connection states (and Connect GitHub, the one primary at rest) live in the Account island.
-    expect(page).toMatch(/<SettingsAccount client:load[^>]*>\s*<Illustration name="review"/);
+  it('keeps one primary per edit mode and a GitHub link in the developer facts', () => {
     // Review rules and Safety each request a review from a save bar that shows only after Edit or Change.
     expect(page.match(/variant="primary"/g)).toHaveLength(2);
     expect(page.match(/<div class="set-savebar[^"]*" data-edit>\s*<div class="rq-actions">\s*<Button variant="primary" type="submit" data-roles-submit/g)).toHaveLength(2);
@@ -171,11 +171,11 @@ describe('settings', () => {
     expect(page.match(/<Badge/g)).toHaveLength(2);
   });
 
-  it('puts every band in the 1200px page, General (the team name) and Account first, then the team rules, and Appearance (this browser) last', () => {
-    const order = ['id="general"', 'id="connection"', 'id="team"', 'id="library-access"', 'id="changes"', 'id="roles"', 'id="safety"', 'id="tools"', 'id="integrations"', 'id="appearance"'].map((x) => page.indexOf(x));
+  it('puts every band in the 1200px page, General (the team name) first, then the team rules, and Appearance (this browser) last', () => {
+    const order = ['id="general"', 'id="team"', 'id="library-access"', 'id="changes"', 'id="roles"', 'id="safety"', 'id="tools"', 'id="integrations"', 'id="appearance"'].map((x) => page.indexOf(x));
     expect(order.every((i) => i > 0)).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
-    expect(page.match(/<section class="set-band"/g)).toHaveLength(10);
+    expect(page.match(/<section class="set-band"/g)).toHaveLength(9);
     expect(page.indexOf('<div class="set-page">')).toBeLessThan(order[0]!);
   });
 
@@ -236,9 +236,9 @@ describe('redirects', () => {
 });
 
 describe('the browser workspace rail', () => {
-  it('links only to the workspace home, never to the pages of Bridge\'s own design system', () => {
+  it('links only to the workspace home and its team Settings, never to the pages of Bridge\'s own design system', () => {
     const hrefs = workspaceNav().map((e) => e.href);
-    expect(hrefs).toEqual([WORKSPACE_HOME]);
+    expect(hrefs).toEqual([WORKSPACE_HOME, WORKSPACE_SETTINGS]);
     for (const own of navFor('studio').slice(1)) expect(hrefs).not.toContain(own.href);
   });
 

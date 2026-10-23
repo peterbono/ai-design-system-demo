@@ -13,7 +13,7 @@
 import type { IconName } from '../brand/icons';
 import { loadComponents } from './components';
 import { VOCAB } from './vocabulary';
-import { START_PAGE, WORKSPACE_HOME } from './start';
+import { START_PAGE, WORKSPACE_HOME, WORKSPACE_SETTINGS } from './start';
 import { LIBRARY_FOUNDATION_PAGES, LIBRARY_USE_PAGES } from './library-shells';
 
 // Studio links in both modes (self-hosted /studio/, team shells /studio/<owner>/<repo>/). Browser code imports it from
@@ -81,11 +81,12 @@ export const STUDIO_CHANGES_HREF = '/studio/changes/';
  * Adoption pages redirect to it (lib/redirects.ts); each audit report opens under /studio/quality/audits/. */
 export const STUDIO_QUALITY_HREF = '/studio/quality/';
 
-/** Settings is one page, its sections in page order: Connection with the Repository line (the library it reads),
- * Roles, Approvals, Figma and Claude (tools), Integrations. No developer section: settings speak designer words with
- * a "How it works on GitHub" link. The old Repository, Governance and Integrations pages redirect to these anchors
+/** Settings is one page, its sections in page order: General (the team, first: the account is the account menu's
+ * dialog, board D9), the Repository facts (the "For developers" fold of How changes reach your code), Roles,
+ * Approvals, Figma and Claude (tools), Integrations. No developer section: settings speak designer words, each with
+ * its "For developers" fold. The old Repository, Governance and Integrations pages redirect to these anchors
  * (lib/redirects.ts); the governance prose lives in the Library (How review works). */
-export const SETTINGS_SECTIONS = ['connection', 'repository', 'roles', 'approvals', 'tools', 'integrations'] as const;
+export const SETTINGS_SECTIONS = ['general', 'repository', 'roles', 'approvals', 'tools', 'integrations'] as const;
 export const HOW_REVIEW_WORKS = '/how-review-works/';
 
 /** Component families for the catalog page (cards), from the optional `category` in <Name>.docs.json. */
@@ -118,12 +119,18 @@ export function studioNav(): NavEntry[] {
   ];
 }
 
+export { WORKSPACE_SETTINGS };
+
 /**
- * The browser workspace (pages/studio/workspace.astro): nothing is connected yet, so the rail has its own home only.
- * Branches, Components, Tokens, Quality and Settings would open Bridge's own design system, another context.
+ * The browser workspace (pages/studio/workspace.astro): nothing is connected yet, so the rail has its own pages only:
+ * Home, and the team's Settings once a team exists (scripts/workspace-nav.ts shows it and carries ?team=<id> on both).
+ * Branches, Components, Tokens, Quality and Bridge's Settings would open Bridge's own design system, another context.
  */
 export function workspaceNav(): NavEntry[] {
-  return [{ href: WORKSPACE_HOME, label: 'Home', icon: 'gauge', meta: 'Your workspace: create your team and connect your design system' }];
+  return [
+    { href: WORKSPACE_HOME, label: 'Home', icon: 'gauge', meta: 'Your workspace: create your team and connect your design system' },
+    { href: WORKSPACE_SETTINGS, label: 'Settings', icon: 'sliders', meta: "Your team's name and people" },
+  ];
 }
 
 export const navFor = (space: Space) => (space === 'studio' ? studioNav() : libraryNav());

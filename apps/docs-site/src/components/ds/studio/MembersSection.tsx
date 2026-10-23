@@ -10,7 +10,8 @@
 // team reads GitHub and sends changes to the invites server; the browser workspace has no team yet.
 // Mounted by both Settings pages (pages/studio/settings, pages/team-shell/settings), and it mounts the dialog.
 // Admins of a real team on the hosted site also see who asks to join and who can find the team (JoinRequests.tsx,
-// boards E7a and E7c): "Asks to join" above the members, the discovery line under the intro.
+// boards E7a and E7c): "Asks to join" above the members, the discovery Switch under the intro. Approve puts the person
+// in the list at once (withJoined, BR-19), and a read after the row leaves confirms it.
 import { useState } from 'react';
 import { Link2Off, MoreHorizontal, UserPlus } from 'lucide-react';
 import { Alert, Button, ButtonGroup, EmptyState, IconButton, Menu, MenuContent, MenuItem, MenuTrigger, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
@@ -19,18 +20,29 @@ import { NoticeLine, PersonCell } from './MemberParts';
 import InviteDialog from './InviteDialog';
 import { memberActions, useMembers, type Notice } from './members-state';
 import { DiscoveryLine, JoinRequests, useEntryAdmin } from './JoinRequests';
-import { isHosted } from '../../../lib/team-path';
+import { isHosted, isTeamKey, teamKeyOfPage } from '../../../lib/team-path';
 import { adminCount, choiceOf, inviteChoice, memberActions as allowed, MEMBERS_WORDS, membersContext, memberLine, pendingLine, roleText, roleLabel, SAMPLE_NOW, sortMembers, type Member, type PendingInvite } from '../../../lib/invites';
 import type { MembersData } from '../../../scripts/members';
+import type { JoinRequest } from '../../../lib/entry';
 import { repoContext } from '../../../scripts/repo-context';
 import '../../../styles/invites.css';
 
 /** This page's team and its context, known before anything is read: the join requests start with it. */
 function pageTeam(): { repo: string; context: MembersData['context'] } {
+  // A team made in Bridge, on its own Settings: real, by its key.
+  const key = teamKeyOfPage();
+  if (key) return { repo: key, context: 'real' };
   const ctx = repoContext();
   const repo = `${ctx.owner}/${ctx.repo}`;
   const noRepo = document.documentElement.hasAttribute('data-no-repo');
   return { repo, context: membersContext(noRepo ? null : repo, noRepo) };
+}
+
+/** The person who just joined, in the list at once (BR-19): Can edit, by email; the next read confirms them. */
+export function withJoined(d: MembersData, r: JoinRequest): MembersData {
+  const login = r.email.toLowerCase();
+  if (d.members.some((m) => m.login.toLowerCase() === login || m.email?.toLowerCase() === login)) return d;
+  return { ...d, members: [...d.members, { login, name: r.name, role: 'edit', reviews: [], email: login, via: 'email' }] };
 }
 
 const now = (data: MembersData) => (data.context === 'sample' ? SAMPLE_NOW : Date.now());
@@ -162,7 +174,7 @@ export default function MembersSection() {
   const ready = load.status === 'ready' ? load.data : null;
   // Asked at once with the page's team, not after the members: the server says who is admin, and the rows paint first.
   const [page] = useState(pageTeam);
-  const entry = useEntryAdmin(ready?.repo ?? page.repo, isHosted() && (ready ? ready.context === 'real' && ready.canManage : page.context === 'real'));
+  const entry = useEntryAdmin(ready?.repo ?? page.repo, (isHosted() || isTeamKey(page.repo)) && (ready ? ready.context === 'real' && ready.canManage : page.context === 'real'));
   const early = (
     <JoinRequests
       repo={page.repo}
@@ -195,6 +207,7 @@ export default function MembersSection() {
         <JoinRequests
           repo={data.repo}
           requests={entry.requests}
+          onApproved={(r) => update((d) => withJoined(d, r))}
           onDone={(r, approved) => {
             entry.setRequests((xs) => xs.filter((x) => x.id !== r.id));
             if (approved) reload();

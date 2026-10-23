@@ -1,17 +1,17 @@
 // Settings > Members, admin side of Entry (boards E7a and E7c), on a real team of the hosted site only:
 //   - "Asks to join": each person who found the team with the work domain, their email, "Found the team with
-//     @acme.com · asked 1 h ago", the role they get (Can edit, preset: an email account cannot review or administer),
-//     Decline and Approve on the same row. After a decision the row says so, then leaves.
-//   - The discovery line under the Members intro: "People with @acme.com can find this team and ask to join." with
-//     Turn off, or the same choice to turn on when the admin has a work email and the team never chose.
+//     @acme.com · asked 1 h ago", the role they get as text (Can edit: an email account cannot review or administer,
+//     so there is nothing to pick), Decline and Approve on the same row. Approve adds the person to the members list
+//     at once (BR-19); after a decision the row says so, then leaves.
+//   - Discovery under the Members intro (J7-08): a DS Switch, "Let people with @acme.com find this team", with one line
+//     on what happens to people who already asked. A team that cannot open to its domain reads one plain sentence.
 // Without a GitHub admin linked to the account, the server refuses: one calm "Connect GitHub to manage requests".
 // Calls in scripts/entry-session.ts, words in lib/entry.ts.
 import { useEffect, useState } from 'react';
-import { Button, ButtonGroup } from '@bridge-ds/react';
-import RolePicker from './RolePicker';
+import { Button, ButtonGroup, Switch } from '@bridge-ds/react';
 import { PersonCell } from './MemberParts';
 import { askedAgo, discoveryLine, emailDomain, ENTRY_WORDS as W, type Discovery, type JoinRequest } from '../../../lib/entry';
-import { DEFAULT_CHOICE } from '../../../lib/invites';
+import { ROLE_WORDS } from '../../../lib/invites';
 
 async function api() {
   return import('../../../scripts/entry-session');
@@ -58,7 +58,7 @@ export function useEntryAdmin(repo: string, on: boolean) {
   return { requests, setRequests, discovery, setDiscovery, github };
 }
 
-function RequestRow({ r, repo, now, onDone }: { r: JoinRequest; repo: string; now: number; onDone: (approved: boolean) => void }) {
+function RequestRow({ r, repo, now, onApproved, onDone }: { r: JoinRequest; repo: string; now: number; onApproved?: () => void; onDone: (approved: boolean) => void }) {
   const [busy, setBusy] = useState<'approve' | 'decline' | null>(null);
   const [said, setSaid] = useState<string | null>(null);
   const [github, setGitHub] = useState(false);
@@ -70,6 +70,7 @@ function RequestRow({ r, repo, now, onDone }: { r: JoinRequest; repo: string; no
       if (approve) await a.approveRequest(repo, r.id);
       else await a.declineRequest(repo, r.id);
       setSaid(approve ? W.joined(r.name) : W.declined(r.name));
+      if (approve) onApproved?.();
       setTimeout(() => onDone(approve), 4000);
     } catch (err) {
       if (a.needsGitHubAdmin(err)) setGitHub(true);
@@ -91,7 +92,7 @@ function RequestRow({ r, repo, now, onDone }: { r: JoinRequest; repo: string; no
           <GitHubLink />
         ) : (
           <>
-            <RolePicker label={`Role for ${r.name}`} value={DEFAULT_CHOICE} emailOnly size="sm" onChange={() => undefined} />
+            <span className="mem-role-text">{ROLE_WORDS.edit.label}</span>
             <ButtonGroup>
               <Button variant="secondary" size="sm" loading={busy === 'decline'} disabled={Boolean(busy)} aria-label={`${W.decline} ${r.name}`} onClick={() => void decide(false)}>
                 {W.decline}
@@ -108,7 +109,7 @@ function RequestRow({ r, repo, now, onDone }: { r: JoinRequest; repo: string; no
 }
 
 /** "Asks to join": the requests, above the members. Nothing when nobody waits. */
-export function JoinRequests({ repo, requests, onDone }: { repo: string; requests: JoinRequest[]; onDone: (r: JoinRequest, approved: boolean) => void }) {
+export function JoinRequests({ repo, requests, onApproved, onDone }: { repo: string; requests: JoinRequest[]; onApproved?: (r: JoinRequest) => void; onDone: (r: JoinRequest, approved: boolean) => void }) {
   const [now] = useState(() => Date.now());
   if (!requests.length) return null;
   return (
@@ -118,14 +119,14 @@ export function JoinRequests({ repo, requests, onDone }: { repo: string; request
       </h2>
       <ul className="mem-ask-list">
         {requests.map((r) => (
-          <RequestRow key={r.id} r={r} repo={repo} now={now} onDone={(approved) => onDone(r, approved)} />
+          <RequestRow key={r.id} r={r} repo={repo} now={now} onApproved={onApproved ? () => onApproved(r) : undefined} onDone={(approved) => onDone(r, approved)} />
         ))}
       </ul>
     </section>
   );
 }
 
-/** The one line that says who can find the team, with Turn off (or Turn on). */
+/** Who can find the team: a Switch with what happens to people who already asked, or one sentence when it cannot open. */
 export function DiscoveryLine({ repo, discovery, github, onChange }: { repo: string; discovery: Discovery | null; github: boolean; onChange: (d: Discovery) => void }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -151,30 +152,28 @@ export function DiscoveryLine({ repo, discovery, github, onChange }: { repo: str
       setBusy(false);
     }
   };
-  return (
-    <p className="mem-intro mem-discovery">
-      {line.on ? (
-        <span>
-          {W.discoveryOn[0]} <b className="mem-strong">@{line.domain}</b> {W.discoveryOn[1]}
-        </span>
-      ) : (
-        <span>{line.canTurnOn ? W.findable(line.domain) + '.' : W.discoveryOff(line.domain)}</span>
-      )}{' '}
-      {needsGitHub ? (
+  // Closed and it cannot open (the domain is no longer the admin's work domain): said, no control to try.
+  if (!line.on && !line.canTurnOn) return <p className="mem-intro mem-discovery">{W.discoveryOff(line.domain)}</p>;
+  if (needsGitHub)
+    return (
+      <p className="mem-intro">
         <GitHubLink />
-      ) : (
-        (line.on || line.canTurnOn) && (
-          <Button variant="link" size="sm" loading={busy} onClick={() => void toggle(!line.on)}>
-            {line.on ? W.turnOff : W.turnOn}
-          </Button>
-        )
-      )}
+      </p>
+    );
+  return (
+    <div className="mem-discovery">
+      <Switch
+        label={W.findable(line.domain)}
+        description={line.on ? W.discoveryOnHelp : W.discoveryOffHelp}
+        checked={line.on}
+        disabled={busy}
+        onCheckedChange={(on) => void toggle(on)}
+      />
       {problem && (
-        <span className="mem-line" role="status">
-          {' '}
+        <p className="mem-intro" role="status">
           {problem}
-        </span>
+        </p>
       )}
-    </p>
+    </div>
   );
 }

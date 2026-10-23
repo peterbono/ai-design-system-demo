@@ -1,11 +1,13 @@
 ---
 // Team shell of Studio Settings (lib/team-shells.ts): served for /studio/<owner>/<repo>/settings/ by the vercel.json rewrite.
-// The Bridge account first (components/ds/account/AccountSettings.tsx AccountBand), else an email contributor's row.
+// It starts with the team, never the personal account (board D9): the account (name, email, sign out, delete) lives in
+// the account menu of the side nav (components/ds/account/AccountMenu.tsx, its Account dialog).
 // General: the team's name (TeamNameSetting.tsx), edited by an admin, read by everyone else.
-// Members (who is in the team, invites and roles, MembersSection.tsx) reads the team from the address and GitHub; the team's rules (how
-// changes reach the code, review rules, safety) render read only from its repository model in the browser
-// (components/ds/studio/TeamSettings.tsx). On the demo, that is the demo's sample team. Appearance (light or
-// dark) is this browser's own choice, there for everyone whatever the team read gives (AppearanceSetting.tsx).
+// Members (who is in the team, who asks to join, invites and roles, MembersSection.tsx) reads the team from the address
+// and GitHub; the team's rules (how changes reach the code, review rules, safety) render read only, in designer words,
+// from its repository model in the browser (components/ds/studio/TeamSettings.tsx), each with a "For developers" fold.
+// On the demo, that is the demo's sample team. Appearance (light or dark) is this browser's own choice, there for
+// everyone whatever the team read gives (AppearanceSetting.tsx).
 import '../../../styles/settings.css';
 import TeamShell from '../../../components/TeamShell.astro';
 import MembersSection from '../../../components/ds/studio/MembersSection';
@@ -14,17 +16,9 @@ import TeamSettings from '../../../components/ds/studio/TeamSettings';
 import AppearanceSetting from '../../../components/ds/studio/AppearanceSetting';
 import TeamNameSetting from '../../../components/ds/studio/TeamNameSetting';
 import { TEAM_NAME_WORDS } from '../../../lib/team-name';
-import { AccountBand } from '../../../components/ds/account/AccountSettings';
-import { tierSummaries } from '../../../lib/governance';
-import { approvalRules } from '../../../lib/settings-view';
-
-// What each kind of branch needs: Bridge's review tiers (docs/GOVERNANCE.md), the same on every team.
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const rules = approvalRules(tierSummaries()).map((x) => ({ what: x.what, who: cap(x.who) }));
 ---
 
-<TeamShell route="settings/" title="Settings" what="settings and roles" description="GitHub connection, roles and approvals for this team's design system.">
-  <AccountBand client:only="react" />
+<TeamShell route="settings/" title="Settings" what="settings and roles" description="Your team: its name, its people, how changes reach your code and who checks them.">
   <section class="ts-band" id="general" aria-labelledby="ts-general">
     <h2 id="ts-general" class="ts-h">{TEAM_NAME_WORDS.generalTitle}</h2>
     <p class="ts-intro">{TEAM_NAME_WORDS.generalIntro}</p>
@@ -36,7 +30,7 @@ const rules = approvalRules(tierSummaries()).map((x) => ({ what: x.what, who: ca
   <section class="ts-band" id="library-access" aria-labelledby="set-library-access">
     <LibraryAccessSection client:only="react" />
   </section>
-  <TeamSettings client:load rules={rules} />
+  <TeamSettings client:load />
   <section class="ts-band" id="appearance" aria-labelledby="ts-appearance">
     <h2 id="ts-appearance" class="ts-h">Appearance</h2>
     <p class="ts-intro">How Bridge looks for you, only in this browser. It changes nothing for your team.</p>

@@ -148,7 +148,11 @@ describe('colleagues find it and ask to join', () => {
     // A member, not an admin: no requests, no discovery.
     expect((await s.entry(kim, `?requests=${team.key}`)).status).toBe(403);
     expect((await s.act(kim, { action: 'discovery', repo: team.key, enabled: false })).status).toBe(403);
-    expect((await s.entry(kim, `?team=${team.key}`)).body.team).toMatchObject({ role: 'edit', memberCount: 2 });
+    const seen = (await s.entry(kim, `?team=${team.key}`)).body.team;
+    expect(seen).toMatchObject({ role: 'edit', memberCount: 2 });
+    // Its Settings name the admin to everyone on the team: names and roles, never an email.
+    expect(seen.people).toEqual(expect.arrayContaining([{ name: 'Kim Lee', role: 'edit' }, expect.objectContaining({ role: 'admin' })]));
+    expect(JSON.stringify(seen.people)).not.toContain('@');
   });
 });
 

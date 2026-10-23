@@ -4,8 +4,8 @@
 //                          an admin's Change unfolds the three choices as a DS RadioGroup, and only the work email
 //                          choice unfolds its domains field (progressive disclosure), then Save and Cancel.
 //   Library link           the address, and Copy library link, so an admin shares it with the company.
-// Everyone else reads the same card, the same rows and the same Change, disabled, with "Only admins can change this."
-// under the choice, so both views match. The sample team (Acme Design) shows its sample choice and Save opens
+// Everyone else reads the same card and rows, with no Change, and who can change it by name under the choice ("Only
+// Sam Rivera (admin) can change this.", from the members Settings read; BR-20: no disabled control). The sample team (Acme Design) shows its sample choice and Save opens
 // the demo dialog, with no call; a site without the server says it is not available yet, never a fake save.
 // Mounted by both Settings pages (pages/studio/settings, pages/team-shell/settings). Rules and words: lib/library-access.
 import { useEffect, useId, useState, type FormEvent } from 'react';
@@ -13,7 +13,8 @@ import { Check, Copy } from 'lucide-react';
 import { Alert, Button, Card, CardBody, Input, Radio, RadioGroup, Skeleton } from '@bridge-ds/react';
 import { useCopy } from './TeamLink';
 import { NoticeLine } from './MemberParts';
-import type { Notice } from './members-state';
+import { adminNames, useTeamPeople, type Notice } from './members-state';
+import { adminOnlyText } from '../../../lib/settings-view';
 import { ACCESS_WORDS, MODE_ORDER, MODE_WORDS, parseDomainField, settingLabel, type AccessSetting, type LibraryMode } from '../../../lib/library-access';
 import type { AccessData } from '../../../scripts/library-access-settings';
 import '../../../styles/library-access.css';
@@ -154,6 +155,8 @@ export default function LibraryAccessSection() {
   const { load, update } = useAccessSettings();
   const [editing, setEditing] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
+  // Who can change it, by name, for a member who cannot (BR-20: no disabled Change).
+  const people = useTeamPeople();
 
   if (load.status === 'loading')
     return (
@@ -212,20 +215,14 @@ export default function LibraryAccessSection() {
                       <p className="set-who">{settingLabel(s)}</p>
                       <p className="set-row-help">{MODE_WORDS[s.mode].help}</p>
                       {publicNote && <p className="set-row-help">{ACCESS_WORDS.publicRepo}</p>}
-                      {!data.canManage && (
-                        <p className="set-row-help" id="lac-admins-only">
-                          {ACCESS_WORDS.adminsOnly}
-                        </p>
-                      )}
+                      {!data.canManage && <p className="set-row-help">{adminOnlyText(adminNames(people))}</p>}
                     </div>
-                    <div className="set-row-action">
-                      {(canEdit || !data.canManage) && (
+                    {canEdit && (
+                      <div className="set-row-action">
                         <Button
                           variant="secondary"
                           data-density="compact"
                           className="lac-action"
-                          disabled={!canEdit}
-                          aria-describedby={canEdit ? undefined : 'lac-admins-only'}
                           onClick={() => {
                             setNotice(null);
                             setEditing(true);
@@ -233,8 +230,8 @@ export default function LibraryAccessSection() {
                         >
                           {ACCESS_WORDS.change}
                         </Button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
