@@ -2,7 +2,7 @@
 // a person's requests with their account without bundling api/entry.
 //
 // Keys (Upstash Redis, the same database as accounts, invites and members; repository, email and domain lower case):
-//   bridge:team:discovery:<repo>        { domain, enabled, byGithubId, byLogin, at }  an admin's choice, no expiry
+//   bridge:team:discovery:<repo>        { domain, enabled, byGithubId, byLogin, byName, at }  an admin's choice, no expiry
 //   bridge:team:domain:<domain>         set of "owner/repo" open to people with that work domain (enabled only)
 //   bridge:joinreq:<repo>:<email>       a pending request { id, repo, email, name, createdAt, expiresAt }, 14 days
 //   bridge:joinreqs:<repo>              sorted set of requester emails by expiry (ms)
@@ -14,9 +14,11 @@ import type { Redis } from './redis.js';
 export interface Discovery {
   domain: string;
   enabled: boolean;
-  /** The admin who chose it: their GitHub id (their Bridge account name is read live) and login. No email. */
+  /** The admin who chose it: their GitHub id and login, and the display name kept then (older records have none: the
+   *  Bridge account name is read live, else the login). No email. */
   byGithubId: number;
   byLogin: string;
+  byName?: string;
   at: string;
 }
 

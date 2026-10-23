@@ -51,6 +51,26 @@ export async function getAccount(redis: Redis, email: string): Promise<Account |
   return parseAccount(await redis.cmd('GET', accountKey(email)));
 }
 
+/** The name of the Bridge account linked to a GitHub id (matched by id, so a renamed login never passes), or null. */
+export async function accountNameByGithub(redis: Redis, githubId: number): Promise<string | null> {
+  const email = await redis.cmd('GET', githubKey(githubId));
+  if (typeof email !== 'string') return null;
+  const a = await getAccount(redis, email);
+  return a?.github?.id === githubId && a.name.trim() ? a.name.trim() : null;
+}
+
+/**
+ * The name Bridge shows for a GitHub person (inviter, admin): the first of their GitHub profile name, their Bridge
+ * account name, their login. Never an email: a candidate that looks like one is skipped.
+ */
+export function displayName(...candidates: (string | null | undefined)[]): string {
+  for (const c of candidates) {
+    const n = typeof c === 'string' ? c.trim() : '';
+    if (n && !n.includes('@')) return n;
+  }
+  return '';
+}
+
 export async function putAccount(redis: Redis, a: Account): Promise<void> {
   await redis.cmd('SET', accountKey(a.email), JSON.stringify(a));
 }

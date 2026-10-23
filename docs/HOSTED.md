@@ -488,7 +488,9 @@ token as `Authorization: Bearer` when it has one). The first rule that matches a
 
 `people` lists the names of the first four people on the team (GitHub admins first, then other collaborators, then
 email members), for the avatars of the team card, which counts the rest as "+N" from `memberCount`. Names only: other
-members' emails never leave the server.
+members' emails never leave the server. `invitedBy` and `adminName` are display names: the GitHub profile name, else
+the Bridge account name, else the login. Invites keep the inviter's (`invitedByName`) and discovery keeps the admin's
+(`byName`) when they are made; older records resolve it when they are read.
 
 Discovery is an admin's choice per team: `POST { action: 'discovery', repo, enabled }` opens the team to the admin's
 own work domain (their account email), or closes it; `GET /api/entry?discovery=<repo>` says `{ domain, enabled,
