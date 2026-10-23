@@ -259,6 +259,9 @@ table.changes { border-collapse: collapse; width: 100%; }
 table.changes th { text-align: left; font-weight: 500; color: var(--text-3); padding: 0 var(--s2) 2px 0; }
 table.changes td { padding: 4px var(--s2) 4px 0; border-top: 1px solid var(--border); vertical-align: top; overflow-wrap: anywhere; }
 table.changes td.mono { font-family: var(--mono); }
+/* The label column never breaks inside a word ("Typography"); values break where breakable() allows, else anywhere. */
+table.changes td.what { overflow-wrap: normal; word-break: normal; }
+table.changes td.mono { overflow-wrap: break-word; }
 table.changes td.before { color: var(--text-3); }
 /* Component change row: one sentence of what changed, the table behind "Details" (one font size). */
 .row-line { color: var(--text); }
