@@ -1,6 +1,7 @@
 // The /api/entry Vercel function (api/entry/index.ts) with a mocked GitHub, an in-memory Redis and a fake email:
 // the routing order, public domains, the admin opt-in, join requests from ask to approve, decline and expiry, invites
 // accepted from the account, and the auth checks.
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { type Account, ACCOUNT_COOKIE, putAccount, signAccountSession } from '../../api/_lib/account';
 import { isPublicDomain, workDomain } from '../../api/_lib/domains';
@@ -8,7 +9,7 @@ import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
 import { JOIN_REQUEST_TTL_MS } from '../../api/_lib/teams';
 import { handleAccount } from '../../api/account/index';
-import { ADMIN_ONLY, type EntryDeps, handleEntry, NOT_OPEN, PUBLIC_DOMAIN, REQUEST_LIMITS } from '../../api/entry/index';
+import { ADMIN_ONLY, type EntryDeps, handleEntry, INVITE_LINK_PER_HOUR, NOT_OPEN, PUBLIC_DOMAIN, REQUEST_LIMITS } from '../../api/entry/index';
 import { type EmailMessage, inviteStoreOn, type StoredInvite } from '../../api/invites/index';
 
 const HOST = 'bridge.example.com';
@@ -617,5 +618,59 @@ describe('accept-invite', () => {
     expect(await r.json()).toMatchObject({ joined: true, status: 'joined', repo: REPO, role: 'admin' });
     expect(s.calls).toContain('PUT /repos/acme/ds/collaborators/cara-now');
     expect(await s.invites.byEmail('cara@acme.design')).toEqual([]);
+  });
+});
+
+describe('invite links (invite-link, the one identity of an invite)', () => {
+  const TOKEN = 'K'.repeat(43);
+  const hashOf = (t: string) => createHash('sha256').update(t).digest('hex');
+  const link = (s: S, cookie: string | null, token: unknown = TOKEN) => post(s, cookie, { action: 'invite-link', token });
+
+  it('signed out: the team, who invited, the role and the masked address, never the email or the repository', async () => {
+    const s = setup();
+    await invite(s, { email: 'mia@acme.design', role: 'reviewer', reviewAs: 'design', invitedByName: 'Ada Admin', tokenHash: hashOf(TOKEN) });
+    const r = await link(s, null);
+    expect(r.status).toBe(200);
+    const text = await r.text();
+    expect(JSON.parse(text)).toEqual({ state: 'live', team: expect.any(String), invitedBy: 'Ada Admin', role: 'reviewer', reviewAs: 'design', sentTo: 'm•••@acme.design', signedIn: false, mine: false, member: false });
+    expect(text).not.toContain('mia@');
+    expect(text).not.toContain(REPO);
+  });
+
+  it('signed in as the invited email: its E3 card; as someone else: only the masked address', async () => {
+    const s = setup();
+    await invite(s, { email: 'mia@acme.design', invitedByName: 'Ada Admin', tokenHash: hashOf(TOKEN) });
+    const mia = await account(s, 'mia@acme.design', 'Mia');
+    expect(await (await link(s, mia)).json()).toMatchObject({ state: 'live', signedIn: true, mine: true, member: false, invite: { id: 'a1b2c3d4e5f60718', repo: REPO, role: 'edit', invitedBy: 'Ada Admin' } });
+    const leo = await account(s, 'leo@gmail.com', 'Leo');
+    const other = await (await link(s, leo)).json();
+    expect(other).toMatchObject({ state: 'live', signedIn: true, mine: false, sentTo: 'm•••@acme.design' });
+    expect(other.invite).toBeUndefined();
+  });
+
+  it('a member: already in, with the team to open; a spent link still names the team and whom to ask', async () => {
+    const s = setup();
+    const inv = await invite(s, { email: 'mia@acme.design', invitedByName: 'Ada Admin', tokenHash: hashOf(TOKEN) });
+    const mia = await account(s, 'mia@acme.design', 'Mia');
+    await post(s, mia, { action: 'accept-invite', repo: REPO, id: inv.id });
+    expect(await (await link(s, mia)).json()).toMatchObject({ state: 'gone', invitedBy: 'Ada Admin', member: true, repo: REPO });
+    const gone = await (await link(s, null)).json();
+    expect(gone).toEqual({ state: 'gone', team: expect.any(String), invitedBy: 'Ada Admin', signedIn: false, member: false });
+    expect(await (await link(s, null, 'Z'.repeat(43))).json()).toEqual({ state: 'unknown', signedIn: false });
+    expect(await (await link(s, null, 'bad')).json()).toEqual({ state: 'unknown', signedIn: false });
+  });
+
+  it('an expired invite reads as gone, and the calls are capped per network', async () => {
+    const s = setup();
+    await invite(s, { email: 'mia@acme.design', invitedByName: 'Ada Admin', tokenHash: hashOf(TOKEN) });
+    s.tick(8 * 86_400_000);
+    expect(await (await link(s, null)).json()).toMatchObject({ state: 'gone', invitedBy: 'Ada Admin' });
+    for (let i = 0; i < INVITE_LINK_PER_HOUR; i++) await link(s, null);
+    expect((await link(s, null)).status).toBe(429);
+  });
+
+  it('every other action still needs the session', async () => {
+    const s = setup();
+    expect((await post(s, null, { action: 'request', repo: REPO })).status).toBe(401);
   });
 });

@@ -8,7 +8,7 @@
 //               email; GitHub is never needed here
 //               { kind: 'teams', teams: [{ repo, name, role: 'edit' | 'reviewer' | 'admin', via: 'email' | 'github' }] }
 //   2. invites  invites wait for their email
-//               { kind: 'invites', invites: [{ id, team, repo, role, invitedBy, invitedAt, memberCount, people }] }
+//               { kind: 'invites', invites: [{ id, team, repo, role, reviewAs?, invitedBy, invitedAt, memberCount, people }] }
 //               (accept-invite joins directly)
 //   3. domain   teams whose admin opened them to the person's work domain, all of them, largest first
 //               { kind: 'domain', domain, teams: [{ repo, name, memberCount, people, adminName, requested }] }
@@ -20,6 +20,13 @@
 // Other endpoints (JSON, errors are { error, message } in Studio words). All need the account cookie (api/account):
 //   GET  /api/entry?requests=owner/name     admin: { requests: [{ id, name, email, createdAt, expiresAt }] }
 //   GET  /api/entry?discovery=owner/name    admin: { domain, enabled, configured, eligible }
+//   POST { action: 'invite-link', token }  what an invite link (/studio/invite/#t=<token>) is, signed in or not (the
+//                                           only call without the cookie; capped per network):
+//            { state: 'live', team, invitedBy, role, reviewAs?, sentTo (masked), signedIn, mine, member, invite?, repo? }
+//            { state: 'gone', team, invitedBy, signedIn, member, repo? }   accepted, cancelled or expired
+//            { state: 'unknown', signedIn }                                 a token Bridge never knew
+//            `invite` (an E3 card, as in GET) only when the invite is the signed-in account's own; `repo` only for
+//            a member of that team (to open it). Never the invited email, only masked.
 //   POST { action: 'accept-invite', repo, id }   the invite sent to the account email; joins directly
 //                                                { joined: true, status, repo, role, next }
 //   POST { action: 'request', repo }        asks to join a team open to their work domain (an invite for that team
@@ -56,7 +63,7 @@ import { workDomain } from '../_lib/domains.js';
 import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
-import { clientIp, dayOf, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody, sameOrigin, secondsToTomorrow, siteOrigin, type FetchLike } from '../_lib/http.js';
+import { clientIp, dayOf, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin, type FetchLike } from '../_lib/http.js';
 import { accountTeamsKey, memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
 import {
@@ -78,7 +85,7 @@ import {
   TEAM_NAME_MAX_AGE_MS,
   teamsForDomain,
 } from '../_lib/teams.js';
-import { acceptInviteForGithub, githubApp as invitesApp, inviteStoreOn, type InviteStore, type StoredInvite } from '../invites/index.js';
+import { acceptInviteForGithub, githubApp as invitesApp, inviteStoreOn, maskEmail, type InviteStore, type StoredInvite } from '../invites/index.js';
 import { teamDisplayName } from '../../src/lib/demo.js';
 import { STUDIO_ROOT } from '../../src/lib/team-path.js';
 
@@ -120,9 +127,21 @@ export type EntryTeamRole = 'edit' | 'reviewer' | 'admin';
 
 export type Entry =
   | { kind: 'teams'; teams: { repo: string; name: string; role: EntryTeamRole; via: 'email' | 'github' }[] }
-  | { kind: 'invites'; invites: { id: string; team: string; repo: string; role: string; invitedBy: string; invitedAt: string; memberCount: number; people: string[] }[] }
+  | { kind: 'invites'; invites: EntryInviteCard[] }
   | { kind: 'domain'; domain: string; teams: { repo: string; name: string; memberCount: number; people: string[]; adminName: string; requested: boolean }[] }
   | { kind: 'create' };
+
+export interface EntryInviteCard {
+  id: string;
+  team: string;
+  repo: string;
+  role: string;
+  reviewAs?: string;
+  invitedBy: string;
+  invitedAt: string;
+  memberCount: number;
+  people: string[];
+}
 
 /** Names sent per team card (its avatars); the card counts the rest from memberCount. */
 export const PEOPLE_SHOWN = 4;
@@ -409,6 +428,13 @@ export async function teamNamesOf(ctx: Ctx, repos: readonly string[]): Promise<(
   return (repo) => teamDisplayName(repo, { name: kept.get(repo.toLowerCase())?.name });
 }
 
+/** An invite as its E3 card shows it: the team, who invited and when, the role, the team's people. */
+async function inviteCard(ctx: Ctx, inv: StoredInvite, team: string): Promise<EntryInviteCard> {
+  const { memberCount, people, nameOfLogin } = await teamPeople(ctx, inv.repo);
+  const invitedBy = inv.invitedByName ? displayName(inv.invitedByName, inv.invitedBy) : await nameOfLogin(inv.invitedBy);
+  return { id: inv.id, team, repo: inv.repo, role: inv.role, ...(inv.reviewAs ? { reviewAs: inv.reviewAs } : {}), invitedBy, invitedAt: inv.createdAt, memberCount, people };
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // GET: the routing
 
@@ -428,13 +454,9 @@ export async function entryFor(ctx: Ctx, req: Request, a: Account): Promise<Entr
   // 2. Invites waiting for their email.
   const invites = await ctx.svc.invites.byEmail(a.email);
   if (invites.length) {
-    const out: Extract<Entry, { kind: 'invites' }>['invites'] = [];
+    const out: EntryInviteCard[] = [];
     const nameOf = await teamNamesOf(ctx, invites.map((inv) => inv.repo));
-    for (const inv of invites) {
-      const { memberCount, people, nameOfLogin } = await teamPeople(ctx, inv.repo);
-      const invitedBy = inv.invitedByName ? displayName(inv.invitedByName, inv.invitedBy) : await nameOfLogin(inv.invitedBy);
-      out.push({ id: inv.id, team: nameOf(inv.repo), repo: inv.repo, role: inv.role, invitedBy, invitedAt: inv.createdAt, memberCount, people });
-    }
+    for (const inv of invites) out.push(await inviteCard(ctx, inv, nameOf(inv.repo)));
     return { kind: 'invites', invites: out };
   }
 
@@ -694,9 +716,7 @@ async function onDiscovery(ctx: Ctx, a: Account, body: Record<string, unknown>):
   return json(200, { domain: prev?.domain ?? domain, enabled: false });
 }
 
-async function onAction(ctx: Ctx, req: Request, a: Account): Promise<Response> {
-  if (!/^application\/json\b/i.test(req.headers.get('content-type') ?? '')) return fail(415, 'content_type', 'Send JSON.');
-  const body = await readBody(req, MAX_BODY);
+async function onAction(ctx: Ctx, req: Request, a: Account, body: Record<string, unknown>): Promise<Response> {
   switch (body.action) {
     case 'accept-invite': {
       const { full } = parseRepo(body.repo);
@@ -723,6 +743,59 @@ async function onAction(ctx: Ctx, req: Request, a: Account): Promise<Response> {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Invite links
+
+/** Invite links one network may look at in an hour: enough for a person, not for guessing. */
+export const INVITE_LINK_PER_HOUR = 30;
+const INVITE_TOKEN = /^[A-Za-z0-9_-]{43}$/;
+
+/**
+ * What an invite link is, for the one door of Bridge (components/ds/account/SignIn.tsx on /studio/invite/): signed
+ * out, which team and the masked address the code goes to; signed in, the E3 card when the invite is theirs, "already
+ * in" for a member, or the masked address it was sent to. A spent link still names the team and whom to ask.
+ */
+async function onInviteLink(ctx: Ctx, req: Request, a: Account | null, body: Record<string, unknown>): Promise<Response> {
+  const hour = new Date(ctx.now()).toISOString().slice(0, 13);
+  const [n] = await ctx.svc.redis.pipe([
+    ['INCRBY', `bridge:entry:count:invite-link:${hmacHex(ctx.svc.secret, `ip:${clientIp(req)}`)}:${hour}`, 1],
+    ['EXPIRE', `bridge:entry:count:invite-link:${hmacHex(ctx.svc.secret, `ip:${clientIp(req)}`)}:${hour}`, 2 * 3600],
+  ]);
+  if (Number(n) > INVITE_LINK_PER_HOUR) return fail(429, 'limit', 'Too many tries from this network. Try again in an hour.');
+  const signedIn = Boolean(a);
+  const token = typeof body.token === 'string' && INVITE_TOKEN.test(body.token) ? body.token : null;
+  const hash = token ? sha256(token) : null;
+  const inv = hash ? await ctx.svc.invites.byTokenHash(hash) : null;
+  const live = inv && Date.parse(inv.expiresAt) > ctx.now() ? inv : null;
+  const trace = live ? { repo: live.repo, invitedBy: '' } : hash ? await ctx.svc.invites.traceByTokenHash(hash) : null;
+  if (!live && !trace) return json(200, { state: 'unknown', signedIn });
+  const repo = (live ?? trace)!.repo;
+  const member = a ? await isMemberOf(ctx, a, repo) : false;
+  const team = (await teamNamesOf(ctx, [repo]))(repo);
+  if (!live) return json(200, { state: 'gone', team, invitedBy: displayName(trace!.invitedBy), signedIn, member, ...(member ? { repo } : {}) });
+  const card = await inviteCard(ctx, live, team);
+  const mine = Boolean(a && live.email.trim().toLowerCase() === a.email.toLowerCase());
+  return json(200, {
+    state: 'live',
+    team,
+    invitedBy: card.invitedBy,
+    role: live.role,
+    ...(live.reviewAs ? { reviewAs: live.reviewAs } : {}),
+    sentTo: maskEmail(live.email),
+    signedIn,
+    mine,
+    member,
+    ...(member ? { repo } : {}),
+    ...(mine && !member ? { invite: card } : {}),
+  });
+}
+
+/** The account is on the team: an email membership, or (local mode) a seeded admin. */
+async function isMemberOf(ctx: Ctx, a: Account, repo: string): Promise<boolean> {
+  if (await ctx.svc.members.get(repo, a.email.toLowerCase())) return true;
+  return ctx.svc.localAdmins ? (await ctx.svc.localAdmins.teamsOf(a.email)).some((r) => r.toLowerCase() === repo.toLowerCase()) : false;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // The handler
 
 export async function handleEntry(req: Request, env: EntryEnv, deps: EntryDeps): Promise<Response> {
@@ -734,8 +807,15 @@ export async function handleEntry(req: Request, env: EntryEnv, deps: EntryDeps):
     if (!svc) return fail(503, 'not_configured', NOT_CONFIGURED);
     const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, env };
     const a = await sessionAccount(req, svc.redis, svc.secret, ctx.now());
+    if (method === 'POST') {
+      if (!/^application\/json\b/i.test(req.headers.get('content-type') ?? '')) return fail(415, 'content_type', 'Send JSON.');
+      const body = await readBody(req, MAX_BODY);
+      // The one action without the cookie: what an invite link is, before signing in.
+      if (body.action === 'invite-link') return await onInviteLink(ctx, req, a, body);
+      if (!a) return fail(401, 'signin', SIGNIN);
+      return await onAction(ctx, req, a, body);
+    }
     if (!a) return fail(401, 'signin', SIGNIN);
-    if (method === 'POST') return await onAction(ctx, req, a);
     const params = new URL(req.url).searchParams;
     const noStore = { 'Cache-Control': 'private, no-store' };
     const requestsOf = params.get('requests');

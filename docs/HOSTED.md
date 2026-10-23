@@ -196,7 +196,14 @@ so Can view and Admin cannot be enforced there.
   token, nothing else) are stored in an Upstash Redis database, never in the browser. Each record and its link index
   expire in Redis with the invite (7 days), and are deleted at once when the invite is accepted or cancelled. The
   link token itself is only in the email, in the link's fragment (`/studio/invite/#t=...`), so it reaches no server
-  log. A link works once; Resend makes a new one and the old one stops working. The function logs nothing.
+  log. A link works once; Resend makes a new one and the old one stops working. Per link, its team and the inviter's
+  name (no email) stay 30 days after the invite expires, so an old link says whom to ask for a new one, and a member
+  who opens it again gets "You're already in <team>". The function logs nothing.
+- **One identity.** The link opens the one sign-in screen of Bridge: signed out, it sends the code to the invited
+  address (shown masked, never in full: `POST /api/account { action: 'code', invite: <token> }`), asks the name of a
+  new account once, then shows the invite (Entry E3) and joins with the Bridge account. Signed in as another email, it
+  says where the invite went with "Sign in as that email". The invite page reads the link with
+  `POST /api/entry { action: 'invite-link', token }`, the one entry call without a session, 30 per network an hour.
 - **Only the invited person joins.** On accept, the GitHub account must have the invited email as a **verified**
   email (read with the invitee's own sign-in, `GET /user/emails`, compared trimmed and case-insensitive). Otherwise
   nothing is granted, the invite stays valid, and the page says which address it was sent to, masked
@@ -347,9 +354,9 @@ readers would need the session to name the reader; today it only holds the email
 
 ## Email contributors
 
-A designer invited with "Can edit" can join with their email only, no GitHub account. On the invite page they pick
-"Join with your email" (the GitHub way stays available); clicking the emailed link already proved they read that
-inbox, so nothing else is checked. Later they sign in on Studio with their email and a one-time link. Reviewers and
+A designer invited with "Can edit" can join with their email only, no GitHub account. The invite link signs them in
+to their Bridge account with a code sent to the invited address, then they join (Entry E3). Reviewers and admins see
+the GitHub step before they join. Reviewers and
 admins keep GitHub: they approve and merge. The server piece is one Vercel function,
 `apps/docs-site/api/contribute/index.ts`; the pieces it shares with invites and Library access live in
 `apps/docs-site/api/_lib/` (not a function).
@@ -420,8 +427,7 @@ person without the email. Private repositories show the real email.
   session ends at once.
 - **Invite links, before accepting**: `POST /api/invites { "action": "peek", "token" }` needs no sign-in and answers
   `{ "team", "repo", "role", "sentTo" }` (the address masked, never in full), 410 for a spent or unknown link, 30 per
-  network an hour. The invite page uses it to open on the right path: the email for Can edit, GitHub for a reviewer
-  or an admin.
+  network an hour. The invite page itself reads `POST /api/entry { "action": "invite-link" }` (see "Invites by email").
 - **Sign-in links**: `<site>/studio/<owner>/<repo>/#contribute=<token>`, only the token's SHA-256 stored, 15 minutes,
   once. The answer is the same whether or not the email is a member. Links count like Library sign-ins: 3 per email,
   10 per network, 20 per team and 20 for the site per day (emails and networks under an HMAC).

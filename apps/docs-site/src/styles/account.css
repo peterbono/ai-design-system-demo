@@ -30,6 +30,11 @@
   text-wrap: balance;
 }
 
+/* Focus moves to the heading on each step (SignIn.tsx), for screen readers: it is not a control, so no ring. */
+.acc-title:focus {
+  outline: none;
+}
+
 .acc-lead {
   margin: 0;
   font-size: var(--typography-body-size);

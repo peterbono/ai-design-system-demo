@@ -8,7 +8,7 @@
 // GitHub App under a strict policy: the person's own branches, pull requests, issues and comments, never an approval,
 // a merge or the default branch. Paths outside the team's repository never go to the proxy: they are read as a guest.
 
-import { isSampleTeam, onBridge, teamDisplayName } from './demo';
+import { isSampleTeam } from './demo';
 
 /** The stand-in token of an email contributor's session. Never sent to GitHub: the proxy rewrites every call. */
 export const CONTRIB_TOKEN = 'bridge-email-contributor';
@@ -78,38 +78,8 @@ export function parseMember(v: unknown, local = localDevHost()): ContributeMembe
   return { email: m.email, name, role: local && m.role === 'admin' ? 'admin' : 'edit' };
 }
 
-/** What an invite link is, before it is accepted: the server's answer to peek (null when it cannot say). */
-export interface InvitePeek {
-  repo: string;
-  /** The team as people call it, when the server knows it. */
-  team?: string;
-  role: 'view' | 'edit' | 'reviewer' | 'admin';
-  /** Where the invite was sent, masked ("m•••@acme.design"). */
-  sentTo?: string;
-}
-
-/** The team's name for a join button: the server's, else the repository's name. */
-export const teamWord = (peek: Pick<InvitePeek, 'repo' | 'team'> | null | undefined): string => peek?.team?.trim() || (peek?.repo ? teamDisplayName(peek.repo) : '') || 'the team';
-
 /** Every designer-facing sentence of the email path, in one place. */
 export const CONTRIBUTE_WORDS = {
-  // The invite page, "Can edit" invites.
-  joinTitle: (team: string) => `Join ${team}${onBridge(team)}`,
-  joinLead: (sentTo: string | undefined) =>
-    sentTo ? `Your invitation was sent to ${sentTo}. Add your name and you are in. No GitHub account needed.` : 'Add your name and you are in. No GitHub account needed.',
-  nameLabel: 'Your name',
-  nameHelp: 'Your team sees it on what you change and suggest.',
-  namePlaceholder: 'Leo Martin',
-  nameMissing: 'Add your name, so your team knows who made a change.',
-  join: (team: string) => `Join ${team}`,
-  joining: 'Joining the team',
-  githubRequired: 'This invitation is for a reviewer or an admin. They approve changes on GitHub, so sign in with GitHub to join.',
-  // Reviewer and admin invites.
-  newToGitHub: 'New to GitHub?',
-  createAccount: 'Create a free account with this email',
-  mismatch: (sentTo: string, login: string) => `It was sent to ${sentTo || 'another email'}. You're signed in to GitHub as @${login}.`,
-  useAnother: 'Use another GitHub account',
-  addEmail: (login: string) => `Add this email to @${login} on GitHub`,
   // Team pages, signed out.
   invitedWithEmail: 'Invited with your email?',
   // Opens the one sign-in screen of Bridge (pages/signin.astro, lib/account.ts ACCOUNT_WORDS.email).

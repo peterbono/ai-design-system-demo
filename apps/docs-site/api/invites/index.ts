@@ -52,7 +52,8 @@
 // answers 429 with a sentence that says it and when to try again (Retry-After), never a silent drop.
 //
 // What is kept: per pending invite only its email, role, team, who invited, created, sent and expiry dates and the
-// link token's hash, each record expiring in Redis with the invite. Accept and cancel delete it. Nothing here logs.
+// link token's hash, each record expiring in Redis with the invite. Accept and cancel delete it. Per link, its team and
+// the inviter's name (no email) stay 30 days longer, so an old link says whom to ask for a new one. Nothing here logs.
 //
 // Env (server only):
 //   KV_REST_API_URL + KV_REST_API_TOKEN (or UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN)   pending invites
@@ -145,6 +146,16 @@ export interface StoredInvite {
   tokenHash: string;
 }
 
+/** What an invite link still says after its invite is gone. */
+export interface InviteTrace {
+  repo: string;
+  /** The inviter's display name, else their login. */
+  invitedBy: string;
+}
+
+/** How long an invite link remembers its team and inviter after the invite expired. */
+export const INVITE_TRACE_MS = 30 * 24 * 60 * 60 * 1000;
+
 /** What GET returns per invite. */
 export type PendingInvite = Omit<StoredInvite, 'repo' | 'tokenHash'>;
 
@@ -172,6 +183,11 @@ export interface InviteStore {
   /** Deletes the invite and its token index. */
   remove(inv: StoredInvite): Promise<void>;
   byTokenHash(hash: string): Promise<StoredInvite | null>;
+  /**
+   * What a link said once its invite is gone (accepted, cancelled or expired): the team and who invited, never the
+   * email. Kept INVITE_TRACE_MS after the invite expires, so an old link says whom to ask (api/entry, invite-link).
+   */
+  traceByTokenHash(hash: string): Promise<InviteTrace | null>;
   /** The live invites sent to this email, on every team (api/entry). */
   byEmail(email: string): Promise<StoredInvite[]>;
   /** Adds `by` (negative gives back) to each counter, which expires after `ttlSeconds`; returns the new values. */
@@ -274,6 +290,8 @@ export const githubApp = (appId: string, privateKey: string, f: FetchLike, now: 
 // Keys, each with a TTL so nothing outlives its invite:
 //   bridge:invite:<repo>:<id>        the invite (JSON), expires with the invite
 //   bridge:invite-token:<hash>       "<repo>|<id>", expires with the invite
+//   bridge:invite-trace:<hash>       { repo, invitedBy } (no email), expires INVITE_TRACE_MS after the invite: an old
+//                                    link still says which team and whom to ask for a new one
 //   bridge:invites:<repo>            sorted set of invite ids by expiry (ids only), expires 7 days after the last put
 //   bridge:invites:email:<email>     set of "<repo>|<id>" sent to that email (api/entry), expires 7 days after the last put
 //   bridge:invites:count:<...>:<day> daily counters for the caps, expire after 2 days
@@ -281,6 +299,19 @@ export const githubApp = (appId: string, privateKey: string, f: FetchLike, now: 
 const inviteKey = (repo: string, id: string) => `bridge:invite:${repo.toLowerCase()}:${id}`;
 const repoKey = (repo: string) => `bridge:invites:${repo.toLowerCase()}`;
 const tokenKey = (hash: string) => `bridge:invite-token:${hash}`;
+const traceKey = (hash: string) => `bridge:invite-trace:${hash}`;
+const traceOf = (inv: StoredInvite): string => JSON.stringify({ repo: inv.repo, invitedBy: inv.invitedByName?.trim() || inv.invitedBy } satisfies InviteTrace);
+const traceTtl = (ex: number) => ex + Math.ceil(INVITE_TRACE_MS / 1000);
+
+function parseTrace(raw: unknown): InviteTrace | null {
+  if (typeof raw !== 'string') return null;
+  try {
+    const v = JSON.parse(raw) as InviteTrace;
+    return v && typeof v.repo === 'string' && typeof v.invitedBy === 'string' ? { repo: v.repo, invitedBy: v.invitedBy } : null;
+  } catch {
+    return null;
+  }
+}
 const emailKey = (email: string) => `bridge:invites:email:${email.trim().toLowerCase()}`;
 const liveInvite = (inv: StoredInvite | null, email: string, now: number): inv is StoredInvite =>
   Boolean(inv && inv.email.trim().toLowerCase() === email.trim().toLowerCase() && Date.parse(inv.expiresAt) > now);
@@ -331,6 +362,7 @@ export function inviteStoreOn(redis: Redis, now: () => number = Date.now): Invit
       await pipe([
         ['SET', inviteKey(inv.repo, inv.id), JSON.stringify(inv), 'EX', ex],
         ['SET', tokenKey(inv.tokenHash), `${inv.repo}|${inv.id}`, 'EX', ex],
+        ['SET', traceKey(inv.tokenHash), traceOf(inv), 'EX', traceTtl(ex)],
         ['ZADD', repoKey(inv.repo), now() + ex * 1000, inv.id],
         ['EXPIRE', repoKey(inv.repo), Math.ceil(INVITE_TTL_MS / 1000)],
         ['SADD', emailKey(inv.email), `${inv.repo.toLowerCase()}|${inv.id}`],
@@ -362,6 +394,9 @@ export function inviteStoreOn(redis: Redis, now: () => number = Date.now): Invit
       const [repo = '', id = ''] = ref.split('|');
       const inv = await store.get(repo, id);
       return inv && inv.tokenHash === hash ? inv : null;
+    },
+    async traceByTokenHash(hash) {
+      return parseTrace(await cmd('GET', traceKey(hash)));
     },
     async bump(keys, by, ttl) {
       if (!keys.length) return [];
@@ -401,6 +436,7 @@ export function memoryStore(now: () => number = Date.now): InviteStore & { keys(
     async put(inv, ttl) {
       set(inviteKey(inv.repo, inv.id), JSON.stringify(inv), ttl);
       set(tokenKey(inv.tokenHash), `${inv.repo}|${inv.id}`, ttl);
+      set(traceKey(inv.tokenHash), traceOf(inv), traceTtl(Math.max(1, Math.ceil(ttl))));
     },
     async remove(inv) {
       items.delete(inviteKey(inv.repo, inv.id));
@@ -412,6 +448,9 @@ export function memoryStore(now: () => number = Date.now): InviteStore & { keys(
       const [repo = '', id = ''] = ref.split('|');
       const inv = await store.get(repo, id);
       return inv && inv.tokenHash === hash ? inv : null;
+    },
+    async traceByTokenHash(hash) {
+      return parseTrace(live(traceKey(hash)));
     },
     async byEmail(email) {
       const out: StoredInvite[] = [];

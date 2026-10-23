@@ -39,6 +39,8 @@ export interface AccountTeam {
 export interface Account {
   email: string;
   name: string | null;
+  /** False while the name is a stand-in made from the email: Bridge asks the person their name once. */
+  nameSet?: boolean;
   github: { login: string; id: number } | null;
   teams: AccountTeam[];
 }
@@ -75,7 +77,7 @@ export function parseAccount(v: unknown): Account | null {
         return [{ repo, name: str(x.name), role: str(x.role) ?? 'view', via: str(x.via) ?? 'email' }];
       })
     : [];
-  return { email, name: str(o.name), github: login ? { login, id: typeof gh?.id === 'number' ? gh.id : 0 } : null, teams };
+  return { email, name: str(o.name), nameSet: o.nameSet !== false && Boolean(str(o.name)), github: login ? { login, id: typeof gh?.id === 'number' ? gh.id : 0 } : null, teams };
 }
 
 /** Only a same-site path is a place to go after signing in; never the sign-in screen itself or the GitHub callback. */
@@ -182,12 +184,14 @@ export const ACCOUNT_WORDS = {
   codeLabel: 'Code',
   codeHint: 'Paste it or type it, spaces are fine.',
   badCode: 'Enter the 6 digits from the email.',
+  triesLeft: (n: number) => (n === 1 ? '1 try left.' : `${n} tries left.`),
+  haveCode: 'I have a code',
   verify: 'Continue',
   resend: 'Send a new code',
   resendIn: (s: number) => `Send a new code in ${s} s`,
   resent: 'A new code is on its way.',
   otherEmail: 'Use another email',
-  nameTitle: 'One last thing',
+  nameTitle: 'One last thing: your name',
   nameLead: 'Your team sees your name on what you change and suggest.',
   nameLabel: 'Your name',
   namePlaceholder: 'Leo Martin',

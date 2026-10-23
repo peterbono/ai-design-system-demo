@@ -324,9 +324,9 @@ export const SCENARIOS: Scenario[] = [
       await s.team(T.product);
       const link = await s.invite(T.product, P.mia.email);
       return result(
-        [{ ...P.mia, kind: 'invites', expect: '"Acme Product invited you" (E3), Sam Rivera invited, You join as Can edit. Join lands on the team home as a contributor.' }],
+        [{ ...P.mia, kind: 'invites', expect: '"Acme Product invited you" (E3), Sam Rivera invited, You join as Can edit. Join lands on the team home, signed in with the account.' }],
         ['The invite email is in the outbox (/api/dev/outbox).'],
-        [{ url: link, expect: 'The invite link: join with the email (no GitHub), then the team.' }],
+        [{ url: link, expect: 'The invite link: "Join Acme Product", the code goes to m•••@acme.com, then the name, then E3 and the team. Signed in as mia: E3 at once.' }],
       );
     },
   },
@@ -341,7 +341,7 @@ export const SCENARIOS: Scenario[] = [
       return result(
         [{ ...P.mia, kind: 'create', expect: 'The expired invite is not offered: "Create your team" (with "Expecting an invite?").' }],
         [],
-        [{ url: link, expect: 'The invite link says it expired and how to get a new one.' }],
+        [{ url: link, expect: 'The invite link says it no longer works and to ask Sam Rivera for a new one, with Sign in.' }],
       );
     },
   },
@@ -360,7 +360,7 @@ export const SCENARIOS: Scenario[] = [
           { ...P.mia, kind: 'invites', expect: 'Control: the invited address sees "Acme Product invited you".' },
         ],
         [],
-        [{ url: link, expect: 'Open it while signed in as mia.rossi@gmail.com: it names the masked address it was sent to.' }],
+        [{ url: link, expect: 'Open it while signed in as mia.rossi@gmail.com: "This invite was sent to m•••@acme.com", Sign in as that email.' }],
       );
     },
   },
@@ -375,13 +375,13 @@ export const SCENARIOS: Scenario[] = [
       const adm = await s.invite(T.product, P.ava.email, 'admin');
       return result(
         [
-          { ...P.noah, kind: 'invites', expect: 'E3 as Reviewer: Join asks to connect GitHub first (409 github-required), in words a designer understands.' },
+          { ...P.noah, kind: 'invites', expect: 'E3 as Reviewer: design. The GitHub step shows before any Join; without GitHub sign-in on the site, it says it is not available here and to ask Sam Rivera.' },
           { ...P.ava, kind: 'invites', expect: 'E3 as Admin: same GitHub step.' },
         ],
         ['Connecting GitHub itself needs a GitHub App (not in local mode): the audit stops at the explanation.'],
         [
-          { url: rev, expect: 'Reviewer invite link: the GitHub path.' },
-          { url: adm, expect: 'Admin invite link: the GitHub path.' },
+          { url: rev, expect: 'Reviewer invite link: the code to n•••@acme.com, then E3 with the GitHub step.' },
+          { url: adm, expect: 'Admin invite link: the code to a•••@acme.com, then E3 with the GitHub step.' },
         ],
       );
     },

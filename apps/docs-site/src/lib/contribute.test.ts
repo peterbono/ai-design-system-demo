@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { canReview, contributorAccess } from './access';
-import { CONTRIB_TOKEN, CONTRIBUTE_WORDS, contributeEligible, contributeHashToken, isContribAuth, parseMember, proxyUrl, teamWord } from './contribute';
+import { CONTRIB_TOKEN, CONTRIBUTE_WORDS, contributeEligible, contributeHashToken, isContribAuth, parseMember, proxyUrl } from './contribute';
 import { accessScreen } from './access-view';
 import { emailMembers } from './invites';
 import { reviewActions, type ActionInput } from './review-page';
@@ -46,12 +46,6 @@ describe('the email session', () => {
     expect(parseMember({ email: 'leo@acme.design', name: ' Leo ', role: 'admin' })).toEqual({ email: 'leo@acme.design', name: 'Leo', role: 'edit' });
     expect(parseMember({ email: 'leo@acme.design' })).toEqual({ email: 'leo@acme.design', name: 'leo@acme.design', role: 'edit' });
     expect(parseMember({ name: 'Leo' })).toBeNull();
-  });
-
-  it("names the team for the join button: the server's name, else the repository's", () => {
-    expect(teamWord({ repo: 'acme/ds', team: 'Acme Design' })).toBe('Acme Design');
-    expect(teamWord({ repo: 'acme/ds' })).toBe('Ds');
-    expect(teamWord(null)).toBe('the team');
   });
 
   it('never writes an em dash', () => {

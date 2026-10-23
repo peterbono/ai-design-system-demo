@@ -9,6 +9,7 @@ import {
   type FetchLike,
   githubApp,
   handleInvites,
+  INVITE_TRACE_MS,
   INVITE_TTL_MS,
   PEEK_PER_HOUR,
   inviteEmail,
@@ -506,6 +507,7 @@ describe('services', () => {
       [
         ['SET', `bridge:invite:acme/design:${id}`, expect.any(String), 'EX', 600],
         ['SET', 'bridge:invite-token:h', `${REPO}|${id}`, 'EX', 600],
+        ['SET', 'bridge:invite-trace:h', JSON.stringify({ repo: REPO, invitedBy: 'dana' }), 'EX', 600 + INVITE_TRACE_MS / 1000],
         ['ZADD', 'bridge:invites:acme/design', T0 + 600_000, id],
         ['EXPIRE', 'bridge:invites:acme/design', INVITE_TTL_MS / 1000],
         ['SADD', 'bridge:invites:email:x@y.co', `${REPO}|${id}`],
@@ -726,7 +728,7 @@ describe('resend frequency', () => {
 });
 
 describe('what is kept, and for how long', () => {
-  const inviteKeys = (keys: string[]) => keys.filter((k) => !k.startsWith('bridge:invites:count:'));
+  const inviteKeys = (keys: string[]) => keys.filter((k) => !k.startsWith('bridge:invites:count:') && !k.startsWith('bridge:invite-trace:'));
 
   it('keeps only the fields the flow needs', async () => {
     const { deps, store } = setup();
@@ -780,7 +782,21 @@ describe('what is kept, and for how long', () => {
     tick(INVITE_TTL_MS - 1000);
     expect(inviteKeys(store.keys())).toHaveLength(2);
     tick(1000);
+    // Only the link's trace is left (its team and inviter, no email), for 30 more days.
+    expect(store.keys()).toEqual([expect.stringMatching(/^bridge:invite-trace:/)]);
+    tick(INVITE_TRACE_MS);
     expect(store.keys()).toEqual([]);
+  });
+
+  it('keeps the team and the inviter of a spent link, never the email', async () => {
+    const { deps, sent, store } = setup();
+    await invite(deps, ['sofia@acme.design']);
+    const hash = createHash('sha256').update(tokenOf(sent[0]!)).digest('hex');
+    await handleInvites(post({ action: 'accept', token: tokenOf(sent[0]!) }, 'ghu_sofia'), {}, deps);
+    expect(await store.byTokenHash(hash)).toBeNull();
+    const trace = await store.traceByTokenHash(hash);
+    expect(trace).toEqual({ repo: REPO, invitedBy: expect.any(String) });
+    expect(JSON.stringify(trace)).not.toContain('sofia');
   });
 
   it('never logs an email or a token', async () => {
