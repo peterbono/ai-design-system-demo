@@ -116,6 +116,13 @@ export interface ComponentSignature {
 }
 
 /** FNV-1a, 32 bits, as 8 hex digits. Fast enough for small PNGs in the main thread. */
+/**
+ * Prefix of the render hash read from layer properties. Renders without it are image hashes from an older DS Bridge:
+ * the two never compare (an old baseline reads as one without a render until the next pull or send stores a new one).
+ */
+export const RENDER_VERSION = 'v2:';
+const comparable = (a: string | undefined, b: string | undefined) => !!a && !!b && a.startsWith(RENDER_VERSION) === b.startsWith(RENDER_VERSION);
+
 export function fnv1a(data: Uint8Array | string): string {
   let h = 0x811c9dc5;
   if (typeof data === 'string') {
@@ -448,7 +455,7 @@ export function diffSignatures(base: ComponentSignature, cur: ComponentSignature
       continue;
     }
     // Layers added, removed or moved: a change when the render moved with them or they belong to the API.
-    const renderMoved = !b.render || !c.render || b.render !== c.render;
+    const renderMoved = !comparable(b.render, c.render) || b.render !== c.render;
     const layers = b.outline && c.outline ? diffOutlines(b.outline, c.outline).filter((x) => renderMoved || touchesApi(x)) : [];
     for (const x of layers) {
       const id = [x.op, x.item.id, x.item.name, x.at, x.from ?? ''].join('\u0000');
@@ -474,7 +481,7 @@ export function diffSignatures(base: ComponentSignature, cur: ComponentSignature
     }
     // A layer change explains the new render of its variant, like a rebinding does.
     if (rebound || layers.length) continue;
-    if (b.render && c.render && b.render !== c.render) {
+    if (comparable(b.render, c.render) && b.render !== c.render) {
       if (b.values !== c.values) explained = true;
       else visual.push(key);
     }
