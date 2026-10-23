@@ -6,8 +6,8 @@
 // "Copy link", "Link for a developer"; the page itself never links to GitHub.
 // Without a token the bar's primary connects GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
-import { EXPLORATION_USE_CASES, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, canOverride, overrideReasonMin, ownerOverridePolicy, withSuggestionApprovals, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
-import { loadTeams, siteApprovalRules, siteApprovers, siteShipPolicy, siteSoloOwner, teamDirectory } from './teams';
+import { EXPLORATION_USE_CASES, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, canOverride, overrideReasonMin, ownerOverridePolicy, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
+import { loadTeams, siteApprovalRules, siteApprovers, siteRoles, siteShipPolicy, siteSoloOwner, teamDirectory, teamSnapshot } from './teams';
 import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
   allowedMergeMethods,
@@ -20,6 +20,7 @@ import {
   parseOverrideComment,
   pullState,
   reviewStatus,
+  studioVerdict,
   summarizeApprovals,
   summarizeCi,
   type MergeMethod,
@@ -652,14 +653,17 @@ export async function openPr(n: number, push = true) {
     if (seq !== openSeq) return;
     const tier = effectiveTier(pull.labels, pull.body, files);
     current = { pull, tier };
-    // The pull request that applies an approved suggestion carries its approvals (core withSuggestionApprovals).
+    // One verdict (core branchVerdict), the same the MCP server and the CLI read: the pull request that applies an
+    // approved suggestion carries its approvals, the override is for its owner holders, Tier 1 needs one owner.
     const carried = await approvedSuggestionOf(pull.body);
-    const approvals = withSuggestionApprovals(summarizeApprovals(reviews, OWNERS(), pull.user.login, siteApprovalRules()), carried, tier);
     const ship = await viewerShipPolicy(SHIP(), access?.login);
     if (seq !== openSeq) return;
-    const gateOf = (a: typeof approvals) =>
-      mergeGate({ tier, ci, approvals: withSuggestionApprovals(a, carried, tier), draft: pull.draft, mergeable: pull.mergeable, state: pull.state, merged_at: pull.merged_at, viewer: access?.login, override: HOLDERS(), exploration: isActiveExploration(pull.labels), ship });
-    const gate = gateOf(approvals);
+    // lib/review-rules studioVerdict: the composition the status chips read, and the MCP server and the CLI too.
+    const verdictOf = (rs: ReviewLike[]) => studioVerdict({ site: { ...siteRoles(), override: OVERRIDE }, teams: teamSnapshot(), pull, tier, ci, reviews: rs, suggestion: carried, mergeable: pull.mergeable, viewer: access?.login, ship });
+    const gateOf = (rs: ReviewLike[]) => verdictOf(rs).gate!;
+    const own = verdictOf(reviews);
+    const approvals = own.approvals!;
+    const gate = own.gate!;
     const tokenFiles = files.filter((f) => isTokenFile(f.filename));
     const docsPaths = files.filter((f) => isDocsFile(f.filename) && f.status !== 'removed').map((f) => f.filename);
     // Guidance alone never changes a screen: the before and after is for tokens and components.
@@ -819,7 +823,8 @@ interface DetailInput {
   ci: ReturnType<typeof summarizeCi>;
   approvals: ReturnType<typeof summarizeApprovals>;
   gate: ReturnType<typeof mergeGate>;
-  gateOf: (a: ReturnType<typeof summarizeApprovals>) => ReturnType<typeof mergeGate>;
+  /** The gate with these reviews (the viewer's approval added, for Approve and merge). */
+  gateOf: (reviews: ReviewLike[]) => ReturnType<typeof mergeGate>;
   access: Access | null;
   statuses: { context: string; state: string; target_url?: string | null }[];
   review: TokenReview | Error | null;
@@ -919,7 +924,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
 
   // The decision bar (lib/review-page reviewActions).
   const canApprove = !access?.contributor && rows.some((r) => r.canAct);
-  const withMine = login ? summarizeApprovals([...reviews, { user: { login }, state: 'APPROVED', submitted_at: new Date().toISOString() }], OWNERS(), pull.user.login, siteApprovalRules()) : approvals;
+  const withMine: ReviewLike[] = login ? [...reviews, { user: { login }, state: 'APPROVED', submitted_at: new Date().toISOString() }] : reviews;
   const entry = pullEntry(pull as never, BRANCHES, { comments, statuses: x.statuses });
   const shareState = shareFor(pull, files, comments);
   const shareable = canShare({ fromFork: entry.fromFork, packages: BRANCHES.packages }) && showShare(lifecycle, shareState);

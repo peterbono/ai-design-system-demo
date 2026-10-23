@@ -26,6 +26,24 @@ and the MCP server compute the tier with the same classifier (`classifyRisk` in 
    written reason (see [Owner override](#owner-override-solo-maintainers-and-small-teams)).
 5. **Release**: Changesets turns merged changesets into a version bump and `CHANGELOG.md`.
 
+### One verdict everywhere
+
+Studio (the branch page, the status chips, the Home), the MCP server (`bridge_branch_status`, `bridge_merge_branch`,
+`bridge_what_needs_me`) and the CLI (`bridge branch status`, `bridge branch merge`, `bridge branch list`) read the
+same verdict on a pull request: `branchVerdict` in `@bridge-ds/core` (`review-gate.ts`), over the same reads. It
+combines, in one place:
+
+- **Tier 1 needs one owner approval** (`hasOwnerApproval`): an approval from someone in the design or tech list,
+  teams expanded. Only when no owner is configured does any approval count.
+- **Tier 2 and 3 need a design owner and a tech owner** (`summarizeApprovals`).
+- **The pull request that applies an approved suggestion** (its body says `Closes #<n>`) carries the suggestion's
+  approvals (`approvedSuggestionOnGitHub`, `withSuggestionApprovals`), see [Suggestions](#suggestions-approved-on-the-issue-applied-by-a-developer).
+- **The owner override is for owners only** (`ownerOverridePolicy`) and needs a written reason every time
+  (`overrideReasonProblem`).
+
+A parity test (`packages/mcp/test/gate-parity.test.ts`) runs the same fixture pull requests through Studio's
+reading and through the MCP tools and the CLI, and expects the same verdict.
+
 ## Protection: Bridge is the only way in
 
 Every tool may propose, none may write to the library directly. Bridge, Studio, the DS Bridge Figma plugin, the
@@ -181,7 +199,10 @@ audited way through. It is off unless `bridge.config.json` turns it on:
 }
 ```
 
-**Who.** Only the GitHub logins in `governance.override.allowed`, and only when their token has write access to
+**Who.** Only the GitHub logins in `governance.override.allowed` that are also owners (in the design or tech list,
+teams expanded; `overrideHolders`). A login listed in `allowed` but in neither owner list cannot use it, in Studio,
+the CLI or the MCP server. When an owner entry is a team whose members are not known, the `allowed` list stands as
+it is. And only when their token has write access to
 the repo (push, maintain or admin). Bridge reads the login from the token (`GET /user`) and the access from
 `GET /repos/{owner}/{repo}`. Agents never use it: agents do not merge.
 
@@ -201,7 +222,8 @@ the Ready to merge panel of Reviews, behind a confirmation dialog that names the
 Owner override by @login: <reason>. Missing: design approval, tech approval. Merged from Bridge.
 ```
 
-The reason is required (at least `minReasonLength` characters, 20 by default). The squash or merge commit
+The reason is always required (at least `minReasonLength` characters, 20 by default; `"requireReason": false`
+no longer waives it, so the audit trail is never empty). The squash or merge commit
 message repeats it. If GitHub refuses the merge, for example because branch protection requires an approving
 review, Bridge shows GitHub's message and rewrites the comment to end with `Merge refused by GitHub: <message>.
 Not merged.`, so the record never claims a merge that did not happen. History and the PR timeline find

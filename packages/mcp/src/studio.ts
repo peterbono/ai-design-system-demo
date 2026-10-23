@@ -34,6 +34,8 @@ import {
   defaultProduct,
   DEFAULT_OVERRIDE,
   overrideReasonMin,
+  overrideHolders,
+  approverLists,
   type ChangesMode,
   type ComponentDocsJson,
   type FigmaReferenceManifest,
@@ -160,7 +162,7 @@ export async function saveDocs(
       product: product.name,
       changesMode: mode,
       ...('warnings' in r && r.warnings.length ? { warnings: r.warnings } : {}),
-      said: `Suggested the ${name} docs as #${r.number}. Docs only: one approval, then a developer applies it.`,
+      said: `Suggested the ${name} docs as #${r.number}. Docs only: one owner approval, then a developer applies it.`,
       next: appliedNext(r.number, ctx),
     };
   }
@@ -173,7 +175,7 @@ export async function saveDocs(
     extraLabels: marks.labels,
     commitNote: sourceOf(ctx, a.source) === 'cli' ? 'Proposed with the bridge CLI.' : 'Proposed with Claude through the Bridge MCP server.',
   });
-  return { status: 'sent-for-review' as const, pr: r.number, url: r.url, title: r.title, path, product: product.name, said: `Sent the ${name} docs for review as #${r.number}. Docs only: one approval ships them.` };
+  return { status: 'sent-for-review' as const, pr: r.number, url: r.url, title: r.title, path, product: product.name, said: `Sent the ${name} docs for review as #${r.number}. Docs only: one owner approval ships them.` };
 }
 
 /** The settings a designer reads in Studio Settings, safe to show: roles, who ships, the owner override, protection, products, previews. */
@@ -189,6 +191,7 @@ export async function getSettings(ctx: BridgeContext) {
   const products = productsOf(config);
   const unreadable = teams ? unreadableTeams(teams) : [];
   const solo = soloOwnerOf(config.governance, teams);
+  const holders = overrideHolders(override, approverLists(owners, rights, teams));
   return {
     repo: config.repo ? `${config.repo.owner}/${config.repo.name}` : (gh?.fullName ?? null),
     main: baseBranchOf(config),
@@ -199,8 +202,9 @@ export async function getSettings(ctx: BridgeContext) {
       ...(solo ? { soloOwner: soloOwnerSentence(solo) } : {}),
       ...(unreadable.length ? { teamsNotRead: unreadable.map((t) => t.message) } : {}),
     },
-    ownerOverride: override.allowed.length
-      ? { on: true, who: override.allowed.map((l) => `@${l}`), reason: `A reason of at least ${overrideReasonMin(override)} characters, posted on the branch.` }
+    // Owners only (core overrideHolders): the same list the gate reads, and Studio Settings shows.
+    ownerOverride: holders.length
+      ? { on: true, who: holders.map((l) => `@${l}`), reason: `A reason of at least ${overrideReasonMin(override)} characters, posted on the branch.` }
       : { on: false, who: [], reason: 'Nobody can merge without the approvals.' },
     protection: protection ? protectionSentence(protection) : 'Not read (no GitHub repo known, or GitHub did not answer).',
     products: products.map((p) => ({ key: p.key, name: p.name, default: p === defaultProduct(products) })),

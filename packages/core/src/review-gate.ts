@@ -289,6 +289,59 @@ export function mergeGate(input: {
 }
 
 /** The gate reason of a conflict, in the words a designer reads. Detected by identity, never by regex. */
+/**
+ * The verdict on one pull request, assembled once for every surface: Studio's branch page and row status, the MCP
+ * tools (bridge_branch_status, bridge_merge_branch, bridge_what_needs_me) and the CLI (`bridge branch status`,
+ * `bridge branch merge`). One composition of the rules of docs/GOVERNANCE.md, so a branch never reads ready in one
+ * place and blocked in another:
+ * - the pull request that applies an approved suggestion ("Closes #n") carries its approvals (withSuggestionApprovals);
+ * - the owner override is limited to the owners `governance.override.allowed` names (ownerOverridePolicy);
+ * - Tier 1 needs one owner approval (hasOwnerApproval, inside mergeGate and reviewStatusKind).
+ * `gate` is null while the tests or the reviews could not be read: an unknown read never reads as mergeable.
+ */
+export interface BranchVerdictInput {
+  tier: RiskTier | null;
+  ci: CiSummary | null;
+  /** The pull request's own approvals (summarizeApprovals); null when its reviews could not be read. */
+  approvals: ApprovalSummary | null;
+  /** The approved Bridge suggestion the pull request applies (approvedSuggestionOnGitHub), or null. */
+  suggestion?: { approvals: ApprovalSummary; tier: RiskTier } | null | undefined;
+  /** The approver lists (approverLists: rights applied, teams expanded). */
+  owners: { design: string[]; tech: string[] };
+  /** `governance.override` as configured; the verdict limits it to its owner holders. */
+  override?: OverridePolicy | null | undefined;
+  draft?: boolean | undefined;
+  mergeable?: boolean | null | undefined;
+  state?: string | undefined;
+  merged_at?: string | null | undefined;
+  /** Login of the viewer; null or absent leaves out who may ship and the override (signed out, no token). */
+  viewer?: string | null | undefined;
+  exploration?: boolean | undefined;
+  ship?: ShipPolicy | null | undefined;
+}
+
+export interface BranchVerdict {
+  /** The approvals the gate counts: the pull request's own plus the ones carried from its approved suggestion. */
+  approvals: ApprovalSummary | null;
+  /** The owner override as the gate reads it: its holders only. Null when none is configured. */
+  override: OverridePolicy | null;
+  gate: MergeGate | null;
+  status: ReviewStatusKind;
+}
+
+export function branchVerdict(input: BranchVerdictInput): BranchVerdict {
+  const approvals = input.approvals ? withSuggestionApprovals(input.approvals, input.suggestion, input.tier) : null;
+  const override = ownerOverridePolicy(input.override, input.owners);
+  const state = input.state ?? 'open';
+  const draft = Boolean(input.draft);
+  const status = reviewStatusKind({ state, draft, merged_at: input.merged_at, ci: input.ci, approvals, tier: input.tier, mergeable: input.mergeable });
+  const gate =
+    input.ci && approvals
+      ? mergeGate({ tier: input.tier, ci: input.ci, approvals, draft, mergeable: input.mergeable, state, merged_at: input.merged_at, viewer: input.viewer, override, exploration: input.exploration, ship: input.ship })
+      : null;
+  return { approvals, override, gate, status };
+}
+
 export const CONFLICT_REASON = 'It conflicts with main: resolve it with Update from main on the branch.';
 
 export const OVERRIDE_HEADING = '**Bridge owner override**';

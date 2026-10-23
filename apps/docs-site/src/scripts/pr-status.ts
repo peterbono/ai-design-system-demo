@@ -1,6 +1,6 @@
 // Status chip of an open pull request, read live from GitHub: CI (check runs + commit statuses), reviews, the
 // changed files (for the approval rule, the same as the pull request header: lib/review-queue effectiveTier) and
-// whether it merges cleanly, then reviewStatus() from lib/review-rules. Shared by the Studio Overview and the In
+// whether it merges cleanly, then core branchVerdict (the verdict the MCP server and the CLI read too). Shared by the Studio Overview and the In
 // review list. Reads go through ghGet, so they are cached in this browser and survive a rate limit; statuses are
 // kept per head commit for 10 minutes (lib/status-budget).
 import { effectiveTier } from '../lib/review-queue';
@@ -14,15 +14,15 @@ import { needFromStatus, pendingApprovals, statusPill, whoActs, type ApprovalRol
 import { developerOnlyFailures } from '../lib/check-explain';
 import { guestActivity } from './guest-activity';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
-import { canOverride, closingIssueNumbers, DEFAULT_OVERRIDE, ownerOverridePolicy, withSuggestionApprovals, type OverridePolicy, type TeamStates } from '@bridge-ds/core';
+import { canOverride, closingIssueNumbers, DEFAULT_OVERRIDE, ownerOverridePolicy, type OverridePolicy, type TeamStates } from '@bridge-ds/core';
 import { approvedSuggestionOf } from './suggestions';
 import { siteConfig } from './repo-context';
-import { loadTeams, siteApprovalRules, siteApproverEntries, siteApprovers, siteShipPolicy, siteSoloOwner, teamSnapshot } from './teams';
+import { loadTeams, siteApproverEntries, siteApprovers, siteRoles, siteShipPolicy, siteSoloOwner, teamSnapshot } from './teams';
 import {
   parseTier,
   pullState,
-  reviewStatus,
-  summarizeApprovals,
+  REVIEW_STATUS,
+  studioVerdict,
   summarizeCi,
   type CheckRunLike,
   type LabelLike,
@@ -145,12 +145,16 @@ export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}
   ]);
   const tier = effectiveTier(p.labels ?? [], p.body, files);
   // The pull request that applies an approved suggestion carries its approvals: never gated twice for the same one.
-  const own = reviews ? summarizeApprovals(reviews, owners(), p.user.login, siteApprovalRules()) : null;
-  const approvals = own && closingIssueNumbers(p.body).length ? withSuggestionApprovals(own, await approvedSuggestionOf(p.body), tier) : own;
-  const before = reviewStatus({ state: p.state, draft: p.draft, merged_at: p.merged_at, ci, approvals, tier });
+  // One verdict for every surface (lib/review-rules studioVerdict, core branchVerdict): the same the branch page, the
+  // MCP server and the CLI read.
+  const suggestion = reviews && closingIssueNumbers(p.body).length ? await approvedSuggestionOf(p.body) : null;
+  const verdict = (mergeable?: boolean | null) => studioVerdict({ site: siteRoles(), teams: teamSnapshot(), pull: p, tier, ci, reviews, suggestion, mergeable });
+  const first = verdict();
+  const approvals = first.approvals;
   // Only an open change that nothing else blocks needs to know whether it merges cleanly.
-  const needsMergeable = pullState(p) === 'open' && !['ci-failing', 'changes-requested', 'ci-running', 'unknown'].includes(before.kind);
-  const status = needsMergeable ? reviewStatus({ state: p.state, draft: p.draft, merged_at: p.merged_at, ci, approvals, tier, mergeable: await mergeableOf(p) }) : before;
+  const needsMergeable = pullState(p) === 'open' && !['ci-failing', 'changes-requested', 'ci-running', 'unknown'].includes(first.status);
+  const kind = needsMergeable ? verdict(await mergeableOf(p)).status : first.status;
+  const status: ReviewStatus = { kind, ...REVIEW_STATUS[kind] };
   const names = files?.map((f) => f.filename) ?? null;
   return {
     ...status,

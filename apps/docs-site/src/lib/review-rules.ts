@@ -7,6 +7,8 @@ import type { StatusTone } from './changes';
 import {
   allowedMergeMethods,
   approverLists,
+  branchVerdict,
+  isActiveExploration,
   canOverride,
   canShip,
   CONFLICT_REASON,
@@ -30,6 +32,7 @@ import {
   summarizeCi,
   whoCanShipSentence,
   type ApprovalSummary,
+  type BranchVerdict,
   type CiRunLike,
   type CiState,
   type CiStatusLike,
@@ -46,6 +49,8 @@ import {
   type ReviewStatusKind,
   type RiskTier,
   type ShipPolicy,
+  type SiteRepo,
+  type TeamStates,
 } from '@bridge-ds/core';
 
 // Shared with Reviews, Settings and the PR status chips: who approves, who ships, and the sentence a blocked viewer reads.
@@ -141,4 +146,44 @@ export const REVIEW_STATUS: Record<ReviewStatusKind, { label: string; tone: Stat
 export function reviewStatus(input: Parameters<typeof reviewStatusKind>[0]): ReviewStatus {
   const kind = reviewStatusKind(input);
   return { kind, ...REVIEW_STATUS[kind] };
+}
+
+/**
+ * Studio's verdict on one pull request: the repository settings as the site embeds them (core siteRepoFromConfig:
+ * owners, rights, soloOwnerCanApproveBoth, override), the GitHub teams read so far, and what GitHub says about the pull
+ * request (its reviews, tests, whether it merges cleanly) and the approved suggestion it applies. The branch page
+ * (scripts/reviews.ts) and the status chips (scripts/pr-status.ts) read it; it is core branchVerdict over core
+ * approverLists and summarizeApprovals, the composition the MCP server and the CLI read too (packages/mcp
+ * branches.ts). packages/mcp/test/gate-parity.test.ts feeds both the same fixtures.
+ */
+export function studioVerdict(input: {
+  site: Pick<SiteRepo, 'owners' | 'rights' | 'soloOwnerCanApproveBoth'> & { override?: OverridePolicy | null | undefined };
+  teams?: TeamStates | null | undefined;
+  pull: { state?: string | undefined; draft?: boolean | undefined; merged_at?: string | null | undefined; labels?: LabelLike[] | undefined; user: { login: string } };
+  tier: Tier | null;
+  ci: CiSummary | null;
+  reviews: ReviewLike[] | null;
+  suggestion?: { approvals: ApprovalSummary; tier: Tier } | null | undefined;
+  mergeable?: boolean | null | undefined;
+  viewer?: string | null | undefined;
+  ship?: ShipPolicy | null | undefined;
+}): BranchVerdict {
+  const { site, pull } = input;
+  const owners = approverLists(site.owners, site.rights, input.teams ?? null);
+  const own = input.reviews ? summarizeApprovals(input.reviews, owners, pull.user.login, { soloOwnerCanApproveBoth: site.soloOwnerCanApproveBoth }) : null;
+  return branchVerdict({
+    tier: input.tier,
+    ci: input.ci,
+    approvals: own,
+    suggestion: input.suggestion,
+    owners,
+    override: site.override ?? null,
+    draft: pull.draft,
+    mergeable: input.mergeable,
+    state: pull.state,
+    merged_at: pull.merged_at,
+    viewer: input.viewer,
+    exploration: isActiveExploration(pull.labels ?? []),
+    ship: input.ship,
+  });
 }

@@ -20,8 +20,13 @@ Usage:
   bridge branch ask <n> [--dry-run]              ask someone else to review (who can give the missing approvals)
   bridge branch comment <n> "text" [--reply-to <id>]
   bridge branch merge <n> [--override "reason"] [--dry-run]
-                                                same gate as the Merge button; --override: owner override,
-                                                the reason is posted on the branch first
+                                                the same verdict as Studio's Merge button: tests, no
+                                                changes requested, Tier 1 one owner approval, Tier 2-3
+                                                design and tech; a branch with "Closes #n" carries the
+                                                approved suggestion's approvals (same or lower tier).
+                                                --override: owners named in governance.override.allowed
+                                                only, missing approvals only; the reason is always
+                                                required (20 characters by default), posted first
   bridge branch close <n> | bridge branch reopen <n>
   bridge branch update <n> [--choice <key>=mine|theirs ...] [--dry-run]
                                                 update from main; token conflicts: pick per key
@@ -89,6 +94,7 @@ export async function runBranch(a: RequestArgs, root: string, io: RequestIO = de
         io.print(`#${r.pr} ${r.title} (${r.product.name})`);
         io.print(`${r.status.label}. ${r.approvalNeeded} needed; approved by ${r.approvals.approvedBy.map((x: string) => `@${x}`).join(', ') || 'nobody yet'}.`);
         if (r.approvals.soloOwner) io.print(r.approvals.soloOwner);
+        if (r.approvals.carriedFrom) io.print(r.approvals.carriedFrom);
         io.print(`${r.tests.label}.`);
         if (r.merge.blockedBy?.length) for (const x of r.merge.blockedBy) io.print(`  ${x}`);
         io.print(`Next: ${r.next}`);

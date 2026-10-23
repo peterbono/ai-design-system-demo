@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canOverride, mergeGate, overrideHolders, ownerOverridePolicy, summarizeApprovals, summarizeCi, withSuggestionApprovals, type ApprovalSummary } from '../src/review-gate';
+import { branchVerdict, canOverride, mergeGate, overrideHolders, ownerOverridePolicy, summarizeApprovals, summarizeCi, withSuggestionApprovals, type ApprovalSummary } from '../src/review-gate';
 
 const owners = { design: ['ann'], tech: ['theo'] };
 const green = summarizeCi([{ name: 'CI', status: 'completed', conclusion: 'success' }]);
@@ -45,5 +45,28 @@ describe('the owner override is for owners only', () => {
   it('keeps the list as it is when an owner is a team whose members are unknown, or nobody is named', () => {
     expect(overrideHolders(policy, { design: ['@acme/design'], tech: [] })).toEqual(['ann', 'lea']);
     expect(overrideHolders(policy, { design: [], tech: [] })).toEqual(['ann', 'lea']);
+  });
+});
+
+describe('branchVerdict: one composition for Studio, the MCP server and the CLI', () => {
+  const base = { tier: 3 as const, ci: green, owners, override: { allowed: ['ann', 'lea'], requireReason: false, minReasonLength: 0 }, state: 'open' };
+
+  it('carries an approved suggestion, limits the override to owners, and says the status', () => {
+    const v = branchVerdict({ ...base, approvals: none, suggestion: { approvals: approved('ann', 'theo'), tier: 3 }, viewer: 'ann' });
+    expect(v).toMatchObject({ status: 'ready', gate: { allowed: true }, override: { allowed: ['ann'] } });
+    const lea = branchVerdict({ ...base, approvals: none, viewer: 'lea' });
+    expect(lea.gate).toMatchObject({ allowed: false, overridable: false });
+    expect(branchVerdict({ ...base, approvals: none, viewer: 'ann' }).gate).toMatchObject({ allowed: false, overridable: true });
+  });
+
+  it('Tier 1: a plain approval by someone who is no owner does not count', () => {
+    const lea = summarizeApprovals([{ user: { login: 'lea' }, state: 'APPROVED' }], owners, 'sam');
+    expect(branchVerdict({ ...base, tier: 1, approvals: lea }).status).toBe('needs-approval');
+    expect(branchVerdict({ ...base, tier: 1, approvals: approved('theo') }).status).toBe('ready');
+  });
+
+  it('an unread read never reads as mergeable', () => {
+    expect(branchVerdict({ ...base, approvals: null })).toMatchObject({ gate: null, status: 'unknown' });
+    expect(branchVerdict({ ...base, ci: null, approvals: approved('ann', 'theo') })).toMatchObject({ gate: null, status: 'unknown' });
   });
 });

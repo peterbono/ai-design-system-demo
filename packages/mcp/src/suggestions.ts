@@ -265,7 +265,7 @@ export async function listSuggestionsOp(ctx: BridgeContext, a: { status?: Sugges
   };
 }
 
-const roleText = (m: ApprovalRole) => (m === 'approval' ? 'one approval' : `${m} approval`);
+const roleText = (m: ApprovalRole) => (m === 'approval' ? 'one owner approval' : `${m} approval`);
 
 /** bridge_get_suggestion / `bridge suggestions show <n>`: one suggestion, with its approvals on the current version. */
 export async function getSuggestionOp(ctx: BridgeContext, a: { number: number | string }) {
