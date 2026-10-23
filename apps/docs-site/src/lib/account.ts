@@ -127,7 +127,7 @@ export const needsGitHub = (a: Account): boolean => !a.github && a.teams.some((t
  * their email memberships, their teams, roles and team names, their counts, and every read kept from GitHub (private
  * bodies must not outlive the session). Preferences that say nothing about the person (theme, a tour seen) stay.
  */
-const PERSONAL_KEYS = new Set(['bridge.reviews.mine', 'bridge.reviews.open', 'bridge.teamRoles', 'bridge.recentTeams', 'bridge.teamNames', 'bridge.gh.maintainer', 'bridge.xp.rows']);
+const PERSONAL_KEYS = new Set(['bridge.reviews.mine', 'bridge.reviews.open', 'bridge.teamRoles', 'bridge.recentTeams', 'bridge.teamNames', 'bridge.accountTeamNames', 'bridge.gh.maintainer', 'bridge.xp.rows']);
 const PERSONAL_PREFIXES = [
   'bridge.contribute.member:',
   'bridge.gh.cache:',
