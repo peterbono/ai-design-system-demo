@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "sessionId": "i1jcqjhs4y7xt4d5",
+  "createdAt": "2026-10-23T20:04:26.312Z",
+  "status": "pending",
+  "source": "figma",
+  "items": [
+    {
+      "id": "item-1",
+      "scope": "request",
+      "component": "Accordion",
+      "kind": "visual",
+      "changes": [],
+      "notes": "In Figma the Accordion shows every item open while their chevrons point down. In code only the first item is open with its chevron up. The Figma variants should look like the code.",
+      "images": [
+        {
+          "label": "after",
+          "path": ".bridge/drafts/i1jcqjhs4y7xt4d5/item-1-after.png",
+          "url": "https://github.com/peterbono/ai-design-system-demo/blob/bridge-requests/.bridge/drafts/i1jcqjhs4y7xt4d5/item-1-after.png?raw=true"
+        }
+      ],
+      "draft": {
+        "title": "",
+        "summary": ""
+      }
+    }
+  ]
+}
