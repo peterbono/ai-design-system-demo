@@ -249,7 +249,9 @@ function Decide({ p }: { p: SuggestionReviewProps }) {
   const [invalid, setInvalid] = useState<string | null>(null);
   const field = useRef<HTMLTextAreaElement>(null);
   const g = p.gate;
-  useEffect(() => setSaid(p.said ?? ''), [p.said]);
+  useEffect(() => {
+    setSaid(p.said ?? '');
+  }, [p.said]);
   useEffect(() => {
     if (asking) field.current?.focus();
   }, [asking]);
