@@ -322,13 +322,15 @@ export function explorationTryIt(input: { comment?: string | null | undefined; h
  * The message a designer sends a developer: what the exploration is, the install command for a product staging
  * branch, the previews and the pull request. Plain text, one paragraph, ready to paste in a chat.
  */
-export function explorationShareMessage(input: { name: string; branch: string; url: string; command?: string | null | undefined; previews?: { label: string; url: string }[] | undefined }): string {
+export function explorationShareMessage(input: { name: string; branch: string; url: string; command?: string | null | undefined; previews?: { label: string; url: string }[] | undefined; local?: string | undefined }): string {
   const name = input.name.trim().replace(/"/g, "'");
   const head = input.command
     ? `Exploration "${name}" (${input.branch}): try it in a staging branch of your product with: ${input.command}.`
     : `Exploration "${name}" (${input.branch}): its test build is being prepared, the install command for a staging branch of your product will be on the pull request in a few minutes.`;
   const previews = (input.previews ?? []).map((p) => `${p.label} ${p.url}`);
-  return [head, previews.length ? `Previews: ${previews.join(', ')}.` : '', `Pull request: ${input.url}.`].filter(Boolean).join(' ');
+  // No online preview (explorations are not deployed): how to open it on a developer's machine.
+  const local = !previews.length && input.local ? `Try it locally: ${input.local}, then start Storybook or the app with its dev command.` : '';
+  return [head, previews.length ? `Previews: ${previews.join(', ')}.` : local, `Pull request: ${input.url}.`].filter(Boolean).join(' ');
 }
 
 /**

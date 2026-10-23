@@ -167,7 +167,8 @@ export async function runBranch(a: RequestArgs, root: string, io: RequestIO = de
     case 'try': {
       const r = await branches.tryBranch(ctx, { pr: number(a, 2, 'bridge branch try <n>') });
       return out(r, () => {
-        for (const p of r.tryInProduct) io.print(`${p.name}: ${p.url ?? p.how}`);
+        if (r.local) io.print(`Not online: try it locally with ${r.local.command}, then start Storybook or the app with its dev command.`);
+        else for (const p of r.tryInProduct) io.print(`${p.name}: ${p.url ?? p.how}`);
         io.print(`\nShare with a product team: ${r.share.install ? r.share.install : r.share.sentence}`);
       });
     }

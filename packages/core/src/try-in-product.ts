@@ -36,3 +36,17 @@ export function tryInProductUrl(preview: string, pr: number, screen: ProductScre
   url.hash = screen ? screen.route : '';
   return url.href;
 }
+
+/**
+ * True when nothing reported an online preview of the branch (no Vercel status, deployment or comment, only config
+ * templates): explorations and library branches are not deployed, a developer tries them on their machine.
+ */
+export function noOnlinePreview(previews: readonly { source: string | null }[]): boolean {
+  return previews.every((p) => !p.source || p.source === 'template');
+}
+
+/** The command that puts a branch on a developer's machine, quoted when the name has shell characters. */
+export function localTryCommand(branch: string): string {
+  const name = /^[\w./-]+$/.test(branch) ? branch : `'${branch.replace(/'/g, `'\\''`)}'`;
+  return `git fetch origin && git switch ${name}`;
+}
