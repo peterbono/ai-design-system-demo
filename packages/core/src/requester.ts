@@ -6,7 +6,8 @@
 //   Requested by Ann Leroy (@annleroy).     a name and a GitHub login
 //   Requested by Ann Leroy.                 a name only (someone without a GitHub account, or a demo persona)
 //   Requested by @annleroy.                 a login only
-// Also read: the line of a component change request, "<sub>Requested from Figma by @ann with Bridge.</sub>".
+// Also read: the line of a component change request, "<sub>Requested from Figma by @ann with Bridge.</sub>", and,
+// when no "Requested by" line is there, the footer of a suggestion, "<sub>Suggested from Figma by @ann with Bridge.</sub>".
 
 export interface Requester {
   /** The display name, when the line gives one. */
@@ -18,9 +19,12 @@ export interface Requester {
 const LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 const LINE = /(?:^|\n)[ \t>*_-]*(?:<sub>)?\s*Requested (?:from [^\n<]{1,40}? )?by ([^\n<]{1,120}?)(?:\s+with Bridge)?\.?\s*(?:<\/sub>)?[ \t]*(?=\n|$)/i;
 
+/** A suggestion's footer (core suggestions.ts suggestionBody), read only when the body has no "Requested by" line. */
+const SUGGESTED = new RegExp(LINE.source.replace('Requested (?:from', 'Suggested (?:from'), 'i');
+
 /** The requester a body names, null when it names none (or names it in a form Bridge does not write). */
 export function requesterOf(body: string | null | undefined): Requester | null {
-  const m = LINE.exec(body ?? '');
+  const m = LINE.exec(body ?? '') ?? SUGGESTED.exec(body ?? '');
   if (!m) return null;
   const who = m[1]!.trim().replace(/\.$/, '');
   const both = /^(.+?)\s*\(@([^)\s]+)\)$/.exec(who);

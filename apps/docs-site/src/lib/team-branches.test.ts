@@ -33,6 +33,7 @@ const item = (over: Partial<SuggestionListItem>): SuggestionListItem => ({
   title: 'Tokens: softer borders',
   url: 'https://github.com/acme/ds/issues/1',
   author: 'ana',
+  requester: null,
   createdAt: '2026-10-01T10:00:00Z',
   state: 'open',
   stateReason: null,
@@ -55,5 +56,11 @@ describe('suggestionRows', () => {
     expect(rows[0]).toMatchObject({ title: 'Button wording', thumb: { kind: 'icon', icon: 'guidance' } });
     expect(rows[1]).toMatchObject({ title: 'Softer borders', thumb: { kind: 'icon', icon: 'token' } });
     expect(rows[1]!.pill.label).toBeTruthy();
+  });
+
+  it('keeps who asked for it, as Bridge recorded it in the body, for the row (not the account that opened it)', () => {
+    const [row] = suggestionRows([item({ author: 'peterbono', requester: { name: 'Leo Martin', login: null } })]);
+    expect(row).toMatchObject({ author: 'peterbono', requester: { name: 'Leo Martin', login: null } });
+    expect(suggestionRows([item({})])[0]!.requester).toBeNull();
   });
 });
