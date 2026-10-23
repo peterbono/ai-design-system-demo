@@ -130,6 +130,21 @@ const PAINT_FIELDS = [
 ] as const;
 const TEXT_SEGMENT_FIELDS = ['fontName', 'fontSize', 'fills', 'lineHeight', 'letterSpacing', 'textCase', 'textDecoration'] as const;
 
+/**
+ * Paints and effects with a variable bound to their color, by that variable: the color a bound paint stores is a
+ * fallback Figma refreshes when it likes (adding a mode to a collection did), not what it shows. What the variable
+ * resolves to is in the bindings' values.
+ */
+function unbound(list: unknown): unknown {
+  if (!Array.isArray(list)) return list;
+  return list.map((p) => {
+    const bound = (p as { boundVariables?: { color?: { id?: string } } }).boundVariables?.color?.id;
+    if (!bound || typeof p !== 'object') return p;
+    const { color: _color, ...rest } = p as Record<string, unknown>;
+    return { ...rest, color: { variable: bound } };
+  });
+}
+
 const shows = (list: unknown) => Array.isArray(list) && list.some((p) => (p as { visible?: boolean }).visible !== false);
 
 /**
@@ -164,7 +179,7 @@ function look(variant: SceneNode): unknown[] {
       for (const f of PAINT_FIELDS) {
         if (!(f in node)) continue;
         try {
-          entry[f] = n[f];
+          entry[f] = f === 'fills' || f === 'strokes' || f === 'effects' ? unbound(n[f]) : n[f];
         } catch {
           /* a field this node refuses to read */
         }

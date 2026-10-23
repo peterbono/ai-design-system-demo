@@ -61,3 +61,19 @@ test('render: an image hash from an older DS Bridge never compares with a new on
   for (const v of Object.values(old.variants)) (v as { render?: string }).render = 'a1b2c3d4';
   assert.equal(diffSignatures(old, now).kind, undefined);
 });
+
+test('render: a bound paint reads as its variable; the fallback color Figma stores with it does not count', async () => {
+  const { figma, dot, render } = await variant();
+  const api = figma as unknown as { variables: { createVariableCollection: (n: string) => { id: string }; createVariable: (n: string, c: unknown, t: string) => { id: string }; setBoundVariableForPaint: (p: unknown, f: string, v: unknown) => Record<string, unknown> } };
+  const col = api.variables.createVariableCollection('Semantic');
+  const a = api.variables.createVariable('color/a', col, 'COLOR');
+  const b = api.variables.createVariable('color/b', col, 'COLOR');
+  dot.fills = [api.variables.setBoundVariableForPaint({ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }, 'color', a)];
+  const bound = await render();
+  // Figma refreshes the stored color (as when a mode is added): the same look.
+  dot.fills = [{ ...(dot.fills[0] as Record<string, unknown>), color: { r: 0.36, g: 0.4, b: 0.5 } }];
+  assert.equal(await render(), bound);
+  // Another variable: another look.
+  dot.fills = [api.variables.setBoundVariableForPaint({ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }, 'color', b)];
+  assert.notEqual(await render(), bound);
+});
