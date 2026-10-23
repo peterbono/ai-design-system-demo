@@ -38,6 +38,7 @@ const OPEN_LABEL: Record<NeedKind, string> = {
   setup: 'Open settings',
   review: 'Open review',
   own: 'Open branch',
+  join: 'Open Members',
 };
 
 const read = <T>(id: string): T | null => {

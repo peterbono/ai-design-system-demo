@@ -158,3 +158,40 @@ describe('the browser workspace (board EmptyB)', () => {
     expect(progressLabel(ws({ quickStart: { url: 'https://sb.acme.dev', components: 12 } }))).toBe('2 of 6 connected');
   });
 });
+
+describe('Create your team (board E6): the workspace of a Bridge account', () => {
+  const ws = (f: Partial<OnboardingFacts> = {}) => onboardingSteps({ login: null, repo: '', storybook: null, products: [], changes: null, workspace: true, account: { teamName: null }, ...f });
+
+  it('has six steps, the team first, no GitHub sign-in step', () => {
+    const steps = ws();
+    expect(steps.map((s) => s.id)).toEqual(['create', 'library', 'products', 'changes', 'figma', 'claude']);
+    expect(steps.map((s) => s.title)).toEqual(['Your team', 'Your design system', 'Products', 'How changes reach your code', 'Figma plugin', 'Claude AI (MCP)']);
+    expect(progressLabel(steps)).toBe('0 of 6 done');
+  });
+
+  it('opens on Your team, then the design system is next; the rest can wait', () => {
+    expect(ws().map((s) => `${s.id}:${s.state}:${s.status}`)).toEqual([
+      'create:current:Current',
+      'library:later:Next',
+      'products:later:Found with the repo',
+      'changes:later:Later is fine',
+      'figma:later:Later is fine',
+      'claude:later:Later is fine',
+    ]);
+    expect(ws()[0]!.detail).toBe('A name, and who can find it');
+    expect(ws()[1]!.detail).toBe('Storybook URL, or connect GitHub to link your repo');
+  });
+
+  it('marks the team done once named, and moves on to the design system', () => {
+    const steps = ws({ account: { teamName: 'Lumen Studio' } });
+    expect(steps[0]).toMatchObject({ id: 'create', state: 'done', detail: 'Lumen Studio' });
+    expect(steps[1]!.state).toBe('current');
+    expect(progressLabel(steps)).toBe('1 of 6 done');
+    expect(doneSummary(steps)).toBe('Team created');
+  });
+
+  it('leaves the GitHub workspace and the team Studio as they were', () => {
+    expect(onboardingSteps({ login: 'ann', repo: '', storybook: null, products: [], changes: null, workspace: true, account: null })[0]!.id).toBe('signin');
+    expect(onboardingSteps({ login: 'ann', repo: 'acme/ds', storybook: null, products: [], changes: null, account: { teamName: 'X' } }).map((s) => s.id)).toEqual(['signin', 'library', 'name', 'changes', 'team', 'products', 'figma', 'claude']);
+  });
+});

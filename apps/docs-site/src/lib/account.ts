@@ -2,9 +2,10 @@
 // of /api/account answers (api/account/index.ts). Pure, no DOM, no fetch, covered by account.test.ts. The browser side
 // lives in scripts/account-session.ts, the screens in components/ds/account/.
 //
-// One sign-in screen for sign in and sign up (pages/signin.astro): Continue with GitHub, or Continue with email (a
-// 6-digit code, 10 minutes, single use). A new account goes to "How do you want to start?" (/start/), a known one to
-// its space. Reviewers and admins link GitHub to approve; editors may have an email only.
+// One sign-in screen for sign in and sign up (pages/signin.astro, board E1): the work email and a 6-digit code (10
+// minutes, single use). Then lib/entry.ts picks the room: the team, an invite, a team found by work domain, or
+// "Create your team". GitHub comes back only to link a repository, or in Settings > Account (reviewers and admins
+// approve on GitHub). A site without accounts keeps Continue with GitHub.
 import { ROLE_WORDS, type MemberRole } from './invites';
 import { START_PAGE } from './start';
 import { CALLBACK_PATH } from './github-signin';
@@ -126,14 +127,13 @@ export const accountName = (a: Pick<Account, 'name' | 'email'>): string => a.nam
 
 /** Every designer-facing sentence of accounts, in one place. */
 export const ACCOUNT_WORDS = {
-  signInTitle: 'Sign in to Bridge',
+  /** Sign in and sign up alike (board E1): email only. */
+  signInTitle: 'Welcome to Bridge',
   signInShort: 'Sign in',
-  signUpTitle: 'Get started with Bridge',
-  signInLead: 'Use GitHub or your work email. No password.',
-  signUpLead: 'Make your account with GitHub or your work email. No password, nothing to install.',
+  signInLead: "Use your work email. We'll take you to your team, or help you start one.",
+  /** A site without accounts (a fork, `astro dev`) keeps GitHub as its one way in. */
   github: 'Continue with GitHub',
   githubBusy: 'Signing in with GitHub',
-  or: 'or',
   email: 'Continue with email',
   emailLabel: 'Work email',
   emailPlaceholder: 'name@company.com',

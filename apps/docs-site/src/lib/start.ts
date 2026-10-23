@@ -9,7 +9,7 @@
 //     the browser workspace at WORKSPACE_HOME, empty until a Storybook or a repository is connected.
 //   - Else none: "Get started" shows the start screen.
 import { isDemoRepo, SAMPLE_TEAM } from './demo';
-import { STEP_IDS, type Step, type StepId } from './onboarding';
+import { ANY_STEP_IDS, type Step, type StepId } from './onboarding';
 import { STUDIO_ROOT, teamHref, type ReservedPaths } from './team-path';
 
 /** The start screen: Connect your design system, or Look around first. */
@@ -31,9 +31,26 @@ export interface StartMemory {
   step: StepId | null;
   /** "Look around first": the demo was opened from the start screen. */
   demo: boolean;
+  /**
+   * "Create your team" step 1 (board E6), until a repository makes it a real team: the name typed, and whether people
+   * with the work domain may find it (applied once an admin opens the team, Onboarding.tsx HostedOnboarding).
+   */
+  team: PendingTeam | null;
 }
 
-export const EMPTY_START: StartMemory = { connect: false, step: null, demo: false };
+export interface PendingTeam {
+  name: string;
+  discover: boolean;
+}
+
+export const EMPTY_START: StartMemory = { connect: false, step: null, demo: false, team: null };
+
+function parseTeam(v: unknown): PendingTeam | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  const name = typeof o.name === 'string' ? o.name.trim().replace(/\s+/g, ' ').slice(0, 60) : '';
+  return name ? { name, discover: o.discover === true } : null;
+}
 
 /** Reads what was stored, dropping anything malformed. */
 export function parseStartMemory(text: string | null): StartMemory {
@@ -43,8 +60,9 @@ export function parseStartMemory(text: string | null): StartMemory {
     if (!v || typeof v !== 'object') return { ...EMPTY_START };
     return {
       connect: v.connect === true,
-      step: typeof v.step === 'string' && (STEP_IDS as readonly string[]).includes(v.step) ? v.step : null,
+      step: typeof v.step === 'string' && (ANY_STEP_IDS as readonly string[]).includes(v.step) ? v.step : null,
       demo: v.demo === true,
+      team: parseTeam(v.team),
     };
   } catch {
     return { ...EMPTY_START };

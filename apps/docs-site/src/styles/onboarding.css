@@ -430,3 +430,13 @@
   padding-top: var(--space-3);
   border-top: var(--border-width-default) solid var(--color-border-default);
 }
+
+/* "Create your team" (board E6): the hint under the steps, and the quiet way back to the demo in the footer. */
+.onb-expecting {
+  margin: var(--space-4) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.onb-demo {
+  font-size: var(--typography-ui-size);
+}

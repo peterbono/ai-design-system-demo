@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-// The one sign-in screen (/signin/), against the /api/account contract with the network mocked: Continue with email
-// sends a code, a pasted "123 456" is checked at once, a new account without a name is asked "Your name" once and goes to
-// "How do you want to start?", a known one goes back to the page it came from. Errors in designer words, resend on a
-// cooldown, Get started wording, a site without accounts keeps GitHub only, the GitHub way links the sign-in. Axe clean.
+// The one sign-in screen (/signin/, boards E1 to E5), against the /api/account and /api/entry contracts with the
+// network mocked: email only (no GitHub on a site with accounts), Send code, a pasted "123 456" is checked at once, a
+// new account without a name is asked "Your name" once, a known one goes back to the page it came from (?next=). With
+// no ?next=, Bridge picks the room: one team, the most recent of several, the picker (E5), an invite (E3), a team
+// found by work domain (E4, then E4b), or "Create your team" (E6). Errors in designer words, resend on a cooldown, a
+// site without accounts keeps GitHub only, the way back from GitHub links the sign-in. Axe clean.
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
 import { act, render, screen, waitFor } from '@testing-library/react';
@@ -10,6 +12,8 @@ import { userEvent } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import { setAccountFetch } from '../../../scripts/account-session';
+import { setEntryFetch } from '../../../scripts/entry-session';
+import { RECENT_TEAMS_KEY } from '../../../lib/access-view';
 import { GITHUB_PENDING_KEY } from '../../../lib/account';
 import SignIn, { navigate } from './SignIn';
 
@@ -24,6 +28,9 @@ const json = (status: number, body: unknown) => new Response(JSON.stringify(body
 type Call = { method: string; body: Record<string, unknown> | null; headers: Record<string, string> };
 let calls: Call[] = [];
 let reply: (c: Call) => Response;
+type EntryCall = { url: string; method: string; body: Record<string, unknown> | null; headers: Record<string, string> };
+let entryCalls: EntryCall[] = [];
+let entryReply: (c: EntryCall) => Response;
 const account = (over: Record<string, unknown> = {}) => ({ email: 'leo@acme.design', name: 'Leo', github: null, teams: [], ...over });
 
 beforeEach(() => {
@@ -31,6 +38,14 @@ beforeEach(() => {
   gh.token = null;
   calls = [];
   sessionStorage.clear();
+  localStorage.clear();
+  entryCalls = [];
+  entryReply = () => json(200, { kind: 'create' });
+  setEntryFetch(async (url, init) => {
+    const c = { url, method: init?.method ?? 'GET', body: init?.body ? JSON.parse(String(init.body)) : null, headers: (init?.headers ?? {}) as Record<string, string> };
+    entryCalls.push(c);
+    return entryReply(c);
+  });
   reply = (c) => (c.method === 'GET' ? json(200, { available: true, account: null }) : json(200, { ok: true }));
   setAccountFetch(async (_url, init) => {
     const c = { method: init?.method ?? 'GET', body: init?.body ? JSON.parse(String(init.body)) : null, headers: (init?.headers ?? {}) as Record<string, string> };
@@ -43,6 +58,7 @@ beforeEach(() => {
 
 afterEach(() => {
   setAccountFetch(null);
+  setEntryFetch(null);
   vi.useRealTimers();
 });
 
@@ -50,7 +66,7 @@ const posts = (action: string) => calls.filter((c) => c.body?.action === action)
 
 /** The email field, once the screen knows nobody is signed in (it is disabled while it asks). */
 async function emailField() {
-  const field = await screen.findByRole('textbox', { name: 'Continue with email' });
+  const field = await screen.findByRole('textbox', { name: 'Work email' });
   await waitFor(() => expect(field).toBeEnabled());
   return field;
 }
@@ -63,8 +79,13 @@ describe('sign-in screen, email', () => {
       return json(200, { ok: true });
     };
     const { container } = render(createElement(SignIn));
-    expect(await screen.findByRole('heading', { name: 'Sign in to Bridge' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Continue with GitHub' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Welcome to Bridge' })).toBeInTheDocument();
+    expect(screen.getByText("Use your work email. We'll take you to your team, or help you start one.")).toBeInTheDocument();
+    // Email only: GitHub comes back where a repository is linked, and in Settings.
+    expect(screen.queryByRole('button', { name: 'Continue with GitHub' })).toBeNull();
+    expect(screen.queryByText('or')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Send code' }).className).toMatch(/primary/);
+    expect(screen.getByRole('link', { name: 'Open the demo' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'What Bridge keeps about you' })).toHaveAttribute('href', '/privacy/');
     await expectNoAxeViolations(container);
     const user = userEvent.setup();
@@ -72,8 +93,8 @@ describe('sign-in screen, email', () => {
     await user.click(screen.getByRole('button', { name: 'Send code' }));
     expect(screen.getByText('Enter your work email, like name@company.com.')).toBeInTheDocument();
     expect(posts('code')).toHaveLength(0);
-    await user.clear(screen.getByRole('textbox', { name: 'Continue with email' }));
-    await user.type(screen.getByRole('textbox', { name: 'Continue with email' }), 'leo@acme.design{Enter}');
+    await user.clear(screen.getByRole('textbox', { name: 'Work email' }));
+    await user.type(screen.getByRole('textbox', { name: 'Work email' }), 'leo@acme.design{Enter}');
     expect(await screen.findByRole('heading', { name: 'Check your inbox' })).toBeInTheDocument();
     expect(posts('code')[0]!.body).toEqual({ action: 'code', email: 'leo@acme.design' });
     expect(posts('code')[0]!.headers['X-Bridge-Account']).toBe('1');
@@ -87,6 +108,8 @@ describe('sign-in screen, email', () => {
     await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/acme/ds/tokens/'));
     expect(posts('verify')[0]!.body).toEqual({ action: 'verify', email: 'leo@acme.design', code: '123456' });
     expect(document.documentElement.hasAttribute('data-account')).toBe(true);
+    // ?next= wins: Bridge does not pick a room.
+    expect(entryCalls).toHaveLength(0);
   });
 
   it('says a wrong code in designer words and keeps the field', async () => {
@@ -111,12 +134,15 @@ describe('sign-in screen, email', () => {
     expect(screen.queryByRole('heading', { name: 'Check your inbox' })).toBeNull();
   });
 
-  it('follows the server for a brand new GitHub account', async () => {
+  it('picks the room of a brand new GitHub account, with its GitHub sign-in so the server finds its teams', async () => {
     gh.token = 'ghu_new';
     sessionStorage.setItem(GITHUB_PENDING_KEY, '1');
+    history.replaceState(null, '', '/signin/');
     reply = (c) => (c.method === 'GET' ? json(200, { available: true, account: null }) : json(200, { account: account({ github: { login: 'leo', id: 1 } }), created: true, next: '/studio/' }));
+    entryReply = () => json(200, { kind: 'teams', teams: [{ repo: 'acme/ds', name: 'Acme Design', role: 'admin', via: 'github' }] });
     render(createElement(SignIn));
-    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/'));
+    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/~/acme/ds/'));
+    expect(entryCalls[0]!.headers.Authorization).toBe('Bearer ghu_new');
   });
 
   it('lets a new code go out only after the cooldown, and goes back to another email', async () => {
@@ -126,10 +152,10 @@ describe('sign-in screen, email', () => {
     const resend = await screen.findByRole('button', { name: /Send a new code in \d+ s/ });
     expect(resend).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'Use another email' }));
-    expect(screen.getByRole('textbox', { name: 'Continue with email' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Work email' })).toBeInTheDocument();
   });
 
-  it('asks a new account its name once, then opens How do you want to start?', async () => {
+  it('asks a new account its name once, then opens Create your team', async () => {
     reply = (c) => {
       if (c.method === 'GET') return json(200, { available: true, account: null });
       if (c.body?.action === 'verify') return json(200, { account: account({ name: null }), created: true, next: '/start/' });
@@ -138,8 +164,9 @@ describe('sign-in screen, email', () => {
     };
     history.replaceState(null, '', '/signin/?new=1');
     const { container } = render(createElement(SignIn));
-    expect(await screen.findByRole('heading', { name: 'Get started with Bridge' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open the demo' })).toBeInTheDocument();
+    // Get started lands on the same screen: no sign in or sign up choice.
+    expect(await screen.findByRole('heading', { name: 'Welcome to Bridge' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Open the demo' })).toBeInTheDocument();
     const user = userEvent.setup();
     await user.type(await emailField(), 'leo@acme.design{Enter}');
     await user.type(await screen.findByRole('textbox', { name: 'Code' }), '123456');
@@ -148,8 +175,10 @@ describe('sign-in screen, email', () => {
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByText('Add your name, so your team knows who made a change.')).toBeInTheDocument();
     await user.type(screen.getByRole('textbox', { name: 'Your name' }), 'Leo Martin{Enter}');
-    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/start/'));
+    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/workspace/?setup=create'));
     expect(posts('rename')[0]!.body).toEqual({ action: 'rename', name: 'Leo Martin' });
+    expect(entryCalls[0]!.method).toBe('GET');
+    expect(entryCalls[0]!.url).toBe('/api/entry');
   });
 });
 
@@ -167,14 +196,9 @@ describe('sign-in screen, the other ways', () => {
     expect(screen.queryByRole('textbox')).toBeNull();
   });
 
-  it('leaves for GitHub, then turns the GitHub sign-in into the account on the way back', async () => {
-    const { unmount } = render(createElement(SignIn));
-    await userEvent.setup().click(await screen.findByRole('button', { name: 'Continue with GitHub' }));
-    await waitFor(() => expect(gh.startSignIn).toHaveBeenCalledWith('/signin/?next=%2Fstudio%2Facme%2Fds%2Ftokens%2F'));
-    expect(sessionStorage.getItem(GITHUB_PENDING_KEY)).toBe('1');
-    unmount();
-    // Back from GitHub with a token.
+  it('turns a GitHub sign-in into the account on the way back from GitHub (Link GitHub), then goes on', async () => {
     gh.token = 'ghu_abc';
+    sessionStorage.setItem(GITHUB_PENDING_KEY, '1');
     reply = (c) => (c.method === 'GET' ? json(200, { available: true, account: null }) : json(200, { account: account({ github: { login: 'leo', id: 1 } }), created: false, next: '/studio/acme/ds/' }));
     await act(async () => {
       render(createElement(SignIn));
@@ -182,5 +206,154 @@ describe('sign-in screen, the other ways', () => {
     await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/acme/ds/tokens/'));
     expect(posts('github')[0]!.body).toEqual({ action: 'github', token: 'ghu_abc' });
     expect(sessionStorage.getItem(GITHUB_PENDING_KEY)).toBeNull();
+  });
+
+  it('keeps the GitHub way on a site without accounts', async () => {
+    reply = () => new Response('<html></html>', { status: 404, headers: { 'Content-Type': 'text/html' } });
+    render(createElement(SignIn));
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Continue with GitHub' }));
+    await waitFor(() => expect(gh.startSignIn).toHaveBeenCalledWith('/signin/?next=%2Fstudio%2Facme%2Fds%2Ftokens%2F'));
+    expect(sessionStorage.getItem(GITHUB_PENDING_KEY)).toBe('1');
+  });
+});
+
+describe('entry: Bridge picks the room after the code (E3 to E6)', () => {
+  /** Signed in already, opened without ?next=: the screen asks /api/entry where to go. */
+  function signedIn(entry: (c: EntryCall) => Response, over: Record<string, unknown> = {}) {
+    history.replaceState(null, '', '/signin/');
+    reply = (c) => (c.method === 'GET' ? json(200, { available: true, account: account({ email: 'jordan.lee@acme.com', name: 'Jordan Lee', ...over }) }) : json(200, { ok: true }));
+    entryReply = entry;
+    return render(createElement(SignIn));
+  }
+  const entryPosts = (action: string) => entryCalls.filter((c) => c.body?.action === action);
+
+  it('opens the one team', async () => {
+    signedIn(() => json(200, { kind: 'teams', teams: [{ repo: 'acme/ds', name: 'Acme Design', role: 'edit', via: 'email' }] }));
+    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/~/acme/ds/'));
+  });
+
+  it('reopens the most recent of several teams', async () => {
+    localStorage.setItem(RECENT_TEAMS_KEY, JSON.stringify(['acme/mobile']));
+    signedIn(() => json(200, { kind: 'teams', teams: [{ repo: 'acme/ds', name: 'Acme Design', role: 'edit', via: 'email' }, { repo: 'acme/mobile', name: 'Acme Mobile', role: 'reviewer', via: 'github' }] }));
+    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/~/acme/mobile/'));
+  });
+
+  it('E5: lets the person pick a team when none was opened recently', async () => {
+    const { container } = signedIn(() =>
+      json(200, {
+        kind: 'teams',
+        teams: [
+          { repo: 'acme/mobile', name: 'Acme Mobile', role: 'reviewer', via: 'github' },
+          { repo: 'acme/ds', name: 'Acme Design', role: 'edit', via: 'email' },
+          { repo: 'acme/brand', name: 'Acme Brand', role: 'admin', via: 'github' },
+        ],
+      }),
+    );
+    expect(await screen.findByRole('heading', { name: 'Pick a team' })).toBeInTheDocument();
+    expect(screen.getByText('You are in 3 teams. Switch any time from the top bar.')).toBeInTheDocument();
+    const links = screen.getAllByRole('link').filter((a) => a.getAttribute('href')?.startsWith('/studio/~/'));
+    expect(links.map((a) => a.textContent)).toEqual(['Acme Brand', 'Acme Design', 'Acme Mobile']);
+    expect(screen.getByText('You are admin')).toBeInTheDocument();
+    expect(screen.getByText('You review design')).toBeInTheDocument();
+    expect(screen.getByText('You can edit')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Create a team' })).toHaveAttribute('href', '/studio/workspace/?setup=create');
+    expect(navigate.to).not.toHaveBeenCalled();
+    await expectNoAxeViolations(container);
+  });
+
+  it('E3: joins with an invite, no approval', async () => {
+    const { container } = signedIn((c) =>
+      c.method === 'GET'
+        ? json(200, { kind: 'invites', invites: [{ id: 'inv1', team: 'Acme Design', repo: 'acme/ds', role: 'edit', invitedBy: 'Sam Rivera' }] })
+        : json(200, { joined: true, status: 'joined', repo: 'acme/ds', role: 'edit', next: '/studio/acme/ds/' }),
+    );
+    expect(await screen.findByRole('heading', { name: 'Acme Design invited you' })).toBeInTheDocument();
+    expect(screen.getByText('jordan.lee@acme.com')).toBeInTheDocument();
+    expect(screen.getByText(/Sam Rivera invited/)).toBeInTheDocument();
+    expect(screen.getByText('Can edit')).toBeInTheDocument();
+    await expectNoAxeViolations(container);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Join Acme Design' }));
+    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/acme/ds/'));
+    expect(entryPosts('accept-invite')[0]!.body).toEqual({ action: 'accept-invite', repo: 'acme/ds', id: 'inv1' });
+    expect(entryPosts('accept-invite')[0]!.headers['X-Bridge-Contribute']).toBe('1');
+  });
+
+  it('E3: a reviewer invite without GitHub says so calmly, with Connect GitHub to accept', async () => {
+    signedIn((c) =>
+      c.method === 'GET'
+        ? json(200, { kind: 'invites', invites: [{ id: 'inv2', team: 'Acme Design', repo: 'acme/ds', role: 'reviewer', invitedBy: 'Sam Rivera' }] })
+        : json(409, { error: 'github-required', message: 'Reviewers and admins approve and merge on GitHub. Continue with GitHub, then accept this invite.' }),
+    );
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Join Acme Design' }));
+    expect(await screen.findByRole('button', { name: 'Connect GitHub to accept' })).toBeInTheDocument();
+    expect(screen.getByText(/You join as Reviewer\. Reviewers and admins approve on GitHub/)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Connect GitHub to accept' }));
+    await waitFor(() => expect(gh.startSignIn).toHaveBeenCalled());
+    expect(sessionStorage.getItem(GITHUB_PENDING_KEY)).toBe('1');
+  });
+
+  it('E3: an expired invite says so, with a way on', async () => {
+    signedIn((c) =>
+      c.method === 'GET'
+        ? json(200, { kind: 'invites', invites: [{ id: 'inv3', team: 'Acme Design', repo: 'acme/ds', role: 'edit', invitedBy: 'Sam Rivera' }] })
+        : json(410, { error: 'expired', message: 'This invite expired or was cancelled. Ask your admin for a new one.' }),
+    );
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Join Acme Design' }));
+    expect(await screen.findByText('This invite expired or was cancelled. Ask your admin for a new one.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Create a new team instead' })).toHaveAttribute('href', '/studio/workspace/?setup=create');
+  });
+
+  it('E4 then E4b: asks to join the team found by work domain', async () => {
+    const { container } = signedIn((c) =>
+      c.method === 'GET' ? json(200, { kind: 'domain', domain: 'acme.com', teams: [{ repo: 'acme/ds', name: 'Acme Design', memberCount: 12, adminName: 'Sam Rivera', requested: false }] }) : json(200, { requested: true, expiresAt: '2026-11-06T00:00:00Z' }),
+    );
+    expect(await screen.findByRole('heading', { name: 'Your colleagues already use Bridge' })).toBeInTheDocument();
+    expect(screen.getByText('@acme.com')).toBeInTheDocument();
+    expect(screen.getByText('12 members')).toBeInTheDocument();
+    expect(screen.getByText('Admin: Sam Rivera')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Create a new team instead' })).toHaveAttribute('href', '/studio/workspace/?setup=create');
+    await expectNoAxeViolations(container);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Ask to join' }));
+    expect(await screen.findByRole('heading', { name: 'Request sent' })).toBeInTheDocument();
+    expect(screen.getByText("We asked Sam Rivera to let you in. You'll get an email.")).toBeInTheDocument();
+    expect(screen.getByText('Waiting for Sam')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Explore the demo while you wait' })).toBeInTheDocument();
+    expect(entryPosts('request')[0]!.body).toEqual({ action: 'request', repo: 'acme/ds' });
+    await expectNoAxeViolations(container);
+  });
+
+  it('E4: several teams, largest first, three then Show N more, each with its own Ask to join', async () => {
+    const team = (repo: string, name: string, memberCount: number, requested = false) => ({ repo, name, memberCount, adminName: 'Sam Rivera', requested });
+    signedIn(() => json(200, { kind: 'domain', domain: 'acme.com', teams: [team('acme/a', 'Acme A', 2), team('acme/b', 'Acme B', 30), team('acme/c', 'Acme C', 8, true), team('acme/d', 'Acme D', 12), team('acme/e', 'Acme E', 1)] }));
+    expect(await screen.findByText(/Bridge found 5 teams for/)).toBeInTheDocument();
+    const names = () => screen.getAllByRole('listitem').map((li) => li.querySelector('strong')?.textContent);
+    expect(names()).toEqual(['Acme B', 'Acme D', 'Acme C']);
+    expect(screen.getByRole('button', { name: 'Ask to join Acme B' })).toBeInTheDocument();
+    expect(screen.getByText('Request sent')).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Show 2 more teams' }));
+    expect(names()).toEqual(['Acme B', 'Acme D', 'Acme C', 'Acme A', 'Acme E']);
+  });
+
+  it('E4b straight away when the one team was asked before', async () => {
+    signedIn(() => json(200, { kind: 'domain', domain: 'acme.com', teams: [{ repo: 'acme/ds', name: 'Acme Design', memberCount: 12, adminName: 'Sam Rivera', requested: true }] }));
+    expect(await screen.findByRole('heading', { name: 'Request sent' })).toBeInTheDocument();
+  });
+
+  it('E6: nothing matched, Create your team', async () => {
+    signedIn(() => json(200, { kind: 'create' }));
+    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/workspace/?setup=create'));
+  });
+
+  it('Not you? signs out and goes back to the email', async () => {
+    signedIn(() => json(200, { kind: 'domain', domain: 'acme.com', teams: [{ repo: 'acme/ds', name: 'Acme Design', memberCount: 12, adminName: 'Sam Rivera', requested: false }] }));
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Use another email' }));
+    expect(await screen.findByRole('textbox', { name: 'Work email' })).toBeInTheDocument();
+    expect(posts('sign-out')).toHaveLength(1);
+  });
+
+  it('falls back to the account answer when /api/entry cannot answer', async () => {
+    signedIn(() => new Response('<html></html>', { status: 404, headers: { 'Content-Type': 'text/html' } }), { teams: [{ repo: 'acme/ds', role: 'edit', via: 'email' }] });
+    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/~/acme/ds/'));
   });
 });

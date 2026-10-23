@@ -14,7 +14,8 @@ import { loadTeamData, resetTeamData, teamOfPage, type TeamData } from './team-d
 import { loadDemoHome, type DemoHomeData } from './demo-home';
 import { paintDemoHome } from '../components/ds/studio/DemoHome';
 import { exploresDemo } from '../lib/demo';
-import { paintStudioHome, type HealthLine, type HomeComponent, type StudioHomeProps } from '../components/ds/studio/StudioHome';
+import { paintStudioHome, type HealthLine, type HomeComponent, type JoinHandlers, type StudioHomeProps } from '../components/ds/studio/StudioHome';
+import { ENTRY_WORDS } from '../lib/entry';
 import { TeamLoadError, TeamLoadProgress, TeamSourceNote } from '../components/ds/studio/TeamState';
 import { greeting, homeState } from '../lib/home-model';
 import { startChangeHref } from '../lib/overview-board';
@@ -49,6 +50,38 @@ export function teamHomeStatic(data: Pick<TeamData, 'owner' | 'repo' | 'sha' | '
   };
 }
 
+/**
+ * Approve and Decline on a join request (board E7b). After a decision the row says what happened, then `onGone` takes
+ * it away. An account without a GitHub admin linked gets "Connect GitHub to manage requests", never the refusal.
+ */
+export function joinHandlers(repo: () => string, onGone: (key: string) => void, wait = 4000): JoinHandlers {
+  return {
+    decide: async (row, approve) => {
+      const id = row.request?.id;
+      const name = row.request?.name ?? row.title;
+      if (!id) return { ok: false, github: false, text: ENTRY_WORDS.githubToManage };
+      const api = await import('./entry-session');
+      try {
+        if (approve) await api.approveRequest(repo(), id);
+        else await api.declineRequest(repo(), id);
+        setTimeout(() => onGone(row.key), wait);
+        return { ok: true, text: approve ? ENTRY_WORDS.joined(name) : ENTRY_WORDS.declined(name) };
+      } catch (err) {
+        if (api.needsGitHubAdmin(err)) return { ok: false, github: true, text: ENTRY_WORDS.githubToManage };
+        // Already answered or expired: the row goes, like after a decision.
+        if (err instanceof api.EntryError && err.status === 404) {
+          onGone(row.key);
+          return { ok: true, text: err.message };
+        }
+        return { ok: false, github: false, text: err instanceof Error ? err.message : '' };
+      }
+    },
+    connectGitHub: () => {
+      void import('./account-session').then(({ linkGitHub }) => linkGitHub(location.pathname + location.search));
+    },
+  };
+}
+
 /** Paints the team home into `el` (the [data-studio-home] mount), and the source line into `sourceEl`. */
 export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
   let root: Root | null = null;
@@ -57,6 +90,18 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
   let data: HomeData | null = null;
   let known = false;
   let run = 0;
+  // Join requests decided on this page: gone from the list until the next read.
+  const gone = new Set<string>();
+  const join = joinHandlers(
+    () => {
+      const t = teamOfPage();
+      return t ? `${t.owner}/${t.repo}` : '';
+    },
+    (key) => {
+      gone.add(key);
+      paint();
+    },
+  );
   const signIn = prefersSignIn();
   // The demo team, for a visitor who cannot change it (lib/demo.ts): its own home, read-only.
   let demoData: DemoHomeData | null = null;
@@ -109,7 +154,7 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
     const now = Date.now();
     const v = currentViewer();
     const signedIn = Boolean(v) || (!known && Boolean(getToken()));
-    const d = data;
+    const d = data && gone.size ? { ...data, needs: data.needs.filter((r) => !gone.has(r.key)) } : data;
     const state = homeState({ signedIn, loading: !d || d.loading, needs: d?.needs.length ?? 0, branches: d?.branches.length ?? 0 });
     root = paintStudioHome(
       el,
@@ -126,6 +171,7 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
         startHrefs: stat.startHrefs,
         // No review right: only what waits on them, and their tour (once the owner teams are read).
         contributor: Boolean(d && !d.loading && !d.reviewer),
+        join,
       },
       root,
     );
