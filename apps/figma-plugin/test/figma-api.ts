@@ -62,7 +62,9 @@ export class SimVariable {
     private api: SimFigma,
   ) {}
   setValueForMode(modeId: string, value: unknown) {
-    this.valuesByMode[modeId] = value && typeof value === 'object' && 'r' in (value as Dict) ? { ...(value as Dict) } : value;
+    this.api.valueWrites++;
+    // Like Figma, numbers are kept as 32-bit floats (0.1 reads back as 0.10000000149011612).
+    this.valuesByMode[modeId] = value && typeof value === 'object' && 'r' in (value as Dict) ? { ...(value as Dict) } : typeof value === 'number' ? Math.fround(value) : value;
   }
   getPluginData(k: string) {
     return this.pd.get(k) ?? '';
@@ -560,6 +562,8 @@ export class SimNode {
 
 export class SimFigma {
   nodes = new Map<string, SimNode>();
+  /** setValueForMode calls, on every variable. */
+  valueWrites = 0;
   collections: SimCollection[] = [];
   variables: SimVariable[] = [];
   loadedFonts = new Set<string>();

@@ -125,6 +125,21 @@ function toVariableValue(v: Exclude<PlannedValue, { kind: 'alias-token' }>): Var
   }
 }
 
+/** The same value as Figma already holds for that mode (colors to 4 decimals, numbers to float precision): nothing to write. */
+function sameValue(current: VariableValue | undefined, next: VariableValue): boolean {
+  if (current === undefined) return false;
+  // Figma keeps numbers as 32-bit floats: 0.1 reads back as 0.10000000149.
+  if (typeof next === 'number') return typeof current === 'number' && Math.abs(current - next) <= 1e-6 * Math.max(1, Math.abs(next));
+  if (typeof next !== 'object' || next === null) return current === next;
+  if (typeof current !== 'object' || current === null) return false;
+  if ('type' in next && next.type === 'VARIABLE_ALIAS') return 'type' in current && current.type === 'VARIABLE_ALIAS' && current.id === next.id;
+  if ('r' in next && 'r' in current) {
+    const q = (n: number | undefined) => Math.round((n ?? 1) * 10000);
+    return q(current.r) === q(next.r) && q(current.g) === q(next.g) && q(current.b) === q(next.b) && q((current as RGBA).a) === q((next as RGBA).a);
+  }
+  return false;
+}
+
 export async function applyPullPlan(plan: PullPlan, progress: (message: string) => void = () => undefined): Promise<ApplyReport> {
   const errors: string[] = [];
   const local = (await figma.variables.getLocalVariableCollectionsAsync()).filter((c) => !c.remote);
@@ -151,7 +166,9 @@ export async function applyPullPlan(plan: PullPlan, progress: (message: string) 
   }
 
   let created = 0;
-  let updated = 0;
+  /** Existing variables a value, name, description or scope of which this pull changed: the "updated" count. */
+  const changed = new Set<string>();
+  const createdIds = new Set<string>();
   let ops = 0;
   const deferred: { variable: Variable; modeId: string; mode: string; ref: { path: string; tokenId?: string | undefined; tier?: Tier | undefined }; owner: string; collectionId: string }[] = [];
 
@@ -166,26 +183,33 @@ export async function applyPullPlan(plan: PullPlan, progress: (message: string) 
       try {
         const variable = await upsertVariable(planned, slot, registry, byId, errors);
         if (!variable) continue;
-        if (variable.isNew) isNew = true;
+        if (variable.isNew) {
+          isNew = true;
+          createdIds.add(variable.variable.id);
+        } else if (variable.changed) changed.add(variable.variable.id);
         touched = true;
         for (const [mode, modeId] of slot.modes) {
           const value = planned.values[mode] ?? fallbackValue; // absent theme: keep a value so the mode is not empty
           if (!value) continue;
           if (value.kind === 'alias-token') deferred.push({ variable: variable.variable, modeId, mode, ref: value, owner: planned.path, collectionId: slot.collection.id });
-          else variable.variable.setValueForMode(modeId, toVariableValue(value));
+          else {
+            // Only what differs is written: a big file re-pulled rewrites nothing it already has.
+            const next = toVariableValue(value);
+            if (variable.isNew || !sameValue(variable.variable.valuesByMode[modeId], next)) {
+              variable.variable.setValueForMode(modeId, next);
+              if (!variable.isNew) changed.add(variable.variable.id);
+            }
+          }
         }
       } catch (err) {
         errors.push(`${planned.path}: ${errorText(err)}`);
       }
       if (++ops % BATCH === 0) {
-        progress(`Writing variables: ${created + updated} of ${plan.variables.length}`);
+        progress(`Writing variables: ${created + changed.size} of ${plan.variables.length}`);
         await tick();
       }
     }
-    if (touched) {
-      if (isNew) created++;
-      else updated++;
-    }
+    if (touched && isNew) created++;
   }
 
   // Pass 2: aliases, now that every target exists.
@@ -214,7 +238,11 @@ export async function applyPullPlan(plan: PullPlan, progress: (message: string) 
       continue;
     }
     try {
-      d.variable.setValueForMode(d.modeId, figma.variables.createVariableAlias(target));
+      const alias = figma.variables.createVariableAlias(target);
+      if (!sameValue(d.variable.valuesByMode[d.modeId], alias)) {
+        d.variable.setValueForMode(d.modeId, alias);
+        changed.add(d.variable.id);
+      }
     } catch (err) {
       errors.push(`${d.owner}: ${errorText(err)}`);
     }
@@ -234,7 +262,8 @@ export async function applyPullPlan(plan: PullPlan, progress: (message: string) 
     if (++ops % BATCH === 0) await tick();
   }
 
-  return { created, updated, orphaned, layout, errors };
+  for (const id of createdIds) changed.delete(id);
+  return { created, updated: changed.size, orphaned, layout, errors };
 }
 
 async function upsertVariable(
@@ -243,13 +272,14 @@ async function upsertVariable(
   registry: Registry,
   byId: Map<string, Variable>,
   errors: string[],
-): Promise<{ variable: Variable; isNew: boolean } | undefined> {
+): Promise<{ variable: Variable; isNew: boolean; changed: boolean } | undefined> {
   const cid = slot.collection.id;
   let variable =
     planned.existingVariableIds.map((id) => byId.get(id)).find((v) => v && v.variableCollectionId === cid) ??
     registry.byToken.get(registryKey(cid, planned.tokenId)) ??
     registry.byName.get(registryKey(cid, planned.name));
   let isNew = false;
+  let changed = false;
 
   if (variable && variable.resolvedType !== planned.resolvedType) {
     errors.push(`${planned.path} is a ${variable.resolvedType} variable in Figma but a ${planned.resolvedType} token in Git. Type changes are not allowed; the variable was left as is.`);
@@ -266,18 +296,25 @@ async function upsertVariable(
     } else {
       registry.byName.delete(registryKey(cid, variable.name));
       variable.name = planned.name;
+      changed = true;
     }
   }
   registry.byName.set(registryKey(cid, variable.name), variable);
   registry.byToken.set(registryKey(cid, planned.tokenId), variable);
 
-  if (variable.description !== planned.description) variable.description = planned.description;
+  if (variable.description !== planned.description) {
+    variable.description = planned.description;
+    changed = true;
+  }
   try {
     const current = [...variable.scopes].sort().join(',');
-    if (current !== [...planned.scopes].sort().join(',')) variable.scopes = planned.scopes as VariableScope[];
+    if (current !== [...planned.scopes].sort().join(',')) {
+      variable.scopes = planned.scopes as VariableScope[];
+      changed = true;
+    }
   } catch (err) {
     errors.push(`${planned.path}: scopes ${planned.scopes.join(', ')} were refused by Figma (${errorText(err)}).`);
   }
   writePluginData(variable, { ...planned.pluginData, orphan: false, absentModes: planned.pluginData.absentModes ?? [] });
-  return { variable, isNew };
+  return { variable, isNew, changed };
 }
