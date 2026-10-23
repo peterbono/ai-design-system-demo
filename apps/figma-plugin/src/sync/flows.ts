@@ -5,7 +5,7 @@ import type { FigmaSnapshot, PullPlan, RepoSettings, SyncState, VariableTag } fr
 import { type AcceptedChange, composeFiles } from '@bridge-ds/core';
 import { type ConflictChoice, type DiffEntry, type ThreeWayResult, threeWayDiff, toMap } from '@bridge-ds/core';
 import { type CompareResult, GitHubClient, GitHubError, type PullRequest, type RepoFiles, loadRepoFiles } from '@bridge-ds/core';
-import { type RenameSuggestion, applyConfirmedRenames, reconcileIds } from '@bridge-ds/core';
+import { type RenameSuggestion, applyConfirmedRenames, reconcileIds, remoteRenames } from '@bridge-ds/core';
 import { type FigmaReadResult, type Unmappable, buildPullPlan, isUnmappable, snapshotToTokens, tokenToPlanned } from './mapping';
 import { branchName, changedModes, commitMessage, composeChangeset, composePrBody, defaultTitle } from '@bridge-ds/core';
 import { type TokenSet, buildTokenSet, layoutOptions, loadConfig } from '@bridge-ds/core';
@@ -122,7 +122,25 @@ export async function analyze(
   const confirmedIds = new Set(confirmedRenames.map((s) => s.figmaId));
   const suggestions = reconciled.suggestions.filter((s) => !confirmedIds.has(s.figmaId));
 
-  const diff = threeWayDiff(baseMappable?.map, toMap(figmaTokens), headMappable.map);
+  // Tokens the code renamed since the last pull: their Figma variable is the renamed token, so the pull renames it in
+  // place and everything bound to it keeps its binding (instead of an orphan and a new variable).
+  let baseForDiff = baseMappable?.map;
+  if (baseForDiff) {
+    for (const { from, to } of remoteRenames(baseForDiff, headMappable.map)) {
+      const i = figmaTokens.findIndex((t) => t.id === from.id);
+      if (i < 0) continue;
+      figmaTokens[i] = { ...figmaTokens[i]!, id: to.id };
+      baseForDiff = new Map(baseForDiff);
+      baseForDiff.delete(from.id);
+      baseForDiff.set(to.id, { ...from, id: to.id });
+      const ids = figma.variableIds.get(from.id);
+      if (ids) {
+        figma.variableIds.delete(from.id);
+        figma.variableIds.set(to.id, ids);
+      }
+    }
+  }
+  const diff = threeWayDiff(baseForDiff, toMap(figmaTokens), headMappable.map);
   const pairs = parseContrastChecks(headFiles.contrastChecks);
   if (!pairs.length) {
     const checks = headFiles.config?.tokens.contrastChecks ?? CONTRAST_CHECKS_FILE;

@@ -19,6 +19,15 @@ export function readPluginData(v: PluginDataMixin): VariablePluginData {
     if (!raw) continue;
     if (key === 'orphan') pd.orphan = raw === 'true';
     else if (key === 'absentModes' || key === 'unlinkedModes') pd[key] = raw.split(',').filter(Boolean);
+    else if (key === 'stacks') {
+      // Stacks hold commas: stored as JSON.
+      try {
+        const list: unknown = JSON.parse(raw);
+        if (Array.isArray(list)) pd.stacks = list.filter((x): x is string => typeof x === 'string');
+      } catch {
+        /* unreadable: the value reads as the variable shows it */
+      }
+    }
     else pd[key] = raw;
   }
   return pd;
@@ -29,6 +38,7 @@ export function writePluginData(v: PluginDataMixin, pd: VariablePluginData): voi
     if (!(key in pd)) continue;
     const value = pd[key];
     if (value === undefined || value === false || (Array.isArray(value) && value.length === 0)) v.setPluginData(key, '');
+    else if (key === 'stacks') v.setPluginData(key, JSON.stringify(value));
     else if (Array.isArray(value)) v.setPluginData(key, value.join(','));
     else v.setPluginData(key, String(value));
   }

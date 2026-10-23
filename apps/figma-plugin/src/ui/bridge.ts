@@ -18,6 +18,12 @@ window.addEventListener('message', (event: MessageEvent) => {
     progressListener?.(msg.message);
     return;
   }
+  // A turn the main thread gives Figma through this window during a long build: answered at once, with whether the
+  // page is hidden (then Figma throttles the main thread's timers, not messages).
+  if (msg && typeof msg === 'object' && (msg as { kind?: unknown }).kind === 'turn') {
+    parent.postMessage({ pluginMessage: { kind: 'turn', id: (msg as { id: number }).id, hidden: document.visibilityState === 'hidden' } }, '*');
+    return;
+  }
   if (msg && typeof msg === 'object' && (msg as { kind?: unknown }).kind === 'selection') {
     selectionListener?.((msg as { selection: Selection }).selection);
     return;
