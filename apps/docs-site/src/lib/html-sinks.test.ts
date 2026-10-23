@@ -14,7 +14,6 @@ const SINK = /\.innerHTML\s*\+?=(?!=)|\.outerHTML\s*=(?!=)|insertAdjacentHTML\(|
 const ALLOWED: Record<string, string> = {
   // Build-time JSON data blocks: jsonForScript.
   'components/explorer/ExplorerData.astro': 'jsonForScript',
-  'components/TokenEditorData.astro': 'jsonForScript',
   'layouts/Layout.astro': 'jsonForScript (siteRepoJson)',
   'pages/studio/changes.astro': 'jsonForScript',
   'pages/studio/components/index.astro': 'jsonForScript',

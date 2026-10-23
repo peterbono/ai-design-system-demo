@@ -7,7 +7,7 @@ import { Icon } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
 import { Drawing } from '../studio/Drawing';
 import { LibraryPage, LibrarySourceNote, usePageTeam } from './LibraryState';
-import { llmsTxtUrl } from '../../../lib/library-view';
+import { llmsTxtUrl } from '../../../lib/library/published';
 import LandingView from './views/LandingView';
 import { teamLibraryData } from './library-data';
 import { SNAPSHOT_TEMPLATE_URL } from '../../../lib/team-load';

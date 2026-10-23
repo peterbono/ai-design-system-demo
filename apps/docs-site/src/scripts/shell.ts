@@ -393,7 +393,7 @@ function initPalette() {
       if (document.documentElement.hasAttribute('data-library-shell')) {
         // A team's Library searches the team, from the model its page already read (no extra request, none to
         // the GitHub API for a reader who is signed out: scripts/team-data.ts reads the published snapshot).
-        const [{ loadTeamData }, { librarySearchIndex }] = await Promise.all([import('./team-data'), import('../lib/library-view')]);
+        const [{ loadTeamData }, { librarySearchIndex }] = await Promise.all([import('./team-data'), import('../lib/library/search-index')]);
         const team = await loadTeamData();
         data = librarySearchIndex(team.model, team.owner, team.repo);
         return data;

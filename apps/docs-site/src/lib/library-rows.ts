@@ -114,7 +114,6 @@ export function usageChip(u: UsageInput): UsageChip {
 
 export type CopyFormat = 'css' | 'js' | 'figma';
 export const COPY_FORMATS: CopyFormat[] = ['css', 'js', 'figma'];
-export const COPY_LABEL: Record<CopyFormat, string> = { css: 'CSS', js: 'JS', figma: 'Figma' };
 
 /** What clicking a token name copies, per format: the CSS variable, the @bridge-ds/tokens reference, the Figma variable. */
 export function copyValue(path: string, tier: Tier, format: CopyFormat): string {

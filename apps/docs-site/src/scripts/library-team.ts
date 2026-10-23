@@ -9,7 +9,7 @@
 import { libraryIsPublic } from '@bridge-ds/core';
 import { LIBRARY_SHELL_ROOT, libraryFromPath, libraryHref } from '../lib/library-shells';
 import { RESERVED_PATHS_URL, STUDIO_ROOT, teamHref, type ReservedPaths } from '../lib/team-path';
-import { llmsTxtUrl } from '../lib/library-view';
+import { llmsTxtUrl } from '../lib/library/published';
 import { teamDisplayName } from '../lib/demo';
 import { loadTeamData, loadTeamLlms, whenLibraryOpen } from './team-data';
 import { libraryFileUrl } from './library-access-api';
