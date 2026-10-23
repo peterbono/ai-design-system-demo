@@ -5,5 +5,5 @@
   "buildCommand": "cd ../.. && npm run tokens:build && npx storybook build -o deploy/storybook/dist --quiet",
   "outputDirectory": "dist",
   "ignoreCommand": "node ../../scripts/vercel-ignore.mjs storybook",
-  "git": { "deploymentEnabled": { "agent/**": false, "test/**": false, "changeset-release/**": false } }
+  "git": { "deploymentEnabled": { "agent/**": false, "test/**": false, "changeset-release/**": false, "explore/**": false, "bridge/**": false } }
 }
