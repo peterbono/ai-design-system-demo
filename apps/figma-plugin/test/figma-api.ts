@@ -86,7 +86,7 @@ export class SimVariable {
   }
 }
 
-const CONTAINERS = new Set(['DOCUMENT', 'PAGE', 'FRAME', 'COMPONENT', 'COMPONENT_SET']);
+const CONTAINERS = new Set(['DOCUMENT', 'PAGE', 'FRAME', 'COMPONENT', 'COMPONENT_SET', 'SECTION']);
 /** VariableBindableNodeField (plus text fields), as @figma/plugin-typings lists them. */
 const FRAME_BINDABLE = new Set([
   'height', 'width', 'characters', 'itemSpacing', 'paddingLeft', 'paddingRight', 'paddingTop', 'paddingBottom', 'visible', 'topLeftRadius', 'topRightRadius',
@@ -631,6 +631,7 @@ export class SimFigma {
       createPage: () => self.createPage(),
       // As in Figma: a new node starts on the current page until it is moved into place.
       createFrame: () => self.onPage(new SimNode('FRAME', self), 'createFrame'),
+      createSection: () => self.onPage(new SimNode('SECTION', self), 'createSection'),
       createComponent: () => self.onPage(new SimNode('COMPONENT', self), 'createComponent'),
       createText: () => self.onPage(new SimNode('TEXT', self), 'createText'),
       createNodeFromSvg: (svg: string) => {

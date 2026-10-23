@@ -1265,6 +1265,42 @@ export interface ApplyOptions {
 interface Placement {
   page?: PageNode | undefined;
   bottom?: number | undefined;
+  /** Generated sets already in the file: a new set goes next to the one its name extends, where the designer put it. */
+  sets?: readonly ComponentSetNode[] | undefined;
+}
+
+type Container = BaseNode & ChildrenMixin;
+
+/**
+ * Where a new set goes in a file organised by hand: with the set its name extends ("Select/Popup" with "Select",
+ * "AccordionItem" with "Accordion"), in that set's page, section or frame, when the designer moved it off the
+ * Components page. None otherwise: new sets go on the Components page, as before.
+ */
+export function homeOf(name: string, sets: readonly ComponentSetNode[], componentsPage: PageNode | undefined): { container: Container; near: ComponentSetNode } | undefined {
+  let near: ComponentSetNode | undefined;
+  for (const s of sets) {
+    if (s.removed || s.name === name || !name.startsWith(s.name)) continue;
+    // A whole word: "Select/Popup" and "AccordionItem" extend their set; "Tables" does not extend "Table".
+    const next = name.charAt(s.name.length);
+    if (next !== '/' && !/[A-Z ]/.test(next)) continue;
+    if (!near || s.name.length > near.name.length) near = s;
+  }
+  if (!near?.parent || pageOf(near) === componentsPage) return undefined;
+  return { container: near.parent as Container, near };
+}
+
+/** Puts a new set into its home: below what the home holds (an auto layout frame places it itself). */
+function moveHome(set: ComponentSetNode, home: { container: Container; near: ComponentSetNode }): void {
+  const { container, near } = home;
+  const kids = container.children.filter((c) => c !== set);
+  container.appendChild(set);
+  if ('layoutMode' in container && container.layoutMode !== 'NONE') return;
+  set.x = near.x;
+  set.y = kids.reduce((m, n) => Math.max(m, n.y + n.height), 0) + SET_GAP;
+  // A section does not grow with what it holds: make room.
+  if (container.type === 'SECTION' && (set.x + set.width > container.width || set.y + set.height > container.height)) {
+    container.resizeWithoutConstraints(Math.max(container.width, set.x + set.width + SET_GAP), Math.max(container.height, set.y + set.height + SET_GAP));
+  }
 }
 
 /**
@@ -1371,7 +1407,11 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
     } catch (err) {
       ctx.problems.push(`${comp.name}, variant grid: ${errorText(err)}`);
     }
-    if (isNew) place.bottom = Math.max(place.bottom ?? 0, set.y + set.height);
+    if (isNew) {
+      const home = homeOf(comp.name, place.sets ?? [], place.page);
+      if (home) moveHome(set, home);
+      else place.bottom = Math.max(place.bottom ?? 0, set.y + set.height);
+    }
     if (failed.length) {
       // Built in part: no spec hash, so the next pull plans it again and builds the variants left out.
       set.setSharedPluginData(NS, 'specHash', '');
@@ -1392,6 +1432,7 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
     report.nodeIds.push(set.id);
     if (isNew) report.created++;
     else report.updated++;
+    if (pageOf(set)?.name !== PAGE_NAME) report.elsewhere = (report.elsewhere ?? 0) + 1;
   } catch (err) {
     // Nothing half-built stays: what this pull created for the set goes, a new set included.
     created.rollback(mark);
@@ -1425,7 +1466,7 @@ export async function applyComponentPlan(plan: ComponentPullPlan, progress: Prog
     ctx.problems.push(`Icons and content slots: ${reasonOf(err)}. Components that use them are built without them.`);
   }
   created.sweep();
-  const place: Placement = {};
+  const place: Placement = { sets: [...existing.values()] };
   const interactionsFailed: string[] = [];
   const todo = plan.components.length;
   try {
