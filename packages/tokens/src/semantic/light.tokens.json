@@ -341,7 +341,7 @@
         }
       },
       "info": {
-        "bg": {
+        "surface": {
           "$type": "color",
           "$value": "{palette.info.50}"
         },

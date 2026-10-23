@@ -26,7 +26,7 @@
     },
     "4": {
       "$value": {
-        "value": 16,
+        "value": 20,
         "unit": "px"
       }
     },
@@ -39,12 +39,6 @@
     "6": {
       "$value": {
         "value": 24,
-        "unit": "px"
-      }
-    },
-    "7": {
-      "$value": {
-        "value": 28,
         "unit": "px"
       }
     },
@@ -95,6 +89,12 @@
     "1-5": {
       "$value": {
         "value": 6,
+        "unit": "px"
+      }
+    },
+    "13": {
+      "$value": {
+        "value": 52,
         "unit": "px"
       }
     }
