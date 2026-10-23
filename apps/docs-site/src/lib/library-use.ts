@@ -1,6 +1,7 @@
 // What Bridge's own Use pages hand the shared views (components/ds/library/views/InstallView, AgentsView, ReviewView,
 // ChangelogView), from this build: the Bridge tools (CLI, MCP server, Figma plugin) every Library documents the same
-// way, and Bridge's own packages, code samples, llms.txt, governance files and version picker. A team's Library shell
+// way, and Bridge's own packages (from this build's snapshot, lib/site-snapshot.ts, with what each is for), code
+// samples, llms.txt, governance files and version picker. A team's Library shell
 // gets `bridgeTools()` as build-time props (pages/library-shell/) and reads the rest from the team's repository.
 import type { BridgeTools, UseExtras } from '../components/ds/library/library-data';
 import { versionInfo } from './changelog';
@@ -8,6 +9,7 @@ import { agentRules, approvals, reviewGates, reviewingAgentPrs, riskTiers } from
 import { buildLlmsTxt } from './llms';
 import { AI_DOC, mcpPrompts, mcpTools, safetyModel } from './mcp';
 import { GITHUB_URL, PLUGIN_URL, readJson, sourceUrl } from './repo';
+import { siteSnapshot } from './site-snapshot';
 import { humanDate, repoStatus } from './stats';
 
 const pkg = (dir: string) => readJson<{ name: string; version: string }>(`packages/${dir}/package.json`);
@@ -29,7 +31,7 @@ export function bridgeTools(): BridgeTools {
   };
 }
 
-/** The packages of the Install page, in this order, with what each is for. Versions from each package.json. */
+/** The packages of the Install page, in this order, with what each is for. Names and versions from the snapshot. */
 export const INSTALL_PACKAGES = ['react', 'tokens', 'cli', 'mcp', 'stylelint-plugin', 'eslint-plugin', 'core', 'visual'] as const;
 const USES: Record<(typeof INSTALL_PACKAGES)[number], string> = {
   react: 'The React components. Behavior from Base UI, styling only through tokens.',
@@ -85,7 +87,10 @@ export function siteUseExtras(): UseExtras {
   const repo = repoStatus();
   return {
     bridge: bridgeTools(),
-    packages: INSTALL_PACKAGES.map((d) => ({ ...pkg(d), use: USES[d] })),
+    packages: INSTALL_PACKAGES.map((d) => {
+      const p = siteSnapshot.packages?.find((x) => x.dir === `packages/${d}`) ?? pkg(d);
+      return { name: p.name, version: p.version, use: USES[d] };
+    }),
     samples: samples(),
     llms: { text: buildLlmsTxt(), href: '/llms.txt' },
     governance: { tiers: riskTiers(), approvals: approvals(), gates: reviewGates(), agentPrs: reviewingAgentPrs(), rules: agentRules() },

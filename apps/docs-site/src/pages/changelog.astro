@@ -1,14 +1,15 @@
 ---
 // Library > Use > Changelog: the shared view (components/ds/library/views/ChangelogView.tsx), rendered at build time
-// from the CHANGELOG.md files and the pending changesets, and hydrated for its folds, package lists and version picker.
+// from the releases of this build's snapshot (lib/site-snapshot.ts: the CHANGELOG.md files and the pending
+// changesets, as a team's snapshot carries them), and hydrated for its folds, package lists and version picker.
 import Layout from '../layouts/Layout.astro';
 import ChangelogView from '../components/ds/library/views/ChangelogView';
-import { releases } from '../lib/changelog';
 import { bridgeTools, siteUseExtras } from '../lib/library-use';
 import { PAGE_SOURCES, freshness } from '../lib/sources';
+import { siteSnapshot } from '../lib/site-snapshot';
 import '../styles/process.css';
 
-const all = releases();
+const all = siteSnapshot.releases ?? [];
 const updated = all.find((r) => r.date)?.date ?? freshness(PAGE_SOURCES.changelog);
 const { versionMenu } = siteUseExtras();
 // Only what the view reads: the releases, the version picker and Bridge's repository (the island's props).
