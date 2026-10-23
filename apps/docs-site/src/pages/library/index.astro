@@ -1,20 +1,20 @@
 ---
 // The Library home: the shared view (components/ds/library/views/LandingView.tsx), rendered at build time, with what
-// changed lately from this build's release notes.
+// changed lately from the releases of this build's snapshot (lib/site-snapshot.ts).
 import '../../styles/home.css';
 import Layout from '../../layouts/Layout.astro';
 import LandingView from '../../components/ds/library/views/LandingView';
 import type { LibraryChange } from '../../components/ds/library/library-data';
-import { releases } from '../../lib/changelog';
 import { changeHeadline, mdTitleText } from '../../lib/markdown';
 import { siteLibraryData } from '../../lib/library-site';
+import { siteSnapshot } from '../../lib/site-snapshot';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 import { repoStatus } from '../../lib/stats';
 
 const repo = repoStatus();
 
 // What changed: the latest entries people notice (internal tooling left out), newest first.
-const latest = releases()
+const latest = (siteSnapshot.releases ?? [])
   .flatMap((r) => r.entries.map((e) => ({ ...e, date: e.date ?? r.date })))
   .filter((e) => e.kind !== 'Internal')
   .slice(0, 3);

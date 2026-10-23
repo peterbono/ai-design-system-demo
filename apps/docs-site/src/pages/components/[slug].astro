@@ -12,15 +12,16 @@ import ComponentView from '../../components/ds/library/views/ComponentView';
 import LibraryEditMode from '../../components/LibraryEditMode';
 import GitHubDialog from '../../components/GitHubDialog.astro';
 import PreviewScope from '../../components/PreviewScope.astro';
-import { loadComponents, playgroundSpec, type ComponentInfo } from '../../lib/components';
+import { loadComponents, playgroundSpec, type ComponentInfo } from '../../lib/library/components';
 import { mainStory, previewScopes } from '../../lib/library/component-page';
 import { lastUpdated, exists, readText } from '../../lib/repo';
 import { componentPrefill } from '../../lib/docs-prefill';
 import { siteRepo } from '../../lib/config';
 import { siteComponentExtras, siteLibraryData } from '../../lib/library-site';
+import { libraryModel } from '../../lib/site-snapshot';
 
 export function getStaticPaths() {
-  return loadComponents().map((c) => ({ params: { slug: c.slug }, props: { c } }));
+  return loadComponents(libraryModel).map((c) => ({ params: { slug: c.slug }, props: { c } }));
 }
 
 const { c } = Astro.props as { c: ComponentInfo };
