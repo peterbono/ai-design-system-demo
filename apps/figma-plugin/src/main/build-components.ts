@@ -11,7 +11,7 @@
 
 import { variantKeyOf } from '@bridge-ds/core';
 import type { SpecField, SpecLayout, SpecPart } from '@bridge-ds/core';
-import { parsePushedMark } from '../sync/component-pull';
+import { matchVariants, parsePushedMark, propsOfKey } from '../sync/component-pull';
 import { PUSHED_KEY } from '../shared/messages';
 import type { ComponentApplyReport, ComponentPullPlan, GeneratedSet, PlannedComponent, PlannedField, PlannedIcon, PlannedSlot, PlannedValue, PlannedVariant } from '../sync/component-pull';
 import { buildSignature } from '../sync/components';
@@ -136,12 +136,24 @@ export async function scanGenerated(): Promise<GeneratedSet[]> {
     specHash: s.getSharedPluginData(NS, 'specHash'),
     variants: s.children
       .filter((c): c is ComponentNode => c.type === 'COMPONENT' && c.getSharedPluginData(NS, 'orphan') !== 'true')
-      .map((c) => c.getSharedPluginData(NS, 'variant') || variantKeyOf(c.variantProperties ?? {})),
+      .map(keyOfVariant),
     ...(() => {
       const pushed = parsePushedMark(s.getSharedPluginData(NS, PUSHED_KEY));
       return pushed ? { pushed } : {};
     })(),
+    ...(inError(s) ? { inError: true } : {}),
   }));
+}
+
+/** A set Figma holds in error (variants of different shapes or alike): every read of its properties throws. */
+function inError(s: ComponentSetNode): boolean {
+  try {
+    void s.componentPropertyDefinitions;
+    for (const c of s.children) if (c.type === 'COMPONENT') void c.variantProperties;
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -372,6 +384,18 @@ function reset(node: SceneNode, field: SpecField): void {
   }
 }
 
+/** Fixed sizing on one axis, so a set or bound size holds (auto layout would hug or fill over it). */
+function fixAxis(node: SceneNode, field: 'width' | 'height'): void {
+  if ('layoutSizingHorizontal' in node && node.parent && 'layoutMode' in node.parent && node.parent.layoutMode !== 'NONE') {
+    if (field === 'width') node.layoutSizingHorizontal = 'FIXED';
+    else node.layoutSizingVertical = 'FIXED';
+  } else if ('layoutMode' in node && node.layoutMode !== 'NONE') {
+    const horizontal = node.layoutMode === 'HORIZONTAL';
+    if ((field === 'width') === horizontal) node.primaryAxisSizingMode = 'FIXED';
+    else node.counterAxisSizingMode = 'FIXED';
+  }
+}
+
 function apply(node: SceneNode, f: PlannedField, ctx: Ctx): void {
   const n = node as unknown as Record<string, unknown>;
   const v = f.value;
@@ -393,7 +417,14 @@ function apply(node: SceneNode, f: PlannedField, ctx: Ctx): void {
         /* nothing bound */
       }
       if (f.field === 'cornerRadius') n.cornerRadius = v.value;
-      else n[f.field] = v.value;
+      else if (f.field === 'width' || f.field === 'height') {
+        // Read only in Figma: fixed sizing on that axis, then resize.
+        fixAxis(node, f.field);
+        if ('resize' in node) {
+          const r = node as FrameNode;
+          r.resize(f.field === 'width' ? Math.max(0.01, v.value) : r.width, f.field === 'height' ? Math.max(0.01, v.value) : r.height);
+        }
+      } else n[f.field] = v.value;
       return;
     }
     if (v.kind === 'percent') {
@@ -421,14 +452,7 @@ function apply(node: SceneNode, f: PlannedField, ctx: Ctx): void {
         return;
       case 'width':
       case 'height':
-        if ('layoutSizingHorizontal' in node && node.parent && 'layoutMode' in node.parent && node.parent.layoutMode !== 'NONE') {
-          if (f.field === 'width') node.layoutSizingHorizontal = 'FIXED';
-          else node.layoutSizingVertical = 'FIXED';
-        } else if ('layoutMode' in node && node.layoutMode !== 'NONE') {
-          const horizontal = node.layoutMode === 'HORIZONTAL';
-          if ((f.field === 'width') === horizontal) node.primaryAxisSizingMode = 'FIXED';
-          else node.counterAxisSizingMode = 'FIXED';
-        }
+        fixAxis(node, f.field);
         bind(node, f.field, variable);
         return;
       default:
@@ -467,6 +491,18 @@ function setupFrame(node: Box, part: SpecPart, layout?: SpecLayout): void {
  * axis. Set last: the child's own hug sizing (setupFrame) would otherwise undo it, and FILL needs the node to be inside
  * its auto layout parent already. A text that fills the width wraps: fixed width, height grows.
  */
+/**
+ * Back in its parent's auto layout. A layer the last pull pinned or laid over its parent is absolute, and Figma refuses
+ * to make an absolute layer fill: it is sized in the layout first, then pinned again after placing.
+ */
+function intoLayout(node: SceneNode): void {
+  try {
+    if ('layoutPositioning' in node && node.layoutPositioning === 'ABSOLUTE') node.layoutPositioning = 'AUTO';
+  } catch {
+    /* its parent is no longer an auto layout: nothing to fill */
+  }
+}
+
 function sizeInParent(node: SceneNode, parentPart: SpecPart | undefined, definite = true): void {
   if (!parentPart?.layout || parentPart.layout.counter !== 'STRETCH' || !('layoutSizingHorizontal' in node)) return;
   // A vertical parent that hugs its content has no width to fill: its children hug too (same look for left-aligned
@@ -542,6 +578,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
       ctx.where = `${comp.name} ${pv.name}, ${part.name}`;
       if (main) {
         const inst = await placeInstance(node, main, parent, part.id, target);
+        intoLayout(inst);
         nodes.set(part.id, inst);
         if (inst.name !== part.name) inst.name = part.name;
         const swapKey = propKeys.get(`swap:${part.id}`);
@@ -564,6 +601,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
       parent.appendChild(node);
     } else if (part.id !== 'root' && node.parent !== parent) parent.appendChild(node);
     nodes.set(part.id, node);
+    if (part.id !== 'root') intoLayout(node);
     if (part.id !== 'root' && node.name !== part.name) node.name = part.name;
     const parentPart = comp.parts.find((p) => p.id === part.parent);
     ctx.where = `${comp.name} ${pv.name}, ${part.name}`;
@@ -1197,6 +1235,13 @@ function bottomOf(page: PageNode): number {
   return page.children.reduce((m, n) => Math.max(m, n.y + n.height), 0);
 }
 
+/** A variant's key: the one DS Bridge stored, else read from its name (its properties throw while the set is in error). */
+function keyOfVariant(c: ComponentNode): string {
+  const stored = c.getSharedPluginData(NS, 'variant');
+  if (stored) return stored;
+  return variantKeyOf(propsOfKey(c.name));
+}
+
 /** A set none of whose variants could be built: its message is already the reason in words. */
 class NotBuilt extends Error {}
 
@@ -1256,10 +1301,28 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
     }
     set.name = comp.name;
     set.description = comp.description;
+    // Which variant becomes which (a new axis keeps the variants it extends), and the orphans' names. Renamed first,
+    // so the set has one shape again before anything reads its properties.
+    const members = set.children.filter((c): c is ComponentNode => c.type === 'COMPONENT');
+    const byId = new Map(members.map((c) => [c.id, c]));
+    const match = matchVariants(members.map((c) => ({ id: c.id, key: keyOfVariant(c) })), comp.variants, comp.axes);
+    const variants = new Map<string, ComponentNode>();
+    for (const pv of comp.variants) {
+      const node = byId.get(match.reuse.get(pv.key) ?? '');
+      if (!node) continue;
+      variants.set(pv.key, node);
+      if (node.name !== pv.name) node.name = pv.name;
+    }
+    for (const o of match.orphans) {
+      const node = byId.get(o.id)!;
+      if (node.name !== o.name) node.name = o.name;
+      if (node.getSharedPluginData(NS, 'orphan') !== 'true') {
+        node.setSharedPluginData(NS, 'orphan', 'true');
+        if (!node.description.startsWith(ORPHAN_PREFIX)) node.description = ORPHAN_PREFIX + node.description;
+        report.orphaned++;
+      }
+    }
     const propKeys = ensureProperties(set, comp, ctx);
-    const variants = new Map(
-      set.children.filter((c): c is ComponentNode => c.type === 'COMPONENT').map((c) => [c.getSharedPluginData(NS, 'variant') || variantKeyOf(c.variantProperties ?? {}), c]),
-    );
     for (const pv of comp.variants) {
       if (skipped.has(pv.key)) continue;
       let node = variants.get(pv.key);
@@ -1268,6 +1331,9 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
       try {
         if (!node) {
           node = make.component();
+          // Named before it joins the set: an unnamed variant leaves the set in error.
+          node.name = pv.name;
+          node.setSharedPluginData(NS, 'variant', pv.key);
           set.appendChild(node);
         }
         await configureVariant(node, comp, pv, propKeys, ctx);
@@ -1280,16 +1346,6 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
       await breathe();
     }
     if (set.removed || failed.length === comp.variants.length) throw new NotBuilt(failed[0]?.reason ?? 'Figma removed the set');
-    // Variants removed in code: kept, flagged.
-    const keys = new Set(comp.variants.map((v) => v.key));
-    for (const [key, node] of variants) {
-      if (keys.has(key) || node.removed) continue;
-      if (node.getSharedPluginData(NS, 'orphan') !== 'true') {
-        node.setSharedPluginData(NS, 'orphan', 'true');
-        if (!node.description.startsWith(ORPHAN_PREFIX)) node.description = ORPHAN_PREFIX + node.description;
-        report.orphaned++;
-      }
-    }
     await breathe();
     // Interactions are extra: when Figma refuses them, this set is still built and the pull goes on.
     try {
@@ -1319,7 +1375,8 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
     try {
       set.setSharedPluginData(NS, 'signature', JSON.stringify(buildSignature(await readComponent(set))));
     } catch (err) {
-      console.warn(`DS Bridge: baseline of ${comp.name} not stored: ${errorText(err)}`);
+      // Said on the Pull screen: without a baseline, a Push cannot tell this set's edits from the pull.
+      ctx.problems.push(`${comp.name}: its baseline for Push was not stored (${errorText(err)}). Pull again.`);
     }
     report.nodeIds.push(set.id);
     if (isNew) report.created++;
