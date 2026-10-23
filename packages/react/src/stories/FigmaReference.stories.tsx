@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { useEffect, useRef, type ComponentType, type ReactNode } from 'react';
+import { Component, useEffect, useRef, type ComponentType, type ReactNode } from 'react';
 import { icons } from 'lucide-react';
 import * as DS from '../index';
 import type { ToastProps } from '../components/Toast';
@@ -25,6 +25,7 @@ interface Render {
   pseudo?: 'hover' | 'active' | 'focus-visible';
   width?: string;
   children?: (string | ExampleNode)[];
+  within?: string;
 }
 
 const lucide = icons as Record<string, unknown>;
@@ -62,6 +63,92 @@ const HOOK_SHOWN: Record<string, ComponentType<Record<string, unknown>>> = { Toa
 
 const registry = { ...(DS as unknown as Record<string, ComponentType<Record<string, unknown>> | undefined>), ...HOOK_SHOWN };
 
+/**
+ * Marks the element just before it as the capture target (`data-fidelity-target`): a part rendered inside its parent
+ * is captured alone, at the width Figma draws it (the parent's padding and border do not count). A `<template>` is
+ * valid in any parent (a table body, a list) and draws nothing.
+ */
+function MarkPrevious({ width }: { width: string | undefined }) {
+  const ref = useRef<HTMLTemplateElement>(null);
+  useEffect(() => {
+    let frame = 0;
+    const mark = () => {
+      const el = ref.current?.previousElementSibling;
+      if (!el) {
+        frame = requestAnimationFrame(mark);
+        return;
+      }
+      if (width && el instanceof HTMLElement) el.style.width = width;
+      el.setAttribute('data-fidelity-target', '');
+    };
+    mark();
+    return () => cancelAnimationFrame(frame);
+  }, [width]);
+  return <template ref={ref} data-fidelity-anchor="" />;
+}
+
+/**
+ * How a part of a compound component is hosted (keyed by the parent's export name): the props the part gets, and the
+ * parent elements around it. A parent without an entry is rendered as is around the part.
+ */
+interface Host {
+  part?: (component: string, props: Record<string, unknown>) => Record<string, unknown>;
+  wrap: (part: ReactNode, props: Record<string, unknown>, component: string) => ReactNode;
+}
+
+const withoutChecked = ({ checked: _checked, ...rest }: Record<string, unknown>) => rest;
+
+const HOSTS: Record<string, Host> = {
+  // A radio is checked by its group's value.
+  RadioGroup: {
+    part: (_c, p) => withoutChecked(p),
+    wrap: (part, p) => (
+      <DS.RadioGroup label="Options" hideLabel value={p.checked ? String(p.value) : ''}>
+        {part}
+      </DS.RadioGroup>
+    ),
+  },
+  // Menu parts render in an open menu; a radio item is checked by its group's value. The popup shows once it is placed
+  // against its trigger, so the menu has one (not captured), and it grows past its max width to fit the part at the
+  // width Figma draws it.
+  Menu: {
+    part: (c, p) => (c === 'MenuRadioItem' ? { value: 'item', ...withoutChecked(p) } : p),
+    wrap: (part, p, c) => (
+      <DS.Menu open>
+        <DS.MenuTrigger aria-label="Menu" />
+        <DS.MenuContent style={{ maxWidth: 'none' }}>
+          {c === 'MenuRadioItem' ? <DS.MenuRadioGroup value={p.checked ? String(p.value ?? 'item') : ''}>{part}</DS.MenuRadioGroup> : part}
+        </DS.MenuContent>
+      </DS.Menu>
+    ),
+  },
+  SidebarNav: {
+    wrap: (part, _p, c) => <DS.SidebarNav>{c === 'SidebarNavItem' ? <DS.SidebarNavSection>{part}</DS.SidebarNavSection> : part}</DS.SidebarNav>,
+  },
+  Table: {
+    wrap: (part) => (
+      <DS.Table aria-label="Table">
+        <DS.TableBody>{part}</DS.TableBody>
+      </DS.Table>
+    ),
+  },
+};
+
+/**
+ * A component that throws (a part rendered without its parent, a missing context) shows its error as the skip reason
+ * instead of breaking the story: keyed by the plan, so the next variant renders fresh.
+ */
+class RenderBoundary extends Component<{ component: string; children: ReactNode }, { error: Error | null }> {
+  override state: { error: Error | null } = { error: null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  override render() {
+    if (this.state.error) return <p data-fidelity-error="">{`${this.props.component} threw while rendering: ${this.state.error.message}`}</p>;
+    return this.props.children;
+  }
+}
+
 /** Icon props given by name ("Pencil") become the lucide icon. */
 function withIcons(p: Record<string, unknown> | undefined): Record<string, unknown> {
   const out: Record<string, unknown> = { ...p };
@@ -83,15 +170,11 @@ function example(nodes: (string | ExampleNode)[]): ReactNode {
   });
 }
 
-function FigmaReference({ plan }: { plan: string }) {
-  let r: Render;
-  try {
-    r = JSON.parse(plan) as Render;
-  } catch {
-    return <p data-fidelity-error="">No render plan</p>;
-  }
+function Reference({ r, plan }: { r: Render; plan: string }) {
   const Comp = registry[r.component];
   if (!Comp) return <p data-fidelity-error="">{`${r.component} is not exported by @bridge-ds/react`}</p>;
+  const Parent = r.within ? registry[r.within] : undefined;
+  if (r.within && !Parent) return <p data-fidelity-error="">{`${r.within} is not exported by @bridge-ds/react`}</p>;
   const props: Record<string, unknown> = withIcons(r.props);
   for (const [prop, name] of Object.entries(r.icons ?? {})) {
     if (!lucide[name]) return <p data-fidelity-error="">{`Icon ${name} is not in lucide-react`}</p>;
@@ -114,12 +197,42 @@ function FigmaReference({ plan }: { plan: string }) {
       return <Part key={p.component}>{p.text}</Part>;
     });
   }
+  const width = r.width ? `var(--${r.width.split('.').join('-')})` : undefined;
+  let content: ReactNode = <Comp {...props}>{children}</Comp>;
+  // A part of a compound component renders inside its parent and is captured alone (marked by MarkPrevious).
+  if (r.within && Parent) {
+    const host: Host = HOSTS[r.within] ?? { wrap: (part) => <Parent>{part}</Parent> };
+    const partProps = host.part ? host.part(r.component, props) : props;
+    content = host.wrap(
+      <>
+        <Comp {...partProps}>{children}</Comp>
+        <MarkPrevious width={width} />
+      </>,
+      props,
+      r.component,
+    );
+  }
   // pseudo-states addon classes: every descendant behaves as hovered, pressed or focused.
   const pseudo = r.pseudo ? `pseudo-${r.pseudo}-all` : undefined;
+  // The width goes to the part itself when it sits in a parent; the parent sizes around it.
   return (
-    <div key={plan} data-fidelity-root="" className={pseudo} style={{ display: 'inline-block', width: r.width ? `var(--${r.width.split('.').join('-')})` : undefined }}>
-      <Comp {...props}>{children}</Comp>
+    <div key={plan} data-fidelity-root="" className={pseudo} style={{ display: 'inline-block', width: r.within ? undefined : width }}>
+      {content}
     </div>
+  );
+}
+
+function FigmaReference({ plan }: { plan: string }) {
+  let r: Render;
+  try {
+    r = JSON.parse(plan) as Render;
+  } catch {
+    return <p data-fidelity-error="">No render plan</p>;
+  }
+  return (
+    <RenderBoundary key={plan} component={r.component}>
+      <Reference r={r} plan={plan} />
+    </RenderBoundary>
   );
 }
 
