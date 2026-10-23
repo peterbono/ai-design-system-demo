@@ -3,7 +3,8 @@
 // and deletes. The session is an httpOnly cookie this page never sees. When the site has no account server (an older
 // deploy, a fork, `astro dev`) the GET says unavailable and the screens fall back to GitHub; never a fake success.
 // Signed in, <html data-account> is set so the GitHub-only account blocks step aside (styles/account.css).
-import { ACCOUNT_API, ACCOUNT_HEADER, ACCOUNT_WORDS, accountErrorText, GITHUB_PENDING_KEY, parseAccount, signInHref, type Account, type AccountInfo, type SignedIn } from '../lib/account';
+import { ACCOUNT_API, ACCOUNT_HEADER, ACCOUNT_WORDS, accountErrorText, GITHUB_PENDING_KEY, isPersonalKey, parseAccount, signInHref, type Account, type AccountInfo, type SignedIn } from '../lib/account';
+import { forgetContributors, seedContributors } from './contribute-session';
 import { isContribAuth } from '../lib/contribute';
 
 /** The site has no account server, or it is not set up. */
@@ -45,6 +46,8 @@ export function onAccountChange(fn: (a: Account | null) => void): () => void {
 
 function publish(a: Account | null) {
   if (typeof document !== 'undefined') document.documentElement.toggleAttribute('data-account', Boolean(a));
+  // Each of the account's email teams knows its member at once, even one this browser never opened.
+  if (a) seedContributors(a, a.teams);
   listeners.forEach((fn) => fn(a));
 }
 
@@ -123,19 +126,42 @@ async function update(body: Record<string, unknown>): Promise<Account | null> {
 
 export const renameAccount = (name: string) => update({ action: 'rename', name: name.trim() });
 
-function ended() {
+/**
+ * Forgets what this browser keeps about the person (lib/account.ts isPersonalKey): email memberships, teams, roles,
+ * counts and cached reads, and the private bodies kept in IndexedDB.
+ */
+export async function forgetPersonalData(): Promise<void> {
+  for (const store of [() => localStorage, () => sessionStorage]) {
+    try {
+      const s = store();
+      for (const k of Object.keys(s)) if (isPersonalKey(k)) s.removeItem(k);
+    } catch {
+      /* storage blocked: nothing kept */
+    }
+  }
+  forgetContributors();
+  try {
+    const { clearPrivateRepoCaches } = await import('./repo-cache');
+    await clearPrivateRepoCaches();
+  } catch {
+    /* no IndexedDB here */
+  }
+}
+
+async function ended() {
   info = Promise.resolve({ available: true, account: null });
+  await forgetPersonalData();
   publish(null);
 }
 
 export async function signOut(): Promise<void> {
   await call('POST', '', { action: 'sign-out' });
-  ended();
+  await ended();
 }
 
 export async function signOutEverywhere(): Promise<void> {
   await call('POST', '', { action: 'sign-out-everywhere' });
-  ended();
+  await ended();
 }
 
 /**
@@ -145,7 +171,7 @@ export async function signOutEverywhere(): Promise<void> {
 export async function deleteAccount(): Promise<void> {
   const token = await workingGitHubToken().catch(() => null);
   await call('POST', '', { action: 'delete' }, token ? { Authorization: `Bearer ${token}` } : {});
-  ended();
+  await ended();
 }
 
 /** The GitHub sign-in token this browser holds and GitHub still takes; never an email contributor's stand-in. */

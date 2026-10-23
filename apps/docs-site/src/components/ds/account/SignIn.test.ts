@@ -85,7 +85,7 @@ describe('sign-in screen, email', () => {
     expect(screen.queryByRole('button', { name: 'Continue with GitHub' })).toBeNull();
     expect(screen.queryByText('or')).toBeNull();
     expect(screen.getByRole('button', { name: 'Send code' }).className).toMatch(/primary/);
-    expect(screen.getByRole('link', { name: 'Open the demo' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Open the demo' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'What Bridge keeps about you' })).toHaveAttribute('href', '/privacy/');
     await expectNoAxeViolations(container);
     const user = userEvent.setup();
@@ -110,6 +110,44 @@ describe('sign-in screen, email', () => {
     expect(document.documentElement.hasAttribute('data-account')).toBe(true);
     // ?next= wins: Bridge does not pick a room.
     expect(entryCalls).toHaveLength(0);
+  });
+
+  it('checks a code once: Enter right after the 6th digit does not send it again', async () => {
+    let release: () => void = () => {};
+    reply = (c) => {
+      if (c.method === 'GET') return json(200, { available: true, account: null });
+      return json(200, { ok: true });
+    };
+    setAccountFetch(async (_url, init) => {
+      const c = { method: init?.method ?? 'GET', body: init?.body ? JSON.parse(String(init.body)) : null, headers: (init?.headers ?? {}) as Record<string, string> };
+      calls.push(c);
+      if (c.body?.action === 'verify') {
+        await new Promise<void>((ok) => (release = ok));
+        return json(200, { account: account({ teams: [{ repo: 'acme/ds', role: 'edit', via: 'email' }] }), created: false, next: '' });
+      }
+      return reply(c);
+    });
+    render(createElement(SignIn));
+    const user = userEvent.setup();
+    await user.type(await emailField(), 'leo@acme.design{Enter}');
+    const field = await screen.findByRole('textbox', { name: 'Code' });
+    await user.type(field, '123456');
+    await user.keyboard('{Enter}');
+    await act(async () => release());
+    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/acme/ds/tokens/'));
+    await user.keyboard('{Enter}');
+    expect(posts('verify')).toHaveLength(1);
+    // The account's email team knows its member before the page opens: no "Sign in to open" there.
+    expect(JSON.parse(localStorage.getItem('bridge.contribute.member:acme/ds') ?? 'null')).toEqual({ email: 'leo@acme.design', name: 'Leo', role: 'edit' });
+  });
+
+  it("says You're signed out once, above the email field", async () => {
+    history.replaceState(null, '', '/signin/?next=%2Fstudio%2Facme%2Fds%2F&bye=out');
+    const { container } = render(createElement(SignIn));
+    expect(await screen.findByText("You're signed out.")).toBeInTheDocument();
+    await emailField();
+    expect(location.search).toBe('?next=%2Fstudio%2Facme%2Fds%2F');
+    await expectNoAxeViolations(container);
   });
 
   it('says a wrong code in designer words and keeps the field', async () => {

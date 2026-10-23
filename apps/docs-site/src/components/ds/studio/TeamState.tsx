@@ -5,7 +5,8 @@
 //   TeamLoadProgress  how far the read has gone (LoadProgress), once it is not instant
 // Repo content never reaches HTML here: React text nodes only.
 import { useCallback, useEffect, useState } from 'react';
-import { CloudOff, FileWarning, RefreshCw, SearchX, Timer } from 'lucide-react';
+import { CloudOff, FileWarning, LogIn, RefreshCw, SearchX, Timer } from 'lucide-react';
+import { signInHref } from '../../../lib/account';
 import { Button, EmptyState, IconButton, Link } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
 import { loadTeamData, onTeamProgress, resetTeamData, teamOfPage, type TeamData } from '../../../scripts/team-data';
@@ -66,9 +67,12 @@ export function TeamSourceNote({ data, refreshing, onRefresh }: { data: TeamData
   );
 }
 
-const FAILURE_ICON = { 'rate-limit': Timer, 'not-found': SearchX, 'too-large': FileWarning, network: CloudOff, unknown: CloudOff } as const;
+const FAILURE_ICON = { 'rate-limit': Timer, 'not-found': SearchX, 'too-large': FileWarning, network: CloudOff, 'signed-out': LogIn, unknown: CloudOff } as const;
 
-/** What went wrong, and Try again. A repository too large to read also gets the snapshot workflow to copy. */
+/** The sign-in screen, back to this page once signed in again. */
+export const signInHereHref = () => signInHref(typeof location === 'undefined' ? null : location.pathname + location.search + location.hash);
+
+/** What went wrong, and Try again (Sign in when the session ended). A repository too large to read also gets the snapshot workflow to copy. */
 export function TeamLoadError({ failure, onRetry }: { failure: TeamFailure; onRetry: () => void }) {
   return (
     <EmptyState
@@ -80,9 +84,15 @@ export function TeamLoadError({ failure, onRetry }: { failure: TeamFailure; onRe
       description={failure.body}
       actions={
         <>
-          <Button variant="primary" iconStart={RefreshCw} onClick={onRetry}>
-            Try again
-          </Button>
+          {failure.kind === 'signed-out' ? (
+            <ButtonLink variant="primary" iconStart={LogIn} href={signInHereHref()}>
+              Sign in
+            </ButtonLink>
+          ) : (
+            <Button variant="primary" iconStart={RefreshCw} onClick={onRetry}>
+              Try again
+            </Button>
+          )}
           {failure.kind === 'too-large' && (
             <ButtonLink variant="secondary" href={SNAPSHOT_TEMPLATE_URL} target="_blank" rel="noopener noreferrer">
               Get the snapshot workflow

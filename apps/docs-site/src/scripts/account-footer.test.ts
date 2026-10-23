@@ -59,6 +59,27 @@ const boot = async () => {
 };
 
 describe('the side nav account row', () => {
+  it('opens a team never seen in this browser as its member: the server says so first, no guest check on GitHub', async () => {
+    member = { email: 'florian@acme.design', name: 'Florian', role: 'edit' };
+    const session = await import('./github-session');
+    const access: (string | null)[] = [];
+    session.onAccess((a) => access.push(a?.state ?? null));
+    session.initGitHubConnect();
+    await vi.waitFor(() => expect(acct().dataset.state).toBe('connected'));
+    await vi.waitFor(() => expect(acct().querySelector('[data-gh-perm]')!.textContent).toBe('Can edit'));
+    const urls = vi.mocked(fetch).mock.calls.map(([u]) => String(u));
+    expect(urls.filter((u) => u.startsWith('https://api.github.com'))).toEqual([]);
+    expect(access).not.toContain('anonymous-unknown');
+  });
+
+  it('a visitor with no session goes on as a guest once the server says nobody is signed in', async () => {
+    const session = await import('./github-session');
+    session.initGitHubConnect();
+    await vi.waitFor(() => expect(acct().dataset.state).toBe('readonly'));
+    const urls = vi.mocked(fetch).mock.calls.map(([u]) => String(u));
+    expect(urls[0]).toBe('/api/contribute?repo=acme%2Fds');
+  });
+
   it('shows an email contributor signed in: name, email, Sign out, no sign-in button', async () => {
     member = { email: 'florian@acme.design', name: 'Florian', role: 'edit' };
     localStorage.setItem('bridge.contribute.member:acme/ds', JSON.stringify(member));

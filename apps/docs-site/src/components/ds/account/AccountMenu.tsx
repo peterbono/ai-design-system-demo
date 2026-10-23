@@ -9,7 +9,7 @@ import { LogOut, Settings } from 'lucide-react';
 import { Avatar, Button, Icon, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@bridge-ds/react';
 import { ChevronsUpDown } from 'lucide-react';
 import { GitHubMark } from '../studio/brand-icons';
-import { ACCOUNT_WORDS as W, accountName, defaultNext, roleWord, type Account } from '../../../lib/account';
+import { ACCOUNT_WORDS as W, accountName, defaultNext, roleWord, signedOutHref, type Account } from '../../../lib/account';
 import { ownerAvatarUrl } from '../../../lib/access-view';
 import { loadRecentTeams } from '../../../lib/recent-teams';
 import { studioHref, studioHrefAt } from '../../../lib/team-path';
@@ -88,7 +88,9 @@ export default function AccountMenu({ compact = false }: AccountMenuProps) {
     const { signOut: end } = await import('../../../scripts/account-session');
     try {
       await end();
-    } finally {
+      // The sign-in screen says "You're signed out", and brings them back here once signed in again.
+      location.assign(signedOutHref('out', location.pathname + location.search));
+    } catch {
       location.reload();
     }
   };
