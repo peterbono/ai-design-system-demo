@@ -4,8 +4,8 @@
 // With GitHub linked and signed in on this browser, the GitHub sign-in goes along (Bearer) so the server can find the
 // teams GitHub gives the person and accept reviewer or admin invites; the server never keeps it.
 import { CONTRIBUTE_HEADER } from '../lib/contribute';
-import { noteAccountTeamNames } from '../lib/recent-teams';
-import { ENTRY_API, parseDiscovery, parseEntry, parseInviteLink, parseRequests, type Discovery, type Entry, type EntryRole, type InviteLink, type JoinRequest } from '../lib/entry';
+import { noteAccountTeamNames, noteTeamName } from '../lib/recent-teams';
+import { ENTRY_API, parseDiscovery, parseEntry, parseInviteLink, parseRequests, parseTeamInfo, type Discovery, type Entry, type EntryRole, type InviteLink, type JoinRequest, type TeamInfo } from '../lib/entry';
 
 /** The server refused or failed: its sentence, its code ("github-required", "forbidden", "expired"), the status. */
 export class EntryError extends Error {
@@ -145,3 +145,47 @@ export async function setDiscovery(repo: string, enabled: boolean): Promise<{ do
 
 /** The refusal of an admin action because no GitHub admin account is linked: shown as a calm link, not an error. */
 export const needsGitHubAdmin = (err: unknown): boolean => err instanceof EntryError && err.status === 403 && err.code === 'forbidden';
+
+// ---------------------------------------------------------------------------------------------------------------
+// "Create your team": a real team at step 1, before any repository
+
+function teamOf(r: { team?: unknown }): TeamInfo {
+  const t = parseTeamInfo(r.team);
+  if (!t) throw new EntryError(FAILED, 'failed', 500);
+  return t;
+}
+
+/**
+ * Step 1: makes the team on the server (its creator its admin) and opens it to the work domain when `discover`. Run
+ * again, it renames that same team.
+ */
+export async function createTeam(name: string, discover: boolean): Promise<{ team: TeamInfo; created: boolean }> {
+  const r = await call<{ team?: unknown; created?: unknown }>('POST', '', { action: 'create-team', name, discover });
+  const team = teamOf(r);
+  noteTeamName(team.key, team.name);
+  return { team, created: r.created === true };
+}
+
+/** A team made in Bridge, for one of its members; null when it is gone or they are not on it (404). */
+export async function getTeam(key: string): Promise<TeamInfo | null> {
+  try {
+    return teamOf(await call<{ team?: unknown }>('GET', `?team=${encodeURIComponent(key)}`));
+  } catch (err) {
+    if (err instanceof EntryError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+/** Keeps the Storybook added with the quick start with the team (admins). */
+export const linkStorybook = async (key: string, storybook: string | null): Promise<TeamInfo> =>
+  teamOf(await call<{ team?: unknown }>('POST', '', { action: 'link-team', team: key, storybook: storybook ?? '' }));
+
+/**
+ * Links the repository: the team moves there (members, requests, discovery, invites, name). Needs an admin of the
+ * repository on GitHub, so the GitHub sign-in of this browser goes along. EntryError 409 app_missing while Bridge is not
+ * installed there, 403 forbidden for someone who does not administer it.
+ */
+export async function linkRepo(key: string, repo: string): Promise<{ repo: string; next: string }> {
+  const r = await call<{ repo?: unknown; next?: unknown }>('POST', '', { action: 'link-team', team: key, repo }, true);
+  return { repo: typeof r.repo === 'string' ? r.repo : repo, next: typeof r.next === 'string' ? r.next : '' };
+}

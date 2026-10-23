@@ -3,7 +3,7 @@
 // and deletes. The session is an httpOnly cookie this page never sees. When the site has no account server (an older
 // deploy, a fork, `astro dev`) the GET says unavailable and the screens fall back to GitHub; never a fake success.
 // Signed in, <html data-account> is set so the GitHub-only account blocks step aside (styles/account.css).
-import { ACCOUNT_API, ACCOUNT_HEADER, ACCOUNT_WORDS, accountErrorText, GITHUB_PENDING_KEY, isPersonalKey, parseAccount, signInHref, type Account, type AccountInfo, type SignedIn } from '../lib/account';
+import { ACCOUNT_API, ACCOUNT_HEADER, ACCOUNT_WORDS, accountErrorText, GITHUB_PENDING_KEY, isPersonalKey, parseAccount, parseBlocked, signInHref, type Account, type AccountInfo, type BlockedTeam, type SignedIn } from '../lib/account';
 import { forgetContributors, seedContributors } from './contribute-session';
 import { isContribAuth } from '../lib/contribute';
 import { noteAccountTeamNames } from '../lib/recent-teams';
@@ -173,6 +173,16 @@ export async function signOut(): Promise<void> {
 export async function signOutEverywhere(): Promise<void> {
   await call('POST', '', { action: 'sign-out-everywhere' });
   await ended();
+}
+
+/**
+ * Before the confirm field: the teams the person is the only admin of while others are on them, each with who could
+ * take over. Empty when deleting would go through. With GitHub linked, the GitHub sign-in goes along, as for delete.
+ */
+export async function deleteCheck(): Promise<BlockedTeam[]> {
+  const token = await workingGitHubToken().catch(() => null);
+  const r = await call<{ blocked?: unknown }>('POST', '', { action: 'delete-check' }, token ? { Authorization: `Bearer ${token}` } : {});
+  return parseBlocked(r.blocked);
 }
 
 /**

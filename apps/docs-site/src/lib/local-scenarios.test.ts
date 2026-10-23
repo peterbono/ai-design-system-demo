@@ -9,7 +9,7 @@ import type { EmailMessage } from '../../api/_lib/email';
 import type { FetchLike } from '../../api/_lib/http';
 import { localAdminStore } from '../../api/_lib/local-admin';
 import { memoryRedis } from '../../api/_lib/redis';
-import { handleAccount, LAST_ADMIN } from '../../api/account/index';
+import { handleAccount, lastAdminOf } from '../../api/account/index';
 import { handleContribute } from '../../api/contribute/index';
 import { handleEntry } from '../../api/entry/index';
 import { studioReserved, teamRewrite } from '../../dev/local-api';
@@ -82,8 +82,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('every scenario', () => {
-  it('lists S0 to S16, each found by id, number or slug', () => {
-    expect(SCENARIOS.map((s) => s.id)).toEqual(Array.from({ length: 17 }, (_, i) => `S${i}`));
+  it('lists S0 to S18, each found by id, number or slug', () => {
+    expect(SCENARIOS.map((s) => s.id)).toEqual(Array.from({ length: 19 }, (_, i) => `S${i}`));
     for (const s of SCENARIOS) {
       expect(findScenario(s.id)).toBe(s);
       expect(findScenario(s.id.toLowerCase())).toBe(s);
@@ -146,7 +146,7 @@ describe('what each scenario is for', () => {
     expect((await w7.entry(await w7.cookieFor('mia@acme.com', 'Mia Rossi'))).body.kind).toBe('create');
   });
 
-  it('S9: reviewer and admin invites need GitHub', async () => {
+  it('S9: a reviewer invite needs GitHub; an admin invite joins with the email', async () => {
     const w = world(findScenario('S9')!);
     await w.seed();
     const noah = await w.cookieFor('noah@acme.com', 'Noah Kim');
@@ -155,6 +155,10 @@ describe('what each scenario is for', () => {
     const r = await w.post(noah, { action: 'accept-invite', repo: inv.repo, id: inv.id });
     expect(r.status).toBe(409);
     expect(r.body.error).toBe('github-required');
+    const ava = await w.cookieFor('ava@acme.com', 'Ava Patel');
+    const adm = (await w.entry(ava)).body.invites[0];
+    expect((await w.post(ava, { action: 'accept-invite', repo: adm.repo, id: adm.id })).body).toMatchObject({ joined: true, role: 'admin' });
+    expect((await w.entry(ava)).body).toMatchObject({ kind: 'teams', teams: [{ repo: 'acme/acme-product', role: 'admin' }] });
   });
 
   it('S12: each seeded admin sees their own requests (4, 1, 0) and decides them without GitHub; a member cannot', async () => {
@@ -216,7 +220,7 @@ describe('what each scenario is for', () => {
     await w.seed();
     const blocked = await w.account({ action: 'delete' }, await w.cookieFor('sam@acme.com', 'Sam Rivera'));
     expect(blocked.status).toBe(409);
-    expect(blocked.body).toMatchObject({ error: 'last-admin', message: LAST_ADMIN, teams: ['acme/acme-product'] });
+    expect(blocked.body).toMatchObject({ error: 'last-admin', message: lastAdminOf(['Acme product']), teams: ['acme/acme-product'] });
     const done = await w.account({ action: 'delete' }, await w.cookieFor('riley@acme.com', 'Riley Chen'));
     expect(done.status).toBe(200);
     expect(await localAdminStore(w.redis).teamsOf('riley@acme.com')).toEqual([]);

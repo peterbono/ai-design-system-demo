@@ -88,8 +88,12 @@ describe('signed-out screens', () => {
 });
 
 describe('email members', () => {
-  it('reads the rows the server marks via email, as Can edit, with you', () => {
-    const rows = [{ email: 'Leo@acme.design', name: 'Leo', via: 'email', role: 'admin' }, { email: 'x@acme.design', via: 'github' }, null];
-    expect(emailMembers(rows, 'leo@acme.design')).toEqual([{ login: 'leo@acme.design', name: 'Leo', role: 'edit', reviews: [], email: 'leo@acme.design', via: 'email', you: true }]);
+  it('reads the rows the server marks via email, Can edit or Admin, with you', () => {
+    const rows = [{ email: 'Leo@acme.design', name: 'Leo', via: 'email', role: 'admin' }, { email: 'x@acme.design', via: 'github' }, { email: 'kim@acme.design', via: 'email', role: 'reviewer' }, null];
+    expect(emailMembers(rows, 'leo@acme.design')).toEqual([
+      { login: 'leo@acme.design', name: 'Leo', role: 'admin', reviews: [], email: 'leo@acme.design', via: 'email', you: true },
+      // Anything else reads as Can edit: an email member is never Reviewer.
+      { login: 'kim@acme.design', name: 'kim@acme.design', role: 'edit', reviews: [], email: 'kim@acme.design', via: 'email' },
+    ]);
   });
 });

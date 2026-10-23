@@ -15,8 +15,10 @@
 // The browser workspace (lib/start.ts, pages/studio/workspace.astro): six steps and no repository yet. Step 2 takes a
 // Storybook, or a repository that opens its team at the next step; the steps that need the repository say so.
 // Signed in with a Bridge account, it is "Create your team" (boards E6 and E7a): step 1 names the team and, for a work
-// email, offers "Let people with @acme.com find this team" (checked); a public email gets one line instead. Under the
-// steps, "Expecting an invite?" names the email to give the design lead. Step 2 asks for GitHub only to link the repo.
+// email, offers "Let people with @acme.com find this team" (checked); a public email gets one line instead. Continue
+// creates the team on the server (api/entry create-team): its creator is its admin, colleagues find it, and "Your
+// team" is done only then. Under the steps, "Expecting an invite?" names the email to give the design lead. Step 2 asks
+// for GitHub only to link the repository, which the team then moves to (linkRepo).
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, ChevronDown, Copy } from 'lucide-react';
 import { bridgeMcpInstallCommand, type ChangesMode, type RepoAccessState } from '@bridge-ds/core';
@@ -33,7 +35,8 @@ import { doneCount, doneSummary, firstRunTitle, onboardingKey, onboardingSteps, 
 import { CHANGES_CHOICE } from '../../../lib/settings-view';
 import { VOCAB } from '../../../lib/vocabulary';
 import { STUDIO_ROOT, studioHref } from '../../../lib/team-path';
-import { DEMO_HOME, NEXT_AFTER_LIBRARY, type PendingTeam } from '../../../lib/start';
+import { DEMO_HOME, NEXT_AFTER_LIBRARY, type PendingLink } from '../../../lib/start';
+import { knownTeamName } from '../../../lib/recent-teams';
 import { ENTRY_WORDS, teamNameFromDomain } from '../../../lib/entry';
 import { readStart, rememberStart } from '../../../scripts/start';
 import { humanizeRepo } from '../../../lib/demo';
@@ -73,7 +76,14 @@ export interface OnboardingContext {
    * "Create your team" (board E6): the browser workspace of a Bridge account. `domain`: the work domain, null for a
    * public email (no "find this team" choice); `github`: GitHub is signed in on this browser, so step 2 can pick a repo.
    */
-  account?: { email: string; domain: string | null; teamName: string | null; github: boolean } | null;
+  account?: {
+    email: string;
+    domain: string | null;
+    /** The team made on the server, once step 1 created it: its name, and whether the work domain finds it. */
+    teamName: string | null;
+    discover?: boolean;
+    github: boolean;
+  } | null;
   /** The team's name typed in "Create your team", before the repository named it (step "Name your team"). */
   suggestedName?: string | null;
 }
@@ -89,8 +99,13 @@ export interface OnboardingActions {
   later: (at: StepId) => void;
   /** The open step changed (the browser workspace remembers it, to resume there). */
   onOpen?: (id: StepId) => void;
-  /** "Create your team" step 1: keeps the name and whether the work domain may find the team. */
-  createTeam?: (name: string, discover: boolean) => void;
+  /** "Create your team" step 1: creates (or renames) the team on the server; rejects with a sentence. */
+  createTeam?: (name: string, discover: boolean) => Promise<void>;
+  /**
+   * Step 2 of "Create your team", a repository picked: links it to the team before its page opens. Resolves with a
+   * sentence that keeps the person on the step (they do not administer it), else null.
+   */
+  linkRepo?: (owner: string, repo: string) => Promise<string | null>;
   /** Step 2 of "Create your team": links GitHub to the account, then comes back here. */
   connectGitHub?: () => void;
 }
@@ -230,7 +245,7 @@ function HostedRepo({ ctx, step }: { ctx: OnboardingContext; step: Step }) {
 }
 
 /** Step 2 of the browser workspace: the repository, picked by name. It opens that team at its next step. */
-function WorkspaceRepo({ connectGitHub }: { connectGitHub?: () => void }) {
+function WorkspaceRepo({ connectGitHub, linkRepo }: { connectGitHub?: () => void; linkRepo?: (owner: string, repo: string) => Promise<string | null> }) {
   // "Create your team" without GitHub on this browser: GitHub comes in here, only to link the repository.
   if (connectGitHub)
     return (
@@ -260,7 +275,7 @@ function WorkspaceRepo({ connectGitHub }: { connectGitHub?: () => void }) {
         Connect the repository
       </h3>
       <p className="onb-quiet">Bridge reads the code your design system is built from. Your team opens it with the same link.</p>
-      <TeamField id="onb-team-repo" action="Open" variant="secondary" query={`?setup=${NEXT_AFTER_LIBRARY}`} />
+      <TeamField id="onb-team-repo" action="Open" variant="secondary" query={`?setup=${NEXT_AFTER_LIBRARY}`} before={linkRepo} />
       <div className="onb-get">
         <p className="onb-quiet">Everything in Storybook, plus</p>
         <ul className="onb-features">
@@ -305,7 +320,7 @@ function LibraryStep({ ctx, step, actions }: { ctx: OnboardingContext; step: Ste
         </div>
       </section>
       {ctx.workspace ? (
-        <WorkspaceRepo connectGitHub={ctx.account && !ctx.account.github ? actions.connectGitHub : undefined} />
+        <WorkspaceRepo connectGitHub={ctx.account && !ctx.account.github ? actions.connectGitHub : undefined} linkRepo={actions.linkRepo} />
       ) : ctx.hosted ? (
         <HostedRepo ctx={ctx} step={step} />
       ) : (
@@ -357,7 +372,8 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
   const [teamName, setTeamName] = useState(() => ctx.suggestedName?.trim() || humanizeRepo(ctx.repo));
   // "Create your team" (E6): the name, prefilled from the work domain, and "find this team", checked for a work email.
   const [newName, setNewName] = useState(() => ctx.account?.teamName ?? teamNameFromDomain(ctx.account?.domain ?? null));
-  const [discover, setDiscover] = useState(true);
+  const [discover, setDiscover] = useState(ctx.account?.discover ?? true);
+  const [creating, setCreating] = useState(false);
   const [named, setNamed] = useState<{ number: number; url: string; name: string } | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
   const step = steps.find((s) => s.id === open) ?? steps[0]!;
@@ -423,12 +439,20 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
   switch (open) {
     case 'create': {
       const domain = ctx.account?.domain ?? null;
-      const save = () => {
+      const save = async () => {
         const problem = teamNameProblem(newName);
         if (problem) return setNameError(problem);
         setNameError(null);
-        actions.createTeam?.(newName.trim().replace(/\s+/g, ' '), Boolean(domain) && discover);
-        next();
+        setCreating(true);
+        try {
+          // The team exists once the server says so: only then is "Your team" done and the next step open.
+          await actions.createTeam?.(newName.trim().replace(/\s+/g, ' '), Boolean(domain) && discover);
+          next();
+        } catch (err) {
+          setNameError(err instanceof Error && err.message ? err.message : ENTRY_WORDS.createFailed);
+        } finally {
+          setCreating(false);
+        }
       };
       panel = (
         <Panel
@@ -443,7 +467,7 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
               </Link>
               <span className="onb-foot-end">
                 <span className="onb-quiet">{ENTRY_WORDS.nextLibrary}</span>
-                <Button type="submit" form="onb-create-form">
+                <Button type="submit" form="onb-create-form" loading={creating} disabled={creating}>
                   Continue
                 </Button>
               </span>
@@ -456,7 +480,7 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
             noValidate
             onSubmit={(e) => {
               e.preventDefault();
-              save();
+              void save();
             }}
           >
             <Input
@@ -944,21 +968,27 @@ export function HostedOnboarding({ gate, link, initial, onLeave }: HostedOnboard
   }, []);
 
   const admin = gate.access === 'admin' || gate.repoAdmin;
-  // "Create your team" (E6) left a name and maybe "Let people with @acme.com find this team": the first team an admin
-  // opens after it gets them. The name prefills "Name your team"; discovery is turned on once (E7a).
-  const [pending] = useState<PendingTeam | null>(() => readStart().team);
+  // "Create your team" (E6) picked this repository on step 2 while Bridge was not installed on it: now that its admin
+  // is here, the team made in Bridge moves to it (members, requests, discovery, name). Once.
+  const [pendingLink] = useState<PendingLink | null>(() => {
+    const l = readStart().link;
+    return l && l.repo === repo.toLowerCase() ? l : null;
+  });
   useEffect(() => {
-    if (!admin || !pending?.discover) return;
+    if (!admin || !pendingLink) return;
     void (async () => {
       const api = await import('../../../scripts/entry-session');
       try {
-        await api.setDiscovery(repo, true);
-      } catch {
-        // A public email, or GitHub not linked to the account: Settings > Members keeps the choice for later.
+        await api.linkRepo(pendingLink.team, pendingLink.repo);
+        rememberStart({ link: null });
+      } catch (err) {
+        // Still not installed: tried again on the next visit. Anything else (not their team any more): forgotten.
+        if (!(err instanceof api.EntryError && (err.code === 'app_missing' || err.code === 'not_configured'))) rememberStart({ link: null });
       }
-      rememberStart({ team: { ...pending, discover: false } });
     })();
-  }, [admin, repo, pending]);
+  }, [admin, pendingLink]);
+  // The name the team was given in Bridge (kept with the team once linked) prefills "Name your team".
+  const [given] = useState<string | null>(() => knownTeamName(repo));
   const steps = onboardingSteps({
     login: gate.login,
     repo,
@@ -986,7 +1016,7 @@ export function HostedOnboarding({ gate, link, initial, onLeave }: HostedOnboard
         claudeHref: '/agents/#claude-code',
         team: { owner: gate.owner, repo: gate.repo, link, access: gate.access, changes: cfg.changes, owners: cfg.owners },
         hosted: { access: gate.access, admin },
-        suggestedName: pending?.name ?? null,
+        suggestedName: given,
       }}
       actions={{
         propose: async (mode) => {
@@ -999,7 +1029,6 @@ export function HostedOnboarding({ gate, link, initial, onLeave }: HostedOnboard
           const { proposeTeamName } = await import('../../../scripts/roles');
           const pr = await proposeTeamName(name);
           save({ ...memory, named: { pr: pr.number, name: name.trim() } });
-          if (pending) rememberStart({ team: null });
           return pr;
         },
         mark: (id) => save({ ...memory, marked: [...new Set([...memory.marked, id])] }),

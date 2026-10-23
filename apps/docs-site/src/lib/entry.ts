@@ -8,7 +8,10 @@
 //   invites  "Acme Design invited you" (E3): Join accepts the invite, no approval.
 //   domain   "Your colleagues already use Bridge" (E4): every team open to the work domain, largest first, three then
 //            "N more"; Ask to join, then "Request sent" (E4b).
-//   create   "Create your team" (E6): the workspace setup, step 1.
+//   create   "Create your team" (E6): the workspace setup, step 1. Continue on step 1 makes a real team on the server
+//            (POST create-team): its creator is its admin, colleagues on the work domain can find it, and the next
+//            sign-in lands on it. Until a repository is linked it goes by its key `_team/<id>` (lib/team-path.ts), whose
+//            home is the workspace page (teamHome below).
 import { ROLE_WORDS, roleLabel, type MemberRole } from './invites';
 import { teamHref } from './team-path';
 import { WORKSPACE_HOME } from './start';
@@ -393,6 +396,8 @@ export const ENTRY_WORDS = {
   firstOnly: 'Only the first step is needed today.',
   connectGitHub: 'Connect GitHub',
   connectGitHubWhy: 'Bridge reads your repository through GitHub. Connect it once, then pick the repository.',
+  createFailed: 'Bridge could not create your team. Try again in a minute.',
+  linkFailed: 'Bridge could not connect this repository to your team. Try again in a minute.',
   // E7a, E7c: Settings
   discoveryOn: ['People with', 'can find this team and ask to join.'] as [string, string],
   discoveryOff: (domain: string) => `People with @${domain} cannot find this team. They join by invite.`,
@@ -469,4 +474,42 @@ export function discoveryLine(d: Discovery | null): { on: boolean; domain: strin
   if (!d.configured && !d.eligible) return null;
   if (d.configured && !d.eligible) return { on: false, domain: d.domain, canTurnOn: false };
   return { on: false, domain: d.domain, canTurnOn: true };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// A team made in Bridge (POST create-team, GET ?team=): exists before any repository
+
+export interface TeamInfo {
+  id: string;
+  /** `_team/<id>`, or the repository once one is linked. */
+  key: string;
+  name: string;
+  role: 'edit' | 'admin';
+  /** owner/repo once linked: the team lives there now. */
+  repo: string | null;
+  storybook: string | null;
+  discovery: { domain: string; enabled: boolean } | null;
+  memberCount: number;
+}
+
+/** A team answer of /api/entry, or null when it is not one. */
+export function parseTeamInfo(v: unknown): TeamInfo | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  const id = str(o.id);
+  const key = str(o.key);
+  const name = str(o.name);
+  if (!id || !key || !name) return null;
+  const d = o.discovery && typeof o.discovery === 'object' ? (o.discovery as Record<string, unknown>) : null;
+  const domain = d ? str(d.domain) : null;
+  return {
+    id,
+    key,
+    name,
+    role: o.role === 'admin' ? 'admin' : 'edit',
+    repo: repoOf(o.repo),
+    storybook: str(o.storybook),
+    discovery: domain ? { domain, enabled: d!.enabled === true } : null,
+    memberCount: countOf(o.memberCount),
+  };
 }

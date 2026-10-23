@@ -121,8 +121,8 @@ export const codeDigits = (text: string): string => text.replace(/\D/g, '').slic
 /** A team role in words ("Can edit", "Admin"), from the invites vocabulary. */
 export const roleWord = (role: string): string => (role in ROLE_WORDS ? ROLE_WORDS[role as MemberRole].label : role.charAt(0).toUpperCase() + role.slice(1));
 
-/** Reviewers and admins approve on GitHub: an account with such a role and no GitHub linked needs it. */
-export const needsGitHub = (a: Account): boolean => !a.github && a.teams.some((t) => t.role === 'reviewer' || t.role === 'admin');
+/** Reviewers approve on GitHub: an account with that role and no GitHub linked needs it. Admins manage without it. */
+export const needsGitHub = (a: Account): boolean => !a.github && a.teams.some((t) => t.role === 'reviewer');
 
 /**
  * What this browser keeps about the person and their teams, forgotten on sign-out and when the account is deleted:
@@ -215,7 +215,7 @@ export const ACCOUNT_WORDS = {
   githubLinked: (login: string) => `GitHub @${login}`,
   githubNone: 'GitHub not linked',
   linkGitHub: 'Link GitHub',
-  linkGitHubWhy: 'Reviewers and admins approve on GitHub: link your GitHub account.',
+  linkGitHubWhy: 'Reviewers approve changes on GitHub, and admins merge there: link your GitHub account.',
   teams: 'Your teams',
   noTeams: 'No team yet.',
   rename: 'Rename',
@@ -234,6 +234,13 @@ export const ACCOUNT_WORDS = {
   deleteConfirmWord: 'DELETE',
   deleteConfirm: 'Delete my account',
   lastAdmin: 'You are the only admin of a team with other members. Make someone else an admin first, then delete your account.',
+  // Said before the confirm field (delete-check), with the way out on the same card.
+  lastAdminOf: (team: string) => `You are the only admin of ${team}.`,
+  lastAdminWhy: 'Make someone else admin first, so the team keeps one. Then you can delete your account.',
+  makeAdmin: (name: string) => `Make ${name} admin`,
+  madeAdmin: (name: string) => `${name} is now admin.`,
+  handOver: 'Hand over the team',
+  checking: 'Checking your teams',
 } as const;
 
 /** The sentence for a refusal: the server's own when it sends one, else one per status. */
@@ -246,4 +253,28 @@ export function accountErrorText(status: number, code?: string | null, message?:
   if (status === 400 || status === 401 || status === 403) return code === 'github' ? ACCOUNT_WORDS.githubFailed : ACCOUNT_WORDS.wrongCode;
   if (status === 0) return ACCOUNT_WORDS.network;
   return ACCOUNT_WORDS.failed;
+}
+
+/** A team that keeps the person from deleting their account (POST delete-check), and who could take it over. */
+export interface BlockedTeam {
+  repo: string;
+  name: string;
+  people: { name: string; email: string }[];
+}
+
+/** The `blocked` list of a delete-check (or of a last-admin refusal); malformed rows are dropped. */
+export function parseBlocked(v: unknown): BlockedTeam[] {
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((t): BlockedTeam[] => {
+    if (!t || typeof t !== 'object') return [];
+    const o = t as Record<string, unknown>;
+    const repo = str(o.repo);
+    if (!repo) return [];
+    const people = (Array.isArray(o.people) ? o.people : []).flatMap((p): { name: string; email: string }[] => {
+      const x = p && typeof p === 'object' ? (p as Record<string, unknown>) : {};
+      const email = str(x.email);
+      return email ? [{ name: str(x.name) ?? email, email }] : [];
+    });
+    return [{ repo, name: str(o.name) ?? repo, people }];
+  });
 }

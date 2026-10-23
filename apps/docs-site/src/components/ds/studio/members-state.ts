@@ -76,7 +76,8 @@ export function memberActions(data: MembersData, update: (fn: (d: MembersData) =
     if (sample) return void (await demoGate()), null;
     const c = normalizeChoice(next);
     try {
-      const r = await (await api()).setMemberRole(data.repo, m.login, c);
+      const a = await api();
+      const r = m.via === 'email' ? await a.setEmailMemberRole(data.repo, m.email ?? m.login, c) : await a.setMemberRole(data.repo, m.login, c);
       update((d) => ({
         ...d,
         members: d.members.map((x) => (x.login === m.login ? { ...x, role: c.role, reviews: c.role === 'reviewer' ? [c.reviewAs!] : c.role === 'admin' ? x.reviews : [] } : x)),

@@ -166,16 +166,19 @@ export async function loadMembers(): Promise<MembersData> {
     });
   }
 
-  // Pending invites and email contributors come from this site's invites server, which checks the caller on GitHub:
-  // an email contributor (access.contributor) has no GitHub account to show it: they read the list above instead.
+  // Pending invites and email members come from this site's invites server, which checks the caller: on GitHub for a
+  // GitHub member, by their Bridge account for an email admin (access.contributor and admin). An email member who is not
+  // admin reads the list above instead. An email admin gets the email members with their emails, to act on them.
   let pending: PendingInvite[] = [];
   let personal = false;
-  if (invites && viewer && access?.write && !access.contributor) {
+  const emailAdmin = Boolean(access?.contributor && access.admin);
+  if (invites && viewer && ((access?.write && !access.contributor) || emailAdmin)) {
     try {
       const r = await listInvites(repo);
       pending = r.invites;
       personal = r.personal;
       const byEmail = emailMembers(r.members, viewer.email);
+      if (emailAdmin) members = members.filter((m) => m.via !== 'email');
       const known = new Set(members.map((m) => m.login.toLowerCase()));
       members = [...members, ...byEmail.filter((m) => !known.has(m.login))];
     } catch {
@@ -184,7 +187,7 @@ export async function loadMembers(): Promise<MembersData> {
   }
 
   // A personal account's repository has no read-only or admin collaborators on GitHub: the picker says so.
-  if (canManage && !personal) {
+  if (canManage && !personal && !emailAdmin) {
     try {
       const { data } = await ghGet<{ owner?: { type?: string } }>(`/repos/${repo}`);
       personal = data.owner?.type === 'User';
@@ -194,7 +197,7 @@ export async function loadMembers(): Promise<MembersData> {
   }
 
   let people: KnownPerson[] = [];
-  if (canManage) {
+  if (canManage && !emailAdmin) {
     try {
       const { data } = await ghGet<CommitLike[]>(`/repos/${repo}/commits?per_page=100`);
       people = peopleFromCommits(data);

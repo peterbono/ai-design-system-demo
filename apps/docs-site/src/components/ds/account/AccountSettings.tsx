@@ -1,8 +1,10 @@
 // Settings > Account, for a Bridge account (GET /api/account): one card, one row per thing, each action on the line of
 // what it acts on. The name and email with Rename (inline form); GitHub linked, or Link GitHub with the one line saying
 // why (reviewers and admins approve on GitHub); the person's teams, each opening its space with its role; Sign out and
-// Sign out everywhere; then Delete my account, confirmed in the page (type DELETE), never window.confirm, with the
-// server's refusal said in place (the only admin of a team with other members). Nothing shows signed out or on a site
+// Sign out everywhere; then Delete my account, confirmed in the page (type DELETE), never window.confirm. Before the
+// confirm field, Bridge asks the server whether a team would refuse it (the only admin of a team with other members):
+// that team is named first, with "Make <name> admin" inline or "Hand over the team", and the field comes once it is
+// clear. Nothing shows signed out or on a site
 // without accounts. AccountBand wraps it in a team Settings band and falls back to the email contributor's row.
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { LogOut, Trash2 } from 'lucide-react';
@@ -10,9 +12,9 @@ import { Alert, Avatar, Badge, Button, Card, CardBody, Divider, Icon, Input, Lin
 import { GitHubMark } from '../studio/brand-icons';
 import { ContributorAccountBand } from '../studio/SettingsAccount';
 import { useAccount, useFace } from './AccountMenu';
-import { ACCOUNT_WORDS as W, accountName, PRIVACY_PAGE, roleWord, signedOutHref, type Account } from '../../../lib/account';
+import { ACCOUNT_WORDS as W, accountName, PRIVACY_PAGE, roleWord, signedOutHref, type Account, type BlockedTeam } from '../../../lib/account';
 import { teamDisplayName } from '../../../lib/demo';
-import { teamHref } from '../../../lib/team-path';
+import { isTeamKey, teamHref } from '../../../lib/team-path';
 import '../../../styles/account.css';
 
 /** Tests replace it. */
@@ -188,12 +190,81 @@ function SessionRow() {
   );
 }
 
+/** Where an admin hands a team over: its Members (a repository's Settings), or the home of a team made in Bridge. */
+const handOverHref = (repo: string) => {
+  const [o = '', r = ''] = repo.split('/');
+  return isTeamKey(repo) ? teamHref(o, r, null) : `${teamHref(o, r, null)}settings/`;
+};
+
+/** People offered inline before "Hand over the team" (a team made in Bridge has no Members page: everyone). */
+const OFFERED = 3;
+
+/**
+ * One team that keeps the person from deleting: it names the team, says why in one line, and offers the way out on
+ * the same card: "Make <name> admin" for the people who could take over, and "Hand over the team" for the rest.
+ */
+function LastAdmin({ team, onMade }: { team: BlockedTeam; onMade: (name: string) => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const all = isTeamKey(team.repo);
+  const offered = all ? team.people.slice(0, 10) : team.people.slice(0, OFFERED);
+  const make = async (p: { name: string; email: string }) => {
+    setBusy(p.email);
+    setProblem(null);
+    try {
+      const { setEmailMemberRole } = await import('../../../scripts/invites-api');
+      await setEmailMemberRole(team.repo, p.email, { role: 'admin' });
+      onMade(p.name);
+    } catch (err) {
+      setProblem(err instanceof Error && err.message ? err.message : W.failed);
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <Alert
+      tone="warning"
+      title={W.lastAdminOf(team.name)}
+      actions={
+        <>
+          {offered.map((p) => (
+            <Button key={p.email} variant="secondary" size="sm" loading={busy === p.email} disabled={busy !== null} onClick={() => void make(p)}>
+              {W.makeAdmin(p.name)}
+            </Button>
+          ))}
+          {(!all || !offered.length) && <Link href={handOverHref(team.repo)}>{W.handOver}</Link>}
+        </>
+      }
+    >
+      {problem ?? W.lastAdminWhy}
+    </Alert>
+  );
+}
+
 function DeleteRow() {
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [blocked, setBlocked] = useState<BlockedTeam[]>([]);
+  const [said, setSaid] = useState('');
   const [refusal, setRefusal] = useState<string | null>(null);
   const confirmed = typed.trim() === W.deleteConfirmWord;
+  // Before the confirm field: a team that would refuse it is said first, with its way out.
+  const check = async () => {
+    setChecking(true);
+    setRefusal(null);
+    const api = await import('../../../scripts/account-session');
+    try {
+      const teams = await api.deleteCheck();
+      setBlocked(teams);
+      setOpen(teams.length === 0);
+    } catch (err) {
+      setRefusal(err instanceof Error ? err.message : W.failed);
+    } finally {
+      setChecking(false);
+    }
+  };
   const remove = async (e: FormEvent) => {
     e.preventDefault();
     if (!confirmed) return;
@@ -214,12 +285,27 @@ function DeleteRow() {
         <div className="acc-set-text">
           <p className="acc-set-sub">{W.deleteHelp}</p>
         </div>
-        {!open && (
-          <Button variant="secondary" iconStart={Trash2} onClick={() => setOpen(true)}>
+        {!open && !blocked.length && (
+          <Button variant="secondary" iconStart={Trash2} loading={checking} onClick={() => void check()}>
             {W.deleteTitle}
           </Button>
         )}
       </div>
+      {blocked.map((t) => (
+        <LastAdmin
+          key={t.repo}
+          team={t}
+          onMade={(name) => {
+            setSaid(W.madeAdmin(name));
+            void check();
+          }}
+        />
+      ))}
+      {said && (
+        <p className="acc-set-sub" role="status">
+          {said}
+        </p>
+      )}
       {refusal && <Alert tone="danger">{refusal}</Alert>}
       {open && (
         <form className="acc-set-form" noValidate onSubmit={(e) => void remove(e)}>
@@ -234,6 +320,7 @@ function DeleteRow() {
                 setOpen(false);
                 setTyped('');
                 setRefusal(null);
+                setSaid('');
               }}
             >
               {W.cancel}

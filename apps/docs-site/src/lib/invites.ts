@@ -162,8 +162,8 @@ export interface Member {
   /** Work email, when known (the sample team, an email contributor). */
   email?: string;
   /**
-   * 'email': an email contributor (lib/contribute.ts), no GitHub account. Always Can edit: Reviewers and admins approve
-   * on GitHub. Their `login` is their email.
+   * 'email': an email member (lib/contribute.ts), no GitHub account. Can edit or Admin: Reviewers approve on GitHub.
+   * Their `login` is their email.
    */
   via?: 'email';
 }
@@ -184,7 +184,7 @@ export function emailMembers(rows: readonly unknown[], viewerEmail: string | nul
     if (!r || r.via !== 'email' || typeof r.email !== 'string' || !isEmail(r.email)) continue;
     const email = r.email.toLowerCase();
     const you = Boolean(viewerEmail && viewerEmail.toLowerCase() === email);
-    out.push({ login: email, name: typeof r.name === 'string' && r.name.trim() ? r.name.trim() : email, role: 'edit', reviews: [], email, via: 'email', ...(you ? { you: true } : {}) });
+    out.push({ login: email, name: typeof r.name === 'string' && r.name.trim() ? r.name.trim() : email, role: r.role === 'admin' ? 'admin' : 'edit', reviews: [], email, via: 'email', ...(you ? { you: true } : {}) });
   }
   return out;
 }

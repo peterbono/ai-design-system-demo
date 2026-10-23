@@ -4,7 +4,8 @@
 // Keys (Upstash Redis, the same database as invites and members; emails lower case):
 //   bridge:account:<email>                 the account (JSON), no expiry
 //   bridge:account:gh:<githubId>           the email of the account that GitHub account is linked to
-//   bridge:account:teams:<email>           set of "owner/repo" the email is a member of (api/_lib/members.ts keeps it)
+//   bridge:account:teams:<email>           set of "owner/repo" (or `_team/<id>`, a team made in Bridge) the email is a
+//                                          member of (api/_lib/members.ts keeps it)
 //   bridge:account:code:<sha256(email+code)>   a sign-in code { email, tries }, 10 minutes
 // The session cookie `bridge_account` (Path=/, HttpOnly, Secure, SameSite=Lax, 30 days) is v1.<claims>.<hmac> under
 // LIBRARY_SESSION_SECRET with its own purpose; claims { email, v, exp }. Every request reads the account again: a

@@ -67,7 +67,7 @@ describe('Settings > Account', () => {
     expect(await screen.findByRole('heading', { name: 'Account' })).toBeInTheDocument();
     expect(screen.getByText('leo@acme.design')).toBeInTheDocument();
     expect(screen.getByText('GitHub not linked')).toBeInTheDocument();
-    expect(screen.getByText('Reviewers and admins approve on GitHub: link your GitHub account.')).toBeInTheDocument();
+    expect(screen.getByText('Reviewers approve changes on GitHub, and admins merge there: link your GitHub account.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Acme Design' })).toHaveAttribute('href', '/studio/~/acme/ds/');
     expect(screen.getByText('Admin')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Web' })).toBeInTheDocument();
@@ -96,15 +96,47 @@ describe('Settings > Account', () => {
     expect(posts('github')).toHaveLength(0);
   });
 
-  it('deletes only once DELETE is typed, and says the last-admin refusal in place', async () => {
-    reply = (c) =>
-      c.method === 'GET'
-        ? json(200, { available: true, account: ACCOUNT })
-        : json(409, { error: 'last-admin', message: 'You are the only admin of Acme Design. Make someone else an admin first, then delete your account.' });
+  it('names the team before the confirm field when the person is its last admin, and makes someone admin inline', async () => {
+    let blocked = true;
+    const invites: Call[] = [];
+    reply = (c) => {
+      if (c.method === 'GET') return json(200, { available: true, account: ACCOUNT });
+      if (c.body?.action === 'delete-check')
+        return json(200, { blocked: blocked ? [{ repo: '_team/c0ffee0000000017', name: 'Northwind Design', people: [{ name: 'Kim Lee', email: 'kim@northwind.io' }] }] : [] });
+      return json(200, { ok: true });
+    };
+    const { setInvitesFetch } = await import('../../../scripts/invites-api');
+    setInvitesFetch(async (_url, init) => {
+      invites.push({ method: init?.method ?? 'GET', body: init?.body ? JSON.parse(String(init.body)) : null, headers: (init?.headers ?? {}) as Record<string, string> });
+      blocked = false;
+      return json(200, { ok: true, role: 'admin' });
+    });
     const { container } = render(createElement(AccountSettings));
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Delete my account' }));
-    const confirm = screen.getByRole('textbox', { name: 'Type DELETE to confirm' });
+    expect(await screen.findByText('You are the only admin of Northwind Design.')).toBeInTheDocument();
+    // The way out comes first; no confirm field yet.
+    expect(screen.queryByRole('textbox', { name: 'Type DELETE to confirm' })).toBeNull();
+    await expectNoAxeViolations(container);
+    await user.click(screen.getByRole('button', { name: 'Make Kim Lee admin' }));
+    expect(invites[0]!.body).toEqual({ action: 'set-role', repo: '_team/c0ffee0000000017', email: 'kim@northwind.io', role: 'admin' });
+    expect(invites[0]!.headers['X-Bridge-Account']).toBe('1');
+    expect(await screen.findByRole('textbox', { name: 'Type DELETE to confirm' })).toBeInTheDocument();
+    expect(screen.getByText('Kim Lee is now admin.')).toBeInTheDocument();
+    setInvitesFetch(null);
+  });
+
+  it('deletes only once DELETE is typed, and says a late last-admin refusal in place', async () => {
+    reply = (c) =>
+      c.method === 'GET'
+        ? json(200, { available: true, account: ACCOUNT })
+        : c.body?.action === 'delete-check'
+          ? json(200, { blocked: [] })
+          : json(409, { error: 'last-admin', message: 'You are the only admin of Acme Design. Make someone else an admin first, then delete your account.' });
+    const { container } = render(createElement(AccountSettings));
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete my account' }));
+    const confirm = await screen.findByRole('textbox', { name: 'Type DELETE to confirm' });
     expect(confirm).toHaveFocus();
     const del = screen.getAllByRole('button', { name: 'Delete my account' }).at(-1)!;
     expect(del).toBeDisabled();
@@ -128,7 +160,7 @@ describe('Settings > Account', () => {
     const user = userEvent.setup();
     expect(await screen.findByText('GitHub @leo')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Delete my account' }));
-    await user.type(screen.getByRole('textbox', { name: 'Type DELETE to confirm' }), 'DELETE{Enter}');
+    await user.type(await screen.findByRole('textbox', { name: 'Type DELETE to confirm' }), 'DELETE{Enter}');
     await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/signin/?bye=deleted'));
     expect(posts('delete')[0]!.headers.Authorization).toBe('Bearer ghu_abc');
     expect(posts('delete')[0]!.headers['X-Bridge-Account']).toBe('1');

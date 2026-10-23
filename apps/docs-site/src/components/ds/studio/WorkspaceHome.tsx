@@ -5,17 +5,34 @@
 //   - Your library: three dashed placeholders that say what shows there once connected.
 //   - Your branches: one dashed row.
 // With a Storybook added (the quick start), the zone and the Components card say what was found instead.
+// A team made in Bridge with no repository yet (`team`, api/entry create-team) gets the same calm home, as that team: one
+// sentence on what to connect next (an admin's action; a member reads who does it), its size and who can find it on one
+// muted line, and for its admin the people asking to join (JoinRequests.tsx, the rows of Settings > Members).
 import { createRoot, type Root } from 'react-dom/client';
 import type { ReactNode } from 'react';
 import { Button, Link } from '@bridge-ds/react';
-import { WORKSPACE_WORDS as W } from '../../../lib/start';
+import { TEAM_HOME_WORDS as TW, WORKSPACE_WORDS as W } from '../../../lib/start';
+import { JoinRequests, useEntryAdmin } from './JoinRequests';
 import { storybookHost, type WorkspaceStorybook } from '../../../lib/workspace';
 import { STORYBOOK_PAGE } from './StorybookField';
 import '../../../styles/workspace.css';
+import '../../../styles/invites.css';
+
+export interface WorkspaceTeam {
+  /** `_team/<id>`. */
+  key: string;
+  name: string;
+  /** The viewer administers it: they connect the design system and let people in. */
+  admin: boolean;
+  memberCount: number;
+  discovery: { domain: string; enabled: boolean } | null;
+}
 
 export interface WorkspaceHomeProps {
   /** The viewer's first name; null signed out. */
   name: string | null;
+  /** The team made in Bridge this home belongs to, when there is one. */
+  team?: WorkspaceTeam | null;
   /** The Storybook added in this browser with the quick start. */
   storybook: WorkspaceStorybook | null;
   /** "1 of 6 connected" and its checklist (Onboarding.tsx FinishConnecting), by the greeting. */
@@ -60,8 +77,20 @@ function LibraryCard({ kind, title, line, filled }: { kind: 'tokens' | 'componen
   );
 }
 
-export function WorkspaceHome({ name, storybook, setup, onConnect }: WorkspaceHomeProps) {
+/** "2 members · People with @northwind.io can find it": the team in one muted line. */
+const teamLine = (t: WorkspaceTeam) => `${TW.members(t.memberCount)} · ${t.discovery?.enabled ? TW.findable(t.discovery.domain) : TW.inviteOnly}`;
+
+/** The people asking to join a team made in Bridge, for its admin: the same rows as Settings > Members. */
+function TeamRequests({ team }: { team: WorkspaceTeam }) {
+  const { requests, setRequests } = useEntryAdmin(team.key, team.admin);
+  if (!requests.length) return null;
+  return <JoinRequests repo={team.key} requests={requests} onDone={(r) => setRequests((xs) => xs.filter((x) => x.id !== r.id))} />;
+}
+
+export function WorkspaceHome({ name, team = null, storybook, setup, onConnect }: WorkspaceHomeProps) {
   const host = storybook ? storybookHost(storybook.url) : null;
+  // A member of a team made in Bridge waits for its admin: no action of their own here.
+  const connects = !team || team.admin;
   return (
     <div className="sh ws">
       <section className="zone sh-zone" aria-labelledby="ws-hello">
@@ -73,7 +102,9 @@ export function WorkspaceHome({ name, storybook, setup, onConnect }: WorkspaceHo
             {setup && <div className="sh-setup">{setup}</div>}
           </div>
           <p className="t-body">
-            {storybook ? (
+            {team ? (
+              storybook ? TW.storybook(team.name) : team.admin ? TW.ready(team.name) : TW.waiting(team.name)
+            ) : storybook ? (
               <>
                 Your Storybook is connected: {plural(storybook.components, 'component')} from <span className="mono">{host}</span>. Connect the repository too and your tokens and branches show up here.
               </>
@@ -81,14 +112,19 @@ export function WorkspaceHome({ name, storybook, setup, onConnect }: WorkspaceHo
               W.nothing
             )}
           </p>
-          <div className="ws-connect">
-            <Button variant="primary" onClick={onConnect}>
-              {storybook ? 'Connect the repository' : W.connect}
-            </Button>
-            <span className="t-ui t-muted">{storybook ? 'Read only. Bridge writes nothing in your code.' : W.hint}</span>
-          </div>
+          {team && <p className="t-ui t-muted">{teamLine(team)}</p>}
+          {connects && (
+            <div className="ws-connect">
+              <Button variant="primary" onClick={onConnect}>
+                {storybook ? 'Connect the repository' : W.connect}
+              </Button>
+              <span className="t-ui t-muted">{storybook ? 'Read only. Bridge writes nothing in your code.' : W.hint}</span>
+            </div>
+          )}
         </div>
       </section>
+
+      {team?.admin && <TeamRequests team={team} />}
 
       <section className="sh-section" aria-labelledby="ws-library">
         <header className="ws-head">

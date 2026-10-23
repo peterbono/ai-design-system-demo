@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PEOPLE_SHOWN, invitedOn, teamAvatars, askedAgo, CREATE_TEAM_HREF, discoveryLine, emailDomain, ENTRY_WORDS, inviteRole, joinedNote, inviteTokenFromHash, parseDiscovery, parseInviteLink, parseEntry, parseRequests, routeEntry, sortDomainTeams, splitDomainTeams, teamHome, teamNameFromDomain, yourRole, type Entry } from './entry';
+import { PEOPLE_SHOWN, invitedOn, teamAvatars, askedAgo, CREATE_TEAM_HREF, discoveryLine, emailDomain, ENTRY_WORDS, inviteRole, joinedNote, inviteTokenFromHash, parseDiscovery, parseInviteLink, parseEntry, parseRequests, parseTeamInfo, routeEntry, sortDomainTeams, splitDomainTeams, teamHome, teamNameFromDomain, yourRole, type Entry } from './entry';
 
 const team = (repo: string, name: string, role = 'edit') => ({ repo, name, role, via: 'email' });
 
@@ -167,5 +167,28 @@ describe('invite links', () => {
   it('never writes an em dash in the invite link words', () => {
     const words = [ENTRY_WORDS.githubWhy('Admin'), ENTRY_WORDS.githubOff('Admin', 'Sam'), ENTRY_WORDS.goneLead('Sam', 'Acme'), ENTRY_WORDS.otherLead('Acme'), ENTRY_WORDS.alreadyInLead, ENTRY_WORDS.missingLead];
     for (const w of words) expect(w).not.toContain(String.fromCharCode(0x2014));
+  });
+});
+
+describe('a team made in Bridge', () => {
+  it('routes its member to its home, the workspace page', () => {
+    const e = parseEntry({ kind: 'teams', teams: [{ repo: '_team/c0ffee0000000017', name: 'Northwind Design', role: 'admin', via: 'email' }] })!;
+    expect(routeEntry(e)).toEqual({ to: 'go', href: '/studio/workspace/?team=c0ffee0000000017' });
+    expect(teamHome('_team/c0ffee0000000017')).toBe('/studio/workspace/?team=c0ffee0000000017');
+  });
+
+  it('reads the team answer, dropping what is malformed', () => {
+    expect(parseTeamInfo({ id: 'c0ffee0000000017', key: '_team/c0ffee0000000017', name: 'Northwind Design', role: 'admin', repo: null, storybook: null, discovery: { domain: 'northwind.io', enabled: true }, memberCount: 2 })).toEqual({
+      id: 'c0ffee0000000017',
+      key: '_team/c0ffee0000000017',
+      name: 'Northwind Design',
+      role: 'admin',
+      repo: null,
+      storybook: null,
+      discovery: { domain: 'northwind.io', enabled: true },
+      memberCount: 2,
+    });
+    expect(parseTeamInfo({ id: 'x', key: 'k', name: 'N', role: 'owner', repo: 'acme/ds', discovery: {} })).toMatchObject({ role: 'edit', repo: 'acme/ds', discovery: null, memberCount: 0 });
+    expect(parseTeamInfo({ name: 'No id' })).toBeNull();
   });
 });
