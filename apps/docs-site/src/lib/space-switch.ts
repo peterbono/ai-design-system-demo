@@ -4,7 +4,7 @@
 // (LibraryHeader `studio`): the same Studio routes, built with studioHref so a team shell keeps its team.
 //
 // Pure and browser-safe: the layout resolves the build-time target, the script resolves it again in the browser,
-// where the query (?c=button) and the team in the address are known.
+// where the query (?c=button in Studio) and the team in the address are known.
 import { LIBRARY_ROOT, libraryHref, ownLibrary, sameTeam, type TeamPair } from './library-shells';
 import { STUDIO_ROOT, studioHrefAt } from './team-path';
 
@@ -59,6 +59,8 @@ export function studioRouteOfLibrary(pathname: string, nameOf?: NameOf): { route
 /** The Studio route for a page of a team's Library (/library/<owner>/<repo>/<route>), from its Library route. */
 export function studioRouteOfTeamLibrary(libraryRoute: string, search = ''): { route: string; item: string | null } {
   const r = norm(libraryRoute).replace(/^\/+/, '');
+  const comp = /^components\/([^/]+)\/$/.exec(r);
+  if (comp && SLUG.test(comp[1]!)) return { route: `components/?c=${encodeURIComponent(comp[1]!.toLowerCase())}`, item: null };
   if (r === 'components/') {
     const slug = slugParam(search);
     return slug ? { route: `components/?c=${encodeURIComponent(slug)}`, item: null } : { route: 'components/', item: 'Components' };
@@ -76,14 +78,13 @@ export function studioRouteOfTeamLibrary(libraryRoute: string, search = ''): { r
 
 /**
  * The Library route for a Studio route (relative to the Studio root, '' is Home), and what it names. Every Library has
- * the same foundation pages; a team Library's component is a query on its Components page (`team`), Bridge's own
- * Library has a page per component.
+ * the same pages: the foundations and a page per component.
  */
-export function libraryRouteOfStudio(studioRoute: string, search = '', nameOf?: NameOf, team = false): { route: string; item: string | null } {
+export function libraryRouteOfStudio(studioRoute: string, search = '', nameOf?: NameOf): { route: string; item: string | null } {
   const r = norm(studioRoute.replace(/^\/+/, '')).replace(/^\/$/, '');
   const docs = /^components\/docs\/([^/]+)\/$/.exec(r);
   const slug = docs && SLUG.test(docs[1]!) ? docs[1]!.toLowerCase() : r === 'components/' ? slugParam(search) : null;
-  if (slug) return team ? { route: `components/?c=${encodeURIComponent(slug)}`, item: nameFor(slug, nameOf) } : { route: `components/${slug}/`, item: nameFor(slug, nameOf) };
+  if (slug) return { route: `components/${slug}/`, item: nameFor(slug, nameOf) };
   if (r === 'components/' || r.startsWith('components/')) return { route: 'components/', item: 'Components' };
   if (r === 'tokens/') {
     const focus = new URLSearchParams(search).get('focus');
@@ -123,7 +124,7 @@ export function switchTarget(ctx: SwitchContext): SwitchTarget {
   const rel = norm(ctx.pathname).startsWith(root) ? norm(ctx.pathname).slice(root.length) : '';
   // The team this site documents has one Library, the site's own (a page per foundation and component).
   const team = ctx.team && !sameTeam(ctx.team, ctx.own === undefined ? ownLibrary() : ctx.own) ? ctx.team : null;
-  const { route, item } = libraryRouteOfStudio(rel, search, ctx.nameOf, Boolean(team));
+  const { route, item } = libraryRouteOfStudio(rel, search, ctx.nameOf);
   if (team) return { href: libraryHref(team.owner, team.repo, route, null), item };
   return { href: route ? `/${route}` : LIBRARY_ROOT, item };
 }

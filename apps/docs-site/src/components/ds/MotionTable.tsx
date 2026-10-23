@@ -3,9 +3,9 @@
 import { Link, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
 import type { MotionRow, MotionValue } from '../../lib/motion-docs';
 
-const tokenHref = (path: string) => `/tokens/?t=${encodeURIComponent(path)}`;
+const ownTokenHref = (path: string) => `/tokens/?t=${encodeURIComponent(path)}`;
 
-function Value({ v }: { v: MotionValue }) {
+function Value({ v, tokenHref }: { v: MotionValue; tokenHref: (path: string) => string }) {
   return (
     <span className="motion-value">
       {v.token && (
@@ -18,7 +18,8 @@ function Value({ v }: { v: MotionValue }) {
   );
 }
 
-export default function MotionTable({ component, rows, showPart }: { component: string; rows: MotionRow[]; showPart: boolean }) {
+/** `tokenHref`: where a motion token opens (a team's Library passes its own All tokens page). */
+export default function MotionTable({ component, rows, showPart, tokenHref = ownTokenHref }: { component: string; rows: MotionRow[]; showPart: boolean; tokenHref?: (path: string) => string }) {
   return (
     <Table aria-label={`${component} motion`} className="motion-table">
       <TableHeader>
@@ -37,9 +38,9 @@ export default function MotionTable({ component, rows, showPart }: { component: 
             <TableHead scope="row">{r.when}</TableHead>
             <TableCell>{r.what}</TableCell>
             <TableCell>
-              <Value v={r.duration} />
+              <Value tokenHref={tokenHref} v={r.duration} />
             </TableCell>
-            <TableCell>{r.easing ? <Value v={r.easing} /> : <span className="muted">Part of the loop</span>}</TableCell>
+            <TableCell>{r.easing ? <Value tokenHref={tokenHref} v={r.easing} /> : <span className="muted">Part of the loop</span>}</TableCell>
           </TableRow>
         ))}
       </TableBody>

@@ -70,7 +70,7 @@ describe('library links', () => {
   it('points the own Library links at the team', () => {
     expect(pageHref(own, 'tokens/')).toBe('/tokens/');
     expect(pageHref(team, 'foundations/color/#focus-ring-color')).toBe('/library/acme/ds/foundations/color/#focus-ring-color');
-    expect(libraryLink(team, '/components/button/')).toBe('/library/acme/ds/components/?c=button');
+    expect(libraryLink(team, '/components/button/')).toBe('/library/acme/ds/components/button/');
     expect(libraryLink(team, '/foundations/radius/#radius-control')).toBe('/library/acme/ds/foundations/radius/#radius-control');
     expect(libraryLink(team, 'https://example.com/')).toBe('https://example.com/');
     expect(libraryLink(own, '/components/button/')).toBe('/components/button/');

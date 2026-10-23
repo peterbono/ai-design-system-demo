@@ -66,7 +66,7 @@ export default function UsagePanel({ docs: d, Example, idPrefix = '' }: UsagePan
                 <Badge tone="success" icon={Check}>
                   Do
                 </Badge>
-                <h4>{g.title}</h4>
+                <h3 className="verdict-title">{g.title}</h3>
                 <p>{g.text}</p>
               </figcaption>
             </figure>
@@ -82,7 +82,7 @@ export default function UsagePanel({ docs: d, Example, idPrefix = '' }: UsagePan
                 <Badge tone="danger" icon={X}>
                   Don't
                 </Badge>
-                <h4>{g.title}</h4>
+                <h3 className="verdict-title">{g.title}</h3>
                 <p>{g.text}</p>
               </figcaption>
             </figure>

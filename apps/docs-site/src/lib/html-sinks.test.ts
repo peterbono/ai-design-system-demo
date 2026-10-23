@@ -28,7 +28,6 @@ const ALLOWED: Record<string, string> = {
   'components/ds/AgentToolsTable.tsx': 'inline() on docs/AI.md (lib/mcp.ts)',
   'pages/agents.astro': 'inline() on docs/AI.md (lib/mcp.ts)',
   'components/ds/ReleaseEntries.tsx': 'mdTitleHtml (escaped, no links)',
-  'pages/components/[slug].astro': 'mdTitleHtml',
   'components/ds/studio/Drawing.tsx': 'hardcoded SVG from brand/illustrations.ts, never repo SVG',
   'components/Illustration.astro': 'hardcoded SVG from brand/illustrations.ts, never repo SVG',
   'components/home/HpStepSection.astro': 'Astro-rendered slot markup written in the page',

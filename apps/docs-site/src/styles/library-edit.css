@@ -513,6 +513,7 @@ html:has(.cp-page[data-editing]) {
 }
 
 .le-verdict h4,
+.le-verdict .verdict-title,
 .le-verdict p {
   width: 100%;
 }

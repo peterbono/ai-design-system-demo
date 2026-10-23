@@ -105,7 +105,7 @@ describe('header search', () => {
     expect(pages.find((p) => p.title === 'Accessibility')?.href).toBe('/library/peterbono/bridge-demo-ds/foundations/accessibility/');
     const components = index.filter((x) => x.kind === 'component');
     expect(components.length).toBe(libraryComponents(repoModel).length);
-    expect(components.find((c) => c.title === 'Button')?.href).toBe('/library/peterbono/bridge-demo-ds/components/?c=button');
+    expect(components.find((c) => c.title === 'Button')?.href).toBe('/library/peterbono/bridge-demo-ds/components/button/');
     const tokens = index.filter((x) => x.kind === 'token');
     expect(tokens.length).toBe(libraryTokenRows(repoModel).length);
     const token = tokens.find((t) => t.title === 'color.text.default')!;
