@@ -114,8 +114,8 @@ const handlers: Handlers = {
     figma.ui.resize(Math.max(360, Math.min(900, width)), Math.max(400, Math.min(1000, height)));
     return { resized: true };
   },
-  async 'scan-components'() {
-    return scanComponents((message) => figma.ui.postMessage({ kind: 'progress', message }));
+  async 'scan-components'(scope) {
+    return scanComponents((message) => figma.ui.postMessage({ kind: 'progress', message }), scope);
   },
   async 'save-signatures'({ items }) {
     return { saved: await saveSignatures(items) };
