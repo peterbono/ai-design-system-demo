@@ -536,3 +536,35 @@ It reuses storage, Resend (`RESEND_API_KEY`, `INVITE_EMAIL_FROM`) and `LIBRARY_S
 
 Redeploy. `GET /api/account` answers `{ "available": true, "account": null }` once storage and the secret are set;
 the cron's run shows under the project's **Cron Jobs**.
+
+## Test everything locally
+
+`npm run docs:dev` shows the pages only: sign-in, invites, join requests and contributions need the `/api` functions,
+which normally run on Vercel. `npm run dev:full` runs them on your computer too, with no keys to set up and no access
+to the real site's data.
+
+```sh
+npm run dev:full                                  # the whole product on http://localhost:4321
+npm run dev:seed -- you@company.com acme/ds       # optional: make that email a member of the acme/ds team
+npm run dev:reset                                 # start over: forget every local account, team and code
+```
+
+**Sign in.** Open the site, choose sign in, and type any email (`test@example.com` works). No email is sent. The code
+shows up in the terminal that runs `npm run dev:full`, in a box with `code: 123456`, and on
+[localhost:4321/api/dev/outbox](http://localhost:4321/api/dev/outbox), which lists every email Bridge would have sent
+(codes, invites, join requests), newest first.
+
+**Where things go.** Accounts, teams, invites and codes live in `apps/docs-site/.bridge-local/` (not in git) and stay
+there when you restart. `npm run dev:reset` deletes that folder. `npm run dev:seed` works while the server runs. A new
+email with no team lands on "create a team"; a seeded one lands on its team.
+
+**Safe by design.** This mode never reads the storage or email keys (Upstash, KV, Resend, Blob, cron), even when they
+are in your shell or `.env.local`, so it cannot touch the real site's data or send a real email. It makes its own
+session secret the first time. It refuses to start when `NODE_ENV=production` or on Vercel, and nothing of it is part
+of the build.
+
+**Limits.** Features that act on GitHub need a GitHub App: email contributions (`/api/contribute`), invites from
+Members (`/api/invites`), Library access settings (`/api/library-access`), "Continue with GitHub" and admin checks.
+Without keys they answer as a site that has not set them up yet ("not available yet"). To try them, put the
+`GITHUB_APP_*` variables of a test app in `apps/docs-site/.env.local` (see [SIGN-IN.md](SIGN-IN.md)); they are the only
+variables this mode reads from it. Those calls then reach the real GitHub, so use a test repository.

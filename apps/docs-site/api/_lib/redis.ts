@@ -54,12 +54,25 @@ function globRegExp(glob: string): RegExp {
 /** `s` with the characters a Redis MATCH glob treats specially escaped. */
 export const globEscape = (s: string) => s.replace(/[*?[\]\\]/g, '\\$&');
 
+/** Every live key of a memoryRedis, as JSON: a TTL is an absolute time in ms (null: no expiry). */
+export type RedisSnapshot = (
+  | { key: string; type: 'string'; value: string; until: number | null }
+  | { key: string; type: 'set'; value: string[]; until: number | null }
+  | { key: string; type: 'zset'; value: [string, number][]; until: number | null }
+)[];
+
 /**
- * In-memory Redis for tests: strings, sets and sorted sets, EX and NX, GET, SET, GETDEL, DEL, MGET, INCRBY, EXPIRE,
- * SADD, SREM, SMEMBERS, SISMEMBER, ZADD, ZREM, ZRANGE (all), ZREMRANGEBYSCORE, TYPE and SCAN (one page, MATCH glob
- * with `*`, `?` and backslash escapes). TTLs follow `now`.
+ * In-memory Redis for tests (and the local server, `npm run dev:full`): strings, sets and sorted sets, EX and NX,
+ * GET, SET, GETDEL, DEL, MGET, INCRBY, EXPIRE, SADD, SREM, SMEMBERS, SISMEMBER, ZADD, ZREM, ZRANGE (all),
+ * ZREMRANGEBYSCORE, TYPE and SCAN (one page, MATCH glob with `*`, `?` and backslash escapes). TTLs follow `now`.
+ * `snapshot()` and `restore()` carry every live key across restarts.
  */
-export function memoryRedis(now: () => number = Date.now): Redis & { keys(): string[]; dump(): Map<string, string | string[]> } {
+export function memoryRedis(now: () => number = Date.now): Redis & {
+  keys(): string[];
+  dump(): Map<string, string | string[]>;
+  snapshot(): RedisSnapshot;
+  restore(s: RedisSnapshot): void;
+} {
   const items = new Map<string, { value: string | Set<string> | Map<string, number>; until: number }>();
   const live = (k: string) => {
     const v = items.get(k);
@@ -170,6 +183,23 @@ export function memoryRedis(now: () => number = Date.now): Redis & { keys(): str
       const v = live(k)!;
       return [k, typeof v === 'string' ? v : [...v.keys()]];
     })),
+    snapshot: () =>
+      [...items.keys()].filter((k) => live(k) !== null).map((key) => {
+        const { value: v, until: u } = items.get(key)!;
+        const until = Number.isFinite(u) ? u : null;
+        if (typeof v === 'string') return { key, type: 'string' as const, value: v, until };
+        if (v instanceof Set) return { key, type: 'set' as const, value: [...v], until };
+        return { key, type: 'zset' as const, value: [...v.entries()], until };
+      }),
+    restore(s) {
+      items.clear();
+      for (const e of s) {
+        const until = e.until ?? Infinity;
+        if (until <= now()) continue;
+        const value = e.type === 'string' ? e.value : e.type === 'set' ? new Set(e.value) : new Map(e.value);
+        items.set(e.key, { value, until });
+      }
+    },
     async cmd(...args) {
       return run(args);
     },

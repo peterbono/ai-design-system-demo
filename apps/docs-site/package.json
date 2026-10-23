@@ -6,6 +6,9 @@
   "description": "Human-facing documentation site. Every page is generated at build time from the tokens, components and docs in this repo.",
   "scripts": {
     "dev": "astro dev",
+    "dev:full": "BRIDGE_LOCAL=1 astro dev",
+    "dev:reset": "node dev/cli.mjs reset",
+    "dev:seed": "node dev/cli.mjs seed",
     "build": "astro build",
     "preview": "astro preview",
     "typecheck": "tsc --noEmit -p ."
