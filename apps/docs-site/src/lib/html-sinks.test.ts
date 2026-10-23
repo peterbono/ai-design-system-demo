@@ -23,10 +23,9 @@ const ALLOWED: Record<string, string> = {
   'pages/studio/settings/index.astro': 'jsonForScript',
   'components/ds/library/views/AllTokensView.tsx': 'jsonForScript',
   // Build-time Markdown and constants.
-  'pages/how-review-works.astro': 'inline() on docs/GOVERNANCE.md and AGENTS.md (escaped, link schemes allow-listed)',
   'components/ds/MarkdownTable.tsx': 'cells from inline()',
+  'components/ds/InlineMd.tsx': 'inline() on repository Markdown (escaped, link schemes allow-listed)',
   'components/ds/AgentToolsTable.tsx': 'inline() on docs/AI.md (lib/mcp.ts)',
-  'pages/agents.astro': 'inline() on docs/AI.md (lib/mcp.ts)',
   'components/ds/ReleaseEntries.tsx': 'mdTitleHtml (escaped, no links)',
   'components/ds/studio/Drawing.tsx': 'hardcoded SVG from brand/illustrations.ts, never repo SVG',
   'components/Illustration.astro': 'hardcoded SVG from brand/illustrations.ts, never repo SVG',
@@ -34,7 +33,7 @@ const ALLOWED: Record<string, string> = {
   'components/ds/ScriptDialog.astro': 'dialogHtml escapes title, description and attributes; body is a slot',
   'pages/studio/components/docs/[slug].astro': 'redirectScript: constant body, target escaped in data-to',
   'components/LibraryEditMode.tsx': 'static example markup rendered at build time from registry resolveProps (handlers, raw HTML and unsafe URLs dropped)',
-  'pages/install.astro': 'the match is text inside a code sample shown on the page, not a sink',
+  'lib/library-use.ts': 'the match is text inside a code sample shown on the Install page, not a sink',
   // Browser scripts: GitHub and repo data through esc / attrUrl / cssValue.
   'scripts/explorations.ts': 'esc, attrUrl on preview and PR URLs',
   'scripts/explorer/detail.ts': 'esc, attrUrl, cssValue on token values',

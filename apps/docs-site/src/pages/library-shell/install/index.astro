@@ -1,0 +1,12 @@
+---
+// Library shell, Install (lib/library-shells.ts LIBRARY_USE_PAGES): served for /library/<owner>/<repo>/install/. The
+// same view as Bridge's own page, with what the team publishes (components/ds/library/LibraryTeamUse.tsx) and the
+// Bridge tools of this build.
+import LibraryShell from '../../../components/LibraryShell.astro';
+import LibraryTeamUse from '../../../components/ds/library/LibraryTeamUse';
+import { bridgeTools } from '../../../lib/library-use';
+---
+
+<LibraryShell title="Install" description="How to install a team's design system: its packages, its modes, the bridge CLI and the DS Bridge Figma plugin." reading>
+  <LibraryTeamUse page="install" bridge={bridgeTools()} client:load />
+</LibraryShell>

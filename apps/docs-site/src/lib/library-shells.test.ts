@@ -136,7 +136,7 @@ describe('addresses', () => {
   it('gives every nav page a shell route, with the same Foundations pages as the own Library', () => {
     const pages = libraryTeamPages().map((p) => p.route);
     for (const r of pages) expect(LIBRARY_SHELL_ROUTES).toContain(r);
-    expect(LIBRARY_TEAM_NAV.map((e) => e.label)).toEqual(['Home', 'Foundations', 'Components']);
+    expect(LIBRARY_TEAM_NAV.map((e) => e.label)).toEqual(['Home', 'Foundations', 'Components', 'Use']);
     expect(FOUNDATIONS.map((f) => f.href)).toEqual(LIBRARY_FOUNDATION_PAGES.map((p) => `/${p.route}`));
     expect(pages).toContain('foundations/accessibility/');
   });
@@ -213,5 +213,17 @@ describe('the site\'s own Library', () => {
     expect(dest('/library/acme/ds/:path*/')).toBe('/library/');
     expect(rules.every((r) => r.permanent === false)).toBe(true);
     expect(rules.findIndex((r) => r.source.endsWith(':path*/'))).toBeLessThan(rules.findIndex((r) => r.source.endsWith(':path*')));
+  });
+});
+
+describe('Use pages', () => {
+  it('gives every team the same Use pages as Bridge\'s own Library, each with a shell', async () => {
+    const { LIBRARY_USE } = await import('./nav');
+    const { LIBRARY_USE_PAGES } = await import('./library-shells');
+    expect(LIBRARY_USE.map((p) => p.href)).toEqual(LIBRARY_USE_PAGES.map((p) => `/${p.route}`));
+    for (const p of LIBRARY_USE_PAGES) expect(LIBRARY_SHELL_ROUTES).toContain(p.route);
+    expect(libraryHref('acme', 'ds', 'changelog/')).toBe('/library/acme/ds/changelog/');
+    expect(ownLibraryPath('how-review-works/')).toBe('/how-review-works/');
+    expect(ownLibraryRedirects({ owner: 'acme', repo: 'ds' }).find((r) => r.source === '/library/acme/ds/install/')?.destination).toBe('/install/');
   });
 });

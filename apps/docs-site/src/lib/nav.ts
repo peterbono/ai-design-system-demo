@@ -14,7 +14,7 @@ import type { IconName } from '../brand/icons';
 import { loadComponents } from './components';
 import { VOCAB } from './vocabulary';
 import { START_PAGE, WORKSPACE_HOME } from './start';
-import { LIBRARY_FOUNDATION_PAGES } from './library-shells';
+import { LIBRARY_FOUNDATION_PAGES, LIBRARY_USE_PAGES } from './library-shells';
 
 // Studio links in both modes (self-hosted /studio/, team shells /studio/<owner>/<repo>/). Browser code imports it from
 // lib/team-path directly: this module reads the repository at build time.
@@ -70,12 +70,8 @@ export const SETTINGS_HOME = '/studio/settings/';
 /** The Foundations pages: one list with a team's Library (lib/library-shells.ts), at this site's root. */
 export const FOUNDATIONS: NavItem[] = LIBRARY_FOUNDATION_PAGES.map((p) => ({ href: `/${p.route}`, label: p.label, icon: p.icon as IconName, ...(p.apart ? { apart: true } : {}), meta: p.meta }));
 
-export const LIBRARY_USE: NavItem[] = [
-  { href: '/install/', label: 'Install', icon: 'box', meta: 'Packages, fonts and the DS Bridge Figma plugin' },
-  { href: '/agents/', label: 'Agents', icon: 'agent', meta: 'MCP server, bridge CLI and llms.txt for AI agents' },
-  { href: '/how-review-works/', label: 'How review works', icon: 'review', meta: 'Risk tiers, review gates, the owner override and the rules the AI agent follows' },
-  { href: '/changelog/', label: 'Changelog', icon: 'tag', meta: 'Release notes, ready to post' },
-];
+/** The Use pages: one list with a team's Library (lib/library-shells.ts), at this site's root. */
+export const LIBRARY_USE: NavItem[] = LIBRARY_USE_PAGES.map((p) => ({ href: `/${p.route}`, label: p.label, icon: p.icon as IconName, meta: p.meta }));
 
 /** Changes is one page with two views (In review, History); the old Drafts, Branches, Reviews, Versions and Visual
  * impact pages redirect to the right view (lib/redirects.ts). */

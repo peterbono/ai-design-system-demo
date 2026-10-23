@@ -268,10 +268,44 @@ export function loadTeamLlms(): Promise<boolean> {
   return llms;
 }
 
+let llmsText: Promise<string | null> | null = null;
+
+/**
+ * The text of the llms.txt the team published next to its snapshot, null without one. Same reads as loadTeamLlms
+ * (the raw host for a public repository, the visitor's token for a private one). Never rejects.
+ */
+export function loadTeamLlmsText(): Promise<string | null> {
+  llmsText ??= loadTeamData()
+    .then(async (d) => {
+      if (d.servedBy) {
+        const { readLibraryFile } = await import('./library-access-api');
+        return (await readLibraryFile(`${d.owner}/${d.repo}`, 'llms').catch(() => '')) || null;
+      }
+      if (d.private) return d.client.canWrite ? ((await d.client.getRawText(SNAPSHOT_LLMS_FILE, SNAPSHOT_BRANCH)) ?? null) : null;
+      return (await d.client.readRawFile(SNAPSHOT_LLMS_FILE, SNAPSHOT_BRANCH)) ?? null;
+    })
+    .catch(() => null);
+  return llmsText;
+}
+
+/**
+ * A file of the team's repository at the head its data was read at (its governance docs), undefined when it has
+ * none or this reader cannot see it. Public: the raw host. Private: the visitor's token. Never rejects.
+ */
+export async function readTeamFile(d: TeamData, path: string): Promise<string | undefined> {
+  if (d.servedBy || !path) return undefined;
+  try {
+    return d.private ? (d.client.canWrite ? await d.client.getRawText(path, d.sha) : undefined) : await d.client.readRawFile(path, d.sha);
+  } catch {
+    return undefined;
+  }
+}
+
 /** Forgets this page's load: the next loadTeamData reads the head again (Refresh, Try again). */
 export function resetTeamData() {
   pending = null;
   snapshot = null;
   usage = null;
+  llmsText = null;
   llms = null;
 }

@@ -38,6 +38,17 @@ export const LIBRARY_FOUNDATION_PAGES: LibraryPage[] = [
 ];
 
 /**
+ * The Use pages, in nav order: the same for Bridge's own Library (lib/nav.ts LIBRARY_USE, at /<route>) and for every
+ * team's. Each says how to use that team's design system: its packages, its agents' files, its review rules, its releases.
+ */
+export const LIBRARY_USE_PAGES: LibraryPage[] = [
+  { route: 'install/', label: 'Install', icon: 'box', meta: 'Packages, fonts and the DS Bridge Figma plugin' },
+  { route: 'agents/', label: 'Agents', icon: 'agent', meta: 'MCP server, bridge CLI and llms.txt for AI agents' },
+  { route: 'how-review-works/', label: 'How review works', icon: 'review', meta: 'Risk tiers, review gates, the owner override and the rules the AI agent follows' },
+  { route: 'changelog/', label: 'Changelog', icon: 'tag', meta: 'Release notes, ready to post' },
+];
+
+/**
  * The shell of one component page: /library/<owner>/<repo>/components/<slug>/ is rewritten to it (libraryRewrites) and
  * the page reads the slug from the address. Not a component name a team can take away: the rewrite comes first.
  */
@@ -57,6 +68,7 @@ export const LIBRARY_TEAM_NAV: LibraryNavEntry[] = [
   { route: '', label: 'Home', icon: 'home', meta: 'What this design system holds and where to start' },
   { label: 'Foundations', icon: 'layers', children: LIBRARY_FOUNDATION_PAGES },
   { route: 'components/', label: 'Components', icon: 'diamonds', meta: 'Every component with its guidance and live stories' },
+  { label: 'Use', icon: 'book', children: LIBRARY_USE_PAGES },
 ];
 
 /** Every page of a team's Library nav, groups opened, in nav order. */
@@ -66,7 +78,7 @@ export const libraryTeamPages = (): LibraryPage[] => LIBRARY_TEAM_NAV.flatMap((e
  * The Library routes a team has, relative to its Library root ('' is Home). Each has a shell page. 'foundations/'
  * opens Color (as on Bridge's own Library), for links made before Foundations had a page per topic.
  */
-export const LIBRARY_SHELL_ROUTES = ['', ...LIBRARY_FOUNDATION_PAGES.map((p) => p.route).filter((r) => r !== 'tokens/'), 'foundations/', 'components/', COMPONENT_SHELL_ROUTE, 'tokens/'] as const;
+export const LIBRARY_SHELL_ROUTES = ['', ...LIBRARY_FOUNDATION_PAGES.map((p) => p.route).filter((r) => r !== 'tokens/'), 'foundations/', 'components/', COMPONENT_SHELL_ROUTE, 'tokens/', ...LIBRARY_USE_PAGES.map((p) => p.route)] as const;
 
 export type LibraryShellRoute = string;
 
@@ -122,7 +134,7 @@ export function ownLibraryPath(route = ''): string {
   const comp = /^components\/([a-z0-9][a-z0-9-]*)\/$/i.exec(p);
   if (comp) return `/components/${comp[1]!.toLowerCase()}/${hash ? `#${hash}` : ''}`;
   if (p === 'foundations/') return '/foundations/color/';
-  if (LIBRARY_FOUNDATION_PAGES.some((f) => f.route === p)) return `/${p}${hash ? `#${hash}` : ''}`;
+  if ([...LIBRARY_FOUNDATION_PAGES, ...LIBRARY_USE_PAGES].some((f) => f.route === p)) return `/${p}${hash ? `#${hash}` : ''}`;
   return LIBRARY_ROOT;
 }
 
@@ -149,7 +161,7 @@ export function ownLibraryRedirects(own: TeamPair): { source: string; destinatio
     ...pair('/components', '/components/'),
     ...pair(`/components/:slug(${COMPONENT_SLUG_PATTERN})`, '/components/:slug/'),
     ...pair('/foundations', '/foundations/color/'),
-    ...LIBRARY_FOUNDATION_PAGES.flatMap((p) => pair(`/${p.route.replace(/\/$/, '')}`, `/${p.route}`)),
+    ...[...LIBRARY_FOUNDATION_PAGES, ...LIBRARY_USE_PAGES].flatMap((p) => pair(`/${p.route.replace(/\/$/, '')}`, `/${p.route}`)),
     ...pair('/:path*', LIBRARY_ROOT),
   ];
 }

@@ -1,0 +1,12 @@
+---
+// Library shell, How review works (lib/library-shells.ts LIBRARY_USE_PAGES): served for /library/<owner>/<repo>/how-review-works/. The
+// same view as Bridge's own page, with what the team publishes (components/ds/library/LibraryTeamUse.tsx) and the
+// Bridge tools of this build.
+import LibraryShell from '../../../components/LibraryShell.astro';
+import LibraryTeamUse from '../../../components/ds/library/LibraryTeamUse';
+import { bridgeTools } from '../../../lib/library-use';
+---
+
+<LibraryShell title="How review works" description="How a team reviews changes to its design system: risk tiers, review gates, the owner override and the agent rules." reading>
+  <LibraryTeamUse page="review" bridge={bridgeTools()} client:load />
+</LibraryShell>

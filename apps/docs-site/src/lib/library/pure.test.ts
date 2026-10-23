@@ -52,3 +52,24 @@ describe('component pages', async () => {
     expect(readableDocs(null)).toBeNull();
   });
 });
+
+describe('Use pages', async () => {
+  const { configApprovals, configGates, installPackages, llmsStats } = await import('./use-pages');
+
+  it('installs the components and the tokens when it can tell them apart', () => {
+    const pk = (name: string) => ({ name, version: '1.0.0' });
+    expect(installPackages([pk('@a/cli'), pk('@a/react'), pk('@a/tokens')]).map((p) => p.name)).toEqual(['@a/react', '@a/tokens']);
+    expect(installPackages([pk('@a/one'), pk('@a/two')]).map((p) => p.name)).toEqual(['@a/one', '@a/two']);
+  });
+
+  it('counts only what an llms.txt says', () => {
+    expect(llmsStats('# x\n## Components\n### Button\n').map((s) => s.label)).toEqual(['lines', 'components']);
+  });
+
+  it('reads who approves and the gates from a governance config', () => {
+    const model = { config: { repo: { owner: 'a', name: 'b', defaultBranch: 'main' }, governance: { protectedBranches: ['release'], branchPrefix: 'bridge/', labels: [], guardrails: ['AGENTS.md'], owners: { design: ['ann'], tech: ['@bob'] } } } } as never;
+    expect(configApprovals(model).rows[0]).toEqual(['Design owners', '`@ann`', 'Design: design owners']);
+    expect(configGates(model)[0]).toContain('`main`, `release`');
+    expect(configGates(model)[1]).toContain('`AGENTS.md`');
+  });
+});

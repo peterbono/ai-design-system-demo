@@ -3,6 +3,8 @@
 // statically); a team's Library shell passes the model it read in the browser (LibraryTeamPage.tsx). The views are
 // pure functions of this data, so both render the same sections. Browser-safe: no Node API.
 import type { ChangelogReleaseRow, MotionDocs, RepoModel } from '@bridge-ds/core';
+import type { AgentRule, MdTable, RuleHeading, UsePackage } from '../../../lib/library/use-pages';
+import type { VersionMenuProps } from '../VersionMenu';
 import type { TeamData } from '../../../scripts/team-data';
 import { libraryHref } from '../../../lib/library-shells';
 import { studioHref, studioHrefAt, teamHref } from '../../../lib/team-path';
@@ -44,6 +46,52 @@ export interface LibraryExtras {
   motion?: Record<string, MotionDocs>;
   /** Where a repository file opens, with the file path appended ("https://github.com/<o>/<r>/blob/main/"). */
   sourceBase?: string;
+  /** What the Use pages show (Install, Agents, How review works, Changelog). */
+  use?: UseExtras;
+}
+
+/**
+ * What the Use pages read. `bridge` holds the facts of the Bridge tools every Library documents the same way (its
+ * CLI, MCP server and Figma plugin), from this site's build; the rest is the design system's own.
+ */
+export interface UseExtras {
+  bridge: BridgeTools;
+  /** The design system's packages (snapshot `packages`, public ones). Absent: an older snapshot. */
+  packages?: UsePackage[];
+  /** The Bridge Library's own code samples (React setup, pages without React, install from a clone). */
+  samples?: { app: string; html: string; dom: string; clone: string; add: string };
+  /** The design system's llms.txt and where it opens; null when it has none. Absent: not read yet. */
+  llms?: { text: string; href: string } | null;
+  /** Governance read from the design system's own Markdown (docs/GOVERNANCE.md, AGENTS.md); fields it lacks stay out. */
+  governance?: {
+    tiers?: MdTable | null;
+    approvals?: MdTable | null;
+    gates?: string[];
+    agentPrs?: string[];
+    rules?: { heading: RuleHeading; rules: AgentRule[] }[];
+  };
+  /** The version picker of the Changelog (Bridge's own build: its git branch and versions). */
+  versionMenu?: VersionMenuProps;
+}
+
+/** The Bridge tools, as this site's build knows them. Inline Markdown where it says so. */
+export interface BridgeTools {
+  cliPackage: string;
+  mcpPackage: string;
+  /** MCP tools, `use` in inline Markdown. */
+  tools: { name: string; use: string }[];
+  prompts: { name: string; text: string }[];
+  safety: { title: string; text: string }[];
+  /** The DS Bridge Figma plugin: where its guide is, Bridge's repository and its plugin README. */
+  pluginUrl: string;
+  repoUrl: string;
+  pluginReadmeUrl: string;
+  /** Bridge's AI guide (docs/AI.md) and where it opens. */
+  aiDoc: { label: string; href: string };
+  /** Bridge's own risk tiers (docs/GOVERNANCE.md): what Bridge computes for every team. */
+  tiers: MdTable | null;
+  /** What a reviewer checks on an agent's pull request, from Bridge's governance. */
+  agentPrs: string[];
 }
 
 export interface LibraryData {
@@ -67,7 +115,7 @@ export function libraryLink(data: Pick<LibraryData, 'team'>, href: string): stri
   if (!data.team || !href.startsWith('/') || href.startsWith('//')) return href;
   const comp = /^\/components\/([a-z0-9][a-z0-9-]*)\/(#.*)?$/i.exec(href);
   if (comp) return pageHref(data, componentRoute(comp[1]!, comp[2]));
-  if (/^\/(foundations\/[a-z-]+\/|tokens\/|components\/)/.test(href) || href === '/') return pageHref(data, href);
+  if (/^\/(foundations\/[a-z-]+\/|tokens\/|components\/|install\/|agents\/|how-review-works\/|changelog\/)/.test(href) || href === '/') return pageHref(data, href);
   return href;
 }
 

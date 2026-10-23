@@ -100,7 +100,7 @@ describe('header search', () => {
   it("indexes the team's places, components and tokens at the team's Library addresses", () => {
     const index = librarySearchIndex(repoModel, 'peterbono', 'bridge-demo-ds');
     const pages = index.filter((x) => x.kind === 'page');
-    expect(pages.map((p) => p.title)).toEqual(['Home', 'Color', 'Typography', 'Spacing', 'Radius and borders', 'Elevation', 'Accessibility', 'All tokens', 'Components']);
+    expect(pages.map((p) => p.title)).toEqual(['Home', 'Color', 'Typography', 'Spacing', 'Radius and borders', 'Elevation', 'Accessibility', 'All tokens', 'Components', 'Install', 'Agents', 'How review works', 'Changelog']);
     expect(pages[0]!.href).toBe('/library/peterbono/bridge-demo-ds/');
     expect(pages.find((p) => p.title === 'Accessibility')?.href).toBe('/library/peterbono/bridge-demo-ds/foundations/accessibility/');
     const components = index.filter((x) => x.kind === 'component');

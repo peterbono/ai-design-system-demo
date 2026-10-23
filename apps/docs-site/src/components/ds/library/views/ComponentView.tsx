@@ -472,11 +472,9 @@ export default function ComponentView({ data, component: c, Example, heroTools, 
                 ) : (
                   <p className="muted">No release note mentions {c.name} yet.</p>
                 )}
-                {own && (
-                  <p className="small">
-                    <Link href="/changelog/">All release notes</Link>
-                  </p>
-                )}
+                <p className="small">
+                  <Link href={pageHref(data, 'changelog/')}>All release notes</Link>
+                </p>
               </section>
             </div>
           </div>

@@ -56,6 +56,7 @@ describe('switchTarget from the Library', () => {
     });
     expect(switchTarget({ space: 'library', pathname: '/library/acme/ds/', libraryRoute: '', team, studioRoot: '/studio/~/acme/ds/' }).href).toBe('/studio/~/acme/ds/');
     expect(switchTarget({ space: 'library', pathname: '/library-shell/tokens/', libraryRoute: 'tokens/' }).href).toBe('/studio/tokens/');
+    expect(switchTarget({ space: 'library', pathname: '/library/acme/ds/how-review-works/', libraryRoute: 'how-review-works/', team, studioRoot: '/studio/acme/ds/' })).toEqual({ href: '/studio/acme/ds/settings/#approvals', item: 'Approvals' });
     expect(switchTarget({ space: 'library', pathname: '/library/acme/ds/foundations/color/', libraryRoute: 'foundations/color/', team, studioRoot: '/studio/acme/ds/' })).toEqual({ href: '/studio/acme/ds/tokens/?focus=color', item: 'Color' });
     expect(switchTarget({ space: 'library', pathname: '/library/acme/ds/foundations/accessibility/', libraryRoute: 'foundations/accessibility/', team, studioRoot: '/studio/acme/ds/' }).href).toBe('/studio/acme/ds/quality/');
   });
