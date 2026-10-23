@@ -135,7 +135,7 @@ test('checked component changes become one request each, with the description as
   const proposal = buildPush(a, new Map(), new Set(), heldTokenIds(items, unchecked));
   assert.deepEqual(publishPlan({ proposal, components: scan.changed, unchecked, description: '', fileName: 'Test' }).prFiles, 0);
   const drafts = componentDrafts(scan.changed, unchecked, '', 'Library.fig');
-  assert.deepEqual(drafts.map((d) => [d.component, d.summary]), [['Button', 'Changed in Figma ("Library.fig") and sent for review with DS Bridge.']]);
+  assert.deepEqual(drafts.map((d) => [d.component, d.summary]), [['Button', 'Changed in Figma ("Library.fig") and sent for review with Bridge.']]);
   const res = await publish(client, {
     analysis: a,
     proposal,

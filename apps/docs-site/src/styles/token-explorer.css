@@ -2721,6 +2721,11 @@ body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-grid {
   display: none;
 }
 
+/* A failing guardrail: the note says why the draft cannot be sent. */
+.xe-sheet-note.is-fail {
+  color: var(--color-feedback-danger-text);
+}
+
 .xe-chg {
   display: grid;
   gap: var(--space-2);

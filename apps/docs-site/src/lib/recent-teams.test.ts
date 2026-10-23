@@ -1,7 +1,7 @@
 // The team chip's recent teams in storage: cleaned on read, remembered only after a real read, removable.
 import { describe, expect, it } from 'vitest';
 import { RECENT_TEAMS_KEY } from './access-view';
-import { forgetRecentTeam, loadRecentTeams, noteTeamAccess, type RecentStore } from './recent-teams';
+import { ACCOUNT_TEAM_NAMES_KEY, forgetRecentTeam, knownTeamName, loadRecentTeams, noteAccountTeamNames, noteTeamAccess, type RecentStore } from './recent-teams';
 
 function memory(initial?: unknown): RecentStore & { data: Map<string, string> } {
   const data = new Map<string, string>();
@@ -88,5 +88,19 @@ describe('recent teams in storage', () => {
     expect(noteTeamAccess('acme/ds', 'reader', blocked)).toEqual(['acme/ds']);
     expect(forgetRecentTeam('acme/ds', blocked)).toEqual([]);
     expect(loadRecentTeams(null)).toEqual([]);
+  });
+});
+
+describe('names known before a team page reads its settings', () => {
+  it("keeps the account's set names (not the repository in words), prefers what a page read, and forgets them signed out", () => {
+    const store = memory();
+    noteAccountTeamNames([{ repo: 'Lumen/Mobile-Kit', name: 'Lumen Mobile' }, { repo: 'acme/ds', name: 'Ds' }], store);
+    expect(JSON.parse(store.data.get(ACCOUNT_TEAM_NAMES_KEY)!)).toEqual({ 'lumen/mobile-kit': 'Lumen Mobile' });
+    expect(knownTeamName('lumen/mobile-kit', store)).toBe('Lumen Mobile');
+    expect(knownTeamName('acme/ds', store)).toBeNull();
+    store.data.set('bridge.teamNames', JSON.stringify({ 'lumen/mobile-kit': 'Lumen Mobile 2' }));
+    expect(knownTeamName('lumen/mobile-kit', store)).toBe('Lumen Mobile 2');
+    noteAccountTeamNames(null, store);
+    expect(store.data.has(ACCOUNT_TEAM_NAMES_KEY)).toBe(false);
   });
 });

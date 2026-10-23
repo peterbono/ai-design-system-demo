@@ -385,7 +385,7 @@ export function snapshotToTokens(snapshot: FigmaSnapshot, repoLayout: RepoLayout
         files: isMultiMode(tier) ? {} : { [SINGLE_MODE]: pd.file ?? inferFile(path, tier, context) },
       };
       if (tokens.has(t.id)) {
-        warnings.push(`"${v.name}" carries the same DS Bridge id as "${tokens.get(t.id)!.path}"; it is treated as a new token.`);
+        warnings.push(`"${v.name}" carries the same Bridge id as "${tokens.get(t.id)!.path}"; it is treated as a new token.`);
         t.id = pathId(path);
       }
       tokens.set(t.id, t);

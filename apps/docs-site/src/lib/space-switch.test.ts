@@ -102,8 +102,8 @@ describe('switchTarget from Studio', () => {
 
 describe('names', () => {
   it('names the action, and says where you are in the description', () => {
-    expect(switchLabel('library')).toBe('Open Studio');
-    expect(switchLabel('studio')).toBe('Open Library');
+    expect(switchLabel('library')).toBe('Library, open Studio');
+    expect(switchLabel('studio')).toBe('Studio, open Library');
     expect(currentLabel('library')).toBe("You're in the Library");
     expect(currentLabel('studio')).toBe("You're in the Studio");
   });
@@ -120,7 +120,7 @@ describe('names', () => {
     const links = html.match(/<a\b/g) ?? [];
     expect(links).toHaveLength(1);
     expect(html).not.toMatch(/role="(switch|button|tab)"/);
-    expect(html).toContain('aria-label="Open Studio"');
+    expect(html).toContain('aria-label="Library, open Studio"');
     expect(html).toContain(`aria-describedby="${SPACE_SWITCH_NOW_ID}"`);
     expect(html).toContain(`id="${SPACE_SWITCH_NOW_ID}"`);
     expect(html).toContain('You&#x27;re in the Library');
@@ -128,7 +128,7 @@ describe('names', () => {
     expect(html).toContain('href="/studio/components/?c=button"');
     expect(html).not.toContain(String.fromCharCode(0x2014));
     const studio = renderToStaticMarkup(createElement(SpaceSwitch, { space: 'studio', href: '/library/' }));
-    expect(studio).toContain('aria-label="Open Library"');
+    expect(studio).toContain('aria-label="Studio, open Library"');
     expect(studio).toContain('data-tooltip="Open the Library"');
     // The maintainer avatar slot only exists where Studio is the destination.
     expect(studio).not.toContain('data-team-avatar');

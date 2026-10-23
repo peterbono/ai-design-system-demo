@@ -223,12 +223,41 @@ const planReport = (plan: ChangePlan) => ({
   notes: plan.notes,
 });
 
+/** Items per list in a bridge_plan_revert answer, and the longest PR body it returns, so a bulk revert stays readable. */
+export const PLAN_PAGE = 50;
+export const PLAN_BODY_MAX = 20_000;
+
+/**
+ * One page of each list of a plan report (edits, conflicts, skipped, changes), with the totals and how to read the
+ * rest. The whole plan is still what bridge_propose_revert opens.
+ */
+export function pagePlanReport<R extends { edits: unknown[]; conflicts: unknown[]; skipped: unknown[]; changes: unknown[] }>(report: R, limit = PLAN_PAGE, offset = 0) {
+  const counts = { edits: report.edits.length, conflicts: report.conflicts.length, skipped: report.skipped.length, changes: report.changes.length };
+  const longest = Math.max(...Object.values(counts));
+  const end = offset + limit;
+  const page = <T,>(list: T[]) => list.slice(offset, end);
+  return {
+    ...report,
+    edits: page(report.edits),
+    conflicts: page(report.conflicts),
+    skipped: page(report.skipped),
+    changes: page(report.changes),
+    counts,
+    ...(offset > 0 || end < longest
+      ? { truncated: `Lists show items ${Math.min(offset + 1, longest)} to ${Math.min(end, longest)} of up to ${longest} (counts has each total).${end < longest ? ` Pass offset ${end} for the next ones.` : ''}` }
+      : {}),
+  };
+}
+
+const capBody = (body: string) =>
+  body.length > PLAN_BODY_MAX ? { prBody: `${body.slice(0, PLAN_BODY_MAX)}\n... (cut)`, prBodyNote: `The PR body has ${body.length} characters; the first ${PLAN_BODY_MAX} are shown. It is written in full when the revert is proposed.` } : { prBody: body };
+
 /** Dry run: what undoing a change (or restoring a token) takes, conflicts included. Writes nothing. */
-export async function planRevertOp(ctx: BridgeContext, a: PlanArgs & { includeBody?: boolean }) {
+export async function planRevertOp(ctx: BridgeContext, a: PlanArgs & { includeBody?: boolean; limit?: number; offset?: number }) {
   const plan = await buildPlan(ctx, a, 'Bridge MCP');
   return {
-    ...planReport(plan),
-    ...(a.includeBody !== false && plan.status !== 'nothing-to-do' ? { prBody: plan.prBody } : {}),
+    ...pagePlanReport(planReport(plan), a.limit, a.offset),
+    ...(a.includeBody !== false && plan.status !== 'nothing-to-do' ? capBody(plan.prBody) : {}),
     next:
       plan.status === 'ready'
         ? plan.conflicts.length

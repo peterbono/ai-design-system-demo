@@ -79,7 +79,7 @@ describe('access screens', () => {
   it('speaks designer words, without em dashes', () => {
     for (const state of ALL) {
       const text = JSON.stringify([accessScreen(state, base), accessScreen(state, { ...base, admin: true }), accessSummary(state, { login: 'ann', repo: 'acme/ds' }), accessBadge(state, true)]);
-      expect(text).not.toMatch(/collaborator|installation id|permission|token|—/i);
+      expect(text).not.toMatch(/collaborator|installation id|permission|token|\u2014/i);
     }
   });
 });
@@ -208,5 +208,17 @@ describe('the names of the recent teams', () => {
     expect(recentTeamName('Acme/DS', { 'acme/ds': 'Acme' })).toBe('Acme');
     expect(recentTeamName('globex/design-tokens', {})).toBe('Design tokens');
     expect(recentTeamName('peterbono/bridge-demo-ds', {})).toBe('Acme Design');
+  });
+});
+
+describe('signed out in another tab', () => {
+  it('says "You signed out" with one Sign in, in designer words (a code, never a link or GitHub)', async () => {
+    const { signedOutScreen } = await import('./access-view');
+    const s = signedOutScreen('lumen', 'mobile-kit');
+    expect(s.layout).toBe('block');
+    expect(s.title).toBe('You signed out');
+    expect(s.primary).toEqual({ kind: 'email', label: 'Sign in' });
+    expect(s.body).toMatch(/code/);
+    expect(`${s.title} ${s.body}`).not.toMatch(/link|GitHub|\u2014/);
   });
 });

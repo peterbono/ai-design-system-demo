@@ -76,6 +76,15 @@
   line-height: var(--typography-caption-line-height);
 }
 
+.tcm-d-missing {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.tcm-d-missing > p {
+  margin: 0;
+}
+
 .tcm-d-frame {
   display: grid;
   gap: var(--space-2);

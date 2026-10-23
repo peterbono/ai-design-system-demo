@@ -10,7 +10,7 @@ import { Alert, Avatar, Badge, Button, Card, CardBody, Divider, Icon, Input, Lin
 import { GitHubMark } from '../studio/brand-icons';
 import { ContributorAccountBand } from '../studio/SettingsAccount';
 import { useAccount, useFace } from './AccountMenu';
-import { ACCOUNT_WORDS as W, accountName, PRIVACY_PAGE, roleWord, type Account } from '../../../lib/account';
+import { ACCOUNT_WORDS as W, accountName, PRIVACY_PAGE, roleWord, signedOutHref, type Account } from '../../../lib/account';
 import { teamDisplayName } from '../../../lib/demo';
 import { teamHref } from '../../../lib/team-path';
 import '../../../styles/account.css';
@@ -164,7 +164,7 @@ function SessionRow() {
     const api = await import('../../../scripts/account-session');
     try {
       await (all ? api.signOutEverywhere() : api.signOut());
-      navigate.to('/');
+      navigate.to(signedOutHref('out'));
     } catch (err) {
       setError(err instanceof Error ? err.message : W.failed);
       setBusy(null);
@@ -202,7 +202,7 @@ function DeleteRow() {
     const api = await import('../../../scripts/account-session');
     try {
       await api.deleteAccount();
-      navigate.to('/');
+      navigate.to(signedOutHref('deleted'));
     } catch (err) {
       setRefusal(err instanceof Error ? err.message : W.failed);
       setBusy(false);

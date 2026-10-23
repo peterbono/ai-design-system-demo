@@ -51,6 +51,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && vitest run --config vitest.config.ts",
     "start": "node dist/index.js",
+    "readme:tools": "BRIDGE_UPDATE_README=1 vitest run --config vitest.config.ts packages/mcp/test/readme.test.ts",
     "build:package": "node ../../scripts/build-packages.mjs mcp"
   },
   "dependencies": {

@@ -17,6 +17,8 @@ export interface Account {
   id: string;
   email: string;
   name: string;
+  /** False while `name` is a stand-in made from the email: the person is asked their name once (older accounts: set). */
+  nameSet?: boolean;
   github: { login: string; id: number } | null;
   createdAt: string;
   /** Bumped by "sign out everywhere": a session signed for another version is refused. */

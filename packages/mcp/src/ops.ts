@@ -260,6 +260,73 @@ function jsdocOf(src: string, name: string): string | undefined {
  * CSS module classes, contrast notes, changelog line, existing prose kept) and a prompt for the user's own Claude
  * to write the prose that code cannot tell. Nothing is written.
  */
+/**
+ * The tokens a component reaches: the ones its stylesheets read plus every token they alias, in any mode
+ * (card.bg -> color.surface.raised), so a contrast pair written on semantic tokens matches a component token.
+ */
+export function reachedTokens(set: TokenSet, paths: Iterable<string>): Set<string> {
+  const out = new Set<string>();
+  const combos = [set.defaultCombo, ...set.combos()];
+  for (const p of paths) {
+    out.add(p);
+    for (const combo of combos) for (const step of set.resolve(p, combo).chain) out.add(step);
+  }
+  return out;
+}
+
+/**
+ * Contrast pairs that concern a component: both sides among the tokens it reaches (its text on its own surface).
+ * A component that sets no surface of its own (text on whatever it sits on) gets the pairs of the foregrounds it
+ * uses instead. Never a pair that only shares a background with it.
+ */
+export function relevantPairs<P extends { foreground: string; background: string }>(pairs: P[], reached: Set<string>): P[] {
+  const both = pairs.filter((p) => reached.has(p.foreground) && reached.has(p.background));
+  if (both.length) return both;
+  return pairs.filter((p) => reached.has(p.foreground));
+}
+
+/** Characters of the docs prompt per page of bridge_draft_docs: a whole prompt can pass 25,000 characters. */
+export const DOCS_PROMPT_PAGE = 12_000;
+
+/** Splits text into pages of at most `size` characters, on line breaks when it can. */
+export function textPages(text: string, size: number): string[] {
+  const pages: string[] = [];
+  let cur = '';
+  for (const line of text.split('\n')) {
+    const add = cur ? `\n${line}` : line;
+    if (cur && cur.length + add.length > size) {
+      pages.push(cur);
+      cur = line;
+    } else cur += add;
+    while (cur.length > size) {
+      pages.push(cur.slice(0, size));
+      cur = cur.slice(size);
+    }
+  }
+  pages.push(cur);
+  return pages;
+}
+
+/**
+ * bridge_draft_docs result for a tool call: the prompt one page at a time (page 1 by default), with a summary of
+ * what the draft holds and how to read the next page. The CLI prints the whole draft and does not page.
+ */
+export function pagedDraftDocs<D extends { component: string; prompt: string; prefill: { tokens: string[]; contrastNotes: string[]; missing: string[] } }>(d: D, page = 1, size = DOCS_PROMPT_PAGE) {
+  const pages = textPages(d.prompt, size);
+  if (!Number.isInteger(page) || page < 1 || page > pages.length) throw new Error(`page is between 1 and ${pages.length} for ${d.component}.`);
+  const summary = `${d.component}: ${d.prefill.tokens.length} token(s), ${d.prefill.contrastNotes.length} contrast pair(s), missing prose: ${d.prefill.missing.join(', ') || 'none'}. Prompt: ${d.prompt.length} characters in ${pages.length} page(s).`;
+  return {
+    summary,
+    ...d,
+    prompt: pages[page - 1]!,
+    promptPage: {
+      page,
+      pages: pages.length,
+      ...(page < pages.length ? { next: `The prompt continues: call bridge_draft_docs again with page ${page + 1} (of ${pages.length}) and read every page before writing.` } : {}),
+    },
+  };
+}
+
 export async function draftDocsOp(ctx: BridgeContext, a: { name: string; branch?: string | undefined }) {
   // On an exploration: read the component as it is on that branch (remote), and save the draft there.
   const target = a.branch ? await explorationContext(ctx, a.branch, { requireCheckout: false }) : null;
@@ -284,9 +351,9 @@ export async function draftDocsOp(ctx: BridgeContext, a: { name: string; branch?
     const extra = cssVarsUsed(other).filter((v) => known.has(v) && !own.includes(v));
     if (extra.length) inheritedTokens[m[1]!] = extra;
   }
-  // Contrast pairs of the gate that involve a token this component reads, worst ratio over every mode.
+  // Contrast pairs of the gate this component takes part in, worst ratio over every mode.
   const paths = new Set([...own, ...Object.values(inheritedTokens).flat()].map((v) => known.get(v)!));
-  const pairs = (await core.readContrastPairs(ctx.source, config).catch(() => [])).filter((p) => paths.has(p.foreground) || paths.has(p.background));
+  const pairs = relevantPairs(await core.readContrastPairs(ctx.source, config).catch(() => []), reachedTokens(set, paths));
   const contrast: DocsContrastInput[] = [];
   if (pairs.length) {
     const worst = new Map<string, DocsContrastInput>();

@@ -57,7 +57,7 @@ export async function loadReferenceManifest(client: FidelityDeps['client']): Pro
   const text = await client.getFileText(FIGMA_REFERENCES_MANIFEST, FIGMA_REFERENCES_BRANCH);
   if (!text) return undefined;
   const m = JSON.parse(text) as FigmaReferenceManifest;
-  if (m.version !== 1 || !m.components) throw new Error('The code images were made by a newer Bridge. Update the DS Bridge plugin.');
+  if (m.version !== 1 || !m.components) throw new Error('The code images were made by a newer Bridge. Update the Bridge plugin.');
   return m;
 }
 

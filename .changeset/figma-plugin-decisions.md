@@ -1,0 +1,5 @@
+---
+"@bridge-ds/core": patch
+---
+
+Figma plugin: a new file points at no design system, the first run asks which one; the open change a push adds to is kept per Figma user, so two designers in one file never share a branch; after a send, "See it in Studio" opens the change for the team, GitHub one step behind. One verb for sending ("Send for review", "Send suggestion"). A component that needs code now says a developer builds it with Claude, with a message to copy for them (the waiting-for-claude label stays). Draft with Claude on your plan: the setup for Claude Code and the Claude app is shown and copied with the saved token, and a token that cannot write contents is named before any wait. Designer words in Pull and Push (no commits, repository slugs or issue numbers; details under "For developers"), friendly errors with details folded, one name for Claude and for Bridge, arrow keys in menus. Core: the Figma push status and route copy say "Waiting for a developer" and "Drafted with Claude".

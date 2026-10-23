@@ -155,7 +155,7 @@ export default function MembersSection() {
 
   if (load.status === 'loading')
     return (
-      <div className="mem-loading" aria-busy="true" aria-label="Reading who is in this team">
+      <div className="mem-loading" role="status" aria-busy="true" aria-label="Reading who is in this team">
         <Skeleton height="var(--size-10)" />
         <Skeleton height="var(--size-40)" />
       </div>

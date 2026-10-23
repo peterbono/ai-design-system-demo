@@ -8,7 +8,7 @@
 //               email; GitHub is never needed here
 //               { kind: 'teams', teams: [{ repo, name, role: 'edit' | 'reviewer' | 'admin', via: 'email' | 'github' }] }
 //   2. invites  invites wait for their email
-//               { kind: 'invites', invites: [{ id, team, repo, role, invitedBy, invitedAt, memberCount, people }] }
+//               { kind: 'invites', invites: [{ id, team, repo, role, reviewAs?, invitedBy, invitedAt, memberCount, people }] }
 //               (accept-invite joins directly)
 //   3. domain   teams whose admin opened them to the person's work domain, all of them, largest first
 //               { kind: 'domain', domain, teams: [{ repo, name, memberCount, people, adminName, requested }] }
@@ -20,6 +20,13 @@
 // Other endpoints (JSON, errors are { error, message } in Studio words). All need the account cookie (api/account):
 //   GET  /api/entry?requests=owner/name     admin: { requests: [{ id, name, email, createdAt, expiresAt }] }
 //   GET  /api/entry?discovery=owner/name    admin: { domain, enabled, configured, eligible }
+//   POST { action: 'invite-link', token }  what an invite link (/studio/invite/#t=<token>) is, signed in or not (the
+//                                           only call without the cookie; capped per network):
+//            { state: 'live', team, invitedBy, role, reviewAs?, sentTo (masked), signedIn, mine, member, invite?, repo? }
+//            { state: 'gone', team, invitedBy, signedIn, member, repo? }   accepted, cancelled or expired
+//            { state: 'unknown', signedIn }                                 a token Bridge never knew
+//            `invite` (an E3 card, as in GET) only when the invite is the signed-in account's own; `repo` only for
+//            a member of that team (to open it). Never the invited email, only masked.
 //   POST { action: 'accept-invite', repo, id }   the invite sent to the account email; joins directly
 //                                                { joined: true, status, repo, role, next }
 //   POST { action: 'request', repo }        asks to join a team open to their work domain (an invite for that team
@@ -28,6 +35,8 @@
 //                                           account email, so nobody else's); { cancelled: true }, 404 when none waits
 //   POST { action: 'approve', repo, id }    admin: the requester joins with Can edit; { member: { name, role }, repo }
 //   POST { action: 'decline', repo, id }    admin: { ok: true }
+//   POST { action: 'undo', repo, id }       admin, within 30 s of an approve or decline: the request waits again and a
+//                                           person the approve added leaves; { undone: true, request }, 410 after
 //   POST { action: 'discovery', repo, enabled }  admin: opens the team to the admin's own work domain, or closes it;
 //                                           { domain, enabled }
 // Every POST carries `X-Bridge-Contribute: 1` (or `X-Bridge-Account: 1`), JSON, and an Origin of this site (CSRF).
@@ -54,23 +63,29 @@ import { workDomain } from '../_lib/domains.js';
 import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
-import { clientIp, dayOf, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody, sameOrigin, secondsToTomorrow, siteOrigin, type FetchLike } from '../_lib/http.js';
+import { clientIp, dayOf, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin, type FetchLike } from '../_lib/http.js';
 import { accountTeamsKey, memberStore, type EmailMember, type MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
 import {
+  configName,
   type Discovery,
   getDiscovery,
+  getTeamNames,
   getRequest,
   JOIN_REQUEST_TTL_MS,
   type JoinRequest,
   listRequests,
   myRequests,
+  putDecided,
   putDiscovery,
   putRequest,
+  putTeamName,
   removeRequest,
+  takeDecided,
+  TEAM_NAME_MAX_AGE_MS,
   teamsForDomain,
 } from '../_lib/teams.js';
-import { acceptInviteForGithub, githubApp as invitesApp, inviteStoreOn, type InviteStore, type StoredInvite } from '../invites/index.js';
+import { acceptInviteForGithub, githubApp as invitesApp, inviteStoreOn, maskEmail, type InviteStore, type StoredInvite } from '../invites/index.js';
 import { teamDisplayName } from '../../src/lib/demo.js';
 import { STUDIO_ROOT } from '../../src/lib/team-path.js';
 
@@ -112,9 +127,21 @@ export type EntryTeamRole = 'edit' | 'reviewer' | 'admin';
 
 export type Entry =
   | { kind: 'teams'; teams: { repo: string; name: string; role: EntryTeamRole; via: 'email' | 'github' }[] }
-  | { kind: 'invites'; invites: { id: string; team: string; repo: string; role: string; invitedBy: string; invitedAt: string; memberCount: number; people: string[] }[] }
+  | { kind: 'invites'; invites: EntryInviteCard[] }
   | { kind: 'domain'; domain: string; teams: { repo: string; name: string; memberCount: number; people: string[]; adminName: string; requested: boolean }[] }
   | { kind: 'create' };
+
+export interface EntryInviteCard {
+  id: string;
+  team: string;
+  repo: string;
+  role: string;
+  reviewAs?: string;
+  invitedBy: string;
+  invitedAt: string;
+  memberCount: number;
+  people: string[];
+}
 
 /** Names sent per team card (its avatars); the card counts the rest from memberCount. */
 export const PEOPLE_SHOWN = 4;
@@ -139,6 +166,7 @@ export const GITHUB_REQUIRED = 'Reviewers and admins approve and merge on GitHub
 export const ALREADY = 'You are already on this team.';
 export const INVITE_GONE = 'This invite expired or was cancelled. Ask your admin for a new one.';
 export const REQUEST_GONE = 'This request expired or was already answered.';
+export const UNDO_GONE = 'It is too late to undo this. Change who is on the team from Members.';
 const APP_MISSING = 'Bridge cannot read this team on GitHub yet. An admin of the repository gives the Bridge app access to it.';
 const STORAGE_DOWN = 'Bridge could not reach its storage. Try again in a minute.';
 export const LIMIT_WORDS = {
@@ -353,6 +381,60 @@ async function teamPeople(ctx: Ctx, repo: string): Promise<{ memberCount: number
   return { memberCount: emails.length + collaborators.length, people, nameOfLogin };
 }
 
+
+// ---------------------------------------------------------------------------------------------------------------
+// Team names
+
+/** bridge.config.json `name` on the default branch, read with the Bridge app; undefined when GitHub cannot say. */
+async function readConfigName(ctx: Ctx, repo: string): Promise<string | null | undefined> {
+  const [owner, name] = repo.split('/');
+  if (!owner || !name || !ctx.svc.app) return undefined;
+  try {
+    const token = await ctx.svc.app.installationToken(owner, name);
+    if (!token) return undefined;
+    const file = await gh(ctx.f, token, `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/contents/bridge.config.json`);
+    if (file.status === 404) return null;
+    if (file.status !== 200 || typeof file.data?.content !== 'string') return undefined;
+    return configName(JSON.parse(Buffer.from(file.data.content, 'base64').toString('utf8')));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The name each team goes by (lib/demo.ts teamDisplayName): its bridge.config.json `name` as kept with the team, read
+ * again from GitHub (and kept) when none is kept or it is a day old, else the repository in words. Never fails.
+ */
+export async function teamNamesOf(ctx: Ctx, repos: readonly string[]): Promise<(repo: string) => string> {
+  let kept = new Map<string, { name: string; at: number }>();
+  try {
+    kept = await getTeamNames(ctx.svc.redis, repos);
+  } catch {
+    // Storage hiccup: the repository in words.
+  }
+  const stale = [...new Set(repos.map((r) => r.toLowerCase()))].filter((r) => {
+    const k = kept.get(r);
+    return !k || ctx.now() - k.at > TEAM_NAME_MAX_AGE_MS;
+  });
+  await Promise.all(
+    stale.map(async (repo) => {
+      const read = await readConfigName(ctx, repo);
+      if (read === undefined) return;
+      await putTeamName(ctx.svc.redis, repo, read, ctx.now());
+      if (read) kept.set(repo, { name: read, at: ctx.now() });
+      else kept.delete(repo);
+    }),
+  );
+  return (repo) => teamDisplayName(repo, { name: kept.get(repo.toLowerCase())?.name });
+}
+
+/** An invite as its E3 card shows it: the team, who invited and when, the role, the team's people. */
+async function inviteCard(ctx: Ctx, inv: StoredInvite, team: string): Promise<EntryInviteCard> {
+  const { memberCount, people, nameOfLogin } = await teamPeople(ctx, inv.repo);
+  const invitedBy = inv.invitedByName ? displayName(inv.invitedByName, inv.invitedBy) : await nameOfLogin(inv.invitedBy);
+  return { id: inv.id, team, repo: inv.repo, role: inv.role, ...(inv.reviewAs ? { reviewAs: inv.reviewAs } : {}), invitedBy, invitedAt: inv.createdAt, memberCount, people };
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // GET: the routing
 
@@ -360,20 +442,21 @@ export async function entryFor(ctx: Ctx, req: Request, a: Account): Promise<Entr
   // 1. Teams they are on (in local mode, a team they were seeded admin of counts, as admin).
   const local = ctx.svc.localAdmins ? await ctx.svc.localAdmins.teamsOf(a.email) : [];
   const memberOf = (await membershipsOf(ctx, a.email)).map(({ repo }) => repo);
-  const email = [...new Set([...memberOf, ...local])].map((repo) => ({ repo, name: teamDisplayName(repo), role: (local.includes(repo) ? 'admin' : 'edit') as EntryTeamRole, via: 'email' as const }));
-  const github = (await githubTeams(ctx, req, a)).filter((t) => !email.some((e) => e.repo === t.repo)).map((t) => ({ ...t, name: teamDisplayName(t.repo), via: 'github' as const }));
+  const emailRepos = [...new Set([...memberOf, ...local])];
+  const githubRepos = (await githubTeams(ctx, req, a)).filter((t) => !emailRepos.includes(t.repo));
+  // Each team by its configured name (bridge.config.json), kept with the team: the picker never shows the slug.
+  const nameOf = await teamNamesOf(ctx, [...emailRepos, ...githubRepos.map((t) => t.repo)]);
+  const email = emailRepos.map((repo) => ({ repo, name: nameOf(repo), role: (local.includes(repo) ? 'admin' : 'edit') as EntryTeamRole, via: 'email' as const }));
+  const github = githubRepos.map((t) => ({ ...t, name: nameOf(t.repo), via: 'github' as const }));
   const teams = [...email, ...github].sort((x, y) => x.name.localeCompare(y.name));
   if (teams.length) return { kind: 'teams', teams };
 
   // 2. Invites waiting for their email.
   const invites = await ctx.svc.invites.byEmail(a.email);
   if (invites.length) {
-    const out: Extract<Entry, { kind: 'invites' }>['invites'] = [];
-    for (const inv of invites) {
-      const { memberCount, people, nameOfLogin } = await teamPeople(ctx, inv.repo);
-      const invitedBy = inv.invitedByName ? displayName(inv.invitedByName, inv.invitedBy) : await nameOfLogin(inv.invitedBy);
-      out.push({ id: inv.id, team: teamDisplayName(inv.repo), repo: inv.repo, role: inv.role, invitedBy, invitedAt: inv.createdAt, memberCount, people });
-    }
+    const out: EntryInviteCard[] = [];
+    const nameOf = await teamNamesOf(ctx, invites.map((inv) => inv.repo));
+    for (const inv of invites) out.push(await inviteCard(ctx, inv, nameOf(inv.repo)));
     return { kind: 'invites', invites: out };
   }
 
@@ -384,9 +467,10 @@ export async function entryFor(ctx: Ctx, req: Request, a: Account): Promise<Entr
     if (open.length) {
       const asked = await myRequests(ctx.svc.redis, a.email, ctx.now());
       const out: Extract<Entry, { kind: 'domain' }>['teams'] = [];
+      const nameOf = await teamNamesOf(ctx, open.map((t) => t.repo));
       for (const { repo, discovery } of open) {
         const { memberCount, people } = await teamPeople(ctx, repo);
-        out.push({ repo, name: teamDisplayName(repo), memberCount, people, adminName: await adminNameOf(ctx, discovery), requested: asked.has(repo) });
+        out.push({ repo, name: nameOf(repo), memberCount, people, adminName: await adminNameOf(ctx, discovery), requested: asked.has(repo) });
       }
       // Every matching team, the largest first (the UI shows a few, then "N more").
       out.sort((x, y) => y.memberCount - x.memberCount || x.name.localeCompare(y.name));
@@ -544,7 +628,7 @@ async function onRequest(ctx: Ctx, req: Request, a: Account, body: Record<string
   await putRequest(ctx.svc.redis, r, now);
   if (ctx.svc.email) {
     const link = `${siteOrigin(req, ctx.env.PUBLIC_SITE_URL)}${STUDIO_ROOT}${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/settings/`;
-    const team = teamDisplayName(full);
+    const team = (await teamNamesOf(ctx, [full]))(full);
     for (const to of await adminEmails(ctx, full)) {
       if (to === email) continue;
       try {
@@ -580,10 +664,12 @@ async function onApprove(ctx: Ctx, req: Request, a: Account, body: Record<string
   const member: EmailMember = prev ?? { email: r.email, name: r.name, role: 'edit', version: 1, addedBy: admin.login, at: new Date(ctx.now()).toISOString() };
   if (!prev) await ctx.svc.members.put(admin.full, member);
   await removeRequest(ctx.svc.redis, admin.full, r.email);
+  await putDecided(ctx.svc.redis, { request: r, approved: true, added: !prev });
   if (ctx.svc.email && !prev) {
     const link = `${siteOrigin(req, ctx.env.PUBLIC_SITE_URL)}${STUDIO_ROOT}${encodeURIComponent(admin.owner)}/${encodeURIComponent(admin.repo)}/`;
     try {
-      await ctx.svc.email.send(approvedEmail({ to: r.email, admin: admin.local ? a.name : await adminDisplayName(ctx, admin.token, a), team: teamDisplayName(admin.full), link }));
+      const team = (await teamNamesOf(ctx, [admin.full]))(admin.full);
+      await ctx.svc.email.send(approvedEmail({ to: r.email, admin: admin.local ? a.name : await adminDisplayName(ctx, admin.token, a), team, link }));
     } catch {
       // They are on the team; Bridge shows it at their next sign-in.
     }
@@ -595,7 +681,21 @@ async function onDecline(ctx: Ctx, a: Account, body: Record<string, unknown>): P
   const admin = await requireAdmin(ctx, a, body.repo);
   const r = await findRequest(ctx, admin.full, body.id);
   await removeRequest(ctx.svc.redis, admin.full, r.email);
+  await putDecided(ctx.svc.redis, { request: r, approved: false, added: false });
   return json(200, { ok: true });
+}
+
+/**
+ * The admin takes back an approve or decline within UNDO_TTL_S: the request waits again, and a person the approve
+ * added leaves the team. Once the window passed, or after a first undo, 410.
+ */
+async function onUndo(ctx: Ctx, a: Account, body: Record<string, unknown>): Promise<Response> {
+  const admin = await requireAdmin(ctx, a, body.repo);
+  const d = typeof body.id === 'string' && ID.test(body.id) ? await takeDecided(ctx.svc.redis, admin.full, body.id) : null;
+  if (!d) return fail(410, 'expired', UNDO_GONE);
+  if (d.approved && d.added) await ctx.svc.members.remove(admin.full, d.request.email);
+  if (Date.parse(d.request.expiresAt) > ctx.now()) await putRequest(ctx.svc.redis, d.request, ctx.now());
+  return json(200, { undone: true, request: { id: d.request.id, name: d.request.name, email: d.request.email, createdAt: d.request.createdAt, expiresAt: d.request.expiresAt } });
 }
 
 async function onDiscovery(ctx: Ctx, a: Account, body: Record<string, unknown>): Promise<Response> {
@@ -616,9 +716,7 @@ async function onDiscovery(ctx: Ctx, a: Account, body: Record<string, unknown>):
   return json(200, { domain: prev?.domain ?? domain, enabled: false });
 }
 
-async function onAction(ctx: Ctx, req: Request, a: Account): Promise<Response> {
-  if (!/^application\/json\b/i.test(req.headers.get('content-type') ?? '')) return fail(415, 'content_type', 'Send JSON.');
-  const body = await readBody(req, MAX_BODY);
+async function onAction(ctx: Ctx, req: Request, a: Account, body: Record<string, unknown>): Promise<Response> {
   switch (body.action) {
     case 'accept-invite': {
       const { full } = parseRepo(body.repo);
@@ -635,11 +733,66 @@ async function onAction(ctx: Ctx, req: Request, a: Account): Promise<Response> {
       return onApprove(ctx, req, a, body);
     case 'decline':
       return onDecline(ctx, a, body);
+    case 'undo':
+      return onUndo(ctx, a, body);
     case 'discovery':
       return onDiscovery(ctx, a, body);
     default:
       return fail(400, 'bad_request', 'Unknown action.');
   }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Invite links
+
+/** Invite links one network may look at in an hour: enough for a person, not for guessing. */
+export const INVITE_LINK_PER_HOUR = 30;
+const INVITE_TOKEN = /^[A-Za-z0-9_-]{43}$/;
+
+/**
+ * What an invite link is, for the one door of Bridge (components/ds/account/SignIn.tsx on /studio/invite/): signed
+ * out, which team and the masked address the code goes to; signed in, the E3 card when the invite is theirs, "already
+ * in" for a member, or the masked address it was sent to. A spent link still names the team and whom to ask.
+ */
+async function onInviteLink(ctx: Ctx, req: Request, a: Account | null, body: Record<string, unknown>): Promise<Response> {
+  const hour = new Date(ctx.now()).toISOString().slice(0, 13);
+  const [n] = await ctx.svc.redis.pipe([
+    ['INCRBY', `bridge:entry:count:invite-link:${hmacHex(ctx.svc.secret, `ip:${clientIp(req)}`)}:${hour}`, 1],
+    ['EXPIRE', `bridge:entry:count:invite-link:${hmacHex(ctx.svc.secret, `ip:${clientIp(req)}`)}:${hour}`, 2 * 3600],
+  ]);
+  if (Number(n) > INVITE_LINK_PER_HOUR) return fail(429, 'limit', 'Too many tries from this network. Try again in an hour.');
+  const signedIn = Boolean(a);
+  const token = typeof body.token === 'string' && INVITE_TOKEN.test(body.token) ? body.token : null;
+  const hash = token ? sha256(token) : null;
+  const inv = hash ? await ctx.svc.invites.byTokenHash(hash) : null;
+  const live = inv && Date.parse(inv.expiresAt) > ctx.now() ? inv : null;
+  const trace = live ? { repo: live.repo, invitedBy: '' } : hash ? await ctx.svc.invites.traceByTokenHash(hash) : null;
+  if (!live && !trace) return json(200, { state: 'unknown', signedIn });
+  const repo = (live ?? trace)!.repo;
+  const member = a ? await isMemberOf(ctx, a, repo) : false;
+  const team = (await teamNamesOf(ctx, [repo]))(repo);
+  if (!live) return json(200, { state: 'gone', team, invitedBy: displayName(trace!.invitedBy), signedIn, member, ...(member ? { repo } : {}) });
+  const card = await inviteCard(ctx, live, team);
+  const mine = Boolean(a && live.email.trim().toLowerCase() === a.email.toLowerCase());
+  return json(200, {
+    state: 'live',
+    team,
+    invitedBy: card.invitedBy,
+    role: live.role,
+    ...(live.reviewAs ? { reviewAs: live.reviewAs } : {}),
+    sentTo: maskEmail(live.email),
+    signedIn,
+    mine,
+    member,
+    ...(member ? { repo } : {}),
+    ...(mine && !member ? { invite: card } : {}),
+  });
+}
+
+/** The account is on the team: an email membership, or (local mode) a seeded admin. */
+async function isMemberOf(ctx: Ctx, a: Account, repo: string): Promise<boolean> {
+  if (await ctx.svc.members.get(repo, a.email.toLowerCase())) return true;
+  return ctx.svc.localAdmins ? (await ctx.svc.localAdmins.teamsOf(a.email)).some((r) => r.toLowerCase() === repo.toLowerCase()) : false;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -654,8 +807,15 @@ export async function handleEntry(req: Request, env: EntryEnv, deps: EntryDeps):
     if (!svc) return fail(503, 'not_configured', NOT_CONFIGURED);
     const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, env };
     const a = await sessionAccount(req, svc.redis, svc.secret, ctx.now());
+    if (method === 'POST') {
+      if (!/^application\/json\b/i.test(req.headers.get('content-type') ?? '')) return fail(415, 'content_type', 'Send JSON.');
+      const body = await readBody(req, MAX_BODY);
+      // The one action without the cookie: what an invite link is, before signing in.
+      if (body.action === 'invite-link') return await onInviteLink(ctx, req, a, body);
+      if (!a) return fail(401, 'signin', SIGNIN);
+      return await onAction(ctx, req, a, body);
+    }
     if (!a) return fail(401, 'signin', SIGNIN);
-    if (method === 'POST') return await onAction(ctx, req, a);
     const params = new URL(req.url).searchParams;
     const noStore = { 'Cache-Control': 'private, no-store' };
     const requestsOf = params.get('requests');

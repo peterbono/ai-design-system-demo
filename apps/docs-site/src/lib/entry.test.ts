@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PEOPLE_SHOWN, invitedOn, teamAvatars, askedAgo, CREATE_TEAM_HREF, discoveryLine, emailDomain, ENTRY_WORDS, parseDiscovery, parseEntry, parseRequests, routeEntry, sortDomainTeams, splitDomainTeams, teamHome, teamNameFromDomain, yourRole, type Entry } from './entry';
+import { PEOPLE_SHOWN, invitedOn, teamAvatars, askedAgo, CREATE_TEAM_HREF, discoveryLine, emailDomain, ENTRY_WORDS, inviteRole, inviteTokenFromHash, parseDiscovery, parseInviteLink, parseEntry, parseRequests, routeEntry, sortDomainTeams, splitDomainTeams, teamHome, teamNameFromDomain, yourRole, type Entry } from './entry';
 
 const team = (repo: string, name: string, role = 'edit') => ({ repo, name, role, via: 'email' });
 
@@ -125,5 +125,39 @@ describe('admin side', () => {
     expect(discoveryLine({ domain: 'acme.com', enabled: false, configured: true, eligible: false })).toEqual({ on: false, domain: 'acme.com', canTurnOn: false });
     expect(discoveryLine({ domain: null, enabled: false, configured: false, eligible: false })).toBeNull();
     expect(discoveryLine(null)).toBeNull();
+  });
+});
+
+describe('invite links', () => {
+  it('reads the token from the fragment only', () => {
+    const t = 'A'.repeat(43);
+    expect(inviteTokenFromHash(`#t=${t}`)).toBe(t);
+    expect(inviteTokenFromHash(`#x=1&t=${t}`)).toBe(t);
+    expect(inviteTokenFromHash('#t=short')).toBeNull();
+    expect(inviteTokenFromHash('')).toBeNull();
+  });
+
+  it('parses each state and keeps the E3 card only with a valid repository', () => {
+    expect(parseInviteLink({ state: 'unknown', signedIn: true })).toEqual({ state: 'unknown', signedIn: true });
+    expect(parseInviteLink({ state: 'gone', team: 'Acme', invitedBy: 'Sam', member: true, repo: 'acme/ds', signedIn: true })).toEqual({ state: 'gone', team: 'Acme', invitedBy: 'Sam', signedIn: true, member: true, repo: 'acme/ds' });
+    // A member without a repository to open is not one.
+    expect(parseInviteLink({ state: 'gone', member: true })).toMatchObject({ member: false });
+    const l = parseInviteLink({ state: 'live', team: 'Acme', invitedBy: 'Sam', role: 'reviewer', reviewAs: 'design', sentTo: 'm•••@acme.com', signedIn: true, mine: true, invite: { id: 'i1', repo: 'acme/ds', role: 'reviewer', reviewAs: 'design' } });
+    expect(l).toMatchObject({ state: 'live', mine: true, reviewAs: 'design', invite: { id: 'i1', repo: 'acme/ds', reviewAs: 'design' } });
+    expect(parseInviteLink({ state: 'live', mine: true, invite: { id: 'i1', repo: 'not a repo' } })).toMatchObject({ mine: false });
+    expect(parseInviteLink({ state: 'weird' })).toBeNull();
+    expect(parseInviteLink(null)).toBeNull();
+  });
+
+  it('names the role like the role picker', () => {
+    expect(inviteRole({ role: 'reviewer', reviewAs: 'design' })).toBe('Reviewer: design');
+    expect(inviteRole({ role: 'reviewer' })).toBe('Reviewer: design');
+    expect(inviteRole({ role: 'admin' })).toBe('Admin');
+    expect(inviteRole({ role: 'edit' })).toBe('Can edit');
+  });
+
+  it('never writes an em dash in the invite link words', () => {
+    const words = [ENTRY_WORDS.githubWhy('Admin'), ENTRY_WORDS.githubOff('Admin', 'Sam'), ENTRY_WORDS.goneLead('Sam', 'Acme'), ENTRY_WORDS.otherLead('Acme'), ENTRY_WORDS.alreadyInLead, ENTRY_WORDS.missingLead];
+    for (const w of words) expect(w).not.toContain(String.fromCharCode(0x2014));
   });
 });
