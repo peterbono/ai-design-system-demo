@@ -33,6 +33,7 @@ import {
   iconComponentName,
   parseDimension,
   resolve,
+  hashSpec,
   specHash,
   variantKeyOf,
   variantName,
@@ -525,6 +526,9 @@ export function buildComponentPlan(
     }
   }
   function planOne(spec: ComponentSpec): void {
+    // From the spec as read, not its "hash" field: a file edited by hand or by another tool keeps a stale one, and
+    // the sets it changed would never be updated. The generator writes this same hash, so a current file reads equal.
+    const hash = hashSpec(spec);
     for (const u of spec.unmapped) problem({ component: spec.name, part: u.part, property: u.property, reason: u.reason });
     const kinds = new Map(spec.parts.map((p) => [p.id, p.kind]));
     // Offsets of an absolute part from its parent's edges, in pixels.
@@ -610,7 +614,7 @@ export function buildComponentPlan(
     // Pushed from Figma and shipped (or closed): rebuilt from the reviewed code even when the spec did not change.
     const shipped = existing?.pushed ? opts.pushed?.get(existing.pushed.number) : undefined;
     const fromFigma = existing?.pushed && shipped?.rebuild ? { number: existing.pushed.number, url: existing.pushed.url, status: shipped } : undefined;
-    const status: ComponentStatus = !existing ? 'new' : existing.specHash === spec.hash && !addedVariants.length && !removedVariants.length && !fromFigma ? 'unchanged' : 'updated';
+    const status: ComponentStatus = !existing ? 'new' : existing.specHash === hash && !addedVariants.length && !removedVariants.length && !fromFigma ? 'unchanged' : 'updated';
     const pins: NonNullable<PlannedComponent['pins']> = {};
     for (const part of spec.parts) if (part.pin) pins[part.id] = pinPixels(part.id, part.pin);
     components.push({
@@ -620,7 +624,7 @@ export function buildComponentPlan(
       ...(spec.component ? { component: spec.component } : {}),
       ...(spec.drafted ? { drafted: spec.drafted } : {}),
       ...(fromFigma ? { fromFigma } : {}),
-      hash: spec.hash,
+      hash,
       status,
       ...(existing ? { nodeId: existing.nodeId } : {}),
       description: describeSpec(spec),
