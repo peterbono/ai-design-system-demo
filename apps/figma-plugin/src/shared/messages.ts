@@ -35,6 +35,11 @@ export interface VariablePluginData {
   unit?: string | undefined;
   /** "array" when a fontFamily value is a list joined with ", " in Figma. */
   shape?: string | undefined;
+  /**
+   * fontFamily: the CSS stacks the token holds ("IBM Plex Sans Variable, IBM Plex Sans, system-ui"), when the variable
+   * shows the family of it Figma has ("IBM Plex Sans") so text can be bound to it. Read back as the stack.
+   */
+  stacks?: string[] | undefined;
   /** Set when the token was removed on main: kept in Figma, never deleted silently. */
   orphan?: boolean | undefined;
   /** Modes in which the token does not exist in Git (single-collection layout only). */
@@ -43,7 +48,7 @@ export interface VariablePluginData {
   unlinkedModes?: string[] | undefined;
 }
 
-export const PLUGIN_DATA_KEYS = ['id', 'dtcgType', 'file', 'unit', 'shape', 'orphan', 'absentModes', 'unlinkedModes'] as const;
+export const PLUGIN_DATA_KEYS = ['id', 'dtcgType', 'file', 'unit', 'shape', 'stacks', 'orphan', 'absentModes', 'unlinkedModes'] as const;
 
 export interface SnapshotVariable {
   id: string;
