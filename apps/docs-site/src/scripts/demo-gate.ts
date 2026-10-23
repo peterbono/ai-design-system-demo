@@ -63,7 +63,7 @@ function layer(): Promise<void> {
         createElement(
           Fragment,
           null,
-          createElement(MakeItYours, { open: state.dialog, onOpenChange: (o: boolean) => paintLayer!({ dialog: o }), signIn: deps?.signIn() ?? true }),
+          createElement(MakeItYours, { open: state.dialog, onOpenChange: (o: boolean) => paintLayer!({ dialog: o }), signIn: deps?.signIn() ?? true, repo: deps?.repo() }),
           createElement(NewTeamDialog, { open: state.team, onOpenChange: (o: boolean) => paintLayer!({ team: o }), signedIn: Boolean(deps?.login()), check: teamAccessCheck }),
         ),
       );

@@ -118,7 +118,7 @@ export function diffTokenSets(base: TokenSet, head: TokenSet): TokenChangeRow[] 
       if (!v) return null;
       const r = resolve(set.byPath, o.path, { brand: o.brand, theme: o.theme, overrides: set.overrideIndex, density: set.layout.densities[0]?.mode });
       const c = r.value !== undefined ? parseColor(r.value) : undefined;
-      return { alias: isAlias(v.value) ? aliasTarget(v.value) : null, css: c ? rgbaToHex(c) : r.value !== undefined ? String(r.value) : null, hex: c ? rgbaToHex(c) : null };
+      return { alias: isAlias(v.value) ? aliasTarget(v.value) : null, css: c ? rgbaToHex(c) : r.value !== undefined ? formatValue(o.type ?? '', r.value) : null, hex: c ? rgbaToHex(c) : null };
     };
     rows.push({
       path: o.path,

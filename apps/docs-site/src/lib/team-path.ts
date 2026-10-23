@@ -51,6 +51,15 @@ export function repoFromPath(pathname: string): { owner: string; repo: string } 
   return team && { owner: team.owner, repo: team.repo };
 }
 
+/**
+ * The team of a page's Studio address, only on a team shell. A Studio page of this site (/studio/brands/new/,
+ * /studio/components/docs/) has the same shape as a team address but is a reserved path: the build serves it, not the
+ * team shell, so it never sets <html data-hosted> and is never guessed as a team "brands/new".
+ */
+export function pageTeamFromPath(pathname: string, hosted: boolean): { owner: string; repo: string } | null {
+  return hosted ? repoFromPath(pathname) : null;
+}
+
 /** True on a team shell (the layout sets <html data-hosted>). False at build time. */
 export const isHosted = (): boolean => typeof document !== 'undefined' && document.documentElement.hasAttribute('data-hosted');
 

@@ -12,11 +12,11 @@
 //
 // Never imports github-session (it imports this).
 import { ACTIVITY_MAX_BYTES, activityAnswer, activityIsUsable, activityRawUrl, parseActivity, type HistoryReport, type RepoActivity } from '@bridge-ds/core';
-import { repoFromPath } from '../lib/team-path';
+import { isHosted, pageTeamFromPath } from '../lib/team-path';
 import { libraryFromPath } from '../lib/library-shells';
 
 /** The team in the address (a Studio or Library team page), null elsewhere. */
-const pageTeam = (): { owner: string; repo: string } | null => (typeof location === 'undefined' ? null : (repoFromPath(location.pathname) ?? libraryFromPath(location.pathname)));
+const pageTeam = (): { owner: string; repo: string } | null => (typeof location === 'undefined' ? null : (pageTeamFromPath(location.pathname, isHosted()) ?? libraryFromPath(location.pathname)));
 
 export interface GuestActivity {
   activity: RepoActivity;

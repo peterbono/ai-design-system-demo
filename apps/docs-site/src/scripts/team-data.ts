@@ -13,7 +13,7 @@
 import { loadRepoModel, parseSnapshot, SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, SNAPSHOT_MAX_BYTES, snapshotSource, storybookUrl, type GitHubClient, type RepoModel, type RepoSnapshot } from '@bridge-ds/core';
 import { getToken, hasWorkingToken, studioClient } from './github-session';
 import { loadTeamModel, type SnapshotReader, type TeamModelSource } from './repo-context';
-import { repoFromPath } from '../lib/team-path';
+import { isHosted, pageTeamFromPath } from '../lib/team-path';
 import { libraryFromPath } from '../lib/library-shells';
 import type { ProductAudit } from '../lib/components-studio';
 import { TEAM_PROGRESS_START, teamProgress, type TeamLoadEvent, type TeamProgress } from '../lib/load-progress';
@@ -42,7 +42,7 @@ export interface TeamData {
 
 /** The team in this page's address (a Studio or a Library team address), null off a team address. */
 export function teamOfPage(): { owner: string; repo: string } | null {
-  return typeof location === 'undefined' ? null : (repoFromPath(location.pathname) ?? libraryFromPath(location.pathname));
+  return typeof location === 'undefined' ? null : (pageTeamFromPath(location.pathname, isHosted()) ?? libraryFromPath(location.pathname));
 }
 
 /** True on a team's Library page (/library/<owner>/<repo>/...). */

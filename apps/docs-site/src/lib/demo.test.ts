@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { DEMO_REPOS, DEMO_WORDS, demoLeadName, demoSettingsPeople, demoTour, demoWaiting, exploresDemo, humanizeRepo, onBridge, isDemoRepo, OWN_TEAM, teamDisplayName, tourSteps } from './demo';
+import { DEMO_REPOS, demoDialog, DEMO_WORDS, demoLeadName, demoSettingsPeople, demoTour, demoWaiting, exploresDemo, humanizeRepo, onBridge, isDemoRepo, OWN_TEAM, teamDisplayName, tourSteps } from './demo';
 
 describe('the demo', () => {
   it('is the self-hosted repository and the hosted demo team, any case', () => {
@@ -26,12 +26,20 @@ describe('the demo', () => {
     for (const t of Object.values(DEMO_WORDS)) expect(t).not.toMatch(/\u2014|pull request|token/);
   });
 
+  it("never calls Bridge's own design system the demo", () => {
+    expect(demoDialog('peterbono/bridge-demo-ds').lead).toBe('In the demo, nothing is saved.');
+    const own = demoDialog('peterbono/ai-design-system-demo');
+    expect(`${own.title} ${own.lead}`).not.toMatch(/demo|for real/i);
+  });
+
   it("frames the waiting line from the lead's seat (board D1b)", () => {
     expect(demoWaiting(8, { names: 'Ann, Leo and Claude AI', rest: ' are waiting on you.' }, 'Dana')).toEqual({
       count: '8 changes need your review.',
       rest: ' Ann, Leo and Claude AI are waiting on you.',
     });
-    expect(demoWaiting(1, { names: 'Ann', rest: ' is waiting on you.' }, null).rest).toBe(' Ann is waiting on you.');
+    // A visitor without a persona (Bridge's own design system) is never asked to review.
+    expect(demoWaiting(1, { names: 'Ann', rest: ' is waiting on you.' }, null)).toEqual({ count: '1 change waits for review.', rest: ' Ann is waiting on a reviewer.' });
+    expect(demoWaiting(3, null, null)).toEqual({ count: '3 changes wait for review.', rest: '' });
     expect(demoWaiting(2, null, 'Dana')).toEqual({ count: '2 changes need your review.', rest: ' Dana leads this design system.' });
   });
 

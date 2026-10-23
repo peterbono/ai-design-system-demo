@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { LayeredTokenSet, applyTokenEdits, composeProposalBody, demoHistory, planRevert } from '@bridge-ds/core';
-import { authorsOf, countsLabel, demoBeforeFiles, humanAuthored, laterThan, realSummary, viewTimeline } from './history-view';
+import { authorsOf, countsLabel, demoBeforeFiles, humanAuthored, laterThan, overrideLine, realSummary, viewTimeline } from './history-view';
+import { overrideComment, parseOverrideComment } from './review-rules';
 import { currentTokenFiles, siteConfig } from './history';
 
 const config = siteConfig();
@@ -62,5 +63,16 @@ describe('history view', () => {
     expect(out).toContain('- [ ] AI agent');
     expect(out).not.toContain('Agent-authored');
     expect(out).not.toMatch(/\u2014/);
+  });
+});
+
+describe('overrideLine', () => {
+  it('says who merged with the owner override, without which approvals, and why', () => {
+    const ov = parseOverrideComment(overrideComment('dana', 'Solo maintainer, <b>tests</b> pass', ['design approval']))!;
+    const html = overrideLine(ov, (x) => x.replace(/</g, '&lt;'), (l) => `[${l}]`);
+    expect(html).toBe('Merged with the owner override by [dana] without design approval. Reason: Solo maintainer, &lt;b>tests&lt;/b> pass.');
+  });
+  it('says so when no reason was given', () => {
+    expect(overrideLine({ login: 'dana', reason: 'no reason given', missing: [] }, (x) => x, (l) => l)).toBe('Merged with the owner override by dana. No reason was given.');
   });
 });

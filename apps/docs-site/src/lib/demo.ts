@@ -85,6 +85,9 @@ export const DEMO_WORDS = {
   /** A write action in the demo (board D2). */
   dialogTitle: 'Sign in with GitHub to do this for real.',
   dialogLead: 'In the demo, nothing is saved.',
+  /** The same dialog on Bridge's own design system: real data, read only for a visitor, never called the demo. */
+  ownDialogTitle: 'Sign in with GitHub to do this.',
+  ownDialogLead: 'This is the design system behind Bridge, read only for visitors. Nothing is saved.',
   dialogNote: 'You pick the repos Bridge can see. It starts read-only and asks again before it writes anything.',
   keepExploring: 'Keep exploring',
 } as const;
@@ -100,6 +103,11 @@ export function demoBanner(repo: string | null | undefined): { title: string; te
     : { title: w.bannerTitle, text: w.bannerText, sampleTitle: w.sampleTitle, sampleText: w.sampleText };
 }
 
+/** The write-action dialog's words for a demo repository: the sample team's, or Bridge's own (never "the demo"). */
+export function demoDialog(repo: string | null | undefined): { title: string; lead: string } {
+  return isOwnTeam(repo) ? { title: DEMO_WORDS.ownDialogTitle, lead: DEMO_WORDS.ownDialogLead } : { title: DEMO_WORDS.dialogTitle, lead: DEMO_WORDS.dialogLead };
+}
+
 /** Bridge's own design system: a demo repository that is not the sample team. */
 export const isOwnTeam = (repo: string | null | undefined): boolean => isDemoRepo(repo) && !isSampleTeam(repo);
 
@@ -112,8 +120,14 @@ export const DEFAULT_WRITE = 'save changes';
  * home-model waitingSentence over everyone but the lead.
  */
 export function demoWaiting(n: number, people: { names: string; rest: string } | null, lead: string | null): { count: string; rest: string } {
+  // No persona (Bridge's own design system, or a demo whose settings name none): the visitor is a visitor, not a
+  // reviewer, so nothing "needs your review" and nobody is "waiting on you".
+  if (!lead) {
+    const count = `${n} ${n === 1 ? 'change waits' : 'changes wait'} for review.`;
+    return { count, rest: people ? ` ${people.names}${people.rest.replace(/ on you\.$/, ' on a reviewer.')}` : '' };
+  }
   const count = `${n} ${n === 1 ? 'change needs' : 'changes need'} your review.`;
-  if (!people) return { count, rest: lead ? ` ${lead} leads this design system.` : '' };
+  if (!people) return { count, rest: ` ${lead} leads this design system.` };
   return { count, rest: ` ${people.names}${people.rest}` };
 }
 

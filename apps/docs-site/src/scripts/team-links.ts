@@ -1,7 +1,7 @@
 // Team shells (multi-team plan 4.1, PR 3a): the layout and the pages render their Studio links at build time, when the
 // team is unknown, so they say /studio/<path>. On a team shell this points each of them at the team in the address
 // (studioHref), before anyone can click. Links the islands render go through studioHref already and are left alone.
-import { isHosted, repoFromPath, STUDIO_ROOT, studioBase, studioHref } from '../lib/team-path';
+import { isHosted, pageTeamFromPath, repoFromPath, STUDIO_ROOT, studioBase, studioHref } from '../lib/team-path';
 import { libraryHref } from '../lib/library-shells';
 import { teamDisplayName } from '../lib/demo';
 import { siteConfig } from './repo-context';
@@ -34,7 +34,7 @@ export function pointLinksAtTeam(root: ParentNode = document): number {
  * where GitHub is meant (the account menu's Repository link), from the address.
  */
 export function fillTeamShell(root: ParentNode = document) {
-  const team = typeof location === 'undefined' ? null : repoFromPath(location.pathname);
+  const team = typeof location === 'undefined' ? null : pageTeamFromPath(location.pathname, isHosted());
   if (!team) return;
   const name = `${team.owner}/${team.repo}`;
   const paintName = () => {
