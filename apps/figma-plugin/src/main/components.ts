@@ -374,6 +374,12 @@ export async function saveSignatures(items: { nodeId: string; signature: string 
   for (const item of items) {
     const node = await figma.getNodeByIdAsync(item.nodeId);
     if (!node || (node.type !== 'COMPONENT_SET' && node.type !== 'COMPONENT')) continue;
+    // Same baseline, image already taken: nothing to write. Exporting the image takes a tenth of a second a set, so a
+    // pull that refreshes every baseline of a big file only redraws the ones that changed.
+    if (node.getSharedPluginData(NS, SIGNATURE_KEY) === item.signature && node.getPluginData(BASELINE_IMAGE_KEY)) {
+      saved++;
+      continue;
+    }
     node.setSharedPluginData(NS, SIGNATURE_KEY, item.signature);
     await storeBaselineImage(node);
     saved++;
