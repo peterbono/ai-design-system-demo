@@ -116,6 +116,8 @@ export interface ApplyReport {
   orphaned: number;
   layout: 'single-collection' | 'split-collections';
   errors: string[];
+  /** Variables the pull renamed (a token renamed in code): stored component baselines follow the new names. */
+  renamed?: { from: string; to: string }[] | undefined;
 }
 
 export interface RepoSettings {

@@ -126,6 +126,7 @@ function toVariableValue(v: Exclude<PlannedValue, { kind: 'alias-token' }>): Var
 }
 
 export async function applyPullPlan(plan: PullPlan, progress: (message: string) => void = () => undefined): Promise<ApplyReport> {
+  renamed = [];
   const errors: string[] = [];
   const local = (await figma.variables.getLocalVariableCollectionsAsync()).filter((c) => !c.remote);
   const all = await figma.variables.getLocalVariablesAsync();
@@ -234,8 +235,11 @@ export async function applyPullPlan(plan: PullPlan, progress: (message: string) 
     if (++ops % BATCH === 0) await tick();
   }
 
-  return { created, updated, orphaned, layout, errors };
+  return { created, updated, orphaned, layout, errors, ...(renamed.length ? { renamed: [...renamed] } : {}) };
 }
+
+/** Variables renamed by the current apply (reset by applyPullPlan). */
+let renamed: { from: string; to: string }[] = [];
 
 async function upsertVariable(
   planned: PlannedVariable,
@@ -265,6 +269,7 @@ async function upsertVariable(
       errors.push(`Cannot rename "${variable.name}" to "${planned.name}": another variable already has that name.`);
     } else {
       registry.byName.delete(registryKey(cid, variable.name));
+      renamed.push({ from: variable.name, to: planned.name });
       variable.name = planned.name;
     }
   }
