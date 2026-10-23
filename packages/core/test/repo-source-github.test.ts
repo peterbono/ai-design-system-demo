@@ -210,3 +210,40 @@ test('onProgress hears the tree once, then each body with where it came from', a
     { kind: 'file', path: 'packages/tokens/src/semantic/dark.tokens.json', cached: false },
   ]);
 });
+
+test('prefetch with a batch reader: many bodies in a few requests, none read on their own; left-out shas read alone', async () => {
+  const { gh, client } = setup();
+  const asked: string[][] = [];
+  const batch = async (shas: string[]) => {
+    asked.push(shas);
+    // b2 is left out (the server will send it later): the source reads it on its own.
+    return Object.fromEntries(shas.filter((s) => s !== 'b2').map((s) => [s, FILES.find((f) => f.sha === s)?.text ?? null]));
+  };
+  const progress: { kind: string; cached?: boolean }[] = [];
+  const src = gitHubSource(client, SHA, { batch, batchSize: 2, onProgress: (e) => progress.push(e) });
+  const paths = ['bridge.config.json', 'packages/tokens/src/semantic/light.tokens.json', 'packages/tokens/src/semantic/dark.tokens.json', 'copy-of-light.tokens.json', 'big.json', 'missing.json'];
+  await src.prefetch!(paths);
+  assert.deepEqual(asked, [['c1', 'b1'], ['b2']], 'unique shas, chunked; too large and missing files are not asked');
+  assert.equal(await src.text('bridge.config.json'), '{"config":1}');
+  assert.equal(await src.text('copy-of-light.tokens.json'), '{"light":1}');
+  assert.equal(await src.text('packages/tokens/src/semantic/dark.tokens.json'), '{"dark":1}');
+  const blobs = gh.apiCalls().filter((c) => c.url.includes('/git/blobs/'));
+  assert.deepEqual(blobs.map((c) => c.url.split('/').pop()), ['b2'], 'only the left-out blob is read on its own');
+  assert.ok(progress.some((e) => e.kind === 'file'));
+});
+
+test('prefetch is a no-op anonymous or without a batch reader, and a failed batch falls back to single reads', async () => {
+  const anon = setup({ token: '', publicRaw: true });
+  let called = 0;
+  await gitHubSource(anon.client, SHA, { batch: async () => (called++, {}) }).prefetch!(['bridge.config.json']);
+  assert.equal(called, 0, 'raw mode reads the raw host');
+  const { gh, client } = setup();
+  const src = gitHubSource(client, SHA, {
+    batch: async () => {
+      throw new Error('down');
+    },
+  });
+  await src.prefetch!(['bridge.config.json']);
+  assert.equal(await src.text('bridge.config.json'), '{"config":1}');
+  assert.equal(gh.apiCalls().filter((c) => c.url.includes('/git/blobs/')).length, 1);
+});

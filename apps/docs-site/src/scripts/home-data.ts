@@ -38,6 +38,7 @@ import {
   type TimelineEvent,
 } from '../lib/home-model';
 import { isHosted, studioHref } from '../lib/team-path';
+import { busyText } from '../lib/team-load';
 import { isDemoRepo, teamDisplayName } from '../lib/demo';
 
 export interface HomePull extends QueuePullFull {
@@ -231,7 +232,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
   try {
     pulls = (await ghGet<HomePull[]>(`/repos/${owner}/${repo}/pulls?state=open&per_page=100`)).data;
   } catch (err) {
-    failed = err instanceof RateLimitError ? 'GitHub is busy right now. Your branches come back in a few minutes.' : 'GitHub could not be reached. Reload the page to try again.';
+    failed = err instanceof RateLimitError ? busyText(err.resetAt ? (err.resetAt.getTime() - Date.now()) / 1000 : null) : 'GitHub could not be reached. Reload the page to try again.';
     repaint();
     return;
   }

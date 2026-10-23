@@ -136,9 +136,15 @@ const indexedDbCache: ModelCache = { get: getCachedModel, put: putCachedModel, b
  */
 export async function loadTeamModel(
   client: GitHubClient,
-  opts: Omit<RepoModelOptions, 'onProgress'> & { cache?: ModelCache; snapshot?: SnapshotReader; onProgress?: (event: TeamLoadEvent) => void } = {},
+  opts: Omit<RepoModelOptions, 'onProgress'> & {
+    cache?: ModelCache;
+    snapshot?: SnapshotReader;
+    onProgress?: (event: TeamLoadEvent) => void;
+    /** Reads many blobs in one request (an email member's reads through Bridge, scripts/contribute-session.ts). */
+    batch?: (shas: string[]) => Promise<Record<string, string | null>>;
+  } = {},
 ): Promise<TeamModel> {
-  const { cache = indexedDbCache, snapshot: readSnapshot, onProgress, ...modelOptions } = opts;
+  const { cache = indexedDbCache, snapshot: readSnapshot, onProgress, batch, ...modelOptions } = opts;
   const repo = `${client.owner}/${client.name}`;
   onProgress?.({ step: 'head' });
   const info = await client.getRepo();
@@ -169,7 +175,7 @@ export async function loadTeamModel(
     remember(model);
     return { model, sha, defaultBranch: info.defaultBranch, private: info.private, cached: false, source: 'snapshot', snapshot: snap };
   }
-  const source = gitHubSource(client, sha, { blobCache: cache.blobs(repo, { private: info.private }) });
+  const source = gitHubSource(client, sha, { blobCache: cache.blobs(repo, { private: info.private }), ...(batch ? { batch } : {}) });
   // Real file counts, from the first listing on: the bar never runs ahead of the reads.
   const model = await loadRepoModel(source, { ...modelOptions, ...(onProgress ? { onProgress: (progress) => onProgress({ step: 'files', progress }) } : {}) });
   await cache.put(repo, sha, model, { private: info.private });
