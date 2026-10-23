@@ -2,13 +2,14 @@
 // and team discovery that route needs (docs/HOSTED.md, "Accounts").
 //
 // GET /api/entry answers one `kind`, the first rule that matches:
-//   1. teams    they are on teams already: email memberships, plus, when the request carries the linked GitHub
-//               account's own token (Bearer), the repositories the Bridge app is installed on where they can push or
-//               administer (GitHub proves the rights, nothing to join)
+//   1. teams    they are on teams already: email memberships, plus, only for an account that already has GitHub
+//               linked and when the request carries that GitHub account's own token (Bearer), the repositories the
+//               Bridge app is installed on where it can push or administer (GitHub proves the rights). Sign-in is by
+//               email; GitHub is never needed here
 //               { kind: 'teams', teams: [{ repo, name, role: 'edit' | 'reviewer' | 'admin', via: 'email' | 'github' }] }
 //   2. invites  invites wait for their email
 //               { kind: 'invites', invites: [{ id, team, repo, role, invitedBy }] }   (accept-invite joins directly)
-//   3. domain   teams whose admin opened them to the person's work domain
+//   3. domain   teams whose admin opened them to the person's work domain, all of them, largest first
 //               { kind: 'domain', domain, teams: [{ repo, name, memberCount, adminName, requested }] }
 //   4. create   { kind: 'create' }
 // Public and free mailbox domains (api/_lib/domains.ts) never match and can never be opened.
@@ -107,8 +108,6 @@ export type Entry =
 
 /** Requests per UTC day: per person, per network, and admin emails per team. */
 export const REQUEST_LIMITS = { email: 10, ip: 30, team: 20 } as const;
-/** Teams listed for one domain, at most. */
-export const MAX_DOMAIN_TEAMS = 10;
 const MAX_BODY = 4096;
 const COUNTER_TTL_S = 2 * 24 * 60 * 60;
 const MIN_SECRET_LENGTH = 32;
@@ -317,13 +316,15 @@ export async function entryFor(ctx: Ctx, req: Request, a: Account): Promise<Entr
   // 3. Teams open to their work domain.
   const domain = workDomain(a.email);
   if (domain) {
-    const open = (await teamsForDomain(ctx.svc.redis, domain)).slice(0, MAX_DOMAIN_TEAMS);
+    const open = await teamsForDomain(ctx.svc.redis, domain);
     if (open.length) {
       const asked = await myRequests(ctx.svc.redis, a.email, ctx.now());
       const out: Extract<Entry, { kind: 'domain' }>['teams'] = [];
       for (const { repo, discovery } of open) {
         out.push({ repo, name: teamDisplayName(repo), memberCount: await memberCount(ctx, repo), adminName: await adminNameOf(ctx, discovery), requested: asked.has(repo) });
       }
+      // Every matching team, the largest first (the UI shows a few, then "N more").
+      out.sort((x, y) => y.memberCount - x.memberCount || x.name.localeCompare(y.name));
       return { kind: 'domain', domain, teams: out };
     }
   }

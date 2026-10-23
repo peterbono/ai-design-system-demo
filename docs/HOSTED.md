@@ -473,13 +473,14 @@ skipped: deleting a Bridge account never changes anything on GitHub, so the team
 Once the account is verified, Studio calls `GET /api/entry` (account cookie; with the linked GitHub account's own
 token as `Authorization: Bearer` when it has one). The first rule that matches answers:
 
-1. `{ kind: 'teams', teams: [{ repo, name, role, via }] }`: email memberships, plus the repositories the Bridge app
-   shares with that GitHub account where it can push or administer (`via: 'github'`).
+1. `{ kind: 'teams', teams: [{ repo, name, role, via }] }`: email memberships, plus, for an account that already
+   linked GitHub, the repositories the Bridge app shares with it where it can push or administer (`via: 'github'`).
+   Sign-in itself is by email; an account linked to GitHub earlier is the same account when it signs in by email.
 2. `{ kind: 'invites', invites: [{ id, team, repo, role, invitedBy }] }`: invites sent to the account email.
    `POST { action: 'accept-invite', repo, id }` joins at once (Can edit with the email; reviewer and admin need
    linked GitHub, granted to the login read again from the GitHub id).
 3. `{ kind: 'domain', domain, teams: [{ repo, name, memberCount, adminName, requested }] }`: teams an admin opened
-   to the person's work domain. `POST { action: 'request', repo }` asks to join (an invite for that team is accepted
+   to the person's work domain, all of them, largest first. `POST { action: 'request', repo }` asks to join (an invite for that team is accepted
    instead).
 4. `{ kind: 'create' }`.
 

@@ -233,6 +233,38 @@ describe('routing order', () => {
   });
 });
 
+describe('email sign-in and domain lists', () => {
+  it('finds a GitHub-linked account and its teams when it signs in with the same email', async () => {
+    const s = setup();
+    await account(s, 'ada@acme.design', 'Ada', { login: 'ada', id: 1 });
+    await s.members.put('acme/other', { email: 'ada@acme.design', name: 'Ada', role: 'edit', version: 1, addedBy: 'x', at: '' });
+    const sent: EmailMessage[] = [];
+    const deps = { fetch: s.deps.fetch, now: s.now, redis: s.redis, members: s.members, code: () => '424242', email: { send: async (m: EmailMessage) => void sent.push(m) } };
+    const call = (body: unknown) =>
+      handleAccount(new Request(`${ORIGIN}/api/account`, { method: 'POST', headers: { host: HOST, origin: ORIGIN, 'content-type': 'application/json', 'x-bridge-account': '1' }, body: JSON.stringify(body) }), ENV, deps);
+    expect((await call({ action: 'code', email: 'Ada@Acme.design' })).status).toBe(200);
+    const v = await call({ action: 'verify', email: 'ada@acme.design', code: '424242' });
+    const body = await v.json();
+    expect(body).toMatchObject({ created: false, account: { email: 'ada@acme.design', github: { login: 'ada', id: 1 } } });
+    const cookie = v.headers.get('set-cookie')!.split(';')[0]!;
+    expect(await (await get(s, cookie)).json()).toEqual({ kind: 'teams', teams: [{ repo: 'acme/other', name: 'Other', role: 'edit', via: 'email' }] });
+  });
+
+  it('returns every team open to the domain, largest first', async () => {
+    const s = setup();
+    const admin = await account(s, 'ada@acme.design', 'Ada', { login: 'ada', id: 1 });
+    for (const [repo, extra] of [['acme/small', 0], ['acme/big', 5], ['acme/mid', 2], ['acme/tiny', 0]] as const) {
+      s.w.installed.add(repo);
+      s.w.collaborators[repo] = s.w.collaborators[REPO]!.slice(0, 1);
+      for (let i = 0; i < extra; i++) await s.members.put(repo, { email: `p${i}@acme.design`, name: `P${i}`, role: 'edit', version: 1, addedBy: 'ada', at: '' });
+      await post(s, admin, { action: 'discovery', repo, enabled: true });
+    }
+    const mia = await account(s, 'mia@acme.design', 'Mia');
+    const r = await (await get(s, mia)).json();
+    expect(r.teams.map((t: { repo: string; memberCount: number }) => [t.repo, t.memberCount])).toEqual([['acme/big', 6], ['acme/mid', 3], ['acme/small', 1], ['acme/tiny', 1]]);
+  });
+});
+
 describe('discovery opt-in', () => {
   it('is for admins only, matched by GitHub id', async () => {
     const s = setup();
