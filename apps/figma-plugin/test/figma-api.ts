@@ -63,7 +63,8 @@ export class SimVariable {
   ) {}
   setValueForMode(modeId: string, value: unknown) {
     this.api.valueWrites++;
-    this.valuesByMode[modeId] = value && typeof value === 'object' && 'r' in (value as Dict) ? { ...(value as Dict) } : value;
+    // Like Figma, numbers are kept as 32-bit floats (0.1 reads back as 0.10000000149011612).
+    this.valuesByMode[modeId] = value && typeof value === 'object' && 'r' in (value as Dict) ? { ...(value as Dict) } : typeof value === 'number' ? Math.fround(value) : value;
   }
   getPluginData(k: string) {
     return this.pd.get(k) ?? '';

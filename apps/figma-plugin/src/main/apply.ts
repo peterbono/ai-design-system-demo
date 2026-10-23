@@ -125,9 +125,11 @@ function toVariableValue(v: Exclude<PlannedValue, { kind: 'alias-token' }>): Var
   }
 }
 
-/** The same value as Figma already holds for that mode (colors to 4 decimals): nothing to write. */
+/** The same value as Figma already holds for that mode (colors to 4 decimals, numbers to float precision): nothing to write. */
 function sameValue(current: VariableValue | undefined, next: VariableValue): boolean {
   if (current === undefined) return false;
+  // Figma keeps numbers as 32-bit floats: 0.1 reads back as 0.10000000149.
+  if (typeof next === 'number') return typeof current === 'number' && Math.abs(current - next) <= 1e-6 * Math.max(1, Math.abs(next));
   if (typeof next !== 'object' || next === null) return current === next;
   if (typeof current !== 'object' || current === null) return false;
   if ('type' in next && next.type === 'VARIABLE_ALIAS') return 'type' in current && current.type === 'VARIABLE_ALIAS' && current.id === next.id;
