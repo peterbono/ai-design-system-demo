@@ -61,6 +61,29 @@ function sameContent(a: LogicalToken, b: LogicalToken): boolean {
 }
 
 /**
+ * Tokens the code renamed between two commits: removed and added between `base` and `head` with the same type, tier
+ * and values and a similar path. One pair per token; a token that matches more than one counterpart equally is left
+ * as a removal and an addition (no guess). Lets a pull rename the Figma variable instead of orphaning it and adding a
+ * new one, so everything bound to it keeps its binding.
+ */
+export function remoteRenames(base: Map<string, LogicalToken>, head: Map<string, LogicalToken>): { from: LogicalToken; to: LogicalToken }[] {
+  const removed = [...base.values()].filter((t) => !head.has(t.id));
+  const added = [...head.values()].filter((t) => !base.has(t.id));
+  const score = (a: LogicalToken, b: LogicalToken) => (sameContent(a, b) ? pathSimilarity(a.path, b.path) : 0);
+  const best = (list: LogicalToken[], other: (x: LogicalToken) => number) => {
+    const ranked = list.map((x) => ({ x, s: other(x) })).filter((r) => r.s >= SIMILARITY_THRESHOLD).sort((a, b) => b.s - a.s);
+    return ranked[0] && (!ranked[1] || ranked[1].s < ranked[0].s) ? ranked[0].x : undefined;
+  };
+  const out: { from: LogicalToken; to: LogicalToken }[] = [];
+  for (const r of removed) {
+    const a = best(added, (x) => score(r, x));
+    // Both ways: the added token's best match is this removed one.
+    if (a && best(removed, (x) => score(x, a)) === r) out.push({ from: r, to: a });
+  }
+  return out;
+}
+
+/**
  * Align Figma token ids with Git ids. `git` is every token known on the Git side (base and head).
  * Heuristic candidates are restricted to Git tokens that no Figma variable claims.
  */

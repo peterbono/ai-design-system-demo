@@ -10,6 +10,7 @@
 // swapped through INSTANCE_SWAP properties whose preferred values list them, like a Figma library.
 
 import { variantKeyOf } from '@bridge-ds/core';
+import { familyKey } from '../sync/mapping';
 import type { SpecField, SpecLayout, SpecPart } from '@bridge-ds/core';
 import { matchVariants, parsePushedMark, propsOfKey } from '../sync/component-pull';
 import { PUSHED_KEY } from '../shared/messages';
@@ -422,7 +423,17 @@ function apply(node: SceneNode, f: PlannedField, ctx: Ctx): void {
       n[f.field] = { unit: 'PERCENT', value: v.value };
       return;
     }
-    if (v.kind === 'font') return; // fontName is set with the text, from the family list
+    if (v.kind === 'font') {
+      // fontName is set with the text, from the family list. Bound to the token's variable when it shows that family,
+      // so the text follows the Brand mode (Ocean's Plex Sans) like its colors; never to a family Figma lacks.
+      if (v.variable && node.type === 'TEXT') {
+        const variable = ctx.vars.find({ kind: 'variable', path: v.path, ...v.variable, resolvedType: 'STRING' });
+        const shown = variable?.resolveForConsumer(node).value;
+        const family = node.fontName === figma.mixed ? undefined : node.fontName.family;
+        if (variable && typeof shown === 'string' && family && familyKey(shown) === familyKey(family)) bind(node, 'fontFamily', variable);
+      }
+      return;
+    }
     if (v.kind === 'keyword') {
       n[f.field] = v.value;
       return;
