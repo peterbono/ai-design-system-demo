@@ -77,6 +77,8 @@ export function initLibraryTeam() {
   const team = libraryFromPath(location.pathname);
   if (!team) return;
   pointLibraryLinks(team, null);
+  // The sample team's Library keeps the demo's one banner and one action (scripts/demo-gate.ts).
+  void import('./demo-gate').then((m) => m.paintLibraryBanner(`${team.owner}/${team.repo}`));
   // The reserved list is a static file of this site (no GitHub call): with it, Open Studio uses the plain address.
   fetch(RESERVED_PATHS_URL)
     .then((r) => (r.ok ? (r.json() as Promise<ReservedPaths>) : null))

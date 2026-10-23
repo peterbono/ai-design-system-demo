@@ -112,7 +112,7 @@ import { bringInLatest, checkGuardrail, commitResolution, readCompare, readConfl
 import { AGENT_NAME, isClaudeLogin } from '../lib/people';
 import { safeUrl } from '../lib/html';
 import { siteConfig } from './repo-context';
-import { isDemoRepo } from '../lib/demo';
+import { isDemoRepo, isSampleTeam } from '../lib/demo';
 import { viewerRoles } from '../lib/suggestions-view';
 import { waitingLabel } from '../lib/home-model';
 import type { WaitingExtra } from '../lib/review-categories';
@@ -940,6 +940,11 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     statusAction: statusRun.kind === 'reopen' || statusRun.kind === 'restart' ? statusRun.kind : null,
     inQueue: Boolean(detailEl().closest('[data-review-queue]')),
   });
+  // The sample team, in the lead's seat: Approve can be tried (BranchReview shows the result and writes nothing).
+  // Anything else there opens no GitHub sign-in: the banner's "Get started" is the one way in.
+  const sampleSeat = Boolean(seat) && isSampleTeam(`${repo.owner}/${repo.repo}`);
+  const sample = sampleSeat && (status.lifecycle === 'ready' || status.lifecycle === 'waiting') && !exploration ? { author: seatAuthor } : null;
+  if (sampleSeat && actions.primary?.kind === 'connect') actions.primary = sample ? { kind: 'approve', label: 'Approve' } : null;
   if (actions.primary?.kind === 'connect') actions.primary.label = ghAction('review', prefersSignIn());
   if (actions.primary && (actions.primary.kind === 'reopen' || actions.primary.kind === 'restart') && statusRun.kind) actions.primary.label = ACTION_LABEL[statusRun.kind];
   const openOverride = showOverride && access ? wireOverride(pull, access, gate) : null;
@@ -1001,6 +1006,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   return {
     pr: pull.number,
     productContext,
+    sample,
     crumbs: reviewCrumbs(files.map((f) => f.filename), title, { products: SITE.products ?? [], labels: pull.labels, exploration }),
     productWork,
     code,

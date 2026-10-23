@@ -127,20 +127,35 @@ describe('the setup steps, in order and by keyboard', () => {
   });
 });
 
-describe('the demo banner (board EmptyA2)', () => {
-  it('leads a visitor with a workspace back to it', async () => {
-    const { container } = render(createElement(DemoBanner, { repoUrl: 'https://github.com/peterbono/bridge-demo-ds', onUseOwn: () => undefined, back: { href: '/studio/workspace/', connect: false } }));
-    expect(screen.getByText('Sample data.')).toBeInTheDocument();
-    expect(screen.getByText("You're looking at Acme Design, read only. Nothing here touches your repository.")).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Back to your workspace' })).toHaveAttribute('href', '/studio/workspace/');
-    expect(screen.queryByRole('button', { name: 'Use your own repo' })).toBeNull();
+describe('the demo banner (boards D1, EmptyA2)', () => {
+  const SAMPLE = 'peterbono/bridge-demo-ds';
+
+  it('gives the sample team one banner and one action: Get started, the email sign-in, never GitHub', async () => {
+    const { container } = render(createElement(DemoBanner, { repo: SAMPLE }));
+    const banner = container.firstElementChild as HTMLElement;
+    expect(within(banner).getByText('Acme Design.')).toBeInTheDocument();
+    expect(within(banner).getByText('This is a sample team: your edits stay in this browser and nothing is sent.')).toBeInTheDocument();
+    expect(screen.getAllByRole('link')).toHaveLength(1);
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    const start = screen.getByRole('link', { name: 'Get started' });
+    expect(start).toHaveAttribute('href', '/signin/');
+    // Secondary weight: the page keeps its own primary (Review all on the demo home).
+    expect(start.className).not.toMatch(/primary/);
+    expect(banner.textContent).not.toMatch(/GitHub|Use your own repo/);
     await expectNoAxeViolations(container);
   });
 
-  it('offers to connect the design system after the start screen when there is no workspace to go back to', async () => {
+  it('leads someone signed in to Bridge back to their own team instead', async () => {
+    const { container } = render(createElement(DemoBanner, { repo: SAMPLE, back: { href: '/studio/acme/ds/', connect: false } }));
+    expect(screen.getByRole('link', { name: 'Back to your workspace' })).toHaveAttribute('href', '/studio/acme/ds/');
+    expect(screen.queryByRole('link', { name: 'Get started' })).toBeNull();
+    expect(screen.getAllByRole('link')).toHaveLength(1);
+    await expectNoAxeViolations(container);
+  });
+
+  it('offers to connect the design system when there is no workspace to go back to', async () => {
     const onConnect = vi.fn();
-    const { container } = render(createElement(DemoBanner, { repoUrl: 'https://github.com/peterbono/bridge-demo-ds', onUseOwn: () => undefined, back: { href: '/studio/workspace/?setup=library', connect: true }, onConnect }));
-    expect(screen.queryByRole('link', { name: 'Back to your workspace' })).toBeNull();
+    const { container } = render(createElement(DemoBanner, { repo: SAMPLE, back: { href: '/studio/workspace/?setup=library', connect: true }, onConnect }));
     const link = screen.getByRole('link', { name: 'Connect your design system' });
     expect(link).toHaveAttribute('href', '/studio/workspace/?setup=library');
     link.addEventListener('click', (e) => e.preventDefault());
@@ -150,26 +165,12 @@ describe('the demo banner (board EmptyA2)', () => {
   });
 
   it("names Bridge's own design system, never sample data, with one action for a guest", async () => {
-    const { container } = render(
-      createElement(DemoBanner, { repoUrl: 'https://github.com/peterbono/ai-design-system-demo', repo: 'peterbono/ai-design-system-demo', onUseOwn: () => undefined, back: { href: '/studio/workspace/?setup=library', connect: true } }),
-    );
+    const { container } = render(createElement(DemoBanner, { repo: 'peterbono/ai-design-system-demo', back: { href: '/studio/workspace/?setup=library', connect: true } }));
     expect(screen.getByText('Bridge DS, read only.')).toBeInTheDocument();
     expect(screen.getByText("You're looking at the design system behind Bridge. Nothing here touches your repository.")).toBeInTheDocument();
-    expect(screen.queryByText(/Acme Design|sample data/i)).toBeNull();
-    expect(screen.queryByRole('link', { name: 'See it on GitHub' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Use your own repo' })).toBeNull();
+    expect(screen.queryByText(/Acme Design|sample/i)).toBeNull();
     expect(screen.getAllByRole('link')).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Connect your design system' })).toHaveAttribute('href', '/studio/workspace/?setup=library');
-    await expectNoAxeViolations(container);
-  });
-
-  it('keeps "Use your own repo" for a visitor who came straight to the demo', async () => {
-    const onUseOwn = vi.fn();
-    const { container } = render(createElement(DemoBanner, { repoUrl: 'https://github.com/peterbono/bridge-demo-ds', onUseOwn }));
-    const banner = container.firstElementChild as HTMLElement;
-    expect(within(banner).getByText('Acme Design, a sample team.')).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Use your own repo' }));
-    expect(onUseOwn).toHaveBeenCalledOnce();
     await expectNoAxeViolations(container);
   });
 });

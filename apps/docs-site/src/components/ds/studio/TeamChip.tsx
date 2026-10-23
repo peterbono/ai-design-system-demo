@@ -12,8 +12,8 @@
 // top and the account at the bottom.
 // On the hosted site the menu opens with "Your teams" (board EmptyB): the teams the signed-in person belongs to (their
 // role remembered in this browser), the one they are on first with a check and their role; the empty browser
-// workspace only while they are in it or have no team of their own (lib/start.ts); and "Try it" with Acme Design, the
-// sample team. The browser workspace (no repository yet,
+// workspace only while they are in it or have no team of their own (lib/start.ts); and, for a visitor without a Bridge
+// account, "Try it" with Acme Design, the sample team (a member finds it in the account menu instead). The browser workspace (no repository yet,
 // pages/studio/workspace.astro) names itself on the chip: "Ann's workspace", kept in this browser. Once "Create your
 // team" made the team on the server (no repository yet), the workspace page is that team's home and the chip names the
 // team with the person's role ("Northwind Design", Admin), never "Your workspace".
@@ -247,6 +247,9 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   // The menu's parts in order, a separator between two: the teams to switch to (board EmptyB), what to do here, the
   // recent teams, then "Create a new team" once signed in (signed out it comes first among the actions).
   const blocks: { key: string; node: ReactNode }[] = [];
+  // The sample team never sits between real teams: a member signed in to Bridge finds it in the account menu
+  // (AccountMenu.tsx, "Try it · Acme Design"); a visitor without an account keeps it here.
+  const tryIt = offerTeams && chip.kind !== 'demo' && !account;
   const teams = (
     <>
       {yours.length > 0 && (
@@ -256,14 +259,14 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
           ))}
         </MenuGroup>
       )}
-      {offerTeams && chip.kind !== 'demo' && (
+      {tryIt && (
         <MenuGroup label={MENU_WORDS.tryIt}>
           <TeamItem mark={<SampleMark />} title={MENU_WORDS.demo} line={MENU_WORDS.demoLine} href={DEMO_HOME} />
         </MenuGroup>
       )}
     </>
   );
-  if (yours.length > 0 || (offerTeams && chip.kind !== 'demo')) blocks.push({ key: 'teams', node: teams });
+  if (yours.length > 0 || tryIt) blocks.push({ key: 'teams', node: teams });
   // Invite collaborators opens the dialog over the page (board I1). The sample team shows it to everyone, with its
   // sample people: sending opens the demo dialog. The browser workspace has no repository, so nobody to invite yet.
   const sample = chip.kind === 'demo' && Boolean(chip.sample) && isSampleTeam(name);

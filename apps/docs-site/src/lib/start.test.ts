@@ -5,7 +5,6 @@ import {
   demoBack,
   CONNECT_HREF,
   DEMO_HOME,
-  demoBannerKind,
   EMPTY_START,
   getStartedHref,
   hasWorkspace,
@@ -79,19 +78,12 @@ describe('where "Get started" goes', () => {
 });
 
 describe('the demo banner and "Back to your workspace"', () => {
-  it('keeps the visitor banner for someone who came straight to the demo', () => {
-    expect(demoBannerKind(facts())).toBe('visitor');
-    expect(demoBannerKind(facts(), true)).toBe('workspace');
-  });
-
   it('after the start screen with no workspace yet, offers to connect the design system instead of a "back"', () => {
     const f = facts({ memory: { demo: true } });
-    expect(demoBannerKind(f)).toBe('workspace');
     expect(demoBack(f)).toEqual({ href: CONNECT_HREF, connect: true });
   });
 
   it('leads back to the team, else the browser workspace', () => {
-    expect(demoBannerKind(facts({ recent: ['acme/ds'] }))).toBe('workspace');
     expect(demoBack(facts({ recent: ['acme/ds'] }), NONE_RESERVED)).toEqual({ href: '/studio/acme/ds/', connect: false });
     expect(demoBack(facts({ memory: { connect: true } }))).toEqual({ href: WORKSPACE_HOME, connect: false });
   });

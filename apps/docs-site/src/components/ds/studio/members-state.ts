@@ -1,6 +1,6 @@
 // The people of this page's team and what an admin does to them, shared by Settings > Members and the Invite
 // collaborators dialog so both show the same list and say the same things. On the sample team every change opens the
-// demo dialog ("Sign in with GitHub to do this for real.", board D2) and nothing is sent; on a real team each change
+// demo dialog ("This is a sample team.", board D2) and nothing is sent; on a real team each change
 // goes to the invites server (scripts/invites-api.ts), which checks on GitHub that the caller is an admin.
 import { useCallback, useEffect, useState } from 'react';
 import type { MembersData } from '../../../scripts/members';

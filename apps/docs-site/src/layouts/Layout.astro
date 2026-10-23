@@ -151,6 +151,10 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
     <meta name="theme-color" content="#0b1825" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     {!library && <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />}
+    {/* Sample-team drafts stay apart from real ones (scripts/demo-drafts.ts): first, before any page script reads a draft. */}
+    <script>
+      import '../scripts/demo-drafts';
+    </script>
     {/* Theme before first paint: this browser's choice in Settings, Appearance (lib/theme-pref.ts); no value takes the OS setting. */}
     <script is:inline>
       (function () {
@@ -210,8 +214,8 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
       </div>
     </header>
     {/* The demo, for a visitor who cannot change it: the demo banner (scripts/demo-gate.ts mounts
-        components/ds/studio/DemoBanner.tsx here once the session knows who is visiting). */}
-    {isStudio && !noRepo && <div class="demo-strip" data-demo-strip hidden />}
+        components/ds/studio/DemoBanner.tsx here once the session knows who is visiting), Studio and a team Library. */}
+    {((isStudio && !noRepo) || library) && <div class="demo-strip" data-demo-strip hidden />}
 
     {bare ? (
       <main id="main" tabindex="-1" class="bare-main">

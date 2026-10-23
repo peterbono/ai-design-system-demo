@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { DEMO_REPOS, demoDialog, DEMO_WORDS, demoLeadName, demoSettingsPeople, demoTour, demoWaiting, exploresDemo, humanizeRepo, onBridge, isDemoRepo, OWN_TEAM, teamDisplayName, tourSteps } from './demo';
+import { DEMO_REPOS, demoApproved, demoBanner, demoDialog, DEMO_STASH_KEY, DEMO_VISIT_KEY, DEMO_WORDS, SHARED_DRAFT_KEY, swapDemoDrafts, demoLeadName, demoSettingsPeople, demoTour, demoWaiting, exploresDemo, humanizeRepo, onBridge, isDemoRepo, OWN_TEAM, teamDisplayName, tourSteps } from './demo';
 
 describe('the demo', () => {
   it('is the self-hosted repository and the hosted demo team, any case', () => {
@@ -21,13 +21,26 @@ describe('the demo', () => {
     expect(exploresDemo({ repo: 'acme/ds', signedIn: false, write: null })).toBe(false);
   });
 
-  it('says the demo saves nothing, in designer words (board D2)', () => {
-    expect(DEMO_WORDS.dialogTitle).toBe('Sign in with GitHub to do this for real.');
+  it('says the sample team sends nothing, in designer words, with one call to action (board D2)', () => {
+    expect(DEMO_WORDS.getStarted).toBe('Get started');
+    expect(demoBanner('peterbono/bridge-demo-ds')).toEqual({ title: 'Acme Design.', text: 'This is a sample team: your edits stay in this browser and nothing is sent.' });
+    expect(demoDialog('peterbono/bridge-demo-ds')).toEqual({ title: 'This is a sample team.', lead: 'Nothing is sent from Acme Design. Get started to do this with your own team.' });
+    // The sample team never sends a visitor to GitHub.
+    for (const t of [...Object.values(demoBanner('peterbono/bridge-demo-ds')), ...Object.values(demoDialog('peterbono/bridge-demo-ds')), DEMO_WORDS.sampleNote, DEMO_WORDS.tryIt]) expect(t).not.toMatch(/GitHub|repo/);
     for (const t of Object.values(DEMO_WORDS)) expect(t).not.toMatch(/\u2014|pull request|token/);
   });
 
+  it('lets a visitor try Approve: the result, what happens next, nothing sent', () => {
+    expect(demoApproved('Ann Lee')).toEqual({
+      title: 'Approved',
+      next: 'On your team, Ann hears it at once, and a developer ships the change once the checks pass.',
+      note: 'Sample data, nothing is sent.',
+    });
+    expect(demoApproved(null).next).toMatch(/^On your team, The teammate who asked hears it/);
+    for (const t of Object.values(demoApproved('Ann'))) expect(t).not.toMatch(/\u2014|merge|pull request/);
+  });
+
   it("never calls Bridge's own design system the demo", () => {
-    expect(demoDialog('peterbono/bridge-demo-ds').lead).toBe('In the demo, nothing is saved.');
     const own = demoDialog('peterbono/ai-design-system-demo');
     expect(`${own.title} ${own.lead}`).not.toMatch(/demo|for real/i);
   });
@@ -104,5 +117,49 @@ describe('teamDisplayName', () => {
     expect(humanizeRepo('peterbono/ai-design-system-demo')).toBe('Ai design system demo');
     expect(humanizeRepo('acme_ui.kit')).toBe('Acme ui kit');
     expect(humanizeRepo('acme/ds')).toBe('Ds');
+  });
+});
+
+/** A Storage stand-in. */
+function store(init: Record<string, string> = {}) {
+  const m = new Map(Object.entries(init));
+  return {
+    getItem: (k: string) => m.get(k) ?? null,
+    setItem: (k: string, v: string) => void m.set(k, v),
+    removeItem: (k: string) => void m.delete(k),
+    get length() {
+      return m.size;
+    },
+    key: (i: number) => [...m.keys()][i] ?? null,
+    dump: () => Object.fromEntries(m),
+  };
+}
+
+describe('drafts on the sample team', () => {
+  it('keeps the visit drafts apart from a real draft, and drops them on leaving', () => {
+    const s = store({ [SHARED_DRAFT_KEY]: '{"edits":["real"]}', 'bridge.brand-draft:acme/ds': 'real brand' });
+    expect(swapDemoDrafts(s, true)).toBe('entered');
+    // On the sample team: the real draft waits apart, the visitor starts empty.
+    expect(s.getItem(SHARED_DRAFT_KEY)).toBeNull();
+    expect(s.getItem(DEMO_STASH_KEY)).toBe('{"edits":["real"]}');
+    // Edits during the visit stay in this browser, page after page.
+    s.setItem(SHARED_DRAFT_KEY, '{"edits":["sample"]}');
+    s.setItem('bridge.brand-draft:peterbono/bridge-demo-ds', 'sample brand');
+    s.setItem('bridge.draft.change.peterbono/bridge-demo-ds#12.v1', 'sample change');
+    expect(swapDemoDrafts(s, true)).toBe('none');
+    expect(s.getItem(SHARED_DRAFT_KEY)).toBe('{"edits":["sample"]}');
+    // Leaving for a real team: the sample drafts go, the real draft comes back, untouched.
+    expect(swapDemoDrafts(s, false)).toBe('left');
+    expect(s.dump()).toEqual({ [SHARED_DRAFT_KEY]: '{"edits":["real"]}', 'bridge.brand-draft:acme/ds': 'real brand' });
+    expect(swapDemoDrafts(s, false)).toBe('none');
+  });
+
+  it('leaves no draft behind when there was no real one', () => {
+    const s = store();
+    swapDemoDrafts(s, true);
+    s.setItem(SHARED_DRAFT_KEY, '{"edits":["sample"]}');
+    swapDemoDrafts(s, false);
+    expect(s.dump()).toEqual({});
+    expect(s.getItem(DEMO_VISIT_KEY)).toBeNull();
   });
 });

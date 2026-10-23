@@ -13,11 +13,14 @@ export function bridgeDataUrl(owner: string, repo: string, file: string, isPriva
 /** The team's llms.txt, published next to its snapshot by `bridge snapshot`. */
 export const llmsTxtUrl = (owner: string, repo: string, isPrivate: boolean) => bridgeDataUrl(owner, repo, SNAPSHOT_LLMS_FILE, isPrivate);
 
-/** "Published Oct 20, 2026 from a1b2c3d on main." for a snapshot read as published, else null. */
-export function publishedLine(input: { published?: string | undefined; sha: string; branch: string }): string | null {
+/**
+ * "Published Oct 20, 2026 from a1b2c3d on main." for a snapshot read as published, else null. Without a sha (the sample
+ * team, where a commit means nothing to its visitors) only the date: "Published Oct 20, 2026."
+ */
+export function publishedLine(input: { published?: string | undefined; sha: string | null; branch: string }): string | null {
   if (!input.published) return null;
   const d = new Date(input.published);
   if (Number.isNaN(d.getTime())) return null;
   const date = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(d);
-  return `Published ${date} from ${input.sha.slice(0, 7)} on ${input.branch}.`;
+  return input.sha ? `Published ${date} from ${input.sha.slice(0, 7)} on ${input.branch}.` : `Published ${date}.`;
 }

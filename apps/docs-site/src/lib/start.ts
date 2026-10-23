@@ -116,13 +116,6 @@ export const demoBack = (f: StartFacts, reserved: ReservedPaths | null = null): 
   return href ? { href, connect: false } : { href: CONNECT_HREF, connect: true };
 };
 
-/**
- * Which banner the demo shows a visitor (board EmptyA2): "Sample data" with "Back to your workspace" for someone who
- * came through the start screen or has a workspace; the demo banner with "Use your own repo" for a visitor
- * who came straight to the sample team. A guest on Bridge's own team (`own`) always gets the one-action banner.
- */
-export const demoBannerKind = (f: StartFacts, own = false): 'workspace' | 'visitor' =>
-  own || hasWorkspace(f) || f.memory.demo ? 'workspace' : 'visitor';
 
 /**
  * The team made in Bridge (no repository yet) the workspace page shows: the one its address names (?team=<id>) when
