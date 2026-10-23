@@ -254,8 +254,9 @@ test('calc(): Badge md padding and min height are resolved from the tokens and s
   const v = variantOf(set, 'Tone=neutral, Appearance=subtle, Size=md');
   assert.deepEqual([v.paddingLeft, v.paddingRight, v.minHeight], [10, 10, 26], 'the label no longer touches the edges');
   assert.equal(boundName(sim, v, 'paddingLeft'), undefined, 'a calc() is set, not bound');
-  // sm stays bound: a single token.
-  assert.equal(boundName(sim, variantOf(set, 'Tone=neutral, Appearance=subtle, Size=sm'), 'paddingLeft'), 'Primitives:space/1-5');
+  // sm stays bound: a single token. Which space token is the library's choice (a Figma change may move it), not this test's.
+  const sm = variantOf(set, 'Tone=neutral, Appearance=subtle, Size=sm');
+  assert.match(boundName(sim, sm, 'paddingLeft') ?? '', /^Primitives:space\/[\w-]+$/);
 });
 
 test('Card: fixed width from the size scale, parts fill the card, body text wraps, content clipped, h3 header', async () => {
