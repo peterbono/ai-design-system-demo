@@ -554,6 +554,7 @@ to the real site's data.
 ```sh
 npm run dev:full                                  # the whole product on http://localhost:4321
 npm run dev:seed -- you@company.com acme/ds       # optional: make that email a member of the acme/ds team
+npm run dev:scenario S12                          # optional: start over with one audit scenario (list: dev:scenario list)
 npm run dev:reset                                 # start over: forget every local account, team and code
 ```
 
@@ -571,8 +572,29 @@ are in your shell or `.env.local`, so it cannot touch the real site's data or se
 session secret the first time. It refuses to start when `NODE_ENV=production` or on Vercel, and nothing of it is part
 of the build.
 
+**Scenarios.** `npm run dev:scenario <name>` (`S0` to `S16`, a number or a slug; `npm run dev:scenario list` lists
+them) clears local accounts, teams, codes and the outbox, writes one situation with the same storage functions the
+functions use, and prints who to sign in as and what each person should see: a work domain with one or five teams
+open to it, a closed team, invites (valid, expired, sent to another email, reviewer and admin), members of one or
+three teams, admins with 0, 1 and 4 join requests, a pending request, a request and an invite for the same team, the
+last admin, and sign-in code edge cases (`dev/scenarios.ts`). It works while the server runs. The "recent team" of
+someone on several teams lives in the browser: set it in the page console with
+`localStorage.setItem("bridge.recentTeams", JSON.stringify(["lumen/mobile-kit"]))`, or clear it to get the picker.
+
+**Scenario teams.** Their addresses (`acme/acme-product`, `lumen/brand-system`...) do not exist on GitHub. Locally,
+their GitHub calls are answered from this repository's own files at the commit checked out, read-only, with their
+own name in `bridge.config.json` (`dev/local-github.ts`), and `/studio/<owner>/<repo>/...` and `/library/<owner>/<repo>/...`
+are served from the team and Library shells like the Vercel rewrites do. Each team's admin is seeded as admin for
+local mode only (`api/_lib/local-admin.ts`): join requests, discovery and the last-admin check work without a GitHub
+App. That override is ignored unless the process runs `npm run dev:full` (BRIDGE_LOCAL=1, not on Vercel, not
+production), and no deployed function ever receives it.
+
 **Limits.** Features that act on GitHub need a GitHub App: email contributions (`/api/contribute`), invites from
 Members (`/api/invites`), Library access settings (`/api/library-access`), "Continue with GitHub" and admin checks.
 Without keys they answer as a site that has not set them up yet ("not available yet"). To try them, put the
 `GITHUB_APP_*` variables of a test app in `apps/docs-site/.env.local` (see [SIGN-IN.md](SIGN-IN.md)); they are the only
-variables this mode reads from it. Those calls then reach the real GitHub, so use a test repository.
+variables this mode reads from it. Those calls then reach the real GitHub, so use a test repository. With scenario teams, still unreachable locally:
+inviting by email, changing roles and removing people from Settings, Members (`/api/invites` needs a GitHub sign-in),
+"Continue with GitHub" and joining as reviewer or admin, any write to a scenario team (branches, changes, reviews:
+the fixture files are read-only), Library access settings, and a scenario team's Library (`/library/<owner>/<repo>/`
+reads a published snapshot that scenario teams do not have). Bridge's own Library and the sample team work as usual.

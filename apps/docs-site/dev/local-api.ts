@@ -12,13 +12,16 @@
 // what Vercel bundles), and it refuses to run with NODE_ENV=production or on Vercel.
 
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { dirname, join } from 'node:path';
 import { escHtml, type EmailMessage, type EmailSender } from '../api/_lib/email.js';
+import type { AppTokens } from '../api/_lib/github-app.js';
 import type { FetchLike } from '../api/_lib/http.js';
+import { localAdminStore, type LocalAdmins } from '../api/_lib/local-admin.js';
 import { type EmailMember, memberStore } from '../api/_lib/members.js';
 import { memoryRedis, type Redis, type RedisArg, type RedisSnapshot } from '../api/_lib/redis.js';
+import { fixtureApp, fixtureGithub, gitFiles } from './local-github.js';
 
 /** The folder that holds local data, next to package.json (gitignored). */
 export const LOCAL_DIR = '.bridge-local';
@@ -289,24 +292,30 @@ export interface Local {
   email: EmailSender & { list(): OutboxItem[] };
   env: Record<string, string | undefined>;
   fetch: FetchLike;
+  /** Admins seeded by dev/scenarios.ts (api/_lib/local-admin.ts). */
+  localAdmins?: LocalAdmins;
+  /** The Bridge app for fixture teams, when this computer has no GitHub App keys (dev/local-github.ts). */
+  app?: AppTokens;
 }
 
 /** How a function is called locally: its handleX with local storage, email and env; else its method export. */
 export function handlerFor(rel: string, mod: Mod, local: Local, method: string, extra: { members?: unknown; invites?: unknown; library?: unknown } = {}): Handler | null {
-  const { redis, email, env, fetch } = local;
+  const { redis, email, env, fetch, localAdmins, app } = local;
+  const admins = localAdmins ? { localAdmins } : {};
+  const apps = app ? { app } : {};
   const call = (name: string, deps: Record<string, unknown>) => {
     const fn = mod[name];
     return typeof fn === 'function' ? (req: Request) => (fn as (r: Request, e: unknown, d: unknown) => Promise<Response>)(req, env, { fetch, email, ...deps }) : null;
   };
   switch (rel) {
     case 'api/account/index.ts':
-      return call('handleAccount', { redis });
+      return call('handleAccount', { redis, ...admins });
     case 'api/entry/index.ts':
-      return call('handleEntry', { redis });
+      return call('handleEntry', { redis, ...admins, ...apps });
     case 'api/contribute/index.ts':
-      return call('handleContribute', { redis });
+      return call('handleContribute', { redis, ...admins, ...apps });
     case 'api/invites/index.ts':
-      return call('handleInvites', { store: extra.invites, members: extra.members });
+      return call('handleInvites', { store: extra.invites, members: extra.members, ...apps });
     case 'api/library-access/index.ts':
       return call('handleLibraryAccess', { store: extra.library });
     case 'api/github/token.ts': {
@@ -335,6 +344,48 @@ export async function seedMember(redis: Redis, repo: string, email: string, name
   };
   await store.put(repo, m);
   return m;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Team and Library addresses. On Vercel, vercel.json rewrites /studio/<owner>/<repo>/... to the team shell and
+// /library/<owner>/<repo>/... to the Library shell when no file answers; `astro dev` has no rewrites, so local mode
+// does the same here.
+
+/** The first parts of a Studio address that are real pages (src/pages/studio), never a team owner. */
+export function studioReserved(dir: string): Set<string> {
+  try {
+    return new Set(readdirSync(dir).map((f) => f.replace(/\.(astro|ts|md)$/, '')));
+  } catch {
+    return new Set();
+  }
+}
+
+const OWNER = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/;
+const REPO = /^[A-Za-z0-9._-]{1,100}$/;
+
+/** The shell address a team or Library address is served from, or null (any other path). The query is kept. */
+export function teamRewrite(url: string, reserved: ReadonlySet<string>): string | null {
+  const q = url.indexOf('?');
+  const path = q < 0 ? url : url.slice(0, q);
+  const query = q < 0 ? '' : url.slice(q);
+  const parts = path.split('/');
+  // ['', 'studio', owner, repo, ...rest] or ['', 'studio', '~', owner, repo, ...rest]
+  if (parts[1] === 'studio') {
+    const escaped = parts[2] === '~';
+    const [owner, repo] = escaped ? [parts[3], parts[4]] : [parts[2], parts[3]];
+    if (!owner || !repo || !OWNER.test(owner) || !REPO.test(repo) || repo === '.' || repo === '..') return null;
+    if (!escaped && reserved.has(owner)) return null;
+    const rest = parts.slice(escaped ? 5 : 4).join('/');
+    return `/team-shell/${rest}${query}`;
+  }
+  if (parts[1] === 'library') {
+    const [owner, repo] = [parts[2], parts[3]];
+    if (!owner || !repo || !OWNER.test(owner) || !REPO.test(repo) || repo === '.' || repo === '..') return null;
+    const rest = parts.slice(4);
+    if (rest[0] === 'components' && rest[1] && /^[A-Za-z0-9][A-Za-z0-9-]*$/.test(rest[1])) return `/library-shell/components/item/${query}`;
+    return `/library-shell/${rest.join('/')}${query}`;
+  }
+  return null;
 }
 
 /** The local data folder of an app root, created on demand. */
@@ -371,8 +422,16 @@ export function bridgeLocal(opts: { root: string; log?: (s: string) => void }) {
         const redis = fileRedis(join(dir, 'redis.json'));
         const email = outboxSender(join(dir, 'outbox.json'), log);
         const realFetch: FetchLike = (url, init) => fetch(url, init);
-        const local: Local = { redis, email, env, fetch: realFetch };
         const hasGithub = Boolean(env.GITHUB_APP_ID && env.GITHUB_APP_PRIVATE_KEY);
+        // Fixture teams of npm run dev:scenario: their GitHub calls are answered here, read-only (dev/local-github.ts).
+        const local: Local = {
+          redis,
+          email,
+          env,
+          fetch: fixtureGithub(redis, () => gitFiles(join(root, '..', '..')), realFetch),
+          localAdmins: localAdminStore(redis),
+          ...(hasGithub ? {} : { app: fixtureApp(redis) }),
+        };
         log(
           [
             '',
@@ -393,6 +452,17 @@ export function bridgeLocal(opts: { root: string; log?: (s: string) => void }) {
           extra = { members: memberStore(redis), invites: invites.inviteStoreOn(redis), library: library.libraryStoreOn(redis) };
           return extra;
         };
+
+        // Team and Library addresses: the rewrites vercel.json does on the real site (dev/local-api.ts teamRewrite).
+        const reserved = studioReserved(join(root, 'src', 'pages', 'studio'));
+        server.middlewares.use((req, _res, next) => {
+          const method = (req.method ?? 'GET').toUpperCase();
+          if (method === 'GET' || method === 'HEAD') {
+            const to = teamRewrite(req.url ?? '/', reserved);
+            if (to) req.url = to;
+          }
+          next();
+        });
 
         server.middlewares.use((req, res, next) => {
           const pathname = new URL(req.url ?? '/', 'http://localhost').pathname;

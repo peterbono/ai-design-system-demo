@@ -1293,7 +1293,8 @@ export async function resolveAccess(repo: { owner: string; repo: string } = read
   // An email contributor can edit this team, never more (they approve nothing): no GitHub call to say it.
   if (signedIn && viewer?.email && isContribAuth(token)) {
     if (name !== repoName(readRepo())) return null;
-    const a = contributorAccess();
+    // 'admin' only for a member seeded as admin in `npm run dev:full`: the server checks every admin action again.
+    const a = contributorAccess(contributorFor(pageRepo())?.role === 'admin');
     accessByRepo.set(name, a);
     return a;
   }

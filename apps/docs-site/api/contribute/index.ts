@@ -78,6 +78,7 @@ import { createHmac, randomBytes } from 'node:crypto';
 import { sessionAccount } from '../_lib/account.js';
 import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
+import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import {
   b64url,
   clientIp,
@@ -130,6 +131,8 @@ export interface ContribDeps {
   members?: MemberStore;
   email?: EmailSender;
   app?: AppTokens;
+  /** `npm run dev:full` only (api/_lib/local-admin.ts): admins seeded locally, ignored outside local mode. */
+  localAdmins?: LocalAdmins;
 }
 
 /** What a session cookie says. */
@@ -189,6 +192,8 @@ interface Services {
   email: EmailSender | null;
   app: AppTokens;
   secret: string;
+  /** Local mode only (api/_lib/local-admin.ts); always null in production. */
+  localAdmins: LocalAdmins | null;
 }
 
 /** Installation tokens live an hour: a warm function reuses one for 30 minutes (memory only, never stored). */
@@ -221,7 +226,7 @@ export function services(env: ContribEnv, deps: ContribDeps): Services | null {
   const app = deps.app ?? (appId && pem ? cachedApp(githubApp(appId, pem, deps.fetch, now, { permissions: { ...PROXY_PERMISSIONS }, require: { ...PROXY_PERMISSIONS }, userAgent: 'bridge-contribute' }), appId, now) : null);
   const secret = env.LIBRARY_SESSION_SECRET?.trim() ?? '';
   if (!redis || !app || secret.length < MIN_SECRET_LENGTH) return null;
-  return { redis, invites: deps.invites ?? inviteStoreOn(redis, now), members: deps.members ?? memberStore(redis), email, app, secret };
+  return { redis, invites: deps.invites ?? inviteStoreOn(redis, now), members: deps.members ?? memberStore(redis), email, app, secret, localAdmins: activeLocalAdmins(deps.localAdmins) };
 }
 
 interface Ctx {
@@ -919,7 +924,9 @@ async function membersOf(ctx: Ctx, req: Request, full: string, m: EmailMember | 
       ...(c.permissions && typeof c.permissions === 'object' ? { permissions: Object.fromEntries(flags.filter((f) => typeof c.permissions[f] === 'boolean').map((f) => [f, c.permissions[f]])) } : {}),
     }));
   const people = await ctx.svc.members.list(full);
-  const members = people.map((p) => ({ name: p.name, role: p.role, ...(m && p.email === m.email ? { you: true } : {}) }));
+  // Local mode only: members seeded as admin (api/_lib/local-admin.ts) say so.
+  const admins = ctx.svc.localAdmins ? await ctx.svc.localAdmins.adminsOf(full) : [];
+  const members = people.map((p) => ({ name: p.name, role: admins.includes(p.email) ? 'admin' : p.role, ...(m && p.email === m.email ? { you: true } : {}) }));
   return json(200, { collaborators, members }, { 'Cache-Control': 'private, no-store' });
 }
 
@@ -949,7 +956,10 @@ export async function handleContribute(req: Request, env: ContribEnv, deps: Cont
         if (!m) return fail(401, 'signin', SIGNIN);
         return json(200, await mineOf(ctx, full, m.email));
       }
-      return json(200, { available: true, member: m ? publicMember(m) : null });
+      // Local mode only: a member seeded as admin reads as admin, so Studio shows them the admin screens (the server
+      // checks again on every admin action).
+      const admin = Boolean(m && svc.localAdmins && (await svc.localAdmins.isAdmin(full, m.email)));
+      return json(200, { available: true, member: m ? { ...publicMember(m), ...(admin ? { role: 'admin' } : {}) } : null });
     }
 
     if (!svc) return fail(503, 'not_configured', NOT_CONFIGURED);

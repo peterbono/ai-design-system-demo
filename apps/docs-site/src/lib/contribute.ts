@@ -29,7 +29,8 @@ export const CONTRIBUTE_HEADER = 'X-Bridge-Contribute';
 export interface ContributeMember {
   email: string;
   name: string;
-  role: 'edit';
+  /** 'admin' only in `npm run dev:full`, for a member seeded as admin (api/_lib/local-admin.ts). */
+  role: 'edit' | 'admin';
 }
 
 /**
@@ -61,13 +62,20 @@ export function contributeEligible(repo: string | null | undefined, hosted: bool
   return hosted && Boolean(repo && /^[\w.-]+\/[\w.-]+$/.test(repo)) && !isSampleTeam(repo);
 }
 
-/** A member record read back from storage or the server, or null when it is not one. */
-export function parseMember(v: unknown): ContributeMember | null {
+/**
+ * True on a page served by `npm run dev:full` on this computer (localhost): the only place a member may read as admin
+ * (a member seeded as admin, api/_lib/local-admin.ts). Everywhere else an email member is Can edit, whatever is said.
+ */
+export const localDevHost = (hostname: string | null | undefined = typeof location === 'undefined' ? null : location.hostname): boolean =>
+  hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+
+/** A member record read back from storage or the server, or null when it is not one. Always Can edit, but locally. */
+export function parseMember(v: unknown, local = localDevHost()): ContributeMember | null {
   if (!v || typeof v !== 'object') return null;
   const m = v as Record<string, unknown>;
   if (typeof m.email !== 'string' || !m.email.includes('@')) return null;
   const name = typeof m.name === 'string' && m.name.trim() ? m.name.trim() : m.email;
-  return { email: m.email, name, role: 'edit' };
+  return { email: m.email, name, role: local && m.role === 'admin' ? 'admin' : 'edit' };
 }
 
 /** What an invite link is, before it is accepted: the server's answer to peek (null when it cannot say). */

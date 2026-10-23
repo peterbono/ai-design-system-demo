@@ -42,6 +42,7 @@ import {
 } from '../_lib/account.js';
 import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, readBody, sameOrigin, secondsToTomorrow, sha256, type FetchLike } from '../_lib/http.js';
+import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import { accountTeamsKey, memberStore, type MemberStore } from '../_lib/members.js';
 import { globEscape, redisRest, type Redis } from '../_lib/redis.js';
 import { removeAllRequests } from '../_lib/teams.js';
@@ -81,6 +82,8 @@ export interface AccountDeps {
   code?: () => string;
   redis?: Redis;
   members?: MemberStore;
+  /** `npm run dev:full` only (api/_lib/local-admin.ts): admins seeded locally, ignored outside local mode. */
+  localAdmins?: LocalAdmins;
   email?: EmailSender;
   /** Builds the backup store from the token (tests inject one). */
   blob?: (token: string) => BlobStore | Promise<BlobStore>;
@@ -152,6 +155,8 @@ interface Services {
   members: MemberStore;
   email: EmailSender | null;
   secret: string;
+  /** Local mode only (api/_lib/local-admin.ts); always null in production. */
+  localAdmins: LocalAdmins | null;
 }
 
 function redisOf(env: AccountEnv, deps: AccountDeps): Redis | null {
@@ -168,7 +173,7 @@ export function services(env: AccountEnv, deps: AccountDeps): Services | null {
   const email = deps.email ?? (key && from ? resendSender(key, from, deps.fetch) : null);
   const secret = env.LIBRARY_SESSION_SECRET?.trim() ?? '';
   if (!redis || secret.length < MIN_SECRET_LENGTH) return null;
-  return { redis, members: deps.members ?? memberStore(redis), email, secret };
+  return { redis, members: deps.members ?? memberStore(redis), email, secret, localAdmins: activeLocalAdmins(deps.localAdmins) };
 }
 
 interface Ctx {
@@ -257,7 +262,14 @@ async function teamsOf(ctx: Ctx, email: string): Promise<(PublicTeam & { at: str
     }
     out.push({ repo, name: teamDisplayName(repo), role: m.role, via: 'email', at: m.at });
   }
-  return out;
+  // Local mode only: the teams this email was seeded admin of (api/_lib/local-admin.ts) say admin.
+  const local = ctx.svc.localAdmins ? await ctx.svc.localAdmins.teamsOf(email) : [];
+  for (const repo of local) {
+    const t = out.find((x) => x.repo === repo);
+    if (t) t.role = 'admin';
+    else out.push({ repo, name: teamDisplayName(repo), role: 'admin', via: 'email', at: '' });
+  }
+  return out.sort((x, y) => x.repo.localeCompare(y.repo));
 }
 
 async function publicAccount(ctx: Ctx, a: Account): Promise<PublicAccount> {
@@ -472,7 +484,9 @@ async function lastAdminOf(ctx: Ctx, req: Request, a: Account): Promise<string[]
   for (const t of await teamsOf(ctx, a.email)) {
     if (t.role !== 'admin') continue;
     const others = (await ctx.svc.members.list(t.repo)).filter((m) => m.email !== a.email);
-    if (others.length) out.push(t.repo);
+    // Local mode: another seeded admin keeps the team (api/_lib/local-admin.ts).
+    const admins = ctx.svc.localAdmins ? (await ctx.svc.localAdmins.adminsOf(t.repo)).filter((e) => e !== a.email) : [];
+    if (others.length && !admins.length) out.push(t.repo);
   }
   const bearer = /^Bearer\s+([A-Za-z0-9_.-]{20,255})$/i.exec(req.headers.get('authorization') ?? '')?.[1];
   if (!a.github || !bearer) return out;
@@ -509,6 +523,7 @@ async function onDelete(ctx: Ctx, req: Request, a: Account): Promise<Response> {
   for (const repo of repos) await svc.members.remove(repo, a.email);
   // Their pending join requests go too (api/entry).
   await removeAllRequests(svc.redis, a.email);
+  if (svc.localAdmins) await svc.localAdmins.removeEmail(a.email);
   const pointer = codeForKey(svc.secret, a.email);
   const live = await svc.redis.cmd('GET', pointer);
   const gh = a.github ? await svc.redis.cmd('GET', githubKey(a.github.id)) : null;

@@ -9,6 +9,7 @@
     "dev:full": "BRIDGE_LOCAL=1 astro dev",
     "dev:reset": "node dev/cli.mjs reset",
     "dev:seed": "node dev/cli.mjs seed",
+    "dev:scenario": "node dev/cli.mjs scenario",
     "build": "astro build",
     "preview": "astro preview",
     "typecheck": "tsc --noEmit -p ."
