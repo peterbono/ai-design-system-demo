@@ -166,6 +166,8 @@ export interface InviteStore {
   /** Deletes the invite and its token index. */
   remove(inv: StoredInvite): Promise<void>;
   byTokenHash(hash: string): Promise<StoredInvite | null>;
+  /** The live invites sent to this email, on every team (api/entry). */
+  byEmail(email: string): Promise<StoredInvite[]>;
   /** Adds `by` (negative gives back) to each counter, which expires after `ttlSeconds`; returns the new values. */
   bump(keys: string[], by: number, ttlSeconds: number): Promise<number[]>;
 }
@@ -263,11 +265,15 @@ export const githubApp = (appId: string, privateKey: string, f: FetchLike, now: 
 //   bridge:invite:<repo>:<id>        the invite (JSON), expires with the invite
 //   bridge:invite-token:<hash>       "<repo>|<id>", expires with the invite
 //   bridge:invites:<repo>            sorted set of invite ids by expiry (ids only), expires 7 days after the last put
+//   bridge:invites:email:<email>     set of "<repo>|<id>" sent to that email (api/entry), expires 7 days after the last put
 //   bridge:invites:count:<...>:<day> daily counters for the caps, expire after 2 days
 
 const inviteKey = (repo: string, id: string) => `bridge:invite:${repo.toLowerCase()}:${id}`;
 const repoKey = (repo: string) => `bridge:invites:${repo.toLowerCase()}`;
 const tokenKey = (hash: string) => `bridge:invite-token:${hash}`;
+const emailKey = (email: string) => `bridge:invites:email:${email.trim().toLowerCase()}`;
+const liveInvite = (inv: StoredInvite | null, email: string, now: number): inv is StoredInvite =>
+  Boolean(inv && inv.email.trim().toLowerCase() === email.trim().toLowerCase() && Date.parse(inv.expiresAt) > now);
 
 function parseStored(raw: unknown): StoredInvite | null {
   if (typeof raw !== 'string') return null;
@@ -317,6 +323,8 @@ export function inviteStoreOn(redis: Redis, now: () => number = Date.now): Invit
         ['SET', tokenKey(inv.tokenHash), `${inv.repo}|${inv.id}`, 'EX', ex],
         ['ZADD', repoKey(inv.repo), now() + ex * 1000, inv.id],
         ['EXPIRE', repoKey(inv.repo), Math.ceil(INVITE_TTL_MS / 1000)],
+        ['SADD', emailKey(inv.email), `${inv.repo.toLowerCase()}|${inv.id}`],
+        ['EXPIRE', emailKey(inv.email), Math.ceil(INVITE_TTL_MS / 1000)],
       ]);
     },
     async remove(inv) {
@@ -324,7 +332,19 @@ export function inviteStoreOn(redis: Redis, now: () => number = Date.now): Invit
         ['DEL', inviteKey(inv.repo, inv.id)],
         ['DEL', tokenKey(inv.tokenHash)],
         ['ZREM', repoKey(inv.repo), inv.id],
+        ...(typeof inv.email === 'string' ? [['SREM', emailKey(inv.email), `${inv.repo.toLowerCase()}|${inv.id}`]] : []),
       ]);
+    },
+    async byEmail(email) {
+      const refs = await cmd('SMEMBERS', emailKey(email));
+      const out: StoredInvite[] = [];
+      for (const ref of Array.isArray(refs) ? refs.filter((x): x is string => typeof x === 'string') : []) {
+        const [repo = '', id = ''] = ref.split('|');
+        const inv = await store.get(repo, id);
+        if (liveInvite(inv, email, now())) out.push(inv);
+        else await cmd('SREM', emailKey(email), ref);
+      }
+      return out.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     },
     async byTokenHash(hash) {
       const ref = await cmd('GET', tokenKey(hash));
@@ -382,6 +402,14 @@ export function memoryStore(now: () => number = Date.now): InviteStore & { keys(
       const [repo = '', id = ''] = ref.split('|');
       const inv = await store.get(repo, id);
       return inv && inv.tokenHash === hash ? inv : null;
+    },
+    async byEmail(email) {
+      const out: StoredInvite[] = [];
+      for (const k of [...items.keys()]) if (k.startsWith('bridge:invite:')) {
+        const inv = parseStored(live(k));
+        if (liveInvite(inv, email, now())) out.push(inv);
+      }
+      return out.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     },
     async bump(keys, by, ttl) {
       return keys.map((k) => {
@@ -1099,35 +1127,71 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
           login: me.login,
         });
       }
-      const { owner, repo, full } = parseRepo(inv.repo);
-      const appToken = await appFor(ctx, owner, repo);
-      const facts = await repoFacts(ctx.f, appToken, owner, repo, full);
-      const invitation = await grant(ctx, appToken, facts, me.login, inv.role);
-      let status: 'joined' | 'accept-on-github' = 'joined';
-      if (invitation !== null) {
-        // GitHub invited the account instead of adding it: accept for them with their own token when GitHub lets the
-        // app do it, else they accept on GitHub in one click.
-        const ok = invitation > 0 && (await gh(ctx.f, userToken, 'PATCH', `/user/repository_invitations/${invitation}`)).status === 204;
-        if (!ok) status = 'accept-on-github';
-      }
-      const o = await ownersFor(ctx, appToken, facts, me.login, addOnly(inv.role, inv.reviewAs));
-      // Single use: the link is spent once access is granted.
-      await ctx.svc.store.remove(inv);
-      // They now work with GitHub: an email membership of the same address would list them twice.
-      if (ctx.svc.members) await ctx.svc.members.remove(full, inv.email);
-      return json(200, {
-        status,
-        repo: `${owner}/${repo}`,
-        role: inv.role,
-        ...(inv.reviewAs ? { reviewAs: inv.reviewAs } : {}),
-        ...(status === 'accept-on-github' ? { acceptUrl: `https://github.com/${owner}/${repo}/invitations` } : {}),
-        ...o,
-      });
+      return json(200, await grantAccepted(ctx, inv, me.login, userToken));
     }
 
     default:
       return fail(400, 'bad_request', 'Unknown action.');
   }
+}
+
+/** What accepting an invite with GitHub answers. */
+export interface AcceptedInvite extends OwnersOutcome {
+  status: 'joined' | 'accept-on-github';
+  repo: string;
+  role: Role;
+  reviewAs?: ReviewAs;
+  acceptUrl?: string;
+}
+
+/**
+ * Gives the invited GitHub account its role, lists a reviewer, and spends the invite. The caller has already checked
+ * that `login` belongs to the invited person. `userToken` (theirs) accepts a GitHub repository invitation for them.
+ */
+async function grantAccepted(ctx: Ctx, inv: StoredInvite, login: string, userToken: string | null): Promise<AcceptedInvite> {
+  const { owner, repo, full } = parseRepo(inv.repo);
+  const appToken = await appFor(ctx, owner, repo);
+  const facts = await repoFacts(ctx.f, appToken, owner, repo, full);
+  const invitation = await grant(ctx, appToken, facts, login, inv.role);
+  let status: 'joined' | 'accept-on-github' = 'joined';
+  if (invitation !== null) {
+    // GitHub invited the account instead of adding it: accept for them with their own token when GitHub lets the
+    // app do it, else they accept on GitHub in one click.
+    const ok = invitation > 0 && userToken !== null && (await gh(ctx.f, userToken, 'PATCH', `/user/repository_invitations/${invitation}`)).status === 204;
+    if (!ok) status = 'accept-on-github';
+  }
+  const o = await ownersFor(ctx, appToken, facts, login, addOnly(inv.role, inv.reviewAs));
+  // Single use: the link is spent once access is granted.
+  await ctx.svc.store.remove(inv);
+  // They now work with GitHub: an email membership of the same address would list them twice.
+  if (ctx.svc.members) await ctx.svc.members.remove(full, inv.email);
+  return {
+    status,
+    repo: `${owner}/${repo}`,
+    role: inv.role,
+    ...(inv.reviewAs ? { reviewAs: inv.reviewAs } : {}),
+    ...(status === 'accept-on-github' ? { acceptUrl: `https://github.com/${owner}/${repo}/invitations` } : {}),
+    ...o,
+  };
+}
+
+/**
+ * Accepts a reviewer or admin invite for a Bridge account whose GitHub account is linked (api/entry). The account's
+ * email is the invited one and GitHub linking proved that GitHub account verified it. The login is read again from
+ * the GitHub id (a renamed login is never granted to whoever took the old name).
+ */
+export async function acceptInviteForGithub(
+  d: { f: FetchLike; now: () => number; random?: (n: number) => Uint8Array; app: AppTokens; store: InviteStore; members: MemberStore | null },
+  inv: StoredInvite,
+  githubId: number,
+  userToken: string | null,
+): Promise<AcceptedInvite> {
+  const ctx: Ctx = { f: d.f, now: d.now, random: d.random ?? ((n) => randomBytes(n)), svc: { store: d.store, email: null as unknown as EmailSender, app: d.app, members: d.members }, limits: { admin: 0, team: 0, site: 0 } };
+  const { owner, repo } = parseRepo(inv.repo);
+  const appToken = await appFor(ctx, owner, repo);
+  const u = await gh(ctx.f, appToken, 'GET', `/user/${githubId}`);
+  if (u.status !== 200 || u.data?.id !== githubId || typeof u.data?.login !== 'string') throw new HttpError(409, 'github', 'Bridge could not find your GitHub account. Continue with GitHub again.');
+  return grantAccepted(ctx, inv, u.data.login, userToken);
 }
 
 async function findInvite(ctx: Ctx, repo: string, id: unknown): Promise<StoredInvite> {
