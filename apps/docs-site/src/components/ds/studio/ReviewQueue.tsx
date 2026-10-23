@@ -87,7 +87,9 @@ export function QueueToasts({ onReady }: { onReady: (api: UseToastReturn) => voi
 
 function ToastBridge({ onReady }: { onReady: (api: UseToastReturn) => void }) {
   const api = useToast();
-  useEffect(() => onReady(api), [api, onReady]);
+  useEffect(() => {
+    onReady(api);
+  }, [api, onReady]);
   return null;
 }
 

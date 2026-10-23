@@ -155,7 +155,7 @@ function Waiting({ needs, now, lead }: { needs: NeedRow[]; now: number; lead?: P
   const demo = lead !== undefined ? demoWaiting(needs.filter((r) => r.waitsOnYou).length, s, lead?.name ?? null) : null;
   if (!s && !demo) return null;
   return (
-    <p className="t-body sh-waiting">
+    <div className="t-body sh-waiting">
       {people.length > 0 && (
         <AvatarGroup aria-label="Waiting on you" max={AVATARS_SHOWN} size="md" className="sh-stack">
           {people.map((p) => (
@@ -179,7 +179,7 @@ function Waiting({ needs, now, lead }: { needs: NeedRow[]; now: number; lead?: P
           {oldest}
         </Badge>
       )}
-    </p>
+    </div>
   );
 }
 
