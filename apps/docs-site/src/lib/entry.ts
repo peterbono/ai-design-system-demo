@@ -242,7 +242,7 @@ export const ENTRY_WORDS = {
   cancelRequest: 'Cancel the request',
   // E5
   pickTitle: 'Pick a team',
-  pickLead: (n: number) => `You are in ${n} teams. Switch any time from the top bar.`,
+  pickLead: (n: number) => `You are in ${n} teams. Switch any time from the team menu.`,
   lastOpened: 'Last opened',
   newLead: 'Starting something new?',
   createTeam: 'Create a team',
@@ -276,6 +276,9 @@ export const ENTRY_WORDS = {
   joined: (name: string) => `${firstName(name)} joined as Can edit.`,
   declined: (name: string) => `${firstName(name)} will not join. Bridge does not tell them why.`,
   githubToManage: 'Connect GitHub to manage requests',
+  undo: 'Undo',
+  /** After Undo: the request waits again (and an approved person left the team). */
+  undone: (name: string) => `${firstName(name)}'s request is back.`,
   requestKind: (n: number) => `${n} ${n === 1 ? 'join request' : 'join requests'}`,
 } as const;
 

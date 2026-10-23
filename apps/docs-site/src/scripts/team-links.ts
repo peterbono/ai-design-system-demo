@@ -5,6 +5,7 @@ import { isHosted, repoFromPath, STUDIO_ROOT, studioBase, studioHref } from '../
 import { libraryHref } from '../lib/library-shells';
 import { teamDisplayName } from '../lib/demo';
 import { siteConfig } from './repo-context';
+import { knownTeamName } from '../lib/recent-teams';
 
 /** The sign-in callback is one address for every team (lib/github-signin.ts CALLBACK_PATH). */
 const SHARED = `${STUDIO_ROOT}auth/`;
@@ -37,11 +38,15 @@ export function fillTeamShell(root: ParentNode = document) {
   if (!team) return;
   const name = `${team.owner}/${team.repo}`;
   const paintName = () => {
-    const shown = teamDisplayName(name, siteConfig());
+    // Before its settings are read, the name this browser already knows (server-kept or read before): no flip later.
+    const cfg = siteConfig();
+    const shown = teamDisplayName(name, Object.keys(cfg).length ? cfg : { name: knownTeamName(name) });
     for (const el of root.querySelectorAll<HTMLElement>('[data-team-display]')) el.textContent = shown;
   };
   paintName();
   document.addEventListener('bridge:team-model', paintName);
+  // A name this browser did not know yet (another browser, an older session): the account's answer brings it.
+  if (!knownTeamName(name)) void import('./account-session').then(({ getAccount }) => getAccount().then(paintName));
   for (const el of root.querySelectorAll<HTMLElement>('[data-team-name]')) el.textContent = name;
   for (const a of root.querySelectorAll<HTMLAnchorElement>('a[data-team-github]')) a.href = `https://github.com/${encodeURIComponent(team.owner)}/${encodeURIComponent(team.repo)}`;
 }

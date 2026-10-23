@@ -45,7 +45,7 @@ import { clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, readBody, 
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import { accountTeamsKey, memberStore, type MemberStore } from '../_lib/members.js';
 import { globEscape, redisRest, type Redis } from '../_lib/redis.js';
-import { removeAllRequests } from '../_lib/teams.js';
+import { getTeamNames, removeAllRequests } from '../_lib/teams.js';
 import { readCookie } from '../_lib/session.js';
 import { teamDisplayName } from '../../src/lib/demo.js';
 import { STUDIO_ROOT } from '../../src/lib/team-path.js';
@@ -268,6 +268,13 @@ async function teamsOf(ctx: Ctx, email: string): Promise<(PublicTeam & { at: str
     const t = out.find((x) => x.repo === repo);
     if (t) t.role = 'admin';
     else out.push({ repo, name: teamDisplayName(repo), role: 'admin', via: 'email', at: '' });
+  }
+  // Each team by the name its settings gave, as kept with the team (api/entry and the other functions keep it).
+  try {
+    const kept = await getTeamNames(ctx.svc.redis, out.map((t) => t.repo));
+    for (const t of out) t.name = teamDisplayName(t.repo, { name: kept.get(t.repo.toLowerCase())?.name });
+  } catch {
+    // The repository in words.
   }
   return out.sort((x, y) => x.repo.localeCompare(y.repo));
 }

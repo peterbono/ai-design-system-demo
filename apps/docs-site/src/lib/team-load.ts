@@ -2,6 +2,7 @@
 // Pure: scripts/team-data.ts loads, components/ds/studio/TeamState.tsx shows, team-load.test.ts covers the wording.
 
 import { teamDisplayName } from './demo';
+import { knownTeamName } from './recent-teams';
 /** Where the team's data came from (scripts/repo-context.ts TeamModelSource). */
 export type TeamDataSource = 'cache' | 'snapshot' | 'live';
 
@@ -31,7 +32,7 @@ const SIGNED_OUT_FAILURE = (repo: string): TeamFailure => ({ kind: 'signed-out',
 export function teamFailure(err: unknown, full: string): TeamFailure {
   const status = statusOf(err);
   // The team by its name, never owner/repo ("this repository" when the address names none).
-  const repo = full.includes('/') ? teamDisplayName(full) : full;
+  const repo = full.includes('/') ? teamDisplayName(full, { name: knownTeamName(full) }) : full;
   const message = err instanceof Error ? err.message : '';
   // A private Library this site serves (api/library-access): its own sentence, never "GitHub answered".
   if ((err as { source?: unknown } | null)?.source === 'bridge') {

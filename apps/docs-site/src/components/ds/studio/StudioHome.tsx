@@ -13,7 +13,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { useState, type MouseEvent, type ReactNode } from 'react';
 import { Check, CircleAlert, CircleCheck, TriangleAlert } from 'lucide-react';
 import { Who } from './faces';
-import { AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, SegmentedControl, Skeleton } from '@bridge-ds/react';
+import { AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, SegmentedControl, Skeleton, ToastProvider, useToast } from '@bridge-ds/react';
 import { BranchThumb } from './BranchThumb';
 import { BranchRow } from './BranchRow';
 import { Drawing } from './Drawing';
@@ -47,30 +47,50 @@ import { demoWaiting, type TourAt } from '../../../lib/demo';
 import { ENTRY_WORDS } from '../../../lib/entry';
 import { useTour } from './HomeTour';
 
-/** What deciding on a join request gave: the line that replaces the buttons, or why it did not happen. */
-export type JoinOutcome = { ok: true; text: string } | { ok: false; github: boolean; text: string };
+/** What deciding on a join request gave: the line for the toast (`undo`: it can be taken back), or why it did not happen. */
+export type JoinOutcome = { ok: true; text: string; undo?: boolean } | { ok: false; github: boolean; text: string };
 
 export interface JoinHandlers {
+  /** Approve or decline; on success the row leaves the list at once and the home recounts. */
   decide: (row: NeedRow, approve: boolean) => Promise<JoinOutcome>;
+  /** Takes the decision back for a short while: the request waits again. */
+  undo?: (row: NeedRow) => Promise<JoinOutcome>;
   /** No GitHub admin account linked: "Connect GitHub to manage requests". */
   connectGitHub: () => void;
 }
 
-/** Decline and Approve on a join request; after a decision, one calm line in their place. */
+/** How long the toast offers Undo (the server keeps the decision undoable for 30 seconds). */
+const UNDO_MS = 8000;
+
+/** Decline and Approve on a join request. After a decision the row goes and a short toast says what happened, with Undo. */
 function JoinActions({ row, join }: { row: NeedRow; join: JoinHandlers }) {
   const [busy, setBusy] = useState<'approve' | 'decline' | null>(null);
   const [out, setOut] = useState<JoinOutcome | null>(null);
+  const toast = useToast();
   const decide = async (approve: boolean) => {
     setBusy(approve ? 'approve' : 'decline');
-    setOut(await join.decide(row, approve));
+    const o = await join.decide(row, approve);
+    if (o.ok) {
+      const undo = join.undo;
+      toast.add({
+        title: o.text,
+        tone: o.undo ? 'success' : 'neutral',
+        timeout: o.undo && undo ? UNDO_MS : undefined,
+        action:
+          o.undo && undo
+            ? {
+                label: ENTRY_WORDS.undo,
+                onClick: () => {
+                  void undo(row).then((u) => (u.ok ? toast.add({ title: u.text, tone: 'neutral' }) : toast.add({ title: u.text || ENTRY_WORDS.githubToManage, tone: 'danger' })));
+                },
+              }
+            : undefined,
+      });
+      return;
+    }
+    setOut(o);
     setBusy(null);
   };
-  if (out?.ok)
-    return (
-      <span className="sh-join t-ui" role="status">
-        {out.text}
-      </span>
-    );
   if (out && !out.ok && out.github)
     return (
       <span className="sh-join">
@@ -416,6 +436,15 @@ const CONTRIBUTOR_TOUR_KEY = 'bridge.home.contributor-tour';
 const REVIEW_CROP = '0 98 232 86';
 
 export function StudioHome(p: StudioHomeProps) {
+  // The toasts of the home: a join request approved or declined, with Undo.
+  return (
+    <ToastProvider limit={2}>
+      <HomeBody {...p} />
+    </ToastProvider>
+  );
+}
+
+function HomeBody(p: StudioHomeProps) {
   const snoozed = hintSnoozed(readSnooze(), p.now);
   const own = useTour<ContributorTourAt>(CONTRIBUTOR_TOUR_KEY, [...CONTRIBUTOR_TOUR_STEPS], contributorTour, Boolean(p.contributor) && !p.demo && (p.state === 'busy' || p.state === 'empty'));
   const tour: StudioHomeProps['tour'] = p.tour ?? (p.contributor ? (at) => (at === 'branches' || at === 'start' ? own(at) : null) : undefined);

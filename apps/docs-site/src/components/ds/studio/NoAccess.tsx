@@ -25,6 +25,7 @@ import { studioBase } from '../../../lib/team-path';
 import { isDemoRepo } from '../../../lib/demo';
 import { updatedLine } from '../../../lib/activity-view';
 import { CONTRIBUTE_WORDS, contributeEligible } from '../../../lib/contribute';
+import { knownTeamName } from '../../../lib/recent-teams';
 
 /** The sign-in screen, back to this page afterwards. */
 const signInHere = () => signInHref(typeof location === 'undefined' ? null : location.pathname + location.search + location.hash);
@@ -266,7 +267,7 @@ export function TeamAccessGate() {
 
   // The demo greets a guest itself (its demo banner, lib/demo.ts): no guest banner over it.
   const guestOnDemo = g?.access === 'anonymous-public' && isDemoRepo(`${g.owner}/${g.repo}`);
-  const stateScreen = g?.access && !guestOnDemo ? accessScreen(g.access, { owner: g.owner, repo: g.repo, login: g.login, link, admin: g.repoAdmin, email: Boolean(g.email) }) : null;
+  const stateScreen = g?.access && !guestOnDemo ? accessScreen(g.access, { owner: g.owner, repo: g.repo, login: g.login, link, admin: g.repoAdmin, email: Boolean(g.email), name: knownTeamName(`${g.owner}/${g.repo}`) }) : null;
   const screen = signedOutElsewhere && g && !g.login ? signedOutScreen(g.owner, g.repo) : stateScreen;
   const block = screen?.layout === 'block';
   const setup = Boolean(g?.login && setupAt && !block);
