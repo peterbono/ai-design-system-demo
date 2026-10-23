@@ -1,8 +1,8 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-23T23:08:51.378Z",
-  "sha": "e6e8ab6cad935fe985d2ab07422592358c432a38",
+  "createdAt": "2026-10-23T23:27:09.930Z",
+  "sha": "11b5da6aa88382df9607e9091dd91770ccc93c15",
   "scale": 2,
   "mode": {
     "brand": "bridge",
@@ -188,11 +188,11 @@
       }
     },
     "Badge": {
-      "specHash": "ba2734bf",
+      "specHash": "c21d8067",
       "variants": {
         "Appearance=subtle, Size=sm, Tone=neutral": {
           "file": "badge/appearance-subtle__size-sm__tone-neutral.png",
-          "width": 50,
+          "width": 54,
           "height": 20
         },
         "Appearance=subtle, Size=md, Tone=neutral": {
@@ -202,7 +202,7 @@
         },
         "Appearance=solid, Size=sm, Tone=neutral": {
           "file": "badge/appearance-solid__size-sm__tone-neutral.png",
-          "width": 50,
+          "width": 54,
           "height": 20
         },
         "Appearance=solid, Size=md, Tone=neutral": {
@@ -212,7 +212,7 @@
         },
         "Appearance=subtle, Size=sm, Tone=success": {
           "file": "badge/appearance-subtle__size-sm__tone-success.png",
-          "width": 50,
+          "width": 54,
           "height": 20
         },
         "Appearance=subtle, Size=md, Tone=success": {
@@ -222,7 +222,7 @@
         },
         "Appearance=solid, Size=sm, Tone=success": {
           "file": "badge/appearance-solid__size-sm__tone-success.png",
-          "width": 50,
+          "width": 54,
           "height": 20
         },
         "Appearance=solid, Size=md, Tone=success": {
@@ -232,7 +232,7 @@
         },
         "Appearance=subtle, Size=sm, Tone=warning": {
           "file": "badge/appearance-subtle__size-sm__tone-warning.png",
-          "width": 50,
+          "width": 54,
           "height": 20
         },
         "Appearance=subtle, Size=md, Tone=warning": {
@@ -242,7 +242,7 @@
         },
         "Appearance=solid, Size=sm, Tone=warning": {
           "file": "badge/appearance-solid__size-sm__tone-warning.png",
-          "width": 50,
+          "width": 54,
           "height": 20
         },
         "Appearance=solid, Size=md, Tone=warning": {
@@ -252,7 +252,7 @@
         },
         "Appearance=subtle, Size=sm, Tone=danger": {
           "file": "badge/appearance-subtle__size-sm__tone-danger.png",
-          "width": 50,
+          "width": 54,
           "height": 20
         },
         "Appearance=subtle, Size=md, Tone=danger": {
@@ -262,7 +262,7 @@
         },
         "Appearance=solid, Size=sm, Tone=danger": {
           "file": "badge/appearance-solid__size-sm__tone-danger.png",
-          "width": 50,
+          "width": 54,
           "height": 20
         },
         "Appearance=solid, Size=md, Tone=danger": {
@@ -272,7 +272,7 @@
         },
         "Appearance=subtle, Size=sm, Tone=info": {
           "file": "badge/appearance-subtle__size-sm__tone-info.png",
-          "width": 50,
+          "width": 54,
           "height": 20
         },
         "Appearance=subtle, Size=md, Tone=info": {
@@ -282,7 +282,7 @@
         },
         "Appearance=solid, Size=sm, Tone=info": {
           "file": "badge/appearance-solid__size-sm__tone-info.png",
-          "width": 50,
+          "width": 54,
           "height": 20
         },
         "Appearance=solid, Size=md, Tone=info": {
