@@ -187,10 +187,11 @@ export function createServer(ctx: BridgeContext): McpServer {
       inputSchema: {
         name: z.string().describe('Component name, e.g. Icon.'),
         branch: z.string().optional().describe('Exploration branch (explore/<slug>): read the component there (GitHub) and save the draft on that branch, not in a pull request to main.'),
+        page: z.number().int().min(1).optional().describe('Page of the prompt (default 1). A long prompt comes in pages; promptPage.next says when there is more.'),
       },
       annotations: RO,
     },
-    run((a) => ops.draftDocsOp(ctx, a)),
+    run(async ({ page, ...a }) => ops.pagedDraftDocs(await ops.draftDocsOp(ctx, a), page)),
   );
 
   server.registerTool(
@@ -375,6 +376,8 @@ export function createServer(ctx: BridgeContext): McpServer {
         resolutions: ResolutionsArg.optional(),
         restoreConflicts: z.boolean().optional().describe('Every conflict uses the value from before the change. Only when the user asked.'),
         includeBody: z.boolean().optional().describe('Include the PR body (default true).'),
+        limit: z.number().int().min(1).max(500).optional().describe('Edits, conflicts, skipped and changes listed per call (default 50). counts gives the totals.'),
+        offset: z.number().int().min(0).optional().describe('Skip that many of each list, to read the next page.'),
       },
       annotations: RO,
     },
