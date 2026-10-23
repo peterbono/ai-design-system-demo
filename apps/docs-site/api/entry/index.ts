@@ -36,10 +36,11 @@
 // token on every call (the GitHub id must match, so a renamed login never passes for another). Nothing the browser
 // says about its role is trusted.
 //
-// Privacy: other members' emails never leave here. A domain team or an invite shows the admin by name (their Bridge
-// account name, else their GitHub login), the team's size and the names of its first few people. Admins see a requester's name and email, like an invite. A team that did
-// not open itself to a domain is never listed, and asking to join it answers the same 404 as a team that does not
-// exist. Requests expire after 14 days; deleting the account deletes them.
+// Privacy: other members' emails never leave here. A domain team or an invite shows the admin or inviter by their
+// display name (GitHub profile name, else Bridge account name, else GitHub login: displayName in api/_lib/account.ts),
+// the team's size and the names of its first few people. Admins see a requester's name and email, like an invite. A
+// team that did not open itself to a domain is never listed, and asking to join it answers the same 404 as a team that
+// does not exist. Requests expire after 14 days; deleting the account deletes them.
 //
 // Storage: api/_lib/teams.ts (discovery, requests), api/_lib/members.ts (memberships), api/invites (invites by email).
 // Env (server only): KV_REST_API_URL + KV_REST_API_TOKEN (or the UPSTASH_ pair), LIBRARY_SESSION_SECRET,
@@ -47,7 +48,7 @@
 // INVITE_EMAIL_FROM (request emails), PUBLIC_SITE_URL (optional).
 
 import { createHmac, randomBytes } from 'node:crypto';
-import { type Account, sessionAccount } from '../_lib/account.js';
+import { type Account, accountNameByGithub, displayName, sessionAccount } from '../_lib/account.js';
 import { workDomain } from '../_lib/domains.js';
 import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
@@ -273,21 +274,33 @@ async function githubTeams(ctx: Ctx, req: Request, a: Account): Promise<{ repo: 
 
 /** A GitHub person's name: the name of the Bridge account linked to that GitHub id, else the login. Never an email. */
 async function githubNameOf(ctx: Ctx, githubId: number, login: string): Promise<string> {
-  const email = await ctx.svc.redis.cmd('GET', `bridge:account:gh:${githubId}`);
-  if (typeof email === 'string') {
-    const raw = await ctx.svc.redis.cmd('GET', `bridge:account:${email}`);
-    try {
-      const a = typeof raw === 'string' ? (JSON.parse(raw) as Account) : null;
-      if (a?.github?.id === githubId && typeof a.name === 'string' && a.name) return a.name;
-    } catch {
-      /* the login below */
-    }
+  let account: string | null = null;
+  try {
+    account = await accountNameByGithub(ctx.svc.redis, githubId);
+  } catch {
+    account = null;
   }
-  return login;
+  return displayName(account, login);
 }
 
-/** The admin's name for a domain team card. */
-const adminNameOf = (ctx: Ctx, d: Discovery): Promise<string> => githubNameOf(ctx, d.byGithubId, d.byLogin);
+/** The admin's name for a domain team card: the display name kept when they opened the team, else read now. */
+const adminNameOf = async (ctx: Ctx, d: Discovery): Promise<string> => (d.byName ? displayName(d.byName, d.byLogin) : githubNameOf(ctx, d.byGithubId, d.byLogin));
+
+/**
+ * A GitHub admin's display name, the one invites keep: GitHub profile name (read with the app's token), else their
+ * Bridge account name, else the login.
+ */
+async function adminDisplayName(ctx: Ctx, token: string, a: Account): Promise<string> {
+  const gh1 = a.github!;
+  let profile: string | null = null;
+  try {
+    const r = await gh(ctx.f, token, `/user/${gh1.id}`);
+    profile = r.status === 200 && r.data?.id === gh1.id && typeof r.data?.name === 'string' ? r.data.name : null;
+  } catch {
+    profile = null;
+  }
+  return displayName(profile, a.name, gh1.login);
+}
 
 /** GitHub collaborators of a team, through the app; null when the app cannot read it. */
 async function collaboratorsOf(ctx: Ctx, repo: string): Promise<any[] | null> {
@@ -304,7 +317,7 @@ async function collaboratorsOf(ctx: Ctx, repo: string): Promise<any[] | null> {
  * the names of the first PEOPLE_SHOWN (GitHub admins first, then the other collaborators, then email members). Only
  * names: an email never leaves here, a member without a name is counted but not named.
  */
-async function teamPeople(ctx: Ctx, repo: string): Promise<{ memberCount: number; people: string[] }> {
+async function teamPeople(ctx: Ctx, repo: string): Promise<{ memberCount: number; people: string[]; nameOfLogin: (login: string) => Promise<string> }> {
   const emails = await ctx.svc.members.list(repo);
   let collaborators: any[] = [];
   try {
@@ -325,7 +338,12 @@ async function teamPeople(ctx: Ctx, repo: string): Promise<{ memberCount: number
     const name = typeof m.name === 'string' ? m.name.trim() : '';
     if (name && !name.includes('@')) people.push(name);
   }
-  return { memberCount: emails.length + collaborators.length, people };
+  // An inviter of an older invite, kept by login only: their display name when they are a collaborator (no extra call).
+  const nameOfLogin = async (login: string) => {
+    const c = github.find((x) => String(x.login).toLowerCase() === login.toLowerCase());
+    return c ? githubNameOf(ctx, c.id, c.login) : login;
+  };
+  return { memberCount: emails.length + collaborators.length, people, nameOfLogin };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -343,7 +361,9 @@ export async function entryFor(ctx: Ctx, req: Request, a: Account): Promise<Entr
   if (invites.length) {
     const out: Extract<Entry, { kind: 'invites' }>['invites'] = [];
     for (const inv of invites) {
-      out.push({ id: inv.id, team: teamDisplayName(inv.repo), repo: inv.repo, role: inv.role, invitedBy: inv.invitedBy, invitedAt: inv.createdAt, ...(await teamPeople(ctx, inv.repo)) });
+      const { memberCount, people, nameOfLogin } = await teamPeople(ctx, inv.repo);
+      const invitedBy = inv.invitedByName ? displayName(inv.invitedByName, inv.invitedBy) : await nameOfLogin(inv.invitedBy);
+      out.push({ id: inv.id, team: teamDisplayName(inv.repo), repo: inv.repo, role: inv.role, invitedBy, invitedAt: inv.createdAt, memberCount, people });
     }
     return { kind: 'invites', invites: out };
   }
@@ -373,7 +393,7 @@ export async function entryFor(ctx: Ctx, req: Request, a: Account): Promise<Entr
 // Admins
 
 /** The account's linked GitHub account is an admin of the repository (read by the app, matched by GitHub id). */
-async function requireAdmin(ctx: Ctx, a: Account, repoArg: unknown): Promise<{ owner: string; repo: string; full: string; login: string }> {
+async function requireAdmin(ctx: Ctx, a: Account, repoArg: unknown): Promise<{ owner: string; repo: string; full: string; login: string; token: string }> {
   const { owner, repo, full } = parseRepo(repoArg);
   if (!a.github) throw new HttpError(403, 'forbidden', ADMIN_ONLY);
   if (!ctx.svc.app) throw new HttpError(503, 'not_configured', APP_MISSING);
@@ -381,7 +401,7 @@ async function requireAdmin(ctx: Ctx, a: Account, repoArg: unknown): Promise<{ o
   if (!token) throw new HttpError(403, 'forbidden', ADMIN_ONLY);
   const r = await gh(ctx.f, token, `/repos/${owner}/${repo}/collaborators/${encodeURIComponent(a.github.login)}/permission`);
   if (r.status !== 200 || r.data?.permission !== 'admin' || r.data?.user?.id !== a.github.id) throw new HttpError(403, 'forbidden', ADMIN_ONLY);
-  return { owner, repo, full, login: a.github.login };
+  return { owner, repo, full, login: a.github.login, token };
 }
 
 /** The emails of the team's admins that have a Bridge account (GitHub admins matched by id to linked accounts). */
@@ -539,7 +559,7 @@ async function onApprove(ctx: Ctx, req: Request, a: Account, body: Record<string
   if (ctx.svc.email && !prev) {
     const link = `${siteOrigin(req, ctx.env.PUBLIC_SITE_URL)}${STUDIO_ROOT}${encodeURIComponent(admin.owner)}/${encodeURIComponent(admin.repo)}/`;
     try {
-      await ctx.svc.email.send(approvedEmail({ to: r.email, admin: a.name, team: teamDisplayName(admin.full), link }));
+      await ctx.svc.email.send(approvedEmail({ to: r.email, admin: await adminDisplayName(ctx, admin.token, a), team: teamDisplayName(admin.full), link }));
     } catch {
       // They are on the team; Bridge shows it at their next sign-in.
     }
@@ -559,7 +579,7 @@ async function onDiscovery(ctx: Ctx, a: Account, body: Record<string, unknown>):
   const admin = await requireAdmin(ctx, a, body.repo);
   const domain = workDomain(a.email);
   const prev = await getDiscovery(ctx.svc.redis, admin.full);
-  const by = { byGithubId: a.github!.id, byLogin: a.github!.login, at: new Date(ctx.now()).toISOString() };
+  const by = { byGithubId: a.github!.id, byLogin: a.github!.login, byName: await adminDisplayName(ctx, admin.token, a), at: new Date(ctx.now()).toISOString() };
   if (body.enabled) {
     if (!domain) return fail(409, 'public-domain', PUBLIC_DOMAIN);
     await putDiscovery(ctx.svc.redis, admin.full, { domain, enabled: true, ...by });

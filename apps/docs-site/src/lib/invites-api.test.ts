@@ -732,7 +732,30 @@ describe('what is kept, and for how long', () => {
     const { deps, store } = setup();
     await invite(deps, ['sofia@acme.design']);
     const [inv] = await store.list(REPO);
-    expect(Object.keys(inv!).sort()).toEqual(['createdAt', 'email', 'expiresAt', 'id', 'invitedBy', 'repo', 'role', 'sentAt', 'tokenHash']);
+    expect(Object.keys(inv!).sort()).toEqual(['createdAt', 'email', 'expiresAt', 'id', 'invitedBy', 'invitedByName', 'repo', 'role', 'sentAt', 'tokenHash']);
+  });
+
+  it("keeps the inviter's display name: GitHub profile name, else Bridge account name, else the login", async () => {
+    const { deps, store } = setup();
+    await invite(deps, ['sofia@acme.design']);
+    expect((await store.list(REPO))[0]).toMatchObject({ invitedBy: 'dana', invitedByName: 'Dana' });
+
+    // No GitHub profile name: the Bridge account linked to that GitHub id.
+    const a = setup({ users: { ghu_kim01: { login: 'kim', id: 44 } } as never });
+    const asked: number[] = [];
+    a.deps.accountName = async (id) => (asked.push(id), id === 44 ? 'Kim Park' : null);
+    await invite(a.deps, ['sofia@acme.design'], {}, 'ghu_kim01');
+    expect((await a.store.list(REPO))[0]).toMatchObject({ invitedBy: 'kim', invitedByName: 'Kim Park' });
+    expect(asked).toEqual([44]);
+    expect(a.sent[0]!.text).toContain('Kim Park');
+
+    // Neither: the login. A storage hiccup on the account name never blocks the invite.
+    const b = setup({ users: { ghu_kim01: { login: 'kim', id: 44 } } as never });
+    b.deps.accountName = async () => {
+      throw new Error('down');
+    };
+    await invite(b.deps, ['sofia@acme.design'], {}, 'ghu_kim01');
+    expect((await b.store.list(REPO))[0]).toMatchObject({ invitedBy: 'kim', invitedByName: 'kim' });
   });
 
   it('deletes the record and its link on accept', async () => {

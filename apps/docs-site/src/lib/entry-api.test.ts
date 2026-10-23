@@ -29,6 +29,8 @@ interface World {
   userRepos: { full_name: string; permissions: { admin: boolean; push: boolean; pull: boolean } }[];
   userId: number;
   installed: Set<string>;
+  /** GitHub profile names by id (GET /user/:id). */
+  names: Record<number, string>;
 }
 
 function setup() {
@@ -38,6 +40,7 @@ function setup() {
     userRepos: [],
     userId: 1,
     installed: new Set([REPO, 'acme/other']),
+    names: {},
   };
   const calls: string[] = [];
   const redis = memoryRedis(() => now);
@@ -65,7 +68,7 @@ function setup() {
       m = /^\/repos\/([^/]+\/[^/]+)\/collaborators$/.exec(u.pathname);
       if (m) return res(200, w.collaborators[m[1]!] ?? []);
       m = /^\/user\/(\d+)$/.exec(u.pathname);
-      if (m) return res(200, { id: Number(m[1]), login: Number(m[1]) === 9 ? 'cara-now' : 'someone' });
+      if (m) return res(200, { id: Number(m[1]), login: Number(m[1]) === 9 ? 'cara-now' : 'someone', ...(w.names[Number(m[1])] ? { name: w.names[Number(m[1])] } : {}) });
       m = /^\/repos\/([^/]+)\/([^/]+)$/.exec(u.pathname);
       if (m && init.method === 'GET') return res(200, { owner: { login: m[1], type: 'Organization' }, default_branch: 'main' });
       m = /^\/repos\/([^/]+\/[^/]+)\/collaborators\/([^/]+)$/.exec(u.pathname);
@@ -263,6 +266,49 @@ describe('team cards: size and people, names only', () => {
     s.w.installed.delete(REPO);
     const c = await account(s, 'mia@acme.design', 'Mia');
     expect((await (await get(s, c)).json()).teams[0]).toMatchObject({ memberCount: 1, people: ['Zed'] });
+  });
+});
+
+describe('display names of inviters and admins', () => {
+  it('shows the name kept on the invite, else resolves an older one from the team, else the login', async () => {
+    const s = setup();
+    const c = await account(s, 'mia@acme.design', 'Mia');
+    await account(s, 'ada@acme.design', 'Ada Admin', { login: 'ada', id: 1 });
+    const first = async () => (await (await get(s, c)).json()).invites[0].invitedBy;
+    await invite(s, { email: 'mia@acme.design', invitedBy: 'ada', invitedByName: 'Sam Rivera' });
+    expect(await first()).toBe('Sam Rivera');
+    // Older invite, the inviter a collaborator with a Bridge account: that name, no extra GitHub call.
+    await invite(s, { email: 'mia@acme.design', invitedBy: 'ADA', invitedByName: undefined as never });
+    const before = s.calls.length;
+    expect(await first()).toBe('Ada Admin');
+    expect(s.calls.slice(before).filter((x) => x.includes('/users/') || /\/user\/\d/.test(x))).toEqual([]);
+    // Not on the team any more (or GitHub unreadable): the login.
+    await invite(s, { email: 'mia@acme.design', invitedBy: 'gone' });
+    expect(await first()).toBe('gone');
+  });
+
+  it("keeps the admin's GitHub profile name when they open the team, for E4 and the approval email", async () => {
+    const s = setup();
+    s.w.names[1] = 'Ada Lovelace';
+    const admin = await adminOpens(s);
+    const mia = await account(s, 'mia@acme.design', 'Mia');
+    expect((await (await get(s, mia)).json()).teams[0].adminName).toBe('Ada Lovelace');
+    await post(s, mia, { action: 'request', repo: REPO });
+    const [req] = (await (await get(s, admin, `?requests=${REPO}`)).json()).requests;
+    await post(s, admin, { action: 'approve', repo: REPO, id: req.id });
+    expect(s.sent.at(-1)!.text).toContain('Ada Lovelace approved your request');
+  });
+
+  it('falls back to the Bridge account name without a GitHub profile name, and reads older records live', async () => {
+    const s = setup();
+    await adminOpens(s);
+    const mia = await account(s, 'mia@acme.design', 'Mia');
+    expect((await (await get(s, mia)).json()).teams[0].adminName).toBe('Ada Admin');
+    // A record saved before display names: the account name, read live.
+    const raw = JSON.parse(String(await s.redis.cmd('GET', 'bridge:team:discovery:acme/ds')));
+    delete raw.byName;
+    await s.redis.cmd('SET', 'bridge:team:discovery:acme/ds', JSON.stringify(raw));
+    expect((await (await get(s, mia)).json()).teams[0].adminName).toBe('Ada Admin');
   });
 });
 

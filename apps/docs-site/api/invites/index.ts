@@ -63,6 +63,7 @@
 // Missing any of the first three groups: every action answers 503 "Invites are not available yet on this site."
 
 import { randomBytes } from 'node:crypto';
+import { accountNameByGithub, displayName } from '../_lib/account.js';
 import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { githubApp as sharedGithubApp, type AppTokens } from '../_lib/github-app.js';
 import { b64url, clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody as readJsonBody, sameOrigin, secondsToTomorrow, sha256, siteOrigin as originOf, type FetchLike } from '../_lib/http.js';
@@ -132,7 +133,11 @@ export interface StoredInvite {
   email: string;
   role: Role;
   reviewAs?: ReviewAs;
+  /** The inviter's GitHub login. */
   invitedBy: string;
+  /** The inviter's display name when the invite was made (GitHub profile name, else Bridge account name, else the
+   *  login). Older invites have none. */
+  invitedByName?: string;
   createdAt: string;
   expiresAt: string;
   sentAt: string;
@@ -182,6 +187,8 @@ export interface InvitesDeps {
   app?: AppTokens;
   /** Email contributors (api/contribute); built from the same Redis as the invites otherwise. */
   members?: MemberStore;
+  /** Bridge account names by GitHub id (the inviter's name); read from the same Redis otherwise. */
+  accountName?: (githubId: number) => Promise<string | null>;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -611,6 +618,7 @@ interface Services {
   app: AppTokens;
   /** Email contributors; null only when a test injects an invite store without one. */
   members: MemberStore | null;
+  accountName: ((githubId: number) => Promise<string | null>) | null;
 }
 
 /** The services from the env (and injected ones), or null when any of storage, email or the app is missing. */
@@ -627,7 +635,8 @@ export function services(env: InvitesEnv, deps: InvitesDeps): Services | null {
   const appId = env.GITHUB_APP_ID?.trim();
   const pem = env.GITHUB_APP_PRIVATE_KEY?.trim();
   const app = deps.app ?? (appId && pem ? githubApp(appId, pem, deps.fetch, now) : null);
-  return store && email && app ? { store, email, app, members } : null;
+  const accountName = deps.accountName ?? (redis ? (id: number) => accountNameByGithub(redis, id) : null);
+  return store && email && app ? { store, email, app, members, accountName } : null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -750,11 +759,24 @@ function bearer(req: Request): string {
 }
 
 /** Who is calling, from their own GitHub token. */
-async function caller(f: FetchLike, token: string): Promise<{ login: string; name: string }> {
+async function caller(f: FetchLike, token: string): Promise<{ login: string; name: string; id: number | null; profileName: string | null }> {
   const r = await gh(f, token, 'GET', '/user');
   if (r.status === 401 || r.status === 403) throw new HttpError(401, 'signin', 'Your GitHub sign-in expired. Sign in again.');
   if (r.status !== 200 || typeof r.data?.login !== 'string') throw new HttpError(502, 'unreachable', GITHUB_DOWN);
-  return { login: r.data.login, name: typeof r.data.name === 'string' && r.data.name.trim() ? r.data.name.trim() : r.data.login };
+  const profileName = typeof r.data.name === 'string' && r.data.name.trim() ? r.data.name.trim() : null;
+  return { login: r.data.login, name: displayName(profileName, r.data.login), id: Number.isSafeInteger(r.data.id) ? r.data.id : null, profileName };
+}
+
+/** The inviter's display name: GitHub profile name, else their Bridge account name (linked by GitHub id), else login. */
+async function inviterName(ctx: Ctx, me: { login: string; id: number | null; profileName: string | null }): Promise<string> {
+  if (me.profileName) return displayName(me.profileName, me.login);
+  let account: string | null = null;
+  try {
+    account = me.id !== null && ctx.svc.accountName ? await ctx.svc.accountName(me.id) : null;
+  } catch {
+    account = null;
+  }
+  return displayName(account, me.login);
 }
 
 /** The caller's permission on the repository, read by the app ("admin", "write", "read", "none"). */
@@ -829,7 +851,8 @@ async function appFor(ctx: Ctx, owner: string, repo: string): Promise<string> {
 async function authorize(ctx: Ctx, req: Request, repoArg: unknown, need: 'admin' | 'push') {
   const userToken = bearer(req);
   const { owner, repo, full } = parseRepo(repoArg);
-  const me = await caller(ctx.f, userToken);
+  const who = await caller(ctx.f, userToken);
+  const me = { ...who, name: await inviterName(ctx, who) };
   const appToken = await appFor(ctx, owner, repo);
   const perm = await permissionOf(ctx.f, appToken, owner, repo, me.login);
   const ok = need === 'admin' ? perm === 'admin' : perm === 'admin' || perm === 'write';
@@ -985,7 +1008,7 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
             const id = Buffer.from(ctx.random(8)).toString('hex');
             const inv = await storeAndSend(
               ctx,
-              { id, repo: facts.full, email, role, ...(reviewAs ? { reviewAs } : {}), invitedBy: me.login, createdAt: new Date(ctx.now()).toISOString() },
+              { id, repo: facts.full, email, role, ...(reviewAs ? { reviewAs } : {}), invitedBy: me.login, invitedByName: me.name, createdAt: new Date(ctx.now()).toISOString() },
               origin,
               me.name,
             );
@@ -1024,7 +1047,7 @@ async function onPost(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise
       // The old link stops working: its token index goes with the old record.
       await ctx.svc.store.remove(inv);
       try {
-        const next = await storeAndSend(ctx, { id: inv.id, repo: inv.repo, email: inv.email, role: inv.role, ...(inv.reviewAs ? { reviewAs: inv.reviewAs } : {}), invitedBy: inv.invitedBy, createdAt: inv.createdAt }, siteOrigin(req, env), me.name);
+        const next = await storeAndSend(ctx, { id: inv.id, repo: inv.repo, email: inv.email, role: inv.role, ...(inv.reviewAs ? { reviewAs: inv.reviewAs } : {}), invitedBy: inv.invitedBy, ...(inv.invitedByName ? { invitedByName: inv.invitedByName } : inv.invitedBy === me.login ? { invitedByName: me.name } : {}), createdAt: inv.createdAt }, siteOrigin(req, env), me.name);
         return json(200, { invite: publicInvite(next) });
       } catch (e) {
         // No email went out: the invite stays as it was, its first link still valid, and nothing is counted.
@@ -1186,7 +1209,7 @@ export async function acceptInviteForGithub(
   githubId: number,
   userToken: string | null,
 ): Promise<AcceptedInvite> {
-  const ctx: Ctx = { f: d.f, now: d.now, random: d.random ?? ((n) => randomBytes(n)), svc: { store: d.store, email: null as unknown as EmailSender, app: d.app, members: d.members }, limits: { admin: 0, team: 0, site: 0 } };
+  const ctx: Ctx = { f: d.f, now: d.now, random: d.random ?? ((n) => randomBytes(n)), svc: { store: d.store, email: null as unknown as EmailSender, app: d.app, members: d.members, accountName: null }, limits: { admin: 0, team: 0, site: 0 } };
   const { owner, repo } = parseRepo(inv.repo);
   const appToken = await appFor(ctx, owner, repo);
   const u = await gh(ctx.f, appToken, 'GET', `/user/${githubId}`);
