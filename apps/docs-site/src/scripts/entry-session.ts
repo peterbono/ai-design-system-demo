@@ -5,7 +5,7 @@
 // teams GitHub gives the person and accept reviewer or admin invites; the server never keeps it.
 import { CONTRIBUTE_HEADER } from '../lib/contribute';
 import { noteAccountTeamNames } from '../lib/recent-teams';
-import { ENTRY_API, parseDiscovery, parseEntry, parseRequests, type Discovery, type Entry, type EntryRole, type JoinRequest } from '../lib/entry';
+import { ENTRY_API, parseDiscovery, parseEntry, parseInviteLink, parseRequests, type Discovery, type Entry, type EntryRole, type InviteLink, type JoinRequest } from '../lib/entry';
 
 /** The server refused or failed: its sentence, its code ("github-required", "forbidden", "expired"), the status. */
 export class EntryError extends Error {
@@ -70,6 +70,13 @@ export async function getEntry(): Promise<Entry> {
   // The teams by the names the server keeps: the team page names its team from its first paint, no flip.
   if (e.kind === 'teams') noteAccountTeamNames(e.teams);
   return e;
+}
+
+/** What an invite link is (signed in or not): its team, whom it was sent to (masked), whether it is this account's. */
+export async function openInviteLink(token: string): Promise<InviteLink> {
+  const link = parseInviteLink(await call('POST', '', { action: 'invite-link', token }));
+  if (!link) throw new EntryError(FAILED, 'failed', 500);
+  return link;
 }
 
 export interface Accepted {

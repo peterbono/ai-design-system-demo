@@ -213,15 +213,6 @@ export function endedEmailSession(repo: string) {
   remember(repo, null);
 }
 
-/** Accepts a "Can edit" invite with a name: no GitHub. 409 github-required for a reviewer or admin invite. */
-export async function acceptEmailInvite(token: string, name: string): Promise<{ repo: string; member: ContributeMember }> {
-  const r = await call<{ repo?: unknown; member?: unknown }>('POST', '', { action: 'accept', token, name: name.trim() });
-  const m = parseMember(r.member);
-  if (typeof r.repo !== 'string' || !m) throw new ContributeError('Something went wrong. Try again in a minute.', 'failed', 500);
-  remember(r.repo, m);
-  return { repo: r.repo, member: m };
-}
-
 /** The token of `#contribute=<token>`, taken out of the address at once (never in the history or a shared link). */
 export function takeContributeHash(): string | null {
   if (typeof location === 'undefined') return null;

@@ -22,6 +22,8 @@ export class AccountError extends Error {
     message: string,
     readonly code: string,
     readonly status: number,
+    /** The rest of the answer: `triesLeft` on a wrong code. */
+    readonly details: Record<string, unknown> = {},
   ) {
     super(message);
     this.name = 'AccountError';
@@ -70,7 +72,7 @@ async function call<T>(method: 'GET' | 'POST', query: string, body?: unknown, ex
   if (!res.ok) {
     const code = typeof data.error === 'string' ? data.error : 'failed';
     const message = typeof data.message === 'string' && data.message ? data.message : null;
-    throw new AccountError(accountErrorText(res.status, code, message), code, res.status);
+    throw new AccountError(accountErrorText(res.status, code, message), code, res.status, data);
   }
   return data as T;
 }
@@ -103,14 +105,19 @@ function signedIn(r: { account?: unknown; created?: unknown; next?: unknown }): 
   return { account, created: r.created === true, next: typeof r.next === 'string' ? r.next : '' };
 }
 
+/** Who a code is for: an email typed, or an invite link's token (the code goes to the invited address, never shown). */
+export type CodeFor = string | { invite: string };
+
+const codeTarget = (to: CodeFor) => (typeof to === 'string' ? { email: to.trim() } : { invite: to.invite });
+
 /** Emails a 6-digit code. The server answers the same whether or not the email has an account. */
-export async function sendCode(email: string): Promise<void> {
-  await call('POST', '', { action: 'code', email: email.trim() });
+export async function sendCode(to: CodeFor): Promise<void> {
+  await call('POST', '', { action: 'code', ...codeTarget(to) });
 }
 
 /** Checks the code; sets the session cookie. */
-export async function verifyCode(email: string, code: string, name?: string): Promise<SignedIn> {
-  return signedIn(await call('POST', '', { action: 'verify', email: email.trim(), code, ...(name ? { name } : {}) }));
+export async function verifyCode(to: CodeFor, code: string, name?: string): Promise<SignedIn> {
+  return signedIn(await call('POST', '', { action: 'verify', ...codeTarget(to), code, ...(name ? { name } : {}) }));
 }
 
 /** Signs in with (or links) the GitHub account of a GitHub sign-in token; the token is not kept by the server. */

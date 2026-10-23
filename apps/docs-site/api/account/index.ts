@@ -7,10 +7,15 @@
 // creates an account with the primary verified email.
 //
 // Endpoints (JSON, errors are { error, message } in Studio words):
-//   GET  /api/account                          { available, account }  account is { email, name, github, teams } or null
+//   GET  /api/account                          { available, account }  account is { email, name, nameSet, github, teams }
+//                                              or null; nameSet is false until the person typed their name (Bridge
+//                                              then asks it once, before anything shows the name to their team)
 //   GET  /api/account?export=1                 the daily backup (Vercel cron, Authorization: Bearer $CRON_SECRET)
 //   POST { action: 'code', email }             always { ok: true } (a cap answers 429 for everyone alike); emails a code
-//   POST { action: 'verify', email, code, name? }   sets the cookie; { account, created, next }
+//   POST { action: 'code', invite }            the same, to the address an invite link was sent to (the token of
+//                                              /studio/invite/#t=...); the email never comes back. 410 invite-gone
+//   POST { action: 'verify', email | invite, code, name? }   sets the cookie; { account, created, next }
+//                                              (a wrong code answers 400 wrong-code with triesLeft)
 //   POST { action: 'github', token }           links or creates from a GitHub user token, sets the cookie; same answer
 //   POST { action: 'rename', name }            { account }
 //   POST { action: 'sign-out' }                clears the cookie on this browser
@@ -46,6 +51,7 @@ import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import { accountTeamsKey, memberStore, type MemberStore } from '../_lib/members.js';
 import { globEscape, redisRest, type Redis } from '../_lib/redis.js';
 import { getTeamNames, removeAllRequests } from '../_lib/teams.js';
+import { inviteStoreOn } from '../invites/index.js';
 import { readCookie } from '../_lib/session.js';
 import { teamDisplayName } from '../../src/lib/demo.js';
 import { STUDIO_ROOT } from '../../src/lib/team-path.js';
@@ -101,6 +107,7 @@ export interface PublicTeam {
 export interface PublicAccount {
   email: string;
   name: string;
+  nameSet: boolean;
   github: { login: string; id: number } | null;
   teams: PublicTeam[];
 }
@@ -125,6 +132,8 @@ const API = 'https://api.github.com';
 const EMAIL = /^[^\s@<>()[\]\\,;:"]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?)+$/;
 const CODE = /^\d{6}$/;
 const GH_TOKEN = /^[A-Za-z0-9_.-]{20,255}$/;
+/** The token of an invite link (api/invites). */
+const INVITE_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 const REPO = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/;
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -140,6 +149,7 @@ export const GITHUB_AGAIN = 'GitHub did not accept this sign-in. Continue with G
 export const EMAIL_ACCESS = 'Bridge needs to see the verified emails of your GitHub account. Continue with GitHub again and allow it.';
 export const NO_VERIFIED_EMAIL = 'Your GitHub account has no verified email. Verify one on GitHub, then continue with GitHub again.';
 export const GITHUB_TAKEN = 'This Bridge account is already linked to another GitHub account. Sign in with that one.';
+export const INVITE_GONE = 'This invite link no longer works. Ask the person who invited you for a new one.';
 export const LAST_ADMIN = 'You are the only admin of a team that has other members. Make someone else admin first, then delete your account.';
 const STORAGE_DOWN = 'Bridge could not reach its storage. Try again in a minute.';
 export const LIMIT_WORDS = {
@@ -198,9 +208,13 @@ export function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(Buffer.from(sha256(a), 'hex'), Buffer.from(sha256(b), 'hex'));
 }
 
-/** A person's name as Bridge shows it: letters, digits, spaces, . ' - only, at most 80, never empty. */
+/** A name as typed, cleaned: letters, digits, spaces, . ' - only, at most 80. '' when nothing is left. */
+export const typedName = (raw: unknown): string =>
+  typeof raw === 'string' ? raw.normalize('NFC').replace(/[^\p{L}\p{M}\p{N} .'-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 80).trim() : '';
+
+/** A person's name as Bridge shows it: the typed name, else a stand-in from the email. Never empty. */
 export function cleanName(raw: unknown, email: string): string {
-  const s = typeof raw === 'string' ? raw.normalize('NFC').replace(/[^\p{L}\p{M}\p{N} .'-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 80).trim() : '';
+  const s = typedName(raw);
   if (s) return s;
   return email.split('@')[0]!.replace(/[^A-Za-z0-9.-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40) || 'Bridge user';
 }
@@ -281,7 +295,7 @@ async function teamsOf(ctx: Ctx, email: string): Promise<(PublicTeam & { at: str
 
 async function publicAccount(ctx: Ctx, a: Account): Promise<PublicAccount> {
   const teams = (await teamsOf(ctx, a.email)).map(({ at: _at, ...t }) => t);
-  return { email: a.email, name: a.name, github: a.github ? { login: a.github.login, id: a.github.id } : null, teams };
+  return { email: a.email, name: a.name, nameSet: a.nameSet !== false, github: a.github ? { login: a.github.login, id: a.github.id } : null, teams };
 }
 
 /**
@@ -299,8 +313,11 @@ async function nextFor(ctx: Ctx, a: Account, created: boolean): Promise<string> 
   return a.github ? STUDIO_ROOT : '/start/';
 }
 
-async function createAccount(ctx: Ctx, email: string, name: string, github: Account['github']): Promise<Account> {
-  const a: Account = { id: randomUUID(), email, name, github, createdAt: new Date(ctx.now()).toISOString(), version: 1 };
+/** A new account. `typed`: the name the person gave (or GitHub's profile name); without one, a stand-in from the email. */
+async function createAccount(ctx: Ctx, email: string, typed: unknown, github: Account['github'], login?: string): Promise<Account> {
+  const nameSet = typedName(typed) !== '';
+  const name = cleanName(nameSet ? typed : login, email);
+  const a: Account = { id: randomUUID(), email, name, nameSet, github, createdAt: new Date(ctx.now()).toISOString(), version: 1 };
   await putAccount(ctx.svc.redis, a);
   if (github) await ctx.svc.redis.cmd('SET', githubKey(github.id), email);
   await backfillTeams(ctx, email);
@@ -332,11 +349,26 @@ function codeEmail(to: string, code: string): EmailMessage {
 
 const newCode = (deps: AccountDeps) => (deps.code ? deps.code() : String(randomInt(0, 1_000_000)).padStart(6, '0'));
 
+/**
+ * Where a code goes: the email typed, or the address an invite link was sent to (`invite`, the link's token). The
+ * invite's address never comes back to the browser; a spent or unknown link answers 410 invite-gone.
+ */
+async function codeEmailOf(ctx: Ctx, body: Record<string, unknown>): Promise<string> {
+  if (body.invite !== undefined) {
+    const token = body.invite;
+    const inv = typeof token === 'string' && INVITE_TOKEN.test(token) ? await inviteStoreOn(ctx.svc.redis, ctx.now).byTokenHash(sha256(token)) : null;
+    if (!inv || Date.parse(inv.expiresAt) <= ctx.now() || !validEmail(inv.email)) throw new HttpError(410, 'invite-gone', INVITE_GONE);
+    return inv.email.trim().toLowerCase();
+  }
+  if (!validEmail(body.email)) throw new HttpError(400, 'bad_email', BAD_EMAIL);
+  return body.email.trim().toLowerCase();
+}
+
 async function onCode(ctx: Ctx, req: Request, body: Record<string, unknown>): Promise<Response> {
-  if (!validEmail(body.email)) return fail(400, 'bad_email', BAD_EMAIL);
+  if (body.invite === undefined && !validEmail(body.email)) return fail(400, 'bad_email', BAD_EMAIL);
   const { svc } = ctx;
   if (!svc.email) return fail(503, 'not_configured', EMAIL_NOT_CONFIGURED);
-  const email = body.email.trim().toLowerCase();
+  const email = await codeEmailOf(ctx, body);
   const day = dayOf(ctx.now());
   // Counted for everyone, with an account or not, so the answer never tells who has one.
   const release = await bumpOrRefuse(
@@ -368,11 +400,11 @@ async function onCode(ctx: Ctx, req: Request, body: Record<string, unknown>): Pr
 }
 
 async function onVerify(ctx: Ctx, req: Request, body: Record<string, unknown>): Promise<Response> {
-  if (!validEmail(body.email)) return fail(400, 'bad_email', BAD_EMAIL);
+  if (body.invite === undefined && !validEmail(body.email)) return fail(400, 'bad_email', BAD_EMAIL);
   const code = typeof body.code === 'string' ? body.code.replace(/\s+/g, '') : '';
   if (!CODE.test(code)) return fail(400, 'wrong-code', WRONG_CODE);
   const { svc } = ctx;
-  const email = body.email.trim().toLowerCase();
+  const email = await codeEmailOf(ctx, body);
   await bumpOrRefuse(ctx, [countKey('verify:ip', ipHash(ctx, req), dayOf(ctx.now()))], [VERIFY_PER_IP_DAY], LIMIT_WORDS.verify, 'verify');
   const pointer = codeForKey(svc.secret, email);
   const live = await svc.redis.cmd('GET', pointer);
@@ -409,7 +441,7 @@ async function onVerify(ctx: Ctx, req: Request, body: Record<string, unknown>): 
   if (!rec || rec.email !== email) return fail(410, 'expired', CODE_EXPIRED);
   const known = await getAccount(svc.redis, email);
   if (known) return signedIn(ctx, known, false);
-  return signedIn(ctx, await createAccount(ctx, email, cleanName(body.name, email), null), true);
+  return signedIn(ctx, await createAccount(ctx, email, body.name, null), true);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -475,7 +507,7 @@ async function onGithub(ctx: Ctx, req: Request, body: Record<string, unknown>): 
   }
   const primary = verified.find((e) => e.primary);
   if (!primary) return fail(409, 'no-verified-email', NO_VERIFIED_EMAIL);
-  return signedIn(ctx, await createAccount(ctx, primary.email, cleanName(user.name ?? user.login, primary.email), github), true);
+  return signedIn(ctx, await createAccount(ctx, primary.email, user.name, github, user.login), true);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -568,7 +600,7 @@ async function onAction(req: Request, ctx: Ctx): Promise<Response> {
       if (!a) return json(401, { error: 'signin', message: SIGNIN }, { 'Set-Cookie': clearAccountCookie() });
       if (body.action === 'rename') {
         if (typeof body.name !== 'string' || !body.name.trim()) return fail(400, 'bad_name', 'Enter your name.');
-        const next = { ...a, name: cleanName(body.name, a.email) };
+        const next = { ...a, name: cleanName(body.name, a.email), nameSet: true };
         await putAccount(svc.redis, next);
         return json(200, { account: await publicAccount(ctx, next) });
       }
