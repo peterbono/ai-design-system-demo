@@ -531,7 +531,7 @@ function conflictBlock(a: Analysis, e: DiffEntry, choices: Map<string, ConflictC
     'li',
     { class: 'conflict' },
     h('div', { class: 'row-head' }, edge?.lead, h('span', { class: 'kind conflict' }, 'Conflict'), h('span', { class: 'path' }, e.path), edge?.tail),
-    h('div', { class: 'choices', role: 'radiogroup', 'aria-label': `Version to keep for ${e.path}` }, side('figma', 'Keep Figma', e.figma, fi), side('main', 'Use main', e.head, a.head.byPath)),
+    h('div', { class: 'choices', role: 'radiogroup', 'aria-label': `Version to keep for ${e.path}` }, side('figma', 'Keep Figma', e.figma, fi), side('main', 'Use code', e.head, a.head.byPath)),
   );
 }
 
@@ -549,7 +549,7 @@ function conflictSection(a: Analysis, choices: Map<string, ConflictChoice>, edge
           'div',
           { class: 'inline-actions' },
           h('button', { class: 'btn ghost', onClick: () => { list.forEach((e) => choices.set(e.id, 'figma')); refreshProposals(); } }, 'Keep Figma for all'),
-          h('button', { class: 'btn ghost', onClick: () => { list.forEach((e) => choices.set(e.id, 'main')); refreshProposals(); } }, 'Use main for all'),
+          h('button', { class: 'btn ghost', onClick: () => { list.forEach((e) => choices.set(e.id, 'main')); refreshProposals(); } }, 'Use code for all'),
           open ? h('span', { class: 'muted' }, `${open} left to decide`) : null,
         )
       : null,
