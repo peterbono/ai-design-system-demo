@@ -87,6 +87,8 @@ export interface RoomProps {
   onOtherEmail: () => void;
   /** Links GitHub and comes back here. */
   onConnectGitHub: () => void;
+  /** Joined a team with the email account: its pages know the member before they open. */
+  onJoined?: (repo: string, role: string) => Promise<void> | void;
 }
 
 type Header = { title: string; lead: ReactNode };
@@ -103,6 +105,7 @@ export function InviteRoom({
   more,
   github,
   leave,
+  onJoined,
   onOtherEmail,
   onConnectGitHub,
   header,
@@ -125,6 +128,7 @@ export function InviteRoom({
         setBusy(false);
         return;
       }
+      await onJoined?.(r.repo, String(r.role));
       leave(r.next || teamHome(r.repo));
     } catch (err) {
       setBusy(false);
@@ -288,7 +292,7 @@ export function InviteLinkRoom({
 
 const teamLines = (t: DomainTeam): ReactNode[] => [<TeamPeople key="people" team={t.name} people={t.people} count={t.memberCount} />, ...(t.adminName ? [W.admin(t.adminName)] : [])];
 
-export function DomainRoom({ domain, teams: initial, leave, onOtherEmail, header }: RoomProps & { domain: string; teams: DomainTeam[]; header: (h: Header) => ReactNode }) {
+export function DomainRoom({ domain, teams: initial, leave, onJoined, onOtherEmail, header }: RoomProps & { domain: string; teams: DomainTeam[]; header: (h: Header) => ReactNode }) {
   const [teams, setTeams] = useState(initial);
   const [all, setAll] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -303,7 +307,10 @@ export function DomainRoom({ domain, teams: initial, leave, onOtherEmail, header
     const api = await import('../../../scripts/entry-session');
     try {
       const r = await api.requestJoin(t.repo);
-      if ('joined' in r) return leave(r.next || teamHome(r.repo));
+      if ('joined' in r) {
+        if (r.status === 'joined') await onJoined?.(r.repo, String(r.role));
+        return leave(r.next || teamHome(r.repo));
+      }
       const done = { ...t, requested: true };
       setTeams((xs) => xs.map((x) => (x.repo === t.repo ? done : x)));
       setSent(done);

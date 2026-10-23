@@ -529,6 +529,8 @@ describe('the invite link: one identity, the account of the invited email', () =
     await user.click(screen.getByRole('button', { name: 'Join Acme Product' }));
     await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/acme/acme-product/'));
     expect(sessionStorage.getItem('bridge.invite.token')).toBeNull();
+    // The team opens signed in as its new member, not as a guest.
+    expect(JSON.parse(localStorage.getItem('bridge.contribute.member:acme/acme-product')!)).toMatchObject({ email: 'mia@acme.com', role: 'edit' });
     // Never a separate contributor session: no /api/contribute call, the account joins.
     expect(entryCalls.filter((c) => c.body?.action === 'accept-invite')[0]!.body).toEqual({ action: 'accept-invite', repo: 'acme/acme-product', id: 'inv1' });
   });

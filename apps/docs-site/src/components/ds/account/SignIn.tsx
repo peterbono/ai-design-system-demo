@@ -133,6 +133,14 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
     seedContributors(who, entry.teams);
   };
 
+  /** Just joined a team with the email account: the team's pages open signed in, not as a guest. */
+  const onJoined = async (repo: string, role: string) => {
+    const who = signedInAs.current ?? me;
+    if (!who) return;
+    const { seedContributors } = await import('../../../scripts/contribute-session');
+    seedContributors(who, [{ repo, role, via: 'email' }]);
+  };
+
   /** Invite mode: what the link is, then its room, or the code for the invited address (signed out). */
   const openLink = async (t: string) => {
     const api = await import('../../../scripts/entry-session');
@@ -442,7 +450,7 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
           : startHeader;
 
   if (step === 'room' && room) {
-    const rooms = { leave, onOtherEmail: () => void otherEmail(), onConnectGitHub: () => void connectGitHub() };
+    const rooms = { leave, onJoined, onOtherEmail: () => void otherEmail(), onConnectGitHub: () => void connectGitHub() };
     return (
       <section className="zone acc acc-room" aria-labelledby="acc-title">
         <div className="acc-art" aria-hidden="true">
