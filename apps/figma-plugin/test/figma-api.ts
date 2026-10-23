@@ -492,7 +492,11 @@ export class SimNode {
     if (type === 'TEXT' && typeof defaultValue !== 'string') throw new Error('in addComponentProperty: TEXT default must be a string');
     if ([...this.props.keys()].some((k) => k.replace(/#[^#]*$/, '') === name && this.props.get(k)!.type === type)) throw new Error(`in addComponentProperty: a ${type} property "${name}" already exists`);
     this.checkSwap(type, defaultValue, options?.preferredValues);
-    const key = `${name}#${++seq}:0`;
+    // Figma keeps names unique across types: a taken name gets the next free number (Icon -> Icon2 -> Icon3).
+    const taken = new Set([...this.props.keys()].map((k) => k.replace(/#[^#]*$/, '')));
+    let unique = name;
+    for (let i = 2; taken.has(unique); i++) unique = `${name}${i}`;
+    const key = `${unique}#${++seq}:0`;
     this.props.set(key, { type, defaultValue, ...(options?.preferredValues ? { preferredValues: structuredClone(options.preferredValues) } : {}) });
     return key;
   }
