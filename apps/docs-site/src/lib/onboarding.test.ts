@@ -1,6 +1,6 @@
 // Studio onboarding: the eight steps, their state, and what this browser remembers.
 import { describe, expect, it } from 'vitest';
-import { doneSummary, firstRunTitle, onboardingKey, onboardingSteps, parseMemory, progressLabel, readMemoryText, showsChecklist, showsFirstRun, type OnboardingFacts } from './onboarding';
+import { doneSummary, firstRunTitle, onboardingKey, onboardingSteps, parseMemory, progressLabel, readMemoryText, showsChecklist, showsFirstRun, type OnboardingFacts, withSetupStep } from './onboarding';
 
 const base: OnboardingFacts = { login: 'ann', repo: 'acme/design-system', storybook: 'https://sb.acme.dev', products: ['Admin demo', 'Library'], changes: null };
 const states = (f: OnboardingFacts) => onboardingSteps(f).map((s) => `${s.id}:${s.state}`);
@@ -193,5 +193,12 @@ describe('Create your team (board E6): the workspace of a Bridge account', () =>
   it('leaves the GitHub workspace and the team Studio as they were', () => {
     expect(onboardingSteps({ login: 'ann', repo: '', storybook: null, products: [], changes: null, workspace: true, account: null })[0]!.id).toBe('signin');
     expect(onboardingSteps({ login: 'ann', repo: 'acme/ds', storybook: null, products: [], changes: null, account: { teamName: 'X' } }).map((s) => s.id)).toEqual(['signin', 'library', 'name', 'changes', 'team', 'products', 'figma', 'claude']);
+  });
+});
+
+describe('withSetupStep', () => {
+  it('sets the step and keeps the rest of the query', () => {
+    expect(withSetupStep('?setup=create&a=1', 'library')).toBe('?setup=library&a=1');
+    expect(withSetupStep('', 'create')).toBe('?setup=create');
   });
 });

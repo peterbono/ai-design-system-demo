@@ -219,6 +219,13 @@ function currentStepId(steps: Step[], core: readonly StepId[]): StepId | null {
   return steps.find((s) => core.includes(s.id) && s.state === 'later')?.id ?? null;
 }
 
+/** The address with ?setup= on `step`, the rest of the query kept: a reload opens the same step. */
+export function withSetupStep(search: string, step: StepId): string {
+  const q = new URLSearchParams(search);
+  q.set('setup', step);
+  return `?${q.toString()}`;
+}
+
 export const doneCount = (steps: Step[]) => steps.filter((s) => s.state === 'done').length;
 
 /** "4 of 8 connected"; "0 of 6 done" for "Create your team". */

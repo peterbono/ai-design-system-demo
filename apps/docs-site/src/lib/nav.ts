@@ -118,6 +118,14 @@ export function studioNav(): NavEntry[] {
   ];
 }
 
+/**
+ * The browser workspace (pages/studio/workspace.astro): nothing is connected yet, so the rail has its own home only.
+ * Branches, Components, Tokens, Quality and Settings would open Bridge's own design system, another context.
+ */
+export function workspaceNav(): NavEntry[] {
+  return [{ href: WORKSPACE_HOME, label: 'Home', icon: 'gauge', meta: 'Your workspace: create your team and connect your design system' }];
+}
+
 export const navFor = (space: Space) => (space === 'studio' ? studioNav() : libraryNav());
 
 const norm = (path: string) => path.replace(/\/?$/, '/');
