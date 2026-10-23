@@ -10,10 +10,10 @@ export interface ChangeRulesProps {
 export default function ChangeRules({ rules }: ChangeRulesProps) {
   return (
     <div className="set-change-rules">
-      <Table aria-label="Approvals each kind of branch needs">
+      <Table aria-label="Approvals each kind of change needs">
         <TableHeader>
           <TableRow>
-            <TableHead width={0.35}>Kind of branch</TableHead>
+            <TableHead width={0.35}>Kind of change</TableHead>
             <TableHead>Needs</TableHead>
           </TableRow>
         </TableHeader>

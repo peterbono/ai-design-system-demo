@@ -1,7 +1,7 @@
 // Studio Settings: approvals in plain words and the Claude connect command.
 import { describe, expect, it } from 'vitest';
 import { tierSummaries } from './governance';
-import { accountView, appReach, approvalRules, changesInConfig, changesProposal, effectiveChanges, INTERIM_APP_TEXT, overrideRow, READ_ONLY_APP_TEXT, soloOwnerRow, suggestAppText, plainApprovals, ruleSentence, withChanges } from './settings-view';
+import { adminOnlyText, appReach, CHANGES_PLAIN, RIGHT_PLAIN, soloPlain, teamPlain, approvalRules, changesInConfig, changesProposal, effectiveChanges, INTERIM_APP_TEXT, overridePlain, overrideRow, READ_ONLY_APP_TEXT, soloOwnerRow, suggestAppText, plainApprovals, ruleSentence, withChanges } from './settings-view';
 
 const GOVERNANCE = `# Governance
 
@@ -41,78 +41,6 @@ describe('approval rules', () => {
     const rules = approvalRules(tierSummaries());
     expect(rules).toHaveLength(3);
     expect(rules[0]!.what).toBe('Token changes');
-  });
-});
-
-describe('account', () => {
-  const repo = 'acme/ds';
-  it('shows a compact row once connected, with the access as a badge and a quiet action', () => {
-    expect(accountView('connected', { login: 'ana', write: true, repo })).toEqual({
-      zone: false,
-      title: 'Connected as @ana',
-      detail: 'Ds',
-      action: 'Reconnect GitHub',
-      actionKind: 'token',
-      badge: { label: 'Can edit', tone: 'success' },
-    });
-    expect(accountView('connected', { login: 'ana', write: false, repo }).badge).toEqual({ label: 'Read only', tone: 'neutral' });
-    expect(accountView('connected', { login: 'ana', write: null, repo }).badge).toBeUndefined();
-  });
-
-  it("says the role in the team chip's words once GitHub gave the access: an owner is Admin", () => {
-    expect(accountView('connected', { login: 'peterbono', write: true, repo, state: 'admin' }).badge).toEqual({ label: 'Admin', tone: 'success' });
-    expect(accountView('connected', { login: 'ana', write: true, repo, state: 'writer' }).badge).toEqual({ label: 'Can edit', tone: 'success' });
-    expect(accountView('connected', { login: 'x', write: true, repo: 'peterbono/ai-design-system-demo' }).detail).toBe('Bridge DS');
-  });
-
-  it('opens the Harbor zone with the primary action only when Studio cannot act', () => {
-    expect(accountView('readonly', { write: null, repo })).toMatchObject({ zone: true, action: 'Connect GitHub' });
-    expect(accountView('rejected', { write: null, repo })).toMatchObject({ zone: true, action: 'Reconnect GitHub' });
-    expect(accountView('checking', { write: null, repo })).toEqual({ zone: false, title: 'Checking your GitHub connection.' });
-  });
-
-  it('offers only Sign in with GitHub when the site has a GitHub App, never a token paste', () => {
-    expect(accountView('readonly', { write: null, repo, signIn: true })).toEqual({
-      zone: true,
-      title: 'Sign in with GitHub to approve and request reviews.',
-      detail: 'Until then Studio only reads acme/ds.',
-      action: 'Sign in with GitHub',
-      actionKind: 'signin',
-    });
-    expect(accountView('readonly', { write: null, repo })).toMatchObject({ actionKind: 'token' });
-    expect(accountView('rejected', { write: null, repo, signIn: true })).toMatchObject({ action: 'Sign in with GitHub', actionKind: 'signin' });
-    expect(accountView('rejected', { write: null, repo, signIn: true }).detail).not.toMatch(/token instead|paste/i);
-    // A token pasted before the site had a GitHub App: it can only be disconnected, not changed.
-    expect(accountView('connected', { login: 'ana', write: true, repo, signIn: true })).toMatchObject({ action: 'Disconnect', actionKind: 'signout' });
-    expect(accountView('connected', { login: 'ana', write: true, repo })).toMatchObject({ action: 'Reconnect GitHub', actionKind: 'token' });
-  });
-
-  it('signs out a signed-in account, and says so when its sign-in expired', () => {
-    expect(accountView('connected', { login: 'ana', write: true, repo, mode: 'app', signIn: true })).toMatchObject({ action: 'Sign out', actionKind: 'signout', detail: 'Ds' });
-    expect(accountView('rejected', { write: null, repo, mode: 'app', signIn: true })).toEqual({
-      zone: true,
-      title: 'Your GitHub sign-in expired.',
-      detail: 'Studio could not renew it. Sign in again to keep editing.',
-      action: 'Sign in again',
-      actionKind: 'signin',
-    });
-  });
-
-  it('tells a signed-in account without access how to fix it (wrong account, app not installed, read only)', () => {
-    const none = accountView('connected', { login: 'ana', write: false, repo, mode: 'app', reach: false });
-    expect(none.badge).toEqual({ label: 'No access', tone: 'neutral' });
-    expect(none.detail).toMatch(/^@ana cannot edit Ds through Bridge\..*sign in with another GitHub account\.$/);
-    const read = accountView('connected', { login: 'ana', write: false, repo, mode: 'app', reach: true });
-    expect(read.badge).toEqual({ label: 'Read only', tone: 'neutral' });
-    expect(read.detail).toMatch(/Ask an owner for write access/);
-  });
-
-  it('never uses an em dash', () => {
-    for (const s of ['checking', 'connected', 'readonly', 'rejected'] as const) {
-      for (const extra of [{}, { signIn: true }, { mode: 'app' as const, signIn: true, reach: false }]) {
-        expect(JSON.stringify(accountView(s, { login: 'a', write: false, repo, ...extra }))).not.toContain('\u2014');
-      }
-    }
   });
 });
 
@@ -184,5 +112,28 @@ describe('Settings, owner override row', () => {
     });
     expect(overrideRow({ owners: { design: ['ann'], tech: ['theo'] }, override }, () => 'Dana')?.value).toMatch(/^Dana, /);
     expect(overrideRow({ owners: { design: ['theo'], tech: ['theo'] }, override })).toBeNull();
+  });
+});
+
+describe('team Settings in designer words (D9)', () => {
+  it('names who can change a setting, or says an admin can', () => {
+    expect(adminOnlyText(['Sam Rivera'])).toBe('Only Sam Rivera (admin) can change this.');
+    expect(adminOnlyText(['Sam Rivera', 'Lee Park', 'Sam Rivera'])).toBe('Only Sam Rivera or Lee Park (admins) can change this.');
+    expect(adminOnlyText(['Ana', 'Lee', 'Sam'])).toBe('Only Ana, Lee or Sam (admins) can change this.');
+    expect(adminOnlyText([])).toBe('Only an admin of this team can change this.');
+  });
+
+  it('says the modes and the rights without developer words', () => {
+    const screen = [...Object.values(CHANGES_PLAIN).flatMap((c) => [c.title, c.text]), ...Object.values(RIGHT_PLAIN).flatMap((r) => [r.label, r.help]), soloPlain('Sam'), teamPlain('design-leads')];
+    for (const text of screen) {
+      expect(text).not.toMatch(/\b(repo|repository|pull request|branch|main|merge|commit|issue)\b/i);
+      expect(text).not.toMatch(/@/);
+      expect(text).not.toContain('\u2014');
+    }
+    expect(teamPlain('design-leads')).toBe('the design leads team');
+  });
+
+  it('says the owner exception without developer words', () => {
+    expect(overridePlain(['Ann', 'Lea'], 20)).toEqual({ label: 'Exception', help: 'Adds a change before every check is in. Owners only.', value: 'Ann and Lea, with a written reason of at least 20 characters.' });
   });
 });

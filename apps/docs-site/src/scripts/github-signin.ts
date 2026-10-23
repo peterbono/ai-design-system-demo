@@ -44,7 +44,7 @@ export async function runCallback(): Promise<void> {
 
   const cfg = readSignInConfig();
   if (!cfg) {
-    fail(SIGNIN_TEXT.notConfigured, studioHref('settings/#connection'));
+    fail(SIGNIN_TEXT.notConfigured, studioHref('settings/'));
     return;
   }
   const step = callbackStep(params, location.origin, readPending(), cfg, Date.now());

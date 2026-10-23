@@ -222,8 +222,18 @@
   text-align: start;
 }
 
+/* The DS Button wraps its children in one label span: the face, the name and the chevron sit on its one line. */
+.acc-menu-trigger > span:not([aria-hidden]) {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
 .acc-menu-text {
   display: grid;
+  flex: 1 1 auto;
   min-width: 0;
 }
 

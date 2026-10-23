@@ -199,17 +199,22 @@ describe('join request on the admin home (E7b)', () => {
 describe('Settings, Members (E7c, E7a)', () => {
   const req = { id: 'a1b2c3d4e5f60718', name: 'Jordan Lee', email: 'jordan.lee@acme.com', createdAt: new Date(Date.now() - 3_700_000).toISOString(), expiresAt: '' };
 
-  it('lists who asks to join with the role preset Can edit, and approves', async () => {
+  it('lists who asks to join with their role as text, approves, and adds them to the members at once', async () => {
     const onDone = vi.fn();
+    const onApproved = vi.fn();
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    const { container } = render(createElement(JoinRequests, { repo: 'acme/ds', requests: [req], onDone }));
+    const { container } = render(createElement(JoinRequests, { repo: 'acme/ds', requests: [req], onApproved, onDone }));
     expect(screen.getByRole('heading', { name: 'Asks to join 1' })).toBeInTheDocument();
     expect(screen.getByText('Found the team with @acme.com · asked 1 h ago')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Role for Jordan Lee: Can edit' })).toBeInTheDocument();
+    // Nothing to pick: an email account joins as Can edit (BR-20, no dead control).
+    expect(screen.getByText('Can edit')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Role for/ })).toBeNull();
     await expectNoAxeViolations(container);
     reply = () => json(200, { member: { name: 'Jordan Lee', role: 'edit' }, repo: 'acme/ds' });
     await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(screen.getByRole('button', { name: 'Approve Jordan Lee' }));
     expect(await screen.findByText('Jordan joined as Can edit.')).toBeInTheDocument();
+    expect(onApproved).toHaveBeenCalledWith(req);
+    expect(onDone).not.toHaveBeenCalled();
     vi.advanceTimersByTime(5000);
     expect(onDone).toHaveBeenCalledWith(req, true);
     vi.useRealTimers();
@@ -220,23 +225,28 @@ describe('Settings, Members (E7c, E7a)', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('says who can find the team, with Turn off', async () => {
+  it('says who can find the team as a switch, and what happens to people who already asked', async () => {
     reply = () => json(200, { domain: 'acme.com', enabled: false });
     const onChange = vi.fn();
-    render(createElement(DiscoveryLine, { repo: 'acme/ds', discovery: { domain: 'acme.com', enabled: true, configured: true, eligible: true }, github: false, onChange }));
-    expect(screen.getByText('@acme.com')).toBeInTheDocument();
-    expect(screen.getByText(/can find this team and ask to join\./)).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Turn off' }));
+    const { container } = render(createElement(DiscoveryLine, { repo: 'acme/ds', discovery: { domain: 'acme.com', enabled: true, configured: true, eligible: true }, github: false, onChange }));
+    const toggle = screen.getByRole('switch', { name: 'Let people with @acme.com find this team' });
+    expect(toggle).toBeChecked();
+    expect(toggle).toHaveAccessibleDescription(/people who already asked still wait for your answer/);
+    await expectNoAxeViolations(container);
+    await userEvent.setup().click(toggle);
     await waitFor(() => expect(onChange).toHaveBeenCalledWith({ domain: 'acme.com', enabled: false, configured: true, eligible: true }));
     expect(calls[0]!.body).toEqual({ action: 'discovery', repo: 'acme/ds', enabled: false });
   });
 
   it('offers to turn it on for a work email that never chose, and hides it for a public one', () => {
     const { rerender } = render(createElement(DiscoveryLine, { repo: 'acme/ds', discovery: { domain: 'acme.com', enabled: false, configured: false, eligible: true }, github: false, onChange: () => undefined }));
-    expect(screen.getByText('Let people with @acme.com find this team.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Turn on' })).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Let people with @acme.com find this team' })).not.toBeChecked();
+    rerender(createElement(DiscoveryLine, { repo: 'acme/ds', discovery: { domain: 'acme.com', enabled: false, configured: true, eligible: false }, github: false, onChange: () => undefined }));
+    expect(screen.queryByRole('switch')).toBeNull();
+    expect(screen.getByText('People with @acme.com cannot find this team. They join by invite.')).toBeInTheDocument();
     rerender(createElement(DiscoveryLine, { repo: 'acme/ds', discovery: { domain: null, enabled: false, configured: false, eligible: false }, github: false, onChange: () => undefined }));
     expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByRole('switch')).toBeNull();
     rerender(createElement(DiscoveryLine, { repo: 'acme/ds', discovery: null, github: true, onChange: () => undefined }));
     expect(screen.getByRole('button', { name: 'Connect GitHub to manage requests' })).toBeInTheDocument();
   });

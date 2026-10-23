@@ -10,6 +10,8 @@
 // Who may change anything comes from the session's access (repository admin) and is checked again by the server.
 import type { Owners } from '@bridge-ds/core';
 import { teamDisplayName } from '../lib/demo';
+import { accountName } from '../lib/account';
+import { teamKeyOfPage } from '../lib/team-path';
 import { emailMembers, membersContext, roleOf, sampleTeam, type KnownPerson, type Member, type MembersContext, type PendingInvite } from '../lib/invites';
 import { loginKey, personName } from '../lib/people';
 import { currentViewer, getToken, ghGet, resolveAccess } from './github-session';
@@ -99,8 +101,38 @@ function teamName(repo: string): string {
 
 const noRepoPage = () => typeof document !== 'undefined' && document.documentElement.hasAttribute('data-no-repo');
 
+/**
+ * The people of a team made in Bridge: no GitHub side at all. An admin reads the email members and pending invites
+ * from the invites server (as their Bridge account); anyone else on the team reads names and roles from the team.
+ */
+async function loadKeyMembers(key: string): Promise<MembersData> {
+  const [{ getTeam }, { getAccount }] = await Promise.all([import('./entry-session'), import('./account-session')]);
+  const [team, info, invites] = await Promise.all([getTeam(key).catch(() => null), getAccount().catch(() => null), invitesAvailable().catch(() => false)]);
+  const me = info?.account ?? null;
+  const canManage = team?.role === 'admin';
+  const base: MembersData = { context: 'real', repo: key, team: team?.name ?? 'Your team', members: [], pending: [], people: [], canManage, personal: false, complete: true, invites, ownersKnown: true };
+  if (canManage && invites) {
+    try {
+      const r = await listInvites(key);
+      return { ...base, members: emailMembers(r.members, me?.email), pending: r.invites };
+    } catch {
+      /* the names below */
+    }
+  }
+  const mine = me ? accountName(me) : null;
+  let marked = false;
+  const members: Member[] = (team?.people ?? []).map((p, i) => {
+    const you = !marked && p.name === mine && (p.role === 'admin') === (team?.role === 'admin');
+    if (you) marked = true;
+    return { login: `team-member-${i}`, name: p.name, role: p.role, reviews: [], via: 'email' as const, ...(you ? { you: true } : {}) };
+  });
+  return { ...base, members };
+}
+
 /** The people of this page's team. */
 export async function loadMembers(): Promise<MembersData> {
+  const key = teamKeyOfPage();
+  if (key) return loadKeyMembers(key);
   const ctx = repoContext();
   const repo = `${ctx.owner}/${ctx.repo}`;
   const context = membersContext(noRepoPage() ? null : repo, noRepoPage());

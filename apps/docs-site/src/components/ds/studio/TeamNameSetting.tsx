@@ -10,6 +10,7 @@ import { Button, Card, CardBody, Input, Link } from '@bridge-ds/react';
 import { isSampleTeam, teamDisplayName } from '../../../lib/demo';
 import { TEAM_NAME_WORDS, teamNameProblem } from '../../../lib/team-name';
 import { studioHref } from '../../../lib/team-path';
+import { AdminOnlyNote } from './SettingsParts';
 
 export interface TeamNameSettingProps {
   /** Branch prefix and protected branches from bridge.config.json, for the pull request (self-hosted page). */
@@ -122,7 +123,7 @@ export default function TeamNameSetting({ prefix, protectedBranches }: TeamNameS
             ) : (
               <div className="set-row-value">
                 <p className="set-who">{shown || ' '}</p>
-                {facts && !isSampleTeam(facts.repo) && <p className="set-row-help">{facts.set ? TEAM_NAME_WORDS.readOnly : TEAM_NAME_WORDS.notSet}</p>}
+                {facts && !isSampleTeam(facts.repo) && (facts.set ? <AdminOnlyNote fallback /> : <p className="set-row-help">{TEAM_NAME_WORDS.notSet}</p>)}
               </div>
             )}
           </div>

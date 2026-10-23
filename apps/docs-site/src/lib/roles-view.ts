@@ -76,8 +76,8 @@ export function rolesSummary(owners: Owners, rights: Rights | null): string {
 export const VISUAL_MODE_LABEL: Record<VisualImpactMode, string> = { auto: 'Automatic', 'on-demand': 'On demand' };
 
 export const VISUAL_MODE_HELP: Record<VisualImpactMode, string> = {
-  auto: 'Runs on every branch that changes tokens or components.',
-  'on-demand': 'Runs when someone asks from the branch. Saves GitHub minutes on private repositories.',
+  auto: 'Runs on every change to tokens or components.',
+  'on-demand': 'Runs when someone asks for it on a change. Saves build time on private design systems.',
 };
 
 // ---------------------------------------------------------------------------------------------------------------

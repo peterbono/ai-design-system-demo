@@ -18,6 +18,9 @@ export const START_PAGE = '/start/';
 /** The browser workspace: a Studio home with nothing bound yet (pages/studio/workspace.astro). */
 export const WORKSPACE_HOME = `${STUDIO_ROOT}workspace/`;
 
+/** The Settings of a team made in Bridge before any repository (pages/studio/workspace/settings.astro, ?team=<id>). */
+export const WORKSPACE_SETTINGS = `${WORKSPACE_HOME}settings/`;
+
 /** The demo team on the hosted site (lib/demo.ts DEMO_REPOS), for browser code that cannot read lib/nav.ts. */
 export const DEMO_HOME = `${STUDIO_ROOT}peterbono/bridge-demo-ds/`;
 

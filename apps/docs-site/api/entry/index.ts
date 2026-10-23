@@ -48,7 +48,8 @@
 //                                           public one). One team without a repository per creator: calling it again
 //                                           renames that team and changes its discovery. { team, created }
 //   GET  /api/entry?team=_team/<id>         a member of a team made in Bridge: { team } (name, role, repo, storybook,
-//                                           discovery, memberCount); 404 for anyone else, like a team that does not exist
+//                                           discovery, memberCount, people: names and roles, never an email, for its
+//                                           Settings); 404 for anyone else, like a team that does not exist
 //   POST { action: 'link-team', team, storybook }  admin: keeps the Storybook connected with the quick start. { team }
 //   POST { action: 'link-team', team, repo }  admin of the team and of the repository: the team moves to the repository
 //                                           (members, admins, discovery, requests, invites, name). { repo, next }
@@ -819,14 +820,18 @@ export interface PublicTeam {
   storybook: string | null;
   discovery: { domain: string; enabled: boolean } | null;
   memberCount: number;
+  /** Who is on the team, by name and role (never an email): its Settings name the admins to everyone on it. */
+  people: { name: string; role: 'edit' | 'admin' }[];
   createdAt: string;
 }
 
 async function publicTeam(ctx: Ctx, rec: TeamRecord, role: 'edit' | 'admin'): Promise<PublicTeam> {
   const key = rec.repo ?? teamKeyOf(rec.id);
   const d = await getDiscovery(ctx.svc.redis, key);
-  const memberCount = (await ctx.svc.members.list(key)).length;
-  return { id: rec.id, key, name: rec.name, role, repo: rec.repo, storybook: rec.storybook, discovery: d ? { domain: d.domain, enabled: d.enabled } : null, memberCount, createdAt: rec.createdAt };
+  const list = await ctx.svc.members.list(key);
+  const local = ctx.svc.localAdmins ? await ctx.svc.localAdmins.adminsOf(key) : [];
+  const people = list.map((m) => ({ name: m.name, role: m.role === 'admin' || local.includes(m.email) ? ('admin' as const) : ('edit' as const) }));
+  return { id: rec.id, key, name: rec.name, role, repo: rec.repo, storybook: rec.storybook, discovery: d ? { domain: d.domain, enabled: d.enabled } : null, memberCount: list.length, people, createdAt: rec.createdAt };
 }
 
 /** The role of the account on a team made in Bridge, or null when it is not on it. */

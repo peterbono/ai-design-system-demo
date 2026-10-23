@@ -178,7 +178,7 @@ describe('a team made in Bridge', () => {
   });
 
   it('reads the team answer, dropping what is malformed', () => {
-    expect(parseTeamInfo({ id: 'c0ffee0000000017', key: '_team/c0ffee0000000017', name: 'Northwind Design', role: 'admin', repo: null, storybook: null, discovery: { domain: 'northwind.io', enabled: true }, memberCount: 2 })).toEqual({
+    expect(parseTeamInfo({ id: 'c0ffee0000000017', key: '_team/c0ffee0000000017', name: 'Northwind Design', role: 'admin', repo: null, storybook: null, discovery: { domain: 'northwind.io', enabled: true }, memberCount: 2, people: [{ name: 'Sam Rivera', role: 'admin' }, { name: 'Ana', role: 'owner' }, { role: 'edit' }] })).toEqual({
       id: 'c0ffee0000000017',
       key: '_team/c0ffee0000000017',
       name: 'Northwind Design',
@@ -187,8 +187,12 @@ describe('a team made in Bridge', () => {
       storybook: null,
       discovery: { domain: 'northwind.io', enabled: true },
       memberCount: 2,
+      people: [
+        { name: 'Sam Rivera', role: 'admin' },
+        { name: 'Ana', role: 'edit' },
+      ],
     });
-    expect(parseTeamInfo({ id: 'x', key: 'k', name: 'N', role: 'owner', repo: 'acme/ds', discovery: {} })).toMatchObject({ role: 'edit', repo: 'acme/ds', discovery: null, memberCount: 0 });
+    expect(parseTeamInfo({ id: 'x', key: 'k', name: 'N', role: 'owner', repo: 'acme/ds', discovery: {} })).toMatchObject({ role: 'edit', repo: 'acme/ds', discovery: null, memberCount: 0, people: [] });
     expect(parseTeamInfo({ name: 'No id' })).toBeNull();
   });
 });

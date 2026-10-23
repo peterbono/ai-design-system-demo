@@ -1,7 +1,8 @@
 // Who is signed in, with a Bridge account (GET /api/account), on every Studio page: the account row at the foot of
 // the side nav (the GitHub-only block steps aside, styles/account.css) and the avatar of the top bar on screens
 // without a nav (the sign-in, start and invite screens). One DS Menu: the name and email, GitHub linked or Link GitHub,
-// Account settings, Sign out. The face is the GitHub photo once linked, else the DS drawn face (never initials). The
+// Account settings (the Account dialog: name, email, teams, sign out everywhere, delete; Settings itself starts with
+// the team, board D9), Sign out. An old link to #account opens the dialog. The face is the GitHub photo once linked, else the DS drawn face (never initials). The
 // row's second line is the person's role on this team, else their email. Nothing shows signed out or on a site
 // without accounts: the GitHub block keeps working as before.
 import { useEffect, useState } from 'react';
@@ -9,11 +10,10 @@ import { Compass, LogOut, Settings } from 'lucide-react';
 import { Avatar, Button, Icon, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@bridge-ds/react';
 import { ChevronsUpDown } from 'lucide-react';
 import { GitHubMark } from '../studio/brand-icons';
-import { ACCOUNT_WORDS as W, accountName, defaultNext, roleWord, signedOutHref, type Account } from '../../../lib/account';
+import { ACCOUNT_WORDS as W, accountName, roleWord, signedOutHref, type Account } from '../../../lib/account';
 import { ownerAvatarUrl } from '../../../lib/access-view';
-import { loadRecentTeams } from '../../../lib/recent-teams';
-import { studioHref, studioHrefAt } from '../../../lib/team-path';
-import { DEMO_HOME, START_PAGE } from '../../../lib/start';
+import { AccountDialog } from './AccountSettings';
+import { DEMO_HOME } from '../../../lib/start';
 import { DEMO_WORDS } from '../../../lib/demo';
 import '../../../styles/account.css';
 
@@ -61,13 +61,6 @@ function pageTeam(): string | null {
   return m ? `${decodeURIComponent(m[1]!)}/${decodeURIComponent(m[2]!)}` : null;
 }
 
-/** Account settings: this team's Settings, else the person's first team's, else the Studio's own Settings. */
-export function accountSettingsHref(account: Account): string {
-  if (pageTeam()) return studioHref('settings/#account');
-  const home = defaultNext(account, loadRecentTeams());
-  return home === START_PAGE ? studioHref('settings/#account') : studioHrefAt(home, 'settings/#account');
-}
-
 export interface AccountMenuProps {
   /** The top bar: the face alone. Otherwise the side nav's full-width row. */
   compact?: boolean;
@@ -78,7 +71,12 @@ export default function AccountMenu({ compact = false }: AccountMenuProps) {
   const face = useFace(account);
   const [team, setTeam] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
   useEffect(() => setTeam(pageTeam()), []);
+  // Settings' old #account anchor (and the former Account settings links) opens the dialog.
+  useEffect(() => {
+    if (account && location.hash === '#account') setOpen(true);
+  }, [account]);
   if (!account) return null;
 
   const name = accountName(account);
@@ -102,6 +100,7 @@ export default function AccountMenu({ compact = false }: AccountMenuProps) {
 
   const label = `${W.signedInAs(name)}. Account menu`;
   return (
+    <>
     <Menu>
       {compact ? (
         <MenuTrigger render={<Button variant="ghost" size="sm" className="acc-menu-trigger" aria-label={label} />}>
@@ -129,7 +128,7 @@ export default function AccountMenu({ compact = false }: AccountMenuProps) {
             {W.linkGitHub}
           </MenuItem>
         )}
-        <MenuItem icon={Settings} onClick={() => location.assign(accountSettingsHref(account))}>
+        <MenuItem icon={Settings} onClick={() => setOpen(true)}>
           {W.settings}
         </MenuItem>
         {/* The sample team, apart from the member's real teams (the team menu lists only those). */}
@@ -141,5 +140,7 @@ export default function AccountMenu({ compact = false }: AccountMenuProps) {
         </MenuItem>
       </MenuContent>
     </Menu>
+    <AccountDialog account={account} open={open} onOpenChange={setOpen} />
+    </>
   );
 }

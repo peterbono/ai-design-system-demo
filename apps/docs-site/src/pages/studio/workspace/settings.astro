@@ -1,0 +1,22 @@
+---
+// Settings of a team made in Bridge before any repository (?team=<id>, key `_team/<id>`): General, Members (with who
+// asks to join and the discovery Switch), "Connect your design system first" for everything a repository brings, and
+// Appearance (components/ds/studio/TeamKeySettings.tsx). Built like the workspace (<html data-no-repo data-workspace>):
+// it reads no repository and never shows Bridge's own design system or the sample team.
+import '../../../styles/settings.css';
+import '../../../styles/studio-home.css';
+import Layout from '../../../layouts/Layout.astro';
+import StudioHeader from '../../../components/StudioHeader.astro';
+import TeamKeySettings from '../../../components/ds/studio/TeamKeySettings';
+---
+
+<Layout title="Settings" description="Your team before its design system is connected: its name and its people." workspace wide>
+  <div class="set-page">
+    <StudioHeader title="Settings" />
+    <TeamKeySettings client:only="react" />
+  </div>
+  <script>
+    import { paintWorkspaceNav } from '../../../scripts/workspace-nav';
+    paintWorkspaceNav();
+  </script>
+</Layout>

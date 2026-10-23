@@ -43,10 +43,38 @@ export function useMembers(enabled = true): { load: MembersLoad; reload: () => v
     document.addEventListener('bridge:team-model', again, { once: true });
     return () => document.removeEventListener('bridge:team-model', again);
   }, [enabled, waiting]);
+  // Settings' other sections name the team's admins from the same read (useTeamPeople): no second GitHub read.
+  useEffect(() => {
+    if (load.status === 'ready') publishMembers(load.data);
+  }, [load]);
   const reload = useCallback(() => setRun((n) => n + 1), []);
   const update = useCallback((fn: (d: MembersData) => MembersData) => setLoad((l) => (l.status === 'ready' ? { status: 'ready', data: fn(l.data) } : l)), []);
   return { load, reload, update };
 }
+
+const MEMBERS_EVENT = 'bridge:members';
+let lastMembers: MembersData | null = null;
+
+/** Shares the members this page read with the sections that name people (Settings' read-only notes, Review rules). */
+export function publishMembers(data: MembersData): void {
+  lastMembers = data;
+  if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent<MembersData>(MEMBERS_EVENT, { detail: data }));
+}
+
+/** The members of this page's team once Members has read them, else null. Never reads anything itself. */
+export function useTeamPeople(): MembersData | null {
+  const [data, setData] = useState<MembersData | null>(lastMembers);
+  useEffect(() => {
+    if (lastMembers) setData(lastMembers);
+    const on = (e: Event) => setData((e as CustomEvent<MembersData>).detail);
+    document.addEventListener(MEMBERS_EVENT, on);
+    return () => document.removeEventListener(MEMBERS_EVENT, on);
+  }, []);
+  return data;
+}
+
+/** The names of the team's admins, from the members read (people first, by name). */
+export const adminNames = (data: MembersData | null): string[] => (data ? data.members.filter((m) => m.role === 'admin').map((m) => m.name) : []);
 
 /** The demo dialog: the sample team never sends anything. */
 async function demoGate() {

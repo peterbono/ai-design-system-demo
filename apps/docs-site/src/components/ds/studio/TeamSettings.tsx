@@ -1,30 +1,51 @@
 // Settings on a team shell (pages/team-shell/settings): the team's own rules, read from its repository model in the
 // browser (scripts/team-data.ts, the same read every team page shares; a signed-out visitor's reads are answered from
-// the team's published activity, no GitHub API call). Read only, in the bands of the self-hosted Settings:
-//   How changes reach your code  suggestions or pull requests (bridge.config.json `changes`)
-//   Review rules                 design and tech owners, who approves and merges, what each kind of branch needs
-//                                (governance in bridge.config.json, the rules from docs/GOVERNANCE.md)
+// the team's published activity, no GitHub API call). Read only, in designer words (board D9): no repository, pull
+// request, branch or main on the screen, and people by name (the members Settings read, else their profile name).
+//   How changes reach your code  what happens once the team keeps a change (bridge.config.json `changes`)
+//   Review rules                 who checks the look, who checks the code, who adds it to the library: the team's own
+//                                rules (governance owners and rights), never Bridge's build-time tiers (RV-20)
 //   Safety                       when the visual before and after runs
-// On the sample team (Acme Design) this is the full Settings with its persona, never the repository's accounts; on any
-// other team, Bridge's own design system included, it is that team's own setup.
+// Each section closes on a "For developers" fold with the file, keys, repository and branch behind it. A member who is
+// not an admin reads who can change it, by name (SettingsParts AdminOnlyNote, BR-20).
+// Three contexts, never mixed: the sample team (Acme Design) shows its sample rules with its persona and says so, never
+// the repository's accounts; any other team, Bridge's own design system included, shows its own setup and people.
 // Repo strings reach the page as React text only.
-import { Users } from 'lucide-react';
-import { Avatar, Card, CardBody, CardHeader, Tag } from '@bridge-ds/react';
-import { parseOwnerEntry } from '@bridge-ds/core';
-import ChangeRules from './ChangeRules';
+import { Avatar, Card, CardBody } from '@bridge-ds/react';
+import { overrideHolders, overrideReasonMin, parseOwnerEntry, type Owners } from '@bridge-ds/core';
 import { TeamLoadError, TeamLoadProgress, useTeamData } from './TeamState';
-import { OWNER_GROUP_HELP, OWNER_GROUP_LABEL, roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL } from '../../../lib/roles-view';
-import { CHANGES_CHOICE, overrideRow, soloOwnerRow } from '../../../lib/settings-view';
-import { demoSettingsPeople, isSampleTeam } from '../../../lib/demo';
-
-export interface TeamSettingsProps {
-  /** What each kind of branch needs, in plain words (lib/settings-view approvalRules, from docs/GOVERNANCE.md). */
-  rules: { what: string; who: string }[];
-}
+import { AdminOnlyNote, Code, DevFold } from './SettingsParts';
+import { useTeamPeople } from './members-state';
+import { roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL } from '../../../lib/roles-view';
+import { andList, ANYONE_WHO_CODES, CHANGES_DEV, CHANGES_PLAIN, NOBODY_NAMED, overridePlain, RIGHT_PLAIN, soloPlain, teamPlain } from '../../../lib/settings-view';
+import { demoSettingsPeople, isSampleTeam, teamDisplayName } from '../../../lib/demo';
+import { loginKey, personName } from '../../../lib/people';
+import { knownNames } from '../../../scripts/people';
+import type { MembersData } from '../../../scripts/members';
 
 const avatarSrc = (login: string) => `https://github.com/${encodeURIComponent(login)}.png?size=48`;
 
-function Owners({ entries, demoLead }: { entries: string[]; demoLead: string | null }) {
+/** A person or a GitHub team, by the name designers know. */
+interface Named {
+  key: string;
+  name: string;
+  /** A person's GitHub login, for the face. */
+  login?: string;
+}
+
+/** Names for owner entries: the member list's names first, then the cached profile names, then the login. */
+function namer(people: MembersData | null): (entry: string) => Named | null {
+  const byLogin = new Map((people?.members ?? []).map((m) => [loginKey(m.login), m.name]));
+  const names = knownNames();
+  return (entry) => {
+    const e = parseOwnerEntry(entry);
+    if (!e) return null;
+    if (e.kind === 'team') return { key: entry, name: teamPlain(e.slug) };
+    return { key: entry, login: e.login, name: byLogin.get(loginKey(e.login)) ?? personName(e.login, names) };
+  };
+}
+
+function People({ list, demoLead }: { list: Named[]; demoLead: string | null }) {
   // The demo names its persona (initials, as on the demo home), never the repository's real accounts.
   if (demoLead)
     return (
@@ -35,23 +56,15 @@ function Owners({ entries, demoLead }: { entries: string[]; demoLead: string | n
         </span>
       </span>
     );
-  if (!entries.length) return <span className="set-quiet">Nobody listed yet</span>;
+  if (!list.length) return <span className="set-quiet">{NOBODY_NAMED}</span>;
   return (
     <span className="set-owner-list">
-      {entries.map((raw) => {
-        const e = parseOwnerEntry(raw);
-        if (!e) return null;
-        return e.kind === 'person' ? (
-          <span className="set-owner" key={raw}>
-            <Avatar name={e.login} src={avatarSrc(e.login)} size="xs" decorative />
-            <span>@{e.login}</span>
-          </span>
-        ) : (
-          <span className="set-owner" key={raw}>
-            <Tag icon={Users} size="sm">{`@${e.org}/${e.slug}`}</Tag>
-          </span>
-        );
-      })}
+      {list.map((p) => (
+        <span className="set-owner" key={p.key}>
+          {p.login && <Avatar name={p.name} src={avatarSrc(p.login)} size="xs" decorative />}
+          <span>{p.name}</span>
+        </span>
+      ))}
     </span>
   );
 }
@@ -68,72 +81,98 @@ function Band({ id, title, intro, children }: { id: string; title: string; intro
   );
 }
 
-export default function TeamSettings({ rules }: TeamSettingsProps) {
+const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? x : `@${x.replace(/^@/, '')}`)).join(', ') : 'none');
+
+export default function TeamSettings() {
   const { load, retry } = useTeamData();
+  const people = useTeamPeople();
   if (load.status === 'loading') return <TeamLoadProgress label="Reading the settings of this design system" />;
   if (load.status === 'error') return <TeamLoadError failure={load.failure} onRetry={retry} />;
-  const site = load.data.model.site;
+  const { model, owner, repo } = load.data;
+  const site = model.site;
+  const full = `${owner}/${repo}`;
   // The sample team (Acme Design) tells its persona (lib/demo.ts demoSettingsPeople); every real team, Bridge's own
   // design system included, reads its own config.
-  const demo = isSampleTeam(`${load.data.owner}/${load.data.repo}`) ? demoSettingsPeople(site) : null;
-  const changes = CHANGES_CHOICE[site.changes];
-  const roles = roleRows(site.owners, site.rights);
-  const realSolo = soloOwnerRow(site);
-  const solo = demo ? (realSolo && demo.solo ? { ...realSolo, value: demo.solo } : null) : realSolo;
-  // Who may use the owner override: owners only, the same list the Home and the branch page read (the persona on the demo).
-  const override = overrideRow(site, demo?.nameOf);
+  const demo = isSampleTeam(full) ? demoSettingsPeople(site) : null;
+  const name = namer(demo ? null : people);
+  const named = (xs: string[]) => xs.map(name).filter((x): x is Named => Boolean(x));
+  const gov = model.config.governance;
+  const changes = CHANGES_PLAIN[site.changes];
+  const rows = roleRows(site.owners as Owners, site.rights);
+  const solo = (() => {
+    if (!site.soloOwnerCanApproveBoth) return null;
+    const all = [...new Set([...site.owners.design, ...site.owners.tech].map(loginKey))];
+    if (all.length !== 1 || all[0]!.includes('/')) return null;
+    return soloPlain(demo ? demo.lead : (name(all[0]!)?.name ?? all[0]!));
+  })();
+  // Who may skip a missing check: owners only, the same list the Home and the branch page read (the persona on the demo).
+  const holders = overrideHolders(site.override, site.owners);
+  const override = holders.length ? overridePlain(demo ? [demo.lead] : [...new Set(holders.map((l) => name(l)?.name ?? l))], overrideReasonMin(site.override)) : null;
   const mode = site.visualImpact.mode;
+  const branch = site.defaultBranch;
+  const repoFact = { term: 'Repository', value: <Code>{full}</Code> };
+
   return (
     <>
-      <Band id="changes" title="How changes reach your code" intro="When the team keeps a change, Bridge hands it to the developers as a suggestion, or opens a pull request itself.">
+      {demo && <p className="set-sample-note">{`These are the rules of ${teamDisplayName(full, site)}, a sample team. Your own team's rules show here once you connect your design system.`}</p>}
+
+      <Band id="changes" title="How changes reach your code" intro="What happens once your team keeps a change.">
         <Card>
           <CardBody>
             <div className="set-rows">
               <div className="set-row">
-                <p className="set-row-label">{changes.title}</p>
-                <p className="set-row-value set-row-span">{changes.lead ? `${changes.lead} ${changes.text}` : changes.text}</p>
+                <p className="set-row-label">Kept changes</p>
+                <div className="set-row-value set-row-span">
+                  <p className="set-who">{changes.title}</p>
+                  <p className="set-row-help">{changes.text}</p>
+                  {!demo && <AdminOnlyNote />}
+                </div>
               </div>
             </div>
+            <DevFold
+              facts={[
+                { term: 'Mode', value: <Code>{`"changes": "${site.changes}"`}</Code> },
+                { term: 'What Bridge does', value: CHANGES_DEV[site.changes] },
+                repoFact,
+                { term: 'Default branch', value: <Code>{branch}</Code> },
+                { term: 'Tokens', value: <Code>{model.tokens.root}</Code> },
+                { term: 'Set in', value: <Code>bridge.config.json</Code> },
+              ]}
+            />
           </CardBody>
         </Card>
       </Band>
 
-      <Band id="roles" title="Review rules" intro="Who approves a branch before it is merged into main, and what each kind of branch needs.">
-        <Card aria-labelledby="ts-roles-title">
-          <CardHeader>
-            <h3 id="ts-roles-title" className="set-card-title">
-              Who approves and merges
-            </h3>
-          </CardHeader>
+      <Band id="roles" title="Review rules" intro="Who checks a change before it reaches the library your products use.">
+        <Card aria-labelledby="ts-roles">
           <CardBody>
             <div className="set-rows">
-              {(['design', 'tech'] as const).map((g) => (
-                <div className="set-row" key={g}>
-                  <div>
-                    <p className="set-row-label">{OWNER_GROUP_LABEL[g]}</p>
-                    <p className="set-row-help">{OWNER_GROUP_HELP[g]}</p>
+              {rows.map((x) => {
+                const plain = RIGHT_PLAIN[x.right];
+                const unset = x.choice === null;
+                return (
+                  <div className="set-row" key={x.right}>
+                    <div>
+                      <p className="set-row-label">{plain.label}</p>
+                      <p className="set-row-help">{plain.help}</p>
+                    </div>
+                    <div className="set-row-value set-row-span">{unset && !demo ? <span>{ANYONE_WHO_CODES}</span> : <People list={named(x.logins)} demoLead={demo?.lead ?? null} />}</div>
                   </div>
-                  <div className="set-row-value set-row-span">
-                    <Owners entries={site.owners[g]} demoLead={demo?.lead ?? null} />
-                  </div>
-                </div>
-              ))}
-              {roles.map((x) => (
-                <div className="set-row" key={x.right}>
-                  <div>
-                    <p className="set-row-label">{x.label}</p>
-                    <p className="set-row-help">{x.help}</p>
-                  </div>
-                  <p className="set-row-value set-row-span set-who">{x.who}</p>
-                </div>
-              ))}
+                );
+              })}
               {solo && (
                 <div className="set-row">
+                  <p className="set-row-label">Only owner</p>
+                  <p className="set-row-value set-row-span">{solo}</p>
+                </div>
+              )}
+              {override && (
+                <div className="set-row">
                   <div>
-                    <p className="set-row-label">{solo.label}</p>
-                    <p className="set-row-help">{solo.help}</p>
+                    <p className="set-row-label">{override.label}</p>
+                    <p className="set-row-help">{override.help}</p>
                   </div>
-                  <p className="set-row-value set-row-span set-who">{solo.value}</p>
+                  <p className="set-row-value set-row-span">{override.value}</p>
                 </div>
               )}
               {override && (
@@ -146,12 +185,25 @@ export default function TeamSettings({ rules }: TeamSettingsProps) {
                 </div>
               )}
             </div>
+            {!demo && <AdminOnlyNote />}
+            <DevFold
+              facts={[
+                { term: 'Design owners', value: <Code>{demo ? demo.lead : entries(site.owners.design)}</Code> },
+                { term: 'Tech owners', value: <Code>{demo ? demo.lead : entries(site.owners.tech)}</Code> },
+                ...rows.map((x) => ({ term: `governance.rights.${x.right}`, value: <Code>{x.choice === null ? 'not set: anyone with write access merges' : andList(x.choice === 'both' ? ['design', 'tech'] : [x.choice])}</Code> })),
+                { term: 'Protected branches', value: <Code>{gov.protectedBranches.join(', ') || 'none'}</Code> },
+                { term: 'Branch prefix', value: <Code>{gov.branchPrefix || 'none'}</Code> },
+                ...(holders.length ? [{ term: 'Owner override', value: <Code>{`${entries(holders)}, reason of ${overrideReasonMin(site.override)}+ characters, posted on the pull request`}</Code> }] : []),
+                { term: 'Set in', value: <Code>bridge.config.json, governance</Code> },
+              ]}
+            >
+              <p>Bridge counts approvals on GitHub reviews. A ruleset or branch protection on {branch} keeps unreviewed pull requests out.</p>
+            </DevFold>
           </CardBody>
         </Card>
-        <ChangeRules rules={rules} />
       </Band>
 
-      <Band id="safety" title="Safety" intro="When the visual before and after runs on a branch.">
+      <Band id="safety" title="Safety" intro="When Bridge shows what a change looks like before and after.">
         <Card>
           <CardBody>
             <div className="set-rows">
@@ -160,9 +212,17 @@ export default function TeamSettings({ rules }: TeamSettingsProps) {
                 <div className="set-row-value set-row-span">
                   <p className="set-who">{VISUAL_MODE_LABEL[mode]}</p>
                   <p className="set-row-help">{VISUAL_MODE_HELP[mode]}</p>
+                  {!demo && <AdminOnlyNote />}
                 </div>
               </div>
             </div>
+            <DevFold
+              facts={[
+                { term: 'Mode', value: <Code>{`"visualImpact": { "mode": "${mode}" }`}</Code> },
+                { term: 'On demand', value: <>Add the <Code>visual-check</Code> label to a pull request.</> },
+                repoFact,
+              ]}
+            />
           </CardBody>
         </Card>
       </Band>

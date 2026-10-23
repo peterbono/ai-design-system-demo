@@ -15,7 +15,6 @@ export const TEAM_NAME_WORDS = {
   /** Settings > General */
   generalTitle: 'General',
   generalIntro: 'How your team shows up for everyone in Bridge.',
-  readOnly: 'Only an admin of the repository changes it.',
   notSet: 'Not set yet, Bridge uses the repository name.',
   requested: 'Sent for review',
   applies: 'It applies once your team approves and merges the branch.',

@@ -399,10 +399,10 @@ export const ENTRY_WORDS = {
   createFailed: 'Bridge could not create your team. Try again in a minute.',
   linkFailed: 'Bridge could not connect this repository to your team. Try again in a minute.',
   // E7a, E7c: Settings
-  discoveryOn: ['People with', 'can find this team and ask to join.'] as [string, string],
   discoveryOff: (domain: string) => `People with @${domain} cannot find this team. They join by invite.`,
-  turnOff: 'Turn off',
-  turnOn: 'Turn on',
+  /** Under the discovery Switch (J7-08): what it does, and what happens to people who already asked. */
+  discoveryOnHelp: 'They can ask to join, and you approve each person. Turn it off and people who already asked still wait for your answer.',
+  discoveryOffHelp: 'Off: people join by invite. People who already asked still wait for your answer.',
   // E7b, E7c: join requests
   asksToJoin: (team: string) => `asks to join ${team}`,
   joinsAs: (email: string) => `${email} · joins as Can edit`,
@@ -490,6 +490,8 @@ export interface TeamInfo {
   storybook: string | null;
   discovery: { domain: string; enabled: boolean } | null;
   memberCount: number;
+  /** Who is on the team, by name and role (no emails): read by its Settings. */
+  people: { name: string; role: 'edit' | 'admin' }[];
 }
 
 /** A team answer of /api/entry, or null when it is not one. */
@@ -511,5 +513,11 @@ export function parseTeamInfo(v: unknown): TeamInfo | null {
     storybook: str(o.storybook),
     discovery: domain ? { domain, enabled: d!.enabled === true } : null,
     memberCount: countOf(o.memberCount),
+    people: Array.isArray(o.people)
+      ? o.people.flatMap((p): { name: string; role: 'edit' | 'admin' }[] => {
+          const n = p && typeof p === 'object' ? str((p as Record<string, unknown>).name) : null;
+          return n ? [{ name: n, role: (p as Record<string, unknown>).role === 'admin' ? 'admin' : 'edit' }] : [];
+        })
+      : [],
   };
 }
