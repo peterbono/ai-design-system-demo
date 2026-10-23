@@ -8,7 +8,10 @@
 //   any other    since the merge-base with origin/main, so the first push of a branch with several commits
 //                sees all of them, not only the last one. Vercel clones shallow: main is fetched if missing.
 //   agent/*      never previewed: agent branches are validated by the GitHub checks and only deploy once merged,
-//                which keeps Vercel under its daily deployment limit.
+//                which keeps Vercel under its daily deployment limit. The vercel.json files also turn Git
+//                deployments off for agent/**, test/** and changeset-release/** (git.deploymentEnabled), so Vercel
+//                does not even create a deployment for them: an ignored build still counts toward the limit. This
+//                check stays as the fallback.
 //
 //   ignoreCommand in apps/docs-site/vercel.json:  node ../../scripts/vercel-ignore.mjs docs
 import { execFileSync } from 'node:child_process';
