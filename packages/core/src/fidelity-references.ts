@@ -41,6 +41,11 @@ export interface ReferenceRender {
    * elements with their props, icons by name. Replaces `text` and `parts`.
    */
   children?: (string | SpecExample)[] | undefined;
+  /**
+   * Export name of the compound component this set is a part of (AccordionItem in Accordion, Radio in RadioGroup,
+   * MenuItem in Menu): the part needs its parent around it to render, and the image shows the part alone.
+   */
+  within?: string | undefined;
 }
 
 export type ReferencePlan = { ok: true; render: ReferenceRender } | { ok: false; reason: string };
@@ -158,10 +163,15 @@ export function planReference(spec: ComponentSpec, variant: SpecVariant, file?: 
   // The code example the content came from: its props (the variant's own win) and children.
   const example = spec.example;
   const exampleChildren = example?.children?.length ? example.children : undefined;
+  // A set named "Folder/Variant" (Pagination/Full) renders its folder's component; any other set its own name.
+  const component = exportName(example?.c ?? (spec.name.includes('/') ? (spec.component ?? spec.name) : spec.name));
+  // A part of a compound component (AccordionItem, from the Accordion folder) renders inside that component.
+  const parent = spec.component ? exportName(spec.component) : undefined;
   return {
     ok: true,
     render: {
-      component: exportName(spec.view || spec.fixed || example ? (example?.c ?? spec.component ?? spec.name) : spec.name),
+      component,
+      ...(parent && parent !== component ? { within: parent } : {}),
       props: { ...(example?.p ?? {}), ...props },
       ...(exampleChildren ? { children: exampleChildren } : {}),
       ...(text !== undefined && !exampleChildren ? { text } : {}),
