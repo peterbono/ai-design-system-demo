@@ -29,12 +29,18 @@ export interface EntryInvite {
   repo: string;
   role: string;
   invitedBy: string;
+  /** When the invite was sent (ISO), '' when unknown. */
+  invitedAt: string;
+  memberCount: number;
+  /** The first few people on the team, names only (the avatars of the card). */
+  people: string[];
 }
 
 export interface DomainTeam {
   repo: string;
   name: string;
   memberCount: number;
+  people: string[];
   adminName: string;
   requested: boolean;
 }
@@ -52,6 +58,17 @@ const repoOf = (v: unknown): string | null => {
   return r && REPO.test(r) ? r : null;
 };
 const ROLES: readonly EntryRole[] = ['edit', 'reviewer', 'admin'];
+const countOf = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0);
+/** Names for avatars: strings only, never anything shaped like an email, at most PEOPLE_SHOWN. */
+const namesOf = (v: unknown): string[] =>
+  (Array.isArray(v) ? v : [])
+    .map(str)
+    .filter((n): n is string => Boolean(n) && !n!.includes('@'))
+    .slice(0, PEOPLE_SHOWN);
+const isoOf = (v: unknown): string => {
+  const s = str(v);
+  return s && Number.isFinite(Date.parse(s)) ? s : '';
+};
 
 /** An /api/entry answer, or null when it is not one. Unknown fields and malformed rows are dropped. */
 export function parseEntry(v: unknown): Entry | null {
@@ -73,7 +90,7 @@ export function parseEntry(v: unknown): Entry | null {
         const repo = repoOf(i.repo);
         const id = str(i.id);
         if (!repo || !id) return [];
-        return [{ id, repo, team: str(i.team) ?? repo, role: str(i.role) ?? 'edit', invitedBy: str(i.invitedBy) ?? '' }];
+        return [{ id, repo, team: str(i.team) ?? repo, role: str(i.role) ?? 'edit', invitedBy: str(i.invitedBy) ?? '', invitedAt: isoOf(i.invitedAt), memberCount: countOf(i.memberCount), people: namesOf(i.people) }];
       });
       return invites.length ? { kind: 'invites', invites } : { kind: 'create' };
     }
@@ -82,8 +99,7 @@ export function parseEntry(v: unknown): Entry | null {
       const teams = list(o.teams).flatMap((t): DomainTeam[] => {
         const repo = repoOf(t.repo);
         if (!repo) return [];
-        const n = typeof t.memberCount === 'number' && Number.isFinite(t.memberCount) ? Math.max(0, Math.floor(t.memberCount)) : 0;
-        return [{ repo, name: str(t.name) ?? repo, memberCount: n, adminName: str(t.adminName) ?? '', requested: t.requested === true }];
+        return [{ repo, name: str(t.name) ?? repo, memberCount: countOf(t.memberCount), people: namesOf(t.people), adminName: str(t.adminName) ?? '', requested: t.requested === true }];
       });
       return domain && teams.length ? { kind: 'domain', domain, teams: sortDomainTeams(teams) } : { kind: 'create' };
     }
@@ -97,6 +113,24 @@ export function parseEntry(v: unknown): Entry | null {
 /** Largest first, then by name: the order the server sends, kept when a list comes back unsorted. */
 export const sortDomainTeams = <T extends Pick<DomainTeam, 'memberCount' | 'name'>>(teams: readonly T[]): T[] =>
   [...teams].sort((a, b) => b.memberCount - a.memberCount || a.name.localeCompare(b.name));
+
+/** Avatars on a team card before "+N" (the server sends at most this many names). */
+export const PEOPLE_SHOWN = 4;
+
+/** The avatars of a team card: the names shown, and the "+N" of everyone else counted. */
+export function teamAvatars(people: readonly string[], memberCount: number): { names: string[]; more: number } {
+  const names = people.slice(0, PEOPLE_SHOWN);
+  return { names, more: Math.max(0, memberCount - names.length) };
+}
+
+/** "21 October", the day an invite was sent; with the year when it is not this year. '' when unknown. */
+export function invitedOn(iso: string, now: number = Date.now()): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return '';
+  const d = new Date(t);
+  const sameYear = d.getFullYear() === new Date(now).getFullYear();
+  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', ...(sameYear ? {} : { year: 'numeric' }) }).format(d);
+}
 
 /** Domain teams shown before "N more". */
 export const DOMAIN_SHOWN = 3;
@@ -176,6 +210,7 @@ export const ENTRY_WORDS = {
   // E3
   invitedTitle: (team: string) => `${team} invited you`,
   invitedBy: (who: string) => (who ? `${who} invited` : 'You were invited with'),
+  invitedOn: (day: string) => (day ? ` on ${day}` : ''),
   joinAs: 'You join as',
   join: (team: string) => `Join ${team}`,
   moreInvites: (n: number) => (n === 1 ? 'One more invite waits for you. It shows once you are in.' : `${n} more invites wait for you. They show once you are in.`),
@@ -203,6 +238,8 @@ export const ENTRY_WORDS = {
   sentLead: (admin: string) => (admin ? `We asked ${admin} to let you in. You'll get an email.` : "We asked an admin to let you in. You'll get an email."),
   waitingFor: (admin: string) => (admin ? `Waiting for ${firstName(admin)}` : 'Waiting for an admin'),
   exploreDemo: 'Explore the demo while you wait',
+  changedMind: 'Changed your mind?',
+  cancelRequest: 'Cancel the request',
   // E5
   pickTitle: 'Pick a team',
   pickLead: (n: number) => `You are in ${n} teams. Switch any time from the top bar.`,

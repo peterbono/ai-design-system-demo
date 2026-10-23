@@ -189,7 +189,8 @@ describe('routing order', () => {
     const c = await account(s, 'mia@acme.design', 'Mia');
     const r = await get(s, c);
     const text = await r.text();
-    expect(JSON.parse(text)).toEqual({ kind: 'domain', domain: 'acme.design', teams: [{ repo: REPO, name: 'Ds', memberCount: 3, adminName: 'Ada Admin', requested: false }] });
+    // The people: GitHub admins first (by their Bridge name, else the login), then email members, by name.
+    expect(JSON.parse(text)).toEqual({ kind: 'domain', domain: 'acme.design', teams: [{ repo: REPO, name: 'Ds', memberCount: 3, people: ['Ada Admin', 'bob', 'Zed'], adminName: 'Ada Admin', requested: false }] });
     expect(text).not.toContain('@');
   });
 
@@ -207,7 +208,7 @@ describe('routing order', () => {
     await adminOpens(s);
     await invite(s, { email: 'mia@acme.design', repo: 'acme/other' });
     const c = await account(s, 'mia@acme.design', 'Mia');
-    expect(await (await get(s, c)).json()).toEqual({ kind: 'invites', invites: [{ id: 'a1b2c3d4e5f60718', team: 'Other', repo: 'acme/other', role: 'edit', invitedBy: 'ada' }] });
+    expect(await (await get(s, c)).json()).toEqual({ kind: 'invites', invites: [{ id: 'a1b2c3d4e5f60718', team: 'Other', repo: 'acme/other', role: 'edit', invitedBy: 'ada', invitedAt: new Date(T0).toISOString(), memberCount: 0, people: [] }] });
   });
 
   it('puts teams before invites', async () => {
@@ -230,6 +231,38 @@ describe('routing order', () => {
     expect((await (await get(s, c)).json()).kind).toBe('create');
     s.w.userId = 42;
     expect((await (await get(s, c, '', USER_TOKEN)).json()).kind).toBe('create');
+  });
+});
+
+describe('team cards: size and people, names only', () => {
+  it('sends the invite date, the size and the first four names, admins first, never an email', async () => {
+    const s = setup();
+    s.w.collaborators[REPO] = [
+      { id: 2, login: 'bob', permissions: { admin: false, push: true } },
+      { id: 1, login: 'ada', permissions: { admin: true, push: true } },
+    ];
+    await account(s, 'ada@acme.design', 'Ada Admin', { login: 'ada', id: 1 });
+    for (const [email, name] of [['zed@acme.design', 'Zed Ray'], ['who@acme.design', ''], ['raw@acme.design', 'raw@acme.design'], ['lea@acme.design', 'Lea Eng'], ['kim@acme.design', 'Kim']]) {
+      await s.members.put(REPO, { email: email!, name: name!, role: 'edit', version: 1, addedBy: 'ada', at: '' });
+    }
+    s.tick(86_400_000);
+    await invite(s, { email: 'mia@acme.design', createdAt: new Date(T0).toISOString() });
+    const c = await account(s, 'mia@acme.design', 'Mia');
+    const r = await get(s, c);
+    const text = await r.text();
+    const [inv] = JSON.parse(text).invites;
+    expect(inv).toMatchObject({ invitedAt: new Date(T0).toISOString(), memberCount: 7, people: ['Ada Admin', 'bob', 'Kim', 'Lea Eng'] });
+    // Other members' emails never leave the server, even one used as a name.
+    expect(text).not.toMatch(/@acme\.design/);
+  });
+
+  it('counts the email members when GitHub cannot be read', async () => {
+    const s = setup();
+    await adminOpens(s);
+    await s.members.put(REPO, { email: 'zed@acme.design', name: 'Zed', role: 'edit', version: 1, addedBy: 'ada', at: '' });
+    s.w.installed.delete(REPO);
+    const c = await account(s, 'mia@acme.design', 'Mia');
+    expect((await (await get(s, c)).json()).teams[0]).toMatchObject({ memberCount: 1, people: ['Zed'] });
   });
 });
 
@@ -351,6 +384,34 @@ describe('join requests', () => {
     s.tick(JOIN_REQUEST_TTL_MS + 1000);
     expect((await (await get(s, admin, `?requests=${REPO}`)).json()).requests).toEqual([]);
     expect((await (await get(s, mia)).json()).teams[0].requested).toBe(false);
+  });
+
+  it('lets the requester cancel their own request, and only theirs', async () => {
+    const s = setup();
+    const admin = await adminOpens(s);
+    const mia = await account(s, 'mia@acme.design', 'Mia');
+    const lou = await account(s, 'lou@acme.design', 'Lou');
+    await post(s, mia, { action: 'request', repo: REPO });
+    // Someone else cancelling finds nothing of theirs to cancel: Mia's request stands.
+    expect((await post(s, lou, { action: 'cancel-request', repo: REPO })).status).toBe(404);
+    expect((await (await get(s, admin, `?requests=${REPO}`)).json()).requests).toHaveLength(1);
+    // CSRF and the account cookie, like every action.
+    expect((await post(s, mia, { action: 'cancel-request', repo: REPO }, { header: false })).status).toBe(403);
+    expect((await post(s, mia, { action: 'cancel-request', repo: REPO }, { origin: 'https://evil.example' })).status).toBe(403);
+    expect((await post(s, null, { action: 'cancel-request', repo: REPO })).status).toBe(401);
+    expect((await (await get(s, admin, `?requests=${REPO}`)).json()).requests).toHaveLength(1);
+
+    const r = await post(s, mia, { action: 'cancel-request', repo: 'Acme/DS' });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ cancelled: true });
+    expect((await (await get(s, admin, `?requests=${REPO}`)).json()).requests).toEqual([]);
+    expect((await (await get(s, mia)).json()).teams[0].requested).toBe(false);
+    // Already gone: a 404 in Studio words.
+    const again = await post(s, mia, { action: 'cancel-request', repo: REPO });
+    expect(again.status).toBe(404);
+    expect((await again.json()).error).toBe('not_found');
+    // They can ask again later.
+    expect((await (await post(s, mia, { action: 'request', repo: REPO })).json()).requested).toBe(true);
   });
 
   it('answers the same 404 for a closed team, a missing team and another domain', async () => {

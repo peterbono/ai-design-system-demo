@@ -90,6 +90,16 @@ export async function requestJoin(repo: string): Promise<{ requested: true } | (
   return { requested: true };
 }
 
+/** Takes back the account's own pending request to join a team. A request already gone (404) counts as cancelled. */
+export async function cancelJoinRequest(repo: string): Promise<void> {
+  try {
+    await call('POST', '', { action: 'cancel-request', repo });
+  } catch (err) {
+    if (err instanceof EntryError && err.status === 404) return;
+    throw err;
+  }
+}
+
 /** Admins: the join requests of a team. */
 export async function listJoinRequests(repo: string): Promise<JoinRequest[]> {
   return parseRequests(await call('GET', `?requests=${encodeURIComponent(repo)}`));
