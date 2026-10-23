@@ -11,6 +11,8 @@ import { isAlias, aliasTarget } from '@bridge-ds/core';
 import type { DraftEdit } from '../../lib/editor-model';
 import { initGitHubConnect, prefersSignIn, setButtonLabel } from '../github-session';
 import { ghAction, sendGoal } from '../../lib/gh-wording';
+import { sampleVisitor } from '../demo-gate';
+import { DEMO_WORDS } from '../../lib/demo';
 import { changesModeOnPage } from '../changes-mode';
 import { currentScope } from '../shell';
 import { destinationNote, discardDraft, draftOverrides, editorSnapshot, sendLabel, undoEdit } from '../token-editor';
@@ -48,9 +50,11 @@ export function initReview(d: ExplorerData) {
     // offers to connect GitHub for a draft that could not be sent anyway.
     const checks = editorSnapshot()?.checks;
     const blocked = checks && editorSnapshot()?.draft.edits.some((e) => e.kind !== 'docs') ? sendBlocked(checks.blocking, changesModeOnPage() === 'suggest' ? 'send it as a suggestion' : 'send for review') : null;
+    // On the sample team the button says what it does; a click opens the demo dialog (data-demo-write), never GitHub.
+    const sample = !signedIn && sampleVisitor();
     if (propose) {
-      setButtonLabel(propose, blocked ? blocked.button : signedIn ? sendLabel() : ghAction(sendGoal('tokens', changesModeOnPage()), prefersSignIn()));
-      propose.toggleAttribute('data-gh-open', !signedIn && !blocked);
+      setButtonLabel(propose, blocked ? blocked.button : signedIn || sample ? sendLabel() : ghAction(sendGoal('tokens', changesModeOnPage()), prefersSignIn()));
+      propose.toggleAttribute('data-gh-open', !signedIn && !sample && !blocked);
     }
     if (!note) return;
     if (blocked) {
@@ -68,7 +72,7 @@ export function initReview(d: ExplorerData) {
     }
     note.classList.remove('is-fail');
     const where = signedIn ? destinationNote() : null;
-    note.textContent = where ?? signedOutNote;
+    note.textContent = where ?? (sample ? DEMO_WORDS.bannerText : signedOutNote);
     note.hidden = signedIn && !where;
   };
   // "See the pairs" opens the Contrast section of the sheet and brings it into view.

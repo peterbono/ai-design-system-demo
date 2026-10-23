@@ -5,7 +5,7 @@
 // row's second line is the person's role on this team, else their email. Nothing shows signed out or on a site
 // without accounts: the GitHub block keeps working as before.
 import { useEffect, useState } from 'react';
-import { LogOut, Settings } from 'lucide-react';
+import { Compass, LogOut, Settings } from 'lucide-react';
 import { Avatar, Button, Icon, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@bridge-ds/react';
 import { ChevronsUpDown } from 'lucide-react';
 import { GitHubMark } from '../studio/brand-icons';
@@ -13,7 +13,8 @@ import { ACCOUNT_WORDS as W, accountName, defaultNext, roleWord, signedOutHref, 
 import { ownerAvatarUrl } from '../../../lib/access-view';
 import { loadRecentTeams } from '../../../lib/recent-teams';
 import { studioHref, studioHrefAt } from '../../../lib/team-path';
-import { START_PAGE } from '../../../lib/start';
+import { DEMO_HOME, START_PAGE } from '../../../lib/start';
+import { DEMO_WORDS } from '../../../lib/demo';
 import '../../../styles/account.css';
 
 /** The drawn face of an email (lazy: the drawings are a separate chunk), or the GitHub photo once linked. */
@@ -130,6 +131,10 @@ export default function AccountMenu({ compact = false }: AccountMenuProps) {
         )}
         <MenuItem icon={Settings} onClick={() => location.assign(accountSettingsHref(account))}>
           {W.settings}
+        </MenuItem>
+        {/* The sample team, apart from the member's real teams (the team menu lists only those). */}
+        <MenuItem icon={Compass} onClick={() => location.assign(DEMO_HOME)}>
+          {DEMO_WORDS.tryIt}
         </MenuItem>
         <MenuItem icon={LogOut} disabled={busy} onClick={() => void signOut()}>
           {W.signOut}

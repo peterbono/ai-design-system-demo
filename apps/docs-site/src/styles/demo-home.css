@@ -2,7 +2,7 @@
    (DemoHome.tsx) and the write-action dialog (MakeItYours.tsx). The home itself is the signed-in home
    (studio-home.css); only what is new lives here. */
 
-/* --- The banner: a full-width strip under the app header, on every Studio page -------------------------------- */
+/* --- The banner: a full-width strip under the app header, on every Studio page and the team Library ------------ */
 
 .demo-strip > .demo-banner {
   border-inline: 0;
@@ -14,7 +14,12 @@
   font-weight: var(--font-weight-regular);
 }
 
-/* "Sample data." (board EmptyA2), for a visitor with a workspace: the board's warm tint, from the warning tones so its
+/* On the sample team the banner holds the one call to action: the side nav's own sign-in would be a second one. */
+:root[data-demo-visit] [data-gh-acct][data-state='readonly'] {
+  display: none;
+}
+
+/* The demo banner (boards D1, EmptyA2): the board's warm tint, from the warning tones so its
    text pair is one the contrast gate checks (warning text on its tint). It says "this is not your work", not alarm:
    the icon stays the neutral info mark. */
 .demo-banner.demo-banner-sample {

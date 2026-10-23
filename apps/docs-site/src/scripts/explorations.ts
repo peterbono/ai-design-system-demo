@@ -40,6 +40,7 @@ import { explorationWork } from '../lib/work-nature';
 import { devTag, markWork, natureAttr } from './work-filter';
 import { badgeHtml } from '@bridge-ds/react/dom';
 import { paintPeople, personHtml } from './people';
+import { sampleVisitor } from './demo-gate';
 import { currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError } from './github-session';
 import { EXPLORATION_SUGGEST_LINE, ghAction, rateLimitedLine } from '../lib/gh-wording';
 import { changesModeOnPage } from './changes-mode';
@@ -356,7 +357,10 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
       ? `<a class="btn btn-primary btn-lg" href="?pr=${r.number}" data-open-pr="${r.number}">Open the branch</a>`
       : opts.connected
         ? `<button type="button" class="btn btn-primary btn-lg" data-ex-promote="${r.number}">Promote to review</button> <button type="button" class="btn btn-secondary btn-lg" data-ex-close-ask="${r.number}">Close</button>`
-        : `<button type="button" class="btn btn-primary btn-lg" data-gh-open data-demo-write="keep an exploration">${ghAction('promote it', prefersSignIn())}</button>`;
+        : sampleVisitor()
+          ? // The sample team: the button says what it does; a click opens the demo dialog (scripts/demo-gate.ts).
+            `<button type="button" class="btn btn-primary btn-lg" data-demo-write="keep an exploration">Promote to review</button>`
+          : `<button type="button" class="btn btn-primary btn-lg" data-gh-open data-demo-write="keep an exploration">${ghAction('promote it', prefersSignIn())}</button>`;
   // Filled again by paintTryIt with what Vercel reports: a long branch alias is shortened with a hash, never guessed.
   const resolved = explorationPreviews(r, CFG.apps);
   const previews = resolved.length ? `<div id="ex-previews" aria-live="polite">${previewList(resolved)}</div>` : '<p class="cg-muted">Previews are not set up for this library yet.</p>';

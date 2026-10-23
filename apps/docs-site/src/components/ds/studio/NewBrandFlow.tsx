@@ -40,6 +40,7 @@ import {
 } from '../../../lib/new-brand';
 import { currentContributor, ghAuthFailure, hasWorkingToken, isDirectWait, tokenRejected } from '../../../scripts/github-session';
 import { CONTRIBUTE_WORDS } from '../../../lib/contribute';
+import { sampleVisitor } from '../../../scripts/demo-gate';
 import { type ProposedBrand, proposeBrand } from '../../../scripts/new-brand';
 import { ghAction, SEE_SUGGESTION, sendButton, sendGoal, SUGGEST_NEXT, SUGGESTION_SENT, suggestionSentLine } from '../../../lib/gh-wording';
 import { parseJiraKey } from '../../../lib/vocabulary';
@@ -482,6 +483,11 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
         ) : connected ? (
           <Button key="propose" variant="primary" iconStart={suggest ? Send : GitBranch} loading={busy} disabled={!ready} onClick={propose}>
             {sendButton('brand', mode)}
+          </Button>
+        ) : sampleVisitor() ? (
+          // The sample team: the button says what it does, and a click opens the demo dialog (scripts/demo-gate.ts).
+          <Button key="sample" variant="primary" iconStart={suggest ? Send : GitBranch} disabled={!ready} data-demo-write="send a new brand">
+            {suggest ? sendButton('brand', mode) : VOCAB.createBranch}
           </Button>
         ) : (
           <Button key="connect" variant="primary" data-gh-open="">

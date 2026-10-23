@@ -2,9 +2,11 @@
 // fetch, covered by demo.test.ts.
 //
 // A visitor without an account (or signed in without write access) explores the demo freely: the Studio home shows
-// the demo's real data read-only (components/ds/studio/DemoHome.tsx), and every action that would write to the demo
-// opens "Make it yours" instead (components/ds/studio/MakeItYours.tsx, scripts/demo-gate.ts). Someone who can
-// write to the demo repository (its owner) keeps the normal Studio.
+// the demo's real data read-only (components/ds/studio/DemoHome.tsx). The sample team has one banner and one call to
+// action everywhere, Studio and Library: "Get started", the email sign-in (never GitHub). Approve can be tried and shows
+// its result without writing anything; edits stay in this browser as drafts for the visit (scripts/demo-drafts.ts);
+// every other action that would write opens the sample-team dialog (components/ds/studio/MakeItYours.tsx,
+// scripts/demo-gate.ts). Someone who can write to the demo repository (its owner) keeps the normal Studio.
 
 import { isTeamKey } from './team-path';
 
@@ -69,41 +71,102 @@ export function exploresDemo(x: { repo: string | null | undefined; signedIn: boo
 // The words
 
 export const DEMO_WORDS = {
-  /** The banner over every Studio page of the demo (board D1); demoBanner() picks the words for the repository. */
-  bannerTitle: `${SAMPLE_TEAM}, a sample team.`,
-  bannerText: 'Read-only, sample data from our open-source design system.',
-  seeOnGitHub: 'See it on GitHub',
-  useOwn: 'Use your own repo',
-  /** The banner for a visitor with a workspace, or who came through the start screen (board EmptyA2). */
-  sampleTitle: 'Sample data.',
-  sampleText: `You're looking at ${SAMPLE_TEAM}, read only. Nothing here touches your repository.`,
+  /** The one banner of the sample team, on every Studio and Library page (board D1). */
+  bannerTitle: `${SAMPLE_TEAM}.`,
+  bannerText: 'This is a sample team: your edits stay in this browser and nothing is sent.',
+  /** The one call to action of the sample team: the email sign-in (lib/account.ts SIGNIN_PAGE), never GitHub. */
+  getStarted: 'Get started',
   /** The same banner on Bridge's own design system, for a guest: its data is real, so it is not called sample data. */
   ownSampleTitle: `${OWN_TEAM}, read only.`,
   ownSampleText: "You're looking at the design system behind Bridge. Nothing here touches your repository.",
   backToWorkspace: 'Back to your workspace',
-  /** The same banner for someone who chose the demo on the start screen and has no workspace yet. */
+  /** The same banner for someone who has no workspace yet. */
   connectOwn: 'Connect your design system',
   /** The home's branches (board D1). */
   branches: 'Explorations and branches',
-  /** A write action in the demo (board D2). */
-  dialogTitle: 'Sign in with GitHub to do this for real.',
-  dialogLead: 'In the demo, nothing is saved.',
+  /** A write action on the sample team (board D2). */
+  dialogTitle: 'This is a sample team.',
+  dialogLead: 'Nothing is sent from Acme Design. Get started to do this with your own team.',
   /** The same dialog on Bridge's own design system: real data, read only for a visitor, never called the demo. */
   ownDialogTitle: 'Sign in with GitHub to do this.',
   ownDialogLead: 'This is the design system behind Bridge, read only for visitors. Nothing is saved.',
   dialogNote: 'You pick the repos Bridge can see. It starts read-only and asks again before it writes anything.',
+  /** The sample-team dialog's note: what happens on a real team. */
+  sampleNote: 'With your own team, Bridge reads your design system and sends nothing until you ask.',
   keepExploring: 'Keep exploring',
+  /** The account menu's way to the sample team, for a signed-in member (never between real teams in the team menu). */
+  tryIt: `Try it · ${SAMPLE_TEAM}`,
 } as const;
 
 /**
- * The banner's words for a demo repository: the sample team's, or Bridge's own. Bridge's own team only ever shows the
- * one-action banner (board EmptyA2), so it has no title and text for the two-action one.
+ * Approve, tried on the sample team (a branch or its review page): the approved state and what happens next, nothing
+ * written anywhere. `author` is who asked for the review ("Ann"), when known.
  */
-export function demoBanner(repo: string | null | undefined): { title: string; text: string; sampleTitle: string; sampleText: string } {
+export function demoApproved(author?: string | null): { title: string; next: string; note: string } {
+  const who = author?.trim() ? author.trim().split(/\s+/)[0]! : 'The teammate who asked';
+  return {
+    title: 'Approved',
+    next: `On your team, ${who} hears it at once, and a developer ships the change once the checks pass.`,
+    note: 'Sample data, nothing is sent.',
+  };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Drafts made on the sample team (token edits, docs edits, a new brand) stay in this browser for the visit and never
+// mix with a real team's: entering the sample team puts a real draft aside, leaving it for any other page drops the
+// sample drafts and brings the real draft back. Pure over a Storage-like store (scripts/demo-drafts.ts runs it).
+
+/** The token and docs draft every Studio page shares (scripts/token-editor.ts). */
+export const SHARED_DRAFT_KEY = 'bridge.draft.v1';
+/** Where a real draft waits while the visitor is on the sample team. */
+export const DEMO_STASH_KEY = 'bridge.draft.v1.before-demo';
+/** Set while the visitor is on the sample team: their drafts there are sample drafts. */
+export const DEMO_VISIT_KEY = 'bridge.demo.visit';
+
+export interface DraftStore {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+  readonly length: number;
+  key(index: number): string | null;
+}
+
+/** The keys of drafts kept for the sample team only: its brand draft and its per-change drafts. */
+const sampleScoped = (k: string) => {
+  const low = k.toLowerCase();
+  return low.startsWith('bridge.') && low.includes(SAMPLE_REPO) && /draft/.test(low);
+};
+
+/** Keeps sample drafts and real drafts apart. `onSample`: this page is the sample team. Returns what it did. */
+export function swapDemoDrafts(store: DraftStore, onSample: boolean): 'entered' | 'left' | 'none' {
+  const visiting = store.getItem(DEMO_VISIT_KEY) === '1';
+  if (onSample) {
+    if (visiting) return 'none';
+    const real = store.getItem(SHARED_DRAFT_KEY);
+    if (real !== null) store.setItem(DEMO_STASH_KEY, real);
+    store.removeItem(SHARED_DRAFT_KEY);
+    store.setItem(DEMO_VISIT_KEY, '1');
+    return 'entered';
+  }
+  if (!visiting) return 'none';
+  const scoped: string[] = [];
+  for (let i = 0; i < store.length; i++) {
+    const k = store.key(i);
+    if (k && sampleScoped(k)) scoped.push(k);
+  }
+  for (const k of scoped) store.removeItem(k);
+  const real = store.getItem(DEMO_STASH_KEY);
+  if (real !== null) store.setItem(SHARED_DRAFT_KEY, real);
+  else store.removeItem(SHARED_DRAFT_KEY);
+  store.removeItem(DEMO_STASH_KEY);
+  store.removeItem(DEMO_VISIT_KEY);
+  return 'left';
+}
+
+/** The banner's words for a demo repository: the sample team's, or Bridge's own. */
+export function demoBanner(repo: string | null | undefined): { title: string; text: string } {
   const w = DEMO_WORDS;
-  return isOwnTeam(repo)
-    ? { title: w.ownSampleTitle, text: w.ownSampleText, sampleTitle: w.ownSampleTitle, sampleText: w.ownSampleText }
-    : { title: w.bannerTitle, text: w.bannerText, sampleTitle: w.sampleTitle, sampleText: w.sampleText };
+  return isOwnTeam(repo) ? { title: w.ownSampleTitle, text: w.ownSampleText } : { title: w.bannerTitle, text: w.bannerText };
 }
 
 /** The write-action dialog's words for a demo repository: the sample team's, or Bridge's own (never "the demo"). */

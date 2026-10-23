@@ -663,3 +663,8 @@
 .br-said.br-error {
   color: var(--color-feedback-danger-text);
 }
+
+/* Approve tried on the sample team (lib/demo.ts demoApproved): the result under the bar, nothing sent. */
+.br-tried {
+  margin-block-start: var(--space-3);
+}

@@ -13,6 +13,7 @@ import { TeamLoadProgress, TeamSourceNote, useTeamData } from '../studio/TeamSta
 import { commitUrl, SNAPSHOT_TEMPLATE_URL, type TeamFailure } from '../../../lib/team-load';
 import { publishedLine } from '../../../lib/library/published';
 import { teamHref } from '../../../lib/team-path';
+import { isSampleTeam } from '../../../lib/demo';
 import { teamOfPage, type TeamData } from '../../../scripts/team-data';
 import type { IllustrationName } from '../../../brand/illustrations';
 import LibraryGate, { emailFallback, useLibraryGate } from './LibraryGate';
@@ -47,8 +48,17 @@ export function LibraryZone({ title, lead, art, actions }: { title: ReactNode; l
 /** Where the page was read from: "Published Oct 20, 2026 from a1b2c3d on main." for a snapshot read as published,
  * else the team pages' line ("Read at a1b2c3d on main, live from GitHub."). Refresh at the end. */
 export function LibrarySourceNote({ data, refreshing, onRefresh }: { data: TeamData; refreshing: boolean; onRefresh: () => void }) {
-  const line = publishedLine({ published: data.published, sha: data.sha, branch: data.defaultBranch });
+  // The sample team: its banner says it is a sample; the date stays, the commit goes.
+  const sample = isSampleTeam(`${data.owner}/${data.repo}`);
+  const line = publishedLine({ published: data.published, sha: sample ? null : data.sha, branch: data.defaultBranch });
   if (!line) return <TeamSourceNote data={data} refreshing={refreshing} onRefresh={onRefresh} />;
+  if (sample)
+    return (
+      <p className="tp-source ltm-source" aria-live="polite">
+        <span>{line}</span>
+        <IconButton icon={RefreshCw} label="Read the published Library again" size="sm" variant="ghost" loading={refreshing} onClick={onRefresh} />
+      </p>
+    );
   const sha = data.sha.slice(0, 7);
   const [before, after] = line.split(sha) as [string, string];
   return (

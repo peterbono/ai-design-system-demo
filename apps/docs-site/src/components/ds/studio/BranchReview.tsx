@@ -11,6 +11,7 @@ import { ArrowRight, Check, ChevronLeft, Circle, Ellipsis, Pencil } from 'lucide
 import {
   Accordion,
   AccordionItem,
+  Alert,
   AlertDialog,
   AlertDialogContent,
   Badge,
@@ -75,6 +76,7 @@ import type { VisualShot } from '../../../lib/visual-impact';
 import { VISUAL_CHECKS_DOCS } from '@bridge-ds/core';
 import type { ShownValue } from '../../../lib/token-review';
 import type { Lifecycle, LifecycleTone } from '../../../lib/change-status';
+import { demoApproved } from '../../../lib/demo';
 
 export interface PersonRef {
   login: string;
@@ -175,6 +177,11 @@ export interface BranchReviewProps {
   productWork?: ProductWorkView | null;
   /** Product work's technical side, folded under "For developers" for everyone. */
   code?: { files: string[]; branch: string; url: string; number: number; install: string | null } | null;
+  /**
+   * The sample team (lib/demo.ts): Approve can be tried. It shows the approved state and what happens next, and
+   * writes nothing. `author` is who asked for the review.
+   */
+  sample?: { author: string | null } | null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -856,7 +863,17 @@ function ProductWork({ work, link, hasVisual }: { work: ProductWorkView; link: s
 // ---------------------------------------------------------------------------------------------------------------
 // The decision bar
 
-function DecisionBar({ p, leftLine, inputRef }: { p: BranchReviewProps; leftLine: string | null; inputRef: React.RefObject<HTMLInputElement> }) {
+/** Approve, tried on the sample team: approved, what happens next, and that nothing was sent. */
+function TriedApprove({ author }: { author: string | null }) {
+  const w = demoApproved(author);
+  return (
+    <Alert tone="success" title={w.title} className="br-tried">
+      {w.next} {w.note}
+    </Alert>
+  );
+}
+
+function DecisionBar({ p, leftLine, inputRef, tried, onTry }: { p: BranchReviewProps; leftLine: string | null; inputRef: React.RefObject<HTMLInputElement>; tried: boolean; onTry: () => void }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState<ActKind | null>(null);
   const [said, setSaid] = useState(p.said ?? '');
@@ -929,7 +946,14 @@ function DecisionBar({ p, leftLine, inputRef }: { p: BranchReviewProps; leftLine
             Suggest changes
           </Button>
         )}
-        {primary && (
+        {primary && p.sample && (primary.kind === 'approve' || primary.kind === 'approve-merge') ? (
+          // The sample team: Approve is tried here, nothing is written (no data-demo-write: the demo gate lets it through).
+          !tried && (
+            <Button variant="primary" size="lg" onClick={onTry} data-demo-try="approve">
+              Approve
+            </Button>
+          )
+        ) : primary && (
           <Button
             variant="primary"
             size="lg"
@@ -968,6 +992,7 @@ function DecisionBar({ p, leftLine, inputRef }: { p: BranchReviewProps; leftLine
           </MenuContent>
         </Menu>
       </div>
+      {tried && p.sample && <TriedApprove author={p.sample.author} />}
       {(said || p.note) && (
         <p className="br-said" role="status" aria-live="polite">
           {said || p.note}
@@ -1010,6 +1035,10 @@ export function BranchReview(p: BranchReviewProps) {
   const [picked, setPicked] = useState<string | null>(null);
   const [added, setAdded] = useState(p.added ?? null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Approve tried on the sample team: the page shows the approved state; nothing is sent.
+  const [tried, setTried] = useState(false);
+  const status = tried && p.sample ? { label: 'Approved', tone: 'success' as const } : p.status;
+  const approvals = tried && p.sample ? p.approvals.map((a) => ({ ...a, state: 'approved' as const, text: a.state === 'waiting' && /\byou\b/i.test(a.text) ? 'You approved' : a.text })) : p.approvals;
   const multi = p.changes.length > 1;
   const current = multi ? currentChange(p.changes, looked, picked) : (p.changes[0]?.id ?? null);
   const progress = lookedProgress(p.changes, looked);
@@ -1049,8 +1078,8 @@ export function BranchReview(p: BranchReviewProps) {
         {/* The status follows the last word of the title, wherever the title wraps. */}
         <Heading className="br-title">
           {p.title}{' '}
-          <Badge tone={p.status.tone} className="br-status">
-            {p.status.label}
+          <Badge tone={status.tone} className="br-status">
+            {status.label}
           </Badge>
         </Heading>
         <p className="br-who">
@@ -1076,7 +1105,7 @@ export function BranchReview(p: BranchReviewProps) {
             {work && <ProductWork work={work} link={p.links.review} hasVisual={p.visual?.state === 'changes'} />}
             <MultiBody {...p} current={current} seen={looked} pick={pick} mark={mark} />
             <Conversation p={p} onReply={reply} />
-            <ChecksRow checks={p.checks} approvals={p.approvals} />
+            <ChecksRow checks={p.checks} approvals={approvals} />
             {(p.developer || p.code) && <ForDevelopers dev={p.developer} code={p.code} />}
             {/* The visual impact reads into these (scripts/reviews.ts); on a busy branch the before and after shows per change. */}
             {p.visual && <div id="rv-visual" hidden />}
@@ -1092,7 +1121,7 @@ export function BranchReview(p: BranchReviewProps) {
           {!single && !work && <p className="br-muted">Nothing here for design review: the changes are code, a developer reviews them.</p>}
           {single?.kind === 'component' && <p className="br-muted">The code is a developer's to review.</p>}
           <Conversation p={p} onReply={reply} />
-          <ChecksRow checks={p.checks} approvals={p.approvals} />
+          <ChecksRow checks={p.checks} approvals={approvals} />
           {(p.developer || p.code) && <ForDevelopers dev={p.developer} code={p.code} />}
         </div>
       )}
@@ -1106,7 +1135,7 @@ export function BranchReview(p: BranchReviewProps) {
           <span id="rv-lib-act" />
         </div>
       )}
-      {!p.inQueue && <DecisionBar p={p} leftLine={multi ? progress.leftLine : null} inputRef={inputRef} />}
+      {!p.inQueue && <DecisionBar p={p} leftLine={multi ? progress.leftLine : null} inputRef={inputRef} tried={tried} onTry={() => setTried(true)} />}
     </div>
   );
 }

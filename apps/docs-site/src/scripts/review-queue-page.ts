@@ -34,6 +34,14 @@ import { reviewLink } from '../lib/review-page';
 import { ghAction, ghButton } from '../lib/gh-wording';
 import type { NeedKind, NeedRow } from '../lib/home-model';
 import { studioHref } from '../lib/team-path';
+import { demoApproved, isSampleTeam } from '../lib/demo';
+import { repoContext } from './repo-context';
+
+/** The sample team (lib/demo.ts): Approve is tried, nothing is sent; the rest opens the demo dialog. */
+const onSampleTeam = () => {
+  const r = repoContext();
+  return isSampleTeam(`${r.owner}/${r.repo}`) && !currentViewer();
+};
 
 /** The link of a row that does not open a branch review, by kind. */
 const OPEN_LABEL: Record<NeedKind, string> = {
@@ -249,6 +257,12 @@ export function initReviewQueue() {
     const n = opened;
     const d = decide('approved');
     if (!d) return;
+    // The sample team: the approved state and what happens next, nothing sent.
+    if (onSampleTeam()) {
+      const w = demoApproved(d.row.person?.name ?? null);
+      later(d, async () => {}, `${w.next} ${w.note}`);
+      return;
+    }
     later(d, () => approveBranch(n, text));
   }
 
@@ -264,12 +278,13 @@ export function initReviewQueue() {
   }
 
   /** Waits UNDO_MS with an Undo toast, then sends; the queue moves on at once. */
-  function later(d: { i: number; row: NeedRow }, go: () => Promise<unknown>) {
+  function later(d: { i: number; row: NeedRow }, go: () => Promise<unknown>, description?: string) {
     const key = d.row.key;
     // Nothing is sent before the toast closes: Undo only cancels.
     waiting.set(key, { go, timer: setTimeout(() => send(key), UNDO_MS) });
     const toastId = toasts?.add({
       title: outcomeLine('approved', d.row.title),
+      ...(description ? { description } : {}),
       tone: 'success',
       timeout: UNDO_MS,
       action: {
@@ -292,6 +307,11 @@ export function initReviewQueue() {
 
   async function act(kind: 'suggest' | 'ask', text = '') {
     if (busy || !opened) return;
+    if (onSampleTeam()) {
+      const { openMakeItYours } = await import('./demo-gate');
+      await openMakeItYours();
+      return;
+    }
     const n = opened;
     busy = kind;
     said = '';
@@ -357,6 +377,16 @@ export function initReviewQueue() {
 
   function emptyState() {
     const signIn = prefersSignIn();
+    // The sample team: no GitHub sign-in here, the banner's "Get started" is its one way in. Home lists what waits.
+    if (onSampleTeam())
+      return h(EmptyState, {
+        icon: Inbox,
+        size: 'lg',
+        headingLevel: 2,
+        title: 'Nothing to review here.',
+        description: failed ?? 'Home lists the changes waiting on the lead of this sample team.',
+        actions: h(ButtonLink, { variant: 'primary', href: studioHref() }, 'Back to Home'),
+      });
     return h(EmptyState, {
       icon: Inbox,
       size: 'lg',

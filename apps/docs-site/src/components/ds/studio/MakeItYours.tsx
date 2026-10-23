@@ -1,12 +1,15 @@
-// A write action on the demo (board D2, "a write action asks to sign in"): Create branch, New brand, Send suggestion,
-// Approve, Start an exploration, a token edit sent for review... A calm DS Dialog, never an error: in the demo
-// nothing is saved, and doing it for real starts with GitHub. "Keep exploring" closes it; "Sign in with GitHub" signs
-// in (the shared session listens for data-gh-signin, scripts/github-session.ts). Words in lib/demo.ts; when it opens:
-// scripts/demo-gate.ts. Using your own design system is the banner's "Use your own repo" (DemoBanner.tsx).
+// A write action on a demo team (board D2): Create branch, New brand, Send suggestion, Start an exploration, a token
+// edit sent for review... A calm DS Dialog, never an error. On the sample team (Acme Design) nothing is sent, and the
+// way to do it for real is the sample team's one call to action, "Get started" (the email sign-in, never GitHub), the
+// same as its banner (DemoBanner.tsx). On Bridge's own team, a guest signs in ("Sign in with GitHub"; the shared session
+// listens for data-gh-signin, scripts/github-session.ts). "Keep exploring" closes it. Words in lib/demo.ts; when it
+// opens: scripts/demo-gate.ts.
 import { Eye } from 'lucide-react';
 import { Alert, Button, ButtonGroup, Dialog, DialogClose, DialogContent } from '@bridge-ds/react';
 import { GitHubMark } from './brand-icons';
-import { demoDialog, DEMO_WORDS } from '../../../lib/demo';
+import ButtonLink from '../ButtonLink';
+import { demoDialog, DEMO_WORDS, isOwnTeam } from '../../../lib/demo';
+import { SIGNIN_PAGE } from '../../../lib/account';
 import { ghButton } from '../../../lib/gh-wording';
 import '../../../styles/demo-home.css';
 
@@ -22,6 +25,7 @@ export interface MakeItYoursProps {
 /** The demo's write-action dialog. */
 export function MakeItYours({ open, onOpenChange, signIn, repo }: MakeItYoursProps) {
   const words = demoDialog(repo);
+  const own = isOwnTeam(repo);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -31,14 +35,20 @@ export function MakeItYours({ open, onOpenChange, signIn, repo }: MakeItYoursPro
         footer={
           <ButtonGroup align="end" className="miy-actions">
             <DialogClose render={<Button variant="secondary" />}>{DEMO_WORDS.keepExploring}</DialogClose>
-            <Button variant="primary" iconStart={GitHubMark} data-gh-open="" data-gh-signin={signIn ? '' : undefined} onClick={() => onOpenChange(false)}>
-              {ghButton(signIn)}
-            </Button>
+            {own ? (
+              <Button variant="primary" iconStart={GitHubMark} data-gh-open="" data-gh-signin={signIn ? '' : undefined} onClick={() => onOpenChange(false)}>
+                {ghButton(signIn)}
+              </Button>
+            ) : (
+              <ButtonLink variant="primary" href={SIGNIN_PAGE} data-demo-start="">
+                {DEMO_WORDS.getStarted}
+              </ButtonLink>
+            )}
           </ButtonGroup>
         }
       >
         <Alert tone="neutral" icon={Eye}>
-          {DEMO_WORDS.dialogNote}
+          {own ? DEMO_WORDS.dialogNote : DEMO_WORDS.sampleNote}
         </Alert>
       </DialogContent>
     </Dialog>

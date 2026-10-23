@@ -18,6 +18,8 @@ describe('published line', () => {
   it('dates a snapshot read as published', () => {
     expect(publishedLine({ published: '2026-10-20T08:00:00Z', sha: 'a1b2c3d4e5', branch: 'main' })).toBe('Published Oct 20, 2026 from a1b2c3d on main.');
     expect(publishedLine({ sha: 'a1b2c3d', branch: 'main' })).toBeNull();
+    // The sample team: the date only, never a commit.
+    expect(publishedLine({ published: '2026-10-20T08:00:00Z', sha: null, branch: 'main' })).toBe('Published Oct 20, 2026.');
     expect(publishedLine({ published: 'not a date', sha: 'a1b2c3d', branch: 'main' })).toBeNull();
   });
 });
