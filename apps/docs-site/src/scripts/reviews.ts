@@ -6,7 +6,7 @@
 // "Copy link", "Link for a developer"; the page itself never links to GitHub.
 // Without a token the bar's primary connects GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
-import { askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, canOverride, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
+import { EXPLORATION_USE_CASES, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, canOverride, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
 import { loadTeams, siteApprovalRules, siteApprovers, siteShipPolicy, siteSoloOwner, teamDirectory } from './teams';
 import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
@@ -87,6 +87,8 @@ import {
   namesIn,
   readLooked,
   reviewActions,
+  bodyWhy,
+  productWorkOf,
   reviewCrumbs,
   reviewLink,
   splitChanges,
@@ -100,7 +102,7 @@ import type { ActKind, BranchReviewProps, GuidanceView, PersonRef, TokenRowView,
 const MOTION_CHANGE = 'tokens:motion';
 import { lifecycleOfRow } from './status-filter';
 import { byLifecycle, LIFECYCLE, lifecycleTone, type Lifecycle } from '../lib/change-status';
-import { isRunningExploration } from '../lib/explorations-view';
+import { isRunningExploration, previewName, tryItCopy, tryItFromComments } from '../lib/explorations-view';
 import type { BranchesListProps, ListRow } from '../components/ds/studio/BranchesList';
 import { conflictLine, conflictRows, freshness, libraryLine, nextSteps, resolveLabel, type CompareLike, type Freshness } from '../lib/library-sync';
 import { bringInLatest, checkGuardrail, commitResolution, readCompare, readConflicts, readDismissStale, waitForNewHead } from './reviews/library-sync';
@@ -969,10 +971,33 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   const context = neededBy ? productContextOf(pull.body, neededBy.author ? { [neededBy.author]: nameOf(neededBy.author) } : {}) : null;
   const productContext = context ? { ...context, previewUrl: null } : null;
 
+  // An exploration or a product branch: what a designer sees there (lib/review-page productWorkOf), the previews
+  // Vercel reported (never a template it may have shortened), and the product preview with the Bridge toolbar.
+  const explored = parseExplorationBody(pull.body);
+  const previewBase = productPreviewOf(pull, comments, x.statuses);
+  const productWork = productWorkOf({
+    exploration,
+    files: files.map((f) => f.filename),
+    labels: pull.labels,
+    products: SITE.products ?? [],
+    purpose: explored?.purpose ?? bodyWhy(pull.body),
+    useCase: EXPLORATION_USE_CASES.find((u) => u.value === explored?.useCase)?.label ?? null,
+    experimental: explored?.experimental ?? null,
+    previews: resolveBranchPreviews(BRANCHES.apps ?? {}, { branch: pull.head.ref, pr: pull.number, sha: pull.head.sha }, { comments, statuses: x.statuses })
+      // A template URL may point at nothing (Vercel skipped or shortened it): only the ones Vercel reported open.
+      .map((v) => ({ label: previewName(v.app, v.label), url: v.url && v.source !== 'template' ? safeUrl(v.url) || null : null, state: v.state })),
+    tryUrl: previewBase ? safeUrl(tryInProductUrl(previewBase, pull.number, null)) || null : null,
+  });
+  // The technical side of product work, folded for everyone: what a designer never needs to read first.
+  const tryIt = exploration ? tryItCopy(tryItFromComments(comments, pull.head.sha)) : null;
+  const code = productWork ? { files: files.map((f) => f.filename), branch: pull.head.ref, url: pull.html_url, number: pull.number, install: tryIt?.command ?? null } : null;
+
   return {
     pr: pull.number,
     productContext,
-    crumbs: reviewCrumbs(files.map((f) => f.filename), title),
+    crumbs: reviewCrumbs(files.map((f) => f.filename), title, { products: SITE.products ?? [], labels: pull.labels, exploration }),
+    productWork,
+    code,
     title,
     jira: jiraKeyOf(pull.title),
     // In review: the same pill as its row in Branches and on the home (lib/changes statusPill over core reviewStatusKind).

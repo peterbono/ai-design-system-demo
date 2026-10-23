@@ -402,6 +402,23 @@
   font-weight: var(--font-weight-medium);
 }
 
+/* See it: an exploration or a product branch, for a designer. */
+.br-work {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.br-work-list {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+
+.br-work-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 /* For developers: the technical side of the branch, folded, for tech owners only. */
 .br-dev .br-dev-list {
   margin: 0 0 var(--space-3);
