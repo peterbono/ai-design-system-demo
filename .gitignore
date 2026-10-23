@@ -25,3 +25,5 @@ qa-screens-changes/
 qa-screens-newbrand/
 figma-references/
 bridge-data/
+
+.bridge-local/

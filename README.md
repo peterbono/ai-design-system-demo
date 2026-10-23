@@ -118,6 +118,7 @@ Requires Node 20.19+ (see `.nvmrc`).
 git clone https://github.com/peterbono/ai-design-system-demo.git bridge && cd bridge
 npm install
 npm run docs:dev          # Bridge web platform on http://localhost:4321
+npm run dev:full          # the same, with sign-in, teams and invites working locally (docs/HOSTED.md)
 npm run storybook         # component workbench on http://localhost:6006
 npm run admin:dev         # the back-office demo built on Bridge
 ```

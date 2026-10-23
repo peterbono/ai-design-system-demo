@@ -101,11 +101,15 @@ const teamShells = {
 const previewHost = process.env.VERCEL_ENV === 'preview' && process.env.VERCEL_BRANCH_URL ? `https://${process.env.VERCEL_BRANCH_URL}` : undefined;
 const site = process.env.SITE_URL || previewHost || process.env.CF_PAGES_URL || process.env.DEPLOY_PRIME_URL || undefined;
 
+// `npm run dev:full` (BRIDGE_LOCAL=1): the api/* functions run inside the dev server with local data only
+// (dev/local-api.ts). Never loaded otherwise, so the build and Vercel never see it.
+const local = process.env.BRIDGE_LOCAL === '1' ? [(await import('./dev/local-api.ts')).bridgeLocal({ root: fileURLToPath(new URL('.', import.meta.url)) })] : [];
+
 export default defineConfig({
   output: 'static',
   site,
   trailingSlash: 'ignore',
-  integrations: [react(), keepQuery, cspHashes, teamShells],
+  integrations: [react(), keepQuery, cspHashes, teamShells, ...local],
   redirects: REDIRECTS,
   build: { format: 'directory' },
   devToolbar: { enabled: false },

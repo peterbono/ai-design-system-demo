@@ -81,7 +81,7 @@ import {
   siteOrigin as originOf,
   type FetchLike,
 } from '../_lib/http.js';
-import { redisRest } from '../_lib/redis.js';
+import { redisRest, type Redis } from '../_lib/redis.js';
 import { cookieAttrs as attrsFor, readCookie, signClaims, verifyClaims } from '../_lib/session.js';
 
 export { appJwt } from '../_lib/github-app.js';
@@ -346,7 +346,12 @@ const isSetting = (v: any) => (MODES as readonly unknown[]).includes(v.mode) && 
 const isSignIn = (v: any) => typeof v.repo === 'string' && typeof v.domain === 'string' && Number.isInteger(v.version);
 
 export function redisStore(url: string, token: string, f: FetchLike): LibraryStore {
-  const { cmd, pipe } = redisRest(url, token, f, STORAGE_DOWN);
+  return libraryStoreOn(redisRest(url, token, f, STORAGE_DOWN));
+}
+
+/** The Library store on any Redis (Upstash in production, the in-memory one locally). */
+export function libraryStoreOn(redis: Redis): LibraryStore {
+  const { cmd, pipe } = redis;
   return {
     async getSetting(repo) {
       return parseJson<LibrarySetting>(await cmd('GET', settingKey(repo)), isSetting);
