@@ -46,3 +46,11 @@ test('a spec changed with its old hash left in the file is still an update; an u
   });
   assert.deepEqual((await plan()).plan.components.filter((c) => c.status !== 'unchanged').map((c) => c.name), ['Kbd']);
 });
+
+test("main's specs: every checked spec hashes to its stored hash, so the plan changes nothing on a current file", async () => {
+  const { checkComponentSpecs } = await import('../src/sync/spec-check');
+  const { hashSpec } = await import('@bridge-ds/core');
+  const file = parseComponentSpecs(readFileSync(join(process.cwd(), '../../packages/react/component-specs.json'), 'utf8'));
+  const { specs } = checkComponentSpecs(file);
+  assert.deepEqual(specs.components.filter((c) => hashSpec(c) !== c.hash).map((c) => c.name), []);
+});
