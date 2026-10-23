@@ -7,7 +7,7 @@ import { buildTokenSet, layoutOptions, loadConfig } from '@bridge-ds/core';
 import { previewOverrides } from '../lib/editor-model';
 import { bannerBody, changedComponents, changedGuidance, GUIDANCE_LABEL, isTogether, LOOKS_LABEL, overrideCss } from '../lib/view-scope';
 import { currentPull, pageScope, readFailure, scopeLibrary, setBannerBody, setBannerError } from './view-change';
-import { studioHref } from '../lib/team-path';
+import { STUDIO_ROOT } from '../lib/team-path';
 
 interface LibraryFiles {
   tokensRoot: string;
@@ -26,8 +26,9 @@ export async function initViewOnComponents(root: HTMLElement) {
   try {
     const [, latest] = await Promise.all([
       pull,
-      fetch(studioHref('library-files.json')).then((r) => {
-        if (!r.ok) throw new Error('The latest library could not be read.');
+      // This build's own library: self-hosted Studio lives at /studio/, never under a team address.
+      fetch(`${STUDIO_ROOT}library-files.json`).then((r) => {
+        if (!r.ok) throw new Error(`Could not read the latest tokens (Bridge answered ${r.status}). Reload the page to try again.`);
         return r.json() as Promise<LibraryFiles>;
       }),
     ]);

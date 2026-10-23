@@ -82,7 +82,9 @@ describe('history sinks with hostile repository data', () => {
     document.dispatchEvent(new CustomEvent('bridge:token-detail', { detail: { path: 'color.x', body } }));
     await flush();
     const panel = body.querySelector('.hs-panel')!;
-    expect(panel.textContent).toContain(`#${SVG}`);
+    // Pull request numbers are not shown to designers; the hostile rename source stays text.
+    expect(panel.textContent).not.toContain(`#${SVG}`);
+    expect(panel.textContent).toContain(SVG);
     expect(panel.textContent).toContain(IMG);
     expectInert(panel);
     body.remove();
@@ -98,7 +100,8 @@ describe('history sinks with hostile repository data', () => {
     initHistory();
     await flush();
     const tl = document.getElementById('hs-timeline')!;
-    expect(tl.textContent).toContain(`#${SVG}`);
+    expect(tl.textContent).toContain(IMG);
+    expect(tl.textContent).not.toContain(SVG);
     expectInert(tl);
     const who = document.getElementById('hs-next-who')!;
     expect(who.querySelector('a')).not.toBeNull();

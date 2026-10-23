@@ -24,6 +24,7 @@ import HistoryPlanner from '../../components/HistoryPlanner.astro';
 import ChangesRequests from '../../components/ChangesRequests.astro';
 import ChangesExplorations from '../../components/ChangesExplorations.astro';
 import ChangesHistory from '../../components/ChangesHistory.astro';
+import OverrideDialog from '../../components/OverrideDialog.astro';
 import PromoteToReview from '../../components/ds/studio/PromoteToReview';
 import RequestDecide from '../../components/ds/studio/RequestDecide';
 import { signInConfig } from '../../lib/signin-config';
@@ -61,6 +62,7 @@ const signIn = Boolean(signInConfig(true));
     <div id="sg-detail" class="rv-detail" hidden></div>
   </div>
   <HistoryPlanner />
+  <OverrideDialog />
   <PromoteToReview client:only="react" />
   <RequestDecide client:only="react" />
   <script>

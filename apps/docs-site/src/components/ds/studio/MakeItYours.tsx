@@ -6,7 +6,7 @@
 import { Eye } from 'lucide-react';
 import { Alert, Button, ButtonGroup, Dialog, DialogClose, DialogContent } from '@bridge-ds/react';
 import { GitHubMark } from './brand-icons';
-import { DEMO_WORDS } from '../../../lib/demo';
+import { demoDialog, DEMO_WORDS } from '../../../lib/demo';
 import { ghButton } from '../../../lib/gh-wording';
 import '../../../styles/demo-home.css';
 
@@ -15,16 +15,19 @@ export interface MakeItYoursProps {
   onOpenChange: (open: boolean) => void;
   /** The site signs in with GitHub (else the token paste: "Connect GitHub"). */
   signIn: boolean;
+  /** "owner/repo" of the page: Bridge's own design system is never called the demo. */
+  repo?: string;
 }
 
 /** The demo's write-action dialog. */
-export function MakeItYours({ open, onOpenChange, signIn }: MakeItYoursProps) {
+export function MakeItYours({ open, onOpenChange, signIn, repo }: MakeItYoursProps) {
+  const words = demoDialog(repo);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="miy"
-        title={<span className="miy-title">{DEMO_WORDS.dialogTitle}</span>}
-        description={DEMO_WORDS.dialogLead}
+        title={<span className="miy-title">{words.title}</span>}
+        description={words.lead}
         footer={
           <ButtonGroup align="end" className="miy-actions">
             <DialogClose render={<Button variant="secondary" />}>{DEMO_WORDS.keepExploring}</DialogClose>

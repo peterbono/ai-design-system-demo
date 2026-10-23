@@ -909,6 +909,8 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   if (actions.primary?.kind === 'connect') actions.primary.label = ghAction('review', prefersSignIn());
   if (actions.primary && (actions.primary.kind === 'reopen' || actions.primary.kind === 'restart') && statusRun.kind) actions.primary.label = ACTION_LABEL[statusRun.kind];
   const openOverride = showOverride && access ? wireOverride(pull, access, gate) : null;
+  // A page without the override dialog (components/OverrideDialog.astro) cannot open it: offer no item that does nothing.
+  if (!openOverride) actions.menu.override = null;
 
   // Conversation: people only (bots say what the page shows elsewhere).
   const reviewers = [...OWNERS().design, ...OWNERS().tech];

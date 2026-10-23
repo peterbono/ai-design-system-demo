@@ -82,3 +82,20 @@ export function humanAuthored(body: string): string {
     .replace('- [ ] Human\n- [x] AI agent (Claude), reviewed by a human before merge', '- [x] Human\n- [ ] AI agent (Claude), reviewed by a human before merge')
     .replace(/Agent-authored: a human design owner and tech owner review and merge\./, 'Planned by a person in Bridge, no AI involved in the values. A design owner and a tech owner review and merge.');
 }
+
+/** An owner override read back from its posted reason (core parseOverrideComment), as History shows it. */
+export interface OverrideShown {
+  login: string;
+  reason: string;
+  missing: string[];
+}
+
+/**
+ * The History line of a branch merged with the owner override: who, without which approvals, and the reason they
+ * posted. `esc` escapes text, `person` renders the merger (an avatar and name). Returns HTML.
+ */
+export function overrideLine(ov: OverrideShown, esc: (s: string) => string, person: (login: string) => string): string {
+  const missing = ov.missing.length ? ` without ${ov.missing.join(' and ')}` : '';
+  const reason = ov.reason && ov.reason !== 'no reason given' ? ` Reason: ${esc(ov.reason)}.` : ' No reason was given.';
+  return `Merged with the owner override by ${person(ov.login)}${esc(missing)}.${reason}`;
+}

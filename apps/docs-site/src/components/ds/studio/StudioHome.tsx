@@ -177,7 +177,7 @@ function Waiting({ needs, now, lead }: { needs: NeedRow[]; now: number; lead?: P
   return (
     <div className="t-body sh-waiting">
       {people.length > 0 && (
-        <AvatarGroup aria-label="Waiting on you" max={AVATARS_SHOWN} size="md" className="sh-stack">
+        <AvatarGroup aria-label={lead === null ? 'Waiting for review' : 'Waiting on you'} max={AVATARS_SHOWN} size="md" className="sh-stack">
           {people.map((p) => (
             <Who key={p.agent ? '#agent' : p.login} p={p} name={p.name} decorative={false} />
           ))}

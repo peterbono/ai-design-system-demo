@@ -14,7 +14,7 @@ import { barCopy, FULL_TIP } from '../../../lib/branches-page';
 import { reviewTokenChange } from '../../../lib/token-review';
 import { viewTitle, viewTogetherHref } from '../../../lib/view-scope';
 import { START_CHANGE_EVENT, type StartChangeLook } from './StartChange';
-import { readLatestLibrary, readTogetherSource, type LatestLibrary, type TogetherSource } from '../../../scripts/combine-read';
+import { LatestLibraryError, readLatestLibrary, readTogetherSource, type LatestLibrary, type TogetherSource } from '../../../scripts/combine-read';
 
 export interface ListedBranch {
   number: number;
@@ -76,7 +76,7 @@ export function SelectionBar({ selected, listed, admin, failure, onClear, onDrop
         }
         setError(null);
       } catch (err) {
-        if (live) setError(failure(err));
+        if (live) setError(err instanceof LatestLibraryError ? err.message : failure(err));
       }
     })();
     return () => {
