@@ -29,6 +29,7 @@ import { IMAGES_NEED_WRITE, type SentComponentPush, sendLabel, sentTitle, sugges
 import { type Destination, type PublishItem, type PublishResult, sendComponentPush, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
 import { type ComponentsReadProblem, NEW_TOKEN_REFUSED, TOKEN_REJECTED_CALLOUT, TOKEN_REJECTED_DETAIL, TOKEN_SETTINGS_URL, type TokenProblem, checkToken, componentsReadProblem, errorText, friendlyError, tokenProblem } from '../sync/token-health';
 import { type BuildItem, type StudioTarget, developerMessage, sentLinks, studioChangeUrl } from '../sync/studio';
+import { type RoutedItem, type ShipPoll, type ShipStatus, ShipPoller, groupRoutes, libraryHeadline, shipStateLabel, shippedNumbers } from '../sync/library-routes';
 import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, triedLocally, tryItLinks } from '../sync/explorations';
 import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
 import { type Selection, onProgress, onSelection, request } from './bridge';
@@ -123,6 +124,13 @@ interface PushState {
   loadingExplorations?: boolean | undefined;
   /** The exploration to send to: its branch, or "new" to start one. */
   exploreTarget: string;
+  /**
+   * Where each item of a push to the library went (docs/BUILD-REQUESTS.md): shipped, waiting for a developer, or a
+   * build request. Set by the send once the core contract lands; until then nothing sets it and the screens stay off.
+   */
+  routed?: RoutedItem[] | undefined;
+  /** The shipped pull requests: on their way, in the library, or a failed check; polled while the screen is open. */
+  ship?: { statuses: Map<number, ShipStatus>; poller?: ShipPoller | undefined; timedOut?: boolean | undefined } | undefined;
   newExploration: { name: string; purpose: string };
   /** The exploration the last push went to (result screen). */
   sentTo?: ExplorationChoice | undefined;
@@ -3049,6 +3057,67 @@ function buildMessage(r: PushState, items: BuildItem[]): HTMLElement {
 }
 
 /** A status sentence with "Check again" on the same line. */
+/**
+ * After a push to the library: token values on their way (then in the library), renames and removals waiting for a
+ * developer, build requests sent to developers. One group per route, the same row for each item, its link on the row.
+ */
+function libraryResult(r: PushState, items: RoutedItem[]): Child[] {
+  const g = groupRoutes(items);
+  const statuses = r.ship?.statuses ?? new Map<number, ShipStatus>();
+  const head = libraryHeadline(g, statuses);
+  const row = (i: RoutedItem, hint: string, spin = false) =>
+    h(
+      'li',
+      { class: 'row' },
+      h(
+        'div',
+        { class: 'row-head' },
+        h('span', { class: 'row-label' }, h('span', { class: i.kind === 'token' ? 'mono' : '' }, i.label), h('small', null, hint)),
+        spin ? h('span', { class: 'spinner row-wait', role: 'img', 'aria-label': `${i.label}: on its way` }) : null,
+        h('button', { class: 'btn ghost row-action', 'aria-label': `Open #${i.number} on GitHub`, title: i.url, onClick: () => void request('open-url', { url: i.url }) }, icon('external'), `#${i.number}`),
+      ),
+    );
+  const group = (title: string, lede: string, rows: Child[]) => h('section', null, h('h2', null, title), h('p', { class: 'lede' }, lede), h('ul', { class: 'rows' }, rows));
+  return [
+    intro({ title: head.title, text: head.text, art: 'review' }),
+    g.shipped.length
+      ? group(
+          'Token values',
+          r.ship?.timedOut ? 'Still on its way after 10 minutes. The pull request on GitHub says which check is running.' : 'Checked for contrast and tests, then merged on its own. No second review: it was approved in Figma.',
+          g.shipped.map((i) => {
+            const s = statuses.get(i.number);
+            return row(i, shipStateLabel(s), !s || s.state === 'on-its-way');
+          }),
+        )
+      : null,
+    g.waiting.length ? group('Waiting for a developer', "Renames and removals change code that uses the token: a developer says OK, then it reaches the library.", g.waiting.map((i) => row(i, 'Waiting for a developer'))) : null,
+    g.builds.length ? group('Build requests', 'Each one has the Figma link, before and after, the props and a brief ready for Claude. Developers split the work there.', g.builds.map((i) => row(i, 'Requested'))) : null,
+  ];
+}
+
+/** Starts reading the shipped pull requests (on their way, in the library) while the result screen is open. */
+export function startShipPolling(r: PushState, poll: ShipPoll): void {
+  const numbers = shippedNumbers(groupRoutes(r.routed ?? []));
+  r.ship?.poller?.stop();
+  r.ship = { statuses: new Map() };
+  if (!numbers.length) return;
+  const ship = r.ship;
+  ship.poller = new ShipPoller({
+    poll,
+    numbers,
+    onUpdate: (statuses) => {
+      ship.statuses = statuses;
+      if (state.push === r) render();
+    },
+    onTimeout: () => {
+      ship.timedOut = true;
+      if (state.push === r) render();
+    },
+  });
+  ship.poller.start();
+  void ship.poller.check();
+}
+
 function statusLine(text: string, r: PushState): HTMLElement {
   return h(
     'p',
@@ -3101,6 +3170,7 @@ function viewPush(): View {
       if (links.studio) return { label: 'See it in Studio', onClick: () => void request('open-url', { url: links.studio! }), secondary: github };
       return github ? { ...github, secondary: { label: 'Scan again', onClick: () => scanPush() } } : { label: 'Scan again', onClick: () => scanPush() };
     };
+    if (r.routed) return { body: [...libraryResult(r, r.routed), failed, requestLine(r), scanAgain], bar: r.form ? undefined : resultBar(sentLinks(init.settings.repo, res)) };
     if (r.sentTo) {
       const e = r.sentTo;
       return {
