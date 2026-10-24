@@ -130,7 +130,9 @@ test('a component that needs code says who builds it: a developer, with Claude. 
   const waiting = figmaPushStatus({ state: 'open', labels: ['from-figma', 'waiting-for-claude'] });
   assert.equal(waiting.key, 'waiting-for-claude', 'the label stays, for later automation');
   assert.equal(waiting.label, 'Waiting for a developer');
-  assert.match(waiting.sentence, /A developer builds it there with Claude/);
+  assert.match(waiting.sentence, /A developer builds it with Claude/);
+  // Studio shows it to designers: no git words (apps/docs-site/src/lib/vocabulary.ts).
+  assert.doesNotMatch(waiting.sentence, /\b(branch|merge|main|pull request)\b/i);
   for (const s of [ROUTE_TAG['claude-draft'], waiting.label, waiting.sentence]) assert.doesNotMatch(s, /Claude AI/);
 });
 

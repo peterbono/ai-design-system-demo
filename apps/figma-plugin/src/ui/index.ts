@@ -3230,7 +3230,7 @@ function libraryResult(r: PushState, items: RoutedItem[]): Child[] {
     g.shipped.length
       ? group(
           'Token values',
-          r.ship?.timedOut ? 'Still on its way after 15 minutes. The pull request on GitHub says which check is running.' : 'Checked for contrast and tests, then added to the library on its own. No second review: it was approved in Figma.',
+          r.ship?.timedOut ? 'Still on its way after 15 minutes. Open it on GitHub to see which check is still running.' : 'Checked for contrast and tests, then added to the library on its own. No second review: it was approved in Figma.',
           g.shipped.map((i) => {
             const s = statuses.get(i.number);
             return row(i, shipStateLabel(s), !s?.final);

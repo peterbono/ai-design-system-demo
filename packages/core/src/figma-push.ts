@@ -454,7 +454,7 @@ export function figmaPushStatus(x: { state: string; draft?: boolean | undefined;
   const labels = x.labels ?? [];
   if (x.state === 'merged') return { key: 'shipped', label: 'Shipped', sentence: 'It shipped. Pull to rebuild the component from the reviewed code.', rebuild: true };
   if (x.state !== 'open') return { key: 'closed', label: 'Closed', sentence: 'The library closed it without shipping. Pull to bring the component back to the code.', rebuild: true };
-  if (labels.includes(WAITING_FOR_CLAUDE_LABEL)) return { key: 'waiting-for-claude', label: 'Waiting for a developer', sentence: 'The spec is on the library branch. A developer builds it there with Claude, then a person reviews it.', rebuild: false };
+  if (labels.includes(WAITING_FOR_CLAUDE_LABEL)) return { key: 'waiting-for-claude', label: 'Waiting for a developer', sentence: 'A developer builds it with Claude from its spec, then a person reviews it.', rebuild: false };
   if (labels.includes(DRAFTED_BY_CLAUDE_LABEL)) return { key: 'drafted', label: 'Drafted with Claude', sentence: 'The code is drafted. A person reviews it before it ships.', rebuild: false };
   return { key: 'in-review', label: 'In review', sentence: x.route === 'token-change' ? 'Owners review the token change.' : 'Owners review it.', rebuild: false };
 }
