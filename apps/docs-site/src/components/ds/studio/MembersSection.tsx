@@ -20,6 +20,7 @@ import { NoticeLine, PersonCell } from './MemberParts';
 import InviteDialog from './InviteDialog';
 import { memberActions, useMembers, type Notice } from './members-state';
 import { DiscoveryLine, JoinRequests, useEntryAdmin } from './JoinRequests';
+import { loadTeamRoles } from '../../../lib/recent-teams';
 import { isHosted, isTeamKey, teamKeyOfPage } from '../../../lib/team-path';
 import { adminCount, choiceOf, inviteChoice, memberActions as allowed, MEMBERS_WORDS, membersContext, memberLine, pendingLine, roleText, roleLabel, SAMPLE_NOW, sortMembers, type Member, type PendingInvite } from '../../../lib/invites';
 import type { MembersData } from '../../../scripts/members';
@@ -176,7 +177,11 @@ export default function MembersSection() {
   // A team made in Bridge waits for its members (one quick read of this site's server, which says the role): its
   // members who are not admins never ask for what only admins may read.
   const [page] = useState(pageTeam);
-  const entry = useEntryAdmin(ready?.repo ?? page.repo, (isHosted() || isTeamKey(page.repo)) && (ready ? ready.context === 'real' && ready.canManage : page.context === 'real' && !isTeamKey(page.repo)));
+  // Asked early only when this browser does not already know the person is not an admin there (their role, kept by
+  // the team page): a Can edit member never sends requests that only answer 403.
+  const [knownRole] = useState(() => loadTeamRoles()[page.repo.toLowerCase()] ?? null);
+  const maybeAdmin = knownRole === null || knownRole === 'Admin';
+  const entry = useEntryAdmin(ready?.repo ?? page.repo, (isHosted() || isTeamKey(page.repo)) && (ready ? ready.context === 'real' && ready.canManage : page.context === 'real' && !isTeamKey(page.repo) && maybeAdmin));
   const early = (
     <JoinRequests
       repo={page.repo}
