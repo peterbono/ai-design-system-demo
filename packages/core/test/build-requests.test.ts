@@ -344,3 +344,44 @@ describe('the list, filters and lines', () => {
     expect(v!.jira).toBe('DS-12');
   });
 });
+
+describe('one item per change: the issue and its library branch from Figma', () => {
+  // The plugin files the build request issue AND keeps the library branch with the spec, whose pull request says
+  // "Closes #12". Being built shows the issue only, the branch as its In progress evidence.
+  const specBranch = (over: Partial<BuildPullLike> = {}): BuildPullLike =>
+    pull({ number: 50, author: 'sam', body: 'Closes #12', draft: true, labels: ['from-figma', 'waiting-for-claude'], headRef: 'bridge/button-add-a-lg-size', createdAt: day(2), ...over });
+
+  it('lists one row, the issue, never the branch', () => {
+    const list = assembleBuildRequests({ issues: [issue()], pulls: [specBranch()], now: NOW });
+    expect(list.map((v) => v.id)).toEqual(['issue-12']);
+  });
+
+  it('the spec alone is not work: Requested, and the sender never reads as the builder', () => {
+    const s = buildRequestStatus({ issue: issue(), linked: [specBranch()] }, NOW);
+    expect(s.status).toBe('requested');
+    expect(s.builders).toEqual([]);
+  });
+
+  it('picked up when a developer assigns themselves on the issue or on the branch', () => {
+    expect(buildRequestStatus({ issue: issue(), linked: [specBranch({ assignees: ['ana'] })] }, NOW)).toMatchObject({ status: 'picked-up', builders: ['ana'] });
+  });
+
+  it('in progress once the branch has work, in review once drafted, shipped once merged', () => {
+    const working = buildRequestStatus({ issue: issue({ assignees: ['ana'] }), linked: [specBranch({ commits: 3 })] }, NOW);
+    expect(working).toMatchObject({ status: 'in-progress', builders: ['ana'] });
+    expect(working.timeline.find((e) => e.status === 'in-progress')).toEqual({ status: 'in-progress', who: 'ana' });
+    expect(buildRequestStatus({ issue: issue(), linked: [specBranch({ labels: ['from-figma', 'drafted-by-claude'] })] }, NOW)).toMatchObject({ status: 'in-review', builders: [] });
+    expect(buildRequestStatus({ issue: issue({ state: 'closed', stateReason: 'completed' }), linked: [specBranch({ state: 'merged', mergedAt: day(0) })] }, NOW).status).toBe('shipped');
+  });
+});
+
+describe('the pull request body of a token push from Figma', () => {
+  it('says design-approved and what happens next, and keeps the tier readable', async () => {
+    const { figmaPushTierLabel, parseTier } = await import('../src');
+    const ships = figmaPushTierLabel(3, [{ kind: 'changed' }]);
+    expect(ships).toBe('Tier 3: token change. From Figma: design-approved, ships once the checks pass');
+    expect(figmaPushTierLabel(3, [{ kind: 'renamed' }])).toContain('waits for a developer OK');
+    expect(parseTier([], `- [x] ${ships}`)).toBe(3);
+    expect(ships).not.toMatch(/needs design/);
+  });
+});

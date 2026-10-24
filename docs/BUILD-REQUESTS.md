@@ -57,6 +57,10 @@ The plugin reports one `PublishOutcome` per token or component (`PublishResult.o
   request: `createBuildRequestOnGitHub(gh, input)` (or `composeBuildRequestIssue` to write it yourself), route
   `build-request`. `publishSummary(result)` says it in one sentence.
 
+The pull request body of a token push says so instead of the approvals line: the tier checkbox reads
+"Tier 3: token change. From Figma: design-approved, ships once the checks pass" (or "waits for a developer OK" for a
+rename or removal), from `figmaPushTierLabel`, the same rule as `autoShip`. `composePrBody`, `planTokenProposal` / `composeProposalBody` take `fromFigma: true` (the plugin passes it).
+
 When Bridge ships a push it leaves a review whose body starts with `**Bridge: shipped from Figma**`
 (`figmaShipReviewBody`).
 
@@ -86,7 +90,14 @@ collapsed **Brief for Claude** and a collapsed **Spec** (JSON, left out above 30
 then). The hidden `bridge-request` block keeps `build: { v: 1, before, after, props, specPath }`;
 `parseBuildRequestIssue` and `parseBuildSpec` read it back, `buildRequestBrief(r, { issue })` writes the brief
 again with the issue number. Every component change request reads as a build request; `bridge-build` marks the new
-ones. A library branch from Figma waiting for a developer (direct mode, labels `from-figma` and
+ones.
+
+**One item per change.** A change that needs code always files the build request issue (Jira mirrors it, developers
+assign it, Being built reads it). The plugin may also keep the library branch with the spec (`bridge_get_figma_change`
+reads it); its pull request says `Closes #<issue>` and the issue links it. Being built then shows the issue only, with
+that branch as its evidence: spec only (`waiting-for-claude`) is not work yet, an assignee on the issue or on the branch
+reads Picked up, commits beyond the spec or a draft read In progress, `drafted-by-claude` or ready for review reads In
+review. The person who pushed is never shown as the builder. A library branch from Figma waiting for a developer (direct mode, labels `from-figma` and
 `waiting-for-claude`) reads as one too.
 
 ### Status, read from GitHub only
