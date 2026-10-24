@@ -153,7 +153,28 @@ function unquote(s: string): string {
 class Reader {
   private cache = new Map<string, ComponentSource | null>();
   private aliasCache = new Map<string, Map<string, string>>();
+  private elements = new Map<string, Map<string, string>>();
   constructor(private opts: SpecGeneratorOptions) {}
+
+  /**
+   * The element a Base UI part renders ("Increment" -> "button"), as Base UI's own docs say it
+   * (node_modules/@base-ui/react/docs/react/components/<module>.md: "### Increment ... Renders a `<button>` element").
+   */
+  baseUiElement(modules: Iterable<string>, part: string): string | undefined {
+    for (const m of modules) {
+      let parts = this.elements.get(m);
+      if (!parts) {
+        parts = new Map();
+        const text = this.opts.read(`node_modules/@base-ui/react/docs/react/components/${m}.md`) ?? '';
+        // "### Increment", a line or two about it, then "Renders a `<button>` element." (before the next heading).
+        for (const hit of text.matchAll(/^### ([\w.]+)\n(?:(?!#)[^\n]*\n){0,6}?Renders an? `<([a-z0-9-]+)>` element/gm)) parts.set(hit[1]!, hit[2]!);
+        this.elements.set(m, parts);
+      }
+      const el = parts.get(part);
+      if (el) return el;
+    }
+    return undefined;
+  }
 
   private dirOf(name: string) {
     return `${this.opts.componentsDir}/${name}`;
@@ -923,6 +944,11 @@ interface Node {
   fromExports?: boolean | undefined;
   placeholder?: boolean | undefined;
   inputLike?: boolean | undefined;
+  /**
+   * The element sizes its border box by default (a `<button>` or a `<select>`, browsers' own stylesheet): its height
+   * and width already count its padding and border.
+   */
+  borderBox?: boolean | undefined;
   /** BOOLEAN property that shows this optional part. */
   visible?: { property: string; prop: string; /** Shown by default: the example gives it. */ on?: boolean } | undefined;
   /** Spreads `...rest` with no children of its own: children come through props. */
@@ -1127,6 +1153,9 @@ function renderJsx(ref: JsxRef, ctx: RenderContext, visible?: Node['visible']): 
     // Base UI indicators are only mounted while their item is checked, unless keepMounted.
     ...(/\.(Item)?Indicator$/.test(tag) && scope.src.baseUi.has(tag.split('.')[0]!) && attrs.keepMounted !== true && ctx.fraction === undefined ? { whenChecked: true } : {}),
   };
+  // A `<button>` or a `<select>` (itself, or the Base UI part that renders one) counts its border box (UA stylesheet).
+  const element = isBaseUi ? ctx.reader.baseUiElement(scope.src.baseUiModules, tag.split('.').slice(1).join('.')) : tag;
+  if (element === 'button' || element === 'select') node.borderBox = true;
   // A panel of a selection (a tab's panel) is hidden by Base UI unless its value is the selected one.
   if (isBaseUi && /\.Panel$/.test(tag) && node.selectedBy && node.checked === 'false') node.inactive = true;
   // A thumb of a numeric root (a slider): Base UI places its center at the value.
@@ -2118,7 +2147,7 @@ function partValues(node: Node, computed: Map<string, string>, own: Map<string, 
     const v = own.get(prop);
     if (v !== undefined && /var\(/.test(v)) out.unmapped.push({ property: prop, value: v, reason });
   }
-  contentBoxMinimums(out.values, computed);
+  contentBoxMinimums(out.values, computed, node.borderBox);
   return out;
 }
 
@@ -2127,8 +2156,8 @@ function partValues(node: Node, computed: Map<string, string>, own: Map<string, 
  * and the border come on top. Figma's include them. A checkbox row with `min-height: size.6` and `padding-block: space.0-5` is
  * 28px in code; drawn as minHeight size.6 it was 25. The minimum becomes the sum, as a calc() of the same tokens.
  */
-function contentBoxMinimums(values: PartValues['values'], computed: Map<string, string>): void {
-  if ((computed.get('box-sizing') ?? 'content-box').trim() === 'border-box') return;
+function contentBoxMinimums(values: PartValues['values'], computed: Map<string, string>, borderBoxByDefault = false): void {
+  if ((computed.get('box-sizing') ?? (borderBoxByDefault ? 'border-box' : 'content-box')).trim() === 'border-box') return;
   const term = (v: SpecValue | undefined): string | undefined => {
     if (v === undefined || v === null || v === 0) return undefined;
     if (typeof v === 'number') return String(v);
