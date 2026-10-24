@@ -16,6 +16,8 @@
 import {
   type ComponentSpec,
   type FigmaHints,
+  type MeasuredPart,
+  type SpecLayout,
   type FixedComponent,
   type FixedMeasuredSpecsFile,
   type ComponentSpecsFile,
@@ -188,12 +190,22 @@ function setOf(
   const base = [...byVariant.values()].find((v) => isDefault(v.props)) ?? [...byVariant.values()][0]!;
   const baseSpec = base.story.spec!;
   // A part the measure drew as an SVG (an icon, a check mark) is a vector part: the builder draws its markup.
-  const parts = baseSpec.parts.map((p) => (baseSpec.vectors?.[p.id] ? { ...p, kind: 'vector' as const } : { ...p }));
+  const parts: MeasuredPart[] = baseSpec.parts.map((p) => (baseSpec.vectors?.[p.id] ? { ...p, kind: 'vector' as const } : { ...p }));
+  // An overlay (a popover, a badge, a focus ring) is out of the flow: absolute where the measure saw it, never sizing
+  // its parent. Without a box to place it, it covers its parent.
+  for (const p of parts) {
+    if (!p.overlay || p.pin || p.cover) continue;
+    const pin = pinFromBoxes(baseSpec, p);
+    if (pin) p.pin = pin;
+    else p.cover = true;
+  }
+  for (const p of parts) if (p.layout) p.layout = alignedLayout(p, parts);
   // Only children in the flow size a frame: one holding only positioned parts (a switch and its knob) keeps its size.
   const parents = new Set(parts.filter((p) => !p.pin && !p.cover).map((p) => p.parent).filter(Boolean));
   const variants: SpecVariant[] = [];
   const shotOf = new Map<SpecVariant, VariantShot>();
   const spacersOf = new Map<SpecVariant, Record<string, number>>();
+  const wrapsOf = new Map<SpecVariant, Record<string, NonNullable<MeasuredPart['wrap']>['padding']>>();
   for (const { props, story } of byVariant.values()) {
     const m = story.spec!;
     // Paired on the measure's own parts: an icon made a vector here is still an icon there.
@@ -203,6 +215,8 @@ function setOf(
     const pins: NonNullable<SpecVariant['pins']> = {};
     const hidden: string[] = [];
     const spacers: Record<string, number> = {};
+    const wraps: Record<string, NonNullable<MeasuredPart['wrap']>['padding']> = {};
+    const layouts: NonNullable<SpecVariant['layout']> = {};
     for (const p of parts) {
       const mid = pairs.get(p.id);
       if (mid === undefined) {
@@ -214,19 +228,27 @@ function setOf(
       // An icon's fill is the color it draws with (CSS `fill`), not a background: the frame would paint a square.
       if (p.kind === 'icon' || p.kind === 'vector') delete values[p.id]!.fill;
       // A positioned part (a pseudo-element knob) placed elsewhere in this variant: checked moves it to the right.
-      const pin = m.parts.find((x) => x.id === mid)?.pin;
+      const mp = m.parts.find((x) => x.id === mid);
+      const pin = mp?.pin ?? (mp?.overlay ? pinFromBoxes(m, mp) : undefined);
       if (p.pin && pin && JSON.stringify(pin) !== JSON.stringify(p.pin)) pins[p.id] = pin;
+      // A decoration aligned elsewhere in this variant (the knob at the end when on): its parent's alignment moves.
+      if (mp?.layout && p.layout) {
+        const layout = alignedLayout({ ...mp, id: p.id }, m.parts.map((x) => ({ ...x, parent: x.parent === mid ? p.id : x.parent })));
+        if (layout && (layout.primary !== p.layout.primary || layout.counter !== p.layout.counter || layout.direction !== p.layout.direction)) layouts[p.id] = layout;
+      }
+      if (mp?.wrap) wraps[p.id] = mp.wrap.padding;
       const vec = p.kind === 'vector' ? m.vectors?.[mid] : undefined;
       // Strokes bind by shape order: with a token the library does not have, the SVG keeps its own (resolved) colors.
       if (vec) vectors[p.id] = { svg: vec.svg, strokes: vec.strokes.every((v) => typeof v !== 'string' || known(v)) ? [...vec.strokes] : [] };
     }
-    const variant: SpecVariant = { props, values, ...(hidden.length ? { hidden } : {}), ...(Object.keys(vectors).length ? { vectors } : {}), ...(Object.keys(pins).length ? { pins } : {}) };
+    const variant: SpecVariant = { props, values, ...(hidden.length ? { hidden } : {}), ...(Object.keys(vectors).length ? { vectors } : {}), ...(Object.keys(pins).length ? { pins } : {}), ...(Object.keys(layouts).length ? { layout: layouts } : {}) };
     variants.push(variant);
     spacersOf.set(variant, spacers);
+    wrapsOf.set(variant, wraps);
     if (story.shot) shotOf.set(variant, story.shot);
   }
   textRootInFrame(parts, variants);
-  spacerWrappers(parts, variants, spacersOf);
+  spacerWrappers(parts, variants, spacersOf, wrapsOf);
   const properties = textProperties(parts, base.story, argTypes, new Set(axes.map((a) => a.name)));
   const kept = drawnAxes(axes, variants);
   // The story it was measured from: the set's doc section links to it.
@@ -263,12 +285,39 @@ function textRootInFrame(parts: SpecPart[], variants: SpecVariant[]): void {
   }
 }
 
+/** An overlay's place in its parent, from the measured boxes (px from the parent's top and left edges). */
+function pinFromBoxes(spec: MeasuredSpec, part: MeasuredPart): NonNullable<SpecPart['pin']> | undefined {
+  const box = spec.boxes?.[part.id];
+  const parent = part.parent ? spec.boxes?.[part.parent] : undefined;
+  if (!box || !parent) return undefined;
+  return { top: Math.round((box.y - parent.y) * 100) / 100, left: Math.round((box.x - parent.x) * 100) / 100 };
+}
+
+/**
+ * A frame whose one child in the flow is aligned by the measure (`layout.align`: a knob at the start or the end of its
+ * switch) carries that alignment itself, so a designer can resize the component and the child stays where code puts it.
+ * Its padding (in values) is the offset. With several children in the flow, the frame keeps its own alignment.
+ */
+function alignedLayout(part: MeasuredPart, parts: readonly MeasuredPart[]): SpecLayout | undefined {
+  const layout = part.layout;
+  if (!layout?.align) return layout;
+  const { align, ...own } = layout;
+  const flow = parts.filter((c) => c.parent === part.id && !c.pin && !c.cover && !c.overlay);
+  const a = flow.length === 1 ? align[flow[0]!.id] : undefined;
+  return a ? { ...own, primary: a.primary ?? own.primary, counter: a.counter ?? own.counter } : own;
+}
+
 /**
  * A margin the parent's gap does not cover (`spacers`: the extra space before a part) becomes a wrapper named after the
  * part ("Label wrapper"), its padding on the side the margin is: Figma's auto layout has one gap per frame.
  */
-function spacerWrappers(parts: SpecPart[], variants: SpecVariant[], spacersOf: Map<SpecVariant, Record<string, number>>): void {
-  const wrapped = parts.filter((p) => p.parent && !p.pin && !p.cover && variants.some((v) => spacersOf.get(v)?.[p.id]));
+function spacerWrappers(
+  parts: SpecPart[],
+  variants: SpecVariant[],
+  spacersOf: Map<SpecVariant, Record<string, number>>,
+  wrapsOf: Map<SpecVariant, Record<string, NonNullable<MeasuredPart['wrap']>['padding']>> = new Map(),
+): void {
+  const wrapped = parts.filter((p) => p.parent && !p.pin && !p.cover && variants.some((v) => spacersOf.get(v)?.[p.id] || wrapsOf.get(v)?.[p.id]));
   for (const p of wrapped) {
     const parent = parts.find((x) => x.id === p.parent);
     const row = parent?.layout?.direction === 'HORIZONTAL';
@@ -277,8 +326,16 @@ function spacerWrappers(parts: SpecPart[], variants: SpecVariant[], spacersOf: M
     parts.splice(parts.indexOf(p), 0, wrapper);
     p.parent = id;
     for (const v of variants) {
+      // The margins the measure gives (`wrap`), or the extra space before the part (`spacers`).
+      const pad = wrapsOf.get(v)?.[p.id];
       const space = spacersOf.get(v)?.[p.id] ?? 0;
-      v.values[id] = space ? { [row ? 'paddingLeft' : 'paddingTop']: space } : {};
+      const values: Partial<Record<SpecField, SpecValue>> = {};
+      if (pad?.top) values.paddingTop = pad.top;
+      if (pad?.right) values.paddingRight = pad.right;
+      if (pad?.bottom) values.paddingBottom = pad.bottom;
+      if (pad?.left) values.paddingLeft = pad.left;
+      if (space) values[row ? 'paddingLeft' : 'paddingTop'] = ((values[row ? 'paddingLeft' : 'paddingTop'] as number | undefined) ?? 0) + space;
+      v.values[id] = values;
       if (v.hidden?.includes(p.id)) v.hidden.push(id);
     }
   }
