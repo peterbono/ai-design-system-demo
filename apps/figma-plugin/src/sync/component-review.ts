@@ -5,7 +5,7 @@
 // is compared with the signature the plan would produce, with the same diff Push uses.
 
 import type { RequestChange, SpecField } from '@bridge-ds/core';
-import type { ComponentPullPlan, PlannedComponent } from './component-pull';
+import { type ComponentPullPlan, type PlannedComponent, figmaPropName } from './component-pull';
 import { type ComponentSignature, type VariantSignature, bindingKind, diffSignatures, propName } from './components';
 
 /** Figma's boundVariables key for a spec field (fills, strokes, topLeftRadius...), to name its kind like a scan does. */
@@ -18,7 +18,8 @@ export function plannedSignature(c: PlannedComponent): ComponentSignature {
   const variantAxes: Record<string, string[]> = {};
   for (const a of [...c.axes].sort((x, y) => (x.name < y.name ? -1 : 1))) variantAxes[a.name] = sortedUnique(a.values);
   const swaps = c.parts.filter((p) => p.swap).map((p) => ({ name: p.swap!.property, type: 'INSTANCE_SWAP', default: p.swap!.default }));
-  const properties = [...c.properties.map((p) => ({ name: p.name, type: p.type as string, default: String(p.default) })), ...swaps].sort((a, b) =>
+  // Figma's names ("Show icon" for the BOOLEAN of a swappable part), as the scan reads them back.
+  const properties = [...c.properties.map((p) => ({ name: figmaPropName(c, p), type: p.type as string, default: String(p.default) })), ...swaps].sort((a, b) =>
     a.name < b.name ? -1 : a.name > b.name ? 1 : a.type < b.type ? -1 : a.type > b.type ? 1 : 0,
   );
   const variants: Record<string, VariantSignature> = {};

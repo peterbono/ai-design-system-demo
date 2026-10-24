@@ -10,7 +10,7 @@ import { generateRepoComponentSpecs } from '@bridge-ds/core/node';
 import { applyPullPlan } from '../src/main/apply';
 import { applyComponentPlan, interactionsNote, layoutVariants, scanGenerated } from '../src/main/build-components';
 import { cleanReaction, cleanReactions } from '../src/main/reactions';
-import { exportThumbnails, readComponent, scanComponents } from '../src/main/components';
+import { exportThumbnails, scanComponents } from '../src/main/components';
 import { onlyComponent, plannedSignature, reviewUpdates, withoutComponents } from '../src/sync/component-review';
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
@@ -128,8 +128,8 @@ test('apply: every generated set on a Components page, bound to the variables, w
   const defs = button.componentPropertyDefinitions;
   assert.deepEqual(
     Object.entries(defs).map(([k, d]) => `${k.replace(/#.*$/, '')}:${d.type}`).sort(),
-    // Figma keeps names unique across types: each part's swap is renamed next to its BOOLEAN ("Icon start2").
-    ['Icon end2:INSTANCE_SWAP', 'Icon end:BOOLEAN', 'Icon start2:INSTANCE_SWAP', 'Icon start:BOOLEAN', 'Label:TEXT', 'Size:VARIANT', 'State:VARIANT', 'Variant:VARIANT'],
+    // As Figma kits name them: "Show icon start" turns the part on, "Icon start" picks which icon.
+    ['Icon end:INSTANCE_SWAP', 'Icon start:INSTANCE_SWAP', 'Label:TEXT', 'Show icon end:BOOLEAN', 'Show icon start:BOOLEAN', 'Size:VARIANT', 'State:VARIANT', 'Variant:VARIANT'],
   );
   const v = variantOf(button, 'Variant=secondary, Size=lg, State=Hover');
   assert.equal(boundName(sim, v, 'fills'), 'Component:button/secondary/bg-hover');
@@ -147,7 +147,7 @@ test('apply: every generated set on a Components page, bound to the variables, w
   assert.match(String(Object.keys(defs).find((k) => k.startsWith('Label#'))), /^Label#/);
   assert.deepEqual(label.componentPropertyReferences, { characters: Object.keys(defs).find((k) => k.startsWith('Label#')) });
   const icon = partOf(v, 'icon-start');
-  assert.deepEqual(icon.componentPropertyReferences, { mainComponent: propKey(button, 'Icon start', 'INSTANCE_SWAP'), visible: propKey(button, 'Icon start', 'BOOLEAN') });
+  assert.deepEqual(icon.componentPropertyReferences, { mainComponent: propKey(button, 'Icon start', 'INSTANCE_SWAP'), visible: propKey(button, 'Show icon start', 'BOOLEAN') });
   assert.equal(boundName(sim, icon, 'width'), 'Base:icon/size/sm');
   // Disabled ghost: no fill at all, disabled text color.
   const ghost = variantOf(button, 'Variant=ghost, Size=md, State=Disabled');
@@ -496,23 +496,26 @@ test('icons: one component per icon on an Icons page, drawn from the SVG, bound 
   assert.equal(sim.root.findAll((n) => n.type === 'COMPONENT' && !!n.getSharedPluginData('dsbridge', 'iconId')).length, specs.icons!.length);
 });
 
-test('swap properties: Figma renames the one next to its BOOLEAN; updates find it, never add it again, and drop old duplicates', async () => {
+test('swap properties: Show icon turns the part on, Icon picks it; old files are renamed in place, never duplicated', async () => {
   const { sim, plan } = await pulledFile();
   await applyComponentPlan(writablePlan(plan));
   const badge = sim.sets().find((s) => s.name === 'Badge')!;
-  const swaps = () => Object.keys(defsOf(badge)).filter((k) => defsOf(badge)[k]!.type === 'INSTANCE_SWAP').map((k) => k.replace(/#.*$/, ''));
-  assert.deepEqual(swaps(), ['Icon2'], 'Figma named the swap Icon2: the BOOLEAN has Icon');
-  // An update (here the same plan applied again, as Update all does) finds Icon2.
+  const named = (type: string) => Object.keys(defsOf(badge)).filter((k) => defsOf(badge)[k]!.type === type).map((k) => k.replace(/#.*$/, ''));
+  assert.deepEqual([named('BOOLEAN'), named('INSTANCE_SWAP')], [['Show icon'], ['Icon']]);
+  // An update (the same plan again, as Update all does) adds nothing.
   await applyComponentPlan(writablePlan(plan));
-  assert.deepEqual(swaps(), ['Icon2'], 'no Icon3');
-  // A file an earlier version updated: an unused Icon3 next to the Icon2 the layers use. The next update removes it.
-  badge.addComponentProperty('Icon', 'INSTANCE_SWAP', String(defsOf(badge)[propKey(badge, 'Icon', 'INSTANCE_SWAP')!]!.defaultValue));
-  assert.deepEqual(swaps().sort(), ['Icon2', 'Icon3']);
+  assert.deepEqual([named('BOOLEAN'), named('INSTANCE_SWAP')], [['Show icon'], ['Icon']]);
+  // A file built before this naming: BOOLEAN "Icon", the swap Figma renamed "Icon2", and an unused "Icon3" an earlier
+  // update added. The next update renames them in place (same ids, instances keep their overrides) and drops Icon3.
+  const swapKey = propKey(badge, 'Icon', 'INSTANCE_SWAP')!;
+  const boolKey = propKey(badge, 'Show icon', 'BOOLEAN')!;
+  const oldSwap = badge.editComponentProperty(swapKey, { name: 'Icon2' });
+  badge.editComponentProperty(boolKey, { name: 'Icon' });
+  badge.addComponentProperty('Icon', 'INSTANCE_SWAP', String(defsOf(badge)[oldSwap]!.defaultValue));
+  assert.deepEqual([named('BOOLEAN'), named('INSTANCE_SWAP').sort()], [['Icon'], ['Icon2', 'Icon3']]);
   await applyComponentPlan(writablePlan(plan));
-  assert.deepEqual(swaps(), ['Icon2']);
-  // Read back under the code's name: Review compares Icon with Icon, no prop change.
-  const read = await readComponent(badge as unknown as ComponentSetNode);
-  assert.ok(read.definitions.some((d) => d.type === 'INSTANCE_SWAP' && d.name.replace(/#.*$/, '') === 'Icon'));
+  assert.deepEqual([named('BOOLEAN'), named('INSTANCE_SWAP')], [['Show icon'], ['Icon']]);
+  assert.equal(propKey(badge, 'Icon', 'INSTANCE_SWAP')!.replace(/^[^#]*/, ''), oldSwap.replace(/^[^#]*/, ''), 'the swap the layers used kept its id');
 });
 
 test('IconButton: every variant holds an instance of the default icon, sized and colored by the variant, swappable', async () => {
@@ -547,7 +550,7 @@ test('IconButton: every variant holds an instance of the default icon, sized and
   const button = sim.sets().find((s) => s.name === 'Button')!;
   const bv = variantOf(button, 'Variant=primary, Size=md, State=Default');
   assert.deepEqual([await mainOf(partOf(bv, 'icon-start')), await mainOf(partOf(bv, 'icon-end'))], ['Icon/Plus', 'Icon/ChevronDown']);
-  assert.ok(propKey(button, 'Icon start', 'BOOLEAN') && propKey(button, 'Icon start', 'INSTANCE_SWAP') && propKey(button, 'Icon end', 'INSTANCE_SWAP'));
+  assert.ok(propKey(button, 'Show icon start', 'BOOLEAN') && propKey(button, 'Icon start', 'INSTANCE_SWAP') && propKey(button, 'Icon end', 'INSTANCE_SWAP'));
   const badge = sim.sets().find((s) => s.name === 'Badge')!;
   assert.equal(await mainOf(partOf(badge.children[0]!, 'icon')), 'Icon/CircleCheck');
 });
@@ -663,7 +666,7 @@ test('real case: a third icon layer after Label in Button primary sm is a struct
   assert.deepEqual(item.changes, [{ field: 'New layer "Icon" (Size=sm, State=Default, Variant=primary)', after: 'instance Icon/Pencil, after "Label"' }]);
   assert.equal(suggestLine(item), 'New instance layer "Icon" (Icon/Pencil) after "Label" in primary sm');
   assert.equal(suggestTitle(item), 'Add a layer after Label');
-  assert.equal(item.equivalent, 'Icon end already does this: show it with the Icon end property');
+  assert.equal(item.equivalent, 'Icon end already does this: turn on Show icon end');
   assert.equal(item.suggestSkip, true, 'starts unchecked: the designer may only need the Icon end property');
 });
 

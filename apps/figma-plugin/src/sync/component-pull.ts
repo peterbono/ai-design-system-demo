@@ -795,3 +795,13 @@ export function pushedInReview(generated: readonly GeneratedSet[], statuses: Rea
     return g.pushed && st && !st.rebuild ? [{ name: g.name, number: g.pushed.number, url: g.pushed.url, status: st }] : [];
   });
 }
+
+/**
+ * The name a spec property gets in Figma. A BOOLEAN that shows a swappable part is "Show <part>" ("Show icon",
+ * "Show icon start"), as Figma's own kits name them, so the swap keeps the plain name ("Icon") instead of the
+ * "Icon2" Figma gives a name another type took.
+ */
+export function figmaPropName(comp: { parts: readonly { swap?: { property: string } | undefined }[] }, p: { name: string; type: string }): string {
+  if (p.type !== 'BOOLEAN' || !comp.parts.some((x) => x.swap?.property === p.name)) return p.name;
+  return `Show ${p.name.charAt(0).toLowerCase()}${p.name.slice(1)}`;
+}
