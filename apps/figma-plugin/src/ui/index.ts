@@ -1734,7 +1734,7 @@ function steps(items: [string, string][]): HTMLElement {
 /** "Measured: 18 of 72 variants matched a story (54 use component-specs.json)", for the pull's developer rows. */
 function measuredLine(m: MeasuredOverlayReport | undefined): string | undefined {
   if (!m) return undefined;
-  return `Measured: ${m.matched} of ${m.variants} variants matched a story${m.unmatched ? ` (${m.unmatched} use component-specs.json)` : ''}, ${m.fields} values from the measure${m.keptTokens ? `, ${m.keptTokens} tokens kept over a measured literal` : ''}`;
+  return `Measured: ${m.matched} of ${m.variants} variants matched a story${m.unmatched ? ` (${m.unmatched} use component-specs.json)` : ''}, ${m.fields} values from the measure${m.keptTokens ? `, ${m.keptTokens} tokens kept (same value measured)` : ''}${m.literals ? `, ${m.literals} values no token gives` : ''}`;
 }
 
 function forDevelopers(rows: [string, string | undefined][]): Child {

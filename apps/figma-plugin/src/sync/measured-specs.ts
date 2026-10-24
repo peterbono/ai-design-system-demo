@@ -1,40 +1,23 @@
-// Measured specs (`bridge specs --measure`, #475): what a Storybook really draws, measured in Chrome, laid onto the
-// static specs. The structure stays static (axes, props, parts, slots); for each variant a measured story matches by
-// its props, the values of the parts both sides share come from the measure. Variants no story matches stay static and
-// are counted. Pure: no DOM, no figma.*.
-//
-// The file types are local until the browser-safe ones land in @bridge-ds/core (they match packages/cli/src/specs.ts
-// MeasuredSpecsFile and core/node MeasuredSpec, with the story props the measure will record).
+// Measured specs (`bridge specs --measure`): what a Storybook really draws, measured in Chrome, laid onto the static
+// specs. The structure stays static (axes, props, parts, slots); for each variant a measured story matches by its
+// props, its forced state and its overrides, the values of the parts both sides share come from the measure. Variants
+// no story matches stay static and are counted. Pure: no DOM, no figma.*. Types, parsing and part pairing are
+// @bridge-ds/core's (measured-spec.ts), the same the bench compares with.
 
-import type { ComponentSpec, ComponentSpecsFile, SpecField, SpecValue } from '@bridge-ds/core';
+import {
+  type ComponentSpec,
+  type ComponentSpecsFile,
+  type MeasuredSpecsFile,
+  type MeasuredSpecsStory,
+  type SpecField,
+  type SpecValue,
+  MeasuredSpecsError,
+  pairParts,
+  parseMeasuredSpecsFile,
+} from '@bridge-ds/core';
 
 /** Where `bridge specs --measure` writes by default, from the repo root. */
 export const MEASURED_SPECS_FILE = 'measured-specs.json';
-
-/** One measured story in the pull's shape: its parts (local CSS classes in `source`) and their values. */
-export interface MeasuredStorySpec {
-  story: string;
-  parts: { id: string; kind: string; parent?: string | undefined; source?: string | undefined }[];
-  values: Record<string, Partial<Record<SpecField, SpecValue>>>;
-}
-
-export interface MeasuredStory {
-  id: string;
-  /** Storybook title ("Actions/Button"): its last segment names the component. */
-  title: string;
-  name: string;
-  /** The story's props, defaults applied ({ variant: 'primary', size: 'md' }). Without them the story matches nothing. */
-  props?: Record<string, string | number | boolean> | undefined;
-  error?: string | undefined;
-  spec?: MeasuredStorySpec | undefined;
-}
-
-export interface MeasuredSpecsFile {
-  version: 1;
-  storybook: string;
-  measuredAt: string;
-  stories: MeasuredStory[];
-}
 
 /** What the overlay did, for the pull to say. */
 export interface MeasuredOverlayReport {
@@ -43,67 +26,82 @@ export interface MeasuredOverlayReport {
   matched: number;
   /** Variants no story matches: they keep the static values. */
   unmatched: number;
-  /** Fields the measure set, and static tokens kept where the measure only read a literal. */
+  /** Fields whose value the measure changed. */
   fields: number;
+  /** Static tokens kept where the measure read a literal of the same value (a border shorthand). */
   keptTokens: number;
+  /** Static tokens replaced by a measured literal of another value: code draws something no token says. */
+  literals: number;
 }
 
 export function parseMeasuredSpecs(text: string): MeasuredSpecsFile {
-  let file: MeasuredSpecsFile;
   try {
-    file = JSON.parse(text) as MeasuredSpecsFile;
-  } catch {
-    throw new Error(`${MEASURED_SPECS_FILE} is not valid JSON. Measure again with bridge specs --measure.`);
+    return parseMeasuredSpecsFile(text);
+  } catch (err) {
+    if (err instanceof MeasuredSpecsError) throw new Error(`${MEASURED_SPECS_FILE}: ${err.message.replace(/^measured specs:?\s*/, '')}. Measure again with bridge specs --measure.`);
+    throw err;
   }
-  if (!file || file.version !== 1 || !Array.isArray(file.stories)) throw new Error(`${MEASURED_SPECS_FILE} is not a measured specs file (version 1). Measure again with bridge specs --measure.`);
-  return file;
 }
 
 const norm = (v: unknown) => String(v).trim().toLowerCase();
 const componentOf = (title: string) => norm(title.split('/').at(-1) ?? title);
-/** Local class of a static part ("Button.module.css .label" -> label): the last class it is drawn from. */
-const classOf = (source: string | undefined) => /\.([\w-]+)\s*$/.exec(source ?? '')?.[1];
-const isToken = (v: SpecValue | undefined) => typeof v === 'string';
 
-/** The variant props a story stands for: each axis from its prop (or its name), else the axis default. */
-function storyVariant(spec: ComponentSpec, story: MeasuredStory): Record<string, string> | undefined {
-  if (!story.props) return undefined;
-  const props = Object.fromEntries(Object.entries(story.props).map(([k, v]) => [norm(k), norm(v)]));
-  const out: Record<string, string> = {};
-  for (const axis of spec.axes ?? []) {
-    const value = props[norm(axis.prop ?? '')] ?? props[norm(axis.name)] ?? (axis.default !== undefined ? norm(axis.default) : undefined);
-    if (value === undefined) return undefined;
-    out[axis.name] = value;
-  }
-  return out;
-}
-
-/** Static part id -> measured part id: the root, then by local CSS class (as compareSpecToMeasured pairs them). */
-function pairParts(statics: ComponentSpec['parts'], measured: MeasuredStorySpec): Map<string, string> {
-  const byClass = new Map<string, string>();
-  for (const p of measured.parts) for (const c of (p.source ?? '').split(' ')) if (c && !byClass.has(c)) byClass.set(c, p.id);
-  const root = measured.parts.find((p) => !p.parent)?.id;
-  const pairs = new Map<string, string>();
-  const taken = new Set<string>();
-  for (const p of statics) {
-    const hit = !p.parent ? root : byClass.get(classOf(p.source) ?? '');
-    if (hit && !taken.has(hit)) {
-      pairs.set(p.id, hit);
-      taken.add(hit);
-    }
-  }
-  return pairs;
+/** The values a state axis may use for a story: its forced pseudo state, else disabled, else at rest. */
+function stateWords(story: MeasuredSpecsStory, props: Record<string, string>): string[] {
+  if (story.state === 'hover') return ['hover', 'hovered'];
+  if (story.state === 'active') return ['pressed', 'active'];
+  if (story.state === 'focus-visible') return ['focus', 'focused', 'focus-visible'];
+  if (props.disabled === 'true') return ['disabled'];
+  return ['default', 'rest', 'enabled'];
 }
 
 /**
- * The static specs with measured values laid on: for each variant a story matches (same component, same props), each
- * field the static spec has on a part the measure also drew takes the measured value. Fields only the measure has
- * (a hugging width it read in px) are left out: the structure stays static. A static token is kept where the measure
- * only read a literal (a border shorthand), so a binding never turns into a number.
+ * The variant a story stands for: an axis with a prop takes it (defaults applied by the measure), an axis without one
+ * (State, Checked) takes the story's state, then a prop of its name, then its default. A hover or disabled story never
+ * stands for Default. Undefined when a value is not one of the axis's.
+ */
+function storyVariant(spec: ComponentSpec, story: MeasuredSpecsStory): Record<string, string> | undefined {
+  if (!story.props) return undefined;
+  const props = Object.fromEntries(Object.entries({ ...story.props, ...(story.overrides ?? {}) }).map(([k, v]) => [norm(k), norm(v)]));
+  const out: Record<string, string> = {};
+  for (const axis of spec.axes ?? []) {
+    const values = (axis.values ?? []).map(norm);
+    let value = axis.prop ? props[norm(axis.prop)] : undefined;
+    if (value === undefined && !axis.prop && norm(axis.name) === 'state') value = stateWords(story, props).find((w) => values.includes(w));
+    value ??= props[norm(axis.name)] ?? (axis.default !== undefined ? norm(axis.default) : undefined);
+    if (value === undefined || (values.length && !values.includes(value))) return undefined;
+    out[axis.name] = value;
+  }
+  // Disabled or a forced state the set has no axis for: not this set's variants.
+  if (!(spec.axes ?? []).some((a) => !a.prop && norm(a.name) === 'state') && (story.state || props.disabled === 'true')) return undefined;
+  return out;
+}
+
+const px = (v: string) => {
+  const m = /^(-?[\d.]+)(px)?$/.exec(v.trim());
+  return m ? Number(m[1]) : undefined;
+};
+/** A token's value in the measured page ("1px", "rgb(31, 41, 55)") and a measured literal, compared as values. */
+function sameValue(resolved: string | undefined, measured: SpecValue): boolean {
+  if (resolved === undefined || measured === null) return false;
+  if (typeof measured === 'number') {
+    const r = px(resolved);
+    return r !== undefined && Math.abs(r - measured) <= 0.5;
+  }
+  return resolved.replace(/\s+/g, '').toLowerCase() === String(measured).replace(/\s+/g, '').toLowerCase();
+}
+
+/**
+ * The static specs with measured values laid on: for each variant a story matches (same component, same props, state
+ * and overrides), each field the static spec has on a part the measure also drew (core pairParts) takes the measured
+ * value. Fields only the measure has (a hugging width it read in px) are left out: the structure stays static. A static
+ * token is kept where the measure read a literal of the same value (components[].resolved); a literal of another
+ * value replaces it and is counted.
  */
 export function overlayMeasured(specs: ComponentSpecsFile, measured: MeasuredSpecsFile): { specs: ComponentSpecsFile; report: MeasuredOverlayReport } {
-  const report: MeasuredOverlayReport = { variants: 0, matched: 0, unmatched: 0, fields: 0, keptTokens: 0 };
+  const report: MeasuredOverlayReport = { variants: 0, matched: 0, unmatched: 0, fields: 0, keptTokens: 0, literals: 0 };
   const stories = measured.stories.filter((s) => s.spec && !s.error);
+  const resolvedOf = new Map((measured.components ?? []).map((c) => [norm(c.title), c.resolved ?? {}]));
   const components = specs.components.map((spec) => {
     const name = norm(spec.component ?? spec.name);
     const mine = stories.filter((s) => componentOf(s.title) === name).map((s) => ({ s, variant: storyVariant(spec, s) }));
@@ -115,19 +113,26 @@ export function overlayMeasured(specs: ComponentSpecsFile, measured: MeasuredSpe
         return v;
       }
       report.matched++;
-      const pairs = pairParts(spec.parts, hit.s.spec!);
+      const m = hit.s.spec!;
+      const resolved = resolvedOf.get(norm(hit.s.title)) ?? {};
+      const pairs = pairParts(spec.parts, m, { properties: spec.properties });
       const values = { ...v.values };
       for (const [sid, fields] of Object.entries(v.values)) {
         const mid = pairs.get(sid);
-        const m = mid ? hit.s.spec!.values[mid] : undefined;
-        if (!m) continue;
+        const mv = mid ? m.values[mid] : undefined;
+        if (!mv) continue;
         const next = { ...fields };
         for (const field of Object.keys(fields) as SpecField[]) {
-          if (!(field in m)) continue;
-          const value = m[field] as SpecValue;
-          if (isToken(fields[field]) && !isToken(value) && value !== null) {
-            report.keptTokens++;
-            continue;
+          if (!(field in mv)) continue;
+          const before = fields[field] as SpecValue;
+          const value = mv[field] as SpecValue;
+          if (value === before) continue;
+          if (typeof before === 'string' && value !== null && typeof value !== 'string') {
+            if (sameValue(resolved[before], value)) {
+              report.keptTokens++;
+              continue;
+            }
+            report.literals++;
           }
           next[field] = value;
           report.fields++;

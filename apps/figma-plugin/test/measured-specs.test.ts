@@ -1,14 +1,14 @@
 // Spec source "measured": the values `bridge specs --measure` read in Storybook laid onto the static specs. The
 // fixture is the recorded measure of our Button primary story (packages/core/test/fixtures/measure, #475) in the
-// measured-specs.json shape, with its props added by hand until the measure records them.
+// measured-specs.json shape, with its props and the resolved value of the border token.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { parseComponentSpecs } from '@bridge-ds/core';
+import { type MeasuredSpecsFile, parseComponentSpecs } from '@bridge-ds/core';
 import { type SharedStore, saveSettings, sharedSettings } from '../src/main/shared-state';
 import { loadComponentSpecs, specSource } from '../src/sync/component-pull';
-import { MEASURED_SPECS_FILE, type MeasuredSpecsFile, overlayMeasured, parseMeasuredSpecs } from '../src/sync/measured-specs';
+import { MEASURED_SPECS_FILE, overlayMeasured, parseMeasuredSpecs } from '../src/sync/measured-specs';
 import { FakeGitHub } from './fake-github';
 import { realConfigText } from './helpers';
 
@@ -37,9 +37,10 @@ test('a measured story gives its values to the variant its props name; the other
   // The structure stays static: no width the measure read on a hugging button, same parts.
   assert.equal(after.values.root!.width, undefined);
   assert.deepEqual(Object.keys(after.values), Object.keys(before.values));
-  // A border shorthand measures as the literal 1: the static token stays.
+  // A border shorthand measures as the literal 1, the value of border-width.default in the page: the static token stays.
   assert.equal(after.values.root!.strokeWeight, before.values.root!.strokeWeight);
   assert.ok(report.keptTokens >= 1);
+  assert.equal(report.literals, 0);
   // Unmatched variants are the static ones, untouched.
   assert.deepEqual(variantOf(out, { Variant: 'secondary', Size: 'md', State: 'Default' }), variantOf(specs, { Variant: 'secondary', Size: 'md', State: 'Default' }));
 });
@@ -51,6 +52,30 @@ test('where the measure reads another token, it wins', () => {
   assert.equal(variantOf(specs, PRIMARY_MD).values.root!.fill, 'button.secondary.bg');
 });
 
+test('a literal of another value than the static token replaces it, and is counted', () => {
+  const m = measured();
+  m.stories[0]!.spec!.values.root!.strokeWeight = 2;
+  const { specs, report } = overlayMeasured(parseComponentSpecs(specsText()), m);
+  assert.equal(variantOf(specs, PRIMARY_MD).values.root!.strokeWeight, 2);
+  assert.equal(report.literals, 1);
+});
+
+test('a hover story stands for Hover, a disabled one for Disabled, never for Default', () => {
+  const specs = parseComponentSpecs(specsText());
+  const hover = measured();
+  hover.stories[0]!.state = 'hover';
+  hover.stories[0]!.spec!.values.root!.fill = 'button.primary.bg-hover';
+  const h = overlayMeasured(specs, hover);
+  assert.equal(h.report.matched, 1);
+  assert.equal(variantOf(h.specs, { ...PRIMARY_MD, State: 'Hover' }).values.root!.fill, 'button.primary.bg-hover');
+  assert.equal(variantOf(h.specs, PRIMARY_MD).values.root!.fill, 'button.primary.bg');
+  const disabled = measured();
+  disabled.stories[0]!.overrides = { disabled: true };
+  const d = overlayMeasured(specs, disabled);
+  assert.equal(d.report.matched, 1, 'primary md Disabled');
+  assert.deepEqual(variantOf(d.specs, PRIMARY_MD), variantOf(specs, PRIMARY_MD), 'Default keeps the static values');
+});
+
 test('a story without props, or with an error, matches nothing', () => {
   const specs = parseComponentSpecs(specsText());
   const noProps = measured();
@@ -59,7 +84,7 @@ test('a story without props, or with an error, matches nothing', () => {
   const failed = measured();
   failed.stories[0]!.error = 'the story threw';
   assert.equal(overlayMeasured(specs, failed).report.matched, 0);
-  assert.throws(() => parseMeasuredSpecs('{"version":2,"stories":[]}'), /not a measured specs file/);
+  assert.throws(() => parseMeasuredSpecs('{"version":2,"stories":[]}'), /measured-specs\.json: version 2 is not supported .* Measure again with bridge specs --measure/);
 });
 
 /** A repo with the static specs (and the measure), and the tree of its main. */
