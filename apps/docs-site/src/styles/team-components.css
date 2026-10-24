@@ -222,3 +222,78 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Change this component (ChangeComponent.tsx): the step under the preview, set apart by a rule like Bridge's own
+   drawer; the form follows the question; what was sent says where to follow it. */
+.tcm-chg {
+  display: grid;
+  gap: var(--space-5);
+  padding-block-start: var(--space-4);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.tcm-chg-h {
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-ui-line-height);
+}
+
+.tcm-chg-form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.tcm-chg-rows {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tcm-chg-rows legend {
+  margin-block-end: var(--space-2);
+  padding: 0;
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-medium);
+}
+
+.tcm-chg-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.tcm-chg-error {
+  margin: 0;
+  color: var(--color-feedback-danger-text);
+}
+
+.tcm-chg-done {
+  display: grid;
+  gap: var(--space-2);
+  padding-block-start: var(--space-4);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.tcm-chg-done > p {
+  margin: 0;
+}
+
+.tcm-chg-done:focus {
+  outline: none;
+}
+
+.tcm-chg-done:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (max-width: 640px) {
+  .tcm-chg-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

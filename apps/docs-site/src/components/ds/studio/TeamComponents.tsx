@@ -6,7 +6,7 @@
 // else the Storybook added in this browser), only in the open drawer. Without a Storybook, a band of token
 // specimens (tokens only) and one line on how to add it. Mounted client:load; the server renders the skeleton.
 // Repo content is React text only; links built from repo data go through lib/html.ts safeUrl.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Ellipsis, ExternalLink, Layers } from 'lucide-react';
 import { Badge, Button, ButtonGroup, CodeBlock, Drawer, DrawerContent, EmptyState, IconButton, Input, Link, Menu, MenuContent, MenuItem, MenuTrigger, Select, Tooltip } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
@@ -14,6 +14,7 @@ import { TeamLoadError, TeamLoadProgress, TeamSourceNote, useTeamData } from './
 import TokenSpecimens from './TokenSpecimens';
 import ComponentsList from './ComponentsList';
 import ClientExample from './ClientExample';
+import { ChangeFooter, ChangeStep, CLOSED_FLOW, type ChangeFlow } from './ChangeComponent';
 import { filterTeamRows, pickStorybook, rowExceptions, storyPreview, teamCatalogRows, teamComponentRows, teamComponentsLead, teamFamilies, type TeamComponentRow } from '../../../lib/team-components';
 import type { ProductAudit } from '../../../lib/components-studio';
 import { fitFrames } from '../../../scripts/explorer/preview-frames';
@@ -22,6 +23,7 @@ import { tokenSpecimens } from '../../../lib/token-specimens';
 import { fileUrl } from '../../../lib/team-load';
 import { safeUrl } from '../../../lib/html';
 import { studioHref } from '../../../lib/team-path';
+import { libraryHref } from '../../../lib/library-shells';
 import { readWorkspace, onWorkspaceChange } from '../../../scripts/workspace';
 import { loadTeamProductUsage, type TeamData } from '../../../scripts/team-data';
 
@@ -81,6 +83,24 @@ function ComponentDrawer({ row, data, storybook, onClose }: { row: TeamComponent
   // A story the published Storybook does not have yet would show Storybook's own error: the code instead.
   const preview = listed === 'missing' ? null : found;
   const github = row ? safeUrl(fileUrl(data.owner, data.repo, data.sha, row.file)) : '';
+  // Change this component: the step's state, shared by the body (the question and the form) and the footer (its one
+  // primary action). A new component starts closed.
+  const [flow, setFlow] = useState<ChangeFlow>(CLOSED_FLOW);
+  const formId = useId();
+  useEffect(() => setFlow(CLOSED_FLOW), [row?.slug]);
+  const repo = `${data.owner}/${data.repo}`;
+  const hasTokens = (row?.tokens ?? 0) > 0;
+  const more = github && (
+    // The source file is for developers: it waits in More.
+    <Menu>
+      <Tooltip content="More actions">
+        <MenuTrigger render={<IconButton icon={Ellipsis} label="More actions" variant="secondary" />} />
+      </Tooltip>
+      <MenuContent side="top" align="end">
+        <MenuItem onClick={() => window.open(github, '_blank', 'noopener,noreferrer')}>Open the code on GitHub</MenuItem>
+      </MenuContent>
+    </Menu>
+  );
   return (
     <Drawer open={Boolean(row)} onOpenChange={(open) => !open && onClose()}>
       {row && (
@@ -90,24 +110,28 @@ function ComponentDrawer({ row, data, storybook, onClose }: { row: TeamComponent
           description={row.summary}
           closeLabel="Close"
           footer={
-            <ButtonGroup>
-              {preview && (
-                <ButtonLink variant="primary" href={preview.manager} iconEnd={ExternalLink} target="_blank" rel="noopener noreferrer">
-                  Open in Storybook
-                </ButtonLink>
-              )}
-              {github && (
-                // The source file is for developers: it waits in More, the preview stays the one action.
-                <Menu>
-                  <Tooltip content="More actions">
-                    <MenuTrigger render={<IconButton icon={Ellipsis} label="More actions" variant="secondary" />} />
-                  </Tooltip>
-                  <MenuContent side="top" align="end">
-                    <MenuItem onClick={() => window.open(github, '_blank', 'noopener,noreferrer')}>Open the code on GitHub</MenuItem>
-                  </MenuContent>
-                </Menu>
-              )}
-            </ButtonGroup>
+            row && (
+              <ButtonGroup>
+                <ChangeFooter
+                  component={row.name}
+                  slug={row.slug}
+                  hasTokens={hasTokens}
+                  flow={flow}
+                  setFlow={setFlow}
+                  formId={formId}
+                  rest={
+                    <>
+                      {preview && (
+                        <ButtonLink variant="secondary" href={preview.manager} iconEnd={ExternalLink} target="_blank" rel="noopener noreferrer">
+                          Open in Storybook
+                        </ButtonLink>
+                      )}
+                      {more}
+                    </>
+                  }
+                />
+              </ButtonGroup>
+            )
           }
         >
           <div className="tcm-d">
@@ -149,6 +173,17 @@ function ComponentDrawer({ row, data, storybook, onClose }: { row: TeamComponent
                 ))}
               </p>
             )}
+            <ChangeStep
+              component={row.name}
+              slug={row.slug}
+              hasTokens={hasTokens}
+              repo={repo}
+              integrations={data.model.site.integrations}
+              componentUrl={new URL(libraryHref(data.owner, data.repo, `components/${row.slug}/`), location.origin).href}
+              flow={flow}
+              setFlow={setFlow}
+              formId={formId}
+            />
           </div>
         </DrawerContent>
       )}
