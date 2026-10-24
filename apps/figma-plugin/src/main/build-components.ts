@@ -489,10 +489,13 @@ function findPart(variant: ComponentNode, id: string): SceneNode | undefined {
   return variant.findOne((n) => n.getSharedPluginData(NS, 'part') === id) ?? undefined;
 }
 
-function setupFrame(node: Box, part: SpecPart, layout?: SpecLayout): void {
+function setupFrame(node: Box, part: SpecPart, layout?: SpecLayout, sized = true): void {
   const l = layout ?? part.layout ?? { direction: 'HORIZONTAL', primary: 'MIN', counter: 'MIN' };
   node.layoutMode = l.direction;
-  node.primaryAxisAlignItems = l.primary;
+  // space-between keeps the CSS gap as a minimum; Figma's makes the gap Auto, and a frame that hugs its content then
+  // packs its children with no gap at all (a Switch with its label first was 72px for 84). Only a frame with a size
+  // on its main axis spreads its children.
+  node.primaryAxisAlignItems = l.primary === 'SPACE_BETWEEN' && !sized ? 'MIN' : l.primary;
   node.counterAxisAlignItems = l.counter === 'STRETCH' ? 'MIN' : l.counter;
   node.primaryAxisSizingMode = 'AUTO';
   node.counterAxisSizingMode = 'AUTO';
@@ -667,7 +670,10 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
       if (key || visibleKey) node.componentPropertyReferences = { ...(key ? { characters: key } : {}), ...(visibleKey ? { visible: visibleKey } : {}) };
       resetUnset(TEXT_FIELDS, node);
     } else if (node.type === 'FRAME' || node.type === 'COMPONENT') {
-      if (part.kind === 'frame') setupFrame(node, part, pv.layout?.[part.id]);
+      if (part.kind === 'frame') {
+        const lay = pv.layout?.[part.id] ?? part.layout;
+        setupFrame(node, part, pv.layout?.[part.id], lay?.direction === 'VERTICAL' ? tall.has(part.id) && fields.some((f) => f.field === 'height') : definite.has(part.id));
+      }
       else {
         node.layoutMode = 'NONE';
         node.fills = [];
