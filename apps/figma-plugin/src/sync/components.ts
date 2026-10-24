@@ -465,9 +465,12 @@ export function diffSignatures(base: ComponentSignature, cur: ComponentSignature
     }
     let rebound = false;
     for (const kind of sortedUnique([...Object.keys(b.bindings), ...Object.keys(c.bindings)])) {
-      const before = list(b.bindings[kind]?.map(tokenName));
-      const after = list(c.bindings[kind]?.map(tokenName));
-      if (before === after) continue;
+      if (list(b.bindings[kind]?.map(tokenName)) === list(c.bindings[kind]?.map(tokenName))) continue;
+      // Only what moved: a variable kept on another layer of the same kind (the text color of a fill) is not part of it.
+      const was = (b.bindings[kind] ?? []).map(tokenName);
+      const now = (c.bindings[kind] ?? []).map(tokenName);
+      const before = list(was.filter((v) => !now.includes(v)));
+      const after = list(now.filter((v) => !was.includes(v)));
       // Variables an added layer brings (or a removed one takes away) move with that layer: not a rebinding.
       const bs = b.bindings[kind] ?? [];
       const cs = c.bindings[kind] ?? [];

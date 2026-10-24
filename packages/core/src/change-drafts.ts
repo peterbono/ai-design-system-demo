@@ -150,7 +150,7 @@ function firstChange(component: string, kind: RequestKind, c: RequestChange | un
       if (!c) return { title: 'Use another token', summary: `A part of ${component} uses another token in Figma.` };
       const m = /^(.*?)(?: \((.*)\))?$/.exec(c.field)!;
       const part = lower(m[1]!);
-      const where = m[2] ? ` in ${m[2]}` : '';
+      const where = m[2] ? ` in ${shortVariants(m[2])}` : '';
       const after = c.after && c.after !== 'none' ? c.after : '';
       const before = c.before && c.before !== 'none' ? c.before : '';
       if (!after) return { title: `Unbind the ${part}`, summary: `The ${part} of ${component}${where} no longer uses ${before || 'a token'}.` };
@@ -243,7 +243,7 @@ function changePhrase(c: RequestChange): string {
   if (layer) return structurePhrase(layer);
   // A token binding: "Fill" or "Fill (Size=sm, Tone=primary)".
   m = /^(.*?)(?: \((.*)\))?$/.exec(c.field)!;
-  const where = m[2] ? ` in ${m[2]}` : '';
+  const where = m[2] ? ` in ${shortVariants(m[2])}` : '';
   const before = c.before && c.before !== 'none' ? c.before : '';
   const after = c.after && c.after !== 'none' ? c.after : '';
   if (!after) return `${m[1]} no longer uses ${before || 'a token'}${where}`;

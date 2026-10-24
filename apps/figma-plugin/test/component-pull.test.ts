@@ -397,11 +397,8 @@ test('review: per set, the variants, props and bound variables an update changes
   assert.deepEqual(badge.changes[0], { field: 'Variant Tone', before: 'danger, info, neutral, success, warning', after: 'info, neutral, success, warning' });
   assert.equal(badge.removedVariants.length, 4);
   const card = reviews[1]!;
-  // Padding none shows the Media slot: its plate (color.bg.muted) is one more fill there.
-  assert.deepEqual(card.changes, [
-    { field: 'Fill (Padding=compact; Padding=default)', before: 'card.bg, color.bg.subtle, color.text.default', after: 'color.bg.subtle, color.text.default' },
-    { field: 'Fill (Padding=none)', before: 'card.bg, color.bg.muted, color.bg.subtle, color.text.default', after: 'color.bg.muted, color.bg.subtle, color.text.default' },
-  ]);
+  // Only what moved: the fills every variant keeps (Padding none also shows the Media plate) are not part of it.
+  assert.deepEqual(card.changes, [{ field: 'Fill', before: 'card.bg', after: 'none' }]);
 });
 
 test('update one by one: only that set is rebuilt; Update all builds the rest, never twice', async () => {
