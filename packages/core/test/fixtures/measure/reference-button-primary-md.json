@@ -1,0 +1,550 @@
+{
+ "key": "Variant=primary, Size=md, State=Default",
+ "measured": {
+  "id": "Variant=primary, Size=md, State=Default",
+  "root": {
+   "tag": "button",
+   "classes": [
+    "_button_aukrr_2",
+    "_primary_aukrr_56",
+    "_md_aukrr_173"
+   ],
+   "box": {
+    "x": 0,
+    "y": 0,
+    "width": 78.97,
+    "height": 44
+   },
+   "style": {
+    "display": "inline-flex",
+    "position": "relative",
+    "visibility": "visible",
+    "opacity": "1",
+    "overflow": "visible",
+    "box-sizing": "border-box",
+    "flex-direction": "row",
+    "flex-wrap": "nowrap",
+    "justify-content": "center",
+    "align-items": "center",
+    "align-self": "auto",
+    "flex-grow": "0",
+    "row-gap": "8px",
+    "column-gap": "8px",
+    "padding-top": "0px",
+    "padding-right": "16px",
+    "padding-bottom": "0px",
+    "padding-left": "16px",
+    "margin-top": "0px",
+    "margin-right": "0px",
+    "margin-bottom": "0px",
+    "margin-left": "0px",
+    "width": "78.9688px",
+    "height": "44px",
+    "min-width": "44px",
+    "min-height": "44px",
+    "background-color": "rgb(11, 74, 139)",
+    "background-image": "none",
+    "border-top-width": "1px",
+    "border-right-width": "1px",
+    "border-bottom-width": "1px",
+    "border-left-width": "1px",
+    "border-top-style": "solid",
+    "border-right-style": "solid",
+    "border-bottom-style": "solid",
+    "border-left-style": "solid",
+    "border-top-color": "rgba(0, 0, 0, 0)",
+    "border-right-color": "rgba(0, 0, 0, 0)",
+    "border-bottom-color": "rgba(0, 0, 0, 0)",
+    "border-left-color": "rgba(0, 0, 0, 0)",
+    "border-top-left-radius": "12px",
+    "border-top-right-radius": "12px",
+    "border-bottom-right-radius": "12px",
+    "border-bottom-left-radius": "12px",
+    "box-shadow": "none",
+    "outline-style": "none",
+    "outline-width": "3px",
+    "outline-color": "rgb(255, 255, 255)",
+    "color": "rgb(255, 255, 255)",
+    "font-family": "\"Instrument Sans Variable\", \"Instrument Sans\", system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif",
+    "font-size": "14px",
+    "font-weight": "500",
+    "line-height": "16.8px",
+    "letter-spacing": "normal",
+    "text-decoration-line": "none",
+    "text-transform": "none",
+    "text-align": "center",
+    "white-space": "nowrap",
+    "fill": "rgb(0, 0, 0)",
+    "stroke": "none",
+    "stroke-width": "1px"
+   },
+   "tokens": {
+    "row-gap": {
+     "via": "declared",
+     "chain": [
+      "--control-gap",
+      "--space-2"
+     ],
+     "exact": true,
+     "declared": "var(--control-gap)"
+    },
+    "column-gap": {
+     "via": "declared",
+     "chain": [
+      "--control-gap",
+      "--space-2"
+     ],
+     "exact": true,
+     "declared": "var(--control-gap)"
+    },
+    "padding-top": {
+     "via": "matched",
+     "chain": [
+      "--radius-none",
+      "--space-0",
+      "--font-tracking-normal"
+     ],
+     "exact": false
+    },
+    "padding-right": {
+     "via": "declared",
+     "chain": [
+      "--_px",
+      "--control-padding-x-md",
+      "--space-4"
+     ],
+     "exact": true,
+     "declared": "var(--_px)"
+    },
+    "padding-bottom": {
+     "via": "matched",
+     "chain": [
+      "--radius-none",
+      "--space-0",
+      "--font-tracking-normal"
+     ],
+     "exact": false
+    },
+    "padding-left": {
+     "via": "declared",
+     "chain": [
+      "--_px",
+      "--control-padding-x-md",
+      "--space-4"
+     ],
+     "exact": true,
+     "declared": "var(--_px)"
+    },
+    "height": {
+     "via": "matched",
+     "chain": [
+      "--size-11",
+      "--font-size-800",
+      "--typography-h1-size"
+     ],
+     "exact": false
+    },
+    "min-width": {
+     "via": "declared",
+     "chain": [
+      "--_height",
+      "--control-height-md",
+      "--size-11"
+     ],
+     "exact": true,
+     "declared": "var(--_height)"
+    },
+    "min-height": {
+     "via": "declared",
+     "chain": [
+      "--_height",
+      "--control-height-md",
+      "--size-11"
+     ],
+     "exact": true,
+     "declared": "var(--_height)"
+    },
+    "background-color": {
+     "via": "declared",
+     "chain": [
+      "--_bg",
+      "--button-primary-bg",
+      "--color-action-primary-bg",
+      "--palette-primary-700",
+      "--color-harbor-700"
+     ],
+     "exact": true,
+     "declared": "var(--_bg)"
+    },
+    "border-top-width": {
+     "via": "declared",
+     "chain": [
+      "--border-width-default",
+      "--border-width-1"
+     ],
+     "exact": false,
+     "declared": "var(--border-width-default) solid var(--_border)"
+    },
+    "border-right-width": {
+     "via": "declared",
+     "chain": [
+      "--border-width-default",
+      "--border-width-1"
+     ],
+     "exact": false,
+     "declared": "var(--border-width-default) solid var(--_border)"
+    },
+    "border-bottom-width": {
+     "via": "declared",
+     "chain": [
+      "--border-width-default",
+      "--border-width-1"
+     ],
+     "exact": false,
+     "declared": "var(--border-width-default) solid var(--_border)"
+    },
+    "border-left-width": {
+     "via": "declared",
+     "chain": [
+      "--border-width-default",
+      "--border-width-1"
+     ],
+     "exact": false,
+     "declared": "var(--border-width-default) solid var(--_border)"
+    },
+    "border-top-left-radius": {
+     "via": "declared",
+     "chain": [
+      "--button-radius",
+      "--radius-control",
+      "--radius-xl"
+     ],
+     "exact": true,
+     "declared": "var(--button-radius)"
+    },
+    "border-top-right-radius": {
+     "via": "declared",
+     "chain": [
+      "--button-radius",
+      "--radius-control",
+      "--radius-xl"
+     ],
+     "exact": true,
+     "declared": "var(--button-radius)"
+    },
+    "border-bottom-right-radius": {
+     "via": "declared",
+     "chain": [
+      "--button-radius",
+      "--radius-control",
+      "--radius-xl"
+     ],
+     "exact": true,
+     "declared": "var(--button-radius)"
+    },
+    "border-bottom-left-radius": {
+     "via": "declared",
+     "chain": [
+      "--button-radius",
+      "--radius-control",
+      "--radius-xl"
+     ],
+     "exact": true,
+     "declared": "var(--button-radius)"
+    },
+    "color": {
+     "via": "declared",
+     "chain": [
+      "--_text",
+      "--button-primary-text",
+      "--color-action-primary-text",
+      "--palette-neutral-0",
+      "--color-white"
+     ],
+     "exact": true,
+     "declared": "var(--_text)"
+    },
+    "font-family": {
+     "via": "declared",
+     "chain": [
+      "--font-family-sans",
+      "--font-family-instrument-sans"
+     ],
+     "exact": true,
+     "declared": "var(--font-family-sans)"
+    },
+    "font-size": {
+     "via": "declared",
+     "chain": [
+      "--font-size-200"
+     ],
+     "exact": true,
+     "declared": "var(--font-size-200)"
+    },
+    "font-weight": {
+     "via": "declared",
+     "chain": [
+      "--button-font-weight",
+      "--font-weight-medium"
+     ],
+     "exact": true,
+     "declared": "var(--button-font-weight)"
+    },
+    "line-height": {
+     "via": "declared",
+     "chain": [
+      "--font-line-height-tight"
+     ],
+     "exact": true,
+     "declared": "var(--font-line-height-tight)"
+    },
+    "fill": {
+     "via": "matched",
+     "chain": [
+      "--color-black"
+     ],
+     "exact": false
+    },
+    "stroke-width": {
+     "via": "matched",
+     "chain": [
+      "--border-width-1",
+      "--border-width-default"
+     ],
+     "exact": false
+    }
+   },
+   "children": [
+    {
+     "tag": "span",
+     "classes": [
+      "_label_aukrr_131"
+     ],
+     "box": {
+      "x": 17,
+      "y": 13.59,
+      "width": 44.97,
+      "height": 16.8
+     },
+     "style": {
+      "display": "block",
+      "position": "static",
+      "visibility": "visible",
+      "opacity": "1",
+      "overflow": "hidden",
+      "box-sizing": "content-box",
+      "flex-direction": "row",
+      "flex-wrap": "nowrap",
+      "justify-content": "normal",
+      "align-items": "normal",
+      "align-self": "auto",
+      "flex-grow": "0",
+      "row-gap": "normal",
+      "column-gap": "normal",
+      "padding-top": "0px",
+      "padding-right": "0px",
+      "padding-bottom": "0px",
+      "padding-left": "0px",
+      "margin-top": "0px",
+      "margin-right": "0px",
+      "margin-bottom": "0px",
+      "margin-left": "0px",
+      "width": "44.9688px",
+      "height": "16.7969px",
+      "min-width": "auto",
+      "min-height": "auto",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "background-image": "none",
+      "border-top-width": "0px",
+      "border-right-width": "0px",
+      "border-bottom-width": "0px",
+      "border-left-width": "0px",
+      "border-top-style": "none",
+      "border-right-style": "none",
+      "border-bottom-style": "none",
+      "border-left-style": "none",
+      "border-top-color": "rgb(255, 255, 255)",
+      "border-right-color": "rgb(255, 255, 255)",
+      "border-bottom-color": "rgb(255, 255, 255)",
+      "border-left-color": "rgb(255, 255, 255)",
+      "border-top-left-radius": "0px",
+      "border-top-right-radius": "0px",
+      "border-bottom-right-radius": "0px",
+      "border-bottom-left-radius": "0px",
+      "box-shadow": "none",
+      "outline-style": "none",
+      "outline-width": "3px",
+      "outline-color": "rgb(255, 255, 255)",
+      "color": "rgb(255, 255, 255)",
+      "font-family": "\"Instrument Sans Variable\", \"Instrument Sans\", system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif",
+      "font-size": "14px",
+      "font-weight": "500",
+      "line-height": "16.8px",
+      "letter-spacing": "normal",
+      "text-decoration-line": "none",
+      "text-transform": "none",
+      "text-align": "center",
+      "white-space": "nowrap",
+      "fill": "rgb(0, 0, 0)",
+      "stroke": "none",
+      "stroke-width": "1px"
+     },
+     "tokens": {
+      "padding-top": {
+       "via": "matched",
+       "chain": [
+        "--radius-none",
+        "--space-0",
+        "--font-tracking-normal"
+       ],
+       "exact": false
+      },
+      "padding-right": {
+       "via": "matched",
+       "chain": [
+        "--radius-none",
+        "--space-0",
+        "--font-tracking-normal"
+       ],
+       "exact": false
+      },
+      "padding-bottom": {
+       "via": "matched",
+       "chain": [
+        "--radius-none",
+        "--space-0",
+        "--font-tracking-normal"
+       ],
+       "exact": false
+      },
+      "padding-left": {
+       "via": "matched",
+       "chain": [
+        "--radius-none",
+        "--space-0",
+        "--font-tracking-normal"
+       ],
+       "exact": false
+      },
+      "border-top-left-radius": {
+       "via": "matched",
+       "chain": [
+        "--radius-none",
+        "--space-0",
+        "--font-tracking-normal"
+       ],
+       "exact": false
+      },
+      "border-top-right-radius": {
+       "via": "matched",
+       "chain": [
+        "--radius-none",
+        "--space-0",
+        "--font-tracking-normal"
+       ],
+       "exact": false
+      },
+      "border-bottom-right-radius": {
+       "via": "matched",
+       "chain": [
+        "--radius-none",
+        "--space-0",
+        "--font-tracking-normal"
+       ],
+       "exact": false
+      },
+      "border-bottom-left-radius": {
+       "via": "matched",
+       "chain": [
+        "--radius-none",
+        "--space-0",
+        "--font-tracking-normal"
+       ],
+       "exact": false
+      },
+      "color": {
+       "via": "declared",
+       "chain": [
+        "--_text",
+        "--button-primary-text",
+        "--color-action-primary-text",
+        "--palette-neutral-0",
+        "--color-white"
+       ],
+       "exact": true,
+       "declared": "var(--_text)"
+      },
+      "font-family": {
+       "via": "declared",
+       "chain": [
+        "--font-family-sans",
+        "--font-family-instrument-sans"
+       ],
+       "exact": true,
+       "declared": "var(--font-family-sans)"
+      },
+      "font-size": {
+       "via": "declared",
+       "chain": [
+        "--font-size-200"
+       ],
+       "exact": true,
+       "declared": "var(--font-size-200)"
+      },
+      "font-weight": {
+       "via": "declared",
+       "chain": [
+        "--button-font-weight",
+        "--font-weight-medium"
+       ],
+       "exact": true,
+       "declared": "var(--button-font-weight)"
+      },
+      "line-height": {
+       "via": "declared",
+       "chain": [
+        "--font-line-height-tight"
+       ],
+       "exact": true,
+       "declared": "var(--font-line-height-tight)"
+      },
+      "fill": {
+       "via": "matched",
+       "chain": [
+        "--color-black"
+       ],
+       "exact": false
+      },
+      "stroke-width": {
+       "via": "matched",
+       "chain": [
+        "--border-width-1",
+        "--border-width-default"
+       ],
+       "exact": false
+      }
+     },
+     "children": [],
+     "kind": "text",
+     "text": "Button"
+    }
+   ],
+   "kind": "frame"
+  }
+ },
+ "resolved": {
+  "button.primary.bg": "rgb(11, 74, 139)",
+  "button.radius": "12px",
+  "control.padding-x.md": "16px",
+  "control.gap": "8px",
+  "control.height.md": "44px",
+  "border-width.default": "1px",
+  "icon.size.sm": "16px",
+  "button.primary.text": "rgb(255, 255, 255)",
+  "icon.stroke": "1.75",
+  "font.family.sans": "\"Instrument Sans Variable\", \"Instrument Sans\", system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif",
+  "font.size.200": "14px",
+  "button.font-weight": "500",
+  "font.line-height.tight": "1.2"
+ }
+}

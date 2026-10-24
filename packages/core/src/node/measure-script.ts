@@ -1,0 +1,402 @@
+// The in-page half of the Storybook measure: plain JavaScript, kept as a string so no bundler or test transform
+// rewrites it before it reaches the browser. It runs in a story's iframe once the story has rendered and returns a
+// MeasuredNode tree (see measure.ts) of what the browser actually drew: boxes, layout, paint, text, and the CSS custom
+// properties each value was declared with.
+//
+// How a token is found for a value: every style rule of the page (CSS modules, Sass output, CSS-in-JS rules inserted
+// with insertRule, Tailwind layers) is read once; for an element and a property the winning declaration (inline style,
+// then !important, specificity and order) is taken, and the custom properties it uses are followed through their own
+// declarations (`--button-bg: var(--color-action-primary-bg)`) to the end of the chain. A value no declaration ties to a
+// variable is matched by value against the variables defined on the root (`matched`), which is weaker evidence.
+
+export const MEASURE_SCRIPT = String.raw`(function (arg) {
+  arg = arg || {};
+  var MAX_NODES = arg.maxNodes || 400;
+  var MAX_DEPTH = arg.maxDepth || 14;
+  var rootSel = arg.root || '#storybook-root, #root';
+  var PROPS = ['display', 'position', 'visibility', 'opacity', 'overflow', 'box-sizing',
+    'flex-direction', 'flex-wrap', 'justify-content', 'align-items', 'align-self', 'flex-grow', 'row-gap', 'column-gap',
+    'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+    'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+    'width', 'height', 'min-width', 'min-height',
+    'background-color', 'background-image',
+    'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
+    'border-top-style', 'border-right-style', 'border-bottom-style', 'border-left-style',
+    'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color',
+    'border-top-left-radius', 'border-top-right-radius', 'border-bottom-right-radius', 'border-bottom-left-radius',
+    'box-shadow', 'outline-style', 'outline-width', 'outline-color',
+    'color', 'font-family', 'font-size', 'font-weight', 'line-height', 'letter-spacing', 'text-decoration-line', 'text-transform', 'text-align', 'white-space',
+    'fill', 'stroke', 'stroke-width'];
+  // Properties a token is looked for (paint, spacing, shape, type).
+  var TOKENED = ['row-gap', 'column-gap', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left', 'width', 'height', 'min-width', 'min-height',
+    'background-color', 'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
+    'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color',
+    'border-top-left-radius', 'border-top-right-radius', 'border-bottom-right-radius', 'border-bottom-left-radius',
+    'box-shadow', 'opacity', 'color', 'font-family', 'font-size', 'font-weight', 'line-height', 'letter-spacing', 'fill', 'stroke', 'stroke-width'];
+  // Longhand -> shorthands that may set it, with the position of the longhand in a 1 to 4 value box shorthand.
+  var SIDES = { top: 0, right: 1, bottom: 2, left: 3 };
+  var CORNERS = { 'top-left': 0, 'top-right': 1, 'bottom-right': 2, 'bottom-left': 3 };
+  function shorthandsOf(p) {
+    var m;
+    if ((m = /^padding-(top|right|bottom|left)$/.exec(p))) return [['padding', SIDES[m[1]]], ['padding-block', m[1] === 'top' ? 0 : m[1] === 'bottom' ? 1 : -1], ['padding-inline', m[1] === 'left' ? 0 : m[1] === 'right' ? 1 : -1]];
+    if ((m = /^margin-(top|right|bottom|left)$/.exec(p))) return [['margin', SIDES[m[1]]]];
+    if ((m = /^border-(top-left|top-right|bottom-right|bottom-left)-radius$/.exec(p))) return [['border-radius', CORNERS[m[1]]]];
+    if ((m = /^border-(top|right|bottom|left)-(width|color|style)$/.exec(p))) return [['border-' + m[2], SIDES[m[1]]], ['border-' + m[1], -1], ['border', -1], ['border-block', -1], ['border-inline', -1]];
+    if (p === 'row-gap') return [['gap', 0]];
+    if (p === 'column-gap') return [['gap', 1]];
+    if (p === 'background-color') return [['background', -1]];
+    if (/^font-/.test(p) || p === 'line-height') return [['font', -1]];
+    return [];
+  }
+
+  // ---- style rules, read once ----
+  var rules = [];
+  var order = 0;
+  function walk(list, layered) {
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i];
+      try {
+        if (r.selectorText !== undefined && r.style) {
+          rules.push({ sel: r.selectorText, style: r.style, order: order++, layered: layered });
+          if (r.cssRules && r.cssRules.length) walk(r.cssRules, layered); // CSS nesting
+        } else if (r.media !== undefined && r.cssRules) {
+          if (window.matchMedia(r.media.mediaText || 'all').matches) walk(r.cssRules, layered);
+        } else if (r.conditionText !== undefined && r.cssRules) {
+          walk(r.cssRules, layered);
+        } else if (r.cssRules && r.name !== undefined) {
+          walk(r.cssRules, true); // @layer block: unlayered rules win over it
+        } else if (r.cssRules) {
+          walk(r.cssRules, layered);
+        }
+      } catch (e) {}
+    }
+  }
+  var sheetsRead = 0, sheetsBlocked = 0;
+  for (var s = 0; s < document.styleSheets.length; s++) {
+    try { walk(document.styleSheets[s].cssRules, false); sheetsRead++; } catch (e) { sheetsBlocked++; }
+  }
+  try { for (var a = 0; a < (document.adoptedStyleSheets || []).length; a++) walk(document.adoptedStyleSheets[a].cssRules, false); } catch (e) {}
+
+  function splitTop(text, sepRe) {
+    var out = [], depth = 0, cur = '', q = null;
+    for (var i = 0; i < text.length; i++) {
+      var c = text[i];
+      if (q) { cur += c; if (c === q) q = null; continue; }
+      if (c === '"' || c === "'") { q = c; cur += c; continue; }
+      if (c === '(' || c === '[') depth++;
+      if (c === ')' || c === ']') depth--;
+      if (depth === 0 && sepRe.test(c)) { if (cur.trim()) out.push(cur.trim()); cur = ''; continue; }
+      cur += c;
+    }
+    if (cur.trim()) out.push(cur.trim());
+    return out;
+  }
+  function specificity(sel) {
+    var s = sel.replace(/:where\([^)]*\)/g, '').replace(/::?(before|after|placeholder|selection|marker|backdrop)\b/g, '');
+    var ids = (s.match(/#[\w-]+/g) || []).length;
+    var cls = (s.match(/\.[\w-]+|\[[^\]]*\]|:(?!not\b|is\b|has\b)[\w-]+(\([^)]*\))?/g) || []).length;
+    var types = (s.replace(/\[[^\]]*\]|\([^)]*\)/g, '').match(/(^|[\s>+~(])[a-zA-Z][\w-]*/g) || []).length;
+    return ids * 10000 + cls * 100 + types;
+  }
+  function matchSpec(el, selText) {
+    var best = -1;
+    var parts = splitTop(selText, /,/);
+    for (var i = 0; i < parts.length; i++) {
+      if (/::/.test(parts[i])) continue;
+      try { if (el.matches(parts[i])) best = Math.max(best, specificity(parts[i])); } catch (e) {}
+    }
+    return best;
+  }
+  var matchCache = new Map();
+  function matching(el) {
+    var m = matchCache.get(el);
+    if (m) return m;
+    m = [];
+    for (var i = 0; i < rules.length; i++) {
+      var sp = matchSpec(el, rules[i].sel);
+      if (sp >= 0) m.push({ r: rules[i], sp: sp });
+    }
+    matchCache.set(el, m);
+    return m;
+  }
+  // The winning declared value of a property (longhand or the shorthand that sets it) on an element.
+  function declared(el, prop) {
+    var best = null;
+    function consider(value, important, layered, sp, ord, shorthand, pos) {
+      if (!value) return;
+      var rank = [important ? (layered ? 3 : 2) : (layered ? 0 : 1), sp, ord];
+      if (!best || cmp(rank, best.rank) > 0) best = { value: value, rank: rank, shorthand: shorthand, pos: pos };
+    }
+    function cmp(x, y) { for (var i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; }
+    var short = prop.indexOf('--') === 0 ? [] : shorthandsOf(prop);
+    var m = matching(el);
+    for (var i = 0; i < m.length; i++) {
+      var st = m[i].r.style;
+      var v = st.getPropertyValue(prop);
+      if (v) consider(v, st.getPropertyPriority(prop) === 'important', m[i].r.layered, m[i].sp, m[i].r.order, null, -1);
+      else for (var k = 0; k < short.length; k++) {
+        var sv = st.getPropertyValue(short[k][0]);
+        if (sv) consider(sv, st.getPropertyPriority(short[k][0]) === 'important', m[i].r.layered, m[i].sp, m[i].r.order, short[k][0], short[k][1]);
+      }
+    }
+    var inl = el.style && el.style.getPropertyValue(prop);
+    if (inl) consider(inl, el.style.getPropertyPriority(prop) === 'important', false, 1e9, 1e9, null, -1);
+    else if (el.style) for (var j = 0; j < short.length; j++) {
+      var iv = el.style.getPropertyValue(short[j][0]);
+      if (iv) consider(iv, false, false, 1e9, 1e9, short[j][0], short[j][1]);
+    }
+    return best;
+  }
+  function varsIn(value) {
+    var out = [], re = /var\(\s*(--[\w-]+)/g, m;
+    while ((m = re.exec(value))) out.push(m[1]);
+    return out;
+  }
+  // The piece of a box shorthand that sets one side ("padding: var(--a) var(--b)" -> right is var(--b)).
+  function boxPiece(value, pos) {
+    if (pos < 0) return value;
+    var parts = splitTop(value.replace(/\s*\/.*$/, ''), /\s/);
+    if (parts.length === 1) return parts[0];
+    if (parts.length === 2) return parts[pos % 2];
+    if (parts.length === 3) return parts[pos === 3 ? 1 : pos];
+    return parts[pos] || value;
+  }
+  // Custom property chain: --button-bg -> --color-action-primary-bg -> --color-orange-500.
+  function chainOf(el, name) {
+    var chain = [name], seen = {};
+    seen[name] = 1;
+    var cur = name;
+    for (var d = 0; d < 8; d++) {
+      var found = null;
+      for (var e = el; e && e.nodeType === 1; e = e.parentElement) {
+        var dv = declared(e, cur);
+        if (dv) { found = dv.value; break; }
+      }
+      if (!found) break;
+      var next = varsIn(found);
+      if (next.length !== 1 || seen[next[0]] || found.trim().indexOf('var(') !== 0) break;
+      seen[next[0]] = 1;
+      chain.push(next[0]);
+      cur = next[0];
+    }
+    return chain;
+  }
+
+  // ---- value normalisation through a probe element ----
+  var probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;width:0;height:0';
+  document.body.appendChild(probe);
+  var colorCache = {};
+  function normColor(v) {
+    if (v in colorCache) return colorCache[v];
+    probe.style.color = '';
+    probe.style.color = v;
+    var out = probe.style.color ? getComputedStyle(probe).color : null;
+    colorCache[v] = out;
+    return out;
+  }
+  function normLength(v) {
+    probe.style.width = '';
+    probe.style.width = v;
+    if (!probe.style.width) return null;
+    var w = getComputedStyle(probe).width;
+    probe.style.width = '0';
+    return w;
+  }
+  var isColorProp = function (p) { return /color$/.test(p) || p === 'fill' || p === 'stroke'; };
+
+  // Root variables (tokens defined on :root, html or body), for value matching.
+  var rootVars = null;
+  function rootTokens() {
+    if (rootVars) return rootVars;
+    rootVars = { colors: {}, lengths: {}, count: 0 };
+    var cs = getComputedStyle(document.documentElement);
+    var names = {};
+    for (var i = 0; i < rules.length; i++) {
+      var st = rules[i].style;
+      for (var k = 0; k < st.length; k++) if (st[k].indexOf('--') === 0) names[st[k]] = 1;
+    }
+    for (var i2 = 0; i2 < cs.length; i2++) if (cs[i2].indexOf('--') === 0) names[cs[i2]] = 1;
+    for (var n in names) {
+      var v = cs.getPropertyValue(n).trim();
+      if (!v) continue;
+      rootVars.count++;
+      if (/^(#|rgb|hsl|oklch|oklab|lab|lch|color\()/i.test(v)) {
+        var c = normColor(v);
+        if (c) (rootVars.colors[c] = rootVars.colors[c] || []).push(n);
+      } else if (/^-?[\d.]+(px|rem|em)$/.test(v)) {
+        var l = normLength(v);
+        if (l) (rootVars.lengths[l] = rootVars.lengths[l] || []).push(n);
+      }
+    }
+    return rootVars;
+  }
+
+  function tokenFor(el, prop, computed) {
+    var d = declared(el, prop);
+    if (d) {
+      var piece = d.shorthand && /^(padding|margin|border-radius|border-width|border-color|border-style|gap)$/.test(d.shorthand) ? boxPiece(d.value, d.pos) : d.value;
+      var vars = varsIn(piece);
+      if (vars.length) {
+        var pick = vars[0];
+        if (vars.length > 1) {
+          var cs = getComputedStyle(el);
+          for (var i = 0; i < vars.length; i++) {
+            var rv = cs.getPropertyValue(vars[i]).trim();
+            var same = isColorProp(prop) ? normColor(rv) === computed : normLength(rv) === computed;
+            if (same) { pick = vars[i]; break; }
+          }
+        }
+        var chain = chainOf(el, pick);
+        var direct = piece.trim().indexOf('var(') === 0 && vars.length === 1;
+        return { via: 'declared', chain: chain, exact: direct, declared: piece.trim() };
+      }
+      if (/^(inherit|currentcolor)$/i.test(d.value.trim()) && el.parentElement && prop !== 'background-color') {
+        var up = tokenFor(el.parentElement, prop === 'fill' || prop === 'stroke' || /border-.*-color/.test(prop) ? 'color' : prop, getComputedStyle(el.parentElement).getPropertyValue(prop === 'fill' || prop === 'stroke' || /border-.*-color/.test(prop) ? 'color' : prop));
+        if (up) return up;
+      }
+    } else if (/^(color|font-family|font-size|font-weight|line-height|letter-spacing)$/.test(prop) && el.parentElement) {
+      // Inherited: the token comes from the nearest ancestor that declares it.
+      return tokenFor(el.parentElement, prop, computed);
+    }
+    var rt = rootTokens();
+    var hit = isColorProp(prop) ? rt.colors[computed] : rt.lengths[computed];
+    if (hit && hit.length) return { via: 'matched', chain: hit.slice(0, 3), exact: false };
+    return null;
+  }
+
+  // ---- the rendered tree ----
+  var count = 0;
+  function own(el, cs) {
+    var bg = cs.backgroundColor;
+    var hasBg = bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent';
+    var hasBorder = ['Top', 'Right', 'Bottom', 'Left'].some(function (s) { return parseFloat(cs['border' + s + 'Width']) > 0 && cs['border' + s + 'Style'] !== 'none'; });
+    var pad = ['Top', 'Right', 'Bottom', 'Left'].some(function (s) { return parseFloat(cs['padding' + s]) > 0; });
+    var paints = function (v) { return !!v && v !== 'none'; };
+    return hasBg || hasBorder || pad || paints(cs.boxShadow) || paints(cs.backgroundImage);
+  }
+  function directText(el) {
+    var t = '';
+    for (var c = el.firstChild; c; c = c.nextSibling) if (c.nodeType === 3) t += c.nodeValue;
+    return t.replace(/\s+/g, ' ').trim();
+  }
+  function visible(el, cs) {
+    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.visibility === 'collapse') return false;
+    var r = el.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0 && !el.children.length) return false;
+    return true;
+  }
+  function round(n) { return Math.round(n * 100) / 100; }
+  var originX = 0, originY = 0;
+  function node(el, depth) {
+    count++;
+    var cs = getComputedStyle(el);
+    var r = el.getBoundingClientRect();
+    var tag = el.tagName.toLowerCase();
+    var style = {};
+    for (var i = 0; i < PROPS.length; i++) style[PROPS[i]] = cs.getPropertyValue(PROPS[i]);
+    var tokens = {};
+    for (var j = 0; j < TOKENED.length; j++) {
+      var p = TOKENED[j], v = style[p];
+      if (!v || v === 'none' || v === 'normal' || v === 'auto' || v === 'rgba(0, 0, 0, 0)') continue;
+      if (/width$/.test(p) && /^border-/.test(p) && v === '0px') continue;
+      if (/^border-.*-color$/.test(p) && parseFloat(style[p.replace('color', 'width')]) === 0) continue;
+      var t = tokenFor(el, p, v);
+      if (t) tokens[p] = t;
+    }
+    var n = { tag: tag, classes: Array.prototype.slice.call(el.classList || []).slice(0, 8), box: { x: round(r.left - originX), y: round(r.top - originY), width: round(r.width), height: round(r.height) }, style: style, tokens: tokens, children: [] };
+    var role = el.getAttribute('role');
+    if (role) n.role = role;
+    var dataState = {};
+    for (var ai = 0; ai < el.attributes.length; ai++) {
+      var an = el.attributes[ai].name;
+      if (/^(data-(state|variant|size|disabled|checked|selected|tone|appearance)|aria-(checked|pressed|disabled|selected|invalid))$/.test(an)) dataState[an] = el.attributes[ai].value;
+    }
+    if (Object.keys(dataState).length) n.attrs = dataState;
+    if (tag === 'svg') {
+      n.kind = r.width <= 48 && r.height <= 48 ? 'icon' : 'vector';
+      n.svg = el.outerHTML.length < 4000 ? el.outerHTML : undefined;
+      return n;
+    }
+    if (tag === 'img') { n.kind = 'frame'; n.media = true; return n; }
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+      n.kind = 'frame';
+      n.input = { type: el.type || tag, value: el.value || '', placeholder: el.getAttribute('placeholder') || '', checked: !!el.checked };
+    }
+    var hasEl = false;
+    for (var c = el.firstChild; c; c = c.nextSibling) {
+      if (count >= MAX_NODES) { n.truncated = true; break; }
+      if (c.nodeType === 3) {
+        var tx = c.nodeValue.replace(/\s+/g, ' ').trim();
+        if (!tx) continue;
+        var range = document.createRange();
+        range.selectNodeContents(c);
+        var tr = range.getBoundingClientRect();
+        n.children.push({ tag: '#text', kind: 'text', text: tx, box: { x: round(tr.left - originX), y: round(tr.top - originY), width: round(tr.width), height: round(tr.height) }, style: {}, tokens: {}, children: [] });
+      } else if (c.nodeType === 1) {
+        var ccs = getComputedStyle(c);
+        if (!visible(c, ccs)) continue;
+        hasEl = true;
+        if (depth + 1 > MAX_DEPTH) { n.truncated = true; continue; }
+        n.children.push(node(c, depth + 1));
+      }
+    }
+    // An element holding only text is the text layer itself.
+    if (!hasEl && n.children.length === 1 && n.children[0].kind === 'text' && !own(el, cs)) {
+      n.kind = 'text';
+      n.text = n.children[0].text;
+      n.children = [];
+    } else if (!n.kind) n.kind = 'frame';
+    return n;
+  }
+
+  var host = document.querySelector(rootSel);
+  if (!host) return { error: 'no element matches ' + rootSel + ' in the page' };
+  // Decorators and plain wrappers: go down while an element has one child and draws nothing itself.
+  var el = host, wrappers = 0;
+  // A decorator canvas the size of the viewport (a theme frame with a background and padding) is a wrapper too.
+  // So is a full-width band around one narrower child (a theme provider painting the page background).
+  function canvas(e) {
+    var r = e.getBoundingClientRect();
+    if (r.width >= window.innerWidth * 0.9 && r.height >= window.innerHeight * 0.9) return true;
+    if (r.width < window.innerWidth * 0.9) return false;
+    var c = e.children[0].getBoundingClientRect();
+    if (c.width < r.width * 0.9) return true;
+    // A full-width background with no border, radius or shadow: a theme surface, not a component.
+    var cs = getComputedStyle(e);
+    var noBorder = ['Top', 'Right', 'Bottom', 'Left'].every(function (x) { return !(parseFloat(cs['border' + x + 'Width']) > 0) || cs['border' + x + 'Style'] === 'none'; });
+    return noBorder && !(parseFloat(cs.borderTopLeftRadius) > 0) && (!cs.boxShadow || cs.boxShadow === 'none');
+  }
+  while (arg.unwrap !== false && el.children.length === 1 && !directText(el) && (!own(el, getComputedStyle(el)) || canvas(el)) && el.children[0].tagName.toLowerCase() !== 'svg') {
+    var only = el.children[0];
+    var ocs = getComputedStyle(only);
+    if (!visible(only, ocs)) break;
+    el = only;
+    wrappers++;
+  }
+  var portals = [];
+  for (var b = document.body.firstElementChild; b; b = b.nextElementSibling) {
+    if (b === probe || b.contains(host) || /^(SCRIPT|STYLE|LINK|TEMPLATE)$/.test(b.tagName)) continue;
+    if (/sb-(wrapper|errordisplay|nopreview|preparing)|sb-show-main/.test(b.className || '')) continue;
+    var bcs = getComputedStyle(b);
+    if (visible(b, bcs) && b.getBoundingClientRect().width > 0) portals.push(b);
+  }
+  var hr = el.getBoundingClientRect();
+  originX = hr.left; originY = hr.top;
+  var tree = arg.unwrap !== false && el === host && !host.children.length && !directText(host) ? null : node(el, 0);
+  var portalTrees = [];
+  for (var pi = 0; pi < portals.length && pi < 3; pi++) portalTrees.push(node(portals[pi], 0));
+  probe.remove();
+  var rt = rootVars || { count: 0 };
+  return {
+    root: tree,
+    portals: portalTrees,
+    wrappers: wrappers,
+    nodes: count,
+    rules: rules.length,
+    sheets: { read: sheetsRead, blocked: sheetsBlocked },
+    rootVariables: rt.count,
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    error: document.body.classList.contains('sb-show-errordisplay') ? (document.querySelector('#error-message') || {}).textContent || 'the story threw' : undefined
+  };
+})`;
