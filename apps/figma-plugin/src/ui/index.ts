@@ -1698,7 +1698,7 @@ function viewPull(): View {
       }), forDevelopers([...repoRows(), ['Last pulled commit', short(init.sync.baseSha)]]), steps([
         ['Check', "Bridge reads the design system's tokens and components."],
         ['Review', 'Every new, edited or deleted token is listed with its value. Nothing is written yet.'],
-        ['Apply', 'Figma variables are created or updated. Your own edits stay until you send them from Push.'],
+        ['Apply', 'Figma variables are created or updated, and components are built from the code. Your own edits stay until you send them from Push.'],
       ])],
       bar: { label: 'Check for updates', onClick: checkPull },
     };
@@ -1796,13 +1796,15 @@ function viewPull(): View {
   ];
 
   if (remote.length) {
+    const rows = rowList('pull-remote', remote.map((e) => diffRow(a, e.remote!.kind, { before: e.figma ?? e.base, after: e.head, beforeIndex: fi, afterIndex: a.head.byPath })));
     body.push(
       group(
         'Changes in the design system',
         remote.length,
         null,
         counts.removed ? 'Tokens deleted in the design system stay in Figma with an "[orphan]" note, so nothing in your designs breaks.' : 'Written to Figma when you apply.',
-        rowList('pull-remote', remote.map((e) => diffRow(a, e.remote!.kind, { before: e.figma ?? e.base, after: e.head, beforeIndex: fi, afterIndex: a.head.byPath }))),
+        // A first pull is every variable, all new: the headline says it, the list is there on demand.
+        a.baseSha ? rows : h('details', { class: 'notes' }, h('summary', null, `See the ${plural(remote.length, 'variable')}`), rows),
       ),
     );
   }

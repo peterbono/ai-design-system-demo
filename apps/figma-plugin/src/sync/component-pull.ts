@@ -773,7 +773,10 @@ export function coverageView(plan: Pick<ComponentPullPlan, 'coverage' | 'compone
   const inFigma = visual.filter((c) => c.status === 'generated').length + drafted.length;
   const missing = visual.filter((c) => c.status !== 'generated' && c.status !== 'drafted').map((c) => ({ name: c.name, reason: c.reason ? `Not supported yet: ${c.reason}` : 'Not added yet' }));
   const layout = list.filter((c) => c.status === 'layout').map((c) => c.name);
-  const headline = `${inFigma} of ${visual.length} components can be pulled into Figma${drafted.length ? `, ${drafted.length} drafted with Claude` : ''}`;
+  // The count next to "Components" is the sets built, parts and popups included (AccordionItem, Dialog/Popup): say it.
+  const sets = plan.components.length;
+  const asSets = sets > inFigma ? ` (${sets} sets with their parts)` : '';
+  const headline = `${inFigma} of ${visual.length} components can be pulled into Figma${asSets}${drafted.length ? `, ${drafted.length} drafted with Claude` : ''}`;
   return { headline, missing, drafted, layout, complete: missing.length === 0 };
 }
 
