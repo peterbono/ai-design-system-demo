@@ -53,6 +53,7 @@ export interface RestPull {
   user?: { login: string } | null;
   assignees?: { login: string }[] | null;
   head?: { ref: string; sha?: string } | null;
+  base?: { ref: string; sha?: string } | null;
 }
 
 const labelNames = (labels: readonly ({ name?: string } | string)[] | null | undefined) => (labels ?? []).map((l) => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean);

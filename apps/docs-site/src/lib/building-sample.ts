@@ -105,6 +105,7 @@ const iso = (now: number, days: number) => new Date(now - days * DAY).toISOStrin
 /** Labels and heads as GitHub answers them (objects, a commit sha): the local fixtures serve these to every reader. */
 const named = (labels: string[]) => labels.map((name) => ({ name }));
 const sha = (n: number) => n.toString(16).padStart(40, '0');
+const BASE = { ref: 'main', sha: sha(1) };
 
 /** The sample issues and pull requests, as GitHub's REST API would answer for the sample team. */
 export function sampleBuildData(now: number, repo = 'acme/design-system'): { issues: RestIssue[]; pulls: RestPull[] } {
@@ -141,6 +142,7 @@ export function sampleBuildData(now: number, repo = 'acme/design-system'): { iss
         user: { login: s.pull.author },
         assignees: [],
         head: { ref: `agent/build-${s.n}`, sha: sha(s.pull.n) },
+        base: BASE,
       });
     }
   }
@@ -160,6 +162,7 @@ export function sampleBuildData(now: number, repo = 'acme/design-system'): { iss
     user: { login: 'dana' },
     assignees: [],
     head: { ref: 'bridge/button-add-a-lg-size', sha: sha(53) },
+    base: BASE,
   });
   return { issues, pulls };
 }
