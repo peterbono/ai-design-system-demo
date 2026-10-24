@@ -65,7 +65,9 @@ export function rebindsOf(base: ComponentSignature, cur: ComponentSignature): Re
       if (before.join() === after.join()) continue;
       // Only what moved: a variable kept on another layer of the same kind is not part of the swap.
       const gone = before.filter((v) => !after.includes(v));
-      const added = after.filter((v) => !before.includes(v));
+      // Rebound to a variable another layer of the variant already uses (color.bg.muted): nothing is new, yet the
+      // property is still bound. Say every variable it may use now, never "a raw value".
+      const added = gone.length && after.length && after.every((v) => before.includes(v)) ? after : after.filter((v) => !before.includes(v));
       const id = `${kind}\u0000${gone.join()}\u0000${added.join()}`;
       const row = rows.get(id) ?? { kind, variants: [], allVariants: false, before: gone, after: added };
       row.variants.push(key);

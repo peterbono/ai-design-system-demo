@@ -413,6 +413,18 @@ export function diffSignatures(base: ComponentSignature, cur: ComponentSignature
     kinds.add('new-variant');
     changes.push({ field: `Variant ${axis}`, before: b ? list(b) : undefined, after: c ? list(c) : undefined });
   }
+  // A variant added or removed whose values all stay on their axes (Tone=info, Size=md removed while info and md stay
+  // for the others): the axes above cannot see it. Combinations an axis change explains are left to that row.
+  const onAxes = (key: string, s: ComponentSignature) => key.split(', ').every((pair) => {
+    const at = pair.indexOf('=');
+    return at > 0 && (s.variantAxes[pair.slice(0, at)] ?? []).includes(pair.slice(at + 1));
+  });
+  const gone = Object.keys(base.variants).filter((k) => k && !cur.variants[k] && onAxes(k, cur)).sort();
+  const born = Object.keys(cur.variants).filter((k) => k && !base.variants[k] && onAxes(k, base)).sort();
+  if (gone.length || born.length) {
+    kinds.add('new-variant');
+    changes.push({ field: 'Variants', before: gone.length ? gone.join('; ') : undefined, after: born.length ? born.join('; ') : undefined });
+  }
 
   // Component properties (variant axes are reported above, their default here).
   // An instance swap may share its name with the BOOLEAN that shows the same part ("Icon start"): keyed apart.
@@ -469,8 +481,11 @@ export function diffSignatures(base: ComponentSignature, cur: ComponentSignature
       // Only what moved: a variable kept on another layer of the same kind (the text color of a fill) is not part of it.
       const was = (b.bindings[kind] ?? []).map(tokenName);
       const now = (c.bindings[kind] ?? []).map(tokenName);
-      const before = list(was.filter((v) => !now.includes(v)));
-      const after = list(now.filter((v) => !was.includes(v)));
+      const goneNames = was.filter((v) => !now.includes(v));
+      const bornNames = now.filter((v) => !was.includes(v));
+      const before = list(goneNames);
+      // Rebound to a variable another layer already uses: still bound, so list what it may use now (not "none").
+      const after = list(goneNames.length && !bornNames.length && now.length ? now : bornNames);
       // Variables an added layer brings (or a removed one takes away) move with that layer: not a rebinding.
       const bs = b.bindings[kind] ?? [];
       const cs = c.bindings[kind] ?? [];
