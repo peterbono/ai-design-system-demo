@@ -40,7 +40,7 @@ function Agents({ data }: { data: TeamData }) {
           For AI agents
         </h2>
         <p className="ltm-muted">
-          {has ? 'Every token and component guideline of this Library as plain text, ready for an agent to read.' : 'Publish a Bridge snapshot from CI to give agents this Library as plain text (llms.txt).'}
+          {has ? 'Every token and component guideline of this Library as plain text, ready for an agent to read.' : 'Agents read this Library as plain text once a developer of the team publishes it.'}
         </p>
       </div>
       {has ? (
@@ -49,7 +49,7 @@ function Agents({ data }: { data: TeamData }) {
         </ButtonLink>
       ) : (
         <ButtonLink variant="secondary" href={SNAPSHOT_TEMPLATE_URL} iconEnd={ExternalLink} target="_blank" rel="noopener noreferrer">
-          Get the workflow
+          Developer setup
         </ButtonLink>
       )}
     </section>
