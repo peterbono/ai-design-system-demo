@@ -6,7 +6,7 @@
 import type { HistoryEntry, HistoryFilter, HistoryReport } from '@bridge-ds/core';
 import { authorsOf, countsLabel, shortDate, viewTimeline } from '../../lib/history-view';
 import { renderTokenReview } from '../reviews';
-import { currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, readRepo } from '../github-session';
+import { currentViewer, esc, ghGet, hasWorkingToken, signedInWithGitHub, initGitHubConnect, readRepo } from '../github-session';
 import { mdTitleHtml } from '../../lib/markdown';
 import { approvalNeedLabel, releasePull, type QueuePull } from '../../lib/review-queue';
 import { historySummary, parseReleaseBody, releaseCard } from '../../lib/release-view';
@@ -149,10 +149,18 @@ function paintGuidanceDetail(e: HistoryEntry, ref: string) {
   void paintPeople($('hs-detail'));
 }
 
+/**
+ * The developer view of an entry (the merged branch, else what landed on main): one quiet link on the author line, for
+ * a GitHub account only. A designer signed in by email has no GitHub to open it with (designers never see GitHub).
+ */
+function githubRef(e: HistoryEntry): string {
+  if (hasWorkingToken() && !signedInWithGitHub()) return '';
+  return `<a class="cg-gh" href="${attrUrl(e.pr ? (e.pr.url ?? `${repoUrl()}/pull/${e.pr.number}`) : `${repoUrl()}/commit/${e.sha}`)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}<span class="sr-only"> (opens in a new tab)</span></a>`;
+}
+
 function paintDetail(e: HistoryEntry, demo: boolean) {
   if (!demo && isGuidanceEntry(e)) {
-    const ref = `<a class="cg-gh" href="${attrUrl(e.pr ? (e.pr.url ?? `${repoUrl()}/pull/${e.pr.number}`) : `${repoUrl()}/commit/${e.sha}`)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}<span class="sr-only"> (opens in a new tab)</span></a>`;
-    return paintGuidanceDetail(e, ref);
+    return paintGuidanceDetail(e, githubRef(e));
   }
   const review = L!.data.reviews[`${demo ? 'demo' : 'real'}:${e.id}`];
   const diff = e.bulk
@@ -166,9 +174,7 @@ function paintDetail(e: HistoryEntry, demo: boolean) {
         ? '<p class="cg-muted" role="status">Reading the token changes from GitHub</p>'
         : '<p class="cg-muted">No designer diff for this change.</p>';
   // The developer view of it (the merged branch, else what landed on main) is one quiet link on the author line.
-  const ref = demo
-    ? '<span>Fixture change</span>'
-    : `<a class="cg-gh" href="${attrUrl(e.pr ? (e.pr.url ?? `${repoUrl()}/pull/${e.pr.number}`) : `${repoUrl()}/commit/${e.sha}`)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}<span class="sr-only"> (opens in a new tab)</span></a>`;
+  const ref = demo ? '<span>Fixture change</span>' : githubRef(e);
   const facts = [e.bulk ? 'Import' : approvalNeedLabel(e.tier), e.breaking ? 'breaking' : '', e.version && e.version !== 'Unreleased' ? e.version : 'next release'].filter(Boolean).join(', ');
   $('hs-detail').innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${BASE}" data-hs-back>History</a><span aria-hidden="true">/</span><span>${esc(title(e))}</span></nav>
     <header class="zone cg-pr-open">
