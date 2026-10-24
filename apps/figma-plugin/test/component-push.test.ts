@@ -249,6 +249,12 @@ test('claude draft: a new variant opens a draft branch carrying the spec and a s
   assert.deepEqual(spec.changes, [{ field: 'Variant Size', before: 'md, sm', after: 'lg, md, sm' }]);
   assert.equal(spec.images?.length, 1, 'the screenshot goes with the spec');
   assert.deepEqual(Object.keys(spec.bindings).sort(), ['Size=lg', 'Size=md', 'Size=sm']);
+  // A build request issue for developers (Jira mirrors it), linked both ways with the branch: Being built shows one item.
+  const issue = gh.issues.find((i) => i.number === b.buildRequest?.number)!;
+  assert.ok(issue.labels.includes('bridge-build') && issue.labels.includes('component-change') && issue.labels.includes('source: figma'));
+  assert.ok(issue.body.includes(b.url), 'the issue points at the branch that carries the spec');
+  assert.match(pr.body, new RegExp(`Closes #${issue.number}$`));
+  assert.deepEqual(res.outcomes.map((o) => [o.route, o.ref.kind, o.ref.number]), [['build-request', 'issue', issue.number]]);
 
   // Claude reads the brief, writes the code on the branch, then says it is drafted. Never before the code is there.
   const view = await figmaChangeOnGitHub(client, b.number);

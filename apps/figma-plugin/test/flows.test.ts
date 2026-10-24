@@ -160,8 +160,9 @@ test('push: edits in Figma become a minimal PR with only the changed files', asy
   const result = await openPullRequest(client, a, push, { title: '', notes: '', fileName: 'Test', now: new Date(Date.UTC(2026, 9, 16, 14, 5)) });
   assert.match(result.branch, /^tokens\/[a-z0-9-]+-20261016-1405$/);
   const pr = gh.prs[0]!;
-  assert.equal(pr.draft, true);
-  assert.deepEqual(pr.labels, ['tokens']);
+  // From Figma counts as design-approved (docs/BUILD-REQUESTS.md): ready for review, labelled for the gate.
+  assert.equal(pr.draft, false);
+  assert.deepEqual(pr.labels, ['tokens', 'source: figma']);
   assert.match(pr.body, /Tier 3: token change, needs design \+ tech approval/);
   const primary = row(pr.body, 'color.action.primary.bg');
   assert.equal(primary[1], 'Semantic');
@@ -466,7 +467,8 @@ for (const layout of ['single', 'split'] as const) {
     assert.match(pr.body, /## New brand/);
     assert.match(pr.body, /All \d+ contrast checks pass for Acme in light and dark/);
     assert.match(pr.body, /Acme launch/);
-    assert.deepEqual(pr.labels, ['tokens', 'tier: 3']);
+    assert.deepEqual(pr.labels, ['tokens', 'tier: 3', 'source: figma']);
+    assert.equal(pr.draft, true, 'a new brand stays a draft for its reviews');
     assert.equal(pr.body.includes(String.fromCharCode(0x2014)), false, 'no em dash in the PR body');
     const commit = gh.commits.get(result.commitSha)!;
     const main = gh.filesAt('main');

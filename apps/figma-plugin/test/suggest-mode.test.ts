@@ -107,7 +107,7 @@ test('direct: the same push still opens a branch and a draft pull request (behav
   assert.ok(res.pr && gh.branches.has(res.pr.branch));
   assert.equal(gh.prs.length, 1);
   assert.equal(gh.issues.length, 0);
-  assert.equal(sentTitle(res, 'direct'), 'Sent for review');
+  assert.equal(sentTitle(res, 'direct'), 'Sent to the library');
 });
 
 test('suggest: an exploration (a branch) is refused before anything is written', async () => {
@@ -215,7 +215,7 @@ test('tokenEditsOf: set per file, add, remove, rename', () => {
 
 test('wording per mode: the action, the result and the token help', () => {
   assert.equal(sendLabel('suggest'), 'Send suggestion');
-  assert.equal(sendLabel('direct'), 'Send for review');
+  assert.equal(sendLabel('direct'), 'Send to the library');
   assert.equal(sentTitle({ suggestions: [{ kind: 'variables', number: 12, url: 'u' }] }, 'suggest'), 'Suggestion sent to your DS lead');
   assert.equal(sentTitle({ suggestions: [{ kind: 'variables', number: 12, url: 'u' }, { kind: 'component-spec', number: 13, url: 'u' }] }, 'suggest'), '2 suggestions sent to your DS lead');
   assert.match(tokenHelp('suggest'), /"Issues" set to "Read and write", "Contents" and "Pull requests" set to "Read"/);

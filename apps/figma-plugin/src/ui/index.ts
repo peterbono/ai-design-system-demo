@@ -29,7 +29,8 @@ import { IMAGES_NEED_WRITE, type SentComponentPush, sendLabel, sentTitle, sugges
 import { type Destination, type PublishItem, type PublishResult, sendComponentPush, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
 import { type ComponentsReadProblem, NEW_TOKEN_REFUSED, TOKEN_REJECTED_CALLOUT, TOKEN_REJECTED_DETAIL, TOKEN_SETTINGS_URL, type TokenProblem, checkToken, componentsReadProblem, errorText, friendlyError, tokenProblem } from '../sync/token-health';
 import { type BuildItem, type StudioTarget, developerMessage, sentLinks, studioChangeUrl } from '../sync/studio';
-import { type RoutedItem, type ShipPoll, type ShipStatus, ShipPoller, groupRoutes, libraryHeadline, shipStateLabel, shippedNumbers } from '../sync/library-routes';
+import { type RoutedItem, type ShipPoll, type ShipStatus, ShipPoller, groupRoutes, libraryHeadline, routedItems, shipStateLabel, shippedNumbers, waitingLede } from '../sync/library-routes';
+import { libraryArrivalOnGitHub } from '@bridge-ds/core';
 import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, triedLocally, tryItLinks } from '../sync/explorations';
 import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
 import { type Selection, onProgress, onSelection, request } from './bridge';
@@ -126,7 +127,7 @@ interface PushState {
   exploreTarget: string;
   /**
    * Where each item of a push to the library went (docs/BUILD-REQUESTS.md): shipped, waiting for a developer, or a
-   * build request. Set by the send once the core contract lands; until then nothing sets it and the screens stay off.
+   * build request. Set by a send for review in direct mode (publish's outcomes).
    */
   routed?: RoutedItem[] | undefined;
   /** The shipped pull requests: on their way, in the library, or a failed check; polled while the screen is open. */
@@ -814,6 +815,7 @@ function scanPush(keep?: PushState, then?: () => void): void {
   // A fresh scan starts over: the previous Push description and request form stop waiting for Claude.
   if (!keep && state.push) {
     state.push.tryItPoller?.stop();
+    state.push.ship?.poller?.stop();
     cancelMine(state.push.assist, false);
     if (state.push.form) cancelMine(state.push.form.assist, false);
   }
@@ -910,7 +912,7 @@ function explorationBlocker(r: PushState): string | undefined {
   return pickedExploration(r) ? undefined : 'Pick an exploration';
 }
 
-/** "Send for review" or "Try in an exploration": experimental items follow the destination's default. */
+/** "To the library" or "Try in an exploration": experimental items follow the destination's default. */
 function setDestination(r: PushState, d: Destination): void {
   if (r.destination === d) return;
   r.destination = d;
@@ -944,7 +946,7 @@ function submitPush(): void {
   const toExploration = r.destination === 'exploration';
   const mode = modeOf(r);
   void run(
-    toExploration ? (r.exploreTarget === 'new' ? 'Starting the exploration' : 'Sending to the exploration') : mode === 'suggest' ? 'Sending the suggestion' : withPr ? (r.appendToOpen && r.openPr ? 'Adding to your change' : 'Sending for review') : 'Sending the requests',
+    toExploration ? (r.exploreTarget === 'new' ? 'Starting the exploration' : 'Sending to the exploration') : mode === 'suggest' ? 'Sending the suggestion' : withPr ? (r.appendToOpen && r.openPr ? 'Adding to your change' : 'Sending to the library') : 'Sending the requests',
     async () => {
       let exploration: ExplorationChoice | undefined;
       if (toExploration) {
@@ -980,6 +982,8 @@ function submitPush(): void {
       });
       r.result = result;
       r.sentTo = exploration;
+      r.routed = !exploration && result.outcomes.length ? routedItems(result.outcomes) : undefined;
+      if (r.routed) startShipPolling(r, (n) => libraryArrivalOnGitHub(getClient(), n));
       r.tryIt = undefined;
       r.previews = undefined;
       r.shared = false;
@@ -1685,7 +1689,7 @@ const repoRows = (): [string, string | undefined][] => [
 
 function needSetup(): View {
   return {
-    body: intro({ title: 'Connect your design system', text: "Bridge brings your design system's tokens and components into Figma, and sends your edits for review. Pick the design system this file uses.", art: 'guide' }),
+    body: intro({ title: 'Connect your design system', text: "Bridge brings your design system's tokens and components into Figma, and sends your edits back to it. Pick the design system this file uses.", art: 'guide' }),
     bar: { label: 'Open Settings', onClick: () => { state.tab = 'settings'; render(); } },
   };
 }
@@ -2338,7 +2342,7 @@ function requestTargets(r: PushState): ExplorationChoice[] {
   return out;
 }
 
-/** "Where it goes": for review unless the designer picks an exploration here (never inherited from the last push). */
+/** "Where it goes": to developers unless the designer picks an exploration here (never inherited from the last push). */
 function requestDestination(r: PushState, f: RequestForm): Child {
   const targets = requestTargets(r);
   if (!targets.length) return null;
@@ -2349,7 +2353,7 @@ function requestDestination(r: PushState, f: RequestForm): Child {
     h(
       'select',
       { 'data-focus-id': 'req-target', onChange: (e: Event) => (f.target = (e.target as HTMLSelectElement).value) },
-      h('option', { value: '', selected: !f.target }, 'For review (owners approve it)'),
+      h('option', { value: '', selected: !f.target }, 'To developers (a request they pick up)'),
       targets.map((e) => h('option', { value: e.branch, selected: f.target === e.branch }, `Into ${e.name} (exploration)`)),
     ),
   );
@@ -2445,7 +2449,7 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
     h(
       'div',
       { class: 'inline-actions' },
-      h('button', { class: 'btn primary', disabled: !!state.busy, onClick: () => sendRequest(r) }, sendLabel(modeOf(r))),
+      h('button', { class: 'btn primary', disabled: !!state.busy, onClick: () => sendRequest(r) }, modeOf(r) === 'suggest' ? sendLabel('suggest') : f.target ? 'Send to the exploration' : 'Send to developers'),
       h('button', { class: 'btn ghost', onClick: () => { cancelMine(f.assist, false); r.form = undefined; render(); } }, 'Cancel'),
     ),
   );
@@ -2711,7 +2715,7 @@ function componentNotes(r: PushState): Child[] {
         'details',
         { class: 'notes candidates', open: candidates.some((c) => r.form?.key === c.nodeId) },
         h('summary', null, `Not in the design system yet (${candidates.length})`),
-        h('p', { class: 'muted' }, `Components in this file with no folder in ${scan?.coded.length ? 'the code' : 'code'}. Nothing is sent unless you ask for it.${routed(r) ? ' Sent for review, each goes with its spec: a developer builds it with Claude, then a person reviews it.' : ''}`),
+        h('p', { class: 'muted' }, `Components in this file with no folder in ${scan?.coded.length ? 'the code' : 'code'}. Nothing is sent unless you ask for it.${routed(r) ? ' Sent to the library, each becomes a build request with its spec: developers build it, then it ships.' : ''}`),
         h('ul', { class: 'rows' }, candidates.map((item) => componentRow(r, item, 'Request as new component'))),
       ),
     );
@@ -2782,8 +2786,8 @@ function destinationControl(r: PushState): HTMLElement {
   return h(
     'section',
     { class: 'destination' },
-    h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Where your changes go' }, option('review', 'For review'), option('exploration', 'Try in an exploration')),
-    h('p', { class: 'muted' }, exploring ? 'Try it in its previews, and see before and after in Studio. It never reaches the product as is.' : 'Owners approve it, then it reaches the product.'),
+    h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Where your changes go' }, option('review', 'To the library'), option('exploration', 'Try in an exploration')),
+    h('p', { class: 'muted' }, exploring ? 'Try it in its previews, and see before and after in Studio. It never reaches the product as is.' : 'Token values ship once the checks pass. Renames, removals and what needs code go to developers.'),
     exploring
       ? h(
           'div',
@@ -3083,20 +3087,20 @@ function libraryResult(r: PushState, items: RoutedItem[]): Child[] {
     g.shipped.length
       ? group(
           'Token values',
-          r.ship?.timedOut ? 'Still on its way after 10 minutes. The pull request on GitHub says which check is running.' : 'Checked for contrast and tests, then merged on its own. No second review: it was approved in Figma.',
+          r.ship?.timedOut ? 'Still on its way after 15 minutes. The pull request on GitHub says which check is running.' : 'Checked for contrast and tests, then merged on its own. No second review: it was approved in Figma.',
           g.shipped.map((i) => {
             const s = statuses.get(i.number);
-            return row(i, shipStateLabel(s), !s || s.state === 'on-its-way');
+            return row(i, shipStateLabel(s), !s?.final);
           }),
         )
       : null,
-    g.waiting.length ? group('Waiting for a developer', "Renames and removals change code that uses the token: a developer says OK, then it reaches the library.", g.waiting.map((i) => row(i, 'Waiting for a developer'))) : null,
-    g.builds.length ? group('Build requests', 'Each one has the Figma link, before and after, the props and a brief ready for Claude. Developers split the work there.', g.builds.map((i) => row(i, 'Requested'))) : null,
+    g.waiting.length ? group('Waiting for a developer', waitingLede(g.waiting), g.waiting.map((i) => row(i, i.waitingFor === 'rename' ? 'Renamed or removed' : 'Waiting for a developer'))) : null,
+    g.builds.length ? group('Build requests', 'Each one has the Figma link, before and after and what to build. Developers pick it up in GitHub or Jira.', g.builds.map((i) => row(i, 'Requested'))) : null,
   ];
 }
 
 /** Starts reading the shipped pull requests (on their way, in the library) while the result screen is open. */
-export function startShipPolling(r: PushState, poll: ShipPoll): void {
+function startShipPolling(r: PushState, poll: ShipPoll): void {
   const numbers = shippedNumbers(groupRoutes(r.routed ?? []));
   r.ship?.poller?.stop();
   r.ship = { statuses: new Map() };
@@ -3136,13 +3140,13 @@ function viewPush(): View {
       body: [
         intro({
           title: 'Send your edits',
-          text: 'Variable edits and component changes go for review, or into an exploration to try them first. Nothing reaches the product until owners approve.',
+          text: 'Variable edits and component changes go to the library, or into an exploration to try them first.',
           art: 'paint',
         }),
         steps([
           ['Edit in Figma', 'Change synced variables, or change a component: a variant, a prop, a part, the token a part uses.'],
           ['Review the changes', 'Every change is listed and checked. Uncheck what is not ready; mark work in progress as exploration only.'],
-          ['Send', 'Send for review: owners approve before anything ships. In an exploration, you try it in its previews first.'],
+          ['Send', 'Token values ship once the checks pass; what needs code goes to developers as a build request. In an exploration, you try it in its previews first.'],
         ]),
         requestLine(undefined),
       ],

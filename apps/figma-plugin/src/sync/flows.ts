@@ -354,15 +354,17 @@ export async function openPullRequest(client: GitHubClient, a: Analysis, p: Push
     const body = p.changes.length
       ? [tokenBody(), ...plans.map(newBrandSection)].join('\n\n')
       : plans.map((x, i) => (i === 0 ? composeNewBrandBody(x, { tool: `${origin.tool} (${origin.location})`, notes: opts.notes }) : newBrandSection(x))).join('\n\n');
+    // Token values from Figma count as design-approved (docs/BUILD-REQUESTS.md): ready for review, so they ship once the
+    // checks pass. A new brand (Tier 3) still opens as a draft for its reviews.
     try {
-      pr = await client.createPullRequest({ title, head: branch, base: a.settings.branch, body, draft: true });
+      pr = await client.createPullRequest({ title, head: branch, base: a.settings.branch, body, draft: plans.length > 0 });
     } catch (err) {
       // Draft PRs are not available on every plan; fall back to a regular PR.
       if (err instanceof GitHubError && err.status === 422 && /draft/i.test(err.detail ?? '')) {
         pr = await client.createPullRequest({ title, head: branch, base: a.settings.branch, body, draft: false });
       } else throw err;
     }
-    await client.addLabels(pr.number, plans.length ? ['tokens', 'tier: 3'] : ['tokens']);
+    await client.addLabels(pr.number, plans.length ? ['tokens', 'tier: 3', 'source: figma'] : ['tokens', 'source: figma']);
   }
 
   const tags: VariableTag[] = [];

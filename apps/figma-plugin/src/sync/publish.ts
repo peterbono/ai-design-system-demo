@@ -15,6 +15,8 @@
 //   exists) shows a hint and starts unchecked. The plugin never changes the designer's file for them.
 // - The description is the pull request's "What changed and why" and the summary of every request sent with it.
 
+import { createBuildRequestOnGitHub, tokenPublishRoute } from '@bridge-ds/core';
+import type { PluginOutcome } from './library-routes';
 import { type ChangesMode, type DiffEntry, type GitHubClient, type PullRequest, loadRepoFiles, openComponentPushOnGitHub, planTokenProposal, suggestTokenProposalOnGitHub, writeTokenProposalOnGitHub } from '@bridge-ds/core';
 import { type ComponentPush, libraryTokens, pushPairs } from './component-push';
 import type { FigmaSnapshot } from '../shared/messages';
@@ -224,6 +226,8 @@ export interface SentComponentPush {
   suggested?: boolean | undefined;
   /** The screenshot was not stored: the token cannot write contents. The Figma node links stand in. */
   imagesSkipped?: boolean | undefined;
+  /** Direct mode, code needed: the build request issue developers pick up (Jira mirrors it), linked both ways to the branch. */
+  buildRequest?: { number: number; url: string } | undefined;
 }
 
 export interface PublishResult {
@@ -245,6 +249,11 @@ export interface PublishResult {
   held: { component: string; nodeId: string; why: string }[];
   /** Requests that failed: the rest was still sent. */
   failed: { component: string; error: string; problem?: TokenProblem['kind'] | undefined }[];
+  /**
+   * Sent to the library (direct mode, not an exploration): where each token and component went, as core's
+   * PublishOutcome (docs/BUILD-REQUESTS.md). Empty otherwise.
+   */
+  outcomes: PluginOutcome[];
 }
 
 /** What a push would send: the files of the pull request (empty when no variable is checked) and the request drafts. */
@@ -260,7 +269,7 @@ export async function publish(client: GitHubClient, input: PublishInput): Promis
   if (!prFiles && !drafts.length) throw new Error('Nothing is checked. Check a variable or a component to push.');
   const mode = input.mode ?? 'direct';
   if (mode === 'suggest' && input.exploration) throw new Error('This repo takes changes as suggestions, and an exploration is a branch: send it for review as a suggestion instead.');
-  const out: PublishResult = { requests: [], branches: [], suggestions: [], held: [], failed: [], ...(input.exploration ? { exploration: { branch: input.exploration.branch, pr: input.exploration.pr, unchanged: false } } : {}) };
+  const out: PublishResult = { requests: [], branches: [], suggestions: [], held: [], failed: [], outcomes: [], ...(input.exploration ? { exploration: { branch: input.exploration.branch, pr: input.exploration.pr, unchanged: false } } : {}) };
   if (prFiles && input.exploration) {
     const res = await commitToExploration(client, input.analysis, input.proposal, { target: input.exploration, title: input.title, notes: input.description, ...(input.now ? { now: input.now } : {}) });
     out.pr = res;
@@ -324,7 +333,36 @@ export async function publish(client: GitHubClient, input: PublishInput): Promis
       out.failed.push({ component: d.component, error: errorText(err), problem: tokenProblem(err)?.kind });
     }
   }
+  if (mode === 'direct' && !input.exploration) out.outcomes = libraryOutcomes(out, input.proposal);
   return out;
+}
+
+/** A planned token change, as core's token change kinds: a rename or a removal waits for a developer. */
+const changeKind = (c: PushProposal['changes'][number]) => (!c.target ? 'removed' : !c.current ? 'added' : c.target.path !== c.current.path ? 'renamed' : 'changed');
+
+/**
+ * Where each sent item went in the library. Bridge cannot arm a merge from the plugin yet (the arm endpoint comes with
+ * the server), so token values report waiting-for-developer ("not-armed") until it does; a rename or removal always
+ * waits. Components that need code are build requests: a library branch from Figma, or a request issue.
+ */
+export function libraryOutcomes(out: PublishResult, proposal: PushProposal, armed = false): PluginOutcome[] {
+  const outcomes: PluginOutcome[] = [];
+  if (out.pr && !out.pr.appended) {
+    const ref = { kind: 'pull' as const, number: out.pr.pr.number, url: out.pr.pr.url };
+    for (const c of proposal.changes) {
+      const kind = changeKind(c);
+      const route = tokenPublishRoute([{ kind }], armed);
+      const name = (c.target ?? c.current)!.path;
+      outcomes.push({ subject: { type: 'token', name }, route, ref, ...(route === 'shipped' ? { armed: true } : { waitingFor: kind === 'renamed' || kind === 'removed' ? 'rename' : 'not-armed' }) });
+    }
+  }
+  for (const b of out.branches) {
+    const ref = { kind: 'pull' as const, number: b.number, url: b.url };
+    if (b.route === 'token-change') outcomes.push({ subject: { type: 'component', name: b.component }, route: armed ? 'shipped' : 'waiting-for-developer', ref, ...(armed ? { armed: true } : { waitingFor: 'not-armed' as const }) });
+    else outcomes.push({ subject: { type: 'component', name: b.component }, route: 'build-request', ref: b.buildRequest ? { kind: 'issue', ...b.buildRequest } : ref });
+  }
+  for (const r of out.requests) outcomes.push({ subject: { type: 'component', name: r.component }, route: 'build-request', ref: { kind: 'issue', number: r.number, url: r.url } });
+  return outcomes;
 }
 
 /**
@@ -393,28 +431,47 @@ export async function sendComponentPush(client: GitHubClient, input: SendPushInp
         const s = await suggestTokenProposalOnGitHub(client, p, { base: a.settings.branch, baseSha: a.headSha, source: 'figma', suggestedBy: input.requestedBy, labelsAfter: ['source: figma'], links: { figma } });
         return { status: 'suggested', number: s.number, url: s.url };
       }
-      const opened = await writeTokenProposalOnGitHub(client, p, { base: a.settings.branch, branchPrefix: lib.config.governance.branchPrefix, labels: [], labelsAfter: ['source: figma'], tool: 'the Bridge Figma plugin' });
+      const opened = await writeTokenProposalOnGitHub(client, p, { base: a.settings.branch, branchPrefix: lib.config.governance.branchPrefix, labels: [], labelsAfter: ['source: figma'], tool: 'the Bridge Figma plugin', draft: false });
       return { number: opened.pr, url: opened.url, branch: opened.branch };
     },
   });
   const skipped = imagesSkipped ? { imagesSkipped: true } : {};
   if (r.suggestion) return { component: d.component, nodeId: d.nodeId!, route: r.suggestion.route, number: r.suggestion.number, url: r.suggestion.url, suggested: true, ...skipped };
   if (!r.link) throw new Error(r.plan.said);
-  return { component: d.component, nodeId: d.nodeId!, route: r.link.route, number: r.link.number, url: r.link.url, branch: r.link.branch, ...skipped };
+  const buildRequest = mode === 'direct' && r.link.route === 'claude-draft' ? await fileBuildRequest(client, input, d, r.link, diff.images) : undefined;
+  return { component: d.component, nodeId: d.nodeId!, route: r.link.route, number: r.link.number, url: r.link.url, branch: r.link.branch, ...skipped, ...(buildRequest ? { buildRequest } : {}) };
+}
+
+/**
+ * Code needed: the build request issue developers pick up and assign (labels component-change and bridge-build, so
+ * Jira mirrors it), pointing at the library branch that carries the spec; the branch's pull request then says
+ * "Closes #n", so Being built shows one item (the issue) with the branch as its work in progress.
+ */
+async function fileBuildRequest(client: GitHubClient, input: SendPushInput, d: RequestDraft, link: { number: number; url: string }, images: string[] | undefined): Promise<{ number: number; url: string }> {
+  const { images: _ignored, ...req } = toRequest(d, { fileKey: input.fileKey, requestedBy: input.requestedBy });
+  const opts = input.analysis.headFiles.config?.integrations?.requests;
+  const issue = await createBuildRequestOnGitHub(
+    client,
+    { ...req, figma: req.figma ?? {}, ...(images?.length ? { images: { after: images } } : {}), specPath: link.url, source: 'figma' },
+    { labels: opts?.labels ?? [], assignees: opts?.assignees ?? [] },
+  );
+  const pr = await client.getPullRequest(link.number);
+  await client.updatePullRequest(link.number, { body: `${pr.body ?? ''}\n\nCloses #${issue.ref.number}` });
+  return { number: issue.ref.number, url: issue.ref.url };
 }
 
 // ---------------------------------------------------------------------------------------------
 // Wording per change mode (bridge.config.json "changes"): one source for the bar, the result and the token help.
 
 /**
- * The one verb for sending, everywhere in the plugin (the bar, a component row, the request form): "Send for review"
- * when changes go straight to review, "Send suggestion" when the DS lead decides first.
+ * The one verb for sending, everywhere in the plugin (the bar, a component row, the request form): "Send to the library"
+ * when changes go straight to it (docs/BUILD-REQUESTS.md), "Send suggestion" when the DS lead decides first.
  */
-export const sendLabel = (mode: ChangesMode) => (mode === 'suggest' ? 'Send suggestion' : 'Send for review');
+export const sendLabel = (mode: ChangesMode) => (mode === 'suggest' ? 'Send suggestion' : 'Send to the library');
 
-/** The result title: "Suggestion sent to your DS lead" (suggest), "Sent for review" (direct). No issue numbers. */
+/** The result title: "Suggestion sent to your DS lead" (suggest), "Sent to the library" (direct). No issue numbers. */
 export function sentTitle(res: Pick<PublishResult, 'suggestions'>, mode: ChangesMode): string {
-  if (mode !== 'suggest' || !res.suggestions.length) return 'Sent for review';
+  if (mode !== 'suggest' || !res.suggestions.length) return 'Sent to the library';
   return res.suggestions.length === 1 ? 'Suggestion sent to your DS lead' : `${res.suggestions.length} suggestions sent to your DS lead`;
 }
 
