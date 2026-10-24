@@ -12,6 +12,8 @@ import { compareSpecToMeasured, type FieldDiff, type MeasuredArgType, type Measu
 /** Props that never draw a variant (element type, wiring, content). */
 const NOT_AN_AXIS = /^(as|asChild|render|component|className|class|style|id|key|ref|role|type|name|form|dir|lang|tabIndex|slot|children|htmlFor|value|defaultValue|placeholder|href|target|rel|src|alt)$/i;
 const DISABLED_PROP = /^(is)?disabled$/i;
+const INDETERMINATE_PROP = /^(is)?indeterminate$/i;
+const MIXED = /^(mixed|indeterminate|partial)$/i;
 
 export interface VariantMeasure {
   /** Args passed to the story (`{ variant: 'danger', size: 'lg', disabled: true }`). */
@@ -25,6 +27,8 @@ export interface PlanVariantOptions {
   axes?: string[] | undefined;
   /** Exact values per prop (from a Figma mapping: variantValuesFromMapping); replaces `axes`. Booleans vary too. */
   values?: Record<string, (string | boolean)[]> | undefined;
+  /** Exact prop combinations (variantCombosFromMapping); replaces `values` and `axes`. */
+  combos?: Record<string, string | boolean>[] | undefined;
   /** States to measure on each combination (default rest, hover, disabled). */
   states?: ('rest' | MeasuredState | 'disabled')[] | undefined;
   /** At most this many measures (default 128); the axes are kept, states are dropped first. */
@@ -41,6 +45,7 @@ export function planVariantMeasures(argTypes: Record<string, MeasuredArgType>, o
   const axes = names.map((k) => [k, valuesOf(k)] as const).filter(([, opts]) => opts.length >= (o.values ? 1 : 2) && opts.length <= 12);
   let combos: Record<string, string | boolean>[] = [{}];
   for (const [k, opts] of axes) combos = combos.flatMap((c) => opts.map((v) => ({ ...c, [k]: v })));
+  if (o.combos?.length) combos = o.combos;
   // `disabled` even when docgen leaves it out of the argTypes (an inherited HTML prop); a prop that is not a boolean is not it.
   const disabled = Object.keys(argTypes).find((k) => DISABLED_PROP.test(k) && argTypes[k]!.kind === 'boolean') ?? (argTypes.disabled ? undefined : 'disabled');
   let states = (o.states ?? ['rest', 'hover', 'disabled']).filter((s) => s !== 'disabled' || disabled);
@@ -54,6 +59,22 @@ export function planVariantMeasures(argTypes: Record<string, MeasuredArgType>, o
       else out.push({ overrides: { ...c }, state: s });
     }
   return out.slice(0, max);
+}
+
+/**
+ * The prop combinations a Figma component's variants mean in code (State aside): the product of its VARIANT axes,
+ * each value with the props it sets (Checked=mixed sets `checked: false, indeterminate: true`). Unmapped values are left out.
+ */
+export function variantCombosFromMapping(mapping: PropsToFigma): Record<string, string | boolean>[] {
+  let combos: Record<string, string | boolean>[] = [{}];
+  for (const m of mapping.mapped) {
+    if (m.type !== 'VARIANT' || m.prop === 'state' || !m.values) continue;
+    const opts = Object.entries(m.values).map(([fv, code]) => ({ [m.prop]: code, ...(m.also?.[fv] ?? {}) }));
+    const seen = new Set<string>();
+    const uniq = opts.filter((o) => !seen.has(JSON.stringify(o)) && seen.add(JSON.stringify(o)));
+    combos = combos.flatMap((c) => uniq.map((o) => ({ ...c, ...o })));
+  }
+  return combos;
 }
 
 /** The values to measure per prop for a Figma component: its VARIANT axes mapped to props (State aside). */
@@ -82,6 +103,8 @@ export interface PropMapping {
   prop: string;
   /** VARIANT: Figma value -> code value. Missing values are listed in `unmatchedValues`. */
   values?: Record<string, string | boolean> | undefined;
+  /** VARIANT values that also set other props (Checked=mixed: `{ indeterminate: true }`). */
+  also?: Record<string, Record<string, string | boolean>> | undefined;
   unmatchedValues?: string[] | undefined;
 }
 
@@ -142,7 +165,12 @@ export function mapPropsToFigma(argTypes: Record<string, MeasuredArgType>, figma
         if (a.kind === 'boolean') {
           if (/^(true|yes|on)$/i.test(v)) values[v] = true;
           else if (/^(false|no|off)$/i.test(v)) values[v] = false;
-          else unmatched.push(v);
+          else if (MIXED.test(v)) {
+            // A checkbox's third state: not checked, indeterminate (Base UI and React's `indeterminate`), even when docgen
+            // leaves the prop out; a story that does not take it is reported when measured.
+            values[v] = false;
+            m.also = { ...(m.also ?? {}), [v]: { [props.find((p) => INDETERMINATE_PROP.test(p) && argTypes[p]!.kind === 'boolean') ?? 'indeterminate']: true } };
+          } else unmatched.push(v);
           continue;
         }
         const hit = (a.options ?? []).find((x) => key(x) === key(v));
@@ -314,8 +342,13 @@ export function componentStatus(input: ComponentStatusInput): ComponentStatus {
       }
       if (m.prop === 'state') {
         if (code === 'disabled') want[Object.keys(argTypes).find((k) => DISABLED_PROP.test(k)) ?? 'disabled'] = true; else if (code !== 'rest') state = code as MeasuredState;
-      } else want[m.prop] = code;
+      } else {
+        want[m.prop] = code;
+        Object.assign(want, m.also?.[value] ?? {});
+      }
     }
+    // Flags a variant sets only for some values (indeterminate for Checked=mixed): off for the other values.
+    const flags = new Set(mapping.mapped.flatMap((m) => Object.values(m.also ?? {}).flatMap((x) => Object.keys(x))));
     const story = unreachable
       ? undefined
       : ok.find((s) => {
@@ -323,7 +356,7 @@ export function componentStatus(input: ComponentStatusInput): ComponentStatus {
           if ((s.state ?? undefined) !== state) return false;
           if (!Object.entries(want).every(([k, x]) => sameValue(has[k], x))) return false;
           // A rest variant is not the disabled story.
-          return Object.keys(has).every((k) => !DISABLED_PROP.test(k) || want[k] !== undefined || has[k] !== true);
+          return Object.keys(has).every((k) => !(DISABLED_PROP.test(k) || flags.has(k)) || want[k] !== undefined || has[k] !== true);
         });
     if (!story) {
       variants.push({ key: vkey, status: 'cant-check', reason: 'no-story-for-variant' });

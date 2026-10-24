@@ -11,6 +11,7 @@ import {
   pairParts,
   parseMeasuredSpecsFile,
   planVariantMeasures,
+  variantCombosFromMapping,
   variantValuesFromMapping,
   type FigmaComponentRef,
   type MeasuredArgType,
@@ -185,3 +186,36 @@ describe('parseMeasuredSpecsFile', () => {
     expect(() => parseMeasuredSpecsFile({ ...file, stories: [{ id: 'x', spec: { parts: 'no' } }] })).toThrow(/story x has a spec without parts/);
   });
 });
+
+describe('Checked=mixed is the indeterminate prop', () => {
+  const argTypes: Record<string, MeasuredArgType> = { checked: { kind: 'boolean' } };
+  const figma: FigmaComponentRef = {
+    properties: [
+      { name: 'Checked', type: 'VARIANT', values: ['false', 'true', 'mixed'] },
+      { name: 'State', type: 'VARIANT', values: ['Default'] },
+    ],
+    parts: [{ id: 'root', name: 'Root', kind: 'frame' }],
+    variants: ['false', 'true', 'mixed'].map((c) => ({ props: { Checked: c, State: 'Default' }, values: { root: { fill: `checkbox.${c}` } } })),
+  };
+
+  it('maps mixed to checked false plus indeterminate, and plans that combination', () => {
+    const m = mapPropsToFigma(argTypes, figma.properties);
+    expect(m.mapped[0]).toMatchObject({ prop: 'checked', values: { false: false, true: true, mixed: false }, also: { mixed: { indeterminate: true } } });
+    expect(m.mapped[0]!.unmatchedValues).toBeUndefined();
+    expect(variantCombosFromMapping(m)).toEqual([{ checked: false }, { checked: true }, { checked: false, indeterminate: true }]);
+    expect(planVariantMeasures(argTypes, { combos: variantCombosFromMapping(m), states: ['rest'] }).map((p) => p.overrides)).toEqual([{ checked: false }, { checked: true }, { checked: false, indeterminate: true }]);
+  });
+
+  it('checks each Checked value against its own story, the unchecked one not against the indeterminate story', () => {
+    const story = (overrides: Record<string, boolean>, c: string): MeasuredSpecsStory => ({ id: `cb-${c}`, title: 'Forms/Checkbox', name: 'Default', url: '', ms: 1, props: { checked: false, ...overrides }, overrides, spec: spec([{ id: 'root', name: 'Root', kind: 'frame' }], { root: { fill: `checkbox.${c}` } }) });
+    const stories = [story({ checked: false, indeterminate: true }, 'mixed'), story({ checked: false }, 'false'), story({ checked: true }, 'true')];
+    const s = componentStatus({ name: 'Checkbox', argTypes, figma, stories });
+    expect(s.variants.map((v) => [v.key, v.status, v.story])).toEqual([
+      ['Checked=false, State=Default', 'matches', 'cb-false'],
+      ['Checked=true, State=Default', 'matches', 'cb-true'],
+      ['Checked=mixed, State=Default', 'matches', 'cb-mixed'],
+    ]);
+    expect(s.status).toBe('matches');
+  });
+});
+
