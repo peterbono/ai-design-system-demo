@@ -173,12 +173,25 @@ const measureDefaultPath = (name: string) => name.replace(/^--/, '').split('-').
 
 /**
  * The measured specs with their values pointing at the tokens `tokenRepoFromMeasure` wrote: a value the measure named
- * after its CSS variable (`cds.layer.01`) becomes the written path (`layer.01`). Other values are kept.
+ * after its CSS variable (`cds.layer.01`) becomes the written path (`layer.01`), and a field whose declaration is a
+ * variable alone (`var(--cds-button-primary, #0f62fe)`) gets the written path of the first variable of its chain. Other
+ * values are kept: a calc() of a token, or a value that only matches one, stays a literal.
  */
 export function withRepoTokenPaths(file: MeasuredSpecsFile, paths: Map<string, string>): MeasuredSpecsFile {
   const rename = new Map([...paths].map(([name, path]) => [measureDefaultPath(name), path]));
-  const fix = (values: Record<string, Partial<Record<string, unknown>>>) =>
-    Object.fromEntries(Object.entries(values).map(([part, fields]) => [part, Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, typeof v === 'string' && rename.has(v) ? rename.get(v) : v]))]));
-  const spec = <T extends { values: Record<string, Partial<Record<string, unknown>>> } | undefined>(s: T): T => (s ? ({ ...s, values: fix(s.values) } as T) : s);
+  type Spec = NonNullable<MeasuredSpecsFile['stories'][number]['spec']>;
+  const spec = <T extends Spec | undefined>(s: T): T => {
+    if (!s) return s;
+    const values: Spec['values'] = {};
+    for (const [part, fields] of Object.entries(s.values)) values[part] = Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, typeof v === 'string' && rename.has(v) ? rename.get(v) : v]));
+    for (const [part, fields] of Object.entries(s.tokens ?? {})) {
+      for (const [field, t] of Object.entries(fields ?? {})) {
+        if (!t || t.via !== 'declared' || !t.exact) continue;
+        const path = t.chain.map((name) => paths.get(name)).find(Boolean);
+        if (path) values[part] = { ...values[part], [field]: path };
+      }
+    }
+    return { ...s, values } as T;
+  };
   return { ...file, stories: file.stories.map((s) => ({ ...s, ...(s.spec ? { spec: spec(s.spec) } : {}), ...(s.instances ? { instances: s.instances.map((i) => spec(i)) } : {}) })) };
 }

@@ -21,6 +21,7 @@ import {
   type MeasuredSpecsStory,
   type SpecAxis,
   type SpecField,
+  type SpecPart,
   type SpecValue,
   type SpecVariant,
   hashSpec,
@@ -159,6 +160,7 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
     variants.push(variant);
     if (story.shot) shotOf.set(variant, story.shot);
   }
+  textRootInFrame(parts, variants);
   const kept = drawnAxes(axes, variants);
   const spec: ComponentSpec = { name, hash: '', source: [source], axes: kept.axes, properties: [], parts, variants: kept.variants, unmapped: [] };
   // Pruning an axis rewrites a variant's props (a new object): its shot follows by position in the kept list.
@@ -169,6 +171,27 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
     if (shot) shots[variantKeyOf(v.props)] = shot;
   });
   return { spec: { ...spec, hash: hashSpec(spec) }, shots };
+}
+
+const TEXT_FIELDS = new Set<SpecField>(['textFill', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'textDecoration']);
+
+/**
+ * A component whose root is a text (a link: `<a>` with only text in it) is drawn as a frame that hugs a text, since a
+ * Figma component is a frame. The text fields move to the text, the box fields (fill, padding, stroke) stay on the frame,
+ * which hugs the text as any frame with content does.
+ */
+function textRootInFrame(parts: SpecPart[], variants: SpecVariant[]): void {
+  const root = parts.find((p) => !p.parent);
+  if (!root || root.kind !== 'text') return;
+  const id = `${root.id}-text`;
+  const text: SpecPart = { ...root, id, name: `${root.name} text`, parent: root.id };
+  parts.splice(parts.indexOf(root), 1, { id: root.id, name: root.name, kind: 'frame', ...(root.source ? { source: root.source } : {}), layout: { direction: 'HORIZONTAL', primary: 'MIN', counter: 'MIN' } }, text);
+  for (const v of variants) {
+    const all = v.values[root.id] ?? {};
+    v.values[root.id] = Object.fromEntries(Object.entries(all).filter(([f, value]) => !TEXT_FIELDS.has(f as SpecField) && !((f === 'width' || f === 'height') && typeof value === 'number')));
+    v.values[id] = Object.fromEntries(Object.entries(all).filter(([f]) => TEXT_FIELDS.has(f as SpecField)));
+    if (v.hidden?.includes(root.id)) v.hidden.push(id);
+  }
 }
 
 /**

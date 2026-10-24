@@ -78,6 +78,16 @@ test('measured only: a token the library does not have, or a color with none, ta
   assert.equal(specs.components[0]!.variants[0]!.values.root!.fill, 'rgb(255, 0, 170)');
 });
 
+test('measured only: a component whose root is a text (a link) is a frame that hugs that text', () => {
+  const m = fixture();
+  const story = m.stories.find((s) => s.title.endsWith('/Card') && s.spec)!;
+  m.stories = [{ ...story, title: 'Components/Link', spec: { ...story.spec!, parts: [{ id: 'root', name: 'Root', kind: 'text', source: 'cds--link', characters: 'Link' }], values: { root: { fontSize: 14, textFill: 'rgb(15, 98, 254)', paddingLeft: 2, width: 28, height: 18 } }, raw: {} } }];
+  const link = specsFromMeasure(m).specs.components[0]!;
+  assert.deepEqual(link.parts.map((p) => [p.id, p.kind, p.parent]), [['root', 'frame', undefined], ['root-text', 'text', 'root']]);
+  assert.equal(link.parts[1]!.characters, 'Link');
+  assert.deepEqual(link.variants[0]!.values, { root: { paddingLeft: 2 }, 'root-text': { fontSize: 14, textFill: 'rgb(15, 98, 254)' } });
+});
+
 test('literals build in Figma: a font weight, a line height in px, a letter spacing and an rgb() color', async () => {
   const sim = new SimFigma();
   sim.install();
