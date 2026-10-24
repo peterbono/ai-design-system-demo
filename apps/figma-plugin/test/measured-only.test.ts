@@ -293,6 +293,53 @@ test('measured only: a boolean the stories show both ways is an axis when it dra
   assert.deepEqual(axesOf(specsFromMeasure(m).specs.components[0]!), ['Toggled=false|true']);
 });
 
+test('measured only: CSS sizes stay fixed, margins become a named wrapper, string args are TEXT properties, idle states go', () => {
+  const m = fixture();
+  const base = m.stories.find((s) => s.title.endsWith('/Card') && s.spec)!;
+  const story = (readOnly: boolean, state?: 'hover') => ({
+    ...base,
+    id: `field-${readOnly}-${state}`,
+    name: 'Default',
+    title: 'Components/Field',
+    props: { readOnly, labelText: 'Label text' },
+    state,
+    spec: {
+      ...base.spec!,
+      parts: [
+        { id: 'root', name: 'Root', kind: 'frame' as const, layout: { direction: 'VERTICAL' as const, primary: 'MIN' as const, counter: 'STRETCH' as const } },
+        { id: 'label', name: 'Label', kind: 'text' as const, parent: 'root', characters: 'Label text' },
+        { id: 'box', name: 'Box', kind: 'frame' as const, parent: 'root', layout: { direction: 'HORIZONTAL' as const, primary: 'CENTER' as const, counter: 'CENTER' as const } },
+        { id: 'icon', name: 'Icon', kind: 'frame' as const, parent: 'box' },
+      ],
+      values: {
+        root: {},
+        label: { fontSize: 12 },
+        box: { fill: state && !readOnly ? 'rgb(232, 232, 232)' : 'rgb(244, 244, 244)', width: 40, height: 40 },
+        icon: { width: 16, height: 16 },
+      },
+      raw: {},
+      sized: { box: { width: 40, height: 40 } },
+      spacers: { box: 8 },
+    },
+  });
+  m.stories = [story(false), story(false, 'hover'), story(true), story(true, 'hover')];
+  m.components = [{ title: 'Components/Field', name: 'Field', argTypes: { readOnly: { kind: 'boolean', default: false }, labelText: { kind: 'text' } } }];
+  const c = specsFromMeasure(m).specs.components[0]!;
+  const v = c.variants[0]!;
+  // The 40x40 box keeps its size around a 16 px icon.
+  assert.deepEqual([v.values.box!.width, v.values.box!.height], [40, 40]);
+  // Its 8 px margin is a wrapper named after it.
+  const wrapper = c.parts.find((p) => p.id === 'box-wrapper')!;
+  assert.equal(wrapper.name, 'Box wrapper');
+  assert.equal(c.parts.find((p) => p.id === 'box')!.parent, 'box-wrapper');
+  assert.equal(v.values['box-wrapper']!.paddingTop, 8);
+  // The label's words are a TEXT property.
+  assert.deepEqual(c.properties, [{ name: 'Label text', type: 'TEXT', default: 'Label text', prop: 'labelText' }]);
+  assert.equal(c.parts.find((p) => p.id === 'label')!.text, 'Label text');
+  // Hover draws nothing on a read-only field: that combination is not in the set.
+  assert.deepEqual(c.variants.map((x) => variantKeyOf(x.props)).sort(), ['Read only=false, State=Default', 'Read only=false, State=Hover', 'Read only=true, State=Default'].sort());
+});
+
 test('measured only with screenshots: each variant keeps the render of the story it was built from', () => {
   const m = fixture();
   m.stories = m.stories.filter((s) => s.title.endsWith('/Tabs'));
