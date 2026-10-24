@@ -161,10 +161,11 @@ export async function switchStory(page: Page, storyId: string): Promise<void> {
  * A page for `bridge specs --measure`: an installed Chrome, one page at 1200x800, light scheme, reduced motion. Unlike
  * the capture context it reaches remote hosts (a team's deployed Storybook). Close it when done.
  */
-export async function openMeasurePage(o: LaunchOptions = {}): Promise<{ page: Page; close: () => Promise<void> }> {
+export async function openMeasurePage(o: LaunchOptions & { scale?: number } = {}): Promise<{ page: Page; close: () => Promise<void> }> {
   const browser = await launch(o);
   try {
-    const ctx = await browser.newContext({ viewport: { width: 1200, height: 800 }, deviceScaleFactor: 1, reducedMotion: 'reduce', colorScheme: 'light', locale: 'en-US', serviceWorkers: 'block' });
+    // scale: device pixels per CSS pixel for screenshots (2 for the fidelity check); CSS measures do not change.
+    const ctx = await browser.newContext({ viewport: { width: 1200, height: 800 }, deviceScaleFactor: o.scale ?? 1, reducedMotion: 'reduce', colorScheme: 'light', locale: 'en-US', serviceWorkers: 'block' });
     const page = await ctx.newPage();
     return { page, close: () => browser.close().catch(() => undefined) };
   } catch (e) {

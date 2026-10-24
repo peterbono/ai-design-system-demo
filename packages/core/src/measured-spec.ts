@@ -421,6 +421,8 @@ export interface MeasuredSpecsStory {
   state?: MeasuredState | undefined;
   /** A story that renders the component several times: one spec per instance (`spec` is the first). */
   instances?: MeasuredSpec[] | undefined;
+  /** Screenshot of the measured root (PNG, the device scale of the run), relative to measured-specs.json. */
+  shot?: { file: string; width: number; height: number } | undefined;
   /** Popup stories: how the popup came to show. */
   opened?: 'already' | 'click' | 'hover' | 'focus' | 'none' | undefined;
 }
@@ -443,6 +445,116 @@ export interface MeasuredSpecsFile {
   components?: MeasuredSpecsComponent[] | undefined;
   /** With --check: one status per component for the contract screen. */
   statuses?: ComponentStatus[] | undefined;
+  /** With --tokens: every CSS custom property the library defines, resolved per mode, in two tiers. */
+  tokens?: MeasuredTokens | undefined;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Token harvest: the library's variables, for a pull with no token files (any design system)
+
+/** A Storybook global that switches a theme (light / dark), a brand or a density: one Figma mode per value. */
+export interface MeasuredMode {
+  /** Storybook global ("theme", "colorScheme"), or the page attribute a theme hangs on (`data-carbon-theme`). */
+  global: string;
+  /** Set when the mode is an attribute on the page root, not a Storybook global. */
+  attribute?: boolean | undefined;
+  /** Its values, the default first. */
+  values: string[];
+  default: string;
+}
+
+export interface MeasuredTokenProperty {
+  /** The CSS custom property (`--cds-background`). */
+  name: string;
+  /** Variable name for Figma: the property split on dashes and camel case, library prefix dropped (`background`, `color/fg/default`). */
+  path: string;
+  /** Two tiers: a literal value is a primitive; a property that is another property (`var(--x)`) is semantic. */
+  tier: 'primitive' | 'semantic';
+  /** `expression`: a calc() or a function of variables; a primitive holding its resolved value. */
+  kind: 'literal' | 'alias' | 'expression';
+  type: 'color' | 'length' | 'number' | 'string';
+  /** Declared value in the default mode (`var(--color-blue-500)`, `#0969da`, `calc(var(--a) * 2)`). */
+  raw: string;
+  /** Semantic: the property it aliases in the default mode (`--color-blue-500`). */
+  aliasOf?: string | undefined;
+  /** Resolved value in the default mode: colors `rgb()`/`rgba()`, lengths in px (number), others as written. */
+  value: string | number;
+  /** Per mode (`theme:dark`), for the globals that change this property only (every value of that global listed); `value` holds in the others. */
+  values?: Record<string, string | number> | undefined;
+  /** Per mode: what a semantic property aliases there, when it changes with the mode. */
+  aliasOfByMode?: Record<string, string> | undefined;
+  /** Selectors besides the root that declare it (a provider, a theme class): `.cds--g100`, `[data-color-mode=dark]`. */
+  scopes?: string[] | undefined;
+  /**
+   * Semantic by value: the CSS writes a literal per theme (compiled themes: Primer, Carbon), and in every mode a
+   * primitive holds that same value, so the property is an alias of those primitives.
+   */
+  inferred?: boolean | undefined;
+  /** A measured story's value is tied to it, directly or as the target of an alias it goes through. */
+  used?: boolean | undefined;
+}
+
+export interface MeasuredTokens {
+  /** Story the variables were read in. */
+  story: string;
+  /** Library prefix stripped from paths (`cds`, `chakra`), when one is shared by most properties. */
+  prefix?: string | undefined;
+  modes: MeasuredMode[];
+  properties: MeasuredTokenProperty[];
+  counts: { properties: number; primitives: number; semantic: number; used: number; scoped: number; inferred?: number | undefined };
+}
+
+/**
+ * Figma variable path of a custom property: dashes and camel case split into groups, a shared library prefix dropped
+ * (`--color-fg-default` -> color/fg/default, `--cds-layer-01` with prefix cds -> layer/01, `--fgColor-muted` -> fg/color/muted).
+ */
+export function tokenVariablePath(name: string, prefix?: string): string {
+  let parts = name
+    .replace(/^--/, '')
+    .split(/-+/)
+    .flatMap((x) => x.replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(' '))
+    .map((x) => x.toLowerCase())
+    .filter(Boolean);
+  if (prefix && parts[0] === prefix.toLowerCase() && parts.length > 1) parts = parts.slice(1);
+  return parts.join('/');
+}
+
+/** The prefix most properties share (`cds`, `chakra`, `bridge`), when at least 60% of 20 or more carry it. */
+export function sharedTokenPrefix(names: string[]): string | undefined {
+  if (names.length < 20) return undefined;
+  const counts = new Map<string, number>();
+  for (const n of names) {
+    const first = n.replace(/^--/, '').split('-')[0]!;
+    counts.set(first, (counts.get(first) ?? 0) + 1);
+  }
+  const [top, n] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0] ?? ['', 0];
+  return top && n / names.length >= 0.6 ? top : undefined;
+}
+
+/**
+ * Marks the properties measured stories use: every variable a value's declaration chain names, then every alias
+ * target of a used property, transitively (a semantic token needs its primitive). Returns how many are used.
+ */
+export function markUsedTokens(tokens: MeasuredTokens, stories: Pick<MeasuredSpecsStory, 'spec' | 'instances'>[]): number {
+  const byName = new Map(tokens.properties.map((p) => [p.name, p]));
+  const seen = new Set<string>();
+  const use = (name: string) => {
+    if (seen.has(name)) return;
+    seen.add(name);
+    const p = byName.get(name);
+    if (!p) return;
+    p.used = true;
+    for (const target of [p.aliasOf, ...Object.values(p.aliasOfByMode ?? {})]) if (target) use(target);
+    // An expression's variables are its inputs.
+    if (p.kind === 'expression') for (const m of p.raw.matchAll(/var\(\s*(--[\w-]+)/g)) use(m[1]!);
+  };
+  for (const s of stories)
+    for (const spec of [s.spec, ...(s.instances ?? [])])
+      for (const part of Object.values(spec?.tokens ?? {}))
+        for (const t of Object.values(part ?? {})) for (const name of t?.chain ?? []) use(name);
+  const used = tokens.properties.filter((p) => p.used).length;
+  tokens.counts.used = used;
+  return used;
 }
 
 export class MeasuredSpecsError extends Error {}
@@ -476,5 +588,10 @@ export function parseMeasuredSpecsFile(input: string | unknown): MeasuredSpecsFi
     if (s.props !== undefined && !isObj(s.props)) throw new MeasuredSpecsError(`measured specs: story ${s.id} props is not an object`);
   });
   if (data.components !== undefined && !Array.isArray(data.components)) throw new MeasuredSpecsError('measured specs: components is not a list');
+  if (data.tokens !== undefined) {
+    const t = data.tokens;
+    if (!isObj(t) || !Array.isArray(t.properties) || !Array.isArray(t.modes)) throw new MeasuredSpecsError('measured specs: tokens needs properties and modes');
+    for (const p of t.properties as unknown[]) if (!isObj(p) || typeof p.name !== 'string' || typeof p.path !== 'string' || (p.tier !== 'primitive' && p.tier !== 'semantic')) throw new MeasuredSpecsError('measured specs: a token has no name, path or tier');
+  }
   return data as unknown as MeasuredSpecsFile;
 }

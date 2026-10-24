@@ -228,3 +228,26 @@ describe('measureStory: popups, args, states and props', () => {
   });
 });
 
+describe('fill and shots', () => {
+  const tree = { root: { tag: 'div', kind: 'frame', box: { x: 0, y: 0, width: 360, height: 40 }, style: {}, tokens: {}, children: [] }, portals: [], wrappers: 0, nodes: 1, rules: 1, sheets: { read: 1, blocked: 0 }, rootVariables: 0, viewport: { width: 1200, height: 800 }, rootFill: true };
+
+  it('marks a root that spans its container as fill', () => {
+    expect(measuredToSpec({ id: 'x', root: tree.root as MeasuredNode, rootFill: true }).parts[0]!.fill).toBe(true);
+    expect(measuredToSpec({ id: 'x', root: tree.root as MeasuredNode }).parts[0]!.fill).toBeUndefined();
+  });
+
+  it('shoots the measured root when the page can, and says where', async () => {
+    const shots: [string, string][] = [];
+    const answers: unknown[] = ['rendered', tree, { marked: true }, null];
+    const page: MeasurePage = {
+      goto: async () => undefined,
+      evaluate: async <T>() => answers.shift() as T,
+      screenshot: async (sel, file) => (shots.push([sel, file]), { width: 360, height: 40 }),
+    };
+    const m = await measureStory(page, 'https://sb.example.com', 'forms-input--default', { shot: '/tmp/x/forms-input-default.png' });
+    expect(shots).toEqual([['[data-bridge-measure-root]', '/tmp/x/forms-input-default.png']]);
+    expect(m.shot).toEqual({ file: '/tmp/x/forms-input-default.png', width: 360, height: 40 });
+    expect(m.rootFill).toBe(true);
+  });
+});
+

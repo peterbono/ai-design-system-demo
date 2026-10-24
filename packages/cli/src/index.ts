@@ -74,7 +74,7 @@ Usage:
                                       Needs Chrome installed
   bridge specs --measure --storybook <url> [--only Button,Card] [--stories id,id] [--per 3]
                [--open] [--within <selector>] [--variants] [--states rest,hover,disabled]
-               [--check] [--specs component-specs.json] [--out measured-specs.json] [--json]
+               [--check] [--specs component-specs.json] [--tokens] [--shots] [--out measured-specs.json] [--json]
                                       measure what each story really draws in Chrome: layers, boxes, auto
                                       layout, fills, borders, radii, text styles, and the token behind each
                                       value, in the component specs shape, with the props it rendered with.
@@ -199,7 +199,7 @@ function parse(argv: string[]): Args {
       const next = argv[i + 1];
       // --json and --md print to stdout, or write a file when followed by one (bridge audit).
       const fileArg = (k === 'json' && /\.json$/i.test(next ?? '')) || (k === 'md' && /\.(md|markdown)$/i.test(next ?? ''));
-      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking', 'claude', 'all', 'offline', 'approve', 'patch', 'accept-edited', 'force-unapproved', 'suggest', 'direct', 'use-gh-auth', 'measure', 'open', 'variants', 'check'].includes(k));
+      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking', 'claude', 'all', 'offline', 'approve', 'patch', 'accept-edited', 'force-unapproved', 'suggest', 'direct', 'use-gh-auth', 'measure', 'open', 'variants', 'check', 'tokens', 'shots'].includes(k));
       (out.flags[k] ??= []).push(inline ?? (takesValue ? argv[++i]! : 'true'));
     } else out._.push(a);
   }

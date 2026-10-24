@@ -438,6 +438,21 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
   }
   scopeEl = el;
   var hr = el.getBoundingClientRect();
+  // Fill or hug: a block-level root that spans its container's content box (or is declared width: 100%) fills it.
+  var rootFill = false;
+  (function () {
+    var pe = el.parentElement;
+    var ecs = getComputedStyle(el);
+    var inner = window.innerWidth;
+    if (pe) {
+      var pcs = getComputedStyle(pe);
+      inner = pe.getBoundingClientRect().width - (parseFloat(pcs.paddingLeft) || 0) - (parseFloat(pcs.paddingRight) || 0) - (parseFloat(pcs.borderLeftWidth) || 0) - (parseFloat(pcs.borderRightWidth) || 0);
+    }
+    var dw = declared(el, 'width');
+    var full = (dw && /^100%$/.test(dw.value.trim())) || (el.style && el.style.width === '100%');
+    var blockish = /^(block|flex|grid|table|list-item|flow-root)$/.test(ecs.display);
+    rootFill = !!full || (inner > 0 && Math.abs(hr.width - inner) <= 1 && (blockish || hr.width >= window.innerWidth * 0.5));
+  })();
   originX = hr.left; originY = hr.top;
   var tree = arg.unwrap !== false && el === storyRoot && !storyRoot.children.length && !directText(storyRoot) ? null : node(el, 0);
   var portalTrees = [];
@@ -451,6 +466,7 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
     nodes: count,
     rules: rules.length,
     sheets: { read: sheetsRead, blocked: sheetsBlocked },
+    rootFill: rootFill,
     rootVariables: rt.count,
     scopedVariables: rt.scoped || 0,
     viewport: { width: window.innerWidth, height: window.innerHeight },
