@@ -54,7 +54,7 @@ vi.mock('../github-session', async (orig) => ({
 vi.mock('../../lib/review-queue', async (orig) => ({ ...(await orig<typeof import('../../lib/review-queue')>()), releasePull: (xs: unknown[]) => xs[0] ?? null }));
 vi.mock('../pr-status', () => ({ owners: () => ({ design: [], tech: [] }), shippers: () => null }));
 vi.mock('../teams', () => ({ loadTeams: () => Promise.resolve() }));
-vi.mock('../people', () => ({ knownNames: () => ({}), paintPeople: () => Promise.resolve(), personHtml: () => '' }));
+vi.mock('../people', () => ({ displayName: (login: string) => login, knownNames: () => ({}), paintPeople: () => Promise.resolve(), personHtml: () => '' }));
 vi.mock('../../lib/select-bridge', () => ({ onSelectPick: () => {}, selectValue: () => '', setSelect: () => {} }));
 
 const { initTokenHistoryPanel } = await import('./token-panel');

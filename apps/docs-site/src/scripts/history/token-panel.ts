@@ -4,6 +4,7 @@ import { formatValue, tokenHistory, type TokenHistoryItem } from '@bridge-ds/cor
 import { shortDate } from '../../lib/history-view';
 import { badgeHtml, tokenValueHtml } from '@bridge-ds/react/dom';
 import { esc } from '../github-session';
+import { displayName } from '../people';
 import { openRestorePlanner } from './planner';
 import { activeReport, DEMO_AVAILABLE, DEMO_BANNER, DEMO_EVENT, demoOn, loadHistory, setDemo } from './state';
 import { studioHref } from '../../lib/team-path';
@@ -33,7 +34,7 @@ function itemHtml(it: TokenHistoryItem, i: number, demo: boolean): string {
   const editable = document.querySelector('[data-explorer-mode="edit"]') !== null;
   const canRestore = editable && it.after !== undefined && it.kind !== 'removed' && (it.kind !== 'changed' || it.fields.includes('value'));
   return `<li class="hs-ti">
-    <p class="hs-ti-head">${badgeHtml(it.modeLabel, { size: 'sm' })} <span class="small muted">${esc(shortDate(it.date))}, ${esc(it.author)}</span></p>
+    <p class="hs-ti-head">${badgeHtml(it.modeLabel, { size: 'sm' })} <span class="small muted">${esc(shortDate(it.date))}, ${esc(displayName(it.author))}</span></p>
     <p class="hs-ti-what">${what}</p>
     <p class="small">${title}</p>
     ${canRestore ? `<button type="button" class="btn btn-secondary btn-sm" data-hs-restore="${i}">Restore this value</button>` : ''}

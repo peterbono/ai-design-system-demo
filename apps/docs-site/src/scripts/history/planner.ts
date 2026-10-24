@@ -26,6 +26,7 @@ import { ghAction, ghVerb, notSentLine, SEE_SUGGESTION, sendButton, sendGoal, se
 import { changesModeOnPage } from '../changes-mode';
 import { suggestFilesOnGitHub } from '../suggest-files';
 import { loadHistory, type Loaded } from './state';
+import { displayName } from '../people';
 import { attrUrl } from '../../lib/html';
 import { studioHref } from '../../lib/team-path';
 
@@ -159,7 +160,7 @@ function paint() {
           .map((c, i) => {
             const canForce = c.reason === 'changed-later' || c.reason === 'removed-later' || c.reason === 'still-referenced';
             const later = c.later.length
-              ? `<p>Changed again in ${c.later.map((l) => `${l.pr ? `#${esc(String(l.pr))} ` : ''}<strong>${esc(l.title)}</strong> (${esc(shortDate(l.date))}, ${esc(l.author)})`).join(', ')}.</p>`
+              ? `<p>Changed again in ${c.later.map((l) => `${l.pr ? `#${esc(String(l.pr))} ` : ''}<strong>${esc(l.title)}</strong> (${esc(shortDate(l.date))}, ${esc(displayName(l.author))})`).join(', ')}.</p>`
               : '';
             return `<li class="hp-conflict">
               <p><span class="mono">${esc(c.path)}</span> <span class="cg-muted">${esc(modeLabel(fileModes(ctx!.config, c.file)))}</span></p>

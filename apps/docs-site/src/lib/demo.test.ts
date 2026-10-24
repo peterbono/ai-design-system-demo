@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { sampleTeam } from './invites';
 import { roleRows } from './roles-view';
+import { samplePersonOf } from './demo';
 import { DEMO_APPROVED_KEY, demoApprovedSet, markDemoApproved, DEMO_REPOS, demoApproved, demoBanner, demoDialog, DEMO_STASH_KEY, DEMO_VISIT_KEY, DEMO_WORDS, SHARED_DRAFT_KEY, swapDemoDrafts, demoLeadName, demoSettingsPeople, demoTour, demoWaiting, exploresDemo, humanizeRepo, onBridge, isDemoRepo, OWN_TEAM, teamDisplayName, tourSteps } from './demo';
 
 describe('the demo', () => {
@@ -204,5 +205,25 @@ describe('drafts on the sample team', () => {
     expect(demoApprovedSet(s).size).toBe(0);
     // A malformed value reads as nothing approved.
     expect(demoApprovedSet(store({ [DEMO_APPROVED_KEY]: '{bad' })).size).toBe(0);
+  });
+});
+
+describe('samplePersonOf: people on the sample team', () => {
+  it('a sample member reads as that member, by the login Members uses', () => {
+    expect(samplePersonOf('~ann-leroy', sampleTeam())).toEqual({ login: '~ann-leroy', name: 'Ann' });
+    expect(samplePersonOf('malik-haddad', sampleTeam())).toEqual({ login: '~malik-haddad', name: 'Malik' });
+  });
+
+  it("any other human login, the repository's real accounts, reads as the lead persona", () => {
+    expect(samplePersonOf('peterbono', sampleTeam('Dana'))).toEqual({ login: '~dana', name: 'Dana' });
+    expect(samplePersonOf('@PeterBono', sampleTeam())).toEqual({ login: '~dana', name: 'Dana' });
+    expect(samplePersonOf('peterbono', sampleTeam('Robin'))).toEqual({ login: '~dana', name: 'Robin' });
+  });
+
+  it('Claude and bots are not people: they keep their own name', () => {
+    expect(samplePersonOf('claude', sampleTeam())).toBeNull();
+    expect(samplePersonOf('bridge-agent[bot]', sampleTeam())).toBeNull();
+    expect(samplePersonOf('github-actions[bot]', sampleTeam())).toBeNull();
+    expect(samplePersonOf(' ', sampleTeam())).toBeNull();
   });
 });

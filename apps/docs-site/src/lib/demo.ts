@@ -9,6 +9,7 @@
 // scripts/demo-gate.ts). Someone who can write to the demo repository (its owner) keeps the normal Studio.
 
 import type { Owners } from '@bridge-ds/core';
+import { isBotLogin, isClaudeLogin } from './people.js';
 import { isTeamKey } from './team-path.js';
 
 /**
@@ -259,6 +260,26 @@ export function demoTour(at: TourAt, role?: string | null): { title: string; tex
 /** The steps the page can point at, in order: the grouped row only when there is one. */
 export function tourSteps(x: { rows: boolean; more: boolean; branches: boolean }): TourAt[] {
   return (['rows', 'more', 'branches'] as const).filter((s) => x[s]);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// People on the sample team
+
+/**
+ * Who a login is on the sample team (History and other plain-script rows, scripts/people.ts): the sample team tells
+ * its own story, never the repository's real accounts. `team` is lib/invites.ts sampleTeam(lead), the one source,
+ * passed in so this module imports nothing the /api functions would load. A sample member's login ("~ann-leroy", with
+ * or without the ~) is that member, name and face; any other human login (the repository's real accounts, such as its
+ * owner) is the lead in the visitor's seat (Dana), face seeded by ~dana. Claude and bots are not people: null, they
+ * keep their own name ("Claude AI"). The returned `login` is the face seed.
+ */
+export function samplePersonOf(login: string, team: { members: readonly { login: string; name: string; you?: boolean }[] }): { login: string; name: string } | null {
+  const bare = login.trim().replace(/^@/, '');
+  if (!bare || isClaudeLogin(bare) || isBotLogin(bare)) return null;
+  const { members } = team;
+  const key = bare.replace(/^~/, '').toLowerCase();
+  const m = members.find((x) => x.login.replace(/^~/, '').toLowerCase() === key) ?? members.find((x) => x.you) ?? members[0];
+  return m ? { login: m.login, name: m.name } : null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
