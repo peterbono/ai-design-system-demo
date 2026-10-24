@@ -29,6 +29,7 @@ import {
 } from "@bridge-ds/react";
 import { Check, Hammer } from "lucide-react";
 import {
+  BUILD_IMAGE_LABEL,
   matchesBuildFilter,
   type BuildFilter,
   type BuildRequestView,
@@ -228,8 +229,8 @@ function Detail({
                 {(d.before.length > 0 || d.after.length > 0) && (
                   <div className="bb-images">
                     {[
-                      ...d.before.map((u) => ({ u, k: "Before" })),
-                      ...d.after.map((u) => ({ u, k: "After" })),
+                      ...d.before.map((u) => ({ u, k: BUILD_IMAGE_LABEL.before })),
+                      ...d.after.map((u) => ({ u, k: BUILD_IMAGE_LABEL.after })),
                     ].flatMap(({ u, k }, i) => {
                       const src = safeUrl(u);
                       return src
@@ -237,9 +238,7 @@ function Detail({
                             <figure key={`${k}-${i}`} className="bb-figure">
                               <img
                                 src={src}
-                                alt={`${
-                                  v.component
-                                } ${k.toLowerCase()} the change`}
+                                alt={`${v.component}, ${k.charAt(0).toLowerCase()}${k.slice(1)}`}
                                 loading="lazy"
                               />
                               <figcaption className="t-ui t-muted">

@@ -31,10 +31,10 @@ export type ExplorationStatus = 'active' | 'promoted' | 'closed';
 export type ExplorationSource = 'studio' | 'figma' | 'cli' | 'mcp';
 
 export const EXPLORATION_USE_CASES: { value: ExplorationUseCase; label: string; hint: string }[] = [
-  { value: 'user-test', label: 'Prototype for a user test', hint: 'A coded prototype on a product staging branch, with the real components and tokens.' },
-  { value: 'stakeholder-demo', label: 'Stakeholder demo', hint: 'Show an idea on real screens before anyone commits to it.' },
-  { value: 'ab-idea', label: 'A/B idea', hint: 'Ship a variant to a staging or experiment branch and compare it with what is live.' },
-  { value: 'terminal', label: 'Exploring with Claude Code', hint: 'A designer works from the terminal with Claude and the Bridge MCP server on this branch, never on main.' },
+  { value: 'user-test', label: 'Prototype for a user test', hint: 'A coded prototype in a test version of a product, with the real components and tokens.' },
+  { value: 'stakeholder-demo', label: 'Stakeholder demo', hint: 'Show an idea on real screens before anyone signs off on it.' },
+  { value: 'ab-idea', label: 'A/B idea', hint: 'Ship a variant to a test version of a product and compare it with what is live.' },
+  { value: 'terminal', label: 'Exploring with Claude Code', hint: 'A designer works from the terminal with Claude and the Bridge MCP server inside this exploration, never in the library.' },
   { value: 'other', label: 'Other', hint: 'Anything else worth trying before it becomes a change.' },
 ];
 
@@ -97,8 +97,8 @@ export function explorationProblems(e: Pick<Exploration, 'name' | 'purpose'> & {
   const name = e.name.trim();
   const slug = e.slug?.trim() || explorationSlug(name);
   if (!name) out.push('Name the exploration, for example "Denser data tables".');
-  else if (name.length > 60) out.push('Keep the name under 60 characters: it becomes the branch name.');
-  else if (slug.length < 2 || !SLUG_RE.test(slug)) out.push('Use letters or digits in the name: it becomes the branch explore/<name>.');
+  else if (name.length > 60) out.push('Keep the name under 60 characters: it becomes the exploration\'s link name.');
+  else if (slug.length < 2 || !SLUG_RE.test(slug)) out.push('Use letters or digits in the name: it becomes the exploration\'s link name.');
   if (!e.purpose.trim()) out.push('Say what you want to learn, in one sentence.');
   return out;
 }

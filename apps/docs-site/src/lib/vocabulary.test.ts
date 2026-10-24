@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { BUILD_IMAGE_LABEL, EXPLORATION_USE_CASES, explorationProblems } from '@bridge-ds/core';
 import { branchCount, branchWithJiraKey, isJiraKey, jargonIn, jiraKeyOf, parseJiraKey, STATUS_WORDS, titleWithJiraKey, VOCAB, withoutJiraKey } from './vocabulary';
 
 describe('vocabulary', () => {
@@ -27,6 +28,20 @@ describe('vocabulary', () => {
     expect(jargonIn('Precise prices, pushy copy, social')).toEqual([]);
     expect(jargonIn('Shape and size, the main domain')).toEqual(['main']);
     expect(jargonIn('Remains, domains, emerge')).toEqual([]);
+  });
+});
+
+describe('core words a designer reads', () => {
+  it('names build request images, exploration use cases and name problems without git words', () => {
+    expect(BUILD_IMAGE_LABEL).toEqual({ before: 'In code now', after: 'In Figma' });
+    const problems = [
+      ...explorationProblems({ name: '', purpose: '' }),
+      ...explorationProblems({ name: 'x'.repeat(61), purpose: 'x' }),
+      ...explorationProblems({ name: '!!!', purpose: 'x' }),
+    ];
+    expect(problems.length).toBeGreaterThanOrEqual(4);
+    const words = [...Object.values(BUILD_IMAGE_LABEL), ...EXPLORATION_USE_CASES.flatMap((u) => [u.label, u.hint]), ...problems];
+    for (const w of words) expect(jargonIn(w), w).toEqual([]);
   });
 });
 
