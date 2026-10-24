@@ -126,4 +126,12 @@ describe('structure changes', () => {
     expect(draftRequestText('Button', 'structure', [{ field: 'Removed layer "Helper"', before: 'text, after "Label"' }]).title).toBe('Remove the Helper layer');
     expect(draftRequestText('Button', 'structure', [{ field: 'Moved layer "Icon start"', before: 'before "Label"', after: 'after "Label"' }]).title).toBe('Move the Icon start layer');
   });
+
+  it('names a removed or added variant the short way', () => {
+    expect(draftRequestText('Badge', 'new-variant', [{ field: 'Variants', before: 'Appearance=solid, Size=md, Tone=info' }])).toEqual({
+      title: 'Remove the info solid md variant',
+      summary: 'Badge no longer has the info solid md variant (Appearance=solid, Size=md, Tone=info).',
+    });
+    expect(draftChangeLine('new-variant', [{ field: 'Variants', before: 'Size=md, Tone=info', after: 'Size=lg, Tone=info' }])).toBe('New variant info lg; info md variant removed');
+  });
 });

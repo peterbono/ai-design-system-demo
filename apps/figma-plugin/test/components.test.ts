@@ -137,6 +137,19 @@ test('fill rebound to another variable: token-binding', () => {
   ]);
 });
 
+test('one variant removed while its values stay on their axes: a variants change, not nothing', () => {
+  const next = button((c) => (c.variants = c.variants.filter((v) => !(v.props?.Size === 'md' && v.props?.Tone === 'secondary'))));
+  const d = diffSignatures(sig(button()), sig(next));
+  assert.equal(d.kind, 'new-variant');
+  assert.deepEqual(d.changes, [{ field: 'Variants', before: 'Size=md, Tone=secondary', after: undefined }]);
+  // A whole axis value gone is the axis row's: no Variants row on top of it.
+  const noMd = button((c) => {
+    c.variants = c.variants.filter((v) => v.props?.Size !== 'md');
+    c.definitions[0] = { ...c.definitions[0]!, options: ['sm'] };
+  });
+  assert.deepEqual(diffSignatures(sig(button()), sig(noMd)).changes.map((x) => x.field), ['Variant Size']);
+});
+
 test('render changed with the same bindings and values: visual', () => {
   const next = button((c) => (find(c, 'sm', 'secondary').render = fnv1a('icon moved')));
   const d = diffSignatures(sig(button()), sig(next));

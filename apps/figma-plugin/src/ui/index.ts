@@ -15,7 +15,7 @@ import type { Issue } from '@bridge-ds/core';
 import { formatValue, isAlias, parseColor, rgbaToHex } from '@bridge-ds/core';
 import { type ContrastResult, contextLabel, pairKey } from '@bridge-ds/core';
 import { type ApplyReport, type FigmaSnapshot, type InitPayload, type RepoSettings, modeDisplayName } from '../shared/messages';
-import { REQUEST_KINDS, type RequestKind, draftPushDescription, pushChangeRows, shortVariants } from '@bridge-ds/core';
+import { REQUEST_KINDS, type RequestKind, draftPushDescription, pushChangeRows, shortVariant, shortVariants } from '@bridge-ds/core';
 import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classifyComponents, pullBaselines, suggestLine, suggestSummary, suggestTitle, toRequest } from '../sync/components';
 import { CLAUDE_MODELS, type ClaudeDraft, type ClaudeDraftInput, ClaudeDraftError, DRAFTED_NOTE, draftWithClaude } from '../sync/claude';
 import { loadCodedComponents, sendComponentRequest } from '../sync/requests';
@@ -2276,6 +2276,10 @@ function chipLines(changes: { field: string; before?: string | undefined; after?
       const added = after.filter((x) => !before.includes(x)).map((x) => `+ ${x}`);
       const removed = before.filter((x) => !after.includes(x)).map((x) => `\u2212 ${x}`);
       out.push({ label: m[1]!, before: before.length ? [before.join(', ')] : [], after: before.length ? [...added, ...removed] : [after.join(', ')] });
+    } else if (c.field === 'Variants') {
+      const gone = (c.before ?? '').split('; ').filter(Boolean).map(shortVariant);
+      const born = (c.after ?? '').split('; ').filter(Boolean).map(shortVariant);
+      out.push({ label: 'Variants', before: gone, after: born.length ? born.map((x) => `+ ${x}`) : ['removed'] });
     } else if ((m = /^Prop (.+)$/.exec(c.field))) {
       out.push({ label: m[1]!, before: c.before ? [c.before] : [], after: c.after ? [c.after] : ['removed'] });
     } else if (/^(Look of |Swapped instance|New layer |Removed layer |Moved layer )/.test(c.field)) {
