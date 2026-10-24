@@ -75,7 +75,8 @@ interface PullState {
   /** Sets pushed from Figma whose library branch is still open: said under the components, never overwritten silently. */
   inReview: { name: string; number: number; url: string; status: FigmaPushStatus }[];
   /** "Check fidelity": running (with its progress line), its outcome, or why it failed. Nothing is written. */
-  fidelity?: { running?: string | undefined; outcome?: FidelityOutcome | undefined; error?: string | undefined } | undefined;
+  /** `copied`: the report JSON was copied for a developer ("Copy the report"). */
+  fidelity?: { running?: string | undefined; outcome?: FidelityOutcome | undefined; error?: string | undefined; copied?: boolean | undefined } | undefined;
 }
 
 /** Thumbnail width in the review, CSS pixels (two side by side in the 480px plugin). */
@@ -2071,7 +2072,18 @@ function fidelityGroup(p: PullState): Child {
             : null,
         );
       });
-    content = rowList('fidelity', rows, 10);
+    // For developers triaging the differences: every component and variant as JSON, without the images.
+    const report = outcome.report;
+    content = [
+      rowList('fidelity', rows, 10),
+      h(
+        'details',
+        { class: 'notes dev-details' },
+        h('summary', null, 'For developers'),
+        h('p', { class: 'muted' }, 'Every component and variant as JSON: how many pixels differ, and both sizes.'),
+        h('button', { class: 'btn', 'data-focus-id': 'fidelity-copy', onClick: () => void copyText(JSON.stringify(report, null, 2)).then((ok) => { f!.copied = ok; render(); }) }, icon(f?.copied ? 'check' : 'copy'), f?.copied ? 'Copied' : 'Copy the report'),
+      ),
+    ];
   }
   return group('Fidelity to the code', generated.length, action, lede, content);
 }
