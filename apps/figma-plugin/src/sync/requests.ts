@@ -118,3 +118,17 @@ export async function loadCodedComponents(client: GitHubClient, treeSha: string,
 
 /** Where components live when the repo has no bridge.config.json (this repo's layout). */
 export const DEFAULT_COMPONENTS_DIR = 'packages/react/src/components';
+
+/**
+ * The coded component a set Bridge built belongs to: the set's name, its family ("Menu/Popup" -> Menu), the component
+ * its name starts with (MenuItem -> Menu) or the one that starts with it (Radio -> RadioGroup). Undefined otherwise.
+ */
+export function componentOfSet(setName: string, coded: readonly string[]): string | undefined {
+  const family = setName.split('/')[0]!;
+  return (
+    coded.find((c) => c === setName) ??
+    coded.find((c) => c === family) ??
+    [...coded].sort((a, b) => b.length - a.length).find((c) => family.startsWith(c)) ??
+    coded.find((c) => c.startsWith(family))
+  );
+}
