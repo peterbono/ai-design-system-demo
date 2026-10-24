@@ -15,7 +15,8 @@ Usage:
                                                  changed in Figma, and where each stands
   bridge figma show <n> [--draft] [--json]       one of them: its spec and the brief to draft the code; --draft
                                                  runs Claude Code on the brief (\`claude\` on PATH)
-  bridge figma drafted <n> [--json]              the code is pushed: label it drafted by Claude AI for review
+  bridge figma drafted <n> [--json]              the code is pushed: mark it ready for review and label it drafted
+                                                 by Claude AI, in one step
   bridge figma push <diff.json> [--dry-run] [--json]
                                                  send a structured component diff like the plugin does: an exact
                                                  token change, or a branch with the spec for Claude AI

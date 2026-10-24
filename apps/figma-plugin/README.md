@@ -425,8 +425,8 @@ a neutral tag and one sentence:
   (`bridge/figma-<name>`) carries the spec, `.bridge/figma/<name>.json`: variant matrix, properties, bound
   variables and layers of every variant, what code gave Figma before, the exact token swaps to make too, and a
   screenshot on the `bridge-requests` branch. Labels `from-figma`, `component-change`, `waiting-for-claude`: until
-  Claude writes the code there (`bridge_get_figma_change`, then `bridge_mark_figma_change_drafted`, which swaps the
-  label to `drafted-by-claude`), the branch is honestly a request.
+  Claude writes the code there (`bridge_get_figma_change`, then `bridge_mark_figma_change_drafted`, which marks it
+  ready for review and swaps the label to `drafted-by-claude`), the branch is honestly a request.
 - **Fix in Figma first**. What the scan cannot read with confidence is listed in its own group with what to do,
   never sent and never dropped: a layer detached from its component, a look that changed with the same variables (a
   value set by hand), a shared style, a property bound to nothing, a variable the library does not have yet (push

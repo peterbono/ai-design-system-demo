@@ -19,7 +19,7 @@ export const toolTag = (source: 'mcp' | 'cli') => `${toolName(source)} (source: 
 
 /** How to give Bridge a token where it runs. */
 export function addToken(ctx: Surface): string {
-  return say(ctx, 'set GITHUB_TOKEN (or BRIDGE_GITHUB_TOKEN) where the Bridge MCP server runs', 'set GITHUB_TOKEN, pass --token <token>, or add --use-gh-auth to use your gh sign-in');
+  return say(ctx, 'set GITHUB_TOKEN (or BRIDGE_GITHUB_TOKEN) where the Bridge MCP server runs, or run gh auth login and restart it','set GITHUB_TOKEN, pass --token <token>, or add --use-gh-auth to use your gh sign-in');
 }
 
 /** "Read-only: ... to open this as a pull request." for previews without a token. */

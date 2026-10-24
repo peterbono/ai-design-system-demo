@@ -231,6 +231,7 @@ test('claude draft: a new variant opens a draft branch carrying the spec and a s
   const done = await markFigmaChangeDraftedOnGitHub(client, b.number);
   assert.equal(done.status.key, 'drafted');
   assert.ok(pr.labels.includes(DRAFTED_BY_CLAUDE_LABEL) && !pr.labels.includes(WAITING_FOR_CLAUDE_LABEL));
+  assert.equal(pr.draft, false, 'marked ready for review in the same step');
   assert.match(pr.body, /\*\*Drafted with Claude\*\* from the Figma spec/);
 });
 

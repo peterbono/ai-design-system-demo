@@ -121,12 +121,26 @@ describe('Claude drafts a component change from Figma', () => {
     gh.refs.set(pr.head.ref, c);
     pr.head.sha = c;
 
+    // GitHub refuses ready for review: nothing half done, the labels and the description stay, and the error says so.
+    const bodyBefore = pr.body;
+    const nodeId = pr.node_id;
+    pr.node_id = undefined;
+    await expect(figma.markFigmaDraftedOp(await rw(), { pr: n })).rejects.toThrow(new RegExp(`^#${n} is not marked drafted and its labels are unchanged: Pull request #${n} has no node id`));
+    expect(pr.draft).toBe(true);
+    expect(labels(pr)).toContain('waiting-for-claude');
+    expect(labels(pr)).not.toContain('drafted-by-claude');
+    expect(pr.body).toBe(bodyBefore);
+    pr.node_id = nodeId;
+
     const lines: string[] = [];
     const io = { print: (s: string) => lines.push(s), error: (s: string) => lines.push(s), env: { GITHUB_TOKEN: 't' }, fetch: gh.fetch, ghToken: () => null, hasClaude: () => false, runClaude: () => 0 } as any;
     expect(await runFigma({ _: ['figma', 'drafted', String(n)], flags: {} }, REPO, io)).toBe(0);
     expect(lines[0]).toBe(`#${n}: Drafted with Claude. The code is drafted. A person reviews it before it ships.`);
     expect(labels(pr)).toContain('drafted-by-claude');
     expect(labels(pr)).not.toContain('waiting-for-claude');
+    // Same step: the pull request is ready for review (GraphQL, REST cannot unset draft).
+    expect(pr.draft).toBe(false);
+    expect(gh.log.some((x) => x.path === 'graphql' && x.body.query.includes('markPullRequestReadyForReview'))).toBe(true);
     expect(pr.body).toMatch(/\*\*Drafted with Claude\*\* from the Figma spec/);
     lines.length = 0;
     expect(await runFigma({ _: ['figma'], flags: {} }, REPO, io)).toBe(0);

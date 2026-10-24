@@ -44,7 +44,7 @@ export function isReadRequest(url: string, init?: { method?: string; body?: unkn
 }
 
 const MCP_TOKEN_HINT =
-  'set GITHUB_TOKEN (or BRIDGE_GITHUB_TOKEN) in the environment of the Bridge MCP server: read access to this repository is enough to read, suggestions and requests need Issues: read and write, and direct changes (branches and pull requests) need Contents and Pull requests: read and write';
+  'set GITHUB_TOKEN (or BRIDGE_GITHUB_TOKEN) in the environment of the Bridge MCP server, or run gh auth login and restart it: read access to this repository is enough to read, suggestions and requests need Issues: read and write, and direct changes (branches and pull requests) need Contents and Pull requests: read and write';
 
 const DEFAULT_PROTECTED = ['main', 'master'];
 
@@ -161,7 +161,7 @@ export class BridgeContext {
    */
   access(): string {
     const cli = this.surface === 'cli';
-    const how = cli ? 'GITHUB_TOKEN or --token (or --use-gh-auth)' : 'GITHUB_TOKEN';
+    const how = cli ? 'GITHUB_TOKEN or --token (or --use-gh-auth)' : 'GITHUB_TOKEN (or a gh sign-in when the server starts)';
     const local = this.mode === 'local' ? (this.isGit ? 'Direct changes become local bridge/* branches, never pushed.' : 'Not a git repo: no local branches.') : '';
     if (this.opts.readOnly) return `Read-only on GitHub: the token only reads (your gh sign-in, borrowed to read). ${local}`.trim();
     if (this.opts.token) return `Writes on GitHub with the token: suggestions and requests (issues), reviews, comments, branches and pull requests, never the default branch. ${local}`.trim();

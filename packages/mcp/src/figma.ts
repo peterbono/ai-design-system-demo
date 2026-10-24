@@ -74,12 +74,12 @@ export async function getFigmaChangeOp(ctx: BridgeContext, a: { pr: number | str
   };
 }
 
-/** bridge_mark_figma_change_drafted / `bridge figma drafted <n>`: the code is on the branch, labelled drafted by Claude AI. */
+/** bridge_mark_figma_change_drafted / `bridge figma drafted <n>`: the code is on the branch, ready for review and labelled drafted by Claude AI. */
 export async function markFigmaDraftedOp(ctx: BridgeContext, a: { pr: number | string }) {
   const n = branchNumber(a.pr);
   const gh = await writer(ctx, 'Marking a Figma change drafted', NEED);
   const r = await markFigmaChangeDraftedOnGitHub(gh, n);
-  return { pr: n, status: r.status.label, said: r.status.sentence, files: r.files, next: `Send it for review when it is ready (${say(ctx, 'bridge_send_for_review', `\`bridge branch ready ${n}\``)}), or tell the designer it is ready to look at.` };
+  return { pr: n, status: r.status.label, said: r.status.sentence, readyForReview: r.ready, files: r.files, next: 'It is ready for review now: tell the designer it is ready to look at.' };
 }
 
 /**
