@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { ACCOUNT_COOKIE, putAccount, signAccountSession } from '../../api/_lib/account';
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
-import { clearReadMemory, FRESH_MS, immutable, MAX_BATCH, readAllowed, READ_LIMITS, READ_WORDS } from '../../api/_lib/team-read';
+import { clearReadMemory, FRESH_MS, immutable, MAX_BATCH, MAX_CHANGES, readAllowed, READ_LIMITS, READ_WORDS } from '../../api/_lib/team-read';
 import { restoreMissing } from './contribute';
 import { type ContribDeps, cookieName, type FetchLike, handleContribute, signSession } from '../../api/contribute/index';
 
@@ -100,7 +100,9 @@ function setup(world: Partial<World> = {}, env: Record<string, string> = {}) {
     handleContribute(new Request(`${ORIGIN}/api/contribute?repo=${encodeURIComponent(repo)}&blobs=${shas.join(',')}`, { headers: { host: HOST, 'x-real-ip': '203.0.113.9', ...(cookie ? { cookie } : {}) } }), env2, deps);
   const users = (logins: string[], cookie = '', repo = TEAM) =>
     handleContribute(new Request(`${ORIGIN}/api/contribute?repo=${encodeURIComponent(repo)}&users=${logins.join(',')}`, { headers: { host: HOST, 'x-real-ip': '203.0.113.9', ...(cookie ? { cookie } : {}) } }), env2, deps);
-  return { w, redis, deps, member, account, read, blobs, users, tokens, tick: (ms: number) => (now += ms) };
+  const changes = (list: string[], cookie = '', repo = TEAM) =>
+    handleContribute(new Request(`${ORIGIN}/api/contribute?repo=${encodeURIComponent(repo)}&changes=${list.join(',')}`, { headers: { host: HOST, 'x-real-ip': '203.0.113.9', ...(cookie ? { cookie } : {}) } }), env2, deps);
+  return { w, redis, deps, member, account, read, blobs, users, changes, tokens, tick: (ms: number) => (now += ms) };
 }
 
 const P = `/repos/${TEAM}`;
@@ -424,5 +426,70 @@ describe('team reads: people by login', () => {
     const c2 = await t.member();
     expect((await t.users(['dana'], c2)).status).toBe(200);
     expect((await t.users(['dana'], c2)).status).toBe(429);
+  });
+});
+
+describe('team reads: the status of open changes, once for the team', () => {
+  const H = SHA('c');
+  const reads = [`${P}/pulls/7`, `${P}/pulls/7/reviews?per_page=100`, `${P}/pulls/7/files?per_page=100`, `${P}/commits/${H}/check-runs?per_page=100`, `${P}/commits/${H}/status`];
+
+  it("reads a change's five status reads once and shares them with another member for 30 s", async () => {
+    const s = setup();
+    const r = await s.changes([`7:${H}`], await s.member());
+    expect(r.status).toBe(200);
+    const body = await r.json();
+    expect(Object.keys(body.changes['7']).sort()).toEqual(['/commits/' + H + '/check-runs?per_page=100', '/commits/' + H + '/status', '/pulls/7', '/pulls/7/files?per_page=100', '/pulls/7/reviews?per_page=100'].sort());
+    expect(body.changes['7']['/pulls/7']).toEqual({ status: 200, body: JSON.stringify({ ok: '/pulls/7' }) });
+    expect(JSON.stringify(body)).not.toContain('ghs_read');
+    for (const p of reads) expect(gets(s.w, p)).toBe(1);
+    expect(s.w.calls.every((c) => c.auth === 'Bearer ghs_read')).toBe(true);
+    // Another member, 20 s later: no GitHub call.
+    s.tick(20_000);
+    const before = s.w.calls.length;
+    expect((await (await s.changes([`7:${H}`], await s.member('leo@acme.design'))).json()).changes['7']).toEqual(body.changes['7']);
+    expect(s.w.calls.length).toBe(before);
+    // The single reads share the same cache: a read of the pull request is a hit.
+    expect((await s.read(`${P}/pulls/7`, await s.member())).headers.get('x-bridge-cache')).toBe('hit');
+  });
+
+  it('checks GitHub again once 30 s went by (with the ETag), and at once after a write through Bridge', async () => {
+    const s = setup();
+    const cookie = await s.member();
+    await s.changes([`7:${H}`], cookie);
+    s.tick(FRESH_MS + 1);
+    await s.changes([`7:${H}`], cookie);
+    expect(gets(s.w, `${P}/pulls/7`)).toBe(2);
+    expect(s.w.calls.filter((c) => c.path === `${P}/pulls/7`).pop()!.headers['If-None-Match']).toBe('"x"');
+    s.tick(1000);
+    await s.redis.cmd('SET', `bridge:read:wrote:${TEAM}`, String(T0 + FRESH_MS + 1001));
+    s.tick(1);
+    await s.changes([`7:${H}`], cookie);
+    expect(gets(s.w, `${P}/pulls/7`)).toBe(3);
+  });
+
+  it('members only: never a visitor (not even of a public demo team) nor a member of another team; the list is checked', async () => {
+    const s = setup();
+    expect((await s.changes([`7:${H}`])).status).toBe(401);
+    expect((await s.changes([`7:${H}`], '', DEMO)).status).toBe(403);
+    expect((await s.changes([`7:${H}`], await s.member('eve@evil.example', 'evil/ds'))).status).toBe(401);
+    const cookie = await s.member();
+    expect((await s.changes(['7:abc'], cookie)).status).toBe(400);
+    expect((await s.changes(['../7:' + H], cookie)).status).toBe(400);
+    expect((await s.changes(Array.from({ length: MAX_CHANGES + 1 }, (_, i) => `${i + 1}:${H}`), cookie)).status).toBe(400);
+    expect(s.w.calls.filter((c) => c.path.includes('/pulls/'))).toHaveLength(0);
+  });
+
+  it('leaves out a change GitHub would not answer, and says busy when it could answer none', async () => {
+    const s = setup({ limited: true });
+    const r = await s.changes([`7:${H}`], await s.member());
+    expect(r.status).toBe(429);
+    expect((await r.json()).error).toBe('busy');
+  });
+
+  it('counts one read per change on the member budget', async () => {
+    const s = setup({}, { READ_MAX_IP: '2' });
+    const cookie = await s.member();
+    expect((await s.changes([`7:${H}`, `8:${H}`], cookie)).status).toBe(200);
+    expect((await s.changes([`7:${H}`], cookie)).status).toBe(429);
   });
 });

@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CONTRIB_TOKEN } from '../lib/contribute';
 import { errorText } from '../lib/token-session';
-import { clearRecentMemory, contributeBlobs, contributeFetch, contributeInfo, forgetRecent, recentFor, RECENT_SHA_MS, contributorFor, forgetContributors, onContributeChange, publicTeamRead, requestEmailSignIn, seedContributors, setContributeFetch, signOutEmail, verifyEmailSignIn } from './contribute-session';
+import { clearRecentMemory, contributeBlobs, prefetchChangeStatuses, contributeFetch, contributeInfo, forgetRecent, recentFor, RECENT_SHA_MS, contributorFor, forgetContributors, onContributeChange, publicTeamRead, requestEmailSignIn, seedContributors, setContributeFetch, signOutEmail, verifyEmailSignIn } from './contribute-session';
 import { resetGuestActivity } from './guest-activity';
 import { currentContributor, getToken, ghWrite, studioClient, studioFetch } from './github-session';
 import { teamClient, teamToken } from './team-data';
@@ -338,5 +338,51 @@ describe('a member reads through Bridge with fewer requests', () => {
     expect(await r.json()).toMatchObject({ name: 'Ann' });
     expect(calls.map((c) => c.url)).toEqual(['/api/contribute?repo=acme%2Fds&users=ann', 'https://api.github.com/users/ann']);
     expect(Object.keys(calls[1]!.init.headers as Record<string, string>)).not.toContain('Authorization');
+  });
+
+  it("answers a change's five status reads from one request for every open change, until a write", async () => {
+    signIn();
+    const sha = 'a'.repeat(40);
+    answer = (url) =>
+      url.includes('changes=')
+        ? json(200, {
+            changes: {
+              '5': {
+                '/pulls/5': { status: 200, body: JSON.stringify({ number: 5, mergeable: true }) },
+                '/pulls/5/reviews?per_page=100': { status: 200, body: '[]' },
+                '/pulls/5/files?per_page=100': { status: 200, body: '[{"filename":"a.tokens.json"}]' },
+                [`/commits/${sha}/check-runs?per_page=100`]: { status: 200, body: '{"check_runs":[]}' },
+                [`/commits/${sha}/status`]: { status: 404, body: '{"message":"Not Found"}' },
+              },
+            },
+          })
+        : json(200, { fromProxy: true });
+    await prefetchChangeStatuses('acme/ds', [{ number: 5, head: { sha } }]);
+    expect(calls.map((c) => c.url)).toEqual([`/api/contribute?repo=acme%2Fds&changes=5:${sha}`]);
+    const read = (path: string) => get(`/repos/acme/ds${path}`);
+    // GitHub reads: through the proxy (gh=) or the change list (changes=); the member's own list (mine=1) aside.
+    const reads = () => calls.filter((c) => /[?&](gh|changes)=/.test(c.url)).length;
+    expect(await (await read('/pulls/5')).json()).toEqual({ number: 5, mergeable: true });
+    expect(await (await read('/pulls/5/files?per_page=100')).json()).toEqual([{ filename: 'a.tokens.json' }]);
+    expect((await read(`/commits/${sha}/status`)).status).toBe(404);
+    expect(reads()).toBe(1);
+    // Anything else still goes to the proxy; a write forgets the answers.
+    await read('/pulls/6');
+    expect(proxied()).toBe(1);
+    forgetRecent('acme/ds');
+    await read('/pulls/5');
+    expect(proxied()).toBe(2);
+  });
+
+  it('asks nothing for someone who is not a member, and a refusal leaves each read to the proxy', async () => {
+    const sha = 'b'.repeat(40);
+    await prefetchChangeStatuses('acme/ds', [{ number: 1, head: { sha } }]);
+    expect(calls).toHaveLength(0);
+    signIn();
+    answer = (url) => (url.includes('changes=') ? json(429, { error: 'busy', message: 'Bridge is busy, try again in 1 min.' }) : json(200, { n: 1 }));
+    await prefetchChangeStatuses('acme/ds', [{ number: 1, head: { sha } }]);
+    const r = await get('/repos/acme/ds/pulls/1');
+    expect(await r.json()).toEqual({ n: 1 });
+    expect(proxied()).toBe(1);
   });
 });

@@ -3,7 +3,8 @@
 // the 6-digit code (numeric keyboard, one-time-code autofill, a pasted "123 456" works), with a resend link on a
 // cooldown. Email only: GitHub comes back where a repository is linked, and in Settings > Account. An account whose
 // name is still a stand-in (nameSet false) is asked "One last thing: your name" once. Then the person goes to `next`
-// (the page that sent them here, ?next=), else Bridge picks the room (lib/entry.ts, GET /api/entry): their team, an
+// (the page that sent them here, ?next=; an account without a team first sees its invite or work-domain teams once,
+// and every way on leads to `next`), else Bridge picks the room (lib/entry.ts, GET /api/entry): their team, an
 // invite (E3), a team found by work domain (E4, E4b), a team picker (E5), or "Create your team" (E6). Those rooms live
 // in EntryRooms.tsx, in this same zone. Signed in already, the screen forwards at once. Back from GitHub (Link GitHub,
 // Connect GitHub to accept), the GitHub sign-in links to the account first. A site without accounts keeps Continue
@@ -21,7 +22,7 @@ import { Alert, Button, Icon, Input, Link } from '@bridge-ds/react';
 import { GitHubMark } from '../studio/brand-icons';
 import { Drawing } from '../studio/Drawing';
 import { ACCOUNT_WORDS as W, codeDigits, GITHUB_PENDING_KEY, CODE_LENGTH, defaultNext, PRIVACY_PAGE, readSignInQuery, RESEND_COOLDOWN, SIGNED_OUT_PARAM, signedOutNote, type Account, type SignedIn } from '../../../lib/account';
-import { ENTRY_WORDS as EW, INVITE_TOKEN_KEY, JOINED_KEY, inviteTokenFromHash, routeEntry, type Entry, type EntryRoute, type InviteLink } from '../../../lib/entry';
+import { ENTRY_SHOWN_KEY, ENTRY_WORDS as EW, INVITE_TOKEN_KEY, JOINED_KEY, entryStepOnce, inviteTokenFromHash, routeEntry, type Entry, type EntryRoute, type InviteLink } from '../../../lib/entry';
 import { DomainRoom, InviteLinkRoom, InviteRoom, PickRoom } from './EntryRooms';
 import { isEmail } from '../../../lib/invites';
 import { maskEmail } from '../../../lib/library-access';
@@ -84,6 +85,8 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
   const [left, startCooldown, endCooldown] = useCooldown();
   const [after, setAfter] = useState<SignedIn | null>(null);
   const [room, setRoom] = useState<Room | null>(null);
+  /** The room shows on the way to `next` (a sign-in through a link): its ways on lead there. */
+  const [onward, setOnward] = useState<string | null>(null);
   const [me, setMe] = useState<Account | null>(null);
   /** The daily code limit answered: "I have a code" opens the code field. */
   const [limited, setLimited] = useState(false);
@@ -119,11 +122,44 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
       const entry = await api.getEntry();
       await seedEntry(entry);
       const r = routeEntry(entry, loadRecentTeams());
-      if (r.to === 'go' || r.to === 'create') return leave(r.href);
+      if (r.to === 'go' || r.to === 'create') return leave(onward ?? r.href);
       setRoom(r);
       setStep('room');
     } catch {
       leave(fallback);
+    }
+  };
+
+  /**
+   * A sign-in through a link (?next=): a member of a team goes straight there. An account without a team first sees
+   * its invite (E3) or the teams found by its work domain (E4), once per browser, and every way on from that room
+   * leads to the link. Nothing to show, or /api/entry cannot answer: straight to the link.
+   */
+  const enterOnward = async (href: string, account: Account) => {
+    if (account.teams.length) return leave(href);
+    const api = await import('../../../scripts/entry-session');
+    try {
+      const entry = await api.getEntry();
+      await seedEntry(entry);
+      const r = routeEntry(entry, loadRecentTeams());
+      let raw: string | null = null;
+      try {
+        raw = localStorage.getItem(ENTRY_SHOWN_KEY);
+      } catch {
+        /* storage blocked: shown this time */
+      }
+      const once = (r.to === 'invite' || r.to === 'domain') && entryStepOnce(entry, raw);
+      if (!once) return leave(href);
+      try {
+        localStorage.setItem(ENTRY_SHOWN_KEY, once.store);
+      } catch {
+        /* storage blocked: it may show again next time */
+      }
+      setOnward(href);
+      setRoom(r as Room);
+      setStep('room');
+    } catch {
+      leave(href);
     }
   };
 
@@ -174,12 +210,13 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
   };
 
   /** Where a signed-in person goes: the invite they opened, the page that sent them here, else the room Bridge picks. */
-  const go = (r: SignedIn) => {
+  const go = (r: SignedIn, fresh = true) => {
     setMe(r.account);
     // The account's email teams know their member already (scripts/account-session.ts seeds them on sign-in).
     signedInAs.current = r.account;
     if (token.current) return void openLink(token.current);
-    if (next) return leave(next);
+    // Already signed in: straight on. Just signed in: the entry step once, then the link.
+    if (next) return fresh ? void enterOnward(next, r.account) : leave(next);
     void enter(r.created ? r.next || START_PAGE : r.next || defaultNext(r.account, loadRecentTeams()));
   };
 
@@ -244,7 +281,7 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
       }
       if (info.account) {
         setEmail(info.account.email);
-        return go({ account: info.account, created: false, next: '' });
+        return go({ account: info.account, created: false, next: '' }, false);
       }
       setStep('start');
     })();
@@ -464,7 +501,7 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
           : startHeader;
 
   if (step === 'room' && room) {
-    const rooms = { leave, onJoined, onOtherEmail: () => void otherEmail(), onConnectGitHub: () => void connectGitHub() };
+    const rooms = { leave, onward, onJoined, onOtherEmail: () => void otherEmail(), onConnectGitHub: () => void connectGitHub() };
     return (
       <section className="zone acc acc-room" aria-labelledby="acc-title">
         <div className="acc-art" aria-hidden="true">
