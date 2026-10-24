@@ -228,26 +228,34 @@ function Detail({
                 {d.line && <p className="t-body bb-measure">{d.line}</p>}
                 {(d.before.length > 0 || d.after.length > 0) && (
                   <div className="bb-images">
-                    {[
-                      ...d.before.map((u) => ({ u, k: BUILD_IMAGE_LABEL.before })),
-                      ...d.after.map((u) => ({ u, k: BUILD_IMAGE_LABEL.after })),
-                    ].flatMap(({ u, k }, i) => {
-                      const src = safeUrl(u);
-                      return src
-                        ? [
-                            <figure key={`${k}-${i}`} className="bb-figure">
-                              <img
-                                src={src}
-                                alt={`${v.component}, ${k.charAt(0).toLowerCase()}${k.slice(1)}`}
-                                loading="lazy"
-                              />
-                              <figcaption className="t-ui t-muted">
-                                {k}
-                              </figcaption>
-                            </figure>,
-                          ]
-                        : [];
-                    })}
+                    {(
+                      [
+                        [BUILD_IMAGE_LABEL.before, d.before],
+                        [BUILD_IMAGE_LABEL.after, d.after],
+                      ] as const
+                    ).flatMap(([k, urls]) =>
+                      urls.flatMap((u, i) => {
+                        const src = safeUrl(u);
+                        const alt = `${v.component}, ${k.charAt(0).toLowerCase()}${k.slice(1)}`;
+                        return src
+                          ? [
+                              <figure key={`${k}-${i}`} className="bb-figure">
+                                <figcaption className="t-ui t-muted">
+                                  {k}
+                                </figcaption>
+                                <a
+                                  href={src}
+                                  {...external}
+                                  className="bb-frame"
+                                  aria-label={`${alt}, open full size`}
+                                >
+                                  <img src={src} alt={alt} loading="lazy" />
+                                </a>
+                              </figure>,
+                            ]
+                          : [];
+                      })
+                    )}
                   </div>
                 )}
                 {d.props.length > 0 && (
