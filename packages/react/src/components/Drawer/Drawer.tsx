@@ -1,4 +1,13 @@
-import { createContext, forwardRef, useContext, type HTMLAttributes, type ReactNode } from 'react';
+import {
+  createContext,
+  forwardRef,
+  useContext,
+  useEffect,
+  useId,
+  useState,
+  type HTMLAttributes,
+  type ReactNode,
+} from 'react';
 import { Drawer as BaseDrawer } from '@base-ui/react/drawer';
 import { X } from 'lucide-react';
 import { cx } from '../../utils/cx';
@@ -63,6 +72,25 @@ export interface DrawerContentProps extends Omit<HTMLAttributes<HTMLDivElement>,
   children?: ReactNode;
 }
 
+/**
+ * True when the element's content is taller than its box. Measured on mount and whenever the body or
+ * any of its direct children resize, so keyboard users get a scroll stop only when there is something to scroll.
+ */
+function useOverflow(el: HTMLElement | null, content: ReactNode) {
+  const [overflowing, setOverflowing] = useState(false);
+  useEffect(() => {
+    if (!el) return;
+    const measure = () => setOverflowing(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    Array.from(el.children).forEach((child) => ro.observe(child));
+    return () => ro.disconnect();
+  }, [el, content]);
+  return overflowing;
+}
+
 /** The sheet: scrim, panel, header with close, scrolling body, footer. */
 export const DrawerContent = forwardRef<HTMLDivElement, DrawerContentProps>(function DrawerContent(
   { title, description, footer, size = 'md', hideClose = false, closeLabel = 'Close panel', className, children, ...rest },
@@ -70,6 +98,10 @@ export const DrawerContent = forwardRef<HTMLDivElement, DrawerContentProps>(func
 ) {
   const side = useContext(SideContext);
   const scope = useScopeAttributes();
+  const titleId = useId();
+  // Callback ref through state: the body mounts only when the drawer opens, so measuring starts on open.
+  const [body, setBody] = useState<HTMLDivElement | null>(null);
+  const overflowing = useOverflow(body, children);
   return (
     <BaseDrawer.Portal>
       <BaseDrawer.Backdrop className={styles.backdrop} {...scope} />
@@ -78,12 +110,19 @@ export const DrawerContent = forwardRef<HTMLDivElement, DrawerContentProps>(func
           {side === 'bottom' && <div className={styles.handle} aria-hidden="true" />}
           <div className={styles.header}>
             <div className={styles.heading}>
-              <BaseDrawer.Title className={styles.title}>{title}</BaseDrawer.Title>
+              <BaseDrawer.Title id={titleId} className={styles.title}>{title}</BaseDrawer.Title>
               {description && <BaseDrawer.Description className={styles.description}>{description}</BaseDrawer.Description>}
             </div>
             {!hideClose && <BaseDrawer.Close render={<IconButton icon={X} label={closeLabel} size="sm" className={styles.close} />} />}
           </div>
-          <div className={styles.body}>{children}</div>
+          {/* A long body becomes a named, focusable region so it can be scrolled with the keyboard. */}
+          <div
+            ref={setBody}
+            className={styles.body}
+            {...(overflowing ? { tabIndex: 0, role: 'region', 'aria-labelledby': titleId } : {})}
+          >
+            {children}
+          </div>
           {footer && <div className={styles.footer}>{footer}</div>}
         </BaseDrawer.Popup>
       </BaseDrawer.Viewport>
