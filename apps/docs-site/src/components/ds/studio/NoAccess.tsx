@@ -166,7 +166,7 @@ export function NoAccess({ screen, updatedAt, repo = '', emailExpired = false }:
               </p>
             ) : null,
           )}
-        {emailExpired && emailLink && <p className="na-quiet">{CONTRIBUTE_WORDS.expired}</p>}
+        {emailExpired && (emailLink || (repo && screen.primary.kind === 'email')) && <p className="na-quiet">{CONTRIBUTE_WORDS.expired}</p>}
         {screen.note && <p className="na-quiet">{screen.note}</p>}
       </div>
     </section>
