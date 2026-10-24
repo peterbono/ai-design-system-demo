@@ -1008,7 +1008,11 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
 
   const title = humanTitle(mdTitleText(withoutJiraKey(pull.title)));
   const asked = status.yourTurn && !isAuthor && canApprove;
-  const line = whoLine({ author: nameOf(author), agent, guidanceOnly, canEdit: canEditGuidance, asked, lifecycle: status.lifecycle, sentence: named(statusRun.sentence) });
+  // Who asked, as Bridge recorded it ("Requested by Priya Shah ... through Bridge."), before the account that opened it
+  // (the Bridge app for an email member, an agent or a lead acting for someone): the same person as on the home row.
+  const requested = seat ? null : requesterOf(pull.body);
+  const askerName = requested ? (requested.name ?? (requested.login ? nameOf(requested.login) : nameOf(author))) : nameOf(author);
+  const line = whoLine({ author: askerName, agent, guidanceOnly, canEdit: canEditGuidance, asked, lifecycle: status.lifecycle, sentence: named(statusRun.sentence) });
   const editable = tokenFilesOf(files) > 0 && isTokenChange(pull, REPO_KEY) && canAddTo(pull, login ?? undefined, write);
   const added = Number(new URLSearchParams(location.search).get('added'));
   if (added > 0) history.replaceState(history.state, '', `?pr=${pull.number}`);
