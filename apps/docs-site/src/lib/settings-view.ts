@@ -240,6 +240,18 @@ export const RIGHT_PLAIN: Record<'approveDesign' | 'approveTech' | 'ship', { lab
   ship: { label: 'Adds it to the library', help: 'Puts an approved change in the library your products use.' },
 };
 
+/**
+ * Token values pushed from Figma, as a designer reads it (docs/BUILD-REQUESTS.md "The rule"): they ship once the
+ * automatic checks pass, nobody approves them; a renamed or removed token waits for a tech owner. Shown on every
+ * team's Review rules, so the people named above never read as a wait on a token value.
+ */
+export const TOKEN_VALUES_PLAIN = {
+  label: 'Token values from Figma',
+  help: 'Values your designers change in Figma and send with Bridge.',
+  title: 'Ship once the automatic checks pass.',
+  text: 'Nobody needs to approve them. A renamed or removed token waits for a code check.',
+} as const;
+
 /** Nobody is named for a right (owner lists empty), or merging is left to anyone with write access. */
 export const NOBODY_NAMED = 'Nobody named yet';
 export const ANYONE_WHO_CODES = 'Any developer of the team';

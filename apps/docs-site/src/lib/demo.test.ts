@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { sampleTeam } from './invites';
+import { roleRows } from './roles-view';
 import { DEMO_APPROVED_KEY, demoApprovedSet, markDemoApproved, DEMO_REPOS, demoApproved, demoBanner, demoDialog, DEMO_STASH_KEY, DEMO_VISIT_KEY, DEMO_WORDS, SHARED_DRAFT_KEY, swapDemoDrafts, demoLeadName, demoSettingsPeople, demoTour, demoWaiting, exploresDemo, humanizeRepo, onBridge, isDemoRepo, OWN_TEAM, teamDisplayName, tourSteps } from './demo';
 
 describe('the demo', () => {
@@ -76,12 +78,29 @@ describe('the tour', () => {
 });
 
 describe('the demo Settings', () => {
-  it('names the persona, never the repository accounts', () => {
-    const p = demoSettingsPeople({ demo: { viewer: 'Dana' }, soloOwnerCanApproveBoth: true });
+  it('names the sample members who review, as Members shows them, never the repository accounts', () => {
+    const p = demoSettingsPeople({ demo: { viewer: 'Dana' } });
     expect(p.lead).toBe('Dana');
+    // The same people and logins as Members (lib/invites.ts sampleTeam), so the faces match.
+    const team = sampleTeam('Dana').members;
+    expect(p.owners.design).toEqual(team.filter((m) => m.reviews.includes('design')).map((m) => m.login));
+    expect(p.owners.design).toEqual(['~dana', '~ann-leroy']);
+    expect(p.owners.tech).toEqual(['~malik-haddad']);
+    expect(p.owners.design.map(p.nameOf)).toEqual(['Dana', 'Ann']);
+    expect(p.owners.tech.map(p.nameOf)).toEqual(['Malik']);
+    // Any other login (the repository's real accounts) reads as the lead.
     expect(p.nameOf('peterbono')).toBe('Dana');
-    expect(p.solo).toBe('As the only owner, Dana approves design and code in one review.');
-    expect(demoSettingsPeople({ demo: { viewer: 'Dana' }, soloOwnerCanApproveBoth: false }).solo).toBeNull();
+  });
+
+  it('follows the repository rights: each right names the people of its group', () => {
+    const p = demoSettingsPeople({ demo: { viewer: 'Dana' } });
+    const rows = roleRows(p.owners, { approveDesign: ['design'], approveTech: ['tech'], ship: ['tech'] });
+    expect(rows.map((r) => r.logins.map(p.nameOf))).toEqual([['Dana', 'Ann'], ['Malik'], ['Malik']]);
+  });
+
+  it('names a persona-less lead by role, in the lead seat', () => {
+    const p = demoSettingsPeople({});
+    expect(p.nameOf('~dana')).toBe('Your design system lead');
   });
 
   it('says the role when the demo has no persona', () => {
