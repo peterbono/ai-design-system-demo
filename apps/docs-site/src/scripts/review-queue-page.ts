@@ -35,6 +35,7 @@ import { ghAction, ghButton } from '../lib/gh-wording';
 import type { NeedKind, NeedRow } from '../lib/home-model';
 import { studioHref } from '../lib/team-path';
 import { demoApproved, isSampleTeam } from '../lib/demo';
+import { rememberDemoApproval } from './demo-approvals';
 import { repoContext } from './repo-context';
 
 /** The sample team (lib/demo.ts): Approve is tried, nothing is sent; the rest opens the demo dialog. */
@@ -260,7 +261,8 @@ export function initReviewQueue() {
     // The sample team: the approved state and what happens next, nothing sent.
     if (onSampleTeam()) {
       const w = demoApproved(d.row.person?.name ?? null);
-      later(d, async () => {}, `${w.next} ${w.note}`);
+      // Once Undo has passed, the visit remembers it: the home and the branch say Approved too (scripts/demo-approvals.ts).
+      later(d, async () => rememberDemoApproval(n), `${w.next} ${w.note}`);
       return;
     }
     later(d, () => approveBranch(n, text));

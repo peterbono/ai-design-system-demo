@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { DEMO_REPOS, demoApproved, demoBanner, demoDialog, DEMO_STASH_KEY, DEMO_VISIT_KEY, DEMO_WORDS, SHARED_DRAFT_KEY, swapDemoDrafts, demoLeadName, demoSettingsPeople, demoTour, demoWaiting, exploresDemo, humanizeRepo, onBridge, isDemoRepo, OWN_TEAM, teamDisplayName, tourSteps } from './demo';
+import { DEMO_APPROVED_KEY, demoApprovedSet, markDemoApproved, DEMO_REPOS, demoApproved, demoBanner, demoDialog, DEMO_STASH_KEY, DEMO_VISIT_KEY, DEMO_WORDS, SHARED_DRAFT_KEY, swapDemoDrafts, demoLeadName, demoSettingsPeople, demoTour, demoWaiting, exploresDemo, humanizeRepo, onBridge, isDemoRepo, OWN_TEAM, teamDisplayName, tourSteps } from './demo';
 
 describe('the demo', () => {
   it('is the self-hosted repository and the hosted demo team, any case', () => {
@@ -166,5 +166,24 @@ describe('drafts on the sample team', () => {
     swapDemoDrafts(s, false);
     expect(s.dump()).toEqual({});
     expect(s.getItem(DEMO_VISIT_KEY)).toBeNull();
+  });
+
+  it('remembers Approve tried on sample branches for the visit, and drops it on leaving', () => {
+    const s = store();
+    swapDemoDrafts(s, true);
+    markDemoApproved(s, 12);
+    markDemoApproved(s, 7);
+    markDemoApproved(s, 12);
+    // Page after page of the visit.
+    expect(swapDemoDrafts(s, true)).toBe('none');
+    expect([...demoApprovedSet(s)].sort()).toEqual([12, 7].sort());
+    markDemoApproved(s, 7, false);
+    expect([...demoApprovedSet(s)]).toEqual([12]);
+    // Leaving the sample team: gone, nothing reaches a real team.
+    swapDemoDrafts(s, false);
+    expect(s.getItem(DEMO_APPROVED_KEY)).toBeNull();
+    expect(demoApprovedSet(s).size).toBe(0);
+    // A malformed value reads as nothing approved.
+    expect(demoApprovedSet(store({ [DEMO_APPROVED_KEY]: '{bad' })).size).toBe(0);
   });
 });

@@ -32,6 +32,12 @@ describe("the DS lead's queue on the demo", () => {
     expect(rows[2]).toMatchObject({ title: 'Raise contrast', line: 'dana suggests a change' });
   });
 
+  it('leaves out a branch the visitor approved during the visit, and its card says approved', () => {
+    const approved = new Set([4]);
+    expect(leadQueue([pull(1), pull(4)], [], now, { approved }).map((r) => r.key)).toEqual(['change-1']);
+    expect(teamBranches([pull(1), pull(4)], { approved }).map((b) => b.statusLine?.detail)).toEqual(['in review', 'approved']);
+  });
+
   it('shows who asked, as Bridge recorded it, before the account that opened it', () => {
     const rows = leadQueue(
       [

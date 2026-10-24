@@ -19,7 +19,7 @@ import { useTeamPeople } from './members-state';
 import { roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL } from '../../../lib/roles-view';
 import { andList, ANYONE_WHO_CODES, CHANGES_DEV, CHANGES_PLAIN, NOBODY_NAMED, overridePlain, RIGHT_PLAIN, soloPlain, teamPlain } from '../../../lib/settings-view';
 import { demoSettingsPeople, isSampleTeam, teamDisplayName } from '../../../lib/demo';
-import { loginKey, personName } from '../../../lib/people';
+import { loginKey, ownerName } from '../../../lib/people';
 import { knownNames } from '../../../scripts/people';
 import type { MembersData } from '../../../scripts/members';
 
@@ -35,13 +35,13 @@ interface Named {
 
 /** Names for owner entries: the member list's names first, then the cached profile names, then the login. */
 function namer(people: MembersData | null): (entry: string) => Named | null {
-  const byLogin = new Map((people?.members ?? []).map((m) => [loginKey(m.login), m.name]));
+  const members = people?.members ?? [];
   const names = knownNames();
   return (entry) => {
     const e = parseOwnerEntry(entry);
     if (!e) return null;
     if (e.kind === 'team') return { key: entry, name: teamPlain(e.slug) };
-    return { key: entry, login: e.login, name: byLogin.get(loginKey(e.login)) ?? personName(e.login, names) };
+    return { key: entry, login: e.login, name: ownerName(e.login, members, names) };
   };
 }
 

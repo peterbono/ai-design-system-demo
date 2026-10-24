@@ -240,20 +240,14 @@
   flex: 1;
 }
 
-/* Who may invite on the left, the two actions on the right (board I1). */
+/* The actions on the right (board I1). */
 .inv-footer {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space-3);
   width: 100%;
-}
-
-.inv-footer-note {
-  flex: 1 1 auto;
-  margin-right: auto;
-  color: var(--color-text-muted);
-  font-size: var(--typography-caption-size);
 }
 
 /* On a phone: the emails get the whole line, the role goes under; the actions share the bar. */

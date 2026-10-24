@@ -37,6 +37,16 @@ export function personName(login: string, cache: NameCache = {}): string {
   return bare.replace(/\[bot\]$/i, '') || 'Someone';
 }
 
+/**
+ * An owner in Settings > Review rules, as a person: the team member's Bridge name when the login is one of the team's
+ * members, else the profile name, else the login without the @ (never "@login", even with no display name).
+ */
+export function ownerName(login: string, members: readonly { login: string; name: string }[] = [], cache: NameCache = {}): string {
+  const key = loginKey(login);
+  const member = members.find((m) => loginKey(m.login) === key && m.name.trim() && loginKey(m.name) !== key);
+  return member ? member.name.trim() : personName(login, cache);
+}
+
 /** Parses the stored cache, dropping anything malformed or older than the TTL. */
 export function readNameCache(raw: string | null, now: number): NameCache {
   if (!raw) return {};

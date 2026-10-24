@@ -1,5 +1,6 @@
 // Settings > Review rules > Design owners / Tech owners: who is in each owner group, people or GitHub teams.
-// View: a person is an avatar and @login; a team is a team chip with its member count and an avatar stack, read
+// View: a person is an avatar and their name (lib/people ownerName: the team member's Bridge name, the profile name, or
+// the login without the @); a team is a team chip with its member count and an avatar stack, read
 // from GitHub with the viewer's token (scripts/teams.ts). A team that cannot be read gets one plain sentence with
 // the reason and the fix. Edit (the form's Edit button): a DS Combobox that takes people and teams, suggesting the
 // organization's teams and the repository's people when GitHub lists them, and anything typed as @login or
@@ -12,6 +13,9 @@ import { parseOwnerEntry, teamKey, type OwnerGroup, type TeamStates, type TeamUn
 import { OWNER_GROUP_LABEL, ownerFromInput, ownerOptions, teamsPickerHint } from '../../../lib/roles-view';
 import { hasWorkingToken, prefersSignIn, readRepo, studioClient } from '../../../scripts/github-session';
 import { loadTeams, teamDirectory } from '../../../scripts/teams';
+import { ownerName } from '../../../lib/people';
+import { knownNames } from '../../../scripts/people';
+import { useTeamPeople } from './members-state';
 
 export interface OwnersFieldProps {
   group: OwnerGroup;
@@ -31,6 +35,7 @@ export default function OwnersField({ group, initial, org }: OwnersFieldProps) {
   const [picker, setPicker] = useState<{ teams: { slug: string; name: string }[]; people: string[]; reason: TeamUnreadableReason | null } | null>(null);
   const [loadingPicker, setLoadingPicker] = useState(false);
   const control = useRef<HTMLSpanElement>(null);
+  const members = useTeamPeople()?.members ?? [];
 
   // Team members for the view, again when the viewer connects.
   useEffect(() => {
@@ -98,13 +103,15 @@ export default function OwnersField({ group, initial, org }: OwnersFieldProps) {
         {initial.map((raw) => {
           const e = parseOwnerEntry(raw);
           if (!e) return null;
-          if (e.kind === 'person')
+          if (e.kind === 'person') {
+            const who = ownerName(e.login, members, knownNames());
             return (
               <span className="set-owner" key={raw}>
-                <Avatar name={e.login} src={avatarSrc(e.login)} size="xs" decorative />
-                <span>@{e.login}</span>
+                <Avatar name={who} src={avatarSrc(e.login)} size="xs" decorative />
+                <span>{who}</span>
               </span>
             );
+          }
           const name = `@${e.org}/${e.slug}`;
           const state = teams?.[teamKey(e.org, e.slug)];
           return (

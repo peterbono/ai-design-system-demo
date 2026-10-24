@@ -342,7 +342,6 @@ export const MEMBERS_WORDS = {
   emailHint: 'Add several people at once. They all get the role on the right.',
   emailPlaceholder: 'name@company.com',
   who: 'Who has access',
-  onlyAdmins: 'Only admins can invite.',
   readOnly: 'Only admins can invite people or change roles.',
   noRepo: 'Connect your design system first',
   noRepoText: 'Members come from your design system on GitHub. Once it is connected, invite your team from here.',

@@ -1,7 +1,7 @@
 // The account, for a Bridge account (GET /api/account), in the Account dialog of the account menu (AccountMenu.tsx):
 // Settings starts with the team, never the person (board D9). One row per thing, each action on the line of what it
 // acts on. The name and email with Rename (inline form); GitHub linked, or Link GitHub with the one line saying
-// why (reviewers and admins approve on GitHub); the person's teams, each opening its space with its role; Sign out and
+// why (only to review on GitHub or connect a repository); the person's teams, each opening its space with its role; Sign out and
 // Sign out everywhere; then Delete my account, confirmed in the page (type DELETE), never window.confirm. Before the
 // confirm field, Bridge asks the server whether a team would refuse it (the only admin of a team with other members):
 // that team is named first, with "Make <name> admin" inline or "Hand over the team", and the field comes once it is

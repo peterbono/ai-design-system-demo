@@ -3,8 +3,9 @@
 // Then the work email field, a DS Combobox that takes several emails as chips and suggests people Bridge
 // already knows (on a real team, the people who committed to it; on the sample team, Acme's people), with the role
 // picker on the same line (RolePicker, board I2). "Who has access" lists the team and the pending invites, with Resend
-// on their line. The footer says who may invite on the left, and ends with Cancel and the one primary action, "Send N
-// invites". No team link, no GitHub words.
+// on their line. The footer ends with Cancel and the one primary action, "Send N
+// invites". No team link, no GitHub words. Admins see no "only admins" note: it is for the people it stops, and they
+// read it in the body (MEMBERS_WORDS.readOnly).
 // Someone who is not an admin sees who has access and why they cannot invite. The browser workspace has no team: it
 // says to connect the design system first. When this site cannot send invites, the dialog says so and sends nothing.
 import { useEffect, useId, useMemo, useState, type KeyboardEvent } from 'react';
@@ -153,7 +154,6 @@ export default function InviteDialog({ open, onOpenChange, shared }: InviteDialo
   const footer =
     data && data.context !== 'none' ? (
       <div className="inv-footer">
-        <span className="inv-footer-note">{MEMBERS_WORDS.onlyAdmins}</span>
         <ButtonGroup>
           <DialogClose render={<Button variant="secondary" size="lg" />}>{data.canManage ? 'Cancel' : 'Close'}</DialogClose>
           {data.canManage && (

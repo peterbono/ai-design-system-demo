@@ -115,6 +115,7 @@ import { AGENT_NAME, isClaudeLogin } from '../lib/people';
 import { safeUrl } from '../lib/html';
 import { siteConfig } from './repo-context';
 import { isDemoRepo, isSampleTeam } from '../lib/demo';
+import { demoApprovals } from './demo-approvals';
 import { viewerRoles } from '../lib/suggestions-view';
 import { waitingLabel } from '../lib/home-model';
 import type { WaitingExtra } from '../lib/review-categories';
@@ -352,7 +353,10 @@ function listRow(r: Row): ListRow {
   // Waiting on me: the one rule of every surface (lib/waiting-on), the lead's seat on the demo included (every branch in
   // review waits on the lead, as on its home). An email contributor's own branches come from the server's list.
   const seat = demoSeat();
+  // Approve tried on the sample team during this visit (scripts/demo-approvals.ts): no longer waiting, and says so.
+  const demoApproved = seat !== null && isSampleTeam(`${repo.owner}/${repo.repo}`) && demoApprovals().has(r.number);
   const turn =
+    !demoApproved &&
     lifecycle !== 'exploration' &&
     waitsOnMe(
       { author: own ? (listViewer() ?? r.user.login) : r.user.login, draft: r.draft, labels: r.labels, nature: r.nature, guidance: r.guidance, lifecycle, who: rowWho(r.kind, facts(r)), requested: r.requested, changesRequested: r.changesRequested },
@@ -366,7 +370,7 @@ function listRow(r: Row): ListRow {
     agent: Boolean(r.agent) || agentMade({ body: r.body ?? null, labels: r.labels ?? null }),
     opens: r.exploration ? 'exploration' : 'pr',
     // The lead's rows on the demo carry the home's status for the same change ("New today", "Waiting 2 days").
-    pill: seat !== null && turn && r.created_at ? { label: waitingLabel(r.created_at, Date.now()), tone: 'warning' } : pillOf(r, lifecycle),
+    pill: demoApproved ? { label: 'Approved', tone: 'success' } : seat !== null && turn && r.created_at ? { label: waitingLabel(r.created_at, Date.now()), tone: 'warning' } : pillOf(r, lifecycle),
     lifecycle,
     yourTurn: turn,
     ...(own !== undefined ? { mine: own } : {}),

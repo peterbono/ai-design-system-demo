@@ -14,6 +14,8 @@ import { siteConfig } from './repo-context';
 import { demoLogins, leadQueue, teamBranches, type DemoPull, type DemoSuggestion } from '../lib/demo-home';
 import { AVATARS_SHOWN, contrastNeed, person, guidanceNeed, NEEDS_SHOWN, sortBranches, sortNeeds, type BranchCard, type NeedRow, type Person } from '../lib/home-model';
 import type { ThumbSpec } from '../lib/branch-thumb';
+import { isSampleTeam } from '../lib/demo';
+import { demoApprovals } from './demo-approvals';
 
 /** What the demo home needs to know about the demo's activity, wherever it comes from. */
 export interface DemoActivity {
@@ -88,7 +90,9 @@ export async function loadDemoHome(stat: DemoStatic, onUpdate: (d: DemoHomeData)
   }
   const thumbs = new Map<number, ThumbSpec>();
   const people = new Map<string, Person>();
-  const opts = { thumbs, people };
+  const { owner, repo } = readRepo();
+  // Approve tried on the sample team during this visit: those branches no longer wait on the lead.
+  const opts = { thumbs, people, approved: isSampleTeam(`${owner}/${repo}`) ? demoApprovals() : new Set<number>() };
   const needs = () => sortNeeds([...staticNeeds(), ...leadQueue(activity.open, activity.suggestions, now, opts)]);
   const branches = () => sortBranches(teamBranches(activity.open, opts));
   const paint = () => onUpdate({ loading: false, needs: needs(), branches: branches(), lead, role, failed: null });
