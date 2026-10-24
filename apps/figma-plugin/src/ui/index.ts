@@ -161,12 +161,8 @@ interface SentLine {
 /** Where the text of a field comes from. Only "draft" text is rewritten by the plugin. */
 type TextSource = 'draft' | 'claude' | 'user';
 
-/** "Draft with my Claude", "Copy for Claude", "Paste Claude's answer" and "Draft with Claude (API key)" under a field. */
+/** "Draft with my Claude" and "Draft with Claude (API key)" under a field. */
 interface AssistState {
-  pasteOpen?: boolean | undefined;
-  pasteText: string;
-  /** The prompt, shown to copy by hand when the clipboard is blocked. */
-  prompt?: string | undefined;
   message?: { kind: 'ok' | 'error'; text: string } | undefined;
   /** "Draft with my Claude": the pending drafts file on the requests branch and its polling. */
   mine?: MineState | undefined;
@@ -873,7 +869,7 @@ function scanPush(keep?: PushState, then?: () => void): void {
         description: keep?.description ?? '',
         descriptionSource: keep?.descriptionSource ?? 'draft',
         titleSource: keep?.titleSource ?? 'draft',
-        assist: keep?.assist ?? { pasteText: '' },
+        assist: keep?.assist ?? {},
         lines: keep?.lines ?? new Map(),
         destination,
         explorations: keep?.explorations,
@@ -1123,8 +1119,8 @@ function removeToken(): void {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Writing help: the plugin's own draft (always), "Copy for Claude" and "Paste Claude's answer" (any Claude plan, no
-// key), "Draft with Claude" (only with an API key in Settings, billed to the designer's Anthropic account).
+// Writing help: the plugin's own draft (always), "Draft with my Claude" (the designer's Claude app with the Bridge MCP,
+// any Claude plan, no key), "Draft with Claude" (only with an API key in Settings, billed to the designer's Anthropic account).
 
 /** Images larger than this (base64 characters) are not sent to Claude: the API refuses images over 5 MB. */
 const CLAUDE_IMAGE_MAX = 6_500_000;
@@ -1479,15 +1475,15 @@ function mineView(a: AssistState, t: AssistTarget): Child {
   return h(
     'div',
     { class: 'mine', role: 'status', 'aria-live': 'polite' },
-    h('div', { class: 'mine-head' }, timeout ? icon('info') : h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('b', null, timeout ? 'Claude has not answered yet' : 'Waiting for Claude')),
-    h('p', null, timeout ? 'Stopped checking after 10 minutes. In Claude, say:' : 'In Claude, with Bridge connected (Settings), say:'),
+    h('div', { class: 'mine-head' }, timeout ? icon('info') : h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('b', null, timeout ? 'Your Claude did not answer' : 'Waiting for Claude')),
+    h('p', null, timeout ? 'The plugin draft is still here: edit it, or say this in Claude, then check again:' : 'In Claude, with Bridge connected (Settings), say:'),
     h(
       'div',
       { class: 'phrase' },
       h('code', null, DRAFT_PHRASE),
       h('button', { class: 'btn ghost', 'data-focus-id': `${t.id}-mine-copy`, onClick: () => void copyPhrase(a) }, icon(mine.copied ? 'check' : 'copy'), mine.copied ? 'Copied' : 'Copy'),
     ),
-    h('small', null, timeout ? 'Then check again. Your fields stay as they are.' : 'Checking every 5 seconds while this plugin is open. Keep editing: Claude never writes over what you type.'),
+    h('small', null, timeout ? 'Stopped checking after 10 minutes. Your fields stay as they are.' : 'Checking every 5 seconds while this plugin is open. Keep editing: Claude never writes over what you type.'),
     h(
       'div',
       { class: 'inline-actions' },
@@ -1618,7 +1614,7 @@ function removeClaudeKey(): void {
   void run('Removing the key', async () => {
     await request('clear-claude-key', {});
     await loadInit();
-    state.claudeMessage = { kind: 'ok', text: 'Key removed from this computer. Draft with Claude still works with your Claude plan, set up above.' };
+    state.claudeMessage = { kind: 'ok', text: 'Key removed. Draft with Claude now uses your own Claude app once it is connected in Settings.' };
   });
 }
 
@@ -2172,7 +2168,7 @@ function openForm(r: PushState, item: ComponentChangeItem | undefined): void {
   const draft: RequestDraft = item
     ? { component: item.component, kind: item.kind, title: titleOf(r, item), summary: suggestSummary(item), line: lineOf(r, item), changes: item.changes, nodeId: item.nodeId, nodeName: item.figmaName }
     : { component: coded[0] ?? '', kind: 'visual', title: '', summary: '', changes: [], nodeId: state.selection?.nodeId, nodeName: state.selection?.name };
-  r.form = { key: item?.nodeId ?? 'manual', item, draft, attach: item ? true : !!state.selection, titleSource: item && claudeTitle(r, item) ? 'claude' : 'draft', summarySource: 'draft', assist: { pasteText: '' }, target: '' };
+  r.form = { key: item?.nodeId ?? 'manual', item, draft, attach: item ? true : !!state.selection, titleSource: item && claudeTitle(r, item) ? 'claude' : 'draft', summarySource: 'draft', assist: {}, target: '' };
   void request('selection', {}).then((sel) => {
     state.selection = sel;
     render();
