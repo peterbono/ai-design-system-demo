@@ -1176,6 +1176,10 @@ interface AssistTarget {
   /** Before and after images for "Draft with Claude"; empty when there are none. */
   images?: (() => Promise<Pick<ClaudeDraftInput, 'before' | 'after' | 'lineImages'>>) | undefined;
   apply: (d: ClaudeDraft) => void;
+  /** Fields the designer typed before asking: Claude's text for them is offered, never written over theirs. */
+  typed?: (() => Partial<Record<DraftField, boolean>>) | undefined;
+  /** Why there is nothing for Claude to draft from yet (an empty manual request); undefined when there is. */
+  empty?: (() => string | undefined) | undefined;
   /** The same target as the screen is now (a re-scan rebuilds the push state), or undefined once it is gone. */
   current: () => AssistTarget | undefined;
 }
@@ -1242,6 +1246,7 @@ const LINE_IMAGES = 4;
 function pushAssist(r: PushState): AssistTarget {
   return {
     id: 'push',
+    typed: () => ({ title: r.titleSource === 'user' && !!r.title.trim(), summary: r.descriptionSource === 'user' && !!r.description.trim() }),
     input: () => ({
       target: 'push',
       changes: pushChangeRows(checkedEntries(r)),
@@ -1283,6 +1288,9 @@ function requestAssist(f: RequestForm): AssistTarget {
   const d = f.draft;
   return {
     id: 'req',
+    typed: () => ({ title: f.titleSource === 'user' && !!d.title.trim(), summary: f.summarySource === 'user' && !!d.summary.trim() }),
+    // A request the scan did not detect, with no words and no selection: Claude would only invent (ASSIST-1).
+    empty: () => (!f.item && !d.title.trim() && !d.summary.trim() && !(f.attach && state.selection) ? 'Write a few words or attach a selection: Claude drafts from them.' : undefined),
     input: () => ({
       target: 'request',
       component: d.component,
@@ -1359,7 +1367,12 @@ async function runClaude(a: AssistState, t: AssistTarget): Promise<void> {
   render();
   try {
     const input = { ...t.input(), ...(t.images ? await t.images() : {}) };
-    t.apply(await draftWithClaude((url, init) => fetch(url, init), c.key, c.model, input));
+    const result = await draftWithClaude((url, init) => fetch(url, init), c.key, c.model, input);
+    // Fields the designer typed keep their text; Claude's version is offered beside them (ASSIST-2).
+    const { fill, offer } = planFill(result, t.typed?.() ?? {});
+    t.apply({ title: fill.title ?? '', summary: fill.summary ?? '', lines: result.lines });
+    a.offer = offer.title || offer.summary ? offer : undefined;
+    if (a.offer) a.message = { kind: 'ok', text: 'Claude drafted it. Your text stays: use Claude\'s draft below if you prefer it.' };
   } catch (err) {
     a.message = { kind: 'error', text: err instanceof ClaudeDraftError ? err.message : 'Claude could not draft this. Your text is unchanged.' };
   } finally {
@@ -1397,7 +1410,8 @@ function noteEdit(a: AssistState, field: DraftField): void {
 function startMine(a: AssistState, t: AssistTarget): void {
   if (state.busy || mineActive(a)) return;
   const previous = a.mine?.sessionId;
-  a.mine = { status: 'starting', edited: {} };
+  // What the designer typed before asking stays theirs: Claude's text for it is offered (ASSIST-2).
+  a.mine = { status: 'starting', edited: { ...(t.typed?.() ?? {}) } };
   a.offer = undefined;
   a.message = undefined;
   render();
@@ -1585,7 +1599,8 @@ function assistAction(a: AssistState, t: AssistTarget): Child {
         'data-focus-id': `${t.id}-assist`,
         'aria-expanded': withKey ? (a.menuOpen ? 'true' : 'false') : undefined,
         'aria-haspopup': withKey ? 'menu' : undefined,
-        disabled: !!state.busy,
+        disabled: !!state.busy || !!t.empty?.(),
+        title: t.empty?.(),
         onClick: () => {
           if (!withKey) return startMine(a, t);
           a.menuOpen = !a.menuOpen;
@@ -1619,7 +1634,9 @@ function assistAction(a: AssistState, t: AssistTarget): Child {
 
 /** Under the field: waiting for the designer's Claude, Claude's text offered for an edited field, or an error. */
 function assistStatus(a: AssistState, t: AssistTarget): Child {
+  const why = !mineActive(a) && !a.offer && !a.message ? t.empty?.() : undefined;
   const parts = [
+    why ? h('small', { class: 'muted' }, why) : null,
     mineView(a, t),
     offerView(a, t),
     a.message ? h('p', { class: a.message.kind === 'error' ? 'form-error' : 'assist-note', role: a.message.kind === 'error' ? 'alert' : 'status' }, a.message.kind === 'error' ? icon('alert') : icon('check'), a.message.text) : null,
