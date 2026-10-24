@@ -4,7 +4,7 @@
 // what the primary button will do (or why it is disabled).
 
 import type { ConflictChoice, DiffEntry } from '@bridge-ds/core';
-import { type Analysis, type PullProposal, type PushBrand, type PushProposal, analyze, buildPull, buildPush, changesModeOf, commitsBehind, pullHeadline } from '../sync/flows';
+import { type Analysis, type PullProposal, type PushBrand, type PushProposal, analyze, buildPull, buildPush, changesModeOf, commitsBehind, pullCollections, pullHeadline } from '../sync/flows';
 import { type ChangesMode, GitHubClient, type PullRequest, changesMode, loadConfig, parseRepo } from '@bridge-ds/core';
 import type { RenameSuggestion } from '@bridge-ds/core';
 import { affectedContrast, defaultTitle } from '@bridge-ds/core';
@@ -385,6 +385,7 @@ const when = (iso: string) => {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
 };
 const plural = (n: number, word: string, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
+const andList = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : (xs[0] ?? ''));
 const modeLabel = (mode: string) => (mode === SINGLE_MODE ? 'Value' : modeDisplayName(mode));
 
 /** Context to resolve a token's value in one mode of its tier (other axes at their default). */
@@ -1920,7 +1921,7 @@ function viewPull(): View {
   const headline = pullHeadline({ baseSha: a.baseSha, variablesUpToDate: upToDate, behind, status });
   const lastPulled = a.baseSha && init.sync.lastPullAt ? `Last updated in this file on ${when(init.sync.lastPullAt)}` : '';
   const meta = !a.baseSha
-    ? `${plural(prop.plan.variables.length, 'variable')} from the design system, in the Primitives, Brand, Base, Semantic, Density and Component collections.`
+    ? `${plural(prop.plan.variables.length, 'variable')} from the design system, in the ${andList(pullCollections(prop.plan))} ${pullCollections(prop.plan).length === 1 ? 'collection' : 'collections'}.`
     : catchUp
       ? [lastPulled, 'Your variables already match the design system: update to catch up with its latest changes.'].filter(Boolean).join('. ')
       : [lastPulled, behind ? `${plural(behind, 'new change')} in the design system` : ''].filter(Boolean).join(' · ');

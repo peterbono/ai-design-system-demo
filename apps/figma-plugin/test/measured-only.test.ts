@@ -125,6 +125,85 @@ test('literals build in Figma: a font weight, a line height in px, a letter spac
   assert.ok(fill.color.r > 0.99 && fill.color.b > 0.6, JSON.stringify(fill));
 });
 
+test('measured only: an icon the measure gives as SVG is drawn as vectors, not an empty frame', async () => {
+  const sim = new SimFigma();
+  sim.install();
+  const files: Record<string, string> = {};
+  for (const [rel, text] of Object.entries(realFiles())) files[`${DEFAULT_SETTINGS.tokensPath}/${rel}`] = text;
+  files[`${DEFAULT_SETTINGS.tokensPath}/contrast.checks.json`] = realChecksText();
+  files['bridge.config.json'] = realConfigText();
+  const client = new FakeGitHub(files).client();
+  const a = await analyze(client, DEFAULT_SETTINGS, {}, await takeSnapshot());
+  await applyPullPlan(buildPull(a, new Map()).plan);
+  const m = fixture();
+  const story = m.stories.find((s) => s.title.endsWith('/Card') && s.spec)!;
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path d="M12 4.7 11.3 4 8 7.3 4.7 4 4 4.7 7.3 8 4 11.3l.7.7L8 8.7l3.3 3.3.7-.7L8.7 8z" fill="rgb(22, 22, 22)"/></svg>';
+  m.stories = [
+    {
+      ...story,
+      title: 'Components/Tag',
+      spec: {
+        ...story.spec!,
+        parts: [
+          { id: 'root', name: 'Root', kind: 'frame', layout: { direction: 'HORIZONTAL', primary: 'MIN', counter: 'CENTER' } },
+          { id: 'close', name: 'Close', kind: 'icon', parent: 'root' },
+        ],
+        values: { root: { paddingLeft: 8 }, close: { width: 16, height: 16 } },
+        raw: {},
+        vectors: { close: { svg, strokes: ['acme.unknown'] } },
+      },
+    },
+  ];
+  const tag = specsFromMeasure(m, { known: (p) => p !== 'acme.unknown' }).specs.components[0]!;
+  assert.equal(tag.parts.find((p) => p.id === 'close')!.kind, 'vector');
+  assert.deepEqual(tag.variants[0]!.vectors, { close: { svg, strokes: [] } });
+  const report = await applyComponentPlan(writablePlan(buildComponentPlan({ version: 1, generated: '', components: [tag] }, 'measured-specs.json', await scanGenerated(), a.head)));
+  assert.deepEqual(report.failed, []);
+  const close = sim.sets().find((s) => s.name === 'Tag')!.children[0]!.findOne((n) => n.name === 'Close')!;
+  assert.ok(close.findAll((n) => n.type === 'VECTOR').length > 0, 'the close icon draws its shape');
+});
+
+test('measured only: a positioned part (a pseudo-element knob) follows its offset in each variant', async () => {
+  const sim = new SimFigma();
+  sim.install();
+  const files: Record<string, string> = {};
+  for (const [rel, text] of Object.entries(realFiles())) files[`${DEFAULT_SETTINGS.tokensPath}/${rel}`] = text;
+  files[`${DEFAULT_SETTINGS.tokensPath}/contrast.checks.json`] = realChecksText();
+  files['bridge.config.json'] = realConfigText();
+  const client = new FakeGitHub(files).client();
+  const a = await analyze(client, DEFAULT_SETTINGS, {}, await takeSnapshot());
+  await applyPullPlan(buildPull(a, new Map()).plan);
+  const m = fixture();
+  const base = m.stories.find((s) => s.title.endsWith('/Card') && s.spec)!;
+  const toggle = (checked: boolean, left: number) => ({
+    ...base,
+    id: `toggle-${checked}`,
+    title: 'Components/Toggle',
+    props: { checked },
+    state: undefined,
+    spec: {
+      ...base.spec!,
+      parts: [
+        { id: 'root', name: 'Root', kind: 'frame' as const, layout: { direction: 'HORIZONTAL' as const, primary: 'MIN' as const, counter: 'MIN' as const } },
+        { id: 'knob', name: 'Knob', kind: 'frame' as const, parent: 'root', pin: { top: 3, left } },
+      ],
+      values: { root: { width: 48, height: 24, fill: checked ? 'rgb(36, 161, 72)' : 'rgb(141, 141, 141)', cornerRadius: 12 }, knob: { width: 18, height: 18, fill: 'rgb(255, 255, 255)', cornerRadius: 9 } },
+      raw: {},
+    },
+  });
+  m.stories = [toggle(false, 3), toggle(true, 27)];
+  m.components = [{ title: 'Components/Toggle', name: 'Toggle', argTypes: { checked: { kind: 'boolean', default: false } } }];
+  const spec = specsFromMeasure(m).specs.components[0]!;
+  const on = spec.variants.find((v) => v.props.Checked === 'true')!;
+  assert.deepEqual(on.pins, { knob: { top: 3, left: 27 } });
+  const report = await applyComponentPlan(writablePlan(buildComponentPlan({ version: 1, generated: '', components: [spec] }, 'measured-specs.json', await scanGenerated(), a.head)));
+  assert.deepEqual(report.failed, []);
+  const set = sim.sets().find((s) => s.name === 'Toggle')!;
+  const knobOf = (checked: string) => set.children.find((v) => v.name.includes(`Checked=${checked}`))!.findOne((n) => n.name === 'Knob')!;
+  assert.equal(knobOf('false').layoutPositioning, 'ABSOLUTE');
+  assert.deepEqual([knobOf('false').x, knobOf('true').x], [3, 27]);
+});
+
 test('measured only with screenshots: each variant keeps the render of the story it was built from', () => {
   const m = fixture();
   m.stories = m.stories.filter((s) => s.title.endsWith('/Tabs'));

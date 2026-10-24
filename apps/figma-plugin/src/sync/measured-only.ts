@@ -139,7 +139,8 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
   const isDefault = (p: Record<string, string>) => axes.every((a) => p[a.name] === a.default);
   const base = [...byVariant.values()].find((v) => isDefault(v.props)) ?? [...byVariant.values()][0]!;
   const baseSpec = base.story.spec!;
-  const parts = baseSpec.parts.map((p) => ({ ...p }));
+  // A part the measure drew as an SVG (an icon, a check mark) is a vector part: the builder draws its markup.
+  const parts = baseSpec.parts.map((p) => (baseSpec.vectors?.[p.id] ? { ...p, kind: 'vector' as const } : { ...p }));
   const parents = new Set(parts.map((p) => p.parent).filter(Boolean));
   const variants: SpecVariant[] = [];
   const shotOf = new Map<SpecVariant, VariantShot>();
@@ -147,6 +148,8 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
     const m = story.spec!;
     const pairs = story === base.story ? new Map(parts.map((p) => [p.id, p.id])) : pairParts(parts, m);
     const values: SpecVariant['values'] = {};
+    const vectors: NonNullable<SpecVariant['vectors']> = {};
+    const pins: NonNullable<SpecVariant['pins']> = {};
     const hidden: string[] = [];
     for (const p of parts) {
       const mid = pairs.get(p.id);
@@ -155,8 +158,14 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
         continue;
       }
       values[p.id] = valuesOf(m, mid, parents.has(p.id), known);
+      // A positioned part (a pseudo-element knob) placed elsewhere in this variant: checked moves it to the right.
+      const pin = m.parts.find((x) => x.id === mid)?.pin;
+      if (p.pin && pin && JSON.stringify(pin) !== JSON.stringify(p.pin)) pins[p.id] = pin;
+      const vec = p.kind === 'vector' ? m.vectors?.[mid] : undefined;
+      // Strokes bind by shape order: with a token the library does not have, the SVG keeps its own (resolved) colors.
+      if (vec) vectors[p.id] = { svg: vec.svg, strokes: vec.strokes.every((v) => typeof v !== 'string' || known(v)) ? [...vec.strokes] : [] };
     }
-    const variant: SpecVariant = { props, values, ...(hidden.length ? { hidden } : {}) };
+    const variant: SpecVariant = { props, values, ...(hidden.length ? { hidden } : {}), ...(Object.keys(vectors).length ? { vectors } : {}), ...(Object.keys(pins).length ? { pins } : {}) };
     variants.push(variant);
     if (story.shot) shotOf.set(variant, story.shot);
   }
@@ -200,7 +209,7 @@ function textRootInFrame(parts: SpecPart[], variants: SpecVariant[]): void {
  * (validationMode) are left out, with the variants they made.
  */
 function drawnAxes(axes: SpecAxis[], variants: SpecVariant[]): { axes: SpecAxis[]; variants: SpecVariant[] } {
-  const look = (v: SpecVariant) => JSON.stringify([v.values, v.hidden ?? []]);
+  const look = (v: SpecVariant) => JSON.stringify([v.values, v.hidden ?? [], v.vectors ?? {}, v.pins ?? {}]);
   let current = { axes, variants };
   for (const axis of axes) {
     const others = (v: SpecVariant) => JSON.stringify(current.axes.filter((a) => a !== axis).map((a) => v.props[a.name]));
