@@ -51,7 +51,8 @@ import { badgeHtml, closeDialog, openDialog, tokenValueHtml } from '@bridge-ds/r
 import { pullEntry, type BranchesConfig } from '../lib/branches';
 import type { Root } from 'react-dom/client';
 import { cssValue } from '../lib/html';
-import { currentContributor, currentViewer, esc, ghGet, GitHubError, studioClient, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, showGhError, signedInWithGitHub } from './github-session';
+import { currentContributor, currentViewer, esc, getToken, ghGet, GitHubError, studioClient, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, showGhError, signedInWithGitHub } from './github-session';
+import { approvedSaid, askBridgeToShip, shipHeldLine, shouldAskToShip, type ShipAnswer } from '../lib/values-ship';
 import { ghAction, ghVerb } from '../lib/gh-wording';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
 import { loadVisualImpact, visualWorkflowPresent } from './reviews/visual-impact';
@@ -144,6 +145,8 @@ interface Pull {
   merged_at?: string | null;
   closed_at?: string | null;
   mergeable?: boolean | null;
+  /** Set when GitHub merges it by itself once its checks pass (Bridge arms it for token values, /api/ship). */
+  auto_merge?: unknown;
   comments?: number;
   review_comments?: number;
 }
@@ -686,6 +689,14 @@ export async function openPr(n: number, push = true) {
     const own = verdictOf(reviews);
     const approvals = own.approvals!;
     const gate = own.gate!;
+    // A token value change whose design approval is in (given here, from the CLI or the MCP server): Bridge arms its
+    // merge (decision TV-1). Once per version; the page repaints when it is armed, or for a developer when it is held.
+    const askKey = `${pull.number}:${pull.head.sha}`;
+    if (!demoSeat() && getToken() && !shipAsked.has(askKey) && shouldAskToShip({ approvals, figmaPush, state: pull.state, draft: pull.draft, merged_at: pull.merged_at, autoMerge: Boolean(pull.auto_merge), exploration: isActiveExploration(pull.labels) })) {
+      void shipValues(pull.number, pull.head.sha).then((a) => {
+        if (a && seq === openSeq && (a.armed || viewerRoles(access?.login ?? null, OWNERS()).includes('tech'))) void openPr(pull.number, false);
+      });
+    }
     const tokenFiles = files.filter((f) => isTokenFile(f.filename));
     const docsPaths = files.filter((f) => isDocsFile(f.filename) && f.status !== 'removed').map((f) => f.filename);
     // Guidance alone never changes a screen: the before and after is for tokens and components.
@@ -1145,12 +1156,12 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     conversation: conv,
     fileComments: conv.all.filter((c) => c.path),
     checks: checksLine(story, { forDesigner: !developer }),
-    developer: developer ? { tests: story.developer?.state === 'fail' ? story.developer.text : null, failing: ci.failed.map((c) => c.name), url: pull.html_url, number: pull.number } : null,
+    developer: developer ? { tests: story.developer?.state === 'fail' ? story.developer.text : null, failing: ci.failed.map((c) => c.name), url: pull.html_url, number: pull.number, held: shipHeldLine(shipAnswers.get(`${pull.number}:${pull.head.sha}`)) } : null,
     // A token push from Figma on the sample team ships once the checks pass (its Review rules): nobody approves it.
     approvals: approvalsNow(),
     update,
     actions,
-    onAct: (kind, text) => act(kind, text, { pull, gate, docs: x.docs, write, statusRun }),
+    onAct: (kind, text) => act(kind, text, { pull, gate, docs: x.docs, write, statusRun, values: Boolean(approvals.valuesOnly) }),
     onOverride: () => openOverride?.(),
     onDraft: () => backToDraft(pull.number, reload).then(() => undefined),
     onClose: () => act('close', '', { pull, gate, docs: x.docs, write, statusRun }),
@@ -1202,6 +1213,18 @@ async function acceptDrafts(branch: string, docs: { path: string; head: Guidance
   return head;
 }
 
+/** What Bridge answered when asked to arm a token value change, by "<number>:<head sha>" (the For developers line). */
+const shipAnswers = new Map<string, ShipAnswer>();
+const shipAsked = new Set<string>();
+
+/** Asks Bridge to arm the merge of a token value change (POST /api/ship, decision TV-1). */
+async function shipValues(n: number, sha: string): Promise<ShipAnswer | null> {
+  shipAsked.add(`${n}:${sha}`);
+  const a = await askBridgeToShip(REPO_KEY, n, { bearer: signedInWithGitHub() ? getToken() : null });
+  if (a) shipAnswers.set(`${n}:${sha}`, a);
+  return a;
+}
+
 /** Approves a branch: its guidance drafts are accepted first (with write access), then the approval is posted. */
 async function approve(pull: { number: number; head: { ref: string; sha: string } }, docs: { path: string; head: GuidanceDocs | null }[], write: boolean, body: string): Promise<string> {
   const moved = write ? await acceptDrafts(pull.head.ref, docs) : null;
@@ -1211,8 +1234,12 @@ async function approve(pull: { number: number; head: { ref: string; sha: string 
 }
 
 /** One decision from the bar. Resolves with the line to say (the review repaints), throws with how to fix it. */
-async function act(kind: ActKind | 'close', text: string, x: { pull: Pull; gate: ReturnType<typeof mergeGate>; docs: { path: string; head: GuidanceDocs | null }[]; write: boolean; statusRun: StatusActionRun }): Promise<string | void> {
+async function act(kind: ActKind | 'close', text: string, x: { pull: Pull; gate: ReturnType<typeof mergeGate>; docs: { path: string; head: GuidanceDocs | null }[]; write: boolean; statusRun: StatusActionRun; values?: boolean }): Promise<string | void> {
   const { pull } = x;
+  // A token value change (TV-1): the design approval is all it needs, then Bridge arms the merge and it ships once the
+  // automatic checks pass. When Bridge cannot (auto-merge off, the app missing), it reads "Ready to add to the library"
+  // with its button, and Approve and add still adds it on the spot when it can.
+  let shipped: ShipAnswer | null = null;
   const verb = kind === 'merge' || kind === 'approve-merge' ? 'add changes to the library' : kind === 'close' ? 'close changes' : 'review changes';
   try {
     if (kind === 'connect') return;
@@ -1221,10 +1248,19 @@ async function act(kind: ActKind | 'close', text: string, x: { pull: Pull; gate:
     const gh = studioClient(REPO_KEY);
     if (kind === 'suggest') await reviewOnGitHub(gh, { number: pull.number, event: 'REQUEST_CHANGES', body: text, headSha: pull.head.sha });
     else if (kind === 'comment') await commentOnGitHub(gh, pull.number, text);
-    else if (kind === 'approve') await approve(pull, x.docs, x.write, text);
-    else if (kind === 'merge') await mergeOnGitHub(gh, { number: pull.number, headSha: pull.head.sha, method: 'squash', draft: pull.draft });
+    else if (kind === 'approve') {
+      const sha = await approve(pull, x.docs, x.write, text);
+      if (x.values) shipped = await shipValues(pull.number, sha);
+      if (shipped?.merged) await markSuggestionsAppliedOnGitHub(gh, pull);
+    } else if (kind === 'merge') await mergeOnGitHub(gh, { number: pull.number, headSha: pull.head.sha, method: 'squash', draft: pull.draft });
     else if (kind === 'approve-merge') {
       const sha = await approve(pull, x.docs, x.write, text);
+      if (x.values) shipped = await shipValues(pull.number, sha);
+      if (shipped?.armed) {
+        if (shipped.merged) await markSuggestionsAppliedOnGitHub(gh, pull);
+        await openPr(pull.number, false);
+        return approvedSaid(shipped);
+      }
       try {
         await mergeOnGitHub(gh, { number: pull.number, headSha: sha, method: 'squash', draft: pull.draft });
       } catch (err) {
@@ -1238,6 +1274,10 @@ async function act(kind: ActKind | 'close', text: string, x: { pull: Pull; gate:
     const el = document.createElement('p');
     showGhError(el, err, `GitHub refused it: ${(err as Error).message}`, verb);
     throw new Error(el.textContent ?? (err as Error).message);
+  }
+  if (kind === 'approve' && x.values) {
+    await openPr(pull.number, false);
+    return approvedSaid(shipped);
   }
   const said = { suggest: 'Changes suggested.', comment: 'Comment posted.', approve: 'Approved.', merge: 'Added to the library.', 'approve-merge': 'Approved and added to the library.', close: 'Closed.' }[kind as string] ?? 'Done.';
   await openPr(pull.number, false);

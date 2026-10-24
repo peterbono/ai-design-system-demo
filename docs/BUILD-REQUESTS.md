@@ -36,6 +36,16 @@ and `requiredApprovals` never ask a developer for it. Suggestions count it the s
 `valuesOnly`), so the pull request that applies an approved value suggestion carries both approvals. Studio shows the
 design approval row only and Settings > Review rules says so ("Token values"). The gate parity test covers it.
 
+**Who merges it.** Once the design approval is in, Studio asks Bridge to arm the merge with `POST /api/ship`, the same
+server code as a push from Figma: right after Approve in Studio, and the first time someone opens the change in Studio
+when the approval was given elsewhere (the CLI, the MCP server, GitHub). Bridge re-reads the pull request with its own
+app: values only (token files at the merge base and the head), a design approver's approval on the head commit (the
+approver lists of `bridge.config.json` on the default branch, a team counting the members the app can read), and no
+changes requested. Then it approves with the "Bridge: token values, design approved" review and turns auto-merge on, and
+the change reads "On its way to the library" (`branchVerdict` `autoShip` with `autoMerge`). When Bridge cannot (auto-merge
+off on the repository, the app missing, a branch rule asking for more approvals), nothing is written: the designer reads
+"Ready to add to the library" with its button, and developers read the cause under "For developers".
+
 Explorations keep their own flow ([EXPLORATIONS.md](EXPLORATIONS.md)): a pull request or issue labelled
 `exploration` gets none of this.
 

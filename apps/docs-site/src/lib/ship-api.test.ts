@@ -3,15 +3,15 @@
 // check runs.
 import { describe, expect, it } from 'vitest';
 import type { AppTokens } from '../../api/_lib/github-app';
-import { FIGMA_SHIP_HEADING } from '../../api/_lib/figma-ship';
-import { handleShip, SHIP_WORDS, type FetchLike, type ShipDeps } from '../../api/ship/index';
+import { FIGMA_SHIP_HEADING, VALUES_SHIP_HEADING } from '../../api/_lib/figma-ship';
+import { handleShip, SHIP_DEVELOPER_WORDS, SHIP_WORDS, type FetchLike, type ShipDeps } from '../../api/ship/index';
 
 const HOST = 'bridge.example.com';
 const BASE_SHA = 'b'.repeat(40);
 const HEAD_SHA = 'h'.repeat(40);
 const MB = 'm'.repeat(40);
 const TOKEN_FILE = 'design/tokens/color.tokens.json';
-const CONFIG = JSON.stringify({ tokens: { root: 'design/tokens' } });
+const CONFIG = JSON.stringify({ tokens: { root: 'design/tokens' }, governance: { owners: { design: ['dana', '@acme/design'], tech: ['malik'] } } });
 const before = JSON.stringify({ color: { a: { $type: 'color', $value: '#000' }, b: { $type: 'color', $value: '#111' } } });
 const valuesOnly = JSON.stringify({ color: { a: { $type: 'color', $value: '#222' }, b: { $type: 'color', $value: '#111' }, c: { $type: 'color', $value: '#333' } } });
 const renamed = JSON.stringify({ color: { a: { $type: 'color', $value: '#000' }, bee: { $type: 'color', $value: '#111' } } });
@@ -27,6 +27,8 @@ interface World {
   rules: any[];
   ci: { runs: any[]; statuses: any[] };
   approveStatus: number;
+  /** Active members of the @acme/design team, as GitHub answers the app. */
+  team: string[];
   calls: { method: string; path: string; body?: any; auth: string }[];
 }
 
@@ -65,6 +67,8 @@ function github(w: World): FetchLike {
       return res(200, { id: 1 });
     }
     if (p === '/repos/acme/design/rules/branches/main') return res(200, w.rules);
+    const member = /^\/orgs\/acme\/teams\/design\/memberships\/(.+)$/.exec(p);
+    if (member) return w.team.includes(member[1]!) ? res(200, { state: 'active' }) : res(404, {});
     if (p === '/graphql') {
       if (body.query.includes('markPullRequestReadyForReview')) {
         w.pr.draft = false;
@@ -96,6 +100,7 @@ function setup(over: Partial<World> = {}, pr: Record<string, any> = {}) {
     rules: [{ type: 'pull_request', parameters: { required_approving_review_count: 1 } }],
     ci: { runs: [{ status: 'completed', conclusion: 'success' }], statuses: [] },
     approveStatus: 200,
+    team: [],
     calls: [],
     ...over,
   };
@@ -140,7 +145,7 @@ describe('POST /api/ship', () => {
 
   it('leaves a rename, a removal or code to a developer', async () => {
     const renamedSetup = setup({ head: renamed });
-    expect((await ok(await renamedSetup.call({ repo: 'acme/design', pr: 7 }))).body).toEqual({ armed: false, route: 'waiting-for-developer', code: 'not_values', reason: SHIP_WORDS.not_values });
+    expect((await ok(await renamedSetup.call({ repo: 'acme/design', pr: 7 }))).body).toEqual({ armed: false, route: 'waiting-for-developer', code: 'not_values', reason: SHIP_WORDS.not_values, developer: SHIP_DEVELOPER_WORDS.not_values });
     expect(renamedSetup.w.calls.some((c) => c.path === '/graphql' || c.method === 'POST')).toBe(false);
     const code = setup({ files: [{ filename: TOKEN_FILE, status: 'modified' }, { filename: 'src/components/Button/Button.tsx', status: 'modified' }] });
     expect((await ok(await code.call({ repo: 'acme/design', pr: 7 }))).body.code).toBe('not_values');
@@ -148,8 +153,7 @@ describe('POST /api/ship', () => {
     expect((await ok(await broken.call({ repo: 'acme/design', pr: 7 }))).body.code).toBe('not_values');
   });
 
-  it('only ships open pushes from Figma to the default branch, never an exploration', async () => {
-    expect((await ok(await setup({}, { labels: [{ name: 'source: studio' }] }).call({ repo: 'acme/design', pr: 7 }))).body.code).toBe('not_from_figma');
+  it('only ships open changes to the default branch, never an exploration', async () => {
     expect((await ok(await setup({}, { labels: [{ name: 'source: figma' }, { name: 'exploration' }] }).call({ repo: 'acme/design', pr: 7 }))).body.code).toBe('exploration');
     expect((await ok(await setup({}, { base: { ref: 'explore/x', sha: BASE_SHA } }).call({ repo: 'acme/design', pr: 7 }))).body.code).toBe('not_default_branch');
     expect((await ok(await setup({}, { state: 'closed' }).call({ repo: 'acme/design', pr: 7 }))).body.code).toBe('not_open');
@@ -204,7 +208,98 @@ describe('POST /api/ship', () => {
     expect(await r.json()).toMatchObject({ armed: false, route: 'waiting-for-developer', code: 'app_missing' });
   });
 
-  it('writes no em dash', () => {
-    for (const s of Object.values(SHIP_WORDS)) expect(s).not.toMatch(/—/);
+  it('writes no em dash, and the designer words name no GitHub setting', () => {
+    for (const s of [...Object.values(SHIP_WORDS), ...Object.values(SHIP_DEVELOPER_WORDS)]) expect(s).not.toMatch(/—/);
+    for (const s of Object.values(SHIP_WORDS)) expect(s).not.toMatch(/auto-?merge|pull request|branch|merge/i);
+  });
+});
+
+// Decision TV-1: a token value change opened in Studio, the CLI or the MCP server ships once the design approval is in.
+describe('POST /api/ship, a token value change from Studio (TV-1)', () => {
+  const studio = { labels: [{ name: 'source: studio' }, { name: 'tier: 3' }], body: 'Brand orange, a little warmer.', draft: false, user: { login: 'sam', type: 'User' } };
+  const approval = (login: string, commit = HEAD_SHA, state = 'APPROVED', at = '2026-10-24T10:00:00Z') => ({ user: { login, type: 'User' }, state, commit_id: commit, submitted_at: at, body: '' });
+
+  it('arms it once a design owner approved the head: Bridge approves with the rule and turns auto-merge on', async () => {
+    const { w, call } = setup({ reviews: [approval('dana')] }, studio);
+    expect((await ok(await call({ repo: 'acme/design', pr: 7 }))).body).toEqual({ armed: true, route: 'shipped' });
+    const review = w.calls.find((c) => c.method === 'POST' && c.path.endsWith('/reviews'))!;
+    expect(review.body).toMatchObject({ event: 'APPROVE', commit_id: HEAD_SHA });
+    expect(review.body.body.startsWith(VALUES_SHIP_HEADING)).toBe(true);
+    expect(review.body.body).toContain('design approved by @dana');
+    expect(w.calls.some((c) => c.path === '/graphql' && c.body.query.includes('enablePullRequestAutoMerge'))).toBe(true);
+    // Asked again (a second tab, the page opened later): no second review.
+    await call({ repo: 'acme/design', pr: 7 });
+    expect(w.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/reviews'))).toHaveLength(1);
+  });
+
+  it('a signed-in email member of the team may ask too (the Studio cookie path)', async () => {
+    const { call } = setup({ reviews: [approval('dana')] }, studio);
+    // Without a member session the cookie path answers 401: asking never widens anything.
+    expect((await call({ repo: 'acme/design', pr: 7 }, { 'x-bridge-contribute': '1', origin: `https://${HOST}` })).status).toBe(401);
+  });
+
+  it('waits for the design approval: none, a tech approval only, or the author alone', async () => {
+    for (const reviews of [[], [approval('malik')], [approval('sam')], [approval('stranger')]]) {
+      const { w, call } = setup({ reviews }, studio);
+      expect((await ok(await call({ repo: 'acme/design', pr: 7 }))).body).toMatchObject({ armed: false, code: 'needs_design_approval', reason: SHIP_WORDS.needs_design_approval });
+      expect(w.calls.some((c) => c.method !== 'GET')).toBe(false);
+    }
+  });
+
+  it('never counts Bridge\'s own review as the design approval', async () => {
+    const bot = { user: { login: 'bridge-app[bot]', type: 'Bot' }, state: 'APPROVED', commit_id: HEAD_SHA, submitted_at: '2026-10-24T10:00:00Z', body: '' };
+    const { call } = setup({ reviews: [bot] }, { ...studio });
+    expect((await ok(await call({ repo: 'acme/design', pr: 7 }))).body.code).toBe('needs_design_approval');
+  });
+
+  it('a design approval on an older commit does not ship what came after', async () => {
+    const { w, call } = setup({ reviews: [approval('dana', 'o'.repeat(40))] }, studio);
+    expect((await ok(await call({ repo: 'acme/design', pr: 7 }))).body.code).toBe('approval_outdated');
+    expect(w.calls.some((c) => c.method !== 'GET')).toBe(false);
+  });
+
+  it('holds while changes are requested, even with a design approval', async () => {
+    const { call } = setup({ reviews: [approval('dana'), approval('malik', HEAD_SHA, 'CHANGES_REQUESTED')] }, studio);
+    expect((await ok(await call({ repo: 'acme/design', pr: 7 }))).body.code).toBe('changes_requested');
+    // The reviewer approved since: it ships.
+    const later = setup({ reviews: [approval('dana'), approval('malik', HEAD_SHA, 'CHANGES_REQUESTED'), approval('malik', HEAD_SHA, 'APPROVED', '2026-10-24T11:00:00Z')] }, studio);
+    expect((await ok(await later.call({ repo: 'acme/design', pr: 7 }))).body.armed).toBe(true);
+  });
+
+  it('a member of a design team counts, when the app can read the team', async () => {
+    const out = setup({ reviews: [approval('ann')] }, studio);
+    expect((await ok(await out.call({ repo: 'acme/design', pr: 7 }))).body.code).toBe('needs_design_approval');
+    const member = setup({ reviews: [approval('ann')], team: ['ann'] }, studio);
+    const r = await ok(await member.call({ repo: 'acme/design', pr: 7 }));
+    expect(r.body.armed).toBe(true);
+    expect(member.w.calls.find((c) => c.method === 'POST' && c.path.endsWith('/reviews'))!.body.body).toContain('@ann');
+  });
+
+  it('a rename or a removal waits for a developer, whatever the design approval', async () => {
+    const { w, call } = setup({ reviews: [approval('dana')], head: renamed }, studio);
+    expect((await ok(await call({ repo: 'acme/design', pr: 7 }))).body.code).toBe('not_values');
+    expect(w.calls.some((c) => c.method !== 'GET')).toBe(false);
+  });
+
+  it('auto-merge off on the repository: nothing written, a calm reason for the designer and the cause for developers', async () => {
+    const { w, call } = setup({ reviews: [approval('dana')], repo: { default_branch: 'main', allow_squash_merge: true, allow_auto_merge: false } }, studio);
+    const r = (await ok(await call({ repo: 'acme/design', pr: 7 }))).body;
+    expect(r).toEqual({ armed: false, route: 'waiting-for-developer', code: 'auto_merge_off', reason: SHIP_WORDS.auto_merge_off, developer: SHIP_DEVELOPER_WORDS.auto_merge_off });
+    expect(r.developer).toMatch(/Allow auto-merge/);
+    expect(w.calls.some((c) => c.method !== 'GET')).toBe(false);
+  });
+
+  it('the app missing answers the same calm way', async () => {
+    const { w } = setup({ reviews: [approval('dana')] }, studio);
+    const deps: ShipDeps = { fetch: github(w), app: { installationToken: async () => null } };
+    const r = await handleShip(new Request(`https://${HOST}/api/ship`, { method: 'POST', headers: { 'content-type': 'application/json', host: HOST, authorization: 'Bearer ghu_reader_token_000000' }, body: JSON.stringify({ repo: 'acme/design', pr: 7 }) }), {}, deps);
+    expect(await r.json()).toEqual({ armed: false, route: 'waiting-for-developer', code: 'app_missing', reason: SHIP_WORDS.app_missing, developer: SHIP_DEVELOPER_WORDS.app_missing });
+  });
+
+  it('the branch requires one approval: the design approval covers it when the app cannot approve (a change it opened)', async () => {
+    const { call } = setup({ reviews: [approval('dana')], approveStatus: 422 }, { ...studio, user: { login: 'bridge-app[bot]', type: 'Bot' } });
+    expect((await ok(await call({ repo: 'acme/design', pr: 7 }))).body).toEqual({ armed: true, route: 'shipped' });
+    const two = setup({ reviews: [approval('dana')], approveStatus: 422, rules: [{ type: 'pull_request', parameters: { required_approving_review_count: 2 } }] }, { ...studio, user: { login: 'bridge-app[bot]', type: 'Bot' } });
+    expect((await ok(await two.call({ repo: 'acme/design', pr: 7 }))).body.code).toBe('needs_approval');
   });
 });

@@ -153,7 +153,7 @@ export interface BranchReviewProps {
    * The viewer is a developer (a tech owner): the technical side of the branch, folded under "For developers". Null
    * for designers, who read who acts instead ("A developer is on it").
    */
-  developer?: { tests: string | null; failing: string[]; url: string; number: number } | null;
+  developer?: { tests: string | null; failing: string[]; url: string; number: number; held?: string | null } | null;
   approvals: { label: string; state: 'approved' | 'changes' | 'waiting'; text: string }[];
   /** The branch is behind or conflicts with main: the line above the bar (filled by scripts/reviews.ts). */
   update: 'behind' | 'conflict' | 'done' | null;
@@ -768,6 +768,7 @@ function ForDevelopers({ dev, code }: { dev?: BranchReviewProps['developer']; co
   return (
     <Accordion appearance="flush" headingLevel={2} className="br-dev">
       <AccordionItem value="developers" title="For developers">
+        {dev?.held && <p>{dev.held}</p>}
         {dev?.tests && <p>{dev.tests}</p>}
         {dev && dev.failing.length > 0 && (
           <ul className="br-dev-list">
@@ -778,7 +779,7 @@ function ForDevelopers({ dev, code }: { dev?: BranchReviewProps['developer']; co
             ))}
           </ul>
         )}
-        {dev && !dev.tests && !dev.failing.length && <p className="br-muted">Nothing fails on the code side.</p>}
+        {dev && !dev.held && !dev.tests && !dev.failing.length && <p className="br-muted">Nothing fails on the code side.</p>}
         {code && (
           <>
             <p>
