@@ -9,6 +9,8 @@ export interface LifecycleRow {
   nature: WorkNature;
   tier: Tier | null;
   draft?: boolean;
+  /** `drafted-by-claude` reads a GitHub draft as ready for review (core isDraft). */
+  labels?: { name: string }[];
   state?: string;
   merged_at?: string | null;
   design?: boolean;
@@ -18,4 +20,4 @@ export interface LifecycleRow {
   failingChecks?: string[];
 }
 
-export const lifecycleOfRow = (r: LifecycleRow): Lifecycle => rowLifecycle({ state: r.state ?? 'open', draft: r.draft, merged_at: r.merged_at }, r);
+export const lifecycleOfRow = (r: LifecycleRow): Lifecycle => rowLifecycle({ state: r.state ?? 'open', draft: r.draft, labels: r.labels, merged_at: r.merged_at }, r);

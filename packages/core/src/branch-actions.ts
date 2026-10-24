@@ -5,8 +5,13 @@
 import type { GitHubClient, Review } from './github-client';
 import { OVERRIDE_HEADING, overrideComment, overrideRefusedComment, type MergeMethod, type MissingApproval } from './review-gate';
 
-/** Merges a branch at the head the person saw (GitHub refuses when it moved meanwhile). Studio's Merge button: squash. */
-export async function mergeOnGitHub(gh: GitHubClient, input: { number: number; headSha: string; method?: MergeMethod | undefined }): Promise<{ sha: string }> {
+/**
+ * Merges a branch at the head the person saw (GitHub refuses when it moved meanwhile). Studio's Merge button: squash.
+ * `draft`: GitHub still calls it a draft though the gate reads it ready (core isDraft, `drafted-by-claude`), so it is
+ * marked ready for review first: GitHub never merges a draft.
+ */
+export async function mergeOnGitHub(gh: GitHubClient, input: { number: number; headSha: string; method?: MergeMethod | undefined; draft?: boolean | undefined }): Promise<{ sha: string }> {
+  if (input.draft) await gh.markReadyForReview(input.number);
   const r = await gh.mergePullRequest(input.number, { method: input.method ?? 'squash', sha: input.headSha });
   return { sha: r.sha };
 }
@@ -32,8 +37,10 @@ export class OverrideMergeError extends Error {
  */
 export async function overrideMergeOnGitHub(
   gh: GitHubClient,
-  input: { number: number; headSha: string; login: string; reason: string; missing: MissingApproval[]; method: MergeMethod },
+  input: { number: number; headSha: string; login: string; reason: string; missing: MissingApproval[]; method: MergeMethod; draft?: boolean | undefined },
 ): Promise<{ sha: string; commentUrl: string; comment: string }> {
+  // A GitHub draft the gate reads ready (core isDraft): marked ready first, GitHub never merges a draft.
+  if (input.draft) await gh.markReadyForReview(input.number);
   const body = overrideComment(input.login, input.reason, input.missing);
   let comment: { id: number; url: string };
   try {

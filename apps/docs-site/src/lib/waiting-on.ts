@@ -16,9 +16,13 @@
 //   - Never on anyone in the Studio: technical blockers (failing tests, a conflict with main, a branch approved and
 //     waiting for code), developer work, drafts, explorations, and a solo owner's own branch that only the owner
 //     override can merge (it is theirs to merge when they choose, not a review someone waits for).
+//   - A branch opened from Figma (decision RT-1, core claudeStage): labelled `waiting-for-claude` it waits on a
+//     developer who builds it with Claude, never on anyone in the Studio; labelled `drafted-by-claude` it is ready for
+//     review even while GitHub still calls it a draft, so it waits on the reviewers like any branch in review.
 //   - The demo lead's seat (a visitor in the persona's place, statuses never read): every branch in review that is not
 //     an exploration, a draft or developer work waits on the lead, as their home says.
 import type { WhoActs } from './changes';
+import { claudeStage, isDraft } from './review-rules';
 import type { Lifecycle } from './change-status';
 import type { WorkNature } from './work-nature';
 
@@ -40,6 +44,8 @@ export interface WaitChange {
   /** Login of the account that opened it. */
   author: string;
   draft?: boolean;
+  /** GitHub labels: `waiting-for-claude` and `drafted-by-claude` (core claudeStage) decide a branch opened from Figma. */
+  labels?: readonly ({ name?: string } | string)[] | null;
   /** A running exploration (label or explore/ branch): tried, never reviewed as is. */
   exploration?: boolean;
   /** Design or developer work (lib/work-nature). Absent: design. */
@@ -68,17 +74,21 @@ const reviews = (v: WaitViewer) => v.role === 'reviewer' && (Boolean(v.login) ||
 /** What the change asks of the viewer now, or null when it waits on someone else (or on nobody in the Studio). */
 export function waitingOn(c: WaitChange, v: WaitViewer): WaitTask | null {
   if (c.exploration || c.lifecycle === 'shipped' || c.lifecycle === 'closed') return null;
+  // Spec only, no code yet: a developer builds it with Claude. Nobody in the Studio is waited on, the designer least.
+  if (claudeStage(c.labels) === 'waiting') return null;
+  // Claude drafted the code: ready for review, whatever GitHub's draft flag says (core isDraft).
+  const draft = isDraft(c);
   // Code only: no design decision waits on anyone in the Studio.
   if (c.nature === 'developer') return null;
   if (v.seat) {
-    if (!reviews(v) || c.draft || c.lifecycle === 'draft' || c.lifecycle === 'waiting' || same(c.author, v.login)) return null;
+    if (!reviews(v) || draft || c.lifecycle === 'draft' || c.lifecycle === 'waiting' || same(c.author, v.login)) return null;
     return c.guidance ? 'guidance' : 'requested';
   }
   const who = c.who;
   if (!v.login) return null;
   const author = same(c.author, v.login);
   if (author) {
-    if (c.draft || c.lifecycle === 'draft') return null;
+    if (draft || c.lifecycle === 'draft') return null;
     if (who?.action === 'address-changes' || (c.changesRequested?.length ?? 0) > 0) return 'own-changes';
     // Contributors never merge; a reviewer's own approved branch is theirs to merge.
     if (who?.action === 'merge' && who.yourTurn && reviews(v)) return 'own-ship';
@@ -87,7 +97,7 @@ export function waitingOn(c: WaitChange, v: WaitViewer): WaitTask | null {
     return null;
   }
   if (!who || !reviews(v)) return null;
-  if (c.draft || c.lifecycle === 'draft' || c.lifecycle === 'waiting') return null;
+  if (draft || c.lifecycle === 'draft' || c.lifecycle === 'waiting') return null;
   if (who.yourTurn) {
     if (who.action === 'merge') return 'ship';
     if (who.action === 'approve-design' || who.action === 'approve') return c.guidance ? 'guidance' : 'design';

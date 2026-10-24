@@ -204,11 +204,17 @@ export { pendingApprovals, requiredApprovals, type ApprovalRole };
 
 const ROLE_OF: Record<MissingApproval, ApprovalRole> = { 'design approval': 'design', 'tech approval': 'tech', approval: 'approval' };
 
+/** A branch opened from Figma that carries the spec only (`waiting-for-claude`), on every surface. */
+export const CLAUDE_WAITING_SENTENCE = 'A developer builds it with Claude. You will see the code here.';
+/** The same branch once Claude drafted the code (`drafted-by-claude`): ready for review, the owners decide. */
+export const CLAUDE_DRAFTED_SENTENCE = 'Ready for review. Claude drafted the code from your Figma change. Waiting for the design system owners.';
+
 /** What the pull request needs next, before deciding who does it. */
 export type Need =
   | { kind: 'merged' }
   | { kind: 'closed' }
-  | { kind: 'draft' }
+  /** `claude`: a branch opened from Figma that carries the spec only (waiting-for-claude): a developer builds it. */
+  | { kind: 'draft'; claude?: 'waiting' }
   | { kind: 'exploration' }
   /** `developerOnly`: every failing check is a developer check, so a developer fixes them, not the author. */
   | { kind: 'fix-checks'; failing: number; developerOnly?: boolean; then?: ApprovalRole[] }
@@ -226,10 +232,12 @@ export type Need =
  * approvals. Same order as the list chip (core reviewStatusKind). `mergeable` null: GitHub is still computing
  * whether it fits the latest library, so an approved change does not promise a merge yet; a missing approval still shows.
  */
-export function needFromDetail(s: { state: PullState; ci: CiSummary; gate: MergeGate; changesRequestedBy: string[]; exploration?: boolean; mergeable?: boolean | null }): Need {
+export function needFromDetail(s: { state: PullState; ci: CiSummary; gate: MergeGate; changesRequestedBy: string[]; exploration?: boolean; mergeable?: boolean | null; claude?: 'waiting' | 'drafted' | null }): Need {
   if (s.state === 'merged') return { kind: 'merged' };
   if (s.state === 'closed') return { kind: 'closed' };
   if (s.exploration) return { kind: 'exploration' };
+  // Spec only from Figma: no review, no tests to read yet, a developer builds it with Claude.
+  if (s.claude === 'waiting') return { kind: 'draft', claude: 'waiting' };
   if (s.state === 'draft') return { kind: 'draft' };
   if (s.ci.state === 'fail') return { kind: 'fix-checks', failing: s.ci.failed.length };
   if (s.changesRequestedBy.length) return { kind: 'address-changes', by: s.changesRequestedBy };
@@ -244,7 +252,8 @@ export function needFromDetail(s: { state: PullState; ci: CiSummary; gate: Merge
 }
 
 /** The need behind a list status chip (reviewStatus), when only the status is known. */
-export function needFromStatus(kind: ReviewStatusKind | null | undefined, extra: { failing?: number; changesRequestedBy?: string[]; developerOnly?: boolean; pending?: ApprovalRole[] } = {}): Need {
+export function needFromStatus(kind: ReviewStatusKind | null | undefined, extra: { failing?: number; changesRequestedBy?: string[]; developerOnly?: boolean; pending?: ApprovalRole[]; claude?: 'waiting' | 'drafted' | null } = {}): Need {
+  if (extra.claude === 'waiting' && kind !== 'merged' && kind !== 'closed') return { kind: 'draft', claude: 'waiting' };
   switch (kind) {
     case 'merged':
     case 'closed':
@@ -400,6 +409,8 @@ export function whoActs(need: Need, p: People): WhoActs {
     case 'unknown':
       return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Open the checks and the conversation to see what it needs.', short: null };
     case 'draft':
+      // Decision RT-1: the branch opened from Figma waits on a developer, never on the designer who sent it.
+      if (need.claude === 'waiting') return { who: 'developer', logins: [], yourTurn: false, action: 'none', sentence: CLAUDE_WAITING_SENTENCE, short: 'A developer builds it' };
       return authorTurn('mark-ready', 'request a review of this draft', 'request a review of this draft', 'Author to finish the draft', 'Your turn: finish the draft');
     case 'exploration':
       return authorTurn('promote', 'request a review of this exploration, or close it', 'request a review of this exploration', 'Author to request a review', 'Your turn: request a review');

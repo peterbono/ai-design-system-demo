@@ -162,7 +162,7 @@ export async function branchFacts(ctx: BridgeContext, gh: GitHubClient, n: numbe
   );
   const tier = effectiveTier(labels, pr.body, files);
   const merged = pr.state === 'merged';
-  const pullLike = { state: merged ? 'closed' : pr.state, draft: pr.draft, merged_at: merged ? 'merged' : null };
+  const pullLike = { state: merged ? 'closed' : pr.state, draft: pr.draft, labels: pr.labels, merged_at: merged ? 'merged' : null };
   const exploration = isActiveExploration(pr.labels);
   // The pull request that applies an approved suggestion ("Closes #n") carries its approvals, as in Studio.
   const suggestion = closingIssueNumbers(pr.body).length ? await approvedSuggestionOnGitHub(gh, pr.body, who.gov) : null;
@@ -515,7 +515,7 @@ export async function mergeBranch(ctx: BridgeContext, a: { pr: number | string; 
   if (f.write === false) throw new BlockedError(`@${viewer} cannot write to ${gh.fullName}, so GitHub refuses the merge. Ask someone with write access.`);
   if (f.gate.allowed) {
     if (a.dryRun) return { pr: n, status: 'would-merge' as const, said: 'Every rule passes: it can be merged.' };
-    const r = await mergeOnGitHub(gh, { number: n, headSha: f.pr.headSha, method: 'squash' });
+    const r = await mergeOnGitHub(gh, { number: n, headSha: f.pr.headSha, method: 'squash', draft: f.pr.draft });
     const s = await markSuggestionsAppliedOnGitHub(gh, f.pr);
     return { pr: n, status: 'merged' as const, sha: r.sha, said: `Merged. It goes out with the next library release.${appliedLine(s.applied)}`, ...(s.warnings.length ? { warnings: s.warnings } : {}) };
   }
@@ -533,7 +533,7 @@ export async function mergeBranch(ctx: BridgeContext, a: { pr: number | string; 
   if (a.dryRun) return { pr: n, status: 'would-override' as const, skips: f.gate.missing, said: 'The override would post your reason on the branch, then merge.' };
   const method = allowedMergeMethods(f.repo)[0] ?? 'squash';
   try {
-    const r = await overrideMergeOnGitHub(gh, { number: n, headSha: f.pr.headSha, login: viewer, reason, missing: f.gate.missing, method });
+    const r = await overrideMergeOnGitHub(gh, { number: n, headSha: f.pr.headSha, login: viewer, reason, missing: f.gate.missing, method, draft: f.pr.draft });
     const s = await markSuggestionsAppliedOnGitHub(gh, f.pr);
     return { pr: n, status: 'merged' as const, override: true, sha: r.sha, reasonUrl: r.commentUrl, said: `Merged as owner override. The reason is on #${n}.${appliedLine(s.applied)}`, ...(s.warnings.length ? { warnings: s.warnings } : {}) };
   } catch (err) {

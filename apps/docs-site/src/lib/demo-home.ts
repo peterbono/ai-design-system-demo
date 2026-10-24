@@ -9,6 +9,7 @@ import { oneLineTitle } from './markdown';
 import { humanTitle } from './pr-title';
 import { agentMade, workNature } from './work-nature';
 import { waitsOnMe } from './waiting-on';
+import { isDraft } from './review-rules';
 import { shortTitle, suggestionNeed } from './suggestions-view';
 import { studioHref } from './team-path';
 import type { ThumbSpec } from './branch-thumb';
@@ -87,7 +88,7 @@ export function askerOf(p: Pick<DemoPull, 'user' | 'body' | 'labels'>, people?: 
 export const waitsOnLead = (p: DemoPull): boolean =>
   !isBotPull(p) &&
   waitsOnMe(
-    { author: p.user?.login ?? '', draft: p.draft, exploration: isExploration(p), guidance: guidanceBranch(p), nature: workNature({ title: title(p.title), labels: p.labels ?? null }).nature, who: null },
+    { author: p.user?.login ?? '', draft: p.draft, labels: p.labels, exploration: isExploration(p), guidance: guidanceBranch(p), nature: workNature({ title: title(p.title), labels: p.labels ?? null }).nature, who: null },
     { login: null, role: 'reviewer', seat: true },
   );
 
@@ -136,14 +137,14 @@ export function teamBranches(pulls: DemoPull[], opts: LeadOptions = {}): BranchC
         number: p.number,
         title: title(p.title),
         href: studioHref(`changes/?pr=${p.number}`),
-        stage: p.draft ? 'draft' : 'ready',
+        stage: isDraft(p) ? 'draft' : 'ready',
         updated: p.updated_at,
         reviewer: reviewer ? who(reviewer, opts.people) : null,
         thumb: opts.thumbs?.get(p.number) ?? { kind: 'icon', icon: guidanceBranch(p) ? 'guidance' : 'branch' },
         // Board D1: "Exploration in Admin demo · Ann", "Library branch · in review", "Library branch · draft".
         statusLine: isExploration(p)
           ? { stage: productOf(p) ? `Exploration in ${productOf(p)}` : 'Exploration', detail: askerOf(p, opts.people).name }
-          : { stage: 'Library branch', detail: p.draft ? 'draft' : 'in review' },
+          : { stage: 'Library branch', detail: isDraft(p) ? 'draft' : 'in review' },
       } satisfies BranchCard;
     });
 }

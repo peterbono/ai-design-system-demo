@@ -19,6 +19,7 @@ import { approvedSuggestionOf } from './suggestions';
 import { siteConfig } from './repo-context';
 import { loadTeams, siteApproverEntries, siteApprovers, siteRoles, siteShipPolicy, siteSoloOwner, teamSnapshot } from './teams';
 import {
+  claudeStage,
   parseTier,
   pullState,
   REVIEW_STATUS,
@@ -190,7 +191,7 @@ export function statusChip(s: ReviewStatus | null, opts: { skipped?: boolean } =
  * who acts now ("Design owner to approve", "Your turn: approve design"), from the same whoActs as the pull request
  * header. Falls back to the plain status label when the who-acts line adds nothing (unknown, merged, closed).
  */
-type RowFacts = { author: string; approvers?: string[]; changesRequested?: string[]; failing?: number; failingChecks?: string[]; pending?: ApprovalRole[]; skipped?: boolean };
+type RowFacts = { author: string; labels?: LabelLike[] | null; approvers?: string[]; changesRequested?: string[]; failing?: number; failingChecks?: string[]; pending?: ApprovalRole[]; skipped?: boolean };
 
 /** governance.override from bridge.config.json, as the layout embeds it (none when the site has no config). */
 /** The owner override, limited to the owners it names (core overrideHolders): Settings, Home and the branch page agree. */
@@ -213,7 +214,7 @@ export function rowWho(kind: ReviewStatusKind | null, o: RowFacts): WhoActs | nu
   if (o.skipped || !kind) return null;
   const viewer = currentViewer()?.login ?? null;
   const policy = overridePolicy();
-  return whoActs(needFromStatus(kind, { failing: o.failing, changesRequestedBy: o.changesRequested, developerOnly: developerOnlyFailures(o.failingChecks), pending: o.pending }), {
+  return whoActs(needFromStatus(kind, { failing: o.failing, changesRequestedBy: o.changesRequested, developerOnly: developerOnlyFailures(o.failingChecks), pending: o.pending, claude: claudeStage(o.labels) }), {
     owners: owners(),
     shippers: shippers(),
     ...teamPeople(),

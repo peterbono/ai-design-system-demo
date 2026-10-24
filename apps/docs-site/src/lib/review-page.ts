@@ -593,6 +593,8 @@ export interface ActionInput {
   exploration: boolean;
   /** The lifecycle action of a closed change (scripts/change-status): Reopen, Start again. */
   statusAction: 'reopen' | 'restart' | 'mark-ready' | null;
+  /** A branch opened from Figma with the spec only (waiting-for-claude): a developer builds it, nothing to send yet. */
+  claudeWaiting?: boolean;
   /** The review queue holds the view's primary (Approve and next): the bar's approval is secondary there. */
   inQueue?: boolean;
   /** False for an email contributor: no approve, suggest changes, merge or override (default true). */
@@ -634,7 +636,7 @@ export function reviewActions(x: ActionInput): ReviewActions {
   const reviews = x.canReview !== false;
   if (!x.connected) primary = live ? p('connect') : null;
   else if (!live) primary = x.statusAction === 'reopen' ? p('reopen') : x.statusAction === 'restart' ? p('restart') : null;
-  else if (x.lifecycle === 'draft') primary = x.isAuthor && x.canWrite && !x.exploration ? p('request-review') : null;
+  else if (x.lifecycle === 'draft') primary = x.isAuthor && x.canWrite && !x.exploration && !x.claudeWaiting ? p('request-review') : null;
   else if (!reviews) primary = null;
   else if (x.canApprove && !x.isAuthor) primary = x.mergeAfterApprove && x.canWrite ? p('approve-merge') : p('approve');
   else if (x.canMerge && x.canWrite) primary = p('merge');

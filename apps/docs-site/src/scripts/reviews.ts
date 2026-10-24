@@ -18,6 +18,7 @@ import {
   OVERRIDE_HEADING,
   overrideReasonProblem,
   parseOverrideComment,
+  claudeStage,
   pullState,
   reviewStatus,
   studioVerdict,
@@ -240,7 +241,7 @@ function people(author: string, extra: Partial<People> = {}): People {
 }
 
 /** The facts of a row the who-acts rules read (pr-status rowWho, shared with the Home). */
-const facts = (r: Row) => ({ author: r.user.login, approvers: r.approvers, changesRequested: r.changesRequested, failing: r.failing, failingChecks: r.failingChecks, pending: r.pending, skipped: r.skipped });
+const facts = (r: Row) => ({ author: r.user.login, labels: r.labels, approvers: r.approvers, changesRequested: r.changesRequested, failing: r.failing, failingChecks: r.failingChecks, pending: r.pending, skipped: r.skipped });
 
 // ---------------------------------------------------------------------------------------------------------------
 // The Branches list (components/ds/studio/BranchesList): every open branch, the running explorations with them, and
@@ -301,6 +302,8 @@ let listLoading = true;
 /** The status pill of a row: its lifecycle in words, else who acts now (pr-status rowWho), the same tone rules. */
 function pillOf(r: Row, lifecycle: Lifecycle | 'exploration'): ListRow['pill'] {
   if (lifecycle === 'exploration') return { label: 'Exploration', tone: 'neutral' };
+  // A branch opened from Figma before Claude drafted the code waits on a developer (decision RT-1).
+  if (lifecycle === 'draft' && claudeStage(r.labels) === 'waiting') return { label: 'Waiting for a developer', tone: lifecycleTone(lifecycle) };
   if (lifecycle !== 'ready') return { label: LIFECYCLE[lifecycle].short, tone: lifecycleTone(lifecycle) };
   if (r.skipped) return { label: 'Status unknown', tone: 'neutral' };
   if (!r.kind) return { label: 'Checking', tone: 'neutral' };
@@ -352,7 +355,7 @@ function listRow(r: Row): ListRow {
   const turn =
     lifecycle !== 'exploration' &&
     waitsOnMe(
-      { author: own ? (listViewer() ?? r.user.login) : r.user.login, draft: r.draft, nature: r.nature, guidance: r.guidance, lifecycle, who: rowWho(r.kind, facts(r)), requested: r.requested, changesRequested: r.changesRequested },
+      { author: own ? (listViewer() ?? r.user.login) : r.user.login, draft: r.draft, labels: r.labels, nature: r.nature, guidance: r.guidance, lifecycle, who: rowWho(r.kind, facts(r)), requested: r.requested, changesRequested: r.changesRequested },
       { login: seat ?? listViewer(), role: seat ? 'reviewer' : contributor ? 'contributor' : viewerRole(), seat: seat !== null },
     );
   return {
@@ -879,7 +882,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   // Who may use the owner override: the same rule as the Branches list (pr-status rowWho), so the list and the page
   // never disagree. The More menu item still needs the gate and write access (showOverride).
   const who = whoActs(
-    needFromDetail({ state: lifecycle, ci, gate, changesRequestedBy: approvals.changesRequested, exploration, mergeable: pull.mergeable }),
+    needFromDetail({ state: lifecycle, ci, gate, changesRequestedBy: approvals.changesRequested, exploration, mergeable: pull.mergeable, claude: claudeStage(pull.labels) }),
     people(author, { viewer, approvers: approvals.approvers, canMerge: reviewer && gate.canShip, overridable: !seat && canOverride(login, HOLDERS()) }),
   );
   const viewerPeople = people(author, { viewer });
@@ -943,6 +946,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     shareable,
     exploration,
     statusAction: statusRun.kind === 'reopen' || statusRun.kind === 'restart' ? statusRun.kind : null,
+    claudeWaiting: claudeStage(pull.labels) === 'waiting',
     inQueue: Boolean(detailEl().closest('[data-review-queue]')),
   });
   // The sample team, in the lead's seat: Approve can be tried (BranchReview shows the result and writes nothing).
@@ -1019,7 +1023,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     jira: jiraKeyOf(pull.title),
     // In review: the same pill as its row in Branches and on the home (lib/changes statusPill over core reviewStatusKind).
     // In the demo seat: the list's pill for the same branch ("Waiting 1 day").
-    status: seat && status.lifecycle === 'ready' && !exploration && pull.created_at ? { label: waitingLabel(pull.created_at, Date.now()), tone: 'warning', lifecycle: status.lifecycle } : status.lifecycle === 'ready' && !exploration ? { ...statusPill(reviewStatus({ state: pull.state, draft: pull.draft, merged_at: pull.merged_at, ci, approvals, tier, mergeable: pull.mergeable }).kind, who), lifecycle: status.lifecycle } : { label: status.label, tone: status.tone, lifecycle: status.lifecycle },
+    status: seat && status.lifecycle === 'ready' && !exploration && pull.created_at ? { label: waitingLabel(pull.created_at, Date.now()), tone: 'warning', lifecycle: status.lifecycle } : status.lifecycle === 'ready' && !exploration ? { ...statusPill(reviewStatus({ state: pull.state, draft: pull.draft, labels: pull.labels, merged_at: pull.merged_at, ci, approvals, tier, mergeable: pull.mergeable }).kind, who), lifecycle: status.lifecycle } : { label: status.label, tone: status.tone, lifecycle: status.lifecycle },
     // In the demo seat, who asked for it, the face the list shows for the same branch.
     who: { person: seat ? { login: `~${author}`, name: nameOf(author), avatarUrl: null, agent: agent && !asked0 } : { login: pull.user.login, name: nameOf(pull.user.login), avatarUrl: pull.user.avatar_url, agent }, lead: line.lead, rest: line.rest },
     added: added > 0 ? addedNotice(added) : null,
@@ -1131,11 +1135,11 @@ async function act(kind: ActKind | 'close', text: string, x: { pull: Pull; gate:
     if (kind === 'suggest') await reviewOnGitHub(gh, { number: pull.number, event: 'REQUEST_CHANGES', body: text, headSha: pull.head.sha });
     else if (kind === 'comment') await commentOnGitHub(gh, pull.number, text);
     else if (kind === 'approve') await approve(pull, x.docs, x.write, text);
-    else if (kind === 'merge') await mergeOnGitHub(gh, { number: pull.number, headSha: pull.head.sha, method: 'squash' });
+    else if (kind === 'merge') await mergeOnGitHub(gh, { number: pull.number, headSha: pull.head.sha, method: 'squash', draft: pull.draft });
     else if (kind === 'approve-merge') {
       const sha = await approve(pull, x.docs, x.write, text);
       try {
-        await mergeOnGitHub(gh, { number: pull.number, headSha: sha, method: 'squash' });
+        await mergeOnGitHub(gh, { number: pull.number, headSha: sha, method: 'squash', draft: pull.draft });
       } catch (err) {
         await openPr(pull.number, false);
         return `Approved. Not merged yet: ${(err as Error).message.replace(/[.\s]+$/, '')}. Merge it once the checks finish.`;
@@ -1278,7 +1282,7 @@ function wireOverride(pull: Pull, access: Access, gate: ReturnType<typeof mergeG
       go.textContent = 'Posting reason and merging';
       // One implementation with the MCP server and the CLI (core branch-actions): the reason first, then the merge.
       try {
-        await overrideMergeOnGitHub(studioClient(REPO_KEY), { number: pull.number, headSha: pull.head.sha, login: access.login, reason: reason.value, missing: gate.missing, method: method() });
+        await overrideMergeOnGitHub(studioClient(REPO_KEY), { number: pull.number, headSha: pull.head.sha, login: access.login, reason: reason.value, missing: gate.missing, method: method(), draft: pull.draft });
       } catch (err) {
         const stage = err instanceof OverrideMergeError ? err.stage : 'merge';
         const cause = err instanceof OverrideMergeError ? (err.cause ?? err) : err;

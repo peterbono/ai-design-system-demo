@@ -15,7 +15,7 @@
 import type { Draft, DraftEdit } from './editor-model';
 import { classifyCheck, type CheckKind } from './check-explain';
 import { pullState, type PullState, type ReviewStatusKind, type Tier } from './review-rules';
-import { GROUP_TONE, openerFor, type Opener, type OpenerRow, type StatusTone } from './changes';
+import { CLAUDE_DRAFTED_SENTENCE, CLAUDE_WAITING_SENTENCE, GROUP_TONE, openerFor, type Opener, type OpenerRow, type StatusTone } from './changes';
 import type { WorkNature } from './work-nature';
 import { hasOwnerApproval, reopenEligibility, type ReopenEligibility, type TokenSet } from '@bridge-ds/core';
 import { branchCount, STATUS_WORDS, VOCAB } from './vocabulary';
@@ -93,7 +93,7 @@ export function changeLifecycle(x: { state: PullState; waiting: boolean }): Life
  * until its status is read and says it waits for code.
  */
 export function rowLifecycle(
-  pull: { state?: string; draft?: boolean; merged_at?: string | null },
+  pull: { state?: string; draft?: boolean; merged_at?: string | null; labels?: readonly ({ name?: string } | string)[] | null },
   st: { kind: ReviewStatusKind | null; nature: WorkNature; tier: Tier | null; design?: boolean; approvers?: string[]; changesRequested?: string[]; failingChecks?: string[]; exploration?: boolean },
 ): Lifecycle {
   const state = pullState(pull);
@@ -140,8 +140,9 @@ export const GONE_SENTENCE = `This ${VOCAB.branch} can't be reopened: its work w
  * never marked ready here). Closed: reopen, or start again when the work is gone and it changed tokens. Ready for
  * review keeps the review flow's action; waiting for code and shipped have none.
  */
-export function statusAction(x: { lifecycle: Lifecycle; isAuthor: boolean; canWrite: boolean; exploration: boolean; reopen: ReopenEligibility; tokenEdits: boolean }): StatusAction {
-  if (x.lifecycle === 'draft') return x.isAuthor && x.canWrite && !x.exploration ? 'mark-ready' : null;
+export function statusAction(x: { lifecycle: Lifecycle; isAuthor: boolean; canWrite: boolean; exploration: boolean; reopen: ReopenEligibility; tokenEdits: boolean; claude?: 'waiting' | 'drafted' | null }): StatusAction {
+  // A branch opened from Figma with the spec only: nothing to review until a developer builds it with Claude.
+  if (x.lifecycle === 'draft') return x.isAuthor && x.canWrite && !x.exploration && x.claude !== 'waiting' ? 'mark-ready' : null;
   if (x.lifecycle === 'closed') {
     if (x.reopen.kind === 'reopen') return 'reopen';
     if (x.reopen.kind === 'gone' && x.tokenEdits) return 'restart';
@@ -155,18 +156,36 @@ export const ACTION_LABEL: Record<Exclude<StatusAction, null>, string> = {
   restart: `Start again from this ${VOCAB.branch}`,
 };
 
-/** The sentence of the status line for the states the review flow does not already explain. */
-export function lifecycleSentence(x: { lifecycle: Lifecycle; isAuthor: boolean; author: string; mergedAt?: string | null; closedAt?: string | null; reopen?: ReopenEligibility; exploration?: boolean }): string | null {
+/**
+ * The sentence of the status line for the states the review flow does not already explain. A branch opened from Figma
+ * (decision RT-1, core claudeStage): before Claude drafted the code it waits on a developer, never on its designer;
+ * once drafted it is ready for review, and while no owner has acted yet (`untouched`: no review, no failing check) it
+ * says so in its own words.
+ */
+export function lifecycleSentence(x: {
+  lifecycle: Lifecycle;
+  isAuthor: boolean;
+  author: string;
+  mergedAt?: string | null;
+  closedAt?: string | null;
+  reopen?: ReopenEligibility;
+  exploration?: boolean;
+  claude?: 'waiting' | 'drafted' | null;
+  untouched?: boolean;
+}): string | null {
   const day = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '');
   switch (x.lifecycle) {
     case 'draft':
       if (x.exploration) return null;
+      if (x.claude === 'waiting') return CLAUDE_WAITING_SENTENCE;
       return x.isAuthor ? 'Request a review when it is ready. Until then nobody is asked to review it.' : `Waiting for @${x.author} to request a review.`;
     case 'shipped':
       return x.mergedAt ? `Merged into ${VOCAB.main} on ${day(x.mergedAt)}.` : `Merged into ${VOCAB.main}.`;
     case 'closed':
       if (x.reopen?.kind === 'gone') return GONE_SENTENCE;
       return x.closedAt ? `Closed without merging on ${day(x.closedAt)}.` : 'Closed without merging.';
+    case 'ready':
+      return x.claude === 'drafted' && x.untouched ? CLAUDE_DRAFTED_SENTENCE : null;
     default:
       return null;
   }

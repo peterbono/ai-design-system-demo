@@ -5,6 +5,7 @@
 // `governance.rights` (rights.ts). Moved from the docs site (apps/docs-site/src/lib/review-rules.ts re-exports it).
 import type { OverridePolicy } from './config';
 import { isActiveExploration } from './explorations';
+import { DRAFTED_BY_CLAUDE_LABEL, WAITING_FOR_CLAUDE_LABEL } from './figma-push';
 import { canShip, soloApprover, unreadableShipTeams, whoCanShipSentence, type ShipPolicy } from './rights';
 import { classifyRisk, type RiskTier } from './risk';
 
@@ -31,15 +32,34 @@ export interface PullStateLike {
   draft?: boolean;
   merged?: boolean;
   merged_at?: string | null;
+  /** GitHub labels (objects or names): `drafted-by-claude` makes a draft ready for review (isDraft). */
+  labels?: readonly ({ name?: string } | string)[] | null | undefined;
 }
 
 export type PullState = 'merged' | 'closed' | 'draft' | 'open';
+
+/**
+ * Where Claude stands on a library branch opened from Figma (figma-push labels): `waiting` while it carries the spec
+ * only (a developer builds it with Claude), `drafted` once the code is written. Null on any other branch.
+ */
+export function claudeStage(labels: PullStateLike['labels']): 'waiting' | 'drafted' | null {
+  const names = (labels ?? []).map((l) => (typeof l === 'string' ? l : (l.name ?? '')).toLowerCase());
+  if (names.includes(WAITING_FOR_CLAUDE_LABEL)) return 'waiting';
+  if (names.includes(DRAFTED_BY_CLAUDE_LABEL)) return 'drafted';
+  return null;
+}
+
+/**
+ * A draft on GitHub that still reads as one. Decision RT-1: once Claude drafted the code (`drafted-by-claude`), the
+ * branch is ready for review even while GitHub still calls it a draft; the merge marks it ready first (branch-actions).
+ */
+export const isDraft = (p: Pick<PullStateLike, 'draft' | 'labels'>): boolean => Boolean(p.draft) && claudeStage(p.labels) !== 'drafted';
 
 /** Merged wins over closed (GitHub reports merged pull requests as closed), closed over draft, draft over open. */
 export function pullState(p: PullStateLike): PullState {
   if (p.merged_at || p.merged) return 'merged';
   if (p.state && p.state !== 'open') return 'closed';
-  if (p.draft) return 'draft';
+  if (isDraft(p)) return 'draft';
   return 'open';
 }
 
@@ -311,6 +331,8 @@ export interface BranchVerdictInput {
   /** `governance.override` as configured; the verdict limits it to its owner holders. */
   override?: OverridePolicy | null | undefined;
   draft?: boolean | undefined;
+  /** The pull request's labels: `drafted-by-claude` reads a draft as ready for review (isDraft). */
+  labels?: PullStateLike['labels'];
   mergeable?: boolean | null | undefined;
   state?: string | undefined;
   merged_at?: string | null | undefined;
@@ -333,7 +355,7 @@ export function branchVerdict(input: BranchVerdictInput): BranchVerdict {
   const approvals = input.approvals ? withSuggestionApprovals(input.approvals, input.suggestion, input.tier) : null;
   const override = ownerOverridePolicy(input.override, input.owners);
   const state = input.state ?? 'open';
-  const draft = Boolean(input.draft);
+  const draft = isDraft(input);
   const status = reviewStatusKind({ state, draft, merged_at: input.merged_at, ci: input.ci, approvals, tier: input.tier, mergeable: input.mergeable });
   const gate =
     input.ci && approvals
@@ -460,6 +482,7 @@ export const REVIEW_STATUS_ORDER: Record<ReviewStatusKind, number> = {
 export function reviewStatusKind(input: {
   state?: string;
   draft?: boolean;
+  labels?: PullStateLike['labels'];
   merged_at?: string | null;
   ci: CiSummary | null;
   approvals: ApprovalSummary | null;
@@ -482,7 +505,7 @@ export function reviewStatusKind(input: {
     if (!input.approvals.tech) return out('needs-tech');
   } else if (!hasOwnerApproval(input.approvals)) return out('needs-approval');
   if (input.mergeable === null) return out('checking');
-  const gate = mergeGate({ tier: input.tier, ci: input.ci, approvals: input.approvals, draft: Boolean(input.draft), mergeable: input.mergeable, state: input.state ?? 'open', merged_at: input.merged_at });
+  const gate = mergeGate({ tier: input.tier, ci: input.ci, approvals: input.approvals, draft: isDraft(input), mergeable: input.mergeable, state: input.state ?? 'open', merged_at: input.merged_at });
   return gate.allowed ? out('ready') : out('unknown');
 }
 
