@@ -26,7 +26,7 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
     'border-top-left-radius', 'border-top-right-radius', 'border-bottom-right-radius', 'border-bottom-left-radius',
     'box-shadow', 'outline-style', 'outline-width', 'outline-color',
     'color', 'font-family', 'font-size', 'font-weight', 'line-height', 'letter-spacing', 'text-decoration-line', 'text-transform', 'text-align', 'white-space',
-    'fill', 'stroke', 'stroke-width'];
+    'fill', 'stroke', 'stroke-width', 'transform', 'grid-auto-flow', 'grid-template-columns', 'grid-template-rows', 'left', 'top', 'right', 'bottom'];
   // Properties a token is looked for (paint, spacing, shape, type).
   var TOKENED = ['row-gap', 'column-gap', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left', 'width', 'height', 'min-width', 'min-height',
     'background-color', 'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
@@ -101,29 +101,37 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
     var types = (s.replace(/\[[^\]]*\]|\([^)]*\)/g, '').match(/(^|[\s>+~(])[a-zA-Z][\w-]*/g) || []).length;
     return ids * 10000 + cls * 100 + types;
   }
-  function matchSpec(el, selText) {
+  var PSEUDO_END = /::?(before|after)\s*$/;
+  // pseudo: the rules for el::before / el::after (the selector minus its pseudo-element); none: the element's own.
+  function matchSpec(el, selText, pseudo) {
     var best = -1;
     var parts = splitTop(selText, /,/);
     for (var i = 0; i < parts.length; i++) {
-      if (/::/.test(parts[i])) continue;
-      try { if (el.matches(parts[i])) best = Math.max(best, specificity(parts[i])); } catch (e) {}
+      var part = parts[i];
+      var pm = PSEUDO_END.exec(part);
+      if (pseudo) {
+        if (!pm || pm[1] !== pseudo) continue;
+        part = part.slice(0, pm.index).trim() || '*';
+      } else if (pm || /::/.test(part)) continue;
+      try { if (el.matches(part)) best = Math.max(best, specificity(part) + (pseudo ? 1 : 0)); } catch (e) {}
     }
     return best;
   }
-  var matchCache = new Map();
-  function matching(el) {
-    var m = matchCache.get(el);
+  var matchCache = { '': new Map(), before: new Map(), after: new Map() };
+  function matching(el, pseudo) {
+    var cache = matchCache[pseudo || ''];
+    var m = cache.get(el);
     if (m) return m;
     m = [];
     for (var i = 0; i < rules.length; i++) {
-      var sp = matchSpec(el, rules[i].sel);
+      var sp = matchSpec(el, rules[i].sel, pseudo);
       if (sp >= 0) m.push({ r: rules[i], sp: sp });
     }
-    matchCache.set(el, m);
+    cache.set(el, m);
     return m;
   }
-  // The winning declared value of a property (longhand or the shorthand that sets it) on an element.
-  function declared(el, prop) {
+  // The winning declared value of a property (longhand or the shorthand that sets it) on an element or its pseudo.
+  function declared(el, prop, pseudo) {
     var best = null;
     function consider(value, important, layered, sp, ord, shorthand, pos) {
       if (!value) return;
@@ -132,7 +140,7 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
     }
     function cmp(x, y) { for (var i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; }
     var short = prop.indexOf('--') === 0 ? [] : shorthandsOf(prop);
-    var m = matching(el);
+    var m = matching(el, pseudo);
     for (var i = 0; i < m.length; i++) {
       var st = m[i].r.style;
       var v = st.getPropertyValue(prop);
@@ -142,9 +150,9 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
         if (sv) consider(sv, st.getPropertyPriority(short[k][0]) === 'important', m[i].r.layered, m[i].sp, m[i].r.order, short[k][0], short[k][1]);
       }
     }
-    var inl = el.style && el.style.getPropertyValue(prop);
+    var inl = !pseudo && el.style && el.style.getPropertyValue(prop);
     if (inl) consider(inl, el.style.getPropertyPriority(prop) === 'important', false, 1e9, 1e9, null, -1);
-    else if (el.style) for (var j = 0; j < short.length; j++) {
+    else if (el.style && !pseudo) for (var j = 0; j < short.length; j++) {
       var iv = el.style.getPropertyValue(short[j][0]);
       if (iv) consider(iv, false, false, 1e9, 1e9, short[j][0], short[j][1]);
     }
@@ -241,15 +249,17 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
     return rootVars;
   }
 
-  function tokenFor(el, prop, computed) {
-    var d = declared(el, prop);
+  function tokenFor(el, prop, computed, pseudo) {
+    var d = declared(el, prop, pseudo);
+    // A pseudo-element inherits from its element, an element from its parent.
+    var parentOf = pseudo ? el : el.parentElement;
     if (d) {
       var piece = d.shorthand && /^(padding|margin|border-radius|border-width|border-color|border-style|gap)$/.test(d.shorthand) ? boxPiece(d.value, d.pos) : d.value;
       var vars = varsIn(piece);
       if (vars.length) {
         var pick = vars[0];
         if (vars.length > 1) {
-          var cs = getComputedStyle(el);
+          var cs = getComputedStyle(el, pseudo ? '::' + pseudo : null);
           for (var i = 0; i < vars.length; i++) {
             var rv = cs.getPropertyValue(vars[i]).trim();
             var same = isColorProp(prop) ? normColor(rv) === computed : normLength(rv) === computed;
@@ -261,19 +271,24 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
         // A declaration that does not give the computed value lost the cascade somewhere this script does not model:
         // the value is not tied to it (it may still match a variable by value below).
         if (direct && !/^(line-height|font-weight|opacity|font-family)$/.test(prop)) {
-          var own = getComputedStyle(el).getPropertyValue(pick).trim();
+          var own = getComputedStyle(el, pseudo ? '::' + pseudo : null).getPropertyValue(pick).trim();
           var got = isColorProp(prop) ? normColor(own) : /px$/.test(computed) ? normLength(own) : null;
           if (own && got && got !== computed) d = null;
         }
         if (d) return { via: 'declared', chain: chain, exact: direct, declared: piece.trim() };
       }
-      if (d && /^(inherit|currentcolor)$/i.test(d.value.trim()) && el.parentElement && prop !== 'background-color') {
-        var up = tokenFor(el.parentElement, prop === 'fill' || prop === 'stroke' || /border-.*-color/.test(prop) ? 'color' : prop, getComputedStyle(el.parentElement).getPropertyValue(prop === 'fill' || prop === 'stroke' || /border-.*-color/.test(prop) ? 'color' : prop));
+      if (d && /^(inherit|currentcolor)$/i.test(d.value.trim()) && parentOf && prop !== 'background-color') {
+        var cp = prop === 'fill' || prop === 'stroke' || /border-.*-color/.test(prop) ? 'color' : prop;
+        // currentcolor on another property reads this element's (or pseudo's) own color; inherit, and color:
+        // currentcolor, read the parent's (a pseudo-element's parent is its element).
+        var up = /currentcolor/i.test(d.value) && cp !== prop
+          ? tokenFor(el, cp, getComputedStyle(el, pseudo ? '::' + pseudo : null).getPropertyValue(cp), pseudo)
+          : parentOf ? tokenFor(parentOf, cp, getComputedStyle(parentOf).getPropertyValue(cp)) : null;
         if (up) return up;
       }
-    } else if (/^(color|font-family|font-size|font-weight|line-height|letter-spacing)$/.test(prop) && el.parentElement) {
+    } else if (/^(color|font-family|font-size|font-weight|line-height|letter-spacing)$/.test(prop) && parentOf) {
       // Inherited: the token comes from the nearest ancestor that declares it.
-      return tokenFor(el.parentElement, prop, computed);
+      return tokenFor(parentOf, prop, computed);
     }
     var rt = rootTokens();
     var hit = isColorProp(prop) ? rt.colors[computed] : rt.lengths[computed];
@@ -305,6 +320,84 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
     return true;
   }
   function round(n) { return Math.round(n * 100) / 100; }
+  // An inline SVG as markup Figma can draw: every shape's computed fill and stroke written on it, currentColor
+  // resolved, the rendered size set.
+  function svgMarkup(el, r) {
+    if (el.outerHTML.length > 12000) return null;
+    var strokes = [];
+    var clone = el.cloneNode(true);
+    var src = [el].concat(Array.prototype.slice.call(el.querySelectorAll('*')));
+    var dst = [clone].concat(Array.prototype.slice.call(clone.querySelectorAll('*')));
+    var color = getComputedStyle(el).color;
+    for (var i = 0; i < src.length && i < dst.length; i++) {
+      var cs = getComputedStyle(src[i]);
+      if (/^(path|circle|rect|ellipse|line|polyline|polygon|use|text)$/.test(src[i].tagName.toLowerCase()) || i === 0) {
+        var f = cs.fill, k = cs.stroke;
+        if (f) dst[i].setAttribute('fill', /url\(/.test(f) ? (src[i].getAttribute('fill') || 'none') : f);
+        if (k && k !== 'none') {
+          dst[i].setAttribute('stroke', k);
+          if (cs.strokeWidth) dst[i].setAttribute('stroke-width', parseFloat(cs.strokeWidth));
+          if (i > 0) strokes.push(k);
+        }
+        else if (i > 0 && k === 'none' && src[i].getAttribute('stroke')) dst[i].setAttribute('stroke', 'none');
+      }
+      dst[i].removeAttribute('class');
+      dst[i].removeAttribute('style');
+    }
+    clone.setAttribute('width', round(r.width));
+    clone.setAttribute('height', round(r.height));
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    return { svg: clone.outerHTML.replace(/currentColor/gi, color), strokes: strokes };
+  }
+  // ::before / ::after drawn as a box (a switch knob, a checkbox's box, a radio's circle): a frame part with its box,
+  // paint, border, radius and position. Text-only or empty pseudo-elements are not parts.
+  function pseudoNode(el, which, hostRect) {
+    var cs = getComputedStyle(el, '::' + which);
+    var content = cs.content;
+    if (!content || content === 'none' || content === 'normal' || cs.display === 'none' || cs.visibility === 'hidden') return null;
+    var w = parseFloat(cs.width), h = parseFloat(cs.height);
+    if (!(w > 0) || !(h > 0) || !/px$/.test(cs.width) || !/px$/.test(cs.height)) return null;
+    var bg = cs.backgroundColor;
+    var paints = (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') || (cs.backgroundImage && cs.backgroundImage !== 'none') || (cs.boxShadow && cs.boxShadow !== 'none');
+    var bordered = ['Top', 'Right', 'Bottom', 'Left'].some(function (s) { return parseFloat(cs['border' + s + 'Width']) > 0 && cs['border' + s + 'Style'] !== 'none'; });
+    if (!paints && !bordered) return null;
+    // Border box: CSS width/height are content-box unless box-sizing says otherwise.
+    if (cs.boxSizing !== 'border-box') {
+      w += (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0) + (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
+      h += (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+    }
+    var hcs = getComputedStyle(el);
+    var padX = hostRect.left + (parseFloat(hcs.borderLeftWidth) || 0), padY = hostRect.top + (parseFloat(hcs.borderTopWidth) || 0);
+    var padW = hostRect.width - (parseFloat(hcs.borderLeftWidth) || 0) - (parseFloat(hcs.borderRightWidth) || 0);
+    var padH = hostRect.height - (parseFloat(hcs.borderTopWidth) || 0) - (parseFloat(hcs.borderBottomWidth) || 0);
+    var x, y;
+    if (cs.position === 'absolute' || cs.position === 'fixed') {
+      x = /px$/.test(cs.left) ? padX + parseFloat(cs.left) : /px$/.test(cs.right) ? padX + padW - parseFloat(cs.right) - w : padX;
+      y = /px$/.test(cs.top) ? padY + parseFloat(cs.top) : /px$/.test(cs.bottom) ? padY + padH - parseFloat(cs.bottom) - h : padY;
+    } else {
+      // In flow: before at the start of the content box, after at its end.
+      var cx = padX + (parseFloat(hcs.paddingLeft) || 0), cy = padY + (parseFloat(hcs.paddingTop) || 0);
+      x = which === 'before' ? cx : padX + padW - (parseFloat(hcs.paddingRight) || 0) - w;
+      y = cy;
+    }
+    var m = /matrix\(([^)]+)\)/.exec(cs.transform || '');
+    if (m) { var mv = m[1].split(',').map(parseFloat); x += mv[4] || 0; y += mv[5] || 0; }
+    var style = {};
+    for (var i = 0; i < PROPS.length; i++) style[PROPS[i]] = cs.getPropertyValue(PROPS[i]);
+    style.width = round(w) + 'px';
+    style.height = round(h) + 'px';
+    var tokens = {};
+    for (var j = 0; j < TOKENED.length; j++) {
+      var p = TOKENED[j], v = style[p];
+      if (!v || v === 'none' || v === 'normal' || v === 'auto' || v === 'rgba(0, 0, 0, 0)') continue;
+      if (/width$/.test(p) && /^border-/.test(p) && v === '0px') continue;
+      if (/^border-.*-color$/.test(p) && parseFloat(style[p.replace('color', 'width')]) === 0) continue;
+      var t = tokenFor(el, p, v, which);
+      if (t) tokens[p] = t;
+    }
+    count++;
+    return { tag: '::' + which, kind: 'frame', pseudo: which, classes: [], box: { x: round(x - originX), y: round(y - originY), width: round(w), height: round(h) }, style: style, tokens: tokens, children: [] };
+  }
   var originX = 0, originY = 0;
   function node(el, depth) {
     count++;
@@ -333,7 +426,8 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
     if (Object.keys(dataState).length) n.attrs = dataState;
     if (tag === 'svg') {
       n.kind = r.width <= 48 && r.height <= 48 ? 'icon' : 'vector';
-      n.svg = el.outerHTML.length < 4000 ? el.outerHTML : undefined;
+      var mk = svgMarkup(el, r);
+      if (mk) { n.svg = mk.svg; n.svgStrokes = mk.strokes; }
       return n;
     }
     if (tag === 'img') { n.kind = 'frame'; n.media = true; return n; }
@@ -342,6 +436,8 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
       n.input = { type: el.type || tag, value: el.value || '', placeholder: el.getAttribute('placeholder') || '', checked: !!el.checked };
     }
     var hasEl = false;
+    var before = pseudoNode(el, 'before', r), after = pseudoNode(el, 'after', r);
+    if (before) { n.children.push(before); hasEl = true; }
     for (var c = el.firstChild; c; c = c.nextSibling) {
       if (count >= MAX_NODES) { n.truncated = true; break; }
       if (c.nodeType === 3) {
@@ -359,6 +455,7 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
         n.children.push(node(c, depth + 1));
       }
     }
+    if (after) { n.children.push(after); hasEl = true; }
     // An element holding only text is the text layer itself.
     if (!hasEl && n.children.length === 1 && n.children[0].kind === 'text' && !own(el, cs)) {
       n.kind = 'text';

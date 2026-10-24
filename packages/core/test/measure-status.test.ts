@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   compareSpecToMeasured,
+  boundedCombos,
   componentStatus,
   describeDiff,
   mapPropsToFigma,
@@ -260,6 +261,18 @@ describe('triage of the full-library measure: pairing and story noise', () => {
 
   it('names the open popup Figma draws when the component itself has no set', () => {
     expect(componentStatus({ name: 'Dialog', stories: [st('d', 'x')], figmaSets: ['Dialog/Popup'] })).toMatchObject({ reason: 'no-figma', summary: 'Figma draws the open popup (Dialog/Popup): measure it open with --open' });
+  });
+});
+
+describe('boundedCombos: the cost of --variants', () => {
+  it('measures the full product when it fits, one value per axis plus pairs when it does not', () => {
+    expect(boundedCombos([['size', ['sm', 'md']], ['kind', ['a', 'b']]], 48)).toEqual({ combos: [{ size: 'sm', kind: 'a' }, { size: 'sm', kind: 'b' }, { size: 'md', kind: 'a' }, { size: 'md', kind: 'b' }], capped: false });
+    const big = boundedCombos([['a', ['1', '2', '3', '4', '5', '6']], ['b', ['1', '2', '3', '4', '5', '6']], ['c', ['1', '2', '3']]], 20);
+    expect(big.capped).toBe(true);
+    expect(big.combos).toHaveLength(20);
+    expect(big.combos[0]).toEqual({ a: '1', b: '1', c: '1' });
+    // Every value of every axis is reached before pairs.
+    for (const [k, vals] of [['a', 6], ['b', 6], ['c', 3]] as const) expect(new Set(big.combos.map((c) => c[k])).size).toBe(vals);
   });
 });
 

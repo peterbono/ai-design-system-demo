@@ -10,7 +10,9 @@ import {
   componentStatus,
   fetchStorybookIndex,
   normalizeStorybookUrl,
+  boundedCombos,
   mapPropsToFigma,
+  parseMeasuredSpecsFile,
   markUsedTokens,
   planVariantMeasures,
   variantCombosFromMapping,
@@ -19,6 +21,7 @@ import {
   type ComponentStatus,
   type FigmaComponentRef,
   type MeasuredArgType,
+  type MeasuredSpec,
   type MeasuredSpecsComponent,
   type MeasuredSpecsFile,
   type MeasuredSpecsStory,
@@ -66,15 +69,26 @@ const list = (v: string | undefined) => (v ?? '').split(',').map((x) => x.trim()
 type MeasurePageLike = Parameters<typeof measureStory>[0];
 
 /** The browser, injectable for tests. Default: @bridge-ds/visual's measure page on an installed Chrome. */
-export type OpenPage = (o?: { scale?: number }) => Promise<{ page: MeasurePageLike; close: () => Promise<void> }>;
+export type OpenPage = (o?: { scale?: number }) => Promise<{ page: MeasurePageLike; close: () => Promise<void>; reset?: () => Promise<void> }>;
 
 const defaultOpen: OpenPage = async (oo = {}) => {
   const { openMeasurePage } = await import('@bridge-ds/visual');
-  const { page, close } = await openMeasurePage(oo.scale ? { scale: oo.scale } : {});
+  const opened = await openMeasurePage(oo.scale ? { scale: oo.scale } : {});
+  const ctx = opened.page.context();
+  let page = opened.page;
+  // Stay on the story: a link in a story (href="#", an overflow menu's items) must not navigate the page away and
+  // destroy the measure's context. Navigations away from iframe.html are aborted; clicks on links do not follow.
+  const guard = async (pg: typeof page) => {
+    await pg.route('**/*', (route, req) => (req.isNavigationRequest() && req.frame() === pg.mainFrame() && !/\/iframe\.html/.test(req.url()) ? route.abort() : route.continue()));
+    await pg.addInitScript(() => {
+      document.addEventListener('click', (e) => { const a = (e.target as Element | null)?.closest?.('a[href]'); if (a) e.preventDefault(); }, true);
+    });
+  };
+  await guard(page);
   // Forced :hover / :focus-visible / :active through Chrome DevTools, the way the Styles pane forces them.
-  let cdp: Awaited<ReturnType<ReturnType<typeof page.context>['newCDPSession']>> | undefined;
+  let cdp: Awaited<ReturnType<typeof ctx.newCDPSession>> | undefined;
   const forcePseudo = async (selector: string, states: string[]) => {
-    cdp ??= await page.context().newCDPSession(page);
+    cdp ??= await ctx.newCDPSession(page);
     await cdp.send('DOM.enable');
     await cdp.send('CSS.enable');
     const { root } = await cdp.send('DOM.getDocument', { depth: 0 });
@@ -83,11 +97,25 @@ const defaultOpen: OpenPage = async (oo = {}) => {
     for (const nodeId of nodeIds.slice(0, 400)) await cdp.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: states });
     return true;
   };
+  // A fresh tab: one story that hangs or navigates away never spreads to the next (one tab open at a time).
+  const reset = async () => {
+    const old = page;
+    page = await ctx.newPage();
+    cdp = undefined;
+    await guard(page);
+    await old.close().catch(() => undefined);
+  };
   return {
     page: {
       goto: async (url, o) => {
         cdp = undefined; // a new document: node ids and forced states start over
-        return page.goto(url, o);
+        try {
+          return await page.goto(url, o);
+        } catch (e) {
+          // A failed or interrupted navigation leaves the tab unusable: start a fresh one and try once more.
+          await reset();
+          return page.goto(url, o);
+        }
       },
       evaluate: <T>(expr: string) => page.evaluate(expr) as Promise<T>,
       forcePseudo,
@@ -100,7 +128,8 @@ const defaultOpen: OpenPage = async (oo = {}) => {
         return { width: Math.round(box.width * 100) / 100, height: Math.round(box.height * 100) / 100 };
       },
     },
-    close,
+    close: opened.close,
+    reset,
   };
 };
 
@@ -157,7 +186,7 @@ function storyEntry(p: { id: string; title: string; name: string }, m: MeasuredS
     ...(props ? { props: props.props } : {}),
     ...extra,
     ...(m.state ? { state: m.state } : {}),
-    ...(instances ? { instances } : {}),
+    ...(instances ? { instances, gallery: true } : {}),
     ...(m.opened ? { opened: m.opened } : {}),
   };
 }
@@ -294,6 +323,16 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
     }
     throw e;
   }
+  // The default specs belong to this repo: compare only a Storybook that is its library (most components have a set).
+  if (refs && !flag(a, 'specs')) {
+    const names = index.components.map((c) => c.name.toLowerCase());
+    const hits = names.filter((n) => refs!.has(n) || [...refs!.keys()].some((k) => k.startsWith(`${n}/`))).length;
+    if (!names.length || hits / names.length < 0.3) {
+      refs = undefined;
+      specsFile = undefined;
+      if (!has(a, 'json')) io.print(`No Figma side for ${base} here (this repo's component specs are another library's): pass --specs to compare.`);
+    }
+  }
   const variants = has(a, 'variants');
   // --variants: every story as written (each can be a variant's closest render), and the variant args on the first.
   const picks = pickStoriesToMeasure(index, { only: list(flag(a, 'only')), ids: list(flag(a, 'stories')), perComponent: variants ? (per ?? 1000) : per });
@@ -326,7 +365,21 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
   };
 
   const json = has(a, 'json');
-  const file: MeasuredSpecsFile = { version: 1, storybook: base, measuredAt: new Date().toISOString(), stories: [], components: [] };
+  let file: MeasuredSpecsFile = { version: 1, storybook: base, measuredAt: new Date().toISOString(), stories: [], components: [], done: [] };
+  // --resume: keep what an earlier run of the same Storybook measured to the end, measure the rest.
+  const outEarly = resolve(root, flag(a, 'out') ?? 'measured-specs.json');
+  if (has(a, 'resume') && existsSync(outEarly)) {
+    try {
+      const prev = parseMeasuredSpecsFile(readFileSync(outEarly, 'utf8'));
+      if (prev.storybook === base) {
+        const done = new Set(prev.done ?? []);
+        file = { ...prev, stories: prev.stories.filter((s) => done.has(s.title) || [...done].some((t) => s.title.startsWith(`${t}/`))), components: (prev.components ?? []).filter((c) => done.has(c.title) || [...done].some((t) => c.title.startsWith(`${t}/`))), done: [...done], statuses: undefined };
+      }
+    } catch {
+      // not a measured specs file: start over
+    }
+  }
+  const skip = new Set(file.done ?? []);
   const mo: MeasureOptions = { ...(has(a, 'open') ? { open: true } : {}), ...(within ? { within } : {}) };
   const say = (s: MeasuredSpecsStory, label: string) => {
     if (json) return;
@@ -382,8 +435,36 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
       if (!found) file.stories.push({ id: p.id, title, name: p.name, url: '', ms: 0, error: `no story of ${p.title} shows a ${set.name}` });
     }
   };
+  // Written after each component, so a stop loses nothing (--resume picks up from there).
+  const flush = async () => {
+    await mkdir(dirname(outPath), { recursive: true });
+    await writeFile(outPath, `${JSON.stringify(file, null, 2)}\n`);
+    if (book) await writeShotManifest(book, file, refs);
+  };
+  const finish = async (title: string | undefined) => {
+    if (!title || file.done!.includes(title)) return;
+    file.done!.push(title);
+    await flush();
+  };
+  let current: string | undefined;
   try {
+    // The library's variables first, in a fresh tab: a story that fails later cannot lose them.
+    if (has(a, 'tokens') && !file.tokens && picks[0]) {
+      try {
+        file.tokens = await harvestTokens(browser.page, base, picks[0].id);
+        await flush();
+      } catch (e) {
+        io.error(`bridge: could not read the variables: ${(e as Error).message.split('\n')[0]}`);
+      }
+      await browser.reset?.();
+    }
     for (const p of picks) {
+      if (skip.has(p.title)) continue;
+      if (current !== p.title) {
+        await finish(current);
+        current = p.title;
+        await browser.reset?.();
+      }
       try {
         const ref = refs?.get(p.title.split('/').pop()!.trim().toLowerCase());
         let m = await measureStory(browser.page, base, p.id, { ...mo, ...shotOpt(p.id) });
@@ -420,8 +501,36 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
         if (!variants || !props || !firstOf.has(p.id)) continue;
         // Every variant of the component: its first story, with args for each combination and each state.
         // With a Figma side, the variants are its axes mapped to props (booleans like Checked included).
-        const combos = ref ? variantCombosFromMapping(mapPropsToFigma(props.argTypes, ref.properties)) : undefined;
-        const plan = planVariantMeasures(props.argTypes, { ...(states ? { states: states as ('rest' | MeasuredState | 'disabled')[] } : {}), ...(combos && combos.some((c) => Object.keys(c).length) ? { combos } : {}) });
+        const stateList = (states ?? ['rest', 'hover', 'disabled']) as ('rest' | MeasuredState | 'disabled')[];
+        const comp = file.components!.find((c) => c.title === p.title);
+        let combos: Record<string, string | boolean>[] | undefined;
+        if (ref) combos = variantCombosFromMapping(mapPropsToFigma(props.argTypes, ref.properties));
+        else {
+          // No Figma set: vary only the args the story declares, and only those that change what renders. Each is
+          // probed once (one value away from its default); one that changes nothing the measure reads is left out.
+          const declaredArgs = new Set(Object.keys(props.args));
+          const candidates = Object.entries(props.argTypes).filter(([k, at]) => (declaredArgs.size ? declaredArgs.has(k) : true) && !/^(is)?disabled$/i.test(k) && ((at.kind === 'enum' && (at.options?.length ?? 0) >= 2 && (at.options?.length ?? 0) <= 12) || at.kind === 'boolean'));
+          const sig = (sp: MeasuredSpec | undefined) => JSON.stringify(sp ? { p: sp.parts.map((x) => [x.id, x.kind, x.characters ?? '']), b: Object.entries(sp.boxes).map(([k, b]) => [k, Math.round(b.width), Math.round(b.height), Math.round(b.x), Math.round(b.y)]), r: sp.raw } : null);
+          const baseSig = sig(entry.spec);
+          const ignored: Record<string, string> = {};
+          const axes: [string, (string | boolean)[]][] = [];
+          for (const [k, at] of candidates) {
+            const cur = props.props[k];
+            const values: (string | boolean)[] = at.kind === 'boolean' ? [cur === true, cur !== true] : [String(cur ?? at.default ?? at.options![0]), ...at.options!.filter((x) => x !== String(cur ?? at.default ?? at.options![0]))];
+            try {
+              const mp = await measureStory(browser.page, base, p.id, { ...cmo, args: { [k]: values[1]! } });
+              if (mp.props && mp.props.args[k] !== values[1]) ignored[k] = 'not taken';
+              else if (!mp.root || sig(storyEntry(p, mp, tokenOf, {}, cls).spec) === baseSig) ignored[k] = 'no visual effect';
+              else axes.push([k, values]);
+            } catch {
+              ignored[k] = 'not taken';
+            }
+          }
+          const bounded = boundedCombos(axes, Math.max(1, Math.floor(48 / Math.max(1, stateList.length))));
+          combos = bounded.combos;
+          if (comp) comp.variantPlan = { axes: axes.map(([k]) => k), ...(Object.keys(ignored).length ? { ignored } : {}), combos: combos.length, ...(bounded.capped ? { capped: true } : {}) };
+        }
+        const plan = planVariantMeasures(props.argTypes, { states: stateList, max: 1000, ...(combos && combos.some((c) => Object.keys(c).length) ? { combos } : {}) });
         for (const v of plan) {
           const label = Object.entries(v.overrides).map(([k, x]) => `${k}=${x}`).join(', ') + (v.state ? ` :${v.state}` : '');
           if (!label) continue; // the story as written is already measured
@@ -458,26 +567,17 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
       } catch (e) {
         file.stories.push({ ...p, url: '', ms: 0, error: (e as Error).message.split('\n')[0] });
         if (!json) io.print(`  ${p.title} / ${p.name}: not measured (${(e as Error).message.split('\n')[0]})`);
+        await browser.reset?.();
       }
     }
-    if (has(a, 'tokens')) {
-      // The library's variables, read in the first story that rendered (providers and theme wrappers in place).
-      const at = file.stories.find((s) => s.spec && !s.overrides && !s.state) ?? file.stories[0];
-      if (at) {
-        try {
-          file.tokens = await harvestTokens(browser.page, base, at.id);
-          markUsedTokens(file.tokens, file.stories);
-        } catch (e) {
-          io.error(`bridge: could not read the variables: ${(e as Error).message.split('\n')[0]}`);
-        }
-      }
-    }
+    await finish(current);
   } finally {
     await browser.close();
   }
 
   let statuses: ComponentStatus[] | undefined;
-  if (has(a, 'check')) {
+  if (has(a, 'check') && !refs && !json) io.print('--check skipped: no Figma side to compare with.');
+  if (has(a, 'check') && refs) {
     // One status per component name: its own stories ("Forms/ChoiceCard") and its Figma variant stories
     // ("Figma variants/ChoiceCard") together, their props merged.
     const nameOf = (title: string) => title.split('/').pop()!.trim();
@@ -511,10 +611,11 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
     file.statuses = statuses;
   }
 
+  if (file.tokens) markUsedTokens(file.tokens, file.stories);
+  // Single-instance stories before galleries: a reader taking the first story with the right props gets the closest.
+  file.stories.sort((x, y) => (x.gallery ? 1 : 0) - (y.gallery ? 1 : 0));
   const out = outPath;
-  if (book) await writeShotManifest(book, file, refs);
-  await mkdir(dirname(out), { recursive: true });
-  await writeFile(out, `${JSON.stringify(file, null, 2)}\n`);
+  await flush();
   const ok = file.stories.filter((s) => s.spec).length;
   const fields = file.stories.reduce((n, s) => n + (s.spec?.coverage.fields ?? 0), 0);
   const tied = file.stories.reduce((n, s) => n + (s.spec?.coverage.declared ?? 0), 0);
