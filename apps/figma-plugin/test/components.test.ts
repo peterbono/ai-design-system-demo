@@ -328,7 +328,7 @@ test('structure: a text where an optional text exists gets the hint; other chang
   const base = withLayers((ls) => [...ls, L('Helper', 'TEXT', { visible: false, visibleProp: 'Show helper', textProp: 'Helper' })]);
   const cur = withLayers((ls, s, t) => [L('Note', 'TEXT'), ...ls, L('Helper', 'TEXT', { visible: false, visibleProp: 'Show helper', textProp: 'Helper' })].slice(smPrimary(s, t) ? 0 : 1), (s, t) => (smPrimary(s, t) ? 'r' : undefined));
   const d = diffSignatures(sig(base), sig(cur));
-  assert.deepEqual(d.equivalents, ['Helper already does this: show it with the Show helper property']);
+  assert.deepEqual(d.equivalents, ['Helper already does this: turn on Show helper']);
   const scan = classifyComponents(
     [{ nodeId: '1:2', name: 'Button', signature: sig(cur), baseline: sig(base) }],
     ['Button'],

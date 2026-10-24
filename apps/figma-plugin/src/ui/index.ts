@@ -2435,7 +2435,7 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
 }
 
 /**
- * "Icon end already does this: show it with the Icon end property": an optional part of the component already draws
+^ * "Icon end already does this: turn on Show icon end": an optional part of the component already draws
  * what was added. Neutral, on the row it is about; the item starts unchecked and "Keep it as a request" checks it.
  * Bridge never changes the designer's file for it.
  */

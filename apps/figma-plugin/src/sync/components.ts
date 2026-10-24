@@ -501,7 +501,10 @@ export function diffSignatures(base: ComponentSignature, cur: ComponentSignature
     else changes.push({ field, before: `${layerShape(x.item)}, ${x.at}` });
     if (x.equivalent) {
       equivalentChanges++;
-      const text = `${x.equivalent.name} already does this: show it with the ${x.equivalent.property} property`;
+      // The property as Figma names it: "Show icon end" reads as an instruction, "the Icon end property" did not.
+      const text = /^Show /.test(x.equivalent.property)
+        ? `${x.equivalent.name} already does this: turn on ${x.equivalent.property}`
+        : `${x.equivalent.name} already does this: show it with the ${x.equivalent.property} property`;
       if (!equivalents.includes(text)) equivalents.push(text);
     }
   }

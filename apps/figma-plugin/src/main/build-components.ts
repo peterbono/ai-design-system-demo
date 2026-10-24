@@ -12,7 +12,7 @@
 import { variantKeyOf } from '@bridge-ds/core';
 import { familyKey } from '../sync/mapping';
 import type { SpecField, SpecLayout, SpecPart } from '@bridge-ds/core';
-import { matchVariants, parsePushedMark, propsOfKey } from '../sync/component-pull';
+import { figmaPropName, matchVariants, parsePushedMark, propsOfKey } from '../sync/component-pull';
 import { PUSHED_KEY } from '../shared/messages';
 import type { ComponentApplyReport, ComponentPullPlan, GeneratedSet, PlannedComponent, PlannedField, PlannedIcon, PlannedSlot, PlannedValue, PlannedVariant } from '../sync/component-pull';
 import { buildSignature } from '../sync/components';
@@ -838,12 +838,17 @@ function ensureProperties(set: ComponentSetNode, comp: PlannedComponent, ctx: Ct
     try {
       // Figma wants a string default for TEXT and a boolean for BOOLEAN.
       const value = p.type === 'BOOLEAN' ? p.default === true || p.default === 'true' : typeof p.default === 'string' ? p.default : String(p.default ?? '');
-      const existing = Object.keys(defs).find((k) => base(k) === p.name && defs[k]!.type === p.type);
-      if (!existing) keys.set(p.name, set.addComponentProperty(p.name, p.type, value));
+      const figmaName = figmaPropName(comp, p);
+      const existing =
+        Object.keys(defs).find((k) => base(k) === figmaName && defs[k]!.type === p.type) ?? Object.keys(defs).find((k) => base(k) === p.name && defs[k]!.type === p.type);
+      if (!existing) keys.set(p.name, set.addComponentProperty(figmaName, p.type, value));
       else {
-        if (defs[existing]!.defaultValue !== value) set.editComponentProperty(existing, { defaultValue: value });
-        keys.set(p.name, existing);
+        // A file built before "Show icon": the BOOLEAN is renamed in place (same id, instances keep their overrides).
+        const renamed = base(existing) !== figmaName ? set.editComponentProperty(existing, { name: figmaName }) : existing;
+        if (defs[existing]!.defaultValue !== value) set.editComponentProperty(renamed, { defaultValue: value });
+        keys.set(p.name, renamed);
       }
+      defs = set.componentPropertyDefinitions;
     } catch (err) {
       ctx.problems.push(`${comp.name}, property ${p.name}: ${errorText(err)}`);
     }
@@ -878,8 +883,8 @@ function ensureProperties(set: ComponentSetNode, comp: PlannedComponent, ctx: Ct
     }
     let key: string;
     if (existing) {
-      set.editComponentProperty(existing, { defaultValue: def.id, preferredValues });
-      key = existing;
+      // The BOOLEAN is "Show icon" now, so the swap takes the plain name back ("Icon2" -> "Icon").
+      key = set.editComponentProperty(existing, { ...(base(existing) !== name ? { name } : {}), defaultValue: def.id, preferredValues });
     } else {
       try {
         key = set.addComponentProperty(name, 'INSTANCE_SWAP', def.id, { preferredValues });

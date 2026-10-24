@@ -220,7 +220,7 @@ component, the generated set wins.
 | Tables (`<table>`, `<tr>`, `<td>`) | Rows of cells, each cell an equal share of its row, aligned like `vertical-align` and `text-align` |
 | A form's server `errors` | The error summary and the error under the field of the same name; an example's typed value in its field |
 | `children` (or a compound component's parts: CardHeader, CardBody, CardFooter) | A text layer with a TEXT property (`Label`, `Header`...) |
-| A `LucideIcon` prop (`icon`, `iconStart`) | An instance of an icon component (`Icon/Plus`) with an INSTANCE_SWAP property (`Icon`, `Icon start`); optional icons keep their BOOLEAN property (`Icon start`) |
+| A `LucideIcon` prop (`icon`, `iconStart`) | An instance of an icon component (`Icon/Plus`) with an INSTANCE_SWAP property (`Icon`, `Icon start`); optional icons get a BOOLEAN named "Show icon start" (as Figma kits name them), so the swap keeps the plain name; files built with the older `Icon start` / `Icon start2` names are renamed in place on the next update |
 | A compound part drawn full-bleed in some variant (Card body with `padding="none"`) | An instance of a slot component (`Slot/Card body text` or `Slot/Media`) with an INSTANCE_SWAP property (`Body`) |
 | `background-color`, `color` | Fill, text fill |
 | `border` (width and color), `border-top` | Stroke and stroke weight, or one side's weight |
@@ -622,8 +622,8 @@ these defaults.
 - **Components from a library** (remote) are not scanned; only local components of the file are.
 - **Pulled components** are rebuilt from CSS, not rendered by a browser: hover, pressed and disabled are the only
   states; icons are Lucide SVGs imported by Figma (`createNodeFromSvg`), flattened; an icon's stroke width is bound
-  to `icon.stroke` at every size, as the token says; when Figma refuses an INSTANCE_SWAP property named like the
-  BOOLEAN of the same part, it is added as `<name> (swap)`; `calc()` values are set, not bound, so they do not follow a
+  to `icon.stroke` at every size, as the token says; the BOOLEAN of a swappable part is `Show <part>` so its
+  INSTANCE_SWAP keeps `<part>` (Figma renames a name another type took: `Icon` would become `Icon2`); `calc()` values are set, not bound, so they do not follow a
   density or brand switch; shadows and focus rings are not drawn.
   The generator is tested on the 6 base components; it runs on the other component folders but their output has not
   been reviewed yet.

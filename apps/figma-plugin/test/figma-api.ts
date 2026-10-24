@@ -500,13 +500,25 @@ export class SimNode {
     this.props.set(key, { type, defaultValue, ...(options?.preferredValues ? { preferredValues: structuredClone(options.preferredValues) } : {}) });
     return key;
   }
-  editComponentProperty(key: string, patch: { defaultValue?: string | boolean; preferredValues?: { type: string; key: string }[] }) {
+  editComponentProperty(key: string, patch: { name?: string; defaultValue?: string | boolean; preferredValues?: { type: string; key: string }[] }) {
     const d = this.props.get(key);
     if (!d) throw new Error(`No property ${key}`);
     this.checkSwap(d.type, patch.defaultValue ?? d.defaultValue, patch.preferredValues);
     if (patch.defaultValue !== undefined) d.defaultValue = patch.defaultValue;
     if (patch.preferredValues) d.preferredValues = structuredClone(patch.preferredValues);
-    return key;
+    if (patch.name === undefined || patch.name === key.replace(/#[^#]*$/, '')) return key;
+    // A rename keeps the property id (the part after #), so layers and instance overrides follow it, as in Figma.
+    const taken = new Set([...this.props.keys()].filter((k) => k !== key).map((k) => k.replace(/#[^#]*$/, '')));
+    let unique = patch.name;
+    for (let i = 2; taken.has(unique); i++) unique = `${patch.name}${i}`;
+    const next = `${unique}${key.slice(key.replace(/#[^#]*$/, '').length)}`;
+    this.props.delete(key);
+    this.props.set(next, d);
+    for (const n of this.findAll()) {
+      const refs = n.componentPropertyReferences;
+      if (refs && Object.values(refs).includes(key)) n.componentPropertyReferences = Object.fromEntries(Object.entries(refs).map(([f, v]) => [f, v === key ? next : v]));
+    }
+    return next;
   }
   deleteComponentProperty(key: string) {
     if (!this.props.delete(key)) throw new Error(`No property ${key}`);
