@@ -43,9 +43,13 @@ const args = (...argv: string[]): RequestArgs => {
 const labelFixed = { id: 'textinput-label-height', kind: 'part', component: 'TextInput', part: 'cds--text-input-label-wrapper', height: 'fixed', reason: 'Carbon keeps 24 px for the label row; Figma hugged the 16 px label.', by: 'claude' };
 const outerFixed = { id: 'textinput-field-height', kind: 'part', component: 'TextInput', part: 'cds--text-input-field-outer-wrapper', height: 'fixed', reason: 'The field and its helper keep their measured height with the 4 px gap.', by: 'claude' };
 
-function repo(): string {
+/**
+ * A repo with the measure and the plugin's run. The loop's scenario uses the measure without the boxes of TextInput's
+ * label row and field group (a gap the build cannot see, that fixes close); the gap case's wording needs them.
+ */
+function repo(measure = 'carbon-measured-hidden-boxes.json'): string {
   const root = mkdtempSync(join(tmpdir(), 'bridge-test-fix-'));
-  copyFileSync(join(GAP, 'carbon-measured.json'), join(root, 'measured-specs.json'));
+  copyFileSync(join(GAP, measure), join(root, 'measured-specs.json'));
   copyFileSync(join(GAP, 'textinput-fidelity.json'), join(root, 'figma-fidelity.json'));
   const g = (...a: string[]) => execFileSync('git', a, { cwd: root, stdio: 'pipe', encoding: 'utf8' });
   g('init', '-q', '-b', 'main');
@@ -81,7 +85,7 @@ describe('bridge gaps', () => {
 describe('bridge fix', () => {
   it('--case prints the gap and the schema', async () => {
     const o = io();
-    expect(await runFix(args('fix', 'TextInput', '--case'), repo(), o.value)).toBe(0);
+    expect(await runFix(args('fix', 'TextInput', '--case'), repo('carbon-measured.json'), o.value)).toBe(0);
     expect(o.text()).toContain('8 px missing below the label');
     expect(o.text()).toContain('kind "part"');
     expect(o.text()).not.toMatch(/bridge_/);
@@ -126,7 +130,7 @@ describe('the loop runner (fake model)', () => {
     const o = io();
     expect(await runFix(args('fix', 'TextInput', '--with-claude', '--dry-run'), root, o.value, model)).toBe(0);
     expect(model.prompts).toHaveLength(2);
-    expect(model.prompts[0]).toContain('8 px missing below the label');
+    expect(model.prompts[0]).toContain('Height 72 in Figma vs 84 in code');
     expect(model.prompts[1]).toContain('Round 1: you proposed');
     expect(model.prompts[1]).toContain('(-12 px -> -4 px): closer');
     expect(o.lines[0]).toMatch(/^Round 1: closer\. /);

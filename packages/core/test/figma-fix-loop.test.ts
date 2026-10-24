@@ -25,19 +25,11 @@ import {
 
 const loadWithBoxes = (): MeasuredSpecsFile => parseMeasuredSpecsFile(readFileSync(join(__dirname, 'fixtures/gap/carbon-measured.json'), 'utf8'));
 /**
- * The loop's scenario: a gap the build cannot see. Without the boxes of what the TextInput's label row and field group
- * hold, nothing tells their measured height from their content's, so the set hugs (72 for 84) and fixes must close it.
- * With the boxes, the pull keeps those heights by itself (last test).
+ * The loop's scenario: a gap the build cannot see. carbon-measured-hidden-boxes.json is the same measure without the
+ * boxes of the TextInput's label row and field group: nothing tells their measured height from their content's, so the
+ * set hugs (72 for 84) and fixes must close it. With the boxes, the pull keeps those heights by itself.
  */
-const HIDDEN_BOXES = ['cds--text-input-label-wrapper', 'cds--text-input-field-outer-wrapper'];
-const load = (): MeasuredSpecsFile => {
-  const f = loadWithBoxes();
-  for (const s of f.stories) {
-    if (!s.spec || !s.title.endsWith('/TextInput')) continue;
-    for (const p of s.spec.parts) if (p.parent && HIDDEN_BOXES.includes(p.parent)) delete s.spec.boxes[p.id];
-  }
-  return f;
-};
+const load = (): MeasuredSpecsFile => parseMeasuredSpecsFile(readFileSync(join(__dirname, 'fixtures/gap/carbon-measured-hidden-boxes.json'), 'utf8'));
 
 /** What the plugin saw for TextInput: 72 px tall in Figma vs 84 in code, the label wrapper hugging its label. */
 const textInputRun = (): FigmaFidelityRun => JSON.parse(readFileSync(join(__dirname, 'fixtures/gap/textinput-fidelity.json'), 'utf8'));

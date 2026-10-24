@@ -11,7 +11,10 @@ import { BridgeContext, createServer, figmaFixes } from '../src/lib.js';
 import { fakeGitHub, git, readTree, REAL_PATHS, REPO, tempGitRepo } from './helpers.js';
 
 const GAP = join(REPO, 'packages/core/test/fixtures/gap');
-const MEASURED = readFileSync(join(GAP, 'carbon-measured.json'), 'utf8');
+// The loop's scenario: the measure without the boxes of TextInput's label row and field group, which would let the pull
+// keep their heights by itself (a gap the build cannot see, that fixes close). The gap case's wording needs them.
+const MEASURED = readFileSync(join(GAP, 'carbon-measured-hidden-boxes.json'), 'utf8');
+const MEASURED_WITH_BOXES = readFileSync(join(GAP, 'carbon-measured.json'), 'utf8');
 const RUN = readFileSync(join(GAP, 'textinput-fidelity.json'), 'utf8');
 
 const labelFixed = { id: 'textinput-label-height', kind: 'part', component: 'TextInput', part: 'cds--text-input-label-wrapper', height: 'fixed', reason: 'Carbon keeps 24 px for the label row; Figma hugged the 16 px label.', by: 'claude' };
@@ -56,7 +59,7 @@ describe('bridge_figma_gaps', () => {
 
 describe('bridge_get_gap_case', () => {
   it('gives the gap case with deltas and the fix schema', async () => {
-    const { ro } = setup();
+    const { ro } = setup({ 'measured-specs.json': MEASURED_WITH_BOXES });
     const r = await figmaFixes.getGapCaseOp(await ro(), { component: 'textinput' });
     expect(r.gap.summary).toMatch(/Height 72 in Figma vs 84 in code: 8 px missing below the label/);
     expect(r.gap.variants[0]!.differences[0]).toMatchObject({ part: 'root', property: 'height', expected: 84, actual: 72, delta: -12 });
