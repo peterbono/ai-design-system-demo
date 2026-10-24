@@ -1,5 +1,31 @@
 # @bridge-ds/react
 
+## 1.8.0
+
+### Minor Changes
+
+- 29162d9: Badge: the sm size gets 8px side padding (space-2) instead of 6px, so small badges no longer feel cramped. Drafted from a Figma change (#325).
+
+### Patch Changes
+
+- aaac948: AvatarGroup: avatars overlap by a sixth instead of a quarter, so the second of two initials is never cut.
+- 57b8d89: Component specs treat a button or a select (including the Base UI part that renders one, read from Base UI's docs) as border-box: NumberField steppers are their height token wide again.
+- 3ed1ee5: ButtonGroup: the focus rule of attached groups uses `> :focus-visible`, same behaviour, no universal selector.
+- 64d3e8b: Combobox: a chip cut by the field width shows its full value on hover (title).
+- 9044d1a: Combobox: the listbox takes the field's name (its `label`, `aria-label` or `aria-labelledby`), so it is never an anonymous list, including while it closes.
+- ea27992: Designer words: screens a designer reads say "change" and "library", never branch, merge or main. The share and
+  product-branch sentences of `@bridge-ds/core` (`shareDescription`, `SHARE_EXPLAIN`, `libraryPreviewState`,
+  `productBranchSentence`) now read "This change was added to the library", "Your feature uses a preview of the library
+  change". The MCP fallback share sentence follows. ChoiceCard docs examples say "your change". Gate reasons, status
+  labels and developer texts (CLI, MCP, GitHub) keep their git words.
+- e1d05e0: Drawer: a body taller than the sheet is now a focusable region named by the title, so it can be scrolled with the keyboard.
+- 788b3f8: Stories per Figma variant for the sets whose checked state comes from their group (ChoiceCard, Radio, MenuRadioItem), with a `checked` arg the render turns into the group's value, so the Storybook measure maps each story to its variant.
+- ff50cd9: Button stories take `disabled` as a control, so the Storybook measure reaches the Disabled variants. The Figma plugin reads measured specs with the core types, part pairing and state matching.
+- 1c5563b: Menu: the item highlight is concentric with the popup corners.
+- 8fa49c7: Popover: the arrow no longer makes the popup show scrollbars when it opens above its trigger. The content scrolls inside its own padded area.
+- efa01d6: Component specs count height and width as the content box (a bordered table cell is its height plus its border), the Figma build draws an empty sized slot at its padding instead of 100px, and stories reach every Figma variant: a disabled control on IconButton, Input, Select, Combobox and Textarea, and Figma variant stories for AccordionItem, MenuItem, MenuCheckboxItem, MenuSubmenu and TableEmpty.
+- 9ec466a: Component specs match the code in two places the generator misread: menu parts drawn alone take the popup's snug line height, and the page header title takes its desktop (h1) size, as width media queries are now read at the 1200 px the code images use.
+
 ## 1.7.0
 
 ### Minor Changes
