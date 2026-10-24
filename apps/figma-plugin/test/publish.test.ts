@@ -12,6 +12,7 @@ import {
   experimentalTokenIds,
   groupState,
   heldTokenIds,
+  libraryOutcomes,
   publish,
   publishItems,
   publishPlan,
@@ -481,4 +482,33 @@ test('destination: experimental items start checked for an exploration and unche
   assert.deepEqual([...unchecked], [], 'only experimental items follow the destination; the designer\'s own choice stays');
   applyDestination(items, unchecked, 'review');
   assert.deepEqual([...unchecked], ['v:a']);
+});
+
+test('libraryOutcomes: token values wait for a developer until Bridge can arm the merge, a rename always waits, code is a build request', () => {
+  const tok = (path: string) => ({ path }) as never;
+  const proposal = {
+    changes: [
+      { target: tok('color.bg.subtle'), current: tok('color.bg.subtle') },
+      { target: tok('space.huge'), current: tok('space.xl') },
+      { target: tok('radius.4xl'), current: undefined },
+    ],
+  } as never;
+  const out = {
+    pr: { pr: { number: 7, url: 'u7' }, appended: false },
+    branches: [
+      { component: 'Badge', route: 'token-change', number: 8, url: 'u8' },
+      { component: 'Avatar', route: 'claude-draft', number: 9, url: 'u9' },
+    ],
+    requests: [{ component: 'Tabs', nodeId: '1:2', number: 10, url: 'u10' }],
+  } as never;
+  const routes = (armed: boolean) => libraryOutcomes(out, proposal, armed).map((o) => [o.subject.name, o.route, o.ref.kind, o.waitingFor ?? '']);
+  assert.deepEqual(routes(false), [
+    ['color.bg.subtle', 'waiting-for-developer', 'pull', 'not-armed'],
+    ['space.huge', 'waiting-for-developer', 'pull', 'rename'],
+    ['radius.4xl', 'waiting-for-developer', 'pull', 'not-armed'],
+    ['Badge', 'waiting-for-developer', 'pull', 'not-armed'],
+    ['Avatar', 'build-request', 'pull', ''],
+    ['Tabs', 'build-request', 'issue', ''],
+  ]);
+  assert.deepEqual(routes(true).map((r) => r[1]), ['shipped', 'waiting-for-developer', 'shipped', 'shipped', 'build-request', 'build-request']);
 });
