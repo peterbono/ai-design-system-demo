@@ -22,7 +22,7 @@ import { localAdminStore, type LocalAdmins } from '../api/_lib/local-admin.js';
 import { type EmailMember, memberStore } from '../api/_lib/members.js';
 import { memoryRedis, type Redis, type RedisArg, type RedisSnapshot } from '../api/_lib/redis.js';
 import { RESERVED_PATHS_URL, reservedFromFiles, type ReservedPaths } from '../src/lib/team-path.js';
-import { fixtureApp, fixtureGithub, gitFiles } from './local-github.js';
+import { fixtureApp, fixtureGithub, gitFiles, type SampleBuilds } from './local-github.js';
 
 /** The folder that holds local data, next to package.json (gitignored). */
 export const LOCAL_DIR = '.bridge-local';
@@ -467,7 +467,7 @@ export function bridgeLocal(opts: { root: string; log?: (s: string) => void }) {
           redis,
           email,
           env,
-          fetch: fixtureGithub(redis, () => gitFiles(join(root, '..', '..')), realFetch),
+          fetch: fixtureGithub(redis, () => gitFiles(join(root, '..', '..')), realFetch, Date.now, () => server.ssrLoadModule('/src/lib/building-sample.ts') as ReturnType<SampleBuilds>),
           localAdmins: localAdminStore(redis),
           ...(hasGithub ? {} : { app: fixtureApp(redis) }),
         };

@@ -19,7 +19,6 @@ import { execFileSync } from 'node:child_process';
 import type { AppTokens } from '../api/_lib/github-app.js';
 import type { FetchLike } from '../api/_lib/http.js';
 import type { Redis } from '../api/_lib/redis.js';
-import { sampleBuildData } from '../src/lib/building-sample.js';
 
 /** The fixture teams, lower case "owner/repo", and each one's record { name }. Written by dev/scenarios.ts. */
 export const FIXTURES_KEY = 'bridge:local:fixtures';
@@ -125,7 +124,15 @@ function teamFiles(src: FixtureFiles, f: Fixture) {
  * A fetch that answers GitHub calls for fixture teams and passes every other call to `next`. `files` is read once,
  * on the first fixture call (a git command), so a server without scenarios never runs git.
  */
-export function fixtureGithub(redis: Redis, files: () => FixtureFiles, next: FetchLike, now: () => number = Date.now): FetchLike {
+/** The sample build requests module (lib/building-sample.ts), loaded only when a team seeded with them asks. */
+export type SampleBuilds = () => Promise<Pick<typeof import('../src/lib/building-sample.js'), 'sampleBuildData'>>;
+
+/**
+ * `samples`: never a static import. This file loads with astro.config.mjs, where workspace packages resolve to their
+ * built dist (absent on a fresh checkout, so `npm run dev:full` would not start); the dev server passes its own loader,
+ * which reads @bridge-ds/core from source like every page.
+ */
+export function fixtureGithub(redis: Redis, files: () => FixtureFiles, next: FetchLike, now: () => number = Date.now, samples: SampleBuilds = () => import('../src/lib/building-sample.js')): FetchLike {
   let src: FixtureFiles | null = null;
   const source = () => (src ??= files());
   return async (url, init) => {
@@ -211,7 +218,7 @@ export function fixtureGithub(redis: Redis, files: () => FixtureFiles, next: Fet
     }
     // Build requests (Being built): the sample ones, for a fixture team seeded with them (S19).
     if (f.builds && (rest === '/issues' || rest === '/pulls')) {
-      const data = sampleBuildData(now(), f.repo);
+      const data = (await samples()).sampleBuildData(now(), f.repo);
       if (rest === '/pulls') return jsonRes(200, data.pulls);
       const want = (u.searchParams.get('labels') ?? '').split(',').filter(Boolean);
       const state = u.searchParams.get('state') ?? 'open';
