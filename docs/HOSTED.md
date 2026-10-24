@@ -516,8 +516,11 @@ instead of one request per file.
   or a commit by its sha, contents at a full sha) are kept a day (blobs a week) and in the function's memory. Keys:
   `bridge:read:get:<repo>:<hash>`, `bridge:read:blob:<repo>:<sha>`. Bodies of private repositories land there: access
   is checked on every request, never by the key.
-- **Limits** per 10 minutes: 1,200 requests per address for members, 400 per address on a demo team, 6,000 per team
-  (`READ_MAX_IP`, `READ_MAX_GUEST`, `READ_MAX_TEAM`, optional; a blob batch counts 1 per 20 blobs). Over a limit, or
+- **Limits** per 10 minutes: 1,200 requests per signed-in member (counted by a hash of their email, so a whole
+  office behind one address is not one budget), 400 per address for a signed-out visitor of a demo team, 6,000 per
+  team (`READ_MAX_IP` sets the member limit, `READ_MAX_GUEST`, `READ_MAX_TEAM`, optional; a blob batch counts 1 per
+  20 blobs). Studio keeps a member's answers 30 seconds in the tab (an answer by commit sha 10 minutes), forgotten on
+  any write or sign-out, so moving between pages reads again only what changed. Over a limit, or
   when GitHub says slow down and nothing is kept: 429 `busy`, `Retry-After`, `{ "message": "Bridge is busy, try again
   in N min.", "retryAfter": <seconds> }`. Studio shows that sentence, never "add a GitHub token".
 - **Fallback**: when the server answers that it cannot read (not set up, the app not on the repository), a demo

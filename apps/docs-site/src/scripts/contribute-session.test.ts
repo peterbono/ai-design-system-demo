@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CONTRIB_TOKEN } from '../lib/contribute';
 import { errorText } from '../lib/token-session';
-import { contributeBlobs, contributeInfo, contributorFor, forgetContributors, onContributeChange, publicTeamRead, requestEmailSignIn, seedContributors, setContributeFetch, signOutEmail, verifyEmailSignIn } from './contribute-session';
+import { clearRecentMemory, contributeBlobs, contributeFetch, contributeInfo, forgetRecent, recentFor, RECENT_SHA_MS, contributorFor, forgetContributors, onContributeChange, publicTeamRead, requestEmailSignIn, seedContributors, setContributeFetch, signOutEmail, verifyEmailSignIn } from './contribute-session';
 import { resetGuestActivity } from './guest-activity';
 import { currentContributor, getToken, ghWrite, studioClient, studioFetch } from './github-session';
 import { teamClient, teamToken } from './team-data';
@@ -122,8 +122,8 @@ describe("Studio's GitHub calls for an email contributor", () => {
   it('read anything outside the team as a guest, and forget an ended session', async () => {
     signIn();
     answer = () => json(200, {});
-    await studioFetch('https://api.github.com/users/ann', { headers: { Authorization: `Bearer ${CONTRIB_TOKEN}` } });
-    expect(calls[0]!.url).toBe('https://api.github.com/users/ann');
+    await studioFetch('https://api.github.com/repos/other/thing', { headers: { Authorization: `Bearer ${CONTRIB_TOKEN}` } });
+    expect(calls[0]!.url).toBe('https://api.github.com/repos/other/thing');
     expect(Object.keys(calls[0]!.init.headers as Record<string, string>)).not.toContain('Authorization');
     answer = () => json(401, { error: 'signin' });
     await studioClient('acme/ds')
@@ -254,5 +254,89 @@ describe('reads through Bridge', () => {
     expect(err).toMatchObject({ status: 429 });
     expect((err as Error).message).toMatch(/^Bridge is busy, try again in (10|11) min\.$/);
     expect((err as Error).message).not.toMatch(/token/i);
+  });
+});
+
+describe('a member reads through Bridge with fewer requests', () => {
+  const SHA = 'a'.repeat(40);
+  const get = (path: string, accept = 'application/vnd.github+json') => contributeFetch('acme/ds', `https://api.github.com${path}`, { headers: { Accept: accept } });
+  const proxied = () => calls.filter((c) => c.url.includes('gh=')).length;
+
+  it('reuses an answer a short while, shares a read in flight, and keeps sha-addressed answers longer', async () => {
+    signIn();
+    answer = () => json(200, [{ number: 1 }]);
+    const [a, b] = await Promise.all([get('/repos/acme/ds/pulls'), get('/repos/acme/ds/pulls')]);
+    expect(await a.json()).toEqual([{ number: 1 }]);
+    expect(await b.json()).toEqual([{ number: 1 }]);
+    expect(proxied()).toBe(1);
+    expect(await (await get('/repos/acme/ds/pulls')).json()).toEqual([{ number: 1 }]);
+    expect(proxied()).toBe(1);
+    // Another Accept is another answer.
+    await get('/repos/acme/ds/pulls', 'application/vnd.github.raw');
+    expect(proxied()).toBe(2);
+    expect(recentFor(`/repos/acme/ds/git/trees/${SHA}?recursive=1`)).toBe(RECENT_SHA_MS);
+    expect(recentFor(`/repos/acme/ds/contents/a.json?ref=${SHA}`)).toBe(RECENT_SHA_MS);
+    // A commit's CI status moves: kept as briefly as anything else; a cache buster is never kept.
+    expect(recentFor(`/repos/acme/ds/commits/${SHA}/status`)).toBeLessThan(RECENT_SHA_MS);
+    expect(recentFor(`/repos/acme/ds/compare/main...${SHA}`)).toBeLessThan(RECENT_SHA_MS);
+    expect(recentFor('/repos/acme/ds/pulls?t=123')).toBe(0);
+  });
+
+  it('the next page of the tab reuses it (sessionStorage), and a write or a sign-out forgets it', async () => {
+    signIn();
+    answer = () => json(200, { n: 1 });
+    await get('/repos/acme/ds/pulls/1');
+    expect(Object.keys(sessionStorage).some((k) => k.startsWith('bridge.read.recent:acme/ds:leo@acme.design:'))).toBe(true);
+    // A new page: the memory is gone, the tab's copy stays.
+    clearRecentMemory();
+    await get('/repos/acme/ds/pulls/1');
+    expect(proxied()).toBe(1);
+    // A write through the proxy.
+    await contributeFetch('acme/ds', 'https://api.github.com/repos/acme/ds/issues/1/comments', { method: 'POST', headers: {}, body: '{}' });
+    answer = () => json(200, { n: 2 });
+    expect(await (await get('/repos/acme/ds/pulls/1')).json()).toEqual({ n: 2 });
+    forgetRecent('acme/ds');
+    expect(Object.keys(sessionStorage).some((k) => k.startsWith('bridge.read.recent:'))).toBe(false);
+    await get('/repos/acme/ds/pulls/1');
+    await signOutEmail('acme/ds');
+    expect(Object.keys(sessionStorage).some((k) => k.startsWith('bridge.read.recent:'))).toBe(false);
+  });
+
+  it('keeps no error, and never a cache-busted read', async () => {
+    signIn();
+    answer = () => json(404, { message: 'Not Found' });
+    await get('/repos/acme/ds/pulls/9');
+    await get('/repos/acme/ds/pulls/9');
+    expect(proxied()).toBe(2);
+    answer = () => json(200, {});
+    await get('/repos/acme/ds/pulls?t=1');
+    await get('/repos/acme/ds/pulls?t=1');
+    expect(proxied()).toBe(4);
+  });
+
+  it("names people through Bridge: several logins in one request, GitHub's /users shape, 404 for an unknown login", async () => {
+    signIn();
+    answer = (url) => (url.includes('users=') ? json(200, { users: { dana: { login: 'dana', name: 'Dana Whitfield', avatar_url: null, type: 'User' }, ghost: null } }) : json(200, {}));
+    const [d, g] = await Promise.all([
+      studioFetch('https://api.github.com/users/dana', { headers: { Authorization: `Bearer ${CONTRIB_TOKEN}` } }),
+      studioFetch('https://api.github.com/users/ghost', { headers: { Authorization: `Bearer ${CONTRIB_TOKEN}` } }),
+    ]);
+    expect(await d.json()).toMatchObject({ login: 'dana', name: 'Dana Whitfield' });
+    expect(g.status).toBe(404);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe('/api/contribute?repo=acme%2Fds&users=dana,ghost');
+    expect(calls.some((c) => c.url.startsWith('https://api.github.com'))).toBe(false);
+    // Asked again on the page: no request.
+    await studioFetch('https://api.github.com/users/dana', { headers: { Authorization: `Bearer ${CONTRIB_TOKEN}` } });
+    expect(calls).toHaveLength(1);
+  });
+
+  it('asks GitHub as before when Bridge cannot answer for a login', async () => {
+    signIn();
+    answer = (url) => (url.includes('users=') ? json(503, { error: 'not_configured', message: 'x' }) : json(200, { login: 'ann', name: 'Ann' }));
+    const r = await studioFetch('https://api.github.com/users/ann', { headers: { Authorization: `Bearer ${CONTRIB_TOKEN}` } });
+    expect(await r.json()).toMatchObject({ name: 'Ann' });
+    expect(calls.map((c) => c.url)).toEqual(['/api/contribute?repo=acme%2Fds&users=ann', 'https://api.github.com/users/ann']);
+    expect(Object.keys(calls[1]!.init.headers as Record<string, string>)).not.toContain('Authorization');
   });
 });

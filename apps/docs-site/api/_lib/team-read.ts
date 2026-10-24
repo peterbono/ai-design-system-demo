@@ -11,6 +11,10 @@
 //       A request that carries X-Bridge-Missing: 1 (Bridge's own pages) gets GitHub's 404 (a file or branch that is not
 //       there, such as a team without a Bridge snapshot) as 200 with X-Bridge-Missing: 1 and GitHub's body, so the
 //       browser logs no error for an expected empty state; the page reads it back as the 404 (lib/contribute.ts).
+//   GET /api/contribute?repo=owner/name&users=<login>,<login>,...   (members only, at most MAX_USERS logins)
+//       { users: { <login lower case>: { login, name, avatar_url, type } | null } }  the public GitHub profile of each
+//       login (name and avatar, nothing else), null for one GitHub does not know. Studio names the builders and
+//       reviewers of the team with it for a member without GitHub (an email member), instead of anonymous GitHub reads.
 //   GET /api/contribute?repo=owner/name&blobs=<sha>,<sha>,...   (at most MAX_BATCH full blob shas)
 //       { blobs: { <sha>: "<text>" | null } , later: [<sha>...] }  the bodies of these blobs at once (null: GitHub has
 //       none), `later` the ones left out to keep the answer under MAX_BATCH_BYTES (ask again).
@@ -29,9 +33,13 @@
 //                                                 FRESH_MS, then revalidated with If-None-Match (a 304 does not count
 //                                                 against GitHub's limit); kept KEEP_S for stale-on-limit
 //   bridge:read:blob:<repo>:<sha>                 a blob's text (content-addressed), BLOB_KEEP_S
+//   bridge:read:user:<login>                      a public profile { login, name, avatar_url, type } or "null", USER_KEEP_S
+//                                                 (public data, shared by every team)
 //   bridge:read:wrote:<repo>                      when a write went through Bridge (api/contribute): older answers
 //                                                 are revalidated at once
-//   bridge:read:count:<kind>:<who>:<window>       requests per window (READ_WINDOW_S) per address and per team
+//   bridge:read:count:<kind>:<who>:<window>       requests per window (READ_WINDOW_S): per signed-in member (a hash of
+//                                                 their email, so one office behind one address is not one budget),
+//                                                 per address for a visitor of a public demo team, and per team
 // Answers that never change (a blob, a tree or a commit by its sha) are also kept in this function's memory.
 // Over a limit, or when GitHub says slow down and nothing is kept: 429 { error: 'busy', message: "Bridge is busy, try
 // again in N min." } with Retry-After.
@@ -53,9 +61,15 @@ export const BLOB_KEEP_S = 7 * 24 * 60 * 60;
 /** Bigger answers are not kept in Redis (one Upstash request carries at most 1 MB). */
 export const MAX_KEPT_CHARS = 700_000;
 export const MAX_BATCH = 100;
+/** Logins per people request, and how long a public profile is kept. */
+export const MAX_USERS = 30;
+export const USER_KEEP_S = 24 * 60 * 60;
 export const MAX_BATCH_BYTES = 3_000_000;
 export const READ_WINDOW_S = 10 * 60;
-/** Requests per window: per address, per address on a public demo team (no sign-in), per team. */
+/**
+ * Requests per window: per signed-in member (`ip` keeps its name: READ_MAX_IP sets it), per address on a public demo
+ * team (no sign-in), per team.
+ */
 export const READ_LIMITS = { ip: 1200, guest: 400, team: 6000 } as const;
 
 const API = 'https://api.github.com';
@@ -73,6 +87,11 @@ export const READ_WORDS = {
 /** Who reads: a member of the team, or a visitor of a public demo team. */
 export interface Reader {
   kind: 'member' | 'guest';
+  /**
+   * A member's email (lower case): their reads count against their own budget, wherever they read from. Without it
+   * (a visitor), the budget is the address's.
+   */
+  email?: string;
 }
 
 export interface ReadCtx {
@@ -158,10 +177,11 @@ export function immutable(rest: string[], query: string): boolean {
 const windowOf = (now: number) => Math.floor(now / 1000 / READ_WINDOW_S);
 const secondsToNextWindow = (now: number) => Math.max(1, (windowOf(now) + 1) * READ_WINDOW_S - Math.floor(now / 1000));
 
-export const countKey = (kind: 'ip' | 'guest' | 'team', who: string, now: number) => `bridge:read:count:${kind}:${who}:${windowOf(now)}`;
+export const countKey = (kind: 'ip' | 'member' | 'guest' | 'team', who: string, now: number) => `bridge:read:count:${kind}:${who}:${windowOf(now)}`;
 export const wroteKey = (repo: string) => `bridge:read:wrote:${repo.toLowerCase()}`;
 const getKey = (repo: string, accept: string, url: string) => `bridge:read:get:${repo.toLowerCase()}:${sha256(`${accept} ${url}`).slice(0, 40)}`;
 const blobKey = (repo: string, sha: string) => `bridge:read:blob:${repo.toLowerCase()}:${sha}`;
+export const userKey = (login: string) => `bridge:read:user:${login.toLowerCase()}`;
 
 export const busy = (seconds: number): HttpError => new HttpError(429, 'busy', READ_WORDS.busy(seconds), { retryAfter: seconds }, { 'Retry-After': String(seconds) });
 
@@ -170,15 +190,21 @@ export async function noteWrite(redis: Redis, repo: string, now: number): Promis
   await redis.cmd('SET', wroteKey(repo), String(now), 'EX', KEEP_S);
 }
 
+/** Whose budget a read counts against: the signed-in member, else the address. */
+export function budgetOf(req: Request, reader: Reader): { kind: 'member' | 'ip' | 'guest'; who: string } {
+  const email = reader.kind === 'member' ? reader.email?.trim().toLowerCase() : undefined;
+  if (email) return { kind: 'member', who: sha256(`read-member:${email}`).slice(0, 24) };
+  return { kind: reader.kind === 'guest' ? 'guest' : 'ip', who: sha256(`read-ip:${clientIp(req)}`).slice(0, 24) };
+}
+
 /**
- * Counts one request (`weight` for a batch) against the address and the team, and reads `extra` keys in the same
- * round trip. Throws busy over a limit. Returns the values of `extra` and the last write time.
+ * Counts one request (`weight` for a batch) against the reader's budget (budgetOf) and the team, and reads `extra`
+ * keys in the same round trip. Throws busy over a limit. Returns the values of `extra` and the last write time.
  */
 async function countAndRead(ctx: ReadCtx, req: Request, full: string, reader: Reader, weight: number, extra: string[]): Promise<{ values: unknown[]; wrote: number }> {
   const now = ctx.now();
-  const ip = sha256(`read-ip:${clientIp(req)}`).slice(0, 24);
-  const ipKind = reader.kind === 'guest' ? 'guest' : 'ip';
-  const keys = [countKey(ipKind, ip, now), countKey('team', full.toLowerCase(), now)];
+  const budget = budgetOf(req, reader);
+  const keys = [countKey(budget.kind, budget.who, now), countKey('team', full.toLowerCase(), now)];
   const limits = [reader.kind === 'guest' ? envInt(ctx.env.READ_MAX_GUEST, READ_LIMITS.guest) : envInt(ctx.env.READ_MAX_IP, READ_LIMITS.ip), envInt(ctx.env.READ_MAX_TEAM, READ_LIMITS.team)];
   const r = await ctx.redis.pipe([...keys.flatMap((k) => [['INCRBY', k, weight], ['EXPIRE', k, READ_WINDOW_S + 5]]), ['GET', wroteKey(full)], ...extra.map((k) => ['GET', k])]);
   if (keys.some((_, i) => Number(r[i * 2]) > limits[i]!)) throw busy(secondsToNextWindow(now));
@@ -460,4 +486,94 @@ export async function onBlobs(req: Request, ctx: ReadCtx, t: Pick<ReadTarget, 'o
     if (limited !== null && !Object.keys(out).length) throw busy(limited);
   }
   return json(200, { blobs: out, later }, { 'Cache-Control': 'private, no-store' });
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// People: the public profile of the logins Studio shows (builders, reviewers, authors)
+
+/** A GitHub login: letters, digits and single dashes, at most 39 characters; an app's ends in [bot]. */
+const LOGIN = /^[a-z0-9](?:[a-z0-9-]{0,38})(?:\[bot\])?$/i;
+
+/** What Bridge keeps and answers of a GitHub user: their public name and avatar, nothing else. */
+export interface PublicProfile {
+  login: string;
+  name: string | null;
+  avatar_url: string | null;
+  type: 'User' | 'Organization' | 'Bot';
+}
+
+/** Parses `users=` (comma separated logins, at most MAX_USERS, no repeats, lower case). */
+export function parseUserList(v: string | null): string[] {
+  const list = (v ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (!list.length || list.length > MAX_USERS || list.some((s) => !LOGIN.test(s))) throw new HttpError(400, 'bad_request', `Ask for 1 to ${MAX_USERS} GitHub people by their login.`);
+  return [...new Set(list)];
+}
+
+/** Only the public fields Studio shows; anything else GitHub says (email, company, location...) is dropped. */
+export function publicProfile(login: string, data: unknown): PublicProfile {
+  const d = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
+  const name = typeof d.name === 'string' && d.name.trim() ? d.name.trim().slice(0, 100) : null;
+  const avatar = typeof d.avatar_url === 'string' && /^https:\/\/[^\s"'<>]+$/.test(d.avatar_url) ? d.avatar_url : null;
+  const type = d.type === 'Organization' || d.type === 'Bot' ? d.type : 'User';
+  return { login: typeof d.login === 'string' && LOGIN.test(d.login) ? d.login : login, name, avatar_url: avatar, type };
+}
+
+const parseProfile = (raw: unknown): PublicProfile | null | undefined => {
+  if (typeof raw !== 'string') return undefined;
+  if (raw === 'null') return null;
+  try {
+    const p = JSON.parse(raw) as PublicProfile;
+    return p && typeof p.login === 'string' ? p : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * The public profiles of `logins`, for a member of the team (never a visitor): from Redis, then GitHub with the team's
+ * read token (4 at a time). Counts against the member's budget like a blob batch (1 per 20 logins).
+ */
+export async function onUsers(req: Request, ctx: ReadCtx, t: Pick<ReadTarget, 'owner' | 'repo' | 'full'>, logins: string[], reader: Reader): Promise<Response> {
+  if (reader.kind !== 'member') throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);
+  const { values } = await countAndRead(ctx, req, t.full, reader, Math.max(1, Math.ceil(logins.length / 20)), logins.map(userKey));
+  const users: Record<string, PublicProfile | null> = {};
+  const missing: string[] = [];
+  logins.forEach((l, i) => {
+    const kept = parseProfile(values[i]);
+    if (kept === undefined) missing.push(l);
+    else users[l] = kept;
+  });
+  if (missing.length) {
+    const token = await tokenFor(ctx, t.owner, t.repo);
+    const writes: (string | number)[][] = [];
+    let limited: number | null = null;
+    let i = 0;
+    const worker = async () => {
+      while (i < missing.length) {
+        const l = missing[i++]!;
+        if (limited !== null) continue;
+        const res = await upstream(ctx, `${API}/users/${encodeURIComponent(l)}`, token, 'application/vnd.github+json', null).catch(() => null);
+        if (!res || res.status >= 500) continue;
+        const wait = limitedFor(res, ctx.now());
+        if (wait !== null) {
+          limited = wait;
+          continue;
+        }
+        if (res.status === 404) {
+          users[l] = null;
+          writes.push(['SET', userKey(l), 'null', 'EX', USER_KEEP_S]);
+          continue;
+        }
+        if (res.status !== 200) continue;
+        const p = publicProfile(l, await res.json().catch(() => null));
+        users[l] = p;
+        writes.push(['SET', userKey(l), JSON.stringify(p), 'EX', USER_KEEP_S]);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, missing.length) }, worker));
+    if (writes.length) await ctx.redis.pipe(writes).catch(() => undefined);
+    if (limited !== null && !Object.keys(users).length) throw busy(limited);
+  }
+  // A login GitHub did not answer for (busy, down) is left out: Studio shows the login and asks again later.
+  return json(200, { users }, { 'Cache-Control': 'private, no-store' });
 }

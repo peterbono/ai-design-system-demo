@@ -21,6 +21,7 @@
 //   POST { action: 'sign-out', repo }                    clears it
 //   GET  /api/contribute?repo=owner/name&gh=<GitHub REST path and query, URL-encoded, starting with />
 //   GET  /api/contribute?repo=owner/name&blobs=<sha>,<sha>,...
+//   GET  /api/contribute?repo=owner/name&users=<login>,...   (members only: public names and avatars)
 //                                                        a read of the team's repository through Bridge, for its
 //                                                        members and for anyone on a public demo team: allow-listed,
 //                                                        read-only token, cached, rate limited (api/_lib/team-read.ts)
@@ -104,7 +105,7 @@ import { redisRest, type Redis } from '../_lib/redis.js';
 import { configName, putTeamName } from '../_lib/teams.js';
 import { cookieAttrs, readCookie, signClaims, verifyClaims } from '../_lib/session.js';
 import { accountTeamsKey } from '../_lib/members.js';
-import { isPublicRepo, noteWrite, onBlobs, onRead, parseBlobList, PUBLIC_TEAMS, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
+import { isPublicRepo, noteWrite, onBlobs, onRead, onUsers, parseBlobList, parseUserList, PUBLIC_TEAMS, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
 
 export type { FetchLike };
 
@@ -123,7 +124,7 @@ export interface ContribEnv {
   GITHUB_APP_PRIVATE_KEY?: string | undefined;
   PUBLIC_SITE_URL?: string | undefined;
   CONTRIB_MAX_WRITES?: string | undefined;
-  /** Reads through Bridge per 10 minutes: per address (members), per address (demo visitors), per team. */
+  /** Reads through Bridge per 10 minutes: per member, per address (demo visitors), per team. */
   READ_MAX_IP?: string | undefined;
   READ_MAX_GUEST?: string | undefined;
   READ_MAX_TEAM?: string | undefined;
@@ -894,12 +895,14 @@ async function onProxy(req: Request, ctx: Ctx, params: URLSearchParams): Promise
  * nobody we know.
  */
 async function readerOf(ctx: Ctx, req: Request, full: string, rctx: ReadCtx): Promise<Reader | null> {
-  if (await sessionMember(ctx, req, full)) return { kind: 'member' };
+  // A member reads on their own budget (api/_lib/team-read.ts budgetOf), not their address's.
+  const m = await sessionMember(ctx, req, full);
+  if (m) return { kind: 'member', email: m.email };
   const a = await sessionAccount(req, ctx.svc.redis, ctx.svc.secret, ctx.now());
   if (a) {
     // The account's team set (api/_lib/members.ts keeps it, and team creation adds admins to it).
-    if (Number(await ctx.svc.redis.cmd('SISMEMBER', accountTeamsKey(a.email), full.toLowerCase())) === 1) return { kind: 'member' };
-    if (ctx.svc.localAdmins && (await ctx.svc.localAdmins.isAdmin(full, a.email))) return { kind: 'member' };
+    if (Number(await ctx.svc.redis.cmd('SISMEMBER', accountTeamsKey(a.email), full.toLowerCase())) === 1) return { kind: 'member', email: a.email };
+    if (ctx.svc.localAdmins && (await ctx.svc.localAdmins.isAdmin(full, a.email))) return { kind: 'member', email: a.email };
   }
   if (PUBLIC_TEAMS.includes(full.toLowerCase())) {
     const { owner, repo } = parseRepo(full);
@@ -919,9 +922,11 @@ async function onTeamRead(req: Request, ctx: Ctx, params: URLSearchParams): Prom
     env: { READ_MAX_IP: ctx.env.READ_MAX_IP, READ_MAX_GUEST: ctx.env.READ_MAX_GUEST, READ_MAX_TEAM: ctx.env.READ_MAX_TEAM },
   };
   const blobs = params.get('blobs');
+  const usersArg = params.get('users');
   // The path is checked before anyone is looked up: a bad address costs no storage call.
-  const target = blobs === null ? parseTarget(params.get('gh'), owner, repo) : null;
-  const shas = blobs !== null ? parseBlobList(blobs) : null;
+  const logins = usersArg !== null ? parseUserList(usersArg) : null;
+  const target = blobs === null && !logins ? parseTarget(params.get('gh'), owner, repo) : null;
+  const shas = blobs !== null && !logins ? parseBlobList(blobs) : null;
   if (target && !readAllowed(target.rest, { kind: 'member' })) throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);
   const reader = await readerOf(ctx, req, full, rctx);
   if (!reader) {
@@ -929,6 +934,7 @@ async function onTeamRead(req: Request, ctx: Ctx, params: URLSearchParams): Prom
     const stale = readCookie(req, cookieName(full)) !== null;
     return json(401, { error: 'signin', message: SIGNIN }, stale ? { 'Set-Cookie': clearSession(full) } : {});
   }
+  if (logins) return onUsers(req, rctx, { owner, repo, full }, logins, reader);
   if (shas) return onBlobs(req, rctx, { owner, repo, full }, shas, reader);
   return onRead(req, rctx, { owner, repo, full, rest: target!.rest, rawRest: target!.rawRest, query: target!.query }, reader);
 }
@@ -1011,8 +1017,9 @@ export async function handleContribute(req: Request, env: ContribEnv, deps: Cont
     const params = new URL(req.url).searchParams;
     const gh = params.get('gh');
     const blobs = params.get('blobs');
+    const users = params.get('users');
 
-    if (method === 'GET' && gh === null && blobs === null) {
+    if (method === 'GET' && gh === null && blobs === null && users === null) {
       const repoArg = params.get('repo');
       if (repoArg === null || !svc) {
         if (repoArg !== null) parseRepo(repoArg);
@@ -1034,7 +1041,7 @@ export async function handleContribute(req: Request, env: ContribEnv, deps: Cont
 
     if (!svc) return fail(503, 'not_configured', NOT_CONFIGURED);
     const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, env };
-    if (gh !== null || (blobs !== null && method === 'GET')) return await onProxy(req, ctx, params);
+    if (gh !== null || ((blobs !== null || users !== null) && method === 'GET')) return await onProxy(req, ctx, params);
     if (method !== 'POST') return fail(400, 'bad_request', 'Say which GitHub call, with gh.');
     return await onAction(req, ctx);
   } catch (e) {
