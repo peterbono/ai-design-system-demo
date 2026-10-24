@@ -15,7 +15,7 @@ import { needFromStatus, pendingApprovals, statusPill, whoActs, type ApprovalRol
 import { developerOnlyFailures } from '../lib/check-explain';
 import { guestActivity } from './guest-activity';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
-import { canOverride, closingIssueNumbers, DEFAULT_OVERRIDE, ownerOverridePolicy, type OverridePolicy, type TeamStates } from '@bridge-ds/core';
+import { canOverride, closingIssueNumbers, DEFAULT_OVERRIDE, ownerOverridePolicy, PUBLISH_ROUTE_COPY, type OverridePolicy, type TeamStates } from '@bridge-ds/core';
 import { approvedSuggestionOf } from './suggestions';
 import { siteConfig } from './repo-context';
 import { loadTeams, siteApproverEntries, siteApprovers, siteRoles, siteShipPolicy, siteSoloOwner, teamSnapshot } from './teams';
@@ -201,7 +201,7 @@ export function statusChip(s: ReviewStatus | null, opts: { skipped?: boolean } =
  * who acts now ("Design owner to approve", "Your turn: approve design"), from the same whoActs as the pull request
  * header. Falls back to the plain status label when the who-acts line adds nothing (unknown, merged, closed).
  */
-type RowFacts = { author: string; labels?: LabelLike[] | null; approvers?: string[]; changesRequested?: string[]; failing?: number; failingChecks?: string[]; pending?: ApprovalRole[]; skipped?: boolean };
+type RowFacts = { author: string; labels?: LabelLike[] | null; approvers?: string[]; changesRequested?: string[]; failing?: number; failingChecks?: string[]; pending?: ApprovalRole[]; skipped?: boolean; autoShip?: boolean };
 
 /** governance.override from bridge.config.json, as the layout embeds it (none when the site has no config). */
 /** The owner override, limited to the owners it names (core overrideHolders): Settings, Home and the branch page agree. */
@@ -222,6 +222,8 @@ function overridePolicy(): OverridePolicy {
  */
 export function rowWho(kind: ReviewStatusKind | null, o: RowFacts): WhoActs | null {
   if (o.skipped || !kind) return null;
+  // A token push from Figma with values only (PullStatus autoShip): nobody acts, it ships after the checks.
+  if (o.autoShip && kind !== 'merged' && kind !== 'closed') return { ...ON_ITS_WAY };
   const viewer = currentViewer()?.login ?? null;
   const policy = overridePolicy();
   return whoActs(needFromStatus(kind, { failing: o.failing, changesRequestedBy: o.changesRequested, developerOnly: developerOnlyFailures(o.failingChecks), pending: o.pending, claude: claudeStage(o.labels) }), {
@@ -236,6 +238,9 @@ export function rowWho(kind: ReviewStatusKind | null, o: RowFacts): WhoActs | nu
     soloOwner: siteSoloOwner(),
   });
 }
+
+/** What a row and the branch page say about a token push from Figma that ships by itself (core libraryArrival). */
+export const ON_ITS_WAY: WhoActs = { who: 'nobody', logins: [], yourTurn: false, action: 'wait', sentence: PUBLISH_ROUTE_COPY.shipped.sentence, short: PUBLISH_ROUTE_COPY.shipped.label };
 
 export function whoChip(kind: ReviewStatusKind | null, o: RowFacts): string {
   const who = rowWho(kind, o);

@@ -57,6 +57,28 @@ export function personHtml(login: string, { size = 'xs', agent = false, withName
 let illustrator: Promise<(seed: string) => string> | null = null;
 const loadIllustrator = () => (illustrator ??= import('@bridge-ds/react/avatar-illustrated').then((m) => m.illustratedAvatarUri));
 
+/**
+ * The profile names of these logins, read from GitHub when not known yet (within the name budget), for text written
+ * once (a sentence such as "Ana is on it"): the same names as paintPeople puts on avatars and rows.
+ */
+export async function lookUpNames(logins: string[]): Promise<NameCache> {
+  const want = loginsToFetch(logins, names(), nameBudget(hasWorkingToken()));
+  if (want.length) {
+    await Promise.all(
+      want.map(async (login) => {
+        try {
+          const { data } = await ghGet<{ name?: string | null }>(`/users/${encodeURIComponent(login)}`);
+          names()[login] = { name: data.name?.trim() || null, at: Date.now() };
+        } catch {
+          /* rate limit or offline: the login stays */
+        }
+      }),
+    );
+    save();
+  }
+  return names();
+}
+
 /** Swaps illustrated faces and profile names into every person under `root`. Safe to call after each repaint. */
 export async function paintPeople(root: ParentNode = document): Promise<void> {
   const faces = [...root.querySelectorAll<HTMLElement>('[data-face]:not([data-face-done])')];
@@ -81,20 +103,7 @@ export async function paintPeople(root: ParentNode = document): Promise<void> {
   }
   const people = [...root.querySelectorAll<HTMLElement>('[data-person]')];
   if (!people.length) return;
-  const want = loginsToFetch(people.map((el) => el.dataset.person!), names(), nameBudget(hasWorkingToken()));
-  if (want.length) {
-    await Promise.all(
-      want.map(async (login) => {
-        try {
-          const { data } = await ghGet<{ name?: string | null }>(`/users/${encodeURIComponent(login)}`);
-          names()[login] = { name: data.name?.trim() || null, at: Date.now() };
-        } catch {
-          /* rate limit or offline: the login stays */
-        }
-      }),
-    );
-    save();
-  }
+  await lookUpNames(people.map((el) => el.dataset.person!));
   for (const el of people) {
     if (!el.isConnected) continue;
     const login = el.dataset.person!;

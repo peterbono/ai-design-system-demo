@@ -55,7 +55,7 @@ import { currentContributor, currentViewer, esc, ghGet, GitHubError, studioClien
 import { ghAction, ghVerb } from '../lib/gh-wording';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
 import { loadVisualImpact, visualWorkflowPresent } from './reviews/visual-impact';
-import { ciFor, loadStatuses, rowWho, teamPeople, type PullStatus } from './pr-status';
+import { ciFor, loadStatuses, ON_ITS_WAY, rowWho, teamPeople, type PullStatus } from './pr-status';
 import { approvedSuggestionOf } from './suggestions';
 import { mdTitleText } from '../lib/markdown';
 import { humanTitle } from '../lib/pr-title';
@@ -243,7 +243,7 @@ function people(author: string, extra: Partial<People> = {}): People {
 }
 
 /** The facts of a row the who-acts rules read (pr-status rowWho, shared with the Home). */
-const facts = (r: Row) => ({ author: r.user.login, labels: r.labels, approvers: r.approvers, changesRequested: r.changesRequested, failing: r.failing, failingChecks: r.failingChecks, pending: r.pending, skipped: r.skipped });
+const facts = (r: Row) => ({ author: r.user.login, labels: r.labels, approvers: r.approvers, changesRequested: r.changesRequested, failing: r.failing, failingChecks: r.failingChecks, pending: r.pending, skipped: r.skipped, autoShip: r.autoShip });
 
 // ---------------------------------------------------------------------------------------------------------------
 // The Branches list (components/ds/studio/BranchesList): every open branch, the running explorations with them, and
@@ -270,6 +270,8 @@ interface Row {
   labels?: { name: string }[];
   /** A running exploration: tried, never reviewed as is (status pill "Exploration"). */
   exploration?: boolean;
+  /** A token push from Figma that ships by itself after the checks (PullStatus autoShip): "On its way to the library". */
+  autoShip?: boolean;
   /** Design or developer work (lib/work-nature): title and labels first, then the changed files once read. */
   nature: WorkNature;
   /** What the changed files say, once the status read them. */
@@ -540,7 +542,7 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
     const prior = r.kind;
     r.kind = st && st.kind === 'unknown' && prior ? prior : (st?.kind ?? (skipped ? (known.get(p.number) ?? null) : null));
     r.skipped = skipped && !r.kind;
-    if (st && st.kind !== 'unknown') Object.assign(r, { approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing, design: st.design, failingChecks: st.failingChecks, pending: st.pending });
+    if (st && st.kind !== 'unknown') Object.assign(r, { approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing, design: st.design, failingChecks: st.failingChecks, pending: st.pending, autoShip: st.autoShip });
     if (st?.tier) r.tier = st.tier;
     if (st?.files) {
       r.nature = natureOf(r.title, r.labels, st.files);
@@ -690,7 +692,7 @@ export async function openPr(n: number, push = true) {
     if (seq !== openSeq) return;
     const checks = failedFacts.map(classifyCheck);
     const fresh = freshness({ compare, mergeable: pull.mergeable, open: live });
-    const props = await detailProps({ pull, tier, files, reviews, comments, lineComments, ci, approvals, gate, gateOf, access, statuses, review, checks, fresh, docs, visual, visualSetUp: offer === 'set-up', seq });
+    const props = await detailProps({ pull, tier, files, reviews, comments, lineComments, ci, approvals, gate, gateOf, access, statuses, review, checks, fresh, docs, visual, visualSetUp: offer === 'set-up', autoShip: own.autoShip, seq });
     if (!props || seq !== openSeq) return;
     view = props;
     d.innerHTML = '';
@@ -844,6 +846,8 @@ interface DetailInput {
   visual: boolean;
   /** It touches what visual checks capture, on a repo without the workflow. */
   visualSetUp: boolean;
+  /** A token push from Figma with values only (core branchVerdict): it ships by itself once the checks pass. */
+  autoShip?: boolean;
   seq: number;
 }
 
@@ -910,6 +914,14 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   const dismissed = open ? dismissedSentence(dismissedApprovals(reviews as never, pull.head.sha)) : null;
   const status = detailStatus({ pull, tier, approvals, story, checks: x.checks, files: files.map((f) => f.filename), exploration, isAuthor, sentence, yourTurn });
   if (dismissed) status.sentence = `${dismissed} ${status.sentence}`;
+  // A token push from Figma that ships by itself: nobody reviews it, until something holds it (a failing check, a
+  // conflict, changes requested), then it reads like any change (the same rule as the Branches row, pr-status).
+  const onItsWay = Boolean(x.autoShip && open && ci.failed.length === 0 && pull.mergeable !== false && approvals.changesRequested.length === 0);
+  if (onItsWay) {
+    status.label = ON_ITS_WAY.short!;
+    status.sentence = ON_ITS_WAY.sentence;
+    status.yourTurn = false;
+  }
   const reload = () => openPr(pull.number, false);
   const statusRun = await statusActionFor(status, { pull, isAuthor, canWrite: write, viewer: login, exploration, review, reload });
   if (x.seq !== openSeq) return null;
@@ -1032,7 +1044,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     jira: jiraKeyOf(pull.title),
     // In review: the same pill as its row in Branches and on the home (lib/changes statusPill over core reviewStatusKind).
     // In the demo seat: the list's pill for the same branch ("Waiting 1 day").
-    status: seat && status.lifecycle === 'ready' && !exploration && pull.created_at ? { label: waitingLabel(pull.created_at, Date.now()), tone: 'warning', lifecycle: status.lifecycle } : status.lifecycle === 'ready' && !exploration ? { ...statusPill(reviewStatus({ state: pull.state, draft: pull.draft, labels: pull.labels, merged_at: pull.merged_at, ci, approvals, tier, mergeable: pull.mergeable }).kind, who), lifecycle: status.lifecycle } : { label: status.label, tone: status.tone, lifecycle: status.lifecycle },
+    status: onItsWay ? { label: status.label, tone: 'info', lifecycle: status.lifecycle } : seat && status.lifecycle === 'ready' && !exploration && pull.created_at ? { label: waitingLabel(pull.created_at, Date.now()), tone: 'warning', lifecycle: status.lifecycle } : status.lifecycle === 'ready' && !exploration ? { ...statusPill(reviewStatus({ state: pull.state, draft: pull.draft, labels: pull.labels, merged_at: pull.merged_at, ci, approvals, tier, mergeable: pull.mergeable }).kind, who), lifecycle: status.lifecycle } : { label: status.label, tone: status.tone, lifecycle: status.lifecycle },
     // In the demo seat, who asked for it, the face the list shows for the same branch.
     who: { person: seat ? { login: `~${author}`, name: nameOf(author), avatarUrl: null, agent: agent && !asked0 } : { login: pull.user.login, name: nameOf(pull.user.login), avatarUrl: pull.user.avatar_url, agent }, lead: line.lead, rest: line.rest },
     added: added > 0 ? addedNotice(added) : null,

@@ -9,7 +9,7 @@ import { BUILD_CACHE_MS, buildCacheKey, slimIssue, slimPull, toBuildIssue, toBui
 import { sampleBuildData, SAMPLE_BUILDERS } from '../lib/building-sample';
 import { personName } from '../lib/people';
 import { ghGet, readRepo } from './github-session';
-import { knownNames } from './people';
+import { knownNames, lookUpNames } from './people';
 import { siteConfig } from './repo-context';
 
 export interface BuildData {
@@ -106,7 +106,9 @@ async function read(): Promise<BuildData> {
   // The issues list also answers pull requests carrying the label (a library branch from Figma): they come from the
   // pull request list instead.
   const issues = [...requests.data, ...builds.data].filter((i) => !i.pull_request && !seen.has(i.number) && seen.add(i.number));
-  const names = knownNames();
+  // Builders and senders by their profile names, as Branches shows them (people.ts), not by their GitHub login.
+  const logins = [...issues.flatMap((i) => [i.user?.login, ...(i.assignees ?? []).map((a) => a.login)]), ...pulls.data.map((p) => p.user?.login)].filter((l): l is string => Boolean(l));
+  const names = await lookUpNames(logins).catch(() => knownNames());
   const nameOf = (l: string) => personName(l, names);
   return {
     views: assembleBuildRequests({ issues: issues.map(toBuildIssue), pulls: pulls.data.map(toBuildPull), now, nameOf }),
