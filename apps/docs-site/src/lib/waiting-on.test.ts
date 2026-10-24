@@ -20,6 +20,12 @@ const change = (author: string, need: Need, viewer: string, extra: Partial<WaitC
 });
 
 describe('waitingOn: one rule for every "waiting on me" surface', () => {
+  it('never waits on anyone for a token push from Figma that ships after the checks (docs/BUILD-REQUESTS.md)', () => {
+    const need: Need = { kind: 'approve', roles: ['design', 'tech'] };
+    expect(waitingOn(change('sam', need, 'ann', { autoShip: true, requested: ['ann'] }), ann)).toBeNull();
+    expect(reviewCount([change('sam', need, 'ann', { autoShip: true })], ann)).toBe(0);
+  });
+
   it('waits on the design owner for the design approval, never on the tech owner', () => {
     const need: Need = { kind: 'approve', roles: ['design', 'tech'] };
     expect(waitingOn(change('sam', need, 'ann'), ann)).toBe('design');

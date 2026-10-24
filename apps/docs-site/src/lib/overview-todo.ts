@@ -54,6 +54,8 @@ export interface TodoRow {
 
 export interface TodoChange {
   number: number;
+  /** A token push from Figma that ships after the checks: never waits on anyone (lib/waiting-on). */
+  autoShip?: boolean;
   /** Already in plain words (humanTitle, one line). */
   title: string;
   /** Null while the status is not read yet. */

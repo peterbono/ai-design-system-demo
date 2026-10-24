@@ -1,0 +1,14 @@
+---
+// Team shell of Studio Being built (lib/team-shells.ts): served for /studio/<owner>/<repo>/building/ by the vercel.json
+// rewrite. The same island as the self-hosted page (components/ds/studio/BeingBuilt), reading the team's build requests
+// in the browser (scripts/building-data.ts); the sample team of the demo shows its sample ones, read only.
+import '../../styles/studio-home.css';
+import '../../styles/branch-thumb.css';
+import '../../styles/building.css';
+import TeamShell from '../../components/TeamShell.astro';
+import BeingBuilt from '../../components/ds/studio/BeingBuilt';
+---
+
+<TeamShell route="building/" title="Being built" what="build requests" description="The changes sent from Figma that this team's developers are building, and where each one stands.">
+  <BeingBuilt client:only="react" />
+</TeamShell>

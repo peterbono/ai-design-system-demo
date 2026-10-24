@@ -48,7 +48,7 @@ export function viewerRole(): ViewerRole {
 
 /** A change as lib/waiting-on reads it. */
 export function waitChange(p: QueuePullFull & { draft?: boolean; requested_reviewers?: { login: string }[] | null }, c: TodoChange): WaitChange {
-  return { author: p.user.login, draft: p.draft, labels: p.labels, nature: c.nature, guidance: c.guidance, lifecycle: c.lifecycle, who: c.who, requested: (p.requested_reviewers ?? []).map((r) => r.login), changesRequested: c.changesBy };
+  return { author: p.user.login, draft: p.draft, labels: p.labels, nature: c.nature, guidance: c.guidance, lifecycle: c.lifecycle, who: c.who, requested: (p.requested_reviewers ?? []).map((r) => r.login), changesRequested: c.changesBy, autoShip: c.autoShip };
 }
 
 /**
@@ -61,6 +61,7 @@ export function todoChange(p: QueuePullFull, st: PullStatus | null | undefined, 
   const nature = workNature({ title, labels: p.labels ?? null, files: st?.files ?? null, visual: impact ?? (st?.touchesVisuals ? 'pending' : null), guidance }).nature;
   return {
     number: p.number,
+    ...(st?.autoShip ? { autoShip: true } : {}),
     author: p.user.login,
     assignees: (p.assignees ?? []).map((a) => a.login),
     title,

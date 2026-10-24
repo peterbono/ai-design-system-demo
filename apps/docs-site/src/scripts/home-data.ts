@@ -264,7 +264,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
       const requested = (pull.requested_reviewers ?? []).map((r) => r.login);
       const base = { pull, agent: Boolean(c.agent), guidance: Boolean(c.guidance), onlyReviewer: false, task: null as ChangeFacts['task'] | null };
       const task = waitingOn(
-        { author: pull.user.login, draft: pull.draft, labels: pull.labels, nature: c.nature, guidance: c.guidance, lifecycle: c.lifecycle, who: c.who, requested, changesRequested: c.changesBy },
+        { author: pull.user.login, draft: pull.draft, labels: pull.labels, nature: c.nature, guidance: c.guidance, lifecycle: c.lifecycle, who: c.who, requested, changesRequested: c.changesBy, autoShip: c.autoShip },
         { login: viewer, role },
       );
       if (!task) return base;

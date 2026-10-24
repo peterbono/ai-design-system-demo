@@ -12,7 +12,7 @@ import { isTeamName, OWNER_PATTERN, REPO_PATTERN, STUDIO_ROOT } from './team-pat
 export const TEAM_SHELL_ROOT = '/team-shell/';
 
 /** The Studio routes a team can open, relative to the Studio root ('' is Home). Each has a shell page. */
-export const TEAM_SHELL_ROUTES = ['', 'changes/', 'review/', 'tokens/', 'components/', 'components/storybook/', 'quality/', 'settings/', 'brands/new/'] as const;
+export const TEAM_SHELL_ROUTES = ['', 'changes/', 'building/', 'review/', 'tokens/', 'components/', 'components/storybook/', 'quality/', 'settings/', 'brands/new/'] as const;
 
 export type TeamShellRoute = (typeof TEAM_SHELL_ROUTES)[number];
 

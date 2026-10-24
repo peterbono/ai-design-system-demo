@@ -8,7 +8,7 @@
 //
 // What it answers (GET, under /repos/<fixture>): the repository (private, default branch main), branches, refs,
 // commits, the recursive tree, blobs (raw or base64), contents; empty lists for pull requests, issues, collaborators,
-// checks, deployments, tags and rulesets; 404 for anything else. Any write answers 403 with a sentence that says why.
+// checks, deployments, tags and rulesets (a team seeded with build requests, S19, gets the sample ones instead); 404 for anything else. Any write answers 403 with a sentence that says why.
 // Plus the installation token calls of the Bridge app for a fixture repository, so real GitHub App keys in .env.local
 // do not stop fixture teams from loading.
 //
@@ -19,6 +19,7 @@ import { execFileSync } from 'node:child_process';
 import type { AppTokens } from '../api/_lib/github-app.js';
 import type { FetchLike } from '../api/_lib/http.js';
 import type { Redis } from '../api/_lib/redis.js';
+import { sampleBuildData } from '../src/lib/building-sample.js';
 
 /** The fixture teams, lower case "owner/repo", and each one's record { name }. Written by dev/scenarios.ts. */
 export const FIXTURES_KEY = 'bridge:local:fixtures';
@@ -27,13 +28,15 @@ export const fixtureKey = (repo: string) => `bridge:local:fixture:${repo.trim().
 export interface Fixture {
   repo: string;
   name: string;
+  /** Serve sample build requests (lib/building-sample.ts) as its issues and pull requests (Being built). */
+  builds?: boolean;
 }
 
 export async function putFixture(redis: Redis, f: Fixture): Promise<void> {
   const repo = f.repo.trim().toLowerCase();
   await redis.pipe([
     ['SADD', FIXTURES_KEY, repo],
-    ['SET', fixtureKey(repo), JSON.stringify({ repo, name: f.name })],
+    ['SET', fixtureKey(repo), JSON.stringify({ repo, name: f.name, ...(f.builds ? { builds: true } : {}) })],
   ]);
 }
 
@@ -205,6 +208,17 @@ export function fixtureGithub(redis: Redis, files: () => FixtureFiles, next: Fet
         if (!seen.has(head!)) seen.set(head!, entry);
       }
       return jsonRes(200, [...seen.values()]);
+    }
+    // Build requests (Being built): the sample ones, for a fixture team seeded with them (S19).
+    if (f.builds && (rest === '/issues' || rest === '/pulls')) {
+      const data = sampleBuildData(now(), f.repo);
+      if (rest === '/pulls') return jsonRes(200, data.pulls);
+      const want = (u.searchParams.get('labels') ?? '').split(',').filter(Boolean);
+      const state = u.searchParams.get('state') ?? 'open';
+      return jsonRes(
+        200,
+        data.issues.filter((i) => (state === 'all' || i.state === state) && want.every((l) => i.labels.some((x) => (typeof x === 'string' ? x : x.name) === l))),
+      );
     }
     if (/^\/(pulls|issues|check-runs|deployments|tags|rulesets|collaborators|commits\/[^/]+\/(statuses|pulls))(\?|$|\/?$)/.test(rest)) {
       return jsonRes(200, rest.startsWith('/check-runs') ? { total_count: 0, check_runs: [] } : []);

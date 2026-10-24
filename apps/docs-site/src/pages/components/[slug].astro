@@ -12,6 +12,7 @@ import ComponentView from '../../components/ds/library/views/ComponentView';
 import LibraryEditMode from '../../components/LibraryEditMode';
 import GitHubDialog from '../../components/GitHubDialog.astro';
 import PreviewScope from '../../components/PreviewScope.astro';
+import FigmaAheadSite from '../../components/FigmaAheadSite';
 import { loadComponents, playgroundSpec, type ComponentInfo } from '../../lib/library/components';
 import { mainStory, previewScopes } from '../../lib/library/component-page';
 import { lastUpdated, exists, readText } from '../../lib/repo';
@@ -40,6 +41,7 @@ const repo = siteRepo();
 <Layout title={c.name} description={c.docs?.summary ?? c.description} sources={sources} updated={updated} crumbs={[{ label: 'Catalog', href: '/components/' }, { label: c.name }]} toc={false}>
   <ComponentView data={data} component={c} Example={Example}>
     <PreviewScope slot="heroTools" />
+    <FigmaAheadSite slot="ahead" client:only="react" component={c.name} />
     {spec && story && data.extras.storybook && <PropsPlayground slot="playground" client:visible spec={spec} storybook={data.extras.storybook} storyId={story.id} brands={scopes.brands} densities={scopes.densities} />}
   </ComponentView>
   <LibraryEditMode client:only="react" name={c.name} slug={c.slug} path={c.files.docs} original={originalDocs} initial={editInitial} repo={{ owner: repo.owner, repo: repo.repo }} />

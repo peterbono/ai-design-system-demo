@@ -18,6 +18,7 @@ import { BranchThumb } from './BranchThumb';
 import { BranchRow } from './BranchRow';
 import { Drawing } from './Drawing';
 import StartChange from './StartChange';
+import { BuildLine } from './BuildLine';
 import ButtonLink from '../ButtonLink';
 import {
   AVATARS_SHOWN,
@@ -409,6 +410,8 @@ export interface StudioHomeProps {
   needs: NeedRow[];
   branches: BranchCard[];
   health: HealthLine | null;
+  /** Show the calm Being built line under the zone (BuildLine): what developers build from Figma, never a Needs you row. */
+  building?: boolean;
   now: number;
   components: HomeComponent[];
   /** Signed out: the line and the button label (Sign in with GitHub, or Connect GitHub). */
@@ -527,6 +530,7 @@ function HomeBody(p: StudioHomeProps) {
         </section>
         {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}
         {p.health && <Health h={p.health} />}
+        {p.building && <BuildLine />}
       </div>
     );
   }
@@ -562,6 +566,7 @@ function HomeBody(p: StudioHomeProps) {
       </section>
       {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}
       {p.health && <Health h={p.health} />}
+      {p.building && <BuildLine />}
       {(p.branches.length > 0 || !loading) && <Branches branches={p.branches} now={p.now} components={p.components} title={p.demo?.branchesTitle} sub={p.demo ? null : undefined} max={p.demo?.branchesMax} tour={tour} />}
     </div>
   );

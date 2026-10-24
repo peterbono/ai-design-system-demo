@@ -17,6 +17,7 @@ import {
   reviewStatus,
   shipPolicy,
   summarizeApprovals,
+  studioVerdict,
   summarizeCi,
   type OverridePolicy,
   type ReviewLike,
@@ -381,5 +382,19 @@ describe('mergeGate ship right (governance.rights)', () => {
     const a = summarizeApprovals([{ user: { login: 'theo' }, state: 'APPROVED' }], lists, 'agent');
     expect(a.design).toBe(true);
     expect(approverLists(team, null)).toEqual(team);
+  });
+});
+
+describe('studioVerdict: a push from the Figma plugin (docs/BUILD-REQUESTS.md)', () => {
+  const site = { owners: { design: ['ann'], tech: ['theo'] }, rights: undefined, soloOwnerCanApproveBoth: false } as unknown as Parameters<typeof studioVerdict>[0]['site'];
+  const pull = { state: 'open', draft: false, labels: [{ name: 'source: figma' }], user: { login: 'sam' } };
+  const ci = summarizeCi([{ name: 'CI', status: 'completed', conclusion: 'success' }]);
+  it('ships token values after the checks, with nobody reviewing', () => {
+    const v = studioVerdict({ site, pull, tier: 3, ci, reviews: [], mergeable: true, figmaPush: { scope: 'token-values' } });
+    expect(v.status).toBe('ready');
+    expect(v.autoShip).toBe(true);
+  });
+  it('waits for the tech approval on a rename or removal', () => {
+    expect(studioVerdict({ site, pull, tier: 3, ci, reviews: [], mergeable: true, figmaPush: { scope: 'token-structure' } }).status).toBe('needs-tech');
   });
 });

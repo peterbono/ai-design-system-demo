@@ -140,3 +140,18 @@ open the pull request with `Closes #<n>` on a branch named `agent/build-<n>`.
 `bridge branch status` and `bridge_branch_status` read the same verdict as Studio for a push from Figma
 (`fromFigma`: its scope and whether it ships by itself), and `bridge branch list` / `bridge_what_needs_me` leave
 out a token push that ships by itself until something holds it (a failing check, a conflict, changes requested).
+
+## In Studio
+
+- **Being built** (`/studio/building/`, and `/studio/<owner>/<repo>/building/` for a team): one sentence, the
+  filters (All, Waiting to be picked up, In progress, Shipped this week) and one row per build request with who
+  builds it, when it was sent and one status tag (a request nobody picked up for a week is highlighted). A row opens
+  the detail in place (`?request=N`, `?pull=N`): what was sent, where it stands, and a "For developers" fold with
+  the GitHub and Jira links and **Copy brief for Claude**. Read only.
+- **Home:** a calm line under the zone ("From Figma: 3 being built, 1 waiting to be picked up."), never a Needs you
+  row. A token push that ships by itself (`autoShip`) waits on nobody until something holds it (a failing check, a
+  conflict, changes requested), like `bridge_what_needs_me`.
+- **Library:** a component page says "Figma is ahead: 2 changes being built (Ana)." by the preview while build
+  requests for it are open.
+- The sample team of the demo shows sample build requests (`apps/docs-site/src/lib/building-sample.ts`) and never
+  reads GitHub for them; `npm run dev:scenario S19` serves the same ones for a local fixture team.

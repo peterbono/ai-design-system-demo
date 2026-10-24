@@ -115,8 +115,8 @@ describe('navigation shape', () => {
 });
 
 describe('studio nav', () => {
-  it('lists Overview, Tokens, Components, Branches, Quality, Settings', () => {
-    expect(navFor('studio').map((e) => e.label)).toEqual(['Home', 'Branches', 'Components', 'Tokens', 'Quality', 'Settings']);
+  it('lists Home, Branches, Being built, Components, Tokens, Quality, Settings', () => {
+    expect(navFor('studio').map((e) => e.label)).toEqual(['Home', 'Branches', 'Being built', 'Components', 'Tokens', 'Quality', 'Settings']);
   });
 
   it('makes Changes one page with the review count, and drops the pages it replaced', () => {
