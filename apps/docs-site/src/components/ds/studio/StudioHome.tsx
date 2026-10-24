@@ -22,7 +22,7 @@ import { BuildLine } from './BuildLine';
 import ButtonLink from '../ButtonLink';
 import {
   AVATARS_SHOWN,
-  CONTRIBUTOR_TOUR_STEPS,
+  contributorTourSteps,
   contributorTour,
   type ContributorTourAt,
   BRANCH_FILTERS,
@@ -309,7 +309,7 @@ function Branches({
   now,
   components,
   title = `Your ${VOCAB.branches}`,
-  sub = "Your changes, kept apart from the library until they're merged.",
+  sub = 'Your changes, kept apart from the library until your team approves them.',
   create = true,
   max,
   tour,
@@ -475,7 +475,7 @@ export function StudioHome(p: StudioHomeProps) {
 
 function HomeBody(p: StudioHomeProps) {
   const snoozed = hintSnoozed(readSnooze(), p.now);
-  const own = useTour<ContributorTourAt>(CONTRIBUTOR_TOUR_KEY, [...CONTRIBUTOR_TOUR_STEPS], contributorTour, Boolean(p.contributor) && !p.demo && (p.state === 'busy' || p.state === 'empty'));
+  const own = useTour<ContributorTourAt>(CONTRIBUTOR_TOUR_KEY, contributorTourSteps(p.state === 'empty'), contributorTour, Boolean(p.contributor) && !p.demo && (p.state === 'busy' || p.state === 'empty'));
   // The lead's tour speaks of changes: rows that are only join requests (or a health note) are not what it shows.
   const changeRows = p.needs.some((r) => r.kind === 'review' || r.kind === 'guidance');
   const leadSteps = tourSteps({ rows: changeRows, more: changeRows && Boolean(splitNeeds(p.needs).more), branches: p.branches.length > 0 });

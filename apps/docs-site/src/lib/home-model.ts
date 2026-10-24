@@ -237,14 +237,17 @@ export type ContributorTourAt = 'branches' | 'start';
 
 export const CONTRIBUTOR_TOUR_STEPS: readonly ContributorTourAt[] = ['branches', 'start'];
 
+/** With no branch yet the home has no branches to point at: the tour only shows where to start. */
+export const contributorTourSteps = (empty: boolean): ContributorTourAt[] => (empty ? ['start'] : [...CONTRIBUTOR_TOUR_STEPS]);
+
 const CONTRIBUTOR_TOUR: Record<ContributorTourAt, { title: string; text: string }> = {
   branches: {
     title: `Your ${VOCAB.branches}`,
-    text: 'Your changes stay apart from the library until a reviewer merges them. When a reviewer asks for changes, the branch shows up here.',
+    text: 'Your changes stay apart from the library until a reviewer approves them. When a reviewer asks for changes, the branch shows up here.',
   },
   start: {
     title: 'Start a change',
-    text: 'Pick what you want to change. Bridge keeps it on its own branch, so you can try things without touching the library.',
+    text: 'Pick what you want to change. Bridge keeps it on its own branch, so you can try things without touching the library until a reviewer approves it.',
   },
 };
 

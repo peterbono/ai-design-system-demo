@@ -5,6 +5,7 @@ import {
   holdsReviewRight,
   waitsOnContributor,
   CONTRIBUTOR_TOUR_STEPS,
+  contributorTourSteps,
   contributorTour,
   CLAUDE,
   adoptionDrop,
@@ -274,7 +275,11 @@ describe('contributors: what waits on someone without a review right', () => {
   it('tours their branches, then how to start', () => {
     expect(CONTRIBUTOR_TOUR_STEPS).toEqual(['branches', 'start']);
     expect(contributorTour('branches').title).toBe('Your branches');
-    expect(contributorTour('branches').text).toMatch(/until a reviewer merges them/);
+    expect(contributorTour('branches').text).toMatch(/until a reviewer approves them/);
+    // No branch yet: nothing to point at but where to start.
+    expect(contributorTourSteps(true)).toEqual(['start']);
+    expect(contributorTourSteps(false)).toEqual(['branches', 'start']);
+    for (const at of CONTRIBUTOR_TOUR_STEPS) expect(contributorTour(at).text).not.toMatch(/merge/i);
     expect(contributorTour('start').title).toBe('Start a change');
     for (const at of CONTRIBUTOR_TOUR_STEPS) expect(JSON.stringify(contributorTour(at))).not.toMatch(/\u2014|lead/);
   });
