@@ -2521,9 +2521,23 @@ function routeNote(r: PushState, item: ComponentChangeItem): Child {
   if (!p || !routed(r)) return null;
   const issues = p.plan.issues;
   return [
-    p.plan.route === 'manual' && !p.blocked ? null : h('p', { class: 'muted route-note' }, p.blocked ?? p.plan.said),
+    p.plan.route === 'manual' && !p.blocked ? null : h('p', { class: 'muted route-note' }, p.blocked ?? librarySaid(r, p)),
     issues.length ? h('ul', { class: 'route-issues' }, issues.map((i) => h('li', null, h('span', null, i.what), ' ', h('span', { class: 'muted' }, i.todo)))) : null,
   ];
+}
+
+/**
+ * Where a component change goes, for a push to the library (docs/BUILD-REQUESTS.md): an exact token swap ships once the
+ * checks pass, code needed becomes a build request. Suggest mode keeps core's sentence (the DS lead decides first).
+ */
+function librarySaid(r: PushState, p: ComponentPush): string {
+  if (modeOf(r) === 'suggest') return p.plan.said;
+  if (p.plan.route === 'token-change') {
+    const n = p.plan.edits.length;
+    return `Exact, no AI: ${n === 1 ? `${p.plan.edits[0]!.path} points` : `${n} tokens point`} to the new variable${n === 1 ? '' : 's'}. Checked for contrast, then it ships once the checks pass.`;
+  }
+  if (p.plan.route === 'claude-draft') return 'Developers get a build request with its spec, build it, then it ships.';
+  return p.plan.said;
 }
 
 /** After a library branch opens: the set remembers it (pull rebuilds it once it ships), its new baseline, a status line. */
@@ -2538,7 +2552,7 @@ async function afterBranch(r: PushState, x: SentComponentPush): Promise<void> {
   }
   await request('mark-pushed', { nodeId: x.nodeId, mark: JSON.stringify({ number: x.number, url: x.url, route: x.route, at: new Date().toISOString() }) }).catch(() => undefined);
   await request('rebaseline', { nodeId: x.nodeId }).catch(() => undefined);
-  r.sent.unshift({ component: x.component, number: x.number, url: x.url, what: x.route === 'token-change' ? 'exact token change sent for review' : 'sent for review, a developer builds it with Claude', target: 'pr', build });
+  r.sent.unshift({ component: x.component, number: x.number, url: x.url, what: x.route === 'token-change' ? 'exact token change sent to the library' : 'build request sent to developers', target: 'pr', build });
 }
 
 /** The row send on a new component: its library branch with the spec and a screenshot, for a developer to build with Claude. */
@@ -2681,7 +2695,7 @@ function componentChangesGroup(r: PushState): Child {
   });
   const lede = !routed(r)
     ? 'Exact token changes go into the exploration. The others wait for code: a developer builds them there with Claude.'
-    : 'Token swaps go as exact token changes. New variants, properties and layers go with their spec: a developer builds them with Claude, then a person reviews.';
+    : 'Token swaps ship as exact token changes once the checks pass. New variants, properties and layers go to developers as a build request with their spec.';
   return changeGroup(r, 'component', 'Components', lede, rows, 'push-components');
 }
 
@@ -3257,7 +3271,9 @@ function viewPush(): View {
               ? `All ${plural(changedContrast.length, 'contrast pair')} the checked edits move still pass.`
               : exploring
                 ? 'Nothing reaches the product as is.'
-                : 'Nothing reaches the product until owners approve.',
+                : modeOf(r) === 'suggest'
+                  ? 'Nothing reaches the product until owners approve.'
+                  : 'Token values ship once the checks pass; what needs code goes to developers.',
         ),
       ),
     );

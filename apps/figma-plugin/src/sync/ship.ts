@@ -12,10 +12,13 @@ export type ArmAnswer =
 export const CHECKS_PENDING = 'checks_pending';
 
 export async function armShip(token: string, repo: string, pr: number, fetchImpl: typeof fetch = fetch, origin = STUDIO_ORIGIN): Promise<ArmAnswer> {
+  // Offline, a blocked domain or the site down: one sentence a designer can read, not the browser's "Failed to fetch".
   const res = await fetchImpl(`${origin}/api/ship`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ repo, pr }),
+  }).catch(() => {
+    throw new Error('Bridge could not be reached, so a developer merges it.');
   });
   const body = (await res.json().catch(() => ({}))) as Partial<ArmAnswer> & { error?: string; message?: string };
   if (!res.ok) throw new Error(body.message || `Bridge could not ship it (${res.status}).`);
