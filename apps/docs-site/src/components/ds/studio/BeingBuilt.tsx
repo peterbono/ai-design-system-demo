@@ -83,8 +83,11 @@ function Builders({
         <Icon icon={Hammer} size="sm" />
       </span>
     );
+  // The sample team draws each builder's face from their sample login (~malik-haddad), the same face as in Members.
   const people = v.builders.map((l) =>
-    person(l, data.nameOf(l), data.sample ? null : avatar(l))
+    data.sample
+      ? person(`~${l}`, data.nameOf(l), null)
+      : person(l, data.nameOf(l), avatar(l))
   );
   if (people.length === 1) return <Who p={people[0]!} size={size} />;
   return (
@@ -442,7 +445,7 @@ export default function BeingBuilt() {
       <section className="zone bb-open" aria-live="polite">
         <p className="t-body bb-sentence">{pageSentence(data.views)}</p>
         <p className="t-ui t-muted bb-rule">
-          Changes from Figma that need code. Developers pick them up in GitHub
+          Changes from Figma or from Components that need code. Developers pick them up in GitHub
           or Jira; each one reads Shipped once it is in the library.
         </p>
         {data.sample && (

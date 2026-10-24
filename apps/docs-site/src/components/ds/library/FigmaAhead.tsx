@@ -1,4 +1,4 @@
-// "Figma is ahead: 2 changes being built (Ana)." on a component's Library page, by the Storybook hero, while build
+// "Figma is ahead: 2 changes being built (Malik)." on a component's Library page, by the Storybook hero, while build
 // requests for that component are open (developers build what was sent from Figma). It disappears once they ship.
 // Nothing shows when none is open or the build requests could not be read. `load` reads them: scripts/building-data.ts
 // (loadBuildData on Bridge's own Library, buildViewsFor on a team's Library).

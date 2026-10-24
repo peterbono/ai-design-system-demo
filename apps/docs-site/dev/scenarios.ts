@@ -598,7 +598,7 @@ export const SCENARIOS: Scenario[] = [
             ...P.sam,
             kind: 'teams',
             teams: teamsOf([T.building, 'admin']),
-            expect: 'Being built lists six build requests: one stale (Tabs, 10 days), one new, one picked up (Ana), one in progress, one in review with a Jira key, one shipped this week. The home and the Card page say Figma is ahead.',
+            expect: 'Being built lists six build requests: one stale (Tabs, 10 days), one new, one picked up (Malik), one in progress, one in review with a Jira key, one shipped this week. The home and the Card page say Figma is ahead.',
           },
           { ...P.priya, kind: 'teams', teams: teamsOf([T.building, 'edit']), expect: 'The same, read only: no assign, no decline.' },
         ],

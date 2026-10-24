@@ -3,7 +3,8 @@
 //   - The open branches, explorations included (status pill "Exploration"), grouped by the product they belong to
 //     (lib/branches-page productOf, bridge.config.json products), each group a heading with its count. Rows are the home row (BranchRow).
 //   - Token branches carry a checkbox to preview them together; the floating bar (CombineChanges SelectionBar) acts.
-//   - Merged and closed branches stay behind one muted line at the end: "12 merged this month. Show merged" (?status=).
+//   - Merged and closed branches stay behind one muted line at the end: "12 added to the library this month. Show them"
+//     (lib/branches-page.ts mergedLine, FINISHED_WORDS; ?status=).
 //   - Waiting on me (what "Review all" opens on the demo) is the lead's review list: one summary sentence, every change
 //     that waits (branches, suggestions, usage guidance drafts) under three kinds (lib/review-categories: In a product,
 //     Library components and tokens, Documentation), and two DS Selects to narrow it by kind and by designer
@@ -18,7 +19,7 @@ import { Badge, Button, Checkbox, Link, SegmentedControl, Select, Skeleton, Tool
 import { BranchRow } from './BranchRow';
 import { Who } from './faces';
 import { SelectionBar, type ListedBranch } from './CombineChanges';
-import { boxDisabled, emptyWhoLine, showsDesignerFilter, tabFilters, finishedParam, FULL_TIP, groupByProduct, mergedLine, mergedThisMonth, onlyLine, productOf, selectable, showsForWho, WHO_FILTERS, whoFilterParam, type WhoFilter } from '../../../lib/branches-page';
+import { boxDisabled, emptyWhoLine, showsDesignerFilter, tabFilters, finishedParam, FULL_TIP, groupByProduct, FINISHED_WORDS, mergedLine, mergedThisMonth, onlyLine, productOf, selectable, showsForWho, WHO_FILTERS, whoFilterParam, type WhoFilter } from '../../../lib/branches-page';
 import { onlyTokens, toggleChange } from '../../../lib/combine-changes';
 import { childLine, nestLinked } from '../../../lib/product-branch';
 import { CLAUDE, person, requesterPerson, type Person, type PillTone } from '../../../lib/home-model';
@@ -450,9 +451,9 @@ export function BranchesList(p: BranchesListProps) {
         <p className="t-ui t-muted bl-merged">
           {finished.finished ? (
             <>
-              Showing merged and closed {VOCAB.branches}.{' '}
+              {FINISHED_WORDS.showing}{' '}
               <Button variant="link" onClick={hideFinished}>
-                Hide them
+                {FINISHED_WORDS.hide}
               </Button>
             </>
           ) : (
@@ -460,7 +461,7 @@ export function BranchesList(p: BranchesListProps) {
               {mergedLine(merged ?? 0, p.closed?.length ?? 0, p.closedLimit)}{' '}
               {(p.closed?.length ?? 0) > 0 && (
                 <Button variant="link" onClick={showFinished}>
-                  Show merged
+                  {FINISHED_WORDS.show}
                 </Button>
               )}
             </>

@@ -7,8 +7,11 @@ import type { RestIssue, RestPull } from './building-view';
 
 const DAY = 86_400_000;
 
-/** The sample people: Dana leads the design system and pushes from Figma, Ana and Theo build. */
-export const SAMPLE_BUILDERS: Record<string, string> = { dana: 'Dana', ana: 'Ana', theo: 'Theo' };
+/**
+ * The sample people: Dana leads the design system and pushes from Figma, Malik (the sample team's code reviewer,
+ * lib/invites.ts sampleTeam, face ~malik-haddad) builds, and Theo is a developer who works outside Bridge.
+ */
+export const SAMPLE_BUILDERS: Record<string, string> = { dana: 'Dana', 'malik-haddad': 'Malik', theo: 'Theo' };
 
 type Seed = { n: number; input: Omit<BuildRequestInput, 'source' | 'requestedBy' | 'figma'> & { figmaName: string }; ago: number; assignees?: string[]; closed?: { ago: number; reason: 'completed' | 'not_planned' }; pull?: { n: number; author: string; draft: boolean; ago: number; merged?: number } };
 
@@ -43,7 +46,7 @@ const SEEDS: Seed[] = [
   {
     n: 39,
     ago: 4,
-    assignees: ['ana'],
+    assignees: ['malik-haddad'],
     input: {
       component: 'Card',
       kind: 'structure',
@@ -71,8 +74,8 @@ const SEEDS: Seed[] = [
   {
     n: 33,
     ago: 8,
-    assignees: ['ana'],
-    pull: { n: 50, author: 'ana', draft: false, ago: 3 },
+    assignees: ['malik-haddad'],
+    pull: { n: 50, author: 'malik-haddad', draft: false, ago: 3 },
     input: {
       component: 'Badge',
       kind: 'new-variant',

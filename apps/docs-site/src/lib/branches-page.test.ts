@@ -5,6 +5,7 @@ import {
   emptyWhoLine,
   finishedParam,
   groupByProduct,
+  FINISHED_WORDS,
   mergedLine,
   mergedThisMonth,
   onlyLine,
@@ -111,9 +112,11 @@ describe('finished branches', () => {
   });
 
   it('says a floor when every recent branch read merged this month', () => {
-    expect(mergedLine(12, 30, 30)).toBe('12 merged this month.');
-    expect(mergedLine(30, 30, 30)).toBe('30+ merged this month.');
-    expect(mergedLine(0, 4, 30)).toBe('Nothing merged this month.');
+    expect(mergedLine(12, 30, 30)).toBe('12 added to the library this month.');
+    expect(mergedLine(30, 30, 30)).toBe('30+ added to the library this month.');
+    expect(mergedLine(0, 4, 30)).toBe('Nothing added to the library this month.');
+    // Designer words: never "merged" on the line or its link.
+    for (const t of [mergedLine(3, 4, 30), ...Object.values(FINISHED_WORDS)]) expect(t).not.toMatch(/merge|branch/i);
   });
 });
 
