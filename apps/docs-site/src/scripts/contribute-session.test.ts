@@ -7,6 +7,7 @@ import { errorText } from '../lib/token-session';
 import { contributeBlobs, contributeInfo, contributorFor, forgetContributors, onContributeChange, publicTeamRead, requestEmailSignIn, seedContributors, setContributeFetch, signOutEmail, verifyEmailSignIn } from './contribute-session';
 import { resetGuestActivity } from './guest-activity';
 import { currentContributor, getToken, ghWrite, studioClient, studioFetch } from './github-session';
+import { teamClient, teamToken } from './team-data';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
@@ -157,6 +158,32 @@ describe("Studio's GitHub calls for an email contributor", () => {
     const pulls = (await r.json()) as { number: number; user: { login: string } }[];
     expect(pulls.map((p) => p.user.login)).toEqual(['leo@acme.design', 'bridge-design-studio[bot]', 'ann']);
     expect(calls.some((c) => c.url === '/api/contribute?repo=acme%2Fds&mine=1')).toBe(true);
+  });
+});
+
+describe("an email member on their team's Library", () => {
+  // A Library page is not a Studio team shell: the page repository is the site's own, so the team comes from the address.
+  beforeEach(() => {
+    document.documentElement.removeAttribute('data-hosted');
+    history.replaceState(null, '', '/library/acme/ds/');
+  });
+
+  it('reads with the stand-in token only when this browser holds their membership of that team', () => {
+    expect(teamToken({ owner: 'acme', repo: 'ds' })).toBeNull();
+    signIn();
+    expect(teamToken({ owner: 'acme', repo: 'ds' })).toBe(CONTRIB_TOKEN);
+    // Another team's Library, and the sample team's, stay visitor reads.
+    expect(teamToken({ owner: 'lumen', repo: 'brand' })).toBeNull();
+    localStorage.setItem('bridge.contribute.member:peterbono/bridge-demo-ds', JSON.stringify({ email: 'leo@acme.design', name: 'Leo', role: 'edit' }));
+    expect(teamToken({ owner: 'peterbono', repo: 'bridge-demo-ds' })).toBeNull();
+  });
+
+  it("goes through the proxy for the team in the address, never the page's own repository", async () => {
+    signIn();
+    answer = () => json(200, { default_branch: 'main', private: true, full_name: 'acme/ds' });
+    await teamClient({ owner: 'acme', repo: 'ds' }).getRepo();
+    expect(calls[0]!.url).toBe('/api/contribute?repo=acme%2Fds&gh=%2Frepos%2Facme%2Fds');
+    expect(Object.keys(calls[0]!.init.headers as Record<string, string>).map((k) => k.toLowerCase())).not.toContain('authorization');
   });
 });
 

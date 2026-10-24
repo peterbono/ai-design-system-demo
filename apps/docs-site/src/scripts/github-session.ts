@@ -684,7 +684,10 @@ function busyIfLimited(res: Response): Response {
 
 /** The core GitHub client the Studio uses: the saved token, the session-aware fetch. */
 export function studioClient(repo: string, token: string | null = getToken(), options?: ClientOptions): GitHubClient {
-  return new GitHubClient(repo, token ?? '', studioFetch, undefined, options);
+  // An email member's client goes through this site's proxy for its own repository, which is not always the page's
+  // (a team Library page is not a Studio team shell: its page repository is the site's own).
+  const f: FetchLike = isContribAuth(token) ? (url, init = {}) => (isContribAuth(init.headers?.Authorization) ? contributeFetch(repo, url, init as RequestInit) : studioFetch(url, init)) : studioFetch;
+  return new GitHubClient(repo, token ?? '', f, undefined, options);
 }
 
 /** The auth sentence for an error (rejected token or missing permission), or null for any other failure. */

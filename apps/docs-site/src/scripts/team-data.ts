@@ -12,8 +12,8 @@
 // never spends the 60 requests an hour GitHub gives an address. Only a team without a snapshot is read live.
 import { loadRepoModel, parseSnapshot, SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, SNAPSHOT_MAX_BYTES, snapshotSource, storybookUrl, type GitHubClient, type RepoModel, type RepoSnapshot } from '@bridge-ds/core';
 import { getToken, hasWorkingToken, studioClient } from './github-session';
-import { contributeBlobs } from './contribute-session';
-import { isContribAuth } from '../lib/contribute';
+import { contributeBlobs, contributorFor } from './contribute-session';
+import { CONTRIB_TOKEN, contributeEligible, isContribAuth } from '../lib/contribute';
 import { loadTeamModel, type SnapshotReader, type TeamModelSource } from './repo-context';
 import { isHosted, pageTeamFromPath } from '../lib/team-path';
 import { libraryFromPath } from '../lib/library-shells';
@@ -61,9 +61,38 @@ async function readPublishedSnapshot(client: GitHubClient, team: { owner: string
   return same ? snap : null;
 }
 
+/**
+ * The token a team page reads with: the visitor's when it works; on a team's Library page (not a Studio team shell, so
+ * the Studio session does not know the team), the email member's stand-in when this browser holds their membership
+ * of that team, so their Library reads through Bridge like their Studio does (scripts/contribute-session.ts).
+ */
+export function teamToken(team: { owner: string; repo: string }): string | null {
+  const token = hasWorkingToken() ? getToken() : null;
+  if (token || !onLibraryPage()) return token;
+  const repo = `${team.owner}/${team.repo}`;
+  return contributeEligible(repo, true) && contributorFor(repo) ? CONTRIB_TOKEN : null;
+}
+
 /** A client for the team, with the visitor's token when it works. */
 export function teamClient(team: { owner: string; repo: string }): GitHubClient {
-  return studioClient(`${team.owner}/${team.repo}`, hasWorkingToken() ? getToken() : null);
+  return studioClient(`${team.owner}/${team.repo}`, teamToken(team));
+}
+
+/**
+ * On a team's Library page, a Bridge account signed in with its code is a member of its email teams already: the
+ * membership hint is written from the account (as the Studio does) before the first read, so a member who opens the
+ * Library first still reads through Bridge. Never throws; nothing to do with a GitHub token or off a Library page.
+ */
+async function seedLibraryMember(team: { owner: string; repo: string }): Promise<void> {
+  const repo = `${team.owner}/${team.repo}`;
+  if (!onLibraryPage() || hasWorkingToken() || !contributeEligible(repo, true) || contributorFor(repo)) return;
+  try {
+    // Reading the account writes the hint of each of its email teams (scripts/account-session.ts).
+    const { getAccount } = await import('./account-session');
+    await getAccount();
+  } catch {
+    /* no account, or Bridge cannot be reached: the Library reads as a visitor */
+  }
 }
 
 /**
@@ -147,6 +176,7 @@ export function loadTeamData(): Promise<TeamData> {
   pending ??= (async () => {
     const team = teamOfPage();
     if (!team) throw Object.assign(new Error('This page is not a team address.'), { status: 404 });
+    await seedLibraryMember(team);
     const client = teamClient(team);
     if (onLibraryPage() && fromBridge) return bridgeServed(team, client);
     if (onLibraryPage() && !client.canWrite) {
@@ -171,7 +201,7 @@ export function loadTeamData(): Promise<TeamData> {
     let read: Awaited<ReturnType<typeof loadTeamModel>>;
     try {
       // An email member reads through Bridge: the bodies in a few requests, not one per file.
-      const batch = isContribAuth(getToken()) ? contributeBlobs(`${team.owner}/${team.repo}`) : undefined;
+      const batch = isContribAuth(teamToken(team)) ? contributeBlobs(`${team.owner}/${team.repo}`) : undefined;
       read = await loadTeamModel(client, { snapshot: readTeamSnapshot, onProgress: report, ...(batch ? { batch } : {}) });
     } catch (err) {
       // A guest past GitHub's hourly limit: the published snapshot still opens the team (it costs no API request),

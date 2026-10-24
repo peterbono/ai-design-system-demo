@@ -7,7 +7,6 @@ import { CloudOff, FileWarning, LogIn, RefreshCw, SearchX, Timer } from 'lucide-
 import { signInHref } from '../../../lib/account';
 import { Button, EmptyState, IconButton, Link } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
-import { GitHubMark } from '../studio/brand-icons';
 import { Drawing } from '../studio/Drawing';
 import { TeamLoadProgress, TeamSourceNote, useTeamData } from '../studio/TeamState';
 import { commitUrl, SNAPSHOT_TEMPLATE_URL, type TeamFailure } from '../../../lib/team-load';
@@ -75,6 +74,12 @@ export function LibrarySourceNote({ data, refreshing, onRefresh }: { data: TeamD
   );
 }
 
+/**
+ * A Library Bridge cannot read for this visitor (no such team, or a private one): designer words, never "sign in with
+ * GitHub". A member opens it from their team's Studio, where they sign in with their work email.
+ */
+export const LIBRARY_NOT_FOUND = 'This library is private, or the address has a typo. If you are on the team, open it from your team\'s Studio, signed in with your work email.';
+
 const FAILURE_ICON = { 'rate-limit': Timer, 'not-found': SearchX, 'too-large': FileWarning, network: CloudOff, 'signed-out': LogIn, unknown: CloudOff } as const;
 
 /**
@@ -90,7 +95,7 @@ export function LibraryLoadError({ failure, onRetry }: { failure: TeamFailure; o
       headingLevel={2}
       icon={FAILURE_ICON[failure.kind]}
       title={failure.title}
-      description={failure.kind === 'not-found' ? 'GitHub says this repository does not exist, or it is private. Check the address. If it is private, sign in to its Studio with a GitHub account that can see it, then come back.' : failure.body}
+      description={failure.kind === 'not-found' ? LIBRARY_NOT_FOUND : failure.body}
       actions={
         <>
           {failure.kind === 'signed-out' ? (
@@ -98,8 +103,8 @@ export function LibraryLoadError({ failure, onRetry }: { failure: TeamFailure; o
               Sign in
             </ButtonLink>
           ) : failure.kind === 'not-found' && team ? (
-            <ButtonLink variant="primary" href={teamHref(team.owner, team.repo, null)} iconStart={GitHubMark}>
-              Sign in from Studio
+            <ButtonLink variant="primary" href={teamHref(team.owner, team.repo, null)}>
+              Open the team's Studio
             </ButtonLink>
           ) : (
             <Button variant="primary" iconStart={RefreshCw} onClick={onRetry}>
