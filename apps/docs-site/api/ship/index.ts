@@ -33,7 +33,7 @@
 import { contributorOf, type ContribEnv } from '../contribute/index.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody, sameOriginWhenPresent, type FetchLike } from '../_lib/http.js';
-import { FIGMA_SHIP_HEADING, figmaPushScope, figmaShipReviewBody, isExploration, isFigmaPush, isTokenFile, shipConfig, tokenFileChanges, type ShipConfig, type TokenChange } from '../_lib/figma-ship.js';
+import { FIGMA_SHIP_HEADING, figmaPushScope, figmaShipReviewBody, isClaudeDraft, isExploration, isFigmaPush, isTokenFile, shipConfig, tokenFileChanges, type ShipConfig, type TokenChange } from '../_lib/figma-ship.js';
 import type { MemberStore } from '../_lib/members.js';
 import type { Redis } from '../_lib/redis.js';
 
@@ -194,6 +194,7 @@ export async function armShip(f: FetchLike, token: string, readToken: string | n
   if (pr.base?.ref !== r.default_branch) return notArmed('not_default_branch');
   if (isExploration(pr.labels)) return notArmed('exploration');
   if (!isFigmaPush({ labels: pr.labels, body: pr.body })) return notArmed('not_from_figma');
+  if (isClaudeDraft({ labels: pr.labels, body: pr.body })) return notArmed('not_values');
 
   // What it changes, read from GitHub: the files, then each token file at the merge base and at the head.
   const filesR = await call('GET', `${base}/pulls/${n}/files?per_page=100`);
