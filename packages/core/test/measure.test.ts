@@ -206,11 +206,12 @@ describe('measureStory: popups, args, states and props', () => {
   it('opens the popup, measures the portal, and reads the props the story rendered with', async () => {
     const exprs: string[] = [];
     const urls: string[] = [];
-    const answers: unknown[] = ['rendered', 'click', tree, props];
+    const answers: unknown[] = ['url', 'rendered', 'click', tree, props];
     const page: MeasurePage = { goto: async (u) => void urls.push(u), evaluate: async <T>(e: string) => (exprs.push(e), answers.shift() as T) };
     const m = await measureStory(page, 'https://sb.example.com', 'overlays-menu--actions', { open: true, args: { size: 'lg', modal: false } });
     expect(urls[0]).toBe('https://sb.example.com/iframe.html?id=overlays-menu--actions&viewMode=story&args=size:lg;modal:!false');
-    expect(exprs[2]).toContain('"target":"portal"');
+    expect(exprs[0]).toContain('updateStoryArgs');
+    expect(exprs[3]).toContain('"target":"portal"');
     expect(m).toMatchObject({ opened: 'click', props });
   });
 

@@ -434,6 +434,38 @@ export async function harvestTokens(page: MeasurePage, storybook: string, story:
   };
 }
 
+/**
+ * Makes sure the story renders with these args. Storybook drops URL args it cannot validate against a story's initial
+ * args (Carbon's Button story declares none), so when the store does not hold them after the first render they are
+ * sent the way the Controls panel sends them (`updateStoryArgs`), and the re-render is awaited. Resolves `url` (the URL
+ * args held), `channel`, or `failed`.
+ */
+export const APPLY_ARGS_SCRIPT = (id: string, args: Record<string, string | number | boolean>, timeout: number) => `(async () => {
+  const want = ${JSON.stringify(args)};
+  const t0 = performance.now();
+  let p = window.__STORYBOOK_PREVIEW__;
+  while ((!p || !p.currentRender || !p.storyStoreValue) && performance.now() - t0 < ${timeout}) { await new Promise((r) => setTimeout(r, 50)); p = window.__STORYBOOK_PREVIEW__; }
+  if (!p || !p.storyStoreValue) return 'failed';
+  const id = ${JSON.stringify(id)};
+  const held = () => { let a = {}; try { a = p.storyStoreValue.args.get(id) || {}; } catch (e) {} return Object.keys(want).every((k) => a[k] === want[k]); };
+  // Let the first render finish (an update sent during it is lost), then check again.
+  const root = () => document.querySelector('#storybook-root, #root');
+  while (performance.now() - t0 < ${timeout} && !(root() && (root().children.length || (root().textContent || '').trim()))) await new Promise((r) => setTimeout(r, 50));
+  await new Promise((r) => setTimeout(r, 100));
+  if (held()) return 'url';
+  const ch = window.__STORYBOOK_ADDONS_CHANNEL__;
+  if (!ch) return 'failed';
+  const done = await new Promise((resolve) => {
+    const t = setTimeout(() => finish(false), 5000);
+    const ok = () => finish(true);
+    const bad = () => finish(false);
+    function finish(v) { clearTimeout(t); ch.off('storyRendered', ok); ch.off('storyErrored', bad); ch.off('storyThrewException', bad); resolve(v); }
+    ch.on('storyRendered', ok); ch.on('storyErrored', bad); ch.on('storyThrewException', bad);
+    ch.emit('updateStoryArgs', { storyId: id, updatedArgs: want });
+  });
+  return done && held() ? 'channel' : 'failed';
+})()`;
+
 /** Opens one story in its iframe and measures what it rendered. */
 export async function measureStory(page: MeasurePage, storybook: string, id: string, o: MeasureOptions = {}): Promise<MeasuredStory> {
   const iframe = { ...(o.iframe ?? {}) };
@@ -442,6 +474,7 @@ export async function measureStory(page: MeasurePage, storybook: string, id: str
   const t0 = Date.now();
   // DOM ready, then the story's own wait (rendered, fonts, a short settle): an animated story never reaches network idle.
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: (o.timeout ?? 15000) + 15000 });
+  if (o.args && Object.keys(o.args).length) await page.evaluate<string>(APPLY_ARGS_SCRIPT(id, o.args, o.timeout ?? 15000)).catch(() => 'failed');
   const m = await measureRendered(page, o);
   let props: MeasuredProps | null = null;
   if (o.props !== false && m.root) props = await page.evaluate<MeasuredProps | null>(PROPS_SCRIPT(id)).catch(() => null);
