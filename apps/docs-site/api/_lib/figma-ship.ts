@@ -147,3 +147,64 @@ export function figmaShipReviewBody(by?: string | null): string {
   const who = by ? ` by ${by.startsWith('@') || by.includes(' ') ? by : `@${by}`}` : '';
   return `${FIGMA_SHIP_HEADING}\n\nPushed from Figma${who}: token values only, so it ships once the automatic checks pass (docs/BUILD-REQUESTS.md). Undo it from History in Bridge Studio.`;
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Decision TV-1 (docs/BUILD-REQUESTS.md, "Token values from Studio"): a token value change opened anywhere else (Studio,
+// the CLI, the MCP server) ships once the design approval is in. The server re-reads that approval from GitHub with the
+// rules of core review-gate summarizeApprovals and rights approverEntries; figma-ship-parity.test.ts runs both.
+
+export const VALUES_SHIP_HEADING = '**Bridge: token values, design approved**';
+
+type Group = 'design' | 'tech';
+const GROUPS: readonly Group[] = ['design', 'tech'];
+const DEFAULT_RIGHTS: Record<'approveDesign' | 'approveTech', Group[]> = { approveDesign: ['design'], approveTech: ['tech'] };
+
+/** core approverEntries(loadConfig(raw).governance.owners, .rights): who may approve design and tech, teams as named. */
+export function approverEntriesOf(raw: unknown): { design: string[]; tech: string[] } {
+  const c = raw && typeof raw === 'object' ? (raw as Record<string, any>) : {};
+  const g = c.governance && typeof c.governance === 'object' ? c.governance : {};
+  const list = (x: unknown) => (Array.isArray(x) ? x.filter((v): v is string => typeof v === 'string') : []);
+  const owners: Record<Group, string[]> = { design: list(g.owners?.design), tech: list(g.owners?.tech) };
+  if (!g.rights) return { design: [...owners.design], tech: [...owners.tech] };
+  const pick = (r: 'approveDesign' | 'approveTech'): Group[] => (Array.isArray(g.rights[r]) ? GROUPS.filter((x) => g.rights[r].includes(x)) : [...DEFAULT_RIGHTS[r]]);
+  const holders = (r: 'approveDesign' | 'approveTech') => [...new Set(pick(r).flatMap((x) => owners[x]))];
+  return { design: holders('approveDesign'), tech: holders('approveTech') };
+}
+
+export interface ReviewRead {
+  user: { login: string } | null;
+  state: string;
+  submitted_at?: string | null;
+  commit_id?: string | null;
+}
+
+/**
+ * core summarizeApprovals, the parts the server needs: whether a design approver approved (latest decisive review per
+ * person, the author left out; no owners configured: any approval), who asks for changes, and, stricter than the gate,
+ * the design approvers who approved `headSha` itself (`atHead`: nothing ships that the designer did not see).
+ */
+export function designApprovalOf(reviews: readonly ReviewRead[], owners: { design: string[]; tech: string[] }, author: string | undefined, headSha?: string | null): { approvers: string[]; changesRequested: string[]; design: boolean; atHead: string[] } {
+  const latest = new Map<string, ReviewRead>();
+  const sorted = [...reviews].sort((a, b) => String(a.submitted_at ?? '').localeCompare(String(b.submitted_at ?? '')));
+  for (const r of sorted) {
+    const login = r.user?.login;
+    if (!login || login === author) continue;
+    if (r.state === 'APPROVED' || r.state === 'CHANGES_REQUESTED' || r.state === 'DISMISSED') latest.set(login, r);
+  }
+  const approvers = [...latest].filter(([, r]) => r.state === 'APPROVED').map(([l]) => l);
+  const changesRequested = [...latest].filter(([, r]) => r.state === 'CHANGES_REQUESTED').map(([l]) => l);
+  const lower = (x: string) => x.toLowerCase().replace(/^@/, '');
+  const d = owners.design.map(lower);
+  const t = owners.tech.map(lower);
+  const counts = (login: string) => (d.length ? d.includes(lower(login)) : true);
+  const any = d.length || t.length;
+  const design = any ? approvers.some(counts) : approvers.length >= 1;
+  const atHead = headSha ? approvers.filter((l) => counts(l) && latest.get(l)?.commit_id === headSha) : [];
+  return { approvers, changesRequested, design, atHead };
+}
+
+/** The review Bridge leaves when it arms a token value change: the rule, who approved the look, how to undo it. */
+export function valuesShipReviewBody(designers: readonly string[]): string {
+  const who = designers.length ? ` by ${designers.map((x) => `@${x.replace(/^@/, '')}`).join(', ')}` : '';
+  return `${VALUES_SHIP_HEADING}\n\nToken values only, design approved${who}: the tech approval counts as given and it ships once the automatic checks pass (decision TV-1, docs/BUILD-REQUESTS.md). Undo it from History in Bridge Studio.`;
+}

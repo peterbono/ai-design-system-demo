@@ -1296,9 +1296,10 @@ export class GitHubClient {
     );
   }
 
-  async getPullRequest(n: number): Promise<PullRequest & PullRequestSummary & { body: string; mergeable: boolean | null; requestedReviewers: string[] }> {
+  async getPullRequest(n: number): Promise<PullRequest & PullRequestSummary & { body: string; mergeable: boolean | null; requestedReviewers: string[]; autoMerge: boolean }> {
     const r = await this.request<Record<string, any>>('GET', `${this.repoPath}/pulls/${n}`);
-    return { ...toSummary(r), body: r.body ?? '', mergeable: r.mergeable ?? null, requestedReviewers: ((r.requested_reviewers ?? []) as { login: string }[]).map((x) => x.login) };
+    // autoMerge: GitHub merges it by itself once its checks pass (`auto_merge` set; Bridge arms it for token values, TV-1).
+    return { ...toSummary(r), body: r.body ?? '', mergeable: r.mergeable ?? null, requestedReviewers: ((r.requested_reviewers ?? []) as { login: string }[]).map((x) => x.login), autoMerge: Boolean(r.auto_merge) };
   }
 
   async listPullRequestFiles(n: number): Promise<PullRequestFile[]> {

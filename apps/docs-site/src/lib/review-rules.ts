@@ -176,7 +176,7 @@ export function statusOf(kind: ReviewStatusKind, lookAgain?: readonly string[] |
 export function studioVerdict(input: {
   site: Pick<SiteRepo, 'owners' | 'rights' | 'soloOwnerCanApproveBoth'> & { override?: OverridePolicy | null | undefined };
   teams?: TeamStates | null | undefined;
-  pull: { state?: string | undefined; draft?: boolean | undefined; merged_at?: string | null | undefined; labels?: LabelLike[] | undefined; user: { login: string }; head?: { sha?: string | null | undefined } | null | undefined };
+  pull: { state?: string | undefined; draft?: boolean | undefined; merged_at?: string | null | undefined; labels?: LabelLike[] | undefined; user: { login: string }; head?: { sha?: string | null | undefined } | null | undefined; auto_merge?: unknown };
   tier: Tier | null;
   ci: CiSummary | null;
   reviews: ReviewLike[] | null;
@@ -209,6 +209,8 @@ export function studioVerdict(input: {
     ship: input.ship,
     figmaPush: input.figmaPush,
     tokenValues: input.tokenValues,
+    // Bridge armed its merge (GitHub auto_merge set, /api/ship, TV-1): with the design approval in, it ships by itself.
+    autoMerge: Boolean(pull.auto_merge),
     // Updated after every changes request (core lookAgainReviewers): "Updated, look again", as in the MCP server and the CLI.
     lookAgain: input.reviews ? lookAgainReviewers(input.reviews, pull.head?.sha, pull.user.login) : [],
   });

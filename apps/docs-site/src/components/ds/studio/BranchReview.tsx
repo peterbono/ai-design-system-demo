@@ -153,7 +153,7 @@ export interface BranchReviewProps {
    * The viewer is a developer (a tech owner): the technical side of the branch, folded under "For developers". Null
    * for designers, who read who acts instead ("A developer is on it").
    */
-  developer?: { tests: string | null; failing: string[]; url: string; number: number } | null;
+  developer?: { tests: string | null; failing: string[]; url: string; number: number; held?: string | null } | null;
   approvals: { label: string; state: 'approved' | 'changes' | 'waiting'; text: string }[];
   /** The branch is behind or conflicts with main: the line above the bar (filled by scripts/reviews.ts). */
   update: 'behind' | 'conflict' | 'done' | null;
@@ -768,6 +768,7 @@ function ForDevelopers({ dev, code }: { dev?: BranchReviewProps['developer']; co
   return (
     <Accordion appearance="flush" headingLevel={2} className="br-dev">
       <AccordionItem value="developers" title="For developers">
+        {dev?.held && <p>{dev.held}</p>}
         {dev?.tests && <p>{dev.tests}</p>}
         {dev && dev.failing.length > 0 && (
           <ul className="br-dev-list">
@@ -778,7 +779,7 @@ function ForDevelopers({ dev, code }: { dev?: BranchReviewProps['developer']; co
             ))}
           </ul>
         )}
-        {dev && !dev.tests && !dev.failing.length && <p className="br-muted">Nothing fails on the code side.</p>}
+        {dev && !dev.held && !dev.tests && !dev.failing.length && <p className="br-muted">Nothing fails on the code side.</p>}
         {code && (
           <>
             <p>
@@ -1047,6 +1048,8 @@ export function BranchReview(p: BranchReviewProps) {
     setTried(true);
   };
   const status = tried && p.sample ? { label: 'Approved', tone: 'success' as const } : p.status;
+  // The line under the title follows: never "Ann asks for your review" once the visitor approved.
+  const who = tried && p.sample ? { person: null, lead: null, rest: 'You approved it.' } : p.who;
   // Only the visitor's own row turns approved: the code check stays with whoever the Review rules name ("Waiting for Malik").
   const approvals = tried && p.sample ? p.approvals.map((a) => (a.state === 'waiting' && a.text === 'Waiting for you' ? { ...a, state: 'approved' as const, text: 'You approved' } : a)) : p.approvals;
   const multi = p.changes.length > 1;
@@ -1093,9 +1096,9 @@ export function BranchReview(p: BranchReviewProps) {
           </Badge>
         </Heading>
         <p className="br-who">
-          <Face person={p.who.lead === 'Claude AI' ? { login: 'claude', name: 'Claude AI', agent: true } : p.who.person} size="sm" />
+          <Face person={who.lead === 'Claude AI' ? { login: 'claude', name: 'Claude AI', agent: true } : who.person} size="sm" />
           <span>
-            {p.who.lead && <strong>{p.who.lead}</strong>} {p.who.rest}
+            {who.lead && <strong>{who.lead}</strong>} {who.rest}
             {p.jira && (
               <>
                 {' · '}

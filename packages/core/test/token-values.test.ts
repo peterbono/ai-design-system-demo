@@ -75,6 +75,16 @@ describe('withTokenValueApprovals and the gate', () => {
     // Without the fact, the tech approval is still asked.
     expect(branchVerdict({ tier: 3, ci: PASS, approvals: design, owners, mergeable: true }).status).toBe('needs-tech');
   });
+
+  it('branchVerdict: autoShip once Bridge armed the merge of a design-approved value change (/api/ship)', () => {
+    const armed = (approvals: ApprovalSummary, extra: Partial<Parameters<typeof branchVerdict>[0]> = {}) => branchVerdict({ tier: 3, ci: PASS, approvals, owners, tokenValues: true, autoMerge: true, mergeable: true, ...extra }).autoShip;
+    expect(armed(design)).toBe(true);
+    expect(armed(none)).toBe(false);
+    expect(armed(design, { tokenValues: false })).toBe(false);
+    expect(armed(design, { autoMerge: false })).toBe(false);
+    expect(armed(design, { state: 'closed' })).toBe(false);
+    expect(armed(design, { exploration: true })).toBe(false);
+  });
 });
 
 describe('suggestionIsTokenValues', () => {

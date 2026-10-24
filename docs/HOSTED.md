@@ -440,11 +440,13 @@ the app was set up for invites only). Optional, not sensitive: `CONTRIB_MAX_WRIT
 ## Ship from Figma
 
 A token push from the Figma plugin with values only ships after the automatic checks, with no person in the loop
-([BUILD-REQUESTS.md](BUILD-REQUESTS.md)). Bridge arms that merge with `POST /api/ship` (`apps/docs-site/api/ship`).
+([BUILD-REQUESTS.md](BUILD-REQUESTS.md)). So does a token value change from Studio, the CLI or the MCP server once a
+design owner approved its head commit (decision TV-1). Bridge arms that merge with `POST /api/ship`
+(`apps/docs-site/api/ship`); Studio calls it after Approve, or when it opens a change approved elsewhere.
 
 | Request | Answer |
 | ------- | ------ |
-| `POST /api/ship` `{ "repo": "<owner/repo>", "pr": 42 }` | `200 { "armed": true, "route": "shipped" }` (plus `"merged": true` when it merged on the spot), or `200 { "armed": false, "route": "waiting-for-developer", "code", "reason" }` when a developer ships it; `401 signin`, `403 origin`, `400`, `404`, `502` otherwise |
+| `POST /api/ship` `{ "repo": "<owner/repo>", "pr": 42 }` | `200 { "armed": true, "route": "shipped" }` (plus `"merged": true` when it merged on the spot), or `200 { "armed": false, "route": "waiting-for-developer", "code", "reason", "developer" }` when someone adds it by hand (`reason` in designer words, `developer` the cause); `401 signin`, `403 origin`, `400`, `404`, `502` otherwise |
 
 - **Who**: a GitHub token that can read the repository (`Authorization: Bearer`: the Figma plugin and the CLI; any
   origin, CORS open, no cookie), or an email member of the team signed in to Studio (the contribute cookie or a Bridge

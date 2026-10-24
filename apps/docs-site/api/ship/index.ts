@@ -1,11 +1,13 @@
-// /api/ship: Bridge arms the merge of a token push from Figma with values only (docs/BUILD-REQUESTS.md, "Publishing
-// from the plugin"). A push from the Figma plugin counts as design-approved; token values (and new tokens) also count
-// as tech-approved, so they ship after the automatic checks with no person in the loop. Renames and removals, code,
-// and guardrail files never ship here: a developer approves them.
+// /api/ship: Bridge arms the merge of a token value change (docs/BUILD-REQUESTS.md, "Publishing from the plugin" and
+// "Token values from Studio", decision TV-1). A push from the Figma plugin counts as design-approved; a token value
+// change opened anywhere else (Studio, the CLI, the MCP server) once a design owner approved it. Token values (and new
+// tokens) count as tech-approved, so they ship after the automatic checks with no developer in the loop. Renames and
+// removals, code, and guardrail files never ship here: a developer approves them.
 //
 //   POST /api/ship  { repo: "owner/name", pr: 42 }
 //     -> 200 { armed: true,  route: "shipped", merged?: true }
-//     -> 200 { armed: false, route: "waiting-for-developer", code, reason }   Bridge could not arm it: a developer ships it
+//     -> 200 { armed: false, route: "waiting-for-developer", code, reason, developer }   Bridge could not arm it: someone
+//                                                                    adds it (reason: designer words, developer: the cause)
 //     -> 4xx/5xx { error, message }                                         the call itself was refused
 //
 // Who may ask: a GitHub token that can read the repository (`Authorization: Bearer`, the Figma plugin and the CLI; any
@@ -15,11 +17,16 @@
 //
 // What it does, with an installation token of the Bridge app (contents and pull requests write, one repository):
 //   1. reads the repository (default branch, merge settings), the pull request, its files and bridge.config.json;
-//   2. refuses unless it is open, targets the default branch, is a push from Figma (label `source: figma` or
-//      `from-figma`, or the From Figma block), is not an exploration, and its scope is `token-values`: token files
-//      read at the merge base and at the head, compared token by token (a removed or renamed token is not values);
+//   2. refuses unless it is open, targets the default branch, is not an exploration, and its scope is `token-values`:
+//      token files read at the merge base and at the head, compared token by token (a removed or renamed token is not
+//      values). A push from Figma (label `source: figma` or `from-figma`, or the From Figma block) needs nothing more.
+//      Any other pull request needs a design approval read from its reviews (core summarizeApprovals over the approver
+//      lists of bridge.config.json on the default branch, a team entry counting its members when the app can read
+//      them), given on its head commit, and no changes requested; and auto-merge allowed on the repository (nothing is
+//      written otherwise);
 //   3. marks it ready for review when it is a draft;
-//   4. approves it with the "Bridge: shipped from Figma" review (once per head commit). GitHub refuses an app's
+//   4. approves it with the "Bridge: shipped from Figma" (or "Bridge: token values, design approved") review, once per
+//      head commit. GitHub refuses an app's
 //      approval of a pull request the app opened (an email member's push): the review is then a comment, and when
 //      the default branch requires an approval a developer gives it (code `needs_approval`);
 //   5. enables auto-merge (squash first, as the repository allows): GitHub merges once the required checks pass.
@@ -33,7 +40,23 @@
 import { contributorOf, type ContribEnv } from '../contribute/index.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody, sameOriginWhenPresent, type FetchLike } from '../_lib/http.js';
-import { FIGMA_SHIP_HEADING, figmaPushScope, figmaShipReviewBody, isClaudeDraft, isExploration, isFigmaPush, isTokenFile, shipConfig, tokenFileChanges, type ShipConfig, type TokenChange } from '../_lib/figma-ship.js';
+import {
+  approverEntriesOf,
+  designApprovalOf,
+  FIGMA_SHIP_HEADING,
+  figmaPushScope,
+  figmaShipReviewBody,
+  isClaudeDraft,
+  isExploration,
+  isFigmaPush,
+  isTokenFile,
+  shipConfig,
+  tokenFileChanges,
+  VALUES_SHIP_HEADING,
+  valuesShipReviewBody,
+  type ShipConfig,
+  type TokenChange,
+} from '../_lib/figma-ship.js';
 import type { MemberStore } from '../_lib/members.js';
 import type { Redis } from '../_lib/redis.js';
 
@@ -57,6 +80,9 @@ export type ShipCode =
   | 'not_from_figma'
   | 'exploration'
   | 'not_values'
+  | 'needs_design_approval'
+  | 'approval_outdated'
+  | 'changes_requested'
   | 'too_many_files'
   | 'auto_merge_off'
   | 'needs_approval'
@@ -72,6 +98,8 @@ export interface ShipResult {
   code?: ShipCode;
   /** One sentence for the designer, when not armed. Never a technical blocker. */
   reason?: string;
+  /** The cause in developer words, when not armed: Studio shows it under "For developers" only. */
+  developer?: string;
   /** checks_pending only: ask again after this many seconds. */
   retryAfter?: number;
 }
@@ -98,6 +126,28 @@ export const SHIP_WORDS: Record<ShipCode, string> = {
   checks_failed: 'Something needs a developer before it ships. They are told on GitHub; nothing to do on your side.',
   checks_pending: 'The automatic checks are still running. Bridge ships it once they finish.',
   not_mergeable: 'Something needs a developer before it ships. They are told on GitHub; nothing to do on your side.',
+  needs_design_approval: 'It ships once a design owner approves it.',
+  approval_outdated: 'It changed since it was approved: it ships once a design owner approves this version.',
+  changes_requested: 'Changes were suggested: it ships once they are made and approved.',
+};
+
+/** The cause, for the "For developers" fold of Studio and the API answer. Developer words are fine here. */
+export const SHIP_DEVELOPER_WORDS: Record<ShipCode, string> = {
+  app_missing: 'The Bridge GitHub App is not installed on this repository, or the server has no app keys (GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY), so Bridge cannot approve and arm the merge. Merge it by hand once the checks pass.',
+  not_open: 'The pull request is closed or merged.',
+  not_default_branch: 'The pull request does not target the default branch.',
+  not_from_figma: 'The pull request is not a push from the Figma plugin.',
+  exploration: 'The pull request is labelled exploration.',
+  not_values: 'The pull request changes more than token values (a rename, a removal, code, a guardrail file, or token files Bridge could not read).',
+  too_many_files: 'The pull request has 100 files or more; Bridge does not read past the first page.',
+  auto_merge_off: 'Auto-merge is off on this repository (Settings, General, Allow auto-merge), so Bridge cannot arm the merge. Turn it on, or merge by hand once the checks pass.',
+  needs_approval: 'The default branch requires an approving review that Bridge could not give (GitHub refuses an app approving a pull request it opened). Approve it and auto-merge ships it.',
+  checks_failed: 'A required check failed on the head commit.',
+  checks_pending: 'Checks are still running on the head commit; ask again once they finish.',
+  not_mergeable: 'GitHub says it cannot merge: a conflict, a blocked status or a branch rule.',
+  needs_design_approval: 'No design approver (governance.owners and rights in bridge.config.json on the default branch) approved it.',
+  approval_outdated: 'The design approval was given on an older commit; it needs one on the head commit.',
+  changes_requested: 'A reviewer requested changes and has not approved since.',
 };
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Max-Age': '600', Vary: 'Origin' };
@@ -146,7 +196,7 @@ function gh(f: FetchLike, token: string) {
 
 /** Who asks: a GitHub token that can read the repository, or an email member of the team signed in to Studio. */
 async function allowed(req: Request, owner: string, repo: string, full: string, env: ContribEnv, deps: ShipDeps): Promise<'bearer' | 'member' | null> {
-  const bearer = /^Bearer\s+([A-Za-z0-9_.-]{20,255})$/i.exec(req.headers.get('authorization') ?? '')?.[1];
+  const bearer = /^Bearer\s+([A-Za-z0-9_.-]{8,255})$/i.exec(req.headers.get('authorization') ?? '')?.[1];
   if (bearer) {
     const r = await gh(deps.fetch, bearer).call('GET', `/repos/${owner}/${repo}`);
     return r.status === 200 && r.data?.permissions?.pull ? 'bearer' : null;
@@ -156,7 +206,23 @@ async function allowed(req: Request, owner: string, repo: string, full: string, 
   return m ? 'member' : null;
 }
 
-const notArmed = (code: ShipCode, extra: Partial<ShipResult> = {}): ShipResult => ({ armed: false, route: 'waiting-for-developer', code, reason: SHIP_WORDS[code], ...extra });
+const notArmed = (code: ShipCode, extra: Partial<ShipResult> = {}): ShipResult => ({ armed: false, route: 'waiting-for-developer', code, reason: SHIP_WORDS[code], developer: SHIP_DEVELOPER_WORDS[code], ...extra });
+
+/** A team entry ("@org/slug") of the design list counts the approvers who are active members of it, when the app can read it. */
+async function withTeamMembers(call: ReturnType<typeof gh>['call'], design: string[], approvers: string[]): Promise<string[]> {
+  const out = design.filter((x) => !x.includes('/'));
+  for (const team of design.filter((x) => x.includes('/'))) {
+    const [org, slug] = team.replace(/^@/, '').split('/');
+    if (!org || !slug) continue;
+    for (const login of approvers) {
+      if (out.some((x) => x.toLowerCase().replace(/^@/, '') === login.toLowerCase())) continue;
+      const m = await call('GET', `/orgs/${encodeURIComponent(org)}/teams/${encodeURIComponent(slug)}/memberships/${encodeURIComponent(login)}`).catch(() => null);
+      if (m?.status === 200 && m.data?.state === 'active') out.push(login);
+    }
+  }
+  // Every design entry a team nobody could be read in: keep the team, so the list never turns empty (no login matches it).
+  return out.length ? out : design;
+}
 
 const MERGE_METHODS = [
   ['allow_squash_merge', 'squash', 'SQUASH'],
@@ -193,21 +259,22 @@ export async function armShip(f: FetchLike, token: string, readToken: string | n
   if (pr.state !== 'open' || pr.merged_at) return notArmed('not_open');
   if (pr.base?.ref !== r.default_branch) return notArmed('not_default_branch');
   if (isExploration(pr.labels)) return notArmed('exploration');
-  if (!isFigmaPush({ labels: pr.labels, body: pr.body })) return notArmed('not_from_figma');
+  const figma = isFigmaPush({ labels: pr.labels, body: pr.body });
   if (isClaudeDraft({ labels: pr.labels, body: pr.body })) return notArmed('not_values');
 
   // What it changes, read from GitHub: the files, then each token file at the merge base and at the head.
   const filesR = await call('GET', `${base}/pulls/${n}/files?per_page=100`);
   if (filesR.status !== 200 || !Array.isArray(filesR.data)) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
   if (filesR.data.length >= 100 || (typeof pr.changed_files === 'number' && pr.changed_files > filesR.data.length)) return notArmed('too_many_files');
-  let config: ShipConfig;
+  let rawConfig: unknown = null;
   try {
     const text = await raw(owner, repo, 'bridge.config.json', r.default_branch);
-    config = shipConfig(text ? JSON.parse(text) : null);
+    rawConfig = text ? JSON.parse(text) : null;
   } catch (e) {
     if (e instanceof HttpError) throw e;
-    config = shipConfig(null);
+    rawConfig = null;
   }
+  const config: ShipConfig = shipConfig(rawConfig);
   const files = filesR.data.map((x: any) => ({ path: String(x.filename), status: String(x.status), previous: typeof x.previous_filename === 'string' ? x.previous_filename : null }));
   const tokenFiles = files.filter((x: { path: string; previous: string | null }) => isTokenFile(x.path, config) || (x.previous && isTokenFile(x.previous, config)));
   let changes: TokenChange[] | null = [];
@@ -230,6 +297,27 @@ export async function armShip(f: FetchLike, token: string, readToken: string | n
   const scope = figmaPushScope(files, changes, config);
   if (scope !== 'token-values') return notArmed('not_values');
 
+  // Not a push from Figma (decision TV-1): the design approval, read from GitHub, on the head commit. Nothing is written
+  // before it is in, nor when the repository cannot auto-merge.
+  let designers: string[] = [];
+  let reviewList: any[] | null = null;
+  if (!figma) {
+    if (r.allow_auto_merge === false || !MERGE_METHODS.some(([k]) => r[k] !== false)) return notArmed('auto_merge_off');
+    const rv = await call('GET', `${base}/pulls/${n}/reviews?per_page=100`);
+    if (rv.status !== 200 || !Array.isArray(rv.data)) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+    reviewList = rv.data;
+    // People only: Bridge's own reviews never count as an approval of the look.
+    const people = rv.data.filter((x: any) => x?.user?.type !== 'Bot');
+    const lists = approverEntriesOf(rawConfig);
+    const first = designApprovalOf(people, lists, pr.user?.login, pr.head.sha);
+    const owners = lists.design.some((x) => x.includes('/')) ? { ...lists, design: await withTeamMembers(call, lists.design, first.approvers) } : lists;
+    const v = owners === lists ? first : designApprovalOf(people, owners, pr.user?.login, pr.head.sha);
+    if (v.changesRequested.length) return notArmed('changes_requested');
+    if (!v.design) return notArmed('needs_design_approval');
+    if (!v.atHead.length) return notArmed('approval_outdated');
+    designers = v.atHead;
+  }
+
   // Auto-merge in the first merge method the repository allows (squash first). Off in the repository: an error.
   const enableAutoMerge = async (): Promise<{ errors: string[] }> => {
     const m = MERGE_METHODS.find(([k]) => r[k] !== false);
@@ -246,11 +334,12 @@ export async function armShip(f: FetchLike, token: string, readToken: string | n
     const g = await graphql('mutation($id: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $id }) { pullRequest { isDraft } } }', { id: pr.node_id });
     if (g.errors.length) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
   }
-  const reviews = await call('GET', `${base}/pulls/${n}/reviews?per_page=100`);
-  const ours = (reviews.data ?? []).filter((x: any) => typeof x.body === 'string' && x.body.startsWith(FIGMA_SHIP_HEADING) && x.commit_id === pr.head.sha && x.user?.type === 'Bot');
+  const reviews = reviewList ? { data: reviewList } : await call('GET', `${base}/pulls/${n}/reviews?per_page=100`);
+  const heading = figma ? FIGMA_SHIP_HEADING : VALUES_SHIP_HEADING;
+  const ours = (reviews.data ?? []).filter((x: any) => typeof x.body === 'string' && x.body.startsWith(heading) && x.commit_id === pr.head.sha && x.user?.type === 'Bot');
   let approved = ours.some((x: any) => x.state === 'APPROVED');
   if (!ours.length) {
-    const body = figmaShipReviewBody(pr.user?.type === 'Bot' ? null : pr.user?.login);
+    const body = figma ? figmaShipReviewBody(pr.user?.type === 'Bot' ? null : pr.user?.login) : valuesShipReviewBody(designers);
     const a = await call('POST', `${base}/pulls/${n}/reviews`, { event: 'APPROVE', body, commit_id: pr.head.sha });
     approved = a.status === 200;
     // GitHub refuses an app's approval of a pull request the app opened: the record stays, as a comment.
@@ -258,7 +347,8 @@ export async function armShip(f: FetchLike, token: string, readToken: string | n
   }
   if (!approved) {
     const rules = await call('GET', `${base}/rules/branches/${encodeURIComponent(r.default_branch)}`);
-    const needs = Array.isArray(rules.data) && rules.data.some((x: any) => x?.type === 'pull_request' && Number(x.parameters?.required_approving_review_count ?? 0) > 0);
+    // The design approvals on the head already count toward what the branch requires.
+    const needs = Array.isArray(rules.data) && rules.data.some((x: any) => x?.type === 'pull_request' && Number(x.parameters?.required_approving_review_count ?? 0) > designers.length);
     if (needs) {
       // Auto-merge still goes on where it can: a developer's approval then ships it with no second step.
       await enableAutoMerge();

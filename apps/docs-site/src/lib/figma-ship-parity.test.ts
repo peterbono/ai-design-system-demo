@@ -1,8 +1,8 @@
 // api/_lib/figma-ship.ts keeps the server's copy of the Figma push rules of @bridge-ds/core (the /api functions load no
 // workspace package at runtime). Both run on the same fixtures here: any drift fails.
 import { describe, expect, it } from 'vitest';
-import { figmaPushOf as coreOf, figmaPushScope as coreScope, figmaShipReviewBody as coreReview, isFigmaPush as corePush, loadConfig, tokenFileChanges as coreChanges } from '@bridge-ds/core';
-import { figmaPushScope, figmaShipReviewBody, isClaudeDraft, isFigmaPush, shipConfig, tokenFileChanges } from '../../api/_lib/figma-ship';
+import { approverEntries, figmaPushOf as coreOf, figmaPushScope as coreScope, figmaShipReviewBody as coreReview, isFigmaPush as corePush, loadConfig, summarizeApprovals, tokenFileChanges as coreChanges } from '@bridge-ds/core';
+import { approverEntriesOf, designApprovalOf, figmaPushScope, figmaShipReviewBody, isClaudeDraft, isFigmaPush, shipConfig, tokenFileChanges, valuesShipReviewBody } from '../../api/_lib/figma-ship';
 
 const configs = [
   { tokens: { root: 'packages/tokens/src' }, contrast: { path: 'packages/tokens/src/contrast.checks.json' } },
@@ -65,5 +65,40 @@ describe('the server copy of the Figma push rules matches @bridge-ds/core', () =
     const b = JSON.stringify({ c: { a: { $type: 'color', $value: '#111' }, b: { $value: 1, $description: 'y' }, fresh: { $value: 2 }, g: { $type: 'color', n: { $value: '#1', $extensions: { x: 1 } } } } });
     for (const pair of [{ before: a, after: b }, { before: null, after: b }, { before: a, after: null }, { before: a, after: a }]) expect(tokenFileChanges([pair])).toEqual(coreChanges([pair]));
     for (const who of ['sam', '@sam', 'Sam Lee', null]) expect(figmaShipReviewBody(who)).toBe(coreReview(who));
+  });
+
+  it('the design approval of a token value change (TV-1): approver lists and the approval read', () => {
+    const govs = [
+      {},
+      { owners: { design: ['dana'], tech: ['malik'] } },
+      { owners: { design: ['@Dana', '@acme/design'], tech: ['malik'] }, rights: { approveDesign: ['design', 'tech'] } },
+      { owners: { design: ['dana'], tech: ['malik'] }, rights: { approveDesign: ['tech'], approveTech: ['tech'], ship: ['tech'] } },
+      { owners: { design: [], tech: ['malik'] } },
+    ];
+    const H = 'h'.repeat(40);
+    const r = (login: string, state: string, at: string, commit = H) => ({ user: { login }, state, submitted_at: at, commit_id: commit });
+    const reviewSets = [
+      [],
+      [r('dana', 'APPROVED', '1')],
+      [r('DANA', 'APPROVED', '1')],
+      [r('malik', 'APPROVED', '1')],
+      [r('dana', 'APPROVED', '2'), r('dana', 'CHANGES_REQUESTED', '1')],
+      [r('dana', 'APPROVED', '1'), r('dana', 'DISMISSED', '2')],
+      [r('dana', 'APPROVED', '1'), r('dana', 'COMMENTED', '2'), r('malik', 'CHANGES_REQUESTED', '3')],
+      [r('sam', 'APPROVED', '1')],
+      [r('ann', 'APPROVED', '1'), r('bo', 'APPROVED', '2')],
+    ];
+    for (const governance of govs) {
+      const raw = { governance };
+      const cfg = loadConfig(raw).governance;
+      const lists = approverEntriesOf(raw);
+      expect([governance, lists]).toEqual([governance, approverEntries(cfg.owners, cfg.rights ?? null)]);
+      for (const reviews of reviewSets) {
+        const core = summarizeApprovals(reviews, lists, 'sam');
+        const ours = designApprovalOf(reviews, lists, 'sam', H);
+        expect([governance, reviews, ours.design, ours.approvers, ours.changesRequested]).toEqual([governance, reviews, core.design, core.approvers, core.changesRequested]);
+      }
+    }
+    expect(valuesShipReviewBody(['dana', '@ann'])).toContain('design approved by @dana, @ann');
   });
 });

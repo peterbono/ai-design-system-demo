@@ -255,7 +255,7 @@ export async function branchFacts(ctx: BridgeContext, gh: GitHubClient, n: numbe
   const tokenValues = pr.state === 'open' ? await tokenValuesFact(config, pr, files, readTokens).catch(() => false) : false;
   // One verdict (core branchVerdict), the one Studio's branch page and status chips read: Tier 1 needs one owner
   // approval, the override is for its owner holders only, an applied suggestion's approvals carry.
-  const verdict = branchVerdict({ tier, ci, approvals: own, suggestion, owners: who.lists, override: config.governance.override ?? DEFAULT_OVERRIDE, mergeable: pr.mergeable, ...pullLike, viewer, exploration, ship: who.ship, figmaPush, tokenValues, lookAgain });
+  const verdict = branchVerdict({ tier, ci, approvals: own, suggestion, owners: who.lists, override: config.governance.override ?? DEFAULT_OVERRIDE, mergeable: pr.mergeable, ...pullLike, viewer, exploration, ship: who.ship, figmaPush, tokenValues, autoMerge: pr.autoMerge, lookAgain });
   const approvals = verdict.approvals!;
   const gate = verdict.gate!;
   const status: ReviewStatusKind = verdict.status;
@@ -312,7 +312,8 @@ function nextStep(ctx: BridgeContext, f: Awaited<ReturnType<typeof branchFacts>>
   if (f.lifecycle === 'merged') return 'Merged. It goes out with the next library release.';
   if (f.lifecycle === 'closed') return `Closed without merging. ${say(ctx, 'bridge_reopen_branch reopens it', `\`bridge branch reopen ${n}\` reopens it`)} when its work is still there.`;
   if (f.exploration) return `It is an exploration: promote it with ${say(ctx, 'bridge_promote_exploration', `\`bridge explore promote #${n}\``)} when the idea is validated, or close it.`;
-  if (f.autoShip && !f.gate.allowed && f.ci.state !== 'fail' && f.fresh.state !== 'conflict' && !f.approvals.changesRequested.length) return 'Pushed from Figma, token values only: it merges by itself once the automatic checks pass.';
+  if (f.autoShip && f.ci.state !== 'fail' && f.fresh.state !== 'conflict' && !f.approvals.changesRequested.length && (!f.gate.allowed || !f.figmaPush))
+    return f.figmaPush ? 'Pushed from Figma, token values only: it merges by itself once the automatic checks pass.' : 'Token values, design approved: Bridge merges it by itself once the automatic checks pass (decision TV-1).';
   if (f.lifecycle === 'draft') return `Draft: ${say(ctx, 'bridge_send_for_review', `\`bridge branch ready ${n}\``)} asks for review when it is ready.`;
   if (f.approvals.changesRequested.length && f.lookAgain.length) return `Updated after the changes request: waiting for @${f.lookAgain.join(', @')} to look again and approve.`;
   if (f.fresh.state === 'conflict') return `It conflicts with main: ${say(ctx, 'bridge_update_from_main', `\`bridge branch update ${n}\``)} shows the token conflicts to pick (code conflicts stay with a developer).`;

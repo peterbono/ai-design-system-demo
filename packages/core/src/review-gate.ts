@@ -408,6 +408,11 @@ export interface BranchVerdictInput {
    */
   tokenValues?: boolean | null | undefined;
   /**
+   * Auto-merge is armed on the pull request (GitHub `auto_merge` set): Bridge armed a token value change once its design
+   * approval was in (/api/ship, decision TV-1). With `tokenValues` and the design approval, it reads `autoShip`.
+   */
+  autoMerge?: boolean | null | undefined;
+  /**
    * The reviewers to look again (lookAgainReviewers over the reviews and the head sha): the author updated the branch
    * after every changes request. The status stays `changes-requested` and the merge stays blocked; only its words say
    * "Updated, look again".
@@ -428,7 +433,8 @@ export interface BranchVerdict {
   lookAgain: string[];
   /**
    * A token push from Figma with values only, still open: Bridge merges it once the automatic checks pass, nobody
-   * reviews it. Review queues and "Needs you" leave it out; Studio shows "On its way to the library".
+   * reviews it. Also a token value change whose design approval is in and whose merge Bridge armed (`autoMerge`,
+   * decision TV-1). Review queues and "Needs you" leave it out; Studio shows "On its way to the library".
    */
   autoShip: boolean;
 }
@@ -447,7 +453,8 @@ export function branchVerdict(input: BranchVerdictInput): BranchVerdict {
       ? mergeGate({ tier: input.tier, ci: input.ci, approvals, draft, mergeable: input.mergeable, state, merged_at: input.merged_at, viewer: input.viewer, override, exploration: input.exploration, ship: input.ship })
       : null;
   // A draft counts: Bridge marks it ready when it arms the merge.
-  const autoShip = input.figmaPush?.scope === 'token-values' && state === 'open' && !input.merged_at && !input.exploration;
+  const valuesArmed = Boolean(input.autoMerge && approvals?.valuesOnly && approvals.design);
+  const autoShip = (input.figmaPush?.scope === 'token-values' || valuesArmed) && state === 'open' && !input.merged_at && !input.exploration;
   const lookAgain = status === 'changes-requested' ? [...(input.lookAgain ?? [])] : [];
   return { approvals, override, gate, status, label: reviewStatusLabel(status, lookAgain), lookAgain, autoShip };
 }

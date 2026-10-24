@@ -396,5 +396,19 @@ describe('studioVerdict: a push from the Figma plugin (docs/BUILD-REQUESTS.md)',
   });
   it('waits for the tech approval on a rename or removal', () => {
     expect(studioVerdict({ site, pull, tier: 3, ci, reviews: [], mergeable: true, figmaPush: { scope: 'token-structure' } }).status).toBe('needs-tech');
+  });});
+
+describe('studioVerdict: a token value change from Studio that Bridge armed (TV-1)', () => {
+  const site = { owners: { design: ['ann'], tech: ['theo'] }, rights: undefined, soloOwnerCanApproveBoth: false } as unknown as Parameters<typeof studioVerdict>[0]['site'];
+  const ci = summarizeCi([{ name: 'CI', status: 'pending' as never, conclusion: null }]);
+  const pull = (armed: boolean) => ({ state: 'open', draft: false, labels: [{ name: 'source: studio' }], user: { login: 'sam' }, auto_merge: armed ? { merge_method: 'squash' } : null });
+  const ann = [{ user: { login: 'ann' }, state: 'APPROVED' }];
+  it('reads as on its way once the design approval is in and the merge is armed', () => {
+    expect(studioVerdict({ site, pull: pull(true), tier: 3, ci, reviews: ann, mergeable: true, tokenValues: true }).autoShip).toBe(true);
+  });
+  it('not before: no design approval, not armed, or more than values', () => {
+    expect(studioVerdict({ site, pull: pull(true), tier: 3, ci, reviews: [], mergeable: true, tokenValues: true }).autoShip).toBe(false);
+    expect(studioVerdict({ site, pull: pull(false), tier: 3, ci, reviews: ann, mergeable: true, tokenValues: true }).autoShip).toBe(false);
+    expect(studioVerdict({ site, pull: pull(true), tier: 3, ci, reviews: ann, mergeable: true, tokenValues: false }).autoShip).toBe(false);
   });
 });
