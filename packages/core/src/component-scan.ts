@@ -267,10 +267,12 @@ export function parseComponentCss(src: string, labels: Record<string, string>, d
 export function parseComponentStories(src: string): { name: string; id: string }[] {
   const title = src.match(/title:\s*'([^']+)'/)?.[1];
   if (!title) return [];
+  // Storybook's own sanitize for the title: lower case, every run of other characters one dash. It does not split
+  // camel case ("Forms/ChoiceCard" is forms-choicecard), unlike the export name ("NarrowConflict" is narrow-conflict).
   const base = title
-    .split('/')
-    .map((s) => componentSlug(s.trim()).replace(/\s+/g, '-'))
-    .join('-');
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '');
   return [...src.matchAll(/export const (\w+):\s*Story/g)].map((m) => ({ name: m[1]!, id: `${base}--${componentSlug(m[1]!)}` }));
 }
 

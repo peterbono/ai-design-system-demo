@@ -92,6 +92,10 @@ test('parseComponentStories derives Storybook ids from the title', () => {
     { name: 'AllStates', id: 'data-display-chip--all-states' },
   ]);
   assert.deepEqual(parseComponentStories('export const A: Story = {};'), []);
+  // Storybook keeps a camel-case title word whole: Forms/ChoiceCard is forms-choicecard, the export is kebab-cased.
+  assert.deepEqual(parseComponentStories("const meta = { title: 'Forms/ChoiceCard' };\nexport const NarrowConflict: Story = {};"), [
+    { name: 'NarrowConflict', id: 'forms-choicecard--narrow-conflict' },
+  ]);
 });
 
 test('parseComponentFamilies groups barrel exports under their comment headings', () => {
