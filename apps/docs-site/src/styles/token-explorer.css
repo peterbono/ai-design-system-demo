@@ -3429,6 +3429,16 @@ body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-grid {
   .xp[data-surface="app"]:not(.has-detail) .xp-chips {
     flex: 0 0 auto;
   }
+
+  /* Every type chip stays whole: when the row has no room left (a team's six types on a laptop), Options and New
+     token move to a second line, at its end, instead of running past the page edge. */
+  .xp[data-surface="app"] .xp-tools {
+    flex-wrap: wrap;
+  }
+
+  .xp[data-surface="app"] .xp-options {
+    margin-inline-start: auto;
+  }
 }
 
 .xp-grow {
