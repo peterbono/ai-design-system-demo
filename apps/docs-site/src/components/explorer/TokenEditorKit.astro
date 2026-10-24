@@ -79,12 +79,12 @@ const previews = hosted ? [] : loadComponents().flatMap((c) => (c.docs?.preview 
 
   <ScriptDialog id="ed-propose-dialog" title={sendDialogTitle(mode)} closeLabel="Close" popup={{ 'aria-describedby': 'ed-propose-who' }}>
     <div class="gh-dialog-body">
-      <p id="ed-propose-who" data-ed-field="propose-who">{suggest ? SUGGEST_NEXT : 'A design owner and a tech owner approve it before it is merged into main.'}</p>
+      <p id="ed-propose-who" data-ed-field="propose-who">{suggest ? SUGGEST_NEXT : 'A design owner and a tech owner approve it before it reaches the library.'}</p>
       <div class="xe-propose-target" data-ed-field="propose-target" hidden></div>
       <div class="xe-propose-new" data-ed-field="propose-new">
         <Input label="Title" data-ed-field="propose-title" placeholder="Darker primary action fill" />
         <Textarea label="Why" data-ed-field="propose-notes" rows={3} placeholder="What problem this solves, and where reviewers should look." />
-        <Input label="Jira ticket" data-ed-field="propose-jira" placeholder="DS-42" hint={`Optional. Links this ${suggest ? 'suggestion' : 'branch'} to the ticket in Jira.`} spellCheck={false} autoComplete="off" />
+        <Input label="Jira ticket" data-ed-field="propose-jira" placeholder="DS-42" hint={`Optional. Links this ${suggest ? 'suggestion' : 'change'} to the ticket in Jira.`} spellCheck={false} autoComplete="off" />
       </div>
       <div class="xe-propose-conflict" data-ed-field="propose-conflict" hidden></div>
       <p class="small xe-propose-status" id="ed-propose-status" role="status" aria-live="polite"></p>

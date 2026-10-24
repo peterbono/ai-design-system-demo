@@ -234,8 +234,8 @@ describe('words and storage', () => {
   it('writes the banner, the status and the comment', () => {
     expect(scopeBanner('Darker default background').title).toBe('Editing: Darker default background');
     expect(addedSentence(1, 'X', 0)).toBe('Added 1 edit to X.');
-    expect(addedNotice(1)).toBe('Added 1 edit to this branch. Reviewers see it now.');
-    expect(addedNotice(3)).toBe('Added 3 edits to this branch. Reviewers see them now.');
+    expect(addedNotice(1)).toBe('Added 1 edit to this change. Reviewers see it now.');
+    expect(addedNotice(3)).toBe('Added 3 edits to this change. Reviewers see them now.');
     expect(addedSentence(2, 'X', 1)).toBe('Added 2 edits to X. It had moved since you opened it: 1 other token stays as the branch has it.');
     expect(addedComment(['a.b'], 'ana')).toBe('@ana added token edits from the Bridge token editor:\n\n- `a.b`');
   });
