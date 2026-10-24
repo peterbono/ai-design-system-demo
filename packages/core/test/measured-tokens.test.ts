@@ -67,5 +67,34 @@ describe('tokenRepoFromMeasure on Carbon', () => {
     const out = withRepoTokenPaths(file, repo.paths);
     expect(out.stories[0]!.spec!.values.root).toEqual({ fill: 'layer.default', paddingLeft: 16 });
   });
+
+  it('a field declared as a variable alone points at its written token, a calc() of one stays a literal', () => {
+    const name = [...repo.paths.keys()].find((n) => n.startsWith('--cds-layer'))!;
+    const file = {
+      version: 1 as const,
+      storybook: 'https://react.carbondesignsystem.com',
+      measuredAt: '2026-10-24T00:00:00Z',
+      stories: [
+        {
+          id: 'a',
+          title: 'Components/Tile',
+          name: 'Default',
+          url: '',
+          ms: 0,
+          spec: {
+            story: 'a',
+            parts: [],
+            values: { root: { paddingLeft: 15 } },
+            raw: { root: { fill: 'rgb(244, 244, 244)', paddingLeft: 15 } },
+            tokens: { root: { fill: { via: 'declared' as const, chain: ['--cds-unknown', name], exact: true }, paddingLeft: { via: 'declared' as const, chain: [name], exact: false } } },
+            boxes: {},
+            coverage: { fields: 0, declared: 0, matched: 0, literal: 0 },
+          },
+        },
+      ],
+    };
+    const out = withRepoTokenPaths(file, repo.paths);
+    expect(out.stories[0]!.spec!.values.root).toEqual({ fill: repo.paths.get(name), paddingLeft: 15 });
+  });
 });
 
