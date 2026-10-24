@@ -31,7 +31,7 @@ describe('request drafts', () => {
     expect(draftRequestText('Button', 'prop-change', [{ field: 'Prop Size', before: 'variant, default md', after: 'variant, default sm' }]).title).toBe('Change the Size default to sm');
     expect(draftRequestText('Button', 'token-binding', [{ field: 'Fill (Variant=primary)', before: 'color.action.primary.bg', after: 'color.action.danger.bg' }])).toEqual({
       title: 'Use color.action.danger.bg for the fill',
-      summary: 'The fill of Button in Variant=primary moves from color.action.primary.bg to color.action.danger.bg.',
+      summary: 'The fill of Button in primary moves from color.action.primary.bg to color.action.danger.bg.',
     });
     expect(draftRequestText('Card', 'visual', [{ field: 'Look of every variant', before: 'As in the baseline', after: 'Changed in Figma, no variable explains it' }]).summary).toBe(
       'Card looks different in Figma, and no variable edit explains it.',
@@ -84,7 +84,7 @@ describe('draftChangeLine', () => {
     expect(draftChangeLine('visual', [{ field: 'Look of Size=sm, State=Default, Variant=primary', before: 'As in the baseline', after: 'Changed in Figma, no variable explains it' }])).toBe('Looks different in Size=sm, State=Default, Variant=primary; no variable explains it');
     expect(draftChangeLine('new-variant', [{ field: 'Variant Tone', before: 'info, neutral', after: 'danger, info, neutral' }])).toBe('Danger added to Tone');
     expect(draftChangeLine('prop-change', [{ field: 'Prop Loading', after: 'boolean, default false' }])).toBe('New boolean prop Loading, default false');
-    expect(draftChangeLine('token-binding', [{ field: 'Fill (Size=sm)', before: 'color.action.bg', after: 'color.danger.bg' }, { field: 'Radius', before: 'radius.sm', after: 'radius.md' }])).toBe('Fill uses color.danger.bg instead of color.action.bg in Size=sm (and 1 more)');
+    expect(draftChangeLine('token-binding', [{ field: 'Fill (Size=sm)', before: 'color.action.bg', after: 'color.danger.bg' }, { field: 'Radius', before: 'radius.sm', after: 'radius.md' }])).toBe('Fill uses color.danger.bg instead of color.action.bg in sm (and 1 more)');
     expect(draftChangeLine('visual', [{ field: 'Swapped instance (Size=sm)', before: 'Icon/Plus', after: 'Icon/Pencil' }])).toBe('Shows Icon/Pencil instead of Icon/Plus in Size=sm');
     expect(draftChangeLine('new-component', [{ field: 'Variant Size', after: 'sm, md' }, { field: 'Prop Label', after: 'text, default Go' }])).toBe('New component with 1 variant axis and 1 prop, not in code yet');
     expect(draftChangeLine('bug', [])).toBe('');

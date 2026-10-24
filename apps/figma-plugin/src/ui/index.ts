@@ -1851,9 +1851,12 @@ function viewPull(): View {
           label: pending.some((c) => c.status === 'updated') ? 'Update all' : 'Apply to Figma',
           onClick: applyPull,
           disabled: open > 0,
+          // With the components choice in the bar, the counts stay in the list headings: the bar has no room for both.
           hint: open
             ? `Decide ${plural(open, 'conflict')} first`
-            : [upToDate ? '' : `${plural(prop.plan.variables.length, 'variable')}${prop.plan.orphans.length ? `, ${prop.plan.orphans.length} orphaned` : ''}`, withComponents ? plural(pending.length, 'component') : ''].filter(Boolean).join(' and '),
+            : toggle
+              ? undefined
+              : [upToDate ? '' : `${plural(prop.plan.variables.length, 'variable')}${prop.plan.orphans.length ? `, ${prop.plan.orphans.length} orphaned` : ''}`, withComponents ? plural(pending.length, 'component') : ''].filter(Boolean).join(' and '),
           secondary: { label: 'Check again', onClick: checkPull },
         },
   };
@@ -2169,6 +2172,8 @@ function openForm(r: PushState, item: ComponentChangeItem | undefined): void {
     ? { component: item.component, kind: item.kind, title: titleOf(r, item), summary: suggestSummary(item), line: lineOf(r, item), changes: item.changes, nodeId: item.nodeId, nodeName: item.figmaName }
     : { component: coded[0] ?? '', kind: 'visual', title: '', summary: '', changes: [], nodeId: state.selection?.nodeId, nodeName: state.selection?.name };
   r.form = { key: item?.nodeId ?? 'manual', item, draft, attach: item ? true : !!state.selection, titleSource: item && claudeTitle(r, item) ? 'claude' : 'draft', summarySource: 'draft', assist: {}, target: '' };
+  // "Where it goes" lists the running explorations: load them even when nothing was sent to one yet.
+  if (modeOf(r) !== 'suggest' && !r.explorations && !r.loadingExplorations) void loadExplorations(r);
   void request('selection', {}).then((sel) => {
     state.selection = sel;
     render();
@@ -2764,7 +2769,7 @@ function destinationControl(r: PushState): HTMLElement {
     'section',
     { class: 'destination' },
     h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Where your changes go' }, option('review', 'For review'), option('exploration', 'Try in an exploration')),
-    h('p', { class: 'muted' }, exploring ? 'Test it in a preview and a staging build. It never reaches the product as is.' : 'Owners approve it, then it reaches the product.'),
+    h('p', { class: 'muted' }, exploring ? 'See it in Studio with before and after screenshots. It never reaches the product as is.' : 'Owners approve it, then it reaches the product.'),
     exploring
       ? h(
           'div',
@@ -3061,7 +3066,7 @@ function viewPush(): View {
         steps([
           ['Edit in Figma', 'Change synced variables, or change a component: a variant, a prop, a part, the token a part uses.'],
           ['Review the changes', 'Every change is listed and checked. Uncheck what is not ready; mark work in progress as exploration only.'],
-          ['Send', 'Send for review: owners approve before anything ships. In an exploration, you try it in previews and a staging build first.'],
+          ['Send', 'Send for review: owners approve before anything ships. In an exploration, you see it in Studio first.'],
         ]),
         requestLine(undefined),
       ],
@@ -3140,6 +3145,8 @@ function viewPush(): View {
   const checked = r.items.filter((i) => isChecked(r.unchecked, i));
   const checkedVars = checked.filter((i) => i.kind === 'variable').length;
   const checkedComps = checked.filter((i) => i.kind === 'component').length;
+  // In an exploration, exact token changes are committed there: only the others become requests.
+  const checkedTokens = checked.filter((i) => i.kind === 'component' && pushOf(r, i.id)?.plan.route === 'token-change' && !pushOf(r, i.id)?.blocked).length;
   const newBrands = prop.brands.filter((b) => b.plan).length;
   const prFiles = Object.keys(prop.files).length + prop.brandFiles.length;
 
@@ -3334,7 +3341,9 @@ function viewPush(): View {
         ? 'Nothing checked'
         : waiting
           ? waiting
-          : [checkedVars ? plural(checkedVars, 'variable') : '', newBrands ? plural(newBrands, 'new brand') : '', checkedComps ? plural(checkedComps, exploring ? 'request' : 'component') : ''].filter(Boolean).join(', ');
+          : [checkedVars ? plural(checkedVars, 'variable') : '', newBrands ? plural(newBrands, 'new brand') : '', ...(exploring
+            ? [checkedTokens ? plural(checkedTokens, 'token change') : '', checkedComps - checkedTokens ? plural(checkedComps - checkedTokens, 'request') : '']
+            : [checkedComps ? plural(checkedComps, 'component') : ''])].filter(Boolean).join(', ');
   return {
     body,
     bar: nothing

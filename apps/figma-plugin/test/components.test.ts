@@ -132,7 +132,8 @@ test('fill rebound to another variable: token-binding', () => {
   const d = diffSignatures(sig(button()), sig(next));
   assert.equal(d.kind, 'token-binding');
   assert.deepEqual(d.changes, [
-    { field: 'Fill (Size=md, Tone=primary)', before: 'button.primary.bg, button.primary.fg', after: 'button.primary.fg, color.action.danger.bg' },
+    // Only what moved: the label keeps button.primary.fg.
+    { field: 'Fill (Size=md, Tone=primary)', before: 'button.primary.bg', after: 'color.action.danger.bg' },
   ]);
 });
 

@@ -154,7 +154,7 @@ small { color: var(--text-3); font-size: 11px; }
 .change > .icon { width: 12px; height: 12px; color: var(--text-3); flex: none; }
 .value { display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 2px 6px 2px 2px; border-radius: var(--r-sm); background: var(--bg-sunken); }
 .value.before { opacity: 0.6; }
-.value-name { font-family: var(--mono); }
+.value-name { font-family: var(--mono); min-width: 0; overflow-wrap: anywhere; }
 .value-resolved { color: var(--text-3); font-variant-numeric: tabular-nums; }
 .note { color: var(--text-2); font-style: italic; }
 .swatch {
@@ -392,7 +392,8 @@ div.setup-steps { padding-left: 0; }
 
 /* Component row: the concrete changes as before -> after value chips, like variable rows. */
 .chip-lines { display: flex; flex-direction: column; gap: var(--s1); }
-.chip-line { display: grid; grid-template-columns: minmax(56px, max-content) 1fr; gap: var(--s2); align-items: center; }
+/* The label never takes the chips' room: a long list of variants wraps within 40% of the row. */
+.chip-line { display: grid; grid-template-columns: fit-content(40%) minmax(0, 1fr); gap: var(--s2); align-items: center; }
 .chip-line .mode-name small { font-size: inherit; }
 
 /* Message to the team: its own section after a divider, at the level of Changes. */
