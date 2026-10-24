@@ -3,13 +3,14 @@
 // story's props, its forced state and its rendered tree in the spec shape; this file groups the stories into Figma sets.
 // Pure: no DOM, no figma.*.
 //
-// - Axes: the component's enum props (2 to 12 options, as Storybook knows them) with the values the stories show, a
-//   Checked axis from a `checked` prop (mixed from `indeterminate`), and a State axis from the forced states and
-//   `disabled`.
+// - Axes: the component's enum props (2 to 12 options, as Storybook knows them) with the values the stories show, the
+//   booleans the stories show both ways, a Checked axis from a `checked` prop (mixed from `indeterminate`), and a State
+//   axis from the forced states and `disabled`.
 // - A story stands for a variant only when its other booleans are at their defaults (a Loading story is not a variant).
 // - Parts: the default variant's rendered tree. The other variants pair their tree with it (core pairParts, as the bench
 //   does); a part a variant does not render is hidden there.
-// - Sizes: a frame with content hugs it (its measured px are not kept); a leaf (an icon, a dot) keeps them.
+// - Sizes: a frame with content hugs it (its measured px are not kept); a leaf (an icon, a dot) keeps them, and so
+//   does the width of a root that fills its container (the measure lays it out at a set width).
 // - Variables are not built here: they come from the measure's token harvest (to come), or the repo's tokens.
 
 import {
@@ -77,7 +78,7 @@ const LITERAL_FIELDS: SpecField[] = ['fill', 'textFill', 'stroke', 'fontFamily']
  * size of their own. A token the library does not have (`known` says no), or a color or font family with no token at
  * all, takes the measured literal (`rgb(...)`, px, a family list): the set draws what code draws, unbound.
  */
-function valuesOf(spec: MeasuredSpec, partId: string, hasChildren: boolean, known: (path: string) => boolean): Partial<Record<SpecField, SpecValue>> {
+function valuesOf(spec: MeasuredSpec, partId: string, hasChildren: boolean, known: (path: string) => boolean, fills = false): Partial<Record<SpecField, SpecValue>> {
   const v = { ...(spec.values[partId] ?? {}) };
   const raw = spec.raw[partId] ?? {};
   for (const field of Object.keys(v) as SpecField[]) {
@@ -89,7 +90,8 @@ function valuesOf(spec: MeasuredSpec, partId: string, hasChildren: boolean, know
   }
   for (const field of LITERAL_FIELDS) if (v[field] === undefined && typeof raw[field] === 'string') v[field] = raw[field];
   if (hasChildren) {
-    if (typeof v.width === 'number') delete v.width;
+    // A root that fills its container keeps the width the measure laid it out at (its story's render has it).
+    if (typeof v.width === 'number' && !fills) delete v.width;
     if (typeof v.height === 'number') delete v.height;
   }
   return v;
@@ -102,11 +104,26 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
   // all set one (Carbon IconButton: defaultOpen, highContrast), and that is then how the component is shown.
   const lead = stories.find((s) => s.name === 'Default' && !s.state) ?? stories[0];
   const baseline = (k: string, a: MeasuredArgType) => (lead ? propsOf(lead)[k] : undefined) ?? a.default ?? false;
-  const plain = stories.filter((s) =>
-    Object.entries(argTypes).every(([k, a]) => a.kind !== 'boolean' || STATE_PROPS.has(k) || NOT_AN_AXIS.test(k) || (propsOf(s)[k] ?? a.default ?? false) === baseline(k, a)),
+  // A skeleton (the loading placeholder) is not a variant. A gallery (its first instance) only stands for a variant no
+  // single-instance story renders: it comes last, and the first story of a variant wins.
+  const shown = stories.filter((s) => !/skeleton/i.test(s.name));
+  const ordered = [...(shown.length ? shown : stories)].sort((a, b) => Number(!!a.gallery) - Number(!!b.gallery));
+  // A boolean the stories show both ways is an axis (Carbon Toggle `toggled`); drawnAxes drops it if it draws nothing.
+  const valueOf = (s: MeasuredSpecsStory, k: string, a: MeasuredArgType) => (propsOf(s)[k] ?? a.default ?? false) === true;
+  const flags = Object.entries(argTypes).filter(
+    ([k, a]) => a.kind === 'boolean' && !STATE_PROPS.has(k) && !NOT_AN_AXIS.test(k) && ordered.some((s) => valueOf(s, k, a)) && ordered.some((s) => !valueOf(s, k, a)),
+  );
+  const plain = ordered.filter((s) =>
+    Object.entries(argTypes).every(
+      ([k, a]) => a.kind !== 'boolean' || STATE_PROPS.has(k) || NOT_AN_AXIS.test(k) || flags.some(([f]) => f === k) || (propsOf(s)[k] ?? a.default ?? false) === baseline(k, a),
+    ),
   );
   if (!plain.length) return undefined;
   const axes: SpecAxis[] = [];
+  for (const [prop, a] of flags) {
+    const def = String(baseline(prop, a) === true);
+    axes.push({ name: axisName(prop), prop, values: [def, def === 'true' ? 'false' : 'true'], default: def });
+  }
   for (const [prop, a] of Object.entries(argTypes)) {
     if (a.kind !== 'enum' || NOT_AN_AXIS.test(prop) || !a.options || a.options.length < 2 || a.options.length > 12) continue;
     const seen = new Set(plain.map((s) => String(propsOf(s)[prop] ?? a.default ?? a.options![0])));
@@ -126,7 +143,9 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
   const keyOf = (s: MeasuredSpecsStory): Record<string, string> | undefined => {
     const props: Record<string, string> = {};
     for (const axis of axes) {
-      const value = axis.name === 'State' ? STATES.find((st) => st.of(s))?.value : axis.name === 'Checked' ? checkedOf(s) : String(propsOf(s)[axis.prop!] ?? axis.default);
+      const flag = flags.find(([k]) => k === axis.prop);
+      const value =
+        axis.name === 'State' ? STATES.find((st) => st.of(s))?.value : axis.name === 'Checked' ? checkedOf(s) : flag ? String(valueOf(s, flag[0], flag[1])) : String(propsOf(s)[axis.prop!] ?? axis.default);
       if (value === undefined || !axis.values.includes(value)) return undefined;
       props[axis.name] = value;
     }
@@ -145,12 +164,14 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
   const baseSpec = base.story.spec!;
   // A part the measure drew as an SVG (an icon, a check mark) is a vector part: the builder draws its markup.
   const parts = baseSpec.parts.map((p) => (baseSpec.vectors?.[p.id] ? { ...p, kind: 'vector' as const } : { ...p }));
-  const parents = new Set(parts.map((p) => p.parent).filter(Boolean));
+  // Only children in the flow size a frame: one holding only positioned parts (a switch and its knob) keeps its size.
+  const parents = new Set(parts.filter((p) => !p.pin && !p.cover).map((p) => p.parent).filter(Boolean));
   const variants: SpecVariant[] = [];
   const shotOf = new Map<SpecVariant, VariantShot>();
   for (const { props, story } of byVariant.values()) {
     const m = story.spec!;
-    const pairs = story === base.story ? new Map(parts.map((p) => [p.id, p.id])) : pairParts(parts, m);
+    // Paired on the measure's own parts: an icon made a vector here is still an icon there.
+    const pairs = story === base.story ? new Map(parts.map((p) => [p.id, p.id])) : pairParts(baseSpec.parts, m);
     const values: SpecVariant['values'] = {};
     const vectors: NonNullable<SpecVariant['vectors']> = {};
     const pins: NonNullable<SpecVariant['pins']> = {};
@@ -161,7 +182,9 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
         hidden.push(p.id);
         continue;
       }
-      values[p.id] = valuesOf(m, mid, parents.has(p.id), known);
+      values[p.id] = valuesOf(m, mid, parents.has(p.id), known, !p.parent && !!p.fill);
+      // An icon's fill is the color it draws with (CSS `fill`), not a background: the frame would paint a square.
+      if (p.kind === 'icon' || p.kind === 'vector') delete values[p.id]!.fill;
       // A positioned part (a pseudo-element knob) placed elsewhere in this variant: checked moves it to the right.
       const pin = m.parts.find((x) => x.id === mid)?.pin;
       if (p.pin && pin && JSON.stringify(pin) !== JSON.stringify(p.pin)) pins[p.id] = pin;
