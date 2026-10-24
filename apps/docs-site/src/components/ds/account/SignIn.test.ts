@@ -605,7 +605,7 @@ describe('the invite link: one identity, the account of the invited email', () =
     await expectNoAxeViolations(container);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Send code' }));
-    expect(await screen.findByText(/Bridge sent a 6-digit code to m•••@acme\.com/)).toBeInTheDocument();
+    expect(await screen.findByText(/Bridge sent a 6‑digit code to m•••@acme\.com/)).toBeInTheDocument();
     await waitFor(() => expect(posts('code')[0]?.body ?? null).toEqual({ action: 'code', invite: TOKEN }));
     expect(screen.queryByRole('button', { name: 'Use another email' })).toBeNull();
     await user.type(screen.getByRole('textbox', { name: 'Code' }), '123456');

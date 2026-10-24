@@ -164,7 +164,7 @@ export const START_WORDS = {
   connectButton: 'Connect my design system',
   demoTitle: 'Look around first',
   demoText: 'Acme Design, a sample team: a design system, its branches and changes waiting for review.',
-  demoChecks: ['No setup', 'Read only, nothing touches your repository'],
+  demoChecks: ['No setup', 'Your edits stay in this browser, nothing is sent'],
   demoButton: 'Open the demo',
 } as const;
 
