@@ -369,9 +369,13 @@ export async function openSuggestion(n: number, host: SuggestionHost): Promise<v
   // The demo seat (lib/demo.ts): on the sample team a visitor without an account sits where Dana sits, so the owners
   // read as Dana and the author as who asked for it, never a real account (the branch page does the same).
   const seat = !viewer && !currentContributor() && isSampleTeam(repoKey()) ? ((siteConfig() as { demo?: { viewer?: string } }).demo?.viewer ?? null) : null;
-  const asker = seat ? requesterOf(d.issue.body) : null;
+  // Who asked, as Bridge recorded it ("Requested by Priya Shah ... through Bridge."): the account that opened the issue
+  // is the Bridge app for an email member, an agent, or a lead acting for someone (the home row says the same).
+  const asker = requesterOf(d.issue.body);
   if (seat) for (const o of [...owners.design, ...owners.tech]) nameMap[o.toLowerCase()] = seat;
-  const authorName = seat ? (asker?.name?.split(/\s+/)[0] ?? asker?.login ?? 'A teammate') : (nameMap[d.issue.author.toLowerCase()] ?? d.issue.author);
+  const authorName = seat
+    ? (asker?.name?.split(/\s+/)[0] ?? asker?.login ?? 'A teammate')
+    : (asker?.name ?? (asker?.login ? (nameMap[asker.login.toLowerCase()] ?? asker.login) : null) ?? nameMap[d.issue.author.toLowerCase()] ?? d.issue.author);
   const title = shortTitle(payload.title || d.issue.title);
   let today: TodayChecks | null = null;
   let conflicts: { path: string; detail: string; now?: unknown }[] | undefined;

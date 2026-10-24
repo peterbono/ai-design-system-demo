@@ -383,6 +383,9 @@ function Peeks({ next }: { next: NextCard[] }) {
   );
 }
 
+/** The why the person wrote: the summary before any section Bridge appends ("## Docs to check"). */
+export const whyOf = (summary: string | null | undefined): string => (summary ?? '').split(/\n\s*#{1,6}\s/)[0]!.trim();
+
 export function SuggestionReview(p: SuggestionReviewProps) {
   const keys = p.inQueue && p.gate.canApprove;
   return (
@@ -432,7 +435,7 @@ export function SuggestionReview(p: SuggestionReviewProps) {
                 Someone changed the suggestion on GitHub after Bridge wrote it. Check the details before you approve.
               </Alert>
             )}
-            {p.summary && <p className="sg-summary">{p.summary}</p>}
+            {whyOf(p.summary) && <p className="sg-summary">{whyOf(p.summary)}</p>}
             <BeforeAfter p={p} />
             <Proof p={p} />
             {p.apply && (
