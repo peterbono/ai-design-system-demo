@@ -213,25 +213,27 @@ describe('join request on the admin home (E7b)', () => {
 describe('Settings, Members (E7c, E7a)', () => {
   const req = { id: 'a1b2c3d4e5f60718', name: 'Jordan Lee', email: 'jordan.lee@acme.com', createdAt: new Date(Date.now() - 3_700_000).toISOString(), expiresAt: '' };
 
-  it('lists who asks to join with their role as text, approves, and adds them to the members at once', async () => {
+  it('lists who asks to join as the queue rows of the home, approves, and adds them to the members at once', async () => {
     const onDone = vi.fn();
     const onApproved = vi.fn();
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    const { container } = render(createElement(JoinRequests, { repo: 'acme/ds', requests: [req], onApproved, onDone }));
+    const { container } = render(createElement(JoinRequests, { repo: 'acme/ds', team: 'Acme Design', requests: [req], onApproved, onDone }));
     expect(screen.getByRole('heading', { name: 'Asks to join 1' })).toBeInTheDocument();
-    expect(screen.getByText('Found the team with @acme.com · asked 1 h ago')).toBeInTheDocument();
+    // The same row as the home's "waiting on you" queue: who, what, the email and the role they get as text.
+    const list = screen.getByRole('list', { name: 'Asks to join' });
+    expect(list).toHaveClass('sh-rows');
+    expect(list).toHaveTextContent('asks to join Acme Design');
+    expect(list).toHaveTextContent('jordan.lee@acme.com · joins as Can edit');
+    expect(list).toHaveTextContent('Waiting 1 h');
     // Nothing to pick: an email account joins as Can edit (BR-20, no dead control).
-    expect(screen.getByText('Can edit')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Role for/ })).toBeNull();
     await expectNoAxeViolations(container);
     reply = () => json(200, { member: { name: 'Jordan Lee', role: 'edit' }, repo: 'acme/ds' });
-    await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(screen.getByRole('button', { name: 'Approve Jordan Lee' }));
-    expect(await screen.findByText('Jordan joined as Can edit.')).toBeInTheDocument();
-    expect(onApproved).toHaveBeenCalledWith(req);
-    expect(onDone).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(5000);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Approve Jordan Lee' }));
+    await waitFor(() => expect(onApproved).toHaveBeenCalledWith(req));
     expect(onDone).toHaveBeenCalledWith(req, true);
-    vi.useRealTimers();
+    // The row leaves at once; the toast says so, with Undo.
+    expect(await screen.findByText('Jordan joined as Can edit.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Approve Jordan Lee' })).toBeNull();
   });
 
   it('shows nothing when nobody asks', () => {

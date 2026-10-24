@@ -1,6 +1,6 @@
 // Approve and Decline on a join request (board E7b), shared by the Home rows and the Review page's queue card: the
 // same calls (scripts/entry-session), the same words (lib/entry ENTRY_WORDS).
-import type { JoinHandlers } from '../components/ds/studio/StudioHome';
+import type { JoinHandlers } from '../components/ds/studio/NeedRows';
 import { ENTRY_WORDS } from '../lib/entry';
 
 /**
