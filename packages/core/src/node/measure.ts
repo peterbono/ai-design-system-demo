@@ -237,6 +237,9 @@ export async function resolveTokenValues(page: MeasurePage, vars: Record<string,
   return (await page.evaluate<Record<string, string>>(expr)) ?? {};
 }
 
+/** The pseudo classes a real interaction sets: a press is also a hover, focus-visible is also focus. */
+const PSEUDO_CLASSES: Record<MeasuredState, string[]> = { hover: ['hover'], 'focus-visible': ['focus-visible', 'focus'], active: ['active', 'hover'] };
+
 /** Opens one story in its iframe and measures what it rendered. */
 export async function measureStory(page: MeasurePage, storybook: string, id: string, o: MeasureOptions = {}): Promise<MeasuredStory> {
   const iframe = { ...(o.iframe ?? {}) };
@@ -264,7 +267,7 @@ export async function measureRendered(page: MeasurePage, o: MeasureOptions = {})
   if (o.state && page.forcePseudo && rendered === 'rendered') {
     // Tag the component element, then force the state on it the way DevTools does (no pointer, no layout shift).
     const marked = await page.evaluate<{ marked?: boolean }>(`(${MEASURE_SCRIPT})(${JSON.stringify({ ...arg, mark: true })})`);
-    if (marked?.marked && (await page.forcePseudo('[data-bridge-measure-root]', [o.state === 'focus-visible' ? 'focus-visible' : o.state, ...(o.state === 'focus-visible' ? ['focus'] : [])]).catch(() => false))) {
+    if (marked?.marked && (await page.forcePseudo('[data-bridge-measure-root]', PSEUDO_CLASSES[o.state]).catch(() => false))) {
       state = o.state;
       await page.evaluate('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 120))))');
     }

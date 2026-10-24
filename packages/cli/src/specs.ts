@@ -115,7 +115,7 @@ function storyEntry(p: { id: string; title: string; name: string }, m: MeasuredS
 /** The Figma set's root class ("Radio.module.css .item, Radio.module.css .md" -> item): what its stories must measure. */
 function rootClassOf(ref: FigmaComponentRef | undefined): string | undefined {
   const root = ref?.parts.find((x) => !x.parent);
-  return /\.([A-Za-z][\w-]*)/.exec(root?.source ?? '')?.[1];
+  return /(?:^|[\s,])\.([A-Za-z][\w-]*)/.exec(root?.source ?? '')?.[1];
 }
 
 /** The Figma side of each component, from component-specs.json (what the Figma library was drawn from). */
@@ -282,15 +282,17 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
 
   let statuses: ComponentStatus[] | undefined;
   if (has(a, 'check')) {
-    const titles = [...new Set(file.stories.map((s) => s.title))];
-    statuses = titles.map((title) => {
-      const name = title.split('/').pop()!.trim();
-      const comp = file.components!.find((c) => c.title === title);
-      const resolved = comp?.resolved;
+    // One status per component name: its own stories ("Forms/ChoiceCard") and its Figma variant stories
+    // ("Figma variants/ChoiceCard") together, their props merged.
+    const nameOf = (title: string) => title.split('/').pop()!.trim();
+    const names = [...new Set(file.stories.map((s) => nameOf(s.title)))];
+    statuses = names.map((name) => {
+      const comps = file.components!.filter((c) => nameOf(c.title) === name);
+      const resolved = comps.reduce<Record<string, string> | undefined>((acc, c) => (c.resolved ? { ...(acc ?? {}), ...c.resolved } : acc), undefined);
       return componentStatus({
         name,
-        stories: file.stories.filter((s) => s.title === title),
-        argTypes: comp?.argTypes,
+        stories: file.stories.filter((s) => nameOf(s.title) === name),
+        argTypes: comps.length ? Object.assign({}, ...comps.map((c) => c.argTypes)) : undefined,
         figma: refs?.get(name.toLowerCase()),
         ...(resolved ? { resolve: (path: string) => resolved[path] } : {}),
       });
