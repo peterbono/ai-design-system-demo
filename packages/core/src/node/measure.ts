@@ -656,9 +656,20 @@ const px = (v: string | undefined): number | undefined => {
 const transparent = (v: string | undefined) => !v || v === 'transparent' || /^rgba\([^)]*,\s*0\)$/.test(v);
 
 /** Auto layout of a measured element, as the pull reads it. */
+/** How in-flow children are laid out by their boxes: each below the previous, all on one row, or neither. */
+function arrangement(children: MeasuredBox[]): 'stacked' | 'row' | undefined {
+  const kids = children.filter((c) => c.width > 0 || c.height > 0);
+  if (kids.length < 2) return undefined;
+  const stacked = kids.every((c, i) => i === 0 || c.y >= kids[i - 1]!.y + kids[i - 1]!.height - 1);
+  const row = kids.every((c, i) => i === 0 || c.x >= kids[i - 1]!.x + kids[i - 1]!.width - 1);
+  return stacked && !row ? 'stacked' : row && !stacked ? 'row' : undefined;
+}
+
 export function measuredLayout(style: Record<string, string>, children: MeasuredBox[] = []): SpecLayout | undefined {
   const d = style.display ?? '';
-  if (!/flex|grid|block|inline-block|list-item/.test(d)) return undefined;
+  const arranged = arrangement(children);
+  // An inline element holding blocks (a <label> around a text and a switch) lays them out by their boxes.
+  if (!/flex|grid|block|inline-block|list-item/.test(d)) return arranged ? { direction: arranged === 'stacked' ? 'VERTICAL' : 'HORIZONTAL', primary: 'MIN', counter: 'MIN' } : undefined;
   const flex = /flex/.test(d);
   const grid = /grid/.test(d);
   const dir = style['flex-direction'] ?? 'row';
@@ -676,6 +687,10 @@ export function measuredLayout(style: Record<string, string>, children: Measured
   const a = style['align-items'] ?? 'normal';
   const primary: SpecLayout['primary'] = !flex && !grid ? 'MIN' : /space-between/.test(j) ? 'SPACE_BETWEEN' : /center/.test(j) ? 'CENTER' : /end|right/.test(j) ? 'MAX' : 'MIN';
   const counter: SpecLayout['counter'] = /center/.test(a) ? 'CENTER' : /end/.test(a) ? 'MAX' : /^(flex-)?start|baseline/.test(a) ? 'MIN' : 'STRETCH';
+  // The boxes are the referee: a row that wrapped into a column at its width, or blocks that sit side by side.
+  // (A wrapping row stays a row: Figma wraps it the same way at the same width.)
+  if (arranged === 'stacked' && direction === 'HORIZONTAL' && !(flex && style['flex-wrap'] === 'wrap')) direction = 'VERTICAL';
+  else if (arranged === 'row' && direction === 'VERTICAL' && !flex) direction = 'HORIZONTAL';
   const out: SpecLayout = { direction, primary, counter };
   if (flex && /reverse/.test(dir)) out.reverse = true;
   if (flex && direction === 'HORIZONTAL' && style['flex-wrap'] === 'wrap') out.wrap = true;
@@ -721,7 +736,7 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
     used.add(id);
     return id;
   };
-  const visit = (n: MeasuredNode, parent: string | undefined, parentStyle: Record<string, string> | undefined, parentBox?: MeasuredBox) => {
+  const visit = (n: MeasuredNode, parent: string | undefined, parentStyle: Record<string, string> | undefined, parentBox?: MeasuredBox): string => {
     const id = idFor(n, !parent, parent);
     const style = n.kind === 'text' && n.tag === '#text' ? (parentStyle ?? {}) : n.style;
     const tokens = n.kind === 'text' && n.tag === '#text' ? {} : n.tokens;
@@ -786,7 +801,16 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
             values[field] = min + extra;
           } else put(field, prop, min);
         }
-        else put(field, prop, px(v) || undefined); // zero paddings and radii are Figma's default: not a field
+        else if (field === 'cornerRadius' && v && /%$/.test(v.trim())) {
+          // 50% is half the smaller side (a round knob or dot): px from the box.
+          const r = Math.round((Math.min(n.box.width, n.box.height) * Number.parseFloat(v)) / 100 * 100) / 100;
+          if (r > 0) {
+            out.coverage.fields++;
+            out.coverage.literal++;
+            raw[field] = r;
+            values[field] = r;
+          }
+        } else put(field, prop, px(v) || undefined); // zero paddings and radii are Figma's default: not a field
       }
       const widths = (['top', 'right', 'bottom', 'left'] as const).map((s) => (n.style[`border-${s}-style`] === 'none' ? 0 : (px(n.style[`border-${s}-width`]) ?? 0)));
       if (widths.some((w) => w > 0)) {
@@ -829,8 +853,58 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
     if (Object.keys(values).length) out.values[id] = values;
     if (Object.keys(raw).length) out.raw[id] = raw;
     if (Object.keys(ev).length) out.tokens[id] = ev;
-    for (const c of n.children) visit(c, id, n.style, n.box);
+    if (n.sized && (n.sized.width || n.sized.height)) (out.sized ??= {})[id] = { ...(n.sized.width ? { width: n.box.width } : {}), ...(n.sized.height ? { height: n.box.height } : {}) };
+    const kids = n.children.map((c) => [c, visit(c, id, n.style, n.box)] as const);
+    if (part.layout) spacing(id, n, part.layout, kids);
+    return id;
+  };
+  /**
+   * Margins become auto layout: the space the boxes show before the first child and after the last becomes padding,
+   * the space between children becomes the gap when it is the same everywhere, else the smallest gap plus a spacer
+   * per child (a label 8 px above its field, a helper 4 px below it).
+   */
+  const spacing = (id: string, n: MeasuredNode, layout: SpecLayout, kids: (readonly [MeasuredNode, string])[]) => {
+    if (layout.primary !== 'MIN' || layout.wrap || layout.reverse) return;
+    const flow = kids.filter(([c]) => c.style.position !== 'absolute' && c.style.position !== 'fixed' && (c.box.width > 0 || c.box.height > 0));
+    if (!flow.length) return;
+    const v = layout.direction === 'VERTICAL';
+    const st = n.style;
+    const side = v ? (['top', 'bottom'] as const) : (['left', 'right'] as const);
+    const num = (x: string | undefined) => px(x) ?? 0;
+    const startEdge = (v ? n.box.y : n.box.x) + (st[`border-${side[0]}-style`] === 'none' ? 0 : num(st[`border-${side[0]}-width`])) + num(st[`padding-${side[0]}`]);
+    const endEdge = (v ? n.box.y + n.box.height : n.box.x + n.box.width) - (st[`border-${side[1]}-style`] === 'none' ? 0 : num(st[`border-${side[1]}-width`])) - num(st[`padding-${side[1]}`]);
+    const lo = (b: MeasuredBox) => (v ? b.y : b.x);
+    const hi = (b: MeasuredBox) => (v ? b.y + b.height : b.x + b.width);
+    const gaps = flow.slice(1).map(([c], i) => Math.round((lo(c.box) - hi(flow[i]![0].box)) * 100) / 100);
+    if (gaps.some((g) => g < -0.5)) return; // overlapping (inline runs, negative margins): leave the declared layout
+    const vals = (out.values[id] ??= {});
+    const raws = (out.raw[id] ??= {});
+    const padKey = (k: 'top' | 'bottom' | 'left' | 'right') => (({ top: 'paddingTop', bottom: 'paddingBottom', left: 'paddingLeft', right: 'paddingRight' }) as const)[k];
+    const first = flow[0]![0];
+    const last = flow[flow.length - 1]![0];
+    // Only space a margin makes (text centred in a taller line is not padding): a child's own margin, at most what the boxes show.
+    const before = Math.min(num(first.style[`margin-${side[0]}`]), Math.round((lo(first.box) - startEdge) * 100) / 100);
+    // After the last child: only its own margin (free space in a fixed or stretched box is not padding).
+    const after = Math.min(num(last.style[`margin-${side[1]}`]), Math.round((endEdge - hi(last.box)) * 100) / 100);
+    for (const [k, extra] of [[side[0], before], [side[1], after]] as const) {
+      if (!(extra > 0.5)) continue;
+      const total = Math.round((num(st[`padding-${k}`]) + extra) * 100) / 100;
+      vals[padKey(k)] = total;
+      raws[padKey(k)] = total;
+    }
+    if (!gaps.length) return;
+    const marginBetween = flow.slice(1).some(([c], i) => num(flow[i]![0].style[`margin-${side[1]}`]) > 0.5 || num(c.style[`margin-${side[0]}`]) > 0.5);
+    if (!marginBetween) return;
+    const declaredGap = num(v ? st['row-gap'] : st['column-gap']);
+    const min = Math.min(...gaps);
+    const uniform = gaps.every((g) => Math.abs(g - gaps[0]!) <= 0.5);
+    if (uniform && Math.abs(gaps[0]! - declaredGap) <= 0.5) return;
+    vals.itemSpacing = uniform ? gaps[0]! : min;
+    raws.itemSpacing = vals.itemSpacing as number;
+    if (!uniform) flow.slice(1).forEach(([, cid], i) => gaps[i]! - min > 0.5 && ((out.spacers ??= {})[cid] = Math.round((gaps[i]! - min) * 100) / 100));
   };
   visit(m.root, undefined, undefined);
+  for (const k of Object.keys(out.values)) if (!Object.keys(out.values[k]!).length) delete out.values[k];
+  for (const k of Object.keys(out.raw)) if (!Object.keys(out.raw[k]!).length) delete out.raw[k];
   return out;
 }
