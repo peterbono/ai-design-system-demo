@@ -167,7 +167,7 @@ export function pageSentence(views: readonly BuildRequestView[]): string {
   const open = views.filter((v) => v.status !== 'shipped' && v.status !== 'not-planned');
   const stale = open.filter((v) => v.stale).length;
   if (!views.length) return 'Nothing is being built yet.';
-  if (!open.length) return 'Everything sent from Figma is in the library.';
+  if (!open.length) return 'Everything sent from Figma or from Components is in the library.';
   const waiting = open.filter((v) => v.status === 'requested').length;
   const building = open.length - waiting;
   const parts = [...(building ? [`${building} being built`] : []), ...(waiting ? [`${waiting} waiting for a developer`] : [])];

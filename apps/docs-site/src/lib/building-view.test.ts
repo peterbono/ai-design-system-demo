@@ -20,7 +20,7 @@ describe('Being built', () => {
       'Badge:in-review',
       'Avatar:shipped',
     ]);
-    expect(views.find((v) => v.component === 'Card')!.sentence).toBe('Ana is on it.');
+    expect(views.find((v) => v.component === 'Card')!.sentence).toBe('Malik is on it.');
     expect(views.find((v) => v.component === 'Select')!.builders).toEqual(['theo']);
     expect(views.find((v) => v.component === 'Badge')!.jira).toBe('DS-128');
     // One build request per change: the spec branch from Figma that closes #41 is not a second row, and the sender
@@ -44,7 +44,7 @@ describe('Being built', () => {
     expect(statusTag(stale)).toEqual({ label: 'Requested 10 days ago', tone: 'warning' });
     expect(rowLine(stale, NOW)).toBe('Nobody has picked it up yet');
     expect(rowLine(views[1]!, NOW)).toBe('Sent 1 day ago');
-    expect(rowLine(views[2]!, NOW)).toBe('Sent 4 days ago · Ana is on it');
+    expect(rowLine(views[2]!, NOW)).toBe('Sent 4 days ago · Malik is on it');
     expect(rowLine(views[5]!, NOW)).toBe('Shipped 2 days ago');
     expect(statusTag(views[5]!)).toEqual({ label: 'Shipped', tone: 'success' });
     expect(ageLabel(new Date(NOW).toISOString(), NOW)).toBe('Today');
@@ -76,7 +76,7 @@ describe('Being built', () => {
     expect(shipped.at(-1)).toMatchObject({ status: 'shipped', current: true });
     const picked = timelineSteps(views[2]!);
     expect(picked.map((s) => s.reached)).toEqual([true, true, false, false, false]);
-    expect(picked[1]).toMatchObject({ who: 'ana', current: true });
+    expect(picked[1]).toMatchObject({ who: 'malik-haddad', current: true });
   });
 
   it('links Jira only with a site set', () => {
@@ -87,7 +87,7 @@ describe('Being built', () => {
 
   it('gives the Library its line while a change is open', () => {
     const views = sample();
-    expect(figmaAheadLine(views, 'Card', (l) => SAMPLE_BUILDERS[l] ?? l)?.sentence).toBe('Figma is ahead: 1 change being built (Ana).');
+    expect(figmaAheadLine(views, 'Card', (l) => SAMPLE_BUILDERS[l] ?? l)?.sentence).toBe('Figma is ahead: 1 change being built (Malik).');
     expect(figmaAheadLine(views, 'Avatar')).toBeNull();
   });
 

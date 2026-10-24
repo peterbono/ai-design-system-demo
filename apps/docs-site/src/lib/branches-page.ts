@@ -131,13 +131,20 @@ export function mergedThisMonth(rows: { merged_at?: string | null }[], now: Date
 }
 
 /**
- * "12 merged this month." The closed list GitHub gives is the most recent `limit` only: when every one of them merged
- * this month the count is a floor, and the line says so.
+ * "12 added to the library this month." (a merged branch, in designer words). The closed list GitHub gives is the most
+ * recent `limit` only: when every one of them merged this month the count is a floor, and the line says so.
  */
 export function mergedLine(count: number, read: number, limit: number): string {
-  if (count === 0) return `Nothing merged this month.`;
-  return `${count >= limit && read >= limit ? `${count}+` : count} merged this month.`;
+  if (count === 0) return 'Nothing added to the library this month.';
+  return `${count >= limit && read >= limit ? `${count}+` : count} added to the library this month.`;
 }
+
+/** The words around mergedLine: the link that shows them, and the line once they are shown. */
+export const FINISHED_WORDS = {
+  show: 'Show them',
+  showing: 'Showing what was added to the library or closed.',
+  hide: 'Hide them',
+} as const;
 
 /** The muted line under a one-status list ("Showing drafts only."). */
 export function onlyLine(only: FinishedView['only']): string | null {
