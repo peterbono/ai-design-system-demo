@@ -164,7 +164,8 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
   const baseSpec = base.story.spec!;
   // A part the measure drew as an SVG (an icon, a check mark) is a vector part: the builder draws its markup.
   const parts = baseSpec.parts.map((p) => (baseSpec.vectors?.[p.id] ? { ...p, kind: 'vector' as const } : { ...p }));
-  const parents = new Set(parts.map((p) => p.parent).filter(Boolean));
+  // Only children in the flow size a frame: one holding only positioned parts (a switch and its knob) keeps its size.
+  const parents = new Set(parts.filter((p) => !p.pin && !p.cover).map((p) => p.parent).filter(Boolean));
   const variants: SpecVariant[] = [];
   const shotOf = new Map<SpecVariant, VariantShot>();
   for (const { props, story } of byVariant.values()) {
@@ -182,6 +183,8 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
         continue;
       }
       values[p.id] = valuesOf(m, mid, parents.has(p.id), known, !p.parent && !!p.fill);
+      // An icon's fill is the color it draws with (CSS `fill`), not a background: the frame would paint a square.
+      if (p.kind === 'icon' || p.kind === 'vector') delete values[p.id]!.fill;
       // A positioned part (a pseudo-element knob) placed elsewhere in this variant: checked moves it to the right.
       const pin = m.parts.find((x) => x.id === mid)?.pin;
       if (p.pin && pin && JSON.stringify(pin) !== JSON.stringify(p.pin)) pins[p.id] = pin;

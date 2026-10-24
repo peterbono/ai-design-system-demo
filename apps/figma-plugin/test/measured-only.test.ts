@@ -148,7 +148,7 @@ test('measured only: an icon the measure gives as SVG is drawn as vectors, not a
           { id: 'root', name: 'Root', kind: 'frame', layout: { direction: 'HORIZONTAL', primary: 'MIN', counter: 'CENTER' } },
           { id: 'close', name: 'Close', kind: 'icon', parent: 'root' },
         ],
-        values: { root: { paddingLeft: 8 }, close: { width: 16, height: 16 } },
+        values: { root: { paddingLeft: 8 }, close: { width: 16, height: 16, fill: 'rgb(22, 22, 22)' } },
         raw: {},
         vectors: { close: { svg, strokes: ['acme.unknown'] } },
       },
@@ -156,6 +156,8 @@ test('measured only: an icon the measure gives as SVG is drawn as vectors, not a
   ];
   const tag = specsFromMeasure(m, { known: (p) => p !== 'acme.unknown' }).specs.components[0]!;
   assert.equal(tag.parts.find((p) => p.id === 'close')!.kind, 'vector');
+  // Its fill is the color the SVG draws with, not a background square.
+  assert.equal(tag.variants[0]!.values.close!.fill, undefined);
   assert.deepEqual(tag.variants[0]!.vectors, { close: { svg, strokes: [] } });
   const report = await applyComponentPlan(writablePlan(buildComponentPlan({ version: 1, generated: '', components: [tag] }, 'measured-specs.json', await scanGenerated(), a.head)));
   assert.deepEqual(report.failed, []);
@@ -196,6 +198,8 @@ test('measured only: a positioned part (a pseudo-element knob) follows its offse
   const spec = specsFromMeasure(m).specs.components[0]!;
   const on = spec.variants.find((v) => v.props.Checked === 'true')!;
   assert.deepEqual(on.pins, { knob: { top: 3, left: 27 } });
+  // The knob is positioned: it does not size the switch, which keeps its measured size.
+  assert.deepEqual([on.values.root!.width, on.values.root!.height], [48, 24]);
   const report = await applyComponentPlan(writablePlan(buildComponentPlan({ version: 1, generated: '', components: [spec] }, 'measured-specs.json', await scanGenerated(), a.head)));
   assert.deepEqual(report.failed, []);
   const set = sim.sets().find((s) => s.name === 'Toggle')!;
