@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "sessionId": "a1s70y8e16utp2px",
+  "createdAt": "2026-10-24T14:54:16.382Z",
+  "status": "pending",
+  "source": "figma",
+  "items": [
+    {
+      "id": "item-1",
+      "scope": "push",
+      "changes": [],
+      "components": [
+        "Tag"
+      ],
+      "notes": "Tag neutral reads too strong on dense tables; this softens it.",
+      "images": [
+        {
+          "label": "after",
+          "path": ".bridge/drafts/a1s70y8e16utp2px/item-1-change-1-after.png",
+          "url": "https://github.com/peterbono/ai-design-system-demo/blob/bridge-requests/.bridge/drafts/a1s70y8e16utp2px/item-1-change-1-after.png?raw=true",
+          "line": "2:4653"
+        }
+      ],
+      "draft": {
+        "title": "",
+        "summary": "Requests a change to Tag."
+      },
+      "lines": [
+        {
+          "id": "2:4653",
+          "component": "Tag",
+          "kind": "token-binding",
+          "changes": [
+            {
+              "field": "Fill (Size=sm, State=Default, Tone=neutral)",
+              "before": "tag.bg",
+              "after": "color.bg.subtle"
+            }
+          ],
+          "line": "Fill uses color.bg.subtle instead of tag.bg in neutral sm",
+          "title": "Use color.bg.subtle for the fill"
+        }
+      ]
+    }
+  ]
+}
