@@ -67,7 +67,7 @@ export async function runFidelityCheck(d: FidelityDeps): Promise<FidelityOutcome
   if (!manifest) return { kind: 'no-references' };
   const options: CompareOptions = { ...d.options, scale: manifest.scale };
   const items: FidelityItem[] = [];
-  for (const set of d.sets) {
+  for (const [i, set] of d.sets.entries()) {
     const entry = manifest.components[set.componentId];
     if (!entry) {
       items.push({ nodeId: set.nodeId, name: set.name, result: summarizeComponent(set.componentId, [], 'no image of its code yet, it is new or not drawn from code') });
@@ -81,7 +81,8 @@ export async function runFidelityCheck(d: FidelityDeps): Promise<FidelityOutcome
       });
       continue;
     }
-    d.progress?.(`Comparing ${set.name}`);
+    // A run takes minutes on a full library: say how far it is.
+    d.progress?.(`Comparing ${set.name}, ${i + 1} of ${d.sets.length}`);
     const comparable = set.variants.filter((k) => entry.variants[k] && 'file' in entry.variants[k]!);
     const exports = comparable.length ? await d.exportVariants(set.nodeId, comparable, manifest.scale) : {};
     const variants: FidelityVariantResult[] = [];

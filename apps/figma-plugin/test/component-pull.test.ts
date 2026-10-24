@@ -753,8 +753,9 @@ test('coverage: the count of components in Figma, drafted ones named, the others
   const visual = cov.filter((c) => c.status !== 'layout');
   const drafted = visual.filter((c) => c.status === 'drafted');
   // Every visual component is in Figma: generated, or drafted with Claude (counted in Figma, never as generated).
-  assert.equal(view.headline, `${visual.filter((c) => c.status === 'generated').length + drafted.length} of ${visual.length} components can be pulled into Figma, ${drafted.length} drafted with Claude`);
-  assert.equal(view.headline, '47 of 47 components can be pulled into Figma, 1 drafted with Claude');
+  // The count on screen is the sets (parts and popups included): the headline says how they relate.
+  assert.equal(view.headline, `${visual.filter((c) => c.status === 'generated').length + drafted.length} of ${visual.length} components can be pulled into Figma (${plan.components.length} sets with their parts), ${drafted.length} drafted with Claude`);
+  assert.equal(view.headline, '47 of 47 components can be pulled into Figma (62 sets with their parts), 1 drafted with Claude');
   assert.deepEqual(view.drafted.map((d) => d.name), ['Toast']);
   assert.ok(view.drafted[0]!.reason.startsWith('Drafted with Claude, the generator cannot read it: it is shown from a hook'));
   assert.equal(view.missing.length, 0);
@@ -768,7 +769,7 @@ test('coverage: the count of components in Figma, drafted ones named, the others
   assert.ok(toast.description.startsWith('Drafted with Claude from packages/react/src/components/Toast'));
   // Not supported yet: listed with the generator's reason, and the file is not complete.
   const partial = coverageView({ components: plan.components, coverage: [{ name: 'Button', status: 'generated' }, { name: 'Tabs', status: 'unsupported', reason: 'draws with ::before or ::after' }, { name: 'Stack', status: 'layout' }] });
-  assert.equal(partial.headline, '1 of 2 components can be pulled into Figma');
+  assert.equal(partial.headline, '1 of 2 components can be pulled into Figma (62 sets with their parts)');
   assert.deepEqual(partial.missing, [{ name: 'Tabs', reason: 'Not supported yet: draws with ::before or ::after' }]);
   assert.equal(partial.complete, false);
   // An older file with no coverage list: the count of what it has, and no claim that nothing is missing.
