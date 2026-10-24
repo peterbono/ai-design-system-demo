@@ -146,7 +146,8 @@ test('exportVariants: PNG of the requested variants of a generated set, at the a
   }
   const out = await exportVariants(card.nodeId, ['Padding=compact', 'Padding=unknown'], 2);
   assert.deepEqual(Object.keys(out), ['Padding=compact']);
-  assert.deepEqual(calls, [{ format: 'PNG', constraint: { type: 'SCALE', value: 2 } }]);
+  // The variant's own frame: an open tooltip that overflows it is not part of its size, as in the story shot.
+  assert.deepEqual(calls, [{ format: 'PNG', constraint: { type: 'SCALE', value: 2 }, useAbsoluteBounds: true }]);
   assert.equal(JSON.stringify(sim.nodes.get(card.nodeId)!.children.map((c) => c.name)), before);
   assert.deepEqual(await exportVariants('nope', ['Padding=compact'], 2), {});
 });

@@ -17,7 +17,9 @@ export async function exportVariants(nodeId: string, keys: string[], scale: numb
     const key = child.getSharedPluginData(NS, 'variant');
     if (!wanted.has(key)) continue;
     try {
-      const bytes = await child.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: scale } });
+      // The variant's own frame, as the story shot is the component's own box: what overflows it (an open tooltip, a
+      // focus ring) is not part of its size.
+      const bytes = await child.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: scale }, useAbsoluteBounds: true });
       out[key] = figma.base64Encode(bytes);
     } catch {
       /* a variant Figma cannot export: reported as not compared */
