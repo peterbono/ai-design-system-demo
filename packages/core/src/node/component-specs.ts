@@ -2123,8 +2123,8 @@ function partValues(node: Node, computed: Map<string, string>, own: Map<string, 
 }
 
 /**
- * CSS min-height and min-width count the content box (box-sizing: content-box, the default): the padding and the
- * border come on top. Figma's include them. A checkbox row with `min-height: size.6` and `padding-block: space.0-5` is
+ * CSS min-height, min-width, height and width count the content box (box-sizing: content-box, the default): the padding
+ * and the border come on top. Figma's include them. A checkbox row with `min-height: size.6` and `padding-block: space.0-5` is
  * 28px in code; drawn as minHeight size.6 it was 25. The minimum becomes the sum, as a calc() of the same tokens.
  */
 function contentBoxMinimums(values: PartValues['values'], computed: Map<string, string>): void {
@@ -2144,6 +2144,10 @@ function contentBoxMinimums(values: PartValues['values'], computed: Map<string, 
   const border = (side: 'Top' | 'Right' | 'Bottom' | 'Left') => values[`stroke${side}Weight` as SpecField] ?? values.strokeWeight;
   if (values.minHeight !== undefined) values.minHeight = sum(values.minHeight, [values.paddingTop, values.paddingBottom, border('Top'), border('Bottom')]);
   if (values.minWidth !== undefined) values.minWidth = sum(values.minWidth, [values.paddingLeft, values.paddingRight, border('Left'), border('Right')]);
+  // height and width count the content box the same way: a table cell of height control.height.md with a 1px bottom
+  // border is 45px in code (Table was 142px in Figma for 144).
+  if (values.height !== undefined) values.height = sum(values.height, [values.paddingTop, values.paddingBottom, border('Top'), border('Bottom')]);
+  if (values.width !== undefined) values.width = sum(values.width, [values.paddingLeft, values.paddingRight, border('Left'), border('Right')]);
 }
 
 /** A grid with no tracks of its own (`display: grid; place-items: center`): one cell, drawn as a centering auto layout. */

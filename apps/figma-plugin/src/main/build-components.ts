@@ -515,13 +515,18 @@ function setupFrame(node: Box, part: SpecPart, layout?: SpecLayout, sized = true
  */
 /**
  * An auto layout frame with nothing inside that hugs keeps the 100px a new frame starts with (a vertical Divider was
- * 1x100 for 1x16 in code). With no size of its own on an axis, it takes its minimum there, as CSS draws an empty box.
+ * 1x100 for 1x16 in code). With no size of its own on an axis, it takes its minimum there, as CSS draws an empty box:
+ * its min size, else its padding (an empty menu leading slot is 0 tall, not 100: MenuRadioGroup was 236px for 108).
  */
 function emptyAtMinimum(node: SceneNode, fields: readonly PlannedField[]): void {
   if (!('layoutMode' in node) || node.layoutMode === 'NONE') return;
   const has = (f: SpecField) => fields.some((x) => x.field === f);
-  const h = !has('height') && typeof node.minHeight === 'number' && node.minHeight > 0 ? node.minHeight : undefined;
-  const w = !has('width') && typeof node.minWidth === 'number' && node.minWidth > 0 ? node.minWidth : undefined;
+  // Down to its padding only for a slot sized on the other axis that paints nothing (an empty menu leading slot): a
+  // painted bar or a picture holder keeps the size its parent gives it. Figma's smallest size is 0.01.
+  const slot = !has('fill') && !has('stroke');
+  const least = (min: unknown, a: number, b: number, sized: boolean) => (typeof min === 'number' && min > 0 ? min : slot && sized ? Math.max(0.01, a + b) : undefined);
+  const h = !has('height') ? least(node.minHeight, node.paddingTop, node.paddingBottom, has('width')) : undefined;
+  const w = !has('width') ? least(node.minWidth, node.paddingLeft, node.paddingRight, has('height')) : undefined;
   if (h === undefined && w === undefined) return;
   node.resize(w ?? node.width, h ?? node.height);
   if (h !== undefined) node.layoutSizingVertical = 'FIXED';

@@ -25,8 +25,10 @@ const TOKEN_GROUPS: SelectOption[] = [
 const meta = {
   title: 'Forms/Select',
   component: Select,
-  args: { label: 'Theme', options: THEMES, placeholder: 'No theme', hint: 'Applies to the preview only.' },
+  args: { label: 'Theme', options: THEMES, placeholder: 'No theme', hint: 'Applies to the preview only.', disabled: false },
   argTypes: {
+    // A control, so the Storybook measure (bridge specs --measure --variants) reaches the Disabled variants.
+    disabled: { control: 'boolean' },
     size: { control: 'inline-radio', options: ['sm', 'md', 'lg'] },
     prefix: { control: false },
     options: { control: false },
