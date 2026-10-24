@@ -1667,6 +1667,29 @@ interface Built {
   parents: Map<string, string | undefined>;
 }
 
+/**
+ * The values an element with `classes` inherits where `root` draws it: computed down the path from `root` to its
+ * parent, from `page`. Undefined when no element of the tree has those classes.
+ */
+function inheritedInside(root: Node, classes: string[], rules: CssRule[], page: Map<string, string> | undefined): Map<string, string> | undefined {
+  const path: Node[] = [];
+  const find = (n: Node): boolean => {
+    if (n !== root && classes.every((c) => n.classes.includes(c))) return true;
+    path.push(n);
+    for (const c of n.children) if (find(c)) return true;
+    path.pop();
+    return false;
+  };
+  if (!find(root)) return undefined;
+  let ctx = page;
+  for (const n of path) {
+    if (n.kind !== 'frame') continue;
+    const el: CssElement = { tag: n.tag, classes: new Set(n.classes), children: [], present: true, isRoot: false, inputLike: false };
+    ctx = computeValues(declaredFor(rules, el, DEFAULT_STATE), ctx);
+  }
+  return ctx;
+}
+
 /** Renders the main component for one set of axis values, with stable part ids. */
 /**
  * Which part of a component with a popup a set draws: the component without its popup (a select's trigger), or the
@@ -2679,6 +2702,18 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions, 
   for (const p of src.props.values()) {
     const v = previewEl?.p?.[p.name];
     if (p.kind === 'string' && p.optional && typeof v === 'string' && baseProps[p.name] === undefined) examples[p.name] = v;
+  }
+  // A part drawn alone that code only renders inside its folder's popup (a menu item): it inherits what the popup gives
+  // its content (font, line height, color), as in the page. Read by drawing the folder's popup with its example
+  // content and finding the element with this part's classes in it.
+  if (view === 'without-popup' && name !== src.folder) {
+    const own = build(reader, src, { ...baseProps, ...fixed }, previewKids, view, rules, opts.tokens)?.root.classes ?? [];
+    const folderSrc = reader.load(src.folder);
+    const folderPreview = previewElement(docs?.preview, src.folder) ?? storyElement(readStories(src.folder, opts), src.folder);
+    const folderKids = folderPreview?.children?.some((c) => typeof c !== 'string') ? folderPreview.children : undefined;
+    const popup = own.length && folderSrc && folderKids ? build(reader, folderSrc, {}, folderKids, 'popup', rules, opts.tokens) : undefined;
+    // A part the example does not show (a menu group) is content of the popup all the same: what the popup gives.
+    if (popup) page = inheritedInside(popup.root, own, rules, page) ?? inheritedInside({ ...popup.root, children: [{ ...popup.root, classes: own, children: [] }] }, own, rules, page) ?? page;
   }
   const evalAt = (props: Record<string, Value>, state: CssState) =>
     evaluateVariant(reader, src, rules, { ...baseProps, ...props, ...fixed }, state, opts.tokens, previewKids, page, view, Object.keys(examples).length ? examples : undefined);

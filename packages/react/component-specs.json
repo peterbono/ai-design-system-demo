@@ -19222,7 +19222,7 @@
       "name": "MenuItem",
       "component": "Menu",
       "view": "without-popup",
-      "hash": "dcadfe59",
+      "hash": "5619df15",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -19308,7 +19308,7 @@
               "textFill": "menu.item.text",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             }
           }
         },
@@ -19332,7 +19332,7 @@
               "textFill": "menu.item.text-disabled",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             }
           }
         },
@@ -19356,7 +19356,7 @@
               "textFill": "menu.item.text-danger",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             }
           }
         },
@@ -19380,7 +19380,7 @@
               "textFill": "menu.item.text-disabled",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             }
           }
         }
@@ -19404,7 +19404,7 @@
       "name": "MenuCheckboxItem",
       "component": "Menu",
       "view": "without-popup",
-      "hash": "0680d8fd",
+      "hash": "75f3892d",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -19547,14 +19547,14 @@
               "textFill": "menu.item.text",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             },
             "shortcut": {},
             "text-2": {
               "textFill": "menu.item.text-muted",
               "fontFamily": "font.family.mono",
               "fontSize": "font.size.100",
-              "lineHeight": "font.line-height.normal",
+              "lineHeight": "font.line-height.snug",
               "letterSpacing": "font.tracking.wide"
             }
           },
@@ -19595,14 +19595,14 @@
               "textFill": "menu.item.text-disabled",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             },
             "shortcut": {},
             "text-2": {
               "textFill": "menu.item.text-muted",
               "fontFamily": "font.family.mono",
               "fontSize": "font.size.100",
-              "lineHeight": "font.line-height.normal",
+              "lineHeight": "font.line-height.snug",
               "letterSpacing": "font.tracking.wide"
             }
           },
@@ -19643,14 +19643,14 @@
               "textFill": "menu.item.text",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             },
             "shortcut": {},
             "text-2": {
               "textFill": "menu.item.text-muted",
               "fontFamily": "font.family.mono",
               "fontSize": "font.size.100",
-              "lineHeight": "font.line-height.normal",
+              "lineHeight": "font.line-height.snug",
               "letterSpacing": "font.tracking.wide"
             }
           },
@@ -19687,14 +19687,14 @@
               "textFill": "menu.item.text-disabled",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             },
             "shortcut": {},
             "text-2": {
               "textFill": "menu.item.text-muted",
               "fontFamily": "font.family.mono",
               "fontSize": "font.size.100",
-              "lineHeight": "font.line-height.normal",
+              "lineHeight": "font.line-height.snug",
               "letterSpacing": "font.tracking.wide"
             }
           },
@@ -19785,7 +19785,7 @@
           }
         ]
       },
-      "hash": "2ccd0b5f",
+      "hash": "3d9926e7",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -19978,7 +19978,7 @@
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.100",
               "fontWeight": "font.weight.medium",
-              "lineHeight": "font.line-height.normal",
+              "lineHeight": "font.line-height.snug",
               "letterSpacing": "font.tracking.wide"
             },
             "item": {
@@ -20003,7 +20003,7 @@
               "textFill": "menu.item.text",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             },
             "item-2": {
               "cornerRadius": "calc(popup.radius - space.1)",
@@ -20021,7 +20021,7 @@
               "textFill": "menu.item.text",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             },
             "item-3": {
               "cornerRadius": "calc(popup.radius - space.1)",
@@ -20039,7 +20039,7 @@
               "textFill": "menu.item.text",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             }
           }
         },
@@ -20060,7 +20060,7 @@
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.100",
               "fontWeight": "font.weight.medium",
-              "lineHeight": "font.line-height.normal",
+              "lineHeight": "font.line-height.snug",
               "letterSpacing": "font.tracking.wide"
             },
             "item": {
@@ -20085,7 +20085,7 @@
               "textFill": "menu.item.text-disabled",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             },
             "item-2": {
               "cornerRadius": "calc(popup.radius - space.1)",
@@ -20103,7 +20103,7 @@
               "textFill": "menu.item.text-disabled",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             },
             "item-3": {
               "cornerRadius": "calc(popup.radius - space.1)",
@@ -20121,7 +20121,7 @@
               "textFill": "menu.item.text-disabled",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             }
           }
         }
@@ -20138,7 +20138,7 @@
       "name": "MenuRadioItem",
       "component": "Menu",
       "view": "without-popup",
-      "hash": "d1e68b99",
+      "hash": "f42d6781",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -20246,7 +20246,7 @@
               "textFill": "menu.item.text",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             }
           },
           "hidden": [
@@ -20281,7 +20281,7 @@
               "textFill": "menu.item.text-disabled",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             }
           },
           "hidden": [
@@ -20316,7 +20316,7 @@
               "textFill": "menu.item.text",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             }
           }
         },
@@ -20348,7 +20348,7 @@
               "textFill": "menu.item.text-disabled",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             }
           }
         }
@@ -20413,7 +20413,7 @@
           }
         ]
       },
-      "hash": "c2b73291",
+      "hash": "9e4b3e41",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -20623,7 +20623,7 @@
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.100",
               "fontWeight": "font.weight.medium",
-              "lineHeight": "font.line-height.normal",
+              "lineHeight": "font.line-height.snug",
               "letterSpacing": "font.tracking.wide"
             },
             "item": {
@@ -20649,7 +20649,7 @@
               "textFill": "menu.item.text",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             },
             "item-2": {
               "cornerRadius": "calc(popup.radius - space.1)",
@@ -20674,7 +20674,7 @@
               "textFill": "menu.item.text",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             },
             "item-3": {
               "cornerRadius": "calc(popup.radius - space.1)",
@@ -20692,7 +20692,7 @@
               "textFill": "menu.item.text",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             }
           },
           "slots": {
@@ -20782,7 +20782,7 @@
           }
         ]
       },
-      "hash": "2057db36",
+      "hash": "bf1dfb3e",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -20858,7 +20858,7 @@
               "textFill": "menu.item.text",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             }
           }
         },
@@ -20881,7 +20881,7 @@
               "textFill": "menu.item.text-disabled",
               "fontFamily": "font.family.sans",
               "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
+              "lineHeight": "font.line-height.snug"
             }
           }
         }
@@ -22084,7 +22084,7 @@
     },
     {
       "name": "PageHeader",
-      "hash": "75a8084f",
+      "hash": "85705e3c",
       "source": [
         "packages/react/src/components/PageHeader/PageHeader.tsx",
         "packages/react/src/components/PageHeader/PageHeader.module.css"
@@ -22250,10 +22250,10 @@
             "title-text": {
               "textFill": "color.text.default",
               "fontFamily": "typography.h2.family",
-              "fontSize": "typography.h2.size",
+              "fontSize": "typography.h1.size",
               "fontWeight": "typography.h1.weight",
-              "lineHeight": "typography.h2.line-height",
-              "letterSpacing": "typography.h2.tracking"
+              "lineHeight": "typography.h1.line-height",
+              "letterSpacing": "typography.h1.tracking"
             },
             "lead": {},
             "text-2": {
