@@ -212,6 +212,11 @@ describe('stale', () => {
 describe('the gate', () => {
   const base = { status: 'needs-review' as const, viewer: 'dana', author: 'ann', owners, tier: 3 as const, approvals: approvals(), signInLine: 'Sign in to review', names: { theo: 'Theo' } };
 
+  it('tells the author of an approved suggestion there is nothing left for them', () => {
+    expect(suggestionGate({ ...base, viewer: 'ann', status: 'approved' }).why).toBe('Approved. A developer applies it next: nothing more for you to do.');
+    expect(suggestionGate({ ...base, viewer: 'ann' }).why).toMatch(/^You suggested it, so someone else approves it/);
+  });
+
   it('lets an owner approve the part that is missing', () => {
     const g = suggestionGate(base);
     expect(g).toMatchObject({ canApprove: true, canRequestChanges: true, canDecline: true, role: 'design', covers: ['design'], why: null });
