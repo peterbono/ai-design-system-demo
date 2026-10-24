@@ -32,6 +32,8 @@
 
 .rq-list {
   display: grid;
+  /* The column's width, never the titles': a long title ends in an ellipsis instead of being cut at the edge. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
 }
 
@@ -60,12 +62,8 @@
   margin-top: var(--space-1);
 }
 
+/* Inline, so the item label's own ellipsis (SidebarNav) ends a long title. */
 .rq-item-text {
-  display: inline-block;
-  max-width: var(--size-60);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   vertical-align: middle;
 }
 

@@ -166,9 +166,10 @@ export function openInlineEditor(opts: { container: HTMLElement; cell: HTMLEleme
     const changed = JSON.stringify(state.value) !== JSON.stringify(start);
     const sub = isColor ? `${esc(hex ?? '')}${changed ? ` <span class="xe-was">· was ${esc(valueText(t.type, start))}</span>` : ''}` : changed ? `<span class="xe-was">was ${esc(valueText(t.type, start))}</span>` : '';
     const picker = fam
-      ? `<div class="xe-tabs" role="tablist" aria-label="Families">${tabs.tabs
+      ? // The tabs sit in their own tablist: "More" opens a menu, it is not a tab, so it stays beside the list.
+        `<div class="xe-tabs"><div class="xe-tablist" role="tablist" aria-label="Families" style="--xe-tabs:${tabs.tabs.length}">${tabs.tabs
           .map((f) => `<button type="button" role="tab" aria-selected="${f === state.family}" tabindex="${f === state.family ? 0 : -1}" data-xe-family="${f}">${esc(families[f]!.label)}</button>`)
-          .join('')}${
+          .join('')}</div>${
           tabs.more.length
             ? `<div class="xe-more-fam"><button type="button" class="xe-tab-more" aria-haspopup="true" aria-expanded="${state.familyMenu}" data-xe-family-menu>More ${icon('chevronDown', 14)}</button>${
                 state.familyMenu ? `<div class="xe-fam-menu" role="menu">${tabs.more.map((f) => `<button type="button" role="menuitem" data-xe-family="${f}">${esc(families[f]!.label)}</button>`).join('')}</div>` : ''

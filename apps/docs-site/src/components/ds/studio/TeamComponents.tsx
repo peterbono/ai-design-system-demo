@@ -137,7 +137,8 @@ function ComponentDrawer({ row, data, storybook, onClose }: { row: TeamComponent
               </p>
             )}
             <p className="tcm-muted">
-              {words(row.stories.length, 'story')} · {words(row.tokens, 'token')} · <span className="mono">{row.dir}</span>
+              {/* The list's words ("12 examples"); the folder is a developer's, behind More > Open the code on GitHub. */}
+              {words(row.stories.length, 'example')} · {words(row.tokens, 'token')}
             </p>
             {rowExceptions(row).length > 0 && (
               <p className="tcm-badges">

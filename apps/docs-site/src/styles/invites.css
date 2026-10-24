@@ -395,3 +395,8 @@
   color: var(--color-text-default);
   font-weight: var(--font-weight-semibold);
 }
+
+/* Settings > Members: the requests sit above the Members heading inside one band; keep the space between bands. */
+.ts-band > .mem-asks {
+  margin-block-end: var(--space-5);
+}
