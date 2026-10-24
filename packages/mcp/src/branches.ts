@@ -250,7 +250,8 @@ export async function branchStatus(ctx: BridgeContext, a: { pr: number | string 
     product: { key: f.product.key, name: f.product.name },
     lifecycle: f.lifecycle,
     status: { kind: f.status, label: STATUS_WORDS[f.status] },
-    approvalNeeded: f.tier === 1 ? 'One owner approval' : 'Design and tech approval',
+    // A merged or closed branch needs nothing more: null, never a list of approvals it no longer waits for.
+    approvalNeeded: f.lifecycle === 'merged' || f.lifecycle === 'closed' ? null : f.tier === 1 ? 'One owner approval' : 'Design and tech approval',
     approvals: { approvedBy: f.approvals.approvers, changesRequestedBy: f.approvals.changesRequested, design: f.approvals.design, tech: f.approvals.tech, owner: hasOwnerApproval(f.approvals), ...(f.suggestion ? { carriedFrom: `Suggestion #${f.suggestion.number}: its approvals count here (it applies that approved suggestion).` } : {}), ...(f.solo && (f.tier ?? 3) > 1 ? { soloOwner: soloOwnerSentence(f.solo, Boolean(viewer && viewer.toLowerCase() === f.solo)) } : {}) },
     tests: { state: f.ci.state, label: CI_STATE_LABEL[f.ci.state], failing: f.ci.failed.map((x) => x.name), running: f.ci.pending.map((x) => x.name) },
     main: { state: f.fresh.state, behindBy: f.fresh.behindBy },

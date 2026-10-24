@@ -92,11 +92,16 @@ export async function runBranch(a: RequestArgs, root: string, io: RequestIO = de
       const r = (await branches.branchStatus(ctx, { pr: number(a, 2, 'bridge branch status <n>') })) as Record<string, any>;
       return out(r, () => {
         io.print(`#${r.pr} ${r.title} (${r.product.name})`);
-        io.print(`${r.status.label}. ${r.approvalNeeded} needed; approved by ${r.approvals.approvedBy.map((x: string) => `@${x}`).join(', ') || 'nobody yet'}.`);
-        if (r.approvals.soloOwner) io.print(r.approvals.soloOwner);
-        if (r.approvals.carriedFrom) io.print(r.approvals.carriedFrom);
-        io.print(`${r.tests.label}.`);
-        if (r.merge.blockedBy?.length) for (const x of r.merge.blockedBy) io.print(`  ${x}`);
+        const by = r.approvals.approvedBy.map((x: string) => `@${x}`).join(', ');
+        // Merged or closed: the state and who approved, never approvals, tests or blockers it no longer waits for.
+        if (r.approvalNeeded === null) io.print(`${r.status.label}.${by ? ` Approved by ${by}.` : ''}`);
+        else {
+          io.print(`${r.status.label}. ${r.approvalNeeded} needed; approved by ${by || 'nobody yet'}.`);
+          if (r.approvals.soloOwner) io.print(r.approvals.soloOwner);
+          if (r.approvals.carriedFrom) io.print(r.approvals.carriedFrom);
+          io.print(`${r.tests.label}.`);
+          if (r.merge.blockedBy?.length) for (const x of r.merge.blockedBy) io.print(`  ${x}`);
+        }
         io.print(`Next: ${r.next}`);
         io.print(r.url);
       });
