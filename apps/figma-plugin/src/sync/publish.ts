@@ -15,7 +15,7 @@
 //   exists) shows a hint and starts unchecked. The plugin never changes the designer's file for them.
 // - The description is the pull request's "What changed and why" and the summary of every request sent with it.
 
-import { type ChangesMode, type DiffEntry, type GitHubClient, type PullRequest, openComponentPushOnGitHub, planTokenProposal, suggestTokenProposalOnGitHub, writeTokenProposalOnGitHub } from '@bridge-ds/core';
+import { type ChangesMode, type DiffEntry, type GitHubClient, type PullRequest, loadRepoFiles, openComponentPushOnGitHub, planTokenProposal, suggestTokenProposalOnGitHub, writeTokenProposalOnGitHub } from '@bridge-ds/core';
 import { type ComponentPush, libraryTokens, pushPairs } from './component-push';
 import type { FigmaSnapshot } from '../shared/messages';
 import { type ComponentChangeItem, type RequestDraft, suggestLine, suggestSummary, suggestTitle, toRequest } from './components';
@@ -230,6 +230,8 @@ export interface PublishResult {
   pr?: PushResult | undefined;
   /** Sent to an exploration: its branch, and whether its files already held the variable edits. */
   exploration?: { branch: string; pr: PullRequest; unchanged: boolean } | undefined;
+  /** Exact token changes written on the exploration branch (they show in its previews), one per component. */
+  explorationTokens?: { component: string; nodeId: string }[] | undefined;
   requests: { component: string; nodeId: string; number: number; url: string }[];
   /** Library branches opened from Figma components: exact token changes and branches a developer builds with Claude. */
   branches: (SentComponentPush & { branch: string })[];
@@ -277,7 +279,19 @@ export async function publish(client: GitHubClient, input: PublishInput): Promis
     });
   }
   for (const d of drafts) {
-    const push = !input.exploration ? input.pushes?.find((p) => p.nodeId === d.nodeId) : undefined;
+    const planned = input.pushes?.find((p) => p.nodeId === d.nodeId);
+    // An exact token change sent to an exploration is written there (no AI needed), so trying the exploration shows it.
+    if (input.exploration && planned && planned.plan.route === 'token-change' && !planned.blocked) {
+      try {
+        const r = await commitTokenChangeToExploration(client, input.analysis, input.exploration, planned, d);
+        if (r.blocked) out.held.push({ component: d.component, nodeId: d.nodeId!, why: r.blocked });
+        else (out.explorationTokens ??= []).push({ component: d.component, nodeId: d.nodeId! });
+      } catch (err) {
+        out.failed.push({ component: d.component, error: errorText(err), problem: tokenProblem(err)?.kind });
+      }
+      continue;
+    }
+    const push = !input.exploration ? planned : undefined;
     if (push) {
       if (push.blocked || push.plan.route === 'manual') {
         out.held.push({ component: d.component, nodeId: d.nodeId!, why: push.blocked ?? (push.plan.issues.map((i) => `${i.what} ${i.todo}`).join(' ') || push.plan.said) });
@@ -311,6 +325,28 @@ export async function publish(client: GitHubClient, input: PublishInput): Promis
     }
   }
   return out;
+}
+
+/**
+ * An exact token change sent to an exploration: the same plan as for review (contrast gate included), written on the
+ * exploration branch as one commit. Planned on the exploration's own tokens, so earlier edits there stay. The commit
+ * touches token files, so the exploration's visual impact (Studio) shows the change.
+ */
+export async function commitTokenChangeToExploration(client: GitHubClient, a: Analysis, target: ExplorationTarget, push: ComponentPush, d: RequestDraft): Promise<{ committed: boolean; blocked?: string }> {
+  const tip = await client.getBranchSha(target.branch);
+  if (!tip) throw new Error(`The exploration ${target.branch} is gone. Pick another one, or start a new one.`);
+  const there = await loadRepoFiles(client, tip, a.settings.tokensPath);
+  const lib = libraryTokens({ config: there.config ?? a.headFiles.config, files: there.files });
+  if (!lib) throw new Error('This repo has no bridge.config.json, so Bridge cannot write the token change.');
+  const p = planTokenProposal({ before: lib.before, pairs: pushPairs(a.head, a.pairs, push.plan.edits), edits: push.plan.edits, title: d.title || `${d.component}: token change from Figma`, summary: d.summary, config: lib.config, tool: 'the Bridge Figma plugin' });
+  if (!p) return { committed: false };
+  if (p.blocked) return { committed: false, blocked: `${p.blocked}. Fix it in Figma, then send again.` };
+  const blobs2: { path: string; sha: string | null }[] = [];
+  for (const f of p.files) blobs2.push({ path: f.path, sha: f.content === null ? null : await client.createBlob(f.content) });
+  const tree = await client.createTree(await client.getCommitTree(tip), blobs2);
+  const commit = await client.createCommit(`${p.title}\n\nExact token change from Figma (${d.component}). Exploration ${target.branch}: not merged as is.`, tree, [tip]);
+  await client.updateBranch(target.branch, commit);
+  return { committed: true };
 }
 
 /**

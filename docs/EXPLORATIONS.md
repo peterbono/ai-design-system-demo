@@ -92,12 +92,16 @@ Everything that writes takes the exploration branch instead of opening a pull re
 
 From Figma, the DS Bridge plugin's Push has **Try in an exploration** next to Send for review: pick a running
 exploration (or start a new one with a name and a purpose), and the checked variable edits become one commit on
-`explore/<name>` (no pull request to main) while component changes become requests labeled `exploration`. Items marked
-"Exploration only" start checked there. After sending, the result screen opens the previews (the product first), says whether the
-test build is ready, and "Share with a developer" copies a message with the working install command, the previews and
-the pull request. The preview links are the ones Vercel reports (long branch names get a shortened alias, see
-[PREVIEWS.md](PREVIEWS.md)); while the screen is open the plugin checks every 15 seconds for up to 10 minutes and
-updates the links and the command in place, with "Check again" after that.
+`explore/<name>` (no pull request to main). An exact token change on a component (a component token pointing to
+another variable) is committed there too, through the same contrast gate as for review; component changes that need
+code become requests labeled `exploration`. Items marked "Exploration only" start checked there.
+
+Explorations are tried locally: Vercel does not deploy `explore/**` (nor `bridge/**`, `agent/**`, `test/**`), to
+stay under the free plan's daily limit. After sending, the main action is **See it in Studio**: the exploration's
+page shows the Visual impact screenshots (every brand and theme, before and after) once the token change is on the
+branch. **Share with a developer** copies a message with `git fetch origin && git switch explore/<name>`, the
+install command for a product staging branch when the test build is ready, and the pull request. A repository that
+does deploy previews keeps the preview links: they show as soon as Vercel reports them (see [PREVIEWS.md](PREVIEWS.md)).
 
 On GitHub (`--repo` mode with a token), token edits are one commit on the exploration branch. Locally, the branch
 must be checked out: Bridge writes the files to that working tree and you commit and push them. A request brief for

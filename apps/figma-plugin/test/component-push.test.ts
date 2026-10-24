@@ -18,6 +18,7 @@ import { componentPushes, rebindsOf, unknownOf } from '../src/sync/component-pus
 import { type ComponentChangeItem, type RawComponent, type ScannedComponent, buildSignature, classifyComponents, fnv1a, suggestLine, suggestSummary, suggestTitle } from '../src/sync/components';
 import { analyze, buildPull, buildPush } from '../src/sync/flows';
 import { publish } from '../src/sync/publish';
+import { startExploration, targetOf } from '../src/sync/explorations';
 import { FakeGitHub } from './fake-github';
 import { SimFigma, type SimNode } from './figma-api';
 import { realChecksText, realConfigText, realFiles } from './helpers';
@@ -147,6 +148,35 @@ test('exact: a component token swap becomes a token change, labelled from Figma,
   // Figma now matches the reviewed code: the next scan sends nothing.
   const again = await scanAndRoute(client, { baseSha: a2.headSha });
   assert.equal(again.scan.changed.filter((c) => c.component === 'Button').length, 0);
+});
+
+test('exact, to an exploration: the token change is committed on the exploration branch, no request, main untouched', async () => {
+  const { sim, gh, client, sync, button } = await pulledButton();
+  const exploration = await startExploration(client, undefined, 'main', { name: 'Darker primary', purpose: 'Does a darker primary read better?' });
+  for (const v of PRIMARY_DEFAULT) bindFill(sim, button, v, 'color/action/primary/bg-active');
+  const r = await scanAndRoute(client, sync);
+  const item = r.scan.changed.find((c) => c.component === 'Button')!;
+  assert.equal(r.pushes.find((p) => p.nodeId === item.nodeId)!.plan.route, 'token-change');
+  const res = await publish(client, {
+    analysis: r.a,
+    proposal: buildPush(r.a, new Map()),
+    components: r.scan.changed,
+    pushes: r.pushes,
+    unchecked: new Set(),
+    description: '',
+    descriptionIsDraft: true,
+    title: '',
+    fileName: 'Test file',
+    coded: r.scan.coded,
+    exploration: targetOf(exploration),
+  });
+  assert.deepEqual(res.failed, []);
+  assert.deepEqual(res.requests, [], 'no issue: an exact token change needs no code');
+  assert.deepEqual(res.branches, [], 'no library branch: it is in the exploration');
+  assert.deepEqual(res.explorationTokens?.map((x) => x.component), ['Button']);
+  const there = gh.filesAt(exploration.branch)[`${TOKENS}/components/button.tokens.json`]!;
+  assert.match(there, /"bg": \{\s*"\$value": "\{color\.action\.primary\.bg-active\}"/, 'the exploration paints Button with the new variable');
+  assert.match(gh.filesAt('main')[`${TOKENS}/components/button.tokens.json`]!, /"bg": \{\s*"\$value": "\{color\.action\.primary\.bg\}"/, 'main is untouched');
 });
 
 test('exact, gated: a token swap that breaks contrast is held back, never sent', async () => {

@@ -990,6 +990,8 @@ function submitPush(): void {
         // A request is the new reference for its component: the next scan compares against what was asked for.
         for (const x of result.requests) await request('rebaseline', { nodeId: x.nodeId }).catch(() => undefined);
         for (const x of result.requests) r.sent.unshift({ component: x.component, number: x.number, url: x.url, what: 'request sent', target: 'request' });
+        // An exact token change written on the exploration is the new reference too.
+        for (const x of result.explorationTokens ?? []) await request('rebaseline', { nodeId: x.nodeId }).catch(() => undefined);
         // A library branch from Figma: the set remembers it, so a pull rebuilds it from the reviewed code once it ships.
         for (const x of result.branches) await afterBranch(r, x);
         // A component change sent as a suggestion: its new baseline, and the issue in the "sent" list.
@@ -2658,7 +2660,7 @@ function componentChangesGroup(r: PushState): Child {
     });
   });
   const lede = !routed(r)
-    ? 'Each becomes a request to build in the exploration.'
+    ? 'Exact token changes go into the exploration. The others wait for code: a developer builds them there with Claude.'
     : 'Token swaps go as exact token changes. New variants, properties and layers go with their spec: a developer builds them with Claude, then a person reviews.';
   return changeGroup(r, 'component', 'Components', lede, rows, 'push-components');
 }
@@ -2924,7 +2926,8 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
   const vars = res.pr && !res.exploration?.unchanged ? plural(r.proposal.changes.length || 1, 'variable edit') : '';
   const text = [
     vars ? `${vars} added to the exploration.` : res.exploration?.unchanged ? 'The exploration already had these variable edits.' : '',
-    res.requests.length ? `${plural(res.requests.length, 'request')} for ${res.requests.map((x) => x.component).join(', ')}, to build there.` : '',
+    res.explorationTokens?.length ? `${plural(res.explorationTokens.length, 'token change')} ${res.explorationTokens.length === 1 ? 'is' : 'are'} in it.` : '',
+    res.requests.length ? `${plural(res.requests.length, 'change')} ${res.requests.length === 1 ? 'waits' : 'wait'} for code: a developer builds ${res.requests.length === 1 ? 'it' : 'them'} with Claude, then ${res.requests.length === 1 ? 'it shows' : 'they show'} in Studio.` : '',
     'It never reaches the product as is.',
   ].filter(Boolean);
   const links = tryItLinks(e, r.previews);
@@ -2962,7 +2965,10 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
         'p',
         { class: 'lede' },
         local
-          ? 'This exploration is not put online. A developer opens it on their computer and shows you: Share with a developer sends them how.'
+          ? // Not deployed: Studio shows the screenshots of what changes (Visual impact runs when tokens change on the branch).
+            res.explorationTokens?.length || vars
+            ? 'Screenshots of what changes appear in Studio in a few minutes. To click through it, Share with a developer: they open it on their computer.'
+            : 'Nothing to see yet: the changes wait for code. Once a developer builds them, Studio shows the screenshots.'
           : 'Previews rebuild from the exploration in a few minutes.',
       ),
       local
