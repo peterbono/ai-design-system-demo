@@ -101,30 +101,34 @@ function AuditSetup() {
 }
 
 /**
- * No audit to show: what could not be read, what adoption is, and who turns it on. A tech owner gets the setup; anyone
- * else asks a developer, with a message to copy, and the setup waits in a "For developers" fold.
+ * No audit to show: what adoption is, and who turns it on. A tech owner reads what could not be found and gets the
+ * setup; anyone else (a designer) reads that a developer turns it on, and the message to send them and the setup wait
+ * in a "For developers" fold: no branch, workflow or flag in a designer's words.
  */
 function NoAudit({ snapshot, repo, developer }: { snapshot: boolean; repo: string; developer: boolean }) {
+  if (developer) {
+    return (
+      <div className="tp-locked">
+        <p>
+          <strong>No adoption audit yet.</strong>{' '}
+          {snapshot ? 'Bridge read this repository\'s Bridge snapshot, and it carries no adoption audit.' : 'Bridge could not find a Bridge snapshot (the bridge-data branch) in this repository, and audits come from it.'}{' '}
+          {ADOPTION_MEANING}
+        </p>
+        <AuditSetup />
+      </div>
+    );
+  }
   return (
     <div className="tp-locked">
       <p>
-        <strong>No adoption audit yet.</strong>{' '}
-        {snapshot ? 'Bridge read this repository\'s Bridge snapshot, and it carries no adoption audit.' : 'Bridge could not find a Bridge snapshot (the bridge-data branch) in this repository, and audits come from it.'}{' '}
-        {ADOPTION_MEANING}
+        <strong>No adoption audit yet.</strong> {ADOPTION_MEANING} A developer of your team turns it on: the message to send them is under For developers.
       </p>
-      {developer ? (
-        <AuditSetup />
-      ) : (
-        <>
-          <p>Ask a developer to turn it on. Send them this message:</p>
+      <Accordion className="ql-dev" headingLevel={3}>
+        <AccordionItem value="dev" title="For developers">
           <CodeBlock code={auditAskMessage(repo)} label="Message for a developer" wrap />
-          <Accordion className="ql-dev" headingLevel={3}>
-            <AccordionItem value="dev" title="For developers">
-              <AuditSetup />
-            </AccordionItem>
-          </Accordion>
-        </>
-      )}
+          <AuditSetup />
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 }
@@ -136,9 +140,11 @@ function QualityBody({ q, snapshot, repo, developer }: { q: Quality; snapshot: b
       <section className="zone ql-open" aria-label="Library health">
         <div className="ql-open-head">
           <p className="ql-open-sentence">{q.sentence}</p>
-          <ButtonLink variant="primary" className="ql-cta" href={safeUrl(q.cta.href, '#')} {...external(q.cta.href)}>
-            {q.cta.label}
-          </ButtonLink>
+          {q.cta && (
+            <ButtonLink variant="primary" className="ql-cta" href={safeUrl(q.cta.href, '#')} {...external(q.cta.href)}>
+              {q.cta.label}
+            </ButtonLink>
+          )}
         </div>
         <ul className="ql-figs">
           {q.figures.map((f) => (
@@ -322,14 +328,15 @@ export default function TeamQuality() {
   if (load.status === 'loading') return <TeamLoadProgress label="Reading the quality of this design system" />;
   if (load.status === 'error') return <TeamLoadError failure={load.failure} onRetry={retry} />;
   const { data, refreshing } = load;
-  const q = teamQuality({ model: data.model, owner: data.owner, repo: data.repo, sha: data.sha, audits: audits ?? null });
+  const developer = viewerRoles(viewer, data.model.config.governance.owners).includes('tech');
+  const q = teamQuality({ model: data.model, owner: data.owner, repo: data.repo, sha: data.sha, audits: audits ?? null, audience: developer ? 'developer' : 'designer' });
   return (
     <div className="ql">
       <div className="tq-top">
         <TeamSourceNote data={data} refreshing={refreshing} onRefresh={retry} />
         <QualityShare figures={q.figures} sentence={q.sentence} path={studioHref('quality/')} />
       </div>
-      <QualityBody q={q} snapshot={audits === undefined ? undefined : audits !== null} repo={`${data.owner}/${data.repo}`} developer={viewerRoles(viewer, data.model.config.governance.owners).includes('tech')} />
+      <QualityBody q={q} snapshot={audits === undefined ? undefined : audits !== null} repo={`${data.owner}/${data.repo}`} developer={developer} />
     </div>
   );
 }

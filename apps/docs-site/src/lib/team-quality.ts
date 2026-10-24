@@ -35,6 +35,12 @@ export interface TeamQualityInput {
   sha: string;
   /** Adoption audits of the team's snapshot; null without a snapshot. */
   audits: SnapshotAudit[] | null;
+  /**
+   * Who reads the page: a developer (a tech owner) gets the setup in config words; anyone else (a designer) reads what
+   * is missing and that a developer turns it on, never a config file, a workflow or what Bridge could not parse.
+   * Default developer.
+   */
+  audience?: 'developer' | 'designer';
 }
 
 export interface TeamAdoptionRow {
@@ -69,7 +75,8 @@ export interface TeamQuality {
   unusedTotal: number;
   figures: HealthFigure[];
   sentence: string;
-  cta: { label: string; href: string };
+  /** The opener's one action; null when a designer has nothing to do there (only a developer sets checks up). */
+  cta: { label: string; href: string } | null;
   guidance: { total: number; reviewed: number; drafted: number; missing: number; rows: TeamGuidanceRow[] };
   /** Null: no audit to show (no snapshot, or a snapshot without audits). */
   adoption: TeamAdoptionRow[] | null;
@@ -88,6 +95,7 @@ const tokenHref = (path: string) => studioHref(`tokens/?focus=${encodeURICompone
 /** Everything Studio Quality shows for a team, from its repo model. */
 export function teamQuality(input: TeamQualityInput): TeamQuality {
   const { model, owner, repo, sha } = input;
+  const designer = input.audience === 'designer';
   const rows = model.tokens.rows;
   const { primitives, semantic, all } = rows;
   const components = model.components?.list ?? [];
@@ -203,9 +211,11 @@ export function teamQuality(input: TeamQualityInput): TeamQuality {
         kind: 'contrast',
         severity: 'note',
         title: 'No contrast checks yet',
-        detail: 'Name a checks file in bridge.config.json (contrast.path) and Bridge tests every pair in each brand and theme.',
+        detail: designer
+          ? 'A developer of your team turns them on, then Bridge tests every color pair in each brand and theme.'
+          : 'Name a checks file in bridge.config.json (contrast.path) and Bridge tests every pair in each brand and theme.',
         status: { label: 'Not set up', group: 'neutral' },
-        action: { label: 'How to add checks', href: HOSTED_DOCS_URL },
+        ...(designer ? {} : { action: { label: 'How to add checks', href: HOSTED_DOCS_URL } }),
         combos: [],
       };
   const all2 = findings.map((f) => (f.kind === 'contrast' ? gate : f));
@@ -245,19 +255,19 @@ export function teamQuality(input: TeamQualityInput): TeamQuality {
       figures.push({
         ...f,
         value: 'No checks yet',
-        detail: 'Name a checks file in bridge.config.json.',
+        detail: designer ? 'A developer of your team turns them on.' : 'Name a checks file in bridge.config.json.',
         sentence: 'No contrast checks are set up yet.',
         tone: null,
       });
     } else if (f.id === 'guidance' && guidance.total === 0) {
-      figures.push({ ...f, value: 'No components', detail: 'Point components.dir in bridge.config.json at them.', sentence: 'Bridge found no components to check.', tone: null });
+      figures.push({ ...f, value: 'No components', detail: designer ? 'A developer of your team points Bridge at them.' : 'Point components.dir in bridge.config.json at them.', sentence: 'Bridge found no components to check.', tone: null });
     } else figures.push(f);
     if (f.id === 'contrast' && !base.some((x) => x.id === 'adoption')) {
       figures.push({
         id: 'adoption',
         value: 'No audit yet',
         label: 'adoption in products',
-        detail: audits ? 'The audits found no UI components.' : 'Publish the Bridge snapshot with an audit.',
+        detail: audits ? 'The audits found no UI components.' : designer ? 'A developer of your team turns it on.' : 'Publish the Bridge snapshot with an audit.',
         sentence: 'No adoption audit has been published yet.',
         tone: null,
         href: `#${HEALTH_SECTION.adoption}`,
@@ -274,9 +284,11 @@ export function teamQuality(input: TeamQualityInput): TeamQuality {
       ? { label: only.action.label === 'Review' ? 'Review guidance' : only.action.label, href: only.action.href }
       : open.length
         ? first
-        : hasChecks
-          ? { label: 'Open the checks file', href: checksHref }
-          : { label: 'How to add checks', href: HOSTED_DOCS_URL };
+        : designer
+          ? null
+          : hasChecks
+            ? { label: 'Open the checks file', href: checksHref }
+            : { label: 'How to add checks', href: HOSTED_DOCS_URL };
 
   return {
     hasChecks,
@@ -292,7 +304,8 @@ export function teamQuality(input: TeamQualityInput): TeamQuality {
     cta,
     guidance,
     adoption,
-    problems: [...model.problems],
+    // What Bridge could not parse (a config or docs file) is for developers: they fix the file.
+    problems: designer ? [] : [...model.problems],
   };
 }
 

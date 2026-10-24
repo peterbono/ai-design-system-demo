@@ -10,7 +10,7 @@ const team = { owner: 'acme', repo: 'ds', sha: SHA };
 
 /** Every link a team page would show. */
 const hrefs = (q: ReturnType<typeof teamQuality>) => [
-  q.cta.href,
+  ...(q.cta ? [q.cta.href] : []),
   ...q.figures.map((f) => f.href),
   ...[q.gate, ...q.tokenFindings, ...q.guidanceFindings].flatMap((f) => (f.action ? [f.action.href] : [])),
   ...q.cleanup.map((i) => i.href),
@@ -71,6 +71,22 @@ describe('teamQuality on a repository Bridge cannot read much from', () => {
     expect(q.cleanup).toEqual([]);
     expect(guidanceLead(q.guidance)).toBe('Bridge found no components in this repository.');
     for (const h of hrefs(q)) expect(h).toMatch(/^(\/studio\/|#|https:\/\/github\.com\/)/);
+  });
+});
+
+describe('teamQuality for a designer (anyone but a tech owner)', () => {
+  it('says a developer turns things on, never a config file, a workflow or what Bridge could not parse', async () => {
+    const model = await loadRepoModel(memorySource({ 'README.md': '# hi', 'bridge.config.json': '{ not json' }, { owner: 'acme', repo: 'ds', sha: SHA }));
+    const dev = teamQuality({ model, ...team, audits: null });
+    const q = teamQuality({ model, ...team, audits: null, audience: 'designer' });
+    expect(dev.problems.length).toBeGreaterThan(0);
+    expect(q.problems).toEqual([]);
+    expect(q.gate.action).toBeUndefined();
+    expect(q.cta).toBeNull();
+    const words = [q.gate.detail, ...q.figures.map((f) => f.detail)].join(' ');
+    expect(words).not.toMatch(/bridge\.config|snapshot|workflow|contrast\.path|components\.dir/i);
+    expect(q.gate.detail).toMatch(/A developer of your team turns them on/);
+    expect(q.figures.find((f) => f.id === 'adoption')?.detail).toBe('A developer of your team turns it on.');
   });
 });
 
