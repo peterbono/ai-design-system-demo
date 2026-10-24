@@ -57,7 +57,7 @@ export interface MeasurePage {
   goto(url: string, options?: { waitUntil?: 'load' | 'domcontentloaded' | 'networkidle'; timeout?: number }): Promise<unknown>;
   evaluate<T>(expression: string): Promise<T>;
   /**
-   * Forces pseudo classes on the first element matching `selector` (Chrome DevTools CSS.forcePseudoState), or clears
+   * Forces pseudo classes on every element matching `selector` (Chrome DevTools CSS.forcePseudoState), or clears
    * them with []. Optional: without it, `state` is not measured.
    */
   forcePseudo?(selector: string, states: string[]): Promise<boolean>;
@@ -237,6 +237,12 @@ export async function resolveTokenValues(page: MeasurePage, vars: Record<string,
   return (await page.evaluate<Record<string, string>>(expr)) ?? {};
 }
 
+/**
+ * Where a forced state goes: the component and every element in it, as Figma's state variant shows it (a group's
+ * Hover shows each option's hover, a field's Hover its control's hover), not only the outer element.
+ */
+const STATE_TARGETS = '[data-bridge-measure-root], [data-bridge-measure-root] *';
+
 /** The pseudo classes a real interaction sets: a press is also a hover, focus-visible is also focus. */
 const PSEUDO_CLASSES: Record<MeasuredState, string[]> = { hover: ['hover'], 'focus-visible': ['focus-visible', 'focus'], active: ['active', 'hover'] };
 
@@ -267,7 +273,7 @@ export async function measureRendered(page: MeasurePage, o: MeasureOptions = {})
   if (o.state && page.forcePseudo && rendered === 'rendered') {
     // Tag the component element, then force the state on it the way DevTools does (no pointer, no layout shift).
     const marked = await page.evaluate<{ marked?: boolean }>(`(${MEASURE_SCRIPT})(${JSON.stringify({ ...arg, mark: true })})`);
-    if (marked?.marked && (await page.forcePseudo('[data-bridge-measure-root]', PSEUDO_CLASSES[o.state]).catch(() => false))) {
+    if (marked?.marked && (await page.forcePseudo(STATE_TARGETS, PSEUDO_CLASSES[o.state]).catch(() => false))) {
       state = o.state;
       await page.evaluate('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 120))))');
     }
@@ -278,7 +284,7 @@ export async function measureRendered(page: MeasurePage, o: MeasureOptions = {})
   if (opened === 'none' && !base.root) base.error = 'the popup did not open: no trigger in the story opened it';
   if (rendered === 'timeout' && !base.error && !base.root) base.error = `the story did not render within ${timeout} ms`;
   if (rendered === 'error' && !base.error) base.error = 'the story threw';
-  if (state) await page.forcePseudo?.('[data-bridge-measure-root]', []).catch(() => false);
+  if (state) await page.forcePseudo?.(STATE_TARGETS, []).catch(() => false);
   return { ...base, ...(state ? { state } : {}), ms: Date.now() - t0 };
 }
 
@@ -355,7 +361,12 @@ export function splitInstances(root: MeasuredNode | null): MeasuredNode[] {
   const found: MeasuredNode[] = [];
   const collect = (n: MeasuredNode, depth: number) => {
     for (const c of n.children) {
-      if (c.kind === 'text') continue; // captions ("sm", "Solid") beside the instances
+      // Captions ("sm", "Solid") beside the instances; a sentence is content (an empty state's description), not a caption.
+      if (c.kind === 'text' && (c.text ?? '').length <= 24) continue;
+      if (c.kind === 'text') {
+        found.push(c);
+        continue;
+      }
       if (plainLayout(c) && depth < 8 && c.children.length) collect(c, depth + 1);
       else if (!plainLayout(c)) found.push(c);
     }
@@ -368,7 +379,8 @@ export function splitInstances(root: MeasuredNode | null): MeasuredNode[] {
     const run = found.filter((c) => sameComponent(k, c));
     if (run.length > best.length) best = run;
   }
-  if (best.length < 2 || best.length * 2 < found.length) return [];
+  // Most of what the story shows must be the same component (a strict majority): two buttons in an empty state are its actions.
+  if (best.length < 2 || best.length * 2 <= found.length) return [];
   return best.map((n) => rebase(n));
 }
 

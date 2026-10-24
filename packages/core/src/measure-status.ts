@@ -251,6 +251,8 @@ export interface ComponentStatusInput {
   figma?: FigmaComponentRef | undefined;
   /** Token path -> resolved value in the measured page, for value-level agreement. */
   resolve?: ((tokenPath: string) => string | number | undefined) | undefined;
+  /** No Figma set of this name, but sets drawn from it open (Dialog/Popup): named in the reason. */
+  figmaSets?: string[] | undefined;
   /** Below this share of values tied to CSS variables, the library has no tokens to check (default 0.1). */
   minTokenShare?: number | undefined;
 }
@@ -317,7 +319,11 @@ export function componentStatus(input: ComponentStatusInput): ComponentStatus {
   const declared = ok.reduce((n, s) => n + s.spec!.coverage.declared, 0);
   const tokenShare = fields ? declared / fields : 0;
   if (tokenShare < (input.minTokenShare ?? 0.1)) return cant('no-token-variables', `${Math.round(tokenShare * 100)}% of values come from CSS variables`, { tokenShare });
-  if (!input.figma) return cant('no-figma', undefined, { tokenShare });
+  if (!input.figma) {
+    if (!input.figmaSets?.length) return cant('no-figma', undefined, { tokenShare });
+    // Figma draws the open popup, not the trigger the story shows closed: honest about which and how to check it.
+    return { ...base, tokenShare, status: 'cant-check', reason: 'no-figma', detail: input.figmaSets.join(', '), summary: `Figma draws the open popup (${input.figmaSets.join(', ')}): measure it open with --open` };
+  }
 
   const argTypes = input.argTypes ?? {};
   const mapping = mapPropsToFigma(argTypes, input.figma.properties);
@@ -349,22 +355,30 @@ export function componentStatus(input: ComponentStatusInput): ComponentStatus {
     }
     // Flags a variant sets only for some values (indeterminate for Checked=mixed): off for the other values.
     const flags = new Set(mapping.mapped.flatMap((m) => Object.values(m.also ?? {}).flatMap((x) => Object.keys(x))));
-    const story = unreachable
-      ? undefined
-      : ok.find((s) => {
+    const matching = unreachable
+      ? []
+      : ok.filter((s) => {
           const has = { ...(s.props ?? {}), ...(s.overrides ?? {}) } as Record<string, unknown>;
           if ((s.state ?? undefined) !== state) return false;
           if (!Object.entries(want).every(([k, x]) => sameValue(has[k], x))) return false;
           // A rest variant is not the disabled story.
           return Object.keys(has).every((k) => !(DISABLED_PROP.test(k) || flags.has(k)) || want[k] !== undefined || has[k] !== true);
         });
-    if (!story) {
+    if (!matching.length) {
       variants.push({ key: vkey, status: 'cant-check', reason: 'no-story-for-variant' });
       continue;
     }
-    const spec = story.instances?.[0] ?? story.spec!;
-    const c = compareSpecToMeasured(input.figma.parts, v.values, spec, input.resolve);
-    const diffs = c.diffs.filter((d) => d.measured !== undefined);
+    // Several stories render these props (a plain table, a sortable one, a selected row): the one closest to the
+    // Figma variant's content is its counterpart; extra features in other stories are content, not drift.
+    let story = matching[0]!;
+    let c = compareSpecToMeasured(input.figma.parts, v.values, story.instances?.[0] ?? story.spec!, input.resolve, { properties: input.figma.properties });
+    let diffs = c.diffs.filter((d) => d.measured !== undefined);
+    for (const other of matching.slice(1)) {
+      if (!diffs.length) break;
+      const oc = compareSpecToMeasured(input.figma.parts, v.values, other.instances?.[0] ?? other.spec!, input.resolve, { properties: input.figma.properties });
+      const od = oc.diffs.filter((d) => d.measured !== undefined);
+      if (od.length < diffs.length) [story, c, diffs] = [other, oc, od];
+    }
     variants.push({ key: vkey, story: story.id, status: diffs.length ? 'differs' : 'matches', compared: c.compared, ...(diffs.length ? { diffs } : {}) });
   }
   const differs = variants.filter((v) => v.status === 'differs');
@@ -376,7 +390,10 @@ export function componentStatus(input: ComponentStatusInput): ComponentStatus {
   }
   if (missing.length) {
     const first = missing.slice(0, 2).map((v) => v.key).join('; ');
-    return { ...cant('no-story-for-variant', `${first}${missing.length > 2 ? ` (+${missing.length - 2} more)` : ''}`, { mapping, tokenShare }), variants };
+    // The measure tried and the story refused the arg: say which, that is the fix (add it to the story's argTypes).
+    const refused = [...new Set(input.stories.map((x) => /does not take the arg ([\w-]+)/.exec(x.error ?? '')?.[1]).filter((x): x is string => !!x))];
+    const why = refused.length ? `; the story does not take ${refused.join(', ')}` : '';
+    return { ...cant('no-story-for-variant', `${first}${missing.length > 2 ? ` (+${missing.length - 2} more)` : ''}${why}`, { mapping, tokenShare }), variants };
   }
   if (!variants.length) return cant('no-story-for-variant', 'the Figma component has no variants to compare', { mapping, tokenShare });
   return { ...base, variants, mapping, tokenShare, status: 'matches', summary: `Matches Figma on ${variants.length} variant${variants.length === 1 ? '' : 's'}` };

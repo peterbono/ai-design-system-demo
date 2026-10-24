@@ -232,11 +232,23 @@ export function pairParts(staticParts: SpecPart[], measured: Pick<MeasuredSpec, 
     const prop = p.text ? o.properties?.find((x) => x.name === p.text && x.type === 'TEXT') : undefined;
     return typeof prop?.default === 'string' ? normText(prop.default) : '';
   };
+  /** Every class a static part is drawn from ("Input.module.css .control, Input.module.css .md" -> control, md). */
+  const classesOf = (p: SpecPart | undefined) => [...(p?.source ?? '').matchAll(/(?:^|[\s,])\.([\w-]+)/g)].map((x) => x[1]!);
+  const mClasses = (m: SpecPart) => [...new Set((m.source ?? '').split(' ').filter(Boolean))];
+  const shared = (p: SpecPart, m: SpecPart) => {
+    const mine = new Set(classesOf(p));
+    return mClasses(m).filter((c) => mine.has(c)).length;
+  };
+  /** Classes the static spec gives its parts: a measured part with one of them is that part's, not a classless one's. */
+  const staticClasses = new Set(staticParts.flatMap((p) => classesOf(p)));
+  // Both classed with no class in common, or the measured class names another static part: different elements.
+  const claimedByOther = (p: SpecPart, m: SpecPart) => !shared(p, m) && mClasses(m).length > 0 && (classesOf(p).length > 0 || mClasses(m).some((c) => staticClasses.has(c)));
   for (const p of staticParts) {
     if (p.kind !== 'text' || pairs.has(p.id)) continue;
     const t = textOf(p);
     if (!t) continue;
-    const hit = best(p, measured.parts.filter((m) => m.kind === 'text' && !taken.has(m.id) && normText(m.characters) === t));
+    // Same words but another role (the current crumb `.current` against a crumb link `.link`): not the same layer.
+    const hit = best(p, measured.parts.filter((m) => m.kind === 'text' && !taken.has(m.id) && normText(m.characters) === t && !(classesOf(p).length && mClasses(m).length && !shared(p, m))));
     if (hit) take(p.id, hit.id);
   }
   // The frame around a paired text (a legend, a checkbox's item) is the text's measured ancestor with the frame's
@@ -252,12 +264,18 @@ export function pairParts(staticParts: SpecPart[], measured: Pick<MeasuredSpec, 
   }
 
   // 2. CSS class, preferring the instance under the paired parent (three checkboxes share `.box`).
-  const byClass = new Map<string, SpecPart[]>();
-  for (const p of measured.parts) for (const c of (p.source ?? '').split(' ')) if (c) byClass.set(c, [...(byClass.get(c) ?? []), p]);
+  // Every class of the static part counts (a modifier like `.md` last must not hide `.control`); most shared first.
   for (const p of staticParts) {
-    if (pairs.has(p.id)) continue;
-    const cls = classOf(p);
-    const hit = cls ? best(p, (byClass.get(cls) ?? []).filter((m) => !taken.has(m.id))) : undefined;
+    if (pairs.has(p.id) || !classesOf(p).length) continue;
+    // Under a classed parent the render does not show (an error row), the part is not shown either.
+    if (p.parent && !pairs.has(p.parent) && classesOf(sParts.get(p.parent)).length) continue;
+    const all = measured.parts.filter((m) => !taken.has(m.id) && shared(p, m) > 0);
+    // Under the paired parent first (the ellipsis's icon is in the ellipsis), then the most classes in common.
+    const parent = p.parent ? pairs.get(p.parent) : undefined;
+    const under = parent ? all.filter((m) => m.parent === parent) : [];
+    const cands = under.length ? under : all;
+    const most = Math.max(0, ...cands.map((m) => shared(p, m)));
+    const hit = best(p, cands.filter((m) => shared(p, m) === most));
     if (hit) take(p.id, hit.id);
   }
 
@@ -267,10 +285,20 @@ export function pairParts(staticParts: SpecPart[], measured: Pick<MeasuredSpec, 
     if (p.parent && !pairs.has(p.parent)) continue;
     const parent = p.parent ? pairs.get(p.parent) : undefined;
     const known = p.kind === 'text' && !!textOf(p);
-    const free = measured.parts.filter((m) => !taken.has(m.id) && m.kind === p.kind);
+    const free = measured.parts.filter((m) => !taken.has(m.id) && m.kind === p.kind && !claimedByOther(p, m));
     // Text runs can sit deeper than the static parent (a span inside a label): any free text under the parent.
     const hit = free.find((m) => !parent || m.parent === parent) ?? (p.kind === 'text' && parent && !known ? free.find((m) => ancestors(m.id).includes(parent)) : undefined);
     if (hit) take(p.id, hit.id);
+  }
+
+  // 4. A frame holding only its text (a label, a description) renders as one text element: the static text inside
+  // reads that element too (the frame keeps the box, the text the type).
+  for (const p of staticParts) {
+    if (pairs.has(p.id) || p.kind !== 'text' || !p.parent) continue;
+    const mp = pairs.get(p.parent);
+    // Only for the same words when the spec knows them (a placeholder is not the value).
+    const t = textOf(p);
+    if (mp && mParts.get(mp)?.kind === 'text' && staticParts.filter((x) => x.parent === p.parent).length === 1 && (!t || normText(mParts.get(mp)!.characters) === t)) pairs.set(p.id, mp);
   }
   return pairs;
 }

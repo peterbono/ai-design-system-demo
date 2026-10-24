@@ -36,12 +36,15 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
   // Longhand -> shorthands that may set it, with the position of the longhand in a 1 to 4 value box shorthand.
   var SIDES = { top: 0, right: 1, bottom: 2, left: 3 };
   var CORNERS = { 'top-left': 0, 'top-right': 1, 'bottom-right': 2, 'bottom-left': 3 };
+  var LOGICAL = { top: 'block-start', bottom: 'block-end', left: 'inline-start', right: 'inline-end' };
+  var LOGICAL_CORNER = { 'top-left': 'start-start', 'top-right': 'start-end', 'bottom-right': 'end-end', 'bottom-left': 'end-start' };
   function shorthandsOf(p) {
     var m;
-    if ((m = /^padding-(top|right|bottom|left)$/.exec(p))) return [['padding', SIDES[m[1]]], ['padding-block', m[1] === 'top' ? 0 : m[1] === 'bottom' ? 1 : -1], ['padding-inline', m[1] === 'left' ? 0 : m[1] === 'right' ? 1 : -1]];
-    if ((m = /^margin-(top|right|bottom|left)$/.exec(p))) return [['margin', SIDES[m[1]]]];
-    if ((m = /^border-(top-left|top-right|bottom-right|bottom-left)-radius$/.exec(p))) return [['border-radius', CORNERS[m[1]]]];
-    if ((m = /^border-(top|right|bottom|left)-(width|color|style)$/.exec(p))) return [['border-' + m[2], SIDES[m[1]]], ['border-' + m[1], -1], ['border', -1], ['border-block', -1], ['border-inline', -1]];
+    // Logical longhands too (padding-block-start: a horizontal writing mode, left to right).
+    if ((m = /^padding-(top|right|bottom|left)$/.exec(p))) return [['padding-' + LOGICAL[m[1]], -1], ['padding', SIDES[m[1]]], ['padding-block', m[1] === 'top' ? 0 : m[1] === 'bottom' ? 1 : -1], ['padding-inline', m[1] === 'left' ? 0 : m[1] === 'right' ? 1 : -1]].filter(function (x) { return !/block$|inline$/.test(x[0]) || x[1] >= 0; });
+    if ((m = /^margin-(top|right|bottom|left)$/.exec(p))) return [['margin-' + LOGICAL[m[1]], -1], ['margin', SIDES[m[1]]]];
+    if ((m = /^border-(top-left|top-right|bottom-right|bottom-left)-radius$/.exec(p))) return [['border-' + LOGICAL_CORNER[m[1]] + '-radius', -1], ['border-radius', CORNERS[m[1]]]];
+    if ((m = /^border-(top|right|bottom|left)-(width|color|style)$/.exec(p))) return [['border-' + LOGICAL[m[1]] + '-' + m[2], -1], ['border-' + LOGICAL[m[1]], -1], ['border-' + m[2], SIDES[m[1]]], ['border-' + m[1], -1], ['border', -1], ['border-' + (m[1] === 'top' || m[1] === 'bottom' ? 'block' : 'inline'), -1]];
     if (p === 'row-gap') return [['gap', 0]];
     if (p === 'column-gap') return [['gap', 1]];
     if (p === 'background-color') return [['background', -1]];
@@ -255,9 +258,16 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
         }
         var chain = chainOf(el, pick);
         var direct = piece.trim().indexOf('var(') === 0 && vars.length === 1;
-        return { via: 'declared', chain: chain, exact: direct, declared: piece.trim() };
+        // A declaration that does not give the computed value lost the cascade somewhere this script does not model:
+        // the value is not tied to it (it may still match a variable by value below).
+        if (direct && !/^(line-height|font-weight|opacity|font-family)$/.test(prop)) {
+          var own = getComputedStyle(el).getPropertyValue(pick).trim();
+          var got = isColorProp(prop) ? normColor(own) : /px$/.test(computed) ? normLength(own) : null;
+          if (own && got && got !== computed) d = null;
+        }
+        if (d) return { via: 'declared', chain: chain, exact: direct, declared: piece.trim() };
       }
-      if (/^(inherit|currentcolor)$/i.test(d.value.trim()) && el.parentElement && prop !== 'background-color') {
+      if (d && /^(inherit|currentcolor)$/i.test(d.value.trim()) && el.parentElement && prop !== 'background-color') {
         var up = tokenFor(el.parentElement, prop === 'fill' || prop === 'stroke' || /border-.*-color/.test(prop) ? 'color' : prop, getComputedStyle(el.parentElement).getPropertyValue(prop === 'fill' || prop === 'stroke' || /border-.*-color/.test(prop) ? 'color' : prop));
         if (up) return up;
       }
@@ -290,6 +300,8 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
     if (cs.display === 'none' || cs.visibility === 'hidden' || cs.visibility === 'collapse') return false;
     var r = el.getBoundingClientRect();
     if (r.width === 0 && r.height === 0 && !el.children.length) return false;
+    // Visually hidden text for screen readers (1 px, clipped): not drawn, not a layer.
+    if ((cs.position === 'absolute' || cs.position === 'fixed') && r.width <= 1 && r.height <= 1 && (/hidden|clip/.test(cs.overflow) || cs.clip !== 'auto' && cs.clip !== '' || cs.clipPath !== 'none')) return false;
     return true;
   }
   function round(n) { return Math.round(n * 100) / 100; }
