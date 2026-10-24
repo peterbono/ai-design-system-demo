@@ -1,8 +1,8 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-24T11:30:28.530Z",
-  "sha": "a28ab9d7d681e8f2c60cd3a6058586568f75edb3",
+  "createdAt": "2026-10-24T11:41:15.107Z",
+  "sha": "b539c3eed5943254f47345801377476446783f24",
   "scale": 2,
   "mode": {
     "brand": "bridge",
@@ -12,7 +12,7 @@
   "storyId": "internal-figma-reference--variant",
   "components": {
     "Accordion": {
-      "specHash": "39210776",
+      "specHash": "5e65c109",
       "variants": {
         "Appearance=contained, State=Default": {
           "file": "accordion/appearance-contained__state-default.png",
@@ -756,7 +756,7 @@
       }
     },
     "CheckboxGroup": {
-      "specHash": "3bdc010a",
+      "specHash": "44389b96",
       "variants": {
         "Orientation=vertical, State=Default": {
           "file": "checkboxgroup/orientation-vertical__state-default.png",
