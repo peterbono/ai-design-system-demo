@@ -11,7 +11,8 @@ import { applyComponentPlan, scanGenerated } from '../src/main/build-components'
 import { type SharedStore, saveSettings, sharedSettings } from '../src/main/shared-state';
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
-import { buildComponentPlan, writablePlan } from '../src/sync/component-pull';
+import { buildComponentPlan, specSource, writablePlan } from '../src/sync/component-pull';
+import { readBuilt } from '../src/main/fidelity';
 import { analyze, buildPull } from '../src/sync/flows';
 import { specsFromMeasure } from '../src/sync/measured-only';
 import { parseMeasuredSpecs } from '../src/sync/measured-specs';
@@ -349,4 +350,59 @@ test('measured only with screenshots: each variant keeps the render of the story
   const keys = Object.keys(shots.Tabs ?? {});
   assert.equal(keys.length, tabs.variants.length, 'one render per variant');
   for (const v of tabs.variants) assert.ok(shots.Tabs![variantKeyOf(v.props)]?.file.startsWith('measured-shots/'));
+});
+
+/** The repo's tokens and config, with a measure and optional fixes next to them, analysed as the plugin does. */
+async function measuredRepo(extra: Record<string, string>) {
+  const sim = new SimFigma();
+  sim.install();
+  const files: Record<string, string> = {};
+  for (const [rel, text] of Object.entries(realFiles())) files[`${DEFAULT_SETTINGS.tokensPath}/${rel}`] = text;
+  files[`${DEFAULT_SETTINGS.tokensPath}/contrast.checks.json`] = realChecksText();
+  files['bridge.config.json'] = realConfigText();
+  files['measured-specs.json'] = readFileSync(join(process.cwd(), 'test/fixtures/measured-worse-sets.json'), 'utf8');
+  Object.assign(files, extra);
+  const client = new FakeGitHub(files).client();
+  const a = await analyze(client, DEFAULT_SETTINGS, {}, await takeSnapshot());
+  return { sim, client, a, load: () => specSource('measured-only').load(client, a.headFiles.treeSha, a.headFiles.config, a.head) };
+}
+
+test('figma-fixes.json: an axis fix names the Figma property and its values; the pull says what each fix did', async () => {
+  const fixes = {
+    version: 1,
+    fixes: [
+      { id: 'tabs-orientation', kind: 'axis', action: 'map', component: 'Tabs', arg: 'orientation', property: 'Direction', values: { horizontal: 'Row', vertical: 'Column' }, reason: 'Designers say row and column.' },
+      { id: 'nothing-here', kind: 'status', component: 'NoSuchSet', status: 'cant-check', reason: 'Not in this measure.' },
+    ],
+  };
+  const { load } = await measuredRepo({ 'figma-fixes.json': JSON.stringify(fixes) });
+  const loaded = (await load())!;
+  const tabs = loaded.specs.components.find((c) => c.name === 'Tabs')!;
+  assert.deepEqual(tabs.axes.find((a) => a.name === 'Direction')?.values, ['Row', 'Column']);
+  assert.ok(!tabs.axes.some((a) => a.name === 'Orientation'));
+  assert.ok(tabs.variants.every((v) => ['Row', 'Column'].includes(v.props.Direction!)));
+  assert.equal(loaded.fixes?.problems, undefined);
+  assert.ok(loaded.fixes!.lines.some((l) => l.startsWith('applied') && l.includes('tabs-orientation')), loaded.fixes!.lines.join(' / '));
+  assert.ok(loaded.fixes!.lines.some((l) => l.startsWith('not found') && l.includes('nothing-here')), loaded.fixes!.lines.join(' / '));
+});
+
+test('figma-fixes.json that is not valid is not used, and the pull says why', async () => {
+  const { load } = await measuredRepo({ 'figma-fixes.json': JSON.stringify({ version: 1, fixes: [{ id: 'Bad Id', kind: 'part', component: 'Tabs' }] }) });
+  const loaded = (await load())!;
+  assert.ok(loaded.fixes?.problems?.length, 'problems listed');
+  assert.ok(loaded.specs.components.find((c) => c.name === 'Tabs')!.axes.some((a) => a.name === 'Orientation'), 'built without the fixes');
+});
+
+test('gap case read-back: each part\'s box in its variant, and the parts it hides', async () => {
+  const { sim, a, load } = await measuredRepo({});
+  await applyPullPlan(buildPull(a, new Map()).plan);
+  const loaded = (await load())!;
+  await applyComponentPlan(writablePlan(buildComponentPlan(loaded.specs, loaded.path, await scanGenerated(), a.head)));
+  const set = sim.sets().find((s) => s.name === 'Tabs')!;
+  const keys = set.children.map((v) => v.getSharedPluginData('dsbridge', 'variant')).slice(0, 2);
+  const built = await readBuilt(set.id, keys);
+  assert.deepEqual(Object.keys(built).sort(), [...keys].sort());
+  const first = built[keys[0]!]!;
+  assert.deepEqual(first.boxes.root && { x: first.boxes.root.x, y: first.boxes.root.y }, { x: 0, y: 0 });
+  assert.ok(Object.keys(first.boxes).length > 1, 'the parts have boxes');
 });

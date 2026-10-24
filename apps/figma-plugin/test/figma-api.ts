@@ -104,6 +104,18 @@ export class SimNode {
   children: SimNode[] = [];
   x = 0;
   y = 0;
+  /** Position in the page: the offsets of this node and its frames (no rotation in the simulator). */
+  get absoluteTransform(): [[number, number, number], [number, number, number]] {
+    let [x, y] = [0, 0];
+    for (let n: SimNode | null = this; n && n.type !== 'PAGE' && n.type !== 'DOCUMENT'; n = n.parent) {
+      x += n.x;
+      y += n.y;
+    }
+    return [
+      [1, 0, x],
+      [0, 1, y],
+    ];
+  }
   // Like Figma: read only, changed with resize().
   private size = { width: 100, height: 40 };
   get width(): number {

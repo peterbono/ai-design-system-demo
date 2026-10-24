@@ -4,7 +4,7 @@
 import { type RequestMap, type RequestType, type ResponseEnvelope, STUDIO_ORIGIN, isRequest } from '../shared/messages';
 import { applyPullPlan } from './apply';
 import { applyComponentPlan, scanGenerated } from './build-components';
-import { exportVariants } from './fidelity';
+import { exportVariants, readBuilt } from './fidelity';
 import { clearClaudeKey, readClaudeSettings, saveClaudeSettings } from './claude-settings';
 import { baselineImage, bindRaw, exportImage, exportThumbnails, markPushed, rebaseline, renameInBaselines, saveSignatures, scanComponents, selectionInfo, setExperimental } from './components';
 import { clearGitHubToken, readGitHubToken, saveGitHubToken, setGitHubTokenState } from './github-token';
@@ -134,6 +134,9 @@ const handlers: Handlers = {
   },
   async 'fidelity-export'({ nodeId, keys, scale }) {
     return exportVariants(nodeId, keys, scale);
+  },
+  async 'read-built'({ nodeId, keys }) {
+    return readBuilt(nodeId, keys);
   },
   async 'apply-components'({ plan }) {
     cancelBuild = false;

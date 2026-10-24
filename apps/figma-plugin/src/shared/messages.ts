@@ -238,6 +238,8 @@ export interface RequestMap {
   thumbnails: { request: { nodeIds: string[]; width: number }; response: Record<string, string> };
   /** Fidelity check: PNG (base64) of variants of a generated set at `scale`, keyed by variant key. Read only. */
   'fidelity-export': { request: { nodeId: string; keys: string[]; scale: number }; response: Record<string, string> };
+  /** Gap case: each part's box (relative to its variant) and the hidden parts, per variant key. Read only. */
+  'read-built': { request: { nodeId: string; keys: string[] }; response: Record<string, { boxes: Record<string, { x: number; y: number; width: number; height: number }>; hidden: string[] }> };
   /** Build or update the component sets of a plan on the Components page, bound to the variables. */
   'apply-components': { request: { plan: ComponentPullPlan }; response: ComponentApplyReport };
   /** Stop the component build in progress after the set it is on: its report lists the sets it did not reach. */
