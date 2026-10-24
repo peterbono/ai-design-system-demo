@@ -158,10 +158,21 @@ describe('the publish result', () => {
     expect(libraryArrival({ state: 'open', ci: running })).toMatchObject({ key: 'on-its-way', label: 'On its way to the library', final: false });
     expect(libraryArrival({ state: 'merged', merged_at: '2026-10-24T10:00:00Z' })).toMatchObject({ key: 'in-the-library', label: 'In the library', final: true });
     const held = libraryArrival({ state: 'open', ci: red });
-    expect(held).toMatchObject({ key: 'held', label: 'Held for a developer', final: true });
+    // A failed check can be re-run and the armed merge still ships it: keep polling.
+    expect(held).toMatchObject({ key: 'held', label: 'Held for a developer', final: false });
     expect(held.sentence).not.toMatch(/test|check|CI|conflict/i);
-    expect(libraryArrival({ state: 'open', mergeable: false }).key).toBe('held');
+    expect(libraryArrival({ state: 'open', mergeable: false })).toMatchObject({ key: 'held', final: true });
+    expect(libraryArrival({ state: 'open', changesRequested: 1 })).toMatchObject({ key: 'held', final: true });
     expect(libraryArrival({ state: 'closed' }).key).toBe('not-shipped');
+  });
+
+  it('never counts a hosting platform that refused to run (Vercel rate limit) as a failed check', () => {
+    const passing = [{ name: 'Unit and a11y tests', status: 'completed', conclusion: 'success' }];
+    const limited = { context: 'Vercel – bridge-docs', state: 'failure', description: 'Deployment rate limited, retry in 24 hours.' };
+    const ci = summarizeCi(passing, [limited]);
+    expect(ci.state).toBe('pass');
+    expect(libraryArrival({ state: 'open', ci }).key).toBe('on-its-way');
+    expect(summarizeCi(passing, [{ ...limited, description: 'Deployment has failed' }]).state).toBe('fail');
   });
 
   it('writes the review Bridge leaves when it ships', () => {
