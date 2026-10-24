@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { parseComponentSpecs, variantKeyOf } from '@bridge-ds/core';
+import { hashSpec, parseComponentSpecs, variantKeyOf } from '@bridge-ds/core';
 import { applyPullPlan } from '../src/main/apply';
 import { applyComponentPlan, scanGenerated } from '../src/main/build-components';
 import { type SharedStore, saveSettings, sharedSettings } from '../src/main/shared-state';
@@ -503,6 +503,41 @@ test('measured only: a frame bigger than its content keeps its size, a frame its
   assert.deepEqual([v.values.btn!.width, v.values.btn!.height], [40, 40]);
   // The tag is its text, its padding and its 1 px border: it hugs.
   assert.deepEqual([v.values.tag!.width, v.values.tag!.height], [undefined, undefined]);
+});
+
+test('an update that takes a fill away: the layer hugs again instead of keeping the last pull\'s Fill container', async () => {
+  const sim = new SimFigma();
+  sim.install();
+  const files: Record<string, string> = {};
+  for (const [rel, text] of Object.entries(realFiles())) files[`${DEFAULT_SETTINGS.tokensPath}/${rel}`] = text;
+  files[`${DEFAULT_SETTINGS.tokensPath}/contrast.checks.json`] = realChecksText();
+  files['bridge.config.json'] = realConfigText();
+  const client = new FakeGitHub(files).client();
+  const a = await analyze(client, DEFAULT_SETTINGS, {}, await takeSnapshot());
+  await applyPullPlan(buildPull(a, new Map()).plan);
+  const spec = (columnHeight: number | undefined) => {
+    const c = {
+      name: 'Group',
+      hash: '',
+      source: ['https://storybook.acme.dev'],
+      axes: [],
+      properties: [],
+      parts: [
+        { id: 'root', name: 'Root', kind: 'frame' as const, layout: { direction: 'VERTICAL' as const, primary: 'MIN' as const, counter: 'MIN' as const } },
+        { id: 'row', name: 'Row', kind: 'frame' as const, parent: 'root', grow: true, layout: { direction: 'HORIZONTAL' as const, primary: 'MIN' as const, counter: 'CENTER' as const } },
+        { id: 'row-text', name: 'Row text', kind: 'text' as const, parent: 'row', characters: 'One' },
+      ],
+      variants: [{ props: {}, values: { root: columnHeight ? { height: columnHeight } : {}, row: {}, 'row-text': { fontSize: 14 } } }],
+      unmapped: [],
+    };
+    return { ...c, hash: hashSpec(c) };
+  };
+  const pull = async (columnHeight: number | undefined) => applyComponentPlan(writablePlan(buildComponentPlan({ version: 1, generated: '', components: [spec(columnHeight)] }, 'measured-specs.json', await scanGenerated(), a.head)));
+  await pull(90);
+  const row = () => sim.sets().find((x) => x.name === 'Group')!.children[0]!.findOne((n) => n.name === 'Row')!;
+  assert.equal(row().layoutSizingVertical, 'FILL', 'fills the column that has a height');
+  await pull(undefined);
+  assert.equal(row().layoutSizingVertical, 'HUG', 'hugs once the column has none');
 });
 
 test('measured only with screenshots: each variant keeps the render of the story it was built from', () => {

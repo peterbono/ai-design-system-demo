@@ -185,16 +185,16 @@ export class SimNode {
   get primaryAxisSizingMode() {
     return this.axisSizing.primary;
   }
+  // As in Figma, a frame's own sizing mode does not undo Fill container in its parent (layoutGrow, layoutAlign
+  // STRETCH): a layer an earlier pull made fill keeps filling until layoutSizing says otherwise.
   set primaryAxisSizingMode(v: string) {
     this.axisSizing.primary = v;
-    if (v === 'AUTO' && this.autoLayout(this)) this.clearFill(this.layoutMode === 'HORIZONTAL');
   }
   get counterAxisSizingMode() {
     return this.axisSizing.counter;
   }
   set counterAxisSizingMode(v: string) {
     this.axisSizing.counter = v;
-    if (v === 'AUTO' && this.autoLayout(this)) this.clearFill(this.layoutMode !== 'HORIZONTAL');
   }
   private sizing(horizontal: boolean): string {
     if (this.fills_(horizontal)) return 'FILL';

@@ -547,6 +547,19 @@ function emptyAtMinimum(node: SceneNode, fields: readonly PlannedField[]): void 
   if (w !== undefined) node.layoutSizingHorizontal = 'FIXED';
 }
 
+/** Fill container back to its own size on each axis: Hug for an auto layout frame or a text, Fixed otherwise. */
+function unfill(node: SceneNode, fields: readonly PlannedField[]): void {
+  if (!('layoutSizingHorizontal' in node)) return;
+  const hugs = node.type === 'TEXT' || ('layoutMode' in node && node.layoutMode !== 'NONE');
+  const own = (field: SpecField) => (fields.some((f) => f.field === field) || !hugs ? 'FIXED' : 'HUG');
+  try {
+    if (node.layoutSizingHorizontal === 'FILL') node.layoutSizingHorizontal = own('width');
+    if (node.layoutSizingVertical === 'FILL') node.layoutSizingVertical = own('height');
+  } catch {
+    /* not in an auto layout: nothing filled */
+  }
+}
+
 /**
  * Back in its parent's auto layout. A layer the last pull pinned or laid over its parent is absolute, and Figma refuses
  * to make an absolute layer fill: it is sized in the layout first, then pinned again after placing.
@@ -720,6 +733,9 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
         if (key) node.componentPropertyReferences = { visible: key };
       }
     }
+    // A layer an earlier pull made fill its parent starts from its own size again: the rules below make it fill only
+    // where they still apply (an update, or a figma-fixes.json fix, can take a fill away).
+    unfill(node, fields);
     for (const f of fields) apply(node, f, ctx);
     if (part.kind === 'frame' && !comp.parts.some((c) => c.parent === part.id)) emptyAtMinimum(node, fields);
     try {
