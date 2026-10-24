@@ -34,6 +34,11 @@ export interface FidelityDeps {
   fileName?: string;
   options?: CompareOptions;
   now?: Date;
+  /**
+   * What the sets are compared with. Default: the code images the repo's Figma references workflow publishes. A
+   * measured-only pull passes the screenshots of the stories its sets were built from (any design system).
+   */
+  reference?: { manifest: FigmaReferenceManifest; image: (file: string) => Promise<string | undefined> } | undefined;
 }
 
 /** One component in the UI: its result, and the images of the variant that differs most. */
@@ -63,7 +68,7 @@ export async function loadReferenceManifest(client: FidelityDeps['client']): Pro
 
 export async function runFidelityCheck(d: FidelityDeps): Promise<FidelityOutcome> {
   if (!d.sets.length) return { kind: 'no-sets' };
-  const manifest = await loadReferenceManifest(d.client);
+  const manifest = d.reference?.manifest ?? (await loadReferenceManifest(d.client));
   if (!manifest) return { kind: 'no-references' };
   const options: CompareOptions = { ...d.options, scale: manifest.scale };
   const items: FidelityItem[] = [];
@@ -103,7 +108,7 @@ export async function runFidelityCheck(d: FidelityDeps): Promise<FidelityOutcome
         variants.push({ key, status: 'skipped', reason: 'Figma could not export this variant' });
         continue;
       }
-      const code = (await d.client.getFileBase64(`${FIGMA_REFERENCES_DIR}/${ref.file}`, FIGMA_REFERENCES_BRANCH))?.base64;
+      const code = d.reference ? await d.reference.image(ref.file) : (await d.client.getFileBase64(`${FIGMA_REFERENCES_DIR}/${ref.file}`, FIGMA_REFERENCES_BRANCH))?.base64;
       if (!code) {
         variants.push({ key, status: 'skipped', reason: 'its code image is missing' });
         continue;

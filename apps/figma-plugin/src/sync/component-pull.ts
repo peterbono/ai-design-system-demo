@@ -9,6 +9,7 @@
 // - After building, the set's signature is stored as its baseline, so a fresh pull never shows a request in Push.
 
 import {
+  type FigmaReferenceManifest,
   type BridgeConfig,
   COLOR_FIELDS,
   type ComponentSpec,
@@ -367,6 +368,11 @@ export interface LoadedSpecs {
   measured?: MeasuredOverlayReport | undefined;
   /** Measured-only source: the sets and variants built from the stories alone. */
   measuredOnly?: MeasuredOnlyReport | undefined;
+  /**
+   * Measured-only source with screenshots (`--shots`): each variant's story render, in the code images' manifest shape,
+   * and the repo folder its files are in. Check fidelity compares with these instead of the code images.
+   */
+  shots?: { manifest: FigmaReferenceManifest; dir: string } | undefined;
 }
 
 /**
@@ -406,11 +412,26 @@ async function loadMeasuredOnlySpecs(client: Pick<GitHubClient, 'getTree' | 'get
   const { entries } = await client.getTree(treeSha, true);
   const entry = entries.find((e) => e.type === 'blob' && e.path === MEASURED_SPECS_FILE);
   if (!entry) throw new Error(`Spec source is set to Measured only, but the repo has no ${MEASURED_SPECS_FILE}. Run bridge specs --measure --variants and commit it, or set Spec source back to Static in Settings.`);
-  const { specs, report } = specsFromMeasure(parseMeasuredSpecs(await client.getBlobText(entry.sha)), head ? { known: (path) => head.byPath.has(path) } : {});
+  const file = parseMeasuredSpecs(await client.getBlobText(entry.sha));
+  const { specs, report, shots } = specsFromMeasure(file, head ? { known: (path) => head.byPath.has(path) } : {});
   const code = await loadComponentSpecs(client, treeSha, config).catch(() => undefined);
   const codeHash = new Map(code?.specs.components.map((c) => [c.name, c.hash]) ?? []);
-  const components = specs.components.map((c) => (codeHash.has(c.name) ? { ...c, hash: codeHash.get(c.name)! } : c));
-  return { path: MEASURED_SPECS_FILE, specs: { ...specs, components }, measuredOnly: report };
+  // With the stories' own screenshots, a set is compared with what it was built from: its own hash is its version.
+  const withShots = Object.keys(shots).length > 0;
+  const components = specs.components.map((c) => (!withShots && codeHash.has(c.name) ? { ...c, hash: codeHash.get(c.name)! } : c));
+  const manifest: FigmaReferenceManifest | undefined = withShots
+    ? {
+        version: 1,
+        tool: '@bridge-ds/visual',
+        createdAt: file.measuredAt,
+        sha: treeSha,
+        scale: 2,
+        mode: { brand: '', theme: '', density: '' },
+        storyId: '',
+        components: Object.fromEntries(components.filter((c) => shots[c.name]).map((c) => [c.name, { specHash: c.hash, variants: shots[c.name]! }])),
+      }
+    : undefined;
+  return { path: MEASURED_SPECS_FILE, specs: { ...specs, components }, measuredOnly: report, ...(manifest ? { shots: { manifest, dir: MEASURED_SPECS_FILE.includes('/') ? MEASURED_SPECS_FILE.replace(/\/[^/]*$/, '') : '' } } : {}) };
 }
 
 /** The static specs with measured-specs.json laid on. A missing measure fails: the developer asked for it. */

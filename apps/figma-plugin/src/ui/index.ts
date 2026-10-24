@@ -20,7 +20,7 @@ import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classi
 import { CLAUDE_MODELS, type ClaudeDraft, type ClaudeDraftInput, ClaudeDraftError, DRAFTED_NOTE, draftWithClaude } from '../sync/claude';
 import { componentOfSet, loadCodedComponents, sendComponentRequest } from '../sync/requests';
 import { DRAFT_PHRASE, type DraftField, DraftPoller, MY_CLAUDE_NEEDS_WRITE, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, myClaudeAccess, planFill, startMyClaudeDrafts } from '../sync/my-claude';
-import { type ComponentApplyReport, type ComponentPullPlan, type CoverageView, type PlannedComponent, buildComponentPlan, componentReportView, coverageView, draftedSetNote, pushedInReview, pushedNumbers, specSource } from '../sync/component-pull';
+import { type LoadedSpecs, type ComponentApplyReport, type ComponentPullPlan, type CoverageView, type PlannedComponent, buildComponentPlan, componentReportView, coverageView, draftedSetNote, pushedInReview, pushedNumbers, specSource } from '../sync/component-pull';
 import { type FigmaPushStatus, figmaPushStatusesOnGitHub } from '@bridge-ds/core';
 import { type ComponentReview, onlyComponent, reviewUpdates } from '../sync/component-review';
 import type { ComponentSignature } from '../sync/components';
@@ -69,6 +69,8 @@ interface PullState {
   measured?: MeasuredOverlayReport | undefined;
   /** Spec source Measured only: the sets built from the stories. */
   measuredOnly?: MeasuredOnlyReport | undefined;
+  /** Measured only with screenshots: Check fidelity compares with the stories' renders (LoadedSpecs.shots). */
+  shots?: LoadedSpecs['shots'];
   /** Also build the sets code added ("Include components" in the footer): on by default on a first pull. Updates are always offered. */
   includeComponents: boolean;
   componentsReport?: ComponentApplyReport | undefined;
@@ -656,11 +658,13 @@ async function loadPull(prev?: PullState): Promise<PullState> {
   let inReview: PullState['inReview'] = [];
   let measured: MeasuredOverlayReport | undefined;
   let measuredOnly: MeasuredOnlyReport | undefined;
+  let shots: LoadedSpecs['shots'];
   const before: Record<string, string> = { ...(prev?.before ?? {}) };
   try {
     const loaded = await specSource(state.init!.settings.specSource).load(getClient(), analysis.headFiles.treeSha, analysis.headFiles.config, analysis.head);
     measured = loaded?.measured;
     measuredOnly = loaded?.measuredOnly;
+    shots = loaded?.shots;
     if (loaded) {
       const generated = await request('scan-generated', {});
       // Sets pushed from Figma: where their library branch stands decides whether the pull rebuilds them from code.
@@ -694,6 +698,7 @@ async function loadPull(prev?: PullState): Promise<PullState> {
     inReview,
     ...(measured ? { measured } : {}),
     ...(measuredOnly ? { measuredOnly } : {}),
+    ...(shots ? { shots } : {}),
     before,
     after: prev?.after ?? {},
     done: prev?.done ?? new Map(),
@@ -2110,7 +2115,7 @@ function componentsGroup(p: PullState): Child {
 /** "Check fidelity": exports each generated set's variants and compares them with the code images. Read only. */
 async function checkFidelity(p: PullState): Promise<void> {
   if (p.fidelity?.running) return;
-  p.fidelity = { running: 'Reading the images of the code' };
+  p.fidelity = { running: p.shots ? 'Reading the renders of the stories' : 'Reading the images of the code' };
   render();
   try {
     const outcome = await runFidelityCheck({
@@ -2124,6 +2129,15 @@ async function checkFidelity(p: PullState): Promise<void> {
         render();
       },
       ...(state.init?.fileName ? { fileName: state.init.fileName } : {}),
+      // Measured only with screenshots: each set against the renders of the stories it was built from.
+      ...(p.shots
+        ? {
+            reference: {
+              manifest: p.shots.manifest,
+              image: async (file: string) => (await getClient().getFileBase64(p.shots!.dir ? `${p.shots!.dir}/${file}` : file, state.init!.settings.branch))?.base64,
+            },
+          }
+        : {}),
     });
     p.fidelity = { outcome };
   } catch (err) {

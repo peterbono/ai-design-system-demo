@@ -25,6 +25,7 @@ import {
   type SpecVariant,
   hashSpec,
   pairParts,
+  variantKeyOf,
 } from '@bridge-ds/core';
 
 /** What building from the measure gave: sets, variants, and the stories it used. */
@@ -35,6 +36,16 @@ export interface MeasuredOnlyReport {
   /** Components with stories that gave no set (every story failed, or none at rest). */
   skipped: string[];
 }
+
+/** The screenshot of the story a variant was built from (`--shots`), path relative to measured-specs.json. */
+export interface VariantShot {
+  file: string;
+  width: number;
+  height: number;
+}
+
+/** Set name -> variant key (variantKeyOf) -> its story's screenshot: the reference Check fidelity compares with. */
+export type MeasuredShots = Record<string, Record<string, VariantShot>>;
 
 /** Props that never draw a variant (wiring, element type, content), as in core's measure-status. */
 const NOT_AN_AXIS = /^(as|asChild|render|component|className|class|style|id|key|ref|role|type|name|form|dir|lang|tabIndex|slot|children|htmlFor|value|defaultValue|placeholder|href|target|rel|src|alt)$/i;
@@ -84,7 +95,7 @@ function valuesOf(spec: MeasuredSpec, partId: string, hasChildren: boolean, know
 }
 
 /** One Figma set from the stories of one component, or undefined when none stands for a variant. */
-function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<string, MeasuredArgType>, source: string, known: (path: string) => boolean): ComponentSpec | undefined {
+function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<string, MeasuredArgType>, source: string, known: (path: string) => boolean): { spec: ComponentSpec; shots: Record<string, VariantShot> } | undefined {
   // Only stories as written or measured for a variant: their other booleans at the component's defaults.
   const plain = stories.filter((s) =>
     Object.entries(argTypes).every(([k, a]) => a.kind !== 'boolean' || STATE_PROPS.has(k) || NOT_AN_AXIS.test(k) || (propsOf(s)[k] ?? a.default ?? false) === (a.default ?? false)),
@@ -130,6 +141,7 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
   const parts = baseSpec.parts.map((p) => ({ ...p }));
   const parents = new Set(parts.map((p) => p.parent).filter(Boolean));
   const variants: SpecVariant[] = [];
+  const shotOf = new Map<SpecVariant, VariantShot>();
   for (const { props, story } of byVariant.values()) {
     const m = story.spec!;
     const pairs = story === base.story ? new Map(parts.map((p) => [p.id, p.id])) : pairParts(parts, m);
@@ -143,11 +155,20 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
       }
       values[p.id] = valuesOf(m, mid, parents.has(p.id), known);
     }
-    variants.push({ props, values, ...(hidden.length ? { hidden } : {}) });
+    const variant: SpecVariant = { props, values, ...(hidden.length ? { hidden } : {}) };
+    variants.push(variant);
+    if (story.shot) shotOf.set(variant, story.shot);
   }
   const kept = drawnAxes(axes, variants);
   const spec: ComponentSpec = { name, hash: '', source: [source], axes: kept.axes, properties: [], parts, variants: kept.variants, unmapped: [] };
-  return { ...spec, hash: hashSpec(spec) };
+  // Pruning an axis rewrites a variant's props (a new object): its shot follows by position in the kept list.
+  const shots: Record<string, VariantShot> = {};
+  kept.variants.forEach((v) => {
+    const from = variants.find((x) => JSON.stringify(x.values) === JSON.stringify(v.values) && Object.entries(v.props).every(([k, val]) => x.props[k] === val));
+    const shot = from && shotOf.get(from);
+    if (shot) shots[variantKeyOf(v.props)] = shot;
+  });
+  return { spec: { ...spec, hash: hashSpec(spec) }, shots };
 }
 
 /**
@@ -185,7 +206,7 @@ function drawnAxes(axes: SpecAxis[], variants: SpecVariant[]): { axes: SpecAxis[
 }
 
 /** Every set the measure can give, by component (the last segment of a story's title: "Figma variants/Radio" is Radio). */
-export function specsFromMeasure(file: MeasuredSpecsFile, opts: { known?: ((path: string) => boolean) | undefined } = {}): { specs: ComponentSpecsFile; report: MeasuredOnlyReport } {
+export function specsFromMeasure(file: MeasuredSpecsFile, opts: { known?: ((path: string) => boolean) | undefined } = {}): { specs: ComponentSpecsFile; report: MeasuredOnlyReport; shots: MeasuredShots } {
   const known = opts.known ?? (() => true);
   const groups = new Map<string, MeasuredSpecsStory[]>();
   for (const s of file.stories) {
@@ -195,17 +216,20 @@ export function specsFromMeasure(file: MeasuredSpecsFile, opts: { known?: ((path
   }
   const argTypesOf = (name: string) => Object.assign({}, ...(file.components ?? []).filter((c) => setNameOf(c.title) === name).map((c) => c.argTypes));
   const components: ComponentSpec[] = [];
+  const shots: MeasuredShots = {};
   const report: MeasuredOnlyReport = { sets: 0, variants: 0, stories: 0, skipped: [] };
   for (const [name, stories] of [...groups].sort(([a], [b]) => a.localeCompare(b))) {
-    const spec = setOf(name, stories, argTypesOf(name), file.storybook, known);
-    if (!spec) {
+    const built = setOf(name, stories, argTypesOf(name), file.storybook, known);
+    if (!built) {
       report.skipped.push(name);
       continue;
     }
+    const spec = built.spec;
     components.push(spec);
+    if (Object.keys(built.shots).length) shots[name] = built.shots;
     report.sets++;
     report.variants += spec.variants.length;
     report.stories += stories.length;
   }
-  return { specs: { version: 1, generated: `Measured from ${file.storybook} on ${file.measuredAt} (bridge specs --measure).`, components }, report };
+  return { specs: { version: 1, generated: `Measured from ${file.storybook} on ${file.measuredAt} (bridge specs --measure).`, components }, report, shots };
 }

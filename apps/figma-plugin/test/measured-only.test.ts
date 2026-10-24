@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { parseComponentSpecs } from '@bridge-ds/core';
+import { parseComponentSpecs, variantKeyOf } from '@bridge-ds/core';
 import { applyPullPlan } from '../src/main/apply';
 import { applyComponentPlan, scanGenerated } from '../src/main/build-components';
 import { type SharedStore, saveSettings, sharedSettings } from '../src/main/shared-state';
@@ -113,4 +113,15 @@ test('literals build in Figma: a font weight, a line height in px, a letter spac
   assert.equal((label.fontName as { style: string }).style.toLowerCase().includes('semi') || (label.fontName as { style: string }).style.toLowerCase().includes('bold'), true, JSON.stringify(label.fontName));
   const fill = (set.children[0]!.fills as { color: { r: number; b: number } }[])[0]!;
   assert.ok(fill.color.r > 0.99 && fill.color.b > 0.6, JSON.stringify(fill));
+});
+
+test('measured only with screenshots: each variant keeps the render of the story it was built from', () => {
+  const m = fixture();
+  m.stories = m.stories.filter((s) => s.title.endsWith('/Tabs'));
+  m.stories.forEach((s, i) => (s.shot = { file: `measured-shots/tabs-${i}.png`, width: 320, height: 40 }));
+  const { specs, shots } = specsFromMeasure(m);
+  const tabs = specs.components.find((c) => c.name === 'Tabs')!;
+  const keys = Object.keys(shots.Tabs ?? {});
+  assert.equal(keys.length, tabs.variants.length, 'one render per variant');
+  for (const v of tabs.variants) assert.ok(shots.Tabs![variantKeyOf(v.props)]?.file.startsWith('measured-shots/'));
 });
