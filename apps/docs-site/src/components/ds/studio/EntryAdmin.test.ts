@@ -53,6 +53,20 @@ const ctx = (account: OnboardingContext['account']): OnboardingContext => ({
 const steps = onboardingSteps({ login: null, repo: '', storybook: null, products: [], changes: null, workspace: true, account: { teamName: null } });
 
 describe('Create your team (E6, E7a)', () => {
+  it('a team that exists already: finish setting it up, no "Expecting an invite?"', () => {
+    render(
+      createElement(Onboarding, {
+        steps,
+        name: 'Jordan',
+        initial: 'create',
+        ctx: ctx({ email: 'jordan@northwind.io', domain: 'northwind.io', teamName: 'Northwind Design', github: false }),
+        actions: { propose: async () => ({ number: 1, url: '' }), mark: () => undefined, later: () => undefined },
+      }),
+    );
+    expect(screen.getByRole('heading', { level: 1, name: "Welcome, Jordan. Let's finish setting up Northwind Design." })).toBeInTheDocument();
+    expect(screen.queryByText(/Expecting an invite/)).toBeNull();
+  });
+
   it('names the team and lets the work domain find it, checked by default', async () => {
     const createTeam = vi.fn();
     const connectGitHub = vi.fn();
@@ -81,7 +95,7 @@ describe('Create your team (E6, E7a)', () => {
     // No sign-in step: GitHub only comes back on step 2, to link the repository.
     expect(screen.queryByText('Sign in with GitHub')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Connect GitHub' })).toBeNull();
-    expect(screen.getByText('Storybook URL, or connect GitHub to link your repo')).toBeInTheDocument();
+    expect(screen.getByText('Storybook URL, or connect GitHub to read your code')).toBeInTheDocument();
     await expectNoAxeViolations(container);
     const user = userEvent.setup();
     const field = screen.getByRole('textbox', { name: 'Team name' });

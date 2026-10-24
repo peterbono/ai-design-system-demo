@@ -177,7 +177,7 @@ export const WORKSPACE_WORDS = {
   library: 'Your library',
   notConnected: 'Not connected',
   tokens: { title: 'Tokens', line: 'Show here once your design system is connected' },
-  components: { title: 'Components', line: 'Read from your Storybook or your repo' },
+  components: { title: 'Components', line: 'Read from your Storybook or your code' },
   products: { title: 'Products', line: 'The apps that use your library' },
   branches: 'Your branches',
   noBranches: 'None yet. Branches you start or review show up here.',

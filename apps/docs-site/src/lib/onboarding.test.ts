@@ -48,7 +48,7 @@ describe('onboarding steps', () => {
   it('says the repository alone when there is no Storybook, and products found later', () => {
     const steps = onboardingSteps({ ...base, storybook: null, products: [] });
     expect(steps[1]!.detail).toBe('Repository');
-    expect(steps.find((s) => s.id === 'products')).toMatchObject({ state: 'later', status: 'Found with the repo' });
+    expect(steps.find((s) => s.id === 'products')).toMatchObject({ state: 'later', status: 'Found with your code' });
   });
 
   it('titles the first run by its step', () => {
@@ -173,13 +173,13 @@ describe('Create your team (board E6): the workspace of a Bridge account', () =>
     expect(ws().map((s) => `${s.id}:${s.state}:${s.status}`)).toEqual([
       'create:current:Current',
       'library:later:Next',
-      'products:later:Found with the repo',
+      'products:later:Found with your code',
       'changes:later:Later is fine',
       'figma:later:Later is fine',
       'claude:later:Later is fine',
     ]);
     expect(ws()[0]!.detail).toBe('A name, and who can find it');
-    expect(ws()[1]!.detail).toBe('Storybook URL, or connect GitHub to link your repo');
+    expect(ws()[1]!.detail).toBe('Storybook URL, or connect GitHub to read your code');
   });
 
   it('marks the team done once named, and moves on to the design system', () => {

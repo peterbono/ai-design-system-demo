@@ -392,7 +392,9 @@ export const ENTRY_WORDS = {
   noDesignSystem: 'No design system yet? Keep exploring the demo',
   nextLibrary: 'Next: connect your design system',
   expecting: 'Expecting an invite? Ask your design lead to send it to this email:',
-  setupTitle: (name: string | null) => (name ? `Welcome, ${name}. Let's set up your team.` : "Welcome. Let's set up your team."),
+  /** The team already exists (made at step 1, or the person came back): finish it, never "set up your team" again. */
+  setupTitle: (name: string | null, team?: string | null) =>
+    team ? `${name ? `Welcome, ${name}` : 'Welcome'}. Let's finish setting up ${team}.` : name ? `Welcome, ${name}. Let's set up your team.` : "Welcome. Let's set up your team.",
   firstOnly: 'Only the first step is needed today.',
   connectGitHub: 'Connect GitHub',
   connectGitHubWhy: 'Bridge reads your repository through GitHub. Connect it once, then pick the repository.',
