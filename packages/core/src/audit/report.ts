@@ -199,7 +199,8 @@ export function historyPoint(r: AuditReport): HistoryPoint {
 
 /** Compare with an earlier report of the same codebase: progress, per category and per file. */
 export function compareWithBaseline(report: AuditReport, baseline: AuditReport): AuditReport {
-  if (baseline.schemaVersion !== AUDIT_SCHEMA_VERSION) throw new Error(`baseline schemaVersion ${String(baseline.schemaVersion)} is not supported (expected ${AUDIT_SCHEMA_VERSION})`);
+  if (baseline.schemaVersion === undefined) throw new Error('The baseline is not a bridge audit report (it has no schemaVersion). Pass a report written by bridge audit <path> --json <file>.');
+  if (baseline.schemaVersion !== AUDIT_SCHEMA_VERSION) throw new Error(`baseline schemaVersion ${String(baseline.schemaVersion)} is not supported (expected ${AUDIT_SCHEMA_VERSION}). Write a new one with bridge audit <path> --json <file>.`);
   const before = new Map(baseline.files.map((f) => [f.path, f.hardcoded + f.otherComponents]));
   const after = new Map(report.files.map((f) => [f.path, f.hardcoded + f.otherComponents]));
   const byCategory: BaselineDiff['byCategory'] = {};

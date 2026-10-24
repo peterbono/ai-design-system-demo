@@ -78,7 +78,7 @@ export async function runFigma(a: RequestArgs, root: string, io: RequestIO = def
       try {
         diff = JSON.parse(readFileSync(resolve(root, file), 'utf8'));
       } catch (err) {
-        throw new RequestUsageError(`${file} could not be read as JSON: ${(err as Error).message}`);
+        throw new RequestUsageError(`${file} could not be read as JSON: ${(err as Error).message}. Pass the component diff the Figma plugin sent, as a JSON file.`);
       }
       const changes = changesFlag(a);
       const r = await figma.pushFigmaComponentOp(ctx, { diff: diff as never, dryRun: has(a, 'dry-run'), source: 'cli', ...(changes ? { changes } : {}) });

@@ -100,7 +100,7 @@ async function getOrExplain(ctx: BridgeContext, n: number, io: RequestIO, branch
     return await requests.getRequest(ctx, { number: n, ...(branch ? { branch } : {}) });
   } catch (e) {
     if (/is not a component change request/.test((e as Error).message)) {
-      io.error(`bridge: ${(e as Error).message}`);
+      io.error(`bridge: ${(e as Error).message} \`bridge request list\` lists the requests.`);
       return undefined;
     }
     throw e;

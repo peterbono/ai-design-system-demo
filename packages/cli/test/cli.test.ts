@@ -12,6 +12,12 @@ const bridge = (cwd: string, ...args: string[]) => {
   const r = spawnSync(process.execPath, [CLI, ...args], { cwd, encoding: 'utf8', env: { ...process.env, BRIDGE_OFFLINE: '1' } });
   return { code: r.status, out: r.stdout, err: r.stderr };
 };
+// A PATH whose gh is signed out, so a test never borrows the gh sign-in of the machine.
+const GH_FAILS = (() => {
+  const d = mkdtempSync(join(tmpdir(), 'bridge-test-gh-'));
+  writeFileSync(join(d, 'gh'), '#!/bin/sh\necho "gh: authentication required" >&2\nexit 1\n', { mode: 0o755 });
+  return `${d}:${process.env.PATH ?? ''}`;
+})();
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 describe('bridge CLI', () => {
@@ -143,6 +149,33 @@ describe('bridge CLI', () => {
     expect(bad.out).toMatch(/status: blocked/);
   });
 
+  it('propose: errors name the CLI flags and say how to fix, never a JavaScript error', () => {
+    const dir = tempGitRepo(REPO, REAL_PATHS);
+    const ambiguous = bridge(dir, 'propose', '--title', 'Darker action', '--set', 'color.action.primary.bg=#000000', '--direct');
+    expect(ambiguous.code).toBe(2);
+    expect(ambiguous.err).toMatch(/Pass --file <file> or --mode theme=dark/);
+    expect(ambiguous.err).not.toMatch(/"mode"|\{ "theme"/);
+    const missing = bridge(dir, 'propose', '--title', 'Darker action', '--edits', 'no-such-edits.json', '--direct');
+    expect(missing.code).toBe(2);
+    expect(missing.err).toMatch(/no-such-edits\.json does not exist\. Pass --edits with a JSON array of edits/);
+    expect(missing.err).not.toMatch(/ENOENT/);
+    writeFileSync(join(dir, 'edits.json'), '{ "op": "set" }');
+    const notArray = bridge(dir, 'propose', '--title', 'Darker action', '--edits', 'edits.json', '--direct');
+    expect(notArray.code).toBe(2);
+    expect(notArray.err).toMatch(/edits\.json must hold a JSON array of edits/);
+    expect(notArray.err).not.toMatch(/Spread syntax|iterable/);
+  });
+
+  it('snapshot --activity without a token says how to read GitHub, not how to write', () => {
+    const out = mkdtempSync(join(tmpdir(), 'bridge-test-snapshot-'));
+    const env: Record<string, string | undefined> = { ...process.env, BRIDGE_OFFLINE: '1', PATH: GH_FAILS };
+    for (const k of ['GITHUB_TOKEN', 'GH_TOKEN', 'BRIDGE_GITHUB_TOKEN']) delete env[k];
+    const r = spawnSync(process.execPath, [CLI, 'snapshot', '--out', out, '--activity'], { cwd: REPO, encoding: 'utf8', env });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/--activity reads GitHub: set GITHUB_TOKEN, pass --token <token>, or run gh auth login/);
+    expect(r.stderr).not.toMatch(/To write on GitHub/);
+  });
+
   it('init writes bridge.config.json and .mcp.json, prints the Claude Desktop snippet', () => {
     const dir = tempGitRepo(FIXTURE, ['.']);
     const r = bridge(dir, 'init');
@@ -188,6 +221,19 @@ describe('bridge CLI', () => {
       expect(worse.out).toMatch(/since baseline\s+tokens -/);
       expect(worse.err).toMatch(/regressed/);
       expect(bridge(REPO, 'audit', join(APPS, 'clean-app'), '--baseline', join(dir, 'clean.json'), '--no-regress').code).toBe(0);
+    });
+
+    it('--baseline that is not an audit report says how to write one, never "undefined"', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'bridge-test-audit-'));
+      writeFileSync(join(dir, 'other.json'), '{ "name": "x" }');
+      const other = bridge(REPO, 'audit', join(APPS, 'clean-app'), '--baseline', join(dir, 'other.json'));
+      expect(other.code).toBe(2);
+      expect(other.err).toMatch(/not a bridge audit report.*bridge audit <path> --json <file>/);
+      expect(other.err).not.toMatch(/undefined/);
+      writeFileSync(join(dir, 'broken.json'), '{');
+      const broken = bridge(REPO, 'audit', join(APPS, 'clean-app'), '--baseline', join(dir, 'broken.json'));
+      expect(broken.code).toBe(2);
+      expect(broken.err).toMatch(/broken\.json is not valid JSON .*bridge audit <path> --json <file>/);
     });
 
     it('--fix is a dry run unless --write; exit 2 without a path or a design system', () => {
