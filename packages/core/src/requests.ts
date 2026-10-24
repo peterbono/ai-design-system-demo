@@ -59,6 +59,8 @@ export interface ComponentChangeRequest {
    * `exploration` label and the brief says to work on that branch (docs/EXPLORATIONS.md).
    */
   exploration?: string | undefined;
+  /** Build request details (before and after images, props needed, spec path): build-requests.ts. */
+  build?: import('./build-requests').BuildRequestExtra | undefined;
 }
 
 export interface RequestIssue {

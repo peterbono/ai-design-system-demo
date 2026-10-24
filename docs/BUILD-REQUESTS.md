@@ -1,0 +1,98 @@
+# Pushes from Figma and build requests
+
+What happens when a designer pushes from the Bridge Figma plugin to the library. Code in
+`packages/core/src/build-requests.ts` (pure rules), `build-requests-github.ts` (GitHub reads and writes) and
+`withFigmaPushApprovals` in `review-gate.ts` (the gate). Studio, the plugin, the CLI and the MCP server share them.
+
+## The rule
+
+A push from the Figma plugin counts as design-approved. Keeping unvalidated work out of Figma main is the team's
+own discipline, not Bridge's: there is no declaration and no approver to name. Who pushed is recorded as usual (the
+pull request or issue author, the "Requested by" line), and History keeps **Undo this change** for anything that
+shipped.
+
+| What the push changes | Where it goes | Who acts |
+| --- | --- | --- |
+| Token values (and new tokens) | A pull request that ships after the automatic checks (contrast gate, visual before/after, CI) | Nobody: Bridge merges it on green |
+| A token renamed or removed | A pull request waiting for a developer OK (the tech approval) | A tech owner, because it can break product code |
+| Structure: a new variant, option (prop), layout, a new component | A **build request**: a GitHub issue developers build from | Developers, in GitHub or Jira |
+
+Explorations keep their own flow ([EXPLORATIONS.md](EXPLORATIONS.md)): a pull request or issue labelled
+`exploration` gets none of this.
+
+## The gate
+
+`branchVerdict` takes `figmaPush` (from `figmaPushOf(pr, { files, tokenChanges, config })`) and credits approvals
+with `withFigmaPushApprovals`:
+
+- A push is known by the `source: figma` or `from-figma` label, or the hidden "From Figma" block of a component
+  branch. The pull request of a build request (its body says `Closes #n` on one sent from Figma) counts too
+  (`closesFigmaBuildRequest`).
+- The scope comes from the pull request's real files and token changes, never from its body (`figmaPushScope`):
+  `token-values` (token files, changesets, docs and `.bridge/` only; tokens changed or added), `token-structure`
+  (a rename or removal), `token-unknown` (token changes not read), `component` (code), `outside` (a guardrail file).
+- Design approval: every scope but `outside`. Tech approval: `token-values` only. Everything else still gates as in
+  [GOVERNANCE.md](GOVERNANCE.md): CI, changes requested, conflicts, the ship right.
+- `verdict.autoShip` is true on an open `token-values` push: review queues and "Needs you" leave it out.
+
+## Publishing from the plugin
+
+The plugin reports one `PublishOutcome` per token or component (`PublishResult.outcomes`):
+
+```ts
+{ subject: { type: 'token' | 'component', name }, route: 'shipped' | 'waiting-for-developer' | 'build-request',
+  ref: { kind: 'pull' | 'issue', number, url }, armed?: boolean }
+```
+
+- **Token pushes.** `tokenPublishRoute(changes, armed)` picks the route from the token changes the plugin planned:
+  a rename or removal is `waiting-for-developer`. Otherwise the plugin opens the pull request ready for review
+  (`writeTokenProposalOnGitHub(..., { draft: false })`), then asks Bridge to arm the merge (the server part:
+  auto-merge on GitHub, or the Bridge app merging on green). Armed: `shipped`. Not armed (no Bridge app on the
+  repository, auto-merge off): `waiting-for-developer`.
+- **What `shipped` means when publish returns:** the merge is armed, it is **not merged yet**. The plugin shows
+  "On its way to the library" and polls `libraryArrivalOnGitHub(gh, n)` (every 20 to 30 seconds) until `final`:
+  `in-the-library` ("In the library"), `held` ("Held for a developer": a check failed, a conflict or a change
+  request, never named to the designer) or `not-shipped` (closed).
+- **Component pushes.** An exact token swap is a token push (above). Anything that needs code becomes a build
+  request: `createBuildRequestOnGitHub(gh, input)` (or `composeBuildRequestIssue` to write it yourself), route
+  `build-request`. `publishSummary(result)` says it in one sentence.
+
+When Bridge ships a push it leaves a review whose body starts with `**Bridge: shipped from Figma**`
+(`figmaShipReviewBody`).
+
+## Build requests
+
+A build request is a component change request ([REQUESTS.md](REQUESTS.md)) with more for developers: one GitHub
+issue labelled `component-change` (so the `bridge-jira` Action mirrors it to Jira when set up, no workflow change),
+`bridge-build`, `request: <kind>` and `source: figma`. `composeBuildRequestIssue(input)` takes:
+
+```ts
+{ component, kind, title, summary, line?, changes?, figma: { fileKey, nodeId, nodeName, url },
+  images?: { before?: string[], after?: string[] }, props?: BuildProp[], spec?, specPath?, brief?, source, requestedBy? }
+```
+
+The body: the request (summary, change table, Figma link), before and after side by side, the props needed, a
+collapsed **Brief for Claude** and a collapsed **Spec** (JSON, left out above 30,000 characters: give `specPath`
+then). The hidden `bridge-request` block keeps `build: { v: 1, before, after, props, specPath }`;
+`parseBuildRequestIssue` and `parseBuildSpec` read it back, `buildRequestBrief(r, { issue })` writes the brief
+again with the issue number. Every component change request reads as a build request; `bridge-build` marks the new
+ones. A library branch from Figma waiting for a developer (direct mode, labels `from-figma` and
+`waiting-for-claude`) reads as one too.
+
+### Status, read from GitHub only
+
+Developers split and track the work in GitHub or Jira. Bridge never writes to a build request after filing it.
+
+| Status | From GitHub |
+| --- | --- |
+| Requested | Open, nobody assigned. Stale after 7 days |
+| Picked up | Someone assigned: "Ana is on it." |
+| In progress | A linked pull request (`Closes #n`) still a draft, with work on it |
+| In review | A linked pull request ready for review |
+| Shipped | A linked pull request merged, or the issue closed as completed |
+| Not planned | Closed as not planned |
+
+`buildRequestStatus`, `assembleBuildRequests` and `listBuildRequestsOnGitHub` give each request its status,
+builders, age, stale flag, timeline, Jira key (`jira: DS-12` label) and Figma link. `matchesBuildFilter` gives the
+Studio filters (All, Waiting to be picked up, In progress, Shipped this week), `buildSummaryLine` the home line and
+`figmaAheadLine` the Library line "Figma is ahead: 2 changes being built (Ana)."

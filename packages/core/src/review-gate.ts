@@ -3,6 +3,7 @@
 // Pure functions over GitHub REST shapes, no fetch, no DOM. Same rules as docs/GOVERNANCE.md: the highest tier wins,
 // Tier 2 and 3 need a design and a tech approval, nothing merges while tests fail. Who may ship comes from
 // `governance.rights` (rights.ts). Moved from the docs site (apps/docs-site/src/lib/review-rules.ts re-exports it).
+import type { FigmaPush } from './build-requests';
 import type { OverridePolicy } from './config';
 import { isActiveExploration } from './explorations';
 import { DRAFTED_BY_CLAUDE_LABEL, WAITING_FOR_CLAUDE_LABEL } from './figma-push';
@@ -208,6 +209,19 @@ export function withSuggestionApprovals(pr: ApprovalSummary, suggestion: { appro
   return { ...pr, approvers, design: pr.design || s.design, tech: pr.tech || s.tech, owner: hasOwnerApproval(pr) || hasOwnerApproval(s) };
 }
 
+/**
+ * The approvals a push from the Figma plugin carries (docs/BUILD-REQUESTS.md): a push counts as design-approved, since
+ * keeping unvalidated work out of Figma main is the team's discipline. Token values only (scope `token-values`) also
+ * count as tech-approved: they ship after the automatic checks. A rename or removal, code, or unread token changes still
+ * need the tech approval. A guardrail file (`outside`) gets no credit. Changes requested on the pull request, CI, a
+ * conflict and the ship right gate the merge as before.
+ */
+export function withFigmaPushApprovals(pr: ApprovalSummary, push: FigmaPush | null | undefined): ApprovalSummary {
+  if (!push || push.scope === 'outside') return pr;
+  const tech = pr.tech || push.scope === 'token-values';
+  return { ...pr, design: true, tech, owner: true };
+}
+
 export type MissingApproval = 'design approval' | 'tech approval' | 'approval';
 
 export interface MergeGate {
@@ -340,6 +354,8 @@ export interface BranchVerdictInput {
   viewer?: string | null | undefined;
   exploration?: boolean | undefined;
   ship?: ShipPolicy | null | undefined;
+  /** Pushed from the Figma plugin (figmaPushOf): design approved by the push, tech too for token values only. */
+  figmaPush?: FigmaPush | null | undefined;
 }
 
 export interface BranchVerdict {
@@ -349,10 +365,16 @@ export interface BranchVerdict {
   override: OverridePolicy | null;
   gate: MergeGate | null;
   status: ReviewStatusKind;
+  /**
+   * A token push from Figma with values only, still open: Bridge merges it once the automatic checks pass, nobody
+   * reviews it. Review queues and "Needs you" leave it out; Studio shows "On its way to the library".
+   */
+  autoShip: boolean;
 }
 
 export function branchVerdict(input: BranchVerdictInput): BranchVerdict {
-  const approvals = input.approvals ? withSuggestionApprovals(input.approvals, input.suggestion, input.tier) : null;
+  const own = input.approvals ? withFigmaPushApprovals(input.approvals, input.figmaPush) : null;
+  const approvals = own ? withSuggestionApprovals(own, input.suggestion, input.tier) : null;
   const override = ownerOverridePolicy(input.override, input.owners);
   const state = input.state ?? 'open';
   const draft = isDraft(input);
@@ -361,7 +383,9 @@ export function branchVerdict(input: BranchVerdictInput): BranchVerdict {
     input.ci && approvals
       ? mergeGate({ tier: input.tier, ci: input.ci, approvals, draft, mergeable: input.mergeable, state, merged_at: input.merged_at, viewer: input.viewer, override, exploration: input.exploration, ship: input.ship })
       : null;
-  return { approvals, override, gate, status };
+  // A draft counts: Bridge marks it ready when it arms the merge.
+  const autoShip = input.figmaPush?.scope === 'token-values' && state === 'open' && !input.merged_at && !input.exploration;
+  return { approvals, override, gate, status, autoShip };
 }
 
 export const CONFLICT_REASON = 'It conflicts with main: resolve it with Update from main on the branch.';

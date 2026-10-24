@@ -1,6 +1,7 @@
 # Component change requests
 
-Designers ask, developers implement, code stays the source of truth.
+Designers ask, developers implement, code stays the source of truth. Pushed from the Figma plugin, a component change
+that needs code is a **build request**: see [BUILD-REQUESTS.md](BUILD-REQUESTS.md).
 
 ## The rule
 
