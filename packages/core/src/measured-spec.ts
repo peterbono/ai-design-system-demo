@@ -1,0 +1,452 @@
+// Measured specs, browser safe: the shapes `bridge specs --measure` writes (a story's rendered tree and its spec-shaped
+// reading), how a static spec's parts pair with measured ones, and the comparison of the two. No Node or DOM API: the
+// Figma plugin's UI reads measured-specs.json and pairs layers with these. The measure itself (a browser driving
+// Storybook) lives in '@bridge-ds/core/node' (measure.ts).
+
+import type { SpecField, SpecPart, SpecValue, SpecVariant } from './component-spec';
+import type { ComponentStatus } from './measure-status';
+
+/** How a value was tied to a custom property. */
+export interface MeasuredToken {
+  /**
+   * `declared`: the winning CSS declaration uses the variable (strong). `matched`: no declaration does, but the value
+   * equals a variable defined on the root (weak: several tokens can share a value).
+   */
+  via: 'declared' | 'matched';
+  /** declared: the variable the declaration names, then what it aliases (`--button-bg`, `--color-action-primary-bg`). matched: up to 3 candidates. */
+  chain: string[];
+  /** declared: the declaration is the variable alone (`var(--x)`), not a calc() or a function of it. */
+  exact: boolean;
+  /** declared: the declaration text (`var(--space-2) var(--space-3)` piece for this side). */
+  declared?: string | undefined;
+}
+
+export interface MeasuredBox {
+  /** Relative to the measured root's top-left corner, CSS pixels. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface MeasuredNode {
+  /** Tag name, `#text` for a text run inside an element that also holds elements. */
+  tag: string;
+  kind: 'frame' | 'text' | 'icon' | 'vector';
+  classes?: string[] | undefined;
+  role?: string | undefined;
+  /** State attributes (data-state, data-variant, aria-checked...). */
+  attrs?: Record<string, string> | undefined;
+  box: MeasuredBox;
+  /** Computed values of the properties the measure reads (display, flex, padding, colors, fonts...). */
+  style: Record<string, string>;
+  /** CSS property -> the token behind its value. */
+  tokens: Record<string, MeasuredToken>;
+  /** Text layers: the characters. */
+  text?: string | undefined;
+  /** Icons and vectors: their markup when short. */
+  svg?: string | undefined;
+  media?: boolean | undefined;
+  input?: { type: string; value: string; placeholder: string; checked: boolean } | undefined;
+  /** Node or depth limit reached under this node. */
+  truncated?: boolean | undefined;
+  children: MeasuredNode[];
+}
+
+/** A measure in the Figma pull's shape: the parts of one variant and their field values, plus what a spec leaves out. */
+export interface MeasuredSpec {
+  story: string;
+  parts: SpecPart[];
+  /** Part id -> field -> token path (declared token), number (px or unitless literal) or null (no paint). */
+  values: SpecVariant['values'];
+  /** Part id -> field -> the computed value (`rgb(31, 41, 55)`, 16). Colors without a token only live here. */
+  raw: Record<string, Partial<Record<SpecField, string | number>>>;
+  /** Part id -> field -> the token evidence (declared chain or value match). */
+  tokens: Record<string, Partial<Record<SpecField, MeasuredToken>>>;
+  /** Part id -> its measured box. */
+  boxes: Record<string, MeasuredBox>;
+  /** Fields read, and how many are tied to a declared token, to a value match, or to none. */
+  coverage: { fields: number; declared: number; matched: number; literal: number };
+}
+
+const px = (v: string | undefined): number | undefined => {
+  if (!v) return undefined;
+  const m = /^(-?[\d.]+)px$/.exec(v.trim());
+  return m ? Math.round(Number(m[1]) * 100) / 100 : undefined;
+};
+
+// ---------------------------------------------------------------------------------------------
+// Static guess vs measured truth
+
+export interface FieldDiff {
+  part: string;
+  field: SpecField;
+  /** The static spec's value (token path, number, null), undefined when the static spec has no value there. */
+  static?: SpecValue | undefined;
+  /** The measured value: token path when declared, else the raw value. Undefined when the field was not measured. */
+  measured?: SpecValue | undefined;
+  /** Same token, or same resolved value. */
+  same: boolean;
+}
+
+export interface SpecComparison {
+  /** Static parts matched to a measured part (by CSS class, then by kind and order). */
+  partsMatched: number;
+  staticParts: number;
+  measuredParts: number;
+  /** Fields both sides have. */
+  compared: number;
+  same: number;
+  /** Fields where both name a token and it is the same token. */
+  sameToken: number;
+  diffs: FieldDiff[];
+  /** Static parts no measured part matches (hidden optional parts, or parts the static guess invented). */
+  unmatchedParts: string[];
+  /** Static fields with no measured counterpart, measured fields the static spec misses. */
+  staticOnly: number;
+  measuredOnly: number;
+  /** Width and height, root part: static (when a number) vs measured, px. */
+  rootSize?: { static: { width?: number | undefined; height?: number | undefined }; measured: { width: number; height: number } } | undefined;
+}
+
+/** A spec calc() of token paths (`calc(control.height.sm - border-width.default * 2)`) in px, from resolved tokens. */
+export function evalCalc(expr: string, resolve: (tokenPath: string) => string | number | undefined): number | undefined {
+  const body = /^calc\((.*)\)$/s.exec(expr.trim())?.[1];
+  if (!body) return undefined;
+  let missing = false;
+  const text = body.replace(/[A-Za-z_][\w-]*(?:\.[\w-]+)*/g, (path) => {
+    const v = resolve(path);
+    const n = typeof v === 'number' ? v : v === undefined ? undefined : Number.parseFloat(v);
+    if (n === undefined || Number.isNaN(n)) missing = true;
+    return String(n);
+  });
+  if (missing || !/^[\d.\s+\-*/()]+$/.test(text)) return undefined;
+  // Only numbers, + - * / and parentheses are left: a tiny recursive descent, no eval.
+  const tokens = text.match(/\d*\.?\d+|[+\-*/()]/g) ?? [];
+  let i = 0;
+  const factor = (): number => {
+    const t = tokens[i++];
+    if (t === '(') {
+      const v = sum();
+      i++;
+      return v;
+    }
+    if (t === '-') return -factor();
+    return Number(t);
+  };
+  const product = (): number => {
+    let v = factor();
+    while (tokens[i] === '*' || tokens[i] === '/') v = tokens[i++] === '*' ? v * factor() : v / factor();
+    return v;
+  };
+  const sum = (): number => {
+    let v = product();
+    while (tokens[i] === '+' || tokens[i] === '-') v = tokens[i++] === '+' ? v + product() : v - product();
+    return v;
+  };
+  const v = sum();
+  return Number.isFinite(v) ? Math.round(v * 100) / 100 : undefined;
+}
+
+/**
+ * Compares a static variant (component-specs.json) with a measure of the same render. `resolve` turns a token path
+ * into the measured page's value (normalised the way MeasuredSpec.raw is) for the value comparison; without it, token
+ * paths are compared by name only.
+ */
+/** A CSS variable and a token path name the same token (`--border-width-default`, `border-width.default`). */
+const sameName = (cssVar: string, path: string) => cssVar.replace(/^--/, '').replace(/[^A-Za-z0-9]/g, '').toLowerCase() === path.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+
+/** `#rrggbb[aa]` and `rgb()`/`rgba()` to one spelling, spaces removed; other strings unchanged. */
+function normColor(v: string): string {
+  const t = v.trim().toLowerCase();
+  const hex = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/.exec(t)?.[1];
+  if (hex) {
+    const full = hex.length <= 4 ? hex.split('').map((c) => c + c).join('') : hex;
+    const [r, g, b] = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16));
+    const a = full.length === 8 ? Math.round((parseInt(full.slice(6, 8), 16) / 255) * 100) / 100 : 1;
+    return a === 1 ? `rgb(${r},${g},${b})` : `rgba(${r},${g},${b},${a})`;
+  }
+  const m = /^rgba?\(([^)]*)\)$/.exec(t);
+  if (m) {
+    const parts = m[1]!.split(/[\s,/]+/).filter(Boolean).map(Number);
+    const [r, g, b] = parts;
+    const a = parts[3] ?? 1;
+    return a === 1 ? `rgb(${r},${g},${b})` : `rgba(${r},${g},${b},${Math.round(a * 100) / 100})`;
+  }
+  return t.replace(/\s+/g, '');
+}
+
+export interface PairOptions {
+  /** The component's properties: a text part bound to a TEXT property is paired by that property's default text. */
+  properties?: { name: string; type: string; default?: unknown }[] | undefined;
+}
+
+const normText = (t: string | undefined) => (t ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+/**
+ * Pairs static parts with measured parts: root to root, text layers by their characters (a TEXT property's default, or
+ * fixed characters), then CSS class under the paired parent, then kind and order under the paired parent. A part whose
+ * parent the render does not show is not shown either (an error row's icon is not the checkbox's check).
+ */
+export function pairParts(staticParts: SpecPart[], measured: Pick<MeasuredSpec, 'parts'>, o: PairOptions = {}): Map<string, string> {
+  const pairs = new Map<string, string>();
+  const taken = new Set<string>();
+  const mParts = new Map(measured.parts.map((p) => [p.id, p]));
+  const sParts = new Map(staticParts.map((p) => [p.id, p]));
+  const take = (s: string, m: string) => {
+    pairs.set(s, m);
+    taken.add(m);
+  };
+  /** Measured ancestors of a measured part, nearest first. */
+  const ancestors = (id: string) => {
+    const out: string[] = [];
+    for (let p = mParts.get(id)?.parent; p; p = mParts.get(p)?.parent) out.push(p);
+    return out;
+  };
+  /** The measured counterpart of the nearest paired static ancestor. */
+  const pairedAncestor = (p: SpecPart) => {
+    for (let a = p.parent; a; a = sParts.get(a)?.parent) if (pairs.has(a)) return pairs.get(a);
+    return undefined;
+  };
+  /** Prefer the candidate under the paired parent, then under the nearest paired ancestor, then the first. */
+  const best = (p: SpecPart, cands: SpecPart[]) => {
+    if (!cands.length) return undefined;
+    const parent = p.parent ? pairs.get(p.parent) : undefined;
+    if (parent) {
+      const direct = cands.find((c) => c.parent === parent);
+      if (direct) return direct;
+    }
+    const anc = pairedAncestor(p);
+    if (anc) {
+      const under = cands.find((c) => ancestors(c.id).includes(anc));
+      if (under) return under;
+    }
+    return cands[0];
+  };
+  const root = staticParts.find((p) => !p.parent);
+  if (root) take(root.id, 'root');
+
+  // 1. Text layers by their characters: compound sets repeat the same classes, the words tell them apart.
+  const textOf = (p: SpecPart) => {
+    if (p.characters) return normText(p.characters);
+    const prop = p.text ? o.properties?.find((x) => x.name === p.text && x.type === 'TEXT') : undefined;
+    return typeof prop?.default === 'string' ? normText(prop.default) : '';
+  };
+  for (const p of staticParts) {
+    if (p.kind !== 'text' || pairs.has(p.id)) continue;
+    const t = textOf(p);
+    if (!t) continue;
+    const hit = best(p, measured.parts.filter((m) => m.kind === 'text' && !taken.has(m.id) && normText(m.characters) === t));
+    if (hit) take(p.id, hit.id);
+  }
+  // The frame around a paired text (a legend, a checkbox's item) is the text's measured ancestor with the frame's
+  // class, or its direct parent when the static frame has no class.
+  const classOf = (p: SpecPart | undefined) => /\.([\w-]+)\s*$/.exec(p?.source ?? '')?.[1];
+  for (const p of staticParts) {
+    if (p.kind !== 'text' || !pairs.has(p.id) || !p.parent || pairs.has(p.parent)) continue;
+    const sp = sParts.get(p.parent);
+    if (!sp || sp.kind !== 'frame' || !sp.parent) continue;
+    const cls = classOf(sp);
+    const mp = cls ? ancestors(pairs.get(p.id)!).find((a) => (mParts.get(a)?.source ?? '').split(' ').includes(cls)) : mParts.get(pairs.get(p.id)!)?.parent;
+    if (mp && mp !== 'root' && !taken.has(mp) && mParts.get(mp)?.kind === 'frame') take(sp.id, mp);
+  }
+
+  // 2. CSS class, preferring the instance under the paired parent (three checkboxes share `.box`).
+  const byClass = new Map<string, SpecPart[]>();
+  for (const p of measured.parts) for (const c of (p.source ?? '').split(' ')) if (c) byClass.set(c, [...(byClass.get(c) ?? []), p]);
+  for (const p of staticParts) {
+    if (pairs.has(p.id)) continue;
+    const cls = classOf(p);
+    const hit = cls ? best(p, (byClass.get(cls) ?? []).filter((m) => !taken.has(m.id))) : undefined;
+    if (hit) take(p.id, hit.id);
+  }
+
+  // 3. Kind and order under the paired parent. Static parts whose parent was not paired stay unpaired (not rendered).
+  for (const p of staticParts) {
+    if (pairs.has(p.id)) continue;
+    if (p.parent && !pairs.has(p.parent)) continue;
+    const parent = p.parent ? pairs.get(p.parent) : undefined;
+    const known = p.kind === 'text' && !!textOf(p);
+    const free = measured.parts.filter((m) => !taken.has(m.id) && m.kind === p.kind);
+    // Text runs can sit deeper than the static parent (a span inside a label): any free text under the parent.
+    const hit = free.find((m) => !parent || m.parent === parent) ?? (p.kind === 'text' && parent && !known ? free.find((m) => ancestors(m.id).includes(parent)) : undefined);
+    if (hit) take(p.id, hit.id);
+  }
+  return pairs;
+}
+
+export function compareSpecToMeasured(
+  staticParts: SpecPart[],
+  staticValues: SpecVariant['values'],
+  measured: MeasuredSpec,
+  resolve?: (tokenPath: string) => string | number | undefined,
+  o: PairOptions = {},
+): SpecComparison {
+  const pairs = pairParts(staticParts, measured, o);
+  const out: SpecComparison = { partsMatched: pairs.size, staticParts: staticParts.length, measuredParts: measured.parts.length, compared: 0, same: 0, sameToken: 0, diffs: [], unmatchedParts: [], staticOnly: 0, measuredOnly: 0 };
+  const num = (v: string | number | undefined) => (typeof v === 'number' ? v : v === undefined ? undefined : /^-?[\d.]+$/.test(v.trim()) ? Number(v) : px(v));
+  const near = (a: string | number | undefined, b: string | number | undefined) => {
+    if (a === undefined || b === undefined) return false;
+    const na0 = num(a);
+    const nb0 = num(b);
+    if (na0 !== undefined && nb0 !== undefined) return Math.abs(na0 - nb0) <= 0.5;
+    if (typeof a === 'number' && typeof b === 'number') return Math.abs(a - b) <= 0.5;
+    const na = typeof a === 'string' ? (px(a) ?? normColor(a)) : a;
+    const nb = typeof b === 'string' ? (px(b) ?? normColor(b)) : b;
+    return typeof na === 'number' && typeof nb === 'number' ? Math.abs(na - nb) <= 0.5 : na === nb;
+  };
+  for (const sp of staticParts) {
+    const mid = pairs.get(sp.id);
+    // A part the render does not show (an optional icon, a hidden layer) is a part count difference, not field ones.
+    if (!mid) {
+      out.unmatchedParts.push(sp.id);
+      continue;
+    }
+    const sv = staticValues[sp.id] ?? {};
+    const mv = mid ? (measured.values[mid] ?? {}) : {};
+    const mr = mid ? (measured.raw[mid] ?? {}) : {};
+    const fields = new Set<SpecField>([...(Object.keys(sv) as SpecField[]), ...(Object.keys(mv) as SpecField[])]);
+    for (const f of fields) {
+      // Sizes the static spec leaves to auto layout (hug) are not a disagreement.
+      if ((f === 'width' || f === 'height') && sv[f] === undefined) continue;
+      const s = sv[f];
+      const m = mv[f] !== undefined ? mv[f] : mr[f];
+      if (s === undefined) {
+        if (m !== undefined && m !== 0) out.measuredOnly++;
+        continue;
+      }
+      if (m === undefined && !(f in mr)) {
+        // A zero or transparent value is not measured as a field: equal to a static 0 / null.
+        if (s === 0 || s === null) continue;
+        const r = typeof s === 'string' && resolve ? resolve(s) : s;
+        if (r === 0 || r === '0px' || r === null) continue;
+        out.staticOnly++;
+        out.diffs.push({ part: sp.id, field: f, static: s, same: false });
+        continue;
+      }
+      out.compared++;
+      let same = s === m;
+      // The measured declaration goes through the same token (a shorthand `border: var(--border-width-default) solid`
+      // keeps a number, but its chain names the token): same token.
+      if (!same && typeof s === 'string' && !/^calc\(/.test(s)) same = (measured.tokens[mid]?.[f]?.chain ?? []).some((v) => sameName(v, s));
+      if (same && typeof s === 'string') out.sameToken++;
+      if (!same && resolve) {
+        let rs = typeof s === 'string' ? (/^calc\(/.test(s) ? evalCalc(s, resolve) : resolve(s)) : typeof s === 'number' ? s : undefined;
+        // A unitless line height is a multiple of the font size.
+        const size = typeof mr.fontSize === 'number' ? mr.fontSize : undefined;
+        if (f === 'lineHeight' && size && rs !== undefined && /^[\d.]+$/.test(String(rs).trim()) && Number(rs) < 4) rs = Number(rs) * size;
+        same = near(rs, mr[f]);
+      }
+      if (same) out.same++;
+      else out.diffs.push({ part: sp.id, field: f, static: s, measured: m ?? null, same });
+    }
+  }
+  const root = staticValues[staticParts.find((p) => !p.parent)?.id ?? 'root'] ?? {};
+  const box = measured.boxes.root;
+  if (box) out.rootSize = { static: { width: typeof root.width === 'number' ? root.width : undefined, height: typeof root.height === 'number' ? root.height : undefined }, measured: { width: box.width, height: box.height } };
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Story props: what a measured story was rendered with
+
+/** One component prop as Storybook knows it (argTypes, docgen), read in the preview page. */
+export interface MeasuredArgType {
+  /** `enum`: a closed list of options (a Figma VARIANT axis); `boolean` (a BOOLEAN property or a Disabled state); `text`; `number`; `other` (functions, nodes). */
+  kind: 'enum' | 'boolean' | 'text' | 'number' | 'other';
+  options?: string[] | undefined;
+  /** The component's default (docgen `defaultValue`, or the argType's `table.defaultValue`). */
+  default?: string | number | boolean | undefined;
+  /** Control type (`select`, `radio`, `boolean`, `text`...). */
+  control?: string | undefined;
+}
+
+/** The props a story rendered with: its args over the component defaults, and the component's prop list. */
+export interface MeasuredProps {
+  /** Args with the component defaults applied (`{ variant: 'primary', size: 'md', disabled: false }`). Plain values only. */
+  props: Record<string, string | number | boolean | null>;
+  /** The story's own args (initial args plus URL overrides), plain values only. */
+  args: Record<string, string | number | boolean | null>;
+  argTypes: Record<string, MeasuredArgType>;
+  /** Component display name, when the story names one. */
+  component?: string | undefined;
+}
+
+// ---------------------------------------------------------------------------------------------
+// measured-specs.json
+
+export type MeasuredState = 'hover' | 'focus-visible' | 'active';
+
+export interface MeasuredSpecsStory {
+  id: string;
+  title: string;
+  name: string;
+  url: string;
+  ms: number;
+  error?: string | undefined;
+  spec?: MeasuredSpec | undefined;
+  /** The props the story rendered with (args over component defaults). */
+  props?: MeasuredProps['props'] | undefined;
+  /** Arg overrides Bridge passed to reach a variant (`{ size: 'lg', disabled: true }`); absent for the story as written. */
+  overrides?: Record<string, string | number | boolean> | undefined;
+  /** Pseudo state forced on the component (Chrome DevTools forced :hover / :focus-visible / :active). */
+  state?: MeasuredState | undefined;
+  /** A story that renders the component several times: one spec per instance (`spec` is the first). */
+  instances?: MeasuredSpec[] | undefined;
+  /** Popup stories: how the popup came to show. */
+  opened?: 'already' | 'click' | 'hover' | 'focus' | 'none' | undefined;
+}
+
+/** Per Storybook component (title): its prop list, from the first story measured. */
+export interface MeasuredSpecsComponent {
+  title: string;
+  name: string;
+  argTypes: Record<string, MeasuredArgType>;
+  component?: string | undefined;
+  /** Token path -> its value in the measured page (colors `rgb()`, lengths px): the tokens the Figma side names. */
+  resolved?: Record<string, string> | undefined;
+}
+
+export interface MeasuredSpecsFile {
+  version: 1;
+  storybook: string;
+  measuredAt: string;
+  stories: MeasuredSpecsStory[];
+  components?: MeasuredSpecsComponent[] | undefined;
+  /** With --check: one status per component for the contract screen. */
+  statuses?: ComponentStatus[] | undefined;
+}
+
+export class MeasuredSpecsError extends Error {}
+
+const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * Reads measured-specs.json (text or parsed JSON) and checks its shape: version 1, a storybook URL, stories with ids,
+ * and specs with parts and values. Throws MeasuredSpecsError with what is wrong.
+ */
+export function parseMeasuredSpecsFile(input: string | unknown): MeasuredSpecsFile {
+  let data: unknown = input;
+  if (typeof input === 'string') {
+    try {
+      data = JSON.parse(input);
+    } catch (e) {
+      throw new MeasuredSpecsError(`measured specs are not JSON: ${(e as Error).message}`);
+    }
+  }
+  if (!isObj(data)) throw new MeasuredSpecsError('measured specs: expected an object');
+  if (data.version !== 1) throw new MeasuredSpecsError(`measured specs: version ${String(data.version)} is not supported (expected 1)`);
+  if (typeof data.storybook !== 'string') throw new MeasuredSpecsError('measured specs: storybook URL missing');
+  if (!Array.isArray(data.stories)) throw new MeasuredSpecsError('measured specs: stories missing');
+  data.stories.forEach((s, i) => {
+    if (!isObj(s) || typeof s.id !== 'string') throw new MeasuredSpecsError(`measured specs: story ${i} has no id`);
+    const specs = [s.spec, ...(Array.isArray(s.instances) ? s.instances : [])].filter((x) => x !== undefined);
+    for (const sp of specs) {
+      if (!isObj(sp) || !Array.isArray(sp.parts) || !isObj(sp.values)) throw new MeasuredSpecsError(`measured specs: story ${s.id} has a spec without parts and values`);
+      for (const p of sp.parts as unknown[]) if (!isObj(p) || typeof p.id !== 'string' || typeof p.kind !== 'string') throw new MeasuredSpecsError(`measured specs: story ${s.id} has a part without id or kind`);
+    }
+    if (s.props !== undefined && !isObj(s.props)) throw new MeasuredSpecsError(`measured specs: story ${s.id} props is not an object`);
+  });
+  if (data.components !== undefined && !Array.isArray(data.components)) throw new MeasuredSpecsError('measured specs: components is not a list');
+  return data as unknown as MeasuredSpecsFile;
+}

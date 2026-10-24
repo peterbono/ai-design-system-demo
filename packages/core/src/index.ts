@@ -47,6 +47,8 @@ export * from './explorations';
 export * from './explorations-github';
 export * from './requests-github';
 export * from './component-spec';
+export * from './measured-spec';
+export * from './measure-status';
 export * from './fidelity';
 export * from './fidelity-references';
 export * from './review-gate';
