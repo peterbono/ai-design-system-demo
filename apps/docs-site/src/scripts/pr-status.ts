@@ -15,7 +15,7 @@ import { needFromStatus, pendingApprovals, statusPill, whoActs, type ApprovalRol
 import { developerOnlyFailures } from '../lib/check-explain';
 import { guestActivity } from './guest-activity';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
-import { canOverride, closingIssueNumbers, DEFAULT_OVERRIDE, ownerOverridePolicy, PUBLISH_ROUTE_COPY, type OverridePolicy, type TeamStates } from '@bridge-ds/core';
+import { canOverride, closingIssueNumbers, DEFAULT_OVERRIDE, lookAgainReviewers, ownerOverridePolicy, PUBLISH_ROUTE_COPY, type OverridePolicy, type TeamStates } from '@bridge-ds/core';
 import { approvedSuggestionOf } from './suggestions';
 import { siteConfig } from './repo-context';
 import { loadTeams, siteApproverEntries, siteApprovers, siteRoles, siteShipPolicy, siteSoloOwner, teamSnapshot } from './teams';
@@ -95,6 +95,8 @@ export interface PullStatus extends ReviewStatus {
   /** The design approval is in (summarizeApprovals design): the waiting-for-code rule reads it (lib/change-status). */
   design?: boolean;
   changesRequested?: string[];
+  /** Reviewers to look again: the branch moved on after every changes request (core lookAgainReviewers). */
+  lookAgain?: string[];
   failing?: number;
   /** Names of the failing checks ("Changeset present"), so the Overview can name the blocker. */
   failingChecks?: string[];
@@ -172,6 +174,7 @@ export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}
     approvers: approvals?.approvers,
     design: approvals?.design,
     changesRequested: approvals?.changesRequested,
+    ...(reviews && approvals?.changesRequested.length ? { lookAgain: lookAgainReviewers(reviews, p.head.sha, p.user.login) } : {}),
     failing: ci?.failed.length,
     failingChecks: ci?.failed.map((f) => f.name),
     pending: pendingApprovals(tier, approvals),
@@ -201,7 +204,7 @@ export function statusChip(s: ReviewStatus | null, opts: { skipped?: boolean } =
  * who acts now ("Design owner to approve", "Your turn: approve design"), from the same whoActs as the pull request
  * header. Falls back to the plain status label when the who-acts line adds nothing (unknown, merged, closed).
  */
-type RowFacts = { author: string; labels?: LabelLike[] | null; approvers?: string[]; changesRequested?: string[]; failing?: number; failingChecks?: string[]; pending?: ApprovalRole[]; skipped?: boolean; autoShip?: boolean };
+type RowFacts = { author: string; labels?: LabelLike[] | null; approvers?: string[]; changesRequested?: string[]; lookAgain?: string[]; failing?: number; failingChecks?: string[]; pending?: ApprovalRole[]; skipped?: boolean; autoShip?: boolean };
 
 /** governance.override from bridge.config.json, as the layout embeds it (none when the site has no config). */
 /** The owner override, limited to the owners it names (core overrideHolders): Settings, Home and the branch page agree. */
@@ -226,7 +229,7 @@ export function rowWho(kind: ReviewStatusKind | null, o: RowFacts): WhoActs | nu
   if (o.autoShip && kind !== 'merged' && kind !== 'closed') return { ...ON_ITS_WAY };
   const viewer = currentViewer()?.login ?? null;
   const policy = overridePolicy();
-  return whoActs(needFromStatus(kind, { failing: o.failing, changesRequestedBy: o.changesRequested, developerOnly: developerOnlyFailures(o.failingChecks), pending: o.pending, claude: claudeStage(o.labels) }), {
+  return whoActs(needFromStatus(kind, { failing: o.failing, changesRequestedBy: o.changesRequested, lookAgain: o.lookAgain, developerOnly: developerOnlyFailures(o.failingChecks), pending: o.pending, claude: claudeStage(o.labels) }), {
     owners: owners(),
     shippers: shippers(),
     ...teamPeople(),

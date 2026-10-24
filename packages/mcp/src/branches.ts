@@ -20,6 +20,7 @@ import {
   commitLibraryResolution,
   defaultProduct,
   effectiveTier,
+  lookAgainReviewers,
   findProduct,
   freshness,
   hasWriteAccess,
@@ -205,8 +206,11 @@ export async function branchFacts(ctx: BridgeContext, gh: GitHubClient, n: numbe
     runs.map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion, ...(r.url ? { html_url: r.url } : {}) })),
     statuses.map((s) => ({ context: s.context, state: s.state, target_url: s.target_url })),
   );
+  const reviewLikes = reviews.map((r) => ({ user: r.user ? { login: r.user } : null, state: r.state, submitted_at: r.submittedAt ?? null, commit_id: r.commitId ?? null }));
+  // Updated after every changes request: the reviewers who asked look again (core lookAgainReviewers, as in Studio).
+  const lookAgain = pr.state === 'open' ? lookAgainReviewers(reviewLikes, pr.headSha, pr.author) : [];
   const own = summarizeApprovals(
-    reviews.map((r) => ({ user: r.user ? { login: r.user } : null, state: r.state, submitted_at: r.submittedAt ?? null })),
+    reviewLikes,
     who.lists,
     pr.author,
     { soloOwnerCanApproveBoth: config.governance.soloOwnerCanApproveBoth === true },
@@ -228,7 +232,7 @@ export async function branchFacts(ctx: BridgeContext, gh: GitHubClient, n: numbe
   const override = verdict.override ?? DEFAULT_OVERRIDE;
   const fresh = freshness({ compare: compare ? { behind_by: compare.behindBy, merge_base_commit: compare.mergeBase ? { sha: compare.mergeBase } : null } : null, mergeable: pr.mergeable, open: pr.state === 'open' });
   const product = productOfBranch(productsOf(config), { files: files.map((f) => f.filename), labels: pr.labels });
-  return { config, pr, files, ci, approvals, tier, gate, status, override, suggestion, fresh, compare, exploration, product, lifecycle: pullState(pullLike), write: repo ? hasWriteAccess(repo.permissions) : null, repo, solo: who.solo, lists: who.lists, figmaPush, autoShip: verdict.autoShip };
+  return { config, pr, files, ci, approvals, tier, gate, status, override, suggestion, fresh, compare, exploration, product, lookAgain, lifecycle: pullState(pullLike), write: repo ? hasWriteAccess(repo.permissions) : null, repo, solo: who.solo, lists: who.lists, figmaPush, autoShip: verdict.autoShip };
 }
 
 // The status words Studio shows too (core REVIEW_STATUS_LABEL): one derivation (reviewStatusKind), one vocabulary.
@@ -252,7 +256,7 @@ export async function branchStatus(ctx: BridgeContext, a: { pr: number | string 
     status: { kind: f.status, label: STATUS_WORDS[f.status] },
     // A merged or closed branch needs nothing more: null, never a list of approvals it no longer waits for.
     approvalNeeded: f.lifecycle === 'merged' || f.lifecycle === 'closed' ? null : f.tier === 1 ? 'One owner approval' : 'Design and tech approval',
-    approvals: { approvedBy: f.approvals.approvers, changesRequestedBy: f.approvals.changesRequested, design: f.approvals.design, tech: f.approvals.tech, owner: hasOwnerApproval(f.approvals), ...(f.suggestion ? { carriedFrom: `Suggestion #${f.suggestion.number}: its approvals count here (it applies that approved suggestion).` } : {}), ...(f.solo && (f.tier ?? 3) > 1 ? { soloOwner: soloOwnerSentence(f.solo, Boolean(viewer && viewer.toLowerCase() === f.solo)) } : {}) },
+    approvals: { approvedBy: f.approvals.approvers, changesRequestedBy: f.approvals.changesRequested, ...(f.lookAgain.length ? { lookAgain: f.lookAgain } : {}), design: f.approvals.design, tech: f.approvals.tech, owner: hasOwnerApproval(f.approvals), ...(f.suggestion ? { carriedFrom: `Suggestion #${f.suggestion.number}: its approvals count here (it applies that approved suggestion).` } : {}), ...(f.solo && (f.tier ?? 3) > 1 ? { soloOwner: soloOwnerSentence(f.solo, Boolean(viewer && viewer.toLowerCase() === f.solo)) } : {}) },
     tests: { state: f.ci.state, label: CI_STATE_LABEL[f.ci.state], failing: f.ci.failed.map((x) => x.name), running: f.ci.pending.map((x) => x.name) },
     main: { state: f.fresh.state, behindBy: f.fresh.behindBy },
     merge: {
@@ -279,6 +283,7 @@ function nextStep(ctx: BridgeContext, f: Awaited<ReturnType<typeof branchFacts>>
   if (f.exploration) return `It is an exploration: promote it with ${say(ctx, 'bridge_promote_exploration', `\`bridge explore promote #${n}\``)} when the idea is validated, or close it.`;
   if (f.autoShip && !f.gate.allowed && f.ci.state !== 'fail' && f.fresh.state !== 'conflict' && !f.approvals.changesRequested.length) return 'Pushed from Figma, token values only: it merges by itself once the automatic checks pass.';
   if (f.lifecycle === 'draft') return `Draft: ${say(ctx, 'bridge_send_for_review', `\`bridge branch ready ${n}\``)} asks for review when it is ready.`;
+  if (f.approvals.changesRequested.length && f.lookAgain.length) return `Updated after the changes request: waiting for @${f.lookAgain.join(', @')} to look again and approve.`;
   if (f.fresh.state === 'conflict') return `It conflicts with main: ${say(ctx, 'bridge_update_from_main', `\`bridge branch update ${n}\``)} shows the token conflicts to pick (code conflicts stay with a developer).`;
   if (f.gate.allowed) return viewer ? `Ready: ${say(ctx, 'bridge_merge_branch merges it when the person asks', `\`bridge branch merge ${n}\` merges it`)}.` : 'Ready to merge by someone who may ship.';
   const min = overrideReasonMin(f.override);
@@ -317,13 +322,15 @@ export async function whatNeedsMe(ctx: BridgeContext, a: { limit?: number | unde
       const inTech = viewer ? who.lists.tech.some((x) => same(x, viewer)) : false;
       let needsYou: string | null = null;
       if (viewer && !mine) {
-        if (f.status === 'needs-design' && inDesign) needsYou = 'Your design approval';
+        if (f.status === 'changes-requested' && f.lookAgain.some((x) => same(x, viewer))) needsYou = 'Look again: updated after your changes';
+        else if (f.status === 'needs-design' && inDesign) needsYou = 'Your design approval';
         else if (f.status === 'needs-tech' && inTech) needsYou = 'Your tech approval';
         else if (f.status === 'needs-approval' && canGiveApproval(f, viewer)) needsYou = 'Your approval';
         else if (f.status === 'ready' && f.gate.canShip) needsYou = 'Ready for you to merge';
       }
       if (viewer && mine) {
-        if (f.status === 'changes-requested') needsYou = 'Changes requested on your branch';
+        // Updated after the request: it waits on the reviewers now, not on the author.
+        if (f.status === 'changes-requested') needsYou = f.lookAgain.length ? null : 'Changes requested on your branch';
         else if (f.status === 'ci-failing') needsYou = 'Tests fail on your branch';
         else if (f.status === 'conflict') needsYou = 'Your branch conflicts with main';
         else if (f.status === 'ready' && f.gate.canShip) needsYou = 'Your branch is ready to merge';

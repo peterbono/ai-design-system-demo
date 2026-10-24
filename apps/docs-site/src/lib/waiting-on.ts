@@ -11,6 +11,8 @@
 //     may use it. Never for the tech review: that is developer work.
 //   - A contributor (an email member, or a GitHub account without a review right) is waited on only for their own
 //     branches a reviewer sent back with changes.
+//   - A branch the author updated after every changes request (core lookAgainReviewers) waits on the reviewers who
+//     asked, to look again; no longer on the author.
 //   - Everyone: their own branch approved and ready to merge (reviewers only, contributors never merge), their own
 //     branch sent back with changes.
 //   - Never on anyone in the Studio: technical blockers (failing tests, a conflict with main, a branch approved and
@@ -27,7 +29,7 @@ import type { Lifecycle } from './change-status';
 import type { WorkNature } from './work-nature';
 
 /** What the change asks of the viewer: a review (design, guidance, requested), a merge, or their own branch's next step. */
-export type WaitTask = 'design' | 'ship' | 'guidance' | 'requested' | 'own-changes' | 'own-ship';
+export type WaitTask = 'design' | 'ship' | 'guidance' | 'requested' | 'look-again' | 'own-changes' | 'own-ship';
 
 /** Reviewer: holds a review right. Contributor: makes changes, never reviews. */
 export type ViewerRole = 'reviewer' | 'contributor';
@@ -71,7 +73,7 @@ const norm = (x: string) => x.trim().toLowerCase().replace(/^@/, '');
 const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && norm(a) === norm(b));
 
 /** The review tasks: someone else waits for the viewer's decision. The other tasks are the viewer's own branches. */
-export const isReviewTask = (t: WaitTask | null | undefined): t is 'design' | 'ship' | 'guidance' | 'requested' => t === 'design' || t === 'ship' || t === 'guidance' || t === 'requested';
+export const isReviewTask = (t: WaitTask | null | undefined): t is 'design' | 'ship' | 'guidance' | 'requested' | 'look-again' => t === 'design' || t === 'ship' || t === 'guidance' || t === 'requested' || t === 'look-again';
 
 /** Whether the viewer may be waited on for a review at all: a reviewer, connected or in the demo seat. */
 const reviews = (v: WaitViewer) => v.role === 'reviewer' && (Boolean(v.login) || Boolean(v.seat));
@@ -94,6 +96,8 @@ export function waitingOn(c: WaitChange, v: WaitViewer): WaitTask | null {
   const author = same(c.author, v.login);
   if (author) {
     if (draft || c.lifecycle === 'draft') return null;
+    // Updated after the changes request: it waits on the reviewers now.
+    if (who?.action === 'look-again') return null;
     if (who?.action === 'address-changes' || (c.changesRequested?.length ?? 0) > 0) return 'own-changes';
     // Contributors never merge; a reviewer's own approved branch is theirs to merge.
     if (who?.action === 'merge' && who.yourTurn && reviews(v)) return 'own-ship';
@@ -105,6 +109,7 @@ export function waitingOn(c: WaitChange, v: WaitViewer): WaitTask | null {
   if (draft || c.lifecycle === 'draft' || c.lifecycle === 'waiting') return null;
   if (who.yourTurn) {
     if (who.action === 'merge') return 'ship';
+    if (who.action === 'look-again') return 'look-again';
     if (who.action === 'approve-design' || who.action === 'approve') return c.guidance ? 'guidance' : 'design';
     // Only someone the override names, and only when no other owner can approve (lib/changes whoActs).
     if (who.action === 'override' && who.logins.some((l) => same(l, v.login))) return c.guidance ? 'guidance' : 'design';

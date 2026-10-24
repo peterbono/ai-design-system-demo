@@ -219,6 +219,8 @@ export type Need =
   /** `developerOnly`: every failing check is a developer check, so a developer fixes them, not the author. */
   | { kind: 'fix-checks'; failing: number; developerOnly?: boolean; then?: ApprovalRole[] }
   | { kind: 'address-changes'; by: string[] }
+  /** The author updated the branch after every changes request (core lookAgainReviewers): the reviewers look again. */
+  | { kind: 'look-again'; by: string[] }
   | { kind: 'resolve-conflict' }
   | { kind: 'checks-running'; then: ApprovalRole[] }
   /** GitHub has not said yet whether the change fits the latest library (mergeable null). */
@@ -232,7 +234,7 @@ export type Need =
  * approvals. Same order as the list chip (core reviewStatusKind). `mergeable` null: GitHub is still computing
  * whether it fits the latest library, so an approved change does not promise a merge yet; a missing approval still shows.
  */
-export function needFromDetail(s: { state: PullState; ci: CiSummary; gate: MergeGate; changesRequestedBy: string[]; exploration?: boolean; mergeable?: boolean | null; claude?: 'waiting' | 'drafted' | null }): Need {
+export function needFromDetail(s: { state: PullState; ci: CiSummary; gate: MergeGate; changesRequestedBy: string[]; lookAgain?: string[]; exploration?: boolean; mergeable?: boolean | null; claude?: 'waiting' | 'drafted' | null }): Need {
   if (s.state === 'merged') return { kind: 'merged' };
   if (s.state === 'closed') return { kind: 'closed' };
   if (s.exploration) return { kind: 'exploration' };
@@ -240,7 +242,7 @@ export function needFromDetail(s: { state: PullState; ci: CiSummary; gate: Merge
   if (s.claude === 'waiting') return { kind: 'draft', claude: 'waiting' };
   if (s.state === 'draft') return { kind: 'draft' };
   if (s.ci.state === 'fail') return { kind: 'fix-checks', failing: s.ci.failed.length };
-  if (s.changesRequestedBy.length) return { kind: 'address-changes', by: s.changesRequestedBy };
+  if (s.changesRequestedBy.length) return s.lookAgain?.length ? { kind: 'look-again', by: s.lookAgain } : { kind: 'address-changes', by: s.changesRequestedBy };
   if (s.gate.reasons.includes(CONFLICT_REASON)) return { kind: 'resolve-conflict' };
   const roles = s.gate.missing.map((m) => ROLE_OF[m]);
   if (s.ci.state === 'pending') return { kind: 'checks-running', then: roles };
@@ -252,7 +254,7 @@ export function needFromDetail(s: { state: PullState; ci: CiSummary; gate: Merge
 }
 
 /** The need behind a list status chip (reviewStatus), when only the status is known. */
-export function needFromStatus(kind: ReviewStatusKind | null | undefined, extra: { failing?: number; changesRequestedBy?: string[]; developerOnly?: boolean; pending?: ApprovalRole[]; claude?: 'waiting' | 'drafted' | null } = {}): Need {
+export function needFromStatus(kind: ReviewStatusKind | null | undefined, extra: { failing?: number; changesRequestedBy?: string[]; lookAgain?: string[]; developerOnly?: boolean; pending?: ApprovalRole[]; claude?: 'waiting' | 'drafted' | null } = {}): Need {
   if (extra.claude === 'waiting' && kind !== 'merged' && kind !== 'closed') return { kind: 'draft', claude: 'waiting' };
   switch (kind) {
     case 'merged':
@@ -263,7 +265,7 @@ export function needFromStatus(kind: ReviewStatusKind | null | undefined, extra:
     case 'ci-failing':
       return { kind: 'fix-checks', failing: extra.failing ?? 0, ...(extra.developerOnly ? { developerOnly: true } : {}), ...(extra.pending?.length ? { then: extra.pending } : {}) };
     case 'changes-requested':
-      return { kind: 'address-changes', by: extra.changesRequestedBy ?? [] };
+      return extra.lookAgain?.length ? { kind: 'look-again', by: extra.lookAgain } : { kind: 'address-changes', by: extra.changesRequestedBy ?? [] };
     case 'conflict':
       return { kind: 'resolve-conflict' };
     case 'ci-running':
@@ -314,6 +316,7 @@ export type WhoAction =
   | 'approve'
   | 'fix-checks'
   | 'address-changes'
+  | 'look-again'
   | 'resolve-conflict'
   | 'mark-ready'
   | 'promote'
@@ -431,6 +434,13 @@ export function whoActs(need: Need, p: People): WhoActs {
     case 'address-changes': {
       const by = need.by.length ? ` @${need.by.join(', @')} requested` : ' a reviewer requested';
       return authorTurn('address-changes', `address the changes${by}`, `address the changes${by}`, 'Author to address changes', 'Your turn: address changes');
+    }
+    case 'look-again': {
+      // The author updated it after the changes request: the reviewers who asked look again (their approval is what
+      // the merge still waits for).
+      const mine = need.by.some((l) => same(l, p.viewer));
+      if (mine) return { who: 'you', logins: need.by, yourTurn: true, action: 'look-again', sentence: `@${author} updated it after your changes: look again.`, short: 'Your turn: look again' };
+      return { who: 'reviewer', logins: need.by, yourTurn: false, action: 'look-again', sentence: `Waiting for ${at(need.by)} to look again.`, short: 'Reviewer to look again' };
     }
     case 'resolve-conflict':
       // A conflict is a developer's to resolve (token conflicts get their own resolver on the branch page): never

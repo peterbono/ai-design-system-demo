@@ -170,6 +170,8 @@ export interface Review {
   state: string;
   body: string;
   submittedAt?: string | undefined;
+  /** The commit the review was given on (GitHub `commit_id`). */
+  commitId?: string | undefined;
 }
 
 export interface PullRequestSummary {
@@ -1300,8 +1302,8 @@ export class GitHubClient {
   }
 
   async listReviews(n: number): Promise<Review[]> {
-    const r = await this.request<{ id: number; user?: { login: string }; state: string; body: string | null; submitted_at?: string }[]>('GET', `${this.repoPath}/pulls/${n}/reviews`);
-    return r.map((x) => ({ id: x.id, user: x.user?.login, state: x.state, body: x.body ?? '', ...(x.submitted_at ? { submittedAt: x.submitted_at } : {}) }));
+    const r = await this.request<{ id: number; user?: { login: string }; state: string; body: string | null; submitted_at?: string; commit_id?: string }[]>('GET', `${this.repoPath}/pulls/${n}/reviews`);
+    return r.map((x) => ({ id: x.id, user: x.user?.login, state: x.state, body: x.body ?? '', ...(x.submitted_at ? { submittedAt: x.submitted_at } : {}), ...(x.commit_id ? { commitId: x.commit_id } : {}) }));
   }
 
   /** Submit a review. `COMMENT` works for any collaborator; approving your own PR is refused by GitHub. */

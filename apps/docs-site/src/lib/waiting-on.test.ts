@@ -164,3 +164,27 @@ describe('waitingOn: branches opened from Figma (RT-1)', () => {
     expect(waitingOn({ author: 'ann', who: null, draft: true, labels: drafted }, { login: null, role: 'reviewer', seat: true })).toBe('requested');
   });
 });
+
+describe('a branch updated after the changes request', () => {
+  const need = needFromStatus('changes-requested', { changesRequestedBy: ['ann'], lookAgain: ['ann'] });
+
+  it('goes back to the reviewer who asked: her turn to look again, a review row', () => {
+    const w = who(need, 'sam', 'ann');
+    expect(w).toMatchObject({ yourTurn: true, action: 'look-again', sentence: '@sam updated it after your changes: look again.', short: 'Your turn: look again' });
+    const task = waitingOn(change('sam', need, 'ann', { changesRequested: ['ann'] }), ann);
+    expect(task).toBe('look-again');
+    expect(isReviewTask(task)).toBe(true);
+  });
+
+  it('no longer waits on the author; others read who looks again', () => {
+    expect(who(need, 'sam', 'sam')).toMatchObject({ yourTurn: false, sentence: 'Waiting for @ann to look again.' });
+    expect(waitingOn(change('sam', need, 'sam', { changesRequested: ['ann'] }), sam)).toBeNull();
+    expect(who(need, 'sam', 'theo')).toMatchObject({ yourTurn: false, short: 'Reviewer to look again' });
+  });
+
+  it('stays with the author until the branch moved on', () => {
+    const before = needFromStatus('changes-requested', { changesRequestedBy: ['ann'], lookAgain: [] });
+    expect(before.kind).toBe('address-changes');
+    expect(waitingOn(change('sam', before, 'sam', { changesRequested: ['ann'] }), sam)).toBe('own-changes');
+  });
+});

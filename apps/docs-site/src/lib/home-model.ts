@@ -314,7 +314,7 @@ export interface ChangeFacts {
   asker: Person;
   since: string | null;
   /** lib/overview-todo task of the row (design, ship, guidance, finish...). Null when it is not the viewer's. */
-  task: 'design' | 'ship' | 'guidance' | 'own-changes' | 'own-blocked' | 'own-ship' | 'requested';
+  task: 'design' | 'ship' | 'guidance' | 'look-again' | 'own-changes' | 'own-blocked' | 'own-ship' | 'requested';
   /** For own-blocked: what blocks it, in plain words ("2 checks fail", "it clashes with main"). */
   blocker?: string;
   /** For own-changes: who asked for changes. */
@@ -334,6 +334,9 @@ export function changeNeed(c: ChangeFacts, now: number): NeedRow {
       return { ...base, kind: 'review', person: c.author, line: `${c.author.name} waits for you to merge it`, waitsOnYou: true, pill: waiting };
     case 'guidance':
       return { ...base, kind: 'review', person: c.asker, line: `${c.asker.name} asks you to check the usage guidance`, waitsOnYou: true, pill: waiting };
+    case 'look-again':
+      // The author updated it after the viewer's changes request: the viewer's approval is what it waits for.
+      return { ...base, kind: 'review', person: c.asker, line: `${c.asker.name} updated it after your changes: look again`, waitsOnYou: true, pill: waiting };
     case 'design':
     case 'requested':
       return { ...base, kind: 'review', person: c.asker, line: `${c.asker.name} asks for your review`, waitsOnYou: true, pill: waiting };

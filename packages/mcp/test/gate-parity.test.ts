@@ -9,7 +9,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { approvedSuggestionNumber, closingIssueNumbers, figmaPushOf, GitHubClient, tokenFileChanges, parseModelConfig, shipPolicy, siteRepoFromConfig, summarizeCi, type ReviewLike, type SuggestionGovernance } from '@bridge-ds/core';
+import { approvedSuggestionNumber, closingIssueNumbers, lookAgainReviewers, figmaPushOf, GitHubClient, tokenFileChanges, parseModelConfig, shipPolicy, siteRepoFromConfig, summarizeCi, type ReviewLike, type SuggestionGovernance } from '@bridge-ds/core';
 import { BridgeContext, branches, ops, studio, suggestions } from '../src/lib.js';
 import { runBranch } from '../../cli/src/branch.js';
 import type { RequestIO } from '../../cli/src/request.js';
@@ -124,6 +124,18 @@ beforeAll(async () => {
   // Merged without the approvals it once waited for (an override, or rules changed since): done, nothing missing.
   pr.mergedNone = openPull(gh, { title: 'Tokens: merged long ago', files: DOC('k'), labels: ['tier-3'] });
   Object.assign(gh.pulls[pr.mergedNone - 1]!, { state: 'closed', merged: true, merged_at: '2026-10-20T00:00:00Z' });
+  // Changes requested by ann, then the author pushed a new commit: ann looks again (core lookAgainReviewers).
+  pr.updatedAfter = openPull(gh, { title: 'Docs: updated after changes', files: DOC('l') });
+  review(gh, pr.updatedAfter, 'ann', 'CHANGES_REQUESTED');
+  {
+    const p = gh.pulls[pr.updatedAfter - 1]!;
+    const files2 = new Map(gh.commits.get(p.head.sha)!.files);
+    files2.set('docs/parity-notes.md', '# Notes\n\nl, fixed\n');
+    const sha2 = gh.id();
+    gh.commits.set(sha2, { files: files2, parents: [p.head.sha] });
+    gh.refs.set(p.head.ref, sha2);
+    p.head.sha = sha2;
+  }
   pr.figmaRename = openPull(gh, { title: 'Tokens: rename a radius', files: { [RADIUS]: `${JSON.stringify(renamed, null, 2)}\n` }, labels: ['tier-3', 'tokens', 'breaking', 'source: figma'] });
 }, 60000);
 
@@ -267,6 +279,28 @@ describe('the same fixture pull requests give the same verdict in Studio, the MC
     expect(await runBranch(argv('branch', 'status', String(pr.mergedNone)), dir, c.io)).toBe(0);
     expect(c.out()).toMatch(/^Merged\.$/m);
     expect(c.out()).not.toMatch(/approval|needed|Tests/i);
+  });
+
+  it('a branch updated after the changes request waits on the reviewer who asked, everywhere', async () => {
+    for (const viewer of VIEWERS) {
+      const v = await verdicts(pr.updatedAfter!, viewer);
+      expect(v.mcp).toEqual(v.studio);
+      expect(v.cli).toEqual(v.studio);
+      expect(v.studio.status).toBe('changes-requested');
+      expect(v.studio.allowed).toBe(false);
+    }
+    const reviews = (await (await gh.fetch(`https://api.github.com/repos/${FULL}/pulls/${pr.updatedAfter}/reviews?per_page=100`)).json()) as ReviewLike[];
+    const head = gh.pulls[pr.updatedAfter! - 1]!.head.sha;
+    expect(lookAgainReviewers(reviews, head, 'agent')).toEqual(['ann']);
+    const m = (await branches.branchStatus(await as('agent'), { pr: pr.updatedAfter! })) as any;
+    expect(m.approvals.lookAgain).toEqual(['ann']);
+    expect(m.next).toMatch(/look again/);
+    gh.viewer.login = 'ann';
+    const annNeeds = (await branches.whatNeedsMe(await as('ann'))) as any;
+    expect(annNeeds.branches.find((b: any) => b.pr === pr.updatedAfter)?.needsYou).toBe('Look again: updated after your changes');
+    gh.viewer.login = 'agent';
+    const authorNeeds = (await branches.whatNeedsMe(await as('agent'))) as any;
+    expect(authorNeeds.branches.find((b: any) => b.pr === pr.updatedAfter)?.needsYou ?? null).toBeNull();
   });
 
   it('the status says why an applied suggestion counts', async () => {
