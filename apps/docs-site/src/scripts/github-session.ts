@@ -788,6 +788,10 @@ const inflight = new Map<string, Promise<Fetched<unknown>>>();
 
 /** GET with cache fallback. `path` is relative to api.github.com, or an absolute URL. */
 export function ghGet<T>(path: string, opts: { accept?: string; raw?: boolean } = {}): Promise<Fetched<T>> {
+  // An email member stands in for a login with their email (contribute-session asMine): GitHub has no such user, so
+  // answer the 404 here instead of a failed request in the console.
+  const user = /^\/users\/([^/?]+)/.exec(path);
+  if (user && !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:%5Bbot%5D|\[bot\])?$/.test(user[1]!)) return Promise.reject(new GitHubError(404, `GitHub answered 404 for ${path}`));
   const url = path.startsWith('http') ? path : `${API}${path}`;
   const key = `${url}|${opts.accept ?? ''}|${opts.raw ? 'raw' : ''}|${hasWorkingToken() ? 'auth' : 'anon'}`;
   const pending = inflight.get(key);
@@ -797,7 +801,35 @@ export function ghGet<T>(path: string, opts: { accept?: string; raw?: boolean } 
   return p;
 }
 
-async function ghGetOnce<T>(url: string, path: string, key: string, opts: { accept?: string; raw?: boolean }): Promise<Fetched<T>> {
+/** owner, repo, ref and path (still URL-encoded) of a raw.githubusercontent.com file address, else null. */
+const RAW_FILE = /^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/;
+
+/**
+ * Where a raw file is read from: raw.githubusercontent.com is free of the API limit but serves public repositories
+ * only (a private file answers 404 there, token or not). Signed in (GitHub or an email member, whose calls go through
+ * this site's proxy), a private repository's file is read through the contents API with the raw media type instead;
+ * whether the repository is private comes from GET /repos (shared with the rest of the page, and kept). Anything else,
+ * or when that read fails, stays on the raw host.
+ */
+export async function rawFileUrl(url: string): Promise<{ url: string; accept?: string }> {
+  const m = RAW_FILE.exec(url);
+  if (!m || !hasWorkingToken()) return { url };
+  const [, owner, repo, ref, path] = m as unknown as [string, string, string, string, string];
+  let priv = false;
+  try {
+    priv = (await ghGet<{ private?: boolean }>(`/repos/${owner}/${repo}`)).data.private === true;
+  } catch {
+    priv = false;
+  }
+  if (!priv) return { url };
+  return { url: `${API}/repos/${owner}/${repo}/contents/${path}?ref=${encodeURIComponent(decodeURIComponent(ref))}`, accept: 'application/vnd.github.raw' };
+}
+
+async function ghGetOnce<T>(url0: string, path: string, key: string, opts0: { accept?: string; raw?: boolean }): Promise<Fetched<T>> {
+  // Only a raw file address waits for the visibility check: every other read starts at once.
+  const routed = RAW_FILE.test(url0) ? await rawFileUrl(url0) : { url: url0 };
+  const url = routed.url;
+  const opts = routed.accept ? { ...opts0, accept: routed.accept } : opts0;
   try {
     // raw.githubusercontent.com: no custom headers, so no CORS preflight (and no API rate limit).
     const isApi = url.startsWith(API);
