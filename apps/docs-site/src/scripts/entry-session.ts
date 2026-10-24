@@ -166,6 +166,17 @@ export async function createTeam(name: string, discover: boolean): Promise<{ tea
   return { team, created: r.created === true };
 }
 
+/**
+ * An admin renames a team made in Bridge (no repository yet). The new name is kept for the chip and every page at once,
+ * and the account is read again so its teams carry it.
+ */
+export async function renameTeam(key: string, name: string): Promise<TeamInfo> {
+  const team = teamOf(await call<{ team?: unknown }>('POST', '', { action: 'rename-team', team: key, name }));
+  noteTeamName(team.key, team.name);
+  void import('./account-session').then(({ getAccount }) => getAccount(true)).catch(() => {});
+  return team;
+}
+
 /** A team made in Bridge, for one of its members; null when it is gone or they are not on it (404). */
 export async function getTeam(key: string): Promise<TeamInfo | null> {
   try {

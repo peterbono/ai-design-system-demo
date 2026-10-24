@@ -47,6 +47,10 @@
 //                                           creator its first admin, open to their work domain when `discover` (never a
 //                                           public one). One team without a repository per creator: calling it again
 //                                           renames that team and changes its discovery. { team, created }
+//   POST { action: 'rename-team', team, name }  admin of a team made in Bridge (no repository yet): renames it, nothing
+//                                           else changes (discovery stays). 404 for anyone not on it, 403 for a member
+//                                           who is not admin, 409 linked once it has a repository (bridge.config.json
+//                                           names it then). { team }
 //   GET  /api/entry?team=_team/<id>         a member of a team made in Bridge: { team } (name, role, repo, storybook,
 //                                           discovery, memberCount, people: names and roles, never an email, for its
 //                                           Settings); 404 for anyone else, like a team that does not exist
@@ -872,6 +876,24 @@ async function onCreateTeam(ctx: Ctx, a: Account, body: Record<string, unknown>)
   return json(200, { team: await publicTeam(ctx, rec, 'admin'), created: !kept });
 }
 
+/** An admin renames a team made in Bridge before any repository. Discovery, members and requests stay as they are. */
+async function onRenameTeam(ctx: Ctx, a: Account, body: Record<string, unknown>): Promise<Response> {
+  const id = typeof body.team === 'string' ? teamKeyId(body.team) : null;
+  const rec = id ? await getTeamRecord(ctx.svc.redis, id) : null;
+  if (!rec) return fail(404, 'not_found', TEAM_GONE);
+  const key = teamKeyOf(rec.id);
+  const role = await roleOn(ctx, a, rec.repo ?? key);
+  if (!role) return fail(404, 'not_found', TEAM_GONE);
+  if (rec.repo) return fail(409, 'linked', ALREADY_LINKED(rec.repo));
+  if (role !== 'admin') return fail(403, 'forbidden', ADMIN_ONLY_TEAM);
+  const name = configName({ name: body.name });
+  if (!name) return fail(400, 'bad_name', BAD_TEAM_NAME);
+  const next = { ...rec, name };
+  await putTeamRecord(ctx.svc.redis, next);
+  await putTeamName(ctx.svc.redis, key, name, ctx.now());
+  return json(200, { team: await publicTeam(ctx, next, 'admin') });
+}
+
 /** A team made in Bridge, read by one of its members. Anyone else gets the answer of a team that does not exist. */
 async function onGetTeam(ctx: Ctx, a: Account, arg: string): Promise<Response> {
   const id = teamKeyId(arg);
@@ -978,6 +1000,8 @@ async function onAction(ctx: Ctx, req: Request, a: Account, body: Record<string,
       return onCreateTeam(ctx, a, body);
     case 'link-team':
       return onLinkTeam(ctx, a, body);
+    case 'rename-team':
+      return onRenameTeam(ctx, a, body);
     default:
       return fail(400, 'bad_request', 'Unknown action.');
   }

@@ -129,6 +129,44 @@ describe('create-team: a real team at step 1', () => {
   });
 });
 
+describe('rename-team: an admin renames a team made in Bridge', () => {
+  it('renames it for every admin, keeps discovery, and the account and entry read the new name', async () => {
+    const s = setup();
+    const { jo, team } = await created(s);
+    // A second admin, not the creator, renames it too.
+    await s.members.put(team.key, { email: 'kim@northwind.io', name: 'Kim', role: 'admin', version: 1, addedBy: 'Jo Park', at: new Date(T0).toISOString() });
+    const kim = await s.cookie('kim@northwind.io', 'Kim');
+    const r = await s.act(kim, { action: 'rename-team', team: team.key, name: '  Northwind   Studio ' });
+    expect(r.status).toBe(200);
+    expect(r.body.team).toMatchObject({ key: team.key, name: 'Northwind Studio', role: 'admin', discovery: { domain: 'northwind.io', enabled: true } });
+    expect(await getTeamRecord(s.redis, team.id)).toMatchObject({ name: 'Northwind Studio', repo: null });
+    expect((await s.entry(jo)).body.teams).toEqual([expect.objectContaining({ repo: team.key, name: 'Northwind Studio' })]);
+    expect(await teamsForDomain(s.redis, 'northwind.io')).toHaveLength(1);
+  });
+
+  it('refuses a bad name, a member who is not admin (403) and anyone not on the team (404)', async () => {
+    const s = setup();
+    const { jo, team } = await created(s);
+    expect((await s.act(jo, { action: 'rename-team', team: team.key, name: '' })).status).toBe(400);
+    expect((await s.act(jo, { action: 'rename-team', team: team.key, name: 'x'.repeat(61) })).status).toBe(400);
+    await s.members.put(team.key, { email: 'dee@northwind.io', name: 'Dee', role: 'edit', version: 1, addedBy: 'Jo Park', at: new Date(T0).toISOString() });
+    const dee = await s.cookie('dee@northwind.io', 'Dee');
+    expect((await s.act(dee, { action: 'rename-team', team: team.key, name: 'Mine now' })).status).toBe(403);
+    const out = await s.cookie('out@acme.com', 'Out');
+    expect(await s.act(out, { action: 'rename-team', team: team.key, name: 'Mine now' })).toEqual({ status: 404, body: { error: 'not_found', message: TEAM_GONE } });
+    expect((await s.act(jo, { action: 'rename-team', team: '_team/0000000000000000', name: 'X' })).status).toBe(404);
+    expect(await getTeamRecord(s.redis, team.id)).toMatchObject({ name: 'Northwind Design' });
+  });
+
+  it('refuses once the team has a repository: its name lives in bridge.config.json', async () => {
+    const s = setup();
+    const { team } = await created(s);
+    const jo = await s.cookie('jo@northwind.io', 'Jo Park', { login: 'jo-gh', id: 42 });
+    expect((await s.act(jo, { action: 'link-team', team: team.key, repo: REPO })).status).toBe(200);
+    expect((await s.act(jo, { action: 'rename-team', team: team.key, name: 'Other' })).status).toBe(409);
+  });
+});
+
 describe('colleagues find it and ask to join', () => {
   it('lists it on the domain with its admin, and the creator approves without GitHub', async () => {
     const s = setup();
