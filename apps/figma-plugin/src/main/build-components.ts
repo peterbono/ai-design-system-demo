@@ -521,11 +521,16 @@ function intoLayout(node: SceneNode): void {
   }
 }
 
-function sizeInParent(node: SceneNode, parentPart: SpecPart | undefined, definite = true): void {
+function sizeInParent(node: SceneNode, parentPart: SpecPart | undefined, definite = true, tall = true, ownHeight = false): void {
   if (!parentPart?.layout || parentPart.layout.counter !== 'STRETCH' || !('layoutSizingHorizontal' in node)) return;
   // A vertical parent that hugs its content has no width to fill: its children hug too (same look for left-aligned
   // content; filling would turn the parent to a fixed width in Figma).
   if (parentPart.layout.direction === 'VERTICAL' && !definite) return;
+  // A row with no height of its own, where every child would fill: nothing gives the height, and Figma keeps a new
+  // frame's 100px (SegmentedControl 106px tall for 38 in code). They hug their content, as CSS stretch does then.
+  if (parentPart.layout.direction === 'HORIZONTAL' && !tall) return;
+  // A part with a height of its own keeps it (a table header cell is control.height.md): CSS stretch never shrinks it.
+  if (parentPart.layout.direction === 'HORIZONTAL' && ownHeight) return;
   if (parentPart.layout.direction === 'VERTICAL') {
     node.layoutSizingHorizontal = 'FILL';
     if (node.type === 'TEXT') node.textAutoResize = 'HEIGHT';
@@ -587,6 +592,16 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
     const fills = !!parentPart && definite.has(parentPart.id) && ((parentPart.layout?.direction === 'VERTICAL' && parentPart.layout.counter === 'STRETCH') || (parentPart.layout?.direction === 'HORIZONTAL' && !!part.grow));
     if (hasWidth || fills) definite.add(part.id);
   }
+  // Rows whose height is known: a height of their own, filling such a row, or a child that sets it (a text, an icon,
+  // a part with a height) for the others to stretch to.
+  const tall = new Set<string>();
+  for (const part of comp.parts) {
+    const parentPart = comp.parts.find((p) => p.id === part.parent);
+    const hasHeight = (pv.parts[part.id] ?? []).some((f) => f.field === 'height');
+    const fills = !!parentPart && tall.has(parentPart.id) && parentPart.layout?.direction === 'HORIZONTAL' && parentPart.layout.counter === 'STRETCH';
+    const anchored = comp.parts.some((c) => c.parent === part.id && (c.kind === 'text' || !!c.icon || !!c.swap || (pv.parts[c.id] ?? []).some((f) => f.field === 'height')));
+    if (hasHeight || fills || anchored) tall.add(part.id);
+  }
   for (const part of comp.parts) {
     let node = findPart(variant, part.id);
     const parent = ((part.parent ? nodes.get(part.parent) : variant) ?? variant) as Box;
@@ -606,7 +621,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
         if ((await inst.getMainComponentAsync())?.id !== main.id) inst.swapComponent(main);
         await styleInstance(inst, part.kind, pv.parts[part.id] ?? [], ctx);
         try {
-          sizeInParent(inst, comp.parts.find((p) => p.id === part.parent), definite.has(part.parent ?? ''));
+          sizeInParent(inst, comp.parts.find((p) => p.id === part.parent), definite.has(part.parent ?? ''), tall.has(part.parent ?? ''));
         } catch (err) {
           ctx.problems.push(`${ctx.where}, fill container: ${errorText(err)}`);
         }
@@ -666,7 +681,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
     }
     for (const f of fields) apply(node, f, ctx);
     try {
-      sizeInParent(node, parentPart, definite.has(part.parent ?? ''));
+      sizeInParent(node, parentPart, definite.has(part.parent ?? ''), tall.has(part.parent ?? ''), fields.some((f) => f.field === 'height'));
     } catch (err) {
       ctx.problems.push(`${ctx.where}, fill container: ${errorText(err)}`);
     }
