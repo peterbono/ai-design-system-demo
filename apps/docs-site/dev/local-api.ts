@@ -329,6 +329,8 @@ export function handlerFor(rel: string, mod: Mod, local: Local, method: string, 
       return call('handleContribute', { redis, ...admins, ...apps });
     case 'api/invites/index.ts':
       return call('handleInvites', { store: extra.invites, members: extra.members, redis, ...admins, ...apps });
+    case 'api/ship/index.ts':
+      return call('handleShip', { redis, ...apps });
     case 'api/library-access/index.ts':
       return call('handleLibraryAccess', { store: extra.library });
     case 'api/github/token.ts': {

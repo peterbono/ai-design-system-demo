@@ -60,6 +60,16 @@ The plugin reports one `PublishOutcome` per token or component (`PublishResult.o
 When Bridge ships a push it leaves a review whose body starts with `**Bridge: shipped from Figma**`
 (`figmaShipReviewBody`).
 
+### Arming the merge (server)
+
+`POST <site>/api/ship` with `{ "repo": "<owner/repo>", "pr": <number> }` and `Authorization: Bearer <the GitHub token
+the plugin already uses>` (JSON, any origin). Answer `200 { armed, route, merged?, code?, reason?, retryAfter? }`:
+`armed: true` means `route: "shipped"`; otherwise `route: "waiting-for-developer"` with a designer `reason`. Bridge
+re-checks the rule on GitHub with its own app (the plugin's word is never enough), marks the pull request ready,
+approves it with the review above and turns on GitHub auto-merge; GitHub merges when the required checks pass. On
+`checks_pending` ask again after `retryAfter` seconds. Details, codes and setup: [HOSTED.md](HOSTED.md), "Ship from
+Figma".
+
 ## Build requests
 
 A build request is a component change request ([REQUESTS.md](REQUESTS.md)) with more for developers: one GitHub

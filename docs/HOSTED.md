@@ -437,6 +437,42 @@ which must have **Contents**, **Pull requests** and **Issues: Read and write** o
 the app was set up for invites only). Optional, not sensitive: `CONTRIB_MAX_WRITES`. Redeploy;
 `GET /api/contribute?repo=<owner/repo>` answers `{ "available": true, "member": null }` once everything is set.
 
+## Ship from Figma
+
+A token push from the Figma plugin with values only ships after the automatic checks, with no person in the loop
+([BUILD-REQUESTS.md](BUILD-REQUESTS.md)). Bridge arms that merge with `POST /api/ship` (`apps/docs-site/api/ship`).
+
+| Request | Answer |
+| ------- | ------ |
+| `POST /api/ship` `{ "repo": "<owner/repo>", "pr": 42 }` | `200 { "armed": true, "route": "shipped" }` (plus `"merged": true` when it merged on the spot), or `200 { "armed": false, "route": "waiting-for-developer", "code", "reason" }` when a developer ships it; `401 signin`, `403 origin`, `400`, `404`, `502` otherwise |
+
+- **Who**: a GitHub token that can read the repository (`Authorization: Bearer`: the Figma plugin and the CLI; any
+  origin, CORS open, no cookie), or an email member of the team signed in to Studio (the contribute cookie or a Bridge
+  account session, with `X-Bridge-Contribute: 1` from a page of this site). Asking never widens anything: Bridge
+  re-reads the pull request with its own app token and arms it only when the rule says so.
+- **The rule, read from GitHub**: open, to the default branch, pushed from Figma (`source: figma` or `from-figma`
+  label, or the From Figma block), not an exploration, and token values only: the token files compared token by token
+  at the merge base and at the head (a removed or renamed token is not values; code or a guardrail file is not
+  either). The server keeps a copy of core's rules in `api/_lib/figma-ship.ts`, checked against core by
+  `figma-ship-parity.test.ts`.
+- **Arming**: ready for review when a draft, the review `**Bridge: shipped from Figma**` (an approval, once per head
+  commit), then GitHub auto-merge (squash first, as the repository allows): GitHub merges once the required checks
+  pass. When GitHub says it can merge right now, Bridge merges it itself, only if every check finished and passed;
+  while a check runs it answers `checks_pending` with `retryAfter`.
+- **Codes** (`armed: false`): `app_missing`, `auto_merge_off`, `not_values`, `not_from_figma`, `exploration`,
+  `not_default_branch`, `not_open`, `too_many_files` (100 files or more), `needs_approval`, `checks_failed`,
+  `checks_pending`, `not_mergeable`. `reason` is one designer sentence, never the technical blocker.
+- **An email member's push** is opened by the app itself, and GitHub never lets an app approve its own pull request:
+  the review is then a comment, auto-merge still goes on, and when the default branch requires an approval
+  (`needs_approval`) a developer's approval ships it.
+
+### Set it up (owner of the site)
+
+The Bridge Direct app already has **Contents** and **Pull requests: Read and write**; **Checks** and **Commit
+statuses: Read** (optional, used only when GitHub can merge on the spot) come with team reads. In each design system
+repository, an admin turns on **Settings, General, Allow auto-merge**; without it, pushes wait for a developer
+(`auto_merge_off`). The Figma plugin calls the site, so its manifest lists the site's origin in `allowedDomains`.
+
 ## Team reads through Bridge
 
 Members of a team without a GitHub token of their own (email members, Bridge accounts) and signed-out visitors of the

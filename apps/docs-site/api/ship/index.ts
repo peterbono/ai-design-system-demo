@@ -1,0 +1,334 @@
+// /api/ship: Bridge arms the merge of a token push from Figma with values only (docs/BUILD-REQUESTS.md, "Publishing
+// from the plugin"). A push from the Figma plugin counts as design-approved; token values (and new tokens) also count
+// as tech-approved, so they ship after the automatic checks with no person in the loop. Renames and removals, code,
+// and guardrail files never ship here: a developer approves them.
+//
+//   POST /api/ship  { repo: "owner/name", pr: 42 }
+//     -> 200 { armed: true,  route: "shipped", merged?: true }
+//     -> 200 { armed: false, route: "waiting-for-developer", code, reason }   Bridge could not arm it: a developer ships it
+//     -> 4xx/5xx { error, message }                                         the call itself was refused
+//
+// Who may ask: a GitHub token that can read the repository (`Authorization: Bearer`, the Figma plugin and the CLI; any
+// origin, no cookie, so CORS allows it), or an email member of the team signed in to Studio (the contribute cookie or
+// a Bridge account session; `X-Bridge-Contribute: 1` from a page of this site). Asking never widens anything: Bridge
+// re-reads the pull request with its own app token and arms it only when the rule says so, whoever asks.
+//
+// What it does, with an installation token of the Bridge app (contents and pull requests write, one repository):
+//   1. reads the repository (default branch, merge settings), the pull request, its files and bridge.config.json;
+//   2. refuses unless it is open, targets the default branch, is a push from Figma (label `source: figma` or
+//      `from-figma`, or the From Figma block), is not an exploration, and its scope is `token-values`: token files
+//      read at the merge base and at the head, compared token by token (a removed or renamed token is not values);
+//   3. marks it ready for review when it is a draft;
+//   4. approves it with the "Bridge: shipped from Figma" review (once per head commit). GitHub refuses an app's
+//      approval of a pull request the app opened (an email member's push): the review is then a comment, and when
+//      the default branch requires an approval a developer gives it (code `needs_approval`);
+//   5. enables auto-merge (squash first, as the repository allows): GitHub merges once the required checks pass.
+//      When GitHub says the pull request can merge right now, Bridge merges it itself, only if every check finished
+//      and passed. Never while a check runs.
+//
+// Env: GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY (the app needs Contents and Pull requests: Read and write, and Checks
+// and Commit statuses: Read for step 5); the contribute env for email members (storage and LIBRARY_SESSION_SECRET).
+// Without the app every call answers 200 armed false, code `app_missing`.
+
+import { contributorOf, type ContribEnv } from '../contribute/index.js';
+import { githubApp, type AppTokens } from '../_lib/github-app.js';
+import { fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody, sameOriginWhenPresent, type FetchLike } from '../_lib/http.js';
+import { FIGMA_SHIP_HEADING, figmaPushScope, figmaShipReviewBody, isExploration, isFigmaPush, isTokenFile, shipConfig, tokenFileChanges, type ShipConfig, type TokenChange } from '../_lib/figma-ship.js';
+import type { MemberStore } from '../_lib/members.js';
+import type { Redis } from '../_lib/redis.js';
+
+export type { FetchLike };
+
+export interface ShipDeps {
+  fetch: FetchLike;
+  now?: () => number;
+  /** Injected (tests, local mode); otherwise built from the env. */
+  app?: AppTokens;
+  /** Checks and statuses read token; defaults to `app`. */
+  readApp?: AppTokens;
+  redis?: Redis;
+  members?: MemberStore;
+}
+
+export type ShipCode =
+  | 'app_missing'
+  | 'not_open'
+  | 'not_default_branch'
+  | 'not_from_figma'
+  | 'exploration'
+  | 'not_values'
+  | 'too_many_files'
+  | 'auto_merge_off'
+  | 'needs_approval'
+  | 'checks_failed'
+  | 'checks_pending'
+  | 'not_mergeable';
+
+export interface ShipResult {
+  armed: boolean;
+  route: 'shipped' | 'waiting-for-developer';
+  /** Set when Bridge merged it on the spot (GitHub said it could merge now and every check had passed). */
+  merged?: boolean;
+  code?: ShipCode;
+  /** One sentence for the designer, when not armed. Never a technical blocker. */
+  reason?: string;
+  /** checks_pending only: ask again after this many seconds. */
+  retryAfter?: number;
+}
+
+/** The permissions of the token Bridge arms a merge with, and nothing more. */
+export const SHIP_PERMISSIONS = { contents: 'write', pull_requests: 'write' } as const;
+export const SHIP_READ_PERMISSIONS = { checks: 'read', statuses: 'read', pull_requests: 'read', contents: 'read' } as const;
+const MAX_BODY = 2048;
+const API = 'https://api.github.com';
+const PR_NUMBER = /^[1-9]\d{0,9}$/;
+
+// Designer words. A developer reads `code` and GitHub for the details.
+const BY_DEVELOPER = 'A developer ships it from here.';
+export const SHIP_WORDS: Record<ShipCode, string> = {
+  app_missing: `Bridge cannot ship by itself on this library yet. ${BY_DEVELOPER}`,
+  not_open: 'It is no longer open, so there is nothing to ship.',
+  not_default_branch: `It does not go to the library directly. ${BY_DEVELOPER}`,
+  not_from_figma: `Bridge only ships pushes from the Figma plugin by itself. ${BY_DEVELOPER}`,
+  exploration: 'It is an exploration: it ships when the exploration is promoted.',
+  not_values: `It changes more than token values, so a developer OKs it first.`,
+  too_many_files: `It is too large for Bridge to check by itself. ${BY_DEVELOPER}`,
+  auto_merge_off: `Bridge cannot ship by itself on this library yet. ${BY_DEVELOPER}`,
+  needs_approval: `This library asks a developer to approve every change. ${BY_DEVELOPER}`,
+  checks_failed: 'Something needs a developer before it ships. They are told on GitHub; nothing to do on your side.',
+  checks_pending: 'The automatic checks are still running. Bridge ships it once they finish.',
+  not_mergeable: 'Something needs a developer before it ships. They are told on GitHub; nothing to do on your side.',
+};
+
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Max-Age': '600', Vary: 'Origin' };
+const SIGNIN = 'Sign in to Bridge first: with GitHub in the Figma plugin, or with your email in Studio.';
+
+interface Gh {
+  status: number;
+  data: any;
+}
+
+function gh(f: FetchLike, token: string) {
+  const call = async (method: string, path: string, body?: unknown, accept = 'application/vnd.github+json'): Promise<Gh> => {
+    let res: Response;
+    try {
+      res = await f(`${API}${path}`, {
+        method,
+        headers: { Accept: accept, Authorization: `Bearer ${token}`, 'User-Agent': 'bridge-ship', 'X-GitHub-Api-Version': '2022-11-28', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+    } catch {
+      throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+    }
+    if (res.status >= 500) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+    if (accept.endsWith('.raw')) return { status: res.status, data: res.status === 200 ? await res.text() : null };
+    let data: any = null;
+    try {
+      data = res.status === 204 ? null : await res.json();
+    } catch {
+      data = null;
+    }
+    return { status: res.status, data };
+  };
+  const raw = async (owner: string, repo: string, path: string, ref: string): Promise<string | null> => {
+    const r = await call('GET', `/repos/${owner}/${repo}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(ref)}`, undefined, 'application/vnd.github.raw');
+    if (r.status === 404) return null;
+    if (r.status !== 200 || typeof r.data !== 'string') throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+    return r.data;
+  };
+  const graphql = async (query: string, variables: Record<string, unknown>): Promise<{ data: any; errors: string[] }> => {
+    const r = await call('POST', '/graphql', { query, variables });
+    const errors = Array.isArray(r.data?.errors) ? r.data.errors.map((e: any) => String(e?.message ?? '')) : r.status === 200 ? [] : [`GitHub answered ${r.status}`];
+    return { data: r.data?.data ?? null, errors };
+  };
+  return { call, raw, graphql };
+}
+
+/** Who asks: a GitHub token that can read the repository, or an email member of the team signed in to Studio. */
+async function allowed(req: Request, owner: string, repo: string, full: string, env: ContribEnv, deps: ShipDeps): Promise<'bearer' | 'member' | null> {
+  const bearer = /^Bearer\s+([A-Za-z0-9_.-]{20,255})$/i.exec(req.headers.get('authorization') ?? '')?.[1];
+  if (bearer) {
+    const r = await gh(deps.fetch, bearer).call('GET', `/repos/${owner}/${repo}`);
+    return r.status === 200 && r.data?.permissions?.pull ? 'bearer' : null;
+  }
+  if (req.headers.get('x-bridge-contribute') !== '1' || !sameOriginWhenPresent(req)) throw new HttpError(403, 'origin', 'Ship from Studio on this site, or from the Figma plugin.');
+  const m = await contributorOf(req, full, env, { fetch: deps.fetch, ...(deps.now ? { now: deps.now } : {}), ...(deps.redis ? { redis: deps.redis } : {}), ...(deps.members ? { members: deps.members } : {}), ...(deps.app ? { app: deps.app } : {}) });
+  return m ? 'member' : null;
+}
+
+const notArmed = (code: ShipCode, extra: Partial<ShipResult> = {}): ShipResult => ({ armed: false, route: 'waiting-for-developer', code, reason: SHIP_WORDS[code], ...extra });
+
+const MERGE_METHODS = [
+  ['allow_squash_merge', 'squash', 'SQUASH'],
+  ['allow_merge_commit', 'merge', 'MERGE'],
+  ['allow_rebase_merge', 'rebase', 'REBASE'],
+] as const;
+
+/** Checks and statuses of a commit: 'pass', 'fail' or 'pending' (core summarizeCi, the parts needed here). */
+async function ciState(call: ReturnType<typeof gh>['call'], owner: string, repo: string, sha: string): Promise<'pass' | 'fail' | 'pending'> {
+  const [runs, statuses] = await Promise.all([call('GET', `/repos/${owner}/${repo}/commits/${sha}/check-runs?per_page=100`), call('GET', `/repos/${owner}/${repo}/commits/${sha}/status`)]);
+  if (runs.status !== 200 || statuses.status !== 200) return 'pending';
+  const OK = new Set(['success', 'neutral', 'skipped']);
+  let pending = false;
+  for (const r of runs.data?.check_runs ?? []) {
+    if (r.status !== 'completed') pending = true;
+    else if (!OK.has(r.conclusion)) return 'fail';
+  }
+  for (const s of statuses.data?.statuses ?? []) {
+    if (s.state === 'pending') pending = true;
+    else if (s.state !== 'success') return 'fail';
+  }
+  return pending ? 'pending' : 'pass';
+}
+
+/** The ship itself, once the caller is allowed. Exported for tests. */
+export async function armShip(f: FetchLike, token: string, readToken: string | null, owner: string, repo: string, n: number): Promise<ShipResult> {
+  const { call, raw, graphql } = gh(f, token);
+  const base = `/repos/${owner}/${repo}`;
+  const [repoR, prR] = await Promise.all([call('GET', base), call('GET', `${base}/pulls/${n}`)]);
+  if (prR.status === 404) throw new HttpError(404, 'not_found', `There is no pull request #${n} on ${owner}/${repo}.`);
+  if (repoR.status !== 200 || prR.status !== 200) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+  const r = repoR.data;
+  const pr = prR.data;
+  if (pr.state !== 'open' || pr.merged_at) return notArmed('not_open');
+  if (pr.base?.ref !== r.default_branch) return notArmed('not_default_branch');
+  if (isExploration(pr.labels)) return notArmed('exploration');
+  if (!isFigmaPush({ labels: pr.labels, body: pr.body })) return notArmed('not_from_figma');
+
+  // What it changes, read from GitHub: the files, then each token file at the merge base and at the head.
+  const filesR = await call('GET', `${base}/pulls/${n}/files?per_page=100`);
+  if (filesR.status !== 200 || !Array.isArray(filesR.data)) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+  if (filesR.data.length >= 100 || (typeof pr.changed_files === 'number' && pr.changed_files > filesR.data.length)) return notArmed('too_many_files');
+  let config: ShipConfig;
+  try {
+    const text = await raw(owner, repo, 'bridge.config.json', r.default_branch);
+    config = shipConfig(text ? JSON.parse(text) : null);
+  } catch (e) {
+    if (e instanceof HttpError) throw e;
+    config = shipConfig(null);
+  }
+  const files = filesR.data.map((x: any) => ({ path: String(x.filename), status: String(x.status), previous: typeof x.previous_filename === 'string' ? x.previous_filename : null }));
+  const tokenFiles = files.filter((x: { path: string; previous: string | null }) => isTokenFile(x.path, config) || (x.previous && isTokenFile(x.previous, config)));
+  let changes: TokenChange[] | null = [];
+  if (tokenFiles.length) {
+    const cmp = await call('GET', `${base}/compare/${pr.base.sha}...${pr.head.sha}`);
+    const mergeBase = cmp.status === 200 ? cmp.data?.merge_base_commit?.sha : null;
+    if (!mergeBase) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+    const texts = await Promise.all(
+      tokenFiles.map(async (x: { path: string; status: string; previous: string | null }) => ({
+        before: x.status === 'added' ? null : await raw(owner, repo, x.previous ?? x.path, mergeBase),
+        after: x.status === 'removed' ? null : await raw(owner, repo, x.path, pr.head.sha),
+      })),
+    );
+    try {
+      changes = tokenFileChanges(texts);
+    } catch {
+      changes = null;
+    }
+  }
+  const scope = figmaPushScope(files, changes, config);
+  if (scope !== 'token-values') return notArmed('not_values');
+
+  // Auto-merge in the first merge method the repository allows (squash first). Off in the repository: an error.
+  const enableAutoMerge = async (): Promise<{ errors: string[] }> => {
+    const m = MERGE_METHODS.find(([k]) => r[k] !== false);
+    if (!m || r.allow_auto_merge === false) return { errors: ['auto-merge is not allowed for this repository'] };
+    return graphql('mutation($id: ID!, $m: PullRequestMergeMethod!, $oid: GitObjectID) { enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: $m, expectedHeadOid: $oid }) { pullRequest { number } } }', {
+      id: pr.node_id,
+      m: m[2],
+      oid: pr.head.sha,
+    });
+  };
+
+  // Ready for review, then the review that records the rule (once per head commit).
+  if (pr.draft) {
+    const g = await graphql('mutation($id: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $id }) { pullRequest { isDraft } } }', { id: pr.node_id });
+    if (g.errors.length) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+  }
+  const reviews = await call('GET', `${base}/pulls/${n}/reviews?per_page=100`);
+  const ours = (reviews.data ?? []).filter((x: any) => typeof x.body === 'string' && x.body.startsWith(FIGMA_SHIP_HEADING) && x.commit_id === pr.head.sha && x.user?.type === 'Bot');
+  let approved = ours.some((x: any) => x.state === 'APPROVED');
+  if (!ours.length) {
+    const body = figmaShipReviewBody(pr.user?.type === 'Bot' ? null : pr.user?.login);
+    const a = await call('POST', `${base}/pulls/${n}/reviews`, { event: 'APPROVE', body, commit_id: pr.head.sha });
+    approved = a.status === 200;
+    // GitHub refuses an app's approval of a pull request the app opened: the record stays, as a comment.
+    if (!approved) await call('POST', `${base}/pulls/${n}/reviews`, { event: 'COMMENT', body, commit_id: pr.head.sha });
+  }
+  if (!approved) {
+    const rules = await call('GET', `${base}/rules/branches/${encodeURIComponent(r.default_branch)}`);
+    const needs = Array.isArray(rules.data) && rules.data.some((x: any) => x?.type === 'pull_request' && Number(x.parameters?.required_approving_review_count ?? 0) > 0);
+    if (needs) {
+      // Auto-merge still goes on where it can: a developer's approval then ships it with no second step.
+      await enableAutoMerge();
+      return notArmed('needs_approval');
+    }
+  }
+
+  const method = MERGE_METHODS.find(([k]) => r[k] !== false);
+  if (!method) return notArmed('auto_merge_off');
+  const g = await enableAutoMerge();
+  if (!g.errors.length) return { armed: true, route: 'shipped' };
+  const why = g.errors.join(' ').toLowerCase();
+  // GitHub enables auto-merge only while something is still pending: "clean status" means it can merge right now.
+  if (/clean status|is in clean|already mergeable/.test(why)) {
+    const ci = await ciState(gh(f, readToken ?? token).call, owner, repo, pr.head.sha);
+    if (ci === 'fail') return notArmed('checks_failed');
+    if (ci === 'pending') return notArmed('checks_pending', { retryAfter: 60 });
+    const merge = await call('PUT', `${base}/pulls/${n}/merge`, { merge_method: method[1], sha: pr.head.sha });
+    if (merge.status === 200 && merge.data?.merged !== false) return { armed: true, route: 'shipped', merged: true };
+    return notArmed('not_mergeable');
+  }
+  if (/auto.?merge|not allowed|not enabled/.test(why) || r.allow_auto_merge === false) return notArmed('auto_merge_off');
+  if (/conflict|unstable|blocked|not mergeable/.test(why)) return notArmed('not_mergeable');
+  throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+}
+
+export async function handleShip(req: Request, env: ContribEnv, deps: ShipDeps): Promise<Response> {
+  const bearerCall = /^Bearer\s/i.test(req.headers.get('authorization') ?? '');
+  const cors = (r: Response) => {
+    if (!bearerCall && req.method !== 'OPTIONS') return r;
+    for (const [k, v] of Object.entries(CORS)) r.headers.set(k, v);
+    return r;
+  };
+  try {
+    if (req.method === 'OPTIONS') return cors(new Response(null, { status: 204 }));
+    if (req.method !== 'POST') return cors(fail(405, 'method', 'Send a POST.'));
+    if (!/^application\/json\b/i.test(req.headers.get('content-type') ?? '')) return cors(fail(415, 'content_type', 'Send JSON.'));
+    const body = await readBody(req, MAX_BODY);
+    const { owner, repo, full } = parseRepo(body.repo);
+    if (!PR_NUMBER.test(String(body.pr ?? ''))) return cors(fail(400, 'bad_request', 'Say which pull request, as its number.'));
+    const n = Number(body.pr);
+    const now = deps.now ?? Date.now;
+    const appId = env.GITHUB_APP_ID?.trim();
+    const pem = env.GITHUB_APP_PRIVATE_KEY?.trim();
+    const app = deps.app ?? (appId && pem ? githubApp(appId, pem, deps.fetch, now, { permissions: { ...SHIP_PERMISSIONS }, require: { ...SHIP_PERMISSIONS }, userAgent: 'bridge-ship' }) : null);
+    const who = await allowed(req, owner, repo, full, env, { ...deps, ...(app ? { app } : {}) });
+    if (!who) return cors(fail(401, 'signin', SIGNIN));
+    const token = app ? await app.installationToken(owner, repo) : null;
+    if (!token) return cors(json(200, notArmed('app_missing')));
+    const readApp = deps.readApp ?? deps.app ?? (appId && pem ? githubApp(appId, pem, deps.fetch, now, { permissions: { ...SHIP_READ_PERMISSIONS }, require: { ...SHIP_READ_PERMISSIONS }, userAgent: 'bridge-ship' }) : null);
+    const readToken = readApp ? await readApp.installationToken(owner, repo).catch(() => null) : null;
+    return cors(json(200, await armShip(deps.fetch, token, readToken, owner, repo, n)));
+  } catch (e) {
+    if (e instanceof HttpError) return cors(json(e.status, { error: e.code, message: e.message, ...e.extra }, e.headers));
+    return cors(fail(502, 'unreachable', GITHUB_DOWN));
+  }
+}
+
+const envFromProcess = (): ContribEnv => ({
+  KV_REST_API_URL: process.env.KV_REST_API_URL,
+  KV_REST_API_TOKEN: process.env.KV_REST_API_TOKEN,
+  UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
+  UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
+  LIBRARY_SESSION_SECRET: process.env.LIBRARY_SESSION_SECRET,
+  GITHUB_APP_ID: process.env.GITHUB_APP_ID,
+  GITHUB_APP_PRIVATE_KEY: process.env.GITHUB_APP_PRIVATE_KEY,
+});
+
+const realFetch: FetchLike = (url, init) => fetch(url, init);
+const handle = (request: Request) => handleShip(request, envFromProcess(), { fetch: realFetch });
+
+/** Vercel Functions entries (Web standard signature). */
+export const POST = handle;
+export const OPTIONS = handle;
