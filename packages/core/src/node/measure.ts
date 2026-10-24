@@ -173,7 +173,7 @@ export const PROPS_SCRIPT = (id?: string) => `(async () => {
   let story = p.currentRender && p.currentRender.story;
   if (want && (!story || story.id !== want)) { try { story = await p.storyStoreValue.loadStory({ storyId: want }); } catch (e) { story = story || null; } }
   if (!story) return null;
-  const plain = (v) => v === null || ['string', 'number', 'boolean'].includes(typeof v);
+  const plain = (v) => ['string', 'number', 'boolean'].includes(typeof v);
   const clean = (o) => { const out = {}; for (const k in o || {}) if (plain(o[k])) out[k] = o[k]; return out; };
   let live;
   try { live = p.storyStoreValue && p.storyStoreValue.args && p.storyStoreValue.args.get(story.id); } catch (e) {}

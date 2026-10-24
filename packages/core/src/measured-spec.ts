@@ -363,10 +363,10 @@ export interface MeasuredArgType {
 
 /** The props a story rendered with: its args over the component defaults, and the component's prop list. */
 export interface MeasuredProps {
-  /** Args with the component defaults applied (`{ variant: 'primary', size: 'md', disabled: false }`). Plain values only. */
-  props: Record<string, string | number | boolean | null>;
+  /** Args with the component defaults applied (`{ variant: 'primary', size: 'md', disabled: false }`). Plain values only (no null). */
+  props: Record<string, string | number | boolean>;
   /** The story's own args (initial args plus URL overrides), plain values only. */
-  args: Record<string, string | number | boolean | null>;
+  args: Record<string, string | number | boolean>;
   argTypes: Record<string, MeasuredArgType>;
   /** Component display name, when the story names one. */
   component?: string | undefined;
