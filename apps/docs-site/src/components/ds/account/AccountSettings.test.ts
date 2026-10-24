@@ -8,6 +8,7 @@ import { createElement } from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import axe from 'axe-core';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import { setAccountFetch } from '../../../scripts/account-session';
 import AccountSettings, { navigate } from './AccountSettings';
@@ -194,8 +195,11 @@ describe('the account', () => {
 describe('the account menu', () => {
   it('names the person and their role on this team, with Link GitHub, Account settings and Sign out', async () => {
     const { container } = render(createElement(AccountMenu));
-    const trigger = await screen.findByRole('button', { name: 'Signed in as Leo. Account menu' });
+        const trigger = await screen.findByRole('button', { name: 'Leo, Admin, account menu' });
     expect(within(trigger).getByText('Admin')).toBeInTheDocument();
+    // Named by its visible text (WCAG 2.5.3): no aria-label to drift from the name and role it shows.
+    expect(trigger).not.toHaveAttribute('aria-label');
+    expect((await axe.run(trigger, { runOnly: ['label-content-name-mismatch'] })).violations).toEqual([]);
     await waitFor(() => expect(document.documentElement.hasAttribute('data-account')).toBe(true));
     await expectNoAxeViolations(container);
     await userEvent.setup().click(trigger);
@@ -209,7 +213,7 @@ describe('the account menu', () => {
   it('opens the account in a dialog from Account settings, on the page the person is on', async () => {
     const user = userEvent.setup();
     render(createElement(AccountMenu));
-    await user.click(await screen.findByRole('button', { name: 'Signed in as Leo. Account menu' }));
+    await user.click(await screen.findByRole('button', { name: 'Leo, Admin, account menu' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Account settings' }));
     const dialog = await screen.findByRole('dialog', { name: 'Account' });
     expect(within(dialog).getByText('leo@acme.design')).toBeInTheDocument();

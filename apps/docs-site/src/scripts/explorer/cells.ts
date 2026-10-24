@@ -110,7 +110,9 @@ export function studioCellHtml(d: ExplorerData, path: string, col: Column, edite
   const main = v.alias ? swatchLabel(v.alias) : v.line || cssText(type, v.raw);
   const end = v.error ? 'Unresolved' : type === 'color' ? (v.hex ?? v.css) : v.alias ? v.line : '';
   const dot = edited ? '<span class="xp-edot" aria-hidden="true"></span><span class="sr-only">, edited in your draft</span>' : '';
-  return `<span class="xp-field${v.error ? ' is-error' : ''}"${v.override ? ' data-override=""' : ''}>${lead}<span class="xp-field-main mono">${esc(main)}</span>${dot}<span class="xp-field-end mono">${esc(end)}</span><span class="xp-field-chev" aria-hidden="true">${icon('chevronDown', 16)}</span></span>`;
+  // A space between the two values (a flex row does not draw it): the cell's visible text reads "width.2 2px" like its
+  // label, not "width.22px" (WCAG 2.5.3).
+  return `<span class="xp-field${v.error ? ' is-error' : ''}"${v.override ? ' data-override=""' : ''}>${lead}<span class="xp-field-main mono">${esc(main)}</span>${dot} <span class="xp-field-end mono">${esc(end)}</span><span class="xp-field-chev" aria-hidden="true">${icon('chevronDown', 16)}</span></span>`;
 }
 
 /** Accessible text of a cell for screen readers (the visual chip and line are aria-hidden duplicates otherwise). */
