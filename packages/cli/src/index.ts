@@ -365,6 +365,9 @@ async function diff(a: Args, root: string): Promise<number> {
   return delta.some((d) => d.passBefore && !d.passAfter) ? 1 : 0;
 }
 
+const PICK_FILE_MCP = 'Pass "file" or "mode" (for example { "theme": "dark" }), or one edit per file.';
+const PICK_FILE_CLI = 'Pass --file <file> or --mode theme=dark, or one edit per file in --edits edits.json.';
+
 async function propose(a: Args, root: string): Promise<number> {
   const title = flag(a, 'title');
   if (!title) throw new UsageError('bridge propose --title "Darken muted text" --set color.text.muted={palette.neutral.700} --mode theme=light');
@@ -377,7 +380,17 @@ async function propose(a: Args, root: string): Promise<number> {
     edits.push({ op: 'set', path: s.slice(0, i), value: s.slice(i + 1), ...(file ? { file } : {}), ...(mode ? { mode } : {}) });
   }
   const editsFile = flag(a, 'edits');
-  if (editsFile) edits.push(...(JSON.parse(await readFile(resolve(editsFile), 'utf8')) as Record<string, unknown>[]));
+  if (editsFile) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await readFile(resolve(editsFile), 'utf8'));
+    } catch (e) {
+      const missing = (e as NodeJS.ErrnoException).code === 'ENOENT';
+      throw new UsageError(`${editsFile} ${missing ? 'does not exist' : `is not valid JSON (${(e as Error).message})`}. Pass --edits with a JSON array of edits, for example [{ "op": "set", "path": "color.text.muted", "value": "{palette.neutral.700}", "mode": { "theme": "light" } }].`);
+    }
+    if (!Array.isArray(parsed)) throw new UsageError(`${editsFile} must hold a JSON array of edits, for example [{ "op": "set", "path": "color.text.muted", "value": "{palette.neutral.700}", "mode": { "theme": "light" } }].`);
+    edits.push(...(parsed as Record<string, unknown>[]));
+  }
   if (!edits.length) throw new UsageError('Give at least one --set path=value or --edits file.json');
   const pr = flag(a, 'pr');
   const changes = changesFlag(a);
@@ -387,18 +400,24 @@ async function propose(a: Args, root: string): Promise<number> {
   const branch = flag(a, 'branch');
   const jira = flag(a, 'jira');
   const product = flag(a, 'product');
-  const r = (await ops.proposeTokenChange(ctx, {
-    title,
-    edits: edits as never,
-    ...(summary ? { summary } : {}),
-    ...(branch ? { branch } : {}),
-    ...(pr ? { pr } : {}),
-    ...(jira ? { jira } : {}),
-    ...(product ? { product } : {}),
-    ...(changes ? { changes } : {}),
-    source: 'cli',
-    dryRun: has(a, 'dry-run'),
-  })) as Record<string, any>;
+  // The shared message names the MCP fields; say it with the CLI's flags.
+  const r = (await ops
+    .proposeTokenChange(ctx, {
+      title,
+      edits: edits as never,
+      ...(summary ? { summary } : {}),
+      ...(branch ? { branch } : {}),
+      ...(pr ? { pr } : {}),
+      ...(jira ? { jira } : {}),
+      ...(product ? { product } : {}),
+      ...(changes ? { changes } : {}),
+      source: 'cli',
+      dryRun: has(a, 'dry-run'),
+    })
+    .catch((e: Error) => {
+      e.message = e.message.replace(PICK_FILE_MCP, PICK_FILE_CLI);
+      throw e;
+    })) as Record<string, any>;
   if (has(a, 'json')) print(JSON.stringify(r, null, 2));
   else {
     print(`status: ${r.status}${r.why ? ` (${r.why})` : ''}`);
@@ -630,7 +649,11 @@ async function audit(a: Args, root: string): Promise<number> {
   let baseline: AuditReport | undefined;
   if (baselinePath) {
     if (!existsSync(baselinePath)) throw new UsageError(`Baseline not found: ${baselinePath}`);
-    baseline = JSON.parse(await readFile(baselinePath, 'utf8')) as AuditReport;
+    try {
+      baseline = JSON.parse(await readFile(baselinePath, 'utf8')) as AuditReport;
+    } catch (e) {
+      throw new UsageError(`${baselinePath} is not valid JSON (${(e as Error).message}). Pass a report written by bridge audit <path> --json <file>.`);
+    }
   }
   const label = flag(a, 'label');
   const report = runAudit(target, { ds: dsRoot, version: VERSION, ...(label ? { label } : {}), ...(baseline ? { baseline } : {}), ...(allowlist ? { allowlist } : {}) });
@@ -700,7 +723,7 @@ async function snapshotCmd(a: Args, root: string): Promise<number> {
   if (has(a, 'activity')) {
     // Reads only: GITHUB_TOKEN (in a workflow, the run token is enough), --token, or the gh sign-in (said on stderr).
     const token = chooseToken(a, defaultIO(), 'read').token;
-    if (!token) throw new UsageError('bridge snapshot --activity reads GitHub: set GITHUB_TOKEN or pass --token <token> (in a workflow, the run token is enough).');
+    if (!token) throw new UsageError('bridge snapshot --activity reads GitHub: set GITHUB_TOKEN, pass --token <token>, or run gh auth login (in a workflow, the run token is enough).');
     const repo = flag(a, 'repo') || process.env.GITHUB_REPOSITORY || undefined;
     activity = { token, ...(repo ? { repo } : {}) };
   }
@@ -851,7 +874,7 @@ main().then(
   },
   (e: Error) => {
     // A write that went without a token the person passed: say how to pass one, in the CLI's words.
-    const how = needsWriteToken(e.message) && !e.message.includes('--use-gh-auth') ? `\nTo write on GitHub, ${WRITE_TOKEN_HOW}.` : '';
+    const how = needsWriteToken(e.message) && !e.message.includes('--use-gh-auth') && !e.message.includes('--token') ? `\nTo write on GitHub, ${WRITE_TOKEN_HOW}.` : '';
     process.stderr.write(`bridge: ${e.message}${how}\n`);
     process.exitCode = 2;
   },

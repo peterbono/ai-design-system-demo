@@ -233,7 +233,7 @@ export async function runDocsSave(a: RequestArgs, root: string, io: RequestIO = 
   try {
     docs = JSON.parse(await readFile(resolve(root, file), 'utf8')) as Record<string, unknown>;
   } catch (e) {
-    throw new RequestUsageError(`${file} is not a readable JSON file: ${(e as Error).message}`);
+    throw new RequestUsageError(`${file} is not a readable JSON file: ${(e as Error).message}. Pass the usage guidance as JSON, in the shape of the component's <Name>.docs.json.`);
   }
   const ctx = await context(root, io, a, has(a, 'dry-run') ? 'read' : 'write');
   const pr = flag(a, 'pr');

@@ -99,7 +99,7 @@ describe('bridge request', () => {
     gh.issues.push({ number: 100, title: 'Docs typo', body: 'x', state: 'open', state_reason: null, labels: [], user: { login: 'dev' }, html_url: '', created_at: '', updated_at: '' });
     const s = io(gh);
     expect(await runRequest(args('request', 'show', '100'), dir, s.io)).toBe(1);
-    expect(s.err()).toMatch(/not a component change request/);
+    expect(s.err()).toMatch(/not a component change request.*`bridge request list` lists the requests\./);
     await expect(runRequest(args('request', 'show'), dir, io(gh).io)).rejects.toThrow(/Usage: bridge request show/);
     await expect(runRequest(args('request', 'nope'), dir, io(gh).io)).rejects.toThrow(/Unknown request command/);
     expect(await runRequest(args('request'), dir, io(gh).io)).toBe(2);
