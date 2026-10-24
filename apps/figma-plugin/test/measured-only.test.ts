@@ -271,6 +271,24 @@ test('measured only: every variant keeps its SVG icon, a fill root its measured 
   }
 });
 
+test('measured only: a boolean the stories show both ways is an axis when it draws (Carbon Toggle toggled)', () => {
+  const m = fixture();
+  const base = m.stories.find((s) => s.title.endsWith('/Card') && s.spec)!;
+  const story = (toggled: boolean, readOnly: boolean) => ({
+    ...base,
+    id: `toggle-${toggled}-${readOnly}`,
+    name: 'Default',
+    title: 'Components/Toggle',
+    props: { toggled, readOnly },
+    state: undefined,
+    spec: { ...base.spec!, parts: [{ id: 'root', name: 'Root', kind: 'frame' as const }], values: { root: { fill: toggled ? 'rgb(36, 161, 72)' : 'rgb(141, 141, 141)', width: 48, height: 24 } }, raw: {} },
+  });
+  // readOnly changes nothing here: it is not an axis.
+  m.stories = [story(false, false), story(true, false), story(false, true)];
+  m.components = [{ title: 'Components/Toggle', name: 'Toggle', argTypes: { toggled: { kind: 'boolean', default: false }, readOnly: { kind: 'boolean', default: false } } }];
+  assert.deepEqual(axesOf(specsFromMeasure(m).specs.components[0]!), ['Toggled=false|true']);
+});
+
 test('measured only with screenshots: each variant keeps the render of the story it was built from', () => {
   const m = fixture();
   m.stories = m.stories.filter((s) => s.title.endsWith('/Tabs'));

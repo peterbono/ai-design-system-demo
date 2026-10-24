@@ -3,9 +3,9 @@
 // story's props, its forced state and its rendered tree in the spec shape; this file groups the stories into Figma sets.
 // Pure: no DOM, no figma.*.
 //
-// - Axes: the component's enum props (2 to 12 options, as Storybook knows them) with the values the stories show, a
-//   Checked axis from a `checked` prop (mixed from `indeterminate`), and a State axis from the forced states and
-//   `disabled`.
+// - Axes: the component's enum props (2 to 12 options, as Storybook knows them) with the values the stories show, the
+//   booleans the stories show both ways, a Checked axis from a `checked` prop (mixed from `indeterminate`), and a State
+//   axis from the forced states and `disabled`.
 // - A story stands for a variant only when its other booleans are at their defaults (a Loading story is not a variant).
 // - Parts: the default variant's rendered tree. The other variants pair their tree with it (core pairParts, as the bench
 //   does); a part a variant does not render is hidden there.
@@ -108,11 +108,22 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
   // single-instance story renders: it comes last, and the first story of a variant wins.
   const shown = stories.filter((s) => !/skeleton/i.test(s.name));
   const ordered = [...(shown.length ? shown : stories)].sort((a, b) => Number(!!a.gallery) - Number(!!b.gallery));
+  // A boolean the stories show both ways is an axis (Carbon Toggle `toggled`); drawnAxes drops it if it draws nothing.
+  const valueOf = (s: MeasuredSpecsStory, k: string, a: MeasuredArgType) => (propsOf(s)[k] ?? a.default ?? false) === true;
+  const flags = Object.entries(argTypes).filter(
+    ([k, a]) => a.kind === 'boolean' && !STATE_PROPS.has(k) && !NOT_AN_AXIS.test(k) && ordered.some((s) => valueOf(s, k, a)) && ordered.some((s) => !valueOf(s, k, a)),
+  );
   const plain = ordered.filter((s) =>
-    Object.entries(argTypes).every(([k, a]) => a.kind !== 'boolean' || STATE_PROPS.has(k) || NOT_AN_AXIS.test(k) || (propsOf(s)[k] ?? a.default ?? false) === baseline(k, a)),
+    Object.entries(argTypes).every(
+      ([k, a]) => a.kind !== 'boolean' || STATE_PROPS.has(k) || NOT_AN_AXIS.test(k) || flags.some(([f]) => f === k) || (propsOf(s)[k] ?? a.default ?? false) === baseline(k, a),
+    ),
   );
   if (!plain.length) return undefined;
   const axes: SpecAxis[] = [];
+  for (const [prop, a] of flags) {
+    const def = String(baseline(prop, a) === true);
+    axes.push({ name: axisName(prop), prop, values: [def, def === 'true' ? 'false' : 'true'], default: def });
+  }
   for (const [prop, a] of Object.entries(argTypes)) {
     if (a.kind !== 'enum' || NOT_AN_AXIS.test(prop) || !a.options || a.options.length < 2 || a.options.length > 12) continue;
     const seen = new Set(plain.map((s) => String(propsOf(s)[prop] ?? a.default ?? a.options![0])));
@@ -132,7 +143,9 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
   const keyOf = (s: MeasuredSpecsStory): Record<string, string> | undefined => {
     const props: Record<string, string> = {};
     for (const axis of axes) {
-      const value = axis.name === 'State' ? STATES.find((st) => st.of(s))?.value : axis.name === 'Checked' ? checkedOf(s) : String(propsOf(s)[axis.prop!] ?? axis.default);
+      const flag = flags.find(([k]) => k === axis.prop);
+      const value =
+        axis.name === 'State' ? STATES.find((st) => st.of(s))?.value : axis.name === 'Checked' ? checkedOf(s) : flag ? String(valueOf(s, flag[0], flag[1])) : String(propsOf(s)[axis.prop!] ?? axis.default);
       if (value === undefined || !axis.values.includes(value)) return undefined;
       props[axis.name] = value;
     }
