@@ -3,7 +3,7 @@
 // the Figma plugin and the docs site use.
 
 import { type Combo, type LayeredDef, type LayeredTokenSet, comboKey } from './layered';
-import { RISK_LABELS, type RiskResult, type SemverBump, type TokenChangeSummary, classifyRisk } from './risk';
+import { RISK_LABELS, figmaPushNextLine, figmaPushTierLabel, type RiskResult, type SemverBump, type TokenChangeSummary, classifyRisk } from './risk';
 import type { BridgeConfig } from './config';
 import { rgbaToHex } from './values';
 import { type ContrastPair, contrastRatio, renderedColor } from './wcag';
@@ -227,18 +227,23 @@ export interface ProposalBodyInput {
   /** "Bridge MCP", "the bridge CLI". */
   tool?: string;
   author?: string;
+  /** Pushed from the Figma plugin: design-approved, the tier line says what happens next (docs/BUILD-REQUESTS.md). */
+  fromFigma?: boolean | undefined;
 }
 
 export function composeProposalBody(args: ProposalBodyInput): string {
   const t = args.tier.tier;
-  const box = (n: 1 | 2 | 3) => `- ${n === t ? '[x]' : '[ ]'} ${RISK_LABELS[n]}`;
+  const figma = Boolean(args.fromFigma);
+  const box = (n: 1 | 2 | 3) => `- ${n === t ? '[x]' : '[ ]'} ${figma && n === t ? figmaPushTierLabel(n, args.changes) : RISK_LABELS[n]}`;
   const impactList = args.impact.entries.slice(0, 15).map((e) => `- \`${e.path}\`: ${swatch(e.before)} -> ${swatch(e.after)} (${e.modes.length} mode${e.modes.length > 1 ? 's' : ''})`);
   return [
     '## What changed and why',
     '',
     args.summary.trim(),
     '',
-    `Proposed through ${args.tool ?? 'Bridge MCP'}${args.author ? ` by ${args.author}` : ''}. Agent-authored: a human design owner and tech owner review and merge.`,
+    figma
+      ? `Pushed from Figma through ${args.tool ?? 'the Bridge Figma plugin'}${args.author ? ` by ${args.author}` : ''}. ${figmaPushNextLine(args.changes)}`
+      : `Proposed through ${args.tool ?? 'Bridge MCP'}${args.author ? ` by ${args.author}` : ''}. Agent-authored: a human design owner and tech owner review and merge.`,
     '',
     '## Risk tier',
     '',
@@ -268,8 +273,8 @@ export function composeProposalBody(args: ProposalBodyInput): string {
     '',
     '## Authored by',
     '',
-    '- [ ] Human',
-    '- [x] AI agent (Claude), reviewed by a human before merge',
+    `- [${figma ? 'x' : ' '}] Human`,
+    `- [${figma ? ' ' : 'x'}] AI agent (Claude), reviewed by a human before merge`,
     '',
     '## Design review checklist',
     '',

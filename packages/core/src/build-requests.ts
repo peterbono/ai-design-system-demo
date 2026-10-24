@@ -570,7 +570,12 @@ export function buildRequestStatus(
   const own = x.pull ?? null;
   const linked = [...(own ? [own] : []), ...(x.linked ?? [])];
   const createdAt = x.issue?.createdAt ?? own?.createdAt ?? own?.updatedAt ?? new Date(nowMs).toISOString();
-  const assignees = x.issue?.assignees?.length ? x.issue.assignees : (own?.assignees ?? []);
+  // Who picked it up: the issue's assignees, else the assignees of a linked pull request (a developer may assign
+  // themselves on the library branch from Figma that carries the spec and closes the issue).
+  const linkedAssignees = linked.filter((p) => isOpen(p) || isMerged(p)).flatMap((p) => p.assignees ?? []);
+  const assignees = x.issue?.assignees?.length ? x.issue.assignees : [...new Set(linkedAssignees)];
+  // The person who sent it never reads as its builder (the branch from Figma is opened in their name).
+  const requester = (x.issue?.author ?? own?.author ?? '').toLowerCase();
   const merged = linked.filter(isMerged).sort((a, b) => String(mergedAtOf(b)).localeCompare(String(mergedAtOf(a))))[0];
   const inReview = linked.find(ready);
   const building = linked.find((p) => isOpen(p) && !specOnly(p));
@@ -585,7 +590,7 @@ export function buildRequestStatus(
   else if (assignees.length) status = 'picked-up';
   else status = 'requested';
   const workPull = merged ?? inReview ?? building ?? null;
-  const builders = assignees.length ? [...assignees] : workPull?.author && (status === 'in-progress' || status === 'in-review' || status === 'shipped') && workPull !== own ? [workPull.author] : [];
+  const builders = assignees.length ? [...assignees] : workPull?.author && (status === 'in-progress' || status === 'in-review' || status === 'shipped') && workPull !== own && workPull.author.toLowerCase() !== requester ? [workPull.author] : [];
   const ageDays = Math.max(0, Math.floor((nowMs - Date.parse(createdAt)) / DAY));
   const stale = status === 'requested' && ageDays > BUILD_STALE_DAYS;
   const shippedAt = status === 'shipped' ? (merged ? mergedAtOf(merged) : null) ?? x.issue?.closedAt ?? null : null;
@@ -602,7 +607,11 @@ export function buildRequestStatus(
   const timeline: BuildStatusEvent[] = reached.map((s) => {
     if (s === 'requested') return { status: s, at: createdAt, ...(x.issue?.author ? { who: x.issue.author } : own?.author ? { who: own.author } : {}) };
     if (s === 'picked-up') return { status: s, ...(first(builders) ? { who: first(builders) } : {}) };
-    if (s === 'in-progress') return { status: s, ...(building?.createdAt ? { at: building.createdAt } : {}), ...(building?.author && building !== own ? { who: building.author } : {}) };
+    if (s === 'in-progress') {
+      // The branch from Figma was opened by the sender when they pushed: its date and author are not when work started.
+      const theirs = building && building !== own && building.author && building.author.toLowerCase() !== requester;
+      return { status: s, ...(theirs && building.createdAt ? { at: building.createdAt } : {}), ...(theirs ? { who: building.author } : first(builders) ? { who: first(builders) } : {}) };
+    }
     if (s === 'shipped') return { status: s, ...(shippedAt ? { at: shippedAt } : {}) };
     return { status: s as BuildStatus };
   });

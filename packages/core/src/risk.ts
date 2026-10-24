@@ -60,6 +60,22 @@ export const RISK_LABELS: Record<RiskTier, string> = {
   3: 'Tier 3: token change, needs design + tech approval',
 };
 
+/**
+ * The tier line of a token change pushed from the Figma plugin (docs/BUILD-REQUESTS.md): a push is design-approved, so
+ * the approvals part of RISK_LABELS would mislead. Token values ship once the checks pass; a rename or a removal waits for
+ * a developer OK. Keeps "Tier N" first so parseTier reads it. Same rule as branchVerdict `autoShip`.
+ */
+export function figmaPushTierLabel(tier: RiskTier, changes: readonly { kind: TokenChangeKind | string }[]): string {
+  const waits = changes.some((c) => c.kind === 'renamed' || c.kind === 'removed');
+  return `Tier ${tier}: token change. From Figma: design-approved, ${waits ? 'waits for a developer OK (a token renamed or removed can break product code)' : 'ships once the checks pass'}`;
+}
+
+/** The sentence after it: what happens next to a token change pushed from Figma. */
+export const figmaPushNextLine = (changes: readonly { kind: TokenChangeKind | string }[]): string =>
+  changes.some((c) => c.kind === 'renamed' || c.kind === 'removed')
+    ? 'Pushed from Figma, so design-approved. A developer OKs the rename or removal before it merges.'
+    : 'Pushed from Figma, so design-approved. Bridge merges it once the automatic checks pass; Undo is in History in Bridge Studio.';
+
 const BUMP_RANK: Record<SemverBump, number> = { patch: 0, minor: 1, major: 2 };
 const LOW = [/\.md$/, /^docs\//, /\.stories\.tsx?$/, /\.docs\.json$/, /\.test\.tsx?$/, /^\.changeset\//];
 

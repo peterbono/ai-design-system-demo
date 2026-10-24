@@ -60,6 +60,8 @@ export function planTokenProposal(input: {
   tool?: string | undefined;
   /** More body paragraphs, after the generated body (the product line, "Needed by"). */
   bodyExtra?: string[] | undefined;
+  /** Pushed from the Figma plugin: the body says design-approved and what happens next (docs/BUILD-REQUESTS.md). */
+  fromFigma?: boolean | undefined;
 }): TokenProposalPlan | null {
   const { before, config } = input;
   const r = applyTokenEdits(before, input.edits);
@@ -74,7 +76,7 @@ export function planTokenProposal(input: {
   const impact = layeredImpact(before, after, changes);
   const tier = classifyLayered(changes, [], config);
   const summary = input.summary?.trim() || input.title;
-  const body = [composeProposalBody({ summary, changes, contrast, impact, tier, validationErrors: newErrors.length, tool: input.tool ?? 'Bridge MCP' }), ...(input.bodyExtra ?? [])].filter(Boolean).join('\n\n');
+  const body = [composeProposalBody({ summary, changes, contrast, impact, tier, validationErrors: newErrors.length, tool: input.tool ?? 'Bridge MCP', ...(input.fromFigma ? { fromFigma: true } : {}) }), ...(input.bodyExtra ?? [])].filter(Boolean).join('\n\n');
   const slug = slugify(input.title, 48) || 'change';
   const changesetPath = `${config.changesets?.dir ?? '.changeset'}/bridge-${slug}.md`;
   const touched = r.touched.map((f) => after.repoPath(f));
