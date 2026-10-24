@@ -68,8 +68,15 @@ const LITERAL_FIELDS: SpecField[] = ['fill', 'textFill', 'stroke', 'fontFamily']
  * size of their own. A token the library does not have (`known` says no), or a color or font family with no token at
  * all, takes the measured literal (`rgb(...)`, px, a family list): the set draws what code draws, unbound.
  */
-function valuesOf(spec: MeasuredSpec, partId: string, hasChildren: boolean, known: (path: string) => boolean, fills = false): Partial<Record<SpecField, SpecValue>> {
-  const sized = spec.sized?.[partId];
+function valuesOf(
+  spec: MeasuredSpec,
+  partId: string,
+  hasChildren: boolean,
+  known: (path: string) => boolean,
+  fills = false,
+  own: { width: boolean; height: boolean } = { width: true, height: true },
+): Partial<Record<SpecField, SpecValue>> {
+  const sized = { ...(hasChildren ? boxSized(spec, partId, own) : {}), ...spec.sized?.[partId] };
   const v = { ...(spec.values[partId] ?? {}) };
   const raw = spec.raw[partId] ?? {};
   for (const field of Object.keys(v) as SpecField[]) {
@@ -89,6 +96,27 @@ function valuesOf(spec: MeasuredSpec, partId: string, hasChildren: boolean, know
   if (sized?.width !== undefined) v.width = sized.width;
   if (sized?.height !== undefined) v.height = sized.height;
   return v;
+}
+
+/**
+ * A size of its own, read from the boxes: a frame bigger than its children plus its padding on an axis (a 48 px button
+ * around a 16 px icon, a 24 px label row around a 16 px label) keeps that size, as its CSS gives it, when the measure
+ * did not say so. `own`: the axes its parent does not size (not stretched across, not grown along).
+ */
+function boxSized(spec: MeasuredSpec, partId: string, own: { width: boolean; height: boolean }): { width?: number; height?: number } {
+  const box = spec.boxes?.[partId];
+  const kids = spec.parts.filter((c) => c.parent === partId && !c.pin && !c.cover && !c.overlay).map((c) => spec.boxes?.[c.id]).filter((b): b is NonNullable<typeof b> => !!b);
+  if (!box || !kids.length) return {};
+  const raw = spec.raw[partId] ?? {};
+  const num = (f: SpecField) => (typeof raw[f] === 'number' ? (raw[f] as number) : 0);
+  const left = Math.min(...kids.map((k) => k.x));
+  const top = Math.min(...kids.map((k) => k.y));
+  const contentW = Math.max(...kids.map((k) => k.x + k.width)) - left + num('paddingLeft') + num('paddingRight');
+  const contentH = Math.max(...kids.map((k) => k.y + k.height)) - top + num('paddingTop') + num('paddingBottom');
+  const out: { width?: number; height?: number } = {};
+  if (own.width && box.width - contentW > 1) out.width = box.width;
+  if (own.height && box.height - contentH > 1) out.height = box.height;
+  return out;
 }
 
 /** One Figma set from the stories of one component, or undefined when none stands for a variant. */
@@ -228,7 +256,7 @@ function setOf(
         hidden.push(p.id);
         continue;
       }
-      values[p.id] = valuesOf(m, mid, parents.has(p.id) && !aligners.has(p.id), known, !p.parent && !!p.fill);
+      values[p.id] = valuesOf(m, mid, parents.has(p.id) && !aligners.has(p.id), known, !p.parent && !!p.fill, ownAxes(p, parts));
       if (m.spacers?.[mid]) spacers[p.id] = m.spacers[mid]!;
       // An icon's fill is the color it draws with (CSS `fill`), not a background: the frame would paint a square.
       if (p.kind === 'icon' || p.kind === 'vector') delete values[p.id]!.fill;
@@ -288,6 +316,17 @@ function textRootInFrame(parts: SpecPart[], variants: SpecVariant[]): void {
     v.values[id] = Object.fromEntries(Object.entries(all).filter(([f]) => TEXT_FIELDS.has(f as SpecField)));
     if (v.hidden?.includes(root.id)) v.hidden.push(id);
   }
+}
+
+/** The axes a part's parent does not size: not stretched across a column or row, not grown along it, not a filling root. */
+function ownAxes(part: MeasuredPart, parts: readonly MeasuredPart[]): { width: boolean; height: boolean } {
+  const parent = parts.find((x) => x.id === part.parent);
+  const dir = parent?.layout?.direction;
+  const stretch = parent?.layout?.counter === 'STRETCH';
+  return {
+    width: !(!part.parent && part.fill) && !(dir === 'VERTICAL' && stretch) && !(dir === 'HORIZONTAL' && part.grow) && !part.stretch?.width,
+    height: !(dir === 'HORIZONTAL' && stretch) && !(dir === 'VERTICAL' && part.grow) && !part.stretch?.height,
+  };
 }
 
 /** An overlay's place in its parent, from the measured boxes (px from the parent's top and left edges). */
