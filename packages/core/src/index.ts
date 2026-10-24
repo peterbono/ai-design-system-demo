@@ -48,6 +48,7 @@ export * from './explorations-github';
 export * from './requests-github';
 export * from './component-spec';
 export * from './measured-spec';
+export * from './measured-tokens';
 export * from './measure-status';
 export * from './fidelity';
 export * from './fidelity-references';

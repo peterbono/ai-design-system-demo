@@ -182,6 +182,20 @@ test('runFidelityCheck: every generated set compared with its code images; a bad
   assert.match(fidelitySummary(out.report), new RegExp(`^1 component differs from the code, ${sets.length - 1 - open.length} match`));
 });
 
+test('runFidelityCheck with a reference: the screenshots of the stories, never the code images branch', async () => {
+  // A measured-only pull passes its stories' renders (any design system): same comparison, another source of images.
+  const { sets } = await fileWithSets();
+  const manifest = manifestFor(() => [40, 20]);
+  const d = deps(sets, undefined, () => undefined);
+  const asked: string[] = [];
+  const out = await runFidelityCheck({ ...d, reference: { manifest, image: async (file) => (asked.push(file), fake(80, 40)) } });
+  assert.equal(out.kind, 'done');
+  if (out.kind !== 'done') return;
+  assert.deepEqual(d.reads, [], 'nothing read from the code images branch');
+  assert.ok(asked.length > 0 && asked.every((f) => !f.startsWith(FIGMA_REFERENCES_DIR)));
+  assert.equal(out.report.summary.differs, 0);
+});
+
 test('runFidelityCheck: no published images, a set from another version, a set with no code image', async () => {
   const { sets } = await fileWithSets();
   assert.deepEqual(await runFidelityCheck(deps(sets, undefined, () => undefined)), { kind: 'no-references' });
