@@ -98,8 +98,12 @@ function valuesOf(spec: MeasuredSpec, partId: string, hasChildren: boolean, know
 /** One Figma set from the stories of one component, or undefined when none stands for a variant. */
 function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<string, MeasuredArgType>, source: string, known: (path: string) => boolean): { spec: ComponentSpec; shots: Record<string, VariantShot> } | undefined {
   // Only stories as written or measured for a variant: their other booleans at the component's defaults.
+  // Other booleans compare with the component's Default story, not Storybook's defaults: a design system's stories can
+  // all set one (Carbon IconButton: defaultOpen, highContrast), and that is then how the component is shown.
+  const lead = stories.find((s) => s.name === 'Default' && !s.state) ?? stories[0];
+  const baseline = (k: string, a: MeasuredArgType) => (lead ? propsOf(lead)[k] : undefined) ?? a.default ?? false;
   const plain = stories.filter((s) =>
-    Object.entries(argTypes).every(([k, a]) => a.kind !== 'boolean' || STATE_PROPS.has(k) || NOT_AN_AXIS.test(k) || (propsOf(s)[k] ?? a.default ?? false) === (a.default ?? false)),
+    Object.entries(argTypes).every(([k, a]) => a.kind !== 'boolean' || STATE_PROPS.has(k) || NOT_AN_AXIS.test(k) || (propsOf(s)[k] ?? a.default ?? false) === baseline(k, a)),
   );
   if (!plain.length) return undefined;
   const axes: SpecAxis[] = [];
@@ -219,14 +223,24 @@ function drawnAxes(axes: SpecAxis[], variants: SpecVariant[]): { axes: SpecAxis[
     // The measure forces hover while it presses or focuses: Pressed (or Focus) that draws like Hover is not styled.
     const hoverTwin = new Map<string, SpecVariant>();
     if (axis.name === 'State') for (const v of current.variants) if (v.props.State === 'Hover') hoverTwin.set(others(v), v);
-    const differs = (v: SpecVariant, from: Map<string, SpecVariant>) => !from.has(others(v)) || look(from.get(others(v))!) !== look(v);
+    // Without a default twin (the stories skip that combination), any other value of the axis there stands in.
+    const stand = (v: SpecVariant) => current.variants.filter((x) => x.props[axis.name] !== v.props[axis.name] && others(x) === others(v));
+    const differs = (v: SpecVariant, from: Map<string, SpecVariant>) =>
+      from.has(others(v)) ? look(from.get(others(v))!) !== look(v) : from !== twin || stand(v).every((x) => look(x) !== look(v));
     const drawn = axis.values.filter(
       (value) =>
         value === axis.default ||
         current.variants.some((v) => v.props[axis.name] === value && differs(v, twin) && (!['Pressed', 'Focus'].includes(value) || !hoverTwin.size || differs(v, hoverTwin))),
     );
     const values = axis.values.filter((value) => drawn.includes(value));
+    // A value that draws like the default stands for it where the default has no story (only `tel` was hovered).
     const variants = current.variants.filter((v) => values.includes(v.props[axis.name]!));
+    const covered = new Set(variants.filter((v) => v.props[axis.name] === axis.default).map(others));
+    for (const v of current.variants) {
+      if (values.includes(v.props[axis.name]!) || covered.has(others(v))) continue;
+      covered.add(others(v));
+      variants.push({ ...v, props: { ...v.props, [axis.name]: axis.default } });
+    }
     if (values.length > 1) current = { axes: current.axes.map((a) => (a === axis ? { ...a, values } : a)), variants };
     else
       current = {
