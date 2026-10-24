@@ -72,6 +72,8 @@
 //   bridge:contrib:mine:<repo>:<email>                      set of "b:<branch>" and "i:<number>" they made (a year)
 //   bridge:contrib:signin:<sha256 of token>                 a sign-in link { repo, email }, 15 minutes, works once
 //   bridge:contrib:count:<repo>:<email>:<day>               writes today; sign-in links per email, network, team, site
+// When a member deletes their Bridge account, api/_lib/former-member.ts forgets the keys that hold their email and their
+// "Requested by" lines name "A former member": their changes stay in the team's history.
 // Nothing here logs.
 //
 // Env (server only): KV_REST_API_URL + KV_REST_API_TOKEN (or the UPSTASH_ pair), LIBRARY_SESSION_SECRET (32+ characters),
@@ -82,6 +84,7 @@
 import { createHmac, randomBytes } from 'node:crypto';
 import { sessionAccount } from '../_lib/account.js';
 import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
+import { branchKey, issueKey, mineKey } from '../_lib/former-member.js';
 import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
 import {
@@ -497,10 +500,8 @@ export function validBranch(b: string): boolean {
   );
 }
 
-const branchKey = (repo: string, b: string) => `bridge:contrib:branch:${repo.toLowerCase()}:${b}`;
-const issueKey = (repo: string, n: string | number) => `bridge:contrib:issue:${repo.toLowerCase()}:${n}`;
-/** Everything one member made here, "b:<branch>" and "i:<number>", so Studio counts it as theirs (GET ?mine=1). */
-const mineKey = (repo: string, email: string) => `bridge:contrib:mine:${repo.toLowerCase()}:${email.toLowerCase()}`;
+// branchKey, issueKey and mineKey (everything one member made here, "b:<branch>" and "i:<number>", so Studio counts it
+// as theirs, GET ?mine=1) live in api/_lib/former-member.ts: account deletion forgets them.
 /** Adds one branch or issue to the member's set, kept a year from the last addition. */
 async function rememberMine(ctx: Ctx, repo: string, email: string, item: string) {
   await ctx.svc.redis.pipe([

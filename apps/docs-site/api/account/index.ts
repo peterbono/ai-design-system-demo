@@ -28,6 +28,10 @@
 //                                              (with the same `blocked`) when the person is the only admin of a team with
 //                                              other members (checked on GitHub when the request carries their GitHub
 //                                              token as Bearer). A team made in Bridge they were alone on goes with them.
+//                                              The changes they sent through Bridge stay in their teams' history with
+//                                              "A former member" as the author: no record keeps their email
+//                                              (api/_lib/former-member.ts, which also rewrites their "Requested by" lines
+//                                              on GitHub with the Bridge app when it is set up).
 // Every request other than GET carries `X-Bridge-Account: 1`, JSON, and an Origin of this very site (CSRF).
 //
 // Security: codes are compared in constant time on their SHA-256, stored only hashed, 10 minutes, single use; 5 wrong
@@ -36,7 +40,8 @@
 //
 // Storage: api/_lib/account.ts (accounts, GitHub links, teams, codes) and api/_lib/members.ts (memberships).
 // Env (server only): KV_REST_API_URL + KV_REST_API_TOKEN (or the UPSTASH_ pair), LIBRARY_SESSION_SECRET (32+
-// characters), RESEND_API_KEY + INVITE_EMAIL_FROM (codes), CRON_SECRET + BLOB_READ_WRITE_TOKEN (backup).
+// characters), RESEND_API_KEY + INVITE_EMAIL_FROM (codes), CRON_SECRET + BLOB_READ_WRITE_TOKEN (backup),
+// GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY (optional: a deleted member's "Requested by" lines on GitHub).
 
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import {
@@ -50,6 +55,8 @@ import {
   putAccount,
   sessionAccount,
 } from '../_lib/account.js';
+import { forgetChanges } from '../_lib/former-member.js';
+import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, readBody, sameOrigin, secondsToTomorrow, sha256, type FetchLike } from '../_lib/http.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
@@ -77,6 +84,8 @@ export interface AccountEnv {
   CRON_SECRET?: string | undefined;
   BLOB_READ_WRITE_TOKEN?: string | undefined;
   ACCOUNT_CODES_MAX_SITE_DAY?: string | undefined;
+  GITHUB_APP_ID?: string | undefined;
+  GITHUB_APP_PRIVATE_KEY?: string | undefined;
 }
 
 /** The backup store (Vercel Blob in production). */
@@ -100,6 +109,8 @@ export interface AccountDeps {
   blob?: (token: string) => BlobStore | Promise<BlobStore>;
   /** Where a skipped backup says so (never an email). */
   warn?: (msg: string) => void;
+  /** The Bridge app that rewrites a deleted member's "Requested by" lines (tests inject one); else from the env. */
+  app?: AppTokens | null;
 }
 
 export interface PublicTeam {
@@ -579,6 +590,15 @@ async function blockedTeams(ctx: Ctx, req: Request, a: Account): Promise<Blocked
   return out;
 }
 
+/** The Bridge app narrowed to editing issue and pull request bodies, or null when the site has none. */
+function changeApp(ctx: Ctx): AppTokens | null {
+  if (ctx.deps.app !== undefined) return ctx.deps.app;
+  const id = ctx.env.GITHUB_APP_ID?.trim();
+  const pem = ctx.env.GITHUB_APP_PRIVATE_KEY?.trim();
+  const perms = { issues: 'write', pull_requests: 'write' } as const;
+  return id && pem ? githubApp(id, pem, ctx.f, ctx.now, { permissions: { ...perms }, require: { ...perms }, userAgent: 'bridge-account' }) : null;
+}
+
 async function onDelete(ctx: Ctx, req: Request, a: Account): Promise<Response> {
   const blocked = await blockedTeams(ctx, req, a);
   if (blocked.length) return fail(409, 'last-admin', lastAdminOf(blocked.map((b) => b.name)), { teams: blocked.map((b) => b.repo), blocked });
@@ -597,6 +617,8 @@ async function onDelete(ctx: Ctx, req: Request, a: Account): Promise<Response> {
       await deleteTeamRecord(svc.redis, rec);
     }
   }
+  // The changes they sent through Bridge stay in the team's history, by "A former member": no record keeps the email.
+  await forgetChanges(svc.redis, a.email, { app: changeApp(ctx), fetch: ctx.f });
   // Their pending join requests go too (api/entry).
   await removeAllRequests(svc.redis, a.email);
   if (svc.localAdmins) await svc.localAdmins.removeEmail(a.email);

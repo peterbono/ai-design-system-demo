@@ -7,6 +7,8 @@
 //   Requested by Ann Leroy.                 a name only (someone without a GitHub account, or a demo persona)
 //   Requested by @annleroy.                 a login only
 //   Requested by Ann Leroy (ann@acme.com) through Bridge.   an email member, written by Bridge's server (api/contribute)
+//   Requested by A former member through Bridge.            an email member who deleted their Bridge account: the
+//                                                            change stays in the team's history with a neutral author
 // Also read: the line of a component change request, "<sub>Requested from Figma by @ann with Bridge.</sub>", and,
 // when no "Requested by" line is there, the footer of a suggestion, "<sub>Suggested from Figma by @ann with Bridge.</sub>".
 
@@ -16,6 +18,12 @@ export interface Requester {
   /** The GitHub login, without "@", when the line gives one. */
   login: string | null;
 }
+
+/** The neutral author of a change whose requester deleted their Bridge account (api/account rewrites the line). */
+export const FORMER_MEMBER = 'A former member';
+
+/** How a sentence names a requester by first name ("Waiting for Priya"): the former member stays whole. */
+export const requesterFirstName = (name: string): string => (name.trim() === FORMER_MEMBER ? FORMER_MEMBER : (name.trim().split(/\s+/)[0] ?? name));
 
 const LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 const LINE = /(?:^|\n)[ \t>*_-]*(?:<sub>)?\s*Requested (?:from [^\n<]{1,40}? )?by ([^\n<]{1,120}?)(?:\s+with Bridge)?\.?\s*(?:<\/sub>)?[ \t]*(?=\n|$)/i;
