@@ -44,7 +44,8 @@
 }
 
 .dh-tour {
-  max-width: var(--size-96);
+  /* Never wider than the screen less the popover's collision padding on each side (no sideways scroll on a phone). */
+  max-width: min(var(--size-96), calc(100vw - var(--size-4)));
 }
 
 .dh-tour-foot {

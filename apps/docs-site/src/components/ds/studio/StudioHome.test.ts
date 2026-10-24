@@ -8,7 +8,7 @@ import { userEvent } from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import { StudioHome, type StudioHomeProps } from './StudioHome';
-import { changeNeed, person, type BranchCard } from '../../../lib/home-model';
+import { changeNeed, joinNeed, person, type BranchCard } from '../../../lib/home-model';
 
 const NOW = Date.parse('2026-10-22T10:00:00Z');
 const dana = person('dana', 'Dana Kim', null);
@@ -70,6 +70,20 @@ describe('StudioHome, contributor', () => {
   it('shows no tour to a reviewer', () => {
     render(createElement(StudioHome, props({ contributor: false })));
     expect(screen.queryByText(/until a reviewer merges them/)).toBeNull();
+  });
+});
+
+describe('StudioHome, lead', () => {
+  const jamie = joinNeed({ id: 'a1b2c3d4e5f60718', name: 'Jamie Lee', email: 'jamie@acme.com', createdAt: '2026-10-22T08:00:00Z' }, 'Acme Product', NOW);
+  const review = changeNeed({ number: 7, title: 'Deeper primary blue', author: leo, asker: leo, since: null, task: 'design', thumb: { kind: 'icon', icon: 'branch' } }, NOW);
+
+  it('tours the queue only when it holds changes, never join requests alone', () => {
+    const { unmount } = render(createElement(StudioHome, props({ contributor: false, lead: true, needs: [jamie] })));
+    expect(screen.getByText('asks to join Acme Product', { exact: false })).toBeTruthy();
+    expect(screen.queryByText(/Changes wait for the lead/)).toBeNull();
+    unmount();
+    render(createElement(StudioHome, props({ contributor: false, lead: true, needs: [review] })));
+    expect(screen.getByText(/Changes wait for the lead/)).toBeTruthy();
   });
 });
 
