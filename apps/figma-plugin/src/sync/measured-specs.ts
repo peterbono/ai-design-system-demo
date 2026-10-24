@@ -103,8 +103,11 @@ export function overlayMeasured(specs: ComponentSpecsFile, measured: MeasuredSpe
   const stories = measured.stories.filter((s) => s.spec && !s.error);
   const resolvedOf = new Map((measured.components ?? []).map((c) => [norm(c.title), c.resolved ?? {}]));
   const components = specs.components.map((spec) => {
-    const name = norm(spec.component ?? spec.name);
-    const mine = stories.filter((s) => componentOf(s.title) === name).map((s) => ({ s, variant: storyVariant(spec, s) }));
+    // Stories titled by the set ("Figma variants/Radio") first; else the component's own ("Forms/RadioGroup"), which
+    // every set of a folder shares (Menu parts), so it only stands in when no story names the set.
+    const bySet = stories.filter((s) => componentOf(s.title) === norm(spec.name));
+    const byFolder = spec.component ? stories.filter((s) => componentOf(s.title) === norm(spec.component!)) : [];
+    const mine = (bySet.length ? bySet : byFolder).map((s) => ({ s, variant: storyVariant(spec, s) }));
     const variants = spec.variants.map((v) => {
       report.variants++;
       const hit = mine.find((m) => m.variant && Object.entries(v.props).every(([axis, value]) => m.variant![axis] === norm(value)));
