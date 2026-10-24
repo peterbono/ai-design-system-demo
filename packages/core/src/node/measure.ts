@@ -12,11 +12,12 @@
 // spec does not carry.
 
 import type { SpecField, SpecLayout, SpecPart, SpecValue } from '../component-spec';
-import type { MeasuredNode, MeasuredProps, MeasuredSpec, MeasuredState, MeasuredToken } from '../measured-spec';
+import { sharedTokenPrefix, tokenVariablePath, type MeasuredMode, type MeasuredNode, type MeasuredProps, type MeasuredSpec, type MeasuredState, type MeasuredToken, type MeasuredTokenProperty, type MeasuredTokens } from '../measured-spec';
 import { storybookIframeUrl, type StorybookIframeOptions, type StorybookIndex } from '../storybook';
 import { MEASURE_SCRIPT } from './measure-script';
+import { GLOBALS_SCRIPT, TOKENS_SCRIPT } from './tokens-script';
 
-export { MEASURE_SCRIPT };
+export { MEASURE_SCRIPT, TOKENS_SCRIPT, GLOBALS_SCRIPT };
 // The measured shapes and the comparison are browser safe (the Figma plugin reads them): re-exported for Node callers.
 export * from '../measured-spec';
 
@@ -36,12 +37,16 @@ export interface MeasureResult {
   /** Of those, the ones a provider element around the story defines, not the page root (Fluent's FluentProvider). */
   scopedVariables?: number | undefined;
   viewport: { width: number; height: number };
+  /** The root is block-level and spans its container (or is width: 100%): it fills in Figma, it does not hug. */
+  rootFill?: boolean | undefined;
   /** With `open`: how the popup came to show (`already`: the story renders it open), or `none`. */
   opened?: 'already' | 'click' | 'hover' | 'focus' | 'none' | undefined;
   error?: string | undefined;
 }
 
 export interface MeasuredStory extends MeasureResult {
+  /** With `shot`: the PNG written and the root's size in CSS pixels. */
+  shot?: { file: string; width: number; height: number } | undefined;
   /** The props the story rendered with, read from Storybook's story context (args over component defaults). */
   props?: MeasuredProps | undefined;
   /** The pseudo state forced on the component, when asked and the browser could force it. */
@@ -61,6 +66,18 @@ export interface MeasurePage {
    * them with []. Optional: without it, `state` is not measured.
    */
   forcePseudo?(selector: string, states: string[]): Promise<boolean>;
+  /** PNG of the first element matching `selector`, written to `file`; its size in CSS pixels. Optional (shots). */
+  screenshot?(selector: string, file: string): Promise<{ width: number; height: number } | null>;
+}
+
+/**
+ * Tags the element a measure with these options reads (`data-bridge-measure-root`): the component after wrappers, the
+ * popup, or the `within` part. For a screenshot of exactly what was measured.
+ */
+export async function markMeasuredRoot(page: MeasurePage, o: Pick<MeasureOptions, 'root' | 'unwrap' | 'within' | 'target' | 'open'> = {}): Promise<boolean> {
+  const arg = { root: o.root ?? '#storybook-root, #root', unwrap: o.unwrap, within: o.within, target: o.target ?? (o.open && !o.within ? 'portal' : undefined), mark: true };
+  const r = await page.evaluate<{ marked?: boolean } | null>(`(${MEASURE_SCRIPT})(${JSON.stringify(arg)})`).catch(() => null);
+  return !!r?.marked;
 }
 
 export interface MeasureOptions {
@@ -88,6 +105,8 @@ export interface MeasureOptions {
   state?: MeasuredState | undefined;
   /** Read the story's props from Storybook (default true in measureStory). */
   props?: boolean | undefined;
+  /** Write a PNG of the measured root to this file (needs `MeasurePage.screenshot`), forced state included. */
+  shot?: string | undefined;
   /** `portal`: the newest popup outside the story root is the component (set by `open`). */
   target?: 'root' | 'portal' | undefined;
   /**
@@ -246,6 +265,167 @@ const STATE_TARGETS = '[data-bridge-measure-root], [data-bridge-measure-root] *'
 /** The pseudo classes a real interaction sets: a press is also a hover, focus-visible is also focus. */
 const PSEUDO_CLASSES: Record<MeasuredState, string[]> = { hover: ['hover'], 'focus-visible': ['focus-visible', 'focus'], active: ['active', 'hover'] };
 
+// ---------------------------------------------------------------------------------------------
+// Token harvest
+
+/** Storybook globals that are modes in Figma: a theme or color scheme, a brand, a density. */
+const MODE_GLOBAL = /theme|scheme|mode|brand|density|appearance/i;
+const ALIAS = /^var\(\s*(--[\w-]+)\s*(?:,[^)]*)?\)$/;
+
+interface RawTokenProperty {
+  name: string;
+  raw: string;
+  applies: boolean;
+  type: MeasuredTokenProperty['type'];
+  value: string | number;
+  scopes: string[];
+}
+
+export interface HarvestOptions {
+  iframe?: StorybookIframeOptions | undefined;
+  /** Read every mode the Storybook's globals expose (default true). */
+  modes?: boolean | undefined;
+  timeout?: number | undefined;
+}
+
+/**
+ * Every CSS custom property a Storybook's stylesheets define, read in one story: its declared value where the story
+ * sits (providers included), resolved there, in two tiers (a literal is a primitive, `var(--x)` is semantic), and again
+ * under each theme, brand or density global the Storybook exposes (one Figma mode per value).
+ */
+export async function harvestTokens(page: MeasurePage, storybook: string, story: string, o: HarvestOptions = {}): Promise<MeasuredTokens> {
+  const timeout = o.timeout ?? 15000;
+  const read = async (globals: Record<string, string>) => {
+    const iframe = { ...(o.iframe ?? {}), globals: { ...(o.iframe?.globals ?? {}), ...globals } };
+    await page.goto(storybookIframeUrl(storybook, story, iframe), { waitUntil: 'load', timeout: timeout + 15000 });
+    await page.evaluate<string>(WAIT_SCRIPT('#storybook-root, #root', timeout));
+    const r = await page.evaluate<{ properties: RawTokenProperty[] } | null>(`(${TOKENS_SCRIPT})({})`);
+    return r?.properties ?? [];
+  };
+  const base = await read({});
+  // A theme on a page attribute: set it where it lives (the root when nowhere), let styles apply, read again.
+  let moved = false;
+  const readWithAttribute = async (attr: string, value: string) => {
+    // Back to the default globals first if a global mode moved the page.
+    if (moved) {
+      await read({});
+      moved = false;
+    }
+    await page.evaluate(`(async () => { const els = document.querySelectorAll('[${attr}]'); (els.length ? Array.from(els) : [document.documentElement]).forEach((e) => e.setAttribute('${attr}', ${JSON.stringify(value)})); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); })()`);
+    const r = await page.evaluate<{ properties: RawTokenProperty[] } | null>(`(${TOKENS_SCRIPT})({})`);
+    return r?.properties ?? [];
+  };
+  const found = o.modes === false ? [] : ((await page.evaluate<MeasuredMode[] | null>(GLOBALS_SCRIPT).catch(() => null)) ?? []);
+  // Views that are not a theme (Primer's "all" shows every scheme side by side).
+  const modes: MeasuredMode[] = found
+    .filter((m) => MODE_GLOBAL.test(m.global))
+    .map((m) => ({ ...m, values: [m.default, ...m.values.filter((v) => v !== m.default)].filter((v) => !/^(all|side-?by-?side|stacked|both|none)$/i.test(v)) }))
+    .filter((m) => m.values.length >= 2);
+  // No theme global: a theme the stylesheets hang on a page attribute ([data-carbon-theme="g100"]), read by setting it.
+  if (o.modes !== false && !modes.some((m) => /theme|scheme|mode/i.test(m.global))) {
+    const attrs = new Map<string, Map<string, number>>();
+    for (const p of base)
+      for (const sel of p.scopes)
+        for (const part of sel.split(','))
+          for (const m of part.trim().matchAll(/^(?::root|html|body)?\[([\w-]+)=["']?([\w-]+)["']?\]$/g)) {
+            const vals = attrs.get(m[1]!) ?? new Map<string, number>();
+            vals.set(m[2]!, (vals.get(m[2]!) ?? 0) + 1);
+            attrs.set(m[1]!, vals);
+          }
+    for (const [attr, vals] of attrs) {
+      const values = [...vals.entries()].filter(([, n]) => n >= 10).map(([v]) => v);
+      if (values.length < 2 || values.length > 12 || !MODE_GLOBAL.test(attr)) continue;
+      const current = await page.evaluate<string | null>(`(() => { const e = document.querySelector('[${attr}]'); return e && e.getAttribute('${attr}'); })()`).catch(() => null);
+      // The value the page shows now is the default mode (Carbon's white lives in :root, not under its attribute).
+      const def = current ?? values[0]!;
+      modes.push({ global: attr, attribute: true, values: [def, ...values.filter((v) => v !== def)], default: def });
+    }
+  }
+  const prefix = sharedTokenPrefix(base.map((p) => p.name));
+  const props: MeasuredTokenProperty[] = base.map((p) => {
+    const alias = ALIAS.exec(p.raw)?.[1];
+    const kind: MeasuredTokenProperty['kind'] = alias ? 'alias' : /var\(/.test(p.raw) ? 'expression' : 'literal';
+    return {
+      name: p.name,
+      path: tokenVariablePath(p.name, prefix),
+      tier: alias ? 'semantic' : 'primitive',
+      kind,
+      type: p.type,
+      raw: p.raw,
+      ...(alias ? { aliasOf: alias } : {}),
+      value: p.value,
+      ...(p.scopes.length ? { scopes: p.scopes } : {}),
+    };
+  });
+  const byName = new Map(props.map((p) => [p.name, p]));
+  for (const m of modes) {
+    for (const value of m.values) {
+      const key = `${m.global}:${value}`;
+      const rows = value === m.default ? base : m.attribute ? await readWithAttribute(m.global, value) : ((moved = true), await read({ [m.global]: value }));
+      for (const r of rows) {
+        const p = byName.get(r.name);
+        if (!p) continue;
+        (p.values ??= {})[key] = r.value;
+        const alias = ALIAS.exec(r.raw)?.[1];
+        if (p.tier === 'semantic' && alias && alias !== p.aliasOf) (p.aliasOfByMode ??= {})[key] = alias;
+      }
+    }
+  }
+  // Per property, keep a mode's values only where they change it (`value` holds for the others): Primer has thousands.
+  for (const p of props) {
+    for (const m of modes) {
+      const keys = m.values.map((v) => `${m.global}:${v}`);
+      if (new Set(keys.map((k) => JSON.stringify(p.values?.[k]))).size <= 1) for (const k of keys) delete p.values?.[k];
+    }
+    if (p.values && !Object.keys(p.values).length) delete p.values;
+  }
+  // A mode that changes nothing is not a mode of these variables.
+  const live = modes.filter((m) => props.some((p) => p.values && `${m.global}:${m.default}` in p.values));
+  if (live.length !== modes.length) {
+    const dead = new Set(modes.filter((m) => !live.includes(m)).map((m) => m.global));
+    for (const p of props) {
+      for (const k of Object.keys(p.values ?? {})) if (dead.has(k.split(':')[0]!)) delete p.values![k];
+      for (const k of Object.keys(p.aliasOfByMode ?? {})) if (dead.has(k.split(':')[0]!)) delete p.aliasOfByMode![k];
+      if (p.values && !Object.keys(p.values).length) delete p.values;
+      if (p.aliasOfByMode && !Object.keys(p.aliasOfByMode).length) delete p.aliasOfByMode;
+    }
+  }
+  // Compiled themes write each semantic token as a literal per theme. When a primitive (the same in every mode) holds
+  // the value in every mode, the property is a semantic alias of it: Primitives + Semantic, as Figma needs.
+  const keyOf = (p: MeasuredTokenProperty, v: string | number) => `${p.type}:${v}`;
+  const primitiveFor = new Map<string, string>();
+  for (const p of [...props].sort((a, b) => a.name.length - b.name.length || a.name.localeCompare(b.name)))
+    if (p.kind === 'literal' && !p.values && (p.type === 'color' || p.type === 'length') && !primitiveFor.has(keyOf(p, p.value))) primitiveFor.set(keyOf(p, p.value), p.name);
+  let inferred = 0;
+  for (const p of props) {
+    if (p.kind !== 'literal' || !p.values) continue;
+    const def = primitiveFor.get(keyOf(p, p.value));
+    const byMode = Object.entries(p.values).map(([k, v]) => [k, primitiveFor.get(keyOf(p, v))] as const);
+    if (!def || def === p.name || byMode.some(([, n]) => !n)) continue;
+    p.tier = 'semantic';
+    p.kind = 'alias';
+    p.aliasOf = def;
+    p.inferred = true;
+    const changes = byMode.filter(([, n]) => n !== def);
+    if (changes.length) p.aliasOfByMode = Object.fromEntries(byMode) as Record<string, string>;
+    inferred++;
+  }
+  return {
+    story,
+    ...(prefix ? { prefix } : {}),
+    modes: live,
+    properties: props,
+    counts: {
+      properties: props.length,
+      primitives: props.filter((p) => p.tier === 'primitive').length,
+      semantic: props.filter((p) => p.tier === 'semantic').length,
+      used: 0,
+      scoped: props.filter((p) => p.scopes?.length).length,
+      inferred,
+    },
+  };
+}
+
 /** Opens one story in its iframe and measures what it rendered. */
 export async function measureStory(page: MeasurePage, storybook: string, id: string, o: MeasureOptions = {}): Promise<MeasuredStory> {
   const iframe = { ...(o.iframe ?? {}) };
@@ -260,7 +440,7 @@ export async function measureStory(page: MeasurePage, storybook: string, id: str
 }
 
 /** Measures what the page shows now (a story already open, or re-rendered with new args): waits for it, then reads it. */
-export async function measureRendered(page: MeasurePage, o: MeasureOptions = {}): Promise<MeasureResult & { ms: number; state?: MeasuredState | undefined }> {
+export async function measureRendered(page: MeasurePage, o: MeasureOptions = {}): Promise<MeasureResult & { ms: number; state?: MeasuredState | undefined; shot?: { file: string; width: number; height: number } | undefined }> {
   const t0 = Date.now();
   const root = o.root ?? '#storybook-root, #root';
   const timeout = o.timeout ?? 15000;
@@ -284,8 +464,16 @@ export async function measureRendered(page: MeasurePage, o: MeasureOptions = {})
   if (opened === 'none' && !base.root) base.error = 'the popup did not open: no trigger in the story opened it';
   if (rendered === 'timeout' && !base.error && !base.root) base.error = `the story did not render within ${timeout} ms`;
   if (rendered === 'error' && !base.error) base.error = 'the story threw';
+  let shot: { file: string; width: number; height: number } | undefined;
+  if (o.shot && page.screenshot && base.root) {
+    // The element the measure read, in the state it was read in (the forced state is still on).
+    if (state || (await markMeasuredRoot(page, { ...o, root }))) {
+      const size = await page.screenshot('[data-bridge-measure-root]', o.shot).catch(() => null);
+      if (size) shot = { file: o.shot, ...size };
+    }
+  }
   if (state) await page.forcePseudo?.(STATE_TARGETS, []).catch(() => false);
-  return { ...base, ...(state ? { state } : {}), ms: Date.now() - t0 };
+  return { ...base, ...(state ? { state } : {}), ...(shot ? { shot } : {}), ms: Date.now() - t0 };
 }
 
 export interface StoryPick {
@@ -455,7 +643,7 @@ const TEXT_MAP: [SpecField, string][] = [
  * Turns a measured story into the spec shape: one part per drawn element (wrappers that draw nothing are kept as
  * frames, text runs become text parts), values bound to the declared token when there is one.
  */
-export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'>, o: MeasuredToSpecOptions = {}): MeasuredSpec {
+export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFill?: boolean | undefined }, o: MeasuredToSpecOptions = {}): MeasuredSpec {
   const tokenOf = o.tokenOf ?? defaultTokenOf;
   const out: MeasuredSpec = { story: m.id, parts: [], values: {}, raw: {}, tokens: {}, boxes: {}, coverage: { fields: 0, declared: 0, matched: 0, literal: 0 } };
   if (!m.root) return out;
@@ -485,6 +673,7 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'>, o: Measure
       if (Number(n.style['flex-grow']) > 0) part.grow = true;
     }
     if (n.kind === 'text') part.characters = n.text ?? '';
+    if (!parent && m.rootFill) part.fill = true;
     out.parts.push(part);
     out.boxes[id] = n.box;
     const values: Partial<Record<SpecField, SpecValue>> = {};

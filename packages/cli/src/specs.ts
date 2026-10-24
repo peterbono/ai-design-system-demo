@@ -2,27 +2,29 @@
 // and the token behind each value), written in the shape the Figma pull reads. Works on any React library with a
 // deployed or local Storybook, whatever its styling. The Figma pull still reads component-specs.json; this is the
 // measured side that will replace the guess from the CSS source.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import {
   CONFIG_FILE,
   componentStatus,
   fetchStorybookIndex,
   normalizeStorybookUrl,
   mapPropsToFigma,
+  markUsedTokens,
   planVariantMeasures,
   variantCombosFromMapping,
   StorybookIndexError,
   type ComponentSpecsFile,
   type ComponentStatus,
   type FigmaComponentRef,
+  type MeasuredArgType,
   type MeasuredSpecsComponent,
   type MeasuredSpecsFile,
   type MeasuredSpecsStory,
   type MeasuredState,
 } from '@bridge-ds/core';
-import { localClassName, measuredToSpec, measureStory, pickStoriesToMeasure, repoSpecOptions, resolveTokenValues, splitInstances, type MeasuredStory, type MeasureOptions } from '@bridge-ds/core/node';
+import { harvestTokens, localClassName, measuredToSpec, measureStory, pickStoriesToMeasure, repoSpecOptions, resolveTokenValues, splitInstances, type MeasuredStory, type MeasureOptions } from '@bridge-ds/core/node';
 import { defaultIO, RequestUsageError, type RequestArgs, type RequestIO } from './request.js';
 
 export type { MeasuredSpecsFile } from '@bridge-ds/core';
@@ -32,7 +34,7 @@ export const SPECS_HELP = `bridge specs --measure: measure what a Storybook real
 Usage:
   bridge specs --measure --storybook <url> [--only Button,Card] [--stories id,id] [--per 3]
                [--open] [--within <selector>] [--variants] [--states rest,hover,disabled]
-               [--check] [--specs component-specs.json] [--out measured-specs.json] [--json]
+               [--check] [--specs component-specs.json] [--tokens] [--shots] [--out measured-specs.json] [--json]
       Opens each story in Chrome (installed Chrome, headless), waits for it to render and records the
       rendered tree: boxes, auto layout (direction, gap, padding, alignment), fills, borders, radii, text
       styles and texts, and the CSS variable (token) behind each value, plus the props the story rendered
@@ -43,6 +45,11 @@ Usage:
       --variants    measure every variant: each component's first story with args for every combination
                     of its enum props, times --states (hover, focus-visible, active forced in Chrome;
                     disabled as an arg)
+      --tokens      every CSS custom property the library defines (root, providers, theme classes), resolved
+                    per theme, brand or density global, in two tiers (literal: primitive, var(): semantic),
+                    marked when a measured story uses it
+      --shots       a PNG of each measured root at 2x in measured-shots/ next to --out (one per distinct
+                    render), with manifest.json: component -> Figma variant key -> file, width, height
       --check       one status per component: Matches, Differs, or Can't check yet with the reason,
                     against the Figma side in --specs (default: this repo's component-specs.json)
       Stories that render the component several times ("Sizes") are split: spec is the first instance,
@@ -59,11 +66,11 @@ const list = (v: string | undefined) => (v ?? '').split(',').map((x) => x.trim()
 type MeasurePageLike = Parameters<typeof measureStory>[0];
 
 /** The browser, injectable for tests. Default: @bridge-ds/visual's measure page on an installed Chrome. */
-export type OpenPage = () => Promise<{ page: MeasurePageLike; close: () => Promise<void> }>;
+export type OpenPage = (o?: { scale?: number }) => Promise<{ page: MeasurePageLike; close: () => Promise<void> }>;
 
-const defaultOpen: OpenPage = async () => {
+const defaultOpen: OpenPage = async (oo = {}) => {
   const { openMeasurePage } = await import('@bridge-ds/visual');
-  const { page, close } = await openMeasurePage();
+  const { page, close } = await openMeasurePage(oo.scale ? { scale: oo.scale } : {});
   // Forced :hover / :focus-visible / :active through Chrome DevTools, the way the Styles pane forces them.
   let cdp: Awaited<ReturnType<ReturnType<typeof page.context>['newCDPSession']>> | undefined;
   const forcePseudo = async (selector: string, states: string[]) => {
@@ -84,6 +91,14 @@ const defaultOpen: OpenPage = async () => {
       },
       evaluate: <T>(expr: string) => page.evaluate(expr) as Promise<T>,
       forcePseudo,
+      screenshot: async (selector: string, file: string) => {
+        const el = page.locator(selector).first();
+        const box = await el.boundingBox();
+        if (!box || box.width < 1 || box.height < 1) return null;
+        await mkdir(dirname(file), { recursive: true });
+        await el.screenshot({ path: file, animations: 'disabled', caret: 'hide' });
+        return { width: Math.round(box.width * 100) / 100, height: Math.round(box.height * 100) / 100 };
+      },
     },
     close,
   };
@@ -92,7 +107,22 @@ const defaultOpen: OpenPage = async () => {
 const STATES = ['rest', 'hover', 'focus-visible', 'active', 'disabled'] as const;
 
 /** The story entry written to the file, from one measure. */
-function storyEntry(p: { id: string; title: string; name: string }, m: MeasuredStory, tokenOf: ((v: string) => string | undefined) | undefined, extra: Partial<MeasuredSpecsStory> = {}, setClasses: string[] = []): MeasuredSpecsStory {
+/** Screenshots of the measured roots: where they go, and the renders already shot (same story, props, state, part). */
+interface ShotBook {
+  dir: string;
+  /** Directory of measured-specs.json: shot paths are relative to it. */
+  base: string;
+  seen: Map<string, { file: string; width: number; height: number }>;
+}
+
+/** The file a measure's screenshot goes to: story id, args, state and part, file safe. */
+const shotPath = (book: ShotBook, id: string, tag: Record<string, unknown> = {}) => {
+  const slug = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const rest = Object.entries(tag).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => slug(`${k}-${typeof v === 'object' ? JSON.stringify(v) : String(v)}`));
+  return join(book.dir, `${[slug(id), ...rest].join('__').slice(0, 180)}.png`);
+};
+
+function storyEntry(p: { id: string; title: string; name: string }, m: MeasuredStory, tokenOf: ((v: string) => string | undefined) | undefined, extra: Partial<MeasuredSpecsStory> = {}, setClasses: string[] = [], book?: ShotBook): MeasuredSpecsStory {
   const o = tokenOf ? { tokenOf } : {};
   // A root that carries a class of the Figma set's root is the component itself, never a gallery of instances.
   const isComponent = (m.root?.classes ?? []).map(localClassName).some((c) => setClasses.includes(c));
@@ -100,8 +130,26 @@ function storyEntry(p: { id: string; title: string; name: string }, m: MeasuredS
   const instances = parts.length >= 2 ? parts.map((root, i) => measuredToSpec({ id: `${m.id}#${i + 1}`, root }, o)) : undefined;
   const spec = m.root ? (instances?.[0] ?? measuredToSpec(m, o)) : undefined;
   const props = m.props && typeof m.props === 'object' ? m.props : undefined;
+  // One PNG per distinct render: the same story with the same props and state is shot once.
+  let shot: MeasuredSpecsStory['shot'];
+  if (book && m.shot) {
+    const key = JSON.stringify([p.id, p.title, Object.entries(props?.props ?? {}).sort(), m.state ?? '', m.root?.classes ?? []]);
+    const seen = book.seen.get(key);
+    if (seen && seen.file !== relative(book.base, m.shot.file)) {
+      try {
+        unlinkSync(m.shot.file);
+      } catch {
+        // already gone
+      }
+      shot = seen;
+    } else {
+      shot = { file: relative(book.base, m.shot.file), width: m.shot.width, height: m.shot.height };
+      book.seen.set(key, shot);
+    }
+  }
   return {
     ...p,
+    ...(shot ? { shot } : {}),
     url: m.url,
     ms: m.ms,
     ...(m.error || !m.root ? { error: m.error ?? 'nothing rendered' } : {}),
@@ -134,6 +182,56 @@ function roleOf(name: string): string | undefined {
   if (/^Menu.*Submenu$/.test(name)) return '[role="menuitem"][aria-haspopup]';
   if (/^Menu.*Item$/.test(name)) return '[role="menuitem"]:not([aria-haspopup])';
   return undefined;
+}
+
+/** The shot manifest, in the figma-references shape: component -> variant key -> file and size. */
+export interface MeasuredShotManifest {
+  version: 1;
+  tool: '@bridge-ds/cli';
+  createdAt: string;
+  storybook: string;
+  /** Device pixels per CSS pixel of the PNGs. */
+  scale: number;
+  components: Record<string, { variants: Record<string, { file: string; width: number; height: number; story: string; props?: Record<string, string | number | boolean>; state?: string }> }>;
+}
+
+/**
+ * The Figma variant key a measured story stands for ("Size=md, State=Hover"), from its props and state through the
+ * component's prop mapping; undefined when an axis has no counterpart.
+ */
+function figmaKeyOf(ref: FigmaComponentRef, s: MeasuredSpecsStory, argTypes: Record<string, MeasuredArgType>): string | undefined {
+  const mapping = mapPropsToFigma(argTypes, ref.properties);
+  const has = { ...(s.props ?? {}), ...(s.overrides ?? {}) } as Record<string, unknown>;
+  const parts: string[] = [];
+  for (const axis of ref.properties.filter((x) => x.type === 'VARIANT')) {
+    const m = mapping.mapped.find((x) => x.figma === axis.name);
+    if (!m?.values) return undefined;
+    let hit: string | undefined;
+    if (m.prop === 'state') {
+      const want = has.disabled === true ? 'disabled' : (s.state ?? 'rest');
+      hit = Object.entries(m.values).find(([, v]) => v === want)?.[0];
+    } else hit = Object.entries(m.values).find(([fv, v]) => String(v).toLowerCase() === String(has[m.prop] ?? '').toLowerCase() && Object.entries(m.also?.[fv] ?? {}).every(([k, x]) => has[k] === x))?.[0];
+    if (hit === undefined) return undefined;
+    parts.push(`${axis.name}=${hit}`);
+  }
+  return parts.join(', ');
+}
+
+async function writeShotManifest(book: ShotBook, file: MeasuredSpecsFile, refs: Map<string, FigmaComponentRef> | undefined): Promise<void> {
+  const manifest: MeasuredShotManifest = { version: 1, tool: '@bridge-ds/cli', createdAt: new Date().toISOString(), storybook: file.storybook, scale: 2, components: {} };
+  for (const s of file.stories) {
+    if (!s.shot || !s.spec) continue;
+    const name = s.title.split('/').pop()!.trim();
+    const ref = refs?.get(name.toLowerCase());
+    const argTypes = Object.assign({}, ...(file.components ?? []).filter((c) => c.title === s.title).map((c) => c.argTypes));
+    const key = (ref && figmaKeyOf(ref, s, argTypes)) || `story=${s.id}${s.overrides ? `, ${Object.entries(s.overrides).map(([k, v]) => `${k}=${v}`).join(', ')}` : ''}${s.state ? `, state=${s.state}` : ''}`;
+    const comp = (manifest.components[name] ??= { variants: {} });
+    // The first story measured for a variant is its reference (the closest render comes first in the file).
+    if (comp.variants[key]) continue;
+    comp.variants[key] = { file: relative(book.dir, join(book.base, s.shot.file)), width: s.shot.width, height: s.shot.height, story: s.id, ...(s.props ? { props: s.props } : {}), ...(s.state ? { state: s.state } : {}) };
+  }
+  await mkdir(book.dir, { recursive: true });
+  await writeFile(join(book.dir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
 /** The Figma side of each component, from component-specs.json (what the Figma library was drawn from). */
@@ -235,7 +333,11 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
     if (!s.spec) io.print(`  ${label}: not measured (${s.error ?? 'nothing rendered'})`);
     else io.print(`  ${label}: ${s.spec.parts.length} layers${s.instances ? ` (${s.instances.length} instances)` : ''}, ${s.spec.coverage.declared} of ${s.spec.coverage.fields} values tied to tokens`);
   };
-  const browser = await open();
+  // --shots: a PNG of each measured root at 2x, next to the file, for the fidelity check of any library.
+  const outPath = resolve(root, flag(a, 'out') ?? 'measured-specs.json');
+  const book: ShotBook | undefined = has(a, 'shots') ? { dir: join(dirname(outPath), 'measured-shots'), base: dirname(outPath), seen: new Map() } : undefined;
+  const shotOpt = (id: string, tag: Record<string, unknown> = {}) => (book ? { shot: shotPath(book, id, tag) } : {});
+  const browser = await open(book ? { scale: 2 } : {});
   /**
    * Sets that are parts of this component (MenuItem, MenuSubmenu in Menu; AccordionItem in Accordion) and have no
    * story of their own: measured inside the component's stories, the first element with the part's root classes (and
@@ -259,17 +361,17 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
       let found = false;
       for (const s of picks.filter((x) => x.title === p.title)) {
         try {
-          const m = await measureStory(browser.page, base, s.id, { within: sel, open: true });
+          const m = await measureStory(browser.page, base, s.id, { within: sel, open: true, ...shotOpt(s.id, { part: set.name }) });
           if (!m.root) continue;
           const attrs = m.root.attrs ?? {};
           const own = { ...(attrs['aria-checked'] ? { checked: attrs['aria-checked'] === 'true' } : {}), ...(attrs['aria-disabled'] === 'true' || attrs['data-disabled'] !== undefined ? { disabled: true } : {}) };
           const props = { ...(m.props?.props ?? {}), ...own };
-          const entry = storyEntry({ ...s, title }, m, tokenOf, {}, setClassesOf(ref));
+          const entry = storyEntry({ ...s, title }, m, tokenOf, {}, setClassesOf(ref), book);
           file.stories.push({ ...entry, props });
           say(entry, `${title} / ${s.name}`);
           for (const st of (states ?? []).filter((x): x is MeasuredState => x === 'hover' || x === 'active' || x === 'focus-visible')) {
-            const ms = await measureStory(browser.page, base, s.id, { within: sel, open: true, state: st });
-            if (ms.root && ms.state) file.stories.push({ ...storyEntry({ ...s, title }, ms, tokenOf, {}, setClassesOf(ref)), props });
+            const ms = await measureStory(browser.page, base, s.id, { within: sel, open: true, state: st, ...shotOpt(s.id, { part: set.name, state: st }) });
+            if (ms.root && ms.state) file.stories.push({ ...storyEntry({ ...s, title }, ms, tokenOf, {}, setClassesOf(ref), book), props });
           }
           found = true;
           break;
@@ -284,7 +386,7 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
     for (const p of picks) {
       try {
         const ref = refs?.get(p.title.split('/').pop()!.trim().toLowerCase());
-        let m = await measureStory(browser.page, base, p.id, mo);
+        let m = await measureStory(browser.page, base, p.id, { ...mo, ...shotOpt(p.id) });
         // A story that renders the item inside its group (a radio in its fieldset, a menu item in its open menu):
         // measure the element with the Figma set's root class, not the group around it.
         let cmo = mo;
@@ -294,14 +396,14 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
         const cls = [...new Set(sets.flatMap(setClassesOf))];
         if (!within && cls.length && m.root && !(m.root.classes ?? []).map(localClassName).some((c) => cls.includes(c))) {
           const sel = sets.map((x) => classSelector(setClassesOf(x).slice(0, 1))).filter(Boolean).join(', ');
-          let mw = await measureStory(browser.page, base, p.id, { ...mo, within: sel });
-          if (!mw.root && !mo.open) mw = await measureStory(browser.page, base, p.id, { ...mo, within: sel, open: true });
+          let mw = await measureStory(browser.page, base, p.id, { ...mo, within: sel, ...shotOpt(p.id) });
+          if (!mw.root && !mo.open) mw = await measureStory(browser.page, base, p.id, { ...mo, within: sel, open: true, ...shotOpt(p.id) });
           if (mw.root) {
             m = mw;
             cmo = { ...mo, within: sel, ...(mw.opened && mw.opened !== 'none' ? { open: true } : {}) };
           }
         }
-        const entry = storyEntry(p, m, tokenOf, {}, cls);
+        const entry = storyEntry(p, m, tokenOf, {}, cls, book);
         file.stories.push(entry);
         say(entry, `${p.title} / ${p.name}`);
         const props = m.props && typeof m.props === 'object' ? m.props : undefined;
@@ -324,8 +426,16 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
           const label = Object.entries(v.overrides).map(([k, x]) => `${k}=${x}`).join(', ') + (v.state ? ` :${v.state}` : '');
           if (!label) continue; // the story as written is already measured
           try {
-            const mv = await measureStory(browser.page, base, p.id, { ...cmo, args: v.overrides, ...(v.state ? { state: v.state } : {}) });
+            const mv = await measureStory(browser.page, base, p.id, { ...cmo, args: v.overrides, ...(v.state ? { state: v.state } : {}), ...shotOpt(p.id, { ...v.overrides, state: v.state }) });
+            const dropShot = () => {
+              try {
+                if (mv.shot) unlinkSync(mv.shot.file);
+              } catch {
+                // nothing written
+              }
+            };
             if (v.state && !mv.state) {
+              dropShot();
               file.stories.push({ ...p, url: mv.url, ms: mv.ms, overrides: v.overrides, error: `the browser could not force :${v.state}` });
               continue;
             }
@@ -333,11 +443,12 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
             const took = mv.props?.args;
             const ignored = took ? Object.entries(v.overrides).find(([k, x]) => took[k] !== x) : undefined;
             if (ignored) {
+              dropShot();
               file.stories.push({ ...p, url: mv.url, ms: mv.ms, overrides: v.overrides, error: `the story does not take the arg ${ignored[0]}=${String(ignored[1])}` });
               if (!json) io.print(`  ${p.title} / ${label}: not measured (the story does not take ${ignored[0]})`);
               continue;
             }
-            const ev = storyEntry(p, mv, tokenOf, { overrides: v.overrides }, cls);
+            const ev = storyEntry(p, mv, tokenOf, { overrides: v.overrides }, cls, book);
             file.stories.push(ev);
             say(ev, `${p.title} / ${label}`);
           } catch (e) {
@@ -347,6 +458,18 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
       } catch (e) {
         file.stories.push({ ...p, url: '', ms: 0, error: (e as Error).message.split('\n')[0] });
         if (!json) io.print(`  ${p.title} / ${p.name}: not measured (${(e as Error).message.split('\n')[0]})`);
+      }
+    }
+    if (has(a, 'tokens')) {
+      // The library's variables, read in the first story that rendered (providers and theme wrappers in place).
+      const at = file.stories.find((s) => s.spec && !s.overrides && !s.state) ?? file.stories[0];
+      if (at) {
+        try {
+          file.tokens = await harvestTokens(browser.page, base, at.id);
+          markUsedTokens(file.tokens, file.stories);
+        } catch (e) {
+          io.error(`bridge: could not read the variables: ${(e as Error).message.split('\n')[0]}`);
+        }
       }
     }
   } finally {
@@ -388,16 +511,21 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
     file.statuses = statuses;
   }
 
-  const out = resolve(root, flag(a, 'out') ?? 'measured-specs.json');
+  const out = outPath;
+  if (book) await writeShotManifest(book, file, refs);
   await mkdir(dirname(out), { recursive: true });
   await writeFile(out, `${JSON.stringify(file, null, 2)}\n`);
   const ok = file.stories.filter((s) => s.spec).length;
   const fields = file.stories.reduce((n, s) => n + (s.spec?.coverage.fields ?? 0), 0);
   const tied = file.stories.reduce((n, s) => n + (s.spec?.coverage.declared ?? 0), 0);
   const counts = statuses ? { matches: statuses.filter((s) => s.status === 'matches').length, differs: statuses.filter((s) => s.status === 'differs').length, cantCheck: statuses.filter((s) => s.status === 'cant-check').length } : undefined;
-  if (json) io.print(JSON.stringify({ out, storybook: base, measured: ok, failed: file.stories.length - ok, values: fields, tiedToTokens: tied, ...(counts ? { statuses: counts } : {}) }, null, 2));
+  if (json) io.print(JSON.stringify({ out, storybook: base, measured: ok, failed: file.stories.length - ok, values: fields, tiedToTokens: tied, ...(counts ? { statuses: counts } : {}), ...(file.tokens ? { variables: file.tokens.counts, modes: file.tokens.modes } : {}) }, null, 2));
   else {
     io.print(`Measured ${ok} of ${file.stories.length} stories, ${tied} of ${fields} values tied to tokens. ${out}`);
+    if (file.tokens) {
+      const c = file.tokens.counts;
+      io.print(`Variables: ${c.properties} (${c.primitives} primitive, ${c.semantic} semantic), ${c.used} used by the measured stories, modes: ${file.tokens.modes.map((m) => `${m.global} (${m.values.join(', ')})`).join('; ') || 'none'}.`);
+    }
     if (statuses && counts) {
       io.print(`${counts.matches} of ${statuses.length} components match Figma. ${counts.differs} differ, ${counts.cantCheck} can't be checked yet.`);
       const word = { matches: 'Matches', differs: 'Differs', 'cant-check': "Can't check yet" } as const;
