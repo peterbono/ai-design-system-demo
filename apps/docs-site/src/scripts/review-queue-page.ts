@@ -19,7 +19,7 @@ import { Badge, Button, Card, CardBody, EmptyState, Progress, Select, Skeleton, 
 import { Inbox } from 'lucide-react';
 import ButtonLink from '../components/ds/ButtonLink';
 import { QueueBar, QueueList, QueueToasts } from '../components/ds/studio/ReviewQueue';
-import { currentAccess, currentViewer, initGitHubConnect, prefersSignIn, readRepo } from './github-session';
+import { currentAccess, currentContributor, currentViewer, initGitHubConnect, prefersSignIn, readRepo } from './github-session';
 import { joinHandlers } from './join-handlers';
 import { loadDemoHome } from './demo-home';
 import { exploresDemo } from '../lib/demo';
@@ -396,7 +396,15 @@ export function initReviewQueue() {
       size: 'lg',
       headingLevel: 2,
       title: 'Nothing waits on you.',
-      description: failed ?? (signedIn ? 'New reviews, usage guidance drafts and library checks land here.' : `${ghAction('see what waits on you', signIn)}.`),
+      // Someone who can edit but not review (an email member, Can edit): this queue is the reviewers'; what comes back
+      // to them is on Home, never "new reviews land here".
+      description:
+        failed ??
+        (!signedIn
+          ? `${ghAction('see what waits on you', signIn)}.`
+          : currentContributor()?.role === 'edit'
+            ? 'Reviewers look at changes here. When one sends your branch back, it shows on Home.'
+            : 'New reviews, usage guidance drafts and library checks land here.'),
       actions: signedIn
         ? h(ButtonLink, { variant: 'primary', href: studioHref() }, 'Back to Home')
         : h(
