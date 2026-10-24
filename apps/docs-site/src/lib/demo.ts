@@ -9,7 +9,6 @@
 // scripts/demo-gate.ts). Someone who can write to the demo repository (its owner) keeps the normal Studio.
 
 import type { Owners } from '@bridge-ds/core';
-import { sampleTeam } from './invites';
 import { isTeamKey } from './team-path.js';
 
 /**
@@ -270,15 +269,19 @@ export const demoLeadName = (persona: { viewer?: string } | null | undefined): s
 
 /**
  * The people of the sample team's Settings (components/ds/studio/TeamSettings.tsx): the same people as its Members
- * (lib/invites.ts sampleTeam, the one source), never the repository's real accounts. The design owners are the members
+ * (`team`: lib/invites.ts sampleTeam, the one source, passed in so this module imports nothing the /api functions
+ * would load), never the repository's real accounts. The design owners are the members
  * who review design (Dana, the visitor's seat, and Ann), the tech owners those who review tech (Malik), by their sample
  * logins (~dana...) so each face matches Members. The rules themselves (which group holds each right, the exception
  * on or off, its written reason) stay the repository's. The exception, owners only, names the lead (a design owner).
  * More than one owner: no only-owner line.
  */
-export function demoSettingsPeople(site: { demo?: { viewer?: string } | undefined }): { lead: string; owners: Owners; nameOf: (login: string) => string } {
+export function demoSettingsPeople(
+  site: { demo?: { viewer?: string } | undefined },
+  team: (lead: string) => { members: readonly { login: string; name: string; reviews: readonly string[] }[] },
+): { lead: string; owners: Owners; nameOf: (login: string) => string } {
   const lead = demoLeadName(site.demo);
-  const { members } = sampleTeam(lead);
+  const { members } = team(lead);
   const group = (g: 'design' | 'tech') => members.filter((m) => m.reviews.includes(g)).map((m) => m.login);
   const names = new Map(members.map((m) => [m.login.toLowerCase(), m.name]));
   return { lead, owners: { design: group('design'), tech: group('tech') }, nameOf: (login) => names.get(login.trim().toLowerCase()) ?? lead };

@@ -23,6 +23,7 @@ import { Who } from './faces';
 import { demoSettingsPeople, isSampleTeam, teamDisplayName } from '../../../lib/demo';
 import { loginKey, ownerName } from '../../../lib/people';
 import { knownNames } from '../../../scripts/people';
+import { sampleTeam } from '../../../lib/invites';
 import type { MembersData } from '../../../scripts/members';
 
 const avatarSrc = (login: string) => `https://github.com/${encodeURIComponent(login)}.png?size=48`;
@@ -87,7 +88,7 @@ export default function TeamSettings() {
   const full = `${owner}/${repo}`;
   // The sample team (Acme Design) names its sample members, the same as its Members (lib/demo.ts demoSettingsPeople):
   // Dana and Ann review design, Malik reviews tech. Every real team, Bridge's own design system included, reads its own config.
-  const demo = isSampleTeam(full) ? demoSettingsPeople(site) : null;
+  const demo = isSampleTeam(full) ? demoSettingsPeople(site, sampleTeam) : null;
   const owners: Owners = demo ? demo.owners : (site.owners as Owners);
   const realName = namer(people);
   const name = (entry: string): Named | null => (demo ? { key: entry, login: entry, name: demo.nameOf(entry), sample: true } : realName(entry));

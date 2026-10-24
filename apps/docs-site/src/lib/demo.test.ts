@@ -79,7 +79,7 @@ describe('the tour', () => {
 
 describe('the demo Settings', () => {
   it('names the sample members who review, as Members shows them, never the repository accounts', () => {
-    const p = demoSettingsPeople({ demo: { viewer: 'Dana' } });
+    const p = demoSettingsPeople({ demo: { viewer: 'Dana' } }, sampleTeam);
     expect(p.lead).toBe('Dana');
     // The same people and logins as Members (lib/invites.ts sampleTeam), so the faces match.
     const team = sampleTeam('Dana').members;
@@ -93,13 +93,13 @@ describe('the demo Settings', () => {
   });
 
   it('follows the repository rights: each right names the people of its group', () => {
-    const p = demoSettingsPeople({ demo: { viewer: 'Dana' } });
+    const p = demoSettingsPeople({ demo: { viewer: 'Dana' } }, sampleTeam);
     const rows = roleRows(p.owners, { approveDesign: ['design'], approveTech: ['tech'], ship: ['tech'] });
     expect(rows.map((r) => r.logins.map(p.nameOf))).toEqual([['Dana', 'Ann'], ['Malik'], ['Malik']]);
   });
 
   it('names a persona-less lead by role, in the lead seat', () => {
-    const p = demoSettingsPeople({});
+    const p = demoSettingsPeople({}, sampleTeam);
     expect(p.nameOf('~dana')).toBe('Your design system lead');
   });
 
