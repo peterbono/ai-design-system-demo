@@ -238,6 +238,39 @@ test('measured only: booleans every story sets are how the component is shown, a
   assert.deepEqual(axesOf(specs.components[0]!), ['Size=sm|lg', 'State=Default|Hover']);
 });
 
+test('measured only: every variant keeps its SVG icon, a fill root its measured width, and a skeleton is no variant', () => {
+  const m = fixture();
+  const base = m.stories.find((s) => s.title.endsWith('/Card') && s.spec)!;
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><path d="M0 0h16v16H0z"/></svg>';
+  const story = (name: string, size: string, parts = true) => ({
+    ...base,
+    id: `copy-${name}-${size}`,
+    name,
+    title: 'Components/CopyButton',
+    props: { size },
+    state: undefined,
+    spec: {
+      ...base.spec!,
+      parts: [
+        { id: 'root', name: 'Root', kind: 'frame' as const, fill: true, layout: { direction: 'HORIZONTAL' as const, primary: 'MIN' as const, counter: 'CENTER' as const } },
+        ...(parts ? [{ id: 'icon', name: 'Icon', kind: 'icon' as const, parent: 'root' }] : []),
+      ],
+      values: { root: { width: 400, height: 40 }, ...(parts ? { icon: { width: size === 'lg' ? 20 : 16, height: 16 } } : {}) },
+      raw: {},
+      ...(parts ? { vectors: { icon: { svg, strokes: [] } } } : {}),
+    },
+  });
+  m.stories = [story('Skeleton', 'sm', false), story('Default', 'md'), story('Large', 'lg')];
+  m.components = [{ title: 'Components/CopyButton', name: 'CopyButton', argTypes: { size: { kind: 'enum', options: ['sm', 'md', 'lg'], default: 'md' } } }];
+  const c = specsFromMeasure(m).specs.components[0]!;
+  assert.deepEqual(axesOf(c), ['Size=md|lg']);
+  for (const v of c.variants) {
+    assert.equal(v.hidden, undefined, JSON.stringify(v.props));
+    assert.deepEqual(Object.keys(v.vectors ?? {}), ['icon']);
+    assert.equal(v.values.root!.width, 400);
+  }
+});
+
 test('measured only with screenshots: each variant keeps the render of the story it was built from', () => {
   const m = fixture();
   m.stories = m.stories.filter((s) => s.title.endsWith('/Tabs'));

@@ -749,7 +749,8 @@ export function buildComponentPlan(
       return out;
     };
     let rootFill: PlannedValue | undefined;
-    if (spec.parts.find((p) => !p.parent)?.fill) {
+    // A spec that gives the root its width (a measure lays fill roots out at a set width) needs no token for it.
+    if (spec.parts.find((p) => !p.parent)?.fill && spec.variants.some((v) => v.values.root?.width === undefined)) {
       const w = planValue('width', FILL_WIDTH_TOKEN, head);
       if ('problem' in w) problem({ component: spec.name, part: 'root', property: 'width', reason: `fills its container in code, and ${w.problem}: the Figma set hugs its content` });
       else rootFill = w;
