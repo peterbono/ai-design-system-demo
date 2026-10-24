@@ -719,6 +719,15 @@ export class GitHubClient {
     }
   }
 
+  /**
+   * Whether a branch exists, through the matching-refs list: it answers 200 with an empty list when the branch is
+   * missing, so asking never leaves a 404 in the browser console (an optional branch like bridge-data).
+   */
+  async hasBranch(branch: string): Promise<boolean> {
+    const refs = await this.request<{ ref: string }[]>('GET', `${this.repoPath}/git/matching-refs/heads/${encodeRef(branch)}`);
+    return Array.isArray(refs) && refs.some((r) => r.ref === `refs/heads/${branch}`);
+  }
+
   async getCommitTree(commitSha: string): Promise<string> {
     const r = await this.request<{ tree: { sha: string } }>('GET', `${this.repoPath}/git/commits/${commitSha}`);
     return r.tree.sha;

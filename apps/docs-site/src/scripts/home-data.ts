@@ -179,6 +179,10 @@ export async function loadJoinNeeds(now: number): Promise<NeedRow[]> {
   const a = currentAccess() ?? (await resolveAccess({ owner, repo }, { anonymous: true }).catch(() => null));
   if (!a?.admin && !a?.repoAdmin) return [];
   try {
+    // Join requests are Bridge's own: a GitHub admin without a Bridge account has none to read (the server would
+    // answer 401). The account is read once a page, so asking costs nothing more.
+    const { getAccount } = await import('./account-session');
+    if (!(await getAccount()).account) return [];
     const { listJoinRequests } = await import('./entry-session');
     const { teamNameSoon } = await import('./members');
     const [rows, team] = await Promise.all([listJoinRequests(full), teamNameSoon(full)]);
@@ -266,7 +270,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     });
     // Who acts now, by the one rule of every "waiting on me" surface (lib/waiting-on.ts).
     const role = reviewer ? 'reviewer' : 'contributor';
-    const design = owners().design;
+    const { design, tech } = owners();
     return changes.map(({ pull, c }): Classified => {
       const requested = (pull.requested_reviewers ?? []).map((r) => r.login);
       const base = { pull, agent: Boolean(c.agent), guidance: Boolean(c.guidance), onlyReviewer: false, task: null as ChangeFacts['task'] | null };
@@ -276,7 +280,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
       );
       if (!task) return base;
       if (task === 'own-changes') return { ...base, task, changesBy: c.changesBy ?? [] };
-      return { ...base, task, onlyReviewer: isReviewTask(task) && isOnlyReviewer({ eligible: design, requested, author: pull.user.login, viewer }) };
+      return { ...base, task, onlyReviewer: isReviewTask(task) && isOnlyReviewer({ eligible: task === 'tech' ? tech : design, requested, author: pull.user.login, viewer }) };
     });
   };
 

@@ -254,6 +254,9 @@ export function needFromDetail(s: { state: PullState; ci: CiSummary; gate: Merge
   return { kind: 'unknown' };
 }
 
+/** The missing approvals of a status: the pending ones when known (they include the status's own role), else that role. */
+const withRole = (role: ApprovalRole, pending: ApprovalRole[] | undefined): ApprovalRole[] => (pending?.includes(role) ? pending : [role]);
+
 /** The need behind a list status chip (reviewStatus), when only the status is known. */
 export function needFromStatus(kind: ReviewStatusKind | null | undefined, extra: { failing?: number; changesRequestedBy?: string[]; lookAgain?: string[]; developerOnly?: boolean; pending?: ApprovalRole[]; claude?: 'waiting' | 'drafted' | null } = {}): Need {
   if (extra.claude === 'waiting' && kind !== 'merged' && kind !== 'closed') return { kind: 'draft', claude: 'waiting' };
@@ -273,12 +276,14 @@ export function needFromStatus(kind: ReviewStatusKind | null | undefined, extra:
       return { kind: 'checks-running', then: [] };
     case 'checking':
       return { kind: 'checking-merge', then: [] };
+    // Every approval still missing, as the branch page reads them (needFromDetail, gate.missing): the design and the
+    // tech approval run side by side, so the tech owner's turn shows on the list and the home as on the page.
     case 'needs-design':
-      return { kind: 'approve', roles: ['design'] };
+      return { kind: 'approve', roles: withRole('design', extra.pending) };
     case 'needs-tech':
-      return { kind: 'approve', roles: ['tech'] };
+      return { kind: 'approve', roles: withRole('tech', extra.pending) };
     case 'needs-approval':
-      return { kind: 'approve', roles: ['approval'] };
+      return { kind: 'approve', roles: withRole('approval', extra.pending) };
     default:
       return { kind: 'unknown' };
   }

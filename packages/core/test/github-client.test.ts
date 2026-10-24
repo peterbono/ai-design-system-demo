@@ -297,3 +297,14 @@ test('markReadyForReview: the GraphQL mutation with the node id REST gives, a no
   );
   await assert.rejects(new GitHubClient('o/r', '', fetchImpl).markReadyForReview(7), /needs a GitHub token/);
 });
+
+test('hasBranch asks the matching refs: a missing branch is an empty list, never a 404', async () => {
+  const { calls, fetchImpl } = stub({
+    'GET /repos/o/r/git/matching-refs/heads/bridge-data': { body: [{ ref: 'refs/heads/bridge-data-old' }] },
+    'GET /repos/o/r/git/matching-refs/heads/main': { body: [{ ref: 'refs/heads/main' }, { ref: 'refs/heads/main-2' }] },
+  });
+  const client = new GitHubClient('o/r', 'tok', fetchImpl);
+  assert.equal(await client.hasBranch('bridge-data'), false);
+  assert.equal(await client.hasBranch('main'), true);
+  assert.ok(calls.every((c) => c.url.includes('/git/matching-refs/heads/')));
+});

@@ -212,6 +212,16 @@ export function accessBadge(state: RepoAccessState | null, signedIn: boolean): {
   }
 }
 
+/**
+ * The chip's badge for a GitHub account that holds a review right (lib/home-model holdsReviewRight, the one rule of
+ * every review queue): "Reviewer" where GitHub alone would say "Can edit". An admin stays "Admin"; anyone else keeps
+ * accessBadge's words.
+ */
+export function roleBadge(state: RepoAccessState | null, signedIn: boolean, reviewer: boolean): { label: string; tone: ChipTone } {
+  if (signedIn && reviewer && state === 'writer') return { label: 'Reviewer', tone: 'success' };
+  return accessBadge(state, signedIn);
+}
+
 /** The design system the self-hosted site shows to everyone: Bridge's own. */
 export const DEMO_TEAM = 'peterbono/ai-design-system-demo';
 
@@ -418,9 +428,9 @@ export function noteName(names: Record<string, string>, team: string, name: stri
 export const TEAM_ROLES_KEY = 'bridge.teamRoles';
 
 /** The role words of a member of the team (reads, edits or administers it), null for anyone else. */
-export function memberRole(state: RepoAccessState | null | undefined, signedIn: boolean): string | null {
+export function memberRole(state: RepoAccessState | null | undefined, signedIn: boolean, reviewer = false): string | null {
   if (!signedIn || (state !== 'reader' && state !== 'writer' && state !== 'admin')) return null;
-  return accessBadge(state, true).label;
+  return roleBadge(state, true, reviewer).label;
 }
 
 /** The name a recent team goes by: the one its page read, else teamDisplayName (a demo's name, the repository in words). */

@@ -8,7 +8,9 @@
 //   - A reviewer (holds a review right: an owner, an approver, a shipper, or anyone who can write while the team names
 //     nobody) is waited on for the design approval, the plain approval of Tier 1, usage guidance, the merge of an
 //     approved change, a review GitHub asks of them, and the owner override when no other owner can approve and they
-//     may use it. Never for the tech review: that is developer work.
+//     may use it. A tech owner is waited on for their tech approval too (their OK on token changes or code): one
+//     review rule and one queue, so what their branch page calls "Your turn" is on their home. Never a designer:
+//     only someone the tech list names gets that turn (lib/changes whoActs).
 //   - A contributor (an email member, or a GitHub account without a review right) is waited on only for their own
 //     branches a reviewer sent back with changes.
 //   - A branch the author updated after every changes request (core lookAgainReviewers) waits on the reviewers who
@@ -29,7 +31,7 @@ import type { Lifecycle } from './change-status';
 import type { WorkNature } from './work-nature';
 
 /** What the change asks of the viewer: a review (design, guidance, requested), a merge, or their own branch's next step. */
-export type WaitTask = 'design' | 'ship' | 'guidance' | 'requested' | 'look-again' | 'own-changes' | 'own-ship';
+export type WaitTask = 'design' | 'tech' | 'ship' | 'guidance' | 'requested' | 'look-again' | 'own-changes' | 'own-ship';
 
 /** Reviewer: holds a review right. Contributor: makes changes, never reviews. */
 export type ViewerRole = 'reviewer' | 'contributor';
@@ -73,7 +75,8 @@ const norm = (x: string) => x.trim().toLowerCase().replace(/^@/, '');
 const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && norm(a) === norm(b));
 
 /** The review tasks: someone else waits for the viewer's decision. The other tasks are the viewer's own branches. */
-export const isReviewTask = (t: WaitTask | null | undefined): t is 'design' | 'ship' | 'guidance' | 'requested' | 'look-again' => t === 'design' || t === 'ship' || t === 'guidance' || t === 'requested' || t === 'look-again';
+export const isReviewTask = (t: WaitTask | null | undefined): t is 'design' | 'tech' | 'ship' | 'guidance' | 'requested' | 'look-again' =>
+  t === 'design' || t === 'tech' || t === 'ship' || t === 'guidance' || t === 'requested' || t === 'look-again';
 
 /** Whether the viewer may be waited on for a review at all: a reviewer, connected or in the demo seat. */
 const reviews = (v: WaitViewer) => v.role === 'reviewer' && (Boolean(v.login) || Boolean(v.seat));
@@ -111,10 +114,13 @@ export function waitingOn(c: WaitChange, v: WaitViewer): WaitTask | null {
     if (who.action === 'merge') return 'ship';
     if (who.action === 'look-again') return 'look-again';
     if (who.action === 'approve-design' || who.action === 'approve') return c.guidance ? 'guidance' : 'design';
+    // The viewer is the tech owner whose OK it waits for (whoActs gives this turn to the tech list only).
+    if (who.action === 'approve-tech') return 'tech';
     // Only someone the override names, and only when no other owner can approve (lib/changes whoActs).
     if (who.action === 'override' && who.logins.some((l) => same(l, v.login))) return c.guidance ? 'guidance' : 'design';
   }
-  // Technical blockers and the tech review are developer work: never a designer's row, even when GitHub asks them.
+  // Technical blockers and someone else's tech review are developer work: never a designer's row, even when GitHub
+  // asks them.
   const technical = ['fix-checks', 'resolve-conflict', 'address-changes', 'mark-ready', 'promote', 'approve-tech', 'wait'];
   if (technical.includes(who.action)) return null;
   if ((c.requested ?? []).some((l) => same(l, v.login))) return 'requested';

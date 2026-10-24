@@ -10,7 +10,7 @@
 // A team's Library (/library/<owner>/<repo>/..., multi-team PR 4a) reads the same way when signed in. Signed out, it
 // reads the published snapshot first, straight from the raw host: no GitHub API call at all, so an anonymous reader
 // never spends the 60 requests an hour GitHub gives an address. Only a team without a snapshot is read live.
-import { loadRepoModel, parseSnapshot, SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, SNAPSHOT_MAX_BYTES, snapshotSource, storybookUrl, type GitHubClient, type RepoModel, type RepoSnapshot } from '@bridge-ds/core';
+import { hasWriteAccess, loadRepoModel, parseSnapshot, SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, SNAPSHOT_MAX_BYTES, snapshotSource, storybookUrl, type GitHubClient, type RepoModel, type RepoSnapshot } from '@bridge-ds/core';
 import { getToken, hasWorkingToken, studioClient } from './github-session';
 import { contributeBlobs, contributorFor } from './contribute-session';
 import { CONTRIB_TOKEN, contributeEligible, isContribAuth } from '../lib/contribute';
@@ -33,6 +33,12 @@ export interface TeamData {
   storybook: string | undefined;
   /** The client the data was read with (the visitor's token, or anonymous). */
   client: GitHubClient;
+  /**
+   * The reader may change this team's library (its Library pages show Edit): an email member of the team (Can edit or
+   * Admin), or a GitHub account with write access to its repository. A token alone is not enough: a GitHub account
+   * that only reads the repository explores and suggests. Absent: no.
+   */
+  canEdit?: boolean;
   /**
    * When the snapshot read was published (its commit date, else when it was written). Set on a signed-out Library
    * read, which takes the snapshot as published without asking GitHub for the head.
@@ -73,6 +79,21 @@ export function teamToken(team: { owner: string; repo: string }): string | null 
   return contributeEligible(repo, true) && contributorFor(repo) ? CONTRIB_TOKEN : null;
 }
 
+/**
+ * Whether the reader may edit the team's library: an email member reads through Bridge with the stand-in token (their
+ * membership is Can edit or Admin); a GitHub account needs write access to the repository, as GitHub's own answer for
+ * the repository says (cached by the client, read once already for the model). Never throws.
+ */
+async function editRight(team: { owner: string; repo: string }, client: GitHubClient): Promise<boolean> {
+  if (!client.canWrite) return false;
+  if (isContribAuth(teamToken(team))) return true;
+  try {
+    return hasWriteAccess((await client.getRepo()).permissions);
+  } catch {
+    return false;
+  }
+}
+
 /** A client for the team, with the visitor's token when it works. */
 export function teamClient(team: { owner: string; repo: string }): GitHubClient {
   return studioClient(`${team.owner}/${team.repo}`, teamToken(team));
@@ -101,7 +122,11 @@ async function seedLibraryMember(team: { owner: string; repo: string }): Promise
  * host refuses a token).
  */
 export const readTeamSnapshot: SnapshotReader = async (client, repo) => {
-  const text = repo.private && client.canWrite ? await client.getRawText(SNAPSHOT_FILE, SNAPSHOT_BRANCH) : await client.readRawFile(SNAPSHOT_FILE, SNAPSHOT_BRANCH);
+  // Through the API, the branch is asked first: most teams publish no snapshot, and a missing file would leave a 404
+  // in the console on every page. The list answers 200, empty, when the branch is not there.
+  const viaApi = repo.private && client.canWrite;
+  if (viaApi && !(await client.hasBranch(SNAPSHOT_BRANCH))) return null;
+  const text = viaApi ? await client.getRawText(SNAPSHOT_FILE, SNAPSHOT_BRANCH) : await client.readRawFile(SNAPSHOT_FILE, SNAPSHOT_BRANCH);
   if (!text || text.length > SNAPSHOT_MAX_BYTES) return null;
   try {
     return parseSnapshot(text);
@@ -227,6 +252,7 @@ export function loadTeamData(): Promise<TeamData> {
       source: read.source,
       storybook: storybookUrl(read.model.config),
       client,
+      canEdit: await editRight(team, client),
     };
   })();
   pending.catch(() => {
@@ -294,6 +320,8 @@ export function loadTeamLlms(): Promise<boolean> {
         const { readLibraryFile } = await import('./library-access-api');
         return Boolean(await readLibraryFile(`${d.owner}/${d.repo}`, 'llms').catch(() => ''));
       }
+      // llms.txt sits next to the snapshot: no snapshot, nothing to ask (and no 404 in the console).
+      if (!(await loadTeamSnapshot())) return false;
       if (d.private) return d.client.canWrite ? Boolean(await d.client.getRawText(SNAPSHOT_LLMS_FILE, SNAPSHOT_BRANCH)) : false;
       const url = `https://raw.githubusercontent.com/${encodeURIComponent(d.owner)}/${encodeURIComponent(d.repo)}/${SNAPSHOT_BRANCH}/${SNAPSHOT_LLMS_FILE}`;
       return (await fetch(url, { method: 'HEAD' })).ok;
@@ -315,6 +343,7 @@ export function loadTeamLlmsText(): Promise<string | null> {
         const { readLibraryFile } = await import('./library-access-api');
         return (await readLibraryFile(`${d.owner}/${d.repo}`, 'llms').catch(() => '')) || null;
       }
+      if (!(await loadTeamSnapshot())) return null;
       if (d.private) return d.client.canWrite ? ((await d.client.getRawText(SNAPSHOT_LLMS_FILE, SNAPSHOT_BRANCH)) ?? null) : null;
       return (await d.client.readRawFile(SNAPSHOT_LLMS_FILE, SNAPSHOT_BRANCH)) ?? null;
     })
