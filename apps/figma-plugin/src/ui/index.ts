@@ -3261,11 +3261,14 @@ function viewPush(): View {
       h(
         'section',
         { class: 'zone' },
-        h('h2', { class: 'headline' }, n ? `${plural(n, 'change')} ready to send` : 'A new brand to propose'),
+        // Nothing sendable: a new brand alone, or only changes to fix in Figma first (never "a new brand" then).
+        h('h2', { class: 'headline' }, n ? `${plural(n, 'change')} ready to send` : newBrands ? 'A new brand to propose' : 'Nothing to send yet'),
         h(
           'p',
           { class: 'muted' },
-          fails
+          !n && !newBrands
+            ? 'Fix the changes below in Figma, then scan again.'
+            : fails
             ? `${plural(fails, 'contrast pair')} fail${fails === 1 ? 's' : ''}. Fix ${fails === 1 ? 'it' : 'them'} or uncheck the edit before sending.`
             : changedContrast.length
               ? `All ${plural(changedContrast.length, 'contrast pair')} the checked edits move still pass.`
