@@ -1,8 +1,8 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-24T13:19:16.673Z",
-  "sha": "8150b56bce29f0248d71b16a87bab12b38f77b8b",
+  "createdAt": "2026-10-24T13:32:01.801Z",
+  "sha": "16a59f27e02f3365ac57cd9fa2a2035d3e47d8dc",
   "scale": 2,
   "mode": {
     "brand": "bridge",
@@ -1453,7 +1453,7 @@
       }
     },
     "MenuItem": {
-      "specHash": "dcadfe59",
+      "specHash": "5619df15",
       "variants": {
         "State=Default, Tone=default": {
           "file": "menuitem/state-default__tone-default.png",
@@ -1478,7 +1478,7 @@
       }
     },
     "MenuCheckboxItem": {
-      "specHash": "0680d8fd",
+      "specHash": "75f3892d",
       "variants": {
         "Checked=false, State=Default": {
           "file": "menucheckboxitem/checked-false__state-default.png",
@@ -1503,7 +1503,7 @@
       }
     },
     "MenuRadioGroup": {
-      "specHash": "2ccd0b5f",
+      "specHash": "3d9926e7",
       "variants": {
         "State=Default": {
           "file": "menuradiogroup/state-default.png",
@@ -1518,7 +1518,7 @@
       }
     },
     "MenuRadioItem": {
-      "specHash": "d1e68b99",
+      "specHash": "f42d6781",
       "variants": {
         "Checked=false, State=Default": {
           "file": "menuradioitem/checked-false__state-default.png",
@@ -1543,7 +1543,7 @@
       }
     },
     "MenuGroup": {
-      "specHash": "c2b73291",
+      "specHash": "9e4b3e41",
       "variants": {
         "Default": {
           "file": "menugroup/default.png",
@@ -1563,7 +1563,7 @@
       }
     },
     "MenuSubmenu": {
-      "specHash": "2057db36",
+      "specHash": "bf1dfb3e",
       "variants": {
         "State=Default": {
           "file": "menusubmenu/state-default.png",
@@ -1643,7 +1643,7 @@
       }
     },
     "PageHeader": {
-      "specHash": "75a8084f",
+      "specHash": "85705e3c",
       "variants": {
         "Default": {
           "file": "pageheader/default.png",
