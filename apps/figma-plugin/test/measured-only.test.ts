@@ -465,6 +465,46 @@ test('measured only: a frame of overlays takes no room, an aligning frame keeps 
   assert.equal(v.findOne((n) => n.name === 'Popover')!.layoutPositioning, 'ABSOLUTE');
 });
 
+test('measured only: a frame bigger than its content keeps its size, a frame its content and border fill hugs', () => {
+  const m = fixture();
+  const base = m.stories.find((s) => s.title.endsWith('/Card') && s.spec)!;
+  m.stories = [
+    {
+      ...base,
+      id: 'copy',
+      name: 'Default',
+      title: 'Components/Copy',
+      props: {},
+      state: undefined,
+      spec: {
+        ...base.spec!,
+        parts: [
+          { id: 'root', name: 'Root', kind: 'frame' as const, layout: { direction: 'VERTICAL' as const, primary: 'MIN' as const, counter: 'STRETCH' as const } },
+          { id: 'btn', name: 'Button', kind: 'frame' as const, parent: 'root', layout: { direction: 'HORIZONTAL' as const, primary: 'CENTER' as const, counter: 'CENTER' as const } },
+          { id: 'icon', name: 'Icon', kind: 'frame' as const, parent: 'btn' },
+          { id: 'tag', name: 'Tag', kind: 'frame' as const, parent: 'root', layout: { direction: 'HORIZONTAL' as const, primary: 'MIN' as const, counter: 'CENTER' as const } },
+          { id: 'tag-text', name: 'Tag text', kind: 'text' as const, parent: 'tag', characters: 'Tag' },
+        ],
+        values: { root: {}, btn: { fill: 'rgb(244, 244, 244)', width: 40, height: 40 }, icon: { width: 16, height: 16 }, tag: { width: 50, height: 20 }, 'tag-text': { fontSize: 12 } },
+        raw: { tag: { paddingLeft: 8, paddingRight: 8, strokeWeight: 1 } },
+        boxes: {
+          root: { x: 0, y: 0, width: 50, height: 60 },
+          btn: { x: 0, y: 0, width: 40, height: 40 },
+          icon: { x: 12, y: 12, width: 16, height: 16 },
+          tag: { x: 0, y: 40, width: 50, height: 20 },
+          'tag-text': { x: 9, y: 41, width: 32, height: 18 },
+        },
+      },
+    },
+  ];
+  m.components = [{ title: 'Components/Copy', name: 'Copy', argTypes: {} }];
+  const v = specsFromMeasure(m).specs.components[0]!.variants[0]!;
+  // The root hugs and stretches the button across: it gives no width, the button keeps its 40.
+  assert.deepEqual([v.values.btn!.width, v.values.btn!.height], [40, 40]);
+  // The tag is its text, its padding and its 1 px border: it hugs.
+  assert.deepEqual([v.values.tag!.width, v.values.tag!.height], [undefined, undefined]);
+});
+
 test('measured only with screenshots: each variant keeps the render of the story it was built from', () => {
   const m = fixture();
   m.stories = m.stories.filter((s) => s.title.endsWith('/Tabs'));

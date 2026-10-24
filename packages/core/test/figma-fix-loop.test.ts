@@ -23,7 +23,13 @@ import {
   type MeasuredSpecsFile,
 } from '../src';
 
-const load = (): MeasuredSpecsFile => parseMeasuredSpecsFile(readFileSync(join(__dirname, 'fixtures/gap/carbon-measured.json'), 'utf8'));
+const loadWithBoxes = (): MeasuredSpecsFile => parseMeasuredSpecsFile(readFileSync(join(__dirname, 'fixtures/gap/carbon-measured.json'), 'utf8'));
+/**
+ * The loop's scenario: a gap the build cannot see. carbon-measured-hidden-boxes.json is the same measure without the
+ * boxes of the TextInput's label row and field group: nothing tells their measured height from their content's, so the
+ * set hugs (72 for 84) and fixes must close it. With the boxes, the pull keeps those heights by itself.
+ */
+const load = (): MeasuredSpecsFile => parseMeasuredSpecsFile(readFileSync(join(__dirname, 'fixtures/gap/carbon-measured-hidden-boxes.json'), 'utf8'));
 
 /** What the plugin saw for TextInput: 72 px tall in Figma vs 84 in code, the label wrapper hugging its label. */
 const textInputRun = (): FigmaFidelityRun => JSON.parse(readFileSync(join(__dirname, 'fixtures/gap/textinput-fidelity.json'), 'utf8'));
@@ -34,7 +40,7 @@ const outerFixed = { id: 'textinput-field-height', kind: 'part', component: 'Tex
 
 describe('figmaGaps', () => {
   it('lists Differs and Can\'t check from the fidelity run, never a matching component', () => {
-    const rows = figmaGaps(load(), textInputRun());
+    const rows = figmaGaps(loadWithBoxes(), textInputRun());
     expect(rows.map((r) => [r.component, r.status, r.source])).toEqual([
       ['TextInput', 'differs', 'fidelity'],
       ['IconButton', 'cant-check', 'fidelity'],
@@ -46,7 +52,7 @@ describe('figmaGaps', () => {
   it('a status fix speaks for the component with its reason', async () => {
     const { applyFixes } = await import('../src');
     const fixes: FigmaFixesFile = { version: 1, fixes: [{ id: 'iconbutton-tooltip', kind: 'status', component: 'IconButton', status: 'cant-check', reason: 'The tooltip opens on hover in code; Figma draws the button alone.' }] };
-    const rows = figmaGaps(applyFixes(load(), fixes).file, textInputRun());
+    const rows = figmaGaps(applyFixes(loadWithBoxes(), fixes).file, textInputRun());
     expect(rows.find((r) => r.component === 'IconButton')).toMatchObject({ status: 'cant-check', source: 'figma-fixes', summary: 'The tooltip opens on hover in code; Figma draws the button alone.', fixes: ['iconbutton-tooltip'] });
   });
 
@@ -60,7 +66,7 @@ describe('figmaGaps', () => {
 
 describe('gapCaseFor', () => {
   it('builds the gap the way the plugin pulls: fixes on, set rebuilt, the run\'s verdicts and boxes', () => {
-    const { gap, spec } = gapCaseFor({ component: 'TextInput', measured: load(), run: textInputRun() });
+    const { gap, spec } = gapCaseFor({ component: 'TextInput', measured: loadWithBoxes(), run: textInputRun() });
     expect(spec?.name).toBe('TextInput');
     expect(gap.referee).toBe('shots');
     expect(gap.differing).toBe(1);
@@ -140,7 +146,7 @@ describe('tryFigmaFixes (values referee)', () => {
 
 describe('prompt, reply and pull request body', () => {
   it('the prompt carries the schema, the gap and the earlier rounds; the reply parser takes fenced or bare JSON', () => {
-    const { gap } = gapCaseFor({ component: 'TextInput', measured: load(), run: textInputRun() });
+    const { gap } = gapCaseFor({ component: 'TextInput', measured: loadWithBoxes(), run: textInputRun() });
     const p = fixPrompt(gap, [{ fixes: [labelFixed], feedback: 'height: closer (-12 px -> -4 px)', verdict: 'closer' }]);
     expect(p).toContain('kind "part"');
     expect(p).toContain('8 px missing below the label');
@@ -152,7 +158,7 @@ describe('prompt, reply and pull request body', () => {
   });
 
   it('the status fix after the last round is valid', () => {
-    const { gap } = gapCaseFor({ component: 'TextInput', measured: load(), run: textInputRun() });
+    const { gap } = gapCaseFor({ component: 'TextInput', measured: loadWithBoxes(), run: textInputRun() });
     const f = statusFixFor(gap, ['textinput-differs']);
     expect(f.id).toBe('textinput-differs-2');
     expect(validateFigmaFixes({ version: 1, fixes: [f] })).toEqual([]);
@@ -169,5 +175,16 @@ describe('prompt, reply and pull request body', () => {
     expect(body).toContain('resolved (-12 px, now 0 px, estimated)');
     expect(body).toContain('run Check fidelity before approving');
     expect(body).not.toMatch(/\u2014/);
+  });
+});
+
+describe('sizes of their own, from the boxes', () => {
+  it('with the boxes, the label row keeps its measured height around its label: no fix needed', () => {
+    const spec = specsFromMeasure(loadWithBoxes()).specs.components.find((c) => c.name === 'TextInput')!;
+    const label = spec.variants.find((v) => v.props.Invalid === 'false') ?? spec.variants[0]!;
+    expect(label.values['cds--text-input-label-wrapper']?.height).toBe(24);
+    // Without them, it hugs its label: the gap the loop closes above.
+    const hidden = specsFromMeasure(load()).specs.components.find((c) => c.name === 'TextInput')!;
+    expect((hidden.variants.find((v) => v.props.Invalid === 'false') ?? hidden.variants[0]!).values['cds--text-input-label-wrapper']?.height).toBeUndefined();
   });
 });
