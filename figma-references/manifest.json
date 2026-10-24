@@ -1,8 +1,8 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-24T11:03:22.549Z",
-  "sha": "ece2cd81271c21468953691ec33d1211fd0321cc",
+  "createdAt": "2026-10-24T11:30:28.530Z",
+  "sha": "a28ab9d7d681e8f2c60cd3a6058586568f75edb3",
   "scale": 2,
   "mode": {
     "brand": "bridge",
@@ -2486,7 +2486,7 @@
       }
     },
     "Textarea": {
-      "specHash": "ccd3283e",
+      "specHash": "17209c19",
       "variants": {
         "Appearance=field, State=Default": {
           "file": "textarea/appearance-field__state-default.png",
