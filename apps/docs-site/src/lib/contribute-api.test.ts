@@ -1,6 +1,7 @@
 // The /api/contribute Vercel function (api/contribute/index.ts) with a mocked GitHub, an in-memory Redis and a fake
 // email: joining with an email, sessions and their revocation, sign-in links, and the proxy policy, rule by rule.
 import { createHash } from 'node:crypto';
+import { composeBuildRequestIssue, parseBuildRequestIssue } from '@bridge-ds/core';
 import { describe, expect, it } from 'vitest';
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
@@ -464,6 +465,17 @@ describe('proxy: what is allowed', () => {
     expect((await call('PATCH', `${P}/issues/40`, { state: 'closed', labels: [] })).r.status).toBe(200);
     expect((await call('PATCH', `${P}/issues/40`, { assignees: ['dana'] })).r.status).toBe(403);
     expect((await call('PATCH', `${P}/issues/12`, { title: 'x' })).r.status).toBe(403);
+  });
+
+  it('POST issues takes a build request from the Components drawer as is: its labels, its hidden block, then who asked', async () => {
+    const { call } = await ready();
+    const issue = composeBuildRequestIssue({ component: 'Button', kind: 'new-variant', title: 'A danger ghost variant', summary: 'For destructive actions in tables.', figma: { url: 'https://www.figma.com/design/abc/x?node-id=1-2' }, source: 'studio' });
+    const { r, sent } = await call('POST', `${P}/issues`, { title: issue.title, body: issue.body, labels: issue.labels });
+    expect(r.status).toBe(201);
+    const body = sent!.body as { title: string; body: string; labels: string[] };
+    expect(body.labels).toEqual(expect.arrayContaining(['component-change', 'bridge-build', 'request: new-variant', 'source: studio']));
+    expect(parseBuildRequestIssue(body.body)?.title).toBe('A danger ghost variant');
+    expect(body.body.endsWith('Requested by Mia Chen (mia@acme.design) through Bridge.')).toBe(true);
   });
 
   it('POST issues/<n>/comments on any issue or pull request, with their name first; labels on theirs only', async () => {

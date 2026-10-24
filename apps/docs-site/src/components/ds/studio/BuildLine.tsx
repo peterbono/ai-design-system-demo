@@ -1,4 +1,5 @@
-// The calm Being built line of the Studio home (StudioHome `building`): "3 being built, 1 waiting to be picked up."
+// The calm Being built line of the Studio home (StudioHome `building`): "Build requests: 3 being built, 1 waiting to be
+// picked up." (from the Figma plugin or from Components, Change this component)
 // with a link to the page, under the Harbor zone. Never a Needs you row: a build request waits on developers, not on
 // the viewer. Nothing shows while nothing is open, or when the build requests could not be read. Data:
 // scripts/building-data.ts (the sample team's sample ones on the demo).
@@ -25,7 +26,7 @@ export function BuildLine() {
   return (
     <p className="t-ui t-muted sh-health bb-home">
       <Icon icon={Wrench} size="sm" />
-      <span>From Figma: {line.charAt(0).toLowerCase() + line.slice(1)}</span>
+      <span>Build requests: {line.charAt(0).toLowerCase() + line.slice(1)}</span>
       <Link href={studioHref('building/')}>See what is being built</Link>
     </p>
   );

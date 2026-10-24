@@ -185,7 +185,7 @@ export const EMPTY_FILTER: Record<BuildFilter, string> = {
 /** The empty state: what a build request is, where it comes from, who picks it up. */
 export const EMPTY_WORDS = {
   title: 'Nothing is being built yet.',
-  text: 'When you push a change from the Bridge Figma plugin that needs code, like a new variant, a new option or a new layout, it becomes a build request. Developers pick it up where they work, in GitHub or Jira, and you follow it here until it is in the library.',
+  text: 'When you push a change from the Bridge Figma plugin that needs code, like a new variant, a new option or a new layout, or ask for one from Components, it becomes a build request. Developers pick it up where they work, in GitHub or Jira, and you follow it here until it is in the library.',
   more: 'Token values ship by themselves after the automatic checks, so they never wait here.',
 };
 

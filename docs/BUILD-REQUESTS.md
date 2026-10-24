@@ -148,9 +148,17 @@ out a token push that ships by itself until something holds it (a failing check,
   builds it, when it was sent and one status tag (a request nobody picked up for a week is highlighted). A row opens
   the detail in place (`?request=N`, `?pull=N`): what was sent, where it stands, and a "For developers" fold with
   the GitHub and Jira links and **Copy brief for Claude**. Read only.
-- **Home:** a calm line under the zone ("From Figma: 3 being built, 1 waiting to be picked up."), never a Needs you
+- **Home:** a calm line under the zone ("Build requests: 3 being built, 1 waiting to be picked up."), never a Needs you
   row. A token push that ships by itself (`autoShip`) waits on nobody until something holds it (a failing check, a
   conflict, changes requested), like `bridge_what_needs_me`.
+- **Components, Change this component (a team):** the drawer of a team's component asks what she wants to change,
+  the same three paths as Bridge's own drawer: **Adjust the look** opens the team's token editor on that component's
+  tokens; **Add a variant or option** (a variant or size, an option, a layout) and **Something looks wrong** each file
+  one build request (`createBuildRequestOnGitHub`, source `studio`, kind `new-variant`, `prop-change`, `structure` or
+  `bug`, with the Figma link, required for a structure change), then say "Follow it in Being built". A GitHub member
+  writes it with their own token, an email member through `/api/contribute` (`POST issues` is allowed and adds the
+  "Requested by" line); signed out, the action opens the sign-in dialog; on the sample team, the sample-team dialog.
+  Code: `components/ds/studio/ChangeComponent.tsx`, `scripts/build-request-send.ts`, words in `lib/change-intent.ts`.
 - **Library:** a component page says "Figma is ahead: 2 changes being built (Ana)." by the preview while build
   requests for it are open.
 - The sample team of the demo shows sample build requests (`apps/docs-site/src/lib/building-sample.ts`) and never

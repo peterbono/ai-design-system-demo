@@ -2,7 +2,7 @@
 // with Claude and checks the code. The drawer first asks what she wants to change (three intents), then leads to the
 // flow that does it: the component's tokens, an exploration a developer builds from her Figma frame, or a mismatch report. The
 // words and the rules live here, pure and tested (change-intent.test.ts); scripts/request-form.ts paints them.
-import type { ComponentChangeRequest, RequestKind } from '@bridge-ds/core';
+import type { BuildRequestInput, ComponentChangeRequest, RequestKind } from '@bridge-ds/core';
 import { ghAction } from './gh-wording';
 import { requestFromForm, type RequestForm } from './requests-view';
 
@@ -161,4 +161,133 @@ export function developerMessage(x: { component: string; title: string; request:
     '',
     `In Claude Code with the Bridge MCP server, say "build Bridge request #${x.request}". Claude reads the request and the design, then works in the exploration. I check it in the sandbox and send it for review.`,
   ].join('\n');
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// "Change this component" on a team (the hosted Components drawer, components/ds/studio/ChangeComponent.tsx). The
+// same three paths as Bridge's own drawer, for a team whose developers build from build requests
+// (docs/BUILD-REQUESTS.md): "Adjust the look" leads to the team's token editor; "Add a variant or option" (a variant,
+// an option or a layout) and "Something looks wrong" each file one build request, the same issue the Figma plugin
+// files (@bridge-ds/core composeBuildRequestIssue), so Being built, the CLI and the MCP server read it the same way.
+
+/** The intents on a team: the same three, the second one said for a build request. */
+export const TEAM_CHANGE_INTENTS: IntentOption[] = [
+  CHANGE_INTENTS[0]!,
+  {
+    value: 'variant',
+    label: 'Add a variant or option',
+    line: 'A new variant, size, option or layout, designed in Figma. Your developers build it from your Figma frame, and you follow it in Being built until it is in the library.',
+  },
+  { value: 'wrong', label: 'Something looks wrong', line: 'It does not match Figma, or it behaves badly. Your developers get the report with the frame and fix it.' },
+];
+
+/** The intent options of a team's component: "Adjust the look" is off when it has no token to edit. */
+export function teamIntentOptions(hasTokens: boolean): (IntentOption & { disabled: boolean })[] {
+  return TEAM_CHANGE_INTENTS.map((o) => (o.value === 'look' && !hasTokens ? { ...o, line: NO_TOKEN_LINE, disabled: true } : { ...o, disabled: false }));
+}
+
+/** The form on a team: a structure change or a mismatch report. Null for "Adjust the look" (a link). */
+export type BuildFormMode = 'structure' | 'mismatch';
+
+export const buildModeFor = (intent: ChangeIntent): BuildFormMode | null => (intent === 'variant' ? 'structure' : intent === 'wrong' ? 'mismatch' : null);
+
+/** What kind of structure change, in her words, and the build request kind it files. */
+export const STRUCTURE_KINDS: { value: 'new-variant' | 'prop-change' | 'structure'; label: string }[] = [
+  { value: 'new-variant', label: 'A new variant or size' },
+  { value: 'prop-change', label: 'A new or changed option' },
+  { value: 'structure', label: 'A layout change' },
+];
+
+export type StructureKind = (typeof STRUCTURE_KINDS)[number]['value'];
+
+export const isStructureKind = (x: unknown): x is StructureKind => STRUCTURE_KINDS.some((k) => k.value === x);
+
+/** The kind a mismatch report files: the same as on Bridge's own drawer (REQUEST_KIND_OF.mismatch). */
+export const MISMATCH_KIND: RequestKind = REQUEST_KIND_OF.mismatch;
+
+/** Said when a structure change has no Figma link: on a team the frame link is the design. */
+export const TEAM_FRAME_MISSING = 'Add the Figma frame link: your developers build it from your design.';
+
+export interface BuildFormCopy {
+  heading: string;
+  title: { label: string; placeholder: string };
+  summary: { label: string; placeholder: string };
+  /** The "What differs" rows: only a mismatch lists values. */
+  changes: boolean;
+  /** The kind picker: only a structure change has one. */
+  kind: boolean;
+  figma: { required: boolean; label: string };
+  submit: string;
+  busy: string;
+  missing: { title: string; summary: string; figma: string };
+}
+
+/** The words of the team form in each mode. */
+export function buildFormCopy(mode: BuildFormMode, component: string): BuildFormCopy {
+  if (mode === 'structure')
+    return {
+      heading: 'Describe the change',
+      title: { label: 'What to add or change', placeholder: 'A danger ghost variant' },
+      summary: { label: 'What it is for', placeholder: `Where you need it, and how it differs from the ${component} we have.` },
+      changes: false,
+      kind: true,
+      figma: { required: true, label: 'Figma link' },
+      submit: 'Send to developers',
+      busy: 'Sending',
+      missing: { title: 'Say what to add or change, for example "A danger ghost variant".', summary: 'Say what it is for and where you need it.', figma: TEAM_FRAME_MISSING },
+    };
+  const copy = changeFormCopy('mismatch', component);
+  return {
+    heading: copy.heading,
+    title: copy.title,
+    summary: copy.summary,
+    changes: true,
+    kind: false,
+    figma: { required: false, label: 'Figma link (optional)' },
+    submit: copy.submit,
+    busy: copy.busy,
+    missing: { title: copy.missing.title, summary: copy.missing.summary, figma: TEAM_FRAME_MISSING },
+  };
+}
+
+/** Problems that block the send, in the words of the form she sees. Empty when it can be sent. */
+export function buildFormProblems(mode: BuildFormMode, f: { title: string; summary: string; figma: string }): string[] {
+  const { missing, figma } = buildFormCopy(mode, '');
+  const noFrame = figma.required && !f.figma.trim();
+  return [...(f.title.trim() ? [] : [missing.title]), ...(f.summary.trim() ? [] : [missing.summary]), ...(noFrame ? [missing.figma] : [])];
+}
+
+/** The form a team's drawer reads. `figma` is what `figmaFromLink` made of the link (undefined when empty). */
+export interface BuildForm {
+  kind: StructureKind;
+  title: string;
+  summary: string;
+  changes: { field: string; before: string; after: string }[];
+  figma?: { url: string; fileKey?: string; nodeId?: string } | undefined;
+}
+
+/**
+ * The build request a team's form files (core BuildRequestInput, source "studio"): a structure change with the kind she
+ * picked, or a mismatch report (kind bug) with the rows she filled. `requestedBy` is the GitHub login when there is one;
+ * an email member is named by Bridge's server ("Requested by ... through Bridge.").
+ */
+export function teamBuildRequest(component: string, mode: BuildFormMode, f: BuildForm, requestedBy?: string | null): BuildRequestInput {
+  const r = requestFromForm(component, { kind: mode === 'mismatch' ? MISMATCH_KIND : f.kind, title: f.title, summary: f.summary, changes: mode === 'mismatch' ? f.changes : [] });
+  return {
+    component: r.component,
+    kind: r.kind,
+    title: r.title,
+    summary: r.summary,
+    ...(r.changes.length ? { changes: r.changes } : {}),
+    figma: f.figma ?? {},
+    source: 'studio',
+    ...(requestedBy ? { requestedBy } : {}),
+  };
+}
+
+/** What the drawer says once it is sent, and where she follows it. */
+export function buildSentLines(mode: BuildFormMode, n: number): { lead: string; next: string; link: string } {
+  return mode === 'mismatch'
+    ? { lead: `Report #${n} sent to your developers.`, next: 'It reads Shipped in Being built once the fix is in the library.', link: 'Follow it in Being built' }
+    : { lead: `Build request #${n} sent to your developers.`, next: 'You follow it in Being built until it is in the library.', link: 'Follow it in Being built' };
 }
