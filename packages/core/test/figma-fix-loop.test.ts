@@ -22,7 +22,6 @@ import {
   type FigmaFixesFile,
   type MeasuredSpecsFile,
 } from '../src';
-import { specsFromMeasure as pluginSpecsFromMeasure } from '../../../apps/figma-plugin/src/sync/measured-only';
 
 const load = (): MeasuredSpecsFile => parseMeasuredSpecsFile(readFileSync(join(__dirname, 'fixtures/gap/carbon-measured.json'), 'utf8'));
 
@@ -32,12 +31,6 @@ const textInputRun = (): FigmaFidelityRun => JSON.parse(readFileSync(join(__dirn
 const labelFixed = { id: 'textinput-label-height', kind: 'part', component: 'TextInput', part: 'cds--text-input-label-wrapper', height: 'fixed', reason: 'Carbon keeps 24 px for the label row; Figma hugged the 16 px label.', by: 'claude' };
 const outerFixed = { id: 'textinput-field-height', kind: 'part', component: 'TextInput', part: 'cds--text-input-field-outer-wrapper', height: 'fixed', reason: 'The field and its helper keep their measured height with the 4 px gap.', by: 'claude' };
 
-describe('specsFromMeasure in core', () => {
-  it('draws the same sets as the plugin copy', () => {
-    const f = load();
-    expect(specsFromMeasure(f)).toEqual(pluginSpecsFromMeasure(f));
-  });
-});
 
 describe('figmaGaps', () => {
   it('lists Differs and Can\'t check from the fidelity run, never a matching component', () => {

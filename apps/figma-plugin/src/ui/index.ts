@@ -36,7 +36,7 @@ import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, r
 import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
 import { type Selection, onProgress, onSelection, request } from './bridge';
 import { MEASURED_SPECS_FILE, type MeasuredOverlayReport } from '../sync/measured-specs';
-import type { MeasuredOnlyReport } from '../sync/measured-only';
+import type { MeasuredOnlyReport } from '@bridge-ds/core';
 import { type FidelityOutcome, NO_REFERENCES_TEXT, fidelitySummary, loadReferenceManifest, runFidelityCheck } from '../sync/fidelity';
 import { FIGMA_REFERENCES_BRANCH, FIGMA_REFERENCES_DIR } from '@bridge-ds/core';
 import { fidelityComponentLine, fidelityVerdict } from '@bridge-ds/core';

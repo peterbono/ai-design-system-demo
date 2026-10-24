@@ -737,7 +737,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
     if (pv.pins?.[part.id]) pinToParent(node, pv.pins[part.id]!, ctx);
     else if (part.cover) coverParent(node, ctx);
     else if (comp.pins?.[part.id]) pinToParent(node, comp.pins[part.id]!, ctx);
-    else if (part.grow && definite.has(part.parent ?? '')) growInParent(node, comp.parts.find((p) => p.id === part.parent), pv, ctx);
+    else if (part.grow && growsIn(comp.parts.find((p) => p.id === part.parent), pv, definite)) growInParent(node, comp.parts.find((p) => p.id === part.parent), pv, ctx);
     if (part.stretch || part.fraction !== undefined) stretchInParent(node, part, ctx);
     if (!part.visible) node.visible = !hidden.has(part.id);
   }
@@ -792,6 +792,17 @@ function stretchInParent(node: SceneNode, part: SpecPart, ctx: Ctx): void {
 }
 
 /** `flex: 1` in code: the part fills its auto layout parent along the parent's direction. */
+/**
+ * `flex-grow` only fills space its parent has: a row of a known width, a column of a height of its own. In a column
+ * that hugs its content, CSS gives a growing child nothing extra (a checkbox group's items stay one line tall).
+ */
+function growsIn(parentPart: SpecPart | undefined, pv: PlannedVariant, definite: Set<string>): boolean {
+  if (!parentPart) return false;
+  const layout = pv.layout?.[parentPart.id] ?? parentPart.layout;
+  if (layout?.direction === 'VERTICAL') return (pv.parts[parentPart.id] ?? []).some((f) => f.field === 'height');
+  return definite.has(parentPart.id);
+}
+
 function growInParent(node: SceneNode, parentPart: SpecPart | undefined, pv: PlannedVariant, ctx: Ctx): void {
   const layout = (parentPart && pv.layout?.[parentPart.id]) ?? parentPart?.layout;
   if (!layout || !('layoutSizingHorizontal' in node)) return;

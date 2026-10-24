@@ -1,6 +1,5 @@
-// A copy of apps/figma-plugin/src/sync/measured-only.ts (the Figma plugin's measured-only pull), in core so the CLI and
-// the MCP server rebuild the same sets offline (bridge_try_figma_fix). Keep both identical: test/figma-fix-loop.test.ts
-// fails when their output differs. The plugin can import it from core and drop its copy.
+// The Figma plugin's measured-only pull, in core so the plugin, the CLI and the MCP server draw the same sets
+// (bridge_try_figma_fix rebuilds them offline).
 //
 // Spec source "measured only": component specs built from measured-specs.json alone, with no static spec to lay them
 // on. What any design system can give: a Storybook. The measure (`bridge specs --measure --variants`) records each
@@ -185,6 +184,26 @@ function setOf(
     if (pin) p.pin = pin;
     else p.cover = true;
   }
+  // A frame that paints nothing and holds only overlays (a popover's container) is out of the flow with them: it covers
+  // its parent instead of stacking under it.
+  const paints = (id: string) => {
+    const v = baseSpec.values[id] ?? {};
+    return [v.fill, v.stroke].some((x) => x !== undefined && x !== null);
+  };
+  for (const p of [...parts].reverse()) {
+    if (!p.parent || p.kind !== 'frame' || p.pin || p.cover || p.overlay || paints(p.id)) continue;
+    const kids = parts.filter((c) => c.parent === p.id);
+    if (kids.length && kids.every((c) => c.overlay || c.pin || c.cover)) p.cover = true;
+  }
+  // A frame that aligns its lone child (a switch and its knob) has room around it: it keeps its measured size.
+  const aligners = new Set(
+    parts
+      .filter((p) => {
+        const flow = parts.filter((c) => c.parent === p.id && !c.pin && !c.cover && !c.overlay);
+        return flow.length === 1 && !!p.layout?.align?.[flow[0]!.id];
+      })
+      .map((p) => p.id),
+  );
   for (const p of parts) if (p.layout) p.layout = alignedLayout(p, parts);
   // Only children in the flow size a frame: one holding only positioned parts (a switch and its knob) keeps its size.
   const parents = new Set(parts.filter((p) => !p.pin && !p.cover).map((p) => p.parent).filter(Boolean));
@@ -209,7 +228,7 @@ function setOf(
         hidden.push(p.id);
         continue;
       }
-      values[p.id] = valuesOf(m, mid, parents.has(p.id), known, !p.parent && !!p.fill);
+      values[p.id] = valuesOf(m, mid, parents.has(p.id) && !aligners.has(p.id), known, !p.parent && !!p.fill);
       if (m.spacers?.[mid]) spacers[p.id] = m.spacers[mid]!;
       // An icon's fill is the color it draws with (CSS `fill`), not a background: the frame would paint a square.
       if (p.kind === 'icon' || p.kind === 'vector') delete values[p.id]!.fill;

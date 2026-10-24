@@ -14,7 +14,7 @@ import { DEFAULT_SETTINGS } from '../src/shared/messages';
 import { buildComponentPlan, specSource, writablePlan } from '../src/sync/component-pull';
 import { readBuilt } from '../src/main/fidelity';
 import { analyze, buildPull } from '../src/sync/flows';
-import { specsFromMeasure } from '../src/sync/measured-only';
+import { specsFromMeasure } from '@bridge-ds/core';
 import { parseMeasuredSpecs } from '../src/sync/measured-specs';
 import { FakeGitHub } from './fake-github';
 import { SimFigma } from './figma-api';
@@ -407,6 +407,62 @@ test('measured only: a knob aligned by its parent, an overlay out of the flow, m
   const sw = onNode.findOne((n) => n.name === 'Switch')!;
   assert.equal(sw.primaryAxisAlignItems, 'MAX');
   assert.equal(onNode.findOne((n) => n.name === 'Tooltip')!.layoutPositioning, 'ABSOLUTE');
+});
+
+test('measured only: a frame of overlays takes no room, an aligning frame keeps its size, a growing row does not stretch a hugging column', async () => {
+  const sim = new SimFigma();
+  sim.install();
+  const files: Record<string, string> = {};
+  for (const [rel, text] of Object.entries(realFiles())) files[`${DEFAULT_SETTINGS.tokensPath}/${rel}`] = text;
+  files[`${DEFAULT_SETTINGS.tokensPath}/contrast.checks.json`] = realChecksText();
+  files['bridge.config.json'] = realConfigText();
+  const client = new FakeGitHub(files).client();
+  const a = await analyze(client, DEFAULT_SETTINGS, {}, await takeSnapshot());
+  await applyPullPlan(buildPull(a, new Map()).plan);
+  const m = fixture();
+  const base = m.stories.find((s) => s.title.endsWith('/Card') && s.spec)!;
+  m.stories = [
+    {
+      ...base,
+      id: 'widget',
+      name: 'Default',
+      title: 'Components/Widget',
+      props: {},
+      state: undefined,
+      spec: {
+        ...base.spec!,
+        parts: [
+          { id: 'root', name: 'Root', kind: 'frame' as const, layout: { direction: 'VERTICAL' as const, primary: 'MIN' as const, counter: 'MIN' as const } },
+          { id: 'item', name: 'Item', kind: 'frame' as const, parent: 'root', grow: true, layout: { direction: 'HORIZONTAL' as const, primary: 'MIN' as const, counter: 'CENTER' as const } },
+          { id: 'item-text', name: 'Item text', kind: 'text' as const, parent: 'item', characters: 'Item' },
+          { id: 'switch', name: 'Switch', kind: 'frame' as const, parent: 'root', layout: { direction: 'HORIZONTAL' as const, primary: 'MIN' as const, counter: 'CENTER' as const, align: { knob: { primary: 'MAX' as const } } } },
+          { id: 'knob', name: 'Knob', kind: 'frame' as const, parent: 'switch' },
+          { id: 'popover', name: 'Popover', kind: 'frame' as const, parent: 'root', layout: { direction: 'VERTICAL' as const, primary: 'MIN' as const, counter: 'STRETCH' as const } },
+          { id: 'tip', name: 'Tip', kind: 'frame' as const, parent: 'popover', overlay: true },
+        ],
+        values: {
+          root: {},
+          item: {},
+          'item-text': { fontSize: 14 },
+          switch: { fill: 'rgb(36, 161, 72)', paddingRight: 3, width: 48, height: 24 },
+          knob: { fill: 'rgb(255, 255, 255)', width: 18, height: 18 },
+          popover: { width: 48, height: 48 },
+          tip: { fill: 'rgb(57, 57, 57)', width: 120, height: 24 },
+        },
+        raw: {},
+        boxes: { root: { x: 0, y: 0, width: 48, height: 44 }, popover: { x: 0, y: 0, width: 48, height: 48 }, tip: { x: -36, y: 52, width: 120, height: 24 } },
+      },
+    },
+  ];
+  m.components = [{ title: 'Components/Widget', name: 'Widget', argTypes: {} }];
+  const c = specsFromMeasure(m).specs.components[0]!;
+  assert.equal(c.parts.find((p) => p.id === 'popover')!.cover, true, 'the popover frame is out of the flow');
+  assert.deepEqual([c.variants[0]!.values.switch!.width, c.variants[0]!.values.switch!.height], [48, 24], 'the switch keeps its size');
+  const report = await applyComponentPlan(writablePlan(buildComponentPlan({ version: 1, generated: '', components: [c] }, 'measured-specs.json', await scanGenerated(), a.head)));
+  assert.deepEqual(report.failed, []);
+  const v = sim.sets().find((x) => x.name === 'Widget')!.children[0]!;
+  assert.notEqual(v.findOne((n) => n.name === 'Item')!.layoutSizingVertical, 'FILL', 'a growing row in a hugging column hugs');
+  assert.equal(v.findOne((n) => n.name === 'Popover')!.layoutPositioning, 'ABSOLUTE');
 });
 
 test('measured only with screenshots: each variant keeps the render of the story it was built from', () => {
