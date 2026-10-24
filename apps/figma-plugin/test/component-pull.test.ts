@@ -1013,3 +1013,14 @@ test('fidelity: a Textarea of 3 rows plans its minimum at the code height, from 
   // 3 rows of 14px at 1.5, 8px padding twice, 1px border twice: 81px, the code image's height.
   assert.equal(min.kind === 'number' ? min.value : undefined, 81);
 });
+
+test('an empty slot sized on one axis takes its padding on the other, as CSS draws it: MenuRadioGroup is not 236px tall', async () => {
+  // In real Figma the unchecked items' leading slots (16px wide, nothing inside) stayed at a new frame's 100px, so the
+  // set drew 236px for 108 in code. Painted bars (a progress fill) and picture holders keep their size.
+  const { sim, plan } = await pulledFile();
+  await applyComponentPlan(writablePlan(onlyComponent(plan, 'MenuRadioGroup')));
+  const set = sim.sets().find((s) => s.name === 'MenuRadioGroup')!;
+  const v = set.children[0]!;
+  for (const id of ['leading-2', 'leading-3']) assert.ok(partOf(v, id).height < 1, `${id} is ${partOf(v, id).height}px tall`);
+  assert.ok(partOf(v, 'leading').height >= 8, 'the slot that holds the dot keeps the dot\'s size');
+});

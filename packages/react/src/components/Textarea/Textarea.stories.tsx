@@ -6,7 +6,11 @@ import { Textarea } from './Textarea';
 const meta = {
   title: 'Forms/Textarea',
   component: Textarea,
-  args: { label: 'Change summary', hint: 'Reviewers read this first. Say what changed and why.', placeholder: 'Darkens steel 600 so muted text passes 4.5:1 on the canvas.' },
+  args: { label: 'Change summary', hint: 'Reviewers read this first. Say what changed and why.', placeholder: 'Darkens steel 600 so muted text passes 4.5:1 on the canvas.', disabled: false },
+  argTypes: {
+    // A control, so the Storybook measure (bridge specs --measure --variants) reaches the Disabled variants.
+    disabled: { control: 'boolean' },
+  },
 } satisfies Meta<typeof Textarea>;
 
 export default meta;

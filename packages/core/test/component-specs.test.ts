@@ -199,4 +199,12 @@ export const Pill = forwardRef(function Pill({ size = 'md', children }, ref) {
     const [header] = generateRepoComponentSpecs(ROOT, ['PageHeader']).components;
     expect(header!.variants[0]!.values['title-text']).toMatchObject({ fontSize: 'typography.h1.size', lineHeight: 'typography.h1.line-height', letterSpacing: 'typography.h1.tracking' });
   });
+
+  it('height counts the content box like min-height: a bordered table cell is its height plus its border', () => {
+    // Table was 142px in Figma for 144 in code: each bordered cell row is 1px taller than its height token.
+    const [table] = generateRepoComponentSpecs(ROOT, ['Table']).components;
+    const v = table!.variants[0]!.values;
+    expect(v.head?.height).toBe('calc(control.height.md + border-width.default)');
+    expect(v.cell?.height).toBe('calc(table.row-height + border-width.default)');
+  });
 });

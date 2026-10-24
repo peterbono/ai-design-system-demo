@@ -22,8 +22,10 @@ const COMPONENTS: ComboboxOption[] = ['Accordion', 'Alert', 'Avatar', 'Badge', '
 const meta = {
   title: 'Forms/Combobox',
   component: Combobox,
-  args: { label: 'Component', options: COMPONENTS, placeholder: 'Search components', hint: 'Type to filter 20 components.' },
+  args: { label: 'Component', options: COMPONENTS, placeholder: 'Search components', hint: 'Type to filter 20 components.', disabled: false },
   argTypes: {
+    // A control, so the Storybook measure (bridge specs --measure --variants) reaches the Disabled variants.
+    disabled: { control: 'boolean' },
     size: { control: 'inline-radio', options: ['sm', 'md', 'lg'] },
     prefix: { control: false },
     options: { control: false },

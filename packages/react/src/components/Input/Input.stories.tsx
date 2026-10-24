@@ -7,8 +7,14 @@ import { Input } from './Input';
 const meta = {
   title: 'Forms/Input',
   component: Input,
-  args: { label: 'Token name', placeholder: 'color.action.primary.bg', hint: 'Dot-separated path, lowercase.' },
-  argTypes: { size: { control: 'inline-radio', options: ['sm', 'md', 'lg'] }, prefix: { control: false }, suffix: { control: false } },
+  args: { label: 'Token name', placeholder: 'color.action.primary.bg', hint: 'Dot-separated path, lowercase.', disabled: false },
+  argTypes: {
+    size: { control: 'inline-radio', options: ['sm', 'md', 'lg'] },
+    prefix: { control: false },
+    suffix: { control: false },
+    // A control, so the Storybook measure (bridge specs --measure --variants) reaches the Disabled variants.
+    disabled: { control: 'boolean' },
+  },
 } satisfies Meta<typeof Input>;
 
 export default meta;
