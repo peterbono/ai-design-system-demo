@@ -1,8 +1,8 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-24T10:40:04.148Z",
-  "sha": "71fb8a8913f83471efdf732c58f5def322f7f5da",
+  "createdAt": "2026-10-24T11:03:22.549Z",
+  "sha": "ece2cd81271c21468953691ec33d1211fd0321cc",
   "scale": 2,
   "mode": {
     "brand": "bridge",
@@ -706,7 +706,7 @@
       }
     },
     "Checkbox": {
-      "specHash": "a1603323",
+      "specHash": "9646e8d7",
       "variants": {
         "Checked=false, State=Default": {
           "file": "checkbox/checked-false__state-default.png",
@@ -756,7 +756,7 @@
       }
     },
     "CheckboxGroup": {
-      "specHash": "0ee8313e",
+      "specHash": "3bdc010a",
       "variants": {
         "Orientation=vertical, State=Default": {
           "file": "checkboxgroup/orientation-vertical__state-default.png",
@@ -791,7 +791,7 @@
       }
     },
     "Checklist": {
-      "specHash": "7fcd6c73",
+      "specHash": "2c6a5717",
       "variants": {
         "Default": {
           "file": "checklist/default.png",
@@ -1402,7 +1402,7 @@
       }
     },
     "Link": {
-      "specHash": "6ee62ed9",
+      "specHash": "796f1695",
       "variants": {
         "State=Default, Variant=inline": {
           "file": "link/state-default__variant-inline.png",
@@ -1853,7 +1853,7 @@
       }
     },
     "RadioGroup": {
-      "specHash": "40b429db",
+      "specHash": "ce58019b",
       "variants": {
         "Orientation=vertical, State=Default": {
           "file": "radiogroup/orientation-vertical__state-default.png",
@@ -1888,7 +1888,7 @@
       }
     },
     "Radio": {
-      "specHash": "fbd7d9a4",
+      "specHash": "8c4fc4dc",
       "variants": {
         "Checked=false, State=Default": {
           "file": "radio/checked-false__state-default.png",
@@ -2066,7 +2066,7 @@
       }
     },
     "SidebarNav": {
-      "specHash": "10007e9b",
+      "specHash": "e711c569",
       "variants": {
         "State=Default": {
           "file": "sidebarnav/state-default.png",
@@ -2086,7 +2086,7 @@
       }
     },
     "SidebarNavSection": {
-      "specHash": "0307ae2d",
+      "specHash": "7582515b",
       "variants": {
         "State=Default": {
           "file": "sidebarnavsection/state-default.png",
@@ -2206,7 +2206,7 @@
       }
     },
     "Switch": {
-      "specHash": "7482fc06",
+      "specHash": "2d8ab09e",
       "variants": {
         "Checked=false, Label placement=end, Size=sm, State=Default": {
           "file": "switch/checked-false__label-placement-end__size-sm__state-default.png",
@@ -2356,7 +2356,7 @@
       }
     },
     "Tabs": {
-      "specHash": "cd35c146",
+      "specHash": "2070aa66",
       "variants": {
         "Orientation=horizontal, Size=sm, State=Default, Variant=underline": {
           "file": "tabs/orientation-horizontal__size-sm__state-default__variant-underline.png",
