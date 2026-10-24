@@ -185,14 +185,18 @@ export const DEFAULT_WRITE = 'save changes';
  * who waits: "Ann and Claude AI are waiting on you." (the visitor is Dana). `people` is
  * home-model waitingSentence over everyone but the lead.
  */
-export function demoWaiting(n: number, people: { names: string; rest: string } | null, lead: string | null): { count: string; rest: string } {
+export function demoWaiting(n: number, people: { names: string; rest: string } | null, lead: string | null, drafts = 0): { count: string; rest: string } {
+  // What the queue holds, so the line and "Review all · 1 of N" agree: the changes, then Claude AI's documentation
+  // drafts when there are any ("15 changes and 1 documentation draft need your review.").
+  const what = [n > 0 || !drafts ? `${n} ${n === 1 ? 'change' : 'changes'}` : '', drafts ? `${drafts} documentation ${drafts === 1 ? 'draft' : 'drafts'}` : ''].filter(Boolean).join(' and ');
+  const one = n + drafts === 1;
   // No persona (Bridge's own design system, or a demo whose settings name none): the visitor is a visitor, not a
   // reviewer, so nothing "needs your review" and nobody is "waiting on you".
   if (!lead) {
-    const count = `${n} ${n === 1 ? 'change waits' : 'changes wait'} for review.`;
+    const count = `${what} ${one ? 'waits' : 'wait'} for review.`;
     return { count, rest: people ? ` ${people.names}${people.rest.replace(/ on you\.$/, ' on a reviewer.')}` : '' };
   }
-  const count = `${n} ${n === 1 ? 'change needs' : 'changes need'} your review.`;
+  const count = `${what} ${one ? 'needs' : 'need'} your review.`;
   if (!people) return { count, rest: ` ${lead} leads this design system.` };
   return { count, rest: ` ${people.names}${people.rest}` };
 }

@@ -163,6 +163,8 @@ export async function createTeam(name: string, discover: boolean): Promise<{ tea
   const r = await call<{ team?: unknown; created?: unknown }>('POST', '', { action: 'create-team', name, discover });
   const team = teamOf(r);
   noteTeamName(team.key, team.name);
+  // The account is read again so its teams carry the new one: the team chip names it from step 2 on, not "Your workspace".
+  void import('./account-session').then(({ getAccount }) => getAccount(true)).catch(() => {});
   return { team, created: r.created === true };
 }
 

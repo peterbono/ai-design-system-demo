@@ -54,6 +54,11 @@ describe('the demo', () => {
     expect(demoWaiting(1, { names: 'Ann', rest: ' is waiting on you.' }, null)).toEqual({ count: '1 change waits for review.', rest: ' Ann is waiting on a reviewer.' });
     expect(demoWaiting(3, null, null)).toEqual({ count: '3 changes wait for review.', rest: '' });
     expect(demoWaiting(2, null, 'Dana')).toEqual({ count: '2 changes need your review.', rest: ' Dana leads this design system.' });
+    // Claude AI's documentation drafts are in the queue too: the line counts them, so it agrees with Review all.
+    expect(demoWaiting(15, null, 'Dana', 1).count).toBe('15 changes and 1 documentation draft need your review.');
+    expect(demoWaiting(1, null, null, 1).count).toBe('1 change and 1 documentation draft wait for review.');
+    expect(demoWaiting(0, null, null, 1).count).toBe('1 documentation draft waits for review.');
+    expect(demoWaiting(0, null, 'Dana', 2).count).toBe('2 documentation drafts need your review.');
   });
 
   it('tours what the page shows, in order', () => {

@@ -72,7 +72,7 @@ function JoinActions({ row, join }: { row: NeedRow; join: JoinHandlers }) {
     const o = await join.decide(row, approve);
     if (o.ok) {
       const undo = join.undo;
-      toast.add({
+      const id = toast.add({
         title: o.text,
         tone: o.undo ? 'success' : 'neutral',
         timeout: o.undo && undo ? UNDO_MS : undefined,
@@ -81,7 +81,12 @@ function JoinActions({ row, join }: { row: NeedRow; join: JoinHandlers }) {
             ? {
                 label: ENTRY_WORDS.undo,
                 onClick: () => {
-                  void undo(row).then((u) => (u.ok ? toast.add({ title: u.text, tone: 'neutral' }) : toast.add({ title: u.text || ENTRY_WORDS.githubToManage, tone: 'danger' })));
+                  void undo(row).then((u) => {
+                    if (!u.ok) return void toast.add({ title: u.text || ENTRY_WORDS.githubToManage, tone: 'danger' });
+                    // Taken back: the decision's toast and its Undo go, the new one says so.
+                    toast.close(id);
+                    toast.add({ title: u.text, tone: 'neutral' });
+                  });
                 },
               }
             : undefined,
@@ -172,7 +177,7 @@ function Waiting({ needs, now, lead }: { needs: NeedRow[]; now: number; lead?: P
   const people = uniquePeople(needs.filter((r) => r.waitsOnYou).map((r) => r.person)).filter((p) => !lead || p.agent || p.login.toLowerCase() !== lead.login.toLowerCase());
   const s = waitingSentence(people);
   const oldest = oldestLabel(needs, now);
-  const demo = lead !== undefined ? demoWaiting(needs.filter((r) => r.kind === 'review').length, s, lead?.name ?? null) : null;
+  const demo = lead !== undefined ? demoWaiting(needs.filter((r) => r.kind === 'review').length, s, lead?.name ?? null, needs.filter((r) => r.kind === 'guidance').length) : null;
   if (!s && !demo) return null;
   // A div, not a p: the avatar group is a block (a div inside a p is invalid HTML).
   return (
@@ -371,7 +376,7 @@ function Health({ h }: { h: HealthLine }) {
 }
 
 const CHOICES = [
-  { drawing: 'tokens', title: 'Edit tokens', line: 'A colour, a spacing, a radius. See every place it shows before you send it.', key: 'tokens' },
+  { drawing: 'tokens', title: 'Edit tokens', line: 'A color, a spacing, a radius. See every place it shows before you send it.', key: 'tokens' },
   { drawing: 'components', title: 'Ask for a component change', line: 'Describe what is missing or wrong. A developer builds it with Claude, the owner decides.', key: 'component' },
   { drawing: 'guide', title: 'Write usage guidance', line: 'When to use a component, and when not to.', key: 'guidance' },
 ] as const;
@@ -468,7 +473,9 @@ export function StudioHome(p: StudioHomeProps) {
 function HomeBody(p: StudioHomeProps) {
   const snoozed = hintSnoozed(readSnooze(), p.now);
   const own = useTour<ContributorTourAt>(CONTRIBUTOR_TOUR_KEY, [...CONTRIBUTOR_TOUR_STEPS], contributorTour, Boolean(p.contributor) && !p.demo && (p.state === 'busy' || p.state === 'empty'));
-  const leadSteps = tourSteps({ rows: p.needs.length > 0, more: Boolean(splitNeeds(p.needs).more), branches: p.branches.length > 0 });
+  // The lead's tour speaks of changes: rows that are only join requests (or a health note) are not what it shows.
+  const changeRows = p.needs.some((r) => r.kind === 'review' || r.kind === 'guidance');
+  const leadSteps = tourSteps({ rows: changeRows, more: changeRows && Boolean(splitNeeds(p.needs).more), branches: p.branches.length > 0 });
   const lead = useTour<TourAt>(LEAD_TOUR_KEY, leadSteps, (at) => demoTour(at), Boolean(p.lead) && !p.contributor && !p.demo && p.state === 'busy' && leadSteps.length > 0);
   const tour: StudioHomeProps['tour'] =
     p.tour ??

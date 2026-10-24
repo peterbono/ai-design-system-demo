@@ -354,7 +354,7 @@ export function initReviewQueue() {
     }
     const d = decide(approve ? 'approved' : 'declined');
     if (!d) return;
-    toasts?.add({
+    const toastId = toasts?.add({
       title: o.text,
       tone: 'success',
       action:
@@ -364,6 +364,8 @@ export function initReviewQueue() {
               onClick: () => {
                 void join.undo!(row).then((u) => {
                   if (!u.ok) return toasts?.error(u.text || ENTRY_WORDS.githubToManage);
+                  // The decision is taken back: its toast (and its Undo) goes, the new one says so.
+                  if (toastId) toasts?.close(toastId);
                   outcomes.delete(row.key);
                   toasts?.info(u.text);
                   paint();
