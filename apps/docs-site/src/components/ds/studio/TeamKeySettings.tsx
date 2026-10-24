@@ -1,7 +1,7 @@
 // Settings of a team made in Bridge before any repository (`_team/<id>`, api/entry create-team), at
 // /studio/workspace/settings/?team=<id> (pages/studio/workspace/settings.astro). The same structure as a team's
 // Settings (board D9), the team first and in designer words:
-//   General          the team's name, as everyone on it reads it
+//   General          the team's name: an admin renames it in place (api/entry rename-team), everyone else reads it
 //   Members          who is in the team, who asks to join and the discovery Switch, invites and roles (MembersSection,
 //                    which reads this team by its key: email members only, no GitHub side)
 //   Your design system  how changes reach your code, review rules, safety and library access all come from the design
@@ -10,11 +10,11 @@
 // Never the sample team nor Bridge's own: a page without the team says how to get one.
 import { useEffect, useState } from 'react';
 import { Link2Off } from 'lucide-react';
-import { Card, CardBody, EmptyState, Skeleton } from '@bridge-ds/react';
+import { Button, Card, CardBody, EmptyState, Input, Skeleton } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
 import MembersSection from './MembersSection';
 import AppearanceSetting from './AppearanceSetting';
-import { TEAM_NAME_WORDS } from '../../../lib/team-name';
+import { TEAM_NAME_WORDS, teamNameProblem } from '../../../lib/team-name';
 import { adminOnlyText } from '../../../lib/settings-view';
 import { signInHref } from '../../../lib/account';
 import { WORKSPACE_HOME, workspaceTeamKey } from '../../../lib/start';
@@ -37,7 +37,104 @@ export const TEAM_KEY_WORDS = {
   connectText: 'Bridge reads your tokens and components from it. Then these settings show here.',
   connect: 'Connect your design system',
   nameHelp: 'Your teammates see it in Studio and in their invitations.',
+  save: 'Save',
+  saved: 'Saved. Your team sees the new name the next time they open Bridge.',
 } as const;
+
+/**
+ * Settings > General > Team name. An admin renames the team in place, Save on the same line (like TeamNameSetting on
+ * a team with a repository, where the name is a config change instead); everyone else reads it.
+ */
+export function TeamKeyName({ team, onRenamed }: { team: TeamInfo; onRenamed?: (t: TeamInfo) => void }) {
+  const admin = team.role === 'admin';
+  const [current, setCurrent] = useState(team.name);
+  const [value, setValue] = useState(team.name);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const clean = value.trim().replace(/\s+/g, ' ');
+  const changed = clean !== current;
+
+  const save = async () => {
+    const problem = teamNameProblem(value);
+    if (problem) return setError(problem);
+    setBusy(true);
+    setError(null);
+    try {
+      const { renameTeam } = await import('../../../scripts/entry-session');
+      const next = await renameTeam(team.key, clean);
+      setCurrent(next.name);
+      setValue(next.name);
+      setSaved(true);
+      onRenamed?.(next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Try again in a minute.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card aria-labelledby="set-team-name-label">
+      <CardBody>
+        <form
+          className="set-rows"
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (admin && changed && !busy) void save();
+          }}
+        >
+          <div className="set-row">
+            <div>
+              <p className="set-row-label" id="set-team-name-label">
+                {TEAM_NAME_WORDS.label}
+              </p>
+              <p className="set-row-help" id="set-team-name-help">
+                {TEAM_KEY_WORDS.nameHelp}
+              </p>
+            </div>
+            {admin ? (
+              <>
+                <div className="set-row-value">
+                  <Input
+                    id="set-team-name"
+                    label={TEAM_NAME_WORDS.label}
+                    hideLabel
+                    aria-describedby="set-team-name-help"
+                    value={value}
+                    maxLength={60}
+                    autoComplete="off"
+                    error={error ?? undefined}
+                    onValueChange={(v: string) => {
+                      setValue(v);
+                      setError(null);
+                      setSaved(false);
+                    }}
+                  />
+                </div>
+                <div className="set-row-action">
+                  <Button type="submit" variant="secondary" loading={busy} disabled={busy || !changed}>
+                    {TEAM_KEY_WORDS.save}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="set-row-value">
+                <p className="set-who">{current}</p>
+              </div>
+            )}
+          </div>
+          {saved && (
+            <p className="set-row-help" role="status">
+              {TEAM_KEY_WORDS.saved}
+            </p>
+          )}
+        </form>
+      </CardBody>
+    </Card>
+  );
+}
 
 function Band({ id, title, intro, children, full = false }: { id: string; title: string; intro?: string; children: React.ReactNode; full?: boolean }) {
   return (
@@ -120,19 +217,7 @@ export default function TeamKeySettings() {
   return (
     <>
       <Band id="general" title={TEAM_NAME_WORDS.generalTitle} intro={TEAM_NAME_WORDS.generalIntro}>
-        <Card>
-          <CardBody>
-            <div className="set-rows">
-              <div className="set-row">
-                <p className="set-row-label">{TEAM_NAME_WORDS.label}</p>
-                <div className="set-row-value set-row-span">
-                  <p className="set-who">{team.name}</p>
-                  <p className="set-row-help">{TEAM_KEY_WORDS.nameHelp}</p>
-                </div>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
+        <TeamKeyName team={team} />
       </Band>
 
       <section className="set-band" id="team" aria-labelledby="set-members" data-full="">
