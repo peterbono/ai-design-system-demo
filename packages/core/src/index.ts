@@ -52,6 +52,8 @@ export * from './measured-tokens';
 export * from './measure-status';
 export * from './fidelity';
 export * from './fidelity-references';
+export * from './gap-case';
+export * from './figma-fixes';
 export * from './review-gate';
 export * from './library-update';
 export * from './branch-actions';
