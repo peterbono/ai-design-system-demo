@@ -1,0 +1,1673 @@
+# peterbono/ai-design-system-demo design system
+
+> Tokens, components and usage guidance of the design system in github.com/peterbono/ai-design-system-demo, read at fb8c259 on main (2026-10-24). Published by Bridge for AI agents and people.
+
+- Source: https://github.com/peterbono/ai-design-system-demo/tree/fb8c259b311182cac837c04da6d60259ba8fe8da
+- Every file Bridge read, as JSON: snapshot.json, next to this file on the bridge-data branch.
+- Themes: light, dark. Brands: bridge, ocean. Densities: comfortable, compact.
+
+## Tokens
+
+386 tokens (brand, semantic, density and component tiers) on top of 254 primitives. Use the semantic tokens in product code, never the primitives. Values are for the default brand (bridge).
+
+- `palette.neutral.0` (`--palette-neutral-0`, brand color): light #ffffff, dark #ffffff
+- `palette.neutral.50` (`--palette-neutral-50`, brand color): light #f5f7f9, dark #f5f7f9
+- `palette.neutral.100` (`--palette-neutral-100`, brand color): light #edeff2, dark #edeff2
+- `palette.neutral.200` (`--palette-neutral-200`, brand color): light #e3e8ee, dark #e3e8ee
+- `palette.neutral.300` (`--palette-neutral-300`, brand color): light #c6cfd9, dark #c6cfd9
+- `palette.neutral.400` (`--palette-neutral-400`, brand color): light #a0aab5, dark #a0aab5
+- `palette.neutral.500` (`--palette-neutral-500`, brand color): light #808a96, dark #808a96
+- `palette.neutral.600` (`--palette-neutral-600`, brand color): light #5b6672, dark #5b6672
+- `palette.neutral.700` (`--palette-neutral-700`, brand color): light #495562, dark #495562
+- `palette.neutral.800` (`--palette-neutral-800`, brand color): light #323e4c, dark #323e4c
+- `palette.neutral.900` (`--palette-neutral-900`, brand color): light #15202b, dark #15202b
+- `palette.neutral.950` (`--palette-neutral-950`, brand color): light #0b1825, dark #0b1825
+- `palette.primary.50` (`--palette-primary-50`, brand color): light #f1f8ff, dark #f1f8ff
+- `palette.primary.100` (`--palette-primary-100`, brand color): light #e4f1fe, dark #e4f1fe
+- `palette.primary.200` (`--palette-primary-200`, brand color): light #cfe8ff, dark #cfe8ff
+- `palette.primary.300` (`--palette-primary-300`, brand color): light #aad2fe, dark #aad2fe
+- `palette.primary.400` (`--palette-primary-400`, brand color): light #6eaef2, dark #6eaef2
+- `palette.primary.500` (`--palette-primary-500`, brand color): light #3f8dda, dark #3f8dda
+- `palette.primary.600` (`--palette-primary-600`, brand color): light #1b6eb9, dark #1b6eb9
+- `palette.primary.700` (`--palette-primary-700`, brand color): light #0b4a8b, dark #0b4a8b
+- `palette.primary.800` (`--palette-primary-800`, brand color): light #043e70, dark #043e70
+- `palette.primary.900` (`--palette-primary-900`, brand color): light #00274b, dark #00274b
+- `palette.primary.950` (`--palette-primary-950`, brand color): light #001732, dark #001732
+- `palette.accent.50` (`--palette-accent-50`, brand color): light #f1f8ff, dark #f1f8ff
+- `palette.accent.100` (`--palette-accent-100`, brand color): light #e4f1fe, dark #e4f1fe
+- `palette.accent.200` (`--palette-accent-200`, brand color): light #cfe8ff, dark #cfe8ff
+- `palette.accent.300` (`--palette-accent-300`, brand color): light #aad2fe, dark #aad2fe
+- `palette.accent.400` (`--palette-accent-400`, brand color): light #6eaef2, dark #6eaef2
+- `palette.accent.500` (`--palette-accent-500`, brand color): light #3f8dda, dark #3f8dda
+- `palette.accent.600` (`--palette-accent-600`, brand color): light #1b6eb9, dark #1b6eb9
+- `palette.accent.700` (`--palette-accent-700`, brand color): light #0b4a8b, dark #0b4a8b
+- `palette.accent.800` (`--palette-accent-800`, brand color): light #043e70, dark #043e70
+- `palette.accent.900` (`--palette-accent-900`, brand color): light #00274b, dark #00274b
+- `palette.accent.950` (`--palette-accent-950`, brand color): light #001732, dark #001732
+- `palette.success.50` (`--palette-success-50`, brand color): light #eefaf6, dark #eefaf6
+- `palette.success.100` (`--palette-success-100`, brand color): light #dff5ee, dark #dff5ee
+- `palette.success.200` (`--palette-success-200`, brand color): light #c4ece1, dark #c4ece1
+- `palette.success.300` (`--palette-success-300`, brand color): light #9eddcc, dark #9eddcc
+- `palette.success.400` (`--palette-success-400`, brand color): light #62bda7, dark #62bda7
+- `palette.success.500` (`--palette-success-500`, brand color): light #229e87, dark #229e87
+- `palette.success.600` (`--palette-success-600`, brand color): light #007e6a, dark #007e6a
+- `palette.success.700` (`--palette-success-700`, brand color): light #036252, dark #036252
+- `palette.success.800` (`--palette-success-800`, brand color): light #06483c, dark #06483c
+- `palette.success.900` (`--palette-success-900`, brand color): light #002e25, dark #002e25
+- `palette.success.950` (`--palette-success-950`, brand color): light #001d16, dark #001d16
+- `palette.warning.50` (`--palette-warning-50`, brand color): light #fef6ea, dark #fef6ea
+- `palette.warning.100` (`--palette-warning-100`, brand color): light #fcedd7, dark #fcedd7
+- `palette.warning.200` (`--palette-warning-200`, brand color): light #f8deb6, dark #f8deb6
+- `palette.warning.300` (`--palette-warning-300`, brand color): light #fad091, dark #fad091
+- `palette.warning.400` (`--palette-warning-400`, brand color): light #e9b154, dark #e9b154
+- `palette.warning.500` (`--palette-warning-500`, brand color): light #cb8e07, dark #cb8e07
+- `palette.warning.600` (`--palette-warning-600`, brand color): light #8e6201, dark #8e6201
+- `palette.warning.700` (`--palette-warning-700`, brand color): light #6f4c03, dark #6f4c03
+- `palette.warning.800` (`--palette-warning-800`, brand color): light #533700, dark #533700
+- `palette.warning.900` (`--palette-warning-900`, brand color): light #352200, dark #352200
+- `palette.warning.950` (`--palette-warning-950`, brand color): light #221400, dark #221400
+- `palette.danger.50` (`--palette-danger-50`, brand color): light #fff4f4, dark #fff4f4
+- `palette.danger.100` (`--palette-danger-100`, brand color): light #ffe9eb, dark #ffe9eb
+- `palette.danger.200` (`--palette-danger-200`, brand color): light #ffd6da, dark #ffd6da
+- `palette.danger.300` (`--palette-danger-300`, brand color): light #ffb8bf, dark #ffb8bf
+- `palette.danger.400` (`--palette-danger-400`, brand color): light #fd798e, dark #fd798e
+- `palette.danger.500` (`--palette-danger-500`, brand color): light #e74368, dark #e74368
+- `palette.danger.600` (`--palette-danger-600`, brand color): light #c3184c, dark #c3184c
+- `palette.danger.700` (`--palette-danger-700`, brand color): light #9d0639, dark #9d0639
+- `palette.danger.800` (`--palette-danger-800`, brand color): light #760028, dark #760028
+- `palette.danger.900` (`--palette-danger-900`, brand color): light #4d0118, dark #4d0118
+- `palette.danger.950` (`--palette-danger-950`, brand color): light #34000c, dark #34000c
+- `palette.info.50` (`--palette-info-50`, brand color): light #f9f5ff, dark #f9f5ff
+- `palette.info.100` (`--palette-info-100`, brand color): light #f3ebff, dark #f3ebff
+- `palette.info.200` (`--palette-info-200`, brand color): light #eadafe, dark #eadafe
+- `palette.info.300` (`--palette-info-300`, brand color): light #dbc0fc, dark #dbc0fc
+- `palette.info.400` (`--palette-info-400`, brand color): light #bb96e5, dark #bb96e5
+- `palette.info.500` (`--palette-info-500`, brand color): light #9d71cc, dark #9d71cc
+- `palette.info.600` (`--palette-info-600`, brand color): light #7f53ac, dark #7f53ac
+- `palette.info.700` (`--palette-info-700`, brand color): light #653d8c, dark #653d8c
+- `palette.info.800` (`--palette-info-800`, brand color): light #4b2a6b, dark #4b2a6b
+- `palette.info.900` (`--palette-info-900`, brand color): light #311848, dark #311848
+- `palette.info.950` (`--palette-info-950`, brand color): light #1f0c30, dark #1f0c30
+- `palette.link.50` (`--palette-link-50`, brand color): light #f1f8ff, dark #f1f8ff
+- `palette.link.100` (`--palette-link-100`, brand color): light #e4f1fe, dark #e4f1fe
+- `palette.link.200` (`--palette-link-200`, brand color): light #cfe8ff, dark #cfe8ff
+- `palette.link.300` (`--palette-link-300`, brand color): light #aad2fe, dark #aad2fe
+- `palette.link.400` (`--palette-link-400`, brand color): light #6eaef2, dark #6eaef2
+- `palette.link.500` (`--palette-link-500`, brand color): light #3f8dda, dark #3f8dda
+- `palette.link.600` (`--palette-link-600`, brand color): light #1b6eb9, dark #1b6eb9
+- `palette.link.700` (`--palette-link-700`, brand color): light #0b4a8b, dark #0b4a8b
+- `palette.link.800` (`--palette-link-800`, brand color): light #043e70, dark #043e70
+- `palette.link.900` (`--palette-link-900`, brand color): light #00274b, dark #00274b
+- `palette.link.950` (`--palette-link-950`, brand color): light #001732, dark #001732
+- `palette.categorical.50` (`--palette-categorical-50`, brand color): light #fff4f1, dark #fff4f1
+- `palette.categorical.100` (`--palette-categorical-100`, brand color): light #ffeae4, dark #ffeae4
+- `palette.categorical.200` (`--palette-categorical-200`, brand color): light #fed8ce, dark #fed8ce
+- `palette.categorical.300` (`--palette-categorical-300`, brand color): light #fdbcaa, dark #fdbcaa
+- `palette.categorical.400` (`--palette-categorical-400`, brand color): light #fb8160, dark #fb8160
+- `palette.categorical.500` (`--palette-categorical-500`, brand color): light #e64611, dark #e64611
+- `palette.categorical.600` (`--palette-categorical-600`, brand color): light #bb370b, dark #bb370b
+- `palette.categorical.700` (`--palette-categorical-700`, brand color): light #962600, dark #962600
+- `palette.categorical.800` (`--palette-categorical-800`, brand color): light #6e1c02, dark #6e1c02
+- `palette.categorical.900` (`--palette-categorical-900`, brand color): light #4a0e00, dark #4a0e00
+- `palette.categorical.950` (`--palette-categorical-950`, brand color): light #320400, dark #320400
+- `radius.inset` (`--radius-inset`, brand dimension): light 6px, dark 6px. Small parts inside controls: checkbox box, tag, kbd, menu item highlight.
+- `radius.control` (`--radius-control`, brand dimension): light 12px, dark 12px. Buttons, inputs, selects, tabs.
+- `radius.container` (`--radius-container`, brand dimension): light 20px, dark 20px. Cards, zone blocks, alerts, popovers, menus, tables.
+- `radius.overlay` (`--radius-overlay`, brand dimension): light 20px, dark 20px. Dialogs, drawers, toasts.
+- `radius.pill` (`--radius-pill`, brand dimension): light 9999px, dark 9999px. Switch, avatar, badge, slider thumb.
+- `font.family.sans` (`--font-family-sans`, brand fontFamily): light "Instrument Sans Variable", "Instrument Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif, dark "Instrument Sans Variable", "Instrument Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif
+- `font.family.mono` (`--font-family-mono`, brand fontFamily): light "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace, dark "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace
+- `font.family.display` (`--font-family-display`, brand fontFamily): light "Fraunces Variable", Fraunces, Georgia, Cambria, "Times New Roman", serif, dark "Fraunces Variable", Fraunces, Georgia, Cambria, "Times New Roman", serif
+- `typography.display.size` (`--typography-display-size`, brand dimension): light 64px, dark 64px
+- `typography.display.line-height` (`--typography-display-line-height`, brand dimension): light 68px, dark 68px
+- `typography.display.weight` (`--typography-display-weight`, brand fontWeight): light 500, dark 500
+- `typography.display.family` (`--typography-display-family`, brand fontFamily): light "Fraunces Variable", Fraunces, Georgia, Cambria, "Times New Roman", serif, dark "Fraunces Variable", Fraunces, Georgia, Cambria, "Times New Roman", serif
+- `typography.display.tracking` (`--typography-display-tracking`, brand number): light -0.025, dark -0.025
+- `typography.h1.size` (`--typography-h1-size`, brand dimension): light 44px, dark 44px
+- `typography.h1.line-height` (`--typography-h1-line-height`, brand dimension): light 50px, dark 50px
+- `typography.h1.weight` (`--typography-h1-weight`, brand fontWeight): light 500, dark 500
+- `typography.h1.family` (`--typography-h1-family`, brand fontFamily): light "Fraunces Variable", Fraunces, Georgia, Cambria, "Times New Roman", serif, dark "Fraunces Variable", Fraunces, Georgia, Cambria, "Times New Roman", serif
+- `typography.h1.tracking` (`--typography-h1-tracking`, brand number): light -0.015, dark -0.015
+- `typography.h2.size` (`--typography-h2-size`, brand dimension): light 30px, dark 30px
+- `typography.h2.line-height` (`--typography-h2-line-height`, brand dimension): light 38px, dark 38px
+- `typography.h2.weight` (`--typography-h2-weight`, brand fontWeight): light 600, dark 600
+- `typography.h2.family` (`--typography-h2-family`, brand fontFamily): light "Fraunces Variable", Fraunces, Georgia, Cambria, "Times New Roman", serif, dark "Fraunces Variable", Fraunces, Georgia, Cambria, "Times New Roman", serif
+- `typography.h2.tracking` (`--typography-h2-tracking`, brand number): light -0.01, dark -0.01
+- `typography.h3.size` (`--typography-h3-size`, brand dimension): light 21px, dark 21px
+- `typography.h3.line-height` (`--typography-h3-line-height`, brand dimension): light 28px, dark 28px
+- `typography.h3.weight` (`--typography-h3-weight`, brand fontWeight): light 600, dark 600
+- `typography.h3.family` (`--typography-h3-family`, brand fontFamily): light "Instrument Sans Variable", "Instrument Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif, dark "Instrument Sans Variable", "Instrument Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif
+- `typography.h3.tracking` (`--typography-h3-tracking`, brand number): light -0.01, dark -0.01
+- `typography.body.size` (`--typography-body-size`, brand dimension): light 16px, dark 16px
+- `typography.body.line-height` (`--typography-body-line-height`, brand dimension): light 26px, dark 26px
+- `typography.body.weight` (`--typography-body-weight`, brand fontWeight): light 400, dark 400
+- `typography.body.family` (`--typography-body-family`, brand fontFamily): light "Instrument Sans Variable", "Instrument Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif, dark "Instrument Sans Variable", "Instrument Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif
+- `typography.body.tracking` (`--typography-body-tracking`, brand number): light 0, dark 0
+- `typography.ui.size` (`--typography-ui-size`, brand dimension): light 14px, dark 14px
+- `typography.ui.line-height` (`--typography-ui-line-height`, brand dimension): light 20px, dark 20px
+- `typography.ui.weight` (`--typography-ui-weight`, brand fontWeight): light 400, dark 400
+- `typography.ui.family` (`--typography-ui-family`, brand fontFamily): light "Instrument Sans Variable", "Instrument Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif, dark "Instrument Sans Variable", "Instrument Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif
+- `typography.ui.tracking` (`--typography-ui-tracking`, brand number): light 0, dark 0
+- `typography.caption.size` (`--typography-caption-size`, brand dimension): light 12px, dark 12px
+- `typography.caption.line-height` (`--typography-caption-line-height`, brand dimension): light 16px, dark 16px
+- `typography.caption.weight` (`--typography-caption-weight`, brand fontWeight): light 400, dark 400
+- `typography.caption.family` (`--typography-caption-family`, brand fontFamily): light "Instrument Sans Variable", "Instrument Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif, dark "Instrument Sans Variable", "Instrument Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif
+- `typography.caption.tracking` (`--typography-caption-tracking`, brand number): light 0, dark 0
+- `color.bg.default` (`--color-bg-default`, semantic color): light #ffffff, dark #0b1825. Page canvas. White in bridge, so content sits on paper; ocean keeps a tinted canvas.
+- `color.bg.subtle` (`--color-bg-subtle`, semantic color): light #edeff2, dark #15202b. Recessed areas: table headers, code blocks, footers.
+- `color.bg.muted` (`--color-bg-muted`, semantic color): light #e3e8ee, dark #323e4c. Tracks, skeletons, neutral fills.
+- `color.bg.zone` (`--color-bg-zone`, semantic color): light #cfe8ff, dark #00274b. Large flat color blocks that open a space: the home hero, section page headers, the Studio greeting, onboarding. Never behind dense UI.
+- `color.surface.default` (`--color-surface-default`, semantic color): light #ffffff, dark #15202b. Panels, cards, inputs.
+- `color.surface.raised` (`--color-surface-raised`, semantic color): light #ffffff, dark #323e4c. Floating layers: popovers, menus, dialogs, toasts.
+- `color.surface.hover` (`--color-surface-hover`, semantic color): light #edeff2, dark #323e4c. Hover fill for rows, menu items, ghost controls.
+- `color.surface.hover-raised` (`--color-surface-hover-raised`, semantic color): light #edeff2, dark #495562. Hover fill inside a raised surface.
+- `color.surface.pressed` (`--color-surface-pressed`, semantic color): light #e3e8ee, dark #495562. Pressed fill.
+- `color.surface.selected` (`--color-surface-selected`, semantic color): light #f1f8ff, dark #001732. Selected rows and items. Paired with a checked control or a mark, never alone.
+- `color.surface.inverse` (`--color-surface-inverse`, semantic color): light #15202b, dark #edeff2. Tooltips and inverse chips.
+- `color.surface.strong` (`--color-surface-strong`, semantic color): light #0b4a8b, dark #0b4a8b. Deep Harbor in both themes, for a mode the whole page is in (Banner appearance strong). Text on it: text.on-solid. Dark keeps it dark, so it never reads as the Harbor zone or the light primary action of the dark theme.
+- `color.text.default` (`--color-text-default`, semantic color): light #15202b, dark #f5f7f9
+- `color.text.muted` (`--color-text-muted`, semantic color): light #5b6672, dark #a0aab5. Secondary text. 4.5:1 on every background.
+- `color.text.disabled` (`--color-text-disabled`, semantic color): light #a0aab5, dark #5b6672. Disabled text. Exempt from contrast minimums; never the only cue.
+- `color.text.inverse` (`--color-text-inverse`, semantic color): light #ffffff, dark #0b1825. Text on surface.inverse.
+- `color.text.on-solid` (`--color-text-on-solid`, semantic color): light #ffffff, dark #ffffff. Text and icons on feedback and danger solids.
+- `color.text.link` (`--color-text-link`, semantic color): light #0b4a8b, dark #aad2fe
+- `color.text.link-hover` (`--color-text-link-hover`, semantic color): light #043e70, dark #cfe8ff
+- `color.text.signal` (`--color-text-signal`, semantic color): light #0b4a8b, dark #aad2fe. Signal-colored text (match highlights, current step).
+- `color.border.default` (`--color-border-default`, semantic color): light #e3e8ee, dark #323e4c. Hairlines: card edges, dividers. Decorative, no contrast minimum.
+- `color.border.subtle` (`--color-border-subtle`, semantic color): light #edeff2, dark #15202b. Row separators inside tables and lists.
+- `color.border.strong` (`--color-border-strong`, semantic color): light #808a96, dark #808a96. Edges that identify a control (inputs, checkboxes, switches). 3:1 against surfaces (WCAG 1.4.11).
+- `color.border.emphasis` (`--color-border-emphasis`, semantic color): light #c6cfd9, dark #495562. A hairline that must read before the default one: hovered cards, group dividers, dashed placeholders. Decorative, no contrast minimum.
+- `color.border.hover` (`--color-border-hover`, semantic color): light #5b6672, dark #a0aab5. Control edge on hover.
+- `color.action.primary.bg` (`--color-action-primary-bg`, semantic color): light #0b4a8b, dark #aad2fe. Primary action fill (steel ink in the bridge brand).
+- `color.action.primary.bg-hover` (`--color-action-primary-bg-hover`, semantic color): light #043e70, dark #cfe8ff
+- `color.action.primary.bg-active` (`--color-action-primary-bg-active`, semantic color): light #00274b, dark #e4f1fe
+- `color.action.primary.text` (`--color-action-primary-text`, semantic color): light #ffffff, dark #001732
+- `color.action.secondary.bg` (`--color-action-secondary-bg`, semantic color): light #ffffff, dark #15202b
+- `color.action.secondary.bg-hover` (`--color-action-secondary-bg-hover`, semantic color): light #edeff2, dark #323e4c
+- `color.action.secondary.bg-active` (`--color-action-secondary-bg-active`, semantic color): light #e3e8ee, dark #495562
+- `color.action.secondary.text` (`--color-action-secondary-text`, semantic color): light #15202b, dark #f5f7f9
+- `color.action.secondary.border` (`--color-action-secondary-border`, semantic color): light #c6cfd9, dark #5b6672
+- `color.action.ghost.bg-hover` (`--color-action-ghost-bg-hover`, semantic color): light #edeff2, dark #323e4c
+- `color.action.ghost.bg-active` (`--color-action-ghost-bg-active`, semantic color): light #e3e8ee, dark #495562
+- `color.action.ghost.text` (`--color-action-ghost-text`, semantic color): light #323e4c, dark #edeff2
+- `color.action.danger.bg` (`--color-action-danger-bg`, semantic color): light #c3184c, dark #c3184c
+- `color.action.danger.bg-hover` (`--color-action-danger-bg-hover`, semantic color): light #9d0639, dark #9d0639
+- `color.action.danger.bg-active` (`--color-action-danger-bg-active`, semantic color): light #760028, dark #760028
+- `color.action.danger.text` (`--color-action-danger-text`, semantic color): light #ffffff, dark #ffffff
+- `color.action.disabled.bg` (`--color-action-disabled-bg`, semantic color): light #edeff2, dark #323e4c
+- `color.action.disabled.text` (`--color-action-disabled-text`, semantic color): light #a0aab5, dark #5b6672
+- `color.control.bg` (`--color-control-bg`, semantic color): light #ffffff, dark #15202b. Unchecked checkbox, radio, input fill.
+- `color.control.checked.bg` (`--color-control-checked-bg`, semantic color): light #0b4a8b, dark #aad2fe. Checked checkbox, radio, switch track. Selection is ink.
+- `color.control.checked.bg-hover` (`--color-control-checked-bg-hover`, semantic color): light #043e70, dark #cfe8ff
+- `color.control.checked.fg` (`--color-control-checked-fg`, semantic color): light #ffffff, dark #001732. Check mark, radio dot, switch thumb when checked.
+- `color.control.track` (`--color-control-track`, semantic color): light #808a96, dark #808a96. Unchecked switch track and slider rail edge. 3:1 against surfaces.
+- `color.control.thumb` (`--color-control-thumb`, semantic color): light #ffffff, dark #f5f7f9
+- `color.signal.default` (`--color-signal-default`, semantic color): light #1b6eb9, dark #6eaef2. The signal: active indicators, progress, slider range.
+- `color.signal.subtle` (`--color-signal-subtle`, semantic color): light #e4f1fe, dark #00274b. Soft signal fill: highlighted search matches.
+- `color.overlay.scrim` (`--color-overlay-scrim`, semantic color): light rgb(13 24 37 / 0.48), dark rgb(0 0 0 / 0.64). Backdrop behind dialogs and drawers.
+- `color.feedback.neutral.bg` (`--color-feedback-neutral-bg`, semantic color): light #edeff2, dark #323e4c. Fill of a status with no tone (neutral Badge, grey status chips): one step off the page and off cards in both themes. bg.subtle is the card color in dark, so it vanished there.
+- `color.feedback.success.bg` (`--color-feedback-success-bg`, semantic color): light #eefaf6, dark #001d16
+- `color.feedback.success.border` (`--color-feedback-success-border`, semantic color): light #c4ece1, dark #06483c
+- `color.feedback.success.text` (`--color-feedback-success-text`, semantic color): light #036252, dark #9eddcc
+- `color.feedback.success.icon` (`--color-feedback-success-icon`, semantic color): light #007e6a, dark #62bda7
+- `color.feedback.success.solid` (`--color-feedback-success-solid`, semantic color): light #007e6a, dark #007e6a
+- `color.feedback.warning.bg` (`--color-feedback-warning-bg`, semantic color): light #fef6ea, dark #221400
+- `color.feedback.warning.border` (`--color-feedback-warning-border`, semantic color): light #f8deb6, dark #533700
+- `color.feedback.warning.text` (`--color-feedback-warning-text`, semantic color): light #6f4c03, dark #fad091
+- `color.feedback.warning.icon` (`--color-feedback-warning-icon`, semantic color): light #8e6201, dark #e9b154
+- `color.feedback.warning.solid` (`--color-feedback-warning-solid`, semantic color): light #8e6201, dark #8e6201
+- `color.feedback.danger.bg` (`--color-feedback-danger-bg`, semantic color): light #fff4f4, dark #34000c
+- `color.feedback.danger.border` (`--color-feedback-danger-border`, semantic color): light #ffd6da, dark #760028
+- `color.feedback.danger.text` (`--color-feedback-danger-text`, semantic color): light #9d0639, dark #ffb8bf
+- `color.feedback.danger.icon` (`--color-feedback-danger-icon`, semantic color): light #c3184c, dark #fd798e
+- `color.feedback.danger.solid` (`--color-feedback-danger-solid`, semantic color): light #c3184c, dark #c3184c
+- `color.feedback.info.bg` (`--color-feedback-info-bg`, semantic color): light #f9f5ff, dark #1f0c30
+- `color.feedback.info.border` (`--color-feedback-info-border`, semantic color): light #eadafe, dark #4b2a6b
+- `color.feedback.info.text` (`--color-feedback-info-text`, semantic color): light #653d8c, dark #dbc0fc
+- `color.feedback.info.icon` (`--color-feedback-info-icon`, semantic color): light #7f53ac, dark #bb96e5
+- `color.feedback.info.solid` (`--color-feedback-info-solid`, semantic color): light #7f53ac, dark #7f53ac
+- `color.chart.series.1` (`--color-chart-series-1`, semantic color): light #3f8dda, dark #6eaef2. Series 1, the signal hue: the series a chart is about.
+- `color.chart.series.2` (`--color-chart-series-2`, semantic color): light #7f53ac, dark #bb96e5. Series 2, the info hue.
+- `color.chart.series.3` (`--color-chart-series-3`, semantic color): light #007e6a, dark #62bda7. Series 3, the success hue.
+- `color.chart.series.4` (`--color-chart-series-4`, semantic color): light #8e6201, dark #e9b154. Series 4, the warning hue.
+- `color.chart.series.5` (`--color-chart-series-5`, semantic color): light #bb370b, dark #fb8160. Series 5, the categorical extra hue.
+- `color.chart.series.6` (`--color-chart-series-6`, semantic color): light #808a96, dark #a0aab5. Series 6, neutral: "other" and baselines.
+- `color.chart.track` (`--color-chart-track`, semantic color): light #edeff2, dark #323e4c. Unfilled part of a bar, gauge or donut.
+- `color.chart.grid` (`--color-chart-grid`, semantic color): light #e3e8ee, dark #323e4c. Grid lines and axis rules.
+- `color.chart.axis` (`--color-chart-axis`, semantic color): light #5b6672, dark #a0aab5. Axis labels and tick text. Same contrast as muted text.
+- `color.selection.bg` (`--color-selection-bg`, semantic color): light #e4f1fe, dark #043e70. Text selection highlight (::selection).
+- `color.agent.surface` (`--color-agent-surface`, semantic color): light #cfe8ff, dark #00274b. Tile behind the AI agent mark (Avatar kind agent): the Harbor zone color, with the mark in action.primary.bg (Deep Harbor), the zone pair the build already checks.
+- `color.illustration.surface` (`--color-illustration-surface`, semantic color): light #cfe8ff, dark #aad2fe. Behind line drawings (the Avatar illustrated faces): the Harbor zone color, kept light in dark so the black lines stay readable.
+- `focus.ring.color` (`--focus-ring-color`, semantic color): light #0b4a8b, dark #6eaef2. Keyboard focus ring. 3:1 against every surface.
+- `focus.ring.width` (`--focus-ring-width`, semantic dimension): light 2px, dark 2px
+- `focus.ring.offset` (`--focus-ring-offset`, semantic dimension): light 2px, dark 2px
+- `elevation.raised` (`--elevation-raised`, semantic shadow): light 0px 1px 2px 0px rgb(13 24 37 / 0.06), 0px 2px 6px -1px rgb(13 24 37 / 0.08), dark 0px 1px 2px 0px rgb(0 0 0 / 0.32), 0px 2px 6px -1px rgb(0 0 0 / 0.24). Interactive cards on hover, sticky headers.
+- `elevation.overlay` (`--elevation-overlay`, semantic shadow): light 0px 2px 4px -1px rgb(13 24 37 / 0.08), 0px 12px 24px -6px rgb(13 24 37 / 0.14), dark 0px 2px 4px -1px rgb(0 0 0 / 0.4), 0px 12px 24px -6px rgb(0 0 0 / 0.44). Popovers, menus, listboxes, tooltips.
+- `elevation.modal` (`--elevation-modal`, semantic shadow): light 0px 4px 8px -2px rgb(13 24 37 / 0.1), 0px 24px 48px -12px rgb(13 24 37 / 0.22), dark 0px 4px 8px -2px rgb(0 0 0 / 0.48), 0px 24px 48px -12px rgb(0 0 0 / 0.56). Dialogs, drawers, toasts.
+- `motion.duration.instant` (`--motion-duration-instant`, semantic duration): light 75ms, dark 75ms. Hover and press color changes.
+- `motion.duration.fast` (`--motion-duration-fast`, semantic duration): light 150ms, dark 150ms. Tooltips, menus, popovers, checkbox ticks.
+- `motion.duration.moderate` (`--motion-duration-moderate`, semantic duration): light 200ms, dark 200ms. Dialogs, accordions, tab indicator.
+- `motion.duration.slow` (`--motion-duration-slow`, semantic duration): light 300ms, dark 300ms. Drawers, toasts entering.
+- `motion.duration.spin` (`--motion-duration-spin`, semantic duration): light 700ms, dark 700ms. One spinner rotation.
+- `motion.duration.shimmer` (`--motion-duration-shimmer`, semantic duration): light 1400ms, dark 1400ms. One skeleton shimmer pass.
+- `motion.easing.standard` (`--motion-easing-standard`, semantic cubicBezier): light cubic-bezier(0.2, 0, 0, 1), dark cubic-bezier(0.2, 0, 0, 1)
+- `motion.easing.enter` (`--motion-easing-enter`, semantic cubicBezier): light cubic-bezier(0.16, 1, 0.3, 1), dark cubic-bezier(0.16, 1, 0.3, 1)
+- `motion.easing.exit` (`--motion-easing-exit`, semantic cubicBezier): light cubic-bezier(0.4, 0, 1, 1), dark cubic-bezier(0.4, 0, 1, 1)
+- `motion.easing.linear` (`--motion-easing-linear`, semantic cubicBezier): light cubic-bezier(0, 0, 1, 1), dark cubic-bezier(0, 0, 1, 1)
+- `layer.sticky` (`--layer-sticky`, semantic number): light 100, dark 100
+- `layer.dropdown` (`--layer-dropdown`, semantic number): light 1000, dark 1000
+- `layer.overlay` (`--layer-overlay`, semantic number): light 1100, dark 1100
+- `layer.modal` (`--layer-modal`, semantic number): light 1200, dark 1200
+- `layer.popover` (`--layer-popover`, semantic number): light 1300, dark 1300
+- `layer.toast` (`--layer-toast`, semantic number): light 1400, dark 1400
+- `layer.tooltip` (`--layer-tooltip`, semantic number): light 1500, dark 1500
+- `icon.size.xs` (`--icon-size-xs`, semantic dimension): light 12px, dark 12px
+- `icon.size.sm` (`--icon-size-sm`, semantic dimension): light 16px, dark 16px
+- `icon.size.md` (`--icon-size-md`, semantic dimension): light 20px, dark 20px
+- `icon.size.lg` (`--icon-size-lg`, semantic dimension): light 24px, dark 24px
+- `icon.stroke` (`--icon-stroke`, semantic number): light 1.75, dark 1.75. Lucide stroke width at every size, matched to Plex text weight.
+- `border-width.default` (`--border-width-default`, semantic dimension): light 1px, dark 1px
+- `border-width.strong` (`--border-width-strong`, semantic dimension): light 2px, dark 2px
+- `border-width.indicator` (`--border-width-indicator`, semantic dimension): light 2px, dark 2px
+- `layout.sidebar.width` (`--layout-sidebar-width`, semantic dimension): light 256px, dark 256px. App shell side navigation width.
+- `layout.header.height` (`--layout-header-height`, semantic dimension): light 56px, dark 56px. App shell top bar height. Sticky offsets add it.
+- `layout.content.max-width` (`--layout-content-max-width`, semantic dimension): light 1200px, dark 1200px. Widest a page content column grows before it stays left aligned.
+- `control.height.sm` (`--control-height-sm`, density dimension): light 32px, dark 32px
+- `control.height.md` (`--control-height-md`, density dimension): light 44px, dark 44px
+- `control.height.lg` (`--control-height-lg`, density dimension): light 48px, dark 48px
+- `control.padding-x.sm` (`--control-padding-x-sm`, density dimension): light 12px, dark 12px
+- `control.padding-x.md` (`--control-padding-x-md`, density dimension): light 16px, dark 16px
+- `control.padding-x.lg` (`--control-padding-x-lg`, density dimension): light 20px, dark 20px
+- `control.gap` (`--control-gap`, density dimension): light 8px, dark 8px
+- `layout.gap` (`--layout-gap`, density dimension): light 16px, dark 16px
+- `layout.inset` (`--layout-inset`, density dimension): light 20px, dark 20px. Padding inside cards, dialogs, popovers.
+- `table.row-height` (`--table-row-height`, density dimension): light 48px, dark 48px
+- `table.cell-padding-x` (`--table-cell-padding-x`, density dimension): light 16px, dark 16px
+- `menu.item-height` (`--menu-item-height`, density dimension): light 36px, dark 36px
+- `button.primary.bg` (`--button-primary-bg`, component color): light #0b4a8b, dark #aad2fe
+- `button.primary.bg-hover` (`--button-primary-bg-hover`, component color): light #043e70, dark #cfe8ff
+- `button.primary.bg-active` (`--button-primary-bg-active`, component color): light #00274b, dark #e4f1fe
+- `button.primary.text` (`--button-primary-text`, component color): light #ffffff, dark #001732
+- `button.secondary.bg` (`--button-secondary-bg`, component color): light #ffffff, dark #15202b
+- `button.secondary.bg-hover` (`--button-secondary-bg-hover`, component color): light #edeff2, dark #323e4c
+- `button.secondary.bg-active` (`--button-secondary-bg-active`, component color): light #e3e8ee, dark #495562
+- `button.secondary.text` (`--button-secondary-text`, component color): light #15202b, dark #f5f7f9
+- `button.secondary.border` (`--button-secondary-border`, component color): light #c6cfd9, dark #5b6672
+- `button.ghost.bg-hover` (`--button-ghost-bg-hover`, component color): light #edeff2, dark #323e4c
+- `button.ghost.bg-active` (`--button-ghost-bg-active`, component color): light #e3e8ee, dark #495562
+- `button.ghost.text` (`--button-ghost-text`, component color): light #323e4c, dark #edeff2
+- `button.danger.bg` (`--button-danger-bg`, component color): light #c3184c, dark #c3184c
+- `button.danger.bg-hover` (`--button-danger-bg-hover`, component color): light #9d0639, dark #9d0639
+- `button.danger.bg-active` (`--button-danger-bg-active`, component color): light #760028, dark #760028
+- `button.danger.text` (`--button-danger-text`, component color): light #ffffff, dark #ffffff
+- `button.radius` (`--button-radius`, component dimension): light 12px, dark 12px
+- `button.font-weight` (`--button-font-weight`, component fontWeight): light 500, dark 500
+- `checkbox.bg` (`--checkbox-bg`, component color): light #ffffff, dark #15202b
+- `checkbox.border` (`--checkbox-border`, component color): light #808a96, dark #808a96
+- `checkbox.bg-checked` (`--checkbox-bg-checked`, component color): light #0b4a8b, dark #aad2fe
+- `checkbox.fg-checked` (`--checkbox-fg-checked`, component color): light #ffffff, dark #001732
+- `checkbox.radius` (`--checkbox-radius`, component dimension): light 6px, dark 6px
+- `switch.track-off` (`--switch-track-off`, component color): light #808a96, dark #808a96
+- `switch.track-on` (`--switch-track-on`, component color): light #0b4a8b, dark #aad2fe
+- `switch.thumb` (`--switch-thumb`, component color): light #ffffff, dark #f5f7f9
+- `switch.thumb-on` (`--switch-thumb-on`, component color): light #ffffff, dark #001732
+- `slider.track` (`--slider-track`, component color): light #e3e8ee, dark #323e4c
+- `slider.range` (`--slider-range`, component color): light #1b6eb9, dark #6eaef2
+- `slider.thumb` (`--slider-thumb`, component color): light #ffffff, dark #f5f7f9
+- `slider.thumb-border` (`--slider-thumb-border`, component color): light #808a96, dark #808a96
+- `table.header.bg` (`--table-header-bg`, component color): light #edeff2, dark #15202b
+- `table.header.text` (`--table-header-text`, component color): light #5b6672, dark #a0aab5
+- `table.row.bg-hover` (`--table-row-bg-hover`, component color): light #edeff2, dark #323e4c
+- `table.row.bg-selected` (`--table-row-bg-selected`, component color): light #f1f8ff, dark #001732
+- `table.border` (`--table-border`, component color): light #edeff2, dark #15202b
+- `tabs.indicator` (`--tabs-indicator`, component color): light #1b6eb9, dark #6eaef2
+- `tabs.text-active` (`--tabs-text-active`, component color): light #15202b, dark #f5f7f9
+- `tabs.text` (`--tabs-text`, component color): light #5b6672, dark #a0aab5
+- `progress.track` (`--progress-track`, component color): light #e3e8ee, dark #323e4c
+- `progress.fill` (`--progress-fill`, component color): light #1b6eb9, dark #6eaef2
+- `nav.item-bg-hover` (`--nav-item-bg-hover`, component color): light #edeff2, dark #323e4c
+- `nav.item-bg-active` (`--nav-item-bg-active`, component color): light #e3e8ee, dark #495562
+- `nav.indicator` (`--nav-indicator`, component color): light #1b6eb9, dark #6eaef2
+- `avatar.bg` (`--avatar-bg`, component color): light #e3e8ee, dark #323e4c
+- `avatar.text` (`--avatar-text`, component color): light #15202b, dark #f5f7f9
+- `avatar.ring` (`--avatar-ring`, component color): light #ffffff, dark #15202b
+- `avatar.illustrated-bg` (`--avatar-illustrated-bg`, component color): light #cfe8ff, dark #aad2fe
+- `avatar.agent-bg` (`--avatar-agent-bg`, component color): light #cfe8ff, dark #00274b
+- `avatar.agent-border` (`--avatar-agent-border`, component color): light #e3e8ee, dark #323e4c
+- `tag.bg` (`--tag-bg`, component color): light #edeff2, dark #15202b
+- `tag.border` (`--tag-border`, component color): light #e3e8ee, dark #323e4c
+- `tag.bg-hover` (`--tag-bg-hover`, component color): light #edeff2, dark #323e4c
+- `tag.text` (`--tag-text`, component color): light #15202b, dark #f5f7f9
+- `tag.bg-selected` (`--tag-bg-selected`, component color): light #0b4a8b, dark #aad2fe
+- `tag.text-selected` (`--tag-text-selected`, component color): light #ffffff, dark #001732
+- `tag.signal-bg` (`--tag-signal-bg`, component color): light #e4f1fe, dark #00274b
+- `tag.signal-text` (`--tag-signal-text`, component color): light #0b4a8b, dark #aad2fe
+- `tag.radius` (`--tag-radius`, component dimension): light 6px, dark 6px
+- `kbd.bg` (`--kbd-bg`, component color): light #ffffff, dark #15202b
+- `kbd.border` (`--kbd-border`, component color): light #e3e8ee, dark #323e4c
+- `kbd.border-bottom` (`--kbd-border-bottom`, component color): light #808a96, dark #808a96
+- `kbd.text` (`--kbd-text`, component color): light #5b6672, dark #a0aab5
+- `kbd.radius` (`--kbd-radius`, component dimension): light 6px, dark 6px
+- `divider.line` (`--divider-line`, component color): light #e3e8ee, dark #323e4c
+- `divider.text` (`--divider-text`, component color): light #5b6672, dark #a0aab5
+- `accordion.border` (`--accordion-border`, component color): light #e3e8ee, dark #323e4c
+- `accordion.bg-hover` (`--accordion-bg-hover`, component color): light #edeff2, dark #323e4c
+- `accordion.text` (`--accordion-text`, component color): light #15202b, dark #f5f7f9
+- `accordion.icon` (`--accordion-icon`, component color): light #5b6672, dark #a0aab5
+- `alert.radius` (`--alert-radius`, component dimension): light 20px, dark 20px. Inline alerts are containers.
+- `skeleton.base` (`--skeleton-base`, component color): light #e3e8ee, dark #323e4c. Skeleton block fill.
+- `skeleton.shine` (`--skeleton-shine`, component color): light #edeff2, dark #15202b. Moving highlight of the shimmer.
+- `skeleton.radius` (`--skeleton-radius`, component dimension): light 6px, dark 6px
+- `input.bg` (`--input-bg`, component color): light #ffffff, dark #15202b
+- `input.border` (`--input-border`, component color): light #808a96, dark #808a96
+- `input.border-hover` (`--input-border-hover`, component color): light #5b6672, dark #a0aab5
+- `input.border-invalid` (`--input-border-invalid`, component color): light #c3184c, dark #fd798e
+- `input.text` (`--input-text`, component color): light #15202b, dark #f5f7f9
+- `input.placeholder` (`--input-placeholder`, component color): light #5b6672, dark #a0aab5
+- `input.bg-disabled` (`--input-bg-disabled`, component color): light #edeff2, dark #323e4c
+- `input.radius` (`--input-radius`, component dimension): light 12px, dark 12px
+- `menu.item.bg-highlight` (`--menu-item-bg-highlight`, component color): light #edeff2, dark #495562. Keyboard or pointer highlight on a menu item.
+- `menu.item.text` (`--menu-item-text`, component color): light #15202b, dark #f5f7f9
+- `menu.item.text-muted` (`--menu-item-text-muted`, component color): light #5b6672, dark #a0aab5. Group labels, shortcuts, submenu chevrons.
+- `menu.item.text-danger` (`--menu-item-text-danger`, component color): light #9d0639, dark #ffb8bf
+- `menu.item.text-disabled` (`--menu-item-text-disabled`, component color): light #a0aab5, dark #5b6672
+- `menu.item.indicator` (`--menu-item-indicator`, component color): light #0b4a8b, dark #aad2fe. Check and radio marks: selection is ink.
+- `menu.separator` (`--menu-separator`, component color): light #e3e8ee, dark #323e4c
+- `drawer.bg` (`--drawer-bg`, component color): light #ffffff, dark #323e4c
+- `drawer.border` (`--drawer-border`, component color): light #e3e8ee, dark #323e4c
+- `drawer.radius` (`--drawer-radius`, component dimension): light 20px, dark 20px
+- `drawer.shadow` (`--drawer-shadow`, component shadow): light 0px 4px 8px -2px rgb(13 24 37 / 0.1), 0px 24px 48px -12px rgb(13 24 37 / 0.22), dark 0px 4px 8px -2px rgb(0 0 0 / 0.48), 0px 24px 48px -12px rgb(0 0 0 / 0.56)
+- `card.bg` (`--card-bg`, component color): light #ffffff, dark #15202b
+- `card.border` (`--card-border`, component color): light #e3e8ee, dark #323e4c
+- `card.radius` (`--card-radius`, component dimension): light 20px, dark 20px
+- `card.shadow` (`--card-shadow`, component shadow): light 0px 1px 2px 0px rgb(13 24 37 / 0.06), 0px 2px 6px -1px rgb(13 24 37 / 0.08), dark 0px 1px 2px 0px rgb(0 0 0 / 0.32), 0px 2px 6px -1px rgb(0 0 0 / 0.24)
+- `popup.bg` (`--popup-bg`, component color): light #ffffff, dark #323e4c
+- `popup.border` (`--popup-border`, component color): light #c6cfd9, dark #495562. One step stronger than border.default: in dark, border.default is the raised surface's own color, so a list opened inside a Dialog (same raised surface) had no edge.
+- `popup.radius` (`--popup-radius`, component dimension): light 20px, dark 20px
+- `popup.shadow` (`--popup-shadow`, component shadow): light 0px 2px 4px -1px rgb(13 24 37 / 0.08), 0px 12px 24px -6px rgb(13 24 37 / 0.14), dark 0px 2px 4px -1px rgb(0 0 0 / 0.4), 0px 12px 24px -6px rgb(0 0 0 / 0.44)
+- `dialog.bg` (`--dialog-bg`, component color): light #ffffff, dark #323e4c
+- `dialog.scrim` (`--dialog-scrim`, component color): light rgb(13 24 37 / 0.48), dark rgb(0 0 0 / 0.64)
+- `dialog.radius` (`--dialog-radius`, component dimension): light 20px, dark 20px
+- `dialog.shadow` (`--dialog-shadow`, component shadow): light 0px 4px 8px -2px rgb(13 24 37 / 0.1), 0px 24px 48px -12px rgb(13 24 37 / 0.22), dark 0px 4px 8px -2px rgb(0 0 0 / 0.48), 0px 24px 48px -12px rgb(0 0 0 / 0.56)
+- `tooltip.bg` (`--tooltip-bg`, component color): light #15202b, dark #edeff2
+- `tooltip.text` (`--tooltip-text`, component color): light #ffffff, dark #0b1825
+- `tooltip.radius` (`--tooltip-radius`, component dimension): light 12px, dark 12px
+- `toast.bg` (`--toast-bg`, component color): light #ffffff, dark #323e4c
+- `toast.border` (`--toast-border`, component color): light #e3e8ee, dark #323e4c
+- `toast.radius` (`--toast-radius`, component dimension): light 20px, dark 20px
+- `toast.shadow` (`--toast-shadow`, component shadow): light 0px 4px 8px -2px rgb(13 24 37 / 0.1), 0px 24px 48px -12px rgb(13 24 37 / 0.22), dark 0px 4px 8px -2px rgb(0 0 0 / 0.48), 0px 24px 48px -12px rgb(0 0 0 / 0.56)
+
+## Components
+
+### Icon
+
+Draws a Lucide icon at a token size with the system stroke width, in the color of the text around it. Decorative by default: pass a label only when the icon carries meaning on its own.
+
+- Family: Foundations
+- Tokens: icon.size.lg, icon.size.md, icon.size.sm, icon.size.xs, icon.stroke
+- Use it for:
+  - Next to a label, to help people scan: a menu item, a tab, a status line, a table cell.
+  - Inside your own controls, at size sm (16), the size the system uses in controls.
+  - In navigation at size md (20), so the side nav reads at a glance.
+  - Any Lucide glyph: pass the component itself, for example icon={GitBranch} imported from lucide-react.
+- Not for:
+  - As the only content of a button: use IconButton, which requires a label and sizes the hit area.
+  - Inside Button or Badge when they place the icon for you: Button takes iconStart and iconEnd, Badge takes icon.
+  - Emoji or Unicode glyphs standing in for icons: the system uses one family, Lucide.
+  - Illustrations or logos: Icon draws 24px grid line icons only.
+- Accessibility:
+  - Without label, the icon gets aria-hidden="true": screen readers skip it and read the text next to it.
+  - With label, it gets role="img" and aria-label, so it is announced as an image with that name.
+  - focusable="false" keeps the SVG out of the tab order. Make the parent control focusable, never the icon.
+  - The icon inherits the text color, so it gets the same contrast as the label it sits next to.
+- Do: Pair the icon with text. The word carries the meaning and the icon helps people find it. The icon stays hidden from screen readers, so the label is read once.
+- Do: Pick the size from the token scale. xs 12, sm 16, md 20, lg 24. The stroke stays at icon.stroke on every size, so icons keep the weight of the text.
+- Do: Give a label when the icon stands alone and means something. With label, Icon becomes role="img" with that accessible name. Say what it means ("Merged"), not what it shows ("Purple circle").
+- Don't: Set a color or a size by hand. Icon inherits currentColor and takes its size from the icon size tokens. A hard-coded width or color drifts from the theme and the density.
+- Don't: Rely on the icon alone to say a status. Color and shape are not enough for everyone. Put the status in words next to it, or use Badge.
+
+### VisuallyHidden
+
+Text for assistive technology only: screen readers read it, the screen does not show it. Use it to give a control or a symbol the words sighted users get from the layout.
+
+- Family: Foundations
+- Tokens: border.width.1
+- Use it for:
+  - A control whose visible content is not enough on its own, like a checkbox in a table row: "Select Button".
+  - Extra context a sighted user gets from the layout, like " (opens in a new tab)" after an external link.
+  - A label for a loading region while Skeleton placeholders are shown, like "Loading tokens".
+- Not for:
+  - Hiding content from everyone: use the hidden attribute or do not render it.
+  - Naming an icon-only button: IconButton takes a label prop for that.
+  - Long text or anything interactive: it is a span clipped to one pixel, so a link or button inside it would take focus while staying invisible.
+- Accessibility:
+  - Renders a span that stays in the accessibility tree: screen readers read its text in place.
+  - Clipped to one pixel with clip-path and overflow hidden, positioned absolutely, so it takes no room in the layout.
+  - white-space: nowrap keeps the words from being read one per line by some screen readers.
+  - Accepts every native span attribute and spreads them, so an id for aria-describedby works.
+- Do: Add the words the layout implies. Link with external does it for you: it adds a VisuallyHidden " (opens in a new tab)" after the label.
+- Do: Keep it short and specific. Name the thing the control acts on: "Select Button" in a row, "Select all tokens" in the header.
+- Don't: Repeat what is already visible. If the visible label says it, screen readers read it twice.
+- Don't: Use it to hide content you want to remove. Screen reader users still hear it. Remove the content, or use the hidden attribute.
+
+### Button
+
+Triggers an action on the current screen: save, publish, approve, open a dialog. If it takes the user somewhere else, it is a Link, not a Button.
+
+- Family: Actions
+- Tokens: border-width.default, border-width.strong, button.danger.bg, button.danger.bg-active, button.danger.bg-hover, button.danger.text, button.font-weight, button.ghost.bg-active, button.ghost.bg-hover, button.ghost.text, button.primary.bg, button.primary.bg-active, button.primary.bg-hover, button.primary.text, button.radius, button.secondary.bg, button.secondary.bg-active, button.secondary.bg-hover, button.secondary.border, button.secondary.text, color.action.disabled.bg, color.action.disabled.text, color.control.checked.bg, color.control.checked.bg-hover, color.surface.default, color.surface.hover, color.surface.pressed, color.surface.selected, color.text.default, color.text.link, color.text.link-hover, control.gap, control.height.lg, control.height.md, control.height.sm, control.padding-x.lg, control.padding-x.md, control.padding-x.sm, focus.ring.color, focus.ring.offset, ...
+- Use it for:
+  - The user commits an action on this screen: Publish, Approve, Create token, Open pull request.
+  - Primary: the one action you most want the user to take in this view. One per form, dialog or page section.
+  - Secondary: the alternatives next to the primary, like Save as draft or Request changes.
+  - Ghost: low-emphasis actions repeated in lists, tables or toolbars (Edit, View diff), where filled buttons would fight for attention.
+  - Danger: destructive actions (Delete, Revoke access). Usually inside a confirmation dialog.
+  - Pressed: a toggle that stays on, like Compare or Show what changed in a toolbar. Set pressed to true or false; the selected look and aria-pressed follow it.
+  - Link: an action on this screen inside a sentence, like "Show only these" after a count. It looks like a link and stays a button.
+  - Inverse: the action on a strong surface (Deep Harbor, the inverse terminal bars), where secondary would disappear.
+  - Size sm in dense rows and toolbars, md everywhere else, lg only for a single call to action on an empty or onboarding screen. Heights follow the density setting.
+- Not for:
+  - Going to another page or URL: use Link. Links and buttons are announced differently and users expect Cmd+click to open links in a new tab.
+  - Navigation with variant link: a link-looking button still does not go anywhere. Use Link to go to another page.
+  - Turning a setting on or off in a form: use Switch or Checkbox. A pressed Button is for toolbar toggles that change the view.
+  - Picking one of several views: use Tabs or an attached ButtonGroup.
+  - More than three actions in one row: keep the main ones and move the rest to a Menu behind an IconButton.
+- Accessibility:
+  - Native button through Base UI: Enter and Space activate it, it is in the tab order, no extra ARIA needed.
+  - The focus ring (focus.ring.color, 2px, offset 2px) shows on keyboard focus only, never on mouse click.
+  - Loading sets aria-busy and aria-disabled, ignores clicks, and keeps the button focusable so keyboard users keep their place.
+  - Disabled removes the button from the tab order and explains nothing. Prefer an enabled button plus a message saying what is missing.
+  - pressed sets aria-pressed, so screen readers announce a toggle button and its state. Leave it unset on plain buttons: aria-pressed false still announces a toggle.
+  - Variant link keeps the native button: Enter and Space work, it is announced as a button, and the focus ring is the DS ring.
+  - With render={<a href />} the element stays a link (role link), which is right for navigation styled as a button.
+  - Heights are 32/40/48px comfortable and 28/32/40px compact: all above the WCAG 2.2 minimum target of 24px.
+- Do: Start the label with a verb that names the outcome. "Publish tokens" and "Approve change" tell the user what happens before they click.
+- Do: One primary per view, the others step down. Hierarchy tells users where to look first. Secondary and ghost carry the alternatives.
+- Do: Show progress with loading, keep the label. The button stays in place and focusable, so keyboard users do not lose their position. Change the label to the present participle.
+- Do: A toggle says its state with pressed. Pass pressed true or false, never swap variants to show the state. The look, aria-pressed and a script driving a static page stay in step.
+- Don't: Two primary buttons side by side. When everything is primary, nothing is. Users hesitate and pick at random.
+- Don't: Vague labels. "OK" and "Click here" say nothing out of context, and screen reader users often list buttons out of context.
+- Don't: Danger for actions that are not destructive. Red trains people to ignore red. Keep danger for actions that remove or revoke something.
+
+### ButtonGroup
+
+Lays out related buttons as one unit, either spaced (an action bar or dialog footer) or attached (a segmented control), and gives the group one accessible name.
+
+- Family: Actions
+- Tokens: border-width.default, space.2
+- Use it for:
+  - Footers of dialogs, forms and cards: primary at the end, alternatives before it.
+  - Attached: two to five closely related choices of equal weight, like Unified or Split diff.
+- Not for:
+  - Switching between views of content: use Tabs, which manage the panel and arrow-key navigation.
+  - A single choice that persists as a setting: use RadioGroup.
+- Accessibility:
+  - Renders role="group". Pass aria-label when the buttons are related choices so the group is announced.
+  - Each button stays in the tab order; the focused button lifts above its neighbors so the ring is never clipped.
+  - Vertical groups stack the same buttons; the tab order follows the visual order.
+- Do: Put the primary action last. Users read the alternatives on the way to the main action, and the primary lands where the eye ends.
+- Don't: Mix variants in an attached group. An attached group reads as one control. Mixed fills break it into unrelated pieces.
+
+### IconButton
+
+A square button with only an icon, for frequent, recognizable actions in toolbars, table rows and headers. Its label is still required: it becomes the accessible name.
+
+- Family: Actions
+- Tokens: border-width.default, border-width.strong, button.danger.bg, button.danger.bg-active, button.danger.bg-hover, button.danger.text, button.font-weight, button.ghost.bg-active, button.ghost.bg-hover, button.ghost.text, button.primary.bg, button.primary.bg-active, button.primary.bg-hover, button.primary.text, button.radius, button.secondary.bg, button.secondary.bg-active, button.secondary.bg-hover, button.secondary.border, button.secondary.text, color.action.disabled.bg, color.action.disabled.text, color.control.checked.bg, color.control.checked.bg-hover, color.surface.default, color.surface.hover, color.surface.pressed, color.surface.selected, color.text.default, color.text.link, color.text.link-hover, control.gap, control.height.lg, control.height.md, control.height.sm, control.padding-x.lg, control.padding-x.md, control.padding-x.sm, focus.ring.color, focus.ring.offset, ...
+- Use it for:
+  - Repeated row actions in tables and lists: edit, copy, delete, more.
+  - Toolbars where space is tight and the icons are widely understood (close, copy, search, settings).
+  - Opening a Menu of secondary actions (the more icon).
+- Not for:
+  - The primary action of a view: give it a text Button.
+  - Any icon whose meaning is not obvious without its label: use a Button with iconStart instead.
+  - Navigation to another page: use a Link.
+- Accessibility:
+  - label is required and becomes aria-label. The icon itself is aria-hidden.
+  - Same keyboard behavior and focus ring as Button. Loading keeps focus and sets aria-busy.
+  - The square target matches the control height (32/40/48 comfortable), never smaller than 24px.
+- Do: Name the action, not the picture. label="Delete token" is what a screen reader says. "Trash" describes the drawing, not what happens.
+- Do: Pair with a Tooltip showing the same label. Sighted mouse users get the name on hover; keyboard users get it on focus.
+- Don't: A row of filled icon buttons. Primary icon buttons in every row shout. Keep row actions ghost.
+
+### Link
+
+Takes the user to another page, section or site. Underlined in running text so it is never identified by color alone.
+
+- Family: Actions
+- Tokens: border.width.1, border.width.2, color.border.strong, color.text.link, color.text.link-hover, focus.ring.color, focus.ring.width, font.weight.medium, motion.duration.instant, motion.easing.standard, radius.inset, size.6, space.0-5
+- Use it for:
+  - Navigation: another page, a section of this page, an external resource.
+  - Inline in sentences (inline variant), or on its own under a card or a table (standalone).
+  - external for other sites: it opens a new tab and says so.
+- Not for:
+  - Actions on this screen (save, delete, open a dialog): use Button.
+  - Navigation that should look like a button (a single call to action): use Button with render={<a href />}.
+- Accessibility:
+  - Native <a href>: Enter follows it, it is announced as a link, Cmd or Ctrl+click opens a new tab.
+  - Inline links are underlined (WCAG 1.4.1): color is never the only cue inside text.
+  - external adds target=_blank, rel=noopener noreferrer, an icon and "(opens in a new tab)" for screen readers.
+  - Focus ring hugs the text with a 1px offset so it does not overlap neighbouring lines.
+- Do: Link text says where it goes. Screen reader users jump between links out of context: "Read the token guidelines" works alone, "here" does not.
+- Don't: "Click here" or a bare URL. Both say nothing about the destination.
+
+### Checkbox
+
+A single on or off choice with its label next to the box, submitted with a form. Supports a mixed state for a parent that controls a partly checked group.
+
+- Family: Forms
+- Tokens: border-width.default, checkbox.bg, checkbox.bg-checked, checkbox.border, checkbox.fg-checked, checkbox.radius, color.action.disabled.bg, color.action.disabled.text, color.border.default, color.border.hover, color.control.checked.bg-hover, color.text.default, color.text.disabled, color.text.muted, focus.ring.color, focus.ring.offset, focus.ring.width, font.family.sans, font.line-height.normal, font.size.100, font.size.200, font.tracking.wide, font.weight.regular, input.border-invalid, motion.duration.fast, motion.duration.instant, motion.easing.enter, motion.easing.standard, size.4, size.6, space.0-5, space.2
+- Use it for:
+  - An independent yes or no that takes effect when the form is saved: agree, include, require.
+  - Several independent options under one question: put them in a CheckboxGroup.
+  - Selecting rows in a Table (with a parent checkbox in the header for select all).
+- Not for:
+  - A setting that applies immediately: use Switch.
+  - One choice among exclusive options: use RadioGroup.
+  - A command (Delete, Publish): use Button.
+- Accessibility:
+  - Base UI Checkbox: role checkbox, Space toggles, aria-checked is true, false or mixed (indeterminate).
+  - The whole label row is the click target; the label text is the accessible name (aria-labelledby) and the description is linked with aria-describedby.
+  - The box edge uses color.border.strong (3:1 against surfaces); checked uses the ink fill with a white check (4.5:1 or more).
+  - Indeterminate shows a dash, so mixed is not conveyed by color.
+  - invalid adds a danger edge; always pair it with an error message in the group or form.
+- Do: Phrase the label as the positive case. Checked means the label is true. "Notify reviewers" reads cleanly; a negative label makes users double-check.
+- Do: Use the description for consequences. Keep the label short and explain the effect underneath.
+- Don't: Negative labels. "Do not send notifications" checked means off. Users have to think twice.
+- Don't: A checkbox that acts immediately. If ticking it changes something right away, it is a Switch.
+
+### CheckboxGroup
+
+Several independent choices under one question, in a fieldset with a legend. An optional parent checkbox selects or clears the whole group and shows a mixed state.
+
+- Family: Forms
+- Tokens: border.width.1, color.feedback.danger.icon, color.feedback.danger.text, color.text.default, color.text.disabled, color.text.muted, font.family.sans, font.line-height.normal, font.line-height.snug, font.size.100, font.size.200, font.tracking.wide, font.weight.medium, input.border-invalid, space.0-5, space.1, space.1-5, space.2, space.6
+- Use it for:
+  - Users may pick zero, one or several options from a short visible list (up to about seven).
+  - Use allValues plus <Checkbox parent /> for a Select all at the top of a long list.
+- Not for:
+  - Only one option can be picked: use RadioGroup.
+  - More than about seven options or a searchable list: use Combobox with multiple selection.
+- Accessibility:
+  - Native fieldset and legend: the legend names the group; disabled on the fieldset disables every item.
+  - description and error are linked to the fieldset with aria-describedby; the error carries an icon and text.
+  - The parent checkbox is checked, unchecked or mixed (aria-checked) based on the children, driven by Base UI.
+  - Each item keeps its own label and description, so items can be reached and understood one by one.
+- Do: Ask the question in the legend. The legend is read before each option, so it gives every label its context.
+- Don't: A group without a legend. Screen reader users hear "Light, checkbox" with no idea what it is for.
+
+### ChoiceCard
+
+One choice among two to four options that each need a title and a short description, shown as cards: Keep mine or Use the library's, a starting brand, a corner style. The whole card is the click target.
+
+- Family: Forms
+- Tokens: border-width.default, border.width.1, checkbox.bg, checkbox.bg-checked, checkbox.border, checkbox.fg-checked, color.action.disabled.bg, color.action.disabled.text, color.bg.subtle, color.border.default, color.border.hover, color.border.strong, color.control.checked.bg, color.control.checked.bg-hover, color.feedback.danger.icon, color.feedback.danger.text, color.surface.default, color.surface.hover, color.surface.selected, color.text.default, color.text.disabled, color.text.muted, control.height.lg, focus.ring.color, focus.ring.offset, focus.ring.width, font.family.sans, font.line-height.normal, font.line-height.snug, font.size.100, font.size.200, font.tracking.wide, font.weight.medium, font.weight.semibold, input.border-invalid, motion.duration.fast, motion.duration.instant, motion.easing.enter, motion.easing.standard, radius.control, ...
+- Use it for:
+  - A decision where each option needs a line of explanation or a value to compare: resolving a conflict, picking a starting brand.
+  - Two to four options. Side by side (horizontal, the default) when the reader compares them; they stack on their own when they no longer fit.
+  - vertical when the descriptions are long or the options are a ranked list.
+  - Put a TokenValue in description when the choice is between token values, so the reader sees what each card keeps.
+  - hideLabel when the row around the group already asks the question; the legend stays the accessible name.
+- Not for:
+  - Options a short label explains on its own: use RadioGroup.
+  - Switching a view or a mode that applies at once: use SegmentedControl.
+  - Several options the reader can pick together: use Checkbox.
+  - More than four options: use RadioGroup or Select.
+- Accessibility:
+  - A fieldset with a legend around a Base UI RadioGroup: the legend names the group, each card is a radio named by its title.
+  - Each card's description is linked to its radio with aria-describedby, so screen readers read it after the title. The group description and error are linked to the group.
+  - Tab enters the group on the selected card and leaves it; arrow keys move the selection.
+  - The selected card shows the checked radio, a Deep Harbor edge and the selected surface: never color alone.
+  - A disabled card is skipped by the arrow keys and cannot be picked; say why in its description.
+  - The focus ring (focus.ring.color) shows on the radio on keyboard focus only.
+- Do: Titles are the choice, descriptions are the consequence. The title says what the reader picks in a few words, the description says what happens or what it keeps.
+- Do: Ask the question in the legend. The legend names the decision, as a question or a noun, so the cards read as answers.
+- Don't: Cards for one-word options. When the titles say it all and nothing needs comparing, cards take room for nothing. Use RadioGroup.
+- Don't: Descriptions that repeat the title. "Keep mine: keeps your value" says it twice. Show the value instead, or what changes.
+
+### Combobox
+
+A text input that filters a list of options as the user types, then selects one or several of them. Built for long lists and async search (people, repositories, tokens).
+
+- Family: Forms
+- Tokens: border-width.default, color.bg.subtle, color.border.default, color.surface.hover, color.surface.hover-raised, color.surface.pressed, color.text.default, color.text.disabled, color.text.muted, control.height.lg, control.height.md, control.height.sm, control.padding-x.md, control.padding-x.sm, focus.ring.color, focus.ring.width, font.family.sans, font.line-height.normal, font.line-height.snug, font.size.100, font.size.200, font.size.300, font.tracking.wide, font.weight.medium, input.bg, input.bg-disabled, input.border, input.border-hover, input.border-invalid, input.placeholder, input.radius, input.text, layer.popover, menu.item-height, motion.duration.fast, motion.duration.instant, motion.easing.enter, motion.easing.exit, motion.easing.standard, popup.bg, ...
+- Use it for:
+  - Choosing from a long or growing list where typing is faster than scrolling: reviewers, repositories, components, tokens.
+  - Results come from a server: control inputValue, fetch, pass the results as options with filter={null} and loading while waiting.
+  - Several values from a long list (multiple): selected values become removable chips inside the field.
+  - Inside a Dialog or Drawer: the list opens above the dialog and focus stays in it. Use description for a short second line under each label (12px, muted), like a component's family or a person's role.
+- Not for:
+  - Short known lists (under about ten): use Select, which needs no typing.
+  - Free text with suggestions (a search box): the value must be one of the options here, so use Input or an autocomplete pattern.
+  - Two or three options: use RadioGroup.
+- Accessibility:
+  - Base UI Combobox: the input has role combobox with aria-expanded, aria-controls and aria-activedescendant; the popup is a listbox.
+  - Keyboard: typing filters; Down Arrow opens and moves; Enter selects; Escape closes, then clears; with multiple, Left Arrow from the start of the input moves through the chips and Backspace removes one.
+  - loading renders the message in a live status region and sets aria-busy on the popup; the empty message is announced the same way.
+  - The clear and toggle buttons inside the field have accessible names ("Clear selection", "Show options"); each chip remove button says "Remove <name>".
+  - The Field label names the input; hint and error are linked through aria-describedby.
+  - The popup is portaled and re-applies the theme, brand and density of its field. It sits on the popover layer, above a Dialog, and the dialog keeps focus management: picking returns focus to the input inside the dialog.
+- Do: Add a second line when names are ambiguous. A role or an email under the name helps pick the right Ada, and is matched by screen readers too.
+- Do: Write an empty message that says what to try. "No one matches. Check the spelling or invite them." turns a dead end into a next step.
+- Don't: Spinner with no words. While loading, say what is happening ("Searching people"). The message is also announced to screen readers.
+- Don't: Combobox for a handful of fixed options. Typing to find one of three themes is slower than seeing them. Use Select or RadioGroup.
+
+### Field
+
+Wires a visible label, an optional description and an error message to one form control. Ids, aria-describedby, aria-invalid and validation timing are handled by Base UI Field.
+
+- Family: Forms
+- Tokens: border.width.1, color.feedback.danger.icon, color.feedback.danger.text, color.text.default, color.text.disabled, color.text.muted, font.family.sans, font.line-height.normal, font.line-height.snug, font.size.100, font.size.200, font.tracking.wide, font.weight.medium, space.0-5, space.1, space.1-5
+- Use it for:
+  - Around every Input, Textarea, Select, Combobox, NumberField or Slider that does not take a label prop itself.
+  - To show a server-side error next to the right control (error prop, or Form errors by name).
+  - description for what the user needs before typing: format, limits, why you ask.
+- Not for:
+  - Checkbox and Switch: they carry their own label next to the control.
+  - A group of checkboxes or radios: use CheckboxGroup or RadioGroup, which render a fieldset and legend.
+- Accessibility:
+  - The label is a native <label> bound to the control: clicking it focuses the control.
+  - description and error are linked through aria-describedby; an error also sets aria-invalid on the control.
+  - Errors carry an icon and text, never color alone (WCAG 1.4.1).
+  - required shows an asterisk (hidden from screen readers) and sets the native required attribute, which is announced.
+  - hideLabel keeps the label for assistive tech; use it only when the context labels the field visually (a search bar with an icon).
+- Do: Description before, error after. The description answers questions before typing; the error appears under the control, where the eye already is.
+- Don't: Placeholder as the label. It disappears on the first keystroke and has low contrast. Keep a visible label.
+
+### Form
+
+A form with one validation pattern for the whole system: client checks on submit, server errors passed by field name, each shown under its Field and listed in a summary that takes focus.
+
+- Family: Forms
+- Tokens: border-width.default, border.width.1, color.feedback.danger.bg, color.feedback.danger.border, color.feedback.danger.icon, color.feedback.danger.text, color.text.default, focus.ring.color, focus.ring.offset, focus.ring.width, font.family.sans, font.line-height.normal, font.line-height.snug, font.size.200, font.weight.semibold, radius.container, radius.inset, space.0-5, space.1, space.2, space.3, space.4, space.5
+- Use it for:
+  - Any group of fields submitted together: connect a repository, create a token, invite reviewers.
+  - errors for server-side validation, keyed by each Field's name.
+  - FormActions for the button row: primary action last.
+- Not for:
+  - A single setting that saves on change: use Switch or an inline control without a form.
+  - Search and filter bars that update results live: no submit, no Form.
+- Accessibility:
+  - Base UI Form: native form element; fields validate on submit and the first invalid field gets focus.
+  - Server errors set aria-invalid on the control and are linked with aria-describedby.
+  - The error summary is role alert, receives focus when new errors arrive, and links move focus to each field.
+  - Errors are icon plus text, never color alone.
+- Do: Validate on submit, then live. Do not flag fields while the user is still typing for the first time. After a failed submit, errors clear as soon as the value is fixed.
+- Do: Keep what the user typed. Show the error next to the value so it can be corrected, never clear the field.
+- Don't: Disabling submit until the form is valid. A disabled button explains nothing. Keep it enabled and show what is missing on submit.
+- Don't: One generic error at the top. "Something went wrong" sends users hunting. Attach each error to its field.
+
+### Input
+
+Single-line text field with optional prefix and suffix. Give it a label prop for a complete field, or place it inside a Field.
+
+- Family: Forms
+- Tokens: border-width.default, color.bg.subtle, color.border.default, color.text.disabled, color.text.muted, control.height.lg, control.height.md, control.height.sm, control.padding-x.md, control.padding-x.sm, focus.ring.color, font.family.sans, font.line-height.normal, font.size.200, font.size.300, input.bg, input.bg-disabled, input.border, input.border-hover, input.border-invalid, input.placeholder, input.radius, input.text, motion.duration.instant, motion.easing.standard, space.2
+- Use it for:
+  - Short free text: a name, a URL, a search query, a value with a unit.
+  - prefix for an icon or a currency, suffix for a unit or a keyboard hint.
+  - size follows density: md in forms and in a page's filter bar, sm only in dense toolbars, menus and panels, lg only on sparse screens. In a filter bar the search field, its Select and its SegmentedControl share one size, so the row reads as one height.
+- Not for:
+  - More than one line: use Textarea.
+  - Numbers with steps, min and max: use NumberField (increment buttons, arrow keys, locale formatting).
+  - Choosing from a known list: Select for under about ten options, Combobox for long or searchable lists.
+- Accessibility:
+  - Base UI Input: inherits label, description and error wiring from the surrounding Field.
+  - The field edge (color.border.strong) has at least 3:1 contrast with the surface in both themes (WCAG 1.4.11).
+  - Focus shows a 2px signal-colored edge on every focus, since users type into it.
+  - On touch screens the text is 17px so iOS does not zoom the page on focus.
+  - A prefix icon is decorative; if the prefix carries meaning (a currency), make it text.
+- Do: Label above, format help in the hint. The label stays visible while typing; the hint answers the question before it is asked.
+- Do: Units in the suffix. The value stays a number the user can edit; the unit is context, not content.
+- Don't: Clearing the value on error. Keep what the user typed and say how to fix it.
+
+### NumberField
+
+Numeric input with decrease and increase buttons, arrow-key stepping, min and max, and locale-aware formatting.
+
+- Family: Forms
+- Tokens: border-width.default, color.border.default, color.surface.hover, color.surface.pressed, color.text.default, color.text.disabled, color.text.muted, control.height.lg, control.height.md, control.height.sm, control.padding-x.sm, focus.ring.color, focus.ring.width, font.family.sans, font.size.200, font.size.300, input.bg, input.bg-disabled, input.border, input.border-hover, input.border-invalid, input.radius, input.text, motion.duration.instant, motion.easing.standard, space.2
+- Use it for:
+  - Exact numbers within known bounds: approvals, columns, spacing steps, retry counts.
+  - suffix for the unit (px, ms, %), format for currency or percent.
+- Not for:
+  - Identifiers that only look like numbers (zip codes, ids, phone numbers): use Input with inputMode numeric.
+  - Rough values where position matters: use Slider.
+- Accessibility:
+  - Base UI NumberField: a text input with role textbox and aria-roledescription Number field; Arrow Up and Down step, Shift uses largeStep.
+  - The decrease and increase buttons are named and disabled at min and max.
+  - Inherits label, description and error from Field; invalid sets aria-invalid and a danger edge.
+  - Values use tabular figures so digits do not jump while stepping.
+- Do: Set min and max. Bounds disable the buttons at the edges and stop impossible values.
+- Don't: Unit in the label and in the value. Say it once, in the suffix: "Base spacing" with px, not "Base spacing (px)" plus px.
+
+### RadioGroup
+
+One choice among a few visible, mutually exclusive options. Arrow keys move the selection; the group has a legend and optional per-option descriptions.
+
+- Family: Forms
+- Tokens: border-width.default, border.width.1, checkbox.bg, checkbox.bg-checked, checkbox.border, checkbox.fg-checked, color.action.disabled.bg, color.action.disabled.text, color.border.default, color.border.hover, color.control.checked.bg-hover, color.feedback.danger.icon, color.feedback.danger.text, color.text.default, color.text.disabled, color.text.muted, focus.ring.color, focus.ring.offset, focus.ring.width, font.family.sans, font.line-height.normal, font.line-height.snug, font.size.100, font.size.200, font.tracking.wide, font.weight.medium, input.border-invalid, motion.duration.fast, motion.duration.instant, motion.easing.enter, motion.easing.standard, radius.pill, size.4, size.6, space.0-5, space.1, space.1-5, space.2, space.6
+- Use it for:
+  - Two to about six exclusive options that benefit from being compared side by side.
+  - Options that need a description to choose well.
+  - horizontal only for two or three short options, like Light, Dark, System.
+- Not for:
+  - More than about six options, or options users know by name: use Select.
+  - A single on or off: use Switch or Checkbox.
+  - Switching views of content: use Tabs.
+- Accessibility:
+  - Base UI RadioGroup: role radiogroup named by the legend; one tab stop, arrow keys move and select.
+  - Each radio is labelled by its text (aria-labelledby) and described by its description.
+  - The group error is linked with aria-describedby and sets aria-invalid; it shows an icon and text.
+  - Selected uses the ink fill with a light dot; the unselected edge is color.border.strong (3:1).
+- Do: Preselect the safest or most common option. A default saves a decision; pick the one most teams want.
+- Don't: A single radio button. One radio cannot be unselected. Use a Checkbox.
+
+### SegmentedControl
+
+Picks one of a few views or modes, shown side by side as attached buttons: the brand of a preview, the density, light or dark. The choice applies at once, on the current screen.
+
+- Family: Forms
+- Tokens: border-width.default, color.action.disabled.bg, color.bg.subtle, color.border.default, color.control.checked.bg, color.control.checked.fg, color.surface.pressed, color.surface.raised, color.text.default, color.text.disabled, color.text.muted, control.height.md, control.height.sm, elevation.raised, focus.ring.color, focus.ring.width, font.family.sans, font.line-height.tight, font.size.100, font.size.200, font.weight.medium, motion.duration.instant, motion.easing.standard, radius.control, radius.inset, space.0-5, space.1-5, space.2, space.3, space.8
+- Use it for:
+  - Switching how the same content is shown: Light or Dark, Comfortable or Compact, Grid or List.
+  - Short options where seeing every option at once helps the choice: two to five usually, more for filters people switch between often (status filters). On a phone the track scrolls sideways and never widens the page.
+  - Appearance strong when the control is what the view is about (the status filter of a list): the selected segment fills with Deep Harbor. At most one strong control per view.
+  - The change applies immediately, with no Save button.
+  - Size sm in dense toolbars, menus and panels; md everywhere else, including a page's filter bar, where it matches the md search field and Select beside it. Heights follow the density setting.
+  - fullWidth inside a narrow panel or menu, so the segments share the width equally.
+- Not for:
+  - Switching between panels of different content: use Tabs, which link each tab to its panel.
+  - A setting in a form that is saved later: use RadioGroup, which shows a label and help per option.
+  - Long labels, or options people pick once and forget: use Select.
+  - Turning one thing on or off: use Switch.
+  - Triggering actions (Export, Delete): use Button or an attached ButtonGroup.
+- Accessibility:
+  - Base UI RadioGroup with native button radios: role radiogroup on the row, role radio and aria-checked on each segment.
+  - Tab enters the group on the selected segment and leaves it; arrow keys move the selection, Home and End jump to the ends.
+  - Give the group a name: aria-labelledby pointing at the visible label outside the track, or label (aria-label) when the context already names it.
+  - The selected segment is marked by a raised plate with a checked-color edge (or the Deep Harbor fill with strong) and a darker text color, not by color alone.
+  - When the track scrolls, arrow keys still move the selection and the selected segment scrolls into view.
+  - The focus ring (focus.ring.color) shows on keyboard focus only.
+  - Rendered without JavaScript, the HTML keeps role, aria-checked and data-value, so a small script can drive it: flip aria-checked and tabindex, and handle arrow keys.
+- Do: Short, parallel labels. One or two words per segment, same grammatical form, so the set reads as one choice.
+- Do: Label outside the track. Put a visible label to the left of the track, as a caption on its center line, and name the group with it (aria-labelledby, or the same words in label). The track holds the options and nothing else.
+- Do: Strong for the control the view is about. A list filtered by status: the selected filter fills with Deep Harbor, the strongest signal on the screen. Six short filters are fine; on a phone they scroll sideways.
+- Do: Always start with a selection. A segmented control shows the current mode. Pass value or defaultValue so one segment is always selected.
+- Don't: Actions dressed as segments. Segments select a mode; they never run a command. "Export" and "Share" belong on buttons.
+- Don't: The label inside the track. Never put the group's label in the same pill as the options. Inside one container it reads as one more option ("Brand" next to "Bridge" and "Ocean"). Keep it outside, to the left.
+- Don't: Too many or too long options. Two or three words per segment make the track longer than the screen and stop reading as one control. Keep labels to one or two words, or use Select.
+
+### Select
+
+Picks one value from a short, known list in a popup. The trigger looks like an Input so forms read as one family; the list supports groups, descriptions, badges and disabled options.
+
+- Family: Forms
+- Tokens: border-width.default, color.bg.subtle, color.border.default, color.surface.hover-raised, color.text.default, color.text.disabled, color.text.muted, control.height.lg, control.height.md, control.height.sm, control.padding-x.md, control.padding-x.sm, focus.ring.color, font.family.sans, font.line-height.normal, font.line-height.snug, font.size.100, font.size.200, font.size.300, font.tracking.wide, font.weight.medium, input.bg, input.bg-disabled, input.border, input.border-hover, input.border-invalid, input.placeholder, input.radius, input.text, layer.popover, menu.item-height, motion.duration.fast, motion.duration.instant, motion.easing.enter, motion.easing.exit, motion.easing.standard, popup.bg, popup.border, popup.radius, popup.shadow, ...
+- Use it for:
+  - One choice from about 4 to 10 known options: a theme, a brand, a token group, a role.
+  - The options are long words or labels that would crowd a RadioGroup.
+  - Space is tight: in a dense toolbar, a menu or a settings row (size sm). In a page's filter bar, size md, like the search field beside it.
+  - Each option carries a short fact worth seeing before the pick, like a status or a count: put a Badge in badge. It shows on the item and in the trigger once selected.
+- Not for:
+  - Two or three options that should all stay visible: use RadioGroup, or an attached ButtonGroup for a view switch.
+  - Long or unknown lists (people, repositories, 20+ tokens): use Combobox so users can type to filter.
+  - Several values at once: use Combobox with multiple, or a CheckboxGroup.
+  - Actions (Duplicate, Delete): use Menu. A Select changes a value, it does not run commands.
+- Accessibility:
+  - Base UI Select: the trigger is a combobox button with aria-expanded; the popup is a listbox with options marked aria-selected and aria-disabled.
+  - Keyboard: Enter, Space or Arrow keys open it; arrows move; typing jumps to a matching option; Enter selects; Escape closes and returns focus to the trigger.
+  - The Field label names the trigger; hint and error are linked through aria-describedby, and an error sets aria-invalid.
+  - The selected option shows a check mark and a medium weight, not color alone.
+  - The trigger edge uses color.border.strong (3:1 against surfaces) and the signal focus ring on keyboard focus.
+  - The popup is portaled and re-applies the theme, brand and density of its trigger.
+- Do: A status next to the label with badge. A Badge in the option's badge slot says the status at a glance, in the list and in the trigger. The description stays for a second line of detail, like who made it.
+- Do: Order options by meaning, not alphabetically by default. Put the most common choice first, or follow the natural order (System, Light, Dark). Group long lists under short headings.
+- Do: Explain a disabled option. A description on the option says why it cannot be picked, instead of leaving users guessing.
+- Don't: A Select with two options. Hiding two choices behind a click costs a step for nothing. Show them as radios or a Switch.
+- Don't: The placeholder as an instruction. "Click to select" says nothing. The placeholder describes the empty state: "No theme", "Any reviewer".
+
+### Slider
+
+Picks a value or a range by position on a continuous scale, with the formatted value shown at the end of the track.
+
+- Family: Forms
+- Tokens: border-width.strong, color.border.strong, color.text.default, color.text.disabled, elevation.raised, focus.ring.color, focus.ring.offset, focus.ring.width, font.family.sans, font.size.200, input.border-invalid, motion.duration.instant, motion.easing.standard, radius.pill, size.20, size.4, size.6, slider.range, slider.thumb, slider.track, space.1, space.4
+- Use it for:
+  - Approximate values where the position matters more than the exact number: opacity, threshold, zoom.
+  - A range with two thumbs: pass an array of two numbers.
+  - Live previews: update on onValueChange, save on onValueCommitted.
+- Not for:
+  - An exact number the user knows: use NumberField.
+  - Very large ranges where one step is tiny: pair it with a NumberField or use NumberField alone.
+- Accessibility:
+  - Base UI Slider: each thumb is a native range input with role slider, aria-valuenow and aria-valuetext from format.
+  - Arrow keys step, Page Up and Page Down or Shift+arrow use largeStep, Home and End jump to min and max.
+  - Range thumbs are named "<label> minimum" and "<label> maximum"; override with thumbLabels.
+  - The filled range uses the signal color (3:1 on the muted track); focus rings the thumb.
+- Do: Show the value and its unit. format makes the value readable: 48%, 4.5, 16 px.
+- Don't: A slider for precise input. Dragging to exactly 37 is frustrating. Use NumberField when the exact number matters.
+
+### Switch
+
+Turns a setting on or off with immediate effect, like a light switch. No save button needed.
+
+- Family: Forms
+- Tokens: color.bg.muted, color.border.hover, color.border.strong, color.control.checked.bg-hover, color.text.default, color.text.disabled, color.text.muted, elevation.raised, focus.ring.color, focus.ring.offset, focus.ring.width, font.family.sans, font.line-height.normal, font.size.100, font.size.200, font.tracking.wide, motion.duration.fast, motion.easing.standard, radius.pill, size.3, size.4, size.5, size.6, size.7, size.9, space.0-5, space.3, switch.thumb, switch.thumb-on, switch.track-off, switch.track-on
+- Use it for:
+  - Settings that apply as soon as they are flipped: notifications, auto-publish, preview mode.
+  - labelPlacement start in settings lists, so labels align left and switches align right.
+- Not for:
+  - A choice saved later with a form button: use Checkbox.
+  - More than two states: use RadioGroup or Select.
+  - Starting an action (Publish, Sync): use Button.
+- Accessibility:
+  - Base UI Switch: role switch with aria-checked; Space and Enter toggle it; the label row is the click target.
+  - The off track uses control.track (3:1 against surfaces) and the thumb keeps 3:1 against the track, so the state is visible without color.
+  - The thumb position carries the state, not only the track color.
+  - If flipping it fails (network), revert it and say why next to it.
+- Do: Name the setting, not the state. The switch shows on or off; the label says what is on or off.
+- Don't: Labels that change with the state. "On" and "Off" labels repeat what the control already shows and hide what it controls.
+- Don't: A switch that waits for Save. Users expect a switch to act at once. Inside a form that saves later, use a Checkbox.
+
+### Textarea
+
+Multi-line text that grows with its content up to a maximum, with an optional character count. Give it a label prop or place it inside a Field.
+
+- Family: Forms
+- Tokens: border-width.default, color.bg.subtle, color.border.default, color.surface.hover, color.text.disabled, color.text.muted, control.padding-x.md, focus.ring.color, focus.ring.width, font.family.sans, font.line-height.normal, font.size.100, font.size.200, font.size.300, font.tracking.wide, input.bg, input.bg-disabled, input.border, input.border-hover, input.border-invalid, input.placeholder, input.radius, input.text, motion.duration.instant, motion.easing.standard, radius.inset, space.0-5, space.1, space.2
+- Use it for:
+  - Free text longer than one line: pull request summaries, release notes, review comments.
+  - showCount with maxLength when there is a hard limit.
+  - appearance="inline" only to edit existing text in place, where the text is the page: a paragraph, a list item or a card title in a docs editor. It keeps the surrounding font, size and line height and shows a field on hover and focus.
+- Not for:
+  - A short single value: use Input.
+  - Structured content (lists of tokens, key-value pairs): use dedicated fields.
+  - appearance="inline" in a form, a dialog or a settings page: people scan forms for boxes, and an inline field there reads as plain text. Use the default field.
+- Accessibility:
+  - Native textarea through Base UI Field: label, description and error are wired for you.
+  - Focus shows a 2px signal edge; invalid sets aria-invalid and a danger edge with a text error.
+  - The visual counter is hidden from screen readers to avoid announcing every keystroke; maxLength is enforced natively.
+  - On touch screens the text is 17px so iOS does not zoom on focus.
+  - appearance="inline" is still a native, labelled textarea. Hover adds a fill and a hairline edge and focus the 2px DS ring, so the field never relies on color alone.
+  - The inline placeholder uses the muted text color, checked at 4.5:1 on the canvas, surfaces and the hover fill.
+  - Inline text inherits the page size, also on touch screens: keep the surrounding text at 16px or more so iOS does not zoom on focus.
+- Do: Size it for the expected answer. rows sets the starting height; autosize grows it, so short boxes do not hide long answers.
+- Do: Inline only where the text already is. Swap the paragraph or list item for an inline Textarea holding the same text, so the page keeps its layout while it is edited. Name each one with aria-label.
+- Don't: Hiding the limit until it is hit. Show the count while typing so users can edit before the error.
+- Don't: Inline fields in a form. Without a box, an empty form field reads as finished text. Forms use the default field with a visible label.
+
+### Alert
+
+An inline message about the state of a page or a section: a failed publish, a pending review, a sync in progress. It stays until the situation changes or the user dismisses it.
+
+- Family: Feedback
+- Tokens: alert.radius, border-width.default, color.bg.subtle, color.border.default, color.feedback.danger.bg, color.feedback.danger.border, color.feedback.danger.icon, color.feedback.info.bg, color.feedback.info.border, color.feedback.info.icon, color.feedback.success.bg, color.feedback.success.border, color.feedback.success.icon, color.feedback.warning.bg, color.feedback.warning.border, color.feedback.warning.icon, color.text.default, color.text.muted, control.height.sm, font.family.sans, font.line-height.normal, font.size.200, font.weight.semibold, space.1, space.2, space.3, space.4
+- Use it for:
+  - A condition that affects what the user is doing here: a failed build, a protected branch, contrast warnings.
+  - Tone follows meaning: danger for failed or blocked, warning for needs attention, success for a finished task that changed this page, info for context, neutral when there is no judgement.
+  - Inside a form or card, above the content it is about.
+  - actionsPlacement inline for one short message and one action, like a banner saying which change you are viewing with Back to latest at the end of the line. It wraps under the text on a phone. Keep below for a title plus a longer description.
+- Not for:
+  - Confirming an action the user just took (Copied, Saved): use a Toast.
+  - An error on one field: use the Field error under that control.
+  - A decision the user must make before continuing: use an AlertDialog.
+- Accessibility:
+  - Alerts that appear after load are announced: danger and warning with role="alert" (interrupts), the others with role="status" (polite).
+  - Alerts present when the page loads should use announce="off": a live region on load is either ignored or read twice.
+  - Every tone has its own icon and the text carries the meaning, so color is never the only signal (WCAG 1.4.1).
+  - The dismiss button is a named IconButton (dismissLabel, default "Dismiss"). Move focus to a sensible place after dismissing if the alert had focus.
+  - Feedback text and icon colors are checked against their tinted backgrounds in both themes.
+- Do: Title says what happened, description says what to do. Users scan the bold line and read on only when they need to act.
+- Do: Give the way out as an action. A button next to the problem saves a search through the page.
+- Don't: Stacking several alerts. Three alerts in a row read as noise. Merge them, or keep the most severe and link to the rest.
+- Don't: Danger for something that is not broken. Red trains people to ignore red. Use info or warning when nothing failed.
+
+### Banner
+
+A page-level mode banner: the page shows something other than usual, such as a past change of the library or an edit mode, and the way back sits on the same line. One per page, at the top of the content.
+
+- Family: Feedback
+- Tokens: border-width.default, color.bg.subtle, color.border.default, color.surface.strong, color.text.default, color.text.muted, color.text.on-solid, control.height.md, font.family.sans, font.weight.semibold, icon.size.md, layer.sticky, layout.header.height, radius.container, size.60, space.0-5, space.2, space.3, space.4, typography.ui.line-height, typography.ui.size
+- Use it for:
+  - The whole page is in a mode the reader must not forget: previewing a past change, editing guidelines, viewing as another brand.
+  - Give the way out as an action on the same line ("Back to latest library"), a Button with size sm and variant secondary, and at most one more action. On narrow screens the actions go under the text and fill the row.
+  - strong (default, Deep Harbor) for a mode the whole page is in; neutral for a quieter, scoped mode such as an editor.
+  - sticky="top" or sticky="below-header" when the page scrolls long, so the way back stays in view.
+- Not for:
+  - A message about the page's content (a failed build, a contrast warning): use Alert.
+  - Confirming an action the user just took: use a Toast.
+  - Marketing or announcements: Banner is for a state the page is in, not for news.
+  - More than one per page: merge the modes into one sentence, or pick the one that matters.
+- Accessibility:
+  - A landmark region named by its title (role region, aria-labelledby), so screen reader users find the mode in the landmarks list.
+  - Not a live region: the banner is part of the page when it loads. If a mode starts without a page load, move focus to the banner title or announce the mode once.
+  - The actions are real Buttons on the same line as the title, reached with Tab right after the title.
+  - The strong appearance uses color.surface.strong (Deep Harbor in both themes) with color.text.on-solid, 8.87:1, and the focus ring inside it takes the text color. The icon and the words carry the mode, never color alone.
+  - Sticky banners stay under the app header (layout.header.height) and above the content (layer.sticky), so they never hide the header's controls.
+- Do: Say the mode and its consequence in one sentence. What the reader sees and what it means for their work: "Viewing the library as change #118. Nothing is saved."
+- Do: Neutral for a scoped mode. An edit mode on one part of the page does not need the strong color. Keep Deep Harbor for modes the whole page is in.
+- Don't: A banner for news. "New components are available" is not a mode. It belongs in a changelog or an Alert, not in the strong band at the top of the page.
+- Don't: A vague mode. "Preview mode" does not say what is previewed or whether work is saved. Name the object and the consequence.
+
+### EmptyState
+
+Explains why a view has no content yet and invites the action that fills it. An empty screen is a starting point, not a dead end.
+
+- Family: Feedback
+- Tokens: border-width.default, color.border.default, color.surface.default, color.text.default, color.text.muted, font.family.sans, font.line-height.normal, font.line-height.snug, font.line-height.tight, font.size.200, font.size.300, font.size.400, font.size.600, font.tracking.snug, font.tracking.tight, font.weight.semibold, radius.container, radius.control, size.10, size.12, size.14, space.1, space.1-5, space.10, space.16, space.2, space.3, space.4, space.5, space.6
+- Use it for:
+  - First use: nothing has been created yet (no tokens, no pull requests). Explain the value and offer the first step.
+  - No results: a search or filter matched nothing. Say what was searched and how to widen it.
+  - Cleared: the user finished everything (no reviews waiting). Confirm it calmly.
+  - size sm inside tables and cards, md in panels, lg for a whole page.
+- Not for:
+  - Errors that stopped content from loading: use an Alert with a retry action.
+  - Content still loading: use Skeleton.
+- Accessibility:
+  - The title is a real heading (headingLevel, default h3) so it appears in the page outline; pick the level that fits the page.
+  - The icon is decorative and hidden from assistive tech: the title carries the meaning.
+  - Actions are regular Buttons or Links in the tab order, after the text.
+- Do: Say what goes here and how to get it. The title names the missing object, the description says where it comes from, the button starts it.
+- Don't: "Nothing here" with no way forward. It describes the screen the user already sees and leaves them stuck.
+
+### Progress
+
+Shows how far a task has gone: a linear bar in layouts, a circular ring in compact spots. Indeterminate when the duration is unknown.
+
+- Family: Feedback
+- Tokens: color.feedback.danger.icon, color.feedback.success.icon, color.feedback.warning.icon, color.text.default, color.text.muted, font.family.sans, font.line-height.normal, font.size.100, font.size.200, font.weight.medium, motion.duration.moderate, motion.duration.shimmer, motion.duration.spin, motion.easing.standard, progress.fill, progress.track, radius.pill, size.14, size.5, size.8, space.1, space.1-5, space.2, space.3
+- Use it for:
+  - Tasks that take more than about two seconds and report progress: publishing, importing from Figma, running contrast checks.
+  - Indeterminate (value null) when the task runs but its length is unknown.
+  - Switch tone to success or danger when the task ends, and say so in the label.
+- Not for:
+  - Short waits or busy controls: use Spinner (or Button loading).
+  - Content that is loading into a layout: use Skeleton in the shape of the content.
+  - A static measurement like storage used or a score: that is a meter, not progress.
+- Accessibility:
+  - Base UI Progress: role="progressbar" with aria-valuenow, aria-valuemin and aria-valuemax; indeterminate drops aria-valuenow.
+  - Needs a name: the label prop, or aria-label when there is no visible label (rings).
+  - The visible value text is aria-hidden; screen readers get it from aria-valuetext (customize with getAriaValueText).
+  - The fill uses the signal color with at least 3:1 against the track and surfaces.
+  - Under reduced motion the indeterminate bar stops sliding and shows a full, softened track instead.
+- Do: Label the task, show the value. "Publishing tokens 64%" tells users what is happening and how long is left.
+- Do: Use counts when they mean more than percent. getAriaValueText and the label can say "12 of 40 pairs".
+- Don't: A progress bar that never moves. If you cannot report progress, use the indeterminate state rather than a fake value.
+
+### Skeleton
+
+A placeholder in the shape of content that is loading, so the layout does not jump when the data arrives.
+
+- Family: Feedback
+- Tokens: motion.duration.shimmer, motion.easing.standard, radius.container, radius.pill, size.10, size.20, skeleton.base, skeleton.radius, skeleton.shine
+- Use it for:
+  - First load of a list, table, card or detail panel whose shape you know.
+  - Mirror the real layout: a circle for an avatar, short lines for names, a block for a preview.
+  - Pair with aria-busy="true" on the region and a visually hidden "Loading tokens".
+- Not for:
+  - Inside a button or after a click on a control: use Button loading or Spinner.
+  - Long tasks with known progress: use Progress.
+  - When loading takes under about 300 ms: show nothing, the flash is worse than the wait.
+- Accessibility:
+  - Skeletons are always aria-hidden: they are decoration, not content.
+  - Put aria-busy="true" on the loading region and a VisuallyHidden label like "Loading tokens"; remove both when the content arrives.
+  - The shimmer stops under prefers-reduced-motion; use static for long lists.
+- Do: Match the shape of the real content. The page settles in place instead of reflowing when data lands.
+- Don't: A whole page of shimmering blocks. Load the frame (navigation, titles) for real and use skeletons only where the data goes.
+
+### Spinner
+
+An indeterminate activity indicator for short waits and busy controls. For content that is loading into a layout, use Skeleton; for long tasks, use Progress.
+
+- Family: Feedback
+- Tokens: color.signal.default, icon.size.lg, icon.size.md, icon.size.sm, icon.size.xs, motion.duration.spin
+- Use it for:
+  - Inside a control that is working: Button and IconButton show it automatically with loading.
+  - Small regions that refresh in place, for waits up to a few seconds.
+  - tone signal when it stands alone, current when it sits in text or a control.
+- Not for:
+  - First load of a list or a page: use Skeleton in the shape of the content.
+  - Tasks with measurable progress or that take longer than a few seconds: use Progress.
+- Accessibility:
+  - With label it renders role="status" and is announced; without label it is aria-hidden (use it inside a control that sets aria-busy).
+  - Under reduced motion it keeps turning, slower: a frozen spinner looks like a crash.
+  - The arc is drawn in currentColor or the signal color, which keeps 3:1 against surfaces.
+- Do: Name what is loading. A standalone spinner needs a label so screen readers hear "Loading tokens".
+- Don't: A spinner in the middle of an empty page. It hides the layout and makes the wait feel longer. Show the frame and use skeletons.
+
+### Toast
+
+A short, temporary notification that confirms what just happened (Tokens published, Link copied) without interrupting. Shown with useToast() under a ToastProvider.
+
+- Family: Feedback
+- Tokens: border-width.default, color.feedback.danger.icon, color.feedback.info.icon, color.feedback.success.icon, color.feedback.warning.icon, color.text.default, color.text.muted, focus.ring.color, focus.ring.offset, focus.ring.width, font.family.sans, font.line-height.normal, font.size.200, font.weight.semibold, layer.toast, motion.duration.moderate, motion.duration.slow, motion.easing.enter, motion.easing.exit, motion.easing.standard, size.96, space.0-5, space.1-5, space.2, space.3, space.4, space.6, toast.bg, toast.border, toast.radius, toast.shadow
+- Use it for:
+  - Confirming an action the user just took, especially when its result is not visible on screen: Copied, Published, Invitation sent.
+  - Offering a quick reversal: Token deleted, with Undo.
+  - Background work that finishes later: toast.promise() shows loading, then success or error.
+- Not for:
+  - Information the user must read or act on to continue: use an inline Alert or an AlertDialog.
+  - Errors in a form: show them next to the fields.
+  - Anything that needs more than one action or a long explanation.
+- Accessibility:
+  - Toasts render in a labelled region ("Notifications") that users reach with F6. Hovering or focusing the stack expands it and pauses auto dismiss.
+  - Titles and descriptions are announced through a live region: politely by default, assertively for danger (priority high).
+  - Toasts with an action, loading toasts and danger toasts from promise() do not auto dismiss, so screen reader and keyboard users have time to act.
+  - Close and action buttons are real buttons with names; the close button is labelled "Dismiss notification".
+  - Swipe right or down dismisses on touch. Under reduced motion toasts appear and leave without sliding.
+- Do: Use the verb of the action, in the past tense. The button said Publish, the toast says Published. The vocabulary follows the flow.
+- Do: Offer Undo for destructive actions. A toast with an action stays until the user acts or dismisses it, so nobody misses the way back.
+- Don't: A toast for every click. If the result is visible on screen, the screen already confirms it.
+
+### AlertDialog
+
+Stops the user to confirm an action with consequences, usually destructive: delete tokens, revoke access, force publish. It asks one question and offers two answers.
+
+- Family: Overlays
+- Tokens: border-width.default, color.bg.subtle, color.border.default, color.text.default, color.text.muted, control.height.sm, dialog.bg, dialog.radius, dialog.scrim, dialog.shadow, font.family.sans, font.line-height.normal, font.size.200, layer.modal, layer.overlay, layout.inset, motion.duration.fast, motion.duration.moderate, motion.easing.enter, motion.easing.exit, motion.easing.standard, size.140, size.180, size.96, space.1, space.2, space.3, space.4, space.6, typography.h3.family, typography.h3.line-height, typography.h3.size, typography.h3.tracking, typography.h3.weight
+- Use it for:
+  - Before an action that cannot be undone or that affects other people: deleting, revoking, overwriting.
+  - tone primary for consequential but safe actions, like publishing a release to every consumer.
+- Not for:
+  - Actions that can be undone: do them right away and offer Undo in a Toast.
+  - Collecting input: use Dialog.
+  - Routine saves: confirmation fatigue teaches people to click through without reading.
+- Accessibility:
+  - Base UI AlertDialog: role alertdialog, named by the title, described by the consequence.
+  - Focus starts on Cancel, the safe choice, so a reflexive Enter does not destroy anything.
+  - It does not close on an outside click; Escape and Cancel close it and focus returns to the trigger.
+  - While loading, the confirm button keeps focus and announces aria-busy.
+- Do: Ask a question that names the action and the object. "Delete 3 tokens?" with a confirm button "Delete tokens" is understood without reading the description.
+- Do: Say the consequence, including what cannot be undone. "Components that use them fall back to their defaults. This cannot be undone."
+- Don't: "Are you sure?" with Yes and No. It hides what is about to happen. Name the action in the title and on the button.
+
+### Dialog
+
+A modal window for a short, focused task that must be finished or cancelled before the user goes back to the page: rename a token, invite a reviewer, review a release.
+
+- Family: Overlays
+- Tokens: border-width.default, color.bg.subtle, color.border.default, color.text.default, color.text.muted, control.height.sm, dialog.bg, dialog.radius, dialog.scrim, dialog.shadow, font.family.sans, font.line-height.normal, font.size.200, layer.modal, layer.overlay, layout.inset, motion.duration.fast, motion.duration.moderate, motion.easing.enter, motion.easing.exit, motion.easing.standard, size.140, size.180, size.96, space.1, space.2, space.3, space.4, space.6, typography.h3.family, typography.h3.line-height, typography.h3.size, typography.h3.tracking, typography.h3.weight
+- Use it for:
+  - A task of one to three fields that belongs to the current page and needs the user's full attention.
+  - Reviewing something before committing it, like release notes before Publish.
+  - Size sm for one field, md (default) for short forms, lg for reading or comparing content.
+  - Plain-script pages without React render it with dialogHtml() from @bridge-ds/react/dom and call bindDialogs() once: the same look, focus trap, Escape, scrim and focus return. Never a homemade modal or a restyled native dialog.
+- Not for:
+  - Confirming a destructive action: use AlertDialog, which cannot be dismissed by clicking outside.
+  - Details the user wants to read next to the page, like a token's history: use Drawer.
+  - A hint or a small menu anchored to a control: use Popover or Menu.
+  - Long multi-step flows: give them a page. Stacked dialogs lose people.
+- Accessibility:
+  - Base UI Dialog: role dialog, aria-modal, named by the title and described by the description.
+  - Focus moves into the dialog when it opens (the first focusable element, or initialFocus) and is trapped there.
+  - Escape, the close button and a click on the scrim close it; focus returns to the trigger.
+  - The page behind is inert and scroll is locked while the dialog is open.
+  - The body scrolls on its own when content is long, so the title and the actions stay visible.
+  - Motion is a 200ms fade and a slight rise; with reduced motion it appears instantly.
+- Do: Title says the task, the primary button repeats the verb. "Rename token" opens a dialog titled "Rename token" whose primary action is "Rename token". Users always know where they are.
+- Do: Keep the footer for actions only. Alternatives first, primary last, aligned to the end. Explanations go in the description or the body.
+- Don't: A dialog for information the page could show inline. Interrupting to say "Saved" costs a click. Use a Toast or an inline Alert.
+- Don't: Vague footer labels. "OK" and "Yes" make users reread the title to know what they agree to.
+
+### Drawer
+
+A sheet that slides in from an edge and keeps the page in view behind it: token details, filters, a review checklist. On touch it can be swiped away.
+
+- Family: Overlays
+- Tokens: border-width.default, color.bg.subtle, color.border.default, color.border.strong, color.text.default, color.text.muted, dialog.scrim, drawer.bg, drawer.border, drawer.radius, drawer.shadow, focus.ring.color, focus.ring.width, font.family.sans, font.line-height.normal, font.size.200, layer.modal, layer.overlay, layout.inset, motion.duration.instant, motion.duration.moderate, motion.duration.slow, motion.easing.enter, motion.easing.exit, radius.pill, size.10, size.120, size.160, size.80, space.1, space.12, space.2, space.24, space.3, typography.h3.family, typography.h3.line-height, typography.h3.size, typography.h3.tracking, typography.h3.weight
+- Use it for:
+  - Details or editing for one item of a list or table, where the user wants to keep the list in mind.
+  - Filters and settings for the current view.
+  - side end (default) for details, start for navigation, bottom for small screens and quick choices.
+- Not for:
+  - A short task that needs full attention: use Dialog.
+  - Content that should stay visible while the user works on the page: use a non-modal side panel in the layout.
+- Accessibility:
+  - Base UI Drawer: modal dialog semantics, named by the title, focus trapped, Escape closes, focus returns to the trigger.
+  - Swipe to dismiss is an extra for touch, never the only way: the close button and Escape always work.
+  - The page behind is inert while the drawer is open.
+  - When the body is taller than the sheet it becomes a focusable region named by the title, so keyboard users can Tab to it and scroll with the arrow keys. A body that fits adds no tab stop.
+  - Slides in 300ms with an exponential ease-out; reduced motion shows it instantly.
+  - start and end follow the physical left and right in v1; RTL layouts should pass the mirrored side.
+- Do: Title it with the item's name. "color.signal.default" tells the user which row they opened. The description says what it is for.
+- Do: Put the actions in the footer. The footer stays visible while the body scrolls.
+- Don't: A drawer that opens another drawer. Stacked sheets hide where the user came from. Navigate inside the drawer or use a page.
+
+### Menu
+
+A list of actions or options that opens from a button: row overflow actions, view options, sort order. Supports icons, shortcuts, groups, checkable items and submenus.
+
+- Family: Overlays
+- Tokens: border-width.default, focus.ring.color, focus.ring.width, font.family.mono, font.family.sans, font.line-height.snug, font.size.100, font.size.200, font.tracking.wide, font.weight.medium, icon.size.sm, layer.popover, menu.item-height, menu.item.bg-highlight, menu.item.indicator, menu.item.text, menu.item.text-danger, menu.item.text-disabled, menu.item.text-muted, menu.separator, motion.duration.fast, motion.easing.enter, motion.easing.exit, popup.bg, popup.border, popup.radius, popup.shadow, radius.pill, size.60, size.80, space.1, space.1-5, space.2, space.4
+- Use it for:
+  - More than two or three actions on one item: show the main one as a button and the rest in a Menu.
+  - View options: checkable items for columns, a radio group for sort order.
+  - A submenu for one level of grouping (Move to group, then the groups).
+  - Leading icons when they help scanning (Rename, Duplicate, Delete): pass icon, a Lucide icon or an element like a brand mark. Put icons on every item of the menu or on none; labels stay aligned either way.
+- Not for:
+  - Choosing a value for a form field: use Select or Combobox, which work with Field and forms.
+  - Navigation between pages: use links in the sidebar or tabs.
+  - Two actions: show both as buttons.
+- Accessibility:
+  - Base UI Menu: the trigger has aria-haspopup and aria-expanded; the popup is role menu with menuitem, menuitemcheckbox and menuitemradio children.
+  - ArrowDown or Enter opens it and focuses the first item; arrows move, Home and End jump, typing a letter jumps to a matching item.
+  - Enter and Space activate; checkable items toggle aria-checked and keep the menu open.
+  - ArrowRight opens a submenu, ArrowLeft and Escape close it; Escape on the root returns focus to the trigger.
+  - Shortcut hints are visual only (aria-hidden); bind the shortcut yourself and document it elsewhere.
+  - Disabled items stay in the list so users learn the action exists, but cannot be activated.
+- Do: Destructive items last, after a separator. Distance from routine actions prevents slips. The danger tone backs up the verb.
+- Do: Icons on all items or on none. Labels stay aligned either way, but a mix reads as noise.
+- Don't: Submenus inside submenus. Two levels deep loses keyboard and pointer users alike. Flatten with groups.
+
+### Popover
+
+A small non-modal panel anchored to a trigger, for extra detail or a quick choice that does not deserve a dialog: who must review, what a check does, branch info.
+
+- Family: Overlays
+- Tokens: border-width.default, color.text.default, color.text.muted, font.family.sans, font.line-height.normal, font.line-height.snug, font.size.200, font.weight.semibold, layer.popover, motion.duration.fast, motion.easing.enter, motion.easing.exit, popup.bg, popup.border, popup.radius, popup.shadow, size.80, space.1-5, space.2, space.3, space.4
+- Use it for:
+  - Explaining something next to the control it is about, when the text is too long for a tooltip or contains a link.
+  - A small form or a couple of actions tied to one control.
+  - Info icons: Popover (click or openOnHover) instead of Tooltip, so touch and screen reader users can reach it.
+- Not for:
+  - A list of actions: use Menu, which has the right keyboard model.
+  - A label for an icon button: use Tooltip.
+  - A task that must be completed or cancelled: use Dialog.
+- Accessibility:
+  - Base UI Popover: the trigger exposes aria-expanded and aria-controls; the popup is a dialog named by its title.
+  - Focus moves into the popup when it opens and back to the trigger when it closes. Escape and outside clicks close it.
+  - Non-modal by default: the page stays usable. Set modal when the popover holds a small form.
+  - It flips and shifts to stay in the viewport; the arrow follows the anchor.
+- Do: Keep it short and anchored. A title, two sentences, at most one or two actions. The arrow shows what it belongs to.
+- Don't: Forms that span several sections. A popover closes on an outside click, so long input gets lost. Use a Dialog or a Drawer.
+
+### Tooltip
+
+A short label that appears on hover and keyboard focus. It names icon buttons and reveals truncated text for sighted users; the accessible name always lives on the trigger.
+
+- Family: Overlays
+- Tokens: elevation.overlay, font.family.sans, font.line-height.snug, font.size.100, font.tracking.wide, font.weight.medium, layer.tooltip, motion.duration.fast, motion.duration.instant, motion.easing.enter, motion.easing.exit, size.72, space.1, space.2, tooltip.bg, tooltip.radius, tooltip.text
+- Use it for:
+  - Every IconButton, with the same text as its label.
+  - Truncated text, to show the full value.
+  - Wrap the app once in TooltipProvider so neighbouring tooltips open instantly after the first one.
+  - Plain-script pages without React put tooltipAttributes() from @bridge-ds/react/dom on the trigger and call bindTooltips() once: the same tooltip, delay and keyboard behavior. Never a homemade data-tip tooltip: the design system audit counts those as look-alikes.
+- Not for:
+  - Information users need to complete a task: show it inline or in a Popover. Tooltips are invisible on touch screens.
+  - Interactive content (links, buttons): tooltips cannot be reached. Use Popover.
+  - Repeating a visible label: it adds noise.
+- Accessibility:
+  - Base UI treats tooltips as visual labels: the trigger must carry the accessible name (IconButton label), which screen readers announce. The popup is not announced.
+  - Opens on hover after the provider delay (500ms) and immediately on keyboard focus; Escape dismisses it.
+  - The trigger must be focusable: wrap a Button, IconButton or Link, never plain text.
+  - Inverse surface (tooltip.bg, tooltip.text) passes 4.5:1 in both themes.
+- Do: Match the trigger's label. IconButton label="Copy token name" and the tooltip "Copy token name": what users see and hear is the same.
+- Don't: Tooltips on disabled buttons to explain why. Disabled buttons do not receive focus, so keyboard users never see it. Explain inline instead.
+
+### Breadcrumb
+
+Shows where the current page sits in the library hierarchy and links back to each level above it.
+
+- Family: Navigation
+- Tokens: border.width.1, color.surface.hover, color.text.default, color.text.muted, focus.ring.color, focus.ring.width, font.family.sans, font.line-height.snug, font.size.200, font.tracking.wide, font.weight.medium, motion.duration.instant, motion.easing.standard, radius.inset, size.6, size.60, space.1
+- Use it for:
+  - Pages two or more levels deep in a hierarchy: a token inside a group, a component inside a family.
+  - At the top of the page, above the page title.
+  - maxItems on deep paths so the trail stays on one line; the middle levels stay one click away.
+- Not for:
+  - Flat sites or the top level: there is nothing to go back up to.
+  - Showing the steps of a flow: use a stepper. A breadcrumb shows location, not progress.
+  - As the only navigation: it complements SidebarNav, it does not replace it.
+- Accessibility:
+  - A nav landmark named "Breadcrumb" (override with aria-label), with an ordered list inside.
+  - The last item has aria-current="page".
+  - Separators are icons hidden from assistive tech, so screen readers only read the levels.
+  - The collapse button is named "Show N more levels" and expands the trail in place.
+  - Truncated labels keep the full text in the title attribute and in the accessible name.
+- Do: Mirror the hierarchy, not the history. Each item is a parent of the next, whatever route the user took to get here.
+- Don't: Linking the current page. The last item is where the user already is. It is text with aria-current, not a link.
+
+### Pagination
+
+Moves through a long list split into pages, like the token table or the review history. The first and last pages stay visible; the rest collapse into ellipses.
+
+- Family: Navigation
+- Tokens: border-width.default, button.ghost.bg-active, button.ghost.bg-hover, color.control.checked.bg, color.control.checked.fg, color.text.default, color.text.muted, control.height.md, control.height.sm, focus.ring.color, focus.ring.offset, focus.ring.width, font.family.sans, font.size.200, font.weight.medium, motion.duration.instant, motion.easing.standard, radius.control, space.1, space.2
+- Use it for:
+  - Long, stable lists where users need to know where they are and jump back: token tables, audit logs.
+  - Below the list it controls, aligned with the list's start or end edge.
+  - compact in narrow spaces (side panels, mobile) and in card footers.
+- Not for:
+  - Feeds the user skims once: load more or infinite scroll fit better.
+  - Fewer than about 25 items: show them all.
+  - Steps of a task: use a stepper.
+- Accessibility:
+  - A nav landmark named "Pagination" (override with aria-label when a page has several).
+  - The current page button has aria-current="page" and an ink fill, not color alone.
+  - Page buttons are named "Page N"; previous and next are named "Previous page" and "Next page" and are disabled at the ends.
+  - Ellipses are icons hidden from assistive tech.
+  - In compact, the "Page 3 of 12" text is a polite live region, so page changes are announced.
+- Do: Keep the page in the URL. Reloading or sharing the link should land on the same page. Control page and onPageChange from your router.
+- Don't: Hiding previous and next at the ends. Disabled previous on page 1 keeps the layout still and tells the user they are at the start.
+
+### SidebarNav
+
+The app's side navigation: sections of links to the main areas of Bridge, with the current page marked by a signal mark and an ink label.
+
+- Family: Navigation
+- Tokens: border-width.indicator, color.bg.muted, color.text.default, color.text.muted, focus.ring.color, focus.ring.width, font.family.sans, font.line-height.normal, font.line-height.snug, font.size.100, font.size.200, font.tracking.wide, font.weight.medium, menu.item-height, motion.duration.fast, motion.duration.instant, motion.duration.moderate, motion.easing.enter, motion.easing.standard, nav.indicator, nav.item-bg-active, nav.item-bg-hover, radius.control, radius.pill, size.7, space.0-5, space.1, space.1-5, space.2, space.3, space.5
+- Use it for:
+  - Primary navigation of an app with more than five areas, in a left rail that stays visible.
+  - Group items into titled sections by task (Library, Governance, Workspace).
+  - collapsible on sections users rarely need, so the rail stays short.
+  - count for items that need attention, like reviews waiting for you.
+- Not for:
+  - Switching views inside one page: use Tabs.
+  - Fewer than five destinations: a top bar is enough.
+  - Actions (Create token, Sync from Figma): put them in the page header as Buttons, not in the navigation.
+- Accessibility:
+  - A nav landmark: give it an aria-label when the page has other navigation (Breadcrumb, Pagination).
+  - Each section is a list labelled by its title.
+  - The current item has aria-current="page". It also gets a 2px signal mark and ink text, so color is not the only cue.
+  - Collapsible section titles are buttons with aria-expanded (Base UI Collapsible); Enter and Space toggle them.
+  - Items are full-width targets at the menu item height (36px comfortable, 30px compact).
+- Do: Mark exactly one current page. active on the item for the current URL, including when the user is on a child page of it.
+- Don't: Icons on some items only. A ragged column of icons breaks the scan line. Use icons on every item of a section or none.
+
+### Tabs
+
+Switches between views of the same object without leaving the page: the tokens, components and reviews of one library. The selected tab is marked with the signal underline.
+
+- Family: Navigation
+- Tokens: border-width.default, border-width.indicator, color.bg.subtle, color.border.default, color.surface.default, color.text.default, color.text.disabled, control.height.md, control.height.sm, elevation.raised, focus.ring.color, focus.ring.offset, focus.ring.width, font.family.sans, font.line-height.normal, font.line-height.tight, font.size.100, font.size.200, font.weight.medium, layout.gap, motion.duration.instant, motion.duration.moderate, motion.easing.standard, radius.container, radius.control, radius.pill, space.0-5, space.1, space.1-5, space.2, space.3, space.5, tabs.indicator, tabs.text, tabs.text-active
+- Use it for:
+  - Two to seven peer views of the same context, where users switch back and forth.
+  - underline for page and card sections; contained for a compact switch inside a toolbar (Light or Dark preview).
+  - count to show how many items wait in a view, like open reviews.
+  - Vertical orientation for settings pages with many sections next to their content.
+- Not for:
+  - Steps of a sequence the user must complete in order: use a stepper or a form with sections.
+  - Navigation between pages with their own URL: use SidebarNav or links styled as tabs, not Tabs (which do not change the URL).
+  - Changing a setting or filter value: use RadioGroup or an attached ButtonGroup.
+- Accessibility:
+  - Base UI Tabs: role tablist, tab and tabpanel, aria-selected, aria-controls and aria-labelledby are wired for you.
+  - One tab stop for the whole list. Arrow keys move between tabs (Up and Down when vertical), Home and End jump, focus wraps by default.
+  - By default arrows move focus and Enter or Space selects; set activateOnFocus when panels are cheap to render.
+  - Give the TabsList an aria-label (or labelledby) so the tablist has a name.
+  - The selected tab has a visible signal underline plus stronger text: never color alone.
+  - Disabled tabs are announced as disabled and cannot be selected.
+- Do: Short, parallel labels. One or two nouns per tab, same grammatical form. The user scans them as a set.
+- Don't: Tabs that are really actions. "Export" or "Delete" in a tab list hides an action behind a view switch. Use a Button.
+
+### Accordion
+
+Stacked sections that expand in place. Lets users scan headings and open only what they need.
+
+- Family: Data display
+- Tokens: accordion.bg-hover, accordion.border, accordion.icon, accordion.text, border-width.default, color.border.strong, color.text.default, color.text.disabled, color.text.muted, control.height.lg, focus.ring.color, focus.ring.width, font.family.sans, font.line-height.normal, font.line-height.snug, font.size.100, font.size.200, font.weight.medium, font.weight.regular, layout.inset, motion.duration.instant, motion.duration.moderate, motion.easing.standard, radius.container, space.2, space.3
+- Use it for:
+  - Long reference content where users look for one section: token groups, FAQ, advanced settings.
+  - multiple when users compare sections; single (default) when sections are alternatives.
+  - flush inside a card or a side panel, contained on a page.
+- Not for:
+  - Content everyone needs: do not hide it behind a click.
+  - Switching between views of the same data: use Tabs.
+  - Steps in a sequence: use a stepped layout with headings.
+- Accessibility:
+  - Base UI Accordion: each trigger is a button inside a heading (headingLevel, default h3) with aria-expanded and aria-controls.
+  - Panels are regions labelled by their trigger. Enter and Space toggle; Tab moves between triggers.
+  - Disabled items stay visible but cannot open.
+  - The height animation uses motion tokens and collapses to 0ms with reduced motion.
+- Do: Headings that work as a table of contents. Users scan the closed state. Name each section by its content, and show a count in meta when it helps.
+- Don't: Nesting accordions. A collapsible inside a collapsible hides content twice. Flatten the structure or split the page.
+
+### Avatar
+
+A person, a team or Claude, shown as a photo with an initials or illustrated fallback. AvatarGroup stacks several and collapses the rest into a +N counter.
+
+- Family: Data display
+- Tokens: avatar.agent-bg, avatar.agent-border, avatar.bg, avatar.illustrated-bg, avatar.ring, avatar.text, border-width.default, border.width.2, color.action.primary.bg, color.bg.subtle, color.text.muted, font.family.sans, font.line-height.none, font.size.100, font.size.200, font.weight.semibold, radius.inset, radius.pill, size.10, size.4, size.5, size.6, size.7, size.8
+- Use it for:
+  - Owners, reviewers and authors next to tokens, components and changes.
+  - fallback="illustrated" when most people have no photo: a drawn face from their login tells rows apart faster than two letters. Import Avatar from @bridge-ds/react/avatar-illustrated (the drawings are a separate entry, about 120 kB gzipped).
+  - kind="agent" brand="claude" for work Claude did (a drafted text, a change it opened): the Bridge agent mark (the Field Guide robot: a rounded head with an antenna, dot eyes and a smile) on a rounded square tile, named "Claude AI", so people see at a glance it is not a person.
+  - mark only to show a vendor logo you have the brand owner's approval to use: Bridge ships its own agent mark because company logos are trademarks that need their owner's approval.
+  - AvatarGroup for the reviewers of a change; set max so the row never wraps.
+- Not for:
+  - As the only way to identify someone in a table: write the name too.
+  - For product or brand logos: use an image with its own alt text. The agent preset only attributes an agent's actions.
+  - To make up a face for someone who has a photo: the illustration is a fallback, the photo wins.
+- Accessibility:
+  - role img with the full name as its label; initials and drawings are hidden from screen readers so they do not spell letters or describe a face.
+  - The Claude preset is named "Claude AI"; its mark (the Bridge robot or a custom mark) is decorative inside it.
+  - The robot is one stroke in currentColor with no fill, so it keeps the tile's checked contrast in light and dark, and still reads at the xs size (16px mark).
+  - decorative removes it from the accessibility tree when the name is already written next to it.
+  - The image has an empty alt: the name is on the container. Broken images fall back to initials or the drawing (Base UI Avatar).
+  - AvatarGroup is a named group; the +N counter is announced as "3 more: names".
+- Do: Name next to the avatar in lists. Faces are hard to tell apart at 24px. Mark the avatar decorative when the name is right beside it.
+- Do: Seed with something stable. Seed the illustrated face with the login, not the display name: people rename themselves, their face should stay.
+- Don't: Ten avatars in a row. Past four or five faces nobody counts. Let the +N counter carry the rest.
+- Don't: Claude dressed as a person. Do not give Claude a drawn face or initials. Use the agent preset so nobody mistakes its work for a teammate's.
+
+### Badge
+
+A short, non-interactive status label like Draft, Published or Failed. The words carry the meaning; the tone reinforces it.
+
+- Family: Data display
+- Tokens: border-width.default, color.border.default, color.feedback.danger.bg, color.feedback.danger.border, color.feedback.danger.icon, color.feedback.danger.solid, color.feedback.danger.text, color.feedback.info.bg, color.feedback.info.border, color.feedback.info.icon, color.feedback.info.solid, color.feedback.info.text, color.feedback.neutral.bg, color.feedback.success.bg, color.feedback.success.border, color.feedback.success.icon, color.feedback.success.solid, color.feedback.success.text, color.feedback.warning.bg, color.feedback.warning.border, color.feedback.warning.icon, color.feedback.warning.solid, color.feedback.warning.text, color.surface.inverse, color.text.default, color.text.inverse, color.text.muted, color.text.on-solid, font.family.sans, font.tracking.wide, font.weight.medium, radius.pill, size.5, size.6, space.0-5, space.1, space.1-5, space.2, typography.caption.line-height, typography.caption.size, ...
+- Use it for:
+  - The status of one item in a table row, a list or a card header.
+  - subtle (default) in lists and tables where many badges sit together; solid for the single status that must win a glance (Breaking, Build failed).
+  - Tone by meaning: success done or healthy, warning needs attention, danger failed or blocked, info new or changed, neutral no judgement.
+  - Plain-script pages that build rows as HTML strings use badgeHtml() from @bridge-ds/react/dom: the same markup, tones and sizes, without React. Never a homemade pill: the design system audit counts those as look-alikes.
+- Not for:
+  - Anything clickable or removable: use Tag.
+  - A sentence or an explanation: use an inline Alert.
+  - Counts on icons: use the number in text next to the label.
+- Accessibility:
+  - Static text read in reading order. No role, not focusable.
+  - Subtle tones use feedback text on feedback bg (4.5:1); solid tones use text.on-solid on feedback solid (4.5:1). Checked by the token build in every brand and theme.
+  - The dot and icon are decorative; the text carries the status.
+  - If a status changes while the user watches (Running to Failed), announce it with a live region; the badge itself is silent.
+- Do: The text says the status, the tone backs it up. Someone who cannot tell green from red still reads Published and Failed.
+- Do: Subtle in rows, solid for the exception. A table full of solid badges shouts. Keep solid for the one thing that must stand out.
+- Don't: Color as the only signal. A dot without words fails WCAG 1.4.1 and means nothing to a screen reader.
+- Don't: A tone that contradicts the words. Danger for New borrows urgency the user did not ask for.
+
+### Card
+
+A flat plate with a hairline edge that groups related content: a release, a component summary, a settings section. It does not cast a shadow unless the whole card is one link.
+
+- Family: Data display
+- Tokens: border-width.default, border.width.1, card.bg, card.border, card.radius, card.shadow, color.bg.subtle, color.border.hover, color.text.default, focus.ring.color, focus.ring.offset, focus.ring.width, font.family.sans, font.line-height.normal, font.size.200, layout.inset, motion.duration.fast, motion.easing.standard, space.2, space.3, space.4, typography.h3.family, typography.h3.line-height, typography.h3.size, typography.h3.tracking, typography.h3.weight
+- Use it for:
+  - A self-contained unit the user scans or compares: a release, a component, a token group, an owner.
+  - interactive when the whole card goes to one place (a component page): mark its title link with data-card-primary.
+  - padding none for a full-bleed Table or media inside the card; compact in dense dashboards.
+- Not for:
+  - As the page structure: rows of identical cards are a lazy layout. Use headings, lists and tables first.
+  - Inside another card: nested plates blur hierarchy. Use a Divider or a heading.
+  - Floating content (menus, popovers): those are overlays with elevation, not cards.
+- Accessibility:
+  - A card is a plain div. Pass aria-labelledby pointing at its title when it should be a navigable group.
+  - Interactive cards keep a real link (data-card-primary) whose text names the destination; its click area is stretched over the card and its focus ring moves to the card edge.
+  - Other buttons inside an interactive card stay on top and remain separately focusable.
+  - The hover lift is skipped when the user prefers reduced motion.
+- Do: One primary action in the footer. The footer is for the decision; secondary actions step down to ghost.
+- Don't: A card around a single sentence. A box with one line adds noise. Let the text sit on the page.
+
+### Checklist
+
+The steps or conditions something needs, one row each: a status icon, a title, one line of detail and, when there is one, the action on the same row. Like the merge box of a pull request.
+
+- Family: Data display
+- Tokens: border-width.default, border-width.strong, color.border.default, color.border.emphasis, color.feedback.danger.bg, color.feedback.danger.text, color.feedback.success.bg, color.feedback.success.text, color.feedback.warning.bg, color.feedback.warning.text, color.surface.default, color.text.default, color.text.muted, control.height.md, font.family.sans, font.weight.semibold, radius.container, radius.pill, size.5, size.6, space.0-5, space.1, space.2, space.3, space.4, typography.ui.line-height, typography.ui.size
+- Use it for:
+  - What a change needs before it ships: design rules, developer tests, design approval.
+  - A short setup the reader goes through once, where each step has a clear done state.
+  - Put the action for a row on that row (an Approve button next to Design approval), as a Button with size sm and variant secondary. On narrow screens it takes the full width under the row.
+  - Use footer for what the rows add up to: why it waits, and the one way to unblock it.
+  - Plain-script pages that build rows as HTML strings use checklistHtml() and checklistRowHtml() from @bridge-ds/react/dom: the same markup, status icons and screen reader words, without React.
+- Not for:
+  - Something the reader ticks off: use Checkbox. A Checklist row shows a status the system knows, it is not a control.
+  - A single message about the page: use Alert.
+  - A long log of events in time: use a list or a table with dates.
+  - Steps the reader moves through one screen at a time: use a stepper or Tabs.
+- Accessibility:
+  - A list (ul) named by label: "What it needs to ship, list, 3 items".
+  - Each row says its status in words before the detail (Done, Failed, Waiting, Needs attention), in visually hidden text. The icon is decorative, so color and shape are never the only signal. Override the words per row with statusLabel.
+  - A row's action is a real Button on the row, reached with Tab in reading order, after the row it acts on.
+  - Feedback icon colors are checked against their tinted backgrounds in both themes.
+  - Static markup: no hydration needed. Plain scripts render the same markup with checklistHtml() and checklistRowHtml() from @bridge-ds/react/dom.
+- Do: Say who or what each row waits on. The detail turns a status into a next step: "Waiting on a design owner" tells the reader whom to ask.
+- Do: Name what failed, with numbers. "2 of 212 tests fail" says how bad it is and where to look. "Tests failed" does not.
+- Don't: A title without a detail. An icon and a title alone leave the reader guessing what to do. Every row that is not done says why in one line.
+- Don't: Warning for something that simply waits. Waiting is normal: use the empty ring. Keep warning for a row that needs attention, such as an approval given before the last change.
+
+### CodeBlock
+
+A command or a short piece of code in IBM Plex Mono, with a copy button on the same line. The button says Copied for two seconds, so the reader knows the paste will work.
+
+- Family: Data display
+- Tokens: border-width.default, color.bg.subtle, color.border.default, color.text.default, color.text.muted, control.height.sm, focus.ring.color, focus.ring.offset, focus.ring.width, font.family.mono, font.family.sans, font.tracking.wide, font.weight.medium, radius.control, radius.inset, space.1, space.1-5, space.2, space.3, typography.caption.line-height, typography.caption.size, typography.ui.line-height, typography.ui.size
+- Use it for:
+  - A command the reader runs or pastes: an install line, an MCP server setup, a CLI call.
+  - A short snippet the reader copies as is: a CSS variable in use, an import line.
+  - Commands wrap, code scrolls (the default): a one-line command breaks at spaces only, never inside a package name or a flag, so the reader sees all of it; code with several lines keeps its layout and scrolls sideways inside the block. Set wrap to choose.
+  - hideCopy for code the reader should read, not paste: a file path, an example output.
+  - Plain-script pages that build rows as HTML strings use codeBlockHtml() and bindCodeBlocks() from @bridge-ds/react/dom: the same markup and the same copy behavior, without React.
+- Not for:
+  - A token name or value inside a sentence or a table cell: use TokenValue.
+  - A whole file or a long diff: link to it, or show it in a dedicated viewer.
+  - Inline code in running text: use the code element of the page's prose styles.
+- Accessibility:
+  - The copy button is a real Button. With a string label it is named Copy plus the label (Copy install); after a copy it reads Copied.
+  - A polite live region announces Copied to the clipboard. If the clipboard is blocked, the code is selected and the region says to press Ctrl+C or Cmd+C.
+  - A block that does not wrap is keyboard focusable (tabindex 0), so a long line can be scrolled with the arrow keys. A wrapped block needs no focus stop.
+  - Copy works without hydration: statically rendered blocks carry data-code-block hooks and bindCodeBlocks() from @bridge-ds/react/dom wires them. Plain scripts render the same markup with codeBlockHtml().
+  - Code text uses color.text.default on color.bg.subtle, checked in both themes.
+- Do: Name what the code does. A short label above the block (Install, Add the MCP server) tells the reader which block to copy, and names the copy button for screen readers: Copy install.
+- Do: One command per block. Two steps are two blocks, each with its own label and copy button. The reader pastes one thing at a time and sees which one worked.
+- Don't: A prompt sign in the code. The block copies exactly what it shows. A leading $ ends up in the terminal and the command fails.
+- Don't: Several commands chained in one block. A row of commands joined with && is hard to read and fails as a whole. Split it into one block per step.
+
+### Divider
+
+A hairline that separates groups of content, horizontally or vertically, with an optional short label.
+
+- Family: Data display
+- Tokens: border-width.default, divider.line, divider.text, font.family.sans, font.size.100, font.tracking.wide, font.weight.medium, size.4, space.2, space.3, space.4
+- Use it for:
+  - Between groups that belong to the same surface but differ in kind: settings sections, toolbar groups.
+  - Labelled, to name what follows ("Older changes") or to offer an alternative ("Or").
+- Not for:
+  - Between every list item: use spacing, or row borders in a Table.
+  - To separate sections that have headings: the heading and space already do it.
+- Accessibility:
+  - Base UI Separator: role separator with aria-orientation, announced as a boundary.
+  - The labelled variant renders two separators around plain text, so the label is read once in order.
+  - The line uses border.default (decorative); never rely on it to convey meaning.
+- Do: Vertical dividers between toolbar groups. They group related controls without adding boxes.
+- Don't: Stacked dividers and borders. A divider next to a card edge doubles the line. Pick one.
+
+### Kbd
+
+Shows a keyboard key or a key combination, as nested kbd elements in the mono face.
+
+- Family: Data display
+- Tokens: border-width.default, color.text.muted, font.family.mono, font.family.sans, font.line-height.none, font.size.100, font.weight.medium, kbd.bg, kbd.border, kbd.border-bottom, kbd.radius, kbd.text, size.4, size.5, space.0-5, space.1
+- Use it for:
+  - Teaching a shortcut in a tooltip, a menu item, an empty state or help text.
+  - Inside an Input suffix to hint at the search shortcut.
+- Not for:
+  - Code or token names: use code.
+  - Buttons: a Kbd is not clickable.
+- Accessibility:
+  - Outer kbd wraps one kbd per key, the HTML pattern for keys pressed together; the plus signs are aria-hidden.
+  - Abbreviated keys (Cmd, Esc, arrows) carry a title with the full name.
+  - Text color is text.muted on surface (4.5:1).
+- Do: Write the platform's key names. Cmd on macOS, Ctrl elsewhere. Abbreviations get a title with the full name.
+- Don't: Long sequences. More than three keys is a recipe, not a shortcut. Explain it in text.
+
+### Table
+
+A semantic data table for comparing records: sortable columns, selectable rows, density-aware rows, and a focusable scroll region on narrow screens.
+
+- Family: Data display
+- Tokens: border-width.default, card.border, color.border.default, color.signal.default, color.surface.default, color.text.default, color.text.muted, control.height.md, focus.ring.color, focus.ring.offset, focus.ring.width, font.family.sans, font.line-height.normal, font.line-height.snug, font.size.100, font.size.200, font.size.300, font.tracking.wide, font.weight.medium, font.weight.semibold, motion.duration.instant, motion.easing.standard, radius.container, radius.inset, size.6, space.1, space.2, space.3, space.8, table.border, table.cell-padding-x, table.header.bg, table.header.text, table.row-height, table.row.bg-hover, table.row.bg-selected
+- Use it for:
+  - Records with the same attributes that users compare, sort or act on: tokens, components, pull requests.
+  - Sortable headers (sortDirection + onSort, or useTableSort) on columns users reorder by.
+  - Selectable rows: a Checkbox in the first cell, selected on the row, bulk actions above the table.
+  - Compact density for expert, data-heavy screens.
+  - Column widths when one column should not take the space of the others: width on the header cell, as a token length (var(--size-20)), a percentage or a fraction (0.35), plus minWidth for a floor. layout fixed keeps them exact while data loads.
+  - narrowLayout stack when people read the table on a phone: under about 480px each row becomes a card, every value beside its column name. Keep scroll (the default) for wide data people compare across rows.
+- Not for:
+  - Layout: never use a table to position content.
+  - Fewer than three attributes per item: use a list.
+  - Editing many cells inline like a spreadsheet: that needs a grid pattern, not in the system yet.
+- Accessibility:
+  - Native table, thead, th scope col and td: screen readers announce headers with each cell.
+  - Sortable headers contain a button; the th gets aria-sort ascending or descending on the sorted column only.
+  - Selected rows set aria-selected and use the selected surface plus a checked Checkbox (never color alone).
+  - The scroll container is a labelled region with tabIndex 0, so keyboard users can scroll wide tables (named by the caption or aria-label).
+  - Row height and cell padding follow density: 48/36px rows, both above the 24px target minimum for the controls inside.
+  - Stacked rows keep their table roles (table, row, cell), so screen readers still read cell by cell; the column names shown before each value are the header texts. The header row is hidden while rows stack, so put sorting somewhere else on phones.
+- Do: Right-align numbers. numeric aligns digits on the right with tabular figures, so values compare at a glance.
+- Do: Say what to do when it is empty. TableEmpty keeps the header in place and explains how rows will appear.
+- Don't: Color as the only row state. A tinted row alone does not say selected. Pair it with a checked Checkbox.
+
+### Tag
+
+A compact label for a value. Static to describe, toggleable as a filter chip, or removable to show selected values.
+
+- Family: Data display
+- Tokens: border-width.default, color.action.disabled.bg, color.action.disabled.text, color.surface.pressed, color.text.default, focus.ring.color, focus.ring.width, font.family.sans, font.line-height.tight, font.size.100, font.tracking.wide, font.weight.medium, motion.duration.instant, motion.easing.standard, size.5, size.6, space.0-5, space.1, space.2, tag.bg, tag.bg-hover, tag.bg-selected, tag.border, tag.radius, tag.signal-bg, tag.signal-text, tag.text, tag.text-selected
+- Use it for:
+  - Filter chips above a table or a list: toggle tags in a labelled group.
+  - Selected values in a multi-select Combobox or a filter bar: removable tags.
+  - Static metadata: token groups, platforms, component categories.
+- Not for:
+  - Status (Published, Failed): use Badge.
+  - Actions: use Button. A tag describes a value; it does not do something.
+  - Choosing one option out of several: use RadioGroup or Tabs.
+- Accessibility:
+  - Toggle tags are Base UI Toggle buttons with aria-pressed; selected also shows a check icon, so selection is not color alone.
+  - The remove button is a separate button named "Remove <label>" (removeLabel when the text is not a plain string).
+  - Both buttons have the focus ring and are reachable with Tab; Enter and Space activate them.
+  - Static tags are plain text with no role.
+- Do: Put filter chips in a named group. role group with aria-label ("Filter by theme") tells screen reader users what the chips control.
+- Don't: Sentences in tags. Tags truncate. Keep them to a value of one to three words.
+
+### TokenValue
+
+A token name and its value in IBM Plex Mono, with a color swatch when the value is a color. For token tables, before and after values, and the values behind a conflict choice.
+
+- Family: Data display
+- Tokens: border-width.default, color.bg.subtle, color.border.default, color.border.emphasis, color.surface.default, color.text.default, color.text.muted, font.family.mono, icon.size.sm, icon.size.xs, radius.inset, radius.xs, space.0-5, space.1-5, typography.caption.line-height, typography.caption.size, typography.ui.line-height, typography.ui.size
+- Use it for:
+  - Showing a token in a table, a review or a change list: the name, the value as written, and the resolved value when it is an alias.
+  - Before and after a change: the previous value with previous (struck through), then the new value.
+  - Inside a ChoiceCard description, so the reader sees the value each choice keeps.
+  - size sm in dense tables and inside sentences; md everywhere else.
+  - Plain-script pages that build rows as HTML strings use tokenValueHtml() from @bridge-ds/react/dom: the same markup and swatch rules, without React.
+- Not for:
+  - A command or a snippet the reader copies: use CodeBlock.
+  - A status such as Changed or Removed: use Badge next to the value.
+  - Editing a value: use an Input, and show the TokenValue as the current value next to it.
+- Accessibility:
+  - Static text, no interaction: screen readers read the name, the value and the resolved value in order.
+  - The swatch is decorative (aria-hidden): the value text always says the color, so the swatch is never the only signal.
+  - A previous value is wrapped in del, so assistive technology that reports deletions reads it as removed, and it is struck through for sighted readers.
+  - The swatch carries a hairline border, so white and near-background colors still read as a square in both themes.
+  - Long names and aliases break anywhere instead of overflowing a narrow cell.
+  - Plain scripts render the same markup with tokenValueHtml() from @bridge-ds/react/dom.
+- Do: Show the alias and what it resolves to. The alias says where the value comes from, the resolved value says what the reader will see. Together they answer both questions in one glance.
+- Do: Pair a previous value with the new one. The struck-through value reads as removed, the plain one as the new value. Keep them on one line, old first.
+- Don't: Repeating the token name in its own row. When the row or column already names the token, drop name and show the value only. The same name twice is noise.
+- Don't: A previous value on its own. A struck-through value without the new one tells the reader what is gone but not what replaces it.
+
+### Container
+
+Centers page content at a max width from the size scale with token side padding. Phones always get a 16px gutter.
+
+- Family: Layout
+- Tokens: size.160, size.180, size.240, size.300, space.4, space.6, space.8
+- Use it for:
+  - The outer wrapper of a page or a page section.
+  - sm for forms and reading (keeps lines under about 75 characters), lg for settings, xl for dashboards and tables.
+  - render={<main />} on the page's main region.
+- Not for:
+  - Inside cards or dialogs: they already set their width and padding.
+  - Full-bleed backgrounds: put the background on an outer element and the Container inside it.
+- Accessibility:
+  - A plain div by default; render as <main /> for the main region so the landmark exists.
+  - Content reflows at 320px wide without horizontal scroll (WCAG 1.4.10).
+- Do: Match the width to the content. Forms in an xl container stretch inputs to unreadable lengths. Pick sm.
+- Don't: Nested containers. A container inside a container doubles the padding and adds nothing.
+
+### Grid
+
+Two-dimensional layout with token gaps: a fixed number of equal columns, or as many columns as fit for card and tile grids.
+
+- Family: Layout
+- Tokens: layout.gap
+- Use it for:
+  - Card and tile grids: minItemWidth makes them responsive without breakpoints.
+  - Dashboards and settings layouts with a fixed column count.
+  - render={<ul />} when the cells are a list of items.
+- Not for:
+  - Tabular data with headers: use Table.
+  - A single row or column: use Inline or Stack.
+- Accessibility:
+  - A plain div by default with no role; it is not a data grid. Use Table for data.
+  - Cells flow in DOM order, so reading and tab order follow the visual order row by row.
+- Do: Prefer minItemWidth for tiles. Tiles reflow from four columns to one as space shrinks, with no media queries.
+- Don't: Many fixed columns on small screens. Twelve fixed columns at phone width make unreadable slivers. Use minItemWidth or fewer columns.
+
+### Inline
+
+Lays out children in a row with a token gap and wraps them when space runs out: badges, button rows, metadata.
+
+- Family: Layout
+- Tokens: space.2
+- Use it for:
+  - Rows of related small items: badges, tags, buttons, meta text.
+  - justify="between" for page and card headers: title at the start, actions at the end.
+  - wrap={false} only when the row must stay on one line and can scroll or truncate.
+- Not for:
+  - A vertical list: use Stack.
+  - Columns that must line up across rows: use Grid or Table.
+- Accessibility:
+  - A plain div by default; use render for a list (<ul />) when the items are a list.
+  - Wrapping never reorders items, so the visual and tab order match.
+- Do: Let rows wrap. Wrapping keeps every item reachable at narrow widths and at 200% zoom.
+- Don't: Fixed widths inside an Inline. Fixed widths fight the wrap and overflow on phones. Let content size the items.
+
+### PageHeader
+
+The top of a page: the page title, a one-line lead that says what the page is for, an optional meta line (freshness, counts) and up to three page actions.
+
+- Family: Layout
+- Tokens: color.text.default, color.text.muted, font.family.sans, font.line-height.normal, font.size.100, font.tracking.wide, size.120, size.8, space.2, space.3, space.4, space.6, space.8, typography.body.line-height, typography.body.size, typography.h1.line-height, typography.h1.size, typography.h1.tracking, typography.h1.weight, typography.h2.family, typography.h2.line-height, typography.h2.size, typography.h2.tracking, typography.h2.weight, typography.h3.family, typography.h3.line-height, typography.h3.size, typography.h3.tracking, typography.h3.weight
+- Use it for:
+  - Once at the top of every page, so titles, leads and actions sit in the same place across the product.
+  - lead: one or two sentences on what the page is for, not how to use it.
+  - meta: a quiet line for facts that build trust, like when the page was last updated or where its data comes from.
+  - actions: the page-level actions (Edit in Studio, Create token). Keep the primary one last.
+  - headingLevel 2 when the header tops a section inside a page that already has an h1.
+- Not for:
+  - Section titles inside a page: use a plain h2 heading.
+  - Dialogs and drawers: they have their own title slot.
+  - Promotional heroes with art and several calls to action: build them in the page, outside the system.
+- Accessibility:
+  - Renders a header element with a real heading (h1 by default), so the page outline and screen reader heading navigation start here.
+  - One h1 per page: use headingLevel 2 when the page already has one.
+  - Actions keep their own roles: a Button for actions on this page, a link (Button with render={<a />}) for navigation.
+  - The meta line is plain text in the muted color, which passes AA on every surface.
+- Do: Name the page as the navigation does. The title repeats the sidebar label, so users know they landed where they clicked.
+- Do: Keep the lead to one idea. One or two sentences that say what the page is for. Details belong in the content.
+- Don't: A paragraph as the lead. A long lead pushes the content below the fold and nobody reads it.
+- Don't: Title in all caps or title case. Sentence case reads faster and matches the rest of the interface.
+
+### Stack
+
+Stacks children in a column with a gap from the space scale. The default gap follows density (16px comfortable, 12px compact).
+
+- Family: Layout
+- Tokens: layout.gap
+- Use it for:
+  - Vertical rhythm inside cards, dialogs, forms and page sections.
+  - gap from the space scale: tight (1 to 2) inside a group, generous (6 to 8) between groups.
+  - render to output a semantic element: <section />, <ul />, <form />.
+- Not for:
+  - Rows of items: use Inline.
+  - Two-dimensional layouts with columns: use Grid.
+  - Spacing one element only: give that element a margin class in your app, not a wrapper.
+- Accessibility:
+  - A plain div by default with no role: it changes layout, not semantics.
+  - Use render to give the stack the right element (a list of items should be <ul />).
+  - Visual order equals DOM order, so reading and tab order stay consistent.
+- Do: Nest stacks to show grouping. A tight stack per group inside a looser stack: the space itself says what belongs together.
+- Don't: One gap for everything. Equal spacing everywhere flattens hierarchy. Vary the gap to separate groups.
