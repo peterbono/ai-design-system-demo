@@ -220,6 +220,8 @@ interface State {
   pull?: PullState | undefined;
   push?: PushState | undefined;
   settingsDraft: RepoSettings;
+  /** "changes" of the repo's bridge.config.json, read once for the Push intro before the first scan. */
+  mode?: ChangesMode | undefined;
   tokenDraft: string;
   claudeKeyDraft: string;
   claudeMessage?: { kind: 'ok' | 'error'; text: string } | undefined;
@@ -930,7 +932,8 @@ async function loadExplorations(r: PushState): Promise<void> {
   render();
   try {
     r.explorations = await runningExplorations(getClient(), r.analysis.headFiles.config, state.init!.settings.branch);
-    if (!r.exploreTarget || (r.exploreTarget !== 'new' && !pickedExploration(r))) r.exploreTarget = r.explorations[0]?.branch ?? 'new';
+    // A new exploration by default: picking a running one (maybe someone else's) is a choice, never one click away (EXP-2).
+    if (!r.exploreTarget || (r.exploreTarget !== 'new' && !pickedExploration(r))) r.exploreTarget = r.sentTo?.branch ?? 'new';
   } catch (err) {
     r.explorationsError = inlineError(err);
     r.exploreTarget = 'new';
@@ -1048,6 +1051,22 @@ function markExperimental(r: PushState, item: PublishItem, value: boolean): void
 const modeOf = (r: PushState): ChangesMode => changesModeOf(r.analysis);
 
 /** "changes" in the repo's bridge.config.json at `branch` (no config: direct, the plugin's behaviour without one). */
+let modeLoading = false;
+/** The repo's changes mode for screens shown before a scan: read once, then kept (Settings refreshes it). */
+function knownMode(): ChangesMode | undefined {
+  if (state.push) return modeOf(state.push);
+  if (state.mode || modeLoading || !connected()) return state.mode;
+  modeLoading = true;
+  void repoChangesMode(getClient(), state.init!.settings.branch)
+    .then((m) => {
+      state.mode = m;
+      render();
+    })
+    .catch(() => undefined)
+    .finally(() => (modeLoading = false));
+  return undefined;
+}
+
 async function repoChangesMode(gh: GitHubClient, branch: string): Promise<ChangesMode> {
   const text = await gh.getFileText('bridge.config.json', branch).catch(() => undefined);
   if (!text) return 'direct';
@@ -1089,6 +1108,7 @@ function saveSettings(): void {
         // fine-grained token). Suggestions need Issues only; direct mode needs Contents and Pull requests too.
         // Refused before saving: the token that works stays.
         const mode = await repoChangesMode(gh, draft.branch.trim());
+        state.mode = mode;
         const probed = await gh.writeAccess(draft.branch.trim()).catch(() => undefined);
         const push = info.permissions?.push !== false;
         const can = probed ?? { contents: push, pullRequests: push, issues: true };
@@ -2500,8 +2520,9 @@ function componentRow(r: PushState, item: ComponentChangeItem, action: string, e
       edge?.lead,
       h('span', { class: 'comp-name' }, item.component),
       item.figmaName !== item.component ? h('span', { class: 'muted' }, item.figmaName) : null,
-      // Routed as an exact token change, the route tag says it all: no second "Token change" tag.
-      routed(r) && item.kind === 'token-binding' && pushOf(r, item.nodeId)?.plan.route === 'token-change' && !pushOf(r, item.nodeId)?.blocked ? null : h('span', { class: `kind ${item.kind === 'new-component' ? 'added' : ''}` }, kindName(item.kind)),
+      // Once routed, the route tag (or the Fix in Figma first group) says where it goes: no second kind tag that can
+      // disagree with it, like "Token change" on a change that needs code (PUSH-1).
+      routed(r) && pushOf(r, item.nodeId) ? null : h('span', { class: `kind ${item.kind === 'new-component' ? 'added' : ''}` }, kindName(item.kind)),
       routeTag(r, item),
       // The row's own send is a quiet ghost button: the bar keeps the one primary action of the screen.
       edge ? edge.tail : open ? null : h('button', { class: 'btn ghost row-action', 'data-focus-id': `req-${item.nodeId}`, 'aria-label': `${sendsToBranch(r, item) ? sendLabel(modeOf(r)) : action}: ${item.component}`, onClick: () => (sendsToBranch(r, item) ? sendCandidate(r, item) : openForm(r, item)) }, sendsToBranch(r, item) ? sendLabel(modeOf(r)) : action),
@@ -3173,13 +3194,18 @@ function viewPush(): View {
       body: [
         intro({
           title: 'Send your edits',
-          text: 'Variable edits and component changes go to the library, or into an exploration to try them first.',
+          // Worded for the repo's mode: a suggestion repo has no explorations to promise (SUG-2).
+          text: knownMode() === 'suggest'
+            ? 'Variable edits and component changes go to your DS lead as suggestions. Nothing reaches the product until it is approved.'
+            : 'Variable edits and component changes go to the library, or into an exploration to try them first.',
           art: 'paint',
         }),
         steps([
           ['Edit in Figma', 'Change synced variables, or change a component: a variant, a prop, a part, the token a part uses.'],
-          ['Review the changes', 'Every change is listed and checked. Uncheck what is not ready; mark work in progress as exploration only.'],
-          ['Send', 'Token values ship once the checks pass; what needs code goes to developers as a build request. In an exploration, you try it in its previews first.'],
+          ['Review the changes', knownMode() === 'suggest' ? 'Every change is listed and checked. Uncheck what is not ready.' : 'Every change is listed and checked. Uncheck what is not ready; mark work in progress as exploration only.'],
+          knownMode() === 'suggest'
+            ? ['Send', 'Send suggestion: your DS lead approves it, then a developer applies it.']
+            : ['Send', 'Token values ship once the checks pass; what needs code goes to developers as a build request. In an exploration, you try it in its previews first.'],
         ]),
         requestLine(undefined),
       ],
@@ -3451,13 +3477,16 @@ function viewPush(): View {
   const blocked = prFiles ? prop.validation.blocking.length : 0;
   const open = prop.unresolvedConflicts.length;
   const none = !prFiles && !checkedComps;
+  const onlyExploration = none && !exploring && modeOf(r) !== 'suggest' && r.items.length > 0 && r.items.every((i) => i.experimental);
   const waiting = explorationBlocker(r);
   const hint = open
     ? `Decide ${plural(open, 'conflict')} first`
     : blocked
       ? `Fix ${plural(blocked, 'problem')} first`
       : none
-        ? 'Nothing checked'
+        ? onlyExploration
+          ? 'Marked exploration only: try them in an exploration'
+          : 'Nothing checked'
         : waiting
           ? waiting
           : [checkedVars ? plural(checkedVars, 'variable') : '', newBrands ? plural(newBrands, 'new brand') : '', ...(exploring
@@ -3472,7 +3501,8 @@ function viewPush(): View {
           onClick: submitPush,
           disabled: !!open || !!blocked || none || !!waiting,
           hint,
-          secondary: { label: 'Scan again', onClick: () => scanPush(r) },
+          // Everything is marked exploration only: the way forward is one click, not a dead button (PUSH-6).
+          secondary: onlyExploration ? { label: 'Try in an exploration', onClick: () => setDestination(r, 'exploration') } : { label: 'Scan again', onClick: () => scanPush(r) },
         },
   };
 }
