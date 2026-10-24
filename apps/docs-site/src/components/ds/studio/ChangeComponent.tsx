@@ -117,7 +117,8 @@ export function ChangeStep({ component, slug, hasTokens, repo, integrations, com
     if (!flow.open) return;
     const box = boxRef.current;
     box?.scrollIntoView({ block: 'start' });
-    requestAnimationFrame(() => box?.querySelector<HTMLElement>('[role="radio"]:not([aria-disabled="true"]):not([data-disabled])')?.focus());
+    // The picked choice when a link picked one, else the first that can be picked.
+    requestAnimationFrame(() => (box?.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]') ?? box?.querySelector<HTMLElement>('[role="radio"]:not([aria-disabled="true"]):not([data-disabled])'))?.focus());
   }, [flow.open]);
 
   // A path picked: its form comes into view under the question (the radio keeps the focus).

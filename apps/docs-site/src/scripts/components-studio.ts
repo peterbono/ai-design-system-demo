@@ -261,5 +261,9 @@ export function initComponentsStudio() {
       p.delete('intent');
       history.replaceState(null, '', `${location.pathname}?${p.toString()}`);
     }
+  } else if (isChangeIntent(params.get('intent'))) {
+    // The home's "Ask for a component change" names no component: one line says to pick one.
+    const pick = document.querySelector<HTMLElement>('[data-cm-pick]');
+    if (pick) pick.hidden = false;
   }
 }
