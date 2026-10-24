@@ -103,6 +103,22 @@ describe('component specs', () => {
     expect(parseSelector('.p:has(> .c) .c').parts.length).toBe(2);
   });
 
+  it('a content-box minimum counts its padding and border, as CSS draws it (Figma includes them)', () => {
+    const row = (name: string, extra: string): Record<string, string> => ({
+      [`c/${name}/${name}.tsx`]: `import styles from './${name}.module.css';
+export interface ${name}Props { children?: ReactNode }
+export const ${name} = forwardRef(function ${name}({ children }, ref) {
+  return <label className={styles.row}>{children}</label>;
+});`,
+      [`c/${name}/${name}.module.css`]: `.row { display: inline-flex; min-height: var(--size-6); padding-block: var(--space-0-5); border: var(--size-1) solid;${extra} }`,
+    });
+    const files = { ...row('Row', ''), ...row('Tight', ' box-sizing: border-box;') };
+    const tokens = new Map(['size-6', 'space-0-5', 'size-1'].map((n) => [`--${n}`, { path: n.replace('-', '.'), type: 'dimension' }]));
+    const root = (name: string) => generateComponentSpec(name, { componentsDir: 'c', read: (p) => files[p], tokens }).variants[0]!.values.root;
+    expect(root('Row')).toMatchObject({ minHeight: 'calc(size.6 + space.0-5 + space.0-5 + size.1 + size.1)' });
+    expect(root('Tight')).toMatchObject({ minHeight: 'size.6' });
+  });
+
   it('calc() of tokens becomes an expression of token paths; a single token stays a token', () => {
     const files: Record<string, string> = {
       'c/Pill/Pill.tsx': `import styles from './Pill.module.css';

@@ -8150,7 +8150,7 @@
     },
     {
       "name": "Checkbox",
-      "hash": "a1603323",
+      "hash": "9646e8d7",
       "source": [
         "packages/react/src/components/Checkbox/Checkbox.tsx",
         "packages/react/src/components/Checkbox/Checkbox.module.css",
@@ -8289,7 +8289,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box": {
               "fill": "checkbox.bg",
@@ -8354,7 +8354,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box": {
               "fill": "checkbox.bg",
@@ -8419,7 +8419,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box": {
               "fill": "color.action.disabled.bg",
@@ -8484,7 +8484,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box": {
               "fill": "checkbox.bg-checked",
@@ -8547,7 +8547,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box": {
               "fill": "color.control.checked.bg-hover",
@@ -8610,7 +8610,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box": {
               "fill": "color.action.disabled.bg",
@@ -8673,7 +8673,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box": {
               "fill": "checkbox.bg-checked",
@@ -8736,7 +8736,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box": {
               "fill": "color.control.checked.bg-hover",
@@ -8799,7 +8799,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box": {
               "fill": "color.action.disabled.bg",
@@ -9102,7 +9102,7 @@
           }
         ]
       },
-      "hash": "0ee8313e",
+      "hash": "3bdc010a",
       "source": [
         "packages/react/src/components/CheckboxGroup/CheckboxGroup.tsx",
         "packages/react/src/components/Checkbox/Checkbox.module.css",
@@ -9428,7 +9428,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box": {
               "fill": "checkbox.bg",
@@ -9456,7 +9456,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box-2": {
               "fill": "checkbox.bg",
@@ -9484,7 +9484,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box-3": {
               "fill": "checkbox.bg",
@@ -9571,7 +9571,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box": {
               "fill": "checkbox.bg",
@@ -9599,7 +9599,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box-2": {
               "fill": "checkbox.bg",
@@ -9627,7 +9627,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box-3": {
               "fill": "checkbox.bg",
@@ -9714,7 +9714,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box": {
               "fill": "color.action.disabled.bg",
@@ -9742,7 +9742,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box-2": {
               "fill": "color.action.disabled.bg",
@@ -9770,7 +9770,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box-3": {
               "fill": "color.action.disabled.bg",
@@ -9858,7 +9858,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box": {
               "fill": "checkbox.bg",
@@ -9886,7 +9886,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box-2": {
               "fill": "checkbox.bg",
@@ -9914,7 +9914,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box-3": {
               "fill": "checkbox.bg",
@@ -10010,7 +10010,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box": {
               "fill": "checkbox.bg",
@@ -10038,7 +10038,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box-2": {
               "fill": "checkbox.bg",
@@ -10066,7 +10066,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box-3": {
               "fill": "checkbox.bg",
@@ -10162,7 +10162,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box": {
               "fill": "color.action.disabled.bg",
@@ -10190,7 +10190,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box-2": {
               "fill": "color.action.disabled.bg",
@@ -10218,7 +10218,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box-3": {
               "fill": "color.action.disabled.bg",
@@ -10350,7 +10350,7 @@
           }
         ]
       },
-      "hash": "7fcd6c73",
+      "hash": "2c6a5717",
       "source": [
         "packages/react/src/components/Checklist/Checklist.tsx",
         "packages/react/src/components/Checklist/Checklist.module.css",
@@ -10565,7 +10565,7 @@
               "paddingRight": "space.3",
               "paddingBottom": "space.2",
               "paddingLeft": "space.3",
-              "minHeight": "control.height.md",
+              "minHeight": "calc(control.height.md + space.2 + space.2)",
               "itemSpacing": "space.3"
             },
             "icon": {
@@ -10598,7 +10598,7 @@
               "paddingRight": "space.3",
               "paddingBottom": "space.2",
               "paddingLeft": "space.3",
-              "minHeight": "control.height.md",
+              "minHeight": "calc(control.height.md + space.2 + space.2 + border-width.default)",
               "stroke": "color.border.default",
               "strokeTopWeight": "border-width.default",
               "strokeRightWeight": 0,
@@ -10636,7 +10636,7 @@
               "paddingRight": "space.3",
               "paddingBottom": "space.2",
               "paddingLeft": "space.3",
-              "minHeight": "control.height.md",
+              "minHeight": "calc(control.height.md + space.2 + space.2 + border-width.default)",
               "stroke": "color.border.default",
               "strokeTopWeight": "border-width.default",
               "strokeRightWeight": 0,
@@ -18903,7 +18903,7 @@
     },
     {
       "name": "Link",
-      "hash": "6ee62ed9",
+      "hash": "796f1695",
       "source": [
         "packages/react/src/components/Link/Link.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -19005,7 +19005,7 @@
               "cornerRadius": "radius.inset",
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "text": {
               "textFill": "color.text.link",
@@ -19026,7 +19026,7 @@
               "cornerRadius": "radius.inset",
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "text": {
               "textFill": "color.text.link-hover",
@@ -26004,7 +26004,7 @@
           }
         ]
       },
-      "hash": "40b429db",
+      "hash": "ce58019b",
       "source": [
         "packages/react/src/components/RadioGroup/RadioGroup.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -26305,7 +26305,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio": {
               "fill": "checkbox.bg",
@@ -26329,7 +26329,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio-2": {
               "fill": "checkbox.bg-checked",
@@ -26359,7 +26359,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio-3": {
               "fill": "checkbox.bg",
@@ -26442,7 +26442,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio": {
               "fill": "checkbox.bg",
@@ -26466,7 +26466,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio-2": {
               "fill": "color.control.checked.bg-hover",
@@ -26496,7 +26496,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio-3": {
               "fill": "checkbox.bg",
@@ -26579,7 +26579,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio": {
               "fill": "color.action.disabled.bg",
@@ -26603,7 +26603,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio-2": {
               "fill": "color.action.disabled.bg",
@@ -26633,7 +26633,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio-3": {
               "fill": "color.action.disabled.bg",
@@ -26717,7 +26717,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio": {
               "fill": "checkbox.bg",
@@ -26741,7 +26741,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio-2": {
               "fill": "checkbox.bg-checked",
@@ -26771,7 +26771,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio-3": {
               "fill": "checkbox.bg",
@@ -26863,7 +26863,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio": {
               "fill": "checkbox.bg",
@@ -26887,7 +26887,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio-2": {
               "fill": "color.control.checked.bg-hover",
@@ -26917,7 +26917,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio-3": {
               "fill": "checkbox.bg",
@@ -27009,7 +27009,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio": {
               "fill": "color.action.disabled.bg",
@@ -27033,7 +27033,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio-2": {
               "fill": "color.action.disabled.bg",
@@ -27063,7 +27063,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio-3": {
               "fill": "color.action.disabled.bg",
@@ -27176,7 +27176,7 @@
           "value": "merge"
         }
       },
-      "hash": "fbd7d9a4",
+      "hash": "8c4fc4dc",
       "source": [
         "packages/react/src/components/RadioGroup/RadioGroup.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -27297,7 +27297,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio": {
               "fill": "checkbox.bg",
@@ -27348,7 +27348,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio": {
               "fill": "checkbox.bg",
@@ -27399,7 +27399,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio": {
               "fill": "color.action.disabled.bg",
@@ -27450,7 +27450,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio": {
               "fill": "checkbox.bg-checked",
@@ -27498,7 +27498,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio": {
               "fill": "color.control.checked.bg-hover",
@@ -27546,7 +27546,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.2",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "radio": {
               "fill": "color.action.disabled.bg",
@@ -29967,7 +29967,7 @@
           }
         ]
       },
-      "hash": "10007e9b",
+      "hash": "e711c569",
       "source": [
         "packages/react/src/components/SidebarNav/SidebarNav.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -30278,7 +30278,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text-2": {
               "textFill": "color.text.default",
@@ -30388,7 +30388,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text-2": {
               "textFill": "color.text.default",
@@ -30498,7 +30498,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text-2": {
               "textFill": "color.text.default",
@@ -30611,7 +30611,7 @@
           }
         ]
       },
-      "hash": "0307ae2d",
+      "hash": "7582515b",
       "source": [
         "packages/react/src/components/SidebarNav/SidebarNav.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -30921,7 +30921,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text": {
               "textFill": "color.text.default",
@@ -31028,7 +31028,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text": {
               "textFill": "color.text.default",
@@ -31135,7 +31135,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text": {
               "textFill": "color.text.default",
@@ -32061,7 +32061,7 @@
     },
     {
       "name": "Switch",
-      "hash": "7482fc06",
+      "hash": "2d8ab09e",
       "source": [
         "packages/react/src/components/Switch/Switch.tsx",
         "packages/react/src/components/Switch/Switch.module.css"
@@ -32202,7 +32202,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "switch.track-off",
@@ -32250,7 +32250,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "color.border.hover",
@@ -32298,7 +32298,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "color.bg.muted",
@@ -32346,7 +32346,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "switch.track-on",
@@ -32401,7 +32401,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "color.control.checked.bg-hover",
@@ -32456,7 +32456,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "color.border.strong",
@@ -32511,7 +32511,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "switch.track-off",
@@ -32559,7 +32559,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "color.border.hover",
@@ -32607,7 +32607,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "color.bg.muted",
@@ -32655,7 +32655,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "switch.track-on",
@@ -32710,7 +32710,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "color.control.checked.bg-hover",
@@ -32765,7 +32765,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "color.border.strong",
@@ -32820,7 +32820,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "switch.track-off",
@@ -32876,7 +32876,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "color.border.hover",
@@ -32932,7 +32932,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "color.bg.muted",
@@ -32988,7 +32988,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "switch.track-on",
@@ -33049,7 +33049,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "color.control.checked.bg-hover",
@@ -33110,7 +33110,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "color.border.strong",
@@ -33171,7 +33171,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "switch.track-off",
@@ -33227,7 +33227,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "color.border.hover",
@@ -33283,7 +33283,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "color.bg.muted",
@@ -33339,7 +33339,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "switch.track-on",
@@ -33400,7 +33400,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "color.control.checked.bg-hover",
@@ -33461,7 +33461,7 @@
               "paddingTop": "space.0-5",
               "paddingBottom": "space.0-5",
               "itemSpacing": "space.3",
-              "minHeight": "size.6"
+              "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "track": {
               "fill": "color.border.strong",
@@ -34457,7 +34457,7 @@
           }
         ]
       },
-      "hash": "cd35c146",
+      "hash": "2070aa66",
       "source": [
         "packages/react/src/components/Tabs/Tabs.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -34738,7 +34738,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text": {
               "textFill": "color.text.default",
@@ -34836,7 +34836,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text": {
               "textFill": "color.text.default",
@@ -34934,7 +34934,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text": {
               "textFill": "color.text.default",
@@ -35071,7 +35071,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text": {
               "textFill": "color.text.default",
@@ -35208,7 +35208,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text": {
               "textFill": "color.text.default",
@@ -35306,7 +35306,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text": {
               "textFill": "color.text.default",
@@ -35404,7 +35404,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text": {
               "textFill": "color.text.default",
@@ -35541,7 +35541,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text": {
               "textFill": "color.text.default",
@@ -35682,7 +35682,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text": {
               "textFill": "color.text.default",
@@ -35795,7 +35795,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text": {
               "textFill": "color.text.default",
@@ -35908,7 +35908,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text": {
               "textFill": "color.text.default",
@@ -36048,7 +36048,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text": {
               "textFill": "color.text.default",
@@ -36188,7 +36188,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text": {
               "textFill": "color.text.default",
@@ -36301,7 +36301,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text": {
               "textFill": "color.text.default",
@@ -36414,7 +36414,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text": {
               "textFill": "color.text.default",
@@ -36554,7 +36554,7 @@
               "paddingRight": "space.1-5",
               "paddingBottom": 0,
               "paddingLeft": "space.1-5",
-              "minWidth": "space.5"
+              "minWidth": "calc(space.5 + space.1-5 + space.1-5)"
             },
             "text": {
               "textFill": "color.text.default",

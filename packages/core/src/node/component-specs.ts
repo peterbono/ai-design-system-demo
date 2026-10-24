@@ -2059,7 +2059,32 @@ function partValues(node: Node, computed: Map<string, string>, own: Map<string, 
     const v = own.get(prop);
     if (v !== undefined && /var\(/.test(v)) out.unmapped.push({ property: prop, value: v, reason });
   }
+  contentBoxMinimums(out.values, computed);
   return out;
+}
+
+/**
+ * CSS min-height and min-width count the content box (box-sizing: content-box, the default): the padding and the
+ * border come on top. Figma's include them. A checkbox row with `min-height: size.6` and `padding-block: space.0-5` is
+ * 28px in code; drawn as minHeight size.6 it was 25. The minimum becomes the sum, as a calc() of the same tokens.
+ */
+function contentBoxMinimums(values: PartValues['values'], computed: Map<string, string>): void {
+  if ((computed.get('box-sizing') ?? 'content-box').trim() === 'border-box') return;
+  const term = (v: SpecValue | undefined): string | undefined => {
+    if (v === undefined || v === null || v === 0) return undefined;
+    if (typeof v === 'number') return String(v);
+    if (typeof v !== 'string') return undefined;
+    return v.startsWith('calc(') ? `(${v.slice(5, -1)})` : v;
+  };
+  const sum = (base: SpecValue, extra: (SpecValue | undefined)[]): SpecValue => {
+    const add = extra.map(term).filter((t): t is string => !!t);
+    const head = term(base);
+    if (!add.length || !head) return base;
+    return `calc(${[head, ...add].join(' + ')})`;
+  };
+  const border = (side: 'Top' | 'Right' | 'Bottom' | 'Left') => values[`stroke${side}Weight` as SpecField] ?? values.strokeWeight;
+  if (values.minHeight !== undefined) values.minHeight = sum(values.minHeight, [values.paddingTop, values.paddingBottom, border('Top'), border('Bottom')]);
+  if (values.minWidth !== undefined) values.minWidth = sum(values.minWidth, [values.paddingLeft, values.paddingRight, border('Left'), border('Right')]);
 }
 
 /** A grid with no tracks of its own (`display: grid; place-items: center`): one cell, drawn as a centering auto layout. */
