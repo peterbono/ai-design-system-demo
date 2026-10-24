@@ -24,6 +24,7 @@ import {
   publishSummary,
   summarizeApprovals,
   summarizeCi,
+  tokenFileChanges,
   tokenPublishRoute,
   withFigmaPushApprovals,
   type BuildIssueLike,
@@ -55,6 +56,19 @@ describe('what a push from Figma changes', () => {
     expect(figmaPushScope({ files: [...tokenFiles, { path: 'packages/react/src/components/Button/Button.tsx' }], tokenChanges: [] })).toBe('component');
     expect(figmaPushScope({ files: [...tokenFiles, { path: '.github/workflows/ci.yml' }], tokenChanges: [] })).toBe('outside');
     expect(figmaPushScope({ files: [...tokenFiles, { path: 'packages/tokens/src/contrast.checks.json' }], tokenChanges: [{ kind: 'changed' }] })).toBe('outside');
+  });
+
+  it('reads token change kinds from the token files of a pull request', () => {
+    const before = JSON.stringify({ color: { a: { $type: 'color', $value: '#000' }, b: { $value: '#111', $description: 'x' }, gone: { $value: 1 } } });
+    const after = JSON.stringify({ color: { a: { $type: 'color', $value: '#222' }, b: { $value: '#111', $description: 'y' }, fresh: { $value: 2 } } });
+    expect(tokenFileChanges([{ before, after }])).toEqual([
+      { kind: 'changed', path: 'color.a' },
+      { kind: 'changed', path: 'color.b', descriptionOnly: true },
+      { kind: 'removed', path: 'color.gone' },
+      { kind: 'added', path: 'color.fresh' },
+    ]);
+    expect(tokenFileChanges([{ before: null, after }]).every((c) => c.kind === 'added')).toBe(true);
+    expect(() => tokenFileChanges([{ before: '{', after }])).toThrow();
   });
 
   it('leaves explorations and other pull requests out', () => {

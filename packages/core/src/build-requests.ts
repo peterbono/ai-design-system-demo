@@ -17,7 +17,7 @@ import { type BridgeConfig } from './config';
 import { EXPLORATION_LABEL } from './explorations';
 import { DRAFTED_BY_CLAUDE_LABEL, FROM_FIGMA_LABEL, WAITING_FOR_CLAUDE_LABEL, parseFigmaOrigin } from './figma-push';
 import { closingIssueNumbers, composeRequestIssue, parseRequestIssue, REQUEST_KINDS, REQUEST_LABEL, requestIssueTitle, type ComponentChangeRequest, type RequestIssue, type RequestKind } from './requests';
-import { isGuardrail, type ChangedFile, type TokenChangeKind } from './risk';
+import { isGuardrail, type ChangedFile, type TokenChangeKind, type TokenChangeSummary } from './risk';
 import { pullState, type CiSummary } from './review-gate';
 
 /** Every build request issue carries this label (with component-change, which the Jira Action mirrors). */
@@ -69,6 +69,50 @@ export function figmaPushScope(input: { files: readonly ChangedFile[]; tokenChan
   if (changes?.some((c) => c.kind === 'renamed' || c.kind === 'removed')) return 'token-structure';
   if (tokenFiles && !changes) return 'token-unknown';
   return 'token-values';
+}
+
+/**
+ * The token changes between two versions of token files, by kind, from their text alone (DTCG: a node with `$value` is a
+ * token, its path the keys joined by "."). For callers that only have the files of a pull request (the server arming a
+ * merge, Studio's branch page): a path gone is `removed` (a rename reads as removed plus added, which gates the same),
+ * a new path `added`, a different `$value`, `$type` or extension `changed`, a different `$description` only
+ * `changed` with descriptionOnly. Unreadable JSON throws, so the caller treats the changes as unknown.
+ */
+export function tokenFileChanges(files: readonly { before: string | null | undefined; after: string | null | undefined }[]): TokenChangeSummary[] {
+  const flat = (text: string | null | undefined) => {
+    const out = new Map<string, Record<string, unknown>>();
+    if (!text) return out;
+    const walk = (node: unknown, path: string[]) => {
+      if (!node || typeof node !== 'object' || Array.isArray(node)) return;
+      const o = node as Record<string, unknown>;
+      if ('$value' in o) {
+        out.set(path.join('.'), o);
+        return;
+      }
+      for (const [k, v] of Object.entries(o)) if (!k.startsWith('$')) walk(v, [...path, k]);
+    };
+    walk(JSON.parse(text), []);
+    return out;
+  };
+  const changes: TokenChangeSummary[] = [];
+  for (const f of files) {
+    const before = flat(f.before);
+    const after = flat(f.after);
+    for (const [path, b] of before) {
+      const a = after.get(path);
+      if (!a) {
+        changes.push({ kind: 'removed', path });
+        continue;
+      }
+      const { $description: bd, ...bRest } = b;
+      const { $description: ad, ...aRest } = a;
+      const same = JSON.stringify(bRest) === JSON.stringify(aRest);
+      if (!same) changes.push({ kind: 'changed', path });
+      else if (bd !== ad) changes.push({ kind: 'changed', path, descriptionOnly: true });
+    }
+    for (const path of after.keys()) if (!before.has(path)) changes.push({ kind: 'added', path });
+  }
+  return changes;
 }
 
 /** The Figma push facts the gate reads (branchVerdict `figmaPush`). Null when the pull request is not one. */

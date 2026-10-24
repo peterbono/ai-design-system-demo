@@ -22,7 +22,7 @@ Explorations keep their own flow ([EXPLORATIONS.md](EXPLORATIONS.md)): a pull re
 
 ## The gate
 
-`branchVerdict` takes `figmaPush` (from `figmaPushOf(pr, { files, tokenChanges, config })`) and credits approvals
+`branchVerdict` takes `figmaPush` (from `figmaPushOf(pr, { files, tokenChanges, config })`; `tokenFileChanges` reads the token changes from the token files of the pull request) and credits approvals
 with `withFigmaPushApprovals`:
 
 - A push is known by the `source: figma` or `from-figma` label, or the hidden "From Figma" block of a component
