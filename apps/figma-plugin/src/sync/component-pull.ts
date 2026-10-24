@@ -348,11 +348,37 @@ export function componentReportView(r: ComponentApplyReport): ComponentReportVie
 // Loading
 
 /** component-specs.json at a tree (read through the git API like the token files), or undefined when the repo has none. */
+/** Component specs as the pull reads them, and the file they came from. */
+export interface LoadedSpecs {
+  path: string;
+  specs: ComponentSpecsFile;
+}
+
+/** Sources of component specs. `static`: component-specs.json, generated from the CSS source (npm run specs). */
+export type SpecSourceKind = 'static';
+
+/**
+ * Where the pull reads what code draws. Every source returns the same shape (ComponentSpecsFile), so planning and
+ * building never depend on where a spec came from: a spec measured from Storybook can replace the static one.
+ */
+export interface SpecSource {
+  readonly kind: SpecSourceKind;
+  load(client: Pick<GitHubClient, 'getTree' | 'getBlobText'>, treeSha: string, config: BridgeConfig | undefined): Promise<LoadedSpecs | undefined>;
+}
+
+/** The source the pull uses: static unless asked otherwise. */
+export function specSource(kind: SpecSourceKind = 'static'): SpecSource {
+  switch (kind) {
+    case 'static':
+      return { kind, load: loadComponentSpecs };
+  }
+}
+
 export async function loadComponentSpecs(
   client: Pick<GitHubClient, 'getTree' | 'getBlobText'>,
   treeSha: string,
   config: BridgeConfig | undefined,
-): Promise<{ path: string; specs: ComponentSpecsFile } | undefined> {
+): Promise<LoadedSpecs | undefined> {
   const configured = config?.components?.specs;
   if (configured !== undefined && (typeof configured !== 'string' || !configured.trim()))
     throw new Error(`bridge.config.json: components.specs is ${configured === null ? 'empty' : `a ${Array.isArray(configured) ? 'list' : typeof configured}`}, it should be the path of component-specs.json. Fix it in the repo.`);

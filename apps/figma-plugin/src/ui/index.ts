@@ -20,7 +20,7 @@ import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classi
 import { CLAUDE_MODELS, type ClaudeDraft, type ClaudeDraftInput, ClaudeDraftError, DRAFTED_NOTE, draftWithClaude } from '../sync/claude';
 import { loadCodedComponents, sendComponentRequest } from '../sync/requests';
 import { DRAFT_PHRASE, type DraftField, DraftPoller, MY_CLAUDE_NEEDS_WRITE, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, myClaudeAccess, planFill, startMyClaudeDrafts } from '../sync/my-claude';
-import { type ComponentApplyReport, type ComponentPullPlan, type CoverageView, type PlannedComponent, buildComponentPlan, componentReportView, coverageView, draftedSetNote, loadComponentSpecs, pushedInReview, pushedNumbers } from '../sync/component-pull';
+import { type ComponentApplyReport, type ComponentPullPlan, type CoverageView, type PlannedComponent, buildComponentPlan, componentReportView, coverageView, draftedSetNote, pushedInReview, pushedNumbers, specSource } from '../sync/component-pull';
 import { type FigmaPushStatus, figmaPushStatusesOnGitHub } from '@bridge-ds/core';
 import { type ComponentReview, onlyComponent, reviewUpdates } from '../sync/component-review';
 import type { ComponentSignature } from '../sync/components';
@@ -638,7 +638,7 @@ async function loadPull(prev?: PullState): Promise<PullState> {
   let inReview: PullState['inReview'] = [];
   const before: Record<string, string> = { ...(prev?.before ?? {}) };
   try {
-    const loaded = await loadComponentSpecs(getClient(), analysis.headFiles.treeSha, analysis.headFiles.config);
+    const loaded = await specSource().load(getClient(), analysis.headFiles.treeSha, analysis.headFiles.config);
     if (loaded) {
       const generated = await request('scan-generated', {});
       // Sets pushed from Figma: where their library branch stands decides whether the pull rebuilds them from code.
@@ -3230,7 +3230,7 @@ function libraryResult(r: PushState, items: RoutedItem[]): Child[] {
     g.shipped.length
       ? group(
           'Token values',
-          r.ship?.timedOut ? 'Still on its way after 15 minutes. The pull request on GitHub says which check is running.' : 'Checked for contrast and tests, then added to the library on its own. No second review: it was approved in Figma.',
+          r.ship?.timedOut ? 'Still on its way after 15 minutes. Open it on GitHub to see which check is still running.' : 'Checked for contrast and tests, then added to the library on its own. No second review: it was approved in Figma.',
           g.shipped.map((i) => {
             const s = statuses.get(i.number);
             return row(i, shipStateLabel(s), !s?.final);

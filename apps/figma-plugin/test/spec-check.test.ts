@@ -9,7 +9,7 @@ import { applyPullPlan } from '../src/main/apply';
 import { applyComponentPlan, scanGenerated } from '../src/main/build-components';
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
-import { buildComponentPlan, loadComponentSpecs, writablePlan } from '../src/sync/component-pull';
+import { buildComponentPlan, loadComponentSpecs, specSource, writablePlan } from '../src/sync/component-pull';
 import { checkComponentSpecs } from '../src/sync/spec-check';
 import { analyze, buildPull } from '../src/sync/flows';
 import { FakeGitHub } from './fake-github';
@@ -125,6 +125,15 @@ test('pull with broken entries: every readable component builds in Figma, the pl
   assert.ok(names.includes('Bouton 日本語 ✨ «primaire»'));
   const again = buildComponentPlan(loaded.specs, loaded.path, await scanGenerated(), a.head);
   assert.deepEqual(again.components.filter((c) => c.status !== 'unchanged').map((c) => c.name), []);
+});
+
+test('the spec source is static by default and reads what loadComponentSpecs reads', async () => {
+  const client = repo(MAIN);
+  new SimFigma().install();
+  const a = await analyze(client, DEFAULT_SETTINGS, {}, await takeSnapshot());
+  const source = specSource();
+  assert.equal(source.kind, 'static');
+  assert.deepEqual(await source.load(client, a.headFiles.treeSha, a.headFiles.config), await loadComponentSpecs(client, a.headFiles.treeSha, a.headFiles.config));
 });
 
 test('bridge.config.json with components.specs of the wrong type: a readable error, not a crash', async () => {

@@ -97,7 +97,7 @@ export async function analyze(
       compare = await client.compare(baseSha, headSha).catch(() => undefined);
     } catch (err) {
       if (!(err instanceof GitHubError && (err.status === 404 || err.status === 422))) throw err;
-      warnings.push(`The commit this file was last pulled from (${baseSha.slice(0, 7)}) is gone from GitHub. Every difference is treated as a conflict until the next pull.`);
+      warnings.push(`The library version this file was last pulled from (${baseSha.slice(0, 7)}) is gone from GitHub. Every difference is treated as a conflict until the next pull.`);
     }
   }
 
