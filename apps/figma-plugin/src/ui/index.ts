@@ -18,7 +18,7 @@ import { type ApplyReport, type FigmaSnapshot, type InitPayload, type RepoSettin
 import { REQUEST_KINDS, type RequestKind, draftPushDescription, pushChangeRows, shortVariant, shortVariants } from '@bridge-ds/core';
 import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classifyComponents, pullBaselines, suggestLine, suggestSummary, suggestTitle, toRequest } from '../sync/components';
 import { CLAUDE_MODELS, type ClaudeDraft, type ClaudeDraftInput, ClaudeDraftError, DRAFTED_NOTE, draftWithClaude } from '../sync/claude';
-import { loadCodedComponents, sendComponentRequest } from '../sync/requests';
+import { componentOfSet, loadCodedComponents, sendComponentRequest } from '../sync/requests';
 import { DRAFT_PHRASE, type DraftField, DraftPoller, MY_CLAUDE_NEEDS_WRITE, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, myClaudeAccess, planFill, startMyClaudeDrafts } from '../sync/my-claude';
 import { type ComponentApplyReport, type ComponentPullPlan, type CoverageView, type PlannedComponent, buildComponentPlan, componentReportView, coverageView, draftedSetNote, pushedInReview, pushedNumbers, specSource } from '../sync/component-pull';
 import { type FigmaPushStatus, figmaPushStatusesOnGitHub } from '@bridge-ds/core';
@@ -211,6 +211,8 @@ interface RequestForm {
   assist: AssistState;
   /** Where the request goes: '' for review (the default), or an exploration's branch the designer picked here. */
   target: string;
+  /** The designer chose the component: the selection no longer changes it (REQ-3). */
+  componentPicked?: boolean | undefined;
 }
 
 interface State {
@@ -260,6 +262,14 @@ onSelection((selection) => {
   if (el) el.textContent = attachHint();
   const box = document.getElementById('attach-box') as HTMLInputElement | null;
   if (box && state.push?.form?.key === 'manual') box.disabled = !selection;
+  // A manual request follows the selected component until the designer picks one (REQ-3).
+  const f = state.push?.form;
+  const picked = f && !f.item && !f.componentPicked ? componentOfSelection(state.push?.components?.coded ?? []) : undefined;
+  if (f && picked) {
+    f.draft.component = picked;
+    const select = document.querySelector<HTMLSelectElement>('[data-focus-id="req-component"]');
+    if (select) select.value = picked;
+  }
   refreshRequestAssist();
 });
 
@@ -1673,10 +1683,15 @@ function refreshRequestAssist(): void {
   }
 }
 
-function assistStatus(a: AssistState, t: AssistTarget): Child {
+/** Under the label line of a field with "Draft with Claude": why it is unavailable. Refreshed in place as the designer types. */
+function assistWhy(a: AssistState, t: AssistTarget): Child {
+  if (!t.empty) return null;
   const why = emptyWhy(a, t);
+  return h('small', { class: 'muted assist-why', id: `${t.id}-why`, hidden: !why }, why ?? '');
+}
+
+function assistStatus(a: AssistState, t: AssistTarget): Child {
   const parts = [
-    t.empty ? h('small', { class: 'muted', id: `${t.id}-why`, hidden: !why }, why ?? '') : null,
     mineView(a, t),
     offerView(a, t),
     a.message ? h('p', { class: a.message.kind === 'error' ? 'form-error' : 'assist-note', role: a.message.kind === 'error' ? 'alert' : 'status' }, a.message.kind === 'error' ? icon('alert') : icon('check'), a.message.text) : null,
@@ -1761,7 +1776,7 @@ function steps(items: [string, string][]): HTMLElement {
 /** "Measured: 18 of 72 variants matched a story (54 use component-specs.json)", for the pull's developer rows. */
 function measuredLine(m: MeasuredOverlayReport | undefined): string | undefined {
   if (!m) return undefined;
-  return `Measured: ${m.matched} of ${m.variants} variants matched a story${m.unmatched ? ` (${m.unmatched} use component-specs.json)` : ''}, ${m.fields} values from the measure${m.keptTokens ? `, ${m.keptTokens} tokens kept (same value measured)` : ''}${m.literals ? `, ${m.literals} values no token gives` : ''}`;
+  return `Measured: ${m.matched} of ${m.variants} variants matched a story${m.unmatched ? ` (${m.unmatched} use component-specs.json)` : ''}, ${m.fields} values from the measure${m.keptTokens ? `, ${m.keptTokens} tokens kept (same value measured)` : ''}${m.literals ? `, ${m.literals} values no token gives` : ''}${m.conflicts ? `, ${m.conflicts} tokens that disagree (kept, to check)` : ''}`;
 }
 
 function forDevelopers(rows: [string, string | undefined][]): Child {
@@ -2301,17 +2316,23 @@ function attachHint(): string {
   return sel ? `Attaches ${sel.name}.` : 'Select a layer in Figma to attach it.';
 }
 
+/** The coded component of the selected set Bridge built, for a manual request (REQ-3). */
+const componentOfSelection = (coded: readonly string[]) => (state.selection?.generated ? componentOfSet(state.selection.generated.componentId, coded) : undefined);
+
 function openForm(r: PushState, item: ComponentChangeItem | undefined): void {
   if (r.form) cancelMine(r.form.assist, false);
   const coded = r.components?.coded ?? [];
   const draft: RequestDraft = item
     ? { component: item.component, kind: item.kind, title: titleOf(r, item), summary: suggestSummary(item), line: lineOf(r, item), changes: item.changes, nodeId: item.nodeId, nodeName: item.figmaName }
-    : { component: coded[0] ?? '', kind: 'visual', title: '', summary: '', changes: [], nodeId: state.selection?.nodeId, nodeName: state.selection?.name };
+    : { component: componentOfSelection(coded) ?? coded[0] ?? '', kind: 'visual', title: '', summary: '', changes: [], nodeId: state.selection?.nodeId, nodeName: state.selection?.name };
   r.form = { key: item?.nodeId ?? 'manual', item, draft, attach: item ? true : !!state.selection, titleSource: item && claudeTitle(r, item) ? 'claude' : 'draft', summarySource: 'draft', assist: {}, target: '' };
   // "Where it goes" lists the running explorations: load them even when nothing was sent to one yet.
   if (modeOf(r) !== 'suggest' && !r.explorations && !r.loadingExplorations) void loadExplorations(r);
   void request('selection', {}).then((sel) => {
     state.selection = sel;
+    const f = r.form;
+    const picked = f && !f.item && !f.componentPicked ? componentOfSelection(coded) : undefined;
+    if (f && picked) f.draft.component = picked;
     render();
   });
   render();
@@ -2524,7 +2545,13 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
           coded.length
             ? h(
                 'select',
-                { 'data-focus-id': 'req-component', onChange: (e: Event) => (d.component = (e.target as HTMLSelectElement).value) },
+                {
+                  'data-focus-id': 'req-component',
+                  onChange: (e: Event) => {
+                    d.component = (e.target as HTMLSelectElement).value;
+                    f.componentPicked = true;
+                  },
+                },
                 coded.map((c) => h('option', { value: c, selected: c === d.component }, c)),
               )
             : h('input', { type: 'text', value: d.component, placeholder: 'Button', onInput: (e: Event) => (d.component = (e.target as HTMLInputElement).value) }),
@@ -2546,6 +2573,8 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
       { class: 'field' },
       // "Draft with Claude" fills the title and the summary: it sits on the label line of the first of the two.
       fieldHead('req-title', 'Title', assistAction(f.assist, requestAssist(f))),
+      // Why the drafting help is unavailable, right under it (ASSIST-7), not under the summary.
+      assistWhy(f.assist, requestAssist(f)),
       h('input', {
         type: 'text',
         id: 'req-title',

@@ -45,11 +45,19 @@ test('a measured story gives its values to the variant its props name; the other
   assert.deepEqual(variantOf(out, { Variant: 'secondary', Size: 'md', State: 'Default' }), variantOf(specs, { Variant: 'secondary', Size: 'md', State: 'Default' }));
 });
 
-test('where the measure reads another token, it wins', () => {
+test('another token replaces the static one only when both resolve to the same value in the page', () => {
+  // In real Figma, token swaps of another value came from parts paired with the wrong element (a menu item read as its
+  // trigger button) and lost on fidelity: kept, and counted as conflicts to check.
   const m = measured();
   m.stories[0]!.spec!.values.root!.fill = 'button.secondary.bg';
-  const { specs } = overlayMeasured(parseComponentSpecs(specsText()), m);
-  assert.equal(variantOf(specs, PRIMARY_MD).values.root!.fill, 'button.secondary.bg');
+  const kept = overlayMeasured(parseComponentSpecs(specsText()), m);
+  assert.equal(variantOf(kept.specs, PRIMARY_MD).values.root!.fill, 'button.primary.bg');
+  assert.equal(kept.report.conflicts, 1);
+  // The same value under another name: the measure's name wins.
+  m.components![0]!.resolved = { ...m.components![0]!.resolved, 'button.primary.bg': 'rgb(11, 74, 139)', 'button.secondary.bg': 'rgb(11, 74, 139)' };
+  const taken = overlayMeasured(parseComponentSpecs(specsText()), m);
+  assert.equal(variantOf(taken.specs, PRIMARY_MD).values.root!.fill, 'button.secondary.bg');
+  assert.equal(taken.report.conflicts, 0);
 });
 
 test('a literal of another value never replaces the static token: kept, and counted to check', () => {
@@ -87,9 +95,8 @@ test('a story titled by the set wins over the folder title several sets share', 
   m.stories = [radio];
   const { specs: out, report } = overlayMeasured(specs, m);
   assert.equal(report.matched, 1);
-  const radioSet = out.components.find((c) => c.name === 'Radio')!;
-  const checked = radioSet.variants.find((v) => v.props.Checked === 'true' && v.props.State === 'Default')!;
-  assert.notDeepEqual(checked, parseComponentSpecs(specsText()).components.find((c) => c.name === 'Radio')!.variants.find((v) => v.props.Checked === 'true' && v.props.State === 'Default'));
+  // The Radio variant was compared with the measure (its values taken, or kept as conflicts to check).
+  assert.ok(report.fields + report.conflicts + report.keptTokens + report.literals > 0);
   // The same story under the folder title (Forms/RadioGroup) is not taken for the RadioGroup set: its axes differ.
   assert.equal(out.components.find((c) => c.name === 'RadioGroup')!.variants.every((v, i) => v === specs.components.find((c) => c.name === 'RadioGroup')!.variants[i]), true);
 });
@@ -151,3 +158,47 @@ test('the setting: static stores nothing, measured round-trips, and turning it o
   saveSettings(root, { ...base, specSource: 'static' });
   assert.equal(sharedSettings(root).specSource, undefined);
 });
+
+// Replay of the real-Figma comparison of 2026-10-24 (code images 16a59f27, test/measured-compare): Check fidelity on
+// two files pulled with static and measured specs. The measured file got worse on 7 sets, through parts paired with
+// the wrong element (a menu item read as its trigger button, hover on every tab). The fixture holds the measure of the
+// components behind those sets, with the token values of the measured page.
+const fixture = (name: string) => readFileSync(join(process.cwd(), 'test/fixtures', name), 'utf8');
+type FidelityRow = { component: string; status: string; checked: number; differing: number };
+const fidelity = (name: string) => (JSON.parse(fixture(`fidelity-${name}.json`)) as { components: FidelityRow[] }).components;
+
+test('replay of the real-Figma comparison: on the sets measured made worse, no token becomes another value', () => {
+  const stat = new Map(fidelity('static').map((c) => [c.component, c]));
+  const worse = (rows: FidelityRow[]) => rows.filter((c) => c.differing > stat.get(c.component)!.differing).map((c) => c.component).sort();
+  assert.deepEqual(worse(fidelity('measured-v2')), ['Breadcrumb', 'Card', 'MenuCheckboxItem', 'MenuItem', 'MenuSubmenu', 'NumberField', 'Tabs']);
+  assert.equal(worse(fidelity('measured')).length, 11, 'with literals over tokens (the first run) it was 11');
+  assert.equal(fidelity('measured-v2').filter((c) => c.differing < stat.get(c.component)!.differing).length, 0, 'better on none');
+
+  const m = parseMeasuredSpecs(fixture('measured-worse-sets.json'));
+  const specs = parseComponentSpecs(specsText());
+  const { specs: out, report } = overlayMeasured(specs, m);
+  const resolved: Record<string, string> = Object.assign({}, ...(m.components ?? []).map((c) => c.resolved ?? {}));
+  const value = (v: unknown) => (typeof v === 'string' ? resolved[v] : undefined);
+  let swaps = 0;
+  for (const name of worse(fidelity('measured-v2'))) {
+    const before = specs.components.find((c) => c.name === name)!;
+    const after = out.components.find((c) => c.name === name)!;
+    before.variants.forEach((v, i) => {
+      for (const [part, fields] of Object.entries(v.values))
+        for (const [field, was] of Object.entries(fields)) {
+          const now = (after.variants[i]!.values[part] as Record<string, unknown>)[field];
+          if (typeof was !== 'string' || now === was) continue;
+          const where = `${name} ${JSON.stringify(v.props)} ${part}.${field}: ${was} -> ${JSON.stringify(now)}`;
+          assert.equal(typeof now, 'string', `a token never becomes a literal: ${where}`);
+          assert.ok(value(was) !== undefined && value(was) === value(now), `only a token of the same value: ${where}`);
+          swaps++;
+        }
+    });
+  }
+  // The menu items' trigger-button tokens (button.radius, control.padding-x.md...) are conflicts, kept static.
+  const item = out.components.find((c) => c.name === 'MenuItem')!.variants[0]!;
+  assert.equal(item.values.root!.cornerRadius, specs.components.find((c) => c.name === 'MenuItem')!.variants[0]!.values.root!.cornerRadius);
+  assert.ok(report.conflicts > 0, 'the wrong pairings are counted to check');
+  assert.ok(swaps < report.conflicts, 'most measured swaps on these sets were wrong pairings');
+});
+

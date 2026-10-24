@@ -1,0 +1,382 @@
+{
+ "file": "Bridge test: measured specs",
+ "checkedAt": "2026-10-24T14:45:30.764Z",
+ "reference": {
+  "sha": "16a59f27e02f3365ac57cd9fa2a2035d3e47d8dc",
+  "createdAt": "2026-10-24T13:32:01.801Z"
+ },
+ "components": [
+  {
+   "component": "Accordion",
+   "status": "matches",
+   "checked": 6,
+   "differing": 0
+  },
+  {
+   "component": "AccordionItem",
+   "status": "differs",
+   "checked": 2,
+   "differing": 2
+  },
+  {
+   "component": "Alert",
+   "status": "matches",
+   "checked": 5,
+   "differing": 0
+  },
+  {
+   "component": "AlertDialog/Popup",
+   "status": "not-checked",
+   "checked": 0,
+   "differing": 0
+  },
+  {
+   "component": "Avatar",
+   "status": "differs",
+   "checked": 16,
+   "differing": 6
+  },
+  {
+   "component": "Badge",
+   "status": "differs",
+   "checked": 20,
+   "differing": 2
+  },
+  {
+   "component": "Banner",
+   "status": "matches",
+   "checked": 2,
+   "differing": 0
+  },
+  {
+   "component": "Breadcrumb",
+   "status": "differs",
+   "checked": 2,
+   "differing": 2
+  },
+  {
+   "component": "Button",
+   "status": "differs",
+   "checked": 72,
+   "differing": 12
+  },
+  {
+   "component": "Card",
+   "status": "differs",
+   "checked": 2,
+   "differing": 2
+  },
+  {
+   "component": "Checkbox",
+   "status": "differs",
+   "checked": 9,
+   "differing": 6
+  },
+  {
+   "component": "CheckboxGroup",
+   "status": "differs",
+   "checked": 6,
+   "differing": 6
+  },
+  {
+   "component": "Checklist",
+   "status": "matches",
+   "checked": 1,
+   "differing": 0
+  },
+  {
+   "component": "ChoiceCard",
+   "status": "differs",
+   "checked": 6,
+   "differing": 2
+  },
+  {
+   "component": "CodeBlock",
+   "status": "differs",
+   "checked": 3,
+   "differing": 3
+  },
+  {
+   "component": "Combobox",
+   "status": "matches",
+   "checked": 9,
+   "differing": 0
+  },
+  {
+   "component": "Combobox/Popup",
+   "status": "differs",
+   "checked": 1,
+   "differing": 1
+  },
+  {
+   "component": "Dialog/Popup",
+   "status": "differs",
+   "checked": 3,
+   "differing": 3
+  },
+  {
+   "component": "Divider",
+   "status": "matches",
+   "checked": 2,
+   "differing": 0
+  },
+  {
+   "component": "Drawer/Popup",
+   "status": "not-checked",
+   "checked": 0,
+   "differing": 0
+  },
+  {
+   "component": "EmptyState",
+   "status": "matches",
+   "checked": 6,
+   "differing": 0
+  },
+  {
+   "component": "Field",
+   "status": "matches",
+   "checked": 3,
+   "differing": 0
+  },
+  {
+   "component": "Form",
+   "status": "differs",
+   "checked": 3,
+   "differing": 3
+  },
+  {
+   "component": "IconButton",
+   "status": "matches",
+   "checked": 60,
+   "differing": 0
+  },
+  {
+   "component": "Input",
+   "status": "matches",
+   "checked": 9,
+   "differing": 0
+  },
+  {
+   "component": "Kbd",
+   "status": "differs",
+   "checked": 2,
+   "differing": 2
+  },
+  {
+   "component": "Link",
+   "status": "differs",
+   "checked": 6,
+   "differing": 6
+  },
+  {
+   "component": "Menu/Popup",
+   "status": "not-checked",
+   "checked": 0,
+   "differing": 0
+  },
+  {
+   "component": "MenuItem",
+   "status": "differs",
+   "checked": 4,
+   "differing": 1
+  },
+  {
+   "component": "MenuCheckboxItem",
+   "status": "differs",
+   "checked": 4,
+   "differing": 1
+  },
+  {
+   "component": "MenuRadioGroup",
+   "status": "differs",
+   "checked": 2,
+   "differing": 2
+  },
+  {
+   "component": "MenuRadioItem",
+   "status": "matches",
+   "checked": 4,
+   "differing": 0
+  },
+  {
+   "component": "MenuGroup",
+   "status": "differs",
+   "checked": 1,
+   "differing": 1
+  },
+  {
+   "component": "MenuSeparator",
+   "status": "matches",
+   "checked": 1,
+   "differing": 0
+  },
+  {
+   "component": "MenuSubmenu",
+   "status": "differs",
+   "checked": 2,
+   "differing": 1
+  },
+  {
+   "component": "NumberField",
+   "status": "differs",
+   "checked": 12,
+   "differing": 8
+  },
+  {
+   "component": "PageHeader",
+   "status": "matches",
+   "checked": 1,
+   "differing": 0
+  },
+  {
+   "component": "Pagination/Full",
+   "status": "differs",
+   "checked": 6,
+   "differing": 6
+  },
+  {
+   "component": "Pagination/Compact",
+   "status": "matches",
+   "checked": 6,
+   "differing": 0
+  },
+  {
+   "component": "Popover/Popup",
+   "status": "not-checked",
+   "checked": 0,
+   "differing": 0
+  },
+  {
+   "component": "Progress/Linear",
+   "status": "matches",
+   "checked": 12,
+   "differing": 0
+  },
+  {
+   "component": "Progress/Circular",
+   "status": "matches",
+   "checked": 12,
+   "differing": 0
+  },
+  {
+   "component": "RadioGroup",
+   "status": "differs",
+   "checked": 6,
+   "differing": 6
+  },
+  {
+   "component": "Radio",
+   "status": "differs",
+   "checked": 6,
+   "differing": 4
+  },
+  {
+   "component": "SegmentedControl",
+   "status": "differs",
+   "checked": 16,
+   "differing": 10
+  },
+  {
+   "component": "Select",
+   "status": "differs",
+   "checked": 9,
+   "differing": 2
+  },
+  {
+   "component": "Select/Popup",
+   "status": "differs",
+   "checked": 1,
+   "differing": 1
+  },
+  {
+   "component": "SidebarNav",
+   "status": "matches",
+   "checked": 3,
+   "differing": 0
+  },
+  {
+   "component": "SidebarNavSection",
+   "status": "matches",
+   "checked": 3,
+   "differing": 0
+  },
+  {
+   "component": "SidebarNavItem",
+   "status": "differs",
+   "checked": 3,
+   "differing": 1
+  },
+  {
+   "component": "Skeleton",
+   "status": "matches",
+   "checked": 3,
+   "differing": 0
+  },
+  {
+   "component": "Slider",
+   "status": "matches",
+   "checked": 2,
+   "differing": 0
+  },
+  {
+   "component": "Spinner",
+   "status": "differs",
+   "checked": 8,
+   "differing": 8
+  },
+  {
+   "component": "Switch",
+   "status": "differs",
+   "checked": 24,
+   "differing": 10
+  },
+  {
+   "component": "Table",
+   "status": "differs",
+   "checked": 2,
+   "differing": 2
+  },
+  {
+   "component": "TableEmpty",
+   "status": "differs",
+   "checked": 1,
+   "differing": 1
+  },
+  {
+   "component": "Tabs",
+   "status": "differs",
+   "checked": 16,
+   "differing": 16
+  },
+  {
+   "component": "Tag",
+   "status": "matches",
+   "checked": 8,
+   "differing": 0
+  },
+  {
+   "component": "Textarea",
+   "status": "differs",
+   "checked": 6,
+   "differing": 3
+  },
+  {
+   "component": "Toast",
+   "status": "matches",
+   "checked": 6,
+   "differing": 0
+  },
+  {
+   "component": "TokenValue",
+   "status": "differs",
+   "checked": 2,
+   "differing": 2
+  },
+  {
+   "component": "Tooltip/Popup",
+   "status": "not-checked",
+   "checked": 0,
+   "differing": 0
+  }
+ ]
+}

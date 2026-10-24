@@ -32,6 +32,11 @@ export interface MeasuredOverlayReport {
   keptTokens: number;
   /** Static tokens kept where the measure read a literal of another value: to check, never drawn as a number. */
   literals: number;
+  /**
+   * Static tokens kept where the measure read another token of another value in the page: to check. In real Figma such
+   * swaps came from parts paired with the wrong element (a menu item read as its trigger button) and lost on fidelity.
+   */
+  conflicts: number;
 }
 
 export function parseMeasuredSpecs(text: string): MeasuredSpecsFile {
@@ -93,15 +98,27 @@ function sameValue(resolved: string | undefined, measured: SpecValue): boolean {
   return resolved.replace(/\s+/g, '').toLowerCase() === String(measured).replace(/\s+/g, '').toLowerCase();
 }
 
+/** Two token paths resolve to the same value in the measured page. Unknown values never agree. */
+function sameResolved(resolved: Record<string, string>, a: string, b: string): boolean {
+  const ra = resolved[a];
+  const rb = resolved[b];
+  if (ra === undefined || rb === undefined) return false;
+  const na = px(ra);
+  const nb = px(rb);
+  if (na !== undefined && nb !== undefined) return Math.abs(na - nb) <= 0.5;
+  return ra.replace(/\s+/g, '').toLowerCase() === rb.replace(/\s+/g, '').toLowerCase();
+}
+
 /**
  * The static specs with measured values laid on: for each variant a story matches (same component, same props, state
  * and overrides), each field the static spec has on a part the measure also drew (core pairParts) takes the measured
  * value. Fields only the measure has (a hugging width it read in px) are left out: the structure stays static. A static
  * token is never replaced by a literal: the same value (components[].resolved) is counted as kept, another value as a
- * literal to check (a line height in px, a size the layout computed, a part paired with the wrong element).
+ * literal to check (a line height in px, a size the layout computed, a part paired with the wrong element). Nor by
+ * another token, unless both resolve to the same value in the page: another value is a conflict to check.
  */
 export function overlayMeasured(specs: ComponentSpecsFile, measured: MeasuredSpecsFile): { specs: ComponentSpecsFile; report: MeasuredOverlayReport } {
-  const report: MeasuredOverlayReport = { variants: 0, matched: 0, unmatched: 0, fields: 0, keptTokens: 0, literals: 0 };
+  const report: MeasuredOverlayReport = { variants: 0, matched: 0, unmatched: 0, fields: 0, keptTokens: 0, literals: 0, conflicts: 0 };
   const stories = measured.stories.filter((s) => s.spec && !s.error);
   const resolvedOf = new Map((measured.components ?? []).map((c) => [norm(c.title), c.resolved ?? {}]));
   const components = specs.components.map((spec) => {
@@ -137,6 +154,12 @@ export function overlayMeasured(specs: ComponentSpecsFile, measured: MeasuredSpe
           if (typeof before === 'string' && value !== null && typeof value !== 'string') {
             if (sameValue(resolved[before], value)) report.keptTokens++;
             else report.literals++;
+            continue;
+          }
+          // Another token: taken only when both resolve to the same value in the measured page (a better name for the
+          // same look). Another value is a conflict to check, never drawn.
+          if (typeof before === 'string' && typeof value === 'string' && !sameResolved(resolved, before, value)) {
+            report.conflicts++;
             continue;
           }
           next[field] = value;

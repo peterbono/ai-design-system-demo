@@ -18,7 +18,7 @@ import {
   suggestTitle,
   toRequest,
 } from '../src/sync/components';
-import { loadCodedComponents, sendComponentRequest } from '../src/sync/requests';
+import { componentOfSet, loadCodedComponents, sendComponentRequest } from '../src/sync/requests';
 import { rebindsOf } from '../src/sync/component-push';
 import { FakeGitHub } from './fake-github';
 
@@ -289,6 +289,16 @@ test('send with what code draws now: a build request with the code image before 
   // No export attached: nothing to put it next to, a plain request.
   await sendComponentRequest(client, { request: req, before: [code], baseBranch: 'main' });
   assert.equal(gh.issues[1]!.labels.includes(BUILD_REQUEST_LABEL), false);
+});
+
+test('a manual request takes the component of the selected set (REQ-3)', () => {
+  const coded = ['Button', 'Menu', 'Progress', 'RadioGroup', 'Tag'];
+  assert.equal(componentOfSet('Tag', coded), 'Tag');
+  assert.equal(componentOfSet('Menu/Popup', coded), 'Menu');
+  assert.equal(componentOfSet('MenuItem', coded), 'Menu');
+  assert.equal(componentOfSet('Progress/Circular', coded), 'Progress');
+  assert.equal(componentOfSet('Radio', coded), 'RadioGroup');
+  assert.equal(componentOfSet('Sparkline', coded), undefined);
 });
 
 // ---------------------------------------------------------------------------------------------

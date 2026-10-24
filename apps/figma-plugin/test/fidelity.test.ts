@@ -106,6 +106,8 @@ function deps(sets: FidelityDeps['sets'], manifest: FigmaReferenceManifest | und
 test('sets built from measured values keep the code version the code images record, so fidelity compares them', async () => {
   const measured = parseMeasuredSpecs(readFileSync(join(process.cwd(), 'test/fixtures/measured-specs.json'), 'utf8'));
   measured.stories[0]!.spec!.values.root!.fill = 'button.secondary.bg';
+  // Same value in the page, so the overlay takes the measured name (another value would be kept as a conflict).
+  measured.components![0]!.resolved = { ...measured.components![0]!.resolved, 'button.primary.bg': 'rgb(11, 74, 139)', 'button.secondary.bg': 'rgb(11, 74, 139)' };
   const { sets } = await fileWithSets((specs) => overlayMeasured(specs, measured).specs);
   const manifest = manifestFor(() => [10, 10]);
   const button = sets.find((s) => s.componentId === 'Button')!;

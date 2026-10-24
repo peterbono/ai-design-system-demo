@@ -209,6 +209,9 @@ label.field > span, .field-head > label { font-weight: 500; }
 /* A field label and the action that fills the field share one line (proximity): label left, action right. */
 .field-head { position: relative; display: flex; align-items: center; justify-content: space-between; gap: var(--s2); min-height: 28px; }
 .field-head > label { cursor: default; }
+/* Why "Draft with Claude" is unavailable: under the action it explains, aligned with it. */
+.assist-why { display: block; text-align: right; margin-top: calc(-1 * var(--s1)); }
+.assist-why[hidden] { display: none; }
 .assist-action { position: relative; margin-right: calc(-1 * var(--s2)); }
 input[type="text"], input[type="password"], textarea, select {
   border: 1px solid var(--border); border-radius: var(--r-md); padding: 6px var(--s2); background: var(--bg); width: 100%; min-height: 28px;
