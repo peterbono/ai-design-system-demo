@@ -15,6 +15,9 @@
 
 import {
   type ComponentSpec,
+  type FigmaHints,
+  type FixedComponent,
+  type FixedMeasuredSpecsFile,
   type ComponentSpecsFile,
   type MeasuredArgType,
   type MeasuredSpec,
@@ -102,7 +105,17 @@ function valuesOf(spec: MeasuredSpec, partId: string, hasChildren: boolean, know
 }
 
 /** One Figma set from the stories of one component, or undefined when none stands for a variant. */
-function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<string, MeasuredArgType>, source: string, known: (path: string) => boolean): { spec: ComponentSpec; shots: Record<string, VariantShot> } | undefined {
+function setOf(
+  name: string,
+  stories: MeasuredSpecsStory[],
+  argTypes: Record<string, MeasuredArgType>,
+  source: string,
+  known: (path: string) => boolean,
+  hints: FigmaHints = {},
+): { spec: ComponentSpec; shots: Record<string, VariantShot> } | undefined {
+  // figma-fixes.json names an arg's Figma property and values ("kind" -> "Variant", "danger--ghost" -> "Danger ghost").
+  const propName = (prop: string) => hints.properties?.[prop] ?? axisName(prop);
+  const figmaValue = (prop: string, value: string) => hints.values?.[prop]?.[value] ?? value;
   // Only stories as written or measured for a variant: their other booleans at the component's defaults.
   // Other booleans compare with the component's Default story, not Storybook's defaults: a design system's stories can
   // all set one (Carbon IconButton: defaultOpen, highContrast), and that is then how the component is shown.
@@ -126,7 +139,7 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
   const axes: SpecAxis[] = [];
   for (const [prop, a] of flags) {
     const def = String(baseline(prop, a) === true);
-    axes.push({ name: axisName(prop), prop, values: [def, def === 'true' ? 'false' : 'true'], default: def });
+    axes.push({ name: propName(prop), prop, values: [figmaValue(prop, def), figmaValue(prop, def === 'true' ? 'false' : 'true')], default: figmaValue(prop, def) });
   }
   for (const [prop, a] of Object.entries(argTypes)) {
     if (a.kind !== 'enum' || NOT_AN_AXIS.test(prop) || !a.options || a.options.length < 2 || a.options.length > 12) continue;
@@ -134,7 +147,7 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
     const values = a.options.filter((o) => seen.has(o));
     if (values.length < 2) continue;
     const def = a.default !== undefined && values.includes(String(a.default)) ? String(a.default) : values[0]!;
-    axes.push({ name: axisName(prop), prop, values, default: def });
+    axes.push({ name: propName(prop), prop, values: [...new Set(values.map((v) => figmaValue(prop, v)))], default: figmaValue(prop, def) });
   }
   if ('checked' in argTypes || plain.some((s) => 'checked' in propsOf(s))) {
     const values = ['false', 'true', 'mixed'].filter((v) => plain.some((s) => checkedOf(s) === v));
@@ -149,7 +162,15 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
     for (const axis of axes) {
       const flag = flags.find(([k]) => k === axis.prop);
       const value =
-        axis.name === 'State' ? STATES.find((st) => st.of(s))?.value : axis.name === 'Checked' ? checkedOf(s) : flag ? String(valueOf(s, flag[0], flag[1])) : String(propsOf(s)[axis.prop!] ?? axis.default);
+        axis.name === 'State'
+          ? STATES.find((st) => st.of(s))?.value
+          : axis.name === 'Checked'
+            ? checkedOf(s)
+            : flag
+              ? figmaValue(flag[0], String(valueOf(s, flag[0], flag[1])))
+              : propsOf(s)[axis.prop!] === undefined
+                ? axis.default
+                : figmaValue(axis.prop!, String(propsOf(s)[axis.prop!]));
       if (value === undefined || !axis.values.includes(value)) return undefined;
       props[axis.name] = value;
     }
@@ -338,7 +359,10 @@ function drawnAxes(axes: SpecAxis[], variants: SpecVariant[]): { axes: SpecAxis[
 }
 
 /** Every set the measure can give, by component (the last segment of a story's title: "Figma variants/Radio" is Radio). */
-export function specsFromMeasure(file: MeasuredSpecsFile, opts: { known?: ((path: string) => boolean) | undefined } = {}): { specs: ComponentSpecsFile; report: MeasuredOnlyReport; shots: MeasuredShots } {
+export function specsFromMeasure(
+  file: MeasuredSpecsFile | FixedMeasuredSpecsFile,
+  opts: { known?: ((path: string) => boolean) | undefined } = {},
+): { specs: ComponentSpecsFile; report: MeasuredOnlyReport; shots: MeasuredShots; hints: Record<string, FigmaHints> } {
   const known = opts.known ?? (() => true);
   const groups = new Map<string, MeasuredSpecsStory[]>();
   for (const s of file.stories) {
@@ -347,11 +371,14 @@ export function specsFromMeasure(file: MeasuredSpecsFile, opts: { known?: ((path
     groups.set(name, [...(groups.get(name) ?? []), s]);
   }
   const argTypesOf = (name: string) => Object.assign({}, ...(file.components ?? []).filter((c) => setNameOf(c.title) === name).map((c) => c.argTypes));
+  // What figma-fixes.json says about a set (applyFixes): its property names and values, its status and notes.
+  const hints: Record<string, FigmaHints> = {};
+  for (const c of (file.components ?? []) as FixedComponent[]) if (c.figma) hints[setNameOf(c.title)] = { ...hints[setNameOf(c.title)], ...c.figma };
   const components: ComponentSpec[] = [];
   const shots: MeasuredShots = {};
   const report: MeasuredOnlyReport = { sets: 0, variants: 0, stories: 0, skipped: [] };
   for (const [name, stories] of [...groups].sort(([a], [b]) => a.localeCompare(b))) {
-    const built = setOf(name, stories, argTypesOf(name), file.storybook, known);
+    const built = setOf(name, stories, argTypesOf(name), file.storybook, known, hints[name]);
     if (!built) {
       report.skipped.push(name);
       continue;
@@ -363,5 +390,5 @@ export function specsFromMeasure(file: MeasuredSpecsFile, opts: { known?: ((path
     report.variants += spec.variants.length;
     report.stories += stories.length;
   }
-  return { specs: { version: 1, generated: `Measured from ${file.storybook} on ${file.measuredAt} (bridge specs --measure).`, components }, report, shots };
+  return { specs: { version: 1, generated: `Measured from ${file.storybook} on ${file.measuredAt} (bridge specs --measure).`, components }, report, shots, hints };
 }

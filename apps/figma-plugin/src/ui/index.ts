@@ -7,7 +7,7 @@ import type { ConflictChoice, DiffEntry } from '@bridge-ds/core';
 import { type Analysis, type PullProposal, type PushBrand, type PushProposal, analyze, buildPull, buildPush, changesModeOf, commitsBehind, pullCollections, pullHeadline } from '../sync/flows';
 import { type ChangesMode, GitHubClient, type PullRequest, changesMode, loadConfig, parseRepo } from '@bridge-ds/core';
 import type { RenameSuggestion } from '@bridge-ds/core';
-import { affectedContrast, defaultTitle } from '@bridge-ds/core';
+import { type GapCase, type MeasuredSpecsFile, affectedContrast, buildGapCase, defaultTitle } from '@bridge-ds/core';
 import { type PathIndex, type ResolveContext, resolve } from '@bridge-ds/core';
 import { contextFor, modesOf } from '@bridge-ds/core';
 import { type LogicalToken, SINGLE_MODE } from '@bridge-ds/core';
@@ -71,6 +71,11 @@ interface PullState {
   measuredOnly?: MeasuredOnlyReport | undefined;
   /** Measured only with screenshots: Check fidelity compares with the stories' renders (LoadedSpecs.shots). */
   shots?: LoadedSpecs['shots'];
+  /** Measured only: figma-fixes.json laid on the measure (LoadedSpecs.fixes), and the measure the sets came from. */
+  fixes?: LoadedSpecs['fixes'];
+  measure?: LoadedSpecs['measure'];
+  /** The specs the pull drew, for the gap cases after Check fidelity. */
+  specs?: LoadedSpecs['specs'] | undefined;
   /** Also build the sets code added ("Include components" in the footer): on by default on a first pull. Updates are always offered. */
   includeComponents: boolean;
   componentsReport?: ComponentApplyReport | undefined;
@@ -85,7 +90,8 @@ interface PullState {
   inReview: { name: string; number: number; url: string; status: FigmaPushStatus }[];
   /** "Check fidelity": running (with its progress line), its outcome, or why it failed. Nothing is written. */
   /** `copied`: the report JSON was copied for a developer ("Copy the report"). */
-  fidelity?: { running?: string | undefined; outcome?: FidelityOutcome | undefined; error?: string | undefined; copied?: boolean | undefined } | undefined;
+  /** `gaps`: per set that differs, what the code draws that Figma does not (measured only), for Claude or a developer. */
+  fidelity?: { running?: string | undefined; outcome?: FidelityOutcome | undefined; error?: string | undefined; copied?: boolean | undefined; gaps?: GapCase[] | undefined; gapsCopied?: boolean | undefined } | undefined;
 }
 
 /** Thumbnail width in the review, CSS pixels (two side by side in the 480px plugin). */
@@ -385,6 +391,13 @@ const when = (iso: string) => {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
 };
 const plural = (n: number, word: string, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
+/** figma-fixes.json in the pull's For developers: what each fix did, or why the file was not used. */
+const fixesRows = (fixes: LoadedSpecs['fixes']): [string, string | undefined][] =>
+  !fixes
+    ? []
+    : fixes.problems?.length
+      ? [['figma-fixes.json', `Not used, fix it in the repo: ${fixes.problems.join('; ')}`]]
+      : [['figma-fixes.json', fixes.lines.length ? fixes.lines.join('\n') : 'No fix']];
 const andList = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : (xs[0] ?? ''));
 const modeLabel = (mode: string) => (mode === SINGLE_MODE ? 'Value' : modeDisplayName(mode));
 
@@ -660,12 +673,18 @@ async function loadPull(prev?: PullState): Promise<PullState> {
   let measured: MeasuredOverlayReport | undefined;
   let measuredOnly: MeasuredOnlyReport | undefined;
   let shots: LoadedSpecs['shots'];
+  let fixes: LoadedSpecs['fixes'];
+  let measure: LoadedSpecs['measure'];
+  let specs: LoadedSpecs['specs'] | undefined;
   const before: Record<string, string> = { ...(prev?.before ?? {}) };
   try {
     const loaded = await specSource(state.init!.settings.specSource).load(getClient(), analysis.headFiles.treeSha, analysis.headFiles.config, analysis.head);
     measured = loaded?.measured;
     measuredOnly = loaded?.measuredOnly;
     shots = loaded?.shots;
+    fixes = loaded?.fixes;
+    measure = loaded?.measure;
+    specs = loaded?.specs;
     if (loaded) {
       const generated = await request('scan-generated', {});
       // Sets pushed from Figma: where their library branch stands decides whether the pull rebuilds them from code.
@@ -700,6 +719,9 @@ async function loadPull(prev?: PullState): Promise<PullState> {
     ...(measured ? { measured } : {}),
     ...(measuredOnly ? { measuredOnly } : {}),
     ...(shots ? { shots } : {}),
+    ...(fixes ? { fixes } : {}),
+    ...(measure ? { measure } : {}),
+    ...(specs ? { specs } : {}),
     before,
     after: prev?.after ?? {},
     done: prev?.done ?? new Map(),
@@ -1927,7 +1949,7 @@ function viewPull(): View {
       : [lastPulled, behind ? `${plural(behind, 'new change')} in the design system` : ''].filter(Boolean).join(' · ');
   const body: Child[] = [
     h('section', { class: 'zone' }, h('h2', { class: 'headline' }, headline), meta ? h('p', { class: 'muted' }, meta) : null),
-    forDevelopers([...repoRows(), ['Last pulled commit', short(a.baseSha)], ['Latest commit', short(a.headSha)], ['Spec source', p.measuredOnly ? `Measured only: ${p.measuredOnly.sets} sets, ${p.measuredOnly.variants} variants from ${p.measuredOnly.stories} stories` : measuredLine(p.measured)]]),
+    forDevelopers([...repoRows(), ['Last pulled commit', short(a.baseSha)], ['Latest commit', short(a.headSha)], ['Spec source', p.measuredOnly ? `Measured only: ${p.measuredOnly.sets} sets, ${p.measuredOnly.variants} variants from ${p.measuredOnly.stories} stories` : measuredLine(p.measured)], ...fixesRows(p.fixes)]),
   ];
 
   if (remote.length) {
@@ -2140,11 +2162,37 @@ async function checkFidelity(p: PullState): Promise<void> {
           }
         : {}),
     });
-    p.fidelity = { outcome };
+    p.fidelity = { outcome, ...(outcome.kind === 'done' && p.measure ? { gaps: await gapCases(p, outcome.items) } : {}) };
   } catch (err) {
     p.fidelity = { error: inlineError(err) ?? 'Could not compare with the code.' };
   }
   render();
+}
+
+/**
+ * The gap case of each set that differs (measured only): the variants, what the code draws that Figma does not and
+ * where, read from the built layers. A set whose layers cannot be read still gets one, from the values alone.
+ */
+async function gapCases(p: PullState, items: Extract<FidelityOutcome, { kind: 'done' }>['items']): Promise<GapCase[]> {
+  const out: GapCase[] = [];
+  for (const it of items) {
+    if (it.result.status !== 'differs' || !p.measure) continue;
+    const keys = it.result.variants.filter((v) => v.status === 'differs').map((v) => v.key);
+    const built = await request('read-built', { nodeId: it.nodeId, keys }).catch(() => undefined);
+    const shots = Object.fromEntries(Object.entries(p.shots?.manifest.components[it.name]?.variants ?? {}).flatMap(([k, e]) => ('file' in e ? [[k, { file: e.file }]] : [])));
+    out.push(
+      buildGapCase({
+        component: it.name,
+        measured: p.measure as MeasuredSpecsFile,
+        spec: p.specs?.components.find((c) => c.name === it.name),
+        fidelity: it.result,
+        shots,
+        ...(built ? { built } : {}),
+        figmaRenders: Object.fromEntries(keys.map((k) => [k, it.nodeId])),
+      }),
+    );
+  }
+  return out;
 }
 
 /** Figma, code and differences side by side for the variant that differs most. */
@@ -2194,6 +2242,8 @@ function fidelityGroup(p: PullState): Child {
           { class: 'row review' },
           h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, it.name), kind),
           h('p', { class: 'muted' }, fidelityComponentLine(r)),
+          // Where the difference comes from, in one sentence (the gap case's summary).
+          r.status === 'differs' && f?.gaps?.find((g) => g.component === it.name)?.summary ? h('p', null, f.gaps.find((g) => g.component === it.name)!.summary) : null,
           // The three images on demand: the list stays a list to scan (FID-5).
           r.status === 'differs' && it.images
             ? h('details', { class: 'notes' }, h('summary', null, `See the most different: ${it.images.key}`), fidelityThumbs(it.name, it.images))
@@ -2227,6 +2277,14 @@ function fidelityGroup(p: PullState): Child {
         h('summary', null, 'For developers'),
         h('p', { class: 'muted' }, 'Every component and variant as JSON: how many pixels differ, and both sizes.'),
         h('button', { class: 'btn', 'data-focus-id': 'fidelity-copy', onClick: () => void copyText(JSON.stringify(report, null, 2)).then((ok) => { f!.copied = ok; render(); }) }, icon(f?.copied ? 'check' : 'copy'), f?.copied ? 'Copied' : 'Copy the report'),
+        f?.gaps?.length
+          ? h(
+              'button',
+              { class: 'btn', 'data-focus-id': 'fidelity-copy-gaps', onClick: () => void copyText(JSON.stringify(f.gaps, null, 2)).then((ok) => { f!.gapsCopied = ok; render(); }) },
+              icon(f.gapsCopied ? 'check' : 'copy'),
+              f.gapsCopied ? 'Copied' : `Copy ${f.gaps.length === 1 ? 'the gap case' : 'the gap cases'}`,
+            )
+          : null,
       ),
     ];
   }
