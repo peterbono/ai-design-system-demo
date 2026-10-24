@@ -83,8 +83,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('every scenario', () => {
-  it('lists S0 to S20, each found by id, number or slug', () => {
-    expect(SCENARIOS.map((s) => s.id)).toEqual(Array.from({ length: 21 }, (_, i) => `S${i}`));
+  it('lists S0 to S21, each found by id, number or slug', () => {
+    expect(SCENARIOS.map((s) => s.id)).toEqual(Array.from({ length: 22 }, (_, i) => `S${i}`));
     for (const s of SCENARIOS) {
       expect(findScenario(s.id)).toBe(s);
       expect(findScenario(s.id.toLowerCase())).toBe(s);

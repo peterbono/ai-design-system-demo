@@ -1,4 +1,4 @@
-// Audit scenarios S0 to S20 for `npm run dev:full` (docs/HOSTED.md, "Test everything locally"): `npm run dev:scenario
+// Audit scenarios S0 to S21 for `npm run dev:full` (docs/HOSTED.md, "Test everything locally"): `npm run dev:scenario
 // <name>` clears the local accounts, teams, codes and outbox, then writes one scenario with the same storage functions
 // the api/* functions use (accounts, members, invites, discovery, join requests) and, where a scenario needs it, the
 // account function itself (sign-in codes). It prints the emails to sign in with and what each one should see.
@@ -125,6 +125,8 @@ interface TeamDef {
   builds?: boolean;
   /** Its fixture is writable (dev/local-repo.ts): changes, reviews and merges run locally, with GitHub personas. */
   writable?: boolean;
+  /** Its config sends changes as suggestions (`"changes": "suggest"`). */
+  suggest?: boolean;
 }
 
 const T = {
@@ -139,6 +141,7 @@ const T = {
   email: { repo: 'lumen/email-kit', name: 'Lumen Email', admin: P.ines, members: [] },
   building: { repo: 'acme/acme-build', name: 'Acme Build', admin: P.sam, members: [P.priya], builds: true },
   flow: { repo: 'acme/acme-flow', name: 'Acme Flow', admin: P.sam, members: [P.priya, P.leo], writable: true },
+  ideas: { repo: 'acme/acme-ideas', name: 'Acme Ideas', admin: P.sam, members: [P.priya, P.leo], writable: true, suggest: true },
 } satisfies Record<string, TeamDef>;
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -181,7 +184,7 @@ export class Seed {
 
   /** The team, its fixture files, its admin (a seeded local admin, also an email member) and its members. */
   async team(t: TeamDef): Promise<void> {
-    await putFixture(this.ctx.redis, { repo: t.repo, name: t.name, ...('builds' in t && t.builds ? { builds: true } : {}), ...('writable' in t && t.writable ? { writable: true } : {}) });
+    await putFixture(this.ctx.redis, { repo: t.repo, name: t.name, ...('builds' in t && t.builds ? { builds: true } : {}), ...('writable' in t && t.writable ? { writable: true } : {}), ...('suggest' in t && t.suggest ? { suggest: true } : {}) });
     await this.member(t.repo, t.admin, 'local-seed', 60 * DAY);
     await localAdminStore(this.ctx.redis).add(t.repo, t.admin.email);
     for (const [i, m] of t.members.entries()) await this.member(t.repo, m, t.admin.name, (20 - i) * DAY);
@@ -631,6 +634,31 @@ export const SCENARIOS: Scenario[] = [
           'Acme Flow is writable locally (dev/local-repo.ts): branches, pull requests, reviews and merges are kept in .bridge-local.',
           'GitHub reviewers are personas, no GitHub needed: dana (Dana Whitfield, design owner, admin) and malik (Malik Osei, tech owner, ships).',
           'Sign in as one in the browser with the token ghp_local_<login> and GitHub calls sent to /api/dev/github (the audit harness routes https://api.github.com/** there).',
+        ],
+      );
+    },
+  },
+  {
+    id: 'S21',
+    slug: 'suggest-mode',
+    title: 'Suggest mode on a writable team (Send suggestion, review, apply)',
+    async run(ctx) {
+      const s = new Seed(ctx);
+      await s.team(T.ideas);
+      return result(
+        [
+          {
+            ...P.priya,
+            kind: 'teams',
+            teams: teamsOf([T.ideas, 'edit']),
+            expect: 'Can edit by email on a team in suggest mode: an edit is sent with Send suggestion; it waits on Dana and Malik, then a developer applies it.',
+          },
+          { ...P.leo, kind: 'teams', teams: teamsOf([T.ideas, 'edit']), expect: 'Another Can edit member: sees the suggestion, never a review queue.' },
+          { ...P.sam, kind: 'teams', teams: teamsOf([T.ideas, 'admin']), expect: 'Email admin: manages people; approving needs GitHub (a persona).' },
+        ],
+        [
+          'Acme Ideas is writable locally (dev/local-repo.ts) and its config says "changes": "suggest": members send suggestions (issues).',
+          'GitHub reviewers are the same personas as S20: dana (design owner) and malik (tech owner), token ghp_local_<login>.',
         ],
       );
     },
