@@ -372,6 +372,8 @@ export function suggestionGate(x: {
   const open = noOwners(x.owners);
   const roles = open ? (x.collaborator ? (['design', 'tech', 'approval'] as ApprovalRole[]) : []) : viewerRoles(x.viewer, x.owners);
   const listed = [...new Set([...x.owners.design, ...x.owners.tech])];
+  // Approved: its author has nothing left to do, a developer applies it.
+  if (x.status === 'approved' && same(x.viewer, x.author)) return { ...none, why: 'Approved. A developer applies it next: nothing more for you to do.' };
   if (same(x.viewer, x.author)) return { ...none, why: `You suggested it, so someone else approves it${listed.length ? `: ${people(listed, x.names)}` : ''}.` };
   if (!roles.length) {
     return { ...none, why: open ? 'Only people who can edit the library approve suggestions.' : `Only the design system owners approve suggestions: ${people(listed, x.names)}.` };

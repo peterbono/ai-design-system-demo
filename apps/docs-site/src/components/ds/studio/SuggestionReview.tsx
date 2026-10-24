@@ -322,10 +322,16 @@ function Decide({ p }: { p: SuggestionReviewProps }) {
             g.why && <p className="sg-why">{g.why}</p>
           ) : (
             <p className="sg-why">
-              <span>{g.why}</span>{' '}
-              <Link href={p.url} external>
-                Open on GitHub
-              </Link>
+              <span>{g.why}</span>
+              {/* GitHub is a developer's place: a designer reads why, never a GitHub link. */}
+              {p.developer && (
+                <>
+                  {' '}
+                  <Link href={p.url} external>
+                    Open on GitHub
+                  </Link>
+                </>
+              )}
             </p>
           )}
           {more && (
