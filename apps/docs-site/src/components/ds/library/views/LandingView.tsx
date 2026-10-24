@@ -32,7 +32,7 @@ export default function LandingView({ data }: { data: LibraryData }) {
           </h1>
           <p className="t-body">
             {data.team ? (
-              `${libraryHome(model).lead} Tokens, components and how to use them, published from the repository.`
+              `${libraryHome(model).lead} Tokens, components and how to use them, published from the code.`
             ) : (
               <>
                 Bridge keeps your tokens, components and docs in one repository. This Library always shows the latest release, <span className="mono">{extras.version}</span>.
