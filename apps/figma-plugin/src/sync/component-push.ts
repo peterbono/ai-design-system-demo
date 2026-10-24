@@ -29,7 +29,7 @@ import {
   planComponentPush,
   planTokenProposal,
 } from '@bridge-ds/core';
-import { type ComponentChangeItem, type ComponentSignature, type ScannedComponent, decodeOutlineItem, diffOutlines, tokenName } from './components';
+import { type ComponentChangeItem, type ComponentSignature, type ScannedComponent, decodeOutlineItem, diffOutlines, newRawValues, rawKey, tokenName } from './components';
 
 /** Figma variable name to token path ("button/primary/bg" -> "button.primary.bg"); styles keep their "style:" prefix. */
 const pathOf = (variable: string) => (variable.startsWith('style:') ? variable : variable.replace(/\//g, '.'));
@@ -51,7 +51,7 @@ function explainedVariants(base: ComponentSignature, cur: ComponentSignature): S
 }
 
 /** Token swaps between the baseline and Figma now, one row per property kind and before/after, with their variants. */
-export function rebindsOf(base: ComponentSignature, cur: ComponentSignature): Rebind[] {
+export function rebindsOf(base: ComponentSignature, cur: ComponentSignature, matches: Record<string, string[]> = {}): Rebind[] {
   const skip = explainedVariants(base, cur);
   const common = Object.keys(cur.variants).filter((k) => base.variants[k]).sort();
   const rows = new Map<string, Rebind>();
@@ -65,11 +65,21 @@ export function rebindsOf(base: ComponentSignature, cur: ComponentSignature): Re
       if (before.join() === after.join()) continue;
       // Only what moved: a variable kept on another layer of the same kind is not part of the swap.
       const gone = before.filter((v) => !after.includes(v));
+      // A value set by hand came where a variable went: the property was unbound. Said with the value, and the
+      // variables that hold it.
+      const raw = gone.length ? newRawValues(base.variants[key]!, cur.variants[key]!, kind) : [];
       // Rebound to a variable another layer of the variant already uses (color.bg.muted): nothing is new, yet the
       // property is still bound. Say every variable it may use now, never "a raw value".
-      const added = gone.length && after.length && after.every((v) => before.includes(v)) ? after : after.filter((v) => !before.includes(v));
-      const id = `${kind}\u0000${gone.join()}\u0000${added.join()}`;
-      const row = rows.get(id) ?? { kind, variants: [], allVariants: false, before: gone, after: added };
+      const added = !raw.length && gone.length && after.length && after.every((v) => before.includes(v)) ? after : after.filter((v) => !before.includes(v));
+      const id = `${kind}\u0000${gone.join()}\u0000${added.join()}\u0000${raw.join()}`;
+      const row: Rebind = rows.get(id) ?? {
+        kind,
+        variants: [],
+        allVariants: false,
+        before: gone,
+        after: added,
+        ...(raw.length ? { raw: raw.map((value) => ({ value, ...(matches[rawKey(kind, value)]?.length ? { matches: matches[rawKey(kind, value)] } : {}) })) } : {}),
+      };
       row.variants.push(key);
       rows.set(id, row);
     }
@@ -145,7 +155,7 @@ export function pushDiffOf(
     summary: ctx.summary,
     ...(ctx.line ? { line: ctx.line } : {}),
     changes: item.changes,
-    rebinds: item.baseline ? rebindsOf(item.baseline, s) : [],
+    rebinds: item.baseline ? rebindsOf(item.baseline, s, item.matches) : [],
     needsCode: needsCode(item, unknown),
     unknown,
     figma: { nodeId: item.nodeId, nodeName: item.figmaName, ...(ctx.fileKey ? { fileKey: ctx.fileKey } : {}), ...(url ? { url } : {}) },

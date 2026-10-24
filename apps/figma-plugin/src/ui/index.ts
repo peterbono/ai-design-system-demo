@@ -11,7 +11,7 @@ import { affectedContrast, defaultTitle } from '@bridge-ds/core';
 import { type PathIndex, type ResolveContext, resolve } from '@bridge-ds/core';
 import { contextFor, modesOf } from '@bridge-ds/core';
 import { type LogicalToken, SINGLE_MODE } from '@bridge-ds/core';
-import type { Issue } from '@bridge-ds/core';
+import type { Issue, PushIssue } from '@bridge-ds/core';
 import { formatValue, isAlias, parseColor, rgbaToHex } from '@bridge-ds/core';
 import { type ContrastResult, contextLabel, pairKey } from '@bridge-ds/core';
 import { type ApplyReport, type FigmaSnapshot, type InitPayload, type RepoSettings, modeDisplayName } from '../shared/messages';
@@ -228,6 +228,8 @@ interface State {
   /** Which setup snippet was just copied in Settings. */
   claudeCopied?: string | undefined;
   settingsMessage?: { kind: 'ok' | 'error'; text: string } | undefined;
+  /** The saved token can read but not write what this repo needs: the token card says "Read only", not "Connected". */
+  tokenReadOnly?: boolean | undefined;
   expanded: Set<string>;
   /** Current Figma selection, for "Attach the current selection". */
   selection: Selection;
@@ -1126,6 +1128,10 @@ function saveSettings(): void {
           mode === 'direct' && !can.pullRequests ? '"Pull requests"' : '',
           !can.issues ? '"Issues"' : '',
         ].filter(Boolean);
+        // The saved token falls short: its card says so. A new token that falls short is refused and changes nothing;
+        // one that writes replaces the saved token.
+        if (!newToken) state.tokenReadOnly = missing.length > 0;
+        else if (!missing.length) state.tokenReadOnly = false;
         if (missing.length) {
           const list = missing.length > 1 ? `${missing.slice(0, -1).join(', ')} and ${missing[missing.length - 1]}` : missing[0];
           throw new Error(`This token can read ${info.fullName} but cannot ${mode === 'direct' ? 'send changes to it' : 'open suggestions on it'}. Give it ${list} set to "Read and write" on GitHub, then paste it again.`);
@@ -2611,8 +2617,41 @@ function routeNote(r: PushState, item: ComponentChangeItem): Child {
   const issues = p.plan.issues;
   return [
     p.plan.route === 'manual' && !p.blocked ? null : h('p', { class: 'muted route-note' }, p.blocked ?? librarySaid(r, p)),
-    issues.length ? h('ul', { class: 'route-issues' }, issues.map((i) => h('li', null, h('span', null, i.what), ' ', h('span', { class: 'muted' }, i.todo)))) : null,
+    issues.length ? h('ul', { class: 'route-issues' }, issues.map((i) => h('li', null, ...rawSwatches(i), h('span', null, i.what), ' ', h('span', { class: 'muted' }, i.todo), rawBind(r, item, i)))) : null,
   ];
+}
+
+/** The colors set by hand, as swatches before the sentence that names them. */
+const rawSwatches = (i: PushIssue): Child[] =>
+  (i.raw?.values ?? []).filter((v) => v.value.startsWith('#')).map((v) => h('span', { class: 'swatch inline', title: v.value }, h('span', { style: { background: v.value } })));
+
+/** One click binds the variable that already holds the value set by hand (the first of each value), then scans again. */
+function rawBind(r: PushState, item: ComponentChangeItem, i: PushIssue): Child {
+  const raw = i.raw;
+  const offers = raw?.values.flatMap((v) => (v.matches?.[0] ? [{ value: v.value, variable: v.matches[0] }] : [])) ?? [];
+  if (!raw || !offers.length) return null;
+  return h(
+    'div',
+    { class: 'inline-actions' },
+    offers.map((o) =>
+      h(
+        'button',
+        {
+          class: 'btn',
+          disabled: !!state.busy,
+          onClick: () =>
+            // The scan runs once the bind is done: run() takes one task at a time.
+            void run(`Binding ${o.variable}`, async () => {
+              const { bound } = await request('bind-raw', { nodeId: item.nodeId, variants: raw.variants, kind: raw.kind, value: o.value, variable: o.variable });
+              if (!bound) throw new Error(`Nothing was bound: ${o.variable} or the ${raw.kind} of ${o.value} is gone. Scan again.`);
+            }).then(() => {
+              if (!state.error) scanPush(r);
+            }),
+        },
+        `Bind to ${o.variable}`,
+      ),
+    ),
+  );
 }
 
 /**
@@ -3628,7 +3667,11 @@ function viewSettings(): View {
                 h('span', { class: 'opt-title' }, 'GitHub token'),
                 h('small', null, rejected ? TOKEN_REJECTED_DETAIL : 'Saved on this computer, never in the file.'),
               ),
-              rejected ? h('span', { class: 'opt-status warn' }, icon('alert'), 'Stopped working') : h('span', { class: 'opt-status ok' }, icon('check'), 'Connected'),
+              rejected
+                ? h('span', { class: 'opt-status warn' }, icon('alert'), 'Stopped working')
+                : state.tokenReadOnly
+                  ? h('span', { class: 'opt-status warn', title: 'It can read the design system but not send changes. Replace it with a token that has "Read and write".' }, icon('alert'), 'Read only')
+                  : h('span', { class: 'opt-status ok' }, icon('check'), 'Connected'),
             ),
             tokenField
               ? tokenInput('New fine-grained token', 'Replaces the saved one when you save. Stays on this computer, never in the file.')
