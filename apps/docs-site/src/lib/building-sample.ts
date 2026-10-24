@@ -102,6 +102,9 @@ const SEEDS: Seed[] = [
 ];
 
 const iso = (now: number, days: number) => new Date(now - days * DAY).toISOString();
+/** Labels and heads as GitHub answers them (objects, a commit sha): the local fixtures serve these to every reader. */
+const named = (labels: string[]) => labels.map((name) => ({ name }));
+const sha = (n: number) => n.toString(16).padStart(40, '0');
 
 /** The sample issues and pull requests, as GitHub's REST API would answer for the sample team. */
 export function sampleBuildData(now: number, repo = 'acme/design-system'): { issues: RestIssue[]; pulls: RestPull[] } {
@@ -117,7 +120,7 @@ export function sampleBuildData(now: number, repo = 'acme/design-system'): { iss
       html_url: `https://github.com/${repo}/issues/${s.n}`,
       state: s.closed ? 'closed' : 'open',
       state_reason: s.closed?.reason ?? null,
-      labels: [...issue.labels, ...(s.n === 33 ? ['jira: DS-128'] : [])],
+      labels: named([...issue.labels, ...(s.n === 33 ? ['jira: DS-128'] : [])]),
       user: { login: 'dana' },
       assignees: (s.assignees ?? []).map((login) => ({ login })),
       created_at: iso(now, s.ago),
@@ -137,7 +140,7 @@ export function sampleBuildData(now: number, repo = 'acme/design-system'): { iss
         labels: [],
         user: { login: s.pull.author },
         assignees: [],
-        head: { ref: `agent/build-${s.n}` },
+        head: { ref: `agent/build-${s.n}`, sha: sha(s.pull.n) },
       });
     }
   }
@@ -153,10 +156,10 @@ export function sampleBuildData(now: number, repo = 'acme/design-system'): { iss
     merged_at: null,
     created_at: iso(now, 1),
     updated_at: iso(now, 1),
-    labels: ['from-figma', 'component-change', 'waiting-for-claude'],
+    labels: named(['from-figma', 'component-change', 'waiting-for-claude']),
     user: { login: 'dana' },
     assignees: [],
-    head: { ref: 'bridge/button-add-a-lg-size' },
+    head: { ref: 'bridge/button-add-a-lg-size', sha: sha(53) },
   });
   return { issues, pulls };
 }
