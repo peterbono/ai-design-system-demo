@@ -107,7 +107,9 @@ export type PlannedValue =
       /** The token's Figma variable: the text's family is bound to it, so it follows the Brand mode like colors do. */
       variable?: { tokenId: string; name: string; collection: string } | undefined;
     }
-  | { kind: 'keyword'; value: string };
+  | { kind: 'keyword'; value: string }
+  /** A color written as is (no token in the library): a measured `rgb()` of a design system Bridge has no tokens for. */
+  | { kind: 'color'; r: number; g: number; b: number; a: number };
 
 export interface PlannedField {
   field: SpecField;
@@ -379,7 +381,8 @@ export type SpecSourceKind = 'static' | 'measured' | 'measured-only';
  */
 export interface SpecSource {
   readonly kind: SpecSourceKind;
-  load(client: Pick<GitHubClient, 'getTree' | 'getBlobText'>, treeSha: string, config: BridgeConfig | undefined): Promise<LoadedSpecs | undefined>;
+  /** `head`: the library's tokens, for a source that must tell its tokens from literals (measured only). */
+  load(client: Pick<GitHubClient, 'getTree' | 'getBlobText'>, treeSha: string, config: BridgeConfig | undefined, head?: Pick<TokenSet, 'byPath'>): Promise<LoadedSpecs | undefined>;
 }
 
 /** The source the pull uses: static unless asked otherwise. */
@@ -399,11 +402,11 @@ export function specSource(kind: SpecSourceKind = 'static'): SpecSource {
  * without a static spec. When the repo also has component-specs.json, each set keeps the static set's hash as its code
  * version, so Check fidelity compares it with the code images of that version.
  */
-async function loadMeasuredOnlySpecs(client: Pick<GitHubClient, 'getTree' | 'getBlobText'>, treeSha: string, config: BridgeConfig | undefined): Promise<LoadedSpecs | undefined> {
+async function loadMeasuredOnlySpecs(client: Pick<GitHubClient, 'getTree' | 'getBlobText'>, treeSha: string, config: BridgeConfig | undefined, head?: Pick<TokenSet, 'byPath'>): Promise<LoadedSpecs | undefined> {
   const { entries } = await client.getTree(treeSha, true);
   const entry = entries.find((e) => e.type === 'blob' && e.path === MEASURED_SPECS_FILE);
   if (!entry) throw new Error(`Spec source is set to Measured only, but the repo has no ${MEASURED_SPECS_FILE}. Run bridge specs --measure --variants and commit it, or set Spec source back to Static in Settings.`);
-  const { specs, report } = specsFromMeasure(parseMeasuredSpecs(await client.getBlobText(entry.sha)));
+  const { specs, report } = specsFromMeasure(parseMeasuredSpecs(await client.getBlobText(entry.sha)), head ? { known: (path) => head.byPath.has(path) } : {});
   const code = await loadComponentSpecs(client, treeSha, config).catch(() => undefined);
   const codeHash = new Map(code?.specs.components.map((c) => [c.name, c.hash]) ?? []);
   const components = specs.components.map((c) => (codeHash.has(c.name) ? { ...c, hash: codeHash.get(c.name)! } : c));
@@ -538,6 +541,17 @@ export function planValue(field: SpecField, value: unknown, head: TokenSet): Pla
   return planValueOf(field, value, head);
 }
 
+/** `rgb(31, 41, 55)`, `rgba(31,41,55,0.5)` or `rgb(31 41 55 / 50%)`, as a browser computes colors, in 0..1. */
+function rgbOf(text: string): { r: number; g: number; b: number; a: number } | undefined {
+  const m = /^rgba?\(([^)]*)\)$/i.exec(text);
+  if (!m) return undefined;
+  const parts = m[1]!.split(/[\s,/]+/).filter(Boolean);
+  const [r, g, b] = parts.slice(0, 3).map(Number);
+  const alpha = parts[3] === undefined ? 1 : parts[3].endsWith('%') ? Number(parts[3].slice(0, -1)) / 100 : Number(parts[3]);
+  if ([r, g, b, alpha].some((x) => x === undefined || !Number.isFinite(x))) return undefined;
+  return { r: r! / 255, g: g! / 255, b: b! / 255, a: alpha };
+}
+
 function planValueOf(field: SpecField, value: unknown, head: TokenSet): PlannedValue | { problem: string } {
   if (value === null) return COLOR_FIELDS.has(field) ? { kind: 'none' } : { problem: 'no value' };
   if (field === 'textDecoration') return typeof value === 'string' && /^(UNDERLINE|STRIKETHROUGH|NONE)$/.test(value) ? { kind: 'keyword', value } : { problem: `${String(value)} is not a text decoration` };
@@ -550,6 +564,15 @@ function planValueOf(field: SpecField, value: unknown, head: TokenSet): PlannedV
     if (COLOR_FIELDS.has(field)) return { problem: `${value}: a color cannot be a calc()` };
     const n = evaluateCalc(value, head);
     return typeof n === 'number' ? { kind: 'number', value: n, expr: value } : n;
+  }
+  // Literals a measure reads where no token is (a design system Bridge has no tokens for): a color, a font family list.
+  if (COLOR_FIELDS.has(field) && /^(#|rgba?\()/i.test(value.trim())) {
+    const c = rgbOf(value.trim()) ?? parseColor(value.trim());
+    return c ? { kind: 'color', r: c.r, g: c.g, b: c.b, a: c.a } : { problem: `${value} is not a color` };
+  }
+  if (field === 'fontFamily' && !head.byPath.has(value) && /[,"']|^[A-Z]/.test(value)) {
+    const families = value.split(',').map((f) => f.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+    return families.length ? { kind: 'font', families, path: value } : { problem: `${value} is not a font family` };
   }
   const t = head.byPath.get(value);
   if (!t) return { problem: `${value} is not a token in the library` };
