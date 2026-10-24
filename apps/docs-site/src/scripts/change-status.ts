@@ -24,7 +24,7 @@ import {
 } from '../lib/change-status';
 import type { CheckStory, ClassifiedCheck } from '../lib/check-explain';
 import { namesFor } from '../lib/changes';
-import { pullState, type ApprovalSummary, type Tier } from '../lib/review-rules';
+import { claudeStage, pullState, type ApprovalSummary, type Tier } from '../lib/review-rules';
 import { workNature } from '../lib/work-nature';
 import { humanTitle } from '../lib/pr-title';
 import { mdTitleText } from '../lib/markdown';
@@ -91,7 +91,10 @@ export function detailStatus(x: {
     const viewerIsTech = Boolean(viewer && tech.some((l) => l.toLowerCase() === viewer));
     return { ...base, sentence: waitingSentence({ failing: x.story.developerFailing, oldValue: x.story.oldValue, techOwners: names, viewerIsTech }), yourTurn: viewerIsTech };
   }
-  const own = lifecycleSentence({ lifecycle, isAuthor: x.isAuthor, author: x.pull.user.login, mergedAt: x.pull.merged_at, closedAt: x.pull.closed_at, exploration: x.exploration });
+  // Decision RT-1: a branch opened from Figma says where Claude stands (waiting for a developer, or drafted and ready).
+  const claude = claudeStage(x.pull.labels);
+  const untouched = x.approvals.approvers.length === 0 && x.approvals.changesRequested.length === 0 && x.checks.length === 0;
+  const own = lifecycleSentence({ lifecycle, isAuthor: x.isAuthor, author: x.pull.user.login, mergedAt: x.pull.merged_at, closedAt: x.pull.closed_at, exploration: x.exploration, claude, untouched });
   return { ...base, sentence: own ?? x.sentence, yourTurn: lifecycle === 'ready' || (lifecycle === 'draft' && x.exploration) ? x.yourTurn : false };
 }
 
@@ -171,7 +174,7 @@ export async function statusActionFor(
     reopen = reopenEligibility({ state: 'closed', viewer: x.viewer, author: pull.user.login, owners: [...o.design, ...o.tech], canWrite: x.canWrite, branch: await branchState(pull) });
     sentence = lifecycleSentence({ lifecycle: 'closed', isAuthor: x.isAuthor, author: pull.user.login, closedAt: pull.closed_at, reopen }) ?? sentence;
   }
-  const kind = statusAction({ lifecycle: s.lifecycle, isAuthor: x.isAuthor, canWrite: x.canWrite, exploration: x.exploration, reopen, tokenEdits: Boolean(x.review?.changes.length) });
+  const kind = statusAction({ lifecycle: s.lifecycle, isAuthor: x.isAuthor, canWrite: x.canWrite, exploration: x.exploration, reopen, tokenEdits: Boolean(x.review?.changes.length), claude: claudeStage(pull.labels) });
   const { owner, repo } = readRepo();
   const runs: Record<Exclude<typeof kind, null>, () => Promise<string | void>> = {
     'mark-ready': async () => {

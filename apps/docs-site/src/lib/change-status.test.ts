@@ -159,6 +159,21 @@ describe('statusAction and lifecycleSentence', () => {
   });
 });
 
+describe('a branch opened from Figma (RT-1)', () => {
+  const reopen = { kind: 'none' } as const;
+  it('before the draft: a developer builds it, the designer has nothing to send', () => {
+    for (const isAuthor of [true, false]) expect(lifecycleSentence({ lifecycle: 'draft', isAuthor, author: 'ann', claude: 'waiting' })).toBe('A developer builds it with Claude. You will see the code here.');
+    expect(statusAction({ lifecycle: 'draft', isAuthor: true, canWrite: true, exploration: false, reopen, tokenEdits: false, claude: 'waiting' })).toBe(null);
+  });
+  it('after the draft: ready for review, waiting for the owners, until one of them acts', () => {
+    const drafted = 'Ready for review. Claude drafted the code from your Figma change. Waiting for the design system owners.';
+    expect(rowLifecycle({ state: 'open', draft: true, labels: [{ name: 'drafted-by-claude' }] }, { kind: 'needs-design', nature: 'design', tier: 2 })).toBe('ready');
+    expect(lifecycleSentence({ lifecycle: 'ready', isAuthor: true, author: 'ann', claude: 'drafted', untouched: true })).toBe(drafted);
+    expect(lifecycleSentence({ lifecycle: 'ready', isAuthor: false, author: 'ann', claude: 'drafted', untouched: true })).toBe(drafted);
+    expect(lifecycleSentence({ lifecycle: 'ready', isAuthor: true, author: 'ann', claude: 'drafted', untouched: false })).toBe(null);
+  });
+});
+
 describe('statusOpener', () => {
   it('never sends a designer to a change that waits for code', () => {
     const rows = [

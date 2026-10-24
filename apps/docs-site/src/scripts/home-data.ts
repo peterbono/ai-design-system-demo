@@ -12,6 +12,7 @@ import { loadTeams } from './teams';
 import { loadSuggestionNeeds } from './suggestions';
 import { todoChange, viewerRole, type QueuePullFull } from './needs-you';
 import { reviewQueue } from '../lib/review-queue';
+import { isDraft } from '../lib/review-rules';
 import { byUrgency, statusPill } from '../lib/changes';
 import { isReviewTask, waitingOn } from '../lib/waiting-on';
 import { analyzeTokenFiles, isTokenFile } from './reviews/token-review';
@@ -263,7 +264,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
       const requested = (pull.requested_reviewers ?? []).map((r) => r.login);
       const base = { pull, agent: Boolean(c.agent), guidance: Boolean(c.guidance), onlyReviewer: false, task: null as ChangeFacts['task'] | null };
       const task = waitingOn(
-        { author: pull.user.login, draft: pull.draft, nature: c.nature, guidance: c.guidance, lifecycle: c.lifecycle, who: c.who, requested, changesRequested: c.changesBy },
+        { author: pull.user.login, draft: pull.draft, labels: pull.labels, nature: c.nature, guidance: c.guidance, lifecycle: c.lifecycle, who: c.who, requested, changesRequested: c.changesBy },
         { login: viewer, role },
       );
       if (!task) return base;
@@ -308,9 +309,9 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
       .map((p) => {
         const st = statuses.get(p.number);
         const c = todoChange(p, st);
-        const stage = c.lifecycle === 'waiting' ? 'waiting' : p.draft || c.lifecycle === 'draft' ? 'draft' : 'ready';
+        const stage = c.lifecycle === 'waiting' ? 'waiting' : isDraft(p) || c.lifecycle === 'draft' ? 'draft' : 'ready';
         // The same pill as the branch's row in Branches and its page header (lib/changes statusPill).
-        const status = st && stage === 'ready' ? statusPill(st.kind, rowWho(st.kind, { author: p.user.login, approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing, failingChecks: st.failingChecks, pending: st.pending })).label : null;
+        const status = st && stage === 'ready' ? statusPill(st.kind, rowWho(st.kind, { author: p.user.login, labels: p.labels, approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing, failingChecks: st.failingChecks, pending: st.pending })).label : null;
         return { number: p.number, title: c.title, href: studioHref(`changes/?pr=${p.number}`), stage, updated: p.updated_at, reviewer: pick(reviewerLogin(p, st)), thumb: resolved.get(p.number) ?? { kind: 'icon', icon: 'branch' }, status };
       });
     // Suggestions wait on their reviewers only.

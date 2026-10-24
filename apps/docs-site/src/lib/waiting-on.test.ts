@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { whoActs, type People, type Need } from './changes';
+import { CLAUDE_WAITING_SENTENCE, needFromStatus, whoActs, type People, type Need } from './changes';
+import { rowLifecycle } from './change-status';
+import { reviewStatus, summarizeCi } from './review-rules';
 import { isReviewTask, reviewCount, waitingOn, waitsOnMe, type WaitChange, type WaitViewer } from './waiting-on';
 
 // One team: Ann designs (design owner), Theo codes (tech owner), Sam contributes. Florian is the only owner of a solo
@@ -111,5 +113,48 @@ describe('waitingOn: one rule for every "waiting on me" surface', () => {
     expect(changes.filter((c) => waitsOnMe(c, ann))).toHaveLength(2);
     expect(isReviewTask('own-changes')).toBe(false);
     expect(isReviewTask('ship')).toBe(true);
+  });
+});
+
+// Decision RT-1: a change sent from the Figma plugin opens a branch labelled waiting-for-claude (the spec only); once a
+// developer drafts the code with Claude it is labelled drafted-by-claude, which reads as ready for review even while
+// GitHub still calls it a draft.
+describe('waitingOn: branches opened from Figma (RT-1)', () => {
+  const waiting = [{ name: 'from-figma' }, { name: 'waiting-for-claude' }];
+  const drafted = [{ name: 'from-figma' }, { name: 'drafted-by-claude' }];
+  const green = summarizeCi([{ name: 'test', status: 'completed', conclusion: 'success' }]);
+  const none = { approvers: [], changesRequested: [], design: false, tech: false };
+
+  it('before the draft: waits on a developer, never on the designer who sent it, in nobody\'s queue', () => {
+    const pull = { state: 'open', draft: true, labels: waiting };
+    const kind = reviewStatus({ ...pull, ci: green, approvals: none, tier: 2 }).kind;
+    expect(kind).toBe('draft');
+    const lifecycle = rowLifecycle(pull, { kind, nature: 'design', tier: 2 });
+    expect(lifecycle).toBe('draft');
+    const need = needFromStatus(kind, { claude: 'waiting' });
+    for (const [viewer, v] of [['sam', sam], ['ann', ann], ['theo', theo]] as const) {
+      const w = who(need, 'sam', viewer);
+      expect(w).toMatchObject({ who: 'developer', yourTurn: false, sentence: CLAUDE_WAITING_SENTENCE });
+      expect(waitingOn({ author: 'sam', draft: true, labels: waiting, lifecycle, who: w, requested: ['ann'] }, v)).toBeNull();
+    }
+    // Even when GitHub no longer calls it a draft, nothing waits on a designer until the code is there.
+    const open = change('sam', { kind: 'approve', roles: ['design'] }, 'ann', { labels: waiting, requested: ['ann'] });
+    expect(waitingOn(open, ann)).toBeNull();
+    expect(waitingOn({ author: 'ann', who: null, labels: waiting }, { login: null, role: 'reviewer', seat: true })).toBeNull();
+  });
+
+  it('after the draft: ready for review though GitHub still calls it a draft, in the owners\' queue', () => {
+    const pull = { state: 'open', draft: true, labels: drafted };
+    const kind = reviewStatus({ ...pull, ci: green, approvals: none, tier: 2 }).kind;
+    expect(kind).toBe('needs-design');
+    const lifecycle = rowLifecycle(pull, { kind, nature: 'design', tier: 2 });
+    expect(lifecycle).toBe('ready');
+    const need = needFromStatus(kind, { claude: 'drafted' });
+    expect(waitingOn({ author: 'sam', draft: true, labels: drafted, lifecycle, who: who(need, 'sam', 'ann') }, ann)).toBe('design');
+    // The designer who sent it waits on the owners; the tech owner is not asked for the design approval.
+    expect(waitingOn({ author: 'sam', draft: true, labels: drafted, lifecycle, who: who(need, 'sam', 'sam') }, sam)).toBeNull();
+    expect(waitingOn({ author: 'sam', draft: true, labels: drafted, lifecycle, who: who(need, 'sam', 'theo') }, theo)).toBeNull();
+    // The demo lead's seat reads it as in review too.
+    expect(waitingOn({ author: 'ann', who: null, draft: true, labels: drafted }, { login: null, role: 'reviewer', seat: true })).toBe('requested');
   });
 });

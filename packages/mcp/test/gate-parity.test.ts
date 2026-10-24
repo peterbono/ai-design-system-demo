@@ -39,7 +39,7 @@ function parityConfig(text: string): string {
 type Gh = ReturnType<typeof fakeGitHub>;
 
 /** A branch with `files` changed from main and its open pull request, as GitHub returns it. */
-function openPull(gh: Gh, x: { title: string; files: Record<string, string>; labels?: string[]; body?: string }): number {
+function openPull(gh: Gh, x: { title: string; files: Record<string, string>; labels?: string[]; body?: string; draft?: boolean }): number {
   const main = gh.refs.get('main')!;
   const files = new Map(gh.commits.get(main)!.files);
   for (const [p, t] of Object.entries(x.files)) files.set(p, t);
@@ -48,7 +48,7 @@ function openPull(gh: Gh, x: { title: string; files: Record<string, string>; lab
   const number = gh.pulls.length + 1;
   const ref = `bridge/fixture-${number}`;
   gh.refs.set(ref, sha);
-  gh.pulls.push({ number, node_id: `PR_node_${number}`, title: x.title, body: x.body ?? '', state: 'open', draft: false, user: { login: 'agent' }, head: { ref, sha }, base: { ref: 'main' }, labels: (x.labels ?? []).map((name) => ({ name })), html_url: `https://github.com/${FULL}/pull/${number}`, updated_at: '2026-10-16T00:00:00Z' });
+  gh.pulls.push({ number, node_id: `PR_node_${number}`, title: x.title, body: x.body ?? '', state: 'open', draft: x.draft ?? false, user: { login: 'agent' }, head: { ref, sha }, base: { ref: 'main' }, labels: (x.labels ?? []).map((name) => ({ name })), html_url: `https://github.com/${FULL}/pull/${number}`, updated_at: '2026-10-16T00:00:00Z' });
   return number;
 }
 
@@ -106,6 +106,11 @@ beforeAll(async () => {
   pr.applyTier1 = openPull(gh, { title: 'Apply a Tier 1 suggestion', files: DOC('g'), body: `Closes #${issue.tier1Approved}` });
   pr.applyAsked = openPull(gh, { title: 'Apply, with changes asked on the branch', files: DOC('h'), labels: ['tier-3'], body: `Closes #${issue.tier3Approved}` });
   review(gh, pr.applyAsked, 'theo', 'CHANGES_REQUESTED');
+  // Decision RT-1: branches opened from Figma, still GitHub drafts. The spec only (waiting-for-claude) stays a draft;
+  // once Claude drafted the code (drafted-by-claude) it is reviewed and merged like any branch in review.
+  pr.figmaWaiting = openPull(gh, { title: 'Button: add a lg size', files: DOC('i'), labels: ['from-figma', 'waiting-for-claude'], draft: true });
+  pr.figmaDrafted = openPull(gh, { title: 'Button: add a xl size', files: DOC('j'), labels: ['from-figma', 'drafted-by-claude'], draft: true });
+  review(gh, pr.figmaDrafted, 'theo', 'APPROVED');
 }, 60000);
 
 /** What Studio reads for one pull request (scripts/pr-status.ts and scripts/reviews.ts), then its verdict. */
@@ -183,6 +188,8 @@ describe('the same fixture pull requests give the same verdict in Studio, the MC
     ['applyTierUp', { status: 'needs-design', allowed: false }],
     ['applyTier1', { status: 'ready', allowed: true }],
     ['applyAsked', { status: 'changes-requested', allowed: false, reason: /changes/i }],
+    ['figmaWaiting', { status: 'draft', allowed: false, reason: /draft/i }],
+    ['figmaDrafted', { status: 'ready', allowed: true }],
   ];
 
   for (const [name, want] of EXPECTED) {

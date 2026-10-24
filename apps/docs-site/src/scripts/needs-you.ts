@@ -33,7 +33,7 @@ export const siteOwners = () => {
 
 /** Who acts now on a change, for the connected viewer: the same people as the change detail and the Branches rows (rowWho). */
 export function whoFor(p: PullForStatus, st: PullStatus | null | undefined): WhoActs | null {
-  return st ? rowWho(st.kind, { author: p.user.login, approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing, failingChecks: st.failingChecks, pending: st.pending }) : null;
+  return st ? rowWho(st.kind, { author: p.user.login, labels: p.labels, approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing, failingChecks: st.failingChecks, pending: st.pending }) : null;
 }
 
 /**
@@ -48,7 +48,7 @@ export function viewerRole(): ViewerRole {
 
 /** A change as lib/waiting-on reads it. */
 export function waitChange(p: QueuePullFull & { draft?: boolean; requested_reviewers?: { login: string }[] | null }, c: TodoChange): WaitChange {
-  return { author: p.user.login, draft: p.draft, nature: c.nature, guidance: c.guidance, lifecycle: c.lifecycle, who: c.who, requested: (p.requested_reviewers ?? []).map((r) => r.login), changesRequested: c.changesBy };
+  return { author: p.user.login, draft: p.draft, labels: p.labels, nature: c.nature, guidance: c.guidance, lifecycle: c.lifecycle, who: c.who, requested: (p.requested_reviewers ?? []).map((r) => r.login), changesRequested: c.changesBy };
 }
 
 /**
