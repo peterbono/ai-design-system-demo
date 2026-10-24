@@ -266,7 +266,12 @@ describe('controls drawn in CSS: pseudo-elements, grids, SVG', () => {
     expect(spec.parts[0]!.layout?.direction).toBe('VERTICAL');
     expect(spec.values.root?.itemSpacing).toBe(8);
     const k = spec.parts.find((x) => x.id === 'cds--toggle-switch-before')!;
-    expect(k).toMatchObject({ kind: 'frame', parent: 'cds--toggle-switch', pin: { top: 3, left: 3 } });
+expect(k).toMatchObject({ kind: 'frame', align: { x: 'start', y: 'center' } });
+    expect(k.pin).toBeUndefined();
+    // The knob rides the track's auto layout: aligned start, the track's padding carries the 3 px.
+    const trackPart = spec.parts.find((x) => x.id === k.parent)!;
+    expect(trackPart.layout).toEqual({ direction: 'HORIZONTAL', primary: 'MIN', counter: 'CENTER' });
+    expect(spec.values[trackPart.id]).toMatchObject({ paddingLeft: 3 });
     expect(spec.raw[k.id]).toMatchObject({ fill: 'rgb(255, 255, 255)', width: 18, height: 18 });
   });
 
@@ -314,6 +319,37 @@ describe('form fields as Carbon draws them: margins, declared sizes, round radii
   it('lays an inline label holding blocks out by its boxes', () => {
     const label = el('label', 'toggle__label', box(0, 0, 74, 56), { display: 'inline' }, [text('Label', box(0, 0, 74, 16)), el('div', 'appearance', box(0, 32, 74, 24), { display: 'flex' })]);
     expect(measuredToSpec({ id: 't', root: label }).parts[0]!.layout?.direction).toBe('VERTICAL');
+  });
+});
+
+describe('auto layout everywhere: overlays, margin wrappers, full radii', () => {
+  const box = (x: number, y: number, width: number, height: number) => ({ x, y, width, height });
+  const el = (cls: string, b: ReturnType<typeof box>, style: Record<string, string>, children: MeasuredNode[] = []): MeasuredNode => ({ tag: 'div', kind: 'frame', classes: [cls], box: b, style: { 'border-top-style': 'none', ...style }, tokens: {}, children });
+
+  it('flags an out-of-flow badge over its sibling as an overlay, and keeps the root its own size', () => {
+    const avatar = el('avatar', box(0, 0, 40, 40), { display: 'block', 'background-color': 'rgb(0, 0, 0)' });
+    const badge = el('badge', box(30, -4, 14, 14), { position: 'absolute', top: '-4px', left: '30px', 'background-color': 'rgb(255, 0, 0)' });
+    const spec = measuredToSpec({ id: 'avatar', root: el('wrap', box(0, 0, 40, 40), { display: 'inline-block', position: 'relative' }, [avatar, badge]) });
+    expect(spec.parts.find((x) => x.id === 'badge')).toMatchObject({ overlay: true, pin: { top: -4, left: 30 } });
+    expect(spec.boxes.root).toEqual(box(0, 0, 40, 40));
+  });
+
+  it('wraps a child whose margin makes an uneven gap, and records margins', () => {
+    const field = el('field', box(0, 0, 400, 100), { display: 'flex', 'flex-direction': 'column', 'align-items': 'flex-start', 'row-gap': '0px' }, [
+      el('label', box(0, 0, 60, 16), { 'margin-bottom': '8px' }),
+      el('control', box(0, 24, 400, 40), {}),
+      el('helper', box(0, 68, 80, 16), { 'margin-top': '4px' }),
+    ]);
+    const spec = measuredToSpec({ id: 'field', root: field });
+    expect(spec.values.root?.itemSpacing).toBe(4);
+    expect(spec.parts.find((x) => x.id === 'label')).toMatchObject({ margins: { bottom: 8 }, wrap: { padding: { bottom: 4 } } });
+  });
+
+  it('reads a pill radius as full', () => {
+    const pill = el('tag', box(0, 0, 80, 24), { display: 'flex', 'border-top-left-radius': '9999px' });
+    const spec = measuredToSpec({ id: 'tag', root: pill });
+    expect(spec.parts[0]).toMatchObject({ fullRadius: true });
+    expect(spec.values.root?.cornerRadius).toBe(12);
   });
 });
 

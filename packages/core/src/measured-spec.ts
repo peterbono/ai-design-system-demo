@@ -60,9 +60,23 @@ export interface MeasuredNode {
 }
 
 /** A measure in the Figma pull's shape: the parts of one variant and their field values, plus what a spec leaves out. */
+/** A measured part: a spec part, plus what auto layout needs to rebuild margins, overlays and decorations. */
+export interface MeasuredPart extends SpecPart {
+  /** Out of flow and over its siblings or outside its parent (a popover, a badge, a focus ring): absolute in Figma, never in the size. */
+  overlay?: boolean | undefined;
+  /** An out-of-flow decoration rebuilt in auto layout: its parent's alignment on each axis (the parent's padding carries the offset). */
+  align?: { x: 'start' | 'center' | 'end'; y: 'start' | 'center' | 'end' } | undefined;
+  /** Margins the part has (px, non-zero sides). */
+  margins?: { top?: number | undefined; right?: number | undefined; bottom?: number | undefined; left?: number | undefined } | undefined;
+  /** Uneven margins between siblings: wrap the part in a frame with this padding. */
+  wrap?: { padding: { top?: number | undefined; right?: number | undefined; bottom?: number | undefined; left?: number | undefined } } | undefined;
+  /** The radius is half the shorter side or more: a pill or a circle. */
+  fullRadius?: boolean | undefined;
+}
+
 export interface MeasuredSpec {
   story: string;
-  parts: SpecPart[];
+  parts: MeasuredPart[];
   /** Part id -> field -> token path (declared token), number (px or unitless literal) or null (no paint). */
   values: SpecVariant['values'];
   /** Part id -> field -> the computed value (`rgb(31, 41, 55)`, 16). Colors without a token only live here. */
