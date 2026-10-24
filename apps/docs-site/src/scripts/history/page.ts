@@ -20,8 +20,8 @@ import { overrideLine } from '../../lib/history-view';
 import { onSelectPick, selectValue, setSelect } from '../../lib/select-bridge';
 import { jiraKeyOf, VOCAB, withoutJiraKey } from '../../lib/vocabulary';
 import { agentMade } from '../../lib/work-nature';
-import { knownNames, paintPeople, personHtml } from '../people';
-import { markLogins, personName } from '../../lib/people';
+import { displayName, paintPeople, personHtml } from '../people';
+import { markLogins } from '../../lib/people';
 import { attrUrl } from '../../lib/html';
 import { studioHref } from '../../lib/team-path';
 
@@ -93,7 +93,7 @@ function paintList() {
   // Filters follow the report on screen.
   const authors = authorsOf(entries);
   const keep = selectValue(AUTHOR);
-  setSelect(AUTHOR, { options: [{ value: '', label: 'Anyone' }, ...authors.map((a) => ({ value: a, label: personName(a, knownNames()) }))], value: authors.includes(keep) ? keep : '' });
+  setSelect(AUTHOR, { options: [{ value: '', label: 'Anyone' }, ...authors.map((a) => ({ value: a, label: displayName(a) }))], value: authors.includes(keep) ? keep : '' });
   const paths = [...new Set(entries.filter((e) => !e.bulk).flatMap((e) => e.changes.map((c) => c.path)))].sort();
   $('hs-paths').innerHTML = paths.map((p) => `<option value="${esc(p)}"></option>`).join('');
 
