@@ -240,6 +240,19 @@
   }
 }
 
+/* The home line: the wrench and its sentence wrap together, the wrench beside the first line; the link wraps after. */
+.bb-home-text {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.bb-home-text > .bb-home-icon {
+  flex: none;
+  height: 1lh;
+}
+
 /* The home line sits under the health line when both show. */
 .sh-health + .bb-home {
   margin-block-start: calc(var(--space-6) * -1);

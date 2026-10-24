@@ -169,6 +169,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   const forget = (team: string) => setRecent(others(forgetRecentTeam(team), name));
 
   const [owner = ''] = (name ?? '').split('/');
+  const accountTeamName = (t: string) => account?.teams.find((x) => x.repo.toLowerCase() === t.toLowerCase())?.name?.trim() || null;
   // The team made in Bridge this workspace page is the home of (the same rule as the page, lib/start.ts).
   const wsKey = workspace && account ? workspaceTeamKey(account.teams, typeof location === 'undefined' ? '' : location.search) : null;
   const wsTeam = wsKey ? (account?.teams.find((t) => t.repo.toLowerCase() === wsKey) ?? null) : null;
@@ -178,8 +179,9 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     ? wsTeam
       ? { kind: 'workspace' as const, name: wsName, title: `${wsName}, ${TEAM_HOME_WORDS.chipLine.toLowerCase()}`, badge: { label: roleWord(wsTeam.role), tone: 'neutral' as const } }
       : { kind: 'workspace' as const, name: wsName, title: `${wsName}, ${WORKSPACE_WORDS.kept.toLowerCase()}`, badge: { label: facts?.storybook ? 'Storybook' : WORKSPACE_WORDS.notConnected, tone: 'neutral' as const } }
-    : // Before its settings are read, the name this browser already knows (the server keeps it): the name never flips.
-      chipIdentity(name, { demo: isDemoTeam(name, hosted), state: access, signedIn: ghSignedIn, name: cfg.read ? cfg.name : (cfg.name ?? (name ? knownTeamName(name) : null)) });
+    : // The settings' name, else the account's name for this team, else the one this browser knows (the server keeps
+      // it), before and after the settings are read: settings without a `name` never flip it to the repository in words.
+      chipIdentity(name, { demo: isDemoTeam(name, hosted), state: access, signedIn: ghSignedIn, name: cfg.name ?? (name ? (accountTeamName(name) ?? knownTeamName(name)) : null) });
   const badge = chip.badge;
   const offerTeams = launcher || hosted;
   // "Your teams": the teams the signed-in person belongs to (their role known in this browser), the one you are on first

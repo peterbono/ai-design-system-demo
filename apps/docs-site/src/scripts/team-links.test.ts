@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 // The build-time Studio links of a team shell follow the team in the address; nothing changes elsewhere.
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const settings = vi.hoisted(() => ({ cfg: {} as Record<string, unknown> }));
+vi.mock('./repo-context', async (load) => ({ ...(await load<typeof import('./repo-context')>()), siteConfig: () => settings.cfg }));
 import { canonicalizeTeamAddress, fillTeamShell, pointLinksAtTeam } from './team-links';
 
 const page = (path: string, hosted: boolean) => {
@@ -62,6 +65,24 @@ describe('pointLinksAtTeam', () => {
     fillTeamShell();
     expect(document.querySelector('[data-team-name]')!.textContent).toBe('brands/new');
     expect(href('gh')).toBe('https://github.com/brands/new');
+  });
+
+  it("keeps the account's name for the team when its settings carry no name, before and after they are read", () => {
+    page('/studio/acme/acme-build/building/', true);
+    document.body.insertAdjacentHTML('beforeend', '<span data-team-display>Your team</span>');
+    localStorage.setItem('bridge.accountTeamNames', JSON.stringify({ 'acme/acme-build': 'Acme Build' }));
+    settings.cfg = {};
+    fillTeamShell();
+    const shown = () => document.querySelector('[data-team-display]')!.textContent;
+    expect(shown()).toBe('Acme Build');
+    settings.cfg = { tokens: 'tokens' };
+    document.dispatchEvent(new Event('bridge:team-model'));
+    expect(shown()).toBe('Acme Build');
+    settings.cfg = { name: 'Acme Studio' };
+    document.dispatchEvent(new Event('bridge:team-model'));
+    expect(shown()).toBe('Acme Studio');
+    localStorage.clear();
+    settings.cfg = {};
   });
 });
 

@@ -122,3 +122,14 @@ export function knownTeamName(team: string, store: RecentStore | null = browserS
   const k = team.toLowerCase();
   return loadMap(TEAM_NAMES_KEY, store)[k] ?? loadMap(ACCOUNT_TEAM_NAMES_KEY, store)[k] ?? null;
 }
+
+/**
+ * The one name a team goes by on a page, whatever has loaded yet: its bridge.config.json `name` once its settings are
+ * read, else the name this browser knows (the account's team name the server keeps, or one read before), else the
+ * repository in words. A repository whose settings carry no `name` keeps the account's name after they load: the chip
+ * and the page header never flip from "Acme Build" to "Acme build".
+ */
+export function teamNameFor(team: string, config: { name?: unknown } | null | undefined, store: RecentStore | null = browserStore()): string {
+  const own = typeof config?.name === 'string' ? config.name.trim() : '';
+  return teamDisplayName(team, { name: own || knownTeamName(team, store) });
+}
