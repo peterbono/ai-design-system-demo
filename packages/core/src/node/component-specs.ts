@@ -983,7 +983,8 @@ interface RenderContext {
   /** What the render met and cannot draw faithfully (content computed while the page runs), in plain language. */
   blockers?: string[] | undefined;
   /** The option a group selects (`defaultValue` of a radio group): Base UI parts with that `value` are checked. */
-  selected?: string | undefined;
+  /** The selected value (a tab), or the open ones (an accordion's defaultValue list). */
+  selected?: string | string[] | undefined;
   /** The `items` of the nearest Base UI root (a combobox's options), for render functions of its lists. */
   items?: Value[] | undefined;
   /** React context values provided above, by context name. */
@@ -1118,7 +1119,7 @@ function renderJsx(ref: JsxRef, ctx: RenderContext, visible?: Node['visible']): 
     ...(visible ? { visible } : {}),
     ...(scope.src.baseUi.has(tag.split('.')[0]!)
       ? ctx.selected !== undefined && typeof attrs.value === 'string'
-        ? { baseUi: true, checked: attrs.value === ctx.selected ? 'true' : 'false', selectedBy: true }
+        ? { baseUi: true, checked: (Array.isArray(ctx.selected) ? ctx.selected.includes(attrs.value) : attrs.value === ctx.selected) ? 'true' : 'false', selectedBy: true }
         : { baseUi: true, checked: scope.main ? 'state' : (scope.checked ?? 'false') }
       : {}),
     ...(dataAttrs.size ? { attrs: dataAttrs } : {}),
@@ -1695,7 +1696,8 @@ function applyView(root: Node, view: SpecView | undefined): Node | undefined {
 
 function build(reader: Reader, src: ComponentSource, props: Record<string, Value>, preview?: DocChild[], view?: SpecView, rules: CssRule[] = [], tokens?: Map<string, TokenInfo>, examples?: Record<string, Value>): Built | undefined {
   const blockers: string[] = [];
-  const selected = typeof props.defaultValue === 'string' ? props.defaultValue : undefined;
+  const dv = props.defaultValue;
+  const selected = typeof dv === 'string' ? dv : Array.isArray(dv) && dv.every((x) => typeof x === 'string') ? (dv as string[]) : undefined;
   const rendered = renderComponent(reader, src.name, { ...props, children: CHILDREN }, { reader, depth: 0, component: src.name, blockers, ...(selected !== undefined ? { selected } : {}), ...(examples ? { examples } : {}) }, undefined, preview);
   let root = rendered && applyView(rendered, view);
   if (!root) return undefined;
@@ -1715,11 +1717,14 @@ function build(reader: Reader, src: ComponentSource, props: Record<string, Value
       root.children.push(n);
     }
   }
-  // Parts inside a selected option (a radio's dot) carry its checked state, as Base UI sets it on them.
-  const follow = (n: Node, inherited: Node['checked']) => {
+  // Parts inside a selected option (a radio's dot) carry its checked state, as Base UI sets it on them. A panel of an
+  // item that is not open (an accordion item outside its defaultValue, or alone) is not mounted: not drawn.
+  const follow = (n: Node, inherited: Node['checked'], item?: Node) => {
     if (n.baseUi && n.selectedBy) inherited = n.checked;
     else if (n.baseUi && inherited) n.checked = inherited;
-    for (const c of n.children) follow(c, inherited);
+    if (n.baseUi && /\.Item$/.test(n.tag)) item = n;
+    if (n.baseUi && /\.Panel$/.test(n.tag) && item && item.checked !== 'true' && item.checked !== 'state') n.inactive = true;
+    for (const c of n.children) follow(c, inherited, item);
   };
   follow(root, undefined);
   decorate(root, rules, tokens);
