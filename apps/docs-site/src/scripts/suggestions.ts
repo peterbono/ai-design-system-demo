@@ -36,7 +36,7 @@ import { isSampleTeam, sampleApprovalRows, sampleCodeReviewers } from '../lib/de
 import { sampleTeam } from '../lib/invites';
 import { ghAction } from '../lib/gh-wording';
 import { canReview } from '../lib/access';
-import { person, requesterPerson, type NeedRow, type Person } from '../lib/home-model';
+import { person, requesterPerson, type BranchCard, type NeedRow, type Person } from '../lib/home-model';
 import {
   applyLines,
   approvalRows,
@@ -50,6 +50,7 @@ import {
   staleLines,
   statusBadge,
   suggestionGate,
+  ownSuggestionCard,
   suggestionNeed,
   suggestionThumb,
   tokenRows,
@@ -198,6 +199,26 @@ export async function loadSuggestionQueue(personOf: (login: string) => Promise<P
       return { need: { ...suggestionNeed(w, asker, now), number: w.number }, labels: w.labels ?? [] };
     }),
   );
+}
+
+/**
+ * The open suggestions the viewer sent (their GitHub account opened it, or Bridge filed it for them as an email
+ * member: `mine`, the server's list), as cards next to their branches on Home. They wait on the reviewers, so they
+ * read calmly, never as a task. Empty signed out or when GitHub cannot be read.
+ */
+export async function loadOwnSuggestions(viewer: string | null, mine: { issues: number[] } | null): Promise<BranchCard[]> {
+  if (!viewer || !hasWorkingToken()) return [];
+  const same = (a: string | null | undefined) => Boolean(a && a.toLowerCase() === viewer.toLowerCase());
+  try {
+    const gh = client();
+    const items = await listSuggestionsOnGitHub(gh, { state: 'open', pulls: await gh.listPullRequests('all').catch(() => []) });
+    return items
+      .filter((i) => same(i.author) || same(i.requester?.login) || Boolean(mine?.issues.includes(i.number)))
+      .map((i) => ownSuggestionCard({ number: i.number, title: i.title, createdAt: i.createdAt, status: i.status }))
+      .filter((c): c is BranchCard => c !== null);
+  } catch {
+    return [];
+  }
 }
 
 /** What waits on the signed-in viewer, read once per page and kept two minutes. Empty signed out. */

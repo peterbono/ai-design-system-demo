@@ -300,3 +300,15 @@ describe('words', () => {
     }
   });
 });
+
+describe('ownSuggestionCard: the author sees their suggestion calmly', () => {
+  it('is a card with the suggestion status in their words, never a task', async () => {
+    const { ownSuggestionCard } = await import('./suggestions-view');
+    const c = ownSuggestionCard({ number: 12, title: 'Tokens: darker muted text', createdAt: '2026-10-24T08:00:00Z', status: 'needs-review' });
+    expect(c).toMatchObject({ number: 12, title: 'Darker muted text', stage: 'ready', statusLine: { stage: 'Suggestion', detail: 'waiting for a review' } });
+    expect(c?.href).toContain('suggestion=12');
+    expect(ownSuggestionCard({ number: 12, title: 'x', createdAt: '', status: 'approved' })?.statusLine?.detail).toBe('approved, a developer applies it');
+    expect(ownSuggestionCard({ number: 12, title: 'x', createdAt: '', status: 'applied' })).toBeNull();
+    expect(ownSuggestionCard({ number: 12, title: 'x', createdAt: '', status: 'declined' })).toBeNull();
+  });
+});

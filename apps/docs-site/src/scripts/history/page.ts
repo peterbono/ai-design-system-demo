@@ -24,6 +24,7 @@ import { displayName, paintPeople, personHtml } from '../people';
 import { markLogins } from '../../lib/people';
 import { attrUrl } from '../../lib/html';
 import { studioHref } from '../../lib/team-path';
+import { GUIDANCE_TAG, groupCountLine, isGuidanceEntry } from '../../lib/history-guidance';
 
 /** Claude made the change when its description carries an AI agent marker (lib/work-nature). */
 const agentOf = (e: HistoryEntry) => agentMade({ body: e.pr?.body ?? null });
@@ -68,7 +69,7 @@ const jiraOf = (e: HistoryEntry) => jiraKeyOf(e.title) ?? jiraKeyOf(historySumma
 /** A row: summary and #, what approval it needed in plain words (or Demo), the date. Counts live in the detail. */
 function row(e: HistoryEntry, demo: boolean): string {
   const key = jiraOf(e);
-  const tag = `<span class="cg-need">${e.bulk ? 'Import' : `${demo ? 'Demo, ' : ''}${approvalNeedLabel(e.tier)}`}</span>`;
+  const tag = `<span class="cg-need">${e.bulk ? 'Import' : `${demo ? 'Demo, ' : ''}${isGuidanceEntry(e) ? GUIDANCE_TAG : approvalNeedLabel(e.tier)}`}</span>`;
   return `<li class="cg-row"><a class="cg-row-link" href="${entryHref(e)}" data-hs-open="${esc(e.id)}">
     <span class="cg-row-title">${personHtml(e.author, { agent: agentOf(e), withName: false })}${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}<span class="cg-row-name" title="${esc(title(e))}">${esc(title(e))}</span></span>
     ${tag}
@@ -110,7 +111,7 @@ function paintList() {
     return;
   }
   if (!report || !entries.length) {
-    tl.innerHTML = `<p class="cg-muted">No merged token change yet. Token changes land here once a branch from Tokens is merged.</p>`;
+    tl.innerHTML = `<p class="cg-muted">No merged change yet. Token and usage guidance changes land here once they are merged.</p>`;
     $('hs-none').hidden = true;
     return;
   }
@@ -121,8 +122,8 @@ function paintList() {
   tl.innerHTML = groups
     .map((g) => {
       const name = g.version === 'Unreleased' ? 'Next release' : `Version ${g.version}`;
-      // Token changes only: the "Next release" card above counts every change, this group the token ones.
-      const facts = [`${g.items.length} token ${g.items.length === 1 ? 'change' : 'changes'}`, g.breaking ? 'breaking' : '', `${g.pending ? 'latest' : 'released'} ${shortDate(g.date)}`].filter(Boolean).join(', ');
+      // Token and usage guidance changes: the "Next release" card above counts every change, this group these ones.
+      const facts = [groupCountLine(g.items), g.breaking ? 'breaking' : '', `${g.pending ? 'latest' : 'released'} ${shortDate(g.date)}`].filter(Boolean).join(', ');
       const reviewable = g.items.filter((e) => !e.bulk);
       const imports = g.items.filter((e) => e.bulk);
       return `<section class="cg-rel" aria-label="${esc(name)}"><h2 class="cg-rel-h">${esc(name)} <span class="cg-rel-meta">${esc(facts)}</span></h2>
@@ -135,7 +136,24 @@ function paintList() {
 /** A team's entries carry no diff from the build: it is read from GitHub when the entry opens. */
 const teamDiff = (e: HistoryEntry, demo: boolean) => !demo && isHosted() && !e.bulk && Boolean(e.baseSha);
 
+/** A usage guidance change: what it changed in words, and the way to its page; no token diff, no Undo. */
+function paintGuidanceDetail(e: HistoryEntry, ref: string) {
+  const at = e.pr ? studioHref(`changes/?pr=${e.pr.number}`) : null;
+  $('hs-detail').innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${BASE}" data-hs-back>History</a><span aria-hidden="true">/</span><span>${esc(title(e))}</span></nav>
+    <header class="zone cg-pr-open">
+      <h2 class="cg-pr-title" tabindex="-1">${esc(withoutJiraKey(historySummary(e, { full: true })))}</h2>
+      <p class="cg-pr-meta"><span class="cg-who">${personHtml(e.author, { agent: agentOf(e), size: 'sm' })}<span>, ${esc(shortDate(e.date))}</span></span><span>${esc([GUIDANCE_TAG, e.version && e.version !== 'Unreleased' ? e.version : 'next release'].join(', '))}</span>${ref}</p>
+      <p class="cg-pr-state">Usage guidance changed. No token changed.</p>
+      ${at ? `<p class="cg-pr-cta"><a class="btn btn-secondary" href="${attrUrl(at)}">See the change</a></p>` : ''}
+    </header>`;
+  void paintPeople($('hs-detail'));
+}
+
 function paintDetail(e: HistoryEntry, demo: boolean) {
+  if (!demo && isGuidanceEntry(e)) {
+    const ref = `<a class="cg-gh" href="${attrUrl(e.pr ? (e.pr.url ?? `${repoUrl()}/pull/${e.pr.number}`) : `${repoUrl()}/commit/${e.sha}`)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}<span class="sr-only"> (opens in a new tab)</span></a>`;
+    return paintGuidanceDetail(e, ref);
+  }
   const review = L!.data.reviews[`${demo ? 'demo' : 'real'}:${e.id}`];
   const diff = e.bulk
     ? `<p class="cg-muted">Imports are listed, not diffed. First ${Math.min(40, e.changes.length)} of ${e.changes.length} tokens:</p><ul class="hs-paths">${e.changes
