@@ -17,7 +17,7 @@ export const TEAM_NAME_WORDS = {
   generalIntro: 'How your team shows up for everyone in Bridge.',
   notSet: 'Not set yet, Bridge uses the repository name.',
   requested: 'Sent for review',
-  applies: 'It applies once your team approves and merges the branch.',
+  applies: 'It applies once your team approves it.',
 } as const;
 
 /** What is wrong with a typed name, in one sentence; null when it can be saved. */

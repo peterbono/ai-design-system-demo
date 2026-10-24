@@ -19,7 +19,7 @@ const ALLOWED: Record<string, string> = {
   'pages/studio/components/index.astro': 'jsonForScript',
   'pages/studio/index.astro': 'jsonForScript',
   'pages/studio/review.astro': 'jsonForScript',
-  'pages/studio/settings/index.astro': 'jsonForScript',
+  'pages/studio/settings/index.astro': 'jsonForScript; Review rules owner names through escapeHtml (person marks)',
   'components/ds/library/views/AllTokensView.tsx': 'jsonForScript',
   // Build-time Markdown and constants.
   'components/ds/MarkdownTable.tsx': 'cells from inline()',
