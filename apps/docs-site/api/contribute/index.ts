@@ -307,6 +307,16 @@ async function sessionMember(ctx: Ctx, req: Request, repoFull: string): Promise<
   return m && m.email === a.email ? m : null;
 }
 
+/**
+ * The email member behind a request for this team (the team's cookie or a Bridge account session), for other functions
+ * that accept contributors (api/ship). Null when not signed in, or when storage, the secret or the app is missing.
+ */
+export async function contributorOf(req: Request, repoFull: string, env: ContribEnv, deps: ContribDeps): Promise<EmailMember | null> {
+  const svc = services(env, deps);
+  if (!svc) return null;
+  return sessionMember({ f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, env }, req, repoFull);
+}
+
 const publicMember = (m: EmailMember) => ({ email: m.email, name: m.name, role: m.role });
 
 // ---------------------------------------------------------------------------------------------------------------
