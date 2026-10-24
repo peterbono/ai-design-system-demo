@@ -9,6 +9,7 @@
 // What it answers (GET, under /repos/<fixture>): the repository (private, default branch main), branches, refs,
 // commits, the recursive tree, blobs (raw or base64), contents; empty lists for pull requests, issues, collaborators,
 // checks, deployments, tags and rulesets (a team seeded with build requests, S19, gets the sample ones instead); 404 for anything else. Any write answers 403 with a sentence that says why.
+// A writable fixture (S20) is served by dev/local-repo.ts instead: reads and writes, with the local GitHub personas.
 // Plus the installation token calls of the Bridge app for a fixture repository, so real GitHub App keys in .env.local
 // do not stop fixture teams from loading.
 //
@@ -19,6 +20,7 @@ import { execFileSync } from 'node:child_process';
 import type { AppTokens } from '../api/_lib/github-app.js';
 import type { FetchLike } from '../api/_lib/http.js';
 import type { Redis } from '../api/_lib/redis.js';
+import { callerOf, draftMutation, PERSONAS, pullOfNode, writableRepo } from './local-repo.js';
 
 /** The fixture teams, lower case "owner/repo", and each one's record { name }. Written by dev/scenarios.ts. */
 export const FIXTURES_KEY = 'bridge:local:fixtures';
@@ -29,13 +31,18 @@ export interface Fixture {
   name: string;
   /** Serve sample build requests (lib/building-sample.ts) as its issues and pull requests (Being built). */
   builds?: boolean;
+  /**
+   * Writable (dev/local-repo.ts): branches, commits, pull requests, reviews, merges and issues are kept locally, and
+   * the GitHub personas (dana, malik) are its owners, so the change lifecycle runs with no GitHub.
+   */
+  writable?: boolean;
 }
 
 export async function putFixture(redis: Redis, f: Fixture): Promise<void> {
   const repo = f.repo.trim().toLowerCase();
   await redis.pipe([
     ['SADD', FIXTURES_KEY, repo],
-    ['SET', fixtureKey(repo), JSON.stringify({ repo, name: f.name, ...(f.builds ? { builds: true } : {}) })],
+    ['SET', fixtureKey(repo), JSON.stringify({ repo, name: f.name, ...(f.builds ? { builds: true } : {}), ...(f.writable ? { writable: true } : {}) })],
   ]);
 }
 
@@ -93,6 +100,17 @@ const CONFIG = 'bridge.config.json';
 const blobSha = (body: Buffer) => createHash('sha1').update(`blob ${body.length}\0`).update(body).digest('hex');
 const treeSha = (commit: string, repo: string) => createHash('sha1').update(`tree:${commit}:${repo}`).digest('hex');
 
+/** A JSON request body (string or bytes), or null. */
+function parseBody(b: unknown): unknown {
+  if (b === undefined || b === null) return null;
+  try {
+    const text = typeof b === 'string' ? b : b instanceof Uint8Array ? Buffer.from(b).toString('utf8') : b instanceof ArrayBuffer ? Buffer.from(b).toString('utf8') : String(b);
+    return text ? JSON.parse(text) : null;
+  } catch {
+    return null;
+  }
+}
+
 const jsonRes = (status: number, data: unknown) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8' } });
 const notFound = () => jsonRes(404, { message: 'Not Found', documentation_url: 'https://docs.github.com/rest' });
 
@@ -104,6 +122,12 @@ function configFor(source: Buffer | null, f: Fixture): Buffer | null {
     const [owner, name] = f.repo.split('/');
     c.name = f.name;
     c.repo = { ...(c.repo ?? {}), owner, name, defaultBranch: 'main' };
+    // A writable fixture: its GitHub people are the local personas (dev/local-repo.ts), one design and one tech owner,
+    // so the review gate asks the people a reviewer can sign in as.
+    if (f.writable) {
+      const g = (c.governance ?? {}) as Record<string, any>;
+      c.governance = { ...g, owners: { design: ['dana'], tech: ['malik'] }, soloOwnerCanApproveBoth: false, override: { ...(g.override ?? {}), allowed: ['malik'] } };
+    }
     return Buffer.from(`${JSON.stringify(c, null, 2)}\n`);
   } catch {
     return source;
@@ -144,13 +168,40 @@ export function fixtureGithub(redis: Redis, files: () => FixtureFiles, next: Fet
     if (tok && Number(tok[1]) === INSTALLATION_ID) {
       return jsonRes(201, { token: FIXTURE_TOKEN, expires_at: new Date(now() + 3_600_000).toISOString(), permissions: { contents: 'write', pull_requests: 'write', issues: 'write', administration: 'write', metadata: 'read' } });
     }
+    const auth = new Headers(init?.headers).get('authorization');
+    const caller = callerOf(auth, FIXTURE_TOKEN);
+    // GraphQL: draft and ready for review of a writable fixture's pull request (core markReadyForReview, convertToDraft).
+    if (u.pathname === '/graphql' && method === 'POST') {
+      const q = parseBody(init?.body) as { query?: string; variables?: { id?: unknown } } | null;
+      const target = pullOfNode(q?.variables?.id);
+      const fx = target ? await getFixture(redis, target.repo) : null;
+      if (target && fx?.writable && caller) return draftMutation(redis, fx.repo, target.number, /convertPullRequestToDraft/.test(q?.query ?? ''), now);
+      if (target) return jsonRes(200, { data: null, errors: [{ message: 'Could not resolve to a PullRequest.' }] });
+      return next(url, init);
+    }
+    // A local GitHub persona (dev/local-repo.ts PERSONAS): who they are. Their other calls outside fixtures go out
+    // without the local token.
+    if (caller && PERSONAS[caller] && !u.pathname.startsWith('/repos/')) {
+      if (u.pathname === '/user') return jsonRes(200, { login: caller, id: 1000 + Object.keys(PERSONAS).indexOf(caller), name: PERSONAS[caller]!.name, avatar_url: '', type: 'User', html_url: `https://github.com/${caller}` });
+      const who = /^\/users\/([^/]+)$/.exec(u.pathname);
+      if (who && PERSONAS[decodeURIComponent(who[1]!)]) {
+        const l = decodeURIComponent(who[1]!);
+        return jsonRes(200, { login: l, name: PERSONAS[l]!.name, avatar_url: '', type: 'User', html_url: `https://github.com/${l}` });
+      }
+    }
     const m = /^\/repos\/([^/]+)\/([^/]+)(\/.*)?$/.exec(u.pathname);
     if (!m) return next(url, init);
     const repo = `${decodeURIComponent(m[1]!)}/${decodeURIComponent(m[2]!)}`.toLowerCase();
     const f = await getFixture(redis, repo);
     if (!f) return next(url, init);
-    if (method !== 'GET' && method !== 'HEAD') return jsonRes(403, { message: READ_ONLY });
     const rest = m[3] ?? '';
+    if (f.writable) {
+      const s = source();
+      const team = teamFiles(s, f);
+      const raw = /raw/i.test(new Headers(init?.headers).get('accept') ?? '');
+      return writableRepo(redis, { repo: f.repo, commit: s.commit, tree: treeSha(s.commit, f.repo), files: team.files, read: team.read }, { method, rest, url: u, body: parseBody(init?.body), raw, caller }, now);
+    }
+    if (method !== 'GET' && method !== 'HEAD') return jsonRes(403, { message: READ_ONLY });
     const s = source();
     const team = teamFiles(s, f);
     const [owner, name] = f.repo.split('/') as [string, string];

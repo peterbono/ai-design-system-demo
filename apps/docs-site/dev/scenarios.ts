@@ -1,4 +1,4 @@
-// Audit scenarios S0 to S18 for `npm run dev:full` (docs/HOSTED.md, "Test everything locally"): `npm run dev:scenario
+// Audit scenarios S0 to S20 for `npm run dev:full` (docs/HOSTED.md, "Test everything locally"): `npm run dev:scenario
 // <name>` clears the local accounts, teams, codes and outbox, then writes one scenario with the same storage functions
 // the api/* functions use (accounts, members, invites, discovery, join requests) and, where a scenario needs it, the
 // account function itself (sign-in codes). It prints the emails to sign in with and what each one should see.
@@ -123,6 +123,8 @@ interface TeamDef {
   members: Person[];
   /** Its fixture serves sample build requests (Being built). */
   builds?: boolean;
+  /** Its fixture is writable (dev/local-repo.ts): changes, reviews and merges run locally, with GitHub personas. */
+  writable?: boolean;
 }
 
 const T = {
@@ -136,6 +138,7 @@ const T = {
   marketing: { repo: 'lumen/marketing-site', name: 'Lumen Marketing', admin: P.theo, members: LUMEN_PEOPLE.slice(3, 4) },
   email: { repo: 'lumen/email-kit', name: 'Lumen Email', admin: P.ines, members: [] },
   building: { repo: 'acme/acme-build', name: 'Acme Build', admin: P.sam, members: [P.priya], builds: true },
+  flow: { repo: 'acme/acme-flow', name: 'Acme Flow', admin: P.sam, members: [P.priya, P.leo], writable: true },
 } satisfies Record<string, TeamDef>;
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -178,7 +181,7 @@ export class Seed {
 
   /** The team, its fixture files, its admin (a seeded local admin, also an email member) and its members. */
   async team(t: TeamDef): Promise<void> {
-    await putFixture(this.ctx.redis, { repo: t.repo, name: t.name, ...('builds' in t && t.builds ? { builds: true } : {}) });
+    await putFixture(this.ctx.redis, { repo: t.repo, name: t.name, ...('builds' in t && t.builds ? { builds: true } : {}), ...('writable' in t && t.writable ? { writable: true } : {}) });
     await this.member(t.repo, t.admin, 'local-seed', 60 * DAY);
     await localAdminStore(this.ctx.redis).add(t.repo, t.admin.email);
     for (const [i, m] of t.members.entries()) await this.member(t.repo, m, t.admin.name, (20 - i) * DAY);
@@ -603,6 +606,32 @@ export const SCENARIOS: Scenario[] = [
           { ...P.priya, kind: 'teams', teams: teamsOf([T.building, 'edit']), expect: 'The same, read only: no assign, no decline.' },
         ],
         ['Acme Build serves the sample build requests of lib/building-sample.ts as its issues and pull requests.'],
+      );
+    },
+  },
+  {
+    id: 'S20',
+    slug: 'change-lifecycle',
+    title: 'Change lifecycle on a writable team (send, review, merge)',
+    async run(ctx) {
+      const s = new Seed(ctx);
+      await s.team(T.flow);
+      return result(
+        [
+          {
+            ...P.priya,
+            kind: 'teams',
+            teams: teamsOf([T.flow, 'edit']),
+            expect: 'Can edit by email: edit a page or a token, Send for review (or Send suggestion); the change waits on Dana and Malik; after Request changes it waits on Priya.',
+          },
+          { ...P.leo, kind: 'teams', teams: teamsOf([T.flow, 'edit']), expect: 'Another Can edit member: sees Priya\'s change in History once merged, never a review queue.' },
+          { ...P.sam, kind: 'teams', teams: teamsOf([T.flow, 'admin']), expect: 'Email admin: manages people; approving needs GitHub (a persona).' },
+        ],
+        [
+          'Acme Flow is writable locally (dev/local-repo.ts): branches, pull requests, reviews and merges are kept in .bridge-local.',
+          'GitHub reviewers are personas, no GitHub needed: dana (Dana Whitfield, design owner, admin) and malik (Malik Osei, tech owner, ships).',
+          'Sign in as one in the browser with the token ghp_local_<login> and GitHub calls sent to /api/dev/github (the audit harness routes https://api.github.com/** there).',
+        ],
       );
     },
   },
