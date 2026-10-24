@@ -77,7 +77,7 @@ export default function TeamNameSetting({ prefix, protectedBranches }: TeamNameS
   };
 
   return (
-    <Card aria-labelledby="set-team-name-label">
+    <Card>
       <CardBody>
         <form
           className="set-rows"

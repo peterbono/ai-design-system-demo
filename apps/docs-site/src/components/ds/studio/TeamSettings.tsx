@@ -144,7 +144,7 @@ export default function TeamSettings() {
       </Band>
 
       <Band id="roles" title="Review rules" intro="Who checks a change before it reaches the library your products use.">
-        <Card aria-labelledby="ts-roles">
+        <Card>
           <CardBody>
             <div className="set-rows">
               {rows.map((x) => {
@@ -164,15 +164,6 @@ export default function TeamSettings() {
                 <div className="set-row">
                   <p className="set-row-label">Only owner</p>
                   <p className="set-row-value set-row-span">{solo}</p>
-                </div>
-              )}
-              {override && (
-                <div className="set-row">
-                  <div>
-                    <p className="set-row-label">{override.label}</p>
-                    <p className="set-row-help">{override.help}</p>
-                  </div>
-                  <p className="set-row-value set-row-span">{override.value}</p>
                 </div>
               )}
               {override && (

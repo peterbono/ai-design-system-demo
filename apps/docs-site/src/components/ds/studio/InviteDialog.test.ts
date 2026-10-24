@@ -77,7 +77,7 @@ async function openDialog() {
 describe('Invite collaborators', () => {
   it('says what happens, lists who has access and counts the invites on its one primary action', async () => {
     const { user, dialog } = await openDialog();
-    expect(within(dialog).getByText('They get an email, sign in with GitHub, and land in your team with the role you pick.')).toBeInTheDocument();
+    expect(within(dialog).getByText('They get an email and land in your team with the role you pick. Reviewers also sign in with GitHub.')).toBeInTheDocument();
     expect(within(dialog).getByText('Only admins can invite.')).toBeInTheDocument();
     expect(within(dialog).getByRole('heading', { name: /Who has access 5/ })).toBeInTheDocument();
     expect(within(dialog).getByText('sofia@acme.design')).toBeInTheDocument();

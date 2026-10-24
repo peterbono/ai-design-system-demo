@@ -173,8 +173,10 @@ export default function MembersSection() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const ready = load.status === 'ready' ? load.data : null;
   // Asked at once with the page's team, not after the members: the server says who is admin, and the rows paint first.
+  // A team made in Bridge waits for its members (one quick read of this site's server, which says the role): its
+  // members who are not admins never ask for what only admins may read.
   const [page] = useState(pageTeam);
-  const entry = useEntryAdmin(ready?.repo ?? page.repo, (isHosted() || isTeamKey(page.repo)) && (ready ? ready.context === 'real' && ready.canManage : page.context === 'real'));
+  const entry = useEntryAdmin(ready?.repo ?? page.repo, (isHosted() || isTeamKey(page.repo)) && (ready ? ready.context === 'real' && ready.canManage : page.context === 'real' && !isTeamKey(page.repo)));
   const early = (
     <JoinRequests
       repo={page.repo}

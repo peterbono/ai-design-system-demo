@@ -136,7 +136,7 @@ export default function ChangesModeSetting({ set, repo, prefix, protectedBranche
   const canSubmit = value !== current || !set;
 
   return (
-    <Card aria-labelledby="cm-card-title">
+    <Card>
       <CardBody>
         <div className="set-rows">
           {!editing ? (
