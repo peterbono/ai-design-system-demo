@@ -3,6 +3,7 @@
 // whether it merges cleanly, then core branchVerdict (the verdict the MCP server and the CLI read too). Shared by the Studio Overview and the In
 // review list. Reads go through ghGet, so they are cached in this browser and survive a rate limit; statuses are
 // kept per head commit for 10 minutes (lib/status-budget).
+import { figmaPushFor } from './figma-push-read';
 import { effectiveTier } from '../lib/review-queue';
 import { isGuidanceOnly } from '../lib/overview-todo';
 import { touchesVisuals } from '../lib/visual-impact';
@@ -43,6 +44,8 @@ export interface PullForStatus {
   labels?: LabelLike[];
   user: { login: string };
   head: { sha: string; ref: string };
+  /** Where it branched from, when the list read says (the Figma push reads its token files before the change there). */
+  base?: { sha?: string; ref?: string } | null;
 }
 
 /** Who may ship (governance.rights), undefined without rights: the owners ship then. GitHub teams count as their members once read. */
@@ -86,6 +89,8 @@ export async function ciFor(sha: string, opts: { lean?: boolean } = {}) {
 
 /** A status plus the review facts the who-acts line and the row need (lib/changes whoActs). */
 export interface PullStatus extends ReviewStatus {
+  /** A token push from Figma with values only: it ships after the checks, nobody reviews it (core branchVerdict). */
+  autoShip?: boolean;
   approvers?: string[];
   /** The design approval is in (summarizeApprovals design): the waiting-for-code rule reads it (lib/change-status). */
   design?: boolean;
@@ -149,7 +154,9 @@ export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}
   // One verdict for every surface (lib/review-rules studioVerdict, core branchVerdict): the same the branch page, the
   // MCP server and the CLI read.
   const suggestion = reviews && closingIssueNumbers(p.body).length ? await approvedSuggestionOf(p.body) : null;
-  const verdict = (mergeable?: boolean | null) => studioVerdict({ site: siteRoles(), teams: teamSnapshot(), pull: p, tier, ci, reviews, suggestion, mergeable });
+  // Pushed from the Figma plugin: design approved by the push, token values tech approved too (docs/BUILD-REQUESTS.md).
+  const figmaPush = await figmaPushFor(p, files);
+  const verdict = (mergeable?: boolean | null) => studioVerdict({ site: siteRoles(), teams: teamSnapshot(), pull: p, tier, ci, reviews, suggestion, mergeable, figmaPush });
   const first = verdict();
   const approvals = first.approvals;
   // Only an open change that nothing else blocks needs to know whether it merges cleanly.
@@ -159,6 +166,9 @@ export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}
   const names = files?.map((f) => f.filename) ?? null;
   return {
     ...status,
+    // Ships by itself, so it waits on nobody, until something holds it (a failing check, a conflict, changes
+    // requested): then it is a change like any other, as bridge_what_needs_me reads it.
+    ...(first.autoShip && !['ci-failing', 'conflict', 'changes-requested'].includes(kind) ? { autoShip: true } : {}),
     approvers: approvals?.approvers,
     design: approvals?.design,
     changesRequested: approvals?.changesRequested,

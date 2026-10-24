@@ -77,6 +77,9 @@ export const LIBRARY_USE: NavItem[] = LIBRARY_USE_PAGES.map((p) => ({ href: `/${
  * impact pages redirect to the right view (lib/redirects.ts). */
 export const STUDIO_CHANGES_HREF = '/studio/changes/';
 
+/** Being built: the build requests sent from Figma (docs/BUILD-REQUESTS.md), read only. */
+export const STUDIO_BUILDING_HREF = '/studio/building/';
+
 /** Quality is one page: the contrast gate, token validation, docs completeness and adoption. The old Checks and
  * Adoption pages redirect to it (lib/redirects.ts); each audit report opens under /studio/quality/audits/. */
 export const STUDIO_QUALITY_HREF = '/studio/quality/';
@@ -112,6 +115,7 @@ export function studioNav(): NavEntry[] {
   return [
     { href: STUDIO_HOME, label: 'Home', icon: 'gauge', meta: 'What waits for you, suggestions and activity' },
     { href: STUDIO_CHANGES_HREF, label: VOCAB.Branches, icon: 'branch', badge: 'reviews', meta: 'Branches in review, explorations and the history of merged token changes, with undo' },
+    { href: STUDIO_BUILDING_HREF, label: 'Being built', icon: 'wrench', meta: 'Changes sent from Figma that developers are building, and where each one stands' },
     { href: '/studio/components/', label: 'Components', icon: 'diamonds', branchAware: true, meta: 'Status, tokens, code and Figma links per component' },
     { href: '/studio/tokens/', label: 'Tokens', icon: 'grid', branchAware: true, meta: 'Edit tokens into a draft, with live preview and guardrails' },
     { href: STUDIO_QUALITY_HREF, label: 'Quality', icon: 'shield', branchAware: true, meta: 'Contrast gate, token validation, docs completeness and adoption, most severe first' },

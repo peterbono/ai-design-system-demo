@@ -121,6 +121,8 @@ interface TeamDef {
   name: string;
   admin: Person;
   members: Person[];
+  /** Its fixture serves sample build requests (Being built). */
+  builds?: boolean;
 }
 
 const T = {
@@ -133,6 +135,7 @@ const T = {
   lweb: { repo: 'lumen/web-platform', name: 'Lumen Web', admin: P.theo, members: LUMEN_PEOPLE.slice(0, 2) },
   marketing: { repo: 'lumen/marketing-site', name: 'Lumen Marketing', admin: P.theo, members: LUMEN_PEOPLE.slice(3, 4) },
   email: { repo: 'lumen/email-kit', name: 'Lumen Email', admin: P.ines, members: [] },
+  building: { repo: 'acme/acme-build', name: 'Acme Build', admin: P.sam, members: [P.priya], builds: true },
 } satisfies Record<string, TeamDef>;
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -175,7 +178,7 @@ export class Seed {
 
   /** The team, its fixture files, its admin (a seeded local admin, also an email member) and its members. */
   async team(t: TeamDef): Promise<void> {
-    await putFixture(this.ctx.redis, { repo: t.repo, name: t.name });
+    await putFixture(this.ctx.redis, { repo: t.repo, name: t.name, ...('builds' in t && t.builds ? { builds: true } : {}) });
     await this.member(t.repo, t.admin, 'local-seed', 60 * DAY);
     await localAdminStore(this.ctx.redis).add(t.repo, t.admin.email);
     for (const [i, m] of t.members.entries()) await this.member(t.repo, m, t.admin.name, (20 - i) * DAY);
@@ -579,6 +582,27 @@ export const SCENARIOS: Scenario[] = [
           { ...P.leo, kind: 'teams', teams: teamsOf([T.product, 'edit']), expect: 'Can edit: reads Members, changes nothing.' },
         ],
         ['Priya is an email admin (role admin on her membership), not a seeded local admin: the real production path.'],
+      );
+    },
+  },
+  {
+    id: 'S19',
+    slug: 'being-built',
+    title: 'Build requests in every status',
+    async run(ctx) {
+      const s = new Seed(ctx);
+      await s.team(T.building);
+      return result(
+        [
+          {
+            ...P.sam,
+            kind: 'teams',
+            teams: teamsOf([T.building, 'admin']),
+            expect: 'Being built lists six build requests: one stale (Tabs, 10 days), one new, one picked up (Ana), one in progress, one in review with a Jira key, one shipped this week. The home and the Card page say Figma is ahead.',
+          },
+          { ...P.priya, kind: 'teams', teams: teamsOf([T.building, 'edit']), expect: 'The same, read only: no assign, no decline.' },
+        ],
+        ['Acme Build serves the sample build requests of lib/building-sample.ts as its issues and pull requests.'],
       );
     },
   },

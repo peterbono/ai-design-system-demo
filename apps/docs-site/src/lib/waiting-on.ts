@@ -60,6 +60,11 @@ export interface WaitChange {
   requested?: string[];
   /** Reviewers whose latest review asks for changes (known before who acts, and for an email contributor). */
   changesRequested?: string[];
+  /**
+   * A token push from Figma with values only (core branchVerdict autoShip): it ships after the automatic checks, so it
+   * never waits on anyone (docs/BUILD-REQUESTS.md).
+   */
+  autoShip?: boolean;
 }
 
 const norm = (x: string) => x.trim().toLowerCase().replace(/^@/, '');
@@ -73,7 +78,7 @@ const reviews = (v: WaitViewer) => v.role === 'reviewer' && (Boolean(v.login) ||
 
 /** What the change asks of the viewer now, or null when it waits on someone else (or on nobody in the Studio). */
 export function waitingOn(c: WaitChange, v: WaitViewer): WaitTask | null {
-  if (c.exploration || c.lifecycle === 'shipped' || c.lifecycle === 'closed') return null;
+  if (c.exploration || c.autoShip || c.lifecycle === 'shipped' || c.lifecycle === 'closed') return null;
   // Spec only, no code yet: a developer builds it with Claude. Nobody in the Studio is waited on, the designer least.
   if (claudeStage(c.labels) === 'waiting') return null;
   // Claude drafted the code: ready for review, whatever GitHub's draft flag says (core isDraft).

@@ -6,6 +6,7 @@
 // "Copy link", "Link for a developer"; the page itself never links to GitHub.
 // Without a token the bar's primary connects GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
+import { figmaPushFor } from './figma-push-read';
 import { EXPLORATION_USE_CASES, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, canOverride, overrideReasonMin, ownerOverridePolicy, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
 import { loadTeams, siteApprovalRules, siteApprovers, siteRoles, siteShipPolicy, siteSoloOwner, teamDirectory, teamSnapshot } from './teams';
 import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
@@ -663,10 +664,12 @@ export async function openPr(n: number, push = true) {
     // One verdict (core branchVerdict), the same the MCP server and the CLI read: the pull request that applies an
     // approved suggestion carries its approvals, the override is for its owner holders, Tier 1 needs one owner.
     const carried = await approvedSuggestionOf(pull.body);
+    // Pushed from the Figma plugin: design approved by the push, token values tech approved too (docs/BUILD-REQUESTS.md).
+    const figmaPush = await figmaPushFor(pull, files);
     const ship = await viewerShipPolicy(SHIP(), access?.login);
     if (seq !== openSeq) return;
     // lib/review-rules studioVerdict: the composition the status chips read, and the MCP server and the CLI too.
-    const verdictOf = (rs: ReviewLike[]) => studioVerdict({ site: { ...siteRoles(), override: OVERRIDE }, teams: teamSnapshot(), pull, tier, ci, reviews: rs, suggestion: carried, mergeable: pull.mergeable, viewer: access?.login, ship });
+    const verdictOf = (rs: ReviewLike[]) => studioVerdict({ site: { ...siteRoles(), override: OVERRIDE }, teams: teamSnapshot(), pull, tier, ci, reviews: rs, suggestion: carried, mergeable: pull.mergeable, viewer: access?.login, ship, figmaPush });
     const gateOf = (rs: ReviewLike[]) => verdictOf(rs).gate!;
     const own = verdictOf(reviews);
     const approvals = own.approvals!;

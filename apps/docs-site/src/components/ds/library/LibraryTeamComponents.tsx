@@ -15,8 +15,10 @@ import PropsPlayground from '../../PropsPlayground';
 import ComponentFilter from './ComponentFilter';
 import ComponentsView, { COMPONENTS_PAGE, componentFamilies } from './views/ComponentsView';
 import ComponentView from './views/ComponentView';
+import { FigmaAhead } from './FigmaAhead';
+import { buildViewsFor } from '../../../scripts/building-data';
 import { LibraryPage, LibrarySourceNote, LibraryZone, usePageTeam } from './LibraryState';
-import { teamLibraryData, type LibraryData } from './library-data';
+import { studioLink, teamLibraryData, type LibraryData } from './library-data';
 import { playgroundSpec } from '../../../lib/library/components';
 import { componentBySlug, componentSlugFromPath, mainStory, previewScopes } from '../../../lib/library/component-page';
 import { httpsStorybook } from '../../../lib/team-components';
@@ -127,6 +129,7 @@ function Ready({ page, data, refreshing }: { page: LibraryComponentsPage; data: 
         component={c}
         heroTools={scopes.brands.length > 1 || scopes.densities.length > 1 ? <ScopeMenu brands={scopes.brands} densities={scopes.densities} /> : undefined}
           playground={spec && story && storybook ? <PropsPlayground spec={spec} storybook={storybook} storyId={story.id} brands={scopes.brands} densities={scopes.densities} /> : undefined}
+          ahead={<FigmaAhead component={c.name} href={studioLink(view, 'building/')} load={() => buildViewsFor(`${data.owner}/${data.repo}`, data.client)} />}
         />
       </div>
       {source}

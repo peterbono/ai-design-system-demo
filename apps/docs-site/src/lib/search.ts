@@ -26,6 +26,7 @@ export function searchIndex(): SearchItem[] {
     [studioHref('changes/')]: 'history versions releases revert undo drafts branches reviews pull requests visual impact',
     [studioHref('settings/')]: 'settings integrations github token connection figma plugin mcp repository bridge.config.json governance approvals risk tiers owners',
     '/how-review-works/': 'governance review risk tiers approvals gates owner override agent rules',
+    [studioHref('building/')]: 'build requests component change requests figma push developers jira in progress shipped',
     [studioHref('quality/')]: 'checks contrast gate token validation adoption audit docs completeness guidance',
   };
   const seen = new Set<string>();

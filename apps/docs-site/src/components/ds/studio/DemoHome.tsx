@@ -24,6 +24,8 @@ export interface DemoHomeProps {
   /** The persona's role ("DS lead"). */
   role: string | null;
   health: HealthLine | null;
+  /** The calm Being built line (StudioHome `building`). */
+  building?: boolean;
   /** GitHub could not be read. */
   failed: string | null;
   now: number;
@@ -48,6 +50,7 @@ export function DemoHome(p: DemoHomeProps) {
       needs={p.needs}
       branches={p.branches}
       health={p.health}
+      building={p.building}
       now={p.now}
       components={p.components}
       signedOut={{ line: '', button: '', signIn: true }}
