@@ -311,7 +311,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
         const c = todoChange(p, st);
         const stage = c.lifecycle === 'waiting' ? 'waiting' : isDraft(p) || c.lifecycle === 'draft' ? 'draft' : 'ready';
         // The same pill as the branch's row in Branches and its page header (lib/changes statusPill).
-        const status = st && stage === 'ready' ? statusPill(st.kind, rowWho(st.kind, { author: p.user.login, labels: p.labels, approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing, failingChecks: st.failingChecks, pending: st.pending })).label : null;
+        const status = st && stage === 'ready' ? statusPill(st.kind, rowWho(st.kind, { author: p.user.login, labels: p.labels, approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing, failingChecks: st.failingChecks, pending: st.pending, autoShip: st.autoShip })).label : null;
         return { number: p.number, title: c.title, href: studioHref(`changes/?pr=${p.number}`), stage, updated: p.updated_at, reviewer: pick(reviewerLogin(p, st)), thumb: resolved.get(p.number) ?? { kind: 'icon', icon: 'branch' }, status };
       });
     // Suggestions wait on their reviewers only.

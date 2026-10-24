@@ -33,7 +33,7 @@ export const siteOwners = () => {
 
 /** Who acts now on a change, for the connected viewer: the same people as the change detail and the Branches rows (rowWho). */
 export function whoFor(p: PullForStatus, st: PullStatus | null | undefined): WhoActs | null {
-  return st ? rowWho(st.kind, { author: p.user.login, labels: p.labels, approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing, failingChecks: st.failingChecks, pending: st.pending }) : null;
+  return st ? rowWho(st.kind, { author: p.user.login, labels: p.labels, approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing, failingChecks: st.failingChecks, pending: st.pending, autoShip: st.autoShip }) : null;
 }
 
 /**
