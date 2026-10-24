@@ -25,6 +25,19 @@ export const CONTRIB_REFUSAL = 'bridge-contribute:';
 /** The header every proxied call carries, so the server tells it from a page's own call. */
 export const CONTRIBUTE_HEADER = 'X-Bridge-Contribute';
 
+/**
+ * Request and answer header of a "missing" read (api/_lib/team-read.ts): a page that sends it gets GitHub's 404 (a
+ * file or branch that is not there, such as a team without a Bridge snapshot) as a 200 marked with it, so the browser
+ * logs no error for an expected empty state. restoreMissing turns it back into the 404 the GitHub client expects.
+ */
+export const MISSING_HEADER = 'X-Bridge-Missing';
+
+/** The proxy's "missing" answer read back as GitHub's own 404 (same body and headers); any other answer as it is. */
+export function restoreMissing(res: Response): Response {
+  if (res.status !== 200 || res.headers.get(MISSING_HEADER) !== '1') return res;
+  return new Response(res.body, { status: 404, statusText: 'Not Found', headers: res.headers });
+}
+
 /** An email contributor of one team, as the server says it. */
 export interface ContributeMember {
   email: string;

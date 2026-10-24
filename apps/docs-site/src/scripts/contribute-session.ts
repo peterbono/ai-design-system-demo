@@ -7,7 +7,7 @@
 // scripts/github-session.ts uses it: getToken() gives the stand-in token (lib/contribute CONTRIB_TOKEN) to every
 // feature, and the session's fetch sends each call that carries it here (contributeFetch). No feature changes.
 import { GitHubError } from '@bridge-ds/core';
-import { CONTRIB_REFUSAL, CONTRIBUTE_API, GITHUB_API, CONTRIBUTE_HEADER, CONTRIBUTE_WORDS, contributeHashToken, localDevHost, parseMember, proxyUrl, type ContributeMember } from '../lib/contribute';
+import { CONTRIB_REFUSAL, CONTRIBUTE_API, GITHUB_API, CONTRIBUTE_HEADER, CONTRIBUTE_WORDS, contributeHashToken, localDevHost, MISSING_HEADER, parseMember, proxyUrl, restoreMissing, type ContributeMember } from '../lib/contribute';
 import { isDemoRepo } from '../lib/demo';
 
 /** The site cannot sign in with an email (no server piece, or not set up). */
@@ -292,7 +292,7 @@ export async function contributeFetch(repo: string, url: string, init: RequestIn
   // A new branch, pull request or issue: "mine" is read again next time.
   if (method === 'POST' && /\/(git\/refs|pulls|issues)(\?|$)/.test(path)) forgetMine(repo);
   const [res, mine] = await Promise.all([
-    fetchImpl(target, { ...init, headers: { ...headers, [CONTRIBUTE_HEADER]: '1' }, credentials: 'same-origin' }),
+    fetchImpl(target, { ...init, headers: { ...headers, [CONTRIBUTE_HEADER]: '1', ...(method === 'GET' ? { [MISSING_HEADER]: '1' } : {}) }, credentials: 'same-origin' }).then(restoreMissing),
     authored ? contributeMine(repo) : Promise.resolve(null),
   ]);
   if (res.status === 401) endedEmailSession(repo);
@@ -354,7 +354,7 @@ export async function publicTeamRead(repo: string, url: string, accept: string):
   if (!target) return null;
   let res: Response;
   try {
-    res = await fetchImpl(target, { headers: { Accept: accept || 'application/vnd.github+json' }, credentials: 'same-origin' });
+    res = restoreMissing(await fetchImpl(target, { headers: { Accept: accept || 'application/vnd.github+json', [MISSING_HEADER]: '1' }, credentials: 'same-origin' }));
   } catch {
     return null;
   }

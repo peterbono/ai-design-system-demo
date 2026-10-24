@@ -8,6 +8,9 @@
 //   GET /api/contribute?repo=owner/name&gh=<GitHub REST path under /repos/owner/name, URL-encoded>
 //       GitHub's status, body, Content-Type, Link and ETag, from the cache when it is fresh. If-None-Match that
 //       matches the kept ETag answers 304. X-Bridge-Cache says hit, revalidated, miss or stale.
+//       A request that carries X-Bridge-Missing: 1 (Bridge's own pages) gets GitHub's 404 (a file or branch that is not
+//       there, such as a team without a Bridge snapshot) as 200 with X-Bridge-Missing: 1 and GitHub's body, so the
+//       browser logs no error for an expected empty state; the page reads it back as the 404 (lib/contribute.ts).
 //   GET /api/contribute?repo=owner/name&blobs=<sha>,<sha>,...   (at most MAX_BATCH full blob shas)
 //       { blobs: { <sha>: "<text>" | null } , later: [<sha>...] }  the bodies of these blobs at once (null: GitHub has
 //       none), `later` the ones left out to keep the answer under MAX_BATCH_BYTES (ask again).
@@ -236,6 +239,9 @@ const parseKept = (raw: unknown): Kept | null => {
 // ---------------------------------------------------------------------------------------------------------------
 // GitHub
 
+/** Request and answer header of a "missing" result: GitHub said 404, answered 200 to a page that asked for it. */
+export const MISSING_HEADER = 'X-Bridge-Missing';
+
 const ACCEPT = /^application\/(json|vnd\.github(\.[A-Za-z0-9.+-]+)?)$/;
 const PASS_TYPE = /^(application\/(json|vnd\.github[^;]*)|text\/plain)\b/i;
 
@@ -289,7 +295,7 @@ export async function isPublicRepo(ctx: ReadCtx, owner: string, repo: string): P
   return pub;
 }
 
-function answer(k: Kept, source: 'hit' | 'revalidated' | 'miss' | 'stale', inm: string | null): Response {
+function answerKept(k: Kept, source: 'hit' | 'revalidated' | 'miss' | 'stale', inm: string | null, missingOk = false): Response {
   const headers: Record<string, string> = {
     ...SECURITY_HEADERS,
     'Content-Security-Policy': "default-src 'none'; sandbox",
@@ -300,6 +306,7 @@ function answer(k: Kept, source: 'hit' | 'revalidated' | 'miss' | 'stale', inm: 
   if (k.link) headers.Link = k.link;
   if (inm && k.etag && inm === k.etag && k.status === 200) return new Response(null, { status: 304, headers });
   headers['Content-Type'] = PASS_TYPE.test(k.type) ? k.type : 'application/octet-stream';
+  if (missingOk && k.status === 404) return new Response(k.body, { status: 200, headers: { ...headers, [MISSING_HEADER]: '1' } });
   return new Response(k.status === 204 ? null : k.body, { status: k.status, headers });
 }
 
@@ -325,6 +332,9 @@ export async function onRead(req: Request, ctx: ReadCtx, t: ReadTarget, reader: 
   const keep = !new URLSearchParams(t.query).has('t');
   const key = getKey(t.full, accept, url);
   const inm = req.headers.get('if-none-match');
+  // GitHub's 404 answered as a 200 "missing" result, for a page that asked for it (MISSING_HEADER).
+  const missingOk = req.headers.get(MISSING_HEADER) === '1';
+  const answer = (k: Kept, source: 'hit' | 'revalidated' | 'miss' | 'stale', etagIn: string | null) => answerKept(k, source, etagIn, missingOk);
   const now = ctx.now();
 
   const mem = forever ? memory.get(key) : undefined;

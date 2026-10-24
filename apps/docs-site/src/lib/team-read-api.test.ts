@@ -5,6 +5,7 @@ import { ACCOUNT_COOKIE, putAccount, signAccountSession } from '../../api/_lib/a
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
 import { clearReadMemory, FRESH_MS, immutable, MAX_BATCH, readAllowed, READ_LIMITS, READ_WORDS } from '../../api/_lib/team-read';
+import { restoreMissing } from './contribute';
 import { type ContribDeps, cookieName, type FetchLike, handleContribute, signSession } from '../../api/contribute/index';
 
 const HOST = 'bridge.example.com';
@@ -50,6 +51,7 @@ function github(w: World): FetchLike {
       if (init.headers['If-None-Match'] === etag) return new Response(null, { status: 304, headers: { ETag: etag } });
       return Response.json([{ number: w.pulls }], { headers: { ETag: etag, Link: '<x>; rel="next"' } });
     }
+    if (rest.startsWith('/contents/snapshot.json')) return Response.json({ message: 'Not Found' }, { status: 404 });
     const b = /^\/git\/blobs\/([0-9a-f]{40})$/.exec(rest);
     if (b) return w.blobs[b[1]!] !== undefined ? new Response(w.blobs[b[1]!], { status: 200, headers: { 'Content-Type': 'application/vnd.github.raw' } }) : Response.json({ message: 'Not Found' }, { status: 404 });
     return Response.json({ ok: rest }, { headers: { ETag: '"x"' } });
@@ -151,6 +153,31 @@ describe('team reads: who', () => {
     const r = await s.read(`${P}/pulls`, await s.member());
     expect(r.status).toBe(409);
     expect((await r.json()).error).toBe('app_missing');
+  });
+});
+
+describe('team reads: a missing file', () => {
+  it('answers a 404 as a 200 "missing" result when the page asks (no console error), and a 404 otherwise', async () => {
+    const s = setup();
+    const cookie = await s.member();
+    const path = `${P}/contents/snapshot.json?ref=bridge-data`;
+    const asked = await s.read(path, cookie, TEAM, { 'x-bridge-missing': '1' });
+    expect(asked.status).toBe(200);
+    expect(asked.headers.get('x-bridge-missing')).toBe('1');
+    expect(await asked.json()).toEqual({ message: 'Not Found' });
+    const back = restoreMissing(await s.read(path, cookie, TEAM, { 'x-bridge-missing': '1' }));
+    expect(back.status).toBe(404);
+    expect(await back.json()).toEqual({ message: 'Not Found' });
+    // From the cache too, and as GitHub said it for a caller that did not ask.
+    expect(gets(s.w, path)).toBe(1);
+    const plain = await s.read(path, cookie);
+    expect(plain.status).toBe(404);
+    expect(plain.headers.get('x-bridge-missing')).toBeNull();
+    // A file that is there is never marked.
+    const there = await s.read(`${P}/contents/llms.txt?ref=bridge-data`, cookie, TEAM, { 'x-bridge-missing': '1' });
+    expect(there.status).toBe(200);
+    expect(there.headers.get('x-bridge-missing')).toBeNull();
+    expect(restoreMissing(there)).toBe(there);
   });
 });
 
