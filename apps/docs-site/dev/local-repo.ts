@@ -204,7 +204,8 @@ async function handle(redis: Redis, base: RepoBase, req: { method: string; rest:
   };
   const putObj = (sha: string, o: Obj) => {
     const k = objKey(repo, sha);
-    if (objCache.has(k)) return;
+    // Always written: the memory cache outlives a scenario reset of the store (npm run dev:scenario while the server
+    // runs), and an object it already holds would otherwise never reach the store again (lost on the next restart).
     objCache.set(k, o);
     pending.push(['SET', k, JSON.stringify(o)]);
   };

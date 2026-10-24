@@ -42,6 +42,12 @@ function github(w: World): FetchLike {
     expect(u.origin).toBe('https://api.github.com');
     w.calls.push({ method: init.method, path: u.pathname + u.search, auth: init.headers.Authorization ?? '', headers: init.headers });
     if (w.limited) return new Response(JSON.stringify({ message: 'API rate limit exceeded' }), { status: 403, headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(Math.floor(T0 / 1000) + 300) } });
+    const user = /^\/users\/([^/]+)$/.exec(u.pathname);
+    if (user) {
+      const login = decodeURIComponent(user[1]!);
+      if (login === 'ghost') return Response.json({ message: 'Not Found' }, { status: 404 });
+      return Response.json({ login: login === 'dana' ? 'Dana' : login, name: login === 'dana' ? 'Dana Whitfield' : null, avatar_url: `https://avatars.githubusercontent.com/u/1?v=4`, type: 'User', email: 'dana@private.example', company: 'Acme', location: 'Lyon', bio: 'secret' });
+    }
     const m = /^\/repos\/([^/]+\/[^/]+)(\/.*)?$/.exec(u.pathname);
     if (!m) return new Response('{}', { status: 404 });
     const rest = m[2] ?? '';
@@ -92,7 +98,9 @@ function setup(world: Partial<World> = {}, env: Record<string, string> = {}) {
     handleContribute(new Request(`${ORIGIN}/api/contribute?repo=${encodeURIComponent(repo)}&gh=${encodeURIComponent(path)}`, { headers: { host: HOST, 'x-real-ip': '203.0.113.9', ...(cookie ? { cookie } : {}), ...extra } }), env2, deps);
   const blobs = (shas: string[], cookie = '', repo = TEAM) =>
     handleContribute(new Request(`${ORIGIN}/api/contribute?repo=${encodeURIComponent(repo)}&blobs=${shas.join(',')}`, { headers: { host: HOST, 'x-real-ip': '203.0.113.9', ...(cookie ? { cookie } : {}) } }), env2, deps);
-  return { w, redis, deps, member, account, read, blobs, tokens, tick: (ms: number) => (now += ms) };
+  const users = (logins: string[], cookie = '', repo = TEAM) =>
+    handleContribute(new Request(`${ORIGIN}/api/contribute?repo=${encodeURIComponent(repo)}&users=${logins.join(',')}`, { headers: { host: HOST, 'x-real-ip': '203.0.113.9', ...(cookie ? { cookie } : {}) } }), env2, deps);
+  return { w, redis, deps, member, account, read, blobs, users, tokens, tick: (ms: number) => (now += ms) };
 }
 
 const P = `/repos/${TEAM}`;
@@ -284,7 +292,7 @@ describe('team reads: the cache', () => {
 });
 
 describe('team reads: limits', () => {
-  it('over the limit per address, 429 busy with Retry-After, in Bridge words', async () => {
+  it('over the limit per member, 429 busy with Retry-After, in Bridge words', async () => {
     const s = setup({}, { READ_MAX_IP: '3' });
     const cookie = await s.member();
     for (let i = 0; i < 3; i++) expect((await s.read(`${P}/pulls`, cookie)).status).toBe(200);
@@ -294,8 +302,36 @@ describe('team reads: limits', () => {
     expect(body.error).toBe('busy');
     expect(body.message).toMatch(/^Bridge is busy, try again in \d+ min\.$/);
     expect(Number(r.headers.get('retry-after'))).toBeGreaterThan(0);
-    // Another address still reads.
-    expect((await s.read(`${P}/pulls`, cookie, TEAM, { 'x-real-ip': '198.51.100.7' })).status).toBe(200);
+    // The budget is the member's: another address does not give them more.
+    expect((await s.read(`${P}/pulls`, cookie, TEAM, { 'x-real-ip': '198.51.100.7' })).status).toBe(429);
+  });
+
+  it('counts per signed-in member, not per address: a busy office on one address keeps reading', async () => {
+    const s = setup({}, { READ_MAX_IP: '3' });
+    const mia = await s.member('mia@acme.design');
+    const leo = await s.member('leo@acme.design');
+    const sam = await s.account('sam@acme.design', [TEAM]);
+    // Same address (203.0.113.9) for all three.
+    for (let i = 0; i < 3; i++) expect((await s.read(`${P}/pulls`, mia)).status).toBe(200);
+    expect((await s.read(`${P}/pulls`, mia)).status).toBe(429);
+    for (let i = 0; i < 3; i++) expect((await s.read(`${P}/pulls`, leo)).status).toBe(200);
+    expect((await s.read(`${P}/pulls`, leo)).status).toBe(429);
+    // A Bridge account counts as its email, whatever the cookie: the team cookie and the account share one budget.
+    for (let i = 0; i < 3; i++) expect((await s.read(`${P}/pulls`, sam)).status).toBe(200);
+    expect((await s.read(`${P}/pulls`, sam)).status).toBe(429);
+    // A blob batch counts on the same budget.
+    expect((await s.blobs([SHA('a')], mia)).status).toBe(429);
+    // Keys never hold an email or an address.
+    const keys = s.redis.keys().filter((k) => k.startsWith('bridge:read:count:'));
+    expect(keys.some((k) => k.startsWith('bridge:read:count:member:'))).toBe(true);
+    expect(keys.join(' ')).not.toMatch(/@|203\.0\.113/);
+  });
+
+  it('a signed-out visitor of a demo team still counts per address', async () => {
+    const s = setup({}, { READ_MAX_GUEST: '1' });
+    expect((await s.read(`${D}/pulls`, '', DEMO)).status).toBe(200);
+    expect((await s.read(`${D}/pulls`, '', DEMO)).status).toBe(429);
+    expect((await s.read(`${D}/pulls`, '', DEMO, { 'x-real-ip': '198.51.100.9' })).status).toBe(200);
   });
 
   it('visitors of a demo team have a lower limit per address, and every team its own cap', async () => {
@@ -341,5 +377,52 @@ describe('team reads: blobs at once', () => {
     const r = await s.blobs([SHA('a')], cookie);
     expect(r.status).toBe(429);
     expect((await r.json()).error).toBe('busy');
+  });
+});
+
+describe('team reads: people by login', () => {
+  it('gives a member the public name and avatar only, kept a day, and null for an unknown login', async () => {
+    const s = setup();
+    const cookie = await s.member();
+    const r = await s.users(['dana', 'Malik', 'ghost'], cookie);
+    expect(r.status).toBe(200);
+    const body = await r.json();
+    expect(body.users.dana).toEqual({ login: 'Dana', name: 'Dana Whitfield', avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4', type: 'User' });
+    expect(body.users.malik).toMatchObject({ login: 'malik', name: null });
+    expect(body.users.ghost).toBeNull();
+    // Nothing but the public fields leaves the server.
+    expect(JSON.stringify(body)).not.toMatch(/private\.example|Lyon|secret|company/);
+    expect(s.w.calls.filter((c) => c.path.startsWith('/users/')).every((c) => c.auth === 'Bearer ghs_read')).toBe(true);
+    // Kept: another member asks again, GitHub is not called.
+    const before = s.w.calls.length;
+    s.tick(60 * 60 * 1000);
+    const again = await (await s.users(['dana', 'ghost'], await s.member('leo@acme.design'))).json();
+    expect(again.users).toEqual({ dana: body.users.dana, ghost: null });
+    expect(s.w.calls.length).toBe(before);
+  });
+
+  it('members only: no visitor, not even on a public demo team; logins are checked', async () => {
+    const s = setup();
+    expect((await s.users(['dana'])).status).toBe(401);
+    expect((await s.users(['dana'], '', DEMO)).status).toBe(403);
+    const other = await s.member('eve@evil.example', 'evil/ds');
+    expect((await s.users(['dana'], other)).status).toBe(401);
+    const cookie = await s.member();
+    expect((await s.users(['../user'], cookie)).status).toBe(400);
+    expect((await s.users(['a@b.c'], cookie)).status).toBe(400);
+    expect((await s.users(Array.from({ length: 31 }, (_, i) => `u${i}`), cookie)).status).toBe(400);
+    expect(s.w.calls.filter((c) => c.path.startsWith('/users/'))).toHaveLength(0);
+  });
+
+  it('counts on the member budget and says busy when GitHub slows down with nothing kept', async () => {
+    const s = setup({ limited: true });
+    const cookie = await s.member();
+    const r = await s.users(['dana'], cookie);
+    expect(r.status).toBe(429);
+    expect((await r.json()).error).toBe('busy');
+    const t = setup({}, { READ_MAX_IP: '1' });
+    const c2 = await t.member();
+    expect((await t.users(['dana'], c2)).status).toBe(200);
+    expect((await t.users(['dana'], c2)).status).toBe(429);
   });
 });

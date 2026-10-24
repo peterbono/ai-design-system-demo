@@ -39,6 +39,9 @@ export function setContributeFetch(f: Fetch | null) {
   infos.clear();
   mines.clear();
   publicReads.clear();
+  profiles.clear();
+  askProfiles = new Map();
+  forgetRecent(null);
 }
 
 const HINT_PREFIX = 'bridge.contribute.member:';
@@ -66,6 +69,7 @@ export function onContributeChange(fn: (repo: string, m: ContributeMember | null
 
 function remember(repo: string, m: ContributeMember | null) {
   const before = contributorFor(repo);
+  if (!m || before?.email !== m.email) forgetRecent(repo);
   try {
     if (m) localStorage.setItem(HINT_PREFIX + key(repo), JSON.stringify(m));
     else localStorage.removeItem(HINT_PREFIX + key(repo));
@@ -105,6 +109,7 @@ export function forgetContributors() {
   }
   infos.clear();
   mines.clear();
+  forgetRecent(null);
 }
 
 async function call<T>(method: 'GET' | 'POST', query: string, body?: unknown, extra: Record<string, string> = {}): Promise<T> {
@@ -267,6 +272,182 @@ export function asMine<T>(data: T, mine: Mine, login: string): T {
   return (Array.isArray(data) ? data.map(fix) : fix(data)) as T;
 }
 
+// --- A member's recent reads -------------------------------------------------------------------------------------
+// Home, Branches and History read the same pull requests, reviews, files and trees: each one counts against the
+// member's read budget on the server (api/_lib/team-read.ts). This tab keeps what it read through the proxy a short
+// while, in memory and in sessionStorage (so the next page of the same team reuses it), and shares a read still in
+// flight. An answer that cannot change (a tree, blob or commit by its sha, a file at a commit sha) is kept longer.
+// Forgotten on any write to the team, on sign-out and when the member changes; never shared between tabs or people.
+
+/** How long a read is reused: most answers, and the ones addressed by a commit or blob sha. */
+export const RECENT_MS = 20_000;
+export const RECENT_SHA_MS = 10 * 60_000;
+const RECENT_PREFIX = 'bridge.read.recent:';
+/** Larger bodies stay in memory only (sessionStorage holds a few MB per site). */
+const RECENT_MAX_STORED = 200_000;
+
+interface RecentRead {
+  at: number;
+  status: number;
+  headers: [string, string][];
+  body: string;
+}
+
+const recent = new Map<string, Promise<RecentRead | null>>();
+const recentAt = new Map<string, number>();
+
+const SHA40 = '[0-9a-f]{40}';
+const UNCHANGING = [new RegExp(`/git/(trees|blobs|commits)/${SHA40}(\\?|$)`), new RegExp(`/commits/${SHA40}$`), new RegExp(`/contents/[^?]+\\?(.*&)?ref=${SHA40}(&|$)`)];
+
+/** How long the answer to `path` (under /repos/owner/name, with its query) may be reused, 0 when never. */
+export function recentFor(path: string): number {
+  const q = path.indexOf('?');
+  if (q >= 0 && new URLSearchParams(path.slice(q + 1)).has('t')) return 0;
+  return UNCHANGING.some((r) => r.test(path)) ? RECENT_SHA_MS : RECENT_MS;
+}
+
+const recentKey = (repo: string, target: string, accept: string) => `${RECENT_PREFIX}${key(repo)}:${contributorFor(repo)?.email ?? ''}:${accept}|${target}`;
+
+/** Forgets what this tab kept of `repo` (null: of every team). */
+export function forgetRecent(repo: string | null) {
+  const prefix = repo === null ? RECENT_PREFIX : `${RECENT_PREFIX}${key(repo)}:`;
+  for (const k of [...recent.keys()]) if (k.startsWith(prefix)) {
+    recent.delete(k);
+    recentAt.delete(k);
+  }
+  try {
+    if (typeof sessionStorage !== 'undefined') for (const k of Object.keys(sessionStorage)) if (k.startsWith(prefix)) sessionStorage.removeItem(k);
+  } catch {
+    /* storage blocked: memory only */
+  }
+}
+
+/** What a new page of the tab starts with: this page's memory gone, the tab's sessionStorage kept (tests). */
+export function clearRecentMemory() {
+  recent.clear();
+  recentAt.clear();
+}
+
+function storedRecent(k: string, ttl: number): RecentRead | null {
+  try {
+    const raw = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(k) : null;
+    if (!raw) return null;
+    const v = JSON.parse(raw) as RecentRead;
+    if (!v || typeof v.body !== 'string' || !Array.isArray(v.headers) || Date.now() - v.at > ttl) {
+      sessionStorage.removeItem(k);
+      return null;
+    }
+    return v;
+  } catch {
+    return null;
+  }
+}
+
+const toResponse = (r: RecentRead) => new Response(r.body, { status: r.status, headers: r.headers });
+
+/** A GET of the team through the proxy: this tab's recent answer, a read in flight, or `send` (kept when it is a 200). */
+async function recentRead(repo: string, target: string, path: string, headers: Record<string, string>, send: () => Promise<Response>): Promise<Response> {
+  const ttl = recentFor(path);
+  if (!ttl) return send();
+  const accept = Object.entries(headers).find(([h]) => h.toLowerCase() === 'accept')?.[1] ?? '';
+  const k = recentKey(repo, target, accept);
+  const at = recentAt.get(k);
+  const inMemory = recent.get(k);
+  if (inMemory && (at === undefined || Date.now() - at <= ttl)) {
+    const r = await inMemory;
+    if (r) return toResponse(r);
+  }
+  const stored = storedRecent(k, ttl);
+  if (stored) return toResponse(stored);
+  let first: Response | null = null;
+  const p = send().then(async (res) => {
+    first = res;
+    if (res.status !== 200) return null;
+    const body = await res.clone().text();
+    const kept: RecentRead = { at: Date.now(), status: res.status, headers: [...res.headers.entries()], body };
+    recentAt.set(k, kept.at);
+    if (body.length <= RECENT_MAX_STORED) {
+      try {
+        sessionStorage.setItem(k, JSON.stringify(kept));
+      } catch {
+        /* full or blocked: memory only */
+      }
+    }
+    return kept;
+  });
+  recent.set(k, p);
+  p.then(
+    (r) => {
+      if (!r && recent.get(k) === p) recent.delete(k);
+    },
+    () => {
+      if (recent.get(k) === p) recent.delete(k);
+    },
+  );
+  const r = await p;
+  // The caller that sent it reads its own answer (any status); the others share the kept copy.
+  return first && !r ? first : r ? toResponse(r) : send();
+}
+
+// --- People through Bridge -----------------------------------------------------------------------------------------
+// An email member has no GitHub account: their page used to read the builders' and reviewers' profiles from GitHub
+// anonymously (60 an hour per address, shared with the office), so names fell back to logins. The server answers the
+// public name and avatar for members (api/_lib/team-read.ts onUsers), several logins per request, kept a day there.
+
+const USER_URL = /^https:\/\/api\.github\.com\/users\/([^/?#]+)$/;
+const LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:\[bot\])?$/;
+/** Per team and login on this page: the profile answer (null: ask GitHub as before). */
+const profiles = new Map<string, Promise<Response | null>>();
+let askProfiles = new Map<string, Map<string, (r: Response | null) => void>>();
+
+async function sendProfiles(repo: string, wanted: Map<string, (r: Response | null) => void>) {
+  const logins = [...wanted.keys()];
+  for (let i = 0; i < logins.length; i += 30) {
+    const part = logins.slice(i, i + 30);
+    let users: Record<string, unknown> | null = null;
+    try {
+      const res = await fetchImpl(`${CONTRIBUTE_API}?repo=${encodeURIComponent(repo)}&users=${part.map(encodeURIComponent).join(',')}`, { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+      if (res.status === 401) endedEmailSession(repo);
+      if (res.ok && /json/i.test(res.headers.get('content-type') ?? '')) users = ((await res.json()) as { users?: Record<string, unknown> }).users ?? null;
+    } catch {
+      users = null;
+    }
+    for (const l of part) {
+      const done = wanted.get(l)!;
+      if (!users || !(l in users)) done(null);
+      else if (users[l] === null) done(Response.json({ message: 'Not Found' }, { status: 404 }));
+      else done(Response.json(users[l]));
+    }
+  }
+}
+
+/** The public profile of `login` as GitHub's /users answer, read through Bridge with the other logins of this tick. */
+function memberProfile(repo: string, login: string): Promise<Response | null> {
+  if (!LOGIN.test(login)) return Promise.resolve(null);
+  const k = `${key(repo)}:${login.toLowerCase()}`;
+  const kept = profiles.get(k);
+  if (kept) return kept.then((r) => r?.clone() ?? null);
+  const p = new Promise<Response | null>((resolve) => {
+    let team = askProfiles.get(key(repo));
+    if (!team) {
+      team = new Map();
+      askProfiles.set(key(repo), team);
+      queueMicrotask(() => {
+        const wanted = askProfiles.get(key(repo));
+        askProfiles.delete(key(repo));
+        if (wanted) void sendProfiles(repo, wanted);
+      });
+    }
+    team.set(login.toLowerCase(), resolve);
+  });
+  // A login the server could not answer for is asked again next time.
+  profiles.set(k, p);
+  void p.then((r) => {
+    if (!r) profiles.delete(k);
+  });
+  return p.then((r) => r?.clone() ?? null);
+}
+
 /** Calls whose answer holds pull requests or issues: their authors may be the member's. */
 const AUTHORED = /^\/repos\/[^/]+\/[^/]+\/(pulls|issues)(\/\d+)?(\?|$)/;
 
@@ -285,14 +466,25 @@ function withoutAuth(h: Record<string, string>): Record<string, string> {
 export async function contributeFetch(repo: string, url: string, init: RequestInit = {}): Promise<Response> {
   const headers = withoutAuth((init.headers ?? {}) as Record<string, string>);
   const target = proxyUrl(url, repo);
-  if (!target) return fetchImpl(url, { ...init, headers });
+  if (!target) {
+    // A person's public profile (names on Being built, History, branch pages): through Bridge, as a member.
+    const user = (init.method ?? 'GET').toUpperCase() === 'GET' ? USER_URL.exec(url) : null;
+    if (user) {
+      const answer = await memberProfile(repo, decodeURIComponent(user[1]!));
+      if (answer) return answer;
+    }
+    return fetchImpl(url, { ...init, headers });
+  }
   const method = (init.method ?? 'GET').toUpperCase();
   const path = url.slice(GITHUB_API.length);
   const authored = method === 'GET' && AUTHORED.test(path);
   // A new branch, pull request or issue: "mine" is read again next time.
   if (method === 'POST' && /\/(git\/refs|pulls|issues)(\?|$)/.test(path)) forgetMine(repo);
+  // Any write: what this tab kept of the team is read again.
+  if (method !== 'GET') forgetRecent(repo);
+  const send = () => fetchImpl(target, { ...init, headers: { ...headers, [CONTRIBUTE_HEADER]: '1', ...(method === 'GET' ? { [MISSING_HEADER]: '1' } : {}) }, credentials: 'same-origin' });
   const [res, mine] = await Promise.all([
-    fetchImpl(target, { ...init, headers: { ...headers, [CONTRIBUTE_HEADER]: '1', ...(method === 'GET' ? { [MISSING_HEADER]: '1' } : {}) }, credentials: 'same-origin' }).then(restoreMissing),
+    (method === 'GET' ? recentRead(repo, target, path, headers, send) : send()).then(restoreMissing),
     authored ? contributeMine(repo) : Promise.resolve(null),
   ]);
   if (res.status === 401) endedEmailSession(repo);
