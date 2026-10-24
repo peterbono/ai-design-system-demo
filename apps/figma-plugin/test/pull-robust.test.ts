@@ -175,6 +175,11 @@ test('Figma closes in the middle of a set: the next pull finds the set, finishes
   assert.ok(sim.hung, 'the first pull was cut off');
   const cut = sim.sets().length;
   assert.ok(cut > 0 && cut < NAMES.length, `cut off half way (${cut} sets)`);
+  // The set it was building already has its grid: never a pile of variants at 0,0 for the designer to find.
+  for (const set of sim.sets()) {
+    const spots = new Set(set.children.map((v) => `${v.x},${v.y}`));
+    assert.equal(spots.size, set.children.length, `${set.name}: variants in a grid`);
+  }
   sim.hangAfter = 0;
   const report = await applyComponentPlan(writablePlan(await plan()));
   assert.deepEqual(report.failed, []);

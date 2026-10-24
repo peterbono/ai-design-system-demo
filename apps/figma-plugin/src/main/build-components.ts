@@ -1444,6 +1444,8 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
       set.setSharedPluginData(NS, 'componentId', comp.componentId);
       set.x = 0;
       set.y = place.bottom ? place.bottom + SET_GAP : 0;
+      // A grid now, laid out again once built: a pull stopped mid-set (Figma closed) never leaves the variants in a pile.
+      layoutVariants(set, comp);
     }
     set.name = comp.name;
     set.description = comp.description;
