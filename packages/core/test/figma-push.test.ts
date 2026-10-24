@@ -99,6 +99,27 @@ describe('planComponentPush', () => {
   });
 });
 
+describe('values set by hand', () => {
+  it('says the value and the variable that holds it, so the designer binds it', () => {
+    const p = planComponentPush(diff({ rebinds: [{ ...rebind(['button.radius'], [], 'radius'), raw: [{ value: '12', matches: ['radius/control'] }] }] }), ctx());
+    expect(p.route).toBe('manual');
+    expect(p.issues).toEqual([
+      {
+        what: 'Radius in primary md is 12, not a variable.',
+        todo: 'radius/control has that value: bind it so it follows the library.',
+        raw: { kind: 'radius', variants: ['Size=md, Variant=primary'], values: [{ value: '12', matches: ['radius/control'] }] },
+      },
+    ]);
+  });
+
+  it('with no variable at that value, says so', () => {
+    const p = planComponentPush(diff({ rebinds: [{ ...rebind(['button.primary.bg'], []), raw: [{ value: '#FF00AA' }] }] }), ctx());
+    expect(p.issues.map((i) => [i.what, i.todo])).toEqual([
+      ['Fill in primary md is #FF00AA, not a variable.', 'No variable has that value: bind it to one so it follows the library, or create the variable and send it with the variables.'],
+    ]);
+  });
+});
+
 describe('componentContrastPairs', () => {
   const pairs: ContrastPair[] = [
     { foreground: 'color.action.primary.text', background: 'color.action.primary.bg', min: 4.5, kind: 'text' },

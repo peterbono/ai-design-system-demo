@@ -216,6 +216,8 @@ export interface RequestMap {
   'mark-pushed': { request: { nodeId: string; mark: string }; response: { saved: boolean } };
   /** Re-read one component and store it as the baseline (after its request is sent). */
   rebaseline: { request: { nodeId: string }; response: { saved: boolean } };
+  /** Bind a variable where a value was set by hand (the layers of `variants` whose `kind` reads `value`). */
+  'bind-raw': { request: { nodeId: string; variants: string[]; kind: string; value: string; variable: string }; response: { bound: number } };
   /** PNG 2x as base64: the selected variant of `nodeId`, the component itself, or the selection without `nodeId`. */
   'export-image': { request: { nodeId?: string | undefined }; response: { base64: string; name: string } | null };
   selection: { request: Record<string, never>; response: { nodeId: string; name: string } | null };

@@ -6,7 +6,7 @@ import { applyPullPlan } from './apply';
 import { applyComponentPlan, scanGenerated } from './build-components';
 import { exportVariants } from './fidelity';
 import { clearClaudeKey, readClaudeSettings, saveClaudeSettings } from './claude-settings';
-import { baselineImage, exportImage, exportThumbnails, markPushed, rebaseline, renameInBaselines, saveSignatures, scanComponents, selectionInfo, setExperimental } from './components';
+import { baselineImage, bindRaw, exportImage, exportThumbnails, markPushed, rebaseline, renameInBaselines, saveSignatures, scanComponents, selectionInfo, setExperimental } from './components';
 import { clearGitHubToken, readGitHubToken, saveGitHubToken, setGitHubTokenState } from './github-token';
 import { type SharedStore, saveSettings, sharedSettings, sharedSync, writeSync } from './shared-state';
 import { takeSnapshot, writePluginData } from './snapshot';
@@ -113,6 +113,9 @@ const handlers: Handlers = {
   },
   async rebaseline({ nodeId }) {
     return { saved: await rebaseline(nodeId) };
+  },
+  async 'bind-raw'(req) {
+    return { bound: await bindRaw(req) };
   },
   async 'export-image'({ nodeId }) {
     return (await exportImage(nodeId)) ?? null;

@@ -34,12 +34,22 @@ export interface Rebind {
   allVariants: boolean;
   before: string[];
   after: string[];
+  /** Values set by hand where a variable went (the property was unbound), with the variables that hold each. */
+  raw?: UnboundValue[] | undefined;
+}
+
+/** A value set by hand in Figma ("#FF00AA", "12") and the Figma variables whose value equals it ("radius/control"). */
+export interface UnboundValue {
+  value: string;
+  matches?: string[] | undefined;
 }
 
 /** An edit the scan cannot read with confidence, and what the designer does about it. */
 export interface PushIssue {
   what: string;
   todo: string;
+  /** A property set by hand: where, and its values, so the designer sees them and can bind a variable that holds one. */
+  raw?: { kind: string; variants: string[]; values: UnboundValue[] } | undefined;
 }
 
 /**
@@ -119,6 +129,18 @@ export interface ComponentPushPlan {
 
 const where = (r: Rebind) => (r.allVariants ? 'every variant' : shortVariants(r.variants.join('; ')));
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+const and = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+
+/** "Radius in neutral sm is 12, not a variable." and the variables that hold 12, to bind one. */
+function rawIssue(label: string, r: Rebind, values: UnboundValue[]): PushIssue {
+  const matches = [...new Set(values.flatMap((v) => v.matches ?? []))];
+  const todo = !matches.length
+    ? 'No variable has that value: bind it to one so it follows the library, or create the variable and send it with the variables.'
+    : matches.length === 1
+      ? `${matches[0]} has that value: bind it so it follows the library.`
+      : `${and(matches)} have that value: bind one so it follows the library.`;
+  return { what: `${label} is ${and(values.map((v) => v.value))}, not a variable.`, todo, raw: { kind: r.kind, variants: r.variants, values } };
+}
 
 /**
  * How a component change from Figma goes back to the library. A token swap is exact when the property was painted by a
@@ -133,6 +155,10 @@ export function planComponentPush(d: ComponentPushDiff, ctx: PushTokenContext): 
   const also = new Set<string>();
   for (const r of d.rebinds) {
     const label = `${cap(r.kind)} in ${where(r)}`;
+    if (r.raw?.length) {
+      issues.push(rawIssue(label, r, r.raw));
+      continue;
+    }
     if (!r.after.length) {
       issues.push({ what: `${label} is no longer bound to a variable: it uses a raw value.`, todo: 'Bind it to a variable, or create the variable and send it with the variables, then scan again.' });
       continue;

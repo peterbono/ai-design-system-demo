@@ -53,10 +53,20 @@ export interface RawBinding {
 }
 
 /** One variant (a COMPONENT), as the main thread reads it. */
+/** A value set by hand where a variable could be bound: a fill of #FF00AA, a radius of 12. */
+export interface RawValue {
+  /** Property family, as bindings name it: fill, stroke, stroke width, radius, padding, gap. */
+  kind: string;
+  /** "#FF00AA" (with alpha, "#FF00AA80", when not opaque) or a number ("12"). */
+  value: string;
+}
+
 export interface RawVariant {
   /** variantProperties of the variant ({ Size: "md", Tone: "primary" }), null for a single component. */
   props: Record<string, string> | null;
   bindings: RawBinding[];
+  /** Values set by hand (see RawValue). */
+  raw?: RawValue[] | undefined;
   /** FNV-1a of a small PNG export. Undefined when the export failed. */
   render?: string | undefined;
   /** FNV-1a of the layer tree (types, names, auto layout): only used to say "Figma-only changes". */
@@ -93,6 +103,8 @@ export interface VariantSignature {
   bindings: Record<string, string[]>;
   /** Hash of the resolved values of those bindings. */
   values: string;
+  /** Values set by hand per property kind, sorted and unique. Missing in baselines taken by older plugins. */
+  raw?: Record<string, string[]> | undefined;
   render?: string | undefined;
   structure?: string | undefined;
   /** Swappable part -> component its instance shows, and the one code gives the variant. */
@@ -329,6 +341,12 @@ const touchesApi = (s: StructureChange) => !!(s.item.visibleProp || s.item.textP
 /** "instance Icon/Pencil": the kind of layer in words, for a change row. */
 const layerShape = (i: OutlineItem) => `${i.type.toLowerCase().replace(/_/g, ' ')}${i.type === 'INSTANCE' && i.main ? ` ${i.main}` : ''}`;
 
+function groupRaw(values: RawValue[]): Record<string, string[]> {
+  const by: Record<string, string[]> = {};
+  for (const r of values) (by[r.kind] ??= []).push(r.value);
+  return Object.fromEntries(Object.keys(by).sort().map((k) => [k, sortedUnique(by[k]!)]));
+}
+
 export function buildSignature(raw: RawComponent): ComponentSignature {
   const variantAxes: Record<string, string[]> = {};
   const properties: ComponentSignature['properties'] = [];
@@ -354,6 +372,7 @@ export function buildSignature(raw: RawComponent): ComponentSignature {
     variants[variantKey(v.props)] = {
       bindings: groupBindings(v.bindings),
       values: fnv1a(sortedUnique(values.split('\n')).join('\n')),
+      ...(v.raw?.length ? { raw: groupRaw(v.raw) } : {}),
       ...(v.render ? { render: v.render } : {}),
       ...(v.structure ? { structure: v.structure } : {}),
       ...(v.slots && Object.keys(v.slots).length ? { slots: sortedRecord(v.slots) } : {}),
@@ -484,8 +503,10 @@ export function diffSignatures(base: ComponentSignature, cur: ComponentSignature
       const goneNames = was.filter((v) => !now.includes(v));
       const bornNames = now.filter((v) => !was.includes(v));
       const before = list(goneNames);
+      // A value set by hand came where a variable went: unbound, not rebound to what another layer uses.
+      const unbound = goneNames.length > 0 && newRawValues(b, c, kind).length > 0;
       // Rebound to a variable another layer already uses: still bound, so list what it may use now (not "none").
-      const after = list(goneNames.length && !bornNames.length && now.length ? now : bornNames);
+      const after = list(!unbound && goneNames.length && !bornNames.length && now.length ? now : bornNames);
       // Variables an added layer brings (or a removed one takes away) move with that layer: not a rebinding.
       const bs = b.bindings[kind] ?? [];
       const cs = c.bindings[kind] ?? [];
@@ -566,6 +587,20 @@ export interface ScannedComponent {
   baseline?: ComponentSignature | undefined;
   /** Marked "Experimental" on the set (shared plugin data dsbridge / experimental). */
   experimental?: boolean | undefined;
+  /** Variables whose value equals a value set by hand, keyed "kind|value" (see rawKey). */
+  matches?: Record<string, string[]> | undefined;
+}
+
+/** Key of a value set by hand in `matches`: "radius|12". */
+export const rawKey = (kind: string, value: string) => `${kind}|${value}`;
+
+/**
+ * Values of a kind set by hand in Figma now and not at the baseline: where a variable went and one of these came, the
+ * property was unbound, not rebound. Without raw values in the baseline (older plugins), every one counts.
+ */
+export function newRawValues(b: VariantSignature, c: VariantSignature, kind: string): string[] {
+  const before = b.raw?.[kind] ?? [];
+  return (c.raw?.[kind] ?? []).filter((v) => !before.includes(v));
 }
 
 export interface ComponentChangeItem {
@@ -582,6 +617,8 @@ export interface ComponentChangeItem {
   experimental?: boolean | undefined;
   /** An optional part already draws what was added: shown on the row as a hint (never applied to the file). */
   equivalent?: string | undefined;
+  /** Variables whose value equals a value set by hand (ScannedComponent.matches). */
+  matches?: Record<string, string[]> | undefined;
   /** Every change is such an addition: the item starts unchecked, checking it sends the request anyway. */
   suggestSkip?: boolean | undefined;
 }
@@ -646,6 +683,7 @@ export function classifyComponents(found: ScannedComponent[], coded: string[]): 
         signature: f.signature,
         baseline: f.baseline,
         ...(f.experimental ? { experimental: true } : {}),
+        ...(f.matches ? { matches: f.matches } : {}),
         ...(d.equivalents.length ? { equivalent: d.equivalents.join('. ') } : {}),
         ...(d.onlyEquivalents ? { suggestSkip: true } : {}),
       });

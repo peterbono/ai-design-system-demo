@@ -13,11 +13,13 @@ import {
   diffSignatures,
   fnv1a,
   pullBaselines,
+  rawKey,
   suggestLine,
   suggestTitle,
   toRequest,
 } from '../src/sync/components';
 import { loadCodedComponents, sendComponentRequest } from '../src/sync/requests';
+import { rebindsOf } from '../src/sync/component-push';
 import { FakeGitHub } from './fake-github';
 
 function variant(size: string, tone: string, patch: Partial<RawVariant> = {}): RawVariant {
@@ -371,4 +373,23 @@ test('rebound to a variable another layer already uses: still bound, never "none
   });
   const d = diffSignatures(sig(button()), sig(next));
   assert.deepEqual(d.changes, [{ field: 'Fill (Size=md, Tone=primary)', before: 'button.primary.bg', after: 'button.primary.fg' }]);
+});
+
+test('a value set by hand where a variable went: unbound, with the value and the variables that hold it', () => {
+  // Same bindings as the rebind above, but the fill now reads #FF00AA by hand: not rebound to the label's variable.
+  const next = button((c) => {
+    const v = find(c, 'md', 'primary');
+    v.bindings = v.bindings.filter((b) => b.variable !== 'button/primary/bg');
+    v.raw = [{ kind: 'fill', value: '#FF00AA' }];
+    v.render = fnv1a('pink by hand');
+  });
+  const d = diffSignatures(sig(button()), sig(next));
+  assert.deepEqual(d.changes, [{ field: 'Fill (Size=md, Tone=primary)', before: 'button.primary.bg', after: 'none' }]);
+  const r = rebindsOf(sig(button()), sig(next), { [rawKey('fill', '#FF00AA')]: ['color/accent'] });
+  assert.deepEqual(r, [{ kind: 'fill', variants: ['Size=md, Tone=primary'], allVariants: false, before: ['button.primary.bg'], after: [], raw: [{ value: '#FF00AA', matches: ['color/accent'] }] }]);
+  // A value set by hand already at the baseline is not new: still read as the rebind onto the label's variable.
+  const base = button((c) => {
+    find(c, 'md', 'primary').raw = [{ kind: 'fill', value: '#FF00AA' }];
+  });
+  assert.equal(rebindsOf(sig(base), sig(next))[0]!.raw, undefined);
 });

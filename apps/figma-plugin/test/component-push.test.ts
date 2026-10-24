@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import { DRAFTED_BY_CLAUDE_LABEL, FROM_FIGMA_LABEL, WAITING_FOR_CLAUDE_LABEL, figmaChangeOnGitHub, figmaPushStatusesOnGitHub, markFigmaChangeDraftedOnGitHub, parseComponentSpecs, parseFigmaOrigin, parseFigmaSpec } from '@bridge-ds/core';
 import { applyPullPlan } from '../src/main/apply';
 import { applyComponentPlan, scanGenerated } from '../src/main/build-components';
-import { markPushed, scanComponents } from '../src/main/components';
+import { bindRaw, markPushed, scanComponents } from '../src/main/components';
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
 import { buildComponentPlan, loadComponentSpecs, pushedInReview, pushedNumbers, writablePlan } from '../src/sync/component-pull';
@@ -190,6 +190,27 @@ test('exact, gated: a token swap that breaks contrast is held back, never sent',
   assert.equal(res.branches.length, 0);
   assert.equal(res.held[0]?.component, 'Button');
   assert.equal(gh.prs.length, 0);
+});
+
+test('a fill set by hand: Push shows the value and the variable that holds it, and Bind fixes it in one click', async () => {
+  const { sim, client, sync, button } = await pulledButton();
+  const v = button.children.find((c) => c.name === PRIMARY_DEFAULT[1])!;
+  const was = sim.variables.find((x) => x.id === (v.fills as { boundVariables?: { color?: { id: string } } }[])[0]!.boundVariables!.color!.id)!;
+  const color = was.resolveForConsumer(v).value as { r: number; g: number; b: number };
+  // The designer detaches the fill and types the same color by hand: the paint keeps its other fields, as in Figma.
+  const { boundVariables: _bound, ...paint } = (v.fills as Record<string, unknown>[])[0]!;
+  v.fills = [{ ...paint, color: { r: color.r, g: color.g, b: color.b } }];
+  const r = await scanAndRoute(client, sync);
+  const push = r.pushes.find((p) => p.diff.component === 'Button')!;
+  assert.equal(push.plan.route, 'manual');
+  const issue = push.plan.issues.find((i) => i.raw)!;
+  assert.match(issue.what, /^Fill in primary md is #[0-9A-F]{6}, not a variable\.$/);
+  assert.equal(issue.raw!.values[0]!.matches![0], was.name, "the variable it used before comes first");
+  assert.match(issue.todo, /so it follows the library\.$/);
+  const bound = await bindRaw({ nodeId: button.id, variants: issue.raw!.variants, kind: 'fill', value: issue.raw!.values[0]!.value, variable: was.name });
+  assert.equal(bound, 1);
+  const again = await scanAndRoute(client, sync);
+  assert.equal(again.scan.changed.filter((c) => c.component === 'Button').length, 0, 'bound again: nothing left to push');
 });
 
 test('a swap on a token other variants still use goes to Claude AI, with the reason', async () => {

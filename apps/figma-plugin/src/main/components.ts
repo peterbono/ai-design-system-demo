@@ -1,7 +1,7 @@
 // Main thread: reads local components (sets and single components) into raw signatures data, stores baselines in
 // shared plugin data, and exports PNGs to attach to requests. No network. The diff logic is in src/sync/components.ts.
 
-import { RENDER_VERSION, type RawBinding, type RawComponent, type RawLayer, type RawVariant, buildSignature, fnv1a, bindingKind, parseSignature, propName } from '../sync/components';
+import { RENDER_VERSION, type ComponentSignature, type RawBinding, type RawComponent, type RawLayer, type RawVariant, buildSignature, fnv1a, bindingKind, newRawValues, parseSignature, propName, rawKey, variantKey } from '../sync/components';
 import { EXPERIMENTAL_KEY, PUSHED_KEY, type ScanComponentsRequest, type ScannedComponentsPayload } from '../shared/messages';
 import { variantKeyOf } from '@bridge-ds/core';
 import { LONE_VARIANT, isRemovedValue, propsOfKey } from '../sync/component-pull';
@@ -45,9 +45,134 @@ const STYLE_FIELDS: [string, string][] = [
   ['effectStyleId', 'effect'],
 ];
 
+/** "#FF00AA", or "#FF00AA80" when not opaque (the paint's opacity counts). */
+function hexOf(color: RGB | RGBA, opacity = 1): string {
+  const a = opacity * ('a' in color ? color.a : 1);
+  const h = (x: number) => Math.round(x * 255).toString(16).padStart(2, '0').toUpperCase();
+  return `#${h(color.r)}${h(color.g)}${h(color.b)}${a < 1 ? h(a) : ''}`;
+}
+const numberOf = (x: number) => String(Math.round(x * 100) / 100);
+
+/** A value set by hand on one layer: the field to bind ("fills.0", "topLeftRadius") and how it reads ("#FF00AA", "12"). */
+interface RawSpot {
+  kind: string;
+  value: string;
+  node: SceneNode;
+  field: string;
+}
+
+const RADIUS_FIELDS = ['topLeftRadius', 'topRightRadius', 'bottomLeftRadius', 'bottomRightRadius'] as const;
+const PADDING_FIELDS = ['paddingLeft', 'paddingRight', 'paddingTop', 'paddingBottom'] as const;
+const STROKE_WEIGHT_FIELDS = ['strokeTopWeight', 'strokeRightWeight', 'strokeBottomWeight', 'strokeLeftWeight'] as const;
+
+/**
+ * Values set by hand where a variable could be bound: solid paints, radii, paddings, gaps and stroke widths. Zero and
+ * hidden paints are not values. Layers inside a nested instance belong to that component and are left out.
+ */
+function rawSpots(root: SceneNode): RawSpot[] {
+  const out: RawSpot[] = [];
+  const visit = (node: SceneNode) => {
+    const n = node as unknown as Record<string, unknown>;
+    const bound = (node as { boundVariables?: Record<string, unknown> }).boundVariables ?? {};
+    for (const [field, kind] of [['fills', 'fill'], ['strokes', 'stroke']] as const) {
+      const paints = n[field];
+      if (!Array.isArray(paints)) continue;
+      paints.forEach((p: Paint, i) => {
+        if (p.type === 'SOLID' && p.visible !== false && !p.boundVariables?.color) out.push({ kind, value: hexOf(p.color, p.opacity), node, field: `${field}.${i}` });
+      });
+    }
+    const numeric: [string, string][] = RADIUS_FIELDS.map((f) => [f, 'radius']);
+    if (n.layoutMode && n.layoutMode !== 'NONE') {
+      numeric.push(...PADDING_FIELDS.map((f): [string, string] => [f, 'padding']));
+      if (n.primaryAxisAlignItems !== 'SPACE_BETWEEN') numeric.push(['itemSpacing', 'gap']);
+    }
+    if (Array.isArray(n.strokes) && n.strokes.some((p: Paint) => p.visible !== false)) {
+      numeric.push(...(STROKE_WEIGHT_FIELDS[0] in n ? STROKE_WEIGHT_FIELDS : ['strokeWeight']).map((f): [string, string] => [f, 'stroke width']));
+    }
+    for (const [field, kind] of numeric) {
+      const v = n[field];
+      if (typeof v === 'number' && v > 0 && !bound[field]) out.push({ kind, value: numberOf(v), node, field });
+    }
+    if (node !== root && node.type === 'INSTANCE') return;
+    if ('children' in node) for (const c of node.children) visit(c);
+  };
+  visit(root);
+  return out;
+}
+
+/** Variable scopes that may paint each kind of value set by hand (ALL_SCOPES fits every one). */
+const RAW_SCOPES: Record<string, VariableScope[]> = {
+  fill: ['ALL_FILLS', 'FRAME_FILL', 'SHAPE_FILL', 'TEXT_FILL'],
+  stroke: ['STROKE_COLOR'],
+  radius: ['CORNER_RADIUS'],
+  padding: ['GAP'],
+  gap: ['GAP'],
+  'stroke width': ['STROKE_FLOAT'],
+};
+const fits = (v: Variable, kind: string) =>
+  v.resolvedType === (kind === 'fill' || kind === 'stroke' ? 'COLOR' : 'FLOAT') && v.scopes.some((s) => s === 'ALL_SCOPES' || RAW_SCOPES[kind]?.includes(s));
+
 class Reader {
   private names = new Map<string, Variable | null>();
   private styles = new Map<string, string>();
+  private locals: Promise<{ variable: Variable; primitive: boolean }[]> | undefined;
+  /** Values set by hand of the component read last, per variant key: what `matches` looks at. */
+  spots = new Map<string, RawSpot[]>();
+
+  raw(variant: SceneNode, key: string): RawVariant['raw'] {
+    const spots = rawSpots(variant);
+    this.spots.set(key, spots);
+    return spots.length ? spots.map(({ kind, value }) => ({ kind, value })) : undefined;
+  }
+
+  /** Local variables that may hold a value set by hand; primitives last, so a role ("radius/control") is offered first. */
+  private variables(): Promise<{ variable: Variable; primitive: boolean }[]> {
+    this.locals ??= (async () => {
+      const collections = new Map((await figma.variables.getLocalVariableCollectionsAsync()).map((c) => [c.id, c.name]));
+      const all = await figma.variables.getLocalVariablesAsync();
+      return all
+        .map((variable) => ({ variable, primitive: /primitive/i.test(collections.get(variable.variableCollectionId) ?? '') }))
+        .sort((a, b) => Number(a.primitive) - Number(b.primitive));
+    })();
+    return this.locals;
+  }
+
+  /**
+   * For values set by hand where a variable went since the baseline: the variables whose value, read on that layer,
+   * equals it (at most three each, the one it used before first). Only those, so a big file does not resolve every
+   * variable on every layer.
+   */
+  async matches(baseline: ComponentSignature, now: ComponentSignature): Promise<Record<string, string[]> | undefined> {
+    const out: Record<string, string[]> = {};
+    for (const [key, spots] of this.spots) {
+      const b = baseline.variants[key];
+      const c = now.variants[key];
+      if (!b || !c) continue;
+      for (const kind of Object.keys(c.raw ?? {})) {
+        const gone = (b.bindings[kind] ?? []).filter((v) => !(c.bindings[kind] ?? []).includes(v));
+        const fresh = gone.length ? newRawValues(b, c, kind) : [];
+        // The variable it used before comes first: binding it back is what most hand edits mean.
+        const ranked = (await this.variables()).map((x) => x.variable).sort((x, y) => Number(gone.includes(y.name)) - Number(gone.includes(x.name)));
+        for (const spot of spots.filter((s) => s.kind === kind && fresh.includes(s.value) && !out[rawKey(kind, s.value)])) {
+          const names: string[] = [];
+          for (const variable of ranked) {
+            if (names.length === 3) break;
+            if (!fits(variable, kind)) continue;
+            let value: unknown;
+            try {
+              value = variable.resolveForConsumer(spot.node).value;
+            } catch {
+              continue;
+            }
+            const read = value && typeof value === 'object' && 'r' in value ? hexOf(value as RGBA) : typeof value === 'number' ? numberOf(value) : undefined;
+            if (read === spot.value) names.push(variable.name);
+          }
+          out[rawKey(kind, spot.value)] = names;
+        }
+      }
+    }
+    return Object.keys(out).length ? out : undefined;
+  }
 
   private async variable(id: string): Promise<Variable | null> {
     if (!this.names.has(id)) this.names.set(id, await figma.variables.getVariableByIdAsync(id).catch(() => null));
@@ -301,10 +426,14 @@ const isLoneVariant = (v: SceneNode) => v.type === 'COMPONENT' && v.name === LON
 export async function readComponent(node: ComponentSetNode | ComponentNode, reader = new Reader()): Promise<RawComponent> {
   const variants: RawVariant[] = [];
   const members = node.type === 'COMPONENT_SET' ? node.children.filter((c): c is ComponentNode => c.type === 'COMPONENT') : [node];
+  reader.spots.clear();
   for (const v of members) {
+    const props = node.type === 'COMPONENT_SET' ? variantPropsOf(v) : null;
+    const raw = reader.raw(v, variantKey(props));
     variants.push({
-      props: node.type === 'COMPONENT_SET' ? variantPropsOf(v) : null,
+      props,
       bindings: await reader.bindings(v),
+      ...(raw ? { raw } : {}),
       render: await renderHash(v),
       structure: structureOf(v),
       ...(await slotsOf(v)),
@@ -351,7 +480,10 @@ export async function scanComponents(progress: Progress, scope: ScanComponentsRe
     if (i % 5 === 0) progress(`Reading components (${i + 1} of ${nodes.length})`);
     const raw = await readComponent(node, reader);
     const experimental = node.getSharedPluginData(NS, EXPERIMENTAL_KEY) === 'true';
-    components.push({ nodeId: node.id, name: node.name, page: raw.page, signature: buildSignature(raw), baseline: parseSignature(node.getSharedPluginData(NS, SIGNATURE_KEY)), ...(experimental ? { experimental } : {}) });
+    const signature = buildSignature(raw);
+    const baseline = parseSignature(node.getSharedPluginData(NS, SIGNATURE_KEY));
+    const matches = baseline ? await reader.matches(baseline, signature) : undefined;
+    components.push({ nodeId: node.id, name: node.name, page: raw.page, signature, baseline, ...(experimental ? { experimental } : {}), ...(matches ? { matches } : {}) });
   }
   return { components, fileKey: figma.fileKey };
 }
@@ -407,6 +539,33 @@ export async function markPushed(nodeId: string, mark: string): Promise<boolean>
   if (!node || (node.type !== 'COMPONENT_SET' && node.type !== 'COMPONENT')) return false;
   node.setSharedPluginData(NS, PUSHED_KEY, mark);
   return true;
+}
+
+/**
+ * Binds a variable where a value was set by hand: the layers of those variants whose `kind` reads `value` and has no
+ * variable. Returns how many fields it bound (0 when the variable or the value is gone).
+ */
+export async function bindRaw(req: { nodeId: string; variants: string[]; kind: string; value: string; variable: string }): Promise<number> {
+  const node = await figma.getNodeByIdAsync(req.nodeId);
+  if (!node || (node.type !== 'COMPONENT_SET' && node.type !== 'COMPONENT')) return 0;
+  const variable = (await figma.variables.getLocalVariablesAsync()).find((v) => v.name === req.variable && fits(v, req.kind));
+  if (!variable) return 0;
+  const members = node.type === 'COMPONENT_SET' ? node.children.filter((c): c is ComponentNode => c.type === 'COMPONENT') : [node];
+  let bound = 0;
+  for (const v of members) {
+    if (!req.variants.includes(variantKey(node.type === 'COMPONENT_SET' ? variantPropsOf(v) : null))) continue;
+    for (const spot of rawSpots(v).filter((s) => s.kind === req.kind && s.value === req.value)) {
+      const [field, index] = spot.field.split('.');
+      if (index !== undefined) {
+        const target = spot.node as GeometryMixin & SceneNode;
+        const paints = [...(target[field as 'fills' | 'strokes'] as Paint[])];
+        paints[Number(index)] = figma.variables.setBoundVariableForPaint(paints[Number(index)] as SolidPaint, 'color', variable);
+        target[field as 'fills' | 'strokes'] = paints;
+      } else spot.node.setBoundVariable(field as VariableBindableNodeField, variable);
+      bound++;
+    }
+  }
+  return bound;
 }
 
 /** Re-reads one component and stores its signature as the new baseline (after a request is sent). */
