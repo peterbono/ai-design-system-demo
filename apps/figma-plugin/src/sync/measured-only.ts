@@ -79,6 +79,7 @@ const LITERAL_FIELDS: SpecField[] = ['fill', 'textFill', 'stroke', 'fontFamily']
  * all, takes the measured literal (`rgb(...)`, px, a family list): the set draws what code draws, unbound.
  */
 function valuesOf(spec: MeasuredSpec, partId: string, hasChildren: boolean, known: (path: string) => boolean, fills = false): Partial<Record<SpecField, SpecValue>> {
+  const sized = spec.sized?.[partId];
   const v = { ...(spec.values[partId] ?? {}) };
   const raw = spec.raw[partId] ?? {};
   for (const field of Object.keys(v) as SpecField[]) {
@@ -94,6 +95,9 @@ function valuesOf(spec: MeasuredSpec, partId: string, hasChildren: boolean, know
     if (typeof v.width === 'number' && !fills) delete v.width;
     if (typeof v.height === 'number') delete v.height;
   }
+  // A size the CSS sets stays fixed, content or not (a 40x40 button around a 16 px icon).
+  if (sized?.width !== undefined) v.width = sized.width;
+  if (sized?.height !== undefined) v.height = sized.height;
   return v;
 }
 
@@ -168,6 +172,7 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
   const parents = new Set(parts.filter((p) => !p.pin && !p.cover).map((p) => p.parent).filter(Boolean));
   const variants: SpecVariant[] = [];
   const shotOf = new Map<SpecVariant, VariantShot>();
+  const spacersOf = new Map<SpecVariant, Record<string, number>>();
   for (const { props, story } of byVariant.values()) {
     const m = story.spec!;
     // Paired on the measure's own parts: an icon made a vector here is still an icon there.
@@ -176,6 +181,7 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
     const vectors: NonNullable<SpecVariant['vectors']> = {};
     const pins: NonNullable<SpecVariant['pins']> = {};
     const hidden: string[] = [];
+    const spacers: Record<string, number> = {};
     for (const p of parts) {
       const mid = pairs.get(p.id);
       if (mid === undefined) {
@@ -183,6 +189,7 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
         continue;
       }
       values[p.id] = valuesOf(m, mid, parents.has(p.id), known, !p.parent && !!p.fill);
+      if (m.spacers?.[mid]) spacers[p.id] = m.spacers[mid]!;
       // An icon's fill is the color it draws with (CSS `fill`), not a background: the frame would paint a square.
       if (p.kind === 'icon' || p.kind === 'vector') delete values[p.id]!.fill;
       // A positioned part (a pseudo-element knob) placed elsewhere in this variant: checked moves it to the right.
@@ -194,13 +201,16 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
     }
     const variant: SpecVariant = { props, values, ...(hidden.length ? { hidden } : {}), ...(Object.keys(vectors).length ? { vectors } : {}), ...(Object.keys(pins).length ? { pins } : {}) };
     variants.push(variant);
+    spacersOf.set(variant, spacers);
     if (story.shot) shotOf.set(variant, story.shot);
   }
   textRootInFrame(parts, variants);
+  spacerWrappers(parts, variants, spacersOf);
+  const properties = textProperties(parts, base.story, argTypes, new Set(axes.map((a) => a.name)));
   const kept = drawnAxes(axes, variants);
   // The story it was measured from: the set's doc section links to it.
   const story = `${source.replace(/\/+$/, '')}/?path=/story/${base.story.id}`;
-  const spec: ComponentSpec = { name, hash: '', source: [story], axes: kept.axes, properties: [], parts, variants: kept.variants, unmapped: [] };
+  const spec: ComponentSpec = { name, hash: '', source: [story], axes: kept.axes, properties, parts, variants: withoutIdleStates(kept.variants), unmapped: [] };
   // Pruning an axis rewrites a variant's props (a new object): its shot follows by position in the kept list.
   const shots: Record<string, VariantShot> = {};
   kept.variants.forEach((v) => {
@@ -230,6 +240,57 @@ function textRootInFrame(parts: SpecPart[], variants: SpecVariant[]): void {
     v.values[id] = Object.fromEntries(Object.entries(all).filter(([f]) => TEXT_FIELDS.has(f as SpecField)));
     if (v.hidden?.includes(root.id)) v.hidden.push(id);
   }
+}
+
+/**
+ * A margin the parent's gap does not cover (`spacers`: the extra space before a part) becomes a wrapper named after the
+ * part ("Label wrapper"), its padding on the side the margin is: Figma's auto layout has one gap per frame.
+ */
+function spacerWrappers(parts: SpecPart[], variants: SpecVariant[], spacersOf: Map<SpecVariant, Record<string, number>>): void {
+  const wrapped = parts.filter((p) => p.parent && !p.pin && !p.cover && variants.some((v) => spacersOf.get(v)?.[p.id]));
+  for (const p of wrapped) {
+    const parent = parts.find((x) => x.id === p.parent);
+    const row = parent?.layout?.direction === 'HORIZONTAL';
+    const id = `${p.id}-wrapper`;
+    const wrapper: SpecPart = { id, name: `${p.name} wrapper`, kind: 'frame', parent: p.parent, layout: { direction: row ? 'HORIZONTAL' : 'VERTICAL', primary: 'MIN', counter: 'STRETCH' }, ...(p.grow ? { grow: p.grow } : {}) };
+    parts.splice(parts.indexOf(p), 0, wrapper);
+    p.parent = id;
+    for (const v of variants) {
+      const space = spacersOf.get(v)?.[p.id] ?? 0;
+      v.values[id] = space ? { [row ? 'paddingLeft' : 'paddingTop']: space } : {};
+      if (v.hidden?.includes(p.id)) v.hidden.push(id);
+    }
+  }
+}
+
+/**
+ * A string arg whose value is a text the default story draws is a TEXT property on that text ("Label", "Helper text"):
+ * a designer changes the words of an instance without detaching it.
+ */
+function textProperties(parts: SpecPart[], story: MeasuredSpecsStory, argTypes: Record<string, MeasuredArgType>, axes: Set<string>): ComponentSpec['properties'] {
+  const properties: ComponentSpec['properties'] = [];
+  const props = propsOf(story);
+  for (const [k, a] of Object.entries(argTypes)) {
+    const value = props[k];
+    if (a.kind !== 'text' || NOT_AN_AXIS.test(k) || typeof value !== 'string' || !value.trim()) continue;
+    const part = parts.find((p) => p.kind === 'text' && !p.text && p.characters?.trim() === value.trim());
+    const name = axisName(k);
+    if (!part || axes.has(name) || properties.some((x) => x.name === name)) continue;
+    part.text = name;
+    properties.push({ name, type: 'TEXT', default: value, prop: k });
+  }
+  return properties;
+}
+
+/**
+ * A pointer state a variant draws exactly like its resting one (hover on a read-only or disabled field) is not a
+ * variant: the set only has the combinations that look different, as the code renders them.
+ */
+function withoutIdleStates(variants: SpecVariant[]): SpecVariant[] {
+  const look = (v: SpecVariant) => JSON.stringify([v.values, v.hidden ?? [], v.vectors ?? {}, v.pins ?? {}]);
+  const rest = (v: SpecVariant) => JSON.stringify(Object.entries(v.props).filter(([k]) => k !== 'State'));
+  const resting = new Map(variants.filter((v) => v.props.State === 'Default').map((v) => [rest(v), look(v)]));
+  return variants.filter((v) => !['Hover', 'Pressed', 'Focus'].includes(v.props.State ?? '') || resting.get(rest(v)) !== look(v));
 }
 
 /**
