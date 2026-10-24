@@ -17,13 +17,14 @@ const FOOTER = `
     </div>
     <div class="gh-acct-rejected" role="status"><span data-gh-rejected-text></span></div>
     <details class="menu gh-acct-menu" data-menu>
-      <summary class="gh-acct-who" aria-label="GitHub account">
+      <summary class="gh-acct-who">
         <span class="avatar" data-gh-avatar hidden><span aria-hidden="true">GH</span></span>
         <span class="gh-acct-text">
           <span class="gh-acct-login" data-gh-login></span>
           <span class="gh-acct-repo" data-team-display data-gh-acct-team>Ds</span>
           <span class="gh-acct-repo" data-gh-acct-role hidden></span>
         </span>
+        <span class="sr-only">, account menu</span>
       </summary>
       <div class="menu-panel"><p data-gh-menu-title>GitHub</p><p data-gh-menu-email hidden></p>
         <dl><dt data-gh-github-only>Signed in</dt><dd data-gh-github-only data-gh-login-full></dd><dt>Access</dt><dd><span data-gh-perm>Checking</span></dd></dl>
@@ -99,7 +100,9 @@ describe('the side nav account row', () => {
     expect(acct().querySelector('[data-gh-avatar] > span[aria-hidden="true"]')!.textContent).toBe('');
     expect(acct().querySelector('[data-gh-menu-title]')!.textContent).toBe('Florian');
     expect(acct().querySelector('[data-gh-forget-label]')!.textContent).toBe('Sign out');
-    expect(acct().querySelector('summary')!.getAttribute('aria-label')).toBe('Your account: Florian. Account menu');
+    // Named by what it shows (WCAG 2.5.3): no aria-label, the visible name first.
+    expect(acct().querySelector('summary')!.hasAttribute('aria-label')).toBe(false);
+    expect(acct().querySelector('summary')!.textContent!.replace(/\s+/g, ' ')).toMatch(/Florian.*account menu/);
   });
 
   it('turns signed in when the server says so, with nothing remembered in this browser', async () => {

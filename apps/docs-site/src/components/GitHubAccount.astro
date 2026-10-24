@@ -61,13 +61,14 @@ const signIn = Boolean(signInConfig(workspace));
     </Button>
   </div>
   <details class="menu gh-acct-menu" data-menu>
-    <summary class="gh-acct-who" aria-label="GitHub account">
+    <summary class="gh-acct-who">
       <Avatar name="GitHub" size="md" decorative className="gh-acct-avatar" data-gh-avatar hidden />
       <span class="gh-acct-text">
         <span class="gh-acct-login" data-gh-login></span>
         {workspace ? <span class="gh-acct-repo">No repository yet</span> : <span class="gh-acct-repo" data-team-display data-gh-acct-team>{teamDisplayName(`${r.owner}/${r.repo}`, r)}</span>}
         <span class="gh-acct-repo" data-gh-acct-role hidden></span>
       </span>
+      <span class="sr-only">, account menu</span>
       <span class="scope-pick-chev" aria-hidden="true"><Icon icon={siteIcon('chevron')} size="xs" className="icon" /></span>
     </summary>
     <div class="menu-panel" role="group" aria-label="GitHub account">
