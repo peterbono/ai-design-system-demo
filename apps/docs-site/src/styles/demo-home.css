@@ -43,6 +43,12 @@
   pointer-events: none;
 }
 
+/* Room under the last anchor of the page, so the step can float below it (HomeTour.tsx TOUR_ROOM). */
+.dh-tour-room {
+  display: block;
+  block-size: var(--size-60);
+}
+
 .dh-tour {
   /* Never wider than the screen less the popover's collision padding on each side (no sideways scroll on a phone). */
   max-width: min(var(--size-96), calc(100vw - var(--size-4)));

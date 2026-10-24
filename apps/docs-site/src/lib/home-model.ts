@@ -505,14 +505,15 @@ export function ago(iso: string, now: number): string {
 }
 
 /**
- * The status line of a card: "Draft · edited 2 h ago", "In review · Needs design approval", "Approved, waiting for
- * code". In review, the words are the branch's status pill (the same as its row in Branches and its page header) once
- * read; until then who reviews it.
+ * The status line of a card: "Draft · edited 2 h ago", "Needs design approval", "Approved, waiting for code". In
+ * review, once read, the branch's status pill alone (the same as its row in Branches and its page header, `detail`
+ * empty); until then "In review" and who reviews it.
  */
 export function branchStatus(b: Pick<BranchCard, 'stage' | 'updated' | 'reviewer' | 'status'>, now: number): { stage: string; detail: string } {
   if (b.stage === 'draft') return { stage: 'Draft', detail: `edited ${ago(b.updated, now)}` };
   if (b.stage === 'waiting') return { stage: 'Approved', detail: 'waiting for code' };
-  if (b.status) return { stage: 'In review', detail: b.status };
+  // One status, never two: the pill already says where the review stands for this viewer ("Ready to add to the library").
+  if (b.status) return { stage: b.status, detail: '' };
   return { stage: 'In review', detail: b.reviewer ? `${b.reviewer.name} reviews` : 'waiting for a reviewer' };
 }
 

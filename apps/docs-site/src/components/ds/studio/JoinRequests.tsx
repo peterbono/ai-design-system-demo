@@ -39,6 +39,13 @@ export function useEntryAdmin(repo: string, on: boolean) {
     if (!on || !repo) return;
     let live = true;
     void (async () => {
+      // Join requests and discovery are Bridge's own: a viewer signed in with GitHub but without a Bridge account has
+      // none to read (the server would answer 401 twice). The account is read once a page, so asking costs nothing.
+      const account = await import('../../../scripts/account-session')
+        .then(({ getAccount }) => getAccount())
+        .then((x) => x.account)
+        .catch(() => null);
+      if (!live || !account) return;
       const a = await api();
       const read = async <T,>(fn: () => Promise<T>): Promise<T | null> => {
         try {

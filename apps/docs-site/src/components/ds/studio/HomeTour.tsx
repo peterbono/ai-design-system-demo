@@ -11,10 +11,16 @@ import '../../../styles/demo-home.css';
 /** Phone widths, the home's own breakpoint (studio-home.css). */
 export const NARROW_TOUR = '(max-width: 640px)';
 
+/** The room a floating step needs under its anchor, in CSS pixels: a title, three lines and the buttons. */
+const TOUR_ROOM = 240;
+/** Waits for the popover to open and take focus before measuring, in ms. */
+const TOUR_SETTLE = 120;
+
 /** Where a step shows: floating by what it points at, or in the page flow on a narrow screen (it never covers a card). */
 export const tourPlacement = (narrow: boolean): 'popover' | 'inline' => (narrow ? 'inline' : 'popover');
 
-function useNarrow(): boolean {
+/** True on a narrow screen (NARROW_TOUR): where a step sits in the page flow, so the page can pick its anchor. */
+export function useNarrow(): boolean {
   const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(NARROW_TOUR).matches);
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return;
@@ -73,13 +79,34 @@ function InlineStep({ n, total, words, onNext, onFinish }: { n: number; total: n
 /** One step of a tour: a DS Popover anchored where the step points, or a card in the flow on a narrow screen. */
 export function TourStep({ n, total, words, onNext, onFinish, onClose }: { n: number; total: number; words: { title: string; text: string }; onNext: () => void; onFinish: () => void; onClose: () => void }) {
   const narrow = useNarrow();
-  if (tourPlacement(narrow) === 'inline') return <InlineStep n={n} total={total} words={words} onNext={onNext} onFinish={onFinish} />;
+  const anchor = useId();
+  const inline = tourPlacement(narrow) === 'inline';
+  // Room under the anchor when the page ends right after it (the step under the last cards): without it the page
+  // cannot scroll far enough and the step flips above, over the cards.
+  const [room, setRoom] = useState(false);
+  useEffect(() => {
+    if (inline) return;
+    // The step floats under what it points at: when that sits low on the screen, bring it up first so the step has
+    // room below it, instead of flipping above and covering what it talks about. Measured once the popover opened and
+    // took focus (which may scroll on its own).
+    const t = window.setTimeout(() => {
+      const bottom = document.querySelector(`[data-tour-anchor="${anchor}"]`)?.getBoundingClientRect().bottom;
+      const short = bottom === undefined ? 0 : bottom + TOUR_ROOM - window.innerHeight;
+      if (short <= 0) return;
+      const left = document.documentElement.scrollHeight - window.innerHeight - window.scrollY;
+      if (short > left && !room) setRoom(true);
+      else window.scrollBy({ top: short });
+    }, TOUR_SETTLE);
+    return () => window.clearTimeout(t);
+  }, [inline, anchor, n, room]);
+  if (inline) return <InlineStep n={n} total={total} words={words} onNext={onNext} onFinish={onFinish} />;
   return (
     <Popover open onOpenChange={(o) => !o && onClose()}>
-      <PopoverTrigger nativeButton={false} render={<span className="dh-tour-anchor" aria-hidden="true" tabIndex={-1} />} />
+      <PopoverTrigger nativeButton={false} render={<span className="dh-tour-anchor" data-tour-anchor={anchor} aria-hidden="true" tabIndex={-1} />} />
       <PopoverContent side="bottom" align="start" className="dh-tour" title={words.title} description={words.text}>
         <TourFoot n={n} total={total} onNext={onNext} onFinish={onFinish} />
       </PopoverContent>
+      {room && <span className="dh-tour-room" aria-hidden="true" />}
     </Popover>
   );
 }

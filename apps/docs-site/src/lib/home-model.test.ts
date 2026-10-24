@@ -210,6 +210,8 @@ describe('your branches', () => {
     expect(branchStatus({ stage: 'draft', updated: daysAgo(0, 2), reviewer: null }, NOW)).toEqual({ stage: 'Draft', detail: 'edited 2 h ago' });
     expect(branchStatus({ stage: 'ready', updated: daysAgo(1), reviewer: dana }, NOW)).toEqual({ stage: 'In review', detail: 'Dana reviews' });
     expect(branchStatus({ stage: 'ready', updated: daysAgo(1), reviewer: null }, NOW).detail).toBe('waiting for a reviewer');
+    // One status only: the pill alone, never "In review · Ready to add to the library".
+    expect(branchStatus({ stage: 'ready', updated: daysAgo(1), reviewer: dana, status: 'Ready to add to the library' }, NOW)).toEqual({ stage: 'Ready to add to the library', detail: '' });
     expect(branchStatus({ stage: 'waiting', updated: daysAgo(1), reviewer: null }, NOW)).toEqual({ stage: 'Approved', detail: 'waiting for code' });
   });
   it('ages', () => {
