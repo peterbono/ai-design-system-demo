@@ -206,6 +206,9 @@ test('a fill set by hand: Push shows the value and the variable that holds it, a
   const issue = push.plan.issues.find((i) => i.raw)!;
   assert.match(issue.what, /^Fill in primary md is #[0-9A-F]{6}, not a variable\.$/);
   assert.equal(issue.raw!.values[0]!.matches![0], was.name, "the variable it used before comes first");
+  // Never another component's own token (a Tag's or a Checkbox's): only Button's and the shared tiers.
+  const components = new Set(sim.variables.filter((x) => sim.collections.find((c) => c.id === x.variableCollectionId)?.name === 'Component').map((x) => x.name));
+  for (const name of issue.raw!.values[0]!.matches!) assert.ok(!components.has(name) || name.startsWith('button/'), name);
   assert.match(issue.todo, /so it follows the library\.$/);
   const bound = await bindRaw({ nodeId: button.id, variants: issue.raw!.variants, kind: 'fill', value: issue.raw!.values[0]!.value, variable: was.name });
   assert.equal(bound, 1);

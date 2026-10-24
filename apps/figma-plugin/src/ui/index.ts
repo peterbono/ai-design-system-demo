@@ -260,6 +260,7 @@ onSelection((selection) => {
   if (el) el.textContent = attachHint();
   const box = document.getElementById('attach-box') as HTMLInputElement | null;
   if (box && state.push?.form?.key === 'manual') box.disabled = !selection;
+  refreshRequestAssist();
 });
 
 onProgress((message) => {
@@ -1646,10 +1647,36 @@ function assistAction(a: AssistState, t: AssistTarget): Child {
 }
 
 /** Under the field: waiting for the designer's Claude, Claude's text offered for an edited field, or an error. */
+/** Why the drafting help is unavailable (nothing to draft from), while no draft is under way or offered. */
+const emptyWhy = (a: AssistState, t: AssistTarget) => (!mineActive(a) && !a.offer && !a.message ? t.empty?.() : undefined);
+
+/**
+ * The request form updates in place while the designer types or attaches a selection: the drafting help becomes
+ * available (or not) without a render that would take the focus away.
+ */
+function refreshRequestAssist(): void {
+  const f = state.push?.form;
+  if (!f) return;
+  const t = requestAssist(f);
+  const empty = t.empty?.();
+  const button = document.querySelector<HTMLButtonElement>(`[data-focus-id="${t.id}-assist"]`);
+  if (button) {
+    button.disabled = !!state.busy || !!empty;
+    if (empty) button.title = empty;
+    else button.removeAttribute('title');
+  }
+  const why = document.getElementById(`${t.id}-why`);
+  if (why) {
+    const text = emptyWhy(f.assist, t);
+    why.textContent = text ?? '';
+    why.hidden = !text;
+  }
+}
+
 function assistStatus(a: AssistState, t: AssistTarget): Child {
-  const why = !mineActive(a) && !a.offer && !a.message ? t.empty?.() : undefined;
+  const why = emptyWhy(a, t);
   const parts = [
-    why ? h('small', { class: 'muted' }, why) : null,
+    t.empty ? h('small', { class: 'muted', id: `${t.id}-why`, hidden: !why }, why ?? '') : null,
     mineView(a, t),
     offerView(a, t),
     a.message ? h('p', { class: a.message.kind === 'error' ? 'form-error' : 'assist-note', role: a.message.kind === 'error' ? 'alert' : 'status' }, a.message.kind === 'error' ? icon('alert') : icon('check'), a.message.text) : null,
@@ -2531,6 +2558,7 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
           f.titleSource = 'user';
           noteEdit(f.assist, 'title');
           if (f.summarySource !== 'claude') clearDrafted('req-drafted');
+          refreshRequestAssist();
         },
       }),
     ),
@@ -2552,6 +2580,7 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
             f.summarySource = 'user';
             noteEdit(f.assist, 'summary');
             if (f.titleSource !== 'claude') clearDrafted('req-drafted');
+            refreshRequestAssist();
           },
         },
         d.summary,
@@ -2563,7 +2592,16 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
     h(
       'label',
       { class: 'check' },
-      h('input', { type: 'checkbox', id: 'attach-box', checked: f.attach, disabled: manual && !state.selection, onChange: (e: Event) => (f.attach = (e.target as HTMLInputElement).checked) }),
+      h('input', {
+        type: 'checkbox',
+        id: 'attach-box',
+        checked: f.attach,
+        disabled: manual && !state.selection,
+        onChange: (e: Event) => {
+          f.attach = (e.target as HTMLInputElement).checked;
+          refreshRequestAssist();
+        },
+      }),
       manual ? 'Attach the current selection' : 'Attach the selected variant',
     ),
     h('small', { id: 'attach-hint', class: 'attach-hint' }, attachHint()),
@@ -2849,9 +2887,12 @@ function componentChangesGroup(r: PushState): Child {
       tail: r.form?.key === item.nodeId ? null : rowTail(r, pi, item.component, [{ label: routed(r) ? 'Send as a request instead' : 'Edit the request', onClick: () => openForm(r, item) }]),
     });
   });
+  // Suggest mode: nothing ships before the DS lead approves (SUG-3).
   const lede = !routed(r)
     ? 'Exact token changes go into the exploration. The others wait for code: a developer builds them there with Claude.'
-    : 'Token swaps ship as exact token changes once the checks pass. New variants, properties and layers go to developers as a build request with their spec.';
+    : modeOf(r) === 'suggest'
+      ? 'Each change goes to your DS lead as a suggestion. Once approved, a developer applies the token swaps and builds what needs code.'
+      : 'Token swaps ship as exact token changes once the checks pass. New variants, properties and layers go to developers as a build request with their spec.';
   return changeGroup(r, 'component', 'Components', lede, rows, 'push-components');
 }
 
