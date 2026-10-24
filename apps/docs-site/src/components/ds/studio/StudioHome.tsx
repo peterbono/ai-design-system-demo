@@ -44,7 +44,7 @@ import {
 import { VOCAB } from '../../../lib/vocabulary';
 import { studioHref } from '../../../lib/team-path';
 import { demoTour, demoWaiting, tourSteps, type TourAt } from '../../../lib/demo';
-import { useTour } from './HomeTour';
+import { useNarrow, useTour } from './HomeTour';
 
 // The rows of the queue (NeedList) and Approve and Decline on a join request live in NeedRows.tsx, shared with
 // Settings > Members and the home of a team with no design system yet (JoinRequests.tsx).
@@ -129,12 +129,16 @@ function OnlyReviewerHint({ needs, snoozed }: { needs: NeedRow[]; snoozed: boole
 
 function Needs({ needs, now, snoozed, demo, tour, join }: { needs: NeedRow[]; now: number; snoozed: boolean; demo?: boolean; tour?: StudioHomeProps['tour']; join?: JoinHandlers }) {
   const { shown, more } = splitNeeds(needs);
+  // On a phone the rows can fill the first screen: the first step sits above them, in view where the page opens (a
+  // card in the flow, HomeTour.tsx). On a wide screen it floats under the rows it talks about.
+  const narrow = useNarrow();
   return (
     <>
+      {narrow && tour?.('rows')}
       {/* One item: its button is the page's primary. Two or three: secondary buttons. More: no row buttons, each row is
           its own link and "Review all" acts, the demo included. */}
       <NeedList rows={shown} compact action={more ? undefined : shown.length === 1 ? 'primary' : 'secondary'} join={join} />
-      {tour?.('rows')}
+      {!narrow && tour?.('rows')}
       {more && (
         <div className="sh-more">
           <p className="t-body sh-more-text">
@@ -174,14 +178,14 @@ function BranchCardItem({ b, now }: { b: BranchCard; now: number }) {
             {/* Each part is its own wrapping item and the dot rides with the stage: a wrap never starts a line on it. */}
             <span>
               <span className="sh-card-stage">{s.stage}</span>
-              {SEP.trimEnd()}
+              {s.detail && SEP.trimEnd()}
             </span>
             {b.stage === 'ready' && b.reviewer && !b.status && !b.statusLine ? (
               <>
                 <Who p={b.reviewer} size="xs" /> <span>{s.detail}</span>
               </>
             ) : (
-              <span>{s.detail}</span>
+              s.detail && <span>{s.detail}</span>
             )}
           </span>
         </div>
@@ -217,6 +221,7 @@ function Branches({
   tour?: StudioHomeProps['tour'];
 }) {
   const [filter, setFilter] = useState<BranchFilter>('all');
+  const narrow = useNarrow();
   const sorted = sortBranches(branches).filter((b) => showsBranch(filter, b.stage));
   const shown = max ? sorted.slice(0, max) : sorted;
   return (
@@ -232,7 +237,9 @@ function Branches({
           branches.length > max && <Link href={studioHref('changes/')}>See all {branches.length}</Link>
         ) : branches.length >= 4 && <SegmentedControl label={`Show ${VOCAB.branches}`} size="md" value={filter} onValueChange={(v) => setFilter(v as BranchFilter)} items={BRANCH_FILTERS} />}
       </header>
-      {tour?.('branches')}
+      {/* On a phone the step is a card in the flow, before the cards; on a wide screen it floats under them, so it never
+          covers the first card ("Start a change"). */}
+      {narrow && tour?.('branches')}
       <ul className="sh-cards">
         {/* Create first, like "+ New" in Figma's file browser: the slot never moves as branches come and go. On the demo
             too: its button carries data-demo-write, so a visitor gets the demo's sign-in dialog (scripts/demo-gate.ts). */}
@@ -245,6 +252,7 @@ function Branches({
           <BranchCardItem key={b.number} b={b} now={now} />
         ))}
       </ul>
+      {!narrow && tour?.('branches')}
       {create && tour?.('start')}
     </section>
   );

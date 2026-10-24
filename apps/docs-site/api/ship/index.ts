@@ -57,6 +57,7 @@ import {
   type ShipConfig,
   type TokenChange,
 } from '../_lib/figma-ship.js';
+import { localAdminsOn } from '../_lib/local-admin.js';
 import type { MemberStore } from '../_lib/members.js';
 import type { Redis } from '../_lib/redis.js';
 
@@ -194,9 +195,19 @@ function gh(f: FetchLike, token: string) {
   return { call, raw, graphql };
 }
 
+/**
+ * The GitHub token of an `Authorization: Bearer` header, or null. Real GitHub tokens are 20 characters or more; only
+ * local mode (BRIDGE_LOCAL=1, not on Vercel, not production) accepts the short ones of the local personas (ghp_local_dana).
+ */
+export function bearerToken(header: string | null, processEnv: Record<string, string | undefined> = process.env): string | null {
+  const m = /^Bearer\s+([A-Za-z0-9_.-]{1,255})$/i.exec(header ?? '')?.[1];
+  if (!m) return null;
+  return m.length >= (localAdminsOn(processEnv) ? 8 : 20) ? m : null;
+}
+
 /** Who asks: a GitHub token that can read the repository, or an email member of the team signed in to Studio. */
 async function allowed(req: Request, owner: string, repo: string, full: string, env: ContribEnv, deps: ShipDeps): Promise<'bearer' | 'member' | null> {
-  const bearer = /^Bearer\s+([A-Za-z0-9_.-]{8,255})$/i.exec(req.headers.get('authorization') ?? '')?.[1];
+  const bearer = bearerToken(req.headers.get('authorization'));
   if (bearer) {
     const r = await gh(deps.fetch, bearer).call('GET', `/repos/${owner}/${repo}`);
     return r.status === 200 && r.data?.permissions?.pull ? 'bearer' : null;

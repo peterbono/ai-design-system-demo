@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AppTokens } from '../../api/_lib/github-app';
 import { FIGMA_SHIP_HEADING, VALUES_SHIP_HEADING } from '../../api/_lib/figma-ship';
-import { handleShip, SHIP_DEVELOPER_WORDS, SHIP_WORDS, type FetchLike, type ShipDeps } from '../../api/ship/index';
+import { bearerToken, handleShip, SHIP_DEVELOPER_WORDS, SHIP_WORDS, type FetchLike, type ShipDeps } from '../../api/ship/index';
 
 const HOST = 'bridge.example.com';
 const BASE_SHA = 'b'.repeat(40);
@@ -199,6 +199,21 @@ describe('POST /api/ship', () => {
     expect(cross.status).toBe(403);
     const noHeader = await call({ repo: 'acme/design', pr: 7 }, {});
     expect(noHeader.status).toBe(403);
+  });
+
+  it('takes short GitHub tokens (the local personas) only in local mode', async () => {
+    const LOCAL = { BRIDGE_LOCAL: '1' };
+    expect(bearerToken('Bearer ghu_reader_token_000000', {})).toBe('ghu_reader_token_000000');
+    expect(bearerToken('Bearer ghp_local_dana', {})).toBeNull();
+    expect(bearerToken('Bearer ghp_local_dana', LOCAL)).toBe('ghp_local_dana');
+    expect(bearerToken('Bearer short', LOCAL)).toBeNull();
+    expect(bearerToken('Bearer ghp_local_dana', { ...LOCAL, VERCEL: '1' })).toBeNull();
+    expect(bearerToken('Bearer ghp_local_dana', { ...LOCAL, NODE_ENV: 'production' })).toBeNull();
+    // Through the handler, outside local mode: a short token never reaches GitHub.
+    const { w, call } = setup();
+    const r = await call({ repo: 'acme/design', pr: 7 }, { authorization: 'Bearer ghp_local_dana' });
+    expect(r.status).toBe(403);
+    expect(w.calls).toEqual([]);
   });
 
   it('says Bridge cannot ship by itself when the app is not on the repository', async () => {

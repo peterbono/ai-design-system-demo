@@ -15,7 +15,8 @@ import { setEntryFetch } from '../../../scripts/entry-session';
 import { joinHandlers } from '../../../scripts/team-home';
 import { Onboarding, type OnboardingContext } from './Onboarding';
 import { StudioHome, type StudioHomeProps } from './StudioHome';
-import { DiscoveryLine, JoinRequests } from './JoinRequests';
+import { DiscoveryLine, JoinRequests, useEntryAdmin } from './JoinRequests';
+import { setAccountFetch } from '../../../scripts/account-session';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 type Call = { url: string; method: string; body: Record<string, unknown> | null };
@@ -281,5 +282,32 @@ describe('join requests paint first', () => {
     expect(screen.getByText('You joined Acme Design.')).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole('button', { name: /dismiss|close/i }));
     expect(screen.queryByText('You joined Acme Design.')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Settings for a viewer signed in with GitHub but without a Bridge account
+
+describe('useEntryAdmin without a Bridge account', () => {
+  const Probe = ({ repo }: { repo: string }) => {
+    const e = useEntryAdmin(repo, true);
+    return createElement('p', null, `${e.requests.length} requests`);
+  };
+  const account = (body: unknown) => setAccountFetch(async () => json(200, body));
+  afterEach(() => setAccountFetch(null));
+
+  it('asks nothing of /api/entry: the server would answer 401 twice', async () => {
+    account({ available: true, account: null });
+    render(createElement(Probe, { repo: 'acme/design' }));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(calls.filter((c) => c.url.includes('requests=') || c.url.includes('discovery='))).toEqual([]);
+  });
+
+  it('reads the requests and the discovery once the viewer has an account', async () => {
+    account({ available: true, account: { email: 'dana@acme.com', name: 'Dana' } });
+    reply = (c) => (c.url.includes('requests=') ? json(200, { requests: [] }) : json(200, { discovery: null }));
+    render(createElement(Probe, { repo: 'acme/design' }));
+    await waitFor(() => expect(calls.some((c) => c.url.includes('requests=acme%2Fdesign'))).toBe(true));
+    expect(calls.some((c) => c.url.includes('discovery=acme%2Fdesign'))).toBe(true);
   });
 });

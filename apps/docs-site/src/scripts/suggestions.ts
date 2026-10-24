@@ -50,6 +50,7 @@ import {
   staleLines,
   statusBadge,
   suggestionGate,
+  type SuggestionGate,
   ownSuggestionCard,
   suggestionNeed,
   suggestionThumb,
@@ -405,7 +406,14 @@ export async function openSuggestion(n: number, host: SuggestionHost): Promise<v
 
   const render = (said?: string) => {
     if (mine !== seq) return;
-    const gate = suggestionGate({ status, viewer, author: d.issue.author, owners, tier: payload.tier.tier, approvals: d.approvals, collaborator: write, names: nameMap, signInLine: ghAction('review', prefersSignIn()), soloOwner: siteSoloOwner() });
+    // The demo seat reads as a design owner ("~seat" is no GitHub login), so a closed suggestion says why, never "Connect GitHub".
+    const seatOwners = seat ? { ...owners, design: [...owners.design, '~seat'] } : owners;
+    const real = suggestionGate({ status, viewer: viewer ?? (seat ? '~seat' : null), author: d.issue.author, owners: seatOwners, tier: payload.tier.tier, approvals: d.approvals, collaborator: write, names: nameMap, signInLine: ghAction('review', prefersSignIn()), soloOwner: siteSoloOwner() });
+    // The sample team, in the demo seat: the visitor reviews where Dana does. Approve can be tried (SuggestionReview
+    // shows the result and writes nothing); the page never asks for GitHub, the banner's "Get started" is the way in.
+    const open = status === 'needs-review' || status === 'changes-requested';
+    const sample = seat && open ? { author: authorName, codeBy: sampleCodeReviewers(sampleTeam(seat)) } : null;
+    const gate: SuggestionGate = sample ? { canApprove: true, canRequestChanges: true, canDecline: false, role: 'design', covers: ['design'], why: null } : seat ? { ...real, canDecline: false } : real;
     const opened: OpenedSuggestion = { number: n, title, sha, role: gate.role, status, canApprove: gate.canApprove, canRequestChanges: gate.canRequestChanges };
     const props: SuggestionReviewProps = {
       n,
@@ -442,6 +450,7 @@ export async function openSuggestion(n: number, host: SuggestionHost): Promise<v
       onApprove: (text: string) => approve(text),
       onRequestChanges: (text: string) => review('request-changes', text),
       onDecline: () => decline(),
+      sample,
     };
     paint(el, props);
     host.opened?.(opened);

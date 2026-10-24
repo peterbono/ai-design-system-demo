@@ -41,9 +41,9 @@ describe('statusPill', () => {
 });
 
 describe('home card and checks line', () => {
-  it('an in-review card says the same as its row once its status is read', () => {
+  it('an in-review card says the same as its row once its status is read, and only that', () => {
     const now = Date.parse('2026-10-22T12:00:00Z');
-    expect(branchStatus({ stage: 'ready', updated: '2026-10-21T12:00:00Z', reviewer: null, status: 'Owner override needed' }, now)).toEqual({ stage: 'In review', detail: 'Owner override needed' });
+    expect(branchStatus({ stage: 'ready', updated: '2026-10-21T12:00:00Z', reviewer: null, status: 'Owner override needed' }, now)).toEqual({ stage: 'Owner override needed', detail: '' });
     expect(branchStatus({ stage: 'ready', updated: '2026-10-21T12:00:00Z', reviewer: null, status: null }, now).detail).toBe('waiting for a reviewer');
   });
 
