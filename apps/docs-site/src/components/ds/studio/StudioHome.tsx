@@ -10,12 +10,11 @@
 // Admins also get join requests (board E7b, scripts/team-home.ts): one row per person, Decline and Approve inline while
 // 3 things or fewer wait; more than that, it folds into "N more" like any row and Review all leads there.
 import { createRoot, type Root } from 'react-dom/client';
-import { useState, type MouseEvent, type ReactNode } from 'react';
-import { Check, CircleAlert, CircleCheck, TriangleAlert } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { CircleAlert, CircleCheck } from 'lucide-react';
 import { Who } from './faces';
-import { Alert, AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, SegmentedControl, Skeleton, ToastProvider, useToast } from '@bridge-ds/react';
+import { Alert, AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, SegmentedControl, Skeleton, ToastProvider } from '@bridge-ds/react';
 import { BranchThumb } from './BranchThumb';
-import { BranchRow } from './BranchRow';
 import { Drawing } from './Drawing';
 import StartChange from './StartChange';
 import { BuildLine } from './BuildLine';
@@ -32,7 +31,6 @@ import {
   onlyReviewerLine,
   showsBranch,
   sortBranches,
-  rowAction,
   splitNeeds,
   uniquePeople,
   waitingSentence,
@@ -45,129 +43,13 @@ import {
 import { VOCAB } from '../../../lib/vocabulary';
 import { studioHref } from '../../../lib/team-path';
 import { demoTour, demoWaiting, tourSteps, type TourAt } from '../../../lib/demo';
-import { ENTRY_WORDS } from '../../../lib/entry';
 import { useTour } from './HomeTour';
 
-/** What deciding on a join request gave: the line for the toast (`undo`: it can be taken back), or why it did not happen. */
-export type JoinOutcome = { ok: true; text: string; undo?: boolean } | { ok: false; github: boolean; text: string };
+// The rows of the queue (NeedList) and Approve and Decline on a join request live in NeedRows.tsx, shared with
+// Settings > Members and the home of a team with no design system yet (JoinRequests.tsx).
+export { NeedList, NeedRowItem, type JoinHandlers, type JoinOutcome } from './NeedRows';
+import { NeedList, type JoinHandlers } from './NeedRows';
 
-export interface JoinHandlers {
-  /** Approve or decline; on success the row leaves the list at once and the home recounts. */
-  decide: (row: NeedRow, approve: boolean) => Promise<JoinOutcome>;
-  /** Takes the decision back for a short while: the request waits again. */
-  undo?: (row: NeedRow) => Promise<JoinOutcome>;
-  /** No GitHub admin account linked: "Connect GitHub to manage requests". */
-  connectGitHub: () => void;
-}
-
-/** How long the toast offers Undo (the server keeps the decision undoable for 30 seconds). */
-const UNDO_MS = 8000;
-
-/** Decline and Approve on a join request. After a decision the row goes and a short toast says what happened, with Undo. */
-function JoinActions({ row, join }: { row: NeedRow; join: JoinHandlers }) {
-  const [busy, setBusy] = useState<'approve' | 'decline' | null>(null);
-  const [out, setOut] = useState<JoinOutcome | null>(null);
-  const toast = useToast();
-  const decide = async (approve: boolean) => {
-    setBusy(approve ? 'approve' : 'decline');
-    const o = await join.decide(row, approve);
-    if (o.ok) {
-      const undo = join.undo;
-      const id = toast.add({
-        title: o.text,
-        tone: o.undo ? 'success' : 'neutral',
-        timeout: o.undo && undo ? UNDO_MS : undefined,
-        action:
-          o.undo && undo
-            ? {
-                label: ENTRY_WORDS.undo,
-                onClick: () => {
-                  void undo(row).then((u) => {
-                    if (!u.ok) return void toast.add({ title: u.text || ENTRY_WORDS.githubToManage, tone: 'danger' });
-                    // Taken back: the decision's toast and its Undo go, the new one says so.
-                    toast.close(id);
-                    toast.add({ title: u.text, tone: 'neutral' });
-                  });
-                },
-              }
-            : undefined,
-      });
-      return;
-    }
-    setOut(o);
-    setBusy(null);
-  };
-  if (out && !out.ok && out.github)
-    return (
-      <span className="sh-join">
-        <Button variant="link" onClick={join.connectGitHub}>
-          {ENTRY_WORDS.githubToManage}
-        </Button>
-      </span>
-    );
-  const who = row.request?.name ?? row.title;
-  return (
-    <span className="sh-join">
-      {out && !out.ok && (
-        <span className="t-ui t-muted" role="status">
-          {out.text}
-        </span>
-      )}
-      <Button variant="secondary" loading={busy === 'decline'} disabled={Boolean(busy)} aria-label={`${ENTRY_WORDS.decline} ${who}`} onClick={() => void decide(false)}>
-        {ENTRY_WORDS.decline}
-      </Button>
-      <Button variant="primary" loading={busy === 'approve'} disabled={Boolean(busy)} aria-label={`${ENTRY_WORDS.approve} ${who}`} onClick={() => void decide(true)}>
-        {ENTRY_WORDS.approve}
-      </Button>
-    </span>
-  );
-}
-
-/** One Needs you row: before/after, who, what and why, the status on the right (the shared BranchRow). */
-export function NeedRowItem({ row, selected, onSelect, action, compact, join }: { row: NeedRow; selected?: boolean; onSelect?: (row: NeedRow) => void; action?: 'primary' | 'secondary'; compact?: boolean; join?: JoinHandlers }) {
-  const click = onSelect
-    ? (e: MouseEvent<HTMLAnchorElement>) => {
-        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-        e.preventDefault();
-        onSelect(row);
-      }
-    : undefined;
-  return (
-    <BranchRow
-      thumb={row.thumb}
-      who={row.person ? <Who p={row.person} /> : <span className="sh-row-icon"><Icon icon={row.pill?.tone === 'danger' ? TriangleAlert : Check} size="md" /></span>}
-      title={row.title}
-      href={row.href}
-      onClick={click}
-      selected={selected}
-      line={row.line}
-      pill={row.pill}
-      compact={compact}
-      detail={row.detail}
-      end={
-        action && row.kind === 'join' && join ? (
-          <JoinActions row={row} join={join} />
-        ) : (
-          action && (
-          <ButtonLink variant={action} href={row.href} className="sh-row-action" tabIndex={-1} aria-hidden="true">
-            {rowAction(row.kind, row.action)}
-          </ButtonLink>
-          )
-        )
-      }
-    />
-  );
-}
-
-export function NeedList({ rows, selectedKey, onSelect, label = 'Needs you', action, compact, join }: { rows: NeedRow[]; selectedKey?: string | null; onSelect?: (row: NeedRow) => void; label?: string; action?: 'primary' | 'secondary'; compact?: boolean; join?: JoinHandlers }) {
-  return (
-    <ul className="sh-rows" aria-label={label}>
-      {rows.map((r) => (
-        <NeedRowItem key={r.key} row={r} selected={selectedKey === r.key} onSelect={onSelect} action={action} compact={compact} join={join} />
-      ))}
-    </ul>
-  );
-}
 
 /**
  * "Ann, Dana, Claude AI and 6 others are waiting on you." with their avatars and the oldest wait. On the demo (`lead`),

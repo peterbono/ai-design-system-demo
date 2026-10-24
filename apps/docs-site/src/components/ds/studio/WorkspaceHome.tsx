@@ -7,7 +7,7 @@
 // With a Storybook added (the quick start), the zone and the Components card say what was found instead.
 // A team made in Bridge with no repository yet (`team`, api/entry create-team) gets the same calm home, as that team: one
 // sentence on what to connect next (an admin's action; a member reads who does it), its size and who can find it on one
-// muted line, and for its admin the people asking to join (JoinRequests.tsx, the rows of Settings > Members).
+// muted line, and for its admin the people asking to join (JoinRequests.tsx, the rows of the home's queue).
 import { createRoot, type Root } from 'react-dom/client';
 import type { ReactNode } from 'react';
 import { Button, Link } from '@bridge-ds/react';
@@ -80,11 +80,11 @@ function LibraryCard({ kind, title, line, filled }: { kind: 'tokens' | 'componen
 /** "2 members · People with @northwind.io can find it": the team in one muted line. */
 const teamLine = (t: WorkspaceTeam) => `${TW.members(t.memberCount)} · ${t.discovery?.enabled ? TW.findable(t.discovery.domain) : TW.inviteOnly}`;
 
-/** The people asking to join a team made in Bridge, for its admin: the same rows as Settings > Members. */
+/** The people asking to join a team made in Bridge, for its admin: the queue rows of the home (JoinRequests.tsx). */
 function TeamRequests({ team }: { team: WorkspaceTeam }) {
-  const { requests, setRequests } = useEntryAdmin(team.key, team.admin);
+  const { requests } = useEntryAdmin(team.key, team.admin);
   if (!requests.length) return null;
-  return <JoinRequests repo={team.key} requests={requests} onDone={(r) => setRequests((xs) => xs.filter((x) => x.id !== r.id))} />;
+  return <JoinRequests repo={team.key} team={team.name} requests={requests} />;
 }
 
 export function WorkspaceHome({ name, team = null, storybook, setup, onConnect }: WorkspaceHomeProps) {

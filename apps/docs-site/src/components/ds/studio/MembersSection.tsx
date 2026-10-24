@@ -183,11 +183,7 @@ export default function MembersSection() {
   const maybeAdmin = knownRole === null || knownRole === 'Admin';
   const entry = useEntryAdmin(ready?.repo ?? page.repo, (isHosted() || isTeamKey(page.repo)) && (ready ? ready.context === 'real' && ready.canManage : page.context === 'real' && !isTeamKey(page.repo) && maybeAdmin));
   const early = (
-    <JoinRequests
-      repo={page.repo}
-      requests={entry.requests}
-      onDone={(r) => entry.setRequests((xs) => xs.filter((x) => x.id !== r.id))}
-    />
+    <JoinRequests repo={page.repo} requests={entry.requests} />
   );
 
   if (load.status === 'loading')
@@ -213,12 +209,13 @@ export default function MembersSection() {
       {data.canManage && data.context === 'real' && (
         <JoinRequests
           repo={data.repo}
+          team={data.team}
           requests={entry.requests}
           onApproved={(r) => update((d) => withJoined(d, r))}
-          onDone={(r, approved) => {
-            entry.setRequests((xs) => xs.filter((x) => x.id !== r.id));
+          onDone={(_r, approved) => {
             if (approved) reload();
           }}
+          onUndone={() => reload()}
         />
       )}
       <div className="mem-head">
