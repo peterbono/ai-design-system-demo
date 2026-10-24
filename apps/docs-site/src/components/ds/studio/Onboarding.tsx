@@ -145,7 +145,8 @@ function StepList({ steps, open, onOpen }: { steps: Step[]; open: StepId; onOpen
           <button type="button" className="onb-step" data-state={s.state} aria-current={s.id === open ? 'step' : undefined} onClick={() => onOpen(s.id)}>
             <StepMark s={s} />
             <StepText s={s} />
-            <span className="onb-step-status">{s.status}</span>
+            {/* "Current" belongs to the open step only: the step Bridge waits on reads "To do" while another one is open. */}
+            <span className="onb-step-status">{s.status === 'Current' && s.id !== open ? 'To do' : s.status}</span>
           </button>
         </li>
       ))}

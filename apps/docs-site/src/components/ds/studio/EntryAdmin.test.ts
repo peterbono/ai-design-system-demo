@@ -124,7 +124,7 @@ describe('Create your team (E6, E7a)', () => {
       }),
     );
     expect(screen.queryByRole('checkbox')).toBeNull();
-    expect(screen.getByText('Teammates join by invite. You send invites right after setup.')).toBeInTheDocument();
+    expect(screen.getByText('Teammates join by invite. Once the team exists, invite them from the team menu.')).toBeInTheDocument();
     const user = userEvent.setup();
     await user.type(screen.getByRole('textbox', { name: 'Team name' }), 'Acme Design');
     await user.click(screen.getByRole('button', { name: 'Continue' }));

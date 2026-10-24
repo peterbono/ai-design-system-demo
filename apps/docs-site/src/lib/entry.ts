@@ -388,7 +388,7 @@ export const ENTRY_WORDS = {
   teamNameMissing: 'Type a name for your team.',
   findable: (domain: string) => `Let people with @${domain} find this team`,
   findableHelp: 'They can ask to join. You approve each person, and they start as Can edit.',
-  inviteOnly: 'Teammates join by invite. You send invites right after setup.',
+  inviteOnly: 'Teammates join by invite. Once the team exists, invite them from the team menu.',
   noDesignSystem: 'No design system yet? Keep exploring the demo',
   nextLibrary: 'Next: connect your design system',
   expecting: 'Expecting an invite? Ask your design lead to send it to this email:',
