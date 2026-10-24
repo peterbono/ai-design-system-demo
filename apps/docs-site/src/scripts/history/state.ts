@@ -3,7 +3,8 @@
 // On a team shell (multi-team PR 3b) there is no build-time history: it is read from GitHub with core
 // loadGitHubHistory, lazily (only when a view asks), when signed in (it costs a few reads per change); a guest reads
 // the history the team's CI published in activity.json (scripts/guest-activity.ts).
-import { buildReport, gitHubHistoryBackend, layoutOptions, loadConfig, loadGitHubHistory, parseContrastChecks, type BridgeConfig, type ContrastPair, type HistoryEntry, type HistoryReport } from '@bridge-ds/core';
+import { buildReport, gitHubHistoryBackend, layoutOptions, loadConfig, loadGitHubHistory, parseContrastChecks, requesterOf, type BridgeConfig, type ContrastPair, type GitHubClient, type HistoryEntry, type HistoryReport } from '@bridge-ds/core';
+import { guidanceHistoryEntry, guidancePulls } from '../../lib/history-guidance';
 import { reviewTokenChange, type TokenReview } from '../../lib/token-review';
 import type { HistoryData } from '../../lib/history';
 import { isHosted, studioHref } from '../../lib/team-path';
@@ -63,8 +64,25 @@ async function teamHistoryData(): Promise<HistoryData> {
     client = teamClient(d);
     if (!client.canWrite) return { ...base, real: null, realNote: TEAM_HISTORY_SIGN_IN };
   }
-  const real = await loadGitHubHistory(client, loadConfig(config), { ref: d.defaultBranch, limit: TEAM_HISTORY_LIMIT });
+  const tokens = await loadGitHubHistory(client, loadConfig(config), { ref: d.defaultBranch, limit: TEAM_HISTORY_LIMIT });
+  const real = await withGuidance(tokens, client, d.defaultBranch);
   return { ...base, real, realNote: real.truncated ? teamHistoryCapNote(TEAM_HISTORY_LIMIT) : null };
+}
+
+/**
+ * The token history with the usage guidance changes merged next to it (lib/history-guidance): one read of the recent
+ * pull requests. GitHub refusing it leaves the token history as it is.
+ */
+async function withGuidance(report: HistoryReport, client: GitHubClient, base: string): Promise<HistoryReport> {
+  const pulls = await client.listPullRequests('closed').catch(() => []);
+  const known = new Set(report.entries.map((e) => e.pr?.number).filter((n): n is number => n !== undefined));
+  const extra = guidancePulls(pulls, base, known).map((p) => {
+    const r = requesterOf(p.body);
+    return guidanceHistoryEntry(p, (r ? (r.name ?? r.login) : null) ?? p.author);
+  });
+  if (!extra.length) return report;
+  const { timeline: _t, entries, ...rest } = report;
+  return buildReport({ ...rest, entries: [...entries, ...extra] });
 }
 
 const teamReviews = new Map<string, Promise<TokenReview | null>>();

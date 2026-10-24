@@ -23,7 +23,7 @@ vi.mock('./repo-context', () => ({ siteConfig: () => ({ name: 'Acme Product' }) 
 vi.mock('../lib/team-path', async (orig) => ({ ...(await orig<object>()), isHosted: () => true }));
 vi.mock('./teams', () => ({ loadTeams: async () => undefined }));
 vi.mock('./pr-status', () => ({ loadStatuses: async () => undefined, owners: () => ({ design: [], tech: [] }), shippers: () => [], rowWho: () => null }));
-vi.mock('./suggestions', () => ({ loadSuggestionNeeds: async () => [] }));
+vi.mock('./suggestions', () => ({ loadSuggestionNeeds: async () => [], loadOwnSuggestions: async () => [] }));
 
 import { loadHome, type HomeData } from './home-data';
 

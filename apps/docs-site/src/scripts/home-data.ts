@@ -9,7 +9,7 @@ import { requesterOf } from '@bridge-ds/core';
 import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, readRepo, RateLimitError, resolveAccess } from './github-session';
 import { loadStatuses, owners, rowWho, shippers, type PullStatus } from './pr-status';
 import { loadTeams } from './teams';
-import { loadSuggestionNeeds } from './suggestions';
+import { loadOwnSuggestions, loadSuggestionNeeds } from './suggestions';
 import { todoChange, viewerRole, type QueuePullFull } from './needs-you';
 import { reviewQueue } from '../lib/review-queue';
 import { isDraft } from '../lib/review-rules';
@@ -242,6 +242,13 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
   const suggestionsRead = loadSuggestionNeeds(personOf)
     .then((rows) => (suggestions = rows))
     .catch(() => (suggestions = []));
+  // The viewer's own open suggestions sit with their branches: they wait on the reviewers, calmly. An email member's
+  // are filed by Bridge for them (the server's list says which).
+  let ownSuggestions: BranchCard[] = [];
+  const ownSuggestionsRead = (async () => {
+    const mine = currentContributor() ? await import('./contribute-session').then((m) => m.contributeMine(`${owner}/${repo}`)).catch(() => null) : null;
+    ownSuggestions = await loadOwnSuggestions(viewer, mine);
+  })().catch(() => undefined);
   const queue = reviewQueue(pulls);
   const statuses = new Map<number, PullStatus | null>(queue.map((p) => [p.number, null]));
   const timelines = new Map<number, TimelineEvent[] | null>();
@@ -317,7 +324,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     // Suggestions wait on their reviewers only.
     if (reviewer) needs.push(...suggestions);
     const sorted = sortNeeds(needs);
-    onUpdate({ viewer, loading, settled, failed: null, needs: sorted, branches, decisions: sorted.filter((r) => r.kind === 'review').length, reviewer });
+    onUpdate({ viewer, loading, settled, failed: null, needs: sorted, branches: [...branches, ...ownSuggestions], decisions: sorted.filter((r) => r.kind === 'review').length, reviewer });
   };
 
   repaint = paint;
@@ -328,6 +335,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     }),
     suggestionsRead,
     joinsRead,
+    ownSuggestionsRead,
   ]);
   loading = false;
   paint();

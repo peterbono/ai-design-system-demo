@@ -18,7 +18,7 @@ import {
 import type { ThumbSpec, ThumbToken } from './branch-thumb';
 import { branchThumb } from './branch-thumb';
 import type { ShownValue } from './token-review';
-import { waitingLabel, type NeedRow, type Person } from './home-model';
+import { waitingLabel, type BranchCard, type NeedRow, type Person } from './home-model';
 import { studioHref } from './team-path';
 
 /** Where a suggestion opens in Studio: Branches, in place (pages/studio/changes.astro). */
@@ -441,4 +441,35 @@ export function reviewedLine(event: 'approve' | 'request-changes' | 'decline', t
 /** Who reads the decline reason: the author, notified by GitHub. */
 export function declineAudience(author: string, names: Record<string, string> = {}): string {
   return `${names[author.toLowerCase()] ?? `@${author}`} gets a GitHub notification with your reason. The suggestion closes and nothing reaches the library.`;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The author's own suggestions on their home: what waits on others, said calmly, never as a task
+
+/** Where the author's own open suggestion stands, in their words (the card line on their home). */
+export const OWN_SUGGESTION_WORDS: Partial<Record<SuggestionStatus, string>> = {
+  'needs-review': 'waiting for a review',
+  'changes-requested': 'changes requested, send a new version',
+  approved: 'approved, a developer applies it',
+  applying: 'a developer is applying it',
+  outdated: 'outdated, send it again',
+};
+
+/**
+ * The card of a suggestion the viewer sent, next to their branches on Home: "Suggestion · waiting for a review". Null
+ * once it is applied or declined (History and the suggestion's page keep it).
+ */
+export function ownSuggestionCard(s: { number: number; title: string; createdAt: string; status: SuggestionStatus }): BranchCard | null {
+  const detail = OWN_SUGGESTION_WORDS[s.status];
+  if (!detail) return null;
+  return {
+    number: s.number,
+    title: shortTitle(s.title),
+    href: suggestionHref(s.number),
+    stage: 'ready',
+    updated: s.createdAt,
+    reviewer: null,
+    thumb: { kind: 'icon', icon: 'token' },
+    statusLine: { stage: 'Suggestion', detail },
+  };
 }
