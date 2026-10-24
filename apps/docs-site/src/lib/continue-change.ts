@@ -180,7 +180,7 @@ export const conflictHref = (n: number) => studioHref(`changes/?pr=${n}`);
 
 /** The persistent banner of the token editor scoped to a change. */
 export function scopeBanner(title: string): { title: string; body: string } {
-  return { title: `Editing: ${title}`, body: 'Your edits are added to this branch, on top of its values.' };
+  return { title: `Editing: ${title}`, body: 'Your edits are added to this change, on top of its values.' };
 }
 
 /** Status line once the edits are added. */
@@ -191,7 +191,7 @@ export function addedSentence(n: number, title: string, upstream: number): strin
 }
 
 /** The change page, back from the token editor. */
-export const addedNotice = (n: number) => `Added ${n} edit${n === 1 ? '' : 's'} to this branch. Reviewers see ${n === 1 ? 'it' : 'them'} now.`;
+export const addedNotice = (n: number) => `Added ${n} edit${n === 1 ? '' : 's'} to this change. Reviewers see ${n === 1 ? 'it' : 'them'} now.`;
 
 /** The local draft strip on Changes: where the draft goes when sent. */
 export function draftDestination(target: ChangeTarget | null, edits = 2): string {

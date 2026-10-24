@@ -214,7 +214,7 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
           <h2 className="nb-step-title" id={headingId} tabIndex={-1}>
             Branch created
           </h2>
-          <p className="nb-lead">{draft.name} stays a draft on its own branch until design and tech approve it. The Library shows it once it is merged into main.</p>
+          <p className="nb-lead">{draft.name} stays a draft until design and tech approve it. The Library shows it once it is approved and added.</p>
           <div className="nb-actions">
             <Button variant="primary" iconStart={GitBranch} render={<a href={studioHref(`changes/?pr=${done.number}`)} />}>
               Open the branch

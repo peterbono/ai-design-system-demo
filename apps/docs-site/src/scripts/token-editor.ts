@@ -514,7 +514,7 @@ export function undoToken(path: string) {
  */
 export function sendLabel(): string {
   if (changesModeOnPage() === 'suggest') return sendButton('tokens', 'suggest');
-  return scope ? 'Add to this branch' : choice.kind === 'change' ? 'Add to branch' : VOCAB.requestReview;
+  return scope ? 'Add to this change' : choice.kind === 'change' ? 'Add to branch' : VOCAB.requestReview;
 }
 
 /** Where the draft goes, for the review sheet's note (null: nothing to say). */
