@@ -7,7 +7,8 @@ import type { ConflictChoice, DiffEntry } from '@bridge-ds/core';
 import { type Analysis, type PullProposal, type PushBrand, type PushProposal, analyze, buildPull, buildPush, changesModeOf, commitsBehind, pullCollections, pullHeadline } from '../sync/flows';
 import { type ChangesMode, GitHubClient, type PullRequest, changesMode, loadConfig, parseRepo } from '@bridge-ds/core';
 import type { RenameSuggestion } from '@bridge-ds/core';
-import { type GapCase, type MeasuredSpecsFile, affectedContrast, buildGapCase, defaultTitle } from '@bridge-ds/core';
+import { type FigmaFidelityRun, type GapBuiltVariant, type GapCase, type MeasuredSpecsFile, affectedContrast, buildGapCase, defaultTitle } from '@bridge-ds/core';
+import { fixCommand, fixPhrase, writeFidelityRun } from '../sync/fix-with-claude';
 import { type PathIndex, type ResolveContext, resolve } from '@bridge-ds/core';
 import { contextFor, modesOf } from '@bridge-ds/core';
 import { type LogicalToken, SINGLE_MODE } from '@bridge-ds/core';
@@ -91,7 +92,19 @@ interface PullState {
   /** "Check fidelity": running (with its progress line), its outcome, or why it failed. Nothing is written. */
   /** `copied`: the report JSON was copied for a developer ("Copy the report"). */
   /** `gaps`: per set that differs, what the code draws that Figma does not (measured only), for Claude or a developer. */
-  fidelity?: { running?: string | undefined; outcome?: FidelityOutcome | undefined; error?: string | undefined; copied?: boolean | undefined; gaps?: GapCase[] | undefined; gapsCopied?: boolean | undefined } | undefined;
+  /** `built`: per set, what read-built gave (the gap cases' input, sent with Fix with Claude). `fix`: Fix with Claude's state. */
+  fidelity?:
+    | {
+        running?: string | undefined;
+        outcome?: FidelityOutcome | undefined;
+        error?: string | undefined;
+        copied?: boolean | undefined;
+        gaps?: GapCase[] | undefined;
+        gapsCopied?: boolean | undefined;
+        built?: Record<string, Record<string, GapBuiltVariant>> | undefined;
+        fix?: { component: string; status: 'writing' | 'ready' | 'error'; error?: string | undefined; copied?: 'phrase' | 'command' | undefined } | undefined;
+      }
+    | undefined;
 }
 
 /** Thumbnail width in the review, CSS pixels (two side by side in the 480px plugin). */
@@ -2162,7 +2175,8 @@ async function checkFidelity(p: PullState): Promise<void> {
           }
         : {}),
     });
-    p.fidelity = { outcome, ...(outcome.kind === 'done' && p.measure ? { gaps: await gapCases(p, outcome.items) } : {}) };
+    const built: Record<string, Record<string, GapBuiltVariant>> = {};
+    p.fidelity = { outcome, ...(outcome.kind === 'done' && p.measure ? { gaps: await gapCases(p, outcome.items, built), built } : {}) };
   } catch (err) {
     p.fidelity = { error: inlineError(err) ?? 'Could not compare with the code.' };
   }
@@ -2173,12 +2187,13 @@ async function checkFidelity(p: PullState): Promise<void> {
  * The gap case of each set that differs (measured only): the variants, what the code draws that Figma does not and
  * where, read from the built layers. A set whose layers cannot be read still gets one, from the values alone.
  */
-async function gapCases(p: PullState, items: Extract<FidelityOutcome, { kind: 'done' }>['items']): Promise<GapCase[]> {
+async function gapCases(p: PullState, items: Extract<FidelityOutcome, { kind: 'done' }>['items'], builtBySet: Record<string, Record<string, GapBuiltVariant>> = {}): Promise<GapCase[]> {
   const out: GapCase[] = [];
   for (const it of items) {
     if (it.result.status !== 'differs' || !p.measure) continue;
     const keys = it.result.variants.filter((v) => v.status === 'differs').map((v) => v.key);
     const built = await request('read-built', { nodeId: it.nodeId, keys }).catch(() => undefined);
+    if (built) builtBySet[it.name] = built;
     const shots = Object.fromEntries(Object.entries(p.shots?.manifest.components[it.name]?.variants ?? {}).flatMap(([k, e]) => ('file' in e ? [[k, { file: e.file }]] : [])));
     out.push(
       buildGapCase({
@@ -2193,6 +2208,53 @@ async function gapCases(p: PullState, items: Extract<FidelityOutcome, { kind: 'd
     );
   }
   return out;
+}
+
+/**
+ * "Fix with Claude" on a set that differs: the run goes to figma-fidelity.json on the requests branch, then the designer
+ * asks their Claude (the phrase) or runs the CLI with the team's API key. The next pull of Claude's branch, then Check
+ * fidelity, decide.
+ */
+async function fixWithClaude(p: PullState, component: string): Promise<void> {
+  const f = p.fidelity;
+  if (!f || f.outcome?.kind !== 'done' || f.fix?.status === 'writing') return;
+  f.fix = { component, status: 'writing' };
+  render();
+  try {
+    const run: FigmaFidelityRun = {
+      version: 1,
+      report: f.outcome.report,
+      ...(f.built ? { built: f.built } : {}),
+      figmaRenders: Object.fromEntries(f.outcome.items.filter((it) => it.result.status === 'differs').map((it) => [it.name, Object.fromEntries(it.result.variants.map((v) => [v.key, it.nodeId]))])),
+      ...(p.measure?.measuredAt ? { measuredAt: p.measure.measuredAt } : {}),
+    };
+    await writeFidelityRun(getClient(), run, state.init!.settings.branch);
+    f.fix = { component, status: 'ready' };
+  } catch (err) {
+    f.fix = { component, status: 'error', error: inlineError(err) ?? 'Could not write the check for Claude.' };
+  }
+  render();
+}
+
+/** After Fix with Claude: what to say to Claude, or the command with an API key. */
+function fixPanel(p: PullState, component: string): Child {
+  const fix = p.fidelity?.fix;
+  if (!fix || fix.component !== component) return null;
+  if (fix.status === 'writing') return h('p', { class: 'muted' }, 'Sending the check to the repository...');
+  if (fix.status === 'error') return h('div', { class: 'callout warn' }, h('p', null, fix.error));
+  const copy = (what: 'phrase' | 'command', text: string) =>
+    h('button', { class: 'btn', onClick: () => void copyText(text).then((ok) => { if (p.fidelity?.fix && ok) p.fidelity.fix.copied = what; render(); }) }, icon(fix.copied === what ? 'check' : 'copy'), fix.copied === what ? 'Copied' : what === 'phrase' ? 'Copy for Claude' : 'Copy the command');
+  return h(
+    'div',
+    { class: 'callout' },
+    h('p', null, 'Ask your Claude, with the Bridge MCP server:'),
+    h('p', null, h('code', null, fixPhrase(component))),
+    copy('phrase', fixPhrase(component)),
+    h('p', { class: 'muted' }, 'With your team\'s API key instead, in the repository:'),
+    h('p', null, h('code', null, fixCommand(component))),
+    copy('command', fixCommand(component)),
+    h('p', { class: 'muted' }, 'Claude opens its fixes for review. Pull its branch, then Check fidelity: the story renders decide.'),
+  );
 }
 
 /** Figma, code and differences side by side for the variant that differs most. */
@@ -2244,6 +2306,10 @@ function fidelityGroup(p: PullState): Child {
           h('p', { class: 'muted' }, fidelityComponentLine(r)),
           // Where the difference comes from, in one sentence (the gap case's summary).
           r.status === 'differs' && f?.gaps?.find((g) => g.component === it.name)?.summary ? h('p', null, f.gaps.find((g) => g.component === it.name)!.summary) : null,
+          r.status === 'differs' && p.measure
+            ? h('button', { class: 'btn ghost', disabled: f?.fix?.status === 'writing' || !!state.busy, onClick: () => void fixWithClaude(p, it.name) }, 'Fix with Claude')
+            : null,
+          r.status === 'differs' ? fixPanel(p, it.name) : null,
           // The three images on demand: the list stays a list to scan (FID-5).
           r.status === 'differs' && it.images
             ? h('details', { class: 'notes' }, h('summary', null, `See the most different: ${it.images.key}`), fidelityThumbs(it.name, it.images))
