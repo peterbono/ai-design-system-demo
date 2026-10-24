@@ -339,6 +339,11 @@ describe('approval rows', () => {
       ['Design', 'approved', 'Approved by @dana'],
       ['Tech', 'changes', 'Changes requested by @theo'],
     ]);
+    // Updated after theo's changes request: theo looks again, never a stale "Changes requested".
+    const again = approvalRows({ tier: 3, approvals: approvals({ approvers: ['dana'], design: true, changesRequested: ['theo'] }), people: { owners, author: 'ann' }, open: true, lookAgain: ['theo'] });
+    expect(again[1]).toMatchObject({ state: 'waiting', text: 'Updated, waiting for @theo to look again' });
+    const mine = approvalRows({ tier: 3, approvals: approvals({ approvers: ['dana'], design: true, changesRequested: ['theo'] }), people: { owners, author: 'ann', viewer: 'theo' }, open: true, lookAgain: ['theo'] });
+    expect(mine[1]).toMatchObject({ state: 'waiting', text: 'Updated after your changes: look again' });
     const waiting = approvalRows({ tier: 3, approvals: approvals(), people: { owners, author: 'ann' }, open: true });
     expect(waiting.map((r) => r.text)).toEqual(['Waiting for @dana', 'Waiting for @theo']);
     expect(waiting.some((r) => r.canAct)).toBe(false);

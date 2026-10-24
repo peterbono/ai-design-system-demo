@@ -23,7 +23,7 @@ import {
   claudeStage,
   parseTier,
   pullState,
-  REVIEW_STATUS,
+  statusOf,
   studioVerdict,
   summarizeCi,
   type CheckRunLike,
@@ -164,7 +164,7 @@ export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}
   // Only an open change that nothing else blocks needs to know whether it merges cleanly.
   const needsMergeable = pullState(p) === 'open' && !['ci-failing', 'changes-requested', 'ci-running', 'unknown'].includes(first.status);
   const kind = needsMergeable ? verdict(await mergeableOf(p)).status : first.status;
-  const status: ReviewStatus = { kind, ...REVIEW_STATUS[kind] };
+  const status: ReviewStatus = statusOf(kind, first.lookAgain);
   const names = files?.map((f) => f.filename) ?? null;
   return {
     ...status,

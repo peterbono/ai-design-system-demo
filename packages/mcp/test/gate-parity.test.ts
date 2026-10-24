@@ -221,8 +221,8 @@ async function verdicts(n: number, viewer: string | null) {
   const s = await studioReads(n, viewer);
   const m = (await branches.branchStatus(await as(viewer), { pr: n })) as any;
   const c = await cliStatus(n, viewer);
-  const studioSide = { status: s.status, allowed: s.gate!.allowed, reasons: s.gate!.reasons, ...(viewer ? { override: s.gate!.overridable } : {}) };
-  const view = (r: any) => ({ status: r.status.kind, allowed: r.merge.allowed, reasons: r.merge.blockedBy, ...(viewer ? { override: r.merge.ownerOverride } : {}) });
+  const studioSide = { status: s.status, label: s.label, allowed: s.gate!.allowed, reasons: s.gate!.reasons, ...(viewer ? { override: s.gate!.overridable } : {}) };
+  const view = (r: any) => ({ status: r.status.kind, label: r.status.label, allowed: r.merge.allowed, reasons: r.merge.blockedBy, ...(viewer ? { override: r.merge.ownerOverride } : {}) });
   return { studio: studioSide, mcp: view(m), cli: view(c) };
 }
 
@@ -287,6 +287,8 @@ describe('the same fixture pull requests give the same verdict in Studio, the MC
       expect(v.mcp).toEqual(v.studio);
       expect(v.cli).toEqual(v.studio);
       expect(v.studio.status).toBe('changes-requested');
+      // Never the stale "Changes requested": the author updated it, the reviewer looks again (core reviewStatusLabel).
+      expect(v.studio.label).toBe('Updated, look again');
       expect(v.studio.allowed).toBe(false);
     }
     const reviews = (await (await gh.fetch(`https://api.github.com/repos/${FULL}/pulls/${pr.updatedAfter}/reviews?per_page=100`)).json()) as ReviewLike[];
@@ -298,6 +300,7 @@ describe('the same fixture pull requests give the same verdict in Studio, the MC
     gh.viewer.login = 'ann';
     const annNeeds = (await branches.whatNeedsMe(await as('ann'))) as any;
     expect(annNeeds.branches.find((b: any) => b.pr === pr.updatedAfter)?.needsYou).toBe('Look again: updated after your changes');
+    expect(annNeeds.branches.find((b: any) => b.pr === pr.updatedAfter)?.statusLabel).toBe('Updated, look again');
     gh.viewer.login = 'agent';
     const authorNeeds = (await branches.whatNeedsMe(await as('agent'))) as any;
     expect(authorNeeds.branches.find((b: any) => b.pr === pr.updatedAfter)?.needsYou ?? null).toBeNull();

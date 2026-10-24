@@ -225,17 +225,18 @@ export async function branchFacts(ctx: BridgeContext, gh: GitHubClient, n: numbe
   const figmaPush = pr.state === 'open' ? await figmaPushFacts(gh, config, pr, files, compare?.mergeBase).catch(() => null) : null;
   // One verdict (core branchVerdict), the one Studio's branch page and status chips read: Tier 1 needs one owner
   // approval, the override is for its owner holders only, an applied suggestion's approvals carry.
-  const verdict = branchVerdict({ tier, ci, approvals: own, suggestion, owners: who.lists, override: config.governance.override ?? DEFAULT_OVERRIDE, mergeable: pr.mergeable, ...pullLike, viewer, exploration, ship: who.ship, figmaPush });
+  const verdict = branchVerdict({ tier, ci, approvals: own, suggestion, owners: who.lists, override: config.governance.override ?? DEFAULT_OVERRIDE, mergeable: pr.mergeable, ...pullLike, viewer, exploration, ship: who.ship, figmaPush, lookAgain });
   const approvals = verdict.approvals!;
   const gate = verdict.gate!;
   const status: ReviewStatusKind = verdict.status;
   const override = verdict.override ?? DEFAULT_OVERRIDE;
   const fresh = freshness({ compare: compare ? { behind_by: compare.behindBy, merge_base_commit: compare.mergeBase ? { sha: compare.mergeBase } : null } : null, mergeable: pr.mergeable, open: pr.state === 'open' });
   const product = productOfBranch(productsOf(config), { files: files.map((f) => f.filename), labels: pr.labels });
-  return { config, pr, files, ci, approvals, tier, gate, status, override, suggestion, fresh, compare, exploration, product, lookAgain, lifecycle: pullState(pullLike), write: repo ? hasWriteAccess(repo.permissions) : null, repo, solo: who.solo, lists: who.lists, figmaPush, autoShip: verdict.autoShip };
+  return { config, pr, files, ci, approvals, tier, gate, status, override, suggestion, fresh, compare, exploration, product, lookAgain, lifecycle: pullState(pullLike), write: repo ? hasWriteAccess(repo.permissions) : null, repo, solo: who.solo, lists: who.lists, figmaPush, autoShip: verdict.autoShip, statusLabel: verdict.label };
 }
 
-// The status words Studio shows too (core REVIEW_STATUS_LABEL): one derivation (reviewStatusKind), one vocabulary.
+// The status words Studio shows too (core REVIEW_STATUS_LABEL, and reviewStatusLabel's "Updated, look again" through
+// branchVerdict): one derivation (reviewStatusKind), one vocabulary.
 const STATUS_WORDS = REVIEW_STATUS_LABEL;
 
 // --- reads -------------------------------------------------------------------------------------------------
@@ -253,7 +254,7 @@ export async function branchStatus(ctx: BridgeContext, a: { pr: number | string 
     author: f.pr.author,
     product: { key: f.product.key, name: f.product.name },
     lifecycle: f.lifecycle,
-    status: { kind: f.status, label: STATUS_WORDS[f.status] },
+    status: { kind: f.status, label: f.statusLabel },
     // A merged or closed branch needs nothing more: null, never a list of approvals it no longer waits for.
     approvalNeeded: f.lifecycle === 'merged' || f.lifecycle === 'closed' ? null : f.tier === 1 ? 'One owner approval' : 'Design and tech approval',
     approvals: { approvedBy: f.approvals.approvers, changesRequestedBy: f.approvals.changesRequested, ...(f.lookAgain.length ? { lookAgain: f.lookAgain } : {}), design: f.approvals.design, tech: f.approvals.tech, owner: hasOwnerApproval(f.approvals), ...(f.suggestion ? { carriedFrom: `Suggestion #${f.suggestion.number}: its approvals count here (it applies that approved suggestion).` } : {}), ...(f.solo && (f.tier ?? 3) > 1 ? { soloOwner: soloOwnerSentence(f.solo, Boolean(viewer && viewer.toLowerCase() === f.solo)) } : {}) },
@@ -338,7 +339,7 @@ export async function whatNeedsMe(ctx: BridgeContext, a: { limit?: number | unde
       // Nobody else can give the missing approvals and the viewer may use the owner override: Studio says "Your turn:
       // owner override" on the same branch.
       if (viewer && !needsYou && f.gate.overridable && !reviewersToAsk({ tier: f.tier, approvals: f.approvals, owners: who.lists, author: p.author, viewer }).length) needsYou = 'Only the owner override can merge it';
-      return { pr: p.number, title: p.title, url: p.url, author: p.author, product: f.product.name, status: f.status, statusLabel: STATUS_WORDS[f.status], yours: mine, needsYou };
+      return { pr: p.number, title: p.title, url: p.url, author: p.author, product: f.product.name, status: f.status, statusLabel: f.statusLabel, yours: mine, needsYou };
     }),
   );
   const rows = listed.filter((r): r is NonNullable<typeof r> => r !== null);
