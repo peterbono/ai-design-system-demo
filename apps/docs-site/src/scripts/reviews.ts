@@ -890,6 +890,11 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   aliases.clear();
   if (seat && seatOwner) aliases.set(seatOwner.toLowerCase(), seat);
   if (seatAuthor) aliases.set(author, seatAuthor.split(/\s+/)[0]!);
+  // A change Bridge's app opened for an email member ("Requested by Priya Shah ... through Bridge."): every sentence of
+  // the page names Priya where it would name the app ("Waiting for Priya to address the changes").
+  const opener = pull.user.login;
+  const forMember = !seat && /\[bot\]$/i.test(opener) ? requesterOf(pull.body) : null;
+  if (forMember?.name) aliases.set(opener.toLowerCase(), forMember.name.split(/\s+/)[0]!);
   const viewer = login ?? seatOwner;
   // Developers (tech owners) see the technical side: failing tests, updating from main, the GitHub link. Designers
   // read who acts instead ("A developer is on it").
