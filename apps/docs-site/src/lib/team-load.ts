@@ -67,7 +67,8 @@ export function teamFailure(err: unknown, full: string): TeamFailure {
     return {
       kind: 'not-found',
       title: `Bridge cannot open ${repo}`,
-      body: 'GitHub says this repository does not exist, or it is private. Check the address. If it is private, sign in with GitHub with an account that can see it.',
+      // Designer words (email-only entry): a team's member signs in with the email the team invited, never "with GitHub".
+      body: 'This design system is private, or the address has a typo. If you are on the team, sign in with the email your team invited, then try again.',
     };
   }
   if (status === 413) {
