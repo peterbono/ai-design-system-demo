@@ -485,7 +485,7 @@ scoped there).
 
 | Request | Answer |
 | ------- | ------ |
-| `GET /api/contribute?repo=<owner/repo>&gh=<GitHub REST path, URL-encoded>` | GitHub's status, body, `Content-Type`, `Link` and `ETag`; `X-Bridge-Cache: hit`, `revalidated`, `miss` or `stale`; `304` when `If-None-Match` matches the kept `ETag` |
+| `GET /api/contribute?repo=<owner/repo>&gh=<GitHub REST path, URL-encoded>` | GitHub's status, body, `Content-Type`, `Link` and `ETag`; `X-Bridge-Cache: hit`, `revalidated`, `miss` or `stale`; `304` when `If-None-Match` matches the kept `ETag`. With `X-Bridge-Missing: 1` (Bridge's pages send it), GitHub's `404` answers `200` with `X-Bridge-Missing: 1` and GitHub's body: an expected empty state (a team without a Bridge snapshot) logs no browser error, and the page reads it back as the `404` |
 | `GET /api/contribute?repo=<owner/repo>&blobs=<sha>,<sha>,...` (1 to 100 full shas) | `{ "blobs": { "<sha>": "<text>" or null }, "later": ["<sha>"] }`: many file bodies at once (null: no such blob); `later` keeps one answer under 3 MB, ask again |
 
 Studio uses the batch to load a design system in a few requests (core `RepoSource.prefetch`, `gitHubSource` `batch`)
