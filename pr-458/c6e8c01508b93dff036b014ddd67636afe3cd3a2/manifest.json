@@ -1,15 +1,15 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-24T10:31:19.612Z",
-  "durationMs": 164695,
+  "createdAt": "2026-10-24T10:38:28.559Z",
+  "durationMs": 188083,
   "base": {
-    "ref": "a5399639d25cbfbc8b2be992d16bb73233b7dc09",
-    "sha": "a5399639d25cbfbc8b2be992d16bb73233b7dc09"
+    "ref": "6fe8a875b7ff0c942e0484f1e91b943089971a9e",
+    "sha": "6fe8a875b7ff0c942e0484f1e91b943089971a9e"
   },
   "head": {
-    "ref": "16662c72a49f2c704297340e95e0e13311bdc30f",
-    "sha": "16662c72a49f2c704297340e95e0e13311bdc30f"
+    "ref": "c6e8c01508b93dff036b014ddd67636afe3cd3a2",
+    "sha": "c6e8c01508b93dff036b014ddd67636afe3cd3a2"
   },
   "options": {
     "only": [
@@ -148,9 +148,13 @@
       "apps/figma-plugin/src/sync/component-pull.ts",
       "apps/figma-plugin/src/sync/fidelity.ts",
       "apps/figma-plugin/src/sync/flows.ts",
+      "apps/figma-plugin/src/sync/library-routes.ts",
       "apps/figma-plugin/src/sync/publish.ts",
+      "apps/figma-plugin/src/sync/ship.ts",
       "apps/figma-plugin/src/ui/index.ts",
       "apps/figma-plugin/test/component-pull.test.ts",
+      "apps/figma-plugin/test/library-routes.test.ts",
+      "apps/figma-plugin/test/ship.test.ts",
       "packages/core/src/prod-branch.ts",
       "packages/core/src/share-branch.ts",
       "packages/core/test/prod-branch.test.ts",
