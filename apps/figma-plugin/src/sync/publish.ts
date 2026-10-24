@@ -425,7 +425,7 @@ export async function sendComponentPush(client: GitHubClient, input: SendPushInp
     ...(input.requestedBy ? { suggestedBy: input.requestedBy } : {}),
     writeTokens: async ({ title, summary, bodyExtra, figma }) => {
       if (!lib) throw new Error('This repo has no bridge.config.json, so Bridge cannot write the token change.');
-      const p = planTokenProposal({ before: lib.before, pairs: pushPairs(a.head, a.pairs, push.plan.edits), edits: push.plan.edits, title, summary, config: lib.config, tool: 'the Bridge Figma plugin', bodyExtra });
+      const p = planTokenProposal({ before: lib.before, pairs: pushPairs(a.head, a.pairs, push.plan.edits), edits: push.plan.edits, title, summary, config: lib.config, tool: 'the Bridge Figma plugin', bodyExtra, fromFigma: mode !== 'suggest' });
       if (!p) throw new Error('The library already paints it this way: nothing to send.');
       if (mode === 'suggest') {
         const s = await suggestTokenProposalOnGitHub(client, p, { base: a.settings.branch, baseSha: a.headSha, source: 'figma', suggestedBy: input.requestedBy, labelsAfter: ['source: figma'], links: { figma } });

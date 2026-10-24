@@ -163,7 +163,8 @@ test('push: edits in Figma become a minimal PR with only the changed files', asy
   // From Figma counts as design-approved (docs/BUILD-REQUESTS.md): ready for review, labelled for the gate.
   assert.equal(pr.draft, false);
   assert.deepEqual(pr.labels, ['tokens', 'source: figma']);
-  assert.match(pr.body, /Tier 3: token change, needs design \+ tech approval/);
+  // This push removes or renames a token too: design-approved from Figma, and a developer OKs it before it merges.
+  assert.match(pr.body, /Tier 3: token change\. From Figma: design-approved, waits for a developer OK/);
   const primary = row(pr.body, 'color.action.primary.bg');
   assert.equal(primary[1], 'Semantic');
   assert.match(primary[3]!, new RegExp(`^Light: \`palette\\.primary\\.\\d+ \\(#[0-9a-f]{6}\\)\` -> \`${dotted(primaryTarget)} \\(#[0-9a-f]{6}\\)\`<br>Dark: \`palette\\.primary\\.\\d+ \\(#[0-9a-f]{6}\\)\``));

@@ -349,6 +349,8 @@ export async function openPullRequest(client: GitHubClient, a: Analysis, p: Push
       notes: opts.notes,
       upstreamPaths: a.diff.remote.map((e) => e.path),
       resolvedConflicts: p.resolvedConflicts,
+      // Token values from Figma ship once the checks pass (docs/BUILD-REQUESTS.md); a new brand keeps its reviews.
+      fromFigma: !plans.length,
     });
     // A push that only adds brands gets the brand body; token edits plus brands get one New brand section each.
     const body = p.changes.length
