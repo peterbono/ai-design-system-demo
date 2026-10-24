@@ -18,11 +18,46 @@ import { dirname, join } from 'node:path';
 import { escHtml, type EmailMessage, type EmailSender } from '../api/_lib/email.js';
 import type { AppTokens } from '../api/_lib/github-app.js';
 import type { FetchLike } from '../api/_lib/http.js';
-import { localAdminStore, type LocalAdmins } from '../api/_lib/local-admin.js';
+import { localAdminStore, localAdminsOn, type LocalAdmins } from '../api/_lib/local-admin.js';
 import { type EmailMember, memberStore } from '../api/_lib/members.js';
 import { memoryRedis, type Redis, type RedisArg, type RedisSnapshot } from '../api/_lib/redis.js';
 import { RESERVED_PATHS_URL, reservedFromFiles, type ReservedPaths } from '../src/lib/team-path.js';
 import { fixtureApp, fixtureGithub, gitFiles, type SampleBuilds } from './local-github.js';
+import { PERSONA_PREFIX } from './local-repo.js';
+
+/** The first path part of the browser's GitHub stand-in: /api/dev/github/<GitHub REST path>. */
+export const DEV_GITHUB = '/api/dev/github';
+
+/** A request's headers without a local persona token: those never leave this computer. */
+export function withoutPersona(headers: Record<string, string> = {}): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(headers)) if (!(k.toLowerCase() === 'authorization' && v.replace(/^(Bearer|token)\s+/i, '').startsWith(PERSONA_PREFIX))) out[k] = v;
+  return out;
+}
+
+/**
+ * The browser's GitHub, for the local audit (the harness routes https://api.github.com/** here): the same stand-in
+ * the functions use, so a persona (ghp_local_dana) reviews and merges what an email member sent. Local mode only.
+ */
+export async function devGithub(req: Request, f: FetchLike, env: Record<string, string | undefined> = process.env): Promise<Response> {
+  if (!localAdminsOn(env)) return new Response(JSON.stringify({ message: 'Local mode only.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+  const u = new URL(req.url);
+  const path = u.pathname.slice(DEV_GITHUB.length) || '/';
+  const headers: Record<string, string> = {};
+  for (const k of ['authorization', 'accept', 'if-none-match', 'content-type']) {
+    const v = req.headers.get(k);
+    if (v) headers[k === 'authorization' ? 'Authorization' : k === 'accept' ? 'Accept' : k] = v;
+  }
+  const method = req.method.toUpperCase();
+  const body = method === 'GET' || method === 'HEAD' ? undefined : await req.text();
+  const res = await f(`https://api.github.com${path}${u.search}`, { method, headers, ...(body ? { body } : {}) });
+  const out = new Headers(res.headers);
+  out.set('Access-Control-Allow-Origin', '*');
+  out.set('Access-Control-Expose-Headers', 'ETag, Link, X-RateLimit-Remaining, X-RateLimit-Reset');
+  out.delete('content-encoding');
+  out.delete('content-length');
+  return new Response(res.status === 204 || res.status === 304 ? null : await res.arrayBuffer(), { status: res.status, headers: out });
+}
 
 /** The folder that holds local data, next to package.json (gitignored). */
 export const LOCAL_DIR = '.bridge-local';
@@ -460,7 +495,8 @@ export function bridgeLocal(opts: { root: string; log?: (s: string) => void }) {
         const env = localEnv(sessionSecret(dir), [fromFile, process.env]);
         const redis = fileRedis(join(dir, 'redis.json'));
         const email = outboxSender(join(dir, 'outbox.json'), log);
-        const realFetch: FetchLike = (url, init) => fetch(url, init);
+        // A local persona's token (dev/local-repo.ts) is never sent to GitHub.
+        const realFetch: FetchLike = (url, init) => fetch(url, { ...init, headers: withoutPersona(init?.headers) });
         const hasGithub = Boolean(env.GITHUB_APP_ID && env.GITHUB_APP_PRIVATE_KEY);
         // Fixture teams of npm run dev:scenario: their GitHub calls are answered here, read-only (dev/local-github.ts).
         const local: Local = {
@@ -510,6 +546,17 @@ export function bridgeLocal(opts: { root: string; log?: (s: string) => void }) {
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
           res.setHeader('Cache-Control', 'no-store');
           res.end(`${JSON.stringify(devReserved(join(root, 'src', 'pages', 'studio')))}\n`);
+        });
+
+        // The browser's GitHub stand-in (local audits): before the module check, a path may end in .ts or .tsx.
+        server.middlewares.use((req, res, next) => {
+          const pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
+          if (pathname !== DEV_GITHUB && !pathname.startsWith(`${DEV_GITHUB}/`)) return next();
+          void (async () => sendResponse(res, await devGithub(await toRequest(req), local.fetch), { http: true }))().catch((e: unknown) => {
+            log(`  [bridge local] ${pathname} failed: ${e instanceof Error ? e.message : String(e)}`);
+            if (!res.headersSent) res.statusCode = 500;
+            res.end();
+          });
         });
 
         server.middlewares.use((req, res, next) => {

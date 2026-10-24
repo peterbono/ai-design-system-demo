@@ -12,8 +12,9 @@ import { memoryRedis } from '../../api/_lib/redis';
 import { handleAccount, lastAdminOf } from '../../api/account/index';
 import { handleContribute } from '../../api/contribute/index';
 import { handleEntry } from '../../api/entry/index';
-import { studioReserved, teamRewrite } from '../../dev/local-api';
+import { devGithub, studioReserved, teamRewrite, withoutPersona } from '../../dev/local-api';
 import { FIXTURE_TOKEN, fixtureApp, fixtureGithub, type FixtureFiles, putFixture, READ_ONLY } from '../../dev/local-github';
+import { APP_LOGIN, clearLocalRepoMemory, personaToken } from '../../dev/local-repo';
 import { findScenario, SCENARIOS, type Scenario } from '../../dev/scenarios';
 
 const ORIGIN = 'http://localhost:4321';
@@ -82,8 +83,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('every scenario', () => {
-  it('lists S0 to S19, each found by id, number or slug', () => {
-    expect(SCENARIOS.map((s) => s.id)).toEqual(Array.from({ length: 20 }, (_, i) => `S${i}`));
+  it('lists S0 to S20, each found by id, number or slug', () => {
+    expect(SCENARIOS.map((s) => s.id)).toEqual(Array.from({ length: 21 }, (_, i) => `S${i}`));
     for (const s of SCENARIOS) {
       expect(findScenario(s.id)).toBe(s);
       expect(findScenario(s.id.toLowerCase())).toBe(s);
@@ -285,6 +286,136 @@ describe('fixture GitHub (dev/local-github.ts)', () => {
     const app = fixtureApp(redis);
     expect(await app.installationToken('acme', 'acme-product')).toBe(FIXTURE_TOKEN);
     expect(await app.installationToken('peterbono', 'bridge-demo-ds')).toBeNull();
+  });
+});
+
+describe('writable fixture GitHub (dev/local-repo.ts)', () => {
+  const R = 'https://api.github.com/repos/acme/acme-flow';
+  const setup = async () => {
+    clearLocalRepoMemory();
+    let now = Date.parse('2026-10-24T09:00:00Z');
+    const redis = memoryRedis(() => now);
+    await putFixture(redis, { repo: 'acme/acme-flow', name: 'Acme Flow', writable: true });
+    const passed: string[] = [];
+    const f = fixtureGithub(redis, files, async (url) => {
+      passed.push(url);
+      return new Response('{}', { status: 200 });
+    }, () => (now += 1000));
+    const call = async (who: string, method: string, path: string, body?: unknown, accept = 'application/vnd.github+json') => {
+      const res = await f(path.startsWith('http') ? path : `${R}${path}`, { method, headers: { Accept: accept, Authorization: `Bearer ${who === 'app' ? FIXTURE_TOKEN : personaToken(who)}` }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+      const text = await res.text();
+      let data: any = text;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        /* raw */
+      }
+      return { status: res.status, data };
+    };
+    /** What Studio does for Send for review: a blob, a tree on main, a commit, a branch, a pull request. */
+    const send = async (who: string, branch: string, path: string, content: string, title = 'Change') => {
+      const main = (await call(who, 'GET', '/git/ref/heads/main')).data.object.sha as string;
+      const tree = (await call(who, 'GET', `/git/commits/${main}`)).data.tree.sha as string;
+      const blob = (await call(who, 'POST', '/git/blobs', { content, encoding: 'utf-8' })).data.sha as string;
+      const t = (await call(who, 'POST', '/git/trees', { base_tree: tree, tree: [{ path, mode: '100644', type: 'blob', sha: blob }] })).data.sha as string;
+      const c = (await call(who, 'POST', '/git/commits', { message: title, tree: t, parents: [main] })).data.sha as string;
+      expect((await call(who, 'POST', '/git/refs', { ref: `refs/heads/${branch}`, sha: c })).status).toBe(201);
+      const pr = await call(who, 'POST', '/pulls', { title, head: branch, base: 'main', body: 'Sent from Studio', draft: false });
+      expect(pr.status).toBe(201);
+      return { pr: pr.data, commit: c };
+    };
+    return { redis, f, call, send, passed };
+  };
+
+  it('keeps a branch and a pull request, with the governance owners as the local personas', async () => {
+    const { call, send } = await setup();
+    const tree = (await call('dana', 'GET', '/git/trees/main?recursive=1')).data;
+    const conf = tree.tree.find((t: any) => t.path === 'bridge.config.json');
+    const config = (await call('dana', 'GET', `/git/blobs/${conf.sha}`, undefined, 'application/vnd.github.raw')).data;
+    expect(config.governance.owners).toEqual({ design: ['dana'], tech: ['malik'] });
+    const { pr, commit } = await send('app', 'bridge/priya-color', 'tokens/color.tokens.json', '{"color":{"x":{}}}');
+    expect(pr).toMatchObject({ number: 1, state: 'open', draft: false, user: { login: APP_LOGIN }, head: { ref: 'bridge/priya-color', sha: commit }, mergeable: true });
+    const list = (await call('dana', 'GET', `/pulls?state=open&head=${encodeURIComponent('acme:bridge/priya-color')}`)).data;
+    expect(list.map((p: any) => p.number)).toEqual([1]);
+    const files = (await call('dana', 'GET', '/pulls/1/files?per_page=100')).data;
+    expect(files).toMatchObject([{ filename: 'tokens/color.tokens.json', status: 'modified' }]);
+    const onBranch = await call('dana', 'GET', '/contents/tokens/color.tokens.json?ref=bridge/priya-color', undefined, 'application/vnd.github.raw');
+    expect(onBranch.data).toEqual({ color: { x: {} } });
+    // main has not moved
+    expect((await call('dana', 'GET', '/contents/tokens/color.tokens.json?ref=main', undefined, 'application/vnd.github.raw')).data).toEqual({ color: {} });
+    expect((await call('dana', 'GET', '/compare/main...bridge/priya-color')).data).toMatchObject({ status: 'ahead', ahead_by: 1, behind_by: 0 });
+  });
+
+  it('request changes, then approve: the reviews GitHub keeps, never by the author', async () => {
+    const { call, send } = await setup();
+    await send('app', 'bridge/a', 'tokens/color.tokens.json', '{"a":1}');
+    expect((await call('app', 'POST', '/pulls/1/reviews', { event: 'APPROVE', body: '' })).status).toBe(422);
+    expect((await call('dana', 'POST', '/pulls/1/requested_reviewers', { reviewers: ['dana', 'malik'] })).status).toBe(201);
+    expect((await call('dana', 'POST', '/pulls/1/reviews', { event: 'REQUEST_CHANGES', body: 'Use the brand blue.' })).data).toMatchObject({ state: 'CHANGES_REQUESTED', user: { login: 'dana' } });
+    expect((await call('dana', 'GET', '/pulls/1')).data.requested_reviewers.map((u: any) => u.login)).toEqual(['malik']);
+    // The member fixes it on the same branch (contents API), then Dana and Malik approve.
+    const old = (await call('app', 'GET', '/contents/tokens/color.tokens.json?ref=bridge/a')).data.sha;
+    expect((await call('app', 'PUT', '/contents/tokens/color.tokens.json', { message: 'Fix', content: Buffer.from('{"a":2}').toString('base64'), branch: 'bridge/a', sha: old })).status).toBe(200);
+    await call('dana', 'POST', '/pulls/1/reviews', { event: 'APPROVE', body: '' });
+    await call('malik', 'POST', '/pulls/1/reviews', { event: 'APPROVE', body: 'Ships.' });
+    const reviews = (await call('dana', 'GET', '/pulls/1/reviews')).data;
+    expect(reviews.map((r: any) => `${r.user.login}:${r.state}`)).toEqual(['dana:CHANGES_REQUESTED', 'dana:APPROVED', 'malik:APPROVED']);
+    expect(reviews[2].commit_id).toBe((await call('dana', 'GET', '/pulls/1')).data.head.sha);
+  });
+
+  it('merge moves main, History lists it, and the pull request reads merged', async () => {
+    const { call, send } = await setup();
+    const { commit } = await send('app', 'bridge/m', 'tokens/color.tokens.json', '{"m":1}', 'Brand blue');
+    const before = (await call('malik', 'GET', '/git/ref/heads/main')).data.object.sha;
+    const merged = await call('malik', 'PUT', '/pulls/1/merge', { merge_method: 'merge', sha: commit });
+    expect(merged.data).toMatchObject({ merged: true });
+    const main = (await call('malik', 'GET', '/branches/main')).data.commit;
+    expect(main.sha).toBe(merged.data.sha);
+    expect(main.parents.map((p: any) => p.sha)).toEqual([before, commit]);
+    expect((await call('malik', 'GET', '/contents/tokens/color.tokens.json?ref=main', undefined, 'application/vnd.github.raw')).data).toEqual({ m: 1 });
+    expect((await call('malik', 'GET', '/pulls/1')).data).toMatchObject({ state: 'closed', merged: true, merged_by: { login: 'malik' }, merge_commit_sha: merged.data.sha });
+    const history = (await call('malik', 'GET', '/commits?sha=main&path=tokens/color.tokens.json')).data;
+    expect(history[0].sha).toBe(merged.data.sha);
+    expect((await call('malik', 'GET', `/commits/${merged.data.sha}/pulls`)).data.map((p: any) => p.number)).toEqual([1]);
+    expect((await call('malik', 'PUT', '/pulls/1/merge', {})).status).toBe(405);
+  });
+
+  it('draft and ready for review through GraphQL, issues with labels and comments', async () => {
+    const { call, send } = await setup();
+    await send('app', 'bridge/d', 'tokens/color.tokens.json', '{"d":1}');
+    const node = (await call('app', 'GET', '/pulls/1')).data.node_id;
+    const gql = (draft: boolean) => call('app', 'POST', 'https://api.github.com/graphql', { query: `mutation($id: ID!) { ${draft ? 'convertPullRequestToDraft' : 'markPullRequestReadyForReview'}(input: { pullRequestId: $id }) { pullRequest { number isDraft } } }`, variables: { id: node } });
+    await gql(true);
+    expect((await call('app', 'GET', '/pulls/1')).data.draft).toBe(true);
+    await gql(false);
+    expect((await call('app', 'GET', '/pulls/1')).data.draft).toBe(false);
+    const issue = await call('app', 'POST', '/issues', { title: 'Suggestion: brand blue', body: 'x', labels: ['bridge-suggestion'] });
+    expect(issue.data).toMatchObject({ number: 2, labels: [{ name: 'bridge-suggestion' }] });
+    await call('dana', 'POST', '/issues/2/comments', { body: 'Looks right.' });
+    expect((await call('dana', 'GET', '/issues/2/comments')).data.map((c: any) => c.user.login)).toEqual(['dana']);
+    const open = (await call('dana', 'GET', '/issues?state=open&labels=bridge-suggestion')).data;
+    expect(open.map((i: any) => i.number)).toEqual([2]);
+    expect((await call('dana', 'GET', 'https://api.github.com/user')).data).toMatchObject({ login: 'dana', name: 'Dana Whitfield' });
+  });
+
+  it('stays read-only for the other fixtures, passes real repositories on, and refuses writes outside local mode', async () => {
+    const { f, call, passed, redis } = await setup();
+    await putFixture(redis, { repo: 'acme/acme-product', name: 'Acme Product' });
+    const ro = await f('https://api.github.com/repos/acme/acme-product/git/refs', { method: 'POST', headers: { Authorization: `Bearer ${personaToken('dana')}` }, body: '{}' });
+    expect(ro.status).toBe(403);
+    await f('https://api.github.com/repos/peterbono/bridge-demo-ds', { method: 'GET', headers: {} });
+    expect(passed).toEqual(['https://api.github.com/repos/peterbono/bridge-demo-ds']);
+    expect(withoutPersona({ Authorization: `Bearer ${personaToken('dana')}`, Accept: 'x' })).toEqual({ Accept: 'x' });
+    vi.stubEnv('BRIDGE_LOCAL', '');
+    expect((await call('dana', 'POST', '/git/blobs', { content: 'x' })).status).toBe(403);
+    expect((await devGithub(new Request('http://localhost:4321/api/dev/github/user'), f)).status).toBe(403);
+  });
+
+  it('serves the browser through /api/dev/github with CORS, for a persona', async () => {
+    const { f } = await setup();
+    const res = await devGithub(new Request('http://localhost:4321/api/dev/github/repos/acme/acme-flow', { headers: { Authorization: `Bearer ${personaToken('dana')}` } }), f);
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
+    expect(await res.json()).toMatchObject({ full_name: 'acme/acme-flow', permissions: { admin: true, push: true } });
   });
 });
 

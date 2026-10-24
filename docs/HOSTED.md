@@ -688,13 +688,13 @@ are in your shell or `.env.local`, so it cannot touch the real site's data or se
 session secret the first time. It refuses to start when `NODE_ENV=production` or on Vercel, and nothing of it is part
 of the build.
 
-**Scenarios.** `npm run dev:scenario <name>` (`S0` to `S19`, a number or a slug; `npm run dev:scenario list` lists
+**Scenarios.** `npm run dev:scenario <name>` (`S0` to `S20`, a number or a slug; `npm run dev:scenario list` lists
 them) clears local accounts, teams, codes and the outbox, writes one situation with the same storage functions the
 functions use, and prints who to sign in as and what each person should see: a work domain with one or five teams
 open to it, a closed team, invites (valid, expired, sent to another email, reviewer and admin), members of one or
 three teams, admins with 0, 1 and 4 join requests, a pending request, a request and an invite for the same team, the
 last admin, sign-in code edge cases, a team made in Bridge with no repository yet (S17) and an email admin without
-GitHub (S18) and build requests in every status for Being built (S19) (`dev/scenarios.ts`). It works while the server runs. The "recent team" of
+GitHub (S18), build requests in every status for Being built (S19) and a writable team for the change lifecycle (S20) (`dev/scenarios.ts`). It works while the server runs. The "recent team" of
 someone on several teams lives in the browser: set it in the page console with
 `localStorage.setItem("bridge.recentTeams", JSON.stringify(["lumen/mobile-kit"]))`, or clear it to get the picker.
 
@@ -706,6 +706,15 @@ local mode only (`api/_lib/local-admin.ts`): join requests, discovery and the la
 App. That override is ignored unless the process runs `npm run dev:full` (BRIDGE_LOCAL=1, not on Vercel, not
 production), and no deployed function ever receives it.
 
+**The change lifecycle (S20).** `acme/acme-flow` is writable locally (`dev/local-repo.ts`): branches, commits, pull
+requests (draft and ready), reviews, requested reviewers, comments, labels, issues and merges are kept in
+`.bridge-local`, so Send for review, Send suggestion, Request changes, Approve, merge and History run with no GitHub.
+Its owners are two GitHub personas: `dana` (design owner, admin) and `malik` (tech owner, ships). Email members
+(Priya, Leo) write through `/api/contribute` as usual. A persona signs in with the token `ghp_local_<login>` and sends
+the page's GitHub calls to `/api/dev/github/<GitHub REST path>` (a browser test routes `https://api.github.com/**`
+there); persona tokens never leave the computer. Both are refused outside `npm run dev:full`. The other scenario
+teams stay read-only.
+
 **Limits.** Features that act on GitHub need a GitHub App: email contributions (`/api/contribute`), invites from
 Members (`/api/invites`), Library access settings (`/api/library-access`), "Continue with GitHub" and admin checks.
 Without keys they answer as a site that has not set them up yet ("not available yet"). To try them, put the
@@ -713,6 +722,6 @@ Without keys they answer as a site that has not set them up yet ("not available 
 variables this mode reads from it. Those calls then reach the real GitHub, so use a test repository. Email admins
 (S17, S18) manage Members, invites by email and join requests locally: `/api/invites` takes their account session.
 With scenario teams, still unreachable locally: changing a GitHub person's role, "Continue with GitHub", joining as
-reviewer, linking a repository to a team made in Bridge, any write to a scenario team (branches, changes, reviews:
-the fixture files are read-only), Library access settings, and a scenario team's Library (`/library/<owner>/<repo>/`
+reviewer, linking a repository to a team made in Bridge, writes to a scenario team other than S20's (their fixture
+files are read-only), Library access settings, and a scenario team's Library (`/library/<owner>/<repo>/`
 reads a published snapshot that scenario teams do not have). Bridge's own Library and the sample team work as usual.
