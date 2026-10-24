@@ -1,15 +1,15 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-24T11:39:42.752Z",
-  "durationMs": 288575,
+  "createdAt": "2026-10-24T11:47:04.478Z",
+  "durationMs": 296974,
   "base": {
-    "ref": "a28ab9d7d681e8f2c60cd3a6058586568f75edb3",
-    "sha": "a28ab9d7d681e8f2c60cd3a6058586568f75edb3"
+    "ref": "b539c3eed5943254f47345801377476446783f24",
+    "sha": "b539c3eed5943254f47345801377476446783f24"
   },
   "head": {
-    "ref": "265de56193f9d74e033b5b839c38cdb2b18352ef",
-    "sha": "265de56193f9d74e033b5b839c38cdb2b18352ef"
+    "ref": "78f20ad5ee7275e3482287f6c41eb62e983afe21",
+    "sha": "78f20ad5ee7275e3482287f6c41eb62e983afe21"
   },
   "options": {
     "only": [
@@ -33,6 +33,7 @@
     "vars": [],
     "files": [
       ".changeset/fidelity-popups.md",
+      "apps/figma-plugin/test/fidelity.test.ts",
       "packages/core/src/fidelity-references.ts",
       "packages/core/test/fidelity.test.ts",
       "packages/react/src/stories/FigmaReference.stories.tsx",
