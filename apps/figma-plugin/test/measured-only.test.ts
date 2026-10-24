@@ -341,6 +341,74 @@ test('measured only: CSS sizes stay fixed, margins become a named wrapper, strin
   assert.deepEqual(c.variants.map((x) => variantKeyOf(x.props)).sort(), ['Read only=false, State=Default', 'Read only=false, State=Hover', 'Read only=true, State=Default'].sort());
 });
 
+test('measured only: a knob aligned by its parent, an overlay out of the flow, margins from wrap', async () => {
+  const sim = new SimFigma();
+  sim.install();
+  const files: Record<string, string> = {};
+  for (const [rel, text] of Object.entries(realFiles())) files[`${DEFAULT_SETTINGS.tokensPath}/${rel}`] = text;
+  files[`${DEFAULT_SETTINGS.tokensPath}/contrast.checks.json`] = realChecksText();
+  files['bridge.config.json'] = realConfigText();
+  const client = new FakeGitHub(files).client();
+  const a = await analyze(client, DEFAULT_SETTINGS, {}, await takeSnapshot());
+  await applyPullPlan(buildPull(a, new Map()).plan);
+  const m = fixture();
+  const base = m.stories.find((s) => s.title.endsWith('/Card') && s.spec)!;
+  const story = (toggled: boolean) => ({
+    ...base,
+    id: `toggle-${toggled}`,
+    name: 'Default',
+    title: 'Components/Toggle',
+    props: { toggled },
+    state: undefined,
+    spec: {
+      ...base.spec!,
+      parts: [
+        { id: 'root', name: 'Root', kind: 'frame' as const, layout: { direction: 'VERTICAL' as const, primary: 'MIN' as const, counter: 'MIN' as const } },
+        { id: 'label', name: 'Label', kind: 'text' as const, parent: 'root', characters: 'Label', wrap: { padding: { bottom: 8 } } },
+        {
+          id: 'switch',
+          name: 'Switch',
+          kind: 'frame' as const,
+          parent: 'root',
+          layout: { direction: 'HORIZONTAL' as const, primary: 'MIN' as const, counter: 'CENTER' as const, align: { knob: { primary: toggled ? ('MAX' as const) : ('MIN' as const), counter: 'CENTER' as const } } },
+        },
+        { id: 'knob', name: 'Knob', kind: 'frame' as const, parent: 'switch', fullRadius: true },
+        { id: 'tip', name: 'Tooltip', kind: 'frame' as const, parent: 'root', overlay: true },
+      ],
+      values: {
+        root: {},
+        label: { fontSize: 12 },
+        switch: { fill: toggled ? 'rgb(36, 161, 72)' : 'rgb(141, 141, 141)', paddingLeft: 3, paddingRight: 3, cornerRadius: 999, width: 48, height: 24 },
+        knob: { fill: 'rgb(255, 255, 255)', width: 18, height: 18, cornerRadius: 999 },
+        tip: { fill: 'rgb(57, 57, 57)', width: 120, height: 24 },
+      },
+      raw: {},
+      sized: { switch: { width: 48, height: 24 } },
+      boxes: { root: { x: 0, y: 0, width: 48, height: 48 }, switch: { x: 0, y: 24, width: 48, height: 24 }, tip: { x: -36, y: 52, width: 120, height: 24 } },
+    },
+  });
+  m.stories = [story(false), story(true)];
+  m.components = [{ title: 'Components/Toggle', name: 'Toggle', argTypes: { toggled: { kind: 'boolean', default: false } } }];
+  const c = specsFromMeasure(m).specs.components[0]!;
+  // The knob: in the flow of its switch, at the start when off and at the end when on.
+  assert.equal(c.parts.find((p) => p.id === 'switch')!.layout?.primary, 'MIN');
+  const on = c.variants.find((v) => v.props.Toggled === 'true')!;
+  assert.equal(on.layout?.switch?.primary, 'MAX');
+  assert.equal(c.parts.find((p) => p.id === 'knob')!.pin, undefined);
+  // The tooltip: absolute where the measure saw it, not sizing the component.
+  assert.deepEqual(c.parts.find((p) => p.id === 'tip')!.pin, { top: 52, left: -36 });
+  // The label's bottom margin: a wrapper named after it.
+  assert.equal(c.parts.find((p) => p.id === 'label')!.parent, 'label-wrapper');
+  assert.equal(on.values['label-wrapper']!.paddingBottom, 8);
+  const report = await applyComponentPlan(writablePlan(buildComponentPlan({ version: 1, generated: '', components: [c] }, 'measured-specs.json', await scanGenerated(), a.head)));
+  assert.deepEqual(report.failed, []);
+  const set = sim.sets().find((x) => x.name === 'Toggle')!;
+  const onNode = set.children.find((v) => v.name.includes('Toggled=true'))!;
+  const sw = onNode.findOne((n) => n.name === 'Switch')!;
+  assert.equal(sw.primaryAxisAlignItems, 'MAX');
+  assert.equal(onNode.findOne((n) => n.name === 'Tooltip')!.layoutPositioning, 'ABSOLUTE');
+});
+
 test('measured only with screenshots: each variant keeps the render of the story it was built from', () => {
   const m = fixture();
   m.stories = m.stories.filter((s) => s.title.endsWith('/Tabs'));
