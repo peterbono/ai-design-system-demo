@@ -129,6 +129,8 @@ export interface RepoSettings {
   repo: string;
   branch: string;
   tokensPath: string;
+  /** Where the pull reads component values (sync/component-pull.ts specSource). Static unless a developer turns it on. */
+  specSource?: 'static' | 'measured' | undefined;
 }
 
 export interface SyncState {

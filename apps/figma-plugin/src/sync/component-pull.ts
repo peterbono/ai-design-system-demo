@@ -41,6 +41,7 @@ import {
 import { COLLECTIONS, type FigmaResolvedType } from '../shared/messages';
 import { isUnmappable, pathToName, tokenToPlanned } from './mapping';
 import { checkComponentSpecs } from './spec-check';
+import { MEASURED_SPECS_FILE, type MeasuredOverlayReport, overlayMeasured, parseMeasuredSpecs } from './measured-specs';
 
 /** A component set Bridge generated, as the main thread finds it (shared plugin data). */
 export interface GeneratedSet {
@@ -352,10 +353,15 @@ export function componentReportView(r: ComponentApplyReport): ComponentReportVie
 export interface LoadedSpecs {
   path: string;
   specs: ComponentSpecsFile;
+  /** Measured source: what the measured values changed, and how many variants no story matched. */
+  measured?: MeasuredOverlayReport | undefined;
 }
 
-/** Sources of component specs. `static`: component-specs.json, generated from the CSS source (npm run specs). */
-export type SpecSourceKind = 'static';
+/**
+ * Sources of component specs. `static`: component-specs.json, generated from the CSS source (npm run specs).
+ * `measured`: the same, with the values `bridge specs --measure` read in Storybook laid on (measured-specs.ts).
+ */
+export type SpecSourceKind = 'static' | 'measured';
 
 /**
  * Where the pull reads what code draws. Every source returns the same shape (ComponentSpecsFile), so planning and
@@ -371,7 +377,20 @@ export function specSource(kind: SpecSourceKind = 'static'): SpecSource {
   switch (kind) {
     case 'static':
       return { kind, load: loadComponentSpecs };
+    case 'measured':
+      return { kind, load: loadMeasuredSpecs };
   }
+}
+
+/** The static specs with measured-specs.json laid on. A missing measure fails: the developer asked for it. */
+async function loadMeasuredSpecs(client: Pick<GitHubClient, 'getTree' | 'getBlobText'>, treeSha: string, config: BridgeConfig | undefined): Promise<LoadedSpecs | undefined> {
+  const loaded = await loadComponentSpecs(client, treeSha, config);
+  if (!loaded) return undefined;
+  const { entries } = await client.getTree(treeSha, true);
+  const entry = entries.find((e) => e.type === 'blob' && e.path === MEASURED_SPECS_FILE);
+  if (!entry) throw new Error(`Spec source is set to Measured, but the repo has no ${MEASURED_SPECS_FILE}. Run bridge specs --measure and commit it, or set Spec source back to Static in Settings.`);
+  const { specs, report } = overlayMeasured(loaded.specs, parseMeasuredSpecs(await client.getBlobText(entry.sha)));
+  return { path: loaded.path, specs, measured: report };
 }
 
 export async function loadComponentSpecs(

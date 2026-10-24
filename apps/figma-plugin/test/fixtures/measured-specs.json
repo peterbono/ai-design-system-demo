@@ -1,0 +1,246 @@
+{
+  "version": 1,
+  "storybook": "https://bridge-storybook.example",
+  "measuredAt": "2026-10-24T00:00:00.000Z",
+  "stories": [
+    {
+      "id": "actions-button--primary",
+      "title": "Actions/Button",
+      "name": "Primary",
+      "props": {
+        "variant": "primary",
+        "size": "md"
+      },
+      "url": "https://bridge-storybook.floriangouloubi.com/iframe.html?id=actions-button--primary&viewMode=story",
+      "ms": 0,
+      "spec": {
+        "story": "actions-button--primary",
+        "parts": [
+          {
+            "id": "root",
+            "name": "Root",
+            "kind": "frame",
+            "source": "button primary md",
+            "layout": {
+              "direction": "HORIZONTAL",
+              "primary": "CENTER",
+              "counter": "CENTER"
+            }
+          },
+          {
+            "id": "label",
+            "name": "Label",
+            "kind": "text",
+            "parent": "root",
+            "source": "label",
+            "characters": "Publish tokens"
+          }
+        ],
+        "values": {
+          "root": {
+            "fill": "button.primary.bg",
+            "cornerRadius": "button.radius",
+            "paddingRight": "control.padding-x.md",
+            "paddingLeft": "control.padding-x.md",
+            "minWidth": "control.height.md",
+            "minHeight": "control.height.md",
+            "stroke": null,
+            "strokeWeight": 1,
+            "itemSpacing": "control.gap",
+            "width": 128.84,
+            "height": 44
+          },
+          "label": {
+            "textFill": "button.primary.text",
+            "fontFamily": "font.family.sans",
+            "fontSize": "font.size.200",
+            "fontWeight": "button.font-weight",
+            "lineHeight": "font.line-height.tight"
+          }
+        },
+        "raw": {
+          "root": {
+            "fill": "rgb(11, 74, 139)",
+            "cornerRadius": 12,
+            "paddingRight": 16,
+            "paddingLeft": 16,
+            "minWidth": 44,
+            "minHeight": 44,
+            "strokeWeight": 1,
+            "itemSpacing": 8,
+            "width": 128.84,
+            "height": 44
+          },
+          "label": {
+            "textFill": "rgb(255, 255, 255)",
+            "fontFamily": "\"Instrument Sans Variable\", \"Instrument Sans\", system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif",
+            "fontSize": 14,
+            "fontWeight": 500,
+            "lineHeight": 16.8
+          }
+        },
+        "tokens": {
+          "root": {
+            "fill": {
+              "via": "declared",
+              "chain": [
+                "--_bg",
+                "--button-primary-bg",
+                "--color-action-primary-bg",
+                "--palette-primary-700",
+                "--color-harbor-700"
+              ],
+              "exact": true,
+              "declared": "var(--_bg)"
+            },
+            "cornerRadius": {
+              "via": "declared",
+              "chain": [
+                "--button-radius",
+                "--radius-control",
+                "--radius-xl"
+              ],
+              "exact": true,
+              "declared": "var(--button-radius)"
+            },
+            "paddingRight": {
+              "via": "declared",
+              "chain": [
+                "--_px",
+                "--control-padding-x-md",
+                "--space-4"
+              ],
+              "exact": true,
+              "declared": "var(--_px)"
+            },
+            "paddingLeft": {
+              "via": "declared",
+              "chain": [
+                "--_px",
+                "--control-padding-x-md",
+                "--space-4"
+              ],
+              "exact": true,
+              "declared": "var(--_px)"
+            },
+            "minWidth": {
+              "via": "declared",
+              "chain": [
+                "--_height",
+                "--control-height-md",
+                "--size-11"
+              ],
+              "exact": true,
+              "declared": "var(--_height)"
+            },
+            "minHeight": {
+              "via": "declared",
+              "chain": [
+                "--_height",
+                "--control-height-md",
+                "--size-11"
+              ],
+              "exact": true,
+              "declared": "var(--_height)"
+            },
+            "strokeWeight": {
+              "via": "declared",
+              "chain": [
+                "--border-width-default",
+                "--border-width-1"
+              ],
+              "exact": false,
+              "declared": "var(--border-width-default) solid var(--_border)"
+            },
+            "itemSpacing": {
+              "via": "declared",
+              "chain": [
+                "--control-gap",
+                "--space-2"
+              ],
+              "exact": true,
+              "declared": "var(--control-gap)"
+            },
+            "height": {
+              "via": "matched",
+              "chain": [
+                "--size-11",
+                "--font-size-800",
+                "--typography-h1-size"
+              ],
+              "exact": false
+            }
+          },
+          "label": {
+            "textFill": {
+              "via": "declared",
+              "chain": [
+                "--_text",
+                "--button-primary-text",
+                "--color-action-primary-text",
+                "--palette-neutral-0",
+                "--color-white"
+              ],
+              "exact": true,
+              "declared": "var(--_text)"
+            },
+            "fontFamily": {
+              "via": "declared",
+              "chain": [
+                "--font-family-sans",
+                "--font-family-instrument-sans"
+              ],
+              "exact": true,
+              "declared": "var(--font-family-sans)"
+            },
+            "fontSize": {
+              "via": "declared",
+              "chain": [
+                "--font-size-200"
+              ],
+              "exact": true,
+              "declared": "var(--font-size-200)"
+            },
+            "fontWeight": {
+              "via": "declared",
+              "chain": [
+                "--button-font-weight",
+                "--font-weight-medium"
+              ],
+              "exact": true,
+              "declared": "var(--button-font-weight)"
+            },
+            "lineHeight": {
+              "via": "declared",
+              "chain": [
+                "--font-line-height-tight"
+              ],
+              "exact": true,
+              "declared": "var(--font-line-height-tight)"
+            }
+          }
+        },
+        "boxes": {
+          "root": {
+            "x": 0,
+            "y": 0,
+            "width": 128.84,
+            "height": 44
+          },
+          "label": {
+            "x": 17,
+            "y": 13.59,
+            "width": 94.84,
+            "height": 16.8
+          }
+        },
+        "coverage": {
+          "fields": 16,
+          "declared": 13,
+          "matched": 1,
+          "literal": 2
+        }
+      }
+    }
+  ]
+}
