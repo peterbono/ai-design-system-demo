@@ -67,3 +67,50 @@ test('the setting: measured only round-trips', () => {
   saveSettings(root, { repo: 'acme/ds', branch: 'main', tokensPath: 'tokens', specSource: 'measured-only' });
   assert.equal(sharedSettings(root).specSource, 'measured-only');
 });
+
+test('measured only: a token the library does not have, or a color with none, takes the measured literal', () => {
+  const m = fixture();
+  const story = m.stories.find((s) => s.title.endsWith('/Card') && s.spec)!;
+  m.stories = [story];
+  story.spec!.values.root = { ...story.spec!.values.root, fill: 'acme.surface' };
+  story.spec!.raw.root = { ...story.spec!.raw.root, fill: 'rgb(255, 0, 170)' };
+  const { specs } = specsFromMeasure(m, { known: (p) => p !== 'acme.surface' });
+  assert.equal(specs.components[0]!.variants[0]!.values.root!.fill, 'rgb(255, 0, 170)');
+});
+
+test('literals build in Figma: a font weight, a line height in px, a letter spacing and an rgb() color', async () => {
+  const sim = new SimFigma();
+  sim.install();
+  const files: Record<string, string> = {};
+  for (const [rel, text] of Object.entries(realFiles())) files[`${DEFAULT_SETTINGS.tokensPath}/${rel}`] = text;
+  files[`${DEFAULT_SETTINGS.tokensPath}/contrast.checks.json`] = realChecksText();
+  files['bridge.config.json'] = realConfigText();
+  const client = new FakeGitHub(files).client();
+  const a = await analyze(client, DEFAULT_SETTINGS, {}, await takeSnapshot());
+  await applyPullPlan(buildPull(a, new Map()).plan);
+  const spec = {
+    name: 'Acme Chip',
+    hash: 'x',
+    source: ['https://storybook.acme.dev'],
+    axes: [],
+    properties: [],
+    parts: [
+      { id: 'root', name: 'Root', kind: 'frame' as const, layout: { direction: 'HORIZONTAL' as const, primary: 'CENTER' as const, counter: 'CENTER' as const } },
+      { id: 'label', name: 'Label', kind: 'text' as const, parent: 'root', characters: 'Chip' },
+    ],
+    variants: [{ props: {}, values: { root: { fill: 'rgb(255, 0, 170)', paddingLeft: 12 }, label: { textFill: '#1f2937', fontFamily: '"Inter", sans-serif', fontSize: 14, fontWeight: 600, lineHeight: 18.9, letterSpacing: 0.5 } } }],
+    unmapped: [],
+  };
+  const plan = buildComponentPlan({ version: 1, generated: '', components: [spec] }, 'measured-specs.json', await scanGenerated(), a.head);
+  assert.deepEqual(plan.problems, []);
+  const report = await applyComponentPlan(writablePlan(plan));
+  assert.deepEqual(report.failed, []);
+  assert.deepEqual(report.problems ?? [], []);
+  const set = sim.sets().find((s) => s.name === 'Acme Chip')!;
+  const label = set.children[0]!.findOne((n) => n.type === 'TEXT')!;
+  assert.deepEqual(label.lineHeight, { unit: 'PIXELS', value: 18.9 });
+  assert.deepEqual(label.letterSpacing, { unit: 'PIXELS', value: 0.5 });
+  assert.equal((label.fontName as { style: string }).style.toLowerCase().includes('semi') || (label.fontName as { style: string }).style.toLowerCase().includes('bold'), true, JSON.stringify(label.fontName));
+  const fill = (set.children[0]!.fills as { color: { r: number; b: number } }[])[0]!;
+  assert.ok(fill.color.r > 0.99 && fill.color.b > 0.6, JSON.stringify(fill));
+});

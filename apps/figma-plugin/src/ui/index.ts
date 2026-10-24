@@ -658,7 +658,7 @@ async function loadPull(prev?: PullState): Promise<PullState> {
   let measuredOnly: MeasuredOnlyReport | undefined;
   const before: Record<string, string> = { ...(prev?.before ?? {}) };
   try {
-    const loaded = await specSource(state.init!.settings.specSource).load(getClient(), analysis.headFiles.treeSha, analysis.headFiles.config);
+    const loaded = await specSource(state.init!.settings.specSource).load(getClient(), analysis.headFiles.treeSha, analysis.headFiles.config, analysis.head);
     measured = loaded?.measured;
     measuredOnly = loaded?.measuredOnly;
     if (loaded) {

@@ -57,9 +57,25 @@ function checkedOf(s: MeasuredSpecsStory): string {
   return p.indeterminate === true ? 'mixed' : String(p.checked === true);
 }
 
-/** Frames with content hug it: their measured px are what the content made, not a size of their own. */
-function valuesOf(spec: MeasuredSpec, partId: string, hasChildren: boolean): Partial<Record<SpecField, SpecValue>> {
+/** Fields a literal can stand in for when no token is known: the look a design system without tokens still has. */
+const LITERAL_FIELDS: SpecField[] = ['fill', 'textFill', 'stroke', 'fontFamily'];
+
+/**
+ * A part's values in the pull's shape. Frames with content hug it: their measured px are what the content made, not a
+ * size of their own. A token the library does not have (`known` says no), or a color or font family with no token at
+ * all, takes the measured literal (`rgb(...)`, px, a family list): the set draws what code draws, unbound.
+ */
+function valuesOf(spec: MeasuredSpec, partId: string, hasChildren: boolean, known: (path: string) => boolean): Partial<Record<SpecField, SpecValue>> {
   const v = { ...(spec.values[partId] ?? {}) };
+  const raw = spec.raw[partId] ?? {};
+  for (const field of Object.keys(v) as SpecField[]) {
+    const value = v[field];
+    if (typeof value !== 'string' || value.startsWith('calc(') || known(value)) continue;
+    const literal = raw[field];
+    if (literal === undefined) delete v[field];
+    else v[field] = literal;
+  }
+  for (const field of LITERAL_FIELDS) if (v[field] === undefined && typeof raw[field] === 'string') v[field] = raw[field];
   if (hasChildren) {
     if (typeof v.width === 'number') delete v.width;
     if (typeof v.height === 'number') delete v.height;
@@ -68,7 +84,7 @@ function valuesOf(spec: MeasuredSpec, partId: string, hasChildren: boolean): Par
 }
 
 /** One Figma set from the stories of one component, or undefined when none stands for a variant. */
-function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<string, MeasuredArgType>, source: string): ComponentSpec | undefined {
+function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<string, MeasuredArgType>, source: string, known: (path: string) => boolean): ComponentSpec | undefined {
   // Only stories as written or measured for a variant: their other booleans at the component's defaults.
   const plain = stories.filter((s) =>
     Object.entries(argTypes).every(([k, a]) => a.kind !== 'boolean' || STATE_PROPS.has(k) || NOT_AN_AXIS.test(k) || (propsOf(s)[k] ?? a.default ?? false) === (a.default ?? false)),
@@ -125,7 +141,7 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
         hidden.push(p.id);
         continue;
       }
-      values[p.id] = valuesOf(m, mid, parents.has(p.id));
+      values[p.id] = valuesOf(m, mid, parents.has(p.id), known);
     }
     variants.push({ props, values, ...(hidden.length ? { hidden } : {}) });
   }
@@ -169,7 +185,8 @@ function drawnAxes(axes: SpecAxis[], variants: SpecVariant[]): { axes: SpecAxis[
 }
 
 /** Every set the measure can give, by component (the last segment of a story's title: "Figma variants/Radio" is Radio). */
-export function specsFromMeasure(file: MeasuredSpecsFile): { specs: ComponentSpecsFile; report: MeasuredOnlyReport } {
+export function specsFromMeasure(file: MeasuredSpecsFile, opts: { known?: ((path: string) => boolean) | undefined } = {}): { specs: ComponentSpecsFile; report: MeasuredOnlyReport } {
+  const known = opts.known ?? (() => true);
   const groups = new Map<string, MeasuredSpecsStory[]>();
   for (const s of file.stories) {
     if (s.error || !s.spec) continue;
@@ -180,7 +197,7 @@ export function specsFromMeasure(file: MeasuredSpecsFile): { specs: ComponentSpe
   const components: ComponentSpec[] = [];
   const report: MeasuredOnlyReport = { sets: 0, variants: 0, stories: 0, skipped: [] };
   for (const [name, stories] of [...groups].sort(([a], [b]) => a.localeCompare(b))) {
-    const spec = setOf(name, stories, argTypesOf(name), file.storybook);
+    const spec = setOf(name, stories, argTypesOf(name), file.storybook, known);
     if (!spec) {
       report.skipped.push(name);
       continue;

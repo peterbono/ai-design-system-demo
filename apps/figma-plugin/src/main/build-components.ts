@@ -426,6 +426,12 @@ function apply(node: SceneNode, f: PlannedField, ctx: Ctx): void {
         /* nothing bound */
       }
       if (f.field === 'cornerRadius') n.cornerRadius = v.value;
+      // A literal weight picks the font style with the text (fontName), as a weight variable does.
+      else if (f.field === 'fontWeight') return;
+      // Line height and letter spacing are a unit and a value in Figma: px as measured, a unitless line height (1.5) as
+      // a share of the font size.
+      else if (f.field === 'lineHeight') n.lineHeight = v.value > 0 && v.value < 4 ? { unit: 'PERCENT', value: v.value * 100 } : { unit: 'PIXELS', value: v.value };
+      else if (f.field === 'letterSpacing') n.letterSpacing = { unit: 'PIXELS', value: v.value };
       else if (f.field === 'width' || f.field === 'height') {
         // Read only in Figma: fixed sizing on that axis, then resize.
         fixAxis(node, f.field);
@@ -453,6 +459,12 @@ function apply(node: SceneNode, f: PlannedField, ctx: Ctx): void {
     }
     if (v.kind === 'keyword') {
       n[f.field] = v.value;
+      return;
+    }
+    if (v.kind === 'color') {
+      const paint: SolidPaint = { type: 'SOLID', color: { r: v.r, g: v.g, b: v.b }, ...(v.a < 1 ? { opacity: v.a } : {}) };
+      if (f.field === 'stroke') n.strokes = [paint];
+      else n.fills = [paint];
       return;
     }
     const variable = ctx.vars.find(v);
@@ -672,7 +684,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
     if (part.kind === 'text' && node.type === 'TEXT') {
       const fam = fields.find((f) => f.value.kind === 'font')?.value as Extract<PlannedValue, { kind: 'font' }> | undefined;
       const weight = fields.find((f) => f.field === 'fontWeight')?.value;
-      const w = weight?.kind === 'variable' && typeof weight.value === 'number' ? weight.value : undefined;
+      const w = weight?.kind === 'variable' && typeof weight.value === 'number' ? weight.value : weight?.kind === 'number' ? weight.value : undefined;
       // Unbind the weight first: Figma checks a bound weight against the font being set.
       try {
         bind(node, 'fontWeight', null);
@@ -1000,7 +1012,7 @@ async function styleInstance(inst: InstanceNode, kind: string, fields: PlannedFi
 async function styleText(text: TextNode, fields: PlannedField[], ctx: Ctx): Promise<void> {
   const fam = fields.find((f) => f.value.kind === 'font')?.value as Extract<PlannedValue, { kind: 'font' }> | undefined;
   const weight = fields.find((f) => f.field === 'fontWeight')?.value;
-  const w = weight?.kind === 'variable' && typeof weight.value === 'number' ? weight.value : undefined;
+  const w = weight?.kind === 'variable' && typeof weight.value === 'number' ? weight.value : weight?.kind === 'number' ? weight.value : undefined;
   try {
     bind(text, 'fontWeight', null);
   } catch {
