@@ -183,6 +183,13 @@ export interface VariableTag {
 }
 
 /** Local components with their current signature and stored baseline. */
+/** The selected node; `generated` when it is a variant of a set Bridge built from code (componentId, variant key). */
+export interface SelectionInfo {
+  nodeId: string;
+  name: string;
+  generated?: { componentId: string; variant: string } | undefined;
+}
+
 export interface ScannedComponentsPayload {
   components: ScannedComponent[];
   /** Often undefined in published plugins: requests then name the node without a link. */
@@ -220,7 +227,7 @@ export interface RequestMap {
   'bind-raw': { request: { nodeId: string; variants: string[]; kind: string; value: string; variable: string }; response: { bound: number } };
   /** PNG 2x as base64: the selected variant of `nodeId`, the component itself, or the selection without `nodeId`. */
   'export-image': { request: { nodeId?: string | undefined }; response: { base64: string; name: string } | null };
-  selection: { request: Record<string, never>; response: { nodeId: string; name: string } | null };
+  selection: { request: Record<string, never>; response: SelectionInfo | null };
   /** Component sets Bridge generated (shared plugin data dsbridge / componentId). */
   'scan-generated': { request: Record<string, never>; response: GeneratedSet[] };
   /** Marks variables or component sets "Experimental" (or clears the mark): unchecked by default on every push. */

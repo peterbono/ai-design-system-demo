@@ -18,6 +18,7 @@ import {
 import { applyPullPlan } from '../src/main/apply';
 import { applyComponentPlan, scanGenerated } from '../src/main/build-components';
 import { exportVariants } from '../src/main/fidelity';
+import { selectionInfo } from '../src/main/components';
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
 import { buildComponentPlan, loadComponentSpecs, writablePlan } from '../src/sync/component-pull';
@@ -99,6 +100,20 @@ function deps(sets: FidelityDeps['sets'], manifest: FigmaReferenceManifest | und
     fileName: 'UI kit',
   };
 }
+
+test('a selected generated variant names its code image: the same key as the references manifest (REQ-2)', async () => {
+  const { sim, sets } = await fileWithSets();
+  const card = sets.find((s) => s.componentId === 'Card')!;
+  const variant = sim.nodes.get(card.nodeId)!.children.find((c) => c.name === 'Padding=default')!;
+  (sim.currentPage as unknown as { selection: unknown[] }).selection = [variant];
+  const info = selectionInfo()!;
+  assert.equal(info.generated?.componentId, 'Card');
+  const ref = manifestFor(() => [10, 10]).components.Card!.variants[info.generated!.variant];
+  assert.ok(ref && 'file' in ref, `the manifest has an image of ${info.generated!.variant}`);
+  // The set itself, or a layer inside a variant: no single variant, no code image.
+  (sim.currentPage as unknown as { selection: unknown[] }).selection = [sim.nodes.get(card.nodeId)];
+  assert.equal(selectionInfo()!.generated, undefined);
+});
 
 test('exportVariants: PNG of the requested variants of a generated set, at the asked scale, read only', async () => {
   const { sim, sets } = await fileWithSets();

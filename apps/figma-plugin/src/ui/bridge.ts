@@ -1,11 +1,11 @@
 // UI side of the typed message protocol: request() resolves with the main thread's response.
 
-import { type RequestMap, type RequestType, isProgress, isResponse } from '../shared/messages';
+import { type RequestMap, type RequestType, type SelectionInfo, isProgress, isResponse } from '../shared/messages';
 
 let progressListener: ((message: string) => void) | undefined;
 export const onProgress = (fn: (message: string) => void) => (progressListener = fn);
 
-export type Selection = { nodeId: string; name: string } | null;
+export type Selection = SelectionInfo | null;
 let selectionListener: ((s: Selection) => void) | undefined;
 export const onSelection = (fn: (s: Selection) => void) => (selectionListener = fn);
 

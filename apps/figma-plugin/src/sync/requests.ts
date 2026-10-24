@@ -9,6 +9,7 @@ import {
   type GitHubClient,
   type IssueSummary,
   REQUESTS_BRANCH,
+  composeBuildRequestIssue,
   composeRequestIssue,
   isMissingPermission,
   ensureRequestsBranch,
@@ -20,6 +21,11 @@ export interface SendRequestInput {
   request: ComponentChangeRequest;
   /** PNG exports (base64) to attach, committed to the requests branch. */
   images?: string[] | undefined;
+  /**
+   * Image URLs of what code draws now (the variant's published code image). With them the request is a build request
+   * with before and after: these, then the attached exports.
+   */
+  before?: string[] | undefined;
   /** Branch the requests branch starts from when it does not exist yet (the default branch). */
   baseBranch: string;
   /** bridge.config.json of the repo: integrations.requests.labels and assignees, components.dir. */
@@ -59,7 +65,13 @@ export async function sendComponentRequest(client: GitHubClient, input: SendRequ
   const opts = input.config?.integrations?.requests;
   const dir = input.config?.components?.dir ?? DEFAULT_COMPONENTS_DIR;
   const componentUrl = input.coded && dir ? `https://github.com/${client.owner}/${client.name}/tree/${input.baseBranch}/${dir}/${r.component}` : undefined;
-  const issue = composeRequestIssue(request, { labels: opts?.labels ?? [], assignees: opts?.assignees ?? [], ...(componentUrl ? { componentUrl } : {}) });
+  const issueOpts = { labels: opts?.labels ?? [], assignees: opts?.assignees ?? [], ...(componentUrl ? { componentUrl } : {}) };
+  // What code draws now next to the design: a build request, read with its before and after in Studio's Being built.
+  // An exploration request stays a plain request: it is built on the exploration, not tracked as library work.
+  const before = !r.exploration && urls.length ? (input.before ?? []) : [];
+  const issue = before.length
+    ? composeBuildRequestIssue({ ...r, figma: r.figma ?? {}, images: { before, after: urls } }, issueOpts)
+    : composeRequestIssue(request, issueOpts);
   const created = await client.createIssue(issue);
   return { issue: created, images: urls, ...(skipped ? { imagesSkipped: true } : {}) };
 }
