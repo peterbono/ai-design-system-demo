@@ -26,16 +26,26 @@ describe('waitingOn: one rule for every "waiting on me" surface', () => {
     expect(reviewCount([change('sam', need, 'ann', { autoShip: true })], ann)).toBe(0);
   });
 
-  it('waits on the design owner for the design approval, never on the tech owner', () => {
+  it('waits on each owner for their own approval: design on the design owner, tech on the tech owner', () => {
     const need: Need = { kind: 'approve', roles: ['design', 'tech'] };
     expect(waitingOn(change('sam', need, 'ann'), ann)).toBe('design');
-    expect(waitingOn(change('sam', need, 'theo'), theo)).toBeNull();
+    expect(waitingOn(change('sam', need, 'theo'), theo)).toBe('tech');
   });
 
-  it('keeps the tech review off every designer list: it is developer work', () => {
+  it('puts the tech OK in the tech owner\'s queue (one rule, one queue), never on a designer', () => {
     const need: Need = { kind: 'approve', roles: ['tech'] };
-    expect(waitingOn(change('sam', need, 'theo'), theo)).toBeNull();
+    expect(waitingOn(change('sam', need, 'theo'), theo)).toBe('tech');
+    expect(isReviewTask('tech')).toBe(true);
+    expect(reviewCount([change('sam', need, 'theo')], theo)).toBe(1);
     expect(waitingOn(change('sam', need, 'ann'), ann)).toBeNull();
+    // The list and the home read the status chip (needs-design) with every missing approval, as the branch page does:
+    // the tech owner's turn shows there too, and the design owner keeps hers.
+    const listNeed = needFromStatus('needs-design', { pending: ['design', 'tech'] });
+    expect(waitingOn(change('sam', listNeed, 'theo'), theo)).toBe('tech');
+    expect(waitingOn(change('sam', listNeed, 'ann'), ann)).toBe('design');
+    expect(needFromStatus('needs-design')).toEqual({ kind: 'approve', roles: ['design'] });
+    // A designer GitHub asks for a review still has nothing to do with the tech OK.
+    expect(waitingOn(change('sam', need, 'ann', { requested: ['ann'] }), ann)).toBeNull();
   });
 
   it('never lands a technical blocker on a designer, even when GitHub asks them for a review', () => {
@@ -157,7 +167,8 @@ describe('waitingOn: branches opened from Figma (RT-1)', () => {
     expect(lifecycle).toBe('ready');
     const need = needFromStatus(kind, { claude: 'drafted' });
     expect(waitingOn({ author: 'sam', draft: true, labels: drafted, lifecycle, who: who(need, 'sam', 'ann') }, ann)).toBe('design');
-    // The designer who sent it waits on the owners; the tech owner is not asked for the design approval.
+    // The designer who sent it waits on the owners; the tech owner is not asked for the design approval (Tier 2: the
+    // design approval comes first, needs-design).
     expect(waitingOn({ author: 'sam', draft: true, labels: drafted, lifecycle, who: who(need, 'sam', 'sam') }, sam)).toBeNull();
     expect(waitingOn({ author: 'sam', draft: true, labels: drafted, lifecycle, who: who(need, 'sam', 'theo') }, theo)).toBeNull();
     // The demo lead's seat reads it as in review too.
