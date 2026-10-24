@@ -41,7 +41,7 @@ describe('StudioHome, contributor', () => {
     expect(screen.queryByText(/need your review/)).toBeNull();
     expect(screen.queryByRole('link', { name: 'Review all' })).toBeNull();
     expect(screen.queryByText(/Changes wait for the lead/)).toBeNull();
-    expect(await screen.findByText(/until a reviewer merges them/)).toBeTruthy();
+    expect(await screen.findByText(/until a reviewer approves them/)).toBeTruthy();
     expect(screen.getByText('1 of 2')).toBeTruthy();
     await expectNoAxeViolations(container);
   });
@@ -54,7 +54,7 @@ describe('StudioHome, contributor', () => {
     expect(screen.getAllByText('Changes requested').length).toBeGreaterThan(0);
     expect(screen.getByText('Update')).toBeTruthy();
     expect(screen.queryByText('Review')).toBeNull();
-    expect(screen.queryByText(/until a reviewer merges them/)).toBeNull();
+    expect(screen.queryByText(/until a reviewer approves them/)).toBeNull();
     await expectNoAxeViolations(container);
   });
 
@@ -69,7 +69,17 @@ describe('StudioHome, contributor', () => {
 
   it('shows no tour to a reviewer', () => {
     render(createElement(StudioHome, props({ contributor: false })));
-    expect(screen.queryByText(/until a reviewer merges them/)).toBeNull();
+    expect(screen.queryByText(/until a reviewer approves them/)).toBeNull();
+  });
+});
+
+describe('StudioHome, contributor with nothing yet', () => {
+  it('tours only where to start: there are no branches to point at', async () => {
+    render(createElement(StudioHome, props({ state: 'empty' })));
+    expect(await screen.findByText('Start a change')).toBeTruthy();
+    expect(screen.queryByText('Your branches')).toBeNull();
+    expect(screen.queryByText(/of 1$/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
   });
 });
 
@@ -102,6 +112,6 @@ describe('StudioHome, lead (a reviewer, or an admin, an email admin included)', 
   it('tours the lead, never the contributor', async () => {
     render(createElement(StudioHome, props({ contributor: false, lead: true })));
     expect(await screen.findByText('Work in progress stays apart')).toBeTruthy();
-    expect(screen.queryByText(/until a reviewer merges them/)).toBeNull();
+    expect(screen.queryByText(/until a reviewer approves them/)).toBeNull();
   });
 });

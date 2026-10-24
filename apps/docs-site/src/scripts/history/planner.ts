@@ -105,7 +105,7 @@ const valueChip = (raw: unknown, css?: string) =>
     : tokenValueHtml(val(raw), { resolved: css && css !== raw ? css : undefined, swatch: css && /^#[0-9a-f]{6,8}$/i.test(css) ? css : false });
 
 function statusLine(p: ChangePlan): string {
-  if (p.status === 'ready') return `<p class="cg-muted">Bridge creates a branch for it and requests a review. Nothing reaches main until a reviewer merges it.</p>`;
+  if (p.status === 'ready') return `<p class="cg-muted">Bridge creates a branch for it and requests a review. Nothing reaches the library until a reviewer approves it.</p>`;
   if (p.status === 'blocked') return `<p class="rv-notice is-fail hp-state"><strong>Blocked:</strong> ${esc(p.why ?? 'the checks fail')}. Bridge never creates a branch that breaks validation or a contrast pair.</p>`;
   return `<p class="rv-notice hp-state"><strong>Nothing to propose.</strong> ${esc(p.why ?? '')}</p>`;
 }

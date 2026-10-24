@@ -14,9 +14,8 @@ export function TourStep({ n, total, words, onNext, onFinish, onClose }: { n: nu
       <PopoverTrigger nativeButton={false} render={<span className="dh-tour-anchor" aria-hidden="true" tabIndex={-1} />} />
       <PopoverContent side="bottom" align="start" className="dh-tour" title={words.title} description={words.text}>
         <div className="dh-tour-foot">
-          <span className="t-ui t-muted">
-            {n} of {total}
-          </span>
+          {/* A tour of one step has no "1 of 1". */}
+          <span className="t-ui t-muted">{total > 1 ? `${n} of ${total}` : ''}</span>
           <span className="dh-tour-actions">
             {!last && (
               <Button variant="ghost" size="sm" onClick={onFinish}>
