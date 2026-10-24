@@ -51,7 +51,7 @@ import { badgeHtml, closeDialog, openDialog, tokenValueHtml } from '@bridge-ds/r
 import { pullEntry, type BranchesConfig } from '../lib/branches';
 import type { Root } from 'react-dom/client';
 import { cssValue } from '../lib/html';
-import { currentContributor, currentViewer, esc, ghGet, GitHubError, studioClient, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, showGhError } from './github-session';
+import { currentContributor, currentViewer, esc, ghGet, GitHubError, studioClient, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, showGhError, signedInWithGitHub } from './github-session';
 import { ghAction, ghVerb } from '../lib/gh-wording';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
 import { loadVisualImpact, visualWorkflowPresent } from './reviews/visual-impact';
@@ -1063,7 +1063,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
       writeLookedNow(pull.number, new Set(ids));
       repaint({ looked: ids });
     },
-    tokens: x.review instanceof Error ? { rows: [], error: `Could not compute the token changes: ${x.review.message}. Reload the page to try again.` } : review ? { rows: tokenRows(review), editHref: editable ? editInChangeHref(pull.number) : null } : null,
+    tokens: x.review instanceof Error ? { rows: [], error: `Bridge could not read the token changes. Reload the page to try again.${signedInWithGitHub() ? ` (${x.review.message})` : ''}` } : review ? { rows: tokenRows(review), editHref: editable ? editInChangeHref(pull.number) : null } : null,
     guidance,
     canEditGuidance,
     onSaveGuidance: async (path, docsNow) => {
