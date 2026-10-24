@@ -52,11 +52,13 @@ test('where the measure reads another token, it wins', () => {
   assert.equal(variantOf(specs, PRIMARY_MD).values.root!.fill, 'button.secondary.bg');
 });
 
-test('a literal of another value than the static token replaces it, and is counted', () => {
+test('a literal of another value never replaces the static token: kept, and counted to check', () => {
+  // In real Figma, literals drawn over tokens lost on fidelity (a line height in px against a unitless token, a size
+  // the layout computed, a part paired with the wrong element) and the builder cannot set a literal font weight.
   const m = measured();
   m.stories[0]!.spec!.values.root!.strokeWeight = 2;
   const { specs, report } = overlayMeasured(parseComponentSpecs(specsText()), m);
-  assert.equal(variantOf(specs, PRIMARY_MD).values.root!.strokeWeight, 2);
+  assert.equal(variantOf(specs, PRIMARY_MD).values.root!.strokeWeight, 'border-width.default');
   assert.equal(report.literals, 1);
 });
 
