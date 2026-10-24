@@ -382,6 +382,12 @@ export interface BranchVerdictInput {
   ship?: ShipPolicy | null | undefined;
   /** Pushed from the Figma plugin (figmaPushOf): design approved by the push, tech too for token values only. */
   figmaPush?: FigmaPush | null | undefined;
+  /**
+   * The reviewers to look again (lookAgainReviewers over the reviews and the head sha): the author updated the branch
+   * after every changes request. The status stays `changes-requested` and the merge stays blocked; only its words say
+   * "Updated, look again".
+   */
+  lookAgain?: readonly string[] | null | undefined;
 }
 
 export interface BranchVerdict {
@@ -391,6 +397,10 @@ export interface BranchVerdict {
   override: OverridePolicy | null;
   gate: MergeGate | null;
   status: ReviewStatusKind;
+  /** The words of the status, the same in Studio, the MCP server and the CLI (reviewStatusLabel). */
+  label: string;
+  /** Reviewers to look again (the input's lookAgain while changes are requested), else empty. */
+  lookAgain: string[];
   /**
    * A token push from Figma with values only, still open: Bridge merges it once the automatic checks pass, nobody
    * reviews it. Review queues and "Needs you" leave it out; Studio shows "On its way to the library".
@@ -411,7 +421,8 @@ export function branchVerdict(input: BranchVerdictInput): BranchVerdict {
       : null;
   // A draft counts: Bridge marks it ready when it arms the merge.
   const autoShip = input.figmaPush?.scope === 'token-values' && state === 'open' && !input.merged_at && !input.exploration;
-  return { approvals, override, gate, status, autoShip };
+  const lookAgain = status === 'changes-requested' ? [...(input.lookAgain ?? [])] : [];
+  return { approvals, override, gate, status, label: reviewStatusLabel(status, lookAgain), lookAgain, autoShip };
 }
 
 export const CONFLICT_REASON = 'It conflicts with main: resolve it with Update from main on the branch.';
@@ -578,6 +589,18 @@ export const REVIEW_STATUS_LABEL: Record<ReviewStatusKind, string> = {
   ready: 'Ready to merge',
   unknown: 'Status unknown',
 };
+
+/** The words of a branch the author updated after every changes request: the reviewers who asked look again. */
+export const LOOK_AGAIN_STATUS_LABEL = 'Updated, look again';
+
+/**
+ * The words of a status. Changes requested on a branch the author updated since (lookAgainReviewers not empty) reads
+ * "Updated, look again", never the stale "Changes requested": the merge gate is the same, the next step is the
+ * reviewers'.
+ */
+export function reviewStatusLabel(kind: ReviewStatusKind, lookAgain?: readonly string[] | null): string {
+  return kind === 'changes-requested' && (lookAgain?.length ?? 0) > 0 ? LOOK_AGAIN_STATUS_LABEL : REVIEW_STATUS_LABEL[kind];
+}
 
 /** The words of a CI summary. A repo without automated checks reads as that, calmly, never as pending or unknown. */
 export const CI_STATE_LABEL: Record<CiState, string> = {

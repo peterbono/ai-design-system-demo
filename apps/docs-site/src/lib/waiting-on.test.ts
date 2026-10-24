@@ -179,7 +179,7 @@ describe('a branch updated after the changes request', () => {
   it('no longer waits on the author; others read who looks again', () => {
     expect(who(need, 'sam', 'sam')).toMatchObject({ yourTurn: false, sentence: 'Waiting for @ann to look again.' });
     expect(waitingOn(change('sam', need, 'sam', { changesRequested: ['ann'] }), sam)).toBeNull();
-    expect(who(need, 'sam', 'theo')).toMatchObject({ yourTurn: false, short: 'Reviewer to look again' });
+    expect(who(need, 'sam', 'theo')).toMatchObject({ yourTurn: false, short: 'Updated, look again' });
   });
 
   it('stays with the author until the branch moved on', () => {
