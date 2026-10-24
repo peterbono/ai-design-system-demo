@@ -11,10 +11,12 @@ Usage:
   bridge-mcp --repo <owner/name> [--ref r]  GitHub repo over the API
 
 Env:
-  GITHUB_TOKEN   optional (or BRIDGE_GITHUB_TOKEN). Without it Bridge is read-only on GitHub; a local git
-                 repo still gets local bridge/* branches, never pushed. With it Bridge files suggestions and
-                 requests (issues), reviews, comments, branches and pull requests, never the default branch.
-                 Use a fine-grained token scoped to one repo. bridge_get_config says what this server may write.
+  GITHUB_TOKEN   optional (or BRIDGE_GITHUB_TOKEN). When neither is set, Bridge uses your gh sign-in
+                 (gh auth token) and says so once at start. Without any token Bridge is read-only on GitHub
+                 (60 requests an hour) and says that at start too; a local git repo still gets local bridge/*
+                 branches, never pushed. With one Bridge files suggestions and requests (issues), reviews,
+                 comments, branches and pull requests, never the default branch. Use a fine-grained token
+                 scoped to one repo. bridge_get_config says what this server may write. The token is never logged.
 `);
   process.exit(0);
 }

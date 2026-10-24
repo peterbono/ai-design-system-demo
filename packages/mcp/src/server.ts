@@ -745,7 +745,7 @@ export function createServer(ctx: BridgeContext): McpServer {
     'bridge_mark_figma_change_drafted',
     {
       title: 'Mark a Figma change drafted by Claude AI',
-      description: 'After you pushed the code for a component change from Figma to its branch: label it drafted-by-claude (no longer waiting-for-claude) and say so in its description, for a person to review. Refused while the branch only carries the spec. Needs GITHUB_TOKEN (pull requests: write).',
+      description: 'After you pushed the code for a component change from Figma to its branch: mark its pull request ready for review, label it drafted-by-claude (no longer waiting-for-claude) and say so in its description, in one step, for a person to review. When GitHub refuses ready for review, the labels stay as they were and the error says why. Refused while the branch only carries the spec. Needs GITHUB_TOKEN (pull requests: write).',
       inputSchema: { pr: Pr },
       annotations: WRITE,
     },

@@ -1,7 +1,9 @@
 // MCP protocol smoke test: spawn the built server over stdio like Claude Code does, list, call, read.
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { MCP_DIST, REPO } from './helpers.js';
@@ -80,6 +82,10 @@ const TOOLS = [
 let client: Client;
 beforeAll(async () => {
   const env = Object.fromEntries(Object.entries(process.env).filter(([k, v]) => v !== undefined && !/TOKEN/.test(k))) as Record<string, string>;
+  // No token at all: the server falls back to the gh sign-in (RT-3), so it runs with git on its PATH and no gh.
+  const bin = mkdtempSync(join(tmpdir(), 'bridge-no-gh-'));
+  symlinkSync(execFileSync('which', ['git'], { encoding: 'utf8' }).trim(), join(bin, 'git'));
+  env.PATH = bin;
   client = new Client({ name: 'bridge-smoke', version: '0.0.0' });
   await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(MCP_DIST, 'index.js'), '--root', REPO], env, stderr: 'ignore' }));
 });
@@ -98,7 +104,7 @@ describe('MCP over stdio', () => {
 
   it('says what it may write in the same words in its instructions and bridge_get_config (no token: read-only on GitHub)', async () => {
     const config = JSON.parse(text(await client.callTool({ name: 'bridge_get_config', arguments: {} })));
-    expect(config.write).toMatch(/^Read-only on GitHub: suggestions, requests, reviews, merges and pull requests need GITHUB_TOKEN\. Direct changes become local bridge\/\* branches, never pushed\.$/);
+    expect(config.write).toMatch(/^Read-only on GitHub: suggestions, requests, reviews, merges and pull requests need GITHUB_TOKEN \(or a gh sign-in when the server starts\)\. Direct changes become local bridge\/\* branches, never pushed\.$/);
     expect(client.getInstructions()).toContain(`Access now: ${config.write}`);
     expect(config.source).toContain(config.write);
   });

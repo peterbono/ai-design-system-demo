@@ -224,11 +224,20 @@ export async function figmaChangeOnGitHub(gh: GitHubClient, n: number, opts: { c
   return { pull, origin, status, spec, brief };
 }
 
+/** The same GitHub failure (status, auth state, permission kept for the callers' advice), led by what it left undone. */
+function ledBy(e: unknown, lead: string): GitHubError {
+  const why = e instanceof Error ? e.message : String(e);
+  if (!(e instanceof GitHubError)) return new GitHubError(502, `${lead} ${why}`);
+  return new GitHubError(e.status, `${lead} ${why}`, e.detail, { auth: e.auth, permission: e.permission, resetsAt: e.resetsAt });
+}
+
 /**
- * Claude wrote the code: the branch is labelled drafted-by-claude (no longer waiting) and its description says so.
- * Refused while the branch only carries the spec, so the label never claims code that is not there.
+ * Claude wrote the code: the pull request is marked ready for review, then the branch is labelled drafted-by-claude
+ * (no longer waiting) and its description says so. Refused while the branch only carries the spec, so the label never
+ * claims code that is not there. Ready goes first: when GitHub refuses it, nothing else changed, so the label never
+ * says "drafted" on a branch reviewers cannot see yet. Running it again after a partial failure finishes the job.
  */
-export async function markFigmaChangeDraftedOnGitHub(gh: GitHubClient, n: number): Promise<{ status: FigmaPushStatus; files: string[] }> {
+export async function markFigmaChangeDraftedOnGitHub(gh: GitHubClient, n: number): Promise<{ status: FigmaPushStatus; files: string[]; ready: boolean }> {
   if (!gh.canWrite) throw new GitHubError(401, 'Marking a branch drafted needs a GitHub token (pull requests: write).');
   const pull = await gh.getPullRequest(n);
   const origin = parseFigmaOrigin(pull.body);
@@ -236,11 +245,22 @@ export async function markFigmaChangeDraftedOnGitHub(gh: GitHubClient, n: number
   if (pull.state !== 'open') throw new GitHubError(422, `#${n} is ${pull.state}: only an open branch is marked drafted.`);
   const files = (await gh.listPullRequestFiles(n)).map((f) => f.filename).filter((f) => !f.startsWith(`${FIGMA_SPEC_DIR}/`));
   if (!files.length) throw new GitHubError(422, `${pull.headRef} only carries the spec: write the component code there first, push it, then mark it drafted.`);
-  await gh.updatePullRequest(n, { body: withFigmaOrigin(pull.body, { ...origin, status: 'drafted' }) });
-  await gh.removeLabel(n, WAITING_FOR_CLAUDE_LABEL).catch(() => undefined);
-  await gh.addLabels(n, [DRAFTED_BY_CLAUDE_LABEL]);
+  if (pull.draft) {
+    try {
+      await gh.markReadyForReview(n);
+    } catch (e) {
+      throw ledBy(e, `#${n} is not marked drafted and its labels are unchanged:`);
+    }
+  }
+  try {
+    await gh.updatePullRequest(n, { body: withFigmaOrigin(pull.body, { ...origin, status: 'drafted' }) });
+    await gh.removeLabel(n, WAITING_FOR_CLAUDE_LABEL).catch(() => undefined);
+    await gh.addLabels(n, [DRAFTED_BY_CLAUDE_LABEL]);
+  } catch (e) {
+    throw ledBy(e, `#${n} is ready for review, but the ${DRAFTED_BY_CLAUDE_LABEL} label did not go on (run it again to finish):`);
+  }
   const labels = [...pull.labels.filter((l) => l !== WAITING_FOR_CLAUDE_LABEL), DRAFTED_BY_CLAUDE_LABEL];
-  return { status: figmaPushStatus({ state: pull.state, labels, route: origin.route }), files };
+  return { status: figmaPushStatus({ state: pull.state, draft: false, labels, route: origin.route }), files, ready: true };
 }
 
 /** Where each pushed Figma component's library branch stands (by pull request number), for the plugin's Pull. */

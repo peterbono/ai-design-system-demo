@@ -219,6 +219,9 @@ export class FakeGitHub {
         if (patch.title) p.title = patch.title;
         if (patch.body) p.body = patch.body;
       },
+      async markReadyForReview(n: number) {
+        self.prs[n - 1]!.draft = false;
+      },
       async removeLabel(n: number, label: string) {
         const p = self.prs[n - 1]!;
         p.labels = p.labels.filter((l) => l !== label);

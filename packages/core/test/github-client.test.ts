@@ -269,3 +269,31 @@ test('writeAccess: what a token may write, from probes that write nothing (422 y
   });
   await assert.rejects(new GitHubClient('o/r', 'tok', limited.fetchImpl).writeAccess('main'));
 });
+
+test('markReadyForReview: the GraphQL mutation with the node id REST gives, a no-op when not a draft', async () => {
+  const { calls, fetchImpl } = stub({
+    'GET /repos/o/r/pulls/7': { body: { number: 7, node_id: 'PR_kwDO7', draft: true } },
+    'POST /graphql': { body: { data: { markPullRequestReadyForReview: { pullRequest: { number: 7, isDraft: false } } } } },
+  });
+  await new GitHubClient('o/r', 'tok', fetchImpl).markReadyForReview(7);
+  const mutation = calls.find((c) => c.method === 'POST' && c.url === 'https://api.github.com/graphql');
+  assert.ok(mutation, 'REST cannot unset draft: the call goes to GraphQL');
+  assert.equal(mutation.headers.Authorization, 'Bearer tok');
+  const body = mutation.body as { query: string; variables: { id: string } };
+  assert.match(body.query, /markPullRequestReadyForReview\(input: \{ pullRequestId: \$id \}\)/);
+  assert.deepEqual(body.variables, { id: 'PR_kwDO7' });
+
+  const ready = stub({ 'GET /repos/o/r/pulls/7': { body: { number: 7, node_id: 'PR_kwDO7', draft: false } } });
+  await new GitHubClient('o/r', 'tok', ready.fetchImpl).markReadyForReview(7);
+  assert.equal(ready.calls.some((c) => c.url.endsWith('/graphql')), false, 'already ready: no mutation');
+
+  const refused = stub({
+    'GET /repos/o/r/pulls/7': { body: { number: 7, node_id: 'PR_kwDO7', draft: true } },
+    'POST /graphql': { body: { errors: [{ message: 'Resource not accessible by personal access token' }] } },
+  });
+  await assert.rejects(
+    new GitHubClient('o/r', 'tok', refused.fetchImpl).markReadyForReview(7),
+    (e: unknown) => e instanceof GitHubError && /refused to mark #7 ready for review: Resource not accessible/.test(e.message),
+  );
+  await assert.rejects(new GitHubClient('o/r', '', fetchImpl).markReadyForReview(7), /needs a GitHub token/);
+});

@@ -12,7 +12,7 @@ with your own token.
 From npm, nothing to build:
 
 ```sh
-npx -y @bridge-ds/mcp --repo owner/name                  # GitHub repo, read-only
+npx -y @bridge-ds/mcp --repo owner/name                  # GitHub repo: your gh sign-in, else read-only
 GITHUB_TOKEN=... npx -y @bridge-ds/mcp --repo owner/name # GitHub repo, can open PRs
 npx -y @bridge-ds/mcp --root .                           # local folder (default: current directory)
 npx -y @bridge-ds/mcp --help
@@ -86,7 +86,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 | `bridge_list_reviews` | reads | Open pull requests on the repo (flagging the ones Bridge opened) and, locally, the bridge/* proposal branches. |
 | `bridge_list_suggestions` | reads | Suggestions in the repo: GitHub issues labeled bridge-suggestion, each an exact change (tokens, docs, a component spec, a brand, a revert, settings) that the owners approve and a developer applies. |
 | `bridge_list_tokens` | reads | List tokens with their resolved CSS value in one mode. |
-| `bridge_mark_figma_change_drafted` | writes | After you pushed the code for a component change from Figma to its branch: label it drafted-by-claude (no longer waiting-for-claude) and say so in its description, for a person to review. |
+| `bridge_mark_figma_change_drafted` | writes | After you pushed the code for a component change from Figma to its branch: mark its pull request ready for review, label it drafted-by-claude (no longer waiting-for-claude) and say so in its description, in one step, for a person to review. |
 | `bridge_merge_branch` | writes | Merge a branch into main through the same gate as Studio's Merge button: tests pass, the approvals its tier needs (Tier 1: one owner approval; Tier 2 and 3: design and tech; a branch that applies an approved suggestion with Closes #n carries its approvals while the suggestion stays approved and the tier is not higher), no changes requested, no conflict, not a draft or an exploration, and the person holds the right to ship (governance.rights). |
 | `bridge_missing_pieces` | writes | Check a product branch (an exploration started for a product) against the library: the adoption audit on each product file it changes, at its start and at its head, keeps what the branch added. |
 | `bridge_open_library_branch` | writes | Turn one recorded missing piece into a library branch linked to the product branch, as Bridge Studio does: a token piece opens a token change (same gate and body as bridge_propose_token_change, a draft for design and tech review) and the product branch takes its preview; a variant opens a library exploration with the brief to build it (build it there, then bridge_use_library_preview); a new component opens a component request. |

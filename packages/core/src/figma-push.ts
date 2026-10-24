@@ -374,7 +374,7 @@ export function figmaDraftBrief(
     '3. Run npm run specs so component-specs.json matches the code, then npm test.',
     'suggestion' in ctx
       ? '4. Commit, push and open a pull request that says "Closes #<this issue number>", so the suggestion closes when it ships. A person reviews it.'
-      : `4. Commit and push to ${ctx.branch}, then call bridge_mark_figma_change_drafted { pr: ${ctx.pr} } (CLI: bridge figma drafted ${ctx.pr}). The branch is then labelled ${DRAFTED_BY_CLAUDE_LABEL} and a person reviews it.`,
+      : `4. Commit and push to ${ctx.branch}, then call bridge_mark_figma_change_drafted { pr: ${ctx.pr} } (CLI: bridge figma drafted ${ctx.pr}). The pull request is then ready for review, labelled ${DRAFTED_BY_CLAUDE_LABEL}, and a person reviews it.`,
     '',
     'Rules:',
     '- Never invent a token or a value: use the variables the spec lists. A value the library lacks is a token change, said in the pull request.',

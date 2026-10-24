@@ -158,6 +158,8 @@ Options:
                  (suggestions and requests need Issues: read and write; reviews, merges and pull requests need
                  Contents and Pull requests: read and write). Writes never use your gh sign-in on their own:
                  add --use-gh-auth for that. Reads (list, status, show) may use it and say so on stderr.
+                 bridge mcp is the exception: like the MCP server, it falls back to your gh sign-in and says
+                 so once at start, or says it runs without a token.
                  Never needed for local token work in direct mode, nor for --dry-run.
   --suggest | --direct   how a change reaches the code for this command (propose, brand create, revert,
                  docs save, pieces open, figma push). Default: "changes" in bridge.config.json, else suggest.

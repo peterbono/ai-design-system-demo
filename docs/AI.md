@@ -17,7 +17,9 @@ command). No clone, no build.
 
 The simplest path is your design system repository on GitHub, with no clone. Without a token Bridge is
 read-only (and GitHub allows 60 requests an hour). To let Claude open pull requests, add `GITHUB_TOKEN`: a
-fine-grained token limited to that one repository, with contents and pull requests read and write.
+fine-grained token limited to that one repository, with contents and pull requests read and write. When
+`GITHUB_TOKEN` and `BRIDGE_GITHUB_TOKEN` are not set, the server uses your `gh` sign-in (`gh auth token`) and says
+so once at start; with no token at all it says it runs read-only. It never logs the token.
 
 ### Claude Code
 
@@ -66,7 +68,7 @@ project servers the first time):
 
 Any client that speaks MCP over stdio works: run `npx -y @bridge-ds/mcp` with `--repo owner/name [--ref branch]`
 or `--root <dir>`. Options can also come from env: `BRIDGE_REPO`, `BRIDGE_REF`, `BRIDGE_ROOT`, `GITHUB_TOKEN` (or
-`BRIDGE_GITHUB_TOKEN`).
+`BRIDGE_GITHUB_TOKEN`), else the `gh` sign-in.
 
 ## 2. Check your design system from a terminal
 
@@ -138,7 +140,7 @@ products, settings and Figma coverage, 5 for product branches and the library (s
 | `bridge_switch_to_published` | Once the library shipped, bring main into the product branch so it uses the published version |
 | `bridge_figma_changes` | The library branches the DS Bridge plugin opened for components changed in Figma (label `from-figma`): exact token changes, and branches waiting for Claude AI or drafted by Claude AI |
 | `bridge_get_figma_change` | One of them: its spec (variant matrix, properties, bound variables and layers per variant, exact token swaps) and the brief to draft the code on its branch |
-| `bridge_mark_figma_change_drafted` | Once the code is pushed to that branch: label it `drafted-by-claude` for a person to review (refused while the branch only carries the spec) |
+| `bridge_mark_figma_change_drafted` | Once the code is pushed to that branch: mark the pull request ready for review and label it `drafted-by-claude`, in one step, for a person to review (refused while the branch only carries the spec; when GitHub refuses ready for review, the labels stay as they were) |
 | `bridge_push_figma_component` | The plugin's push from a structured component diff: an exact token change (contrast gated), a draft branch with the spec for Claude AI, or what to fix in Figma; `dryRun` shows the route |
 | `bridge_list_suggestions` | List suggestions (issues labeled `bridge-suggestion`): kind, tier, status (needs review, changes requested, approved, being applied, applied, declined, outdated) and linked pull requests |
 | `bridge_get_suggestion` | Read one: the change, the checks when suggested, its version, who approved it and which approvals are missing, and for a component spec the brief to implement it |
@@ -258,7 +260,8 @@ What stays in Studio, and why:
   rights. Claude and the CLI read them (`bridge_get_settings`, `bridge check`) and can propose the
   `bridge.config.json` change like any other file.
 - **Signing in with GitHub.** In a terminal the token comes from `GITHUB_TOKEN` (or `--token`). Writes never use
-  your `gh` sign-in on their own: add `--use-gh-auth` for that. Reads may use it, and say so in one line.
+  your `gh` sign-in on their own: add `--use-gh-auth` for that. Reads may use it, and say so in one line. The
+  MCP server (and `bridge mcp`) falls back to the `gh` sign-in when no token is set, and says so once at start.
 - **Seeing the work.** The visual editors (color pickers, the Library edit mode with its live preview), the
   before and after images CI built for a branch, the quality trend charts of past audits and the fidelity scores
   (computed in the DS Bridge Figma plugin, they live in Figma). Claude edits by value, reads the same facts as
@@ -548,7 +551,7 @@ write with certainty. It reads the same signatures Pull compares in "Review upda
 | What changed in Figma | Where it goes | Who writes the code |
 | --- | --- | --- |
 | A property now bound to another variable (fill, radius, padding...), on a component token that paints only those variants | An exact token change: that component token points to the new variable. Contrast gated (the semantic pairs, checked on the component tokens that alias them), tier and changeset like any token change. Other components that share the token are named | Nobody: exact, no AI |
-| A new variant, property, layer or swapped instance; a new component; a token swap a token alone cannot say (code paints with a semantic token directly, or other variants still use the token) | A draft branch carrying the spec (`.bridge/figma/<name>.json`: variant matrix, properties, bound variables and layers per variant, what code gave Figma before, a screenshot), labelled `from-figma`, `waiting-for-claude` | Claude AI, through `bridge_get_figma_change`; then `bridge_mark_figma_change_drafted` labels it `drafted-by-claude`. Until then the branch is honestly a request |
+| A new variant, property, layer or swapped instance; a new component; a token swap a token alone cannot say (code paints with a semantic token directly, or other variants still use the token) | A draft branch carrying the spec (`.bridge/figma/<name>.json`: variant matrix, properties, bound variables and layers per variant, what code gave Figma before, a screenshot), labelled `from-figma`, `waiting-for-claude` | Claude AI, through `bridge_get_figma_change`; then `bridge_mark_figma_change_drafted` marks it ready for review and labels it `drafted-by-claude`. Until then the branch is honestly a request |
 | A detached layer, a value set by hand, a shared style, a variable the library lacks | Nowhere: listed under "Fix in Figma first" with what to do | The designer, in Figma |
 
 Every library branch from Figma starts with "From Figma" (a link to the component) and keeps a hidden block tools
