@@ -59,8 +59,7 @@ The plugin reports one `PublishOutcome` per token or component (`PublishResult.o
 
 The pull request body of a token push says so instead of the approvals line: the tier checkbox reads
 "Tier 3: token change. From Figma: design-approved, ships once the checks pass" (or "waits for a developer OK" for a
-rename or removal), from `figmaPushTierLabel`, the same rule as `autoShip`. `composePrBody` does it when
-`origin.surface` is Figma (or `fromFigma: true`); `planTokenProposal` / `composeProposalBody` take `fromFigma: true`.
+rename or removal), from `figmaPushTierLabel`, the same rule as `autoShip`. `composePrBody`, `planTokenProposal` / `composeProposalBody` take `fromFigma: true` (the plugin passes it).
 
 When Bridge ships a push it leaves a review whose body starts with `**Bridge: shipped from Figma**`
 (`figmaShipReviewBody`).

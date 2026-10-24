@@ -155,7 +155,7 @@ export interface PrInput {
   resolvedConflicts: { path: string; choice: 'figma' | 'edit' | 'main' }[];
   /**
    * Pushed from the Figma plugin: design-approved (docs/BUILD-REQUESTS.md), so the tier line says what happens next
-   * instead of the approvals. Default: true when `origin.surface` is Figma.
+   * instead of the approvals. Off unless set (the plugin passes it for a push).
    */
   fromFigma?: boolean | undefined;
 }
@@ -179,7 +179,7 @@ export function composePrBody(input: PrInput): string {
   const o = input.origin;
   lines.push(input.notes.trim() || `Token edits made in ${o.surface}${o.location ? ` ("${o.location}")` : ''}, exported with ${o.tool}.`);
   const risk = classifyRisk({ tokenChanges: changes });
-  const fromFigma = input.fromFigma ?? /^figma$/i.test(o.surface.trim());
+  const fromFigma = input.fromFigma === true;
   const kinds = changes.map(summarizeTokenChange);
   lines.push('', `Opened from ${o.tool}. ${o.surface} is the editing surface; this PR is the change. ${fromFigma ? figmaPushNextLine(kinds) : 'Nothing is merged until it is reviewed.'}`);
   lines.push('');
