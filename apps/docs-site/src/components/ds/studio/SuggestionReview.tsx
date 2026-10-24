@@ -292,7 +292,7 @@ function Decide({ p }: { p: SuggestionReviewProps }) {
   // Decline stays reachable when nothing else is (an outdated suggestion): in More actions, next to the reason.
   const more = acts || g.canDecline;
   return (
-    <footer className="sg-foot" role="region" aria-label="Your decision">
+    <section className="sg-foot" aria-label="Your decision">
       {asking ? (
         <div className="sg-ask">
           <Textarea
@@ -362,7 +362,7 @@ function Decide({ p }: { p: SuggestionReviewProps }) {
       <p className="sg-said" role="status" aria-live="polite">
         {said}
       </p>
-    </footer>
+    </section>
   );
 }
 
@@ -397,9 +397,9 @@ export function SuggestionReview(p: SuggestionReviewProps) {
               <p className="sg-who">
                 <strong>{p.author.name}</strong> <span className="sg-muted">suggests a change</span>
               </p>
-              <h2 className="sg-title br-title" tabIndex={-1}>
+              <h1 className="sg-title br-title" tabIndex={-1}>
                 {p.title}
-              </h2>
+              </h1>
               <p className="sg-meta">
                 <Badge tone={p.status.tone} size="sm">
                   {p.status.label}
