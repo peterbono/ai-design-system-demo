@@ -221,7 +221,7 @@ describe('what each scenario is for', () => {
     await w.seed();
     const blocked = await w.account({ action: 'delete' }, await w.cookieFor('sam@acme.com', 'Sam Rivera'));
     expect(blocked.status).toBe(409);
-    expect(blocked.body).toMatchObject({ error: 'last-admin', message: lastAdminOf(['Acme product']), teams: ['acme/acme-product'] });
+    expect(blocked.body).toMatchObject({ error: 'last-admin', message: lastAdminOf(['Acme Product']), teams: ['acme/acme-product'] });
     const done = await w.account({ action: 'delete' }, await w.cookieFor('riley@acme.com', 'Riley Chen'));
     expect(done.status).toBe(200);
     expect(await localAdminStore(w.redis).teamsOf('riley@acme.com')).toEqual([]);

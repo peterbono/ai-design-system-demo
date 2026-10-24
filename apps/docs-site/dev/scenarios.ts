@@ -184,6 +184,9 @@ export class Seed {
 
   /** The team, its fixture files, its admin (a seeded local admin, also an email member) and its members. */
   async team(t: TeamDef): Promise<void> {
+    // Its name kept with the team, as Bridge keeps it once it read bridge.config.json (api/entry, api/contribute), so
+    // the account menu and the delete check say the same name as the team's pages.
+    await putTeamName(this.ctx.redis, t.repo, t.name, this.ctx.now);
     await putFixture(this.ctx.redis, { repo: t.repo, name: t.name, ...('builds' in t && t.builds ? { builds: true } : {}), ...('writable' in t && t.writable ? { writable: true } : {}), ...('suggest' in t && t.suggest ? { suggest: true } : {}) });
     await this.member(t.repo, t.admin, 'local-seed', 60 * DAY);
     await localAdminStore(this.ctx.redis).add(t.repo, t.admin.email);
