@@ -326,7 +326,7 @@ export const ENTRY_WORDS = {
   opening: 'Opening your invite',
   linkTitle: (team: string) => (team ? `Join ${team}` : 'Join your team'),
   linkLead: (inviter: string) => (inviter ? `${inviter} invited` : 'You were invited with'),
-  linkLeadEnd: '. Bridge sends a 6-digit code there to sign you in.',
+  linkLeadEnd: '. Bridge sends a 6‑digit code there to sign you in.',
   linkNotYours: (inviter: string) => `Not your email? Ask ${inviter || 'your admin'} to invite the one you use.`,
   otherTitle: (sentTo: string) => `This invite was sent to ${sentTo || 'another email'}`,
   otherLead: (team: string) => `You're signed in with another email. Sign in with the invited one to join ${team || 'the team'}.`,

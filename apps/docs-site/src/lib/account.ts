@@ -180,7 +180,7 @@ export const ACCOUNT_WORDS = {
   badEmail: 'Enter your work email, like name@company.com.',
   sendCode: 'Send code',
   codeTitle: 'Check your inbox',
-  codeLead: (masked: string) => `Bridge sent a 6-digit code to ${masked}. It works once, for 10 minutes.`,
+  codeLead: (masked: string) => `Bridge sent a 6‑digit code to ${masked}. It works once, for 10 minutes.`,
   codeLabel: 'Code',
   codeHint: 'Paste it or type it, spaces are fine.',
   badCode: 'Enter the 6 digits from the email.',
