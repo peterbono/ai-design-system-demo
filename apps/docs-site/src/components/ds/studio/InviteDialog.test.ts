@@ -52,7 +52,7 @@ const real = (over: Partial<MembersData> = {}): MembersData => ({
     { login: 'ann', name: 'Ann', role: 'reviewer', reviews: ['design'] },
     { login: 'leo', name: 'Leo', role: 'edit', reviews: [] },
   ],
-  pending: [{ id: 'p1', email: 'sofia@acme.design', role: 'view', sentAt: new Date(Date.now() - 2 * 86400_000).toISOString() }],
+  pending: [{ id: 'p1', email: 'priya@acme.design', role: 'view', sentAt: new Date(Date.now() - 2 * 86400_000).toISOString() }],
   people: [{ name: 'Mal Reyes', email: 'mal@acme.design', login: 'mal' }],
   canManage: true,
   personal: false,
@@ -80,8 +80,8 @@ describe('Invite collaborators', () => {
     expect(within(dialog).getByText('They get an email and land in your team with the role you pick. Reviewers also sign in with GitHub.')).toBeInTheDocument();
     // An admin is not told that only admins can invite.
     expect(dialog.textContent).not.toMatch(/Only admins/);
-    expect(within(dialog).getByRole('heading', { name: /Who has access 5/ })).toBeInTheDocument();
-    expect(within(dialog).getByText('sofia@acme.design')).toBeInTheDocument();
+    expect(within(dialog).getByRole('heading', { name: /Who has access 6/ })).toBeInTheDocument();
+    expect(within(dialog).getByText('priya@acme.design')).toBeInTheDocument();
     const send = within(dialog).getByRole('button', { name: 'Send invites' });
     expect(send).toBeDisabled();
 
@@ -263,14 +263,14 @@ describe('Settings > Members', () => {
     page.data = real();
     const user = userEvent.setup();
     render(createElement(MembersSection));
-    // Sofia was invited to view before readers moved to Library access: her role still reads Can view, and the picker
+    // Priya was invited to view before readers moved to Library access: her role still reads Can view, and the picker
     // offers only contributor roles to move her to.
-    await user.click(await screen.findByRole('button', { name: 'Role for sofia@acme.design: Can view' }));
+    await user.click(await screen.findByRole('button', { name: 'Role for priya@acme.design: Can view' }));
     expect(screen.queryByRole('radio', { name: /Can view/ })).toBeNull();
     await user.click(await screen.findByRole('radio', { name: /Can edit/ }));
     await waitFor(() => expect(api.setInviteRole).toHaveBeenCalledWith('acme/ds', 'p1', { role: 'edit' }));
     expect(api.resendInvite).not.toHaveBeenCalled();
-    expect(await screen.findByText('sofia@acme.design will join as Can edit.')).toBeInTheDocument();
+    expect(await screen.findByText('priya@acme.design will join as Can edit.')).toBeInTheDocument();
   });
 
   it('a reader sees roles as text, no invite button and no controls (board I4)', async () => {

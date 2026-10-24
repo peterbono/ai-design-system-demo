@@ -7,7 +7,7 @@
 // Without a token the bar's primary connects GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
 import { figmaPushFor } from './figma-push-read';
-import { EXPLORATION_USE_CASES, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, canOverride, overrideReasonMin, ownerOverridePolicy, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
+import { EXPLORATION_USE_CASES, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, canOverride, overrideReasonMin, ownerOverridePolicy, soloOwnerSentence, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
 import { loadTeams, siteApprovalRules, siteApprovers, siteRoles, siteShipPolicy, siteSoloOwner, teamDirectory, teamSnapshot } from './teams';
 import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
@@ -115,7 +115,8 @@ import { bringInLatest, checkGuardrail, commitResolution, readCompare, readConfl
 import { AGENT_NAME, isClaudeLogin } from '../lib/people';
 import { safeUrl } from '../lib/html';
 import { siteConfig } from './repo-context';
-import { isDemoRepo, isSampleTeam } from '../lib/demo';
+import { isDemoRepo, isSampleTeam, sampleApprovalRows, sampleCodeReviewers, sampleTurnSentence } from '../lib/demo';
+import { sampleTeam } from '../lib/invites';
 import { demoApprovals } from './demo-approvals';
 import { viewerRoles } from '../lib/suggestions-view';
 import { waitingLabel } from '../lib/home-model';
@@ -702,6 +703,9 @@ export async function openPr(n: number, push = true) {
     d.toggleAttribute('data-can-suggest', props.actions.suggest);
     d.dataset.title = props.title;
     d.dataset.developer = pull.html_url;
+    // Review all on the sample team says who checks the code next after Approve (lib/demo.ts demoApproved).
+    if (props.sample?.codeBy) d.dataset.codeNext = props.sample.codeBy;
+    else delete d.dataset.codeNext;
     runCurrent = (kind, text) => props.onAct(kind, text);
     // "Why it exists": the product preview and the name of who needs it, read after the first paint.
     if (props.productContext) {
@@ -897,13 +901,19 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     people(author, { viewer, approvers: approvals.approvers, canMerge: reviewer && gate.canShip, overridable: !seat && canOverride(login, HOLDERS()) }),
   );
   const viewerPeople = people(author, { viewer });
-  const rows = approvalRows({ tier, approvals, people: viewerPeople, open });
+  // The sample team, in the lead's seat: its Review rules, not the repository's only owner. The seat checks the look,
+  // Malik (the members who review tech, lib/invites.ts sampleTeam) checks the code: "Waiting for Malik", never
+  // "Covered by your approval".
+  const sampleSeat = Boolean(seat) && isSampleTeam(`${repo.owner}/${repo.repo}`);
+  const repoRows = approvalRows({ tier, approvals, people: viewerPeople, open });
+  const rows = sampleSeat ? sampleApprovalRows(repoRows, (r) => r.role === 'tech', sampleCodeReviewers(sampleTeam(seat ?? undefined))) : repoRows;
+  const codeNext = sampleSeat ? (rows.some((r) => r.role === 'tech' && r.state === 'waiting') ? sampleCodeReviewers(sampleTeam(seat ?? undefined)) : null) : null;
   const review = x.review instanceof Error ? null : x.review;
   const tokenOnly = files.length > 0 && files.every((f) => isTokenFile(f.filename) || f.filename.startsWith('.changeset/'));
   const story = checkStory({ failed: x.checks, pending: ci.pending.length, passed: ci.passed, design: review ? designFacts(review, x.checks.some((c) => c.kind === 'design')) : null, tokenOnly });
 
   // The who-acts sentence, designer first: developer failures never make "fix checks" the designer's turn.
-  let sentence = who.sentence;
+  let sentence = sampleSeat && viewer ? sampleTurnSentence(who.sentence, soloOwnerSentence(viewer, true), codeNext) : who.sentence;
   let yourTurn = who.yourTurn;
   const designRow = rows.find((r) => r.role === 'design' && r.canAct);
   if (open && who.action === 'fix-checks') {
@@ -970,8 +980,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   });
   // The sample team, in the lead's seat: Approve can be tried (BranchReview shows the result and writes nothing).
   // Anything else there opens no GitHub sign-in: the banner's "Get started" is the one way in.
-  const sampleSeat = Boolean(seat) && isSampleTeam(`${repo.owner}/${repo.repo}`);
-  const sample = sampleSeat && (status.lifecycle === 'ready' || status.lifecycle === 'waiting') && !exploration ? { author: seatAuthor } : null;
+  const sample = sampleSeat && (status.lifecycle === 'ready' || status.lifecycle === 'waiting') && !exploration ? { author: seatAuthor, codeBy: onItsWay ? null : codeNext } : null;
   if (sampleSeat && actions.primary?.kind === 'connect') actions.primary = sample ? { kind: 'approve', label: 'Approve' } : null;
   if (actions.primary?.kind === 'connect') actions.primary.label = ghAction('review', prefersSignIn());
   if (actions.primary && (actions.primary.kind === 'reopen' || actions.primary.kind === 'restart') && statusRun.kind) actions.primary.label = ACTION_LABEL[statusRun.kind];
@@ -1081,7 +1090,8 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     fileComments: conv.all.filter((c) => c.path),
     checks: checksLine(story, { forDesigner: !developer }),
     developer: developer ? { tests: story.developer?.state === 'fail' ? story.developer.text : null, failing: ci.failed.map((c) => c.name), url: pull.html_url, number: pull.number } : null,
-    approvals: rows.map((r) => ({ label: r.role === 'approval' ? 'Approval' : `${r.label} approval`, state: r.state, text: named(status.lifecycle === 'draft' && r.state === 'waiting' ? 'Not asked until a review is requested' : r.text) })),
+    // A token push from Figma on the sample team ships once the checks pass (its Review rules): nobody approves it.
+    approvals: sampleSeat && onItsWay ? [] : rows.map((r) => ({ label: r.role === 'approval' ? 'Approval' : `${r.label} approval`, state: r.state, text: named(status.lifecycle === 'draft' && r.state === 'waiting' ? 'Not asked until a review is requested' : r.text) })),
     update,
     actions,
     onAct: (kind, text) => act(kind, text, { pull, gate, docs: x.docs, write, statusRun }),

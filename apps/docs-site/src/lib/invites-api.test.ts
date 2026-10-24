@@ -57,7 +57,7 @@ interface World {
 
 function world(over: Partial<World> = {}): World {
   return {
-    users: { ghu_dana: { login: 'dana', name: 'Dana', id: 1 }, ghu_leo01: { login: 'leo', id: 2 }, ghu_sofia: { login: 'sofia', name: 'Sofia Reyes', id: 3 }, ghu_kim01: { login: 'kim', id: 4 } },
+    users: { ghu_dana: { login: 'dana', name: 'Dana', id: 1 }, ghu_leo01: { login: 'leo', id: 2 }, ghu_priya: { login: 'priya', name: 'Priya Natarajan', id: 3 }, ghu_kim01: { login: 'kim', id: 4 } },
     perms: { dana: 'admin', leo: 'write', ann: 'read', malik: 'write', kim: 'admin' },
     ownerType: 'Organization',
     orgMembers: ['ann'],
@@ -147,7 +147,7 @@ const hashOf = (token: string) => createHash('sha256').update(token).digest('hex
 const byLink = (deps: InvitesDeps, token: string) => deps.store!.byTokenHash(hashOf(token));
 
 /** Accepting with GitHub, as api/entry does for the invited Bridge account once its GitHub account is linked. */
-async function accept(deps: InvitesDeps, token: string, userToken = 'ghu_sofia') {
+async function accept(deps: InvitesDeps, token: string, userToken = 'ghu_priya') {
   const inv = await byLink(deps, token);
   if (!inv) throw new Error('No invite for this link.');
   const id = world().users[userToken]!.id!;
@@ -215,12 +215,12 @@ describe('admin checks on the server', () => {
 
   it('lists pending invites to people who can push, not to readers', async () => {
     const { deps } = setup({ users: { ghu_dana: { login: 'dana' }, ghu_leo01: { login: 'leo' }, ghu_ann01: { login: 'ann' } } });
-    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'Sofia@Acme.design' }] }), {}, deps);
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'Priya@Acme.design' }] }), {}, deps);
     const ok = await handleInvites(get(`?repo=${REPO}`, 'ghu_leo01'), {}, deps);
     const body = await ok.json();
     expect(body.personal).toBe(false);
     expect(body.invites).toHaveLength(1);
-    expect(body.invites[0]).toMatchObject({ email: 'sofia@acme.design', role: 'edit', invitedBy: 'dana' });
+    expect(body.invites[0]).toMatchObject({ email: 'priya@acme.design', role: 'edit', invitedBy: 'dana' });
     expect(body.invites[0].tokenHash).toBeUndefined();
     expect((await handleInvites(get(`?repo=${REPO}`, 'ghu_ann01'), {}, deps)).status).toBe(403);
   });
@@ -242,9 +242,9 @@ describe('admin checks on the server', () => {
     const { deps, store, w } = setup();
     const token = 'v'.repeat(43);
     const hash = createHash('sha256').update(token).digest('hex');
-    await store.put({ id: 'a'.repeat(16), repo: REPO, email: 'sofia@acme.design', role: 'view', invitedBy: 'dana', createdAt: new Date(T0).toISOString(), sentAt: new Date(T0).toISOString(), expiresAt: new Date(T0 + INVITE_TTL_MS).toISOString(), tokenHash: hash }, 600);
+    await store.put({ id: 'a'.repeat(16), repo: REPO, email: 'priya@acme.design', role: 'view', invitedBy: 'dana', createdAt: new Date(T0).toISOString(), sentAt: new Date(T0).toISOString(), expiresAt: new Date(T0 + INVITE_TTL_MS).toISOString(), tokenHash: hash }, 600);
     expect(await accept(deps, token)).toMatchObject({ status: 'joined', role: 'view' });
-    expect(w.calls.find((c) => c.method === 'PUT' && c.path === '/repos/acme/design/collaborators/sofia')!.body).toEqual({ permission: 'pull' });
+    expect(w.calls.find((c) => c.method === 'PUT' && c.path === '/repos/acme/design/collaborators/priya')!.body).toEqual({ permission: 'pull' });
   });
 
   it('says when the app cannot manage people on the repository', async () => {
@@ -258,10 +258,10 @@ describe('admin checks on the server', () => {
 describe('invite token lifecycle', () => {
   it('stores only the hash, emails a fragment link, and accepts once', async () => {
     const { deps, sent, store, w } = setup();
-    const r = await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
-    expect(await r.json()).toEqual({ results: [{ email: 'sofia@acme.design', status: 'sent' }] });
+    const r = await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'priya@acme.design' }] }), {}, deps);
+    expect(await r.json()).toEqual({ results: [{ email: 'priya@acme.design', status: 'sent' }] });
     expect(sent).toHaveLength(1);
-    expect(sent[0]!.to).toBe('sofia@acme.design');
+    expect(sent[0]!.to).toBe('priya@acme.design');
     expect(sent[0]!.subject).toBe('Dana invited you to Design on Bridge');
     expect(sent[0]!.text).toContain(`${ORIGIN}/studio/invite/#t=`);
     const token = tokenOf(sent[0]!);
@@ -272,7 +272,7 @@ describe('invite token lifecycle', () => {
     expect(stored!.expiresAt).toBe(new Date(T0 + INVITE_TTL_MS).toISOString());
 
     expect(await accept(deps, token)).toEqual({ status: 'joined', repo: REPO, role: 'edit' });
-    const put = w.calls.find((c) => c.method === 'PUT' && c.path === '/repos/acme/design/collaborators/sofia')!;
+    const put = w.calls.find((c) => c.method === 'PUT' && c.path === '/repos/acme/design/collaborators/priya')!;
     expect(put.body).toEqual({ permission: 'push' });
     expect(await store.list(REPO)).toHaveLength(0);
 
@@ -281,12 +281,12 @@ describe('invite token lifecycle', () => {
 
   it('resend invalidates the old link and keeps the invite', async () => {
     const { deps, sent, store, tick } = setup();
-    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'priya@acme.design' }] }), {}, deps);
     const [inv] = await store.list(REPO);
     tick(RESEND_COOLDOWN_MS);
     const r = await handleInvites(post({ action: 'resend', repo: REPO, id: inv!.id }), {}, deps);
     const body = await r.json();
-    expect(body.invite).toMatchObject({ id: inv!.id, email: 'sofia@acme.design', createdAt: inv!.createdAt });
+    expect(body.invite).toMatchObject({ id: inv!.id, email: 'priya@acme.design', createdAt: inv!.createdAt });
     expect(body.invite.sentAt).toBe(new Date(T0 + RESEND_COOLDOWN_MS).toISOString());
     expect(sent).toHaveLength(2);
     expect(tokenOf(sent[1]!)).not.toBe(tokenOf(sent[0]!));
@@ -296,7 +296,7 @@ describe('invite token lifecycle', () => {
 
   it('changes the role of a pending invite without a new email, and the same link grants it', async () => {
     const { deps, sent, store, w } = setup();
-    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'priya@acme.design' }] }), {}, deps);
     const [inv] = await store.list(REPO);
     const r = await handleInvites(post({ action: 'invite-role', repo: REPO, id: inv!.id, role: 'reviewer', reviewAs: 'tech' }), {}, deps);
     expect((await r.json()).invite).toMatchObject({ id: inv!.id, role: 'reviewer', reviewAs: 'tech' });
@@ -305,12 +305,12 @@ describe('invite token lifecycle', () => {
     expect(after).toMatchObject({ role: 'reviewer', reviewAs: 'tech', tokenHash: inv!.tokenHash });
     expect((await handleInvites(post({ action: 'invite-role', repo: REPO, id: inv!.id, role: 'edit' }, 'ghu_leo01'), {}, deps)).status).toBe(403);
     expect(await accept(deps, tokenOf(sent[0]!))).toMatchObject({ status: 'joined', role: 'reviewer', reviewAs: 'tech' });
-    expect(w.calls.find((c) => c.method === 'PUT' && c.path === '/repos/acme/design/collaborators/sofia')!.body).toEqual({ permission: 'push' });
+    expect(w.calls.find((c) => c.method === 'PUT' && c.path === '/repos/acme/design/collaborators/priya')!.body).toEqual({ permission: 'push' });
   });
 
   it('cancel removes the invite and its link', async () => {
     const { deps, sent, store } = setup();
-    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'priya@acme.design' }] }), {}, deps);
     const [inv] = await store.list(REPO);
     expect(await (await handleInvites(post({ action: 'cancel', repo: REPO, id: inv!.id }), {}, deps)).json()).toEqual({ ok: true });
     expect(await store.list(REPO)).toHaveLength(0);
@@ -320,17 +320,17 @@ describe('invite token lifecycle', () => {
 
   it('reports a failed email as failed, and keeps no invite nobody received', async () => {
     const { deps, store } = setup({}, { email: { send: async () => Promise.reject(new Error('provider down')) } });
-    const r = await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
+    const r = await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'priya@acme.design' }] }), {}, deps);
     const [result] = (await r.json()).results;
-    expect(result).toMatchObject({ email: 'sofia@acme.design', status: 'failed' });
+    expect(result).toMatchObject({ email: 'priya@acme.design', status: 'failed' });
     expect(result.message).toMatch(/could not send/);
     expect(await store.list(REPO)).toHaveLength(0);
   });
 
   it('says already for a pending email, dedupes, and validates emails', async () => {
     const { deps, sent } = setup();
-    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
-    const r = await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'SOFIA@acme.design' }, { email: 'new@acme.design' }, { email: 'new@acme.design' }, { email: 'not an email' }] }), {}, deps);
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'priya@acme.design' }] }), {}, deps);
+    const r = await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'PRIYA@acme.design' }, { email: 'new@acme.design' }, { email: 'new@acme.design' }, { email: 'not an email' }] }), {}, deps);
     expect((await r.json()).results.map((x: { status: string }) => x.status)).toEqual(['already', 'sent', 'failed']);
     expect(sent).toHaveLength(2);
     const many = Array.from({ length: 11 }, (_, i) => ({ email: `p${i}@acme.design` }));
@@ -340,20 +340,20 @@ describe('invite token lifecycle', () => {
 
   it('sends the invitee to GitHub when the app cannot accept for them', async () => {
     const { deps, sent } = setup({ acceptStatus: 403 });
-    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'priya@acme.design' }] }), {}, deps);
     expect(await accept(deps, tokenOf(sent[0]!))).toEqual({ status: 'accept-on-github', repo: REPO, role: 'edit', acceptUrl: 'https://github.com/acme/design/invitations' });
   });
 
   it('a reviewer who accepts gets push and a pull request listing them as owner', async () => {
     const { deps, sent, w } = setup();
-    await handleInvites(post({ action: 'invite', repo: REPO, role: 'reviewer', reviewAs: 'design', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'reviewer', reviewAs: 'design', people: [{ email: 'priya@acme.design' }] }), {}, deps);
     expect(sent[0]!.text).toContain('Your role: Reviewer: design. Also approves changes before they ship.');
     const a = await accept(deps, tokenOf(sent[0]!));
     expect(a).toMatchObject({ status: 'joined', role: 'reviewer', reviewAs: 'design', ownersPr: { number: 12 } });
     const file = w.calls.find((c) => c.method === 'PUT' && c.path.endsWith('/contents/bridge.config.json'))!;
-    expect(file.body.branch).toMatch(/^bridge\/members-sofia-[a-f0-9]{6}$/);
-    expect(Buffer.from(file.body.content, 'base64').toString()).toContain('"design": ["dana", "sofia"]');
-    expect(w.calls.find((c) => c.path.endsWith('/pulls'))!.body).toMatchObject({ title: 'Settings: make @sofia a design reviewer', base: 'main' });
+    expect(file.body.branch).toMatch(/^bridge\/members-priya-[a-f0-9]{6}$/);
+    expect(Buffer.from(file.body.content, 'base64').toString()).toContain('"design": ["dana", "priya"]');
+    expect(w.calls.find((c) => c.path.endsWith('/pulls'))!.body).toMatchObject({ title: 'Settings: make @priya a design reviewer', base: 'main' });
   });
 });
 
@@ -420,8 +420,8 @@ describe('roles and removal', () => {
 
 describe('editOwners', () => {
   it('rewrites only the changed one-line arrays', () => {
-    const out = editOwners(CONFIG, 'sofia', { tech: true });
-    expect(out).toBe(CONFIG.replace('"tech": ["@malik"]', '"tech": ["@malik", "sofia"]'));
+    const out = editOwners(CONFIG, 'priya', { tech: true });
+    expect(out).toBe(CONFIG.replace('"tech": ["@malik"]', '"tech": ["@malik", "priya"]'));
     expect(editOwners(CONFIG, 'MALIK', { tech: false })).toBe(CONFIG.replace('"tech": ["@malik"]', '"tech": []'));
     expect(editOwners(CONFIG, 'dana', { design: true })).toBe(CONFIG);
   });
@@ -603,7 +603,7 @@ describe('daily caps', () => {
 describe('resend frequency', () => {
   it('waits between two sends of the same invite', async () => {
     const { deps, sent, store, tick } = setup();
-    await invite(deps, ['sofia@acme.design']);
+    await invite(deps, ['priya@acme.design']);
     const [inv] = await store.list(REPO);
     tick(RESEND_COOLDOWN_MS - 60_000);
     const r = await handleInvites(post({ action: 'resend', repo: REPO, id: inv!.id }), {}, deps);
@@ -619,7 +619,7 @@ describe('resend frequency', () => {
     let fail = false;
     const { deps, sent, store, tick } = setup({}, {});
     deps.email = { send: async (msg) => (fail ? Promise.reject(new Error('down')) : void sent.push(msg)) };
-    await invite(deps, ['sofia@acme.design']);
+    await invite(deps, ['priya@acme.design']);
     const [inv] = await store.list(REPO);
     const resend = () => handleInvites(post({ action: 'resend', repo: REPO, id: inv!.id }), {}, deps);
     tick(RESEND_COOLDOWN_MS);
@@ -639,7 +639,7 @@ describe('resend frequency', () => {
   it('counts resends toward the admin cap', async () => {
     const { deps, store, tick } = setup();
     const env = { INVITES_MAX_PER_ADMIN_DAY: '1' };
-    await invite(deps, ['sofia@acme.design'], env);
+    await invite(deps, ['priya@acme.design'], env);
     const [inv] = await store.list(REPO);
     tick(RESEND_COOLDOWN_MS);
     const r = await handleInvites(post({ action: 'resend', repo: REPO, id: inv!.id }), env, deps);
@@ -653,21 +653,21 @@ describe('what is kept, and for how long', () => {
 
   it('keeps only the fields the flow needs', async () => {
     const { deps, store } = setup();
-    await invite(deps, ['sofia@acme.design']);
+    await invite(deps, ['priya@acme.design']);
     const [inv] = await store.list(REPO);
     expect(Object.keys(inv!).sort()).toEqual(['createdAt', 'email', 'expiresAt', 'id', 'invitedBy', 'invitedByName', 'repo', 'role', 'sentAt', 'tokenHash']);
   });
 
   it("keeps the inviter's display name: GitHub profile name, else Bridge account name, else the login", async () => {
     const { deps, store } = setup();
-    await invite(deps, ['sofia@acme.design']);
+    await invite(deps, ['priya@acme.design']);
     expect((await store.list(REPO))[0]).toMatchObject({ invitedBy: 'dana', invitedByName: 'Dana' });
 
     // No GitHub profile name: the Bridge account linked to that GitHub id.
     const a = setup({ users: { ghu_kim01: { login: 'kim', id: 44 } } as never });
     const asked: number[] = [];
     a.deps.accountName = async (id) => (asked.push(id), id === 44 ? 'Kim Park' : null);
-    await invite(a.deps, ['sofia@acme.design'], {}, 'ghu_kim01');
+    await invite(a.deps, ['priya@acme.design'], {}, 'ghu_kim01');
     expect((await a.store.list(REPO))[0]).toMatchObject({ invitedBy: 'kim', invitedByName: 'Kim Park' });
     expect(asked).toEqual([44]);
     expect(a.sent[0]!.text).toContain('Kim Park');
@@ -677,13 +677,13 @@ describe('what is kept, and for how long', () => {
     b.deps.accountName = async () => {
       throw new Error('down');
     };
-    await invite(b.deps, ['sofia@acme.design'], {}, 'ghu_kim01');
+    await invite(b.deps, ['priya@acme.design'], {}, 'ghu_kim01');
     expect((await b.store.list(REPO))[0]).toMatchObject({ invitedBy: 'kim', invitedByName: 'kim' });
   });
 
   it('deletes the record and its link on accept', async () => {
     const { deps, sent, store } = setup();
-    await invite(deps, ['sofia@acme.design']);
+    await invite(deps, ['priya@acme.design']);
     expect(inviteKeys(store.keys())).toHaveLength(2);
     await accept(deps, tokenOf(sent[0]!));
     expect(inviteKeys(store.keys())).toEqual([]);
@@ -691,7 +691,7 @@ describe('what is kept, and for how long', () => {
 
   it('deletes the record and its link on cancel', async () => {
     const { deps, store } = setup();
-    await invite(deps, ['sofia@acme.design']);
+    await invite(deps, ['priya@acme.design']);
     const [inv] = await store.list(REPO);
     await handleInvites(post({ action: 'cancel', repo: REPO, id: inv!.id }), {}, deps);
     expect(inviteKeys(store.keys())).toEqual([]);
@@ -699,7 +699,7 @@ describe('what is kept, and for how long', () => {
 
   it('lets the record and its link expire with the invite, and the counters a day later', async () => {
     const { deps, store, tick } = setup();
-    await invite(deps, ['sofia@acme.design']);
+    await invite(deps, ['priya@acme.design']);
     tick(INVITE_TTL_MS - 1000);
     expect(inviteKeys(store.keys())).toHaveLength(2);
     tick(1000);
@@ -711,19 +711,19 @@ describe('what is kept, and for how long', () => {
 
   it('keeps the team and the inviter of a spent link, never the email', async () => {
     const { deps, sent, store } = setup();
-    await invite(deps, ['sofia@acme.design']);
+    await invite(deps, ['priya@acme.design']);
     const hash = createHash('sha256').update(tokenOf(sent[0]!)).digest('hex');
     await accept(deps, tokenOf(sent[0]!));
     expect(await store.byTokenHash(hash)).toBeNull();
     const trace = await store.traceByTokenHash(hash);
     expect(trace).toEqual({ repo: REPO, invitedBy: expect.any(String) });
-    expect(JSON.stringify(trace)).not.toContain('sofia');
+    expect(JSON.stringify(trace)).not.toContain('priya');
   });
 
   it('never logs an email or a token', async () => {
     const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((k) => vi.spyOn(console, k).mockImplementation(() => {}));
     const { deps, sent } = setup({}, { email: { send: async (m) => void sent.push(m) } });
-    await invite(deps, ['sofia@acme.design', 'bad email']);
+    await invite(deps, ['priya@acme.design', 'bad email']);
     await accept(deps, tokenOf(sent[0]!));
     for (const s of spies) {
       expect(s).not.toHaveBeenCalled();
@@ -781,7 +781,7 @@ describe('email contributors in Members', () => {
 
   it('the email uses bridge.config.json name when the team set one', async () => {
     const { deps, sent } = setup({ config: CONFIG.replace('"version": 1,', '"version": 1,\n  "name": "Acme Studio",') });
-    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'priya@acme.design' }] }), {}, deps);
     expect(sent[0]!.subject).toBe('Dana invited you to Acme Studio on Bridge');
   });
 
@@ -802,10 +802,10 @@ describe('email contributors in Members', () => {
 
   it('joining with GitHub drops an email membership of the same address', async () => {
     const members = memberStore(memoryRedis());
-    await members.put(REPO, { email: 'sofia@acme.design', name: 'Sofia', role: 'edit', version: 1, addedBy: 'dana', at: '' });
+    await members.put(REPO, { email: 'priya@acme.design', name: 'Priya', role: 'edit', version: 1, addedBy: 'dana', at: '' });
     const { deps, sent } = setup({}, { members });
-    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'sofia@acme.design' }] }), {}, deps);
+    await handleInvites(post({ action: 'invite', repo: REPO, role: 'edit', people: [{ email: 'priya@acme.design' }] }), {}, deps);
     expect(await accept(deps, tokenOf(sent[0]!))).toMatchObject({ status: 'joined' });
-    expect(await members.get(REPO, 'sofia@acme.design')).toBeNull();
+    expect(await members.get(REPO, 'priya@acme.design')).toBeNull();
   });
 });
