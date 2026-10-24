@@ -204,6 +204,40 @@ test('measured only: a positioned part (a pseudo-element knob) follows its offse
   assert.deepEqual([knobOf('false').x, knobOf('true').x], [3, 27]);
 });
 
+test('measured only: booleans every story sets are how the component is shown, and an axis that draws nothing goes', () => {
+  const m = fixture();
+  const base = m.stories.find((s) => s.title.endsWith('/Card') && s.spec)!;
+  const story = (props: Record<string, unknown>, state?: 'hover', fill = state ? 'rgb(1, 83, 233)' : 'rgb(15, 98, 254)') => ({
+    ...base,
+    id: `icon-button-${JSON.stringify(props)}-${state}`,
+    name: 'Default',
+    title: 'Components/IconButton',
+    props: { highContrast: true, ...props },
+    state,
+    spec: { ...base.spec!, parts: [{ id: 'root', name: 'Root', kind: 'frame' as const }], values: { root: { fill, width: props.size === 'lg' ? 48 : 40, height: 40 } }, raw: {} },
+  });
+  // Carbon: every story sets highContrast; an inputMode-like prop changes nothing, and its default has no hover story
+  // (NumberInput): the other values stand in for it.
+  m.stories = [
+    story({ size: 'sm', mode: 'none' }),
+    story({ size: 'lg', mode: 'none' }),
+    story({ size: 'sm', mode: 'tel' }),
+    story({ size: 'sm', mode: 'url' }),
+    story({ size: 'sm', mode: 'tel' }, 'hover'),
+    story({ size: 'sm', mode: 'url' }, 'hover'),
+  ];
+  m.components = [
+    {
+      title: 'Components/IconButton',
+      name: 'IconButton',
+      argTypes: { highContrast: { kind: 'boolean', default: false }, size: { kind: 'enum', options: ['sm', 'lg'] }, mode: { kind: 'enum', options: ['none', 'tel', 'url'], default: 'none' } },
+    },
+  ];
+  const { specs, report } = specsFromMeasure(m);
+  assert.deepEqual(report.skipped, []);
+  assert.deepEqual(axesOf(specs.components[0]!), ['Size=sm|lg', 'State=Default|Hover']);
+});
+
 test('measured only with screenshots: each variant keeps the render of the story it was built from', () => {
   const m = fixture();
   m.stories = m.stories.filter((s) => s.title.endsWith('/Tabs'));
