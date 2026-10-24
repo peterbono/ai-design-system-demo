@@ -1616,7 +1616,7 @@ function removeClaudeKey(): void {
   void run('Removing the key', async () => {
     await request('clear-claude-key', {});
     await loadInit();
-    state.claudeMessage = { kind: 'ok', text: 'Key removed from this computer. Draft with Claude still works with your Claude plan, set up above.' };
+    state.claudeMessage = { kind: 'ok', text: 'Key removed. Draft with Claude now uses your own Claude app once it is connected in Settings.' };
   });
 }
 

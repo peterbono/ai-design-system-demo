@@ -63,7 +63,7 @@ The manifest allows `https://api.github.com` and, for the optional "Draft with C
 
 ## Writing help: drafts, optionally written by Claude
 
-Designers should not have to document every change by hand. Four levels, in this order on screen:
+Designers should not have to document every change by hand. Three levels, in this order on screen:
 
 1. **Plugin draft (always on, no AI, offline).** The request form prefills its title and summary, and the Push
    **Description** prefills, from the detected changes only (`draftRequestText` and `draftPushDescription` in
@@ -85,20 +85,12 @@ Designers should not have to document every change by hand. Four levels, in this
    **Use Claude's draft**. The file and its images are deleted once you send or cancel. Setup (once) is in
    Settings, **Claude (optional)**: the Claude Desktop config and the Claude Code command for this repository, with
    the same GitHub token (`GITHUB_TOKEN`, Contents read and write). See [docs/AI.md](../../docs/AI.md).
-3. **Copy for Claude (always on, no key).** A ghost button under the request summary and the Push Description copies
-   a ready prompt (the Bridge voice rules, the component, the kind, the change table in Markdown, the plugin draft,
-   your own notes, and "return only `{"title": ..., "summary": ...}`") to paste into Claude.ai or Claude Desktop
-   with your own Claude plan; you can attach before and after screenshots there. Third-party apps cannot use a
-   Claude.ai subscription, so this is the way to use it without API credits. **Paste Claude's answer** takes the
-   reply (plain JSON, fenced JSON or JSON inside text), removes em dashes, keeps the title to 70 characters and the
-   summary to 3 sentences, and fills the fields. When the Figma iframe blocks the clipboard, the prompt is shown
-   to copy by hand.
-4. **Draft with Claude, API key (only with your own Anthropic API key, billed to your Anthropic account).** Settings,
+3. **Draft with Claude, API key (only with your own Anthropic API key, billed to your Anthropic account).** Settings,
    **Claude (optional)**: paste a key from [console.anthropic.com](https://console.anthropic.com/settings/keys) and
    pick a model (Claude Sonnet 5.5 by default, or Claude Opus 5.5, Claude Haiku 5.5). The key is stored with
    `figma.clientStorage` like the GitHub token: on this computer only, never in the file, never shown again, and
    only sent to `api.anthropic.com` ("Remove key" deletes it). With a key, a **Draft with Claude (API key)** button appears
-   next to Copy for Claude. The UI iframe calls the Messages API directly (`anthropic-dangerous-direct-browser-access`)
+   next to Draft with my Claude. The UI iframe calls the Messages API directly (`anthropic-dangerous-direct-browser-access`)
    with the change table and, for a request, the component's before image (a small PNG stored in private plugin data
    when its baseline is taken) and after image (the current export), skipping either when missing. Without a key the
    button does not show. Claude's text is marked "Drafted by Claude, review before sending" until you edit it.
@@ -662,7 +654,7 @@ apps/figma-plugin/
     components.ts        component signatures, diff, classification (changed, new, Figma-only)
     component-pull.ts    pull components: load component-specs.json, plan sets and bindings (main/build-components.ts builds them)
     requests.ts          send a component change request (image on bridge-requests, then the issue)
-    claude.ts            writing help: Copy for Claude prompt, answer parsing, the Messages API call (user's key)
+    claude.ts            writing help: the Messages API call (user's key), answer parsing
   test/                  end-to-end pull/edit/push flows against an in-memory GitHub and a simulated
                          Figma (single and split layouts), including the PR #4 contrast regressions
 ```
