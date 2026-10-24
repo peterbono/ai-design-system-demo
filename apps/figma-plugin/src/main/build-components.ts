@@ -55,6 +55,8 @@ export function reasonOf(err: unknown): string {
 function isGenerated(n: BaseNode): boolean {
   if (n.type === 'COMPONENT_SET') return !!n.getSharedPluginData(NS, 'componentId');
   if (n.type === 'COMPONENT') return !!(n.getSharedPluginData(NS, 'iconId') || n.getSharedPluginData(NS, 'slotId'));
+  // A set's doc section (documentSet).
+  if (n.type === 'SECTION') return !!n.getSharedPluginData(NS, 'docFor');
   return false;
 }
 
@@ -1225,7 +1227,13 @@ async function ensureParts(plan: ComponentPullPlan, ctx: Ctx, report: ComponentA
  * as its tallest variant and each column as wide as its widest, with the same gap between all of them, so rows of
  * different sizes (sm, md, lg) are evenly spaced.
  */
-export function layoutVariants(set: ComponentSetNode, comp: PlannedComponent): void {
+/** Where layoutVariants put the grid, in the set: column and row offsets and sizes, with each row's axis values. */
+export interface VariantGrid {
+  columns: { label: string; x: number; width: number }[];
+  rows: { label: string; y: number; height: number }[];
+}
+
+export function layoutVariants(set: ComponentSetNode, comp: PlannedComponent): VariantGrid {
   const byKey = new Map(set.children.filter((c): c is ComponentNode => c.type === 'COMPONENT').map((c) => [c.getSharedPluginData(NS, 'variant'), c]));
   const last = comp.axes[comp.axes.length - 1];
   const cols = last ? last.values : ['Default'];
@@ -1259,6 +1267,78 @@ export function layoutVariants(set: ComponentSetNode, comp: PlannedComponent): v
   const orphanH = orphans.length ? Math.max(...orphans.map((o) => o.height)) + GAP : 0;
   const width = Math.max(cols.length ? xs[cols.length - 1]! + colW[cols.length - 1]! + GAP : GAP, x);
   set.resizeWithoutConstraints(Math.max(1, width), Math.max(1, gridH + orphanH));
+  const rowAxes = comp.axes.slice(0, -1);
+  return {
+    columns: last ? cols.map((value, i) => ({ label: `${last.name}: ${value}`, x: xs[i]!, width: colW[i]! })) : [],
+    rows: rows.map((key, i) => ({ label: rowAxes.map((a, j) => `${a.name}: ${key.split('|')[j]}`).join(' · '), y: ys[i]!, height: rowH[i]! })),
+  };
+}
+
+const DOC_KEY = 'docFor';
+const DOC_PAD = 48;
+
+/**
+ * The set's doc section on the Components page: its name, links to its story and docs, whether it is in sync with the
+ * code, and the values of each column and row of the grid. Made for a new set; kept up to date while the set stays in
+ * it. A set a designer moved elsewhere is left where it is.
+ */
+async function documentSet(set: ComponentSetNode, comp: PlannedComponent, ctx: Ctx, status: string): Promise<SectionNode | undefined> {
+  const parent = set.parent;
+  let section: SectionNode;
+  if (parent?.type === 'SECTION' && parent.getSharedPluginData(NS, DOC_KEY) === comp.componentId) section = parent;
+  else if (parent?.type === 'PAGE' && parent.name === PAGE_NAME) {
+    const [x, y] = [set.x, set.y];
+    const mark = created.mark();
+    try {
+      section = created.add(figma.createSection());
+      section.setSharedPluginData(NS, DOC_KEY, comp.componentId);
+      parent.appendChild(section);
+      section.x = x;
+      section.y = y;
+      section.appendChild(set);
+    } catch (err) {
+      // The set stays on the page where it was; nothing of the section is left.
+      if (set.parent !== parent) parent.appendChild(set);
+      set.x = x;
+      set.y = y;
+      created.rollback(mark);
+      throw err;
+    }
+  } else return undefined;
+  section.name = comp.name;
+  for (const n of [...section.children]) if (n !== set && n.getSharedPluginData(NS, 'doc') === '1') n.remove();
+  const grid = layoutVariants(set, comp);
+  const [bold, regular] = [await ctx.fonts.font(undefined, 600), await ctx.fonts.font(undefined, 400)];
+  const text = (characters: string, size: number, font: FontName, x: number, y: number, url?: string): TextNode => {
+    const t = make.text();
+    t.fontName = font;
+    t.fontSize = size;
+    t.characters = characters;
+    t.setSharedPluginData(NS, 'doc', '1');
+    if (url) t.hyperlink = { type: 'URL', value: url };
+    section.appendChild(t);
+    t.x = x;
+    t.y = y;
+    return t;
+  };
+  text(comp.name, 32, bold, DOC_PAD, DOC_PAD);
+  let x = DOC_PAD;
+  for (const [label, url] of [['Stories', comp.links?.stories], ['Docs', comp.links?.docs]] as const) {
+    if (!url) continue;
+    x += text(label, 14, regular, x, DOC_PAD + 48, url).width + 16;
+  }
+  text(status, 12, regular, DOC_PAD, DOC_PAD + 76);
+  const labels = grid.rows.map((r) => (r.label ? text(r.label, 12, regular, DOC_PAD, 0) : undefined));
+  const labelW = Math.max(0, ...labels.map((l) => (l ? l.width + 24 : 0)));
+  set.x = DOC_PAD + labelW;
+  set.y = DOC_PAD + 128;
+  for (const c of grid.columns) text(c.label, 12, regular, set.x + c.x, set.y - 24);
+  grid.rows.forEach((r, i) => {
+    const l = labels[i];
+    if (l) l.y = set.y + r.y + Math.max(0, (r.height - l.height) / 2);
+  });
+  section.resizeWithoutConstraints(set.x + set.width + DOC_PAD, set.y + set.height + DOC_PAD);
+  return section;
 }
 
 const componentsPage = () => pageFor(PAGE_NAME, 'components');
@@ -1511,8 +1591,16 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
     if (isNew) {
       const home = homeOf(comp.name, place.sets ?? [], place.page);
       if (home) moveHome(set, home);
-      else place.bottom = Math.max(place.bottom ?? 0, set.y + set.height);
     }
+    // Its doc section: name, links, sync status, the grid's values. Extra: a refusal leaves the set as built.
+    try {
+      const built = comp.variants.length - failed.length;
+      const section = await documentSet(set, comp, ctx, failed.length ? `Built in part: ${built} of ${comp.variants.length} variants. Pull again to build the rest.` : 'In sync with the code.');
+      if (isNew && section) place.bottom = Math.max(place.bottom ?? 0, section.y + section.height);
+    } catch (err) {
+      ctx.problems.push(`${comp.name}, doc section: ${errorText(err)}`);
+    }
+    if (isNew && set.parent?.type === 'PAGE') place.bottom = Math.max(place.bottom ?? 0, set.y + set.height);
     if (failed.length) {
       // Built in part: no spec hash, so the next pull plans it again and builds the variants left out.
       set.setSharedPluginData(NS, 'specHash', '');
