@@ -271,7 +271,7 @@ the preview lists each one under **Component updates**:
   not bindings (sizes, layout, set values) read "Values set from code".
 - **Update** on a row updates that set alone; **Update all** (the primary action) updates the rest with the variables.
   Variables stay all-or-nothing: if main has variable changes, Update on one set applies them first, so the set binds
-  to the variables it expects. New sets stay opt-in ("Also pull new components").
+  to the variables it expects. On a first pull new sets are included by default; later, new sets are opt-in ("Include components" next to Apply to Figma).
 
 Idempotent: a set is found again by shared plugin data (`dsbridge` / `componentId`), a variant by `variant`, a layer by
 `part`. A re-pull updates them in place (same node ids, so instances keep their overrides), adds new variants, and
