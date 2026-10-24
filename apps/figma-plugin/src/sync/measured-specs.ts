@@ -30,7 +30,7 @@ export interface MeasuredOverlayReport {
   fields: number;
   /** Static tokens kept where the measure read a literal of the same value (a border shorthand). */
   keptTokens: number;
-  /** Static tokens replaced by a measured literal of another value: code draws something no token says. */
+  /** Static tokens kept where the measure read a literal of another value: to check, never drawn as a number. */
   literals: number;
 }
 
@@ -97,8 +97,8 @@ function sameValue(resolved: string | undefined, measured: SpecValue): boolean {
  * The static specs with measured values laid on: for each variant a story matches (same component, same props, state
  * and overrides), each field the static spec has on a part the measure also drew (core pairParts) takes the measured
  * value. Fields only the measure has (a hugging width it read in px) are left out: the structure stays static. A static
- * token is kept where the measure read a literal of the same value (components[].resolved); a literal of another
- * value replaces it and is counted.
+ * token is never replaced by a literal: the same value (components[].resolved) is counted as kept, another value as a
+ * literal to check (a line height in px, a size the layout computed, a part paired with the wrong element).
  */
 export function overlayMeasured(specs: ComponentSpecsFile, measured: MeasuredSpecsFile): { specs: ComponentSpecsFile; report: MeasuredOverlayReport } {
   const report: MeasuredOverlayReport = { variants: 0, matched: 0, unmatched: 0, fields: 0, keptTokens: 0, literals: 0 };
@@ -132,12 +132,12 @@ export function overlayMeasured(specs: ComponentSpecsFile, measured: MeasuredSpe
           const before = fields[field] as SpecValue;
           const value = mv[field] as SpecValue;
           if (value === before) continue;
+          // A static token never becomes a number: the measure read a literal (a border shorthand, a line height in
+          // px, a size the layout computed) where the code binds a token. Kept, and counted when the values differ.
           if (typeof before === 'string' && value !== null && typeof value !== 'string') {
-            if (sameValue(resolved[before], value)) {
-              report.keptTokens++;
-              continue;
-            }
-            report.literals++;
+            if (sameValue(resolved[before], value)) report.keptTokens++;
+            else report.literals++;
+            continue;
           }
           next[field] = value;
           report.fields++;

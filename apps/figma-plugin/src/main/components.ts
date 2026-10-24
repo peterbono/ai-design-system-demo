@@ -116,7 +116,7 @@ const fits = (v: Variable, kind: string) =>
 class Reader {
   private names = new Map<string, Variable | null>();
   private styles = new Map<string, string>();
-  private locals: Promise<{ variable: Variable; primitive: boolean }[]> | undefined;
+  private locals: Promise<{ variable: Variable; primitive: boolean; component: boolean }[]> | undefined;
   /** Values set by hand of the component read last, per variant key: what `matches` looks at. */
   spots = new Map<string, RawSpot[]>();
 
@@ -127,12 +127,15 @@ class Reader {
   }
 
   /** Local variables that may hold a value set by hand; primitives last, so a role ("radius/control") is offered first. */
-  private variables(): Promise<{ variable: Variable; primitive: boolean }[]> {
+  private variables(): Promise<{ variable: Variable; primitive: boolean; component: boolean }[]> {
     this.locals ??= (async () => {
       const collections = new Map((await figma.variables.getLocalVariableCollectionsAsync()).map((c) => [c.id, c.name]));
       const all = await figma.variables.getLocalVariablesAsync();
       return all
-        .map((variable) => ({ variable, primitive: /primitive/i.test(collections.get(variable.variableCollectionId) ?? '') }))
+        .map((variable) => {
+          const collection = collections.get(variable.variableCollectionId) ?? '';
+          return { variable, primitive: /primitive/i.test(collection), component: /component/i.test(collection) };
+        })
         .sort((a, b) => Number(a.primitive) - Number(b.primitive));
     })();
     return this.locals;
@@ -145,6 +148,9 @@ class Reader {
    */
   async matches(baseline: ComponentSignature, now: ComponentSignature): Promise<Record<string, string[]> | undefined> {
     const out: Record<string, string[]> = {};
+    // Another component's own tokens (checkbox/radius on a Tag) are not offered: binding one ties this set to it. The
+    // variable the property used before always is (IconButton paints with button/*).
+    const own = (now.name.split('/')[0] ?? '').replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
     for (const [key, spots] of this.spots) {
       const b = baseline.variants[key];
       const c = now.variants[key];
@@ -153,7 +159,10 @@ class Reader {
         const gone = (b.bindings[kind] ?? []).filter((v) => !(c.bindings[kind] ?? []).includes(v));
         const fresh = gone.length ? newRawValues(b, c, kind) : [];
         // The variable it used before comes first: binding it back is what most hand edits mean.
-        const ranked = (await this.variables()).map((x) => x.variable).sort((x, y) => Number(gone.includes(y.name)) - Number(gone.includes(x.name)));
+        const ranked = (await this.variables())
+          .filter((x) => !x.component || x.variable.name.split('/')[0] === own || gone.includes(x.variable.name))
+          .map((x) => x.variable)
+          .sort((x, y) => Number(gone.includes(y.name)) - Number(gone.includes(x.name)));
         for (const spot of spots.filter((s) => s.kind === kind && fresh.includes(s.value) && !out[rawKey(kind, s.value)])) {
           const names: string[] = [];
           for (const variable of ranked) {

@@ -85,6 +85,13 @@ describe('pure helpers', () => {
     expect(sanitizeDraftText({ title: 3, summary: null })).toEqual({ title: '', summary: '' });
   });
 
+  it('sanitize: a dot inside a token path is not the end of a sentence', () => {
+    // Seen in real Figma: "tag.bg" and "color.bg.subtle" cut the summary into fragments ("subtle, so it reads ... bg.").
+    const summary = 'The neutral sm tag fill moves from tag.bg to color.bg.subtle, so it reads lighter on dense tables. Other tones and sizes keep tag.bg.';
+    expect(sanitizeDraftText({ summary }).summary).toBe(summary);
+    expect(sanitizeDraftText({ summary: 'Uses space.2. Then space.3. Then space.4. Then space.5.' }).summary).toBe('Uses space.2. Then space.3. Then space.4.');
+  });
+
   it('merge: sanitized results replace earlier ones; drafted once every item has one; unknown ids refused', () => {
     const p = composePendingDrafts({ items: [item, push], sessionId: 'session01', now: NOW });
     const one = mergeDraftResults(p, [{ id: 'item-1', title: `Add a danger tone ${EM} for tables.`, summary: 'Badge gets danger.' }], NOW);

@@ -292,7 +292,8 @@ function clip(text: string, max: number): string {
 /** At most 3 sentences and 600 characters. */
 function sentences(text: string): string {
   const t = text.replace(/\s+/g, ' ').trim();
-  const parts = t.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g) ?? [t];
+  // A sentence ends at . ! or ? followed by a space or the end: a dot inside a token path (tag.bg) is not an end.
+  const parts = t.match(/.+?(?:[.!?]+(?=\s|$)|$)/g) ?? [t];
   let out = parts.slice(0, DRAFT_SUMMARY_SENTENCES).map((s) => s.trim()).join(' ');
   if (out.length > SUMMARY_MAX) out = `${clip(out, SUMMARY_MAX)}.`;
   return out;
