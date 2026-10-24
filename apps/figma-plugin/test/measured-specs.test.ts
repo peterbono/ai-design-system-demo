@@ -92,6 +92,17 @@ test('a story titled by the set wins over the folder title several sets share', 
   assert.equal(out.components.find((c) => c.name === 'RadioGroup')!.variants.every((v, i) => v === specs.components.find((c) => c.name === 'RadioGroup')!.variants[i]), true);
 });
 
+test('a mixed checkbox (indeterminate, checked false) stands for Checked=mixed, not false', () => {
+  const specs = parseComponentSpecs(specsText());
+  const m = measured();
+  m.stories = [{ ...m.stories[0]!, id: 'forms-checkbox--mixed', title: 'Forms/Checkbox', props: { label: 'Label', checked: false, indeterminate: true, disabled: false } }];
+  const { specs: out } = overlayMeasured(specs, m);
+  const before = specs.components.find((c) => c.name === 'Checkbox')!.variants;
+  const after = out.components.find((c) => c.name === 'Checkbox')!.variants;
+  const changed = after.filter((v, i) => v !== before[i]).map((v) => v.props.Checked);
+  assert.deepEqual(changed, ['mixed']);
+});
+
 test('a story without props, or with an error, matches nothing', () => {
   const specs = parseComponentSpecs(specsText());
   const noProps = measured();
