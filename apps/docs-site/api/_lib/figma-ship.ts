@@ -71,6 +71,19 @@ export function isFigmaPush(p: { labels?: readonly ({ name?: string } | string)[
   return l.includes(SOURCE_FIGMA_LABEL) || l.includes(FROM_FIGMA_LABEL) || hasOrigin(p.body);
 }
 
+/** core figmaPushOf: a library branch carrying a component spec (Claude draft) is code work, never shipped by itself. */
+export function isClaudeDraft(p: { labels?: readonly ({ name?: string } | string)[] | null; body?: string | null }): boolean {
+  const l = labelNames(p.labels);
+  if (l.includes('waiting-for-claude') || l.includes('drafted-by-claude')) return true;
+  const m = ORIGIN.exec(p.body ?? '');
+  if (!m) return false;
+  try {
+    return JSON.parse(m[1]!).route === 'claude-draft';
+  } catch {
+    return false;
+  }
+}
+
 export const isExploration = (labels: readonly ({ name?: string } | string)[] | null | undefined) => labelNames(labels).includes(EXPLORATION_LABEL);
 
 /** core figmaPushScope. */
@@ -88,6 +101,7 @@ export function figmaPushScope(files: readonly { path: string }[], tokenChanges:
   if (code) return 'component';
   if (tokenChanges?.some((c) => c.kind === 'renamed' || c.kind === 'removed')) return 'token-structure';
   if (tokenFiles && !tokenChanges) return 'token-unknown';
+  if (!tokenFiles || !tokenChanges?.length) return 'component';
   return 'token-values';
 }
 

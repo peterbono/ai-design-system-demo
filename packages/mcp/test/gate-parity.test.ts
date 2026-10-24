@@ -9,7 +9,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { approvedSuggestionNumber, closingIssueNumbers, GitHubClient, parseModelConfig, shipPolicy, siteRepoFromConfig, summarizeCi, type ReviewLike, type SuggestionGovernance } from '@bridge-ds/core';
+import { approvedSuggestionNumber, closingIssueNumbers, figmaPushOf, GitHubClient, tokenFileChanges, parseModelConfig, shipPolicy, siteRepoFromConfig, summarizeCi, type ReviewLike, type SuggestionGovernance } from '@bridge-ds/core';
 import { BridgeContext, branches, ops, studio, suggestions } from '../src/lib.js';
 import { runBranch } from '../../cli/src/branch.js';
 import type { RequestIO } from '../../cli/src/request.js';
@@ -111,7 +111,32 @@ beforeAll(async () => {
   pr.figmaWaiting = openPull(gh, { title: 'Button: add a lg size', files: DOC('i'), labels: ['from-figma', 'waiting-for-claude'], draft: true });
   pr.figmaDrafted = openPull(gh, { title: 'Button: add a xl size', files: DOC('j'), labels: ['from-figma', 'drafted-by-claude'], draft: true });
   review(gh, pr.figmaDrafted, 'theo', 'APPROVED');
+  // docs/BUILD-REQUESTS.md: a push from the Figma plugin is design-approved. Token values only: tech-approved too, it
+  // ships by itself. A token renamed or removed: the tech approval is still needed.
+  const radius = JSON.parse(files[RADIUS]!);
+  const [group, first] = firstToken(radius);
+  const values = structuredClone(radius);
+  values[group][first].$value = bumped(values[group][first].$value);
+  pr.figmaValues = openPull(gh, { title: 'Tokens: rounder radius', files: { [RADIUS]: `${JSON.stringify(values, null, 2)}\n` }, labels: ['tier-3', 'tokens', 'source: figma', 'from-figma'] });
+  const renamed = structuredClone(radius);
+  renamed[group][`${first}-renamed`] = renamed[group][first];
+  delete renamed[group][first];
+  pr.figmaRename = openPull(gh, { title: 'Tokens: rename a radius', files: { [RADIUS]: `${JSON.stringify(renamed, null, 2)}\n` }, labels: ['tier-3', 'tokens', 'breaking', 'source: figma'] });
 }, 60000);
+
+const RADIUS = 'packages/tokens/src/primitives/radius.tokens.json';
+
+/** The first token of a token file: its group and name (a node with $value two levels down). */
+function firstToken(doc: Record<string, any>): [string, string] {
+  for (const [g, v] of Object.entries(doc)) {
+    if (g.startsWith('$') || !v || typeof v !== 'object') continue;
+    for (const [k, t] of Object.entries(v as Record<string, any>)) if (t && typeof t === 'object' && '$value' in t) return [g, k];
+  }
+  throw new Error(`No token two levels down in ${RADIUS}`);
+}
+
+/** Another value of the same shape: a dimension one more, anything else a changed string. */
+const bumped = (v: any) => (v && typeof v === 'object' && typeof v.value === 'number' ? { ...v, value: v.value + 1 } : typeof v === 'number' ? v + 1 : `${String(v)}-x`);
 
 /** What Studio reads for one pull request (scripts/pr-status.ts and scripts/reviews.ts), then its verdict. */
 async function studioReads(n: number, viewer: string | null) {
@@ -135,7 +160,15 @@ async function studioReads(n: number, viewer: string | null) {
   }
   const tier = effectiveTier(pull.labels, pull.body, files);
   const ci = summarizeCi(runs.check_runs, status.statuses);
-  return studioVerdict({ site, pull, tier, ci, reviews, suggestion, mergeable: pull.mergeable, viewer, ship: shipPolicy(site.owners, site.rights) });
+  // A push from the Figma plugin, read the way Studio's branch page reads it: the token files at main and at the head.
+  const raw = async (p: string, ref: string) => {
+    const r = await gh.fetch(`https://api.github.com/repos/${FULL}/contents/${encodeURIComponent(p)}?ref=${ref}`, { headers: { accept: 'application/vnd.github.raw' } });
+    return r.ok ? r.text() : null;
+  };
+  const tokenFiles = files.filter((f) => f.filename.endsWith('.tokens.json'));
+  const tokenChanges = tokenFileChanges(await Promise.all(tokenFiles.map(async (f) => ({ before: f.status === 'added' ? null : await raw(f.filename, 'main'), after: f.status === 'removed' ? null : await raw(f.filename, pull.head.sha) }))));
+  const figmaPush = figmaPushOf({ labels: pull.labels, body: pull.body }, { files: files.map((f) => ({ path: f.filename, status: f.status })), tokenChanges, config: parsed.config });
+  return studioVerdict({ site, pull, tier, ci, reviews, suggestion, mergeable: pull.mergeable, viewer, ship: shipPolicy(site.owners, site.rights), figmaPush });
 }
 
 function cliIO(viewer: string | null) {
@@ -225,6 +258,37 @@ describe('the same fixture pull requests give the same verdict in Studio, the MC
     expect(r.approvalNeeded).toBe('Design and tech approval');
     const t1 = (await branches.branchStatus(await as('ann'), { pr: pr.t1NotOwner! })) as any;
     expect(t1.approvalNeeded).toBe('One owner approval');
+  });
+});
+
+describe('a push from the Figma plugin reads the same in Studio, the MCP server and the CLI', () => {
+  for (const [name, want] of [
+    ['figmaValues', { status: 'ready', autoShip: true }],
+    ['figmaRename', { status: 'needs-tech', autoShip: false }],
+  ] as const) {
+    it(`${name}: ${want.status}${want.autoShip ? ', ships by itself' : ''}`, async () => {
+      for (const viewer of VIEWERS) {
+        const m = (await branches.branchStatus(await as(viewer), { pr: pr[name]! })) as any;
+        const c = await cliStatus(pr[name]!, viewer);
+        const view = (r: any) => ({ status: r.status.kind, allowed: r.merge.allowed, reasons: r.merge.blockedBy, fromFigma: r.fromFigma });
+        expect(view(c), `CLI vs MCP, viewer ${viewer}`).toEqual(view(m));
+        const v = await verdicts(pr[name]!, viewer);
+        expect(v.mcp, `MCP vs Studio, viewer ${viewer}`).toEqual(v.studio);
+        expect((await studioReads(pr[name]!, viewer)).autoShip).toBe(want.autoShip);
+        expect(m.status.kind).toBe(want.status);
+        expect(m.fromFigma.shipsByItself).toBe(want.autoShip);
+        expect(m.approvals.design).toBe(true);
+        expect(m.approvals.tech).toBe(want.autoShip);
+      }
+    });
+  }
+
+  it('leaves a token push that ships by itself out of what needs me, keeps a rename for the tech owner', async () => {
+    const theo = (await branches.whatNeedsMe(await as('theo'), { limit: 50 })) as any;
+    expect(theo.branches.some((b: any) => b.pr === pr.figmaValues)).toBe(false);
+    expect(theo.branches.find((b: any) => b.pr === pr.figmaRename)?.needsYou).toBe('Your tech approval');
+    const ann = (await branches.whatNeedsMe(await as('ann'), { limit: 50 })) as any;
+    expect(ann.branches.find((b: any) => b.pr === pr.figmaRename)?.needsYou).toBeNull();
   });
 });
 

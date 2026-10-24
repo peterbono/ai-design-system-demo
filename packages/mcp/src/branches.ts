@@ -65,6 +65,13 @@ import {
   branchVerdict,
   closingIssueNumbers,
   eligibleReviewers,
+  figmaPushOf,
+  isBuildRequestIssue,
+  isFigmaPush,
+  SOURCE_FIGMA_LABEL,
+  tokenFileChanges,
+  type FigmaPush,
+  type PullRequestFile,
   hasOwnerApproval,
   overrideReasonMin,
   type SuggestionGovernance,
@@ -136,6 +143,50 @@ export async function viewerOf(ctx: BridgeContext, gh: GitHubClient): Promise<st
   return gh.getViewer().then((v) => v.login, () => null);
 }
 
+/**
+ * The Figma push facts of a pull request (docs/BUILD-REQUESTS.md), read the way Studio reads them: only for a push
+ * from the Figma plugin (labels or the "From Figma" block) or the pull request of a build request sent from Figma
+ * (its body closes one labeled source: figma). The token changes come from the token files at the base and the head,
+ * never from the body; a renamed token file, or a read that fails, leaves them unknown (tech approval still needed).
+ */
+export async function figmaPushFacts(
+  gh: GitHubClient,
+  config: BridgeConfig,
+  pr: { labels: string[]; body: string; baseRef: string; headSha: string },
+  files: PullRequestFile[],
+  base: string | null | undefined,
+): Promise<FigmaPush | null> {
+  let closesFigmaBuildRequest = false;
+  if (!isFigmaPush(pr)) {
+    for (const k of closingIssueNumbers(pr.body).slice(0, 3)) {
+      const issue = await gh.getIssue(k).catch(() => null);
+      if (issue && isBuildRequestIssue(issue.labels) && issue.labels.includes(SOURCE_FIGMA_LABEL)) {
+        closesFigmaBuildRequest = true;
+        break;
+      }
+    }
+    if (!closesFigmaBuildRequest) return null;
+  }
+  const root = config.tokens.root.replace(/\/+$/, '');
+  const tokenFiles = files.filter((f) => f.filename.endsWith('.tokens.json') || (f.filename.startsWith(`${root}/`) && f.filename.endsWith('.json')));
+  let tokenChanges: ReturnType<typeof tokenFileChanges> | null = null;
+  if (!tokenFiles.some((f) => f.status === 'renamed')) {
+    try {
+      const from = base ?? pr.baseRef;
+      const pairs = await Promise.all(
+        tokenFiles.map(async (f) => ({
+          before: f.status === 'added' ? null : ((await gh.getFileText(f.filename, from)) ?? null),
+          after: f.status === 'removed' ? null : ((await gh.getFileText(f.filename, pr.headSha)) ?? null),
+        })),
+      );
+      tokenChanges = tokenFileChanges(pairs);
+    } catch {
+      tokenChanges = null;
+    }
+  }
+  return figmaPushOf({ labels: pr.labels, body: pr.body }, { files: files.map((f) => ({ path: f.filename, status: f.status })), tokenChanges, config, closesFigmaBuildRequest });
+}
+
 /** Everything Studio reads about one branch to paint its header and decide its actions. */
 export async function branchFacts(ctx: BridgeContext, gh: GitHubClient, n: number, viewer: string | null) {
   const { config } = await ctx.config();
@@ -166,16 +217,18 @@ export async function branchFacts(ctx: BridgeContext, gh: GitHubClient, n: numbe
   const exploration = isActiveExploration(pr.labels);
   // The pull request that applies an approved suggestion ("Closes #n") carries its approvals, as in Studio.
   const suggestion = closingIssueNumbers(pr.body).length ? await approvedSuggestionOnGitHub(gh, pr.body, who.gov) : null;
+  // A push from the Figma plugin is design-approved, token values only tech-approved too (core withFigmaPushApprovals).
+  const figmaPush = pr.state === 'open' ? await figmaPushFacts(gh, config, pr, files, compare?.mergeBase).catch(() => null) : null;
   // One verdict (core branchVerdict), the one Studio's branch page and status chips read: Tier 1 needs one owner
   // approval, the override is for its owner holders only, an applied suggestion's approvals carry.
-  const verdict = branchVerdict({ tier, ci, approvals: own, suggestion, owners: who.lists, override: config.governance.override ?? DEFAULT_OVERRIDE, mergeable: pr.mergeable, ...pullLike, viewer, exploration, ship: who.ship });
+  const verdict = branchVerdict({ tier, ci, approvals: own, suggestion, owners: who.lists, override: config.governance.override ?? DEFAULT_OVERRIDE, mergeable: pr.mergeable, ...pullLike, viewer, exploration, ship: who.ship, figmaPush });
   const approvals = verdict.approvals!;
   const gate = verdict.gate!;
   const status: ReviewStatusKind = verdict.status;
   const override = verdict.override ?? DEFAULT_OVERRIDE;
   const fresh = freshness({ compare: compare ? { behind_by: compare.behindBy, merge_base_commit: compare.mergeBase ? { sha: compare.mergeBase } : null } : null, mergeable: pr.mergeable, open: pr.state === 'open' });
   const product = productOfBranch(productsOf(config), { files: files.map((f) => f.filename), labels: pr.labels });
-  return { config, pr, files, ci, approvals, tier, gate, status, override, suggestion, fresh, compare, exploration, product, lifecycle: pullState(pullLike), write: repo ? hasWriteAccess(repo.permissions) : null, repo, solo: who.solo, lists: who.lists };
+  return { config, pr, files, ci, approvals, tier, gate, status, override, suggestion, fresh, compare, exploration, product, lifecycle: pullState(pullLike), write: repo ? hasWriteAccess(repo.permissions) : null, repo, solo: who.solo, lists: who.lists, figmaPush, autoShip: verdict.autoShip };
 }
 
 // The status words Studio shows too (core REVIEW_STATUS_LABEL): one derivation (reviewStatusKind), one vocabulary.
@@ -206,8 +259,16 @@ export async function branchStatus(ctx: BridgeContext, a: { pr: number | string 
       blockedBy: f.gate.reasons,
       ...(viewer ? { you: viewer, youCanShip: f.gate.canShip, ownerOverride: f.gate.overridable } : { you: null, note: 'Without a GitHub token Bridge cannot tell whether you may merge.' }),
     },
+    ...(f.figmaPush ? { fromFigma: { scope: f.figmaPush.scope, shipsByItself: f.autoShip, said: figmaSaid(f.figmaPush, f.autoShip) } } : {}),
     next: nextStep(ctx, f, viewer),
   };
+}
+
+/** One sentence on what a push from Figma means for this branch (docs/BUILD-REQUESTS.md). */
+function figmaSaid(push: FigmaPush, autoShip: boolean): string {
+  if (autoShip) return 'Pushed from Figma, token values only: Bridge merges it by itself once the automatic checks pass. Nobody needs to review it.';
+  if (push.scope === 'outside') return 'Pushed from Figma, but it changes a guardrail file: it is reviewed like any branch.';
+  return 'Pushed from Figma, so the design is approved. It still needs the tech approval: it renames or removes a token, changes code, or its token changes could not be read.';
 }
 
 function nextStep(ctx: BridgeContext, f: Awaited<ReturnType<typeof branchFacts>>, viewer: string | null): string {
@@ -215,6 +276,7 @@ function nextStep(ctx: BridgeContext, f: Awaited<ReturnType<typeof branchFacts>>
   if (f.lifecycle === 'merged') return 'Merged. It goes out with the next library release.';
   if (f.lifecycle === 'closed') return `Closed without merging. ${say(ctx, 'bridge_reopen_branch reopens it', `\`bridge branch reopen ${n}\` reopens it`)} when its work is still there.`;
   if (f.exploration) return `It is an exploration: promote it with ${say(ctx, 'bridge_promote_exploration', `\`bridge explore promote #${n}\``)} when the idea is validated, or close it.`;
+  if (f.autoShip && !f.gate.allowed && f.ci.state !== 'fail' && f.fresh.state !== 'conflict' && !f.approvals.changesRequested.length) return 'Pushed from Figma, token values only: it merges by itself once the automatic checks pass.';
   if (f.lifecycle === 'draft') return `Draft: ${say(ctx, 'bridge_send_for_review', `\`bridge branch ready ${n}\``)} asks for review when it is ready.`;
   if (f.fresh.state === 'conflict') return `It conflicts with main: ${say(ctx, 'bridge_update_from_main', `\`bridge branch update ${n}\``)} shows the token conflicts to pick (code conflicts stay with a developer).`;
   if (f.gate.allowed) return viewer ? `Ready: ${say(ctx, 'bridge_merge_branch merges it when the person asks', `\`bridge branch merge ${n}\` merges it`)}.` : 'Ready to merge by someone who may ship.';
@@ -243,10 +305,12 @@ export async function whatNeedsMe(ctx: BridgeContext, a: { limit?: number | unde
   const queue = reviewQueue(pulls.map((p) => ({ ...p, state: p.state, head: { ref: p.headRef }, user: { login: p.author }, labels: p.labels.map((name) => ({ name })) }))).slice(0, a.limit ?? 20);
   const who = await people(gh, config);
   const same = (x: string, y: string | null) => Boolean(y && x.toLowerCase() === y.toLowerCase());
-  const rows = await Promise.all(
+  const listed = await Promise.all(
     queue.map(async (p) => {
       const f = await branchFacts(ctx, gh, p.number, viewer).catch(() => null);
       if (!f) return { pr: p.number, title: p.title, url: p.url, author: p.author, status: 'unknown' as ReviewStatusKind, statusLabel: STATUS_WORDS.unknown, yours: same(p.author, viewer), needsYou: null as string | null };
+      // A token push from Figma ships by itself: it needs nobody until something holds it (core autoShip).
+      if (f.autoShip && f.status !== 'ci-failing' && f.status !== 'conflict' && f.status !== 'changes-requested') return null;
       const mine = same(p.author, viewer);
       const inDesign = viewer ? who.lists.design.some((x) => same(x, viewer)) : false;
       const inTech = viewer ? who.lists.tech.some((x) => same(x, viewer)) : false;
@@ -269,6 +333,7 @@ export async function whatNeedsMe(ctx: BridgeContext, a: { limit?: number | unde
       return { pr: p.number, title: p.title, url: p.url, author: p.author, product: f.product.name, status: f.status, statusLabel: STATUS_WORDS[f.status], yours: mine, needsYou };
     }),
   );
+  const rows = listed.filter((r): r is NonNullable<typeof r> => r !== null);
   rows.sort((x, y) => Number(Boolean(y.needsYou)) - Number(Boolean(x.needsYou)) || REVIEW_STATUS_ORDER[x.status] - REVIEW_STATUS_ORDER[y.status]);
   const mineCount = rows.filter((r) => r.needsYou).length;
   return {

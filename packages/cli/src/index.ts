@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { captureFigmaReferences, runImpact, type Only } from '@bridge-ds/visual';
 import { execFileSync } from 'node:child_process';
 import { runRequest } from './request.js';
+import { runBuild } from './build-requests.js';
 import { runExplore } from './explore.js';
 import { runBranch, runDocsSave, runStudioRead } from './branch.js';
 import { runPieces } from './pieces.js';
@@ -113,6 +114,11 @@ Usage:
   bridge request create --component Button --kind new-variant --title "..." --summary "..."
                  [--change field=before:after] [--figma url] [--exploration explore/<name>] [--dry-run]
                                       file a request as a GitHub issue (needs a GitHub token)
+  bridge build list [--filter all|waiting|in-progress|shipped-this-week] [--component Button] [--json]
+  bridge build show <number> [--brief] [--json]
+                                      build requests: structure changes pushed from Figma that developers
+                                      build. Status read from GitHub (assignee, linked pull request), the
+                                      brief for Claude (\`bridge build help\`)
   bridge explore start <name> --purpose "..." [--use-case user-test|stakeholder-demo|ab-idea|terminal]
   bridge explore list [--all] [--json]
   bridge explore promote <name|#pr> [--dry-run]
@@ -783,6 +789,7 @@ async function main(): Promise<number> {
   const cmd = a._[0];
   const root = resolve(flag(a, 'root') ?? process.cwd());
   if (cmd === 'request') return runRequest(a, root);
+  if (cmd === 'build') return runBuild(a, root);
   if (cmd === 'explore') return runExplore(a, root);
   if (cmd === 'branch') return runBranch(a, root);
   if (cmd === 'pieces') return runPieces(a, root);

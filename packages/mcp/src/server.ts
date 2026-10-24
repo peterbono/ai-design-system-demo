@@ -8,6 +8,7 @@ import * as ops from './ops.js';
 import * as history from './history.js';
 import * as brand from './brand.js';
 import * as requests from './requests.js';
+import * as buildRequests from './build-requests.js';
 import * as explorations from './explorations.js';
 import * as drafts from './drafts.js';
 import * as branches from './branches.js';
@@ -70,7 +71,8 @@ export function createServer(ctx: BridgeContext): McpServer {
         'Adding, renaming or removing a token is Tier 3: tell the user it needs design and tech owner approval.',
         'New brands: bridge_plan_brand first (dry run with ramps and the contrast gate for every theme), then bridge_propose_brand. A new brand is Tier 3.',
         'To undo a merged token change use bridge_plan_revert first (it shows conflicts with later changes), then bridge_propose_revert; never revert by hand-editing files.',
-        'Component changes (new component, variant, prop, structure, visual, token binding) are requests: GitHub issues labeled component-change. bridge_list_requests finds them, bridge_get_request returns a brief to implement one in a pull request that says "Closes #n", bridge_create_request files a new one.',
+        'Component changes (new component, variant, prop, structure, visual, token binding) are requests: GitHub issues labeled component-change. bridge_list_requests finds them, bridge_get_request returns a brief to implement one in a pull request that says "Closes #n", bridge_create_request files a new one. Pushed from Figma, a component change that needs code is a build request (bridge_list_build_requests, bridge_get_build_request): the design is already approved in Figma, developers build it in a pull request that says "Closes #n".',
+        'Pushes from the Figma plugin count as design-approved: token value changes ship by themselves once the automatic checks pass (bridge_branch_status says so), a token renamed or removed still needs the tech approval.',
         `Change texts from Figma and docs from Bridge Studio: when the user says "${DRAFT_PHRASE}" (or asks you to draft their Bridge changes or docs), call bridge_pending_drafts. For change items, look at the before and after images and write each title, summary and change line in the Bridge voice. For docs items (scope "docs"), follow the brief: write only the sections it asks for, grounded in the props, CSS module classes and source it quotes, never an invented prop or behavior, never anatomy. Then call bridge_write_drafts. The designer reviews them in the DS Bridge Figma plugin or on the Library page.`,
         'Studio parity: a designer can do in Claude what they do in Bridge Studio. Branches in review: bridge_what_needs_me (the queue), bridge_branch_status, bridge_send_for_review, bridge_back_to_draft, bridge_review_branch, bridge_ask_someone_else, bridge_comment, bridge_update_from_main (token conflicts too), bridge_try_branch (try it in a product, share it), bridge_combine_branches, bridge_close_branch, bridge_reopen_branch, bridge_merge_branch (same gate as Studio, owner override with a reason). Docs: bridge_save_docs. Writes act under the person\'s GitHub token: only do them when the person asked, and merge only when they explicitly asked to merge.',
         'Products: work starts for a product (bridge_list_products). Tools that start work take "product"; without it Bridge uses the product of the current folder or repo. Ask the person when it is not obvious.',
@@ -493,6 +495,34 @@ export function createServer(ctx: BridgeContext): McpServer {
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     run((a) => requests.getRequest(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_list_build_requests',
+    {
+      title: 'List build requests',
+      description:
+        'Build requests: structure changes pushed from Figma (a new variant, option, layout or component) that developers build, as GitHub issues labeled component-change and bridge-build, plus library branches from Figma waiting for a developer. Read only: developers split and track the work in GitHub or Jira, Bridge reads it. Each row has the number, component, title, status (requested: nobody assigned; picked-up: assigned; in-progress: a linked draft pull request; in-review: a linked pull request ready for review; shipped: merged or closed as completed; not-planned), who builds it, its age, stale (requested for more than 7 days), the linked pull request and the Jira key.',
+      inputSchema: {
+        filter: z.enum(['all', 'waiting', 'in-progress', 'shipped-this-week']).optional().describe('Default all. waiting: nobody picked it up yet. in-progress: picked up, in progress or in review.'),
+        component: z.string().optional().describe('Only build requests for this component, e.g. Button.'),
+        limit: z.number().int().min(1).max(100).optional().describe('Default 100.'),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    run((a) => buildRequests.listBuildRequests(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_get_build_request',
+    {
+      title: 'Get a build request',
+      description:
+        'One build request, ready to build: what the designer sent (the request, before and after images, props needed, the spec when the issue keeps it), the status timeline, the linked pull request, the Jira key, the component files and `brief`, the prompt to build it in this repo. Build it on a branch named agent/build-<n> and open a pull request whose body says "Closes #<n>". The design is approved in Figma: build what it shows, comment on the issue when something is unclear.',
+      inputSchema: { number: z.number().int().positive().describe('Issue (or library branch) number.') },
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    run((a) => buildRequests.getBuildRequest(ctx, a)),
   );
 
   server.registerTool(

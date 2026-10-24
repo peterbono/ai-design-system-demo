@@ -76,6 +76,15 @@ describe('what a push from Figma changes', () => {
     expect(figmaPushOf({ labels: ['source: studio'] }, { files: tokenFiles, tokenChanges: [] })).toBeNull();
     expect(figmaPushOf({ labels: [] }, { files: [{ path: 'packages/react/src/components/Button/Button.tsx' }], tokenChanges: null, closesFigmaBuildRequest: true })).toEqual({ scope: 'component' });
   });
+
+  it('never ships a spec-only or Claude draft branch by itself, nor a push with no token change', () => {
+    const spec = [{ path: '.bridge/figma/button-add-a-lg-size.json' }];
+    expect(figmaPushScope({ files: spec, tokenChanges: [] })).toBe('component');
+    expect(figmaPushScope({ files: tokenFiles, tokenChanges: [] })).toBe('component');
+    expect(figmaPushOf({ labels: ['from-figma', 'waiting-for-claude'] }, { files: spec, tokenChanges: [] })).toEqual({ scope: 'component' });
+    expect(figmaPushOf({ labels: ['from-figma', 'drafted-by-claude'] }, { files: tokenFiles, tokenChanges: [{ kind: 'changed' }] })).toEqual({ scope: 'component' });
+    expect(figmaPushOf({ labels: ['source: figma'] }, { files: tokenFiles, tokenChanges: [{ kind: 'changed' }] })).toEqual({ scope: 'token-values' });
+  });
 });
 
 describe('the gate on a push from Figma', () => {

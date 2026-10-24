@@ -1,8 +1,8 @@
 // api/_lib/figma-ship.ts keeps the server's copy of the Figma push rules of @bridge-ds/core (the /api functions load no
 // workspace package at runtime). Both run on the same fixtures here: any drift fails.
 import { describe, expect, it } from 'vitest';
-import { figmaPushScope as coreScope, figmaShipReviewBody as coreReview, isFigmaPush as corePush, loadConfig, tokenFileChanges as coreChanges } from '@bridge-ds/core';
-import { figmaPushScope, figmaShipReviewBody, isFigmaPush, shipConfig, tokenFileChanges } from '../../api/_lib/figma-ship';
+import { figmaPushOf as coreOf, figmaPushScope as coreScope, figmaShipReviewBody as coreReview, isFigmaPush as corePush, loadConfig, tokenFileChanges as coreChanges } from '@bridge-ds/core';
+import { figmaPushScope, figmaShipReviewBody, isClaudeDraft, isFigmaPush, shipConfig, tokenFileChanges } from '../../api/_lib/figma-ship';
 
 const configs = [
   { tokens: { root: 'packages/tokens/src' }, contrast: { path: 'packages/tokens/src/contrast.checks.json' } },
@@ -52,6 +52,12 @@ describe('the server copy of the Figma push rules matches @bridge-ds/core', () =
       {},
     ];
     for (const c of cases) expect([c, isFigmaPush(c)]).toEqual([c, corePush(c)]);
+    // A Claude draft branch never ships by itself: the server refuses it where core reads it as code work.
+    const values = { files: [{ path: 'tokens/a.tokens.json' }], tokenChanges: [{ kind: 'changed' }] };
+    for (const c of [...cases, { labels: ['from-figma', 'waiting-for-claude'] }, { labels: ['source: figma', 'drafted-by-claude'] }]) {
+      if (!corePush(c)) continue;
+      expect([c, isClaudeDraft(c)]).toEqual([c, coreOf(c, values)?.scope !== 'token-values']);
+    }
   });
 
   it('token change kinds and the review body', () => {

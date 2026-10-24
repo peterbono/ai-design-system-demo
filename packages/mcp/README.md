@@ -45,7 +45,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 
 <!-- tools:start (generated from the server: npm run readme:tools -w @bridge-ds/mcp) -->
 
-67 tools. "writes" tools change files, branches, pull requests or issues; they need a token in remote mode and only run when the person asked.
+69 tools. "writes" tools change files, branches, pull requests or issues; they need a token in remote mode and only run when the person asked.
 
 | Tool | Access | What it does |
 | --- | --- | --- |
@@ -64,6 +64,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 | `bridge_draft_docs` | reads | Start or refresh a component's docs.json. |
 | `bridge_figma_changes` | reads | The library branches the DS Bridge Figma plugin opened for components changed in Figma (label from-figma), with where each stands: an exact token change (no AI, contrast gated), or a branch carrying the spec, waiting for Claude AI to draft the code, then drafted by Claude AI and reviewed by a person. |
 | `bridge_figma_coverage` | reads | Which components are in Figma, in Studio's words (Yes, Drafted, Auto layout, Not yet with the reason), and whether code images exist for the fidelity check the DS Bridge Figma plugin runs (its scores live in Figma). |
+| `bridge_get_build_request` | reads | One build request, ready to build: what the designer sent (the request, before and after images, props needed, the spec when the issue keeps it), the status timeline, the linked pull request, the Jira key, the component files and `brief`, the prompt to build it in this repo. |
 | `bridge_get_component` | reads | One component: props parsed from TypeScript (type, default, description, allowed values), usage docs (summary, whenToUse, whenNotToUse, dos/donts with examples, accessibility, contentGuidelines, anatomy), CSS variables it uses, and story names. |
 | `bridge_get_config` | reads | Where the design system lives and what Bridge may do: source (local path or GitHub repo), write access, token tiers, modes (brand/theme/density...) and the full bridge.config.json. |
 | `bridge_get_design_language` | reads | The design language doc (principles, color, type, space, density, radius, elevation, motion, icons, voice, accessibility). |
@@ -78,6 +79,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 | `bridge_get_token_history` | reads | Every recorded change of one token, newest first, renames followed: value before and after per mode (raw and resolved CSS), who, when, the PR and why. |
 | `bridge_link_suggestion` | writes | Record the pull request (or branch, or commit) that applies a suggestion: a comment on the issue and the "suggestion: applying" label. |
 | `bridge_list_brands` | reads | Brands of the repo: slug, name, default, primary action color and theme override files. |
+| `bridge_list_build_requests` | reads | Build requests: structure changes pushed from Figma (a new variant, option, layout or component) that developers build, as GitHub issues labeled component-change and bridge-build, plus library branches from Figma waiting for a developer. |
 | `bridge_list_comments` | reads | The conversation on a branch and its line comment threads, with the ids to reply to (bridge_comment with replyTo). |
 | `bridge_list_components` | reads | List design system components with family and one-line summary (what it is for). |
 | `bridge_list_explorations` | reads | Explorations of the repo (draft pull requests labeled exploration on explore/* branches): name, purpose, status (active: running; promoted: ready for review; closed), author, last update, for running ones the preview links Vercel reports (url null while it has not reported one yet) and the install command a product staging branch uses, read from the preview comment on the pull request (state building until the snapshot of the latest commit is published, never a guessed command), and the component requests implemented on each. |
