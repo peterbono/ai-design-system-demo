@@ -891,6 +891,11 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   aliases.clear();
   if (seat && seatOwner) aliases.set(seatOwner.toLowerCase(), seat);
   if (seatAuthor) aliases.set(author, seatAuthor.split(/\s+/)[0]!);
+  // A change Bridge's app opened for an email member ("Requested by Priya Shah ... through Bridge."): every sentence of
+  // the page names Priya where it would name the app ("Waiting for Priya to address the changes").
+  const opener = pull.user.login;
+  const forMember = !seat && /\[bot\]$/i.test(opener) ? requesterOf(pull.body) : null;
+  if (forMember?.name) aliases.set(opener.toLowerCase(), forMember.name.split(/\s+/)[0]!);
   const viewer = login ?? seatOwner;
   // Developers (tech owners) see the technical side: failing tests, updating from main, the GitHub link. Designers
   // read who acts instead ("A developer is on it").
@@ -1009,7 +1014,11 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
 
   const title = humanTitle(mdTitleText(withoutJiraKey(pull.title)));
   const asked = status.yourTurn && !isAuthor && canApprove;
-  const line = whoLine({ author: nameOf(author), agent, guidanceOnly, canEdit: canEditGuidance, asked, lifecycle: status.lifecycle, sentence: named(statusRun.sentence) });
+  // Who asked, as Bridge recorded it ("Requested by Priya Shah ... through Bridge."), before the account that opened it
+  // (the Bridge app for an email member, an agent or a lead acting for someone): the same person as on the home row.
+  const requested = seat ? null : requesterOf(pull.body);
+  const askerName = requested ? (requested.name ?? (requested.login ? nameOf(requested.login) : nameOf(author))) : nameOf(author);
+  const line = whoLine({ author: askerName, agent, guidanceOnly, canEdit: canEditGuidance, asked, lifecycle: status.lifecycle, sentence: named(statusRun.sentence) });
   const editable = tokenFilesOf(files) > 0 && isTokenChange(pull, REPO_KEY) && canAddTo(pull, login ?? undefined, write);
   const added = Number(new URLSearchParams(location.search).get('added'));
   if (added > 0) history.replaceState(history.state, '', `?pr=${pull.number}`);
