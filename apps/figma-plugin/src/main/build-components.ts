@@ -489,10 +489,13 @@ function findPart(variant: ComponentNode, id: string): SceneNode | undefined {
   return variant.findOne((n) => n.getSharedPluginData(NS, 'part') === id) ?? undefined;
 }
 
-function setupFrame(node: Box, part: SpecPart, layout?: SpecLayout): void {
+function setupFrame(node: Box, part: SpecPart, layout?: SpecLayout, sized = true): void {
   const l = layout ?? part.layout ?? { direction: 'HORIZONTAL', primary: 'MIN', counter: 'MIN' };
   node.layoutMode = l.direction;
-  node.primaryAxisAlignItems = l.primary;
+  // space-between keeps the CSS gap as a minimum; Figma's makes the gap Auto, and a frame that hugs its content then
+  // packs its children with no gap at all (a Switch with its label first was 72px for 84). Only a frame with a size
+  // on its main axis spreads its children.
+  node.primaryAxisAlignItems = l.primary === 'SPACE_BETWEEN' && !sized ? 'MIN' : l.primary;
   node.counterAxisAlignItems = l.counter === 'STRETCH' ? 'MIN' : l.counter;
   node.primaryAxisSizingMode = 'AUTO';
   node.counterAxisSizingMode = 'AUTO';
@@ -509,6 +512,21 @@ function setupFrame(node: Box, part: SpecPart, layout?: SpecLayout): void {
  * axis. Set last: the child's own hug sizing (setupFrame) would otherwise undo it, and FILL needs the node to be inside
  * its auto layout parent already. A text that fills the width wraps: fixed width, height grows.
  */
+/**
+ * An auto layout frame with nothing inside that hugs keeps the 100px a new frame starts with (a vertical Divider was
+ * 1x100 for 1x16 in code). With no size of its own on an axis, it takes its minimum there, as CSS draws an empty box.
+ */
+function emptyAtMinimum(node: SceneNode, fields: readonly PlannedField[]): void {
+  if (!('layoutMode' in node) || node.layoutMode === 'NONE') return;
+  const has = (f: SpecField) => fields.some((x) => x.field === f);
+  const h = !has('height') && typeof node.minHeight === 'number' && node.minHeight > 0 ? node.minHeight : undefined;
+  const w = !has('width') && typeof node.minWidth === 'number' && node.minWidth > 0 ? node.minWidth : undefined;
+  if (h === undefined && w === undefined) return;
+  node.resize(w ?? node.width, h ?? node.height);
+  if (h !== undefined) node.layoutSizingVertical = 'FIXED';
+  if (w !== undefined) node.layoutSizingHorizontal = 'FIXED';
+}
+
 /**
  * Back in its parent's auto layout. A layer the last pull pinned or laid over its parent is absolute, and Figma refuses
  * to make an absolute layer fill: it is sized in the layout first, then pinned again after placing.
@@ -667,7 +685,10 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
       if (key || visibleKey) node.componentPropertyReferences = { ...(key ? { characters: key } : {}), ...(visibleKey ? { visible: visibleKey } : {}) };
       resetUnset(TEXT_FIELDS, node);
     } else if (node.type === 'FRAME' || node.type === 'COMPONENT') {
-      if (part.kind === 'frame') setupFrame(node, part, pv.layout?.[part.id]);
+      if (part.kind === 'frame') {
+        const lay = pv.layout?.[part.id] ?? part.layout;
+        setupFrame(node, part, pv.layout?.[part.id], lay?.direction === 'VERTICAL' ? tall.has(part.id) && fields.some((f) => f.field === 'height') : definite.has(part.id));
+      }
       else {
         node.layoutMode = 'NONE';
         node.fills = [];
@@ -680,6 +701,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
       }
     }
     for (const f of fields) apply(node, f, ctx);
+    if (part.kind === 'frame' && !comp.parts.some((c) => c.parent === part.id)) emptyAtMinimum(node, fields);
     try {
       sizeInParent(node, parentPart, definite.has(part.parent ?? ''), tall.has(part.parent ?? ''), fields.some((f) => f.field === 'height'));
     } catch (err) {

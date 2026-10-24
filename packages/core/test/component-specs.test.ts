@@ -119,6 +119,25 @@ export const ${name} = forwardRef(function ${name}({ children }, ref) {
     expect(root('Tight')).toMatchObject({ minHeight: 'size.6' });
   });
 
+  it('rows set inline under a computed key, and 1lh, become a calc() of the font size and line height tokens', () => {
+    const files: Record<string, string> = {
+      'c/Area/Area.tsx': `import styles from './Area.module.css';
+export interface AreaProps { rows?: number }
+export const Area = forwardRef(function Area({ rows = 3 }, ref) {
+  return <div className={styles.area} style={{ ['--_rows' as string]: rows }} />;
+});`,
+      'c/Area/Area.module.css': `.area { box-sizing: border-box; display: flex; font-size: var(--font-size-200); line-height: var(--font-line-height-normal); min-height: calc(var(--_rows) * 1lh + var(--space-2) * 2); }`,
+    };
+    const tokens = new Map([
+      ['--font-size-200', { path: 'font.size.200', type: 'dimension' }],
+      ['--font-line-height-normal', { path: 'font.line-height.normal', type: 'number' }],
+      ['--space-2', { path: 'space.2', type: 'dimension' }],
+    ]);
+    const spec = generateComponentSpec('Area', { componentsDir: 'c', read: (p) => files[p], tokens });
+    expect(spec.variants[0]!.values.root).toMatchObject({ minHeight: 'calc(3 * (font.size.200 * font.line-height.normal) + space.2 * 2)' });
+    expect(spec.unmapped.filter((u) => u.property === 'min-height')).toEqual([]);
+  });
+
   it('calc() of tokens becomes an expression of token paths; a single token stays a token', () => {
     const files: Record<string, string> = {
       'c/Pill/Pill.tsx': `import styles from './Pill.module.css';

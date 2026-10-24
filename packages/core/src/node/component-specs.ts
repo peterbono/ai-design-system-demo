@@ -613,7 +613,12 @@ function evaluate(e: ts.Expression, scope: Scope): Value {
   if (ts.isObjectLiteralExpression(e)) {
     const out: Record<string, Value> = {};
     for (const p of e.properties) {
-      if (ts.isPropertyAssignment(p)) out[unquote(p.name.getText(sf))] = evaluate(p.initializer, scope);
+      if (ts.isPropertyAssignment(p) && ts.isComputedPropertyName(p.name)) {
+        // `{ ['--_min-rows' as string]: rows }`: the key evaluated, kept when it is a string or a number.
+        const key = evaluate(p.name.expression, scope);
+        if (typeof key !== 'string' && typeof key !== 'number') return OPAQUE;
+        out[String(key)] = evaluate(p.initializer, scope);
+      } else if (ts.isPropertyAssignment(p)) out[unquote(p.name.getText(sf))] = evaluate(p.initializer, scope);
       else if (ts.isShorthandPropertyAssignment(p)) out[p.name.text] = lookup(scope, p.name.text);
       else if (ts.isSpreadAssignment(p)) {
         const v = evaluate(p.expression, scope);
@@ -624,6 +629,14 @@ function evaluate(e: ts.Expression, scope: Scope): Value {
   }
   if (ts.isArrayLiteralExpression(e)) return e.elements.map((x) => evaluate(x, scope));
   return OPAQUE;
+}
+
+/** The custom properties of an inline style object (`{ '--_pct': 64 }`), as CSS text; undefined when there are none. */
+function styleVarsOf(style: Value): Map<string, string> | undefined {
+  if (!style || typeof style !== 'object' || Array.isArray(style) || isJsx(style)) return undefined;
+  const vars = new Map<string, string>();
+  for (const [k, v] of Object.entries(style as Record<string, Value>)) if (k.startsWith('--') && (typeof v === 'number' || typeof v === 'string')) vars.set(k, String(v));
+  return vars.size ? vars : undefined;
 }
 
 /**
@@ -1055,7 +1068,13 @@ function renderJsx(ref: JsxRef, ctx: RenderContext, visible?: Node['visible']): 
     const extra = classList(attrs.className);
     if (isJsx(r)) {
       const nodes = renderJsx(r, ctx, visible);
-      if (nodes[0]) nodes[0].classes = [...nodes[0].classes, ...extra];
+      if (nodes[0]) {
+        nodes[0].classes = [...nodes[0].classes, ...extra];
+        // The part's inline custom properties go with it (`style={{ '--_min-rows': rows }}` on an Input that renders a
+        // textarea): they feed the element's CSS.
+        const vars = styleVarsOf(attrs.style);
+        if (vars) nodes[0].styleVars = new Map([...(nodes[0].styleVars ?? []), ...vars]);
+      }
       return nodes;
     }
     const init = open.attributes.properties.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText(sf) === 'render')?.initializer;
@@ -1115,12 +1134,8 @@ function renderJsx(ref: JsxRef, ctx: RenderContext, visible?: Node['visible']): 
   const bg = attrs.style && typeof attrs.style === 'object' && !Array.isArray(attrs.style) ? (attrs.style as Record<string, Value>).backgroundColor : undefined;
   if (typeof bg === 'string') node.inlineFill = bg;
   // Inline style custom properties: they feed the CSS (`style={{ '--_pct': pct }}`).
-  const style = attrs.style;
-  if (style && typeof style === 'object' && !Array.isArray(style) && !isJsx(style)) {
-    const vars = new Map<string, string>();
-    for (const [k, v] of Object.entries(style as Record<string, Value>)) if (k.startsWith('--') && (typeof v === 'number' || typeof v === 'string')) vars.set(k, String(v));
-    if (vars.size) node.styleVars = vars;
-  }
+  const vars = styleVarsOf(attrs.style);
+  if (vars) node.styleVars = vars;
   // Inline SVG: drawn as one vector layer, its shapes styled by the CSS (stroke, width, opacity, dashes).
   if (tag === 'svg') {
     const lit: Record<string, string> = {};
@@ -1901,9 +1916,25 @@ function resolveValue(raw: string | undefined, values: Map<string, string>, toke
  * A calc() of a single token is that token (bound in Figma). Literals other than plain numbers and px are not mapped.
  */
 function calcValue(v: string, values: Map<string, string>, tokens: Map<string, TokenInfo>, depth: number, parent?: Map<string, string>): Resolved {
-  const inner = v.slice(v.indexOf('(') + 1, v.lastIndexOf(')'));
+  let inner = v.slice(v.indexOf('(') + 1, v.lastIndexOf(')'));
   let failed: string | undefined;
+  // 1lh is the element's line height: its font size times its line-height factor, both tokens (a textarea of 3 rows).
+  if (/\d*\.?\d+lh\b/.test(inner)) {
+    const fs = resolveValue(values.get('font-size'), values, tokens, depth + 1, parent);
+    const lh = resolveValue(values.get('line-height'), values, tokens, depth + 1, parent);
+    if (typeof fs?.value === 'string' && typeof lh?.value === 'string' && !fs.value.startsWith('calc(') && !lh.value.startsWith('calc(')) {
+      inner = inner.replace(/(\d*\.?\d+)lh\b/g, (_m, n: string) => (Number(n) === 1 ? `(${fs.value} * ${lh.value})` : `${n} * (${fs.value} * ${lh.value})`));
+    }
+  }
   const substituted = inner.replace(/var\(\s*--[\w-]+\s*(?:,[^()]*)?\)/g, (m) => {
+    // A custom property holding a plain number (`--_min-rows: 3`, set inline from a prop): that number.
+    let raw: string | undefined = m;
+    for (let hops = 0; hops < 12 && raw; hops++) {
+      const name = /^var\(\s*(--[\w-]+)/.exec(raw.trim())?.[1];
+      if (!name || tokens.has(name)) break;
+      raw = values.get(name);
+    }
+    if (raw !== undefined && /^-?\d*\.?\d+$/.test(raw.trim())) return raw.trim();
     const r = resolveValue(m, values, tokens, depth + 1, parent);
     if (!r || r.unmapped !== undefined || r.value === null || r.value === undefined) {
       failed ??= r?.unmapped ?? `${m} has no value`;

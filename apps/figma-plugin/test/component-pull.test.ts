@@ -1004,3 +1004,12 @@ test('older kit: a file generated before swaps and interactions reviews main lik
   const def = variantOf(button, 'Variant=primary, Size=md, State=Default');
   assert.ok((def.reactions as { trigger: { type: string } }[]).some((r) => r.trigger.type === 'ON_HOVER'));
 });
+
+test('fidelity: a Textarea of 3 rows plans its minimum at the code height, from the font size and line height tokens', async () => {
+  const { plan } = await pulledFile();
+  const textarea = plan.components.find((c) => c.name === 'Textarea')!;
+  const field = textarea.variants.find((v) => v.name.includes('Appearance=field'))!;
+  const min = field.parts.textarea!.find((f) => f.field === 'minHeight')!.value;
+  // 3 rows of 14px at 1.5, 8px padding twice, 1px border twice: 81px, the code image's height.
+  assert.equal(min.kind === 'number' ? min.value : undefined, 81);
+});

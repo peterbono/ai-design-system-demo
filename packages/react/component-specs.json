@@ -37084,7 +37084,7 @@
           "rows": 3
         }
       },
-      "hash": "ccd3283e",
+      "hash": "17209c19",
       "source": [
         "packages/react/src/components/Textarea/Textarea.tsx",
         "packages/react/src/components/Field/Field.module.css",
@@ -37171,6 +37171,7 @@
               "paddingRight": "control.padding-x.md",
               "paddingBottom": "space.2",
               "paddingLeft": "control.padding-x.md",
+              "minHeight": "calc(3 * (font.size.200 * font.line-height.normal) + space.2 * 2 + border-width.default * 2)",
               "strokeWeight": "border-width.default",
               "stroke": "input.border"
             },
@@ -37198,6 +37199,7 @@
               "paddingRight": "control.padding-x.md",
               "paddingBottom": "space.2",
               "paddingLeft": "control.padding-x.md",
+              "minHeight": "calc(3 * (font.size.200 * font.line-height.normal) + space.2 * 2 + border-width.default * 2)",
               "strokeWeight": "border-width.default",
               "stroke": "input.border-hover"
             },
@@ -37225,6 +37227,7 @@
               "paddingRight": "control.padding-x.md",
               "paddingBottom": "space.2",
               "paddingLeft": "control.padding-x.md",
+              "minHeight": "calc(3 * (font.size.200 * font.line-height.normal) + space.2 * 2 + border-width.default * 2)",
               "strokeWeight": "border-width.default",
               "stroke": "color.border.default"
             },
@@ -37251,7 +37254,8 @@
               "paddingTop": "space.0-5",
               "paddingRight": "space.2",
               "paddingBottom": "space.0-5",
-              "paddingLeft": "space.2"
+              "paddingLeft": "space.2",
+              "minHeight": "calc((font.size.200 * font.line-height.normal) + space.0-5 * 2)"
             },
             "placeholder": {
               "textFill": "input.placeholder",
@@ -37276,7 +37280,8 @@
               "paddingTop": "space.0-5",
               "paddingRight": "space.2",
               "paddingBottom": "space.0-5",
-              "paddingLeft": "space.2"
+              "paddingLeft": "space.2",
+              "minHeight": "calc((font.size.200 * font.line-height.normal) + space.0-5 * 2)"
             },
             "placeholder": {
               "textFill": "input.placeholder",
@@ -37301,7 +37306,8 @@
               "paddingTop": "space.0-5",
               "paddingRight": "space.2",
               "paddingBottom": "space.0-5",
-              "paddingLeft": "space.2"
+              "paddingLeft": "space.2",
+              "minHeight": "calc((font.size.200 * font.line-height.normal) + space.0-5 * 2)"
             },
             "placeholder": {
               "textFill": "input.placeholder",
@@ -37350,22 +37356,10 @@
           "reason": "fills its container: Figma draws it at a fixed width"
         },
         {
-          "part": "textarea",
-          "property": "min-height",
-          "value": "calc(var(--_min-rows) * 1lh + var(--_py) * 2 + var(--border-width-default) * 2)",
-          "reason": "calc(): --_min-rows is not a token"
-        },
-        {
           "part": "root",
           "property": "width",
           "value": "calc(100% + var(--space-2) * 2)",
           "reason": "calc() with 100%: only tokens, numbers and px are mapped"
-        },
-        {
-          "part": "textarea",
-          "property": "min-height",
-          "value": "calc(1lh + var(--space-0-5) * 2)",
-          "reason": "calc() with 1lh: only tokens, numbers and px are mapped"
         },
         {
           "part": "textarea",
