@@ -266,11 +266,11 @@ describe('controls drawn in CSS: pseudo-elements, grids, SVG', () => {
     expect(spec.parts[0]!.layout?.direction).toBe('VERTICAL');
     expect(spec.values.root?.itemSpacing).toBe(8);
     const k = spec.parts.find((x) => x.id === 'cds--toggle-switch-before')!;
-expect(k).toMatchObject({ kind: 'frame', align: { x: 'start', y: 'center' } });
+expect(k).toMatchObject({ kind: 'frame' });
     expect(k.pin).toBeUndefined();
     // The knob rides the track's auto layout: aligned start, the track's padding carries the 3 px.
     const trackPart = spec.parts.find((x) => x.id === k.parent)!;
-    expect(trackPart.layout).toEqual({ direction: 'HORIZONTAL', primary: 'MIN', counter: 'CENTER' });
+    expect(trackPart.layout).toEqual({ direction: 'HORIZONTAL', primary: 'MIN', counter: 'CENTER', align: { [k.id]: { primary: 'MIN', counter: 'CENTER' } } });
     expect(spec.values[trackPart.id]).toMatchObject({ paddingLeft: 3 });
     expect(spec.raw[k.id]).toMatchObject({ fill: 'rgb(255, 255, 255)', width: 18, height: 18 });
   });
@@ -313,7 +313,7 @@ describe('form fields as Carbon draws them: margins, declared sizes, round radii
     const button = el('button', 'copy', box(0, 0, 40, 40), { display: 'flex', 'border-top-left-radius': '50%' }, [icon], { sized: { width: true, height: true } });
     const spec = measuredToSpec({ id: 'copybutton', root: button });
     expect(spec.sized).toEqual({ root: { width: 40, height: 40 }, icon: { width: 16, height: 16 } });
-    expect(spec.values.root?.cornerRadius).toBe(20);
+    expect(spec.values.root?.cornerRadius).toBe(999);
   });
 
   it('lays an inline label holding blocks out by its boxes', () => {
@@ -349,7 +349,7 @@ describe('auto layout everywhere: overlays, margin wrappers, full radii', () => 
     const pill = el('tag', box(0, 0, 80, 24), { display: 'flex', 'border-top-left-radius': '9999px' });
     const spec = measuredToSpec({ id: 'tag', root: pill });
     expect(spec.parts[0]).toMatchObject({ fullRadius: true });
-    expect(spec.values.root?.cornerRadius).toBe(12);
+    expect(spec.values.root?.cornerRadius).toBe(999);
   });
 });
 

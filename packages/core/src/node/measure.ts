@@ -813,14 +813,15 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
             out.coverage.fields++;
             out.coverage.literal++;
             raw[field] = r;
-            values[field] = r;
+            values[field] = part.fullRadius ? 999 : r;
           }
         } else {
           // A radius of half the shorter side or more (9999px pills) is a full radius: half the side in Figma.
           const half = Math.min(n.box.width, n.box.height) / 2;
           if (field === 'cornerRadius' && (px(v) ?? 0) >= half - 0.5 && half > 0) part.fullRadius = true;
           put(field, prop, px(v) || undefined); // zero paddings and radii are Figma's default: not a field
-          if (part.fullRadius && field === 'cornerRadius' && typeof values.cornerRadius === 'number' && values.cornerRadius > half) values.cornerRadius = Math.round(half * 100) / 100;
+          // A pill is 999 px in Figma, unless the radius is bound to a token.
+          if (part.fullRadius && field === 'cornerRadius' && typeof values.cornerRadius === 'number') values.cornerRadius = 999;
         }
       }
       const widths = (['top', 'right', 'bottom', 'left'] as const).map((s) => (n.style[`border-${s}-style`] === 'none' ? 0 : (px(n.style[`border-${s}-width`]) ?? 0)));
@@ -894,10 +895,9 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
         const ax = (a: number, z: number) => (Math.abs(a - z) <= 1 ? 'center' : a <= z ? 'start' : 'end') as 'start' | 'center' | 'end';
         const x = ax(left, right), y = ax(top, bottom);
         if (left >= -0.5 && right >= -0.5 && top >= -0.5 && bottom >= -0.5) {
-          p.align = { x, y };
           delete p.pin;
           const map = { start: 'MIN', center: 'CENTER', end: 'MAX' } as const;
-          parentPart.layout = { direction: 'HORIZONTAL', primary: map[x], counter: map[y] };
+          parentPart.layout = { direction: 'HORIZONTAL', primary: map[x], counter: map[y], align: { [cid]: { primary: map[x], counter: map[y] } } };
           const vals = (out.values[id] ??= {});
           const raws = (out.raw[id] ??= {});
           const set = (k: 'paddingLeft' | 'paddingRight' | 'paddingTop' | 'paddingBottom', v: number) => {
@@ -981,7 +981,6 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
       });
   };
   visit(m.root, undefined, undefined);
-  for (const p of out.parts) if (p.cover || (p.pin && !p.align)) delete p.align;
   for (const k of Object.keys(out.values)) if (!Object.keys(out.values[k]!).length) delete out.values[k];
   for (const k of Object.keys(out.raw)) if (!Object.keys(out.raw[k]!).length) delete out.raw[k];
   return out;
