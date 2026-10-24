@@ -197,13 +197,13 @@ export default function AccessibilityView({ data }: { data: LibraryData }) {
           </p>
           <h3>The build gate</h3>
           <p>
-            The pairs live in <code>{file}</code>. The token build resolves each one in every brand and theme and fails below its minimum, so a token change that breaks a pair is never merged into main. To gate a new combination, add <code>{'["<fg token>", "<bg token>", <min>]'}</code> to that file.
+            The pairs live in <code>{file}</code>. The token build resolves each one in every brand and theme and fails below its minimum, so a token change that breaks a pair never reaches the library. To gate a new combination, add <code>{'["<fg token>", "<bg token>", <min>]'}</code> to that file.
           </p>
           <h3>When a pair fails</h3>
           <ul>
             <li>Fix it with a token change, never locally in a screen or a component. A local fix hides the problem and the next team hits it again.</li>
-            <li>Open an issue, or create a branch in Studio and request review, with the pair, the ratio and where it shows up. A token change is Tier 3: design and tech owners both approve it.</li>
-            <li>Until the fix is merged, avoid that pair in new places.</li>
+            <li>Open an issue, or start a change in Studio and send it for review, with the pair, the ratio and where it shows up. A token change is Tier 3: design and tech owners both approve it.</li>
+            <li>Until the fix is in the library, avoid that pair in new places.</li>
           </ul>
           {data.extras.canEdit !== false && (
             <p data-maintainer-only={data.extras.canEdit ? undefined : ''}>

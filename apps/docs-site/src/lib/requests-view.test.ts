@@ -239,7 +239,7 @@ describe('who is on a request', () => {
     const [done] = requestRows([issue(1, { state: 'closed', state_reason: 'completed' })], [pull(9, 'fixes #1', { state: 'closed', merged_at: '2026-10-10T00:00:00Z', user: { login: 'ana' } })]);
     expect(onItLabel(done!)).toBe('Done by @ana');
     expect(requestStateLine(done!)).toBe('Done by @ana.');
-    expect(buildState(done!)).toBe('Merged');
+    expect(buildState(done!)).toBe('Added to the library');
     const [plain] = requestRows([issue(2, { state: 'closed', state_reason: 'completed' })], []);
     expect(requestStateLine(plain!)).toBe('Done.');
     expect(onItLabel(plain!)).toBe('');

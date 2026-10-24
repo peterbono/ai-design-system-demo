@@ -43,11 +43,11 @@ describe('overview to-do: work sorted by kind', () => {
       ['Add a native Select', 'Someone wants to change Select. Start an exploration, assign someone or decline it.', 'Decide', '/studio/changes/?request=65'],
     ]);
     expect(t.developer.map((r) => [r.why, r.action])).toEqual([
-      ['Blocked: a test fails. A developer needs to fix it before you review.', 'Open branch'],
-      ['Blocked: it clashes with main. A developer needs to update it before you review.', 'Open branch'],
-      ['Blocked: 2 tests fail. A developer needs to fix them before you review.', 'Open branch'],
+      ['Blocked: a test fails. A developer needs to fix it before you review.', 'Open change'],
+      ['Blocked: it clashes with the library. A developer needs to update it before you review.', 'Open change'],
+      ['Blocked: 2 tests fail. A developer needs to fix them before you review.', 'Open change'],
     ]);
-    expect(developerLine(t.developer.length)).toBe('3 branches wait on a developer');
+    expect(developerLine(t.developer.length)).toBe('3 changes wait on a developer');
   });
 
   it('keeps developer work out of Needs you and the Changes badge', () => {
@@ -102,7 +102,7 @@ describe('overview to-do: work sorted by kind', () => {
   it('keeps the tech review in the developer group, for a viewer who holds it too', () => {
     const t = todo({ changes: [change(4, 'needs-tech', 'ana', 'peterbono')], requests: [], viewer: 'peterbono', owners: ['peterbono'] });
     expect(t.mine).toEqual([]);
-    expect(t.developer[0]).toMatchObject({ task: 'blocked', why: 'Design is approved. It waits for your tech review.', action: 'Open branch' });
+    expect(t.developer[0]).toMatchObject({ task: 'blocked', why: 'Design is approved. It waits for your tech review.', action: 'Open change' });
     const other = todo({ changes: [change(4, 'needs-tech', 'ana', 'lea', {}, team)], requests: [], viewer: 'lea', owners: ['peterbono', 'lea', 'dev'] });
     expect(other.developer[0]!.why).toBe('Design is approved. Waiting for the tech owner (@peterbono or @dev) to approve.');
   });
@@ -124,10 +124,10 @@ describe('overview to-do: work sorted by kind', () => {
     expect(t.headline).toBe('7 things need you.');
     expect(t.mine.map((r) => [r.title, r.action, r.why])).toEqual([
       ['Change 2', 'Review design', 'Before and after are ready. Your design approval is the next step.'],
-      ['Change 4', 'Review design', 'Before and after are ready. Your approval lets it merge.'],
+      ['Change 4', 'Review design', 'Before and after are ready. Your approval lets it go into the library.'],
       ['Change 5', 'Review design', 'Nothing changes on screen. Your design approval is the next step.'],
       ['Change 6', 'Review design', 'Your design approval is the next step.'],
-      ['Change 1', 'Merge', 'Approved and tested. Merging puts it in the next release.'],
+      ['Change 1', 'Add to the library', 'Approved and tested. Adding it to the library puts it in the next release.'],
       ['Add a native Select', 'Decide', '@ana wants to change Select. Start an exploration, assign someone or decline it.'],
       ['Change 3', 'Review guidance', 'Usage guidance changed. Read it, then approve it or edit it.'],
     ]);
@@ -143,7 +143,7 @@ describe('overview to-do: work sorted by kind', () => {
   it('gives the owner override to the owner who may use it, as a design review', () => {
     // The owner wrote the change: no other design owner can approve, only the override ships it.
     const t = todo({ changes: [change(2, 'needs-design', 'peterbono', 'peterbono', { visual: 'ready' })], requests: [], viewer: 'peterbono', owners: ['peterbono'] });
-    expect(t.mine[0]).toMatchObject({ task: 'design', action: 'Review design', why: 'Before and after are ready. No other owner can approve it. Check the design, then merge it with the owner override.' });
+    expect(t.mine[0]).toMatchObject({ task: 'design', action: 'Review design', why: 'Before and after are ready. No other owner can approve it. Check the design, then add it to the library with the owner override.' });
     const other = todo({ changes: [change(2, 'needs-design', 'peterbono', 'ana')], requests: [], viewer: 'ana', owners: ['peterbono'] });
     expect(other.mine).toEqual([]);
     expect(other.others).toHaveLength(1);
@@ -189,7 +189,7 @@ describe('overview to-do: work sorted by kind', () => {
     });
     expect(t.headline).toBe('Connect GitHub to start working on the library.');
     expect(t.mine.map((r) => [r.why, r.action])).toEqual([
-      ['Waiting for the design owner (@peterbono) to approve.', 'Open branch'],
+      ['Waiting for the design owner (@peterbono) to approve.', 'Open change'],
       ['@ana wants to change Select. Waiting for a design system owner (@peterbono) to decide.', 'Open request'],
     ]);
     expect(t.developer.map((r) => r.why)).toEqual(['Blocked: a test fails. @peterbono needs to fix it before review.']);
@@ -248,7 +248,7 @@ describe('overview to-do: work sorted by kind', () => {
 
   it('labels the folded lines', () => {
     expect(developerLine(0)).toBe('');
-    expect(developerLine(1)).toBe('1 branch waits on a developer');
+    expect(developerLine(1)).toBe('1 change waits on a developer');
     const waiting = { task: 'waiting' as const };
     const checking = { task: 'checking' as const };
     expect(othersLine([], 2)).toBe('');
@@ -314,6 +314,6 @@ describe('For you: the change lifecycle (lib/change-status)', () => {
   it('keeps a change that waits for code off For you, with no designer action', () => {
     const t = todo({ changes: [change(6, 'ci-failing', 'ana', 'peterbono', { failing: 2, lifecycle: 'waiting' })], requests: [], viewer: 'peterbono', owners: ['peterbono'] });
     expect(t.mine).toEqual([]);
-    expect(t.developer[0]).toMatchObject({ task: 'blocked', why: 'Design is approved. A developer finishes the code before it is merged.', state: { label: 'Approved, waiting for code', tone: 'neutral' } });
+    expect(t.developer[0]).toMatchObject({ task: 'blocked', why: 'Design is approved. A developer finishes the code before it is added to the library.', state: { label: 'Approved, waiting for code', tone: 'neutral' } });
   });
 });

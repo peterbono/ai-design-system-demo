@@ -64,7 +64,7 @@ const VERB: Record<Bucket, [one: string, many: string]> = {
   design: ['waits for design approval', 'wait for design approval'],
   tech: ['waits for tech approval', 'wait for tech approval'],
   approval: ['waits for one approval', 'wait for one approval'],
-  ready: ['is ready to merge', 'are ready to merge'],
+  ready: ['is ready to add to the library', 'are ready to add to the library'],
   apply: ['is approved and waits for a developer to apply it', 'are approved and wait for a developer to apply them'],
   applying: ['is being applied by a developer', 'are being applied by a developer'],
   author: ['waits for its author to answer a review', 'wait for their authors to answer a review'],

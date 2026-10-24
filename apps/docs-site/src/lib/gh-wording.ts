@@ -97,7 +97,7 @@ export function suggestOnlyLine(action: string, instead?: string): string {
 }
 
 /** Why an exploration does not start in suggest mode: it is a branch. Shown on the start form and when it is asked for. */
-export const EXPLORATION_SUGGEST_INSTEAD = 'An exploration is a branch: a developer of the team can start one from Claude Code.';
+export const EXPLORATION_SUGGEST_INSTEAD = 'An exploration is a separate copy of the library: a developer of the team can start one from Claude Code.';
 export const EXPLORATION_SUGGEST_LINE = suggestOnlyLine('start explorations', EXPLORATION_SUGGEST_INSTEAD);
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -107,39 +107,39 @@ export const EXPLORATION_SUGGEST_LINE = suggestOnlyLine('start explorations', EX
 
 /** The explainer before GitHub's OK screen: why, what it allows, and the limit. */
 export const DIRECT_CONSENT = {
-  title: 'Allow Bridge to save to branches',
-  lead: 'This team saves changes on branches. To start one for you, Bridge needs one more OK from GitHub. You only give it once.',
+  title: 'Allow Bridge to save your changes',
+  lead: 'This team saves each change on its own. To start one for you, Bridge needs one more OK from GitHub. You only give it once.',
   canTitle: 'With it, Bridge can',
-  can: ['Start a branch and save your edits to it', 'Ask for review, and ship a change once it is approved'],
+  can: ['Start a change and save your edits to it', 'Ask for review, and ship a change once it is approved'],
   limit: 'Bridge never does more than your own access on GitHub allows.',
   continueLabel: 'Continue on GitHub',
   later: 'Not now',
   /** Under the action that asked, while the dialog is open: what to do, then do it again. */
-  needed: 'Allow Bridge to save to branches, then try again.',
+  needed: 'Allow Bridge to save your changes, then try again.',
   /** The OK was given with another GitHub account than the one signed in to Bridge. */
   otherAccount: (got: string, want: string) => `GitHub gave the OK for @${got}, but you are signed in to Bridge as @${want}. Switch to @${want} on GitHub, then continue.`,
   /** The OK expired or was taken back on GitHub. */
-  expired: 'Your OK to save to branches expired. Continue on GitHub to give it again.',
+  expired: 'Your OK to save changes expired. Continue on GitHub to give it again.',
 } as const;
 
 /** Bridge Direct is not set up on the team's repository: admins install it, everyone else asks their lead. */
 export const DIRECT_SETUP = {
-  title: 'Saving to branches is not set up yet',
+  title: 'Saving changes is not set up yet',
   installLabel: 'Install Bridge Direct',
   askLabel: 'Ask your lead',
   copied: 'Message copied',
   /** Under the action that asked. */
-  needed: 'Saving to branches is not set up for this team yet.',
+  needed: 'Saving changes is not set up for this team yet.',
 } as const;
 
 /** The setup sentence: an admin can finish it in a minute; anyone else asks their lead. */
 export function directSetupLine(repo: string, admin: boolean): string {
   return admin
-    ? `Bridge needs one more app on ${repo} to save to branches. Install Bridge Direct on GitHub, pick ${repo.split('/')[1] ?? repo}, then try again. It takes a minute.`
-    : `Your lead needs to add one more app on ${repo} before Bridge can save to branches. Send them a message: it takes them a minute.`;
+    ? `Bridge needs one more app on ${repo} to save changes. Install Bridge Direct on GitHub, pick ${repo.split('/')[1] ?? repo}, then try again. It takes a minute.`
+    : `Your lead needs to add one more app on ${repo} before Bridge can save changes. Send them a message: it takes them a minute.`;
 }
 
 /** What a teammate sends their lead when Bridge Direct is missing on the repository. */
 export function askDirectInstallMessage(repo: string, install: string, link: string): string {
-  return `Hi, can you install Bridge Direct on github.com/${repo}? Bridge needs it to save our changes to branches. It takes a minute: ${install} (pick ${repo.split('/')[1] ?? repo}). Then we keep working at ${link}`;
+  return `Hi, can you install Bridge Direct on github.com/${repo}? Bridge needs it to save our changes. It takes a minute: ${install} (pick ${repo.split('/')[1] ?? repo}). Then we keep working at ${link}`;
 }

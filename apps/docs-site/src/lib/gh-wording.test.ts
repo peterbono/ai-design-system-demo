@@ -35,7 +35,7 @@ describe('send words per mode', () => {
     expect(sendingLine('suggest')).toBe('Sending your suggestion');
     expect(suggestionSentLine(42)).toBe('Suggestion #42 sent to your DS lead. A developer applies it once it is approved.');
     expect(notSentLine('suggest', 'no access.')).toBe('Not sent: no access.');
-    const all = [SUGGEST_NEXT, SUGGESTION_SENT, SEE_SUGGESTION, suggestOnlyLine('add to branches', 'Send it as a suggestion.'), ...(['tokens', 'piece', 'docs', 'brand', 'revert'] as const).flatMap((w) => [sendButton(w, 'suggest'), sendGoal(w, 'suggest')])];
+    const all = [SUGGEST_NEXT, SUGGESTION_SENT, SEE_SUGGESTION, suggestOnlyLine('add to changes', 'Send it as a suggestion.'), ...(['tokens', 'piece', 'docs', 'brand', 'revert'] as const).flatMap((w) => [sendButton(w, 'suggest'), sendGoal(w, 'suggest')])];
     for (const line of all) {
       expect(line).not.toMatch(/\bissue|pull request|commit\b/i);
       expect(line).not.toContain(String.fromCharCode(0x2014));
@@ -57,8 +57,8 @@ describe('send words per mode', () => {
   });
 
   it('says why a branch action is not offered', () => {
-    expect(suggestOnlyLine('add to branches')).toBe('This design system takes suggestions, so Bridge does not add to branches here.');
-    expect(suggestOnlyLine('add to branches', 'Send your edits as a suggestion instead.')).toBe('This design system takes suggestions, so Bridge does not add to branches here. Send your edits as a suggestion instead.');
+    expect(suggestOnlyLine('add to changes')).toBe('This design system takes suggestions, so Bridge does not add to changes here.');
+    expect(suggestOnlyLine('add to changes', 'Send your edits as a suggestion instead.')).toBe('This design system takes suggestions, so Bridge does not add to changes here. Send your edits as a suggestion instead.');
   });
 });
 

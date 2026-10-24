@@ -106,7 +106,7 @@ export function WorkspaceHome({ name, team = null, storybook, setup, onConnect }
               storybook ? TW.storybook(team.name) : team.admin ? TW.ready(team.name) : TW.waiting(team.name)
             ) : storybook ? (
               <>
-                Your Storybook is connected: {plural(storybook.components, 'component')} from <span className="mono">{host}</span>. Connect the repository too and your tokens and branches show up here.
+                Your Storybook is connected: {plural(storybook.components, 'component')} from <span className="mono">{host}</span>. Connect the repository too and your tokens and changes show up here.
               </>
             ) : (
               W.nothing

@@ -263,7 +263,7 @@ test('calc(): Badge md padding and min height are resolved from the tokens and s
   const { sim, plan, a } = await pulledFile();
   assert.equal(evaluateCalc('calc(space.2 + space.0-5)', a.head), 10);
   assert.equal(evaluateCalc('calc((size.6 - space.1) * 2)', a.head), 40);
-  assert.deepEqual(evaluateCalc('calc(space.2 + nope.1)', a.head), { problem: 'nope.1 is not a token on this branch' });
+  assert.deepEqual(evaluateCalc('calc(space.2 + nope.1)', a.head), { problem: 'nope.1 is not a token in the library' });
   const badge = plan.components.find((c) => c.name === 'Badge')!;
   const md = badge.variants.find((v) => v.props.Size === 'md')!;
   assert.deepEqual(md.parts.root!.find((f) => f.field === 'paddingLeft')!.value, { kind: 'number', value: 10, expr: 'calc(space.2 + space.0-5)' });

@@ -28,7 +28,7 @@ const workItems = WORK_FILTERS.map((f) => ({ value: f.value, label: f.label }));
 
   <form class="fg-card rq-form ex-form" id="ex-start" aria-label="Start an exploration" novalidate hidden>
     <p class="ex-for" id="ex-for" hidden></p>
-    <Input label="Name" name="name" autoComplete="off" maxLength={60} placeholder="Pill buttons" hint="Teammates see this name in Branches and in the Figma plugin." />
+    <Input label="Name" name="name" autoComplete="off" maxLength={60} placeholder="Pill buttons" hint="Teammates see this name in Changes and in the Figma plugin." />
     <Textarea label="What do you want to learn?" name="purpose" rows={2} placeholder="Do rounder buttons read as friendlier in checkout?" />
     <div class="ex-uc">
       <BridgedSelect
@@ -50,7 +50,7 @@ const workItems = WORK_FILTERS.map((f) => ({ value: f.value, label: f.label }));
       spellCheck={false}
       maxLength={20}
       placeholder="DS-42"
-      hint="Optional. Links this branch to the ticket in Jira."
+      hint="Optional. Links this change to the ticket in Jira."
     />
     <p class="gh-error" id="ex-start-error" role="alert" hidden></p>
     <p class="rq-hint ex-no-gh" data-no-gh>{ghAction('start it here', signIn)}.</p>

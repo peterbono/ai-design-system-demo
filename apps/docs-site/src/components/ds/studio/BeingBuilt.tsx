@@ -274,8 +274,8 @@ function Detail({
               </>
             ) : (
               <p className="t-body bb-measure">
-                It was sent from the Figma plugin as a library branch. The
-                design and what changed are on the branch.
+                It was sent from the Figma plugin as a library change. The
+                design and what changed are on the change.
               </p>
             )}
             <p className="t-ui t-muted bb-meta">
@@ -305,7 +305,7 @@ function Detail({
                   <Link href={safeUrl(v.url, "#")} {...external}>
                     {v.kind === "issue"
                       ? `Build request #${v.number} on GitHub`
-                      : `Branch #${v.number} on GitHub`}
+                      : `Change #${v.number} on GitHub`}
                   </Link>
                 </li>
                 {v.pull && v.pull.number !== v.number && (

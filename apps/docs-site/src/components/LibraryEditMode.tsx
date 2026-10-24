@@ -810,7 +810,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
           setBase(text);
           setBranch({ pr: Number(q.get('pr')) || null, ref });
         } catch {
-          setNotice({ tone: 'info', text: `Could not read the ${p.name} docs of that branch. You are editing the published page.` });
+          setNotice({ tone: 'info', text: `Could not read the ${p.name} docs of that change. You are editing the published page.` });
         }
       } else {
         if (mine) {

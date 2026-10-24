@@ -448,23 +448,23 @@ export function libraryPreviewState(x: {
 }): LibraryPreviewState {
   if (x.kind === 'suggestion') {
     if (x.lifecycle === 'closed') return { key: 'declined', sentence: `The library declined this suggestion.${x.nearest ? ` Ask Claude to use ${x.nearest} instead.` : ''}`, action: null };
-    if (x.lifecycle === 'merged') return x.behindMain === 0 ? { key: 'switched', sentence: 'Your branch uses the published version.', action: null } : { key: 'published', sentence: 'The library applied the suggestion. Switch your branch to the published version.', action: { kind: 'switch', label: 'Switch to the published version' } };
-    return { key: 'nothing-yet', sentence: 'Nothing to preview yet: owners review the suggestion, then a developer applies it. Your branch keeps its own value until then.', action: null };
+    if (x.lifecycle === 'merged') return x.behindMain === 0 ? { key: 'switched', sentence: 'Your feature uses the published version.', action: null } : { key: 'published', sentence: 'The library applied the suggestion. Switch your feature to the published version.', action: { kind: 'switch', label: 'Switch to the published version' } };
+    return { key: 'nothing-yet', sentence: 'Nothing to preview yet: owners review the suggestion, then a developer applies it. Your feature keeps its own value until then.', action: null };
   }
   if (x.kind === 'request') {
     if (x.lifecycle === 'closed') return { key: 'declined', sentence: `The library declined this request.${x.nearest ? ` Ask Claude to use ${x.nearest} instead.` : ''}`, action: null };
-    if (x.lifecycle === 'merged') return x.behindMain === 0 ? { key: 'switched', sentence: 'Your branch uses the published version.', action: null } : { key: 'published', sentence: 'The library built it. Switch your branch to the published version, then ask Claude to use it.', action: { kind: 'switch', label: 'Switch to the published version' } };
-    return { key: 'nothing-yet', sentence: 'Nothing to preview yet: the library builds it first. Your branch keeps its own version until then.', action: null };
+    if (x.lifecycle === 'merged') return x.behindMain === 0 ? { key: 'switched', sentence: 'Your feature uses the published version.', action: null } : { key: 'published', sentence: 'The library built it. Switch your feature to the published version, then ask Claude to use it.', action: { kind: 'switch', label: 'Switch to the published version' } };
+    return { key: 'nothing-yet', sentence: 'Nothing to preview yet: the library builds it first. Your feature keeps its own version until then.', action: null };
   }
   if (x.lifecycle === 'merged') {
-    if (x.behindMain === 0) return { key: 'switched', sentence: 'Your branch uses the published version.', action: null };
-    return { key: 'published', sentence: 'The library published it. Switch your branch to the published version.', action: { kind: 'switch', label: 'Switch to the published version' } };
+    if (x.behindMain === 0) return { key: 'switched', sentence: 'Your feature uses the published version.', action: null };
+    return { key: 'published', sentence: 'The library published it. Switch your feature to the published version.', action: { kind: 'switch', label: 'Switch to the published version' } };
   }
   if (x.lifecycle === 'closed') return { key: 'declined', sentence: `The library closed it without shipping.${x.nearest ? ` Ask Claude to use ${x.nearest} instead.` : ''}`, action: null };
-  if (!x.hasChanges) return { key: 'nothing-yet', sentence: 'The library branch has no change yet. Claude adds it there, then your branch can use its preview.', action: null };
-  if (x.missing === 0) return { key: 'preview', sentence: 'Your branch uses a preview of the library branch. When the library publishes it, switch to the real version here in one click.', action: null };
-  if (x.missing !== null && x.total !== null && x.missing < x.total) return { key: 'outdated', sentence: 'The library branch changed since your branch took its preview.', action: { kind: 'refresh-preview', label: 'Get the latest preview' } };
-  return { key: 'not-used', sentence: 'Your branch does not use the library branch yet.', action: { kind: 'use-preview', label: 'Use its preview in my branch' } };
+  if (!x.hasChanges) return { key: 'nothing-yet', sentence: 'The library change has nothing in it yet. Claude adds it there, then your feature can use its preview.', action: null };
+  if (x.missing === 0) return { key: 'preview', sentence: 'Your feature uses a preview of the library change. When the library publishes it, switch to the real version here in one click.', action: null };
+  if (x.missing !== null && x.total !== null && x.missing < x.total) return { key: 'outdated', sentence: 'The library change changed since your feature took its preview.', action: { kind: 'refresh-preview', label: 'Get the latest preview' } };
+  return { key: 'not-used', sentence: 'Your feature does not use the library change yet.', action: { kind: 'use-preview', label: 'Use its preview in my feature' } };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -474,7 +474,7 @@ const nPieces = (n: number) => `${n} ${n === 1 ? 'piece' : 'pieces'}`;
 
 /**
  * The one sentence first on a product branch: "Built with the library. 1 piece was missing, and Claude AI opened a
- * library branch for it." `who` names who opened the library branches when they are all from the same one.
+ * library change for it." `who` names who opened the library changes when they are all from the same one.
  */
 export function productBranchSentence(r: PiecesRecord | undefined, opts: { agentName?: string | undefined; viewer?: string | null | undefined } = {}): { lead: string; strong: string; rest: string } {
   if (!r) return { lead: 'Not checked against the library yet.', strong: '', rest: ' Ask Claude what is missing from the library.' };
@@ -485,11 +485,11 @@ export function productBranchSentence(r: PiecesRecord | undefined, opts: { agent
   const by = openers.length === 1 ? openers[0]! : 'your team';
   const was = n === 1 ? 'was' : 'were';
   if (linked.length === n) {
-    const what = n === 1 ? 'a library branch for it' : 'library branches for them';
+    const what = n === 1 ? 'a library change for it' : 'library changes for them';
     return { lead: 'Built with the library. ', strong: `${nPieces(n)} ${was} missing`, rest: `, and ${by} opened ${what}.` };
   }
-  if (!linked.length) return { lead: 'Built with the library. ', strong: `${nPieces(n)} ${n === 1 ? 'is' : 'are'} missing`, rest: n === 1 ? ': open a library branch for it.' : ': open a library branch for each.' };
-  return { lead: 'Built with the library. ', strong: `${nPieces(n)} ${was} missing`, rest: `: ${linked.length} ${linked.length === 1 ? 'has' : 'have'} a library branch, ${n - linked.length} still ${n - linked.length === 1 ? 'needs' : 'need'} one.` };
+  if (!linked.length) return { lead: 'Built with the library. ', strong: `${nPieces(n)} ${n === 1 ? 'is' : 'are'} missing`, rest: n === 1 ? ': open a library change for it.' : ': open a library change for each.' };
+  return { lead: 'Built with the library. ', strong: `${nPieces(n)} ${was} missing`, rest: `: ${linked.length} ${linked.length === 1 ? 'has' : 'have'} a library change, ${n - linked.length} still ${n - linked.length === 1 ? 'needs' : 'need'} one.` };
 }
 
 /** "Why it exists" on the library review: "Ann needs it for <title> in Admin demo." */

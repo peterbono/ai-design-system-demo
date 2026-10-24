@@ -58,15 +58,15 @@ describe('freshness', () => {
 
 describe('libraryLine and behindTag', () => {
   it('names the number of updates, singular and plural', () => {
-    expect(libraryLine({ state: 'behind', behindBy: 1, mergeBase: null })).toBe('main has moved on: 1 update since this branch started.');
-    expect(libraryLine({ state: 'conflict', behindBy: 12, mergeBase: null })).toBe('main has moved on: 12 updates since this branch started.');
+    expect(libraryLine({ state: 'behind', behindBy: 1, mergeBase: null })).toBe('The library has moved on: 1 update since this change started.');
+    expect(libraryLine({ state: 'conflict', behindBy: 12, mergeBase: null })).toBe('The library has moved on: 12 updates since this change started.');
     expect(libraryLine({ state: 'current', behindBy: 0, mergeBase: null })).toBeNull();
     expect(libraryLine({ state: 'unknown', behindBy: null, mergeBase: null })).toBeNull();
   });
 
   it('tags list rows only when behind', () => {
-    expect(behindTag(4)).toBe('main moved on: 4 updates');
-    expect(behindTag(1)).toBe('main moved on: 1 update');
+    expect(behindTag(4)).toBe('The library moved on: 4 updates');
+    expect(behindTag(1)).toBe('The library moved on: 1 update');
     expect(behindTag(0)).toBeNull();
     expect(behindTag(null)).toBeNull();
   });
@@ -95,13 +95,13 @@ describe('overlap and conflictRoute', () => {
   });
 
   it('says who resolves, in designer words', () => {
-    expect(conflictLine({ kind: 'code', alsoTokens: true, files: [] }, null)).toBe('This branch also conflicts in code. A developer resolves that part.');
+    expect(conflictLine({ kind: 'code', alsoTokens: true, files: [] }, null)).toBe('This change also conflicts in code. A developer resolves that part.');
     expect(conflictLine({ kind: 'code', alsoTokens: false, files: [] }, null)).toMatch(/A developer resolves it\.$/);
-    expect(conflictLine({ kind: 'tokens', files: [] }, 2)).toBe('2 tokens changed here and on main. Pick which value to keep.');
+    expect(conflictLine({ kind: 'tokens', files: [] }, 2)).toBe('2 tokens changed here and in the library. Pick which value to keep.');
     expect(conflictLine({ kind: 'tokens', files: [] }, 0)).toMatch(/Bridge can combine them/);
     expect(resolveLabel(1)).toBe('Resolve 1 conflict');
     expect(resolveLabel(3)).toBe('Resolve 3 conflicts');
-    expect(resolveLabel(0)).toBe('Update from main');
+    expect(resolveLabel(0)).toBe('Update from the library');
   });
 });
 
@@ -150,9 +150,9 @@ describe('conflict rows and the resolution plan', () => {
     const removed = files(light(null));
     const plan = planTokenMerge(input(mine, removed));
     const rows = conflictRows(plan.conflicts, sets(mine, removed));
-    expect(rows[0]).toMatchObject({ name: 'color.text.muted', library: null, mustPick: true, defaultChoice: null, note: 'Removed on main: pick one.' });
+    expect(rows[0]).toMatchObject({ name: 'color.text.muted', library: null, mustPick: true, defaultChoice: null, note: 'Removed from the library: pick one.' });
     expect(resolution(plan.conflicts, {})).toMatchObject({ ready: false, missing: 1, sentence: 'Pick a value for 1 more token.' });
-    expect(resolution(plan.conflicts, { [plan.conflicts[0]!.key]: 'theirs' })).toMatchObject({ ready: true, theirs: 1, sentence: "Keeps main's for 1 token." });
+    expect(resolution(plan.conflicts, { [plan.conflicts[0]!.key]: 'theirs' })).toMatchObject({ ready: true, theirs: 1, sentence: "Keeps the library's for 1 token." });
   });
 
   it('counts the choices and writes them in the commit message', () => {

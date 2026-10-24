@@ -52,9 +52,9 @@ export function namesOf(changes: TogetherChange[]): string {
 
 /** "Combines 3 tokens from 3 changes." What the combination does, from its own numbers (tokens by name). */
 export function combineSummary(x: { changes: number; tokens: number; conflicts: number; missing: number }): string {
-  const base = `Combines ${plural(x.tokens, 'token')} from ${plural(x.changes, 'branch', 'branches')}.`;
+  const base = `Combines ${plural(x.tokens, 'token')} from ${plural(x.changes, 'change')}.`;
   if (!x.conflicts) return base;
-  if (x.missing) return `${base} ${x.missing === 1 ? '1 token has' : `${x.missing} tokens have`} different values in these branches: pick which one to use.`;
+  if (x.missing) return `${base} ${x.missing === 1 ? '1 token has' : `${x.missing} tokens have`} different values in these changes: pick which one to use.`;
   return `${base} You picked the value of ${plural(x.conflicts, 'token')} they set differently.`;
 }
 
@@ -68,10 +68,10 @@ export interface TogetherGuardrail {
 export function togetherGuardrail(review: Pick<TokenReview, 'contrast' | 'checked' | 'problems'>, max = 4): TogetherGuardrail {
   const fails = review.contrast.filter((p) => p.after < p.min);
   const failing = fails.slice(0, max).map((p) => ({ pair: `${p.fg} on ${p.bg}`, where: p.where, ratio: `${p.after.toFixed(2)}:1`, min: `${p.min}:1` }));
-  if (review.problems.length) return { ok: false, sentence: `These branches do not build together: ${review.problems[0]}`, failing };
-  if (fails.length) return { ok: false, sentence: `${plural(fails.length, 'contrast check')} ${fails.length === 1 ? 'fails' : 'fail'} with these branches together. The token build would block ${fails.length === 1 ? 'it' : 'them'}: try another pick, or fix it in one of the branches.`, failing };
+  if (review.problems.length) return { ok: false, sentence: `These changes do not build together: ${review.problems[0]}`, failing };
+  if (fails.length) return { ok: false, sentence: `${plural(fails.length, 'contrast check')} ${fails.length === 1 ? 'fails' : 'fail'} with these changes together. The token build would block ${fails.length === 1 ? 'it' : 'them'}: try another pick, or fix it in one of the branches.`, failing };
   const checked = review.checked ?? 0;
-  return { ok: true, sentence: checked ? `All ${checked} contrast checks pass with these branches together.` : 'No contrast check depends on these tokens.', failing };
+  return { ok: true, sentence: checked ? `All ${checked} contrast checks pass with these changes together.` : 'No contrast check depends on these tokens.', failing };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -122,7 +122,7 @@ export function togetherRows(conflicts: CombineConflict[], ctx: { latest: Record
       o.changes.map((change) => {
         const edit: CombineEdit = { key: c.key, file: c.file, path: c.path, change, token: o.token };
         const set: TokenSet = buildTokenSet(combineChanges(ctx.latest, [{ number: change, edits: [edit], problems: [] }]).files, ctx.options);
-        return { change, label: useLabel(ctx.titles.get(change) ?? `branch #${change}`), value: sideValue(set, c.file, o.token) };
+        return { change, label: useLabel(ctx.titles.get(change) ?? `change #${change}`), value: sideValue(set, c.file, o.token) };
       }),
     ),
   }));

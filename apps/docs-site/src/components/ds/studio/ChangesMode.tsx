@@ -218,7 +218,7 @@ export default function ChangesModeSetting({ set, repo, prefix, protectedBranche
               <strong>Sent for review.</strong> It applies once your team approves it.
             </p>
             <p>
-              <Link href={studioHref(`changes/?pr=${done.number}`)}>See the branch</Link> ·{' '}
+              <Link href={studioHref(`changes/?pr=${done.number}`)}>See the change</Link> ·{' '}
               <Link href={done.url} external>
                 {VOCAB.openOnGitHub}
               </Link>

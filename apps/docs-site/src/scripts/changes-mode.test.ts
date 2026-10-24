@@ -26,10 +26,10 @@ describe('changes mode on the page', () => {
   });
 
   it('refuses branch writes in suggest mode only, with the sentence to show', () => {
-    expect(() => assertBranchWrites('add to branches', 'Send your edits as a suggestion instead.', 'suggest')).toThrow(SuggestOnlyError);
-    expect(() => assertBranchWrites('add to branches', undefined, 'suggest')).toThrow('This design system takes suggestions, so Bridge does not add to branches here.');
-    expect(() => assertBranchWrites('add to branches', undefined, 'direct')).not.toThrow();
+    expect(() => assertBranchWrites('add to changes', 'Send your edits as a suggestion instead.', 'suggest')).toThrow(SuggestOnlyError);
+    expect(() => assertBranchWrites('add to changes', undefined, 'suggest')).toThrow('This design system takes suggestions, so Bridge does not add to changes here.');
+    expect(() => assertBranchWrites('add to changes', undefined, 'direct')).not.toThrow();
     page('{"changes":"direct"}');
-    expect(() => assertBranchWrites('add to branches')).not.toThrow();
+    expect(() => assertBranchWrites('add to changes')).not.toThrow();
   });
 });

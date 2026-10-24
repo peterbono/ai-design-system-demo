@@ -180,10 +180,10 @@ export function lifecycleSentence(x: {
       if (x.claude === 'waiting') return CLAUDE_WAITING_SENTENCE;
       return x.isAuthor ? 'Request a review when it is ready. Until then nobody is asked to review it.' : `Waiting for @${x.author} to request a review.`;
     case 'shipped':
-      return x.mergedAt ? `Merged into ${VOCAB.main} on ${day(x.mergedAt)}.` : `Merged into ${VOCAB.main}.`;
+      return x.mergedAt ? `Added to ${VOCAB.main} on ${day(x.mergedAt)}.` : `Added to ${VOCAB.main}.`;
     case 'closed':
       if (x.reopen?.kind === 'gone') return GONE_SENTENCE;
-      return x.closedAt ? `Closed without merging on ${day(x.closedAt)}.` : 'Closed without merging.';
+      return x.closedAt ? `Closed without adding it to the library on ${day(x.closedAt)}.` : 'Closed without adding it to the library.';
     case 'ready':
       return x.claude === 'drafted' && x.untouched ? CLAUDE_DRAFTED_SENTENCE : null;
     default:
@@ -264,7 +264,7 @@ export function statusOpener(rows: (OpenerRow & { lifecycle: Lifecycle })[]): Op
   const head = `${parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0]}.`;
   if (!active.length) return { sentence: head, action: null };
   const first = openerFor(active);
-  const why = first.sentence.replace(/^\d+ branch(es)? in review\. /, '');
+  const why = first.sentence.replace(/^\d+ (?:branch(?:es)?|changes?) in review\. /, '');
   return { sentence: `${head} ${why}`, action: first.action };
 }
 
@@ -281,7 +281,7 @@ export function emptyFilterLine(filter: StatusFilter): string {
     case 'waiting':
       return `No approved ${VOCAB.branch} waits for code.`;
     case 'shipped':
-      return `No ${VOCAB.branch} was merged recently.`;
+      return `No ${VOCAB.branch} was added to the library recently.`;
     case 'closed':
       return `No ${VOCAB.branch} was closed recently.`;
     default:
@@ -332,7 +332,7 @@ export function draftFromTokenSets(base: TokenSet, head: TokenSet): { draft: Dra
 /** What "Start again" says once the draft is ready, or why it could not be. */
 export function restartLine(x: { carried: number; skipped: number; draftBusy: boolean }): { ok: boolean; text: string } {
   if (x.draftBusy) return { ok: false, text: 'You already have a draft in this browser. Request a review of it or clear it in Tokens, then start again.' };
-  if (!x.carried) return { ok: false, text: `This ${VOCAB.branch} has no token value to carry over. Create a new ${VOCAB.branch} from Tokens instead.` };
+  if (!x.carried) return { ok: false, text: `This ${VOCAB.branch} has no token value to carry over. Start a new ${VOCAB.branch} from Tokens instead.` };
   const skipped = x.skipped ? ` ${plural(x.skipped, 'other edit')} (new, removed or brand-only tokens) could not be carried over.` : '';
   return { ok: true, text: `${plural(x.carried, 'token edit')} copied into your draft.${skipped} Opening Tokens to request a review.` };
 }

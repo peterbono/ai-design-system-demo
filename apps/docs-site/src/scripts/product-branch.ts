@@ -72,9 +72,9 @@ async function namesOf(logins: string[]): Promise<Record<string, string>> {
 function tokenWriter(gh: ReturnType<typeof client>) {
   return async (plan: Extract<LibraryBranchPlan, { kind: 'token-change' }>, ctx: { mode: ChangesMode }): Promise<LibraryTokenWrite> => {
     const mainSha = await gh.getBranchSha(CFG.defaultBranch);
-    if (!mainSha) throw new Error(`Branch ${CFG.defaultBranch} not found.`);
+    if (!mainSha) throw new Error(`The library (${CFG.defaultBranch}) was not found on GitHub.`);
     const latest = await loadRepoFiles(gh, mainSha, 'packages/tokens/src');
-    if (!latest.config) throw new Error('bridge.config.json could not be read on main, so the token change cannot be planned.');
+    if (!latest.config) throw new Error('bridge.config.json could not be read in the library, so the token change cannot be planned.');
     const before = new LayeredTokenSet(latest.config, new Map(Object.entries(latest.files)));
     const p = planTokenProposal({ before, pairs: parseContrastChecks(latest.contrastChecks), edits: plan.edits, title: plan.title, summary: plan.summary, config: latest.config, tool: 'Bridge Studio' });
     if (!p) throw new Error('The library already has this token with that value.');
@@ -83,7 +83,7 @@ function tokenWriter(gh: ReturnType<typeof client>) {
       const r = await suggestTokenProposalOnGitHub(gh, p, { base: CFG.defaultBranch, baseSha: mainSha, source: 'studio', suggestedBy: currentViewer()?.login, neededBy: plan.neededBy, labelsAfter: [NEEDED_BY_LABEL] });
       return { status: 'suggested', number: r.number, url: r.url };
     }
-    if (p.blocked) throw new Error(`The library branch was not opened: ${p.blocked}. Ask Claude to pick another value.`);
+    if (p.blocked) throw new Error(`The library change was not started: ${p.blocked}. Ask Claude to pick another value.`);
     const opened = await writeTokenProposalOnGitHub(gh, p, { base: CFG.defaultBranch, branchPrefix: latest.config.governance.branchPrefix, labels: ['source: bridge-web'], labelsAfter: [NEEDED_BY_LABEL], tool: 'Bridge Studio' });
     return { number: opened.pr, url: opened.url, branch: opened.branch };
   };
@@ -170,18 +170,18 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
       void refresh();
       if (res.status === 'suggested') return `${suggestionSentLine(res.link?.number ?? 0)}${res.warnings.length ? ` ${res.warnings.join(' ')}` : ''}`;
       if (mode === 'suggest') return `Sent to the library as a request for ${row.title}. Your DS lead decides on it.${res.warnings.length ? ` ${res.warnings.join(' ')}` : ''}`;
-      const what = res.plan.kind === 'token-change' ? 'token change' : res.plan.kind === 'exploration' ? 'library branch' : 'request';
-      return `Opened a ${what} for ${row.title}.${res.preview?.status === 'merged' ? ' Your branch uses its preview now.' : ''}${res.warnings.length ? ` ${res.warnings.join(' ')}` : ''}`;
+      const what = res.plan.kind === 'token-change' ? 'token change' : res.plan.kind === 'exploration' ? 'library change' : 'request';
+      return `Opened a ${what} for ${row.title}.${res.preview?.status === 'merged' ? ' Your feature uses its preview now.' : ''}${res.warnings.length ? ` ${res.warnings.join(' ')}` : ''}`;
     }
     // Suggest mode: the product branch is not written from Studio (a developer switches it or uses a preview).
-    assertBranchWrites(kind === 'switch' ? 'switch branches to the published version' : 'change branches');
+    assertBranchWrites(kind === 'switch' ? 'switch features to the published version' : 'update features');
     if (kind === 'switch') {
       const res = await switchToPublishedOnGitHub(gh, r.number);
       void refresh();
       return res.said;
     }
     const l = lastView?.linked.find((x) => x.link.piece === row.id);
-    if (!l || !l.link.branch) throw new Error('This library branch has nothing to preview yet.');
+    if (!l || !l.link.branch) throw new Error('This library change has nothing to preview yet.');
     const res = await useLibraryPreviewOnGitHub(gh, { productBranch: r.branch, libraryBranch: l.link.branch, libraryNumber: l.link.number });
     void refresh();
     return res.said;
@@ -244,7 +244,7 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
         ? async () => {
             await closeExplorationOnGitHub(gh.withBranchPrefix('explore/'), r.number);
             reopen();
-            return 'Closed without merging.';
+            return 'Closed without adding it to the library.';
           }
         : null,
       developer: developerLines({ number: r.number, branch: r.branch, links: record?.links ?? [] }),

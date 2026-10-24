@@ -87,9 +87,9 @@ describe('a library branch per piece, linked both ways', () => {
     expect(parsePiecesRecord(gh.pulls[n - 1]!.body)!.links).toHaveLength(1);
 
     const view = await pieces.productBranchOp(await rw(), { pr: n });
-    expect(view.said).toBe('Built with the library. 2 pieces were missing: 1 has a library branch, 1 still needs one.');
+    expect(view.said).toBe('Built with the library. 2 pieces were missing: 1 has a library change, 1 still needs one.');
     expect(view.linked[0]).toMatchObject({ piece: 'Badge: overdue tone', status: 'Being built' });
-    expect(view.linked[0]!.preview).toMatch(/has no change yet/);
+    expect(view.linked[0]!.preview).toMatch(/has nothing in it yet/);
     expect(view.notLinked.map((p: any) => p.kind)).toEqual(['token']);
   });
 
@@ -115,9 +115,9 @@ describe('a library branch per piece, linked both ways', () => {
     let view = await pieces.productBranchOp(await rw(), { pr: n });
     const linked = view.linked.find((l: any) => l.library.number === r.library!.number)!;
     expect(linked.status).toBe('Draft');
-    expect(linked.preview).toMatch(/^Your branch uses a preview of the library branch/);
+    expect(linked.preview).toMatch(/^Your feature uses a preview of the library change/);
     expect(linked.action).toBeUndefined();
-    expect(view.said).toMatch(/and Claude AI opened a library branch for it|1 has a library branch/);
+    expect(view.said).toMatch(/and Claude AI opened a library change for it|1 has a library change/);
 
     // The library branch gets a review fix: the preview is outdated until the product branch takes it again.
     const libHead = gh.refs.get(lib.head.ref)!;
@@ -139,7 +139,7 @@ describe('a library branch per piece, linked both ways', () => {
     expect(shipped.tool).toBe(`bridge_switch_to_published { pr: ${n} }`);
     expect((await pieces.switchToPublishedOp(await rw(), { pr: n })).status).toBe('switched');
     view = await pieces.productBranchOp(await rw(), { pr: n });
-    expect(view.linked.find((l: any) => l.library.number === r.library!.number)!.preview).toBe('Your branch uses the published version.');
+    expect(view.linked.find((l: any) => l.library.number === r.library!.number)!.preview).toBe('Your feature uses the published version.');
   });
 
   it('suggest mode: a token piece becomes a suggestion that says who needs it, no branch and no preview', async () => {
@@ -179,7 +179,7 @@ describe('a library branch per piece, linked both ways', () => {
     expect(record.links[0]!.agent).toBeUndefined();
     lines.length = 0;
     expect(await runPieces({ _: ['pieces', 'status', String(n)], flags: {} }, REPO, io)).toBe(0);
-    expect(lines.join('\n')).toMatch(/Built with the library\. 1 piece was missing, and you opened a library branch for it\./);
+    expect(lines.join('\n')).toMatch(/Built with the library\. 1 piece was missing, and you opened a library change for it\./);
     expect(lines.join('\n')).toMatch(/Requested\. Nothing to preview yet/);
     await expect(pieces.useLibraryPreviewOp(await rw(), { pr: n, piece: 'component-rating' })).rejects.toThrow(/is a request: there is nothing to preview/);
   });

@@ -16,16 +16,16 @@ export const REVIEW_PAGE = { title: 'How review works', art: 'guide', studio: 's
 const JOURNEY: { title: string; text: string }[] = [
   { title: 'Explore in Figma', text: 'A designer tries the change on real screens. Nothing in Figma reaches the product by itself.' },
   {
-    title: 'Create a branch and request review',
-    text: 'In Studio or the DS Bridge Figma plugin, a designer creates a branch off main and requests a review, the way Figma branching works. On GitHub that branch is a pull request against the token files. An issue works too; then the AI agent or a maintainer writes the pull request.',
+    title: 'Start a change and send it for review',
+    text: 'In Studio or the DS Bridge Figma plugin, a designer starts a change to the library and sends it for review. For developers: on GitHub that change is a branch off main and a pull request against the token files. An issue works too; then the AI agent or a maintainer writes the pull request.',
   },
   {
     title: 'Pull request',
-    text: 'The branch is a diff with a risk tier, a changelog entry and a note on what to review. Studio shows it as a branch with its status: Draft, In review, Approved, waiting for code, Merged or Closed.',
+    text: 'The pull request is a diff with a risk tier, a changelog entry and a note on what to review. Studio shows it as a change with its status: Draft, In review, Approved, waiting for code, Added to the library or Closed.',
   },
   { title: 'CI guardrails', text: 'Checks run on every pull request: tokens build, types check, no raw colors or shadows in components, Storybook builds, a changelog entry exists.' },
   { title: 'Design and tech review', text: 'The design owner checks both themes, contrast and keyboard focus. The tech owner checks naming, API and version bump. Token changes need both.' },
-  { title: 'Review and merge', text: 'A person who owns that area merges the branch into main. The AI agent never merges.' },
+  { title: 'Review and add to the library', text: 'A person who owns that area adds the change to the library (on GitHub, merges it into main). The AI agent never does.' },
   { title: 'Publish', text: 'Changesets bumps the version and writes the changelog from the entries collected in each pull request.' },
   {
     title: 'Docs update themselves',
@@ -45,7 +45,7 @@ const REQUEST_STEPS: { title: string; text: string }[] = [
     text: 'A designer asks for a new component or a change (variant, prop, structure, visual, token binding) from the Push tab of the Figma plugin or from a component in Studio. It becomes a GitHub issue labeled component-change.',
   },
   { title: 'Implement', text: 'A developer, or Claude with `bridge request implement <number>` or the `bridge_get_request` MCP tool, changes the code in a pull request that says `Closes #<number>`.' },
-  { title: 'Review and merge', text: 'The pull request goes through the same tiers and gates as any other change. When it merges, the request closes as done.' },
+  { title: 'Review and add to the library', text: 'The pull request goes through the same tiers and gates as any other change. Once it is in the library, the request closes as done.' },
 ];
 const SUGGESTION_STEPS: { title: string; text: string }[] = [
   {
@@ -54,25 +54,25 @@ const SUGGESTION_STEPS: { title: string; text: string }[] = [
   },
   {
     title: 'Review',
-    text: 'Owners decide in Studio (Branches and the review queue) or on GitHub: Approve, Suggest changes or Decline. Only owners listed in `bridge.config.json` count, and an approval counts for the version they saw: when the suggestion changes, earlier approvals stop counting and Studio says so.',
+    text: 'Owners decide in Studio (Changes and the review queue) or on GitHub: Approve, Suggest changes or Decline. Only owners listed in `bridge.config.json` count, and an approval counts for the version they saw: when the suggestion changes, earlier approvals stop counting and Studio says so.',
   },
   {
     title: 'Apply',
-    text: 'A developer runs `npx bridge apply <number>` or asks Claude to "Apply Bridge suggestion #<number>". Bridge checks it again against main as it is now and stops on a conflict. The pull request says `Closes #<number>` and goes through the same tiers and gates.',
+    text: 'A developer runs `npx bridge apply <number>` or asks Claude to "Apply Bridge suggestion #<number>". Bridge checks it again against the library as it is now and stops on a conflict. The pull request says `Closes #<number>` and goes through the same tiers and gates.',
   },
 ];
 const EXPLORE_STEPS: { title: string; text: string }[] = [
   {
     title: 'Start',
-    text: 'From Studio Branches, Explorations, `bridge explore start <name>` or Claude (`bridge_start_exploration`): a branch `explore/<name>` from main and a draft pull request labeled `exploration`. Token edits and requests filed on it land there, never on main.',
+    text: 'From Studio Changes, Explorations, `bridge explore start <name>` or Claude (`bridge_start_exploration`): a branch `explore/<name>` from main and a draft pull request labeled `exploration`. Token edits and requests filed on it land there, never on main.',
   },
   {
-    title: 'Try it in a product staging branch',
+    title: 'Try it in a product staging preview',
     text: 'Every push publishes snapshot packages (`npm i @bridge-ds/react@<snapshot>`) and per-branch previews: a coded prototype for a user test, a stakeholder demo or an A/B idea on real screens.',
   },
   {
     title: 'Promote or close',
-    text: 'It is never merged as is: the `Exploration not merged as is` check fails while the label is on. Promote to review removes the label, adds the tier labels and marks it ready, then the usual gates apply. Otherwise, close it.',
+    text: 'It never goes into the library as is: the `Exploration not merged as is` check fails while the label is on. Promote to review removes the label, adds the tier labels and marks it ready, then the usual gates apply. Otherwise, close it.',
   },
 ];
 
@@ -150,8 +150,8 @@ export default function ReviewView({ data }: { data: LibraryData }) {
 
         <Section id="explorations" title="Explorations" n={`${EXPLORE_STEPS.length} steps`}>
           <p>
-            An exploration tries experimental variables and components in a real product staging branch without touching main. Follow them in{' '}
-            <Link href={studioLink(data, 'changes/?view=explorations')}>Studio Branches, Explorations</Link>, or in GitHub by the <code>exploration</code> label.
+            An exploration tries experimental variables and components in a real product staging branch without touching the library. Follow them in{' '}
+            <Link href={studioLink(data, 'changes/?view=explorations')}>Studio Changes, Explorations</Link>, or in GitHub by the <code>exploration</code> label.
           </p>
           <Steps steps={EXPLORE_STEPS} />
         </Section>
@@ -185,7 +185,7 @@ export default function ReviewView({ data }: { data: LibraryData }) {
               shows it.
             </li>
             <li>
-              <strong>Branch protection still wins.</strong> The override changes what Bridge allows, not what GitHub enforces.
+              <strong>GitHub protection still wins.</strong> The override changes what Bridge allows, not what GitHub enforces.
             </li>
           </ul>
         </Section>

@@ -127,7 +127,7 @@ export function SelectionBar({ selected, listed, admin, failure, onClear, onDrop
 
   return (
     <>
-      <div className="cg-bar" role="region" aria-label="Selected branches">
+      <div className="cg-bar" role="region" aria-label="Selected changes">
         <p className="cg-bar-text" aria-live="polite">
           <span className="cg-bar-title">{copy.title}</span>
           {second && <span className="cg-bar-hint">{second}</span>}
@@ -152,7 +152,7 @@ export function SelectionBar({ selected, listed, admin, failure, onClear, onDrop
       <Dialog open={asking} onOpenChange={setAsking}>
         <DialogContent
           size="lg"
-          title={`Preview ${n} branches together`}
+          title={`Preview ${n} changes together`}
           description={combo ? combineSummary({ changes: n, tokens: combo.c.tokens, conflicts: combo.c.conflicts.length, missing: combo.c.missing.length }) : undefined}
           footer={
             <ButtonGroup align="end">
@@ -176,7 +176,7 @@ export function SelectionBar({ selected, listed, admin, failure, onClear, onDrop
           }
         >
           {combo && combo.conflictRows.length ? (
-            <ul className="lib-rows cg-together-rows" aria-label="Tokens these branches set differently">
+            <ul className="lib-rows cg-together-rows" aria-label="Tokens these changes set differently">
               {combo.conflictRows.map((r) => (
                 <li className="lib-row" key={r.key}>
                   <div className="lib-token">
@@ -211,7 +211,7 @@ export function SelectionBar({ selected, listed, admin, failure, onClear, onDrop
             </Alert>
           ) : null}
           {combo?.c.problems.length ? (
-            <Alert tone="warning" announce="off" className="cg-together-guard" title="These branches cannot be combined here">
+            <Alert tone="warning" announce="off" className="cg-together-guard" title="These changes cannot be combined here">
               {combo.c.problems[0]}. Open each branch to see what it changes: {selected.map((x) => viewTitle(listed.get(x)?.title ?? `#${x}`)).join(', ')}.
             </Alert>
           ) : null}

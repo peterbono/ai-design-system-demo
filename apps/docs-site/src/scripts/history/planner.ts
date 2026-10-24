@@ -56,7 +56,7 @@ function repoOf(l: Loaded) {
 }
 
 async function loadBase(l: Loaded, demo: boolean): Promise<Base> {
-  const built: Base = { files: l.data.files, label: `main as this site was built (${shortDate(l.data.generatedAt)})`, live: false };
+  const built: Base = { files: l.data.files, label: `The library as this site was built (${shortDate(l.data.generatedAt)})`, live: false };
   const token = getToken();
   // Demo plans run on the built files: they are fixtures, never proposed.
   if (demo || !token) return built;
@@ -106,8 +106,8 @@ const valueChip = (raw: unknown, css?: string) =>
     : tokenValueHtml(val(raw), { resolved: css && css !== raw ? css : undefined, swatch: css && /^#[0-9a-f]{6,8}$/i.test(css) ? css : false });
 
 function statusLine(p: ChangePlan): string {
-  if (p.status === 'ready') return `<p class="cg-muted">Bridge creates a branch for it and requests a review. Nothing reaches the library until a reviewer approves it.</p>`;
-  if (p.status === 'blocked') return `<p class="rv-notice is-fail hp-state"><strong>Blocked:</strong> ${esc(p.why ?? 'the checks fail')}. Bridge never creates a branch that breaks validation or a contrast pair.</p>`;
+  if (p.status === 'ready') return `<p class="cg-muted">Bridge starts a change for it and sends it for review. Nothing reaches the library until a reviewer approves it.</p>`;
+  if (p.status === 'blocked') return `<p class="rv-notice is-fail hp-state"><strong>Blocked:</strong> ${esc(p.why ?? 'the checks fail')}. Bridge never starts a change that breaks validation or a contrast pair.</p>`;
   return `<p class="rv-notice hp-state"><strong>Nothing to propose.</strong> ${esc(p.why ?? '')}</p>`;
 }
 
@@ -179,7 +179,7 @@ function paint() {
     : '';
   const skipped = p.skipped.length ? `<section class="hp-sec"><h3 class="hp-sub">Left alone</h3><ul class="hp-list">${p.skipped.map((x) => `<li><span class="mono">${esc(x.path)}</span>: ${esc(x.reason)}</li>`).join('')}</ul></section>` : '';
   const review = p.files.length ? reviewTokenChange(base.files, afterFiles(p), ctx.pairs, ctx.layout) : null;
-  const lead = review ? undoSentence(review) : p.status === 'nothing-to-do' ? 'Nothing to undo: main already has these values.' : p.planned.map((x) => x.summary).join('. ');
+  const lead = review ? undoSentence(review) : p.status === 'nothing-to-do' ? 'Nothing to undo: the library already has these values.' : p.planned.map((x) => x.summary).join('. ');
   body.innerHTML = `<p class="hp-lead">${esc(lead)}</p>${statusLine(p)}${conflicts}${review ? changesList(review) : ''}${review ? pairsTable(review) : ''}${skipped}`;
   syncFoot();
 }
@@ -208,7 +208,7 @@ function syncFoot() {
           ? 'Your GitHub token stopped working.'
           : 'Read only until connected.'
         : base && !base.live
-          ? `Could not read main from GitHub; this plan uses the files the site was built from. Bridge re-reads main when you ${mode === 'suggest' ? 'send it' : 'propose'}.`
+          ? `Could not read the library from GitHub; this plan uses the files the site was built from. Bridge reads the library again when you ${mode === 'suggest' ? 'send it' : 'propose'}.`
           : '';
   }
 }
@@ -223,16 +223,16 @@ async function propose(): Promise<Sent> {
   if (!token) throw new Error(`${ghVerb(prefersSignIn())} first.`);
   // Re-plan against main as it is right now, with the same conflict decisions.
   base = await loadBase(ctx, false);
-  if (!base.live) throw new Error('Bridge could not read main from GitHub. Check the token, then try again.');
+  if (!base.live) throw new Error('Bridge could not read the library from GitHub. Check the token, then try again.');
   compute();
   const p = plan;
-  if (!p || p.status !== 'ready') throw new Error(p?.why ?? 'The plan is not ready on the latest main.');
+  if (!p || p.status !== 'ready') throw new Error(p?.why ?? 'The plan is not ready on the latest library.');
   const { owner, name, defaultBranch } = repoOf(ctx);
   if (changesModeOnPage() === 'suggest') {
     // One suggestion with the plan's files, planned on main's head: no branch, no pull request.
     const gh = studioClient(`${owner}/${name}`, token);
     const sha = await gh.getBranchSha(defaultBranch);
-    if (!sha) throw new Error(`Branch ${defaultBranch} not found.`);
+    if (!sha) throw new Error(`The library (${defaultBranch}) was not found on GitHub.`);
     const summary = p.commitMessage.split('\n').slice(1).join('\n').trim() || p.prTitle;
     const labels = ['tokens', p.kind, `tier: ${p.tier.tier}`, ...(p.tier.bump === 'major' ? ['breaking'] : [])];
     const r = await suggestFilesOnGitHub(gh, ctx.config, { kind: 'revert', title: p.prTitle, summary, files: p.files, tier: { tier: p.tier.tier, bump: p.tier.bump }, base: { ref: defaultBranch, sha }, checks: { newErrors: p.newErrors.length }, labels, details: p.prBody });
@@ -262,7 +262,7 @@ function wire() {
     const out = $('hp-status')!;
     setButtonDisabled(go, true);
     const mode = changesModeOnPage();
-    out.textContent = `Reading main. ${sendingLine(mode)}`;
+    out.textContent = `Reading the library. ${sendingLine(mode)}`;
     try {
       const sent = await propose();
       if (sent.kind === 'branch') {
@@ -273,7 +273,7 @@ function wire() {
       go.hidden = true;
       out.innerHTML = `${esc(suggestionSentLine(sent.number))} <a href="${attrUrl(sent.url)}" target="_blank" rel="noopener">${esc(SEE_SUGGESTION)}</a>`;
     } catch (err) {
-      showGhError(out, err, mode === 'suggest' ? notSentLine(mode, (err as Error).message) : `No branch created: ${(err as Error).message}`, mode === 'suggest' ? 'send suggestions' : 'create branches');
+      showGhError(out, err, mode === 'suggest' ? notSentLine(mode, (err as Error).message) : `No change started: ${(err as Error).message}`, mode === 'suggest' ? 'send suggestions' : 'start changes');
       setButtonDisabled(go, false);
     }
   });
@@ -289,7 +289,7 @@ async function open(r: Request) {
   const flag = $('hp-demo-flag');
   if (flag) flag.hidden = !r.demo;
   const body = $('hp-body');
-  if (body) body.innerHTML = '<p class="muted">Reading main and planning</p>';
+  if (body) body.innerHTML = '<p class="muted">Reading the library and planning</p>';
   if (!isDialogOpen('hp-dialog')) openDialog('hp-dialog');
   syncFoot();
   ctx = await loadHistory();

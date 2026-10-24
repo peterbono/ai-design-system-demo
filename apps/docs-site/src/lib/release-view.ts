@@ -93,7 +93,7 @@ export function releaseCard(plan: ReleasePlan): ReleaseCard {
   const n = plan.changes;
   const ds = plan.packages.filter((p) => DS_PACKAGES.includes(p.name));
   const rest = plan.packages.filter((p) => !DS_PACKAGES.includes(p.name));
-  const count = n ? `${n} merged ${n === 1 ? VOCAB.branch : VOCAB.branches}` : `${plan.packages.length} ${plan.packages.length === 1 ? 'package' : 'packages'}`;
+  const count = n ? `${n} ${n === 1 ? VOCAB.branch : VOCAB.branches}` : `${plan.packages.length} ${plan.packages.length === 1 ? 'package' : 'packages'}`;
   return {
     title: `Next release: ${count}, ready to publish.`,
     lines: ds.map(packageLine),
@@ -104,7 +104,7 @@ export function releaseCard(plan: ReleasePlan): ReleaseCard {
 
 /** Without a release pull request: what is live and how many changes wait (pending changesets on the main branch). */
 export function waitingLine(current: string, pending: number): string {
-  return `${current} is live. ${pending === 0 ? 'Nothing waits for the next release.' : `${pending} merged ${pending === 1 ? `${VOCAB.branch} waits` : `${VOCAB.branches} wait`} for the next release.`}`;
+  return `${current} is live. ${pending === 0 ? 'Nothing waits for the next release.' : `${pending} ${pending === 1 ? `${VOCAB.branch} waits` : `${VOCAB.branches} wait`} for the next release.`}`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------

@@ -159,11 +159,11 @@ export const START_WORDS = {
   /** Shown to a visitor with no team and no workspace yet: never points at a team menu they do not have. */
   sub: 'Pick one to begin. The other stays one click away.',
   connectTitle: 'Connect your design system',
-  connectText: 'Your Storybook or your repository. Your tokens, components and branches show up in your Studio.',
+  connectText: 'Your Storybook or your repository. Your tokens, components and changes show up in your Studio.',
   connectChecks: ['About 2 minutes with a Storybook URL', 'Read only: Bridge writes nothing in your code'],
   connectButton: 'Connect my design system',
   demoTitle: 'Look around first',
-  demoText: 'Acme Design, a sample team: a design system, its branches and changes waiting for review.',
+  demoText: 'Acme Design, a sample team: a design system and its changes waiting for review.',
   demoChecks: ['No setup', 'Your edits stay in this browser, nothing is sent'],
   demoButton: 'Open the demo',
 } as const;
@@ -171,7 +171,7 @@ export const START_WORDS = {
 /** The empty workspace (board EmptyB). */
 export const WORKSPACE_WORDS = {
   welcome: (name: string | null | undefined) => (name?.trim() ? `Welcome, ${name.trim()}.` : 'Welcome.'),
-  nothing: 'Nothing is connected yet. Connect your design system and your tokens, components and branches show up here.',
+  nothing: 'Nothing is connected yet. Connect your design system and your tokens, components and changes show up here.',
   connect: 'Connect your design system',
   hint: 'Storybook URL or the repository. About 2 minutes.',
   library: 'Your library',
@@ -179,8 +179,8 @@ export const WORKSPACE_WORDS = {
   tokens: { title: 'Tokens', line: 'Show here once your design system is connected' },
   components: { title: 'Components', line: 'Read from your Storybook or your code' },
   products: { title: 'Products', line: 'The apps that use your library' },
-  branches: 'Your branches',
-  noBranches: 'None yet. Branches you start or review show up here.',
+  branches: 'Your changes',
+  noBranches: 'None yet. Changes you start or review show up here.',
   /** The chip's tooltip: the workspace is this browser's, not an account's. */
   kept: 'Kept in this browser',
 } as const;
@@ -190,9 +190,9 @@ export const WORKSPACE_WORDS = {
  * team nor Bridge's own. It says what to connect next; only an admin connects.
  */
 export const TEAM_HOME_WORDS = {
-  ready: (team: string) => `${team} is set up. Connect your design system next, and your tokens, components and branches show up here.`,
+  ready: (team: string) => `${team} is set up. Connect your design system next, and your tokens, components and changes show up here.`,
   waiting: (team: string) => `${team} has no design system connected yet. An admin of the team connects it, and it shows up here.`,
-  storybook: (team: string) => `${team} reads your Storybook. Connect the repository too, and your tokens and branches show up here.`,
+  storybook: (team: string) => `${team} reads your Storybook. Connect the repository too, and your tokens and changes show up here.`,
   members: (n: number) => `${n} ${n === 1 ? 'member' : 'members'}`,
   findable: (domain: string) => `People with @${domain} can find it`,
   inviteOnly: 'People join by invite',

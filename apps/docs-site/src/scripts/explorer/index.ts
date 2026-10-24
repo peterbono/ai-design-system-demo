@@ -1030,7 +1030,7 @@ export function initTokenExplorer() {
       if (s.selected && !detail.hidden) openDetail(s.selected);
     } catch (err) {
       root.dataset.view = 'error';
-      setBannerError(readFailure(err, isTogether(pageScope()) ? 'These branches' : 'This branch'));
+      setBannerError(readFailure(err, isTogether(pageScope()) ? 'These changes' : 'This change'));
     }
   }
 

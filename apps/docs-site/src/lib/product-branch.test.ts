@@ -48,7 +48,7 @@ describe('rows', () => {
         library: { href: '?pr=40', number: 40, line: 'In review · Dana reviews', tone: 'info', opens: 'pr' },
         action: null,
         preview: 'preview',
-        previewSentence: expect.stringMatching(/^Your branch uses a preview/),
+        previewSentence: expect.stringMatching(/^Your feature uses a preview/),
       },
     ]);
   });
@@ -95,20 +95,20 @@ describe('why it already shows', () => {
   const base = { kind: 'token-change' as const, lifecycle: 'open' as const, hasChanges: true, missing: 0, total: 1, behindMain: null };
 
   it('the mockup text when the branch uses a preview', () => {
-    expect(whyItShows(rows([base]))).toEqual({ title: 'Why it already shows in your screen', text: 'Your branch uses a preview of the library branch. When the library publishes it, switch to the real version here in one click.' });
+    expect(whyItShows(rows([base]))).toEqual({ title: 'Why it already shows in your screen', text: 'Your feature uses a preview of the library change. When the library publishes it, switch to the real version here in one click.' });
   });
 
   it('drawn by hand, published, switched, nothing', () => {
-    expect(whyItShows(rows([null]))!.text).toMatch(/^Your branch draws it by hand for now/);
+    expect(whyItShows(rows([null]))!.text).toMatch(/^Your feature draws it by hand for now/);
     expect(whyItShows(rows([{ ...base, lifecycle: 'merged', behindMain: 3 }]))!.text).toMatch(/^The library published it/);
-    expect(whyItShows(rows([{ ...base, lifecycle: 'merged', behindMain: 0 }]))).toEqual({ title: 'Where it comes from', text: 'Your branch uses the published version from the library.' });
+    expect(whyItShows(rows([{ ...base, lifecycle: 'merged', behindMain: 0 }]))).toEqual({ title: 'Where it comes from', text: 'Your feature uses the published version from the library.' });
     expect(whyItShows([])).toBeNull();
   });
 });
 
 describe('page parts', () => {
   it('crumbs, developer lines and the ask', () => {
-    expect(productCrumbs('Admin demo', 'DS-87', 'Billing')).toEqual([{ label: 'Branches', href: '/studio/changes/' }, { label: 'Admin demo', href: '/studio/changes/' }, { label: 'DS-87' }]);
+    expect(productCrumbs('Admin demo', 'DS-87', 'Billing')).toEqual([{ label: 'Changes', href: '/studio/changes/' }, { label: 'Admin demo', href: '/studio/changes/' }, { label: 'DS-87' }]);
     expect(productCrumbs('Admin demo', null, 'Billing').at(-1)).toEqual({ label: 'Billing' });
     expect(developerLines({ number: 12, branch: 'explore/billing', links: [{ kind: 'token-change', number: 40, branch: 'bridge/add-x' }, { kind: 'request', number: 101 }] })).toEqual([
       { label: 'Product branch', value: 'explore/billing (#12)' },

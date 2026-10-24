@@ -39,23 +39,23 @@ export interface CompareLike {
 // How a change stands against main: one rule with the MCP server and the CLI (@bridge-ds/core library-update).
 export { freshness, type Freshness, type LibraryState } from '@bridge-ds/core';
 
-/** "main has moved on: 3 updates since this branch started." Null when there is nothing to say. */
+/** "The library has moved on: 3 updates since this change started." Null when there is nothing to say. */
 export function libraryLine(f: Freshness): string | null {
   if (!f.behindBy || (f.state !== 'behind' && f.state !== 'conflict')) return null;
-  return `${VOCAB.main} has moved on: ${plural(f.behindBy, 'update')} since this ${VOCAB.branch} started.`;
+  return `${VOCAB.Main} has moved on: ${plural(f.behindBy, 'update')} since this ${VOCAB.branch} started.`;
 }
 
-/** The row tag of the Changes list, in the words of the detail line: "main moved on: 12 updates". Null when up to date or unknown. */
+/** The row tag of the Changes list, in the words of the detail line: "The library moved on: 12 updates". Null when up to date or unknown. */
 export function behindTag(behindBy: number | null | undefined): string | null {
-  return behindBy && behindBy > 0 ? `${VOCAB.main} moved on: ${plural(behindBy, 'update')}` : null;
+  return behindBy && behindBy > 0 ? `${VOCAB.Main} moved on: ${plural(behindBy, 'update')}` : null;
 }
 
 /** The conflict row sentence, in designer words. `conflicts` is null while the tokens are being read. */
 export function conflictLine(route: ConflictRoute, conflicts: number | null): string {
   if (route.kind === 'code') return route.alsoTokens ? `This ${VOCAB.branch} also conflicts in code. A developer resolves that part.` : `This ${VOCAB.branch} conflicts with ${VOCAB.main} in code. A developer resolves it.`;
   if (conflicts === null) return `It conflicts with ${VOCAB.main}. Reading which tokens.`;
-  if (conflicts === 0) return `The same token files changed here and on ${VOCAB.main}, but no token changed on both sides. Bridge can combine them.`;
-  return `${plural(conflicts, 'token')} changed here and on ${VOCAB.main}. Pick which value to keep.`;
+  if (conflicts === 0) return `The same token files changed here and in ${VOCAB.main}, but no token changed on both sides. Bridge can combine them.`;
+  return `${plural(conflicts, 'token')} changed here and in ${VOCAB.main}. Pick which value to keep.`;
 }
 
 /** The button of the conflict row: what the designer does next. */
@@ -137,11 +137,11 @@ export function conflictRows(conflicts: TokenMergeConflict[], sets: { base: Toke
     const renamed = c.mine && c.theirs && c.mine.path !== c.theirs.path;
     const note =
       c.removedOn === 'theirs'
-        ? `Removed on ${VOCAB.main}: pick one.`
+        ? `Removed from ${VOCAB.main}: pick one.`
         : c.removedOn === 'mine'
-          ? `Removed on this ${VOCAB.branch}: pick one.`
+          ? `Removed in this ${VOCAB.branch}: pick one.`
           : renamed
-            ? `Renamed to ${c.theirs!.path} on ${VOCAB.main}.`
+            ? `Renamed to ${c.theirs!.path} in ${VOCAB.main}.`
             : sameShown(library, mine)
               ? 'Same value, different description or settings.'
               : null;

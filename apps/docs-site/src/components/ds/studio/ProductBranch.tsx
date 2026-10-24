@@ -85,17 +85,17 @@ function PieceRow({ row, p, busy, run }: { row: PieceRowView; p: ProductBranchPr
                   {row.library.line}
                 </Badge>
               ) : (
-                <span className="pb-muted">No library branch yet</span>
+                <span className="pb-muted">No library change yet</span>
               )}
             </span>
           </span>
           {a &&
             (p.connected ? (
-              <Button variant="secondary" size="md" className="pb-row-act" loading={busy === `${row.id}:${a.kind}`} onClick={() => run(row, a.kind)} data-demo-write="change this branch">
+              <Button variant="secondary" size="md" className="pb-row-act" loading={busy === `${row.id}:${a.kind}`} onClick={() => run(row, a.kind)} data-demo-write="update this feature">
                 {a.label}
               </Button>
             ) : (
-              <Button variant="secondary" size="md" className="pb-row-act" data-gh-open="" data-demo-write="change this branch">
+              <Button variant="secondary" size="md" className="pb-row-act" data-gh-open="" data-demo-write="update this feature">
                 {p.connectLabel(a.label.charAt(0).toLowerCase() + a.label.slice(1))}
               </Button>
             ))}
@@ -141,7 +141,7 @@ export function ProductBranch(p: ProductBranchProps) {
               Try it in the product
             </ButtonLink>
           ) : (
-            <Tooltip content="The preview appears a few minutes after each update to the branch.">
+            <Tooltip content="The preview appears a few minutes after each update to the feature.">
               <Button variant="primary" size="lg" disabled>
                 Try it in the product
               </Button>
@@ -222,7 +222,7 @@ export function ProductBranch(p: ProductBranchProps) {
         </AccordionItem>
       </Accordion>
       <AlertDialog open={confirm} onOpenChange={(o) => !o && setConfirm(false)}>
-        <AlertDialogContent title="Close this branch without merging?" description="Its previews stay for reference. Library branches opened for it stay open." confirmLabel="Close branch" tone="danger" onConfirm={close} />
+        <AlertDialogContent title="Close this feature without adding it?" description="Its previews stay for reference. Library changes opened for it stay open." confirmLabel="Close feature" tone="danger" onConfirm={close} />
       </AlertDialog>
     </div>
   );

@@ -35,13 +35,13 @@ import { VOCAB } from '../../lib/vocabulary';
 const signIn = Boolean(signInConfig(true));
 ---
 
-<TeamShell route="changes/" title="Branches" what="branches" description="The open branches and suggestions of this team's design system, each reviewed in place.">
+<TeamShell route="changes/" title="Changes" what="changes" description="The open changes and suggestions of this team's design system, each reviewed in place.">
   <Fragment slot="actions">
     <Link href={studioHref('changes/?view=history')} id="cg-history-link" data-cg-view="history">History</Link>
     <Link href={studioHref('changes/')} id="cg-back-link" data-back hidden>All {VOCAB.branches}</Link>
   </Fragment>
   <div class="rv cg tb">
-    <div class="lp-wait" data-tb-state aria-busy="true" aria-label="Reading this team's branches"></div>
+    <div class="lp-wait" data-tb-state aria-busy="true" aria-label="Reading this team's changes"></div>
     <p class="rv-notice" id="rv-notice" role="status" hidden></p>
     <div id="cg-main" hidden>
       <section class="cg-panel" id="cg-review" aria-label={VOCAB.Branches}>

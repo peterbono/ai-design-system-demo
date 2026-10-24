@@ -102,7 +102,7 @@ export default function TypographyView({ data }: { data: LibraryData }) {
                 <strong>{lastOf(w.path)}</strong>
                 <span>{w.values.light}</span>
               </span>
-              <p style={{ fontWeight: v(w.path), fontSize: 'var(--font-size-500)', lineHeight: 'var(--font-line-height-tight)' }}>Approve and merge</p>
+              <p style={{ fontWeight: v(w.path), fontSize: 'var(--font-size-500)', lineHeight: 'var(--font-line-height-tight)' }}>Approve and add</p>
             </div>
           ))}
         </div>

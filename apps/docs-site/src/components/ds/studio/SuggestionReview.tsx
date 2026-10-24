@@ -92,8 +92,8 @@ const PANE_ROWS = 4;
 const PEEKS = 3;
 
 const WHEN: Record<SuggestionReviewProps['proofsWhen'], string> = {
-  today: "Checked on today's main.",
-  checking: "Checking on today's main.",
+  today: "Checked on today's library.",
+  checking: "Checking on today's library.",
   suggested: 'Checked when it was suggested.',
 };
 

@@ -50,7 +50,7 @@ const OPEN_LABEL: Record<NeedKind, string> = {
   health: 'Open Quality',
   setup: 'Open settings',
   review: 'Open review',
-  own: 'Open branch',
+  own: 'Open change',
   join: 'Open Members',
 };
 
@@ -238,7 +238,7 @@ export function initReviewQueue() {
     clearTimeout(w.timer);
     w.go().catch((err: Error) => {
       outcomes.delete(key);
-      toasts?.error(`Not approved: ${rowOf(key)?.title ?? 'the branch'}`, { description: `${err.message}. Open it and approve again.` });
+      toasts?.error(`Not approved: ${rowOf(key)?.title ?? 'the change'}`, { description: `${err.message}. Open it and approve again.` });
       paint();
     });
   }
@@ -403,7 +403,7 @@ export function initReviewQueue() {
         (!signedIn
           ? `${ghAction('see what waits on you', signIn)}.`
           : currentContributor()?.role === 'edit'
-            ? 'Reviewers look at changes here. When one sends your branch back, it shows on Home.'
+            ? 'Reviewers look at changes here. When one sends your change back, it shows on Home.'
             : 'New reviews, usage guidance drafts and library checks land here.'),
       actions: signedIn
         ? h(ButtonLink, { variant: 'primary', href: studioHref() }, 'Back to Home')

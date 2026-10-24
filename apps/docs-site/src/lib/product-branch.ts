@@ -113,15 +113,15 @@ export function whyItShows(rows: PieceRowView[]): { title: string; text: string 
   if (!rows.length) return null;
   const has = (k: LibraryPreviewKey) => rows.some((r) => r.preview === k);
   const title = 'Why it already shows in your screen';
-  if (has('preview') || has('outdated')) return { title, text: 'Your branch uses a preview of the library branch. When the library publishes it, switch to the real version here in one click.' };
-  if (has('published')) return { title, text: 'The library published it, and your branch still carries the preview. Switch to the published version to use the real one.' };
-  if (rows.every((r) => r.preview === 'switched')) return { title: 'Where it comes from', text: 'Your branch uses the published version from the library.' };
-  return { title, text: 'Your branch draws it by hand for now. When the library branch has it, your branch uses its preview, then the real version once the library publishes it.' };
+  if (has('preview') || has('outdated')) return { title, text: 'Your feature uses a preview of the library change. When the library publishes it, switch to the real version here in one click.' };
+  if (has('published')) return { title, text: 'The library published it, and your feature still carries the preview. Switch to the published version to use the real one.' };
+  if (rows.every((r) => r.preview === 'switched')) return { title: 'Where it comes from', text: 'Your feature uses the published version from the library.' };
+  return { title, text: 'Your feature draws it by hand for now. When the library change has it, your feature uses its preview, then the real version once the library publishes it.' };
 }
 
 /** "Branches · Admin demo · DS-87": the way back and where the branch belongs. */
 export function productCrumbs(product: string, jira: string | null, title: string): { label: string; href?: string }[] {
-  return [{ label: 'Branches', href: studioHref('changes/') }, { label: product, href: studioHref('changes/') }, { label: jira ?? title }];
+  return [{ label: 'Changes', href: studioHref('changes/') }, { label: product, href: studioHref('changes/') }, { label: jira ?? title }];
 }
 
 /** What a developer needs, in the "For developers" fold: the branch, the commands that check it and open library branches. */
@@ -135,7 +135,7 @@ export function developerLines(input: { number: number; branch: string; links: P
 }
 
 /** The sentence to say to Claude when the branch was never checked. */
-export const ASK_CLAUDE = 'Ask Claude: "Check what my branch adds that the library does not have."';
+export const ASK_CLAUDE = 'Ask Claude: "Check what my feature adds that the library does not have."';
 
 // ---------------------------------------------------------------------------------------------------------------
 // The library review: "Why it exists"

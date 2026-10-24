@@ -259,7 +259,7 @@ function primaryAction(r: RequestRow, decide: boolean): string {
   const pr = open ?? r.prs.find((p) => p.merged);
   if (!pr) return '';
   if (pr.exploration) return `<a class="btn btn-primary btn-lg" href="?exploration=${pr.number}" data-open-exploration="${pr.number}">Open the exploration</a>`;
-  return `<a class="btn btn-primary btn-lg" href="?pr=${pr.number}" data-open-pr="${pr.number}">${open ? 'Review the branch' : 'Open the branch'}</a>`;
+  return `<a class="btn btn-primary btn-lg" href="?pr=${pr.number}" data-open-pr="${pr.number}">${open ? 'Review the change' : 'Open the change'}</a>`;
 }
 
 export function renderRequestDetail(r: RequestRow, ctx: DetailContext = { viewer: null, owners: [] }): string {
@@ -280,8 +280,8 @@ export function renderRequestDetail(r: RequestRow, ctx: DetailContext = { viewer
     ? `<ul class="rq-prs">${r.prs
         .map((p) =>
           p.exploration
-            ? `<li><a href="?exploration=${p.number}" data-open-exploration="${p.number}">Exploration #${p.number}</a> <span class="cg-muted">${p.state === 'open' ? 'running' : p.merged ? 'merged' : 'closed'}${p.author ? `, by @${esc(p.author)}` : ''}</span></li>`
-            : `<li><a href="?pr=${p.number}" data-open-pr="${p.number}">Branch #${p.number}</a> <span class="cg-muted">${p.merged ? 'merged' : p.state === 'open' ? 'in review' : 'closed'}${p.author ? `, by @${esc(p.author)}` : ''}</span></li>`,
+            ? `<li><a href="?exploration=${p.number}" data-open-exploration="${p.number}">Exploration #${p.number}</a> <span class="cg-muted">${p.state === 'open' ? 'running' : p.merged ? 'added to the library' : 'closed'}${p.author ? `, by @${esc(p.author)}` : ''}</span></li>`
+            : `<li><a href="?pr=${p.number}" data-open-pr="${p.number}">Change #${p.number}</a> <span class="cg-muted">${p.merged ? 'added to the library' : p.state === 'open' ? 'in review' : 'closed'}${p.author ? `, by @${esc(p.author)}` : ''}</span></li>`,
         )
         .join('')}</ul>`
     : '';
@@ -304,7 +304,7 @@ export function renderRequestDetail(r: RequestRow, ctx: DetailContext = { viewer
 
 /** The breadcrumb of a request: back to Requests, or to All branches while request triage is off in Studio. */
 const crumbs = (n: number) =>
-  `<nav class="cg-crumbs" aria-label="Breadcrumb">${REQUEST_TRIAGE_IN_STUDIO ? '<a href="?view=requests" data-back-requests>Requests</a>' : '<a href="./" data-back>Branches</a>'}<span aria-hidden="true">/</span><span class="mono">#${n}</span></nav>`;
+  `<nav class="cg-crumbs" aria-label="Breadcrumb">${REQUEST_TRIAGE_IN_STUDIO ? '<a href="?view=requests" data-back-requests>Requests</a>' : '<a href="./" data-back>Changes</a>'}<span aria-hidden="true">/</span><span class="mono">#${n}</span></nav>`;
 
 /** Opens a request in place (?request=N), from the loaded list. */
 export async function openRequest(n: number, push = true, openPulls?: Promise<PullLike[] | null>) {

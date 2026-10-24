@@ -73,7 +73,7 @@ describe('BranchesList filters', () => {
     history.replaceState(null, '', '/studio/changes/?kind=docs');
     const user = userEvent.setup();
     render(createElement(BranchesList, props()));
-    expect(screen.getByText(/No branch of this kind/)).toBeTruthy();
+    expect(screen.getByText(/No change of this kind/)).toBeTruthy();
     await user.click(screen.getByRole('radio', { name: 'Mine' }));
     expect(new URLSearchParams(location.search).get('kind')).toBe('docs');
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));

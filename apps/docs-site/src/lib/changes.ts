@@ -100,7 +100,7 @@ const WHY: Partial<Record<ReviewStatusKind, string>> = {
   'needs-design': 'waits for a design approval',
   'needs-tech': 'waits for a tech approval',
   'needs-approval': 'waits for an approval',
-  ready: 'is ready to merge',
+  ready: 'is ready to add to the library',
   'ci-running': 'is waiting for its tests',
   checking: 'is still being checked',
   draft: 'is still a draft',
@@ -149,8 +149,8 @@ export interface DetailState {
 
 /** One sentence for the pull request opener: what blocks it, then what it needs after that. */
 export function detailSentence(s: DetailState): string {
-  if (s.state === 'merged') return 'Merged.';
-  if (s.state === 'closed') return 'Closed without merging.';
+  if (s.state === 'merged') return 'Added to the library.';
+  if (s.state === 'closed') return 'Closed without adding it to the library.';
   const needs = missingApprovals(s.gate.missing);
   const after = needs ? ` After that it needs ${needs}.` : '';
   if (s.state === 'draft') return `Draft: request a review first.${after}`;
@@ -162,7 +162,7 @@ export function detailSentence(s: DetailState): string {
   if (s.gate.reasons.includes(CONFLICT_REASON)) return `Blocked: it conflicts with ${VOCAB.main}.${after}`;
   if (s.ci.state === 'pending') return `Tests are still running.${after}`;
   if (needs) return `Waiting for ${needs}. Tests pass.`;
-  if (s.gate.allowed) return 'Ready to merge: tests pass and the approvals are in.';
+  if (s.gate.allowed) return 'Ready to add to the library: tests pass and the approvals are in.';
   return s.ci.state === 'none' ? `No tests reported for this version yet.${after}` : 'Open the tests and the conversation to see what it needs.';
 }
 
@@ -412,9 +412,9 @@ export function whoActs(need: Need, p: People): WhoActs {
 
   switch (need.kind) {
     case 'merged':
-      return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Merged.', short: null };
+      return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Added to the library.', short: null };
     case 'closed':
-      return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Closed without merging.', short: null };
+      return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Closed without adding it to the library.', short: null };
     case 'unknown':
       return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Open the checks and the conversation to see what it needs.', short: null };
     case 'draft':
@@ -455,7 +455,7 @@ export function whoActs(need: Need, p: People): WhoActs {
       return authorTurn('resolve-conflict', `resolve a conflict with ${VOCAB.main}`, `resolve a conflict with ${VOCAB.main}`, 'Blocked by a conflict', 'Blocked by a conflict');
     case 'checks-running': {
       const next = need.then[0];
-      const then = next ? ` Then ${namedRole(next, eligibleFor(next, p).logins, p)} approves.` : ' Then it is ready to merge.';
+      const then = next ? ` Then ${namedRole(next, eligibleFor(next, p).logins, p)} approves.` : ' Then it is ready to add to the library.';
       return { who: 'nobody', logins: [], yourTurn: false, action: 'wait', sentence: `Tests are still running.${then}`, short: 'Tests running' };
     }
     case 'checking-merge': {
@@ -473,8 +473,8 @@ export function whoActs(need: Need, p: People): WhoActs {
       // Every listed owner wrote the change or already approved: only the owner override can merge it.
       if (!e.open && e.logins.length === 0) {
         const by = (p.overrideBy ?? []).map((x) => x.replace(/^@/, ''));
-        if (p.overridable) return { who: 'you', logins: p.viewer ? [p.viewer] : [], yourTurn: true, action: 'override', sentence: `Your turn: no other ${ROLE_NAME[role]} can approve, so merge it with the owner override, under More.`, short: 'Your turn: owner override' };
-        const via = by.length ? ` @${by.join(' or @')} can merge it with the owner override.` : ' Add an owner in Settings.';
+        if (p.overridable) return { who: 'you', logins: p.viewer ? [p.viewer] : [], yourTurn: true, action: 'override', sentence: `Your turn: no other ${ROLE_NAME[role]} can approve, so add it to the library with the owner override, under More.`, short: 'Your turn: owner override' };
+        const via = by.length ? ` @${by.join(' or @')} can add it to the library with the owner override.` : ' Add an owner in Settings.';
         return { who: 'owner', logins: by, yourTurn: false, action: 'override', sentence: `No other ${ROLE_NAME[role]} can approve.${via}`, short: 'Owner override needed' };
       }
       const both = need.roles.length > 1 && need.roles.includes('design') && need.roles.includes('tech');
@@ -491,10 +491,10 @@ export function whoActs(need: Need, p: People): WhoActs {
     case 'ready': {
       const owners = (p.shippers?.length ? uniq(p.shippers) : uniq([...p.owners.design, ...p.owners.tech])).map((x) => x.replace(/^@/, ''));
       const mine = p.canMerge ?? owners.some((o) => same(o, p.viewer));
-      if (p.viewer && mine) return { who: 'you', logins: [p.viewer], yourTurn: true, action: 'merge', sentence: 'Your turn: ready to merge.', short: 'Your turn: merge it' };
+      if (p.viewer && mine) return { who: 'you', logins: [p.viewer], yourTurn: true, action: 'merge', sentence: 'Your turn: ready to add to the library.', short: 'Your turn: add it to the library' };
       const named = p.teams && (p.shipEntries ?? p.entries) ? entriesFor(p.shipEntries ?? [...p.entries!.design, ...p.entries!.tech], owners, p.teams) : [];
       const who = named.length ? or(named) : owners.length ? at(owners) : 'an owner';
-      return { who: 'owner', logins: owners, yourTurn: false, action: 'merge', sentence: `Ready to merge: ${who} can merge it.`, short: 'Ready to merge' };
+      return { who: 'owner', logins: owners, yourTurn: false, action: 'merge', sentence: `Ready to add to the library: ${who} can add it.`, short: VOCAB.readyToMerge };
     }
   }
 }
@@ -668,7 +668,7 @@ const modeWord = (m: string) => MODE_WORD[m] ?? (m ? m.charAt(0).toUpperCase() +
 export function undoSentence(review: Pick<TokenReview, 'changes' | 'contrast'>): string {
   const c = review.changes;
   let first: string;
-  if (!c.length) first = 'Restores nothing: main already has these values.';
+  if (!c.length) first = 'Restores nothing: the library already has these values.';
   else if (c.length === 1) {
     const x = c[0]!;
     const to = x.after ? (x.after.alias ? `{${x.after.alias}}` : (x.after.css ?? 'its old value')) : 'nothing';

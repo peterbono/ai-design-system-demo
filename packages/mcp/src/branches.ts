@@ -434,7 +434,7 @@ export async function tryBranch(ctx: BridgeContext, a: { pr: number | string }) 
     share: {
       state: share.kind,
       install: share.kind === 'ready' ? share.command : null,
-      sentence: stateSentence(share) ?? 'Product teams can install this branch in their app before it is merged, and remove it any time.',
+      sentence: stateSentence(share) ?? 'Product teams can install this change in their app before it is in the library, and remove it any time.',
       ...(message ? { message } : {}),
     },
   };

@@ -107,7 +107,7 @@ function Resolver({ source, label, primary }: { source: ResolverSource; label: s
         title={n ? label : VOCAB.updateFromMain}
         description={
           n
-            ? "These tokens changed in this branch and on main. Keep yours or use the ones on main. Everything else from both sides is combined."
+            ? "These tokens changed in this change and in the library. Keep yours or use the library's. Everything else from both sides is combined."
             : 'The same token files changed on both sides, but no token changed twice. Bridge combines them.'
         }
         footer={

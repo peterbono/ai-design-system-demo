@@ -136,7 +136,7 @@ export default function TeamNameSetting({ prefix, protectedBranches }: TeamNameS
                 {sent.name}. {TEAM_NAME_WORDS.applies}
               </p>
               <p>
-                <Link href={studioHref(`changes/?pr=${sent.number}`)}>See the branch</Link>
+                <Link href={studioHref(`changes/?pr=${sent.number}`)}>See the change</Link>
               </p>
             </div>
           )}

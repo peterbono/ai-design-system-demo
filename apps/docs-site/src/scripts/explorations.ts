@@ -341,7 +341,7 @@ function section(id: string, title: string, meta: string, body: string, open = f
   return `<details class="cg-sec" id="${id}"${open ? ' open' : ''}><summary class="cg-sec-head"><span class="cg-sec-title">${title}</span><span class="cg-sec-meta">${meta}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary><div class="cg-sec-body">${body}</div></details>`;
 }
 
-const crumbs = (n: number) => `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${studioHref('changes/')}" data-back>Branches</a><span aria-hidden="true">/</span><span class="mono">#${n}</span></nav>`;
+const crumbs = (n: number) => `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${studioHref('changes/')}" data-back>Changes</a><span aria-hidden="true">/</span><span class="mono">#${n}</span></nav>`;
 
 /** The preview rows: one per app, a link with its designer name, or what is missing on the same line. */
 export function previewList(previews: BranchPreview[]): string {
@@ -354,7 +354,7 @@ export function previewList(previews: BranchPreview[]): string {
 export function renderExplorationDetail(r: ExplorationRow, opts: { connected: boolean }): string {
   const actions =
     r.status !== 'active'
-      ? `<a class="btn btn-primary btn-lg" href="?pr=${r.number}" data-open-pr="${r.number}">Open the branch</a>`
+      ? `<a class="btn btn-primary btn-lg" href="?pr=${r.number}" data-open-pr="${r.number}">Open the change</a>`
       : opts.connected
         ? `<button type="button" class="btn btn-primary btn-lg" data-ex-promote="${r.number}">Promote to review</button> <button type="button" class="btn btn-secondary btn-lg" data-ex-close-ask="${r.number}">Close</button>`
         : sampleVisitor()
@@ -518,7 +518,7 @@ function promote(btn: HTMLButtonElement) {
         document.querySelector('#rv-detail .cg-pr-meta .rv-status')?.replaceChildren('Promoted to review');
         document.querySelector('#rv-detail .cg-pr-meta .cg-tier')?.remove();
         document.querySelector('#rv-detail .cg-pr-state')?.remove();
-        $('ex-actions').outerHTML = `<p class="cg-pr-state ex-done" id="ex-actions" role="status">${esc(promotedLine(r.number))} <a href="?pr=${r.number}" data-open-pr="${r.number}">Open the branch</a></p>${warn}`;
+        $('ex-actions').outerHTML = `<p class="cg-pr-state ex-done" id="ex-actions" role="status">${esc(promotedLine(r.number))} <a href="?pr=${r.number}" data-open-pr="${r.number}">Open the change</a></p>${warn}`;
         void loadExplorations(undefined, true);
       } catch (err) {
         throw new Error(`${(err as Error).message} You can also mark it ready for review on GitHub.`);
@@ -542,10 +542,10 @@ async function close(btn: HTMLButtonElement) {
     $('ex-confirm').hidden = true;
     document.querySelector('#rv-detail .cg-pr-meta .rv-status')?.replaceChildren('Closed');
     document.querySelector('#rv-detail .cg-pr-state')?.remove();
-    $('ex-actions').outerHTML = '<p class="cg-pr-state ex-done" id="ex-actions" role="status">Closed without merging. Its previews stay for reference.</p>';
+    $('ex-actions').outerHTML = '<p class="cg-pr-state ex-done" id="ex-actions" role="status">Closed without adding it to the library. Its previews stay for reference.</p>';
     void loadExplorations(undefined, true);
   } catch (err) {
-    actionError((err as Error).message, err, 'close branches');
+    actionError((err as Error).message, err, 'close changes');
     setButtonBusy(btn, false, 'Close exploration');
   }
 }

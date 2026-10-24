@@ -28,9 +28,9 @@ export const RIGHT_LABEL: Record<Right, string> = {
 
 /** What each right means, in plain words. Merging puts the branch into main, the library the products use. */
 export const RIGHT_HELP: Record<Right, string> = {
-  approveDesign: 'Says the branch looks right.',
+  approveDesign: 'Says the change looks right.',
   approveTech: 'Says the code is sound.',
-  ship: 'Merges the branch into main, the library the products use.',
+  ship: 'Adds the change to the library the products use.',
 };
 
 export interface RoleRow {
@@ -69,7 +69,7 @@ export function roleRows(owners: Owners, rights: Rights | null): RoleRow[] {
 export function rolesSummary(owners: Owners, rights: Rights | null): string {
   const [d, t, s] = roleRows(owners, rights);
   const lower = (x: string) => x.charAt(0).toLowerCase() + x.slice(1);
-  const merge = s!.who === 'Anyone with write access' ? 'anyone with write access merges' : `${lower(s!.who)} merge`;
+  const merge = s!.who === 'Anyone with write access' ? 'anyone with write access adds to the library' : `${lower(s!.who)} add to the library`;
   return `${d!.who} approve design, ${lower(t!.who)} approve tech, ${merge}.`;
 }
 

@@ -22,7 +22,7 @@ describe('the browser workspace home (board EmptyB)', () => {
     expect(screen.getByText(/Nothing is connected yet\./)).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Your library' })).toBeInTheDocument();
     for (const t of ['Tokens', 'Components', 'Products']) expect(screen.getByText(t)).toBeInTheDocument();
-    expect(screen.getByText('None yet. Branches you start or review show up here.')).toBeInTheDocument();
+    expect(screen.getByText('None yet. Changes you start or review show up here.')).toBeInTheDocument();
     const buttons = screen.getAllByRole('button');
     expect(buttons).toHaveLength(1);
     await userEvent.setup().click(buttons[0]!);

@@ -1,28 +1,37 @@
-// The words Studio speaks, in one place. Studio mirrors Figma branching (help.figma.com, "Guide to branching"):
-// a designer creates a branch off main, requests a review, the reviewer reviews and merges it, and the library is
-// published as a package release. Saving is invisible: there is no push, pull or commit on a Studio screen.
+// The words Studio speaks, in one place. Designers work in changes to the library: they start a change, send it for
+// review, and a reviewer adds it to the library, which is published as a package release. Saving is invisible: there
+// is no push, pull or commit on a Studio screen, and no branch, merge or main either (decision 2026-10-24: designers
+// read "change" and "library"; git words stay in the "For developers" folds, the CLI, the MCP server and GitHub).
 //
 // Every Studio screen, status and sentence reads its words from here, so one rename is one edit. Developer words
-// (pull request, commit, SHA, changeset, CI, workflow) never show on a Studio screen: a quiet "Open on GitHub" link
-// on the line of the thing it concerns is the way to them. Pure: no DOM. Unit tested in vocabulary.test.ts.
+// (branch, merge, main, pull request, commit, SHA, changeset, CI, workflow) never show on a Studio screen: a quiet
+// "Open on GitHub" link on the line of the thing it concerns is the way to them. Pure: no DOM. Unit tested in
+// vocabulary.test.ts.
 
 export const VOCAB = {
-  /** The unit of work: a branch of the library, a pull request on GitHub. */
-  branch: 'branch',
-  branches: 'branches',
-  Branch: 'Branch',
-  Branches: 'Branches',
-  /** The library everyone uses, the branch every branch starts from. */
-  main: 'main',
-  /** Start a branch (Figma: "Create branch"). */
-  createBranch: 'Create branch',
+  /** The unit of work: a change to the library (a branch and its pull request on GitHub). */
+  branch: 'change',
+  branches: 'changes',
+  Branch: 'Change',
+  Branches: 'Changes',
+  /** The library everyone uses (main on GitHub), mid-sentence. */
+  main: 'the library',
+  /** The same, at the start of a sentence. */
+  Main: 'The library',
+  /** Start a change (a branch on GitHub). */
+  createBranch: 'Start a change',
   /** Ask reviewers to look: the one send verb of the site (lib/gh-wording.ts sendButton), in direct mode. */
   requestReview: 'Send for review',
-  /** The reviewer's step that ends in a merge (Figma: "Review and merge"). */
-  reviewAndMerge: 'Review and merge',
-  merge: 'Merge',
-  /** Bring what main gained since the branch started (Figma: "Update from main"). */
-  updateFromMain: 'Update from main',
+  /** The reviewer's step that ends with the change in the library (a merge on GitHub). */
+  reviewAndMerge: 'Review and add to the library',
+  /** The action that puts an approved change in the library (Merge on GitHub). */
+  merge: 'Add to the library',
+  /** The approved state: nothing left but adding it (ready to merge on GitHub). */
+  readyToMerge: 'Ready to add to the library',
+  /** Done: the change is in the library (merged into main on GitHub). */
+  merged: 'Added to the library',
+  /** Bring what the library gained since the change started (update from main on GitHub). */
+  updateFromMain: 'Update from the library',
   /** The package release, the only "publish" (Figma: publish a library). */
   publish: 'Publish',
   save: 'Save',
@@ -38,15 +47,15 @@ export const STATUS_WORDS = {
   inReview: 'In review',
   waiting: 'Approved, waiting for code',
   waitingShort: 'Waiting for code',
-  merged: 'Merged',
+  merged: 'Added to the library',
   closed: 'Closed',
 } as const;
 
 /**
- * Developer words that never show on a Studio screen. "branch", "merge" and "main" are Figma words and allowed.
- * Matched as whole words, case-insensitive (jargonIn).
+ * Developer words that never show on a Studio screen, git's branch, merge and main included (designers read change and
+ * library). Matched as whole words, case-insensitive (jargonIn).
  */
-export const DEV_WORDS = ['push', 'pull', 'commit', 'pull request', 'PR', 'SHA', 'changeset', 'CI', 'workflow'] as const;
+export const DEV_WORDS = ['push', 'pull', 'commit', 'pull request', 'PR', 'SHA', 'changeset', 'CI', 'workflow', 'branch', 'merge', 'main'] as const;
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -54,12 +63,13 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 export function jargonIn(text: string): string[] {
   return DEV_WORDS.filter((w) => {
     const caps = w === 'PR' || w === 'CI' || w === 'SHA';
-    const re = new RegExp(`(^|[^A-Za-z0-9_-])${escape(w)}(e?s)?(?![A-Za-z0-9_-])`, caps ? '' : 'i');
+    const word = w === 'merge' ? 'merg(?:e|es|ed|ing)' : `${escape(w)}(?:e?s|ed|ing)?`;
+    const re = new RegExp(`(^|[^A-Za-z0-9_-])${word}(?![A-Za-z0-9_-])`, caps ? '' : 'i');
     return re.test(text);
   });
 }
 
-/** "1 branch", "3 branches". */
+/** "1 change", "3 changes". */
 export const branchCount = (n: number) => `${n} ${n === 1 ? VOCAB.branch : VOCAB.branches}`;
 
 // ---------------------------------------------------------------------------------------------------------------

@@ -23,7 +23,7 @@ export const Toolbar: Story = {
     <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
       <Tooltip content="Edit token"><IconButton icon={Pencil} label="Edit token" /></Tooltip>
       <Tooltip content="Copy token name"><IconButton icon={Copy} label="Copy token name" /></Tooltip>
-      <Tooltip content="Create branch"><IconButton icon={GitBranch} label="Create branch" /></Tooltip>
+      <Tooltip content="Start a change"><IconButton icon={GitBranch} label="Start a change" /></Tooltip>
       <Tooltip content="Delete token"><IconButton icon={Trash2} label="Delete token" /></Tooltip>
     </div>
   ),

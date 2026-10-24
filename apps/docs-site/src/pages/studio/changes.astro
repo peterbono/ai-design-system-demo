@@ -72,8 +72,8 @@ const signIn = Boolean(signInConfig());
 ---
 
 <Layout
-  title="Branches"
-  description="All the work in progress, grouped by product: your branches, the ones waiting on you, explorations, and the history of merged token changes."
+  title="Changes"
+  description="All the work in progress, grouped by product: your changes, the ones waiting on you, explorations, and the history of token changes added to the library."
   sources={sources}
   updated={lastUpdated(sources)}
   wide
@@ -81,7 +81,7 @@ const signIn = Boolean(signInConfig());
   <div class="rv cg">
     <p class="rv-notice" id="rv-notice" role="status" hidden></p>
     <div id="cg-main">
-      <StudioHeader title="Branches">
+      <StudioHeader title="Changes">
         <Fragment slot="actions">
           <Link href={studioHref('changes/?view=history')} id="cg-history-link" data-cg-view="history">History</Link>
           <Link href={studioHref('changes/')} id="cg-back-link" data-back hidden>All {VOCAB.branches}</Link>

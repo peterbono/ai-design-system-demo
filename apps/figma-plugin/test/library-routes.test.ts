@@ -52,7 +52,7 @@ test('waiting: a rename says why, a merge Bridge could not arm says so, mixed se
   assert.deepEqual(libraryHeadline(groupRoutes([rename]), new Map()), { title: 'Waiting for a developer', text: '1 change waits for a developer.' });
   assert.match(waitingLede([rename]), /renamed or removed token can break product code/);
   const notArmed: RoutedItem = { ...token('avatar.bg', 3), route: 'waiting-for-developer', waitingFor: 'not-armed' };
-  assert.equal(waitingLede([notArmed]), 'Bridge could not ship it by itself, so a developer merges it. The row says why.');
+  assert.equal(waitingLede([notArmed]), 'Bridge could not ship it by itself, so a developer adds it to the library. The row says why.');
   assert.match(waitingLede([rename, notArmed]), /break product code.*Bridge could not ship the others by itself; each row says why\.$/);
   const mixed = libraryHeadline(groupRoutes([token('avatar.bg', 3), rename, build]), new Map());
   assert.equal(mixed.title, 'Sent');
@@ -96,7 +96,7 @@ test('arming: checks running retry later, armed then read until in the library, 
   let now = 0;
   const answers: Record<number, unknown[]> = {
     7: [{ armed: false, route: 'waiting-for-developer', code: 'checks_pending', reason: 'Checks are running.', retryAfter: 60 }, { armed: true, route: 'shipped' }],
-    8: [{ armed: false, route: 'waiting-for-developer', code: 'auto_merge_off', reason: 'This repository does not merge by itself yet: a developer merges it.' }],
+    8: [{ armed: false, route: 'waiting-for-developer', code: 'auto_merge_off', reason: 'This repository does not merge by itself yet: a developer adds it to the library.' }],
   };
   const armed: number[] = [];
   const read: number[] = [];

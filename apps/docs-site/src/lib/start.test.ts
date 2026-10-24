@@ -175,7 +175,7 @@ describe('the home of a team made in Bridge', () => {
   });
 
   it('says what to connect next, and who does it', () => {
-    expect(TEAM_HOME_WORDS.ready('Northwind Design')).toBe('Northwind Design is set up. Connect your design system next, and your tokens, components and branches show up here.');
+    expect(TEAM_HOME_WORDS.ready('Northwind Design')).toBe('Northwind Design is set up. Connect your design system next, and your tokens, components and changes show up here.');
     expect(TEAM_HOME_WORDS.waiting('Northwind Design')).toContain('An admin of the team connects it');
     expect(JSON.stringify(TEAM_HOME_WORDS)).not.toContain(String.fromCharCode(0x2014));
   });

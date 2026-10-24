@@ -475,7 +475,7 @@ function loadClosed(): Promise<void> {
       closedRows = f.data.filter((p) => !isAutomationPull(p)).map((p) => toRow(p, pullState(p) === 'merged' ? 'merged' : 'closed'));
     } catch (err) {
       closedRows = [];
-      showNotice('warn', err instanceof RateLimitError ? `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())} to see merged and closed ${VOCAB.branches}.` : `Could not read recent ${VOCAB.branches}: ${(err as Error).message}`);
+      showNotice('warn', err instanceof RateLimitError ? `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())} to see ${VOCAB.branches} added to the library or closed.` : `Could not read recent ${VOCAB.branches}: ${(err as Error).message}`);
     }
     paintRows(openRows, listLoading);
   })();
@@ -775,7 +775,7 @@ export async function openPr(n: number, push = true) {
     }
   } catch (err) {
     if (seq !== openSeq) return;
-    d.innerHTML = `<p class="rv-loading"><a href="./" data-back>Branches</a></p>`;
+    d.innerHTML = `<p class="rv-loading"><a href="./" data-back>${VOCAB.Branches}</a></p>`;
     if (err instanceof RateLimitError) showNotice('warn', `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())}, or try again later.`);
     else showNotice('fail', `Could not load this ${VOCAB.branch}: ${(err as Error).message}`);
   }
@@ -952,7 +952,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     const f = failingSentence({ story, author, viewerIsAuthor: isAuthor, viewerApprovesDesign: Boolean(designRow) && !story.designFails, approvalsMissing: gate.missing.length > 0, forDesigner: !developer });
     sentence = f.sentence;
     yourTurn = f.yourTurn;
-  } else if (who.yourTurn && who.action === 'override' && showOverride) sentence = 'Your turn: no other owner can approve, so merge it with the owner override.';
+  } else if (who.yourTurn && who.action === 'override' && showOverride) sentence = 'Your turn: no other owner can approve, so add it to the library with the owner override.';
   const dismissed = open ? dismissedSentence(dismissedApprovals(reviews as never, pull.head.sha)) : null;
   const status = detailStatus({ pull, tier, approvals, story, checks: x.checks, files: files.map((f) => f.filename), exploration, isAuthor, sentence, yourTurn });
   if (dismissed) status.sentence = `${dismissed} ${status.sentence}`;
@@ -1068,7 +1068,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   if (added > 0) history.replaceState(history.state, '', `?pr=${pull.number}`);
   // Behind main is a developer's to update: designers only see a conflict (token conflicts have their resolver).
   const update = x.fresh.state === 'current' && justIn?.pr === pull.number ? 'done' : (x.fresh.state === 'behind' && developer) || x.fresh.state === 'conflict' ? x.fresh.state : null;
-  const note = access && !write && (lifecycle === 'open' || lifecycle === 'draft') ? `${nameOf(access.login)} cannot write to this library, so merging and closing are off.` : null;
+  const note = access && !write && (lifecycle === 'open' || lifecycle === 'draft') ? `${nameOf(access.login)} cannot write to this library, so adding to the library and closing are off.` : null;
 
   // A library branch a product branch needs: "Why it exists" (the product preview link is read after the first paint).
   const neededBy = parseNeededBy(pull.body);
@@ -1128,7 +1128,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
         await commitDocsToBranch(path, pull.head.ref, componentOfDocsPath(path).name, text);
       } catch (err) {
         const msg = (err as Error).message;
-        throw new Error(/failed to fetch|network/i.test(msg) ? 'Not saved: GitHub could not be reached. Check your connection, then save again.' : `Not saved: ${msg.replace(/[.\s]+$/, '')}. Save again, or reload the page if the branch moved.`);
+        throw new Error(/failed to fetch|network/i.test(msg) ? 'Not saved: GitHub could not be reached. Check your connection, then save again.' : `Not saved: ${msg.replace(/[.\s]+$/, '')}. Save again, or reload the page if the change moved.`);
       }
       if (original) original.head = docsNow;
       const g = guidance[path]!;
@@ -1211,7 +1211,7 @@ async function approve(pull: { number: number; head: { ref: string; sha: string 
 /** One decision from the bar. Resolves with the line to say (the review repaints), throws with how to fix it. */
 async function act(kind: ActKind | 'close', text: string, x: { pull: Pull; gate: ReturnType<typeof mergeGate>; docs: { path: string; head: GuidanceDocs | null }[]; write: boolean; statusRun: StatusActionRun }): Promise<string | void> {
   const { pull } = x;
-  const verb = kind === 'merge' || kind === 'approve-merge' ? 'merge branches' : kind === 'close' ? 'close branches' : 'review branches';
+  const verb = kind === 'merge' || kind === 'approve-merge' ? 'add changes to the library' : kind === 'close' ? 'close changes' : 'review changes';
   try {
     if (kind === 'connect') return;
     if (kind === 'request-review' || kind === 'reopen' || kind === 'restart') return (await x.statusRun.run?.()) ?? undefined;
@@ -1227,7 +1227,7 @@ async function act(kind: ActKind | 'close', text: string, x: { pull: Pull; gate:
         await mergeOnGitHub(gh, { number: pull.number, headSha: sha, method: 'squash', draft: pull.draft });
       } catch (err) {
         await openPr(pull.number, false);
-        return `Approved. Not merged yet: ${(err as Error).message.replace(/[.\s]+$/, '')}. Merge it once the checks finish.`;
+        return `Approved. Not in the library yet: ${(err as Error).message.replace(/[.\s]+$/, '')}. Add it once the checks finish.`;
       }
     } else if (kind === 'close') await closeOnGitHub(gh, pull.number);
     // The suggestions it closes get their final label (core, the same as a merge from the MCP server). Best effort.
@@ -1237,7 +1237,7 @@ async function act(kind: ActKind | 'close', text: string, x: { pull: Pull; gate:
     showGhError(el, err, `GitHub refused it: ${(err as Error).message}`, verb);
     throw new Error(el.textContent ?? (err as Error).message);
   }
-  const said = { suggest: 'Changes suggested.', comment: 'Comment posted.', approve: 'Approved.', merge: 'Merged.', 'approve-merge': 'Approved and merged.', close: 'Closed.' }[kind as string] ?? 'Done.';
+  const said = { suggest: 'Changes suggested.', comment: 'Comment posted.', approve: 'Approved.', merge: 'Added to the library.', 'approve-merge': 'Approved and added to the library.', close: 'Closed.' }[kind as string] ?? 'Done.';
   await openPr(pull.number, false);
   return said;
 }
@@ -1318,20 +1318,20 @@ function wireOverride(pull: Pull, access: Access, gate: ReturnType<typeof mergeG
   const allowed: MergeMethod[] = access.methods.length ? access.methods : ['squash'];
   const countText = () => {
     const n = reason.value.trim().length;
-    if (!min) return 'Optional. Shown on the branch.';
-    if (n === 0) return `At least ${min} characters. Shown on the branch.`;
-    return n >= min ? `${n} characters. Shown on the branch.` : `${n} of at least ${min} characters.`;
+    if (!min) return 'Optional. Shown on the change.';
+    if (n === 0) return `At least ${min} characters. Shown on the change.`;
+    return n >= min ? `${n} characters. Shown on the change.` : `${n} of at least ${min} characters.`;
   };
   // The first method the repository allows (squash when it allows it), as before: no picker on a Studio screen.
   const method = (): MergeMethod => allowed[0]!;
   const ready = () => {
     go.disabled = false;
-    go.textContent = 'Post reason and merge';
+    go.textContent = 'Post reason and add to the library';
   };
 
   // This branch: its number and the approvals it skips.
   const title = document.getElementById('rv-ov-title');
-  if (title) title.textContent = `Merge "${humanTitle(mdTitleText(withoutJiraKey(pull.title)))}" with the owner override?`;
+  if (title) title.textContent = `Add "${humanTitle(mdTitleText(withoutJiraKey(pull.title)))}" to the library with the owner override?`;
   part('missing').innerHTML = gate.missing.map((m) => `<li>${esc(m[0]!.toUpperCase() + m.slice(1))}</li>`).join('');
   reason.value = '';
   reason.removeAttribute('aria-invalid');
@@ -1364,14 +1364,14 @@ function wireOverride(pull: Pull, access: Access, gate: ReturnType<typeof mergeG
       }
       error.hidden = true;
       go.disabled = true;
-      go.textContent = 'Posting reason and merging';
+      go.textContent = 'Posting reason and adding to the library';
       // One implementation with the MCP server and the CLI (core branch-actions): the reason first, then the merge.
       try {
         await overrideMergeOnGitHub(studioClient(REPO_KEY), { number: pull.number, headSha: pull.head.sha, login: access.login, reason: reason.value, missing: gate.missing, method: method(), draft: pull.draft });
       } catch (err) {
         const stage = err instanceof OverrideMergeError ? err.stage : 'merge';
         const cause = err instanceof OverrideMergeError ? (err.cause ?? err) : err;
-        showGhError(errorText, cause, (err as Error).message, stage === 'comment' ? 'comment on branches' : 'merge branches');
+        showGhError(errorText, cause, (err as Error).message, stage === 'comment' ? 'comment on changes' : 'add changes to the library');
         error.hidden = false;
         ready();
         return;
@@ -1380,7 +1380,7 @@ function wireOverride(pull: Pull, access: Access, gate: ReturnType<typeof mergeG
       await markSuggestionsAppliedOnGitHub(studioClient(REPO_KEY), pull);
       await openPr(pull.number, false);
       const done = document.getElementById('rv-act-status');
-      if (done) done.textContent = 'Merged with the owner override. Your reason is in its conversation.';
+      if (done) done.textContent = 'Added to the library with the owner override. Your reason is in its conversation.';
     },
     { signal },
   );
@@ -1443,10 +1443,10 @@ function wireLibrary(x: { pull: Pull; fresh: Freshness; compare: CompareLike | n
   const cannot = !x.developer
     ? 'A developer is on it.'
     : !x.access
-      ? `${ghAction('update it from main', prefersSignIn())}.`
+      ? `${ghAction('update it from the library', prefersSignIn())}.`
       : !sameRepo
-        ? 'It comes from a fork: its author updates it from main.'
-        : `${nameOf(x.access.login)} cannot write to this branch, so someone with write access updates it from main.`;
+        ? 'It comes from a copy outside the team: its author updates it from the library.'
+        : `${nameOf(x.access.login)} cannot write to this change, so someone with write access updates it from the library.`;
   const mount = (props: Parameters<typeof import('../components/ds/studio/LibraryCatchUp').mountLibraryCatchUp>[1]) =>
     void import('../components/ds/studio/LibraryCatchUp').then(({ mountLibraryCatchUp }) => {
       if (x.seq !== openSeq || !slot.isConnected) return;
@@ -1464,16 +1464,16 @@ function wireLibrary(x: { pull: Pull; fresh: Freshness; compare: CompareLike | n
       label: VOCAB.updateFromMain,
       primary,
       onUpdate: async () => {
-        hintEl.textContent = 'Updating from main.';
+        hintEl.textContent = 'Updating from the library.';
         try {
           await bringInLatest(repo.owner, repo.repo, pull);
         } catch (err) {
           const msg = (err as Error).message;
           if (/conflict/i.test(msg)) hintEl.textContent = 'GitHub could not combine them: they changed the same lines. Reload the page to resolve the conflicts here.';
-          else showGhError(hintEl, err, `GitHub did not update it from main: ${msg.replace(/[.\s]+$/, '')}. Reload the page and try again.`, 'update branches');
+          else showGhError(hintEl, err, `GitHub did not update it from the library: ${msg.replace(/[.\s]+$/, '')}. Reload the page and try again.`, 'update changes');
           return;
         }
-        await refreshAfterLibrary(pull, `Up to date with main. ${await next}`);
+        await refreshAfterLibrary(pull, `Up to date with the library. ${await next}`);
       },
     });
     return;
@@ -1523,9 +1523,9 @@ function wireLibrary(x: { pull: Pull; fresh: Freshness; compare: CompareLike | n
             // Bridge's own checks already say how to fix it; only GitHub's answers get wrapped.
             if (!(err instanceof GitHubError)) throw err;
             const msg = err.message.replace(/[.\s]+$/, '');
-            throw new Error(/fast.forward|Update is not a fast/i.test(msg) ? 'The branch moved while you were choosing. Close this, reload the page and resolve again.' : `GitHub refused it: ${msg}. Reload the page and try again.`);
+            throw new Error(/fast.forward|Update is not a fast/i.test(msg) ? 'The change moved while you were choosing. Close this, reload the page and resolve again.' : `GitHub refused it: ${msg}. Reload the page and try again.`);
           }
-          void refreshAfterLibrary(pull, `Conflicts resolved, up to date with main. ${nextText}`);
+          void refreshAfterLibrary(pull, `Conflicts resolved, up to date with the library. ${nextText}`);
         },
       },
     });

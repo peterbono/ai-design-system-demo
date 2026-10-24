@@ -97,7 +97,7 @@ export function waitingLede(items: readonly RoutedItem[]): string {
   const rename = items.some((i) => i.waitingFor === 'rename');
   const notArmed = items.some((i) => i.waitingFor === 'not-armed');
   if (rename && !notArmed) return PUBLISH_ROUTE_COPY['waiting-for-developer'].sentence;
-  if (!rename) return 'Bridge could not ship it by itself, so a developer merges it. The row says why.';
+  if (!rename) return 'Bridge could not ship it by itself, so a developer adds it to the library. The row says why.';
   return `${PUBLISH_ROUTE_COPY['waiting-for-developer'].sentence} Bridge could not ship the others by itself; each row says why.`;
 }
 

@@ -42,8 +42,8 @@ describe('whose work', () => {
   it('signed out, only All shows rows', () => {
     expect(showsForWho('all', { author: 'dana', yourTurn: false }, null)).toBe(true);
     expect(showsForWho('mine', { author: 'dana', yourTurn: false }, null)).toBe(false);
-    expect(emptyWhoLine('mine', false)).toBe('Sign in to see your branches.');
-    expect(emptyWhoLine('waiting', true)).toBe('No branch waits on you.');
+    expect(emptyWhoLine('mine', false)).toBe('Sign in to see your changes.');
+    expect(emptyWhoLine('waiting', true)).toBe('No change waits on you.');
   });
 });
 
@@ -101,7 +101,7 @@ describe('finished branches', () => {
     expect(finishedParam('?status=closed')).toEqual({ finished: true, only: null });
     expect(finishedParam('?status=draft')).toEqual({ finished: false, only: 'draft' });
     expect(finishedParam('?status=open')).toEqual({ finished: false, only: null });
-    expect(onlyLine('waiting')).toBe('Showing branches waiting for code only.');
+    expect(onlyLine('waiting')).toBe('Showing changes waiting for code only.');
     expect(onlyLine(null)).toBeNull();
   });
 
@@ -135,8 +135,8 @@ describe('selection', () => {
 
   it('the bar: nothing, one (try it alone), two to four (preview together)', () => {
     expect(barCopy(0)).toBeNull();
-    expect(barCopy(1)).toEqual({ title: '1 branch selected', hint: 'Select up to 3 more to preview them together', action: 'alone', label: 'Try it alone' });
-    expect(barCopy(3)).toEqual({ title: '3 branches selected', hint: null, action: 'together', label: 'Preview together' });
+    expect(barCopy(1)).toEqual({ title: '1 change selected', hint: 'Select up to 3 more to preview them together', action: 'alone', label: 'Try it alone' });
+    expect(barCopy(3)).toEqual({ title: '3 changes selected', hint: null, action: 'together', label: 'Preview together' });
   });
 
   it('speaks designer words only', () => {

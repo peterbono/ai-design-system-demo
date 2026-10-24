@@ -404,7 +404,7 @@ function HomeBody(p: StudioHomeProps) {
           <div className="sh-head-text">
             {p.setup && <div className="sh-setup">{p.setup}</div>}
             <p className="t-body">
-              {p.greeting} Nothing needs you{p.failed ? '' : ', and you have no branch in progress'}.
+              {p.greeting} Nothing needs you{p.failed ? '' : ', and you have no change in progress'}.
             </p>
             <h1 id="sh-hello" className="sh-hello">
               What do you want to change?
@@ -433,7 +433,7 @@ function HomeBody(p: StudioHomeProps) {
               </h1>
               {p.setup && <div className="sh-setup">{p.setup}</div>}
             </div>
-            {loading ? <p className="t-body">Checking what needs you.</p> : p.needs.some((r) => r.waitsOnYou) ? <Waiting needs={p.needs} now={p.now} lead={p.demo ? p.demo.lead : undefined} /> : <p className="t-body">{p.needs.length ? 'Your branches need you.' : 'Nothing needs you.'}</p>}
+            {loading ? <p className="t-body">Checking what needs you.</p> : p.needs.some((r) => r.waitsOnYou) ? <Waiting needs={p.needs} now={p.now} lead={p.demo ? p.demo.lead : undefined} /> : <p className="t-body">{p.needs.length ? 'Your changes need you.' : 'Nothing needs you.'}</p>}
           </div>
         </div>
         {loading ? (

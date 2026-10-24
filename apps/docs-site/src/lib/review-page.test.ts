@@ -268,7 +268,7 @@ describe('reviewActions', () => {
   };
   it('approves, or approves and merges when the viewer can merge after', () => {
     expect(reviewActions(base).primary).toEqual({ kind: 'approve', label: 'Approve' });
-    expect(reviewActions({ ...base, mergeAfterApprove: true }).primary).toEqual({ kind: 'approve-merge', label: 'Approve and merge' });
+    expect(reviewActions({ ...base, mergeAfterApprove: true }).primary).toEqual({ kind: 'approve-merge', label: 'Approve and add to the library' });
     expect(reviewActions({ ...base, mergeAfterApprove: true, canWrite: false }).primary?.kind).toBe('approve');
   });
   it('merges once approved, never lets the author approve', () => {
@@ -308,14 +308,14 @@ describe('reviewActions', () => {
     expect(a.menu).toEqual({ override: null, share: false, draft: false, close: false });
   });
   it('speaks designer words', () => {
-    for (const l of ['Approve', 'Approve and merge', 'Send for review', 'Reopen', 'Start again from this']) expect(jargonIn(l)).toEqual([]);
+    for (const l of ['Approve', 'Approve and add to the library', 'Send for review', 'Reopen', 'Start again from this']) expect(jargonIn(l)).toEqual([]);
     expect(jargonIn(reviewActions({ ...base, overrideOnly: true }).menu.override!)).toEqual([]);
   });
 });
 
 describe('reviewCrumbs', () => {
   it('files the branch under its product, the title last and not a link', () => {
-    expect(reviewCrumbs(['apps/admin/src/x.tsx'], 'T').map((c) => c.label)).toEqual(['Branches', 'Admin demo', 'T']);
+    expect(reviewCrumbs(['apps/admin/src/x.tsx'], 'T').map((c) => c.label)).toEqual(['Changes', 'Admin demo', 'T']);
     const c = reviewCrumbs(null, 'T');
     expect(c[1]!.label).toBe('Library');
     expect(c[2]!.href).toBeUndefined();
@@ -327,12 +327,12 @@ describe('reviewCrumbs', () => {
   ] as ProductConfig[];
 
   it("reads the site's products and the product label, never Library for a product screen", () => {
-    expect(reviewCrumbs(['apps/account/src/pages/Billing.tsx'], 'T', { products: account }).map((c) => c.label)).toEqual(['Branches', 'Account app', 'T']);
+    expect(reviewCrumbs(['apps/account/src/pages/Billing.tsx'], 'T', { products: account }).map((c) => c.label)).toEqual(['Changes', 'Account app', 'T']);
     expect(reviewCrumbs(null, 'T', { products: account, labels: [{ name: 'product: account' }] })[1]!.label).toBe('Account app');
   });
 
   it('files a running exploration under Explorations', () => {
-    expect(reviewCrumbs(['apps/account/src/pages/Profile.tsx'], 'Profile page', { products: account, exploration: true }).map((c) => c.label)).toEqual(['Branches', 'Explorations', 'Profile page']);
+    expect(reviewCrumbs(['apps/account/src/pages/Profile.tsx'], 'Profile page', { products: account, exploration: true }).map((c) => c.label)).toEqual(['Changes', 'Explorations', 'Profile page']);
   });
 });
 
@@ -356,7 +356,7 @@ describe('productWorkOf', () => {
     const v = productWorkOf({ exploration: true, files: null, labels: ['product: account'], products, purpose: 'Try the new profile page with customers' });
     expect(v!.kind).toBe('exploration');
     const line = productWorkLine(v!);
-    expect(line).toBe('An exploration in Account app, never merged as is. Try the new profile page with customers.');
+    expect(line).toBe('An exploration in Account app, never added to the library as is. Try the new profile page with customers.');
     expect(productWorkEmpty(v!)).toMatch(/^No preview of it yet\./);
     for (const t of [line, productWorkEmpty(v!)]) expect(t).not.toMatch(/\u2014|pull request|\bPR\b|\bmain\b/);
   });

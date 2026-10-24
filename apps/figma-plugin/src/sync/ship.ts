@@ -18,12 +18,12 @@ export async function armShip(token: string, repo: string, pr: number, fetchImpl
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ repo, pr }),
   }).catch(() => {
-    throw new Error('Bridge could not be reached, so a developer merges it.');
+    throw new Error('Bridge could not be reached, so a developer adds it to the library.');
   });
   const body = (await res.json().catch(() => ({}))) as Partial<ArmAnswer> & { error?: string; message?: string };
   if (!res.ok) throw new Error(body.message || `Bridge could not ship it (${res.status}).`);
   if (body.armed === true) return { armed: true, route: 'shipped', ...(body.merged ? { merged: true } : {}) };
   if (body.armed === false && typeof body.reason === 'string')
     return { armed: false, route: 'waiting-for-developer', code: String(body.code ?? ''), reason: body.reason, ...(typeof body.retryAfter === 'number' ? { retryAfter: body.retryAfter } : {}) };
-  throw new Error('Bridge answered something unexpected: a developer merges it.');
+  throw new Error('Bridge answered something unexpected: a developer adds it to the library.');
 }

@@ -73,7 +73,7 @@ describe('the setup step "Name your team"', () => {
     await user.click(screen.getByRole('button', { name: 'Save name' }));
     expect(name).toHaveBeenCalledWith('Acme Design');
     expect(await screen.findByText(/Sent for review, #41\./)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'See the branch' })).toHaveAttribute('href', expect.stringContaining('pr=41'));
+    expect(screen.getByRole('link', { name: 'See the change' })).toHaveAttribute('href', expect.stringContaining('pr=41'));
     await user.click(screen.getByRole('button', { name: 'Do this later' }));
     expect(later).toHaveBeenCalledWith('name');
   });

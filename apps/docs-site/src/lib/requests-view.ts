@@ -313,7 +313,7 @@ export function declineAudience(requester: string): string {
 /** Where the change that builds a request stands, for its section header: "Not started", "In review", "Shipped". */
 export function buildState(r: Pick<RequestRow, 'prs'>): string {
   if (r.prs.some((p) => p.state === 'open')) return 'In review';
-  if (r.prs.some((p) => p.merged)) return 'Merged';
+  if (r.prs.some((p) => p.merged)) return 'Added to the library';
   return r.prs.length ? 'Closed' : 'Not started';
 }
 
