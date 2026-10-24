@@ -676,7 +676,16 @@ function checkPull(): void {
   void run(
     'Reading the design system and your variables',
     async () => {
-      state.pull = await loadPull();
+      let p = await loadPull();
+      // The design system moved on but nothing in this file would change: it is up to date. The new base is recorded
+      // quietly instead of asking for an Update that writes nothing ("66 new changes" next to "Nothing changes").
+      const updates = (p.components?.components ?? []).some((c) => c.status === 'updated');
+      if (variablesUpToDate(p) && commitsBehind(p.analysis) > 0 && !updates && !componentsToBuild(p).length) {
+        await request('apply-pull', { plan: p.proposal.plan });
+        await loadInit();
+        p = { ...p, analysis: { ...p.analysis, baseSha: p.analysis.headSha } };
+      }
+      state.pull = p;
       state.expanded.clear();
     },
     checkPull,
@@ -1738,10 +1747,12 @@ function viewPull(): View {
       prop.kept.length ? `${plural(prop.kept.length, 'Figma edit')} kept: send them from Push.` : '',
     ].filter(Boolean);
     const left = view?.retry ?? false;
+    // Variables are written first, then the components: until they are built, the file is not up to date yet.
+    const building = !cr && !!state.busy;
     return {
       body: [
         intro({
-          title: view?.stopped ? 'Pull stopped' : left ? 'Some components were not built' : problems.length ? 'Pulled, with problems' : 'Figma is up to date',
+          title: view?.stopped ? 'Pull stopped' : left ? 'Some components were not built' : problems.length ? 'Pulled, with problems' : building ? 'Variables are in, building components' : 'Figma is up to date',
           text: text.join(' '),
           meta: r ? (r.layout === 'single-collection' ? 'Themes are modes of the Semantic collection.' : 'This file allows one mode per collection, so each theme has its own Semantic collection.') : undefined,
           art: problems.length ? 'fix' : 'tokens',
@@ -2049,7 +2060,10 @@ function fidelityGroup(p: PullState): Child {
   else if (outcome?.kind === 'done') {
     lede = fidelitySummary(outcome.report);
     const order = { differs: 0, matches: 1, 'not-checked': 2 } as const;
+    // Not compared: one folded line with each reason, after the rows a designer can act on (FID-2).
+    const notCompared = outcome.items.filter((it) => it.result.status === 'not-checked');
     const rows = [...outcome.items]
+      .filter((it) => it.result.status !== 'not-checked')
       .sort((a, b) => order[a.result.status] - order[b.result.status])
       .map((it) => {
         const r = it.result;
@@ -2061,7 +2075,10 @@ function fidelityGroup(p: PullState): Child {
           { class: 'row review' },
           h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, it.name), kind),
           h('p', { class: 'muted' }, fidelityComponentLine(r)),
-          r.status === 'differs' && it.images ? [h('p', { class: 'muted' }, `Most different: ${it.images.key}`), fidelityThumbs(it.name, it.images)] : null,
+          // The three images on demand: the list stays a list to scan (FID-5).
+          r.status === 'differs' && it.images
+            ? h('details', { class: 'notes' }, h('summary', null, `See the most different: ${it.images.key}`), fidelityThumbs(it.name, it.images))
+            : null,
           others.length && r.status !== 'not-checked'
             ? h(
                 'details',
@@ -2076,6 +2093,15 @@ function fidelityGroup(p: PullState): Child {
     const report = outcome.report;
     content = [
       rowList('fidelity', rows, 10),
+      notCompared.length
+        ? h(
+            'details',
+            { class: 'notes' },
+            h('summary', null, `${plural(notCompared.length, 'component')} not compared`),
+            h('p', { class: 'muted' }, 'Nothing to fix in Figma for these: code has no image to compare them with yet.'),
+            h('ul', null, notCompared.map((it) => h('li', null, `${it.name}: ${fidelityComponentLine(it.result)}`))),
+          )
+        : null,
       h(
         'details',
         { class: 'notes dev-details' },
@@ -2266,6 +2292,19 @@ function sendRequest(r: PushState): void {
 const isProse = (v: string) => /^[A-Z][a-z]+ [a-z]+ /.test(v);
 
 /** The detail of a change row: one font size, token and variant values in Plex Mono at that same size. */
+/**
+ * A change row's label with its variants the short way, the full names folded: "Padding in danger solid sm, info
+ * solid sm" rather than twenty lines of "Appearance=solid, Size=sm, Tone=danger; ..." (UPD-3).
+ */
+function whatOf(field: string): Child {
+  const m = /^(.*?) \((.*=.*)\)$/.exec(field);
+  if (!m) return field;
+  const list = m[2]!.split('; ');
+  const short = shortVariants(m[2]!);
+  if (list.length <= 2) return `${m[1]} in ${short}`;
+  return h('details', { class: 'notes' }, h('summary', null, `${m[1]} in ${plural(list.length, 'variant')}`), h('p', { class: 'muted' }, short));
+}
+
 function changeTable(changes: { field: string; before?: string | undefined; after?: string | undefined }[], head: [string, string, string] = ['What', 'Now', 'Requested']): Child {
   if (!changes.length) return null;
   const val = (v: string, cls: string) => h('td', { class: `${cls}${isProse(v) ? '' : ' mono'}` }, ...(isProse(v) ? [v] : breakable(v)));
@@ -2273,7 +2312,7 @@ function changeTable(changes: { field: string; before?: string | undefined; afte
     'table',
     { class: 'changes' },
     h('thead', null, h('tr', null, head.map((x) => h('th', null, x)))),
-    h('tbody', null, changes.map((c) => h('tr', null, h('td', { class: 'what' }, c.field), val(c.before || 'none', 'before'), val(c.after || 'removed', 'after')))),
+    h('tbody', null, changes.map((c) => h('tr', null, h('td', { class: 'what' }, whatOf(c.field)), val(c.before || 'none', 'before'), val(c.after || 'removed', 'after')))),
   );
 }
 
