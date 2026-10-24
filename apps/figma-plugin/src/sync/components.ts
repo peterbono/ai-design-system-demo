@@ -481,8 +481,11 @@ export function diffSignatures(base: ComponentSignature, cur: ComponentSignature
       // Only what moved: a variable kept on another layer of the same kind (the text color of a fill) is not part of it.
       const was = (b.bindings[kind] ?? []).map(tokenName);
       const now = (c.bindings[kind] ?? []).map(tokenName);
-      const before = list(was.filter((v) => !now.includes(v)));
-      const after = list(now.filter((v) => !was.includes(v)));
+      const goneNames = was.filter((v) => !now.includes(v));
+      const bornNames = now.filter((v) => !was.includes(v));
+      const before = list(goneNames);
+      // Rebound to a variable another layer already uses: still bound, so list what it may use now (not "none").
+      const after = list(goneNames.length && !bornNames.length && now.length ? now : bornNames);
       // Variables an added layer brings (or a removed one takes away) move with that layer: not a rebinding.
       const bs = b.bindings[kind] ?? [];
       const cs = c.bindings[kind] ?? [];

@@ -361,3 +361,14 @@ test('structure: a text where an optional text exists gets the hint; other chang
   assert.ok(scan2.changed[0]!.equivalent);
   assert.equal(scan2.changed[0]!.suggestSkip, undefined);
 });
+
+test('rebound to a variable another layer already uses: still bound, never "none"', () => {
+  // The label already paints with button.primary.fg; the fill moves onto it too.
+  const next = button((c) => {
+    const v = find(c, 'md', 'primary');
+    v.bindings = v.bindings.map((b) => (b.variable === 'button/primary/bg' ? { ...b, variable: 'button/primary/fg' } : b));
+    v.render = fnv1a('fill like the label');
+  });
+  const d = diffSignatures(sig(button()), sig(next));
+  assert.deepEqual(d.changes, [{ field: 'Fill (Size=md, Tone=primary)', before: 'button.primary.bg', after: 'button.primary.fg' }]);
+});
