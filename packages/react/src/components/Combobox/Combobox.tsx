@@ -130,6 +130,11 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxProps>(function Com
     return Array.isArray(v) ? v.map(toOption) : toOption(v);
   };
 
+  // The listbox carries the field's name too. While it closes it stays in the page for its exit motion, no longer
+  // referenced by the input, and an unnamed listbox there is announced as an anonymous list.
+  const labelledBy = rest['aria-labelledby'];
+  const listName = labelledBy ? undefined : (rest['aria-label'] ?? label);
+
   const grouped = options.some((o) => o.group);
   const items = useMemo<ComboboxOption[] | OptionGroup[]>(() => {
     if (!grouped) return options;
@@ -236,7 +241,7 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxProps>(function Com
               ) : null}
             </BaseCombobox.Status>
             {!loading && <BaseCombobox.Empty className={styles.empty}>{emptyMessage}</BaseCombobox.Empty>}
-            <BaseCombobox.List className={styles.list}>
+            <BaseCombobox.List className={styles.list} aria-labelledby={labelledBy} aria-label={listName}>
               {grouped
                 ? (group: OptionGroup) => (
                     <BaseCombobox.Group key={group.label} items={group.items} className={styles.group}>
