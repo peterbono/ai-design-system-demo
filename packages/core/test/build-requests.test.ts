@@ -206,7 +206,7 @@ describe('the build request issue', () => {
 
   it('carries the Figma link, before and after, props, the brief and the spec, and reads them back', () => {
     const { body } = composeBuildRequestIssue(input);
-    expect(body).toContain('| In code now | In Figma |');
+    expect(body).toContain('| Before | After |');
     expect(body).toContain('![Button before](https://img/before.png)');
     expect(body).toContain('![Button after](https://img/after.png)');
     expect(body).toContain('**Props needed:**');

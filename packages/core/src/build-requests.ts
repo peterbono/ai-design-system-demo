@@ -28,8 +28,9 @@ export const SOURCE_FIGMA_LABEL = 'source: figma';
 export const BUILD_STALE_DAYS = 7;
 
 /**
- * What the two images of a build request are called wherever a person reads them (Studio, the issue table): the
- * component as it is in code now, and the design in Figma. The data keeps its field names, `before` and `after`.
+ * What the two images of a build request are called on designer screens (Studio): the component as it is in code
+ * now, and the design in Figma. The data keeps its field names, `before` and `after`; the GitHub issue table, read by
+ * developers, keeps Before and After.
  */
 export const BUILD_IMAGE_LABEL = { before: 'In code now', after: 'In Figma' } as const;
 
@@ -436,7 +437,7 @@ export function composeBuildRequestIssue(input: BuildRequestInput, opts: { label
   if (before.length && after.length) {
     for (const [i, u] of after.entries()) body = body.replace(`![${r.component} design ${i + 1}](${u})\n`, '');
     const rows = Math.max(before.length, after.length);
-    const table = [`| ${BUILD_IMAGE_LABEL.before} | ${BUILD_IMAGE_LABEL.after} |`, '| --- | --- |', ...Array.from({ length: rows }, (_, i) => `| ${before[i] ? img(before[i]!, i, 'before') : ''} | ${after[i] ? img(after[i]!, i, 'after') : ''} |`)];
+    const table = ['| Before | After |', '| --- | --- |', ...Array.from({ length: rows }, (_, i) => `| ${before[i] ? img(before[i]!, i, 'before') : ''} | ${after[i] ? img(after[i]!, i, 'after') : ''} |`)];
     body = insertBefore(body, '## How to implement', [...table, ''].join('\n'));
   } else if (before.length) {
     body = insertBefore(body, '## How to implement', [...before.map((u, i) => img(u, i, 'before')), ''].join('\n'));
