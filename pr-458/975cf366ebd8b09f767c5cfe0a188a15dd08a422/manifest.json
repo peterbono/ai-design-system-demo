@@ -1,0 +1,1970 @@
+{
+  "version": 1,
+  "tool": "@bridge-ds/visual",
+  "createdAt": "2026-10-24T10:27:24.398Z",
+  "durationMs": 199512,
+  "base": {
+    "ref": "534a8a413e68eee6ff461aa3677e0bd7dc38a109",
+    "sha": "534a8a413e68eee6ff461aa3677e0bd7dc38a109"
+  },
+  "head": {
+    "ref": "975cf366ebd8b09f767c5cfe0a188a15dd08a422",
+    "sha": "975cf366ebd8b09f767c5cfe0a188a15dd08a422"
+  },
+  "options": {
+    "only": [
+      "stories",
+      "app"
+    ],
+    "threshold": 0.03,
+    "viewport": {
+      "stories": {
+        "width": 1024,
+        "height": 768
+      },
+      "app": {
+        "width": 1280,
+        "height": 800
+      }
+    }
+  },
+  "selection": {
+    "tokens": [],
+    "vars": [],
+    "files": [
+      ".changeset/designer-words.md",
+      "apps/docs-site/src/components/ChangesExplorations.astro",
+      "apps/docs-site/src/components/LibraryEditMode.tsx",
+      "apps/docs-site/src/components/OverrideDialog.astro",
+      "apps/docs-site/src/components/ds/library/views/AccessibilityView.tsx",
+      "apps/docs-site/src/components/ds/library/views/InstallView.tsx",
+      "apps/docs-site/src/components/ds/library/views/ReviewView.tsx",
+      "apps/docs-site/src/components/ds/library/views/TypographyView.tsx",
+      "apps/docs-site/src/components/ds/studio/BeingBuilt.tsx",
+      "apps/docs-site/src/components/ds/studio/BranchReview.tsx",
+      "apps/docs-site/src/components/ds/studio/BranchesList.test.ts",
+      "apps/docs-site/src/components/ds/studio/ChangesMode.tsx",
+      "apps/docs-site/src/components/ds/studio/CombineChanges.tsx",
+      "apps/docs-site/src/components/ds/studio/ContinueChange.tsx",
+      "apps/docs-site/src/components/ds/studio/LibraryCatchUp.tsx",
+      "apps/docs-site/src/components/ds/studio/NewBrandFlow.tsx",
+      "apps/docs-site/src/components/ds/studio/Onboarding.tsx",
+      "apps/docs-site/src/components/ds/studio/ProductBranch.tsx",
+      "apps/docs-site/src/components/ds/studio/PromoteToReview.tsx",
+      "apps/docs-site/src/components/ds/studio/ProtectionRow.tsx",
+      "apps/docs-site/src/components/ds/studio/StartChange.tsx",
+      "apps/docs-site/src/components/ds/studio/StartFlow.test.ts",
+      "apps/docs-site/src/components/ds/studio/StudioHome.test.ts",
+      "apps/docs-site/src/components/ds/studio/StudioHome.tsx",
+      "apps/docs-site/src/components/ds/studio/SuggestionReview.tsx",
+      "apps/docs-site/src/components/ds/studio/TeamName.test.ts",
+      "apps/docs-site/src/components/ds/studio/TeamNameSetting.tsx",
+      "apps/docs-site/src/components/ds/studio/WorkspaceHome.tsx",
+      "apps/docs-site/src/components/foundations/Specimens.tsx",
+      "apps/docs-site/src/components/home/HpShipMerge.astro",
+      "apps/docs-site/src/layouts/Layout.astro",
+      "apps/docs-site/src/lib/branches-page.test.ts",
+      "apps/docs-site/src/lib/change-status.test.ts",
+      "apps/docs-site/src/lib/change-status.ts",
+      "apps/docs-site/src/lib/changes.test.ts",
+      "apps/docs-site/src/lib/changes.ts",
+      "apps/docs-site/src/lib/check-explain.test.ts",
+      "apps/docs-site/src/lib/check-explain.ts",
+      "apps/docs-site/src/lib/combine-changes.test.ts",
+      "apps/docs-site/src/lib/combine-changes.ts",
+      "apps/docs-site/src/lib/continue-change.test.ts",
+      "apps/docs-site/src/lib/continue-change.ts",
+      "apps/docs-site/src/lib/demo-home.test.ts",
+      "apps/docs-site/src/lib/demo-home.ts",
+      "apps/docs-site/src/lib/demo.ts",
+      "apps/docs-site/src/lib/explorations-view.test.ts",
+      "apps/docs-site/src/lib/explorations-view.ts",
+      "apps/docs-site/src/lib/gh-wording.test.ts",
+      "apps/docs-site/src/lib/gh-wording.ts",
+      "apps/docs-site/src/lib/home-model.test.ts",
+      "apps/docs-site/src/lib/home-model.ts",
+      "apps/docs-site/src/lib/library-sync.test.ts",
+      "apps/docs-site/src/lib/library-sync.ts",
+      "apps/docs-site/src/lib/nav.test.ts",
+      "apps/docs-site/src/lib/nav.ts",
+      "apps/docs-site/src/lib/overview-board.test.ts",
+      "apps/docs-site/src/lib/overview-board.ts",
+      "apps/docs-site/src/lib/overview-todo.test.ts",
+      "apps/docs-site/src/lib/overview-todo.ts",
+      "apps/docs-site/src/lib/product-branch.test.ts",
+      "apps/docs-site/src/lib/product-branch.ts",
+      "apps/docs-site/src/lib/release-view.test.ts",
+      "apps/docs-site/src/lib/release-view.ts",
+      "apps/docs-site/src/lib/requests-view.test.ts",
+      "apps/docs-site/src/lib/requests-view.ts",
+      "apps/docs-site/src/lib/review-page.test.ts",
+      "apps/docs-site/src/lib/review-page.ts",
+      "apps/docs-site/src/lib/review-queue.test.ts",
+      "apps/docs-site/src/lib/review-queue.ts",
+      "apps/docs-site/src/lib/review-rules.test.ts",
+      "apps/docs-site/src/lib/review-rules.ts",
+      "apps/docs-site/src/lib/roles-view.test.ts",
+      "apps/docs-site/src/lib/roles-view.ts",
+      "apps/docs-site/src/lib/share-change.test.ts",
+      "apps/docs-site/src/lib/start.test.ts",
+      "apps/docs-site/src/lib/start.ts",
+      "apps/docs-site/src/lib/status-pill.test.ts",
+      "apps/docs-site/src/lib/suggestions-view.test.ts",
+      "apps/docs-site/src/lib/suggestions-view.ts",
+      "apps/docs-site/src/lib/team-branches.ts",
+      "apps/docs-site/src/lib/team-roles.test.ts",
+      "apps/docs-site/src/lib/view-scope.test.ts",
+      "apps/docs-site/src/lib/view-scope.ts",
+      "apps/docs-site/src/lib/vocabulary.test.ts",
+      "apps/docs-site/src/lib/vocabulary.ts",
+      "apps/docs-site/src/pages/docs/figma-plugin.astro",
+      "apps/docs-site/src/pages/docs/index.astro",
+      "apps/docs-site/src/pages/index.astro",
+      "apps/docs-site/src/pages/studio/changes.astro",
+      "apps/docs-site/src/pages/studio/index.astro",
+      "apps/docs-site/src/pages/studio/quality/index.astro",
+      "apps/docs-site/src/pages/studio/settings/index.astro",
+      "apps/docs-site/src/pages/team-shell/changes.astro",
+      "apps/docs-site/src/scripts/changes-mode.test.ts",
+      "apps/docs-site/src/scripts/changes.ts",
+      "apps/docs-site/src/scripts/continue-change.ts",
+      "apps/docs-site/src/scripts/direct-consent.test.ts",
+      "apps/docs-site/src/scripts/docs-commit.ts",
+      "apps/docs-site/src/scripts/explorations.ts",
+      "apps/docs-site/src/scripts/explorer/index.ts",
+      "apps/docs-site/src/scripts/github-session.ts",
+      "apps/docs-site/src/scripts/history/planner.ts",
+      "apps/docs-site/src/scripts/integrations.ts",
+      "apps/docs-site/src/scripts/new-brand.ts",
+      "apps/docs-site/src/scripts/product-branch.ts",
+      "apps/docs-site/src/scripts/repo-context.ts",
+      "apps/docs-site/src/scripts/requests.ts",
+      "apps/docs-site/src/scripts/review-queue-page.ts",
+      "apps/docs-site/src/scripts/reviews.ts",
+      "apps/docs-site/src/scripts/roles.ts",
+      "apps/docs-site/src/scripts/team-branches.ts",
+      "apps/docs-site/src/scripts/token-editor.ts",
+      "apps/docs-site/src/scripts/view-change.ts",
+      "apps/figma-plugin/src/sync/component-pull.ts",
+      "apps/figma-plugin/src/sync/fidelity.ts",
+      "apps/figma-plugin/src/sync/flows.ts",
+      "apps/figma-plugin/src/sync/publish.ts",
+      "apps/figma-plugin/src/ui/index.ts",
+      "apps/figma-plugin/test/component-pull.test.ts",
+      "packages/core/src/prod-branch.ts",
+      "packages/core/src/share-branch.ts",
+      "packages/core/test/prod-branch.test.ts",
+      "packages/mcp/src/branches.ts",
+      "packages/mcp/src/server.ts",
+      "packages/mcp/test/pieces.test.ts",
+      "packages/react/src/components/Checklist/Checklist.stories.tsx",
+      "packages/react/src/components/ChoiceCard/ChoiceCard.docs.json",
+      "packages/react/src/components/ChoiceCard/ChoiceCard.stories.tsx",
+      "packages/react/src/components/Tooltip/Tooltip.stories.tsx"
+    ],
+    "components": [
+      {
+        "id": "Checklist",
+        "reasons": [
+          "file changed: packages/react/src/components/Checklist/Checklist.stories.tsx"
+        ],
+        "indirect": false
+      },
+      {
+        "id": "ChoiceCard",
+        "reasons": [
+          "file changed: packages/react/src/components/ChoiceCard/ChoiceCard.stories.tsx"
+        ],
+        "indirect": false
+      },
+      {
+        "id": "Tooltip",
+        "reasons": [
+          "file changed: packages/react/src/components/Tooltip/Tooltip.stories.tsx"
+        ],
+        "indirect": false
+      }
+    ],
+    "stories": [
+      "data-display-checklist--all-states",
+      "data-display-checklist--default",
+      "data-display-checklist--blocked",
+      "data-display-checklist--ready-to-ship",
+      "forms-choicecard--all-states",
+      "forms-choicecard--conflict",
+      "forms-choicecard--starting-brand",
+      "forms-choicecard--vertical",
+      "overlays-tooltip--all-states",
+      "overlays-tooltip--default",
+      "overlays-tooltip--toolbar"
+    ],
+    "fallback": null,
+    "app": {
+      "include": true,
+      "reason": "Component code changed"
+    }
+  },
+  "summary": {
+    "shots": 68,
+    "changed": 8,
+    "unchanged": 60,
+    "added": 0,
+    "removed": 0,
+    "errors": 0,
+    "maxPercent": 0.14
+  },
+  "shots": [
+    {
+      "key": "story__data-display-checklist--all-states__bridge-light",
+      "kind": "story",
+      "label": "Data display/Checklist: All States",
+      "storyId": "data-display-checklist--all-states",
+      "brand": "bridge",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1018880,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 995
+        },
+        "after": {
+          "width": 1024,
+          "height": 995
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__data-display-checklist--default__bridge-light",
+      "kind": "story",
+      "label": "Data display/Checklist: Default",
+      "storyId": "data-display-checklist--default",
+      "brand": "bridge",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__data-display-checklist--blocked__bridge-light",
+      "kind": "story",
+      "label": "Data display/Checklist: Blocked",
+      "storyId": "data-display-checklist--blocked",
+      "brand": "bridge",
+      "theme": "light",
+      "status": "changed",
+      "changedPixels": 989,
+      "totalPixels": 815104,
+      "percent": 0.12,
+      "boxes": [
+        {
+          "x": 304,
+          "y": 224,
+          "width": 272,
+          "height": 32
+        }
+      ],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {
+        "before": "before/story__data-display-checklist--blocked__bridge-light.png",
+        "after": "after/story__data-display-checklist--blocked__bridge-light.png",
+        "diff": "diff/story__data-display-checklist--blocked__bridge-light.png",
+        "composite": "composite/story__data-display-checklist--blocked__bridge-light.png"
+      }
+    },
+    {
+      "key": "story__data-display-checklist--ready-to-ship__bridge-light",
+      "kind": "story",
+      "label": "Data display/Checklist: Ready To Ship",
+      "storyId": "data-display-checklist--ready-to-ship",
+      "brand": "bridge",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__forms-choicecard--all-states__bridge-light",
+      "kind": "story",
+      "label": "Forms/ChoiceCard: All States",
+      "storyId": "forms-choicecard--all-states",
+      "brand": "bridge",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 946176,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 924
+        },
+        "after": {
+          "width": 1024,
+          "height": 924
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__forms-choicecard--conflict__bridge-light",
+      "kind": "story",
+      "label": "Forms/ChoiceCard: Conflict",
+      "storyId": "forms-choicecard--conflict",
+      "brand": "bridge",
+      "theme": "light",
+      "status": "changed",
+      "changedPixels": 121,
+      "totalPixels": 815104,
+      "percent": 0.01,
+      "boxes": [
+        {
+          "x": 352,
+          "y": 48,
+          "width": 48,
+          "height": 32
+        }
+      ],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {
+        "before": "before/story__forms-choicecard--conflict__bridge-light.png",
+        "after": "after/story__forms-choicecard--conflict__bridge-light.png",
+        "diff": "diff/story__forms-choicecard--conflict__bridge-light.png",
+        "composite": "composite/story__forms-choicecard--conflict__bridge-light.png"
+      }
+    },
+    {
+      "key": "story__forms-choicecard--starting-brand__bridge-light",
+      "kind": "story",
+      "label": "Forms/ChoiceCard: Starting Brand",
+      "storyId": "forms-choicecard--starting-brand",
+      "brand": "bridge",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__forms-choicecard--vertical__bridge-light",
+      "kind": "story",
+      "label": "Forms/ChoiceCard: Vertical",
+      "storyId": "forms-choicecard--vertical",
+      "brand": "bridge",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__overlays-tooltip--all-states__bridge-light",
+      "kind": "story",
+      "label": "Overlays/Tooltip: All States",
+      "storyId": "overlays-tooltip--all-states",
+      "brand": "bridge",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__overlays-tooltip--default__bridge-light",
+      "kind": "story",
+      "label": "Overlays/Tooltip: Default",
+      "storyId": "overlays-tooltip--default",
+      "brand": "bridge",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__overlays-tooltip--toolbar__bridge-light",
+      "kind": "story",
+      "label": "Overlays/Tooltip: Toolbar",
+      "storyId": "overlays-tooltip--toolbar",
+      "brand": "bridge",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__data-display-checklist--all-states__bridge-dark",
+      "kind": "story",
+      "label": "Data display/Checklist: All States",
+      "storyId": "data-display-checklist--all-states",
+      "brand": "bridge",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1018880,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 995
+        },
+        "after": {
+          "width": 1024,
+          "height": 995
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__data-display-checklist--default__bridge-dark",
+      "kind": "story",
+      "label": "Data display/Checklist: Default",
+      "storyId": "data-display-checklist--default",
+      "brand": "bridge",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__data-display-checklist--blocked__bridge-dark",
+      "kind": "story",
+      "label": "Data display/Checklist: Blocked",
+      "storyId": "data-display-checklist--blocked",
+      "brand": "bridge",
+      "theme": "dark",
+      "status": "changed",
+      "changedPixels": 999,
+      "totalPixels": 815104,
+      "percent": 0.12,
+      "boxes": [
+        {
+          "x": 304,
+          "y": 224,
+          "width": 272,
+          "height": 32
+        }
+      ],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {
+        "before": "before/story__data-display-checklist--blocked__bridge-dark.png",
+        "after": "after/story__data-display-checklist--blocked__bridge-dark.png",
+        "diff": "diff/story__data-display-checklist--blocked__bridge-dark.png",
+        "composite": "composite/story__data-display-checklist--blocked__bridge-dark.png"
+      }
+    },
+    {
+      "key": "story__data-display-checklist--ready-to-ship__bridge-dark",
+      "kind": "story",
+      "label": "Data display/Checklist: Ready To Ship",
+      "storyId": "data-display-checklist--ready-to-ship",
+      "brand": "bridge",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__forms-choicecard--all-states__bridge-dark",
+      "kind": "story",
+      "label": "Forms/ChoiceCard: All States",
+      "storyId": "forms-choicecard--all-states",
+      "brand": "bridge",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 946176,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 924
+        },
+        "after": {
+          "width": 1024,
+          "height": 924
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__forms-choicecard--conflict__bridge-dark",
+      "kind": "story",
+      "label": "Forms/ChoiceCard: Conflict",
+      "storyId": "forms-choicecard--conflict",
+      "brand": "bridge",
+      "theme": "dark",
+      "status": "changed",
+      "changedPixels": 124,
+      "totalPixels": 815104,
+      "percent": 0.02,
+      "boxes": [
+        {
+          "x": 352,
+          "y": 48,
+          "width": 48,
+          "height": 32
+        }
+      ],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {
+        "before": "before/story__forms-choicecard--conflict__bridge-dark.png",
+        "after": "after/story__forms-choicecard--conflict__bridge-dark.png",
+        "diff": "diff/story__forms-choicecard--conflict__bridge-dark.png",
+        "composite": "composite/story__forms-choicecard--conflict__bridge-dark.png"
+      }
+    },
+    {
+      "key": "story__forms-choicecard--starting-brand__bridge-dark",
+      "kind": "story",
+      "label": "Forms/ChoiceCard: Starting Brand",
+      "storyId": "forms-choicecard--starting-brand",
+      "brand": "bridge",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__forms-choicecard--vertical__bridge-dark",
+      "kind": "story",
+      "label": "Forms/ChoiceCard: Vertical",
+      "storyId": "forms-choicecard--vertical",
+      "brand": "bridge",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__overlays-tooltip--all-states__bridge-dark",
+      "kind": "story",
+      "label": "Overlays/Tooltip: All States",
+      "storyId": "overlays-tooltip--all-states",
+      "brand": "bridge",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__overlays-tooltip--default__bridge-dark",
+      "kind": "story",
+      "label": "Overlays/Tooltip: Default",
+      "storyId": "overlays-tooltip--default",
+      "brand": "bridge",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__overlays-tooltip--toolbar__bridge-dark",
+      "kind": "story",
+      "label": "Overlays/Tooltip: Toolbar",
+      "storyId": "overlays-tooltip--toolbar",
+      "brand": "bridge",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__data-display-checklist--all-states__ocean-light",
+      "kind": "story",
+      "label": "Data display/Checklist: All States",
+      "storyId": "data-display-checklist--all-states",
+      "brand": "ocean",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1018880,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 995
+        },
+        "after": {
+          "width": 1024,
+          "height": 995
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__data-display-checklist--default__ocean-light",
+      "kind": "story",
+      "label": "Data display/Checklist: Default",
+      "storyId": "data-display-checklist--default",
+      "brand": "ocean",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__data-display-checklist--blocked__ocean-light",
+      "kind": "story",
+      "label": "Data display/Checklist: Blocked",
+      "storyId": "data-display-checklist--blocked",
+      "brand": "ocean",
+      "theme": "light",
+      "status": "changed",
+      "changedPixels": 1159,
+      "totalPixels": 815104,
+      "percent": 0.14,
+      "boxes": [
+        {
+          "x": 304,
+          "y": 224,
+          "width": 272,
+          "height": 32
+        }
+      ],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {
+        "before": "before/story__data-display-checklist--blocked__ocean-light.png",
+        "after": "after/story__data-display-checklist--blocked__ocean-light.png",
+        "diff": "diff/story__data-display-checklist--blocked__ocean-light.png",
+        "composite": "composite/story__data-display-checklist--blocked__ocean-light.png"
+      }
+    },
+    {
+      "key": "story__data-display-checklist--ready-to-ship__ocean-light",
+      "kind": "story",
+      "label": "Data display/Checklist: Ready To Ship",
+      "storyId": "data-display-checklist--ready-to-ship",
+      "brand": "ocean",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__forms-choicecard--all-states__ocean-light",
+      "kind": "story",
+      "label": "Forms/ChoiceCard: All States",
+      "storyId": "forms-choicecard--all-states",
+      "brand": "ocean",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 946176,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 924
+        },
+        "after": {
+          "width": 1024,
+          "height": 924
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__forms-choicecard--conflict__ocean-light",
+      "kind": "story",
+      "label": "Forms/ChoiceCard: Conflict",
+      "storyId": "forms-choicecard--conflict",
+      "brand": "ocean",
+      "theme": "light",
+      "status": "changed",
+      "changedPixels": 138,
+      "totalPixels": 815104,
+      "percent": 0.02,
+      "boxes": [
+        {
+          "x": 352,
+          "y": 48,
+          "width": 48,
+          "height": 32
+        }
+      ],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {
+        "before": "before/story__forms-choicecard--conflict__ocean-light.png",
+        "after": "after/story__forms-choicecard--conflict__ocean-light.png",
+        "diff": "diff/story__forms-choicecard--conflict__ocean-light.png",
+        "composite": "composite/story__forms-choicecard--conflict__ocean-light.png"
+      }
+    },
+    {
+      "key": "story__forms-choicecard--starting-brand__ocean-light",
+      "kind": "story",
+      "label": "Forms/ChoiceCard: Starting Brand",
+      "storyId": "forms-choicecard--starting-brand",
+      "brand": "ocean",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__forms-choicecard--vertical__ocean-light",
+      "kind": "story",
+      "label": "Forms/ChoiceCard: Vertical",
+      "storyId": "forms-choicecard--vertical",
+      "brand": "ocean",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__overlays-tooltip--all-states__ocean-light",
+      "kind": "story",
+      "label": "Overlays/Tooltip: All States",
+      "storyId": "overlays-tooltip--all-states",
+      "brand": "ocean",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__overlays-tooltip--default__ocean-light",
+      "kind": "story",
+      "label": "Overlays/Tooltip: Default",
+      "storyId": "overlays-tooltip--default",
+      "brand": "ocean",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__overlays-tooltip--toolbar__ocean-light",
+      "kind": "story",
+      "label": "Overlays/Tooltip: Toolbar",
+      "storyId": "overlays-tooltip--toolbar",
+      "brand": "ocean",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__data-display-checklist--all-states__ocean-dark",
+      "kind": "story",
+      "label": "Data display/Checklist: All States",
+      "storyId": "data-display-checklist--all-states",
+      "brand": "ocean",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1018880,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 995
+        },
+        "after": {
+          "width": 1024,
+          "height": 995
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__data-display-checklist--default__ocean-dark",
+      "kind": "story",
+      "label": "Data display/Checklist: Default",
+      "storyId": "data-display-checklist--default",
+      "brand": "ocean",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__data-display-checklist--blocked__ocean-dark",
+      "kind": "story",
+      "label": "Data display/Checklist: Blocked",
+      "storyId": "data-display-checklist--blocked",
+      "brand": "ocean",
+      "theme": "dark",
+      "status": "changed",
+      "changedPixels": 1165,
+      "totalPixels": 815104,
+      "percent": 0.14,
+      "boxes": [
+        {
+          "x": 304,
+          "y": 224,
+          "width": 272,
+          "height": 32
+        }
+      ],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {
+        "before": "before/story__data-display-checklist--blocked__ocean-dark.png",
+        "after": "after/story__data-display-checklist--blocked__ocean-dark.png",
+        "diff": "diff/story__data-display-checklist--blocked__ocean-dark.png",
+        "composite": "composite/story__data-display-checklist--blocked__ocean-dark.png"
+      }
+    },
+    {
+      "key": "story__data-display-checklist--ready-to-ship__ocean-dark",
+      "kind": "story",
+      "label": "Data display/Checklist: Ready To Ship",
+      "storyId": "data-display-checklist--ready-to-ship",
+      "brand": "ocean",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__forms-choicecard--all-states__ocean-dark",
+      "kind": "story",
+      "label": "Forms/ChoiceCard: All States",
+      "storyId": "forms-choicecard--all-states",
+      "brand": "ocean",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 946176,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 924
+        },
+        "after": {
+          "width": 1024,
+          "height": 924
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__forms-choicecard--conflict__ocean-dark",
+      "kind": "story",
+      "label": "Forms/ChoiceCard: Conflict",
+      "storyId": "forms-choicecard--conflict",
+      "brand": "ocean",
+      "theme": "dark",
+      "status": "changed",
+      "changedPixels": 138,
+      "totalPixels": 815104,
+      "percent": 0.02,
+      "boxes": [
+        {
+          "x": 352,
+          "y": 48,
+          "width": 48,
+          "height": 32
+        }
+      ],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {
+        "before": "before/story__forms-choicecard--conflict__ocean-dark.png",
+        "after": "after/story__forms-choicecard--conflict__ocean-dark.png",
+        "diff": "diff/story__forms-choicecard--conflict__ocean-dark.png",
+        "composite": "composite/story__forms-choicecard--conflict__ocean-dark.png"
+      }
+    },
+    {
+      "key": "story__forms-choicecard--starting-brand__ocean-dark",
+      "kind": "story",
+      "label": "Forms/ChoiceCard: Starting Brand",
+      "storyId": "forms-choicecard--starting-brand",
+      "brand": "ocean",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__forms-choicecard--vertical__ocean-dark",
+      "kind": "story",
+      "label": "Forms/ChoiceCard: Vertical",
+      "storyId": "forms-choicecard--vertical",
+      "brand": "ocean",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__overlays-tooltip--all-states__ocean-dark",
+      "kind": "story",
+      "label": "Overlays/Tooltip: All States",
+      "storyId": "overlays-tooltip--all-states",
+      "brand": "ocean",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__overlays-tooltip--default__ocean-dark",
+      "kind": "story",
+      "label": "Overlays/Tooltip: Default",
+      "storyId": "overlays-tooltip--default",
+      "brand": "ocean",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__overlays-tooltip--toolbar__ocean-dark",
+      "kind": "story",
+      "label": "Overlays/Tooltip: Toolbar",
+      "storyId": "overlays-tooltip--toolbar",
+      "brand": "ocean",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__dashboard__northwind__light",
+      "kind": "route",
+      "label": "Dashboard",
+      "route": "/",
+      "tenant": "northwind",
+      "brand": "bridge",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__orders-list__northwind__light",
+      "kind": "route",
+      "label": "Orders list",
+      "route": "/orders",
+      "tenant": "northwind",
+      "brand": "bridge",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__order-edit__northwind__light",
+      "kind": "route",
+      "label": "Order edit",
+      "route": "/orders/12",
+      "tenant": "northwind",
+      "brand": "bridge",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__reviews-drawer__northwind__light",
+      "kind": "route",
+      "label": "Reviews, drawer open",
+      "route": "/reviews/4",
+      "tenant": "northwind",
+      "brand": "bridge",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__customers__northwind__light",
+      "kind": "route",
+      "label": "Customers",
+      "route": "/customers",
+      "tenant": "northwind",
+      "brand": "bridge",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__products__northwind__light",
+      "kind": "route",
+      "label": "Products",
+      "route": "/products",
+      "tenant": "northwind",
+      "brand": "bridge",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__dashboard__northwind__dark",
+      "kind": "route",
+      "label": "Dashboard",
+      "route": "/",
+      "tenant": "northwind",
+      "brand": "bridge",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__orders-list__northwind__dark",
+      "kind": "route",
+      "label": "Orders list",
+      "route": "/orders",
+      "tenant": "northwind",
+      "brand": "bridge",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__order-edit__northwind__dark",
+      "kind": "route",
+      "label": "Order edit",
+      "route": "/orders/12",
+      "tenant": "northwind",
+      "brand": "bridge",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__reviews-drawer__northwind__dark",
+      "kind": "route",
+      "label": "Reviews, drawer open",
+      "route": "/reviews/4",
+      "tenant": "northwind",
+      "brand": "bridge",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__customers__northwind__dark",
+      "kind": "route",
+      "label": "Customers",
+      "route": "/customers",
+      "tenant": "northwind",
+      "brand": "bridge",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__products__northwind__dark",
+      "kind": "route",
+      "label": "Products",
+      "route": "/products",
+      "tenant": "northwind",
+      "brand": "bridge",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__dashboard__harbor__light",
+      "kind": "route",
+      "label": "Dashboard",
+      "route": "/",
+      "tenant": "harbor",
+      "brand": "ocean",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__orders-list__harbor__light",
+      "kind": "route",
+      "label": "Orders list",
+      "route": "/orders",
+      "tenant": "harbor",
+      "brand": "ocean",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__order-edit__harbor__light",
+      "kind": "route",
+      "label": "Order edit",
+      "route": "/orders/12",
+      "tenant": "harbor",
+      "brand": "ocean",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__reviews-drawer__harbor__light",
+      "kind": "route",
+      "label": "Reviews, drawer open",
+      "route": "/reviews/4",
+      "tenant": "harbor",
+      "brand": "ocean",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__customers__harbor__light",
+      "kind": "route",
+      "label": "Customers",
+      "route": "/customers",
+      "tenant": "harbor",
+      "brand": "ocean",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__products__harbor__light",
+      "kind": "route",
+      "label": "Products",
+      "route": "/products",
+      "tenant": "harbor",
+      "brand": "ocean",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__dashboard__harbor__dark",
+      "kind": "route",
+      "label": "Dashboard",
+      "route": "/",
+      "tenant": "harbor",
+      "brand": "ocean",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__orders-list__harbor__dark",
+      "kind": "route",
+      "label": "Orders list",
+      "route": "/orders",
+      "tenant": "harbor",
+      "brand": "ocean",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__order-edit__harbor__dark",
+      "kind": "route",
+      "label": "Order edit",
+      "route": "/orders/12",
+      "tenant": "harbor",
+      "brand": "ocean",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__reviews-drawer__harbor__dark",
+      "kind": "route",
+      "label": "Reviews, drawer open",
+      "route": "/reviews/4",
+      "tenant": "harbor",
+      "brand": "ocean",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__customers__harbor__dark",
+      "kind": "route",
+      "label": "Customers",
+      "route": "/customers",
+      "tenant": "harbor",
+      "brand": "ocean",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "app__products__harbor__dark",
+      "kind": "route",
+      "label": "Products",
+      "route": "/products",
+      "tenant": "harbor",
+      "brand": "ocean",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 1024000,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1280,
+          "height": 800
+        },
+        "after": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      "images": {}
+    }
+  ]
+}
