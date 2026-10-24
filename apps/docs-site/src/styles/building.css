@@ -142,8 +142,9 @@
   color: var(--color-action-primary-text);
 }
 
+/* A step not reached yet reads quieter, still at text contrast: it is information, not a disabled control. */
 .bb-step:not(.is-reached) .bb-step-label {
-  color: var(--color-text-disabled);
+  color: var(--color-text-muted);
 }
 
 .bb-step.is-current .bb-step-label {
