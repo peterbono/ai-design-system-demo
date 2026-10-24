@@ -798,7 +798,7 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
       <div className="onb-head">
         <Drawing name="hero" width={126} className="onb-art" />
         <h1 id="onb-title" className="onb-h1">
-          {ctx.account ? ENTRY_WORDS.setupTitle(name) : firstRunTitle(name, open === 'changes' ? 'changes' : 'library')}
+          {ctx.account ? ENTRY_WORDS.setupTitle(name, ctx.account.teamName) : firstRunTitle(name, open === 'changes' ? 'changes' : 'library')}
         </h1>
       </div>
       <div className="onb-main">{panel}</div>
@@ -815,7 +815,8 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
             <StepList steps={steps} open={open} onOpen={setOpen} />
           </>
         )}
-        {ctx.account && (
+        {/* Only before a team exists: an admin of one is not waiting for an invite. */}
+        {ctx.account && !ctx.account.teamName && (
           <p className="onb-quiet onb-expecting">
             {ENTRY_WORDS.expecting} <b className="onb-strong">{ctx.account.email}</b>
           </p>

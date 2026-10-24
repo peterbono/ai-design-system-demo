@@ -131,7 +131,7 @@ export function WorkspaceHome({ name, team = null, storybook, setup, onConnect }
           <h2 id="ws-library" className="sh-h2">
             {W.library}
           </h2>
-          <span className="mono t-ui t-muted">{storybook ? 'Storybook' : W.notConnected}</span>
+          <span className="t-ui t-muted">{storybook ? 'Storybook' : W.notConnected}</span>
         </header>
         <ul className="ws-cards">
           <LibraryCard kind="tokens" title={W.tokens.title} line={W.tokens.line} />

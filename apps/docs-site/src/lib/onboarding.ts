@@ -71,7 +71,7 @@ export const STEP_LINE: Record<StepId, string> = {
 };
 
 /** Step 2 of "Create your team": GitHub only comes back to link the repository. */
-const CREATE_LIBRARY_LINE = 'Storybook URL, or connect GitHub to link your repo';
+const CREATE_LIBRARY_LINE = 'Storybook URL, or connect GitHub to read your code';
 
 export interface OnboardingFacts {
   /** GitHub login once signed in. */
@@ -189,7 +189,7 @@ export function onboardingSteps(f: OnboardingFacts): Step[] {
       case 'products':
         return f.products.length
           ? { ...base, detail: f.products.join(', '), state: 'done', status: 'Connected' }
-          : { ...base, detail: STEP_LINE.products, state: 'later', status: 'Found with the repo' };
+          : { ...base, detail: STEP_LINE.products, state: 'later', status: 'Found with your code' };
       case 'name':
         return { ...base, ...nameStep(f) };
       case 'changes':
