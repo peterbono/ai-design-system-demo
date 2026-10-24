@@ -12,7 +12,7 @@ import { scanGenerated } from '../src/main/build-components';
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
 import { buildComponentPlan, loadComponentSpecs, planValue } from '../src/sync/component-pull';
-import { analyze, buildPull, commitsBehind, pullHeadline } from '../src/sync/flows';
+import { analyze, buildPull, commitsBehind, pullCollections, pullHeadline } from '../src/sync/flows';
 import { FakeGitHub } from './fake-github';
 import { SimFigma } from './figma-api';
 import { realChecksText, realFiles } from './helpers';
@@ -85,4 +85,15 @@ test('Pull headline: commits on main since the last pull never read "Already up 
   assert.equal(commitsBehind({ baseSha: undefined, headSha: head, compare: undefined }), 0);
   assert.equal(commitsBehind({ baseSha: 'a'.repeat(40), headSha: head, compare: { aheadBy: 2 } as never }), 2);
   assert.equal(commitsBehind({ baseSha: 'a'.repeat(40), headSha: head, compare: undefined }), 1, 'the head moved even when GitHub cannot compare');
+});
+
+test('first pull: the lede names the collections that get variables, not a fixed list', () => {
+  const collections = [
+    { tier: 'primitive' as const, name: 'Primitives', modes: ['value'] },
+    { tier: 'brand' as const, name: 'Brand', modes: ['bridge'] },
+    { tier: 'semantic' as const, name: 'Semantic', modes: ['white', 'g10'] },
+  ];
+  const v = (tier: 'primitive' | 'semantic') => ({ tier }) as Parameters<typeof pullCollections>[0]['variables'][number];
+  // Carbon measured: two tiers, no brand.
+  assert.deepEqual(pullCollections({ collections, variables: [v('primitive'), v('semantic'), v('semantic')] }), ['Primitives', 'Semantic']);
 });

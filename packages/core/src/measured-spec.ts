@@ -3,7 +3,7 @@
 // Figma plugin's UI reads measured-specs.json and pairs layers with these. The measure itself (a browser driving
 // Storybook) lives in '@bridge-ds/core/node' (measure.ts).
 
-import type { SpecField, SpecPart, SpecValue, SpecVariant } from './component-spec';
+import type { SpecField, SpecPart, SpecValue, SpecVariant, SpecVector } from './component-spec';
 import type { ComponentStatus } from './measure-status';
 
 /** How a value was tied to a custom property. */
@@ -67,6 +67,11 @@ export interface MeasuredSpec {
   boxes: Record<string, MeasuredBox>;
   /** Fields read, and how many are tied to a declared token, to a value match, or to none. */
   coverage: { fields: number; declared: number; matched: number; literal: number };
+  /**
+   * Part id -> the SVG an icon or vector part draws, `currentColor` resolved to the part's color, and the value of each
+   * shape's stroke in order. The pull draws it in place of an empty icon frame.
+   */
+  vectors?: Record<string, SpecVector> | undefined;
 }
 
 const px = (v: string | undefined): number | undefined => {

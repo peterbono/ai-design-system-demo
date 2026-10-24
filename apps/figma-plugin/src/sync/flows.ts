@@ -481,6 +481,11 @@ export function commitsBehind(a: Pick<Analysis, 'baseSha' | 'headSha' | 'compare
  * The Pull headline. "Already up to date" only when the file was pulled from the branch head: commits on main that
  * change nothing in Figma still say how many there are, and the screen offers the pull so the file catches up.
  */
+/** The collections a pull writes variables to, in tier order: a design system with two tiers names two. */
+export function pullCollections(plan: Pick<PullPlan, 'collections' | 'variables'>): string[] {
+  return plan.collections.filter((c) => plan.variables.some((v) => v.tier === c.tier)).map((c) => c.name);
+}
+
 export function pullHeadline(o: { baseSha: string | undefined; variablesUpToDate: boolean; behind: number; status: string[] }): string {
   // Designer words: "the design system", never the branch name or a commit.
   const changes = o.behind ? `${o.behind} new ${o.behind === 1 ? 'change' : 'changes'} in the design system` : '';
