@@ -167,7 +167,8 @@
   margin: 0;
 }
 
-.bb-frame {
+/* Scoped under the figure so it wins over the DS Link's own text link styles. */
+.bb-figure .bb-frame {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -181,18 +182,18 @@
   cursor: zoom-in;
 }
 
-.bb-frame:focus-visible {
+.bb-figure .bb-frame:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
 }
 
 @media (hover: hover) {
-  .bb-frame:hover {
+  .bb-figure .bb-frame:hover {
     border-color: var(--color-border-strong);
   }
 }
 
-.bb-frame img {
+.bb-figure .bb-frame img {
   display: block;
   width: auto;
   max-width: 100%;

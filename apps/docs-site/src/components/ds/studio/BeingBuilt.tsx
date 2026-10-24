@@ -243,14 +243,14 @@ function Detail({
                                 <figcaption className="t-ui t-muted">
                                   {k}
                                 </figcaption>
-                                <a
+                                <Link
                                   href={src}
                                   {...external}
                                   className="bb-frame"
                                   aria-label={`${alt}, open full size`}
                                 >
                                   <img src={src} alt={alt} loading="lazy" />
-                                </a>
+                                </Link>
                               </figure>,
                             ]
                           : [];
