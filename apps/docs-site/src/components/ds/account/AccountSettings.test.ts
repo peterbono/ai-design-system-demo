@@ -217,7 +217,9 @@ describe('the account menu', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Account settings' }));
     const dialog = await screen.findByRole('dialog', { name: 'Account' });
     expect(within(dialog).getByText('leo@acme.design')).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Sign out everywhere' })).toBeInTheDocument();
+    // Each sign-out button carries the line that says what it does, on its own row.
+    expect(within(dialog).getByRole('button', { name: 'Sign out everywhere' })).toHaveAccessibleDescription('Ends your sessions on every device, this one included.');
+    expect(within(dialog).getByRole('button', { name: 'Sign out' })).toHaveAccessibleDescription('Ends your session on this device.');
     expect(within(dialog).getByRole('button', { name: 'Delete my account' })).toBeInTheDocument();
     expect(navigate.to).not.toHaveBeenCalled();
     await expectNoAxeViolations(dialog);
