@@ -6,7 +6,7 @@
 // confirm field, Bridge asks the server whether a team would refuse it (the only admin of a team with other members):
 // that team is named first, with "Make <name> admin" inline or "Hand over the team", and the field comes once it is
 // clear. Nothing shows signed out or on a site without accounts.
-import { useState, type FormEvent } from 'react';
+import { useId, useState, type FormEvent } from 'react';
 import { LogOut, Trash2 } from 'lucide-react';
 import { Alert, Avatar, Badge, Button, Dialog, DialogContent, Divider, Icon, Input, Link } from '@bridge-ds/react';
 import { GitHubMark } from '../studio/brand-icons';
@@ -157,6 +157,7 @@ function TeamsRow({ account }: { account: Account }) {
 }
 
 function SessionRow() {
+  const helpId = useId();
   const [busy, setBusy] = useState<'one' | 'all' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const end = async (all: boolean) => {
@@ -171,21 +172,39 @@ function SessionRow() {
       setBusy(null);
     }
   };
+  // Two rows, each line saying what its own button does (proximity): this device, then every device.
   return (
-    <div className="acc-set-row">
-      <div className="acc-set-text">
-        <p className="acc-set-sub">{W.signOutEverywhereHelp}</p>
-        {error && <p className="acc-set-sub" role="alert">{error}</p>}
+    <>
+      <div className="acc-set-row">
+        <div className="acc-set-text">
+          <p className="acc-set-sub" id={`${helpId}-one`}>
+            {W.signOutHelp}
+          </p>
+        </div>
+        <div className="acc-set-actions">
+          <Button variant="secondary" iconStart={LogOut} aria-describedby={`${helpId}-one`} loading={busy === 'one'} onClick={() => void end(false)}>
+            {W.signOut}
+          </Button>
+        </div>
       </div>
-      <div className="acc-set-actions">
-        <Button variant="secondary" iconStart={LogOut} loading={busy === 'one'} onClick={() => void end(false)}>
-          {W.signOut}
-        </Button>
-        <Button variant="ghost" loading={busy === 'all'} onClick={() => void end(true)}>
-          {W.signOutEverywhere}
-        </Button>
+      <div className="acc-set-row">
+        <div className="acc-set-text">
+          <p className="acc-set-sub" id={helpId}>
+            {W.signOutEverywhereHelp}
+          </p>
+        </div>
+        <div className="acc-set-actions">
+          <Button variant="ghost" aria-describedby={helpId} loading={busy === 'all'} onClick={() => void end(true)}>
+            {W.signOutEverywhere}
+          </Button>
+        </div>
       </div>
-    </div>
+      {error && (
+        <p className="acc-set-sub" role="alert">
+          {error}
+        </p>
+      )}
+    </>
   );
 }
 

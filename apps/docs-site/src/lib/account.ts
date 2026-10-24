@@ -225,6 +225,7 @@ export const ACCOUNT_WORDS = {
   settings: 'Account settings',
   signOut: 'Sign out',
   signOutEverywhere: 'Sign out everywhere',
+  signOutHelp: 'Ends your session on this device.',
   signOutEverywhereHelp: 'Ends your sessions on every device, this one included.',
   signedOut: "You're signed out.",
   deleted: 'Your account is deleted.',
