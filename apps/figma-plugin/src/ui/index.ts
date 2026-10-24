@@ -2679,7 +2679,7 @@ function variablesGroup(r: PushState): Child {
     });
   });
   if (!rows.length) return null;
-  const lede = r.destination === 'exploration' ? 'Checked edits go into the exploration. Unchecked ones stay in Figma.' : 'Checked edits go together for review. Unchecked ones stay in Figma for later.';
+  const lede = r.destination === 'exploration' ? 'Checked edits go into the exploration. Unchecked ones stay in Figma.' : modeOf(r) === 'suggest' ? 'Checked edits go together for review. Unchecked ones stay in Figma for later.' : 'Checked edits go to the library together. Unchecked ones stay in Figma for later.';
   return changeGroup(r, 'variable', 'Variables', lede, rows, 'push-local');
 }
 
