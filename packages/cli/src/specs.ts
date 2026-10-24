@@ -12,7 +12,7 @@ import {
   normalizeStorybookUrl,
   mapPropsToFigma,
   planVariantMeasures,
-  variantValuesFromMapping,
+  variantCombosFromMapping,
   StorybookIndexError,
   type ComponentSpecsFile,
   type ComponentStatus,
@@ -22,7 +22,7 @@ import {
   type MeasuredSpecsStory,
   type MeasuredState,
 } from '@bridge-ds/core';
-import { measuredToSpec, measureStory, pickStoriesToMeasure, repoSpecOptions, resolveTokenValues, splitInstances, type MeasuredStory, type MeasureOptions } from '@bridge-ds/core/node';
+import { localClassName, measuredToSpec, measureStory, pickStoriesToMeasure, repoSpecOptions, resolveTokenValues, splitInstances, type MeasuredStory, type MeasureOptions } from '@bridge-ds/core/node';
 import { defaultIO, RequestUsageError, type RequestArgs, type RequestIO } from './request.js';
 
 export type { MeasuredSpecsFile } from '@bridge-ds/core';
@@ -110,6 +110,12 @@ function storyEntry(p: { id: string; title: string; name: string }, m: MeasuredS
     ...(instances ? { instances } : {}),
     ...(m.opened ? { opened: m.opened } : {}),
   };
+}
+
+/** The Figma set's root class ("Radio.module.css .item, Radio.module.css .md" -> item): what its stories must measure. */
+function rootClassOf(ref: FigmaComponentRef | undefined): string | undefined {
+  const root = ref?.parts.find((x) => !x.parent);
+  return /\.([A-Za-z][\w-]*)/.exec(root?.source ?? '')?.[1];
 }
 
 /** The Figma side of each component, from component-specs.json (what the Figma library was drawn from). */
@@ -211,7 +217,21 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
   try {
     for (const p of picks) {
       try {
-        const m = await measureStory(browser.page, base, p.id, mo);
+        const ref = refs?.get(p.title.split('/').pop()!.trim().toLowerCase());
+        let m = await measureStory(browser.page, base, p.id, mo);
+        // A story that renders the item inside its group (a radio in its fieldset, a menu item in its open menu):
+        // measure the element with the Figma set's root class, not the group around it.
+        let cmo = mo;
+        const cls = rootClassOf(ref);
+        if (!within && cls && m.root && !(m.root.classes ?? []).map(localClassName).includes(cls)) {
+          const sel = `.${cls}, [class*="_${cls}_"]`;
+          let mw = await measureStory(browser.page, base, p.id, { ...mo, within: sel });
+          if (!mw.root && !mo.open) mw = await measureStory(browser.page, base, p.id, { ...mo, within: sel, open: true });
+          if (mw.root) {
+            m = mw;
+            cmo = { ...mo, within: sel, ...(mw.opened && mw.opened !== 'none' ? { open: true } : {}) };
+          }
+        }
         const entry = storyEntry(p, m, tokenOf);
         file.stories.push(entry);
         say(entry, `${p.title} / ${p.name}`);
@@ -219,21 +239,19 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
         if (m.root && !file.components!.some((c) => c.title === p.title)) {
           const name = p.title.split('/').pop()!.trim();
           const comp: MeasuredSpecsComponent = { title: p.title, name, argTypes: props?.argTypes ?? {}, ...(props?.component ? { component: props.component } : {}) };
-          const ref = refs?.get(name.toLowerCase());
           if (ref) comp.resolved = await resolveTokenValues(browser.page, varsFor(ref)).catch(() => ({}));
           file.components!.push(comp);
         }
         if (!variants || !props) continue;
         // Every variant of the component: its first story, with args for each combination and each state.
         // With a Figma side, the variants are its axes mapped to props (booleans like Checked included).
-        const ref = refs?.get(p.title.split('/').pop()!.trim().toLowerCase());
-        const values = ref ? variantValuesFromMapping(mapPropsToFigma(props.argTypes, ref.properties)) : undefined;
-        const plan = planVariantMeasures(props.argTypes, { ...(states ? { states: states as ('rest' | MeasuredState | 'disabled')[] } : {}), ...(values && Object.keys(values).length ? { values } : {}) });
+        const combos = ref ? variantCombosFromMapping(mapPropsToFigma(props.argTypes, ref.properties)) : undefined;
+        const plan = planVariantMeasures(props.argTypes, { ...(states ? { states: states as ('rest' | MeasuredState | 'disabled')[] } : {}), ...(combos && combos.some((c) => Object.keys(c).length) ? { combos } : {}) });
         for (const v of plan) {
           const label = Object.entries(v.overrides).map(([k, x]) => `${k}=${x}`).join(', ') + (v.state ? ` :${v.state}` : '');
           if (!label) continue; // the story as written is already measured
           try {
-            const mv = await measureStory(browser.page, base, p.id, { ...mo, args: v.overrides, ...(v.state ? { state: v.state } : {}) });
+            const mv = await measureStory(browser.page, base, p.id, { ...cmo, args: v.overrides, ...(v.state ? { state: v.state } : {}) });
             if (v.state && !mv.state) {
               file.stories.push({ ...p, url: mv.url, ms: mv.ms, overrides: v.overrides, error: `the browser could not force :${v.state}` });
               continue;
