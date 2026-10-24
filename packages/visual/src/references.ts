@@ -94,10 +94,10 @@ export async function captureFigmaReferences(o: ReferencesOptions): Promise<Refe
       }
       await settle(page, { network: false, quiet: 2, interval: 40, busy: false });
       const error = await page.locator('[data-fidelity-error]').first().textContent({ timeout: 200 }).catch(() => null);
-      // A part of a compound component renders inside its parent, and a component shown from a hook (a toast) renders
-      // outside the root, at the place Base UI puts it: the story marks either as `data-fidelity-target`.
+      // A part of a compound component renders inside its parent, and a component shown from a hook (a toast) or a popup
+      // rendered open renders outside the root, where Base UI portals it: the story marks it as `data-fidelity-target`.
       let target = page.locator('[data-fidelity-root] > *').first();
-      if (!error && (j.plan.render.within || !(await target.count()))) {
+      if (!error && (j.plan.render.within || j.plan.render.popup || !(await target.count()))) {
         const marked = page.locator('[data-fidelity-target]').first();
         await marked.waitFor({ state: 'visible', timeout: 3000 }).catch(() => undefined);
         await settle(page, { network: false, quiet: 2, interval: 40, busy: false });
