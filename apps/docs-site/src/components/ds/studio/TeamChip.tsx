@@ -39,7 +39,7 @@ import { Drawing } from './Drawing';
 import { shortName } from '../../../lib/home-model';
 import { isSampleTeam } from '../../../lib/demo';
 import { DEMO_HOME, MENU_WORDS, ownTeams, TEAM_HOME_WORDS, WORKSPACE_HOME, WORKSPACE_WORDS, workspaceHref, workspaceName, workspaceTeamKey, type StartFacts } from '../../../lib/start';
-import { isTeamKey } from '../../../lib/team-path';
+import { isTeamKey, teamKeyId } from '../../../lib/team-path';
 
 export interface TeamChipProps {
   /** owner/repo known at build time (self-hosted). Null on a team shell: read from the address. */
@@ -268,13 +268,16 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   );
   if (yours.length > 0 || tryIt) blocks.push({ key: 'teams', node: teams });
   // Invite collaborators opens the dialog over the page (board I1). The sample team shows it to everyone, with its
-  // sample people: sending opens the demo dialog. The browser workspace has no repository, so nobody to invite yet.
+  // sample people: sending opens the demo dialog. The browser workspace alone has nobody to invite yet; a team made in
+  // Bridge (no repository yet) has members: the item opens its Settings, Members, where its invites are sent.
   const sample = chip.kind === 'demo' && Boolean(chip.sample) && isSampleTeam(name);
+  const wsTeamId = wsTeam ? teamKeyId(wsTeam.repo) : null;
   const inviteItem = (
     <MenuItem
       icon={UserPlus}
       className="tc-invite"
       onClick={() => {
+        if (wsTeamId) return go(`${WORKSPACE_HOME}settings/?team=${wsTeamId}#team`);
         setInvitedOnce(true);
         setInviting(true);
       }}
@@ -303,7 +306,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
         </>
       ),
     });
-  else if (chip.kind !== 'workspace') blocks.push({ key: 'actions', node: inviteItem });
+  else if (chip.kind !== 'workspace' || wsTeam) blocks.push({ key: 'actions', node: inviteItem });
   if (offerTeams && listed.length > 0)
     blocks.push({
       key: 'recent',
