@@ -81,14 +81,13 @@ describe('Settings > Members, an email contributor', () => {
 describe('a real team, signed out', () => {
   const f = { owner: 'acme', repo: 'ds', link: 'https://bridge.example/studio/acme/ds/', email: true };
 
-  it('signs in with GitHub first; Continue with email opens the one sign-in screen, back to this page', async () => {
+  it('signs in by email first (the one sign-in screen, back to this page), GitHub second', async () => {
     history.replaceState(null, '', '/studio/acme/ds/tokens/');
     const { container } = render(createElement(NoAccess, { screen: accessScreen('anonymous-unknown', f)!, repo: 'acme/ds' }));
     expect(screen.getByRole('heading', { name: 'Sign in to open Ds' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/signin/?next=%2Fstudio%2Facme%2Fds%2Ftokens%2F');
     expect(screen.getByRole('button', { name: 'Sign in with GitHub' })).toHaveAttribute('data-gh-signin');
     expect(document.documentElement.hasAttribute('data-signin-card')).toBe(true);
-    expect(screen.getByText('Invited with your email?')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Continue with email' })).toHaveAttribute('href', '/signin/?next=%2Fstudio%2Facme%2Fds%2Ftokens%2F');
     // No per-team email form any more.
     expect(screen.queryByRole('textbox')).toBeNull();
     await expectNoAxeViolations(container);
@@ -97,7 +96,7 @@ describe('a real team, signed out', () => {
   it('says an older sign-in link expired, under the way in', () => {
     render(createElement(NoAccess, { screen: accessScreen('anonymous-unknown', f)!, repo: 'acme/ds', emailExpired: true }));
     expect(screen.getByText('This link expired or was already used. Enter your email to get a new one.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Continue with email' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Sign in' })).toBeInTheDocument();
   });
 
   it('on a public team, the guest banner links to the same sign-in screen', async () => {

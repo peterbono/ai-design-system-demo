@@ -104,14 +104,15 @@ export function accessScreen(state: RepoAccessState, f: AccessScreenInput): Acce
   const team = teamDisplayName(repo, { name: f.name });
   switch (state) {
     case 'anonymous-unknown':
-      // With email sign-in the title names no provider: GitHub stays the main way, the email link a quiet one under it.
+      // Email-only entry: the one sign-in screen of Bridge (work email and a code) comes first, back here afterwards;
+      // GitHub stays a second way for people whose team is read through it.
       return f.email
         ? {
             layout: 'block',
             title: `Sign in to open ${team}`,
-            body: 'This design system may be private. Sign in to see it.',
-            primary: { kind: 'signin', label: 'Sign in with GitHub' },
-            links: [EMAIL_LINK],
+            body: 'This design system may be private. Sign in with your work email to see it.',
+            primary: { kind: 'email', label: 'Sign in' },
+            secondary: { kind: 'signin', label: 'Sign in with GitHub' },
           }
         : {
             layout: 'block',
