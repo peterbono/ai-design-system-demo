@@ -253,6 +253,15 @@ describe('who acts now', () => {
     expect(whoActs(detail({ state: 'draft', exploration: true }), { owners, author: 'ann' }).action).toBe('promote');
   });
 
+  it('an approved change for a viewer who may not ship: ready, naming who merges, never "open the checks"', () => {
+    const a = approvals({ approvers: ['dana'], design: true });
+    const gate = mergeGate({ tier: 1, ci: green, approvals: a, draft: false, mergeable: true, state: 'open', viewer: 'dana', ship: { logins: ['theo'], groups: ['tech'] } });
+    expect(gate.allowed).toBe(false);
+    const need = needFromDetail({ state: 'open', ci: green, gate, changesRequestedBy: [], mergeable: true });
+    expect(need).toEqual({ kind: 'ready' });
+    expect(whoActs(need, { owners, author: 'ann', viewer: 'dana', shippers: ['theo'], canMerge: false }).sentence).toBe('Ready to merge: @theo can merge it.');
+  });
+
   it('names the missing approval while GitHub computes whether it fits, and checks the merge only once approved', () => {
     const a = approvals();
     const gate = mergeGate({ tier: 3, ci: green, approvals: a, draft: false, mergeable: null, state: 'open' });
