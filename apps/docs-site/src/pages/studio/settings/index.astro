@@ -340,7 +340,7 @@ const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? 
     <section class="set-band" id="tools" aria-labelledby="set-tools">
       <div class="set-band-intro">
         <h2 id="set-tools" class="set-h">Figma and Claude</h2>
-        <p class="set-intro">Work on the library from Figma or from your own Claude. Both create a branch and request a review.</p>
+        <p class="set-intro">Work on the library from Figma or from your own Claude.</p>
       </div>
       <div class="set-band-body">
         <Card>
@@ -348,7 +348,7 @@ const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? 
             <div class="set-rows">
               <div class="set-row">
                 <p class="set-row-label">Figma plugin</p>
-                <p class="set-row-value">Brings tokens into Figma Variables, and requests a review of your variable edits.</p>
+                <p class="set-row-value">Brings tokens into Figma Variables and pushes your edits back. New token values reach the library after the automatic checks, new components go to developers to build.</p>
                 <p class="set-row-action">
                   {
                     plugin.url ? (
@@ -364,7 +364,7 @@ const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? 
               </div>
               <div class="set-row" id="claude">
                 <p class="set-row-label">Your own Claude</p>
-                <p class="set-row-value">Gives your Claude {tools} tools on this design system. It creates branches and requests reviews, it never merges on its own.</p>
+                <p class="set-row-value">Gives your Claude {tools} tools on this design system. Claude drafts a change and sends it for review: nothing reaches the library until a person approves it.</p>
                 <p class="set-row-action"><Link href="/agents/#claude-code">Set it up</Link></p>
               </div>
             </div>
