@@ -135,6 +135,8 @@ describe('rows', () => {
     const r = changeNeed(facts({}), NOW);
     expect(r).toMatchObject({ kind: 'review', line: 'Ann asks for your review', waitsOnYou: true, pill: { label: 'Waiting 4 days', tone: 'warning' }, href: '/studio/changes/?pr=1' });
     expect(changeNeed(facts({ task: 'ship' }), NOW).line).toBe('Ann waits for you to merge it');
+    // Who asked, not the account that opened it (the Bridge app for an email member).
+    expect(changeNeed(facts({ task: 'ship', asker: { ...facts({}).asker, name: 'Priya' } }), NOW).line).toBe('Priya waits for you to merge it');
     expect(changeNeed(facts({ task: 'guidance', asker: CLAUDE }), NOW).line).toBe('Claude AI asks you to check the usage guidance');
     expect(changeNeed(facts({ since: null }), NOW).pill).toBeNull();
   });

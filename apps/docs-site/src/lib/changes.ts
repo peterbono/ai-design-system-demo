@@ -249,7 +249,8 @@ export function needFromDetail(s: { state: PullState; ci: CiSummary; gate: Merge
   // A missing approval is missing whether or not GitHub has worked out the merge yet (core reviewStatusKind).
   if (roles.length) return { kind: 'approve', roles };
   if (s.mergeable === null && s.state === 'open') return { kind: 'checking-merge', then: roles };
-  if (s.gate.allowed) return { kind: 'ready' };
+  // Approved and clean, but the viewer does not hold the right to ship: still ready, who acts names who may merge.
+  if (s.gate.allowed || s.gate.canShip === false) return { kind: 'ready' };
   return { kind: 'unknown' };
 }
 

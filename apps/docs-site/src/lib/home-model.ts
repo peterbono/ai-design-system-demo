@@ -331,7 +331,7 @@ export function changeNeed(c: ChangeFacts, now: number): NeedRow {
   const waiting = c.since ? { label: waitingLabel(c.since, now), tone: 'warning' as const } : null;
   switch (c.task) {
     case 'ship':
-      return { ...base, kind: 'review', person: c.author, line: `${c.author.name} waits for you to merge it`, waitsOnYou: true, pill: waiting };
+      return { ...base, kind: 'review', person: c.asker, line: `${c.asker.name} waits for you to merge it`, waitsOnYou: true, pill: waiting };
     case 'guidance':
       return { ...base, kind: 'review', person: c.asker, line: `${c.asker.name} asks you to check the usage guidance`, waitsOnYou: true, pill: waiting };
     case 'look-again':
