@@ -77,6 +77,36 @@ export function variantCombosFromMapping(mapping: PropsToFigma): Record<string, 
   return combos;
 }
 
+/**
+ * The prop combinations to measure for some axes, at most `cap`: the full product when it fits; else every value of
+ * each axis alone (the others at their first value), then every pair of axes, until the cap. `capped` says the full
+ * product was not measured.
+ */
+export function boundedCombos(axes: [string, (string | boolean)[]][], cap = 48): { combos: Record<string, string | boolean>[]; capped: boolean } {
+  const live = axes.filter(([, v]) => v.length >= 2);
+  const total = live.reduce((n, [, v]) => n * v.length, 1);
+  if (total <= cap) {
+    let combos: Record<string, string | boolean>[] = [{}];
+    for (const [k, vals] of live) combos = combos.flatMap((c) => vals.map((v) => ({ ...c, [k]: v })));
+    return { combos, capped: false };
+  }
+  const base = Object.fromEntries(live.map(([k, v]) => [k, v[0]!]));
+  const seen = new Set<string>();
+  const out: Record<string, string | boolean>[] = [];
+  const add = (c: Record<string, string | boolean>) => {
+    const key = JSON.stringify(Object.entries(c).sort());
+    if (out.length >= cap || seen.has(key)) return;
+    seen.add(key);
+    out.push(c);
+  };
+  add(base);
+  for (const [k, vals] of live) for (const v of vals) add({ ...base, [k]: v });
+  for (let i = 0; i < live.length; i++)
+    for (let j = i + 1; j < live.length; j++)
+      for (const a of live[i]![1]) for (const b of live[j]![1]) add({ ...base, [live[i]![0]]: a, [live[j]![0]]: b });
+  return { combos: out, capped: true };
+}
+
 /** The values to measure per prop for a Figma component: its VARIANT axes mapped to props (State aside). */
 export function variantValuesFromMapping(mapping: PropsToFigma): Record<string, (string | boolean)[]> {
   const out: Record<string, (string | boolean)[]> = {};
@@ -370,6 +400,8 @@ export function componentStatus(input: ComponentStatusInput): ComponentStatus {
     }
     // Several stories render these props (a plain table, a sortable one, a selected row): the one closest to the
     // Figma variant's content is its counterpart; extra features in other stories are content, not drift.
+    // Single-instance stories first; a gallery's first instance only when nothing else renders the variant.
+    matching.sort((x, y) => (x.gallery ? 1 : 0) - (y.gallery ? 1 : 0));
     let story = matching[0]!;
     let c = compareSpecToMeasured(input.figma.parts, v.values, story.instances?.[0] ?? story.spec!, input.resolve, { properties: input.figma.properties });
     let diffs = c.diffs.filter((d) => d.measured !== undefined);

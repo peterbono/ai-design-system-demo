@@ -33,6 +33,10 @@ export interface MeasuredNode {
   /** Tag name, `#text` for a text run inside an element that also holds elements. */
   tag: string;
   kind: 'frame' | 'text' | 'icon' | 'vector';
+  /** Inline SVG: each shape's stroke in order (rgb), as drawn. */
+  svgStrokes?: string[] | undefined;
+  /** A ::before or ::after drawn as a box (a switch knob, a checkbox's box): its tag is `::before` / `::after`. */
+  pseudo?: 'before' | 'after' | undefined;
   classes?: string[] | undefined;
   role?: string | undefined;
   /** State attributes (data-state, data-variant, aria-checked...). */
@@ -424,6 +428,8 @@ export interface MeasuredSpecsStory {
   overrides?: Record<string, string | number | boolean> | undefined;
   /** Pseudo state forced on the component (Chrome DevTools forced :hover / :focus-visible / :active). */
   state?: MeasuredState | undefined;
+  /** The story is a gallery (several instances): `spec` is its first instance, a fallback when no single-instance story renders the variant. */
+  gallery?: boolean | undefined;
   /** A story that renders the component several times: one spec per instance (`spec` is the first). */
   instances?: MeasuredSpec[] | undefined;
   /** Screenshot of the measured root (PNG, the device scale of the run), relative to measured-specs.json. */
@@ -438,6 +444,11 @@ export interface MeasuredSpecsComponent {
   name: string;
   argTypes: Record<string, MeasuredArgType>;
   component?: string | undefined;
+  /**
+   * With --variants: the args crossed, the args left out and why (`no visual effect`: changing it from its default
+   * changed nothing the measure reads; `not taken`: the story does not pass it on), and whether the cap cut the product.
+   */
+  variantPlan?: { axes: string[]; ignored?: Record<string, string> | undefined; combos: number; capped?: boolean | undefined } | undefined;
   /** Token path -> its value in the measured page (colors `rgb()`, lengths px): the tokens the Figma side names. */
   resolved?: Record<string, string> | undefined;
 }
@@ -450,6 +461,8 @@ export interface MeasuredSpecsFile {
   components?: MeasuredSpecsComponent[] | undefined;
   /** With --check: one status per component for the contract screen. */
   statuses?: ComponentStatus[] | undefined;
+  /** Storybook titles measured to the end, for --resume. */
+  done?: string[] | undefined;
   /** With --tokens: every CSS custom property the library defines, resolved per mode, in two tiers. */
   tokens?: MeasuredTokens | undefined;
 }

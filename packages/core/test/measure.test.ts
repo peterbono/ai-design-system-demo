@@ -110,6 +110,7 @@ describe('helpers', () => {
     expect(localClassName('Button-module__label__a1b2c')).toBe('label');
     expect(localClassName('prc-Button-Label-pTQ3x')).toBe('Label');
     expect(localClassName('cds--btn')).toBe('cds--btn');
+    expect(localClassName('cds--toggle__switch')).toBe('cds--toggle__switch');
   });
 
   it('reads auto layout from computed flex values', () => {
@@ -248,6 +249,39 @@ describe('fill and shots', () => {
     expect(shots).toEqual([['[data-bridge-measure-root]', '/tmp/x/forms-input-default.png']]);
     expect(m.shot).toEqual({ file: '/tmp/x/forms-input-default.png', width: 360, height: 40 });
     expect(m.rootFill).toBe(true);
+  });
+});
+
+describe('controls drawn in CSS: pseudo-elements, grids, SVG', () => {
+  const box = (x: number, y: number, width: number, height: number) => ({ x, y, width, height });
+  const frame = (tag: string, b: ReturnType<typeof box>, style: Record<string, string>, children: MeasuredNode[] = [], extra: Partial<MeasuredNode> = {}): MeasuredNode => ({ tag, kind: 'frame', classes: [], box: b, style, tokens: {}, children, ...extra });
+
+  it('reads a toggle: a grid label above a switch, its knob a ::before pinned where it sits', () => {
+    const knob = frame('::before', box(27, 27, 18, 18), { position: 'absolute', 'background-color': 'rgb(255, 255, 255)', 'border-top-left-radius': '50%', top: '3px', left: '3px' }, [], { pseudo: 'before' });
+    const track = frame('span', box(24, 24, 48, 24), { display: 'block', 'background-color': 'rgb(36, 161, 72)', 'border-top-left-radius': '12px' }, [knob], { classes: ['cds--toggle__switch'] });
+    const label = { tag: '#text', kind: 'text' as const, text: 'Label', box: box(0, 0, 40, 16), style: {}, tokens: {}, children: [] };
+    const root = frame('div', box(0, 0, 120, 48), { display: 'grid', 'grid-template-columns': 'none', 'grid-template-rows': 'none', 'row-gap': '8px', 'column-gap': '0px' }, [label, track]);
+    const spec = measuredToSpec({ id: 'toggle', root });
+    expect(spec.parts[0]!.layout?.direction).toBe('VERTICAL');
+    expect(spec.values.root?.itemSpacing).toBe(8);
+    const k = spec.parts.find((x) => x.id === 'cds--toggle-switch-before')!;
+    expect(k).toMatchObject({ kind: 'frame', parent: 'cds--toggle-switch', pin: { top: 3, left: 3 } });
+    expect(spec.raw[k.id]).toMatchObject({ fill: 'rgb(255, 255, 255)', width: 18, height: 18 });
+  });
+
+  it('gives a grid a direction from its tracks or where its children sit', () => {
+    expect(measuredLayout({ display: 'grid', 'grid-template-columns': '48px 24px', 'grid-template-rows': '24px' })?.direction).toBe('HORIZONTAL');
+    expect(measuredLayout({ display: 'inline-grid', 'grid-auto-flow': 'column' })?.direction).toBe('HORIZONTAL');
+    expect(measuredLayout({ display: 'grid' }, [box(0, 0, 48, 24), box(56, 4, 20, 16)])?.direction).toBe('HORIZONTAL');
+    expect(measuredLayout({ display: 'grid' }, [box(0, 0, 40, 16), box(0, 24, 48, 24)])?.direction).toBe('VERTICAL');
+  });
+
+  it('covers its parent at inset 0, and carries an SVG with its strokes', () => {
+    const cover = frame('::after', box(0, 0, 20, 20), { position: 'absolute', top: '0px', right: '0px', bottom: '0px', left: '0px', 'border-top-style': 'solid', 'border-top-width': '1px', 'border-top-color': 'rgb(0, 0, 0)' }, [], { pseudo: 'after' });
+    const icon: MeasuredNode = { tag: 'svg', kind: 'icon', box: box(2, 2, 16, 16), style: { fill: 'rgb(22, 22, 22)' }, tokens: {}, children: [], svg: '<svg width="16" height="16"><path fill="rgb(22, 22, 22)"/></svg>', svgStrokes: [] };
+    const spec = measuredToSpec({ id: 'tag', root: frame('button', box(0, 0, 20, 20), { display: 'flex' }, [icon, cover]) });
+    expect(spec.parts.find((x) => x.id === 'root-after')).toMatchObject({ cover: true });
+    expect(spec.vectors?.icon).toEqual({ svg: '<svg width="16" height="16"><path fill="rgb(22, 22, 22)"/></svg>', strokes: [] });
   });
 });
 

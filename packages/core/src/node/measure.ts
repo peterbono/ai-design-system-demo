@@ -12,7 +12,7 @@
 // spec does not carry.
 
 import type { SpecField, SpecLayout, SpecPart, SpecValue } from '../component-spec';
-import { sharedTokenPrefix, tokenVariablePath, type MeasuredMode, type MeasuredNode, type MeasuredProps, type MeasuredSpec, type MeasuredState, type MeasuredToken, type MeasuredTokenProperty, type MeasuredTokens } from '../measured-spec';
+import { sharedTokenPrefix, tokenVariablePath, type MeasuredBox, type MeasuredMode, type MeasuredNode, type MeasuredProps, type MeasuredSpec, type MeasuredState, type MeasuredToken, type MeasuredTokenProperty, type MeasuredTokens } from '../measured-spec';
 import { storybookIframeUrl, type StorybookIframeOptions, type StorybookIndex } from '../storybook';
 import { MEASURE_SCRIPT } from './measure-script';
 import { GLOBALS_SCRIPT, TOKENS_SCRIPT } from './tokens-script';
@@ -39,6 +39,8 @@ export interface MeasureResult {
   viewport: { width: number; height: number };
   /** The root is block-level and spans its container (or is width: 100%): it fills in Figma, it does not hug. */
   rootFill?: boolean | undefined;
+  /** A filling root was laid out at this width (px) for the measure and its screenshot, not the canvas width. */
+  fillWidth?: number | undefined;
   /** With `open`: how the popup came to show (`already`: the story renders it open), or `none`. */
   opened?: 'already' | 'click' | 'hover' | 'focus' | 'none' | undefined;
   error?: string | undefined;
@@ -105,6 +107,8 @@ export interface MeasureOptions {
   state?: MeasuredState | undefined;
   /** Read the story's props from Storybook (default true in measureStory). */
   props?: boolean | undefined;
+  /** Width a filling root is laid out at when it spans the canvas (default 400 px; 0 keeps the canvas width). */
+  fillWidth?: number | undefined;
   /** Write a PNG of the measured root to this file (needs `MeasurePage.screenshot`), forced state included. */
   shot?: string | undefined;
   /** `portal`: the newest popup outside the story root is the component (set by `open`). */
@@ -132,14 +136,18 @@ export const WAIT_SCRIPT = (rootSel: string, timeout: number, self = false) => `
     await new Promise((r) => setTimeout(r, 50));
   }
   try { await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 3000))]); } catch (e) {}
+  // Settle briefly: the markup stops changing for a few frames, or 1.5 s passes (a spinner never stops).
   let last = '', same = 0;
-  while (state === 'rendered' && same < 3 && performance.now() - t0 < ${timeout} + 3000) {
+  const settle0 = performance.now();
+  while (state === 'rendered' && same < 3 && performance.now() - settle0 < 1500) {
     await frame();
     await new Promise((r) => setTimeout(r, 60));
     const s = document.body.innerHTML.length + ':' + document.querySelectorAll('*').length;
     same = s === last ? same + 1 : 0;
     last = s;
   }
+  // Animations: finished ones jump to their end, endless ones (a loading spinner) are paused where they are.
+  try { (document.getAnimations ? document.getAnimations() : []).forEach((a) => { try { a.finish(); } catch (e) { a.pause(); } }); } catch (e) {}
   return state;
 })()`;
 
@@ -297,7 +305,7 @@ export async function harvestTokens(page: MeasurePage, storybook: string, story:
   const timeout = o.timeout ?? 15000;
   const read = async (globals: Record<string, string>) => {
     const iframe = { ...(o.iframe ?? {}), globals: { ...(o.iframe?.globals ?? {}), ...globals } };
-    await page.goto(storybookIframeUrl(storybook, story, iframe), { waitUntil: 'load', timeout: timeout + 15000 });
+    await page.goto(storybookIframeUrl(storybook, story, iframe), { waitUntil: 'domcontentloaded', timeout: timeout + 15000 });
     await page.evaluate<string>(WAIT_SCRIPT('#storybook-root, #root', timeout));
     const r = await page.evaluate<{ properties: RawTokenProperty[] } | null>(`(${TOKENS_SCRIPT})({})`);
     return r?.properties ?? [];
@@ -432,7 +440,8 @@ export async function measureStory(page: MeasurePage, storybook: string, id: str
   if (o.args && Object.keys(o.args).length) iframe.args = { ...(iframe.args ?? {}), ...Object.fromEntries(Object.entries(o.args).map(([k, v]) => [k, typeof v === 'boolean' ? `!${v}` : String(v)])) };
   const url = storybookIframeUrl(storybook, id, iframe);
   const t0 = Date.now();
-  await page.goto(url, { waitUntil: 'load', timeout: (o.timeout ?? 15000) + 15000 });
+  // DOM ready, then the story's own wait (rendered, fonts, a short settle): an animated story never reaches network idle.
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: (o.timeout ?? 15000) + 15000 });
   const m = await measureRendered(page, o);
   let props: MeasuredProps | null = null;
   if (o.props !== false && m.root) props = await page.evaluate<MeasuredProps | null>(PROPS_SCRIPT(id)).catch(() => null);
@@ -459,7 +468,15 @@ export async function measureRendered(page: MeasurePage, o: MeasureOptions = {})
     }
   }
   const r = await page.evaluate<MeasureResult | { error: string }>(`(${MEASURE_SCRIPT})(${JSON.stringify(arg)})`);
-  const base: MeasureResult = 'root' in r ? r : { root: null, portals: [], wrappers: 0, nodes: 0, rules: 0, sheets: { read: 0, blocked: 0 }, rootVariables: 0, viewport: { width: 0, height: 0 }, error: r.error };
+  let base: MeasureResult = 'root' in r ? r : { root: null, portals: [], wrappers: 0, nodes: 0, rules: 0, sheets: { read: 0, blocked: 0 }, rootVariables: 0, viewport: { width: 0, height: 0 }, error: r.error };
+  // A root that fills its container spans the whole canvas in a story: lay it out at a component's width instead, so
+  // the measured width, the plan and the screenshot agree (a text field at 400 px, not 1,116).
+  const fillWidth = o.fillWidth ?? 400;
+  if (fillWidth && base.root && base.rootFill && base.root.box.width > fillWidth + 1 && (state || (await markMeasuredRoot(page, { ...o, root })))) {
+    await page.evaluate(`(async () => { const e = document.querySelector('[data-bridge-measure-root]'); if (e) { e.style.width = '${fillWidth}px'; e.style.maxWidth = 'none'; e.style.minWidth = '0'; } await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); })()`);
+    const again = await page.evaluate<MeasureResult | { error: string }>(`(${MEASURE_SCRIPT})(${JSON.stringify(arg)})`);
+    if ('root' in again && again.root) base = { ...again, rootFill: true, fillWidth };
+  }
   if (opened) base.opened = opened;
   if (opened === 'none' && !base.root) base.error = 'the popup did not open: no trigger in the story opened it';
   if (rendered === 'timeout' && !base.error && !base.root) base.error = `the story did not render within ${timeout} ms`;
@@ -516,8 +533,8 @@ const SEMANTIC_CONTAINER = /^(fieldset|ul|ol|nav|form|menu|dl|select|header|foot
  * A frame that only lays children out: no paint, border, shadow, radius, role or semantic tag (a Stack, a flex row, a
  * story's layout table).
  */
-function plainLayout(n: MeasuredNode): boolean {
-  if (n.kind !== 'frame' || n.role || n.input || n.media || SEMANTIC_CONTAINER.test(n.tag)) return false;
+function plainLayout(n: MeasuredNode, anyRole = false): boolean {
+  if (n.kind !== 'frame' || n.input || n.media || (!anyRole && (n.role || SEMANTIC_CONTAINER.test(n.tag)))) return false;
   const st = n.style;
   const painted = !transparent(st['background-color']) || (st['background-image'] && st['background-image'] !== 'none') || (st['box-shadow'] && st['box-shadow'] !== 'none');
   const bordered = (['top', 'right', 'bottom', 'left'] as const).some((x) => st[`border-${x}-style`] !== 'none' && (px(st[`border-${x}-width`]) ?? 0) > 0);
@@ -555,8 +572,9 @@ export function splitInstances(root: MeasuredNode | null): MeasuredNode[] {
         found.push(c);
         continue;
       }
-      if (plainLayout(c) && depth < 8 && c.children.length) collect(c, depth + 1);
-      else if (!plainLayout(c)) found.push(c);
+      // Inside the story, a group that draws nothing (a tag group with role="group") is still just layout.
+      if (plainLayout(c, true) && depth < 8 && c.children.length) collect(c, depth + 1);
+      else if (!plainLayout(c, true)) found.push(c);
     }
   };
   collect(root, 0);
@@ -586,11 +604,13 @@ export interface MeasuredToSpecOptions {
  * back as they are.
  */
 export function localClassName(cls: string): string {
+  // A BEM element (`cds--toggle__switch`, `block_element`) is a class, not a hash: a hash has a digit or a capital.
+  const hashed = (h: string | undefined) => !!h && /[0-9A-Z]/.test(h);
   const m =
     /^_([A-Za-z][\w-]*?)_[A-Za-z0-9]{5,8}_\d+$/.exec(cls) ??
-    /^[A-Za-z][\w-]*?(?:-module)?_{1,2}([A-Za-z][\w-]*?)__[\w-]{5,8}$/.exec(cls) ??
+    [/^[A-Za-z][\w-]*?(?:-module)?_{1,2}([A-Za-z][\w-]*?)__([\w-]{5,8})$/.exec(cls)].find((x) => x && hashed(x[2])) ??
     /^(?:[a-z]+-)?[A-Z][A-Za-z0-9]*-([A-Za-z]\w*)-[A-Za-z0-9_]{5}$/.exec(cls) ??
-    /^_?([A-Za-z][\w-]*?)_[A-Za-z0-9-]{5,8}$/.exec(cls);
+    [/^_?([A-Za-z][\w-]*?)_([A-Za-z0-9-]{5,8})$/.exec(cls)].find((x) => x && hashed(x[2]));
   return m ? m[1]! : cls;
 }
 
@@ -603,15 +623,25 @@ const px = (v: string | undefined): number | undefined => {
 const transparent = (v: string | undefined) => !v || v === 'transparent' || /^rgba\([^)]*,\s*0\)$/.test(v);
 
 /** Auto layout of a measured element, as the pull reads it. */
-export function measuredLayout(style: Record<string, string>): SpecLayout | undefined {
+export function measuredLayout(style: Record<string, string>, children: MeasuredBox[] = []): SpecLayout | undefined {
   const d = style.display ?? '';
   if (!/flex|grid|block|inline-block|list-item/.test(d)) return undefined;
   const flex = /flex/.test(d);
+  const grid = /grid/.test(d);
   const dir = style['flex-direction'] ?? 'row';
-  const direction = flex && dir.startsWith('row') ? 'HORIZONTAL' : 'VERTICAL';
+  let direction: SpecLayout['direction'] = flex && dir.startsWith('row') ? 'HORIZONTAL' : 'VERTICAL';
+  if (grid) {
+    // A grid has no direction: its flow, its tracks, else where its children sit.
+    const tracks = (v: string | undefined) => (v && v !== 'none' ? v.trim().split(/\s+(?![^(]*\))/).length : 0);
+    const cols = tracks(style['grid-template-columns']);
+    const rows = tracks(style['grid-template-rows']);
+    const sideBySide = children.length >= 2 && children.every((c) => Math.abs(c.y + c.height / 2 - (children[0]!.y + children[0]!.height / 2)) <= Math.max(2, children[0]!.height / 2)) && new Set(children.map((c) => Math.round(c.x))).size === children.length;
+    direction = /column/.test(style['grid-auto-flow'] ?? '') || (cols >= 2 && rows <= 1) || (cols < 2 && rows < 2 && sideBySide) ? 'HORIZONTAL' : 'VERTICAL';
+    if (cols >= 2 && rows >= 2) direction = sideBySide ? 'HORIZONTAL' : 'VERTICAL';
+  }
   const j = style['justify-content'] ?? 'normal';
   const a = style['align-items'] ?? 'normal';
-  const primary: SpecLayout['primary'] = !flex ? 'MIN' : /space-between/.test(j) ? 'SPACE_BETWEEN' : /center/.test(j) ? 'CENTER' : /end|right/.test(j) ? 'MAX' : 'MIN';
+  const primary: SpecLayout['primary'] = !flex && !grid ? 'MIN' : /space-between/.test(j) ? 'SPACE_BETWEEN' : /center/.test(j) ? 'CENTER' : /end|right/.test(j) ? 'MAX' : 'MIN';
   const counter: SpecLayout['counter'] = /center/.test(a) ? 'CENTER' : /end/.test(a) ? 'MAX' : /^(flex-)?start|baseline/.test(a) ? 'MIN' : 'STRETCH';
   const out: SpecLayout = { direction, primary, counter };
   if (flex && /reverse/.test(dir)) out.reverse = true;
@@ -651,14 +681,14 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
   const idFor = (n: MeasuredNode, isRoot: boolean, inherited?: string) => {
     if (isRoot) return 'root';
     const cls = (n.classes ?? []).map(localClassName).find((c) => /^[A-Za-z]/.test(c) && c.length < 40);
-    let base = cls ?? (n.kind === 'text' ? (inherited ? `${inherited}-text` : 'text') : n.kind === 'icon' ? 'icon' : n.tag);
+    let base = cls ?? (n.pseudo ? `${inherited ?? 'root'}-${n.pseudo}` : n.kind === 'text' ? (inherited ? `${inherited}-text` : 'text') : n.kind === 'icon' ? 'icon' : n.tag);
     base = base.replace(/[^A-Za-z0-9-]+/g, '-').toLowerCase() || 'part';
     let id = base;
     for (let i = 2; used.has(id); i++) id = `${base}-${i}`;
     used.add(id);
     return id;
   };
-  const visit = (n: MeasuredNode, parent: string | undefined, parentStyle: Record<string, string> | undefined) => {
+  const visit = (n: MeasuredNode, parent: string | undefined, parentStyle: Record<string, string> | undefined, parentBox?: MeasuredBox) => {
     const id = idFor(n, !parent, parent);
     const style = n.kind === 'text' && n.tag === '#text' ? (parentStyle ?? {}) : n.style;
     const tokens = n.kind === 'text' && n.tag === '#text' ? {} : n.tokens;
@@ -666,10 +696,18 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
     if (parent) part.parent = parent;
     if (n.classes?.length) part.source = n.classes.map(localClassName).join(' ');
     if (n.kind === 'frame') {
-      const l = measuredLayout(n.style);
+      const l = measuredLayout(n.style, n.children.filter((c) => c.style.position !== 'absolute' && c.style.position !== 'fixed').map((c) => c.box));
       if (l) part.layout = l;
       if (/^(hidden|clip)/.test(n.style.overflow ?? '')) part.clip = true;
-      if (n.style.position === 'absolute' && parent) part.pin = {};
+      if ((n.style.position === 'absolute' || n.style.position === 'fixed') && parent) {
+        // Out of the auto layout: inset 0 covers the parent, else pinned at its offset from the parent's corner (px).
+        const zero = (v: string | undefined) => v !== undefined && /^0(px)?$/.test(v.trim());
+        if (['top', 'right', 'bottom', 'left'].every((k) => zero(n.style[k]))) part.cover = true;
+        else {
+          const pb = parentBox ?? { x: 0, y: 0 };
+          part.pin = { top: Math.round((n.box.y - pb.y) * 100) / 100, left: Math.round((n.box.x - pb.x) * 100) / 100 };
+        }
+      }
       if (Number(n.style['flex-grow']) > 0) part.grow = true;
     }
     if (n.kind === 'text') part.characters = n.text ?? '';
@@ -744,6 +782,7 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
       const deco = style['text-decoration-line'];
       if (deco && /underline|line-through/.test(deco)) raw.textDecoration = /underline/.test(deco) ? 'UNDERLINE' : 'STRIKETHROUGH';
     }
+    if ((n.kind === 'icon' || n.kind === 'vector') && n.svg) (out.vectors ??= {})[id] = { svg: n.svg, strokes: n.svgStrokes ?? [] };
     if (n.kind === 'icon' || n.kind === 'vector') {
       put('width', 'width', n.box.width);
       put('height', 'height', n.box.height);
@@ -757,7 +796,7 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
     if (Object.keys(values).length) out.values[id] = values;
     if (Object.keys(raw).length) out.raw[id] = raw;
     if (Object.keys(ev).length) out.tokens[id] = ev;
-    for (const c of n.children) visit(c, id, n.style);
+    for (const c of n.children) visit(c, id, n.style, n.box);
   };
   visit(m.root, undefined, undefined);
   return out;
