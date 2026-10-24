@@ -2,7 +2,7 @@
   "avatar": {
     "$type": "color",
     "bg": {
-      "$value": "{color.bg.muted}"
+      "$value": "{color.bg.subtle}"
     },
     "text": {
       "$value": "{color.text.default}"
