@@ -56,8 +56,20 @@ function embedded(): Partial<SiteRepo> {
   }
 }
 
-/** The team a hosted page is on, null when the address is not a team address. */
+/**
+ * A team's Library component page works on that team once its design system is read (setLibraryTeam): its edit mode
+ * reads and writes the team's repository, with the team's settings and the member's session, like a team shell.
+ */
+let libraryTeam: { owner: string; repo: string } | null = null;
+
+/** Sets (or with null, clears) the team a Library page works on (components/ds/library/LibraryTeamComponents.tsx). */
+export function setLibraryTeam(team: { owner: string; repo: string } | null): void {
+  libraryTeam = team ? { owner: team.owner, repo: team.repo } : null;
+}
+
+/** The team a hosted page is on (or the team of a Library page that set it), null when the address is not a team's. */
 function hostedRepo(): { owner: string; repo: string } | null {
+  if (libraryTeam) return libraryTeam;
   return isHosted() && typeof location !== 'undefined' ? repoFromPath(location.pathname) : null;
 }
 

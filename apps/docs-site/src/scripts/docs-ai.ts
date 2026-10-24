@@ -80,9 +80,26 @@ export function draftAvailability(): DraftAvailability {
 
 const contexts = new Map<string, Promise<DocsAiContext>>();
 
-/** The facts from the code and the conventions of a component (/docs-ai/<slug>.json, built with the site). */
+/** Where the drafting context comes from on a team's Library page (read from its repository), null for this site's. */
+let contextSource: ((slug: string) => Promise<DocsAiContext>) | null = null;
+
+/** A team's Library page drafts from its own code (lib/team-docs-ai.ts); null goes back to this site's built files. */
+export function setDocsContextSource(source: ((slug: string) => Promise<DocsAiContext>) | null): void {
+  contextSource = source;
+  contexts.clear();
+}
+
+/**
+ * The facts from the code and the conventions of a component: /docs-ai/<slug>.json, built with the site, or the team's
+ * own when a team's Library page set its source.
+ */
 export function docsContext(slug: string): Promise<DocsAiContext> {
   let p = contexts.get(slug);
+  if (!p && contextSource) {
+    p = contextSource(slug);
+    p.catch(() => contexts.delete(slug));
+    contexts.set(slug, p);
+  }
   if (!p) {
     p = fetch(`/docs-ai/${encodeURIComponent(slug)}.json`).then((r) => {
       if (!r.ok) throw new Error(`The drafting context of ${slug} is missing (${r.status}). Reload the page.`);

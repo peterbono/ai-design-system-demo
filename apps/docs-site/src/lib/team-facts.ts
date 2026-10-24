@@ -2,7 +2,7 @@
 // browser instead (multi-team): the contrast failures the build gate counts, and the guidance drafts waiting for
 // review. Shared by team Home (scripts/team-home.ts) and team Review (scripts/team-review.ts). Pure.
 import type { RepoModel } from '@bridge-ds/core';
-import { fileUrl } from './team-load';
+import { libraryHref } from './library-shells';
 
 /** Failing contrast checks of a model: one per pair, brand and theme, as the build gate counts them. */
 export function contrastFailures(model: Pick<RepoModel, 'contrast'>): number {
@@ -17,5 +17,7 @@ export function contrastFailures(model: Pick<RepoModel, 'contrast'>): number {
 
 /** Drafted guidance waiting for review: each row opens the draft on GitHub (the docs editor is the demo Library's). */
 export function teamGuidance(data: { owner: string; repo: string; sha: string; model: Pick<RepoModel, 'components'> }): { name: string; href: string; since: string | null }[] {
-  return (data.model.components?.list ?? []).filter((c) => c.docs?.needsReview).map((c) => ({ name: c.name, href: fileUrl(data.owner, data.repo, data.sha, c.files.docs), since: null }));
+  return (data.model.components?.list ?? [])
+    .filter((c) => c.docs?.needsReview)
+    .map((c) => ({ name: c.name, href: `${libraryHref(data.owner, data.repo, `components/${encodeURIComponent(c.slug.toLowerCase())}/`)}?edit=1`, since: null }));
 }

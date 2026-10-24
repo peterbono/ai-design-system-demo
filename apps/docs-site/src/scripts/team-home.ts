@@ -23,7 +23,8 @@ import { startChangeHref } from '../lib/overview-board';
 import { signedOutLine } from '../lib/overview-todo';
 import { ghButton } from '../lib/gh-wording';
 import { studioHref } from '../lib/team-path';
-import { fileUrl, teamFailure } from '../lib/team-load';
+import { libraryHref } from '../lib/library-shells';
+import { teamFailure } from '../lib/team-load';
 import { contrastFailures, teamGuidance } from '../lib/team-facts';
 
 // Approve and Decline on a join request live in scripts/join-handlers.ts (shared with the Review page).
@@ -44,12 +45,13 @@ export function teamHomeStatic(data: Pick<TeamData, 'owner' | 'repo' | 'sha' | '
   return {
     contrastFail: contrastFailures(data.model),
     components: comps.map((c) => ({ name: c.name, slug: c.slug, family: c.category })).sort((a, b) => a.name.localeCompare(b.name)),
-    // Drafted guidance waits for review: the row opens the draft on GitHub (the docs editor is the demo Library's).
+    // Drafted guidance waits for review: the row opens it in its Library page's edit mode.
     guidance: teamGuidance(data),
     startHrefs: {
       tokens: startChangeHref('look'),
       component: startChangeHref('variant'),
-      guidance: missing ? fileUrl(data.owner, data.repo, data.sha, missing.dir) : studioHref('components/'),
+      // The first component without guidance, in its Library page's edit mode (as on Bridge's own Studio home).
+      guidance: missing ? `${libraryHref(data.owner, data.repo, `components/${encodeURIComponent(missing.slug.toLowerCase())}/`)}?edit=1` : studioHref('components/'),
     },
   };
 }

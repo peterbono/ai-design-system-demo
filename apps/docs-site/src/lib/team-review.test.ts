@@ -15,7 +15,8 @@ describe('teamReviewBlocks', () => {
   it('points the branch review at the team, never the demo', () => {
     expect(blocks.get('bridge-branches')).toEqual({ owner: 'acme', repo: 'ds', defaultBranch: 'trunk', apps: {}, packages: [] });
     const { drafted } = blocks.get('home-guidance') as { drafted: { href: string }[] };
-    for (const g of drafted) expect(g.href.startsWith(`https://github.com/acme/ds/blob/${sha}/`)).toBe(true);
+    // Drafted guidance opens in the team's Library page edit mode.
+    for (const g of drafted) expect(g.href).toMatch(/^\/library\/acme\/ds\/components\/[a-z0-9-]+\/\?edit=1$/);
   });
 
   it('counts contrast failures as the build gate does, and keeps the team pairs in the checks format', () => {

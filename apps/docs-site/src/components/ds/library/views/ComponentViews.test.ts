@@ -48,7 +48,7 @@ describe('component page', () => {
   it('keeps a team in its Library and its Studio', () => {
     const el = page(team);
     for (const a of el.querySelectorAll<HTMLAnchorElement>('a[href^="/"]')) expect(a.getAttribute('href')).toMatch(/^\/(library\/acme\/ds|studio\/~\/acme\/ds)\//);
-    expect(el.querySelector<HTMLAnchorElement>('[data-le-edit]')?.getAttribute('href')).toBe('/studio/~/acme/ds/components/docs/button/');
+    expect(el.querySelector<HTMLAnchorElement>('[data-le-edit]')?.getAttribute('href')).toBe('/library/acme/ds/components/button/?edit=1');
     expect(page({ ...team, extras: { ...team.extras, canEdit: false } }).querySelector('[data-le-edit]')).toBeNull();
     expect(page(own).querySelector<HTMLAnchorElement>('[data-le-edit]')?.getAttribute('href')).toBe('/components/button/?edit=1');
   });

@@ -64,6 +64,12 @@ export interface LibraryEditModeProps {
   /** Where editing starts: the docs on main, or the deterministic pre-fill when there are none. */
   initial: ComponentDocsJson;
   repo: { owner: string; repo: string };
+  /**
+   * A team's Library page (components/ds/library/LibraryTeamComponents.tsx): its Studio address for a path, and how a
+   * branch's docs.json is read (through the member's session: private repositories and email members). Absent on this
+   * site's own pages: this site's Studio, and the raw host.
+   */
+  team?: { studio: (path: string) => string; readFile: (path: string, ref: string) => Promise<string | undefined> };
 }
 
 type DocsAi = typeof import('../scripts/docs-ai');
@@ -612,6 +618,8 @@ const useCompact = () => useMedia('(max-width: 767px)');
 const overlayOpen = () => Boolean(document.querySelector('[role="menu"], [role="dialog"], [role="alertdialog"], dialog[open]'));
 
 export default function LibraryEditMode(p: LibraryEditModeProps) {
+  // Where "See the review" goes: the team's Studio on a team's Library page, else this site's.
+  const studio = p.team?.studio ?? studioHref;
   const [editing, setEditing] = useState(false);
   /** Editing without a GitHub session: the line that says it is a draft in this browser only; null when signed in. */
   const [guest, setGuest] = useState<string | null>(null);
@@ -762,6 +770,11 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
       // One open proposal per component: without a change to edit (?ref), the editor opens on the open one, if any.
       const open = ref ? null : await import('../scripts/docs-commit').then((m) => m.findOpenDocs(p.name, p.slug)).catch(() => null);
       const readBranch = async (branchRef: string) => {
+        if (p.team) {
+          const text = await p.team.readFile(p.path, branchRef);
+          if (text === undefined) throw new Error('404');
+          return text;
+        }
         const r = await fetch(`https://raw.githubusercontent.com/${p.repo.owner}/${p.repo.repo}/${encodeURIComponent(branchRef)}/${p.path}`);
         if (!r.ok) throw new Error(String(r.status));
         return r.text();
@@ -1229,7 +1242,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
       {branch?.continues && branch.author && branch.pr && (
         <p className="le-bar-note">
           {continueLine(branch.author, viewer)}{' '}
-          <Link href={studioHref(`changes/?pr=${branch.pr}`)}>See the review</Link>
+          <Link href={studio(`changes/?pr=${branch.pr}`)}>See the review</Link>
         </p>
       )}
       {drafting && (
@@ -1369,7 +1382,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
               </p>
             ) : sent ? (
               <p className="le-sent">
-                {sent.continued ? 'Added to the open proposal. ' : ''}Your team can review it in Studio: <Link href={sent.pr ? studioHref(`changes/?pr=${sent.pr}`) : studioHref('changes/')}>{sent.title}</Link>.
+                {sent.continued ? 'Added to the open proposal. ' : ''}Your team can review it in Studio: <Link href={sent.pr ? studio(`changes/?pr=${sent.pr}`) : studio('changes/')}>{sent.title}</Link>.
               </p>
             ) : (
               <div className="le-send">
