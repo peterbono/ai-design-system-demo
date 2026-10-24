@@ -111,8 +111,10 @@ function boxSized(spec: MeasuredSpec, partId: string, own: { width: boolean; hei
   const num = (f: SpecField) => (typeof raw[f] === 'number' ? (raw[f] as number) : 0);
   const left = Math.min(...kids.map((k) => k.x));
   const top = Math.min(...kids.map((k) => k.y));
-  const contentW = Math.max(...kids.map((k) => k.x + k.width)) - left + num('paddingLeft') + num('paddingRight');
-  const contentH = Math.max(...kids.map((k) => k.y + k.height)) - top + num('paddingTop') + num('paddingBottom');
+  // The border is in the box too (CSS border-box), even a transparent one.
+  const side = (f: SpecField) => (typeof raw[f] === 'number' ? (raw[f] as number) : num('strokeWeight'));
+  const contentW = Math.max(...kids.map((k) => k.x + k.width)) - left + num('paddingLeft') + num('paddingRight') + side('strokeLeftWeight') + side('strokeRightWeight');
+  const contentH = Math.max(...kids.map((k) => k.y + k.height)) - top + num('paddingTop') + num('paddingBottom') + side('strokeTopWeight') + side('strokeBottomWeight');
   const out: { width?: number; height?: number } = {};
   if (own.width && box.width - contentW > 1) out.width = box.width;
   if (own.height && box.height - contentH > 1) out.height = box.height;
@@ -236,6 +238,7 @@ function setOf(
   // Only children in the flow size a frame: one holding only positioned parts (a switch and its knob) keeps its size.
   const parents = new Set(parts.filter((p) => !p.pin && !p.cover).map((p) => p.parent).filter(Boolean));
   const variants: SpecVariant[] = [];
+  const axesMemo = new Map<string, boolean>();
   const shotOf = new Map<SpecVariant, VariantShot>();
   const spacersOf = new Map<SpecVariant, Record<string, number>>();
   const wrapsOf = new Map<SpecVariant, Record<string, NonNullable<MeasuredPart['wrap']>['padding']>>();
@@ -256,7 +259,7 @@ function setOf(
         hidden.push(p.id);
         continue;
       }
-      values[p.id] = valuesOf(m, mid, parents.has(p.id) && !aligners.has(p.id), known, !p.parent && !!p.fill, ownAxes(p, parts));
+      values[p.id] = valuesOf(m, mid, parents.has(p.id) && !aligners.has(p.id), known, !p.parent && !!p.fill, ownAxes(p, parts, baseSpec, axesMemo));
       if (m.spacers?.[mid]) spacers[p.id] = m.spacers[mid]!;
       // An icon's fill is the color it draws with (CSS `fill`), not a background: the frame would paint a square.
       if (p.kind === 'icon' || p.kind === 'vector') delete values[p.id]!.fill;
@@ -318,15 +321,42 @@ function textRootInFrame(parts: SpecPart[], variants: SpecVariant[]): void {
   }
 }
 
-/** The axes a part's parent does not size: not stretched across a column or row, not grown along it, not a filling root. */
-function ownAxes(part: MeasuredPart, parts: readonly MeasuredPart[]): { width: boolean; height: boolean } {
+/**
+ * The axes a part's parent does not size. A parent stretches its child across, or a growing child fills along, only when
+ * the parent has that size itself (a filling root, a size the CSS or the boxes give, or stretched in turn by such a
+ * parent): a wrapper that hugs a 40 px button gives it no width, the button keeps its own.
+ */
+function ownAxes(part: MeasuredPart, parts: readonly MeasuredPart[], spec?: MeasuredSpec, memo = new Map<string, boolean>()): { width: boolean; height: boolean } {
   const parent = parts.find((x) => x.id === part.parent);
   const dir = parent?.layout?.direction;
   const stretch = parent?.layout?.counter === 'STRETCH';
+  const sizedBy = (axis: 'width' | 'height') => !parent || !spec || definiteAxis(parent, axis, parts, spec, memo);
+  const acrossW = dir === 'VERTICAL' && stretch && sizedBy('width');
+  const alongW = dir === 'HORIZONTAL' && !!part.grow && sizedBy('width');
+  const acrossH = dir === 'HORIZONTAL' && stretch && sizedBy('height');
+  const alongH = dir === 'VERTICAL' && !!part.grow && sizedBy('height');
   return {
-    width: !(!part.parent && part.fill) && !(dir === 'VERTICAL' && stretch) && !(dir === 'HORIZONTAL' && part.grow) && !part.stretch?.width,
-    height: !(dir === 'HORIZONTAL' && stretch) && !(dir === 'VERTICAL' && part.grow) && !part.stretch?.height,
+    width: !(!part.parent && part.fill) && !acrossW && !alongW && !part.stretch?.width,
+    height: !acrossH && !alongH && !part.stretch?.height,
   };
+}
+
+/** Whether a part has a size of its own on an axis, from the measure, its boxes, or a parent that gives it one. */
+function definiteAxis(part: MeasuredPart, axis: 'width' | 'height', parts: readonly MeasuredPart[], spec: MeasuredSpec, memo: Map<string, boolean>): boolean {
+  const key = `${part.id}:${axis}`;
+  const known = memo.get(key);
+  if (known !== undefined) return known;
+  memo.set(key, false);
+  let result: boolean;
+  if (!part.parent) result = axis === 'width' && !!part.fill;
+  else if (spec.sized?.[part.id]?.[axis] !== undefined) result = true;
+  else {
+    const own = ownAxes(part, parts, spec, memo);
+    const hasKids = parts.some((c) => c.parent === part.id && !c.pin && !c.cover && !c.overlay);
+    result = !own[axis] || (hasKids ? boxSized(spec, part.id, own)[axis] !== undefined : typeof spec.values[part.id]?.[axis] === 'number');
+  }
+  memo.set(key, result);
+  return result;
 }
 
 /** An overlay's place in its parent, from the measured boxes (px from the parent's top and left edges). */
