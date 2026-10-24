@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  applyFixes,
   figmaFixesPrBody,
   figmaGaps,
   fixPrompt,
@@ -122,6 +123,15 @@ describe('tryFigmaFixes (values referee)', () => {
     const r = tryFigmaFixes({ component: 'TextInput', measured: load(), run: textInputRun(), proposed: [st] });
     expect(r.verdict).toBe('same');
     expect(r.summary).toMatch(/change how the set is named or labelled, not what it draws/);
+  });
+
+  it('an axis map renames the variant: it is still compared, not gone', () => {
+    const map = { id: 'textinput-invalid-error', kind: 'axis', action: 'map', component: 'TextInput', arg: 'invalid', property: 'Error', values: { false: 'Off', true: 'On' }, reason: 'Designers call the invalid look Error, on or off.' };
+    const r = tryFigmaFixes({ component: 'TextInput', measured: load(), run: textInputRun(), proposed: [map, labelFixed] });
+    expect(r.variants[0]).toMatchObject({ key: 'Invalid=false', verdict: 'closer' });
+    expect(r.variants[0]!.differences[0]).toMatchObject({ after: 80, result: 'closer' });
+    const after = specsFromMeasure(applyFixes(load(), r.file!).file).specs.components.find((c) => c.name === 'TextInput')!;
+    expect(after.variants.map((v) => v.props)).toContainEqual({ Error: 'Off' });
   });
 
   it('a proposed fix with the id of one in the repo replaces it', () => {

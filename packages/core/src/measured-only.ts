@@ -1,5 +1,5 @@
 // A copy of apps/figma-plugin/src/sync/measured-only.ts (the Figma plugin's measured-only pull), in core so the CLI and
-// the MCP server rebuild the same sets offline (bridge_try_figma_fix). Keep both identical: test/measured-only.test.ts
+// the MCP server rebuild the same sets offline (bridge_try_figma_fix). Keep both identical: test/figma-fix-loop.test.ts
 // fails when their output differs. The plugin can import it from core and drop its copy.
 //
 // Spec source "measured only": component specs built from measured-specs.json alone, with no static spec to lay them
@@ -17,8 +17,9 @@
 //   does the width of a root that fills its container (the measure lays it out at a set width).
 // - Variables are not built here: they come from the measure's token harvest (to come), or the repo's tokens.
 
-import { hashSpec, variantKeyOf, type ComponentSpec, type ComponentSpecsFile, type SpecAxis, type SpecField, type SpecPart, type SpecValue, type SpecVariant } from './component-spec';
-import { pairParts, type MeasuredArgType, type MeasuredSpec, type MeasuredSpecsFile, type MeasuredSpecsStory } from './measured-spec';
+import { hashSpec, variantKeyOf, type ComponentSpec, type ComponentSpecsFile, type SpecAxis, type SpecField, type SpecLayout, type SpecPart, type SpecValue, type SpecVariant } from './component-spec';
+import type { FigmaHints, FixedComponent, FixedMeasuredSpecsFile } from './figma-fixes';
+import { pairParts, type MeasuredArgType, type MeasuredPart, type MeasuredSpec, type MeasuredSpecsFile, type MeasuredSpecsStory } from './measured-spec';
 
 /** What building from the measure gave: sets, variants, and the stories it used. */
 export interface MeasuredOnlyReport {
@@ -92,7 +93,17 @@ function valuesOf(spec: MeasuredSpec, partId: string, hasChildren: boolean, know
 }
 
 /** One Figma set from the stories of one component, or undefined when none stands for a variant. */
-function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<string, MeasuredArgType>, source: string, known: (path: string) => boolean): { spec: ComponentSpec; shots: Record<string, VariantShot> } | undefined {
+function setOf(
+  name: string,
+  stories: MeasuredSpecsStory[],
+  argTypes: Record<string, MeasuredArgType>,
+  source: string,
+  known: (path: string) => boolean,
+  hints: FigmaHints = {},
+): { spec: ComponentSpec; shots: Record<string, VariantShot> } | undefined {
+  // figma-fixes.json names an arg's Figma property and values ("kind" -> "Variant", "danger--ghost" -> "Danger ghost").
+  const propName = (prop: string) => hints.properties?.[prop] ?? axisName(prop);
+  const figmaValue = (prop: string, value: string) => hints.values?.[prop]?.[value] ?? value;
   // Only stories as written or measured for a variant: their other booleans at the component's defaults.
   // Other booleans compare with the component's Default story, not Storybook's defaults: a design system's stories can
   // all set one (Carbon IconButton: defaultOpen, highContrast), and that is then how the component is shown.
@@ -116,7 +127,7 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
   const axes: SpecAxis[] = [];
   for (const [prop, a] of flags) {
     const def = String(baseline(prop, a) === true);
-    axes.push({ name: axisName(prop), prop, values: [def, def === 'true' ? 'false' : 'true'], default: def });
+    axes.push({ name: propName(prop), prop, values: [figmaValue(prop, def), figmaValue(prop, def === 'true' ? 'false' : 'true')], default: figmaValue(prop, def) });
   }
   for (const [prop, a] of Object.entries(argTypes)) {
     if (a.kind !== 'enum' || NOT_AN_AXIS.test(prop) || !a.options || a.options.length < 2 || a.options.length > 12) continue;
@@ -124,7 +135,7 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
     const values = a.options.filter((o) => seen.has(o));
     if (values.length < 2) continue;
     const def = a.default !== undefined && values.includes(String(a.default)) ? String(a.default) : values[0]!;
-    axes.push({ name: axisName(prop), prop, values, default: def });
+    axes.push({ name: propName(prop), prop, values: [...new Set(values.map((v) => figmaValue(prop, v)))], default: figmaValue(prop, def) });
   }
   if ('checked' in argTypes || plain.some((s) => 'checked' in propsOf(s))) {
     const values = ['false', 'true', 'mixed'].filter((v) => plain.some((s) => checkedOf(s) === v));
@@ -139,7 +150,15 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
     for (const axis of axes) {
       const flag = flags.find(([k]) => k === axis.prop);
       const value =
-        axis.name === 'State' ? STATES.find((st) => st.of(s))?.value : axis.name === 'Checked' ? checkedOf(s) : flag ? String(valueOf(s, flag[0], flag[1])) : String(propsOf(s)[axis.prop!] ?? axis.default);
+        axis.name === 'State'
+          ? STATES.find((st) => st.of(s))?.value
+          : axis.name === 'Checked'
+            ? checkedOf(s)
+            : flag
+              ? figmaValue(flag[0], String(valueOf(s, flag[0], flag[1])))
+              : propsOf(s)[axis.prop!] === undefined
+                ? axis.default
+                : figmaValue(axis.prop!, String(propsOf(s)[axis.prop!]));
       if (value === undefined || !axis.values.includes(value)) return undefined;
       props[axis.name] = value;
     }
@@ -157,12 +176,22 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
   const base = [...byVariant.values()].find((v) => isDefault(v.props)) ?? [...byVariant.values()][0]!;
   const baseSpec = base.story.spec!;
   // A part the measure drew as an SVG (an icon, a check mark) is a vector part: the builder draws its markup.
-  const parts = baseSpec.parts.map((p) => (baseSpec.vectors?.[p.id] ? { ...p, kind: 'vector' as const } : { ...p }));
+  const parts: MeasuredPart[] = baseSpec.parts.map((p) => (baseSpec.vectors?.[p.id] ? { ...p, kind: 'vector' as const } : { ...p }));
+  // An overlay (a popover, a badge, a focus ring) is out of the flow: absolute where the measure saw it, never sizing
+  // its parent. Without a box to place it, it covers its parent.
+  for (const p of parts) {
+    if (!p.overlay || p.pin || p.cover) continue;
+    const pin = pinFromBoxes(baseSpec, p);
+    if (pin) p.pin = pin;
+    else p.cover = true;
+  }
+  for (const p of parts) if (p.layout) p.layout = alignedLayout(p, parts);
   // Only children in the flow size a frame: one holding only positioned parts (a switch and its knob) keeps its size.
   const parents = new Set(parts.filter((p) => !p.pin && !p.cover).map((p) => p.parent).filter(Boolean));
   const variants: SpecVariant[] = [];
   const shotOf = new Map<SpecVariant, VariantShot>();
   const spacersOf = new Map<SpecVariant, Record<string, number>>();
+  const wrapsOf = new Map<SpecVariant, Record<string, NonNullable<MeasuredPart['wrap']>['padding']>>();
   for (const { props, story } of byVariant.values()) {
     const m = story.spec!;
     // Paired on the measure's own parts: an icon made a vector here is still an icon there.
@@ -172,6 +201,8 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
     const pins: NonNullable<SpecVariant['pins']> = {};
     const hidden: string[] = [];
     const spacers: Record<string, number> = {};
+    const wraps: Record<string, NonNullable<MeasuredPart['wrap']>['padding']> = {};
+    const layouts: NonNullable<SpecVariant['layout']> = {};
     for (const p of parts) {
       const mid = pairs.get(p.id);
       if (mid === undefined) {
@@ -183,19 +214,27 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
       // An icon's fill is the color it draws with (CSS `fill`), not a background: the frame would paint a square.
       if (p.kind === 'icon' || p.kind === 'vector') delete values[p.id]!.fill;
       // A positioned part (a pseudo-element knob) placed elsewhere in this variant: checked moves it to the right.
-      const pin = m.parts.find((x) => x.id === mid)?.pin;
+      const mp = m.parts.find((x) => x.id === mid);
+      const pin = mp?.pin ?? (mp?.overlay ? pinFromBoxes(m, mp) : undefined);
       if (p.pin && pin && JSON.stringify(pin) !== JSON.stringify(p.pin)) pins[p.id] = pin;
+      // A decoration aligned elsewhere in this variant (the knob at the end when on): its parent's alignment moves.
+      if (mp?.layout && p.layout) {
+        const layout = alignedLayout({ ...mp, id: p.id }, m.parts.map((x) => ({ ...x, parent: x.parent === mid ? p.id : x.parent })));
+        if (layout && (layout.primary !== p.layout.primary || layout.counter !== p.layout.counter || layout.direction !== p.layout.direction)) layouts[p.id] = layout;
+      }
+      if (mp?.wrap) wraps[p.id] = mp.wrap.padding;
       const vec = p.kind === 'vector' ? m.vectors?.[mid] : undefined;
       // Strokes bind by shape order: with a token the library does not have, the SVG keeps its own (resolved) colors.
       if (vec) vectors[p.id] = { svg: vec.svg, strokes: vec.strokes.every((v) => typeof v !== 'string' || known(v)) ? [...vec.strokes] : [] };
     }
-    const variant: SpecVariant = { props, values, ...(hidden.length ? { hidden } : {}), ...(Object.keys(vectors).length ? { vectors } : {}), ...(Object.keys(pins).length ? { pins } : {}) };
+    const variant: SpecVariant = { props, values, ...(hidden.length ? { hidden } : {}), ...(Object.keys(vectors).length ? { vectors } : {}), ...(Object.keys(pins).length ? { pins } : {}), ...(Object.keys(layouts).length ? { layout: layouts } : {}) };
     variants.push(variant);
     spacersOf.set(variant, spacers);
+    wrapsOf.set(variant, wraps);
     if (story.shot) shotOf.set(variant, story.shot);
   }
   textRootInFrame(parts, variants);
-  spacerWrappers(parts, variants, spacersOf);
+  spacerWrappers(parts, variants, spacersOf, wrapsOf);
   const properties = textProperties(parts, base.story, argTypes, new Set(axes.map((a) => a.name)));
   const kept = drawnAxes(axes, variants);
   // The story it was measured from: the set's doc section links to it.
@@ -232,12 +271,39 @@ function textRootInFrame(parts: SpecPart[], variants: SpecVariant[]): void {
   }
 }
 
+/** An overlay's place in its parent, from the measured boxes (px from the parent's top and left edges). */
+function pinFromBoxes(spec: MeasuredSpec, part: MeasuredPart): NonNullable<SpecPart['pin']> | undefined {
+  const box = spec.boxes?.[part.id];
+  const parent = part.parent ? spec.boxes?.[part.parent] : undefined;
+  if (!box || !parent) return undefined;
+  return { top: Math.round((box.y - parent.y) * 100) / 100, left: Math.round((box.x - parent.x) * 100) / 100 };
+}
+
+/**
+ * A frame whose one child in the flow is aligned by the measure (`layout.align`: a knob at the start or the end of its
+ * switch) carries that alignment itself, so a designer can resize the component and the child stays where code puts it.
+ * Its padding (in values) is the offset. With several children in the flow, the frame keeps its own alignment.
+ */
+function alignedLayout(part: MeasuredPart, parts: readonly MeasuredPart[]): SpecLayout | undefined {
+  const layout = part.layout;
+  if (!layout?.align) return layout;
+  const { align, ...own } = layout;
+  const flow = parts.filter((c) => c.parent === part.id && !c.pin && !c.cover && !c.overlay);
+  const a = flow.length === 1 ? align[flow[0]!.id] : undefined;
+  return a ? { ...own, primary: a.primary ?? own.primary, counter: a.counter ?? own.counter } : own;
+}
+
 /**
  * A margin the parent's gap does not cover (`spacers`: the extra space before a part) becomes a wrapper named after the
  * part ("Label wrapper"), its padding on the side the margin is: Figma's auto layout has one gap per frame.
  */
-function spacerWrappers(parts: SpecPart[], variants: SpecVariant[], spacersOf: Map<SpecVariant, Record<string, number>>): void {
-  const wrapped = parts.filter((p) => p.parent && !p.pin && !p.cover && variants.some((v) => spacersOf.get(v)?.[p.id]));
+function spacerWrappers(
+  parts: SpecPart[],
+  variants: SpecVariant[],
+  spacersOf: Map<SpecVariant, Record<string, number>>,
+  wrapsOf: Map<SpecVariant, Record<string, NonNullable<MeasuredPart['wrap']>['padding']>> = new Map(),
+): void {
+  const wrapped = parts.filter((p) => p.parent && !p.pin && !p.cover && variants.some((v) => spacersOf.get(v)?.[p.id] || wrapsOf.get(v)?.[p.id]));
   for (const p of wrapped) {
     const parent = parts.find((x) => x.id === p.parent);
     const row = parent?.layout?.direction === 'HORIZONTAL';
@@ -246,8 +312,16 @@ function spacerWrappers(parts: SpecPart[], variants: SpecVariant[], spacersOf: M
     parts.splice(parts.indexOf(p), 0, wrapper);
     p.parent = id;
     for (const v of variants) {
+      // The margins the measure gives (`wrap`), or the extra space before the part (`spacers`).
+      const pad = wrapsOf.get(v)?.[p.id];
       const space = spacersOf.get(v)?.[p.id] ?? 0;
-      v.values[id] = space ? { [row ? 'paddingLeft' : 'paddingTop']: space } : {};
+      const values: Partial<Record<SpecField, SpecValue>> = {};
+      if (pad?.top) values.paddingTop = pad.top;
+      if (pad?.right) values.paddingRight = pad.right;
+      if (pad?.bottom) values.paddingBottom = pad.bottom;
+      if (pad?.left) values.paddingLeft = pad.left;
+      if (space) values[row ? 'paddingLeft' : 'paddingTop'] = ((values[row ? 'paddingLeft' : 'paddingTop'] as number | undefined) ?? 0) + space;
+      v.values[id] = values;
       if (v.hidden?.includes(p.id)) v.hidden.push(id);
     }
   }
@@ -328,7 +402,10 @@ function drawnAxes(axes: SpecAxis[], variants: SpecVariant[]): { axes: SpecAxis[
 }
 
 /** Every set the measure can give, by component (the last segment of a story's title: "Figma variants/Radio" is Radio). */
-export function specsFromMeasure(file: MeasuredSpecsFile, opts: { known?: ((path: string) => boolean) | undefined } = {}): { specs: ComponentSpecsFile; report: MeasuredOnlyReport; shots: MeasuredShots } {
+export function specsFromMeasure(
+  file: MeasuredSpecsFile | FixedMeasuredSpecsFile,
+  opts: { known?: ((path: string) => boolean) | undefined } = {},
+): { specs: ComponentSpecsFile; report: MeasuredOnlyReport; shots: MeasuredShots; hints: Record<string, FigmaHints> } {
   const known = opts.known ?? (() => true);
   const groups = new Map<string, MeasuredSpecsStory[]>();
   for (const s of file.stories) {
@@ -337,11 +414,14 @@ export function specsFromMeasure(file: MeasuredSpecsFile, opts: { known?: ((path
     groups.set(name, [...(groups.get(name) ?? []), s]);
   }
   const argTypesOf = (name: string) => Object.assign({}, ...(file.components ?? []).filter((c) => setNameOf(c.title) === name).map((c) => c.argTypes));
+  // What figma-fixes.json says about a set (applyFixes): its property names and values, its status and notes.
+  const hints: Record<string, FigmaHints> = {};
+  for (const c of (file.components ?? []) as FixedComponent[]) if (c.figma) hints[setNameOf(c.title)] = { ...hints[setNameOf(c.title)], ...c.figma };
   const components: ComponentSpec[] = [];
   const shots: MeasuredShots = {};
   const report: MeasuredOnlyReport = { sets: 0, variants: 0, stories: 0, skipped: [] };
   for (const [name, stories] of [...groups].sort(([a], [b]) => a.localeCompare(b))) {
-    const built = setOf(name, stories, argTypesOf(name), file.storybook, known);
+    const built = setOf(name, stories, argTypesOf(name), file.storybook, known, hints[name]);
     if (!built) {
       report.skipped.push(name);
       continue;
@@ -353,5 +433,5 @@ export function specsFromMeasure(file: MeasuredSpecsFile, opts: { known?: ((path
     report.variants += spec.variants.length;
     report.stories += stories.length;
   }
-  return { specs: { version: 1, generated: `Measured from ${file.storybook} on ${file.measuredAt} (bridge specs --measure).`, components }, report, shots };
+  return { specs: { version: 1, generated: `Measured from ${file.storybook} on ${file.measuredAt} (bridge specs --measure).`, components }, report, shots, hints };
 }

@@ -229,11 +229,13 @@ Claude Code with the MCP server.
 
 ### What the plugin's "Fix with Claude" button calls
 
-After Check fidelity, for a set whose result is Differs: write the run (`FigmaFidelityRun`: `report`, `built` read
-back per variant with `values`, `hidden` and `boxes`, `figmaRenders`) to `figma-fidelity.json` on the
-`bridge-requests` branch (the branch "Draft with my Claude" already writes to), then show the prompt to paste into
-Claude: "Fix <component> in Figma with Bridge". The designer's Claude reads it through `bridge_figma_gaps` and
-`bridge_get_gap_case`. Before building, the pull applies figma-fixes.json (see the contract in `applyFixes` above).
+After Check fidelity, for a set whose result is Differs: write the run (`FigmaFidelityRun`: `report`, `built` per
+set and variant from the `read-built` read-back the plugin already does for its gap cases, with `boxes` and `hidden`,
+and `figmaRenders`) to `figma-fidelity.json` on the `bridge-requests` branch (the branch "Draft with my Claude" already
+writes to), then show the prompt to paste into Claude: "Fix <component> in Figma with Bridge". The designer's Claude
+reads it through `bridge_figma_gaps` and `bridge_get_gap_case`. Before building, the pull already applies
+figma-fixes.json. The plugin can import `specsFromMeasure` from core and drop its own copy (a core test keeps both
+identical until then).
 
 ## Review
 

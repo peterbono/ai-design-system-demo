@@ -11,7 +11,7 @@
 
 import { variantKeyOf, type ComponentSpec, type SpecField, type SpecPart, type SpecValue, type SpecVariant } from './component-spec';
 import type { FidelityComponentResult, FidelityReport } from './fidelity';
-import { applyFixes, describePartFix, validateFigmaFixes, type AppliedFix, type FigmaFix, type FigmaFixesFile, type FixedMeasuredSpecsFile, FIGMA_FIXES_VERSION } from './figma-fixes';
+import { applyFixes, describePartFix, validateFigmaFixes, type AppliedFix, type FigmaHints, type FigmaFix, type FigmaFixesFile, type FixedMeasuredSpecsFile, FIGMA_FIXES_VERSION } from './figma-fixes';
 import { buildGapCase, measuredResolver, storiesOfComponent, storyForVariant, variantDifferences, type GapBuiltVariant, type GapCase, type GapDifference } from './gap-case';
 import type { MeasuredSpecsFile } from './measured-spec';
 import { specsFromMeasure } from './measured-only';
@@ -295,7 +295,10 @@ export function tryFigmaFixes(input: TryFixesInput): TryFixesResult {
   const before = gapCaseFor({ component, measured: input.measured, fixes: input.fixes, run: input.run });
   const afterRun = applyFixes(input.measured, file);
   const applied = afterRun.applied.filter((a) => proposedIds.has(a.id));
-  const afterSpec = specsFromMeasure(afterRun.file as MeasuredSpecsFile).specs.components.find((c) => lc(c.name) === lc(component));
+  const afterBuilt = specsFromMeasure(afterRun.file as MeasuredSpecsFile);
+  const afterSpec = afterBuilt.specs.components.find((c) => lc(c.name) === lc(component));
+  const hintsA = afterSpec ? afterBuilt.hints[afterSpec.name] : undefined;
+  const hintsB = before.spec ? specsFromMeasure(before.measured as MeasuredSpecsFile).hints[before.spec.name] : undefined;
   const resolve = measuredResolver(before.measured);
   const built = byName(input.run?.built, component);
   const stories = storiesOfComponent(before.measured, component);
@@ -303,7 +306,9 @@ export function tryFigmaFixes(input: TryFixesInput): TryFixesResult {
   const variants: TriedVariant[] = [];
   for (const gv of before.gap.variants) {
     const vb = before.spec?.variants.find((v) => variantKeyOf(v.props) === gv.key);
-    const va = afterSpec?.variants.find((v) => variantKeyOf(v.props) === gv.key);
+    // An axis fix renames a property or its values: the same variant under its new name.
+    const want = before.spec ? renamedProps(gv.props, before.spec, afterSpec, hintsB, hintsA) : gv.props;
+    const va = afterSpec?.variants.find((v) => variantKeyOf(v.props) === gv.key) ?? afterSpec?.variants.find((v) => sameProps(v.props, want));
     if (!va || !afterSpec) {
       variants.push({ key: gv.key, ...(gv.story ? { story: gv.story.id } : {}), verdict: 'gone', differences: [], regressions: [] });
       continue;
@@ -336,6 +341,25 @@ export function tryFigmaFixes(input: TryFixesInput): TryFixesResult {
     detail: tryDetail(variants, applied),
     file,
   };
+}
+
+const sameProps = (a: Record<string, string>, b: Record<string, string>) => Object.keys(a).length === Object.keys(b).length && Object.entries(a).every(([k, v]) => b[k] === v);
+
+/** A variant's props as the set names them after the fixes: axes renamed and values mapped (figma-fixes.json axis fixes). */
+function renamedProps(props: Record<string, string>, specB: ComponentSpec, specA: ComponentSpec | undefined, hintsB: FigmaHints | undefined, hintsA: FigmaHints | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [name, value] of Object.entries(props)) {
+    const prop = specB.axes.find((a) => a.name === name)?.prop;
+    if (!prop) {
+      out[name] = value;
+      continue;
+    }
+    const axis = specA?.axes.find((a) => a.prop === prop);
+    if (!axis) continue;
+    const code = Object.entries(hintsB?.values?.[prop] ?? {}).find(([, f]) => f === value)?.[0] ?? value;
+    out[axis.name] = hintsA?.values?.[prop]?.[code] ?? code;
+  }
+  return out;
 }
 
 function verdictOf(diffs: TriedDifference[], regressions: GapDifference[]): FixVerdict {
