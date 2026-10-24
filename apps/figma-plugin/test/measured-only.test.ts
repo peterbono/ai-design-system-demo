@@ -540,6 +540,50 @@ test('an update that takes a fill away: the layer hugs again instead of keeping 
   assert.equal(row().layoutSizingVertical, 'HUG', 'hugs once the column has none');
 });
 
+test('a variant laid out in a column sizes its children for a column, not for the row of the base variant', async () => {
+  const sim = new SimFigma();
+  sim.install();
+  const files: Record<string, string> = {};
+  for (const [rel, text] of Object.entries(realFiles())) files[`${DEFAULT_SETTINGS.tokensPath}/${rel}`] = text;
+  files[`${DEFAULT_SETTINGS.tokensPath}/contrast.checks.json`] = realChecksText();
+  files['bridge.config.json'] = realConfigText();
+  const client = new FakeGitHub(files).client();
+  const a = await analyze(client, DEFAULT_SETTINGS, {}, await takeSnapshot());
+  await applyPullPlan(buildPull(a, new Map()).plan);
+  const c = {
+    name: 'Group',
+    hash: '',
+    source: ['https://storybook.acme.dev'],
+    axes: [{ name: 'Orientation', values: ['horizontal', 'vertical'], default: 'horizontal' }],
+    properties: [],
+    parts: [
+      { id: 'root', name: 'Root', kind: 'frame' as const, layout: { direction: 'HORIZONTAL' as const, primary: 'MIN' as const, counter: 'STRETCH' as const } },
+      // A legend: a text in the group, so the row of the base variant has a known height for its items to stretch to.
+      { id: 'legend', name: 'Legend', kind: 'text' as const, parent: 'root', characters: 'Group' },
+      { id: 'item', name: 'Item', kind: 'frame' as const, parent: 'root', layout: { direction: 'HORIZONTAL' as const, primary: 'MIN' as const, counter: 'CENTER' as const } },
+      { id: 'item-text', name: 'Item text', kind: 'text' as const, parent: 'item', characters: 'One' },
+      { id: 'item-2', name: 'Item 2', kind: 'frame' as const, parent: 'root', layout: { direction: 'HORIZONTAL' as const, primary: 'MIN' as const, counter: 'CENTER' as const } },
+      { id: 'item-2-text', name: 'Item 2 text', kind: 'text' as const, parent: 'item-2', characters: 'Two' },
+    ],
+    variants: [
+      { props: { Orientation: 'horizontal' }, values: { root: {}, legend: { fontSize: 12 }, item: {}, 'item-text': { fontSize: 14 }, 'item-2': {}, 'item-2-text': { fontSize: 14 } } },
+      {
+        props: { Orientation: 'vertical' },
+        values: { root: {}, legend: { fontSize: 12 }, item: {}, 'item-text': { fontSize: 14 }, 'item-2': {}, 'item-2-text': { fontSize: 14 } },
+        layout: { root: { direction: 'VERTICAL' as const, primary: 'MIN' as const, counter: 'MIN' as const } },
+      },
+    ],
+    unmapped: [],
+  };
+  const spec = { ...c, hash: hashSpec(c) };
+  const report = await applyComponentPlan(writablePlan(buildComponentPlan({ version: 1, generated: '', components: [spec] }, 'measured-specs.json', await scanGenerated(), a.head)));
+  assert.deepEqual(report.failed, []);
+  const set = sim.sets().find((x) => x.name === 'Group')!;
+  const item = (o: string) => set.children.find((v) => v.name.includes(`Orientation=${o}`))!.findOne((n) => n.name === 'Item')!;
+  assert.equal(item('horizontal').layoutSizingVertical, 'FILL', 'the row stretches its items to its height');
+  assert.notEqual(item('vertical').layoutSizingVertical, 'FILL', 'the column does not grow its items');
+});
+
 test('measured only with screenshots: each variant keeps the render of the story it was built from', () => {
   const m = fixture();
   m.stories = m.stories.filter((s) => s.title.endsWith('/Tabs'));
