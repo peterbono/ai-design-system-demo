@@ -550,7 +550,7 @@ Vercel function, `apps/docs-site/api/account/index.ts`; the record and the sessi
 | `POST { action: 'sign-out' }`                   | clears the cookie on this browser                                     |
 | `POST { action: 'sign-out-everywhere' }`        | bumps the account's version: every session ends                       |
 | `POST { action: 'delete-check' }`               | before the confirm field: `{ blocked: [{ repo, name, people: [{ name, email }] }] }`, the teams the person is the only admin of while others are on them, with the email members who could take over; `[]` when deleting goes through |
-| `POST { action: 'delete' }`                     | deletes the account, its GitHub link, its email memberships (which ends their contributor sessions) and every session; a team made in Bridge they were alone on goes too. 409 `last-admin` with `teams` and `blocked` when the person is the only admin of a team that has other members; the message names the team |
+| `POST { action: 'delete' }`                     | deletes the account, its GitHub link, its email memberships (which ends their contributor sessions) and every session; a team made in Bridge they were alone on goes too; the changes they sent through Bridge stay in their teams' history by "A former member" (`api/_lib/former-member.ts`: the `bridge:contrib:*` keys holding the email go, and with the Bridge app set up, `GITHUB_APP_ID` + `GITHUB_APP_PRIVATE_KEY`, their "Requested by" lines on GitHub become "Requested by A former member through Bridge."). 409 `last-admin` with `teams` and `blocked` when the person is the only admin of a team that has other members; the message names the team |
 
 Every `POST` carries `X-Bridge-Account: 1`, JSON, and an `Origin` of this very site (CSRF).
 

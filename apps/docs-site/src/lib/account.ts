@@ -230,7 +230,7 @@ export const ACCOUNT_WORDS = {
   signedOut: "You're signed out.",
   deleted: 'Your account is deleted.',
   deleteTitle: 'Delete my account',
-  deleteHelp: 'Removes your account, your email memberships and your sessions. Your teams keep the changes you made.',
+  deleteHelp: 'Removes your account, your email memberships and your sessions. Your teams keep the changes you made, signed "A former member".',
   deleteConfirmLabel: 'Type DELETE to confirm',
   deleteConfirmWord: 'DELETE',
   deleteConfirm: 'Delete my account',

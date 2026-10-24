@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { requesterLine, requesterOf } from '../src/index';
+import { FORMER_MEMBER, requesterFirstName, requesterLine, requesterOf } from '../src/index';
 
 describe('requesterOf', () => {
   it('reads the line Bridge writes, in its three forms', () => {
@@ -39,5 +39,13 @@ describe('requesterOf', () => {
       expect(requesterOf(`Text\n\n${requesterLine(r)}\n`)).toEqual(r);
     }
     expect(() => requesterLine({ name: null, login: null })).toThrow();
+  });
+});
+
+describe('a former member', () => {
+  it('reads the line Bridge leaves once an email member deleted their account, and keeps it whole in sentences', () => {
+    expect(requesterOf(`Tokens\n\nRequested by ${FORMER_MEMBER} through Bridge.`)).toEqual({ name: FORMER_MEMBER, login: null });
+    expect(requesterFirstName(FORMER_MEMBER)).toBe('A former member');
+    expect(requesterFirstName('Priya Shah')).toBe('Priya');
   });
 });

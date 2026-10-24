@@ -7,7 +7,7 @@
 // Without a token the bar's primary connects GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
 import { figmaPushFor } from './figma-push-read';
-import { EXPLORATION_USE_CASES, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, lookAgainReviewers, canOverride, overrideReasonMin, ownerOverridePolicy, soloOwnerSentence, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
+import { EXPLORATION_USE_CASES, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, requesterFirstName, lookAgainReviewers, canOverride, overrideReasonMin, ownerOverridePolicy, soloOwnerSentence, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
 import { loadTeams, siteApprovalRules, siteApprovers, siteRoles, siteShipPolicy, siteSoloOwner, teamDirectory, teamSnapshot } from './teams';
 import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
@@ -920,7 +920,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   // the page names Priya where it would name the app ("Waiting for Priya to address the changes").
   const opener = pull.user.login;
   const forMember = !seat && /\[bot\]$/i.test(opener) ? requesterOf(pull.body) : null;
-  if (forMember?.name) aliases.set(opener.toLowerCase(), forMember.name.split(/\s+/)[0]!);
+  if (forMember?.name) aliases.set(opener.toLowerCase(), requesterFirstName(forMember.name));
   const viewer = login ?? seatOwner;
   // Developers (tech owners) see the technical side: failing tests, updating from main, the GitHub link. Designers
   // read who acts instead ("A developer is on it").

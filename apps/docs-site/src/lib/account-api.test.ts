@@ -21,6 +21,8 @@ import {
 import { handleContribute } from '../../api/contribute/index';
 import { type EmailMessage, inviteStoreOn, INVITE_TTL_MS } from '../../api/invites/index';
 import { sha256 } from '../../api/_lib/http';
+import { anonymiseRequestedBy, FORMER_MEMBER, FORMER_MEMBER_LINE } from '../../api/_lib/former-member';
+import { requesterOf } from '@bridge-ds/core';
 
 const HOST = 'bridge.example.com';
 const ORIGIN = `https://${HOST}`;
@@ -35,13 +37,15 @@ interface GhWorld {
   /** Repositories the app and the user share, with the user's permissions. */
   repos: { full_name: string; permissions: { admin: boolean } }[];
   collaborators: Record<string, { id: number; login: string; permissions: { admin: boolean } }[]>;
+  /** Issue and pull request bodies on GitHub, by "owner/repo#n" (read and edited with the Bridge app's token). */
+  issues: Record<string, string>;
 }
 
 const res = (status: number, body?: unknown) => new Response(body === undefined ? null : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 function setup(gh: Partial<GhWorld> = {}) {
   let now = T0;
-  const w: GhWorld = { user: { id: 77, login: 'mia-gh', name: 'Mia Chen' }, emails: [{ email: 'Mia@Acme.design', verified: true, primary: true }], repos: [], collaborators: {}, ...gh };
+  const w: GhWorld = { user: { id: 77, login: 'mia-gh', name: 'Mia Chen' }, emails: [{ email: 'Mia@Acme.design', verified: true, primary: true }], repos: [], collaborators: {}, issues: {}, ...gh };
   const calls: string[] = [];
   const redis = memoryRedis(() => now);
   const members = memberStore(redis);
@@ -66,6 +70,13 @@ function setup(gh: Partial<GhWorld> = {}) {
       if (u.pathname === '/user/emails') return w.emails === 'forbidden' ? res(403, {}) : res(200, w.emails);
       if (u.pathname === '/user/installations') return res(200, { installations: [{ id: 5 }] });
       if (u.pathname === '/user/installations/5/repositories') return res(200, { repositories: w.repos });
+      const issue = /^\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)$/.exec(u.pathname);
+      if (issue) {
+        const k = `${issue[1]}#${issue[2]}`;
+        if (!(k in w.issues)) return res(404, {});
+        if (init.method === 'PATCH') w.issues[k] = JSON.parse(init.body!).body;
+        return res(200, { number: Number(issue[2]), body: w.issues[k] });
+      }
       const m = /^\/repos\/([^/]+\/[^/]+)\/collaborators$/.exec(u.pathname);
       if (m) return res(200, w.collaborators[m[1]!] ?? []);
       return res(404, {});
@@ -77,6 +88,8 @@ function setup(gh: Partial<GhWorld> = {}) {
     email: { send: async (msg) => void sent.push(msg) },
     blob: () => blob,
     warn: (m) => void warnings.push(m),
+    // The Bridge app: its installation token stands as the same fake token here.
+    app: { installationToken: async () => GH_TOKEN },
   };
   return { w, deps, redis, members, sent, calls, warnings, blobs, tick: (ms: number) => (now += ms), setCodes: (c: string[]) => (codes = c) };
 }
@@ -391,6 +404,58 @@ describe('delete', () => {
     expect(s.redis.keys().filter((k) => k.includes('mia') || (k.startsWith('bridge:account') && !k.startsWith('bridge:account:count:')))).toEqual([]);
     expect((await (await handleAccount(me(cookie), ENV, s.deps)).json()).account).toBeNull();
     expect((await handleAccount(act({ action: 'delete' }, { cookie }), ENV, s.deps)).status).toBe(401);
+  });
+
+  it('keeps the changes they sent in the team history by "A former member", with no record of their email', async () => {
+    const s = setup();
+    await s.members.put('acme/design', member('mia@acme.design'));
+    // What /api/contribute recorded: a branch and a pull request on acme/design, an issue on a team Mia already left.
+    const year = 365 * 24 * 60 * 60;
+    await s.redis.pipe([
+      ['SET', 'bridge:contrib:branch:acme/design:bridge/deeper-blue', 'mia@acme.design', 'EX', year],
+      ['SET', 'bridge:contrib:issue:acme/design:12', 'mia@acme.design', 'EX', year],
+      ['SADD', 'bridge:contrib:mine:acme/design:mia@acme.design', 'b:bridge/deeper-blue', 'i:12'],
+      ['SET', 'bridge:contrib:issue:acme/old:4', 'mia@acme.design', 'EX', year],
+      ['SADD', 'bridge:contrib:mine:acme/old:mia@acme.design', 'i:4'],
+      ['SET', 'bridge:contrib:count:acme/design:mia@acme.design:2026-10-22', '3', 'EX', 100],
+      // Someone else's change on the same team stays theirs.
+      ['SET', 'bridge:contrib:issue:acme/design:13', 'lee@acme.design', 'EX', year],
+      ['SADD', 'bridge:contrib:mine:acme/design:lee@acme.design', 'i:13'],
+    ]);
+    s.w.issues['acme/design#12'] = 'Deeper primary blue.\n\nRequested by Mia Chen (mia@acme.design) through Bridge.';
+    s.w.issues['acme/old#4'] = 'Requested by Mia Chen through Bridge.';
+    s.w.issues['acme/design#13'] = 'Requested by Lee Park (lee@acme.design) through Bridge.';
+    const { cookie } = await signInWithCode(s, 'mia@acme.design', 'Mia Chen');
+    expect((await handleAccount(act({ action: 'delete' }, { cookie }), ENV, s.deps)).status).toBe(200);
+    // On GitHub the change stays, by "A former member", without the email or the name.
+    expect(s.w.issues['acme/design#12']).toBe(`Deeper primary blue.\n\n${FORMER_MEMBER_LINE}`);
+    expect(s.w.issues['acme/old#4']).toBe(FORMER_MEMBER_LINE);
+    expect(s.w.issues['acme/design#13']).toContain('Lee Park');
+    expect(requesterOf(s.w.issues['acme/design#12'])).toEqual({ name: FORMER_MEMBER, login: null });
+    // No key keeps her email; Lee's record is untouched.
+    expect(s.redis.keys().filter((k) => k.includes('mia'))).toEqual([]);
+    expect(Object.values(Object.fromEntries(s.redis.dump())).flat()).not.toContain('mia@acme.design');
+    expect(await s.redis.cmd('GET', 'bridge:contrib:issue:acme/design:13')).toBe('lee@acme.design');
+  });
+
+  it('deletes the account even when GitHub cannot be reached or the app is not set up', async () => {
+    for (const app of [null, { installationToken: async () => Promise.reject(new Error('down')) }]) {
+      const s = setup();
+      s.deps.app = app;
+      await s.redis.pipe([
+        ['SET', 'bridge:contrib:issue:acme/design:12', 'mia@acme.design'],
+        ['SADD', 'bridge:contrib:mine:acme/design:mia@acme.design', 'i:12'],
+      ]);
+      const { cookie } = await signInWithCode(s);
+      expect((await handleAccount(act({ action: 'delete' }, { cookie }), ENV, s.deps)).status).toBe(200);
+      expect(s.redis.keys().filter((k) => k.includes('mia'))).toEqual([]);
+    }
+  });
+
+  it('rewrites only the line Bridge writes for an email member', () => {
+    expect(anonymiseRequestedBy('Why.\n\nRequested by Ann Leroy (ann@acme.com) through Bridge.\n')).toBe(`Why.\n\n${FORMER_MEMBER_LINE}\n`);
+    expect(anonymiseRequestedBy('Requested by Ann Leroy (@annleroy).')).toBe('Requested by Ann Leroy (@annleroy).');
+    expect(anonymiseRequestedBy('We requested by mail through Bridge. Then more.')).toBe('We requested by mail through Bridge. Then more.');
   });
 
   it('refuses with 409 last-admin when the person is the only admin of a team with other members, on GitHub', async () => {
