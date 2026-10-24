@@ -27,6 +27,13 @@ export const SOURCE_FIGMA_LABEL = 'source: figma';
 /** A build request waits this many days before it reads as stale. */
 export const BUILD_STALE_DAYS = 7;
 
+/**
+ * What the two images of a build request are called on designer screens (Studio): the component as it is in code
+ * now, and the design in Figma. The data keeps its field names, `before` and `after`; the GitHub issue table, read by
+ * developers, keeps Before and After.
+ */
+export const BUILD_IMAGE_LABEL = { before: 'In code now', after: 'In Figma' } as const;
+
 // ---------------------------------------------------------------------------------------------------------------
 // What a push from Figma is, and what it changes
 

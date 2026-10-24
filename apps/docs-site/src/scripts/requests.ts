@@ -7,7 +7,7 @@ import { workNature } from '../lib/work-nature';
 import { devTag, markWork, natureAttr } from './work-filter';
 import { badgeHtml } from '@bridge-ds/react/dom';
 import { REQUEST_TRIAGE_IN_STUDIO } from '../lib/studio-flags';
-import { assignRequestOnGitHub, closingIssueNumbers, subjectTitle, declineReasonProblems, declineRequestOnGitHub, REQUEST_LABEL, REQUEST_STATUS_LABEL, requestIssueTitle, type IntegrationsConfig } from '@bridge-ds/core';
+import { assignRequestOnGitHub, BUILD_IMAGE_LABEL, closingIssueNumbers, subjectTitle, declineReasonProblems, declineRequestOnGitHub, REQUEST_LABEL, REQUEST_STATUS_LABEL, requestIssueTitle, type IntegrationsConfig } from '@bridge-ds/core';
 import {
   assigneeOptions,
   buildState,
@@ -215,15 +215,15 @@ function section(id: string, title: string, meta: string, body: string, open = f
   return `<details class="cg-sec" id="${id}"${open ? ' open' : ''}><summary class="cg-sec-head"><span class="cg-sec-title">${title}</span><span class="cg-sec-meta">${meta}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary><div class="cg-sec-body">${body}</div></details>`;
 }
 
-/** Before and after side by side, each with its label, or the single image the request carries. */
+/** In code now and in Figma side by side, each with its label, or the single image the request carries. */
 function picturesHtml(r: RequestRow): { title: string; body: string } | null {
   const { pair, single } = requestImages(r);
   const figure = (src: string, label: string, alt: string) =>
     `<figure class="rq-fig">${label ? `<figcaption class="rq-fig-cap">${esc(label)}</figcaption>` : ''}<a href="${attrUrl(src)}" target="_blank" rel="noopener"><img class="rq-img" src="${attrUrl(src, '')}" alt="${esc(alt)}" loading="lazy" /></a></figure>`;
   if (pair) {
     return {
-      title: 'Before and after',
-      body: `<div class="rq-pair-imgs">${figure(pair.before, 'Before: the baseline', `${r.component} before`)}${figure(pair.after, 'After: in Figma', `${r.component} after, in Figma`)}</div>`,
+      title: `${BUILD_IMAGE_LABEL.before} and in Figma`,
+      body: `<div class="rq-pair-imgs">${figure(pair.before, BUILD_IMAGE_LABEL.before, `${r.component}, in code now`)}${figure(pair.after, BUILD_IMAGE_LABEL.after, `${r.component}, in Figma`)}</div>`,
     };
   }
   if (!single.length) return null;
