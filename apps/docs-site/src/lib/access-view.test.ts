@@ -112,7 +112,7 @@ describe('the team chip', () => {
     const anon = chipIdentity('peterbono/ai-design-system-demo', { demo: true, state: null, signedIn: false });
     expect(anon).toMatchObject({ kind: 'demo', name: 'Bridge DS', badge: { label: 'Explore freely' } });
     expect(anon.sample).toBeFalsy();
-    expect(anon.title).toContain('peterbono/ai-design-system-demo');
+    expect(anon.title).toBe('Bridge DS design system');
     expect(chipIdentity('peterbono/ai-design-system-demo', { demo: true, state: 'admin', signedIn: true }).badge.label).toBe('Admin');
     expect(chipIdentity('acme/ds', { demo: false, state: 'anonymous-public', signedIn: false })).toMatchObject({ kind: 'team', name: 'Ds', title: 'Ds, acme/ds', badge: { label: 'Guest' } });
     expect(chipIdentity('acme/ds', { demo: false, state: 'writer', signedIn: true, name: 'Acme Studio' })).toMatchObject({ name: 'Acme Studio', title: 'Acme Studio, acme/ds' });
@@ -128,7 +128,7 @@ describe('the team chip', () => {
     for (const f of [{ state: null, signedIn: false }, { state: 'admin' as const, signedIn: true }]) {
       const chip = chipIdentity('peterbono/bridge-demo-ds', { demo: true, ...f });
       expect(chip).toMatchObject({ kind: 'demo', sample: true, name: 'Acme Design', badge: { label: 'Demo', tone: 'info' } });
-      expect(chip.title).toContain('peterbono/bridge-demo-ds');
+      expect(chip.title).toBe('Acme Design, a sample team');
     }
   });
 

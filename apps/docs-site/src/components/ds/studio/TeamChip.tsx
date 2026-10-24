@@ -1,6 +1,6 @@
 // The team chip at the top of the Studio side nav (multi-team plan 7.1): the design system you are looking at, not your
 // account. The owner's avatar, the team's name (lib/demo.ts teamDisplayName: bridge.config.json `name` once read, else
-// the repository name in words; owner/repo in its title) and what you can do on it as a badge ("Can edit", "Can suggest",
+// the repository name in words; owner/repo in its title on a real team, never on a sample) and what you can do on it as a badge ("Can edit", "Can suggest",
 // "Guest"), then a chevron. On Bridge's own design system (the self-hosted site's own repository) it shows the Bridge
 // mark and "Bridge" instead of the owner's photo, and a visitor without an account reads "Explore freely". On the
 // sample team it reads "Acme Design" with its initials and a "Demo" tag (lib/demo.ts). It is the nav's
@@ -21,7 +21,7 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Check, ChevronsUpDown, LogIn, Plus, UserPlus, X } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
-import { Avatar, Badge, Button, Icon, Menu, MenuContent, MenuGroup, MenuItem, MenuSeparator, MenuTrigger } from '@bridge-ds/react';
+import { Avatar, Badge, Button, Icon, Menu, MenuContent, MenuGroup, MenuItem, MenuSeparator, MenuTrigger, VisuallyHidden } from '@bridge-ds/react';
 import type { RepoAccessState } from '@bridge-ds/core';
 import { chipIdentity, isDemoTeam, memberRole, ownerAvatarUrl, recentTeamName } from '../../../lib/access-view';
 import { forgetRecentTeam, knownTeamName, loadRecentTeams, loadTeamNames, loadTeamRoles, noteTeamAccess, noteTeamName, noteTeamRole } from '../../../lib/recent-teams';
@@ -242,8 +242,6 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     const a = await resolveAccess({ owner: o, repo: r }, { anonymous: true, probe: true });
     return a && { state: a.state, repoAdmin: a.repoAdmin };
   }, []);
-  // The team by its name and the role, never its repository: "Mobile kit, Can edit, Team menu".
-  const label = name || workspace ? `${chip.name}, ${badge.label}, Team menu` : 'Team menu';
   // The menu's parts in order, a separator between two: the teams to switch to (board EmptyB), what to do here, the
   // recent teams, then "Create a new team" once signed in (signed out it comes first among the actions).
   const blocks: { key: string; node: ReactNode }[] = [];
@@ -341,7 +339,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     <>
       <Menu>
         <MenuTrigger
-          render={<Button variant="ghost" fullWidth className="tc-trigger" aria-label={label} />}
+          render={<Button variant="ghost" fullWidth className="tc-trigger" />}
         >
           {chip.kind === 'demo' && chip.sample ? (
             <SampleMark size="sm" />
@@ -353,12 +351,16 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
             <Avatar name={owner || 'Team'} src={owner ? ownerAvatarUrl(owner) : undefined} size="sm" decorative className="tc-avatar" />
           )}
           <span className="tc-text">
+            {/* Named by what it shows (WCAG 2.5.3: voice control finds it by its visible text): the team's name and the
+                role, never its repository, then a hidden "team menu". The avatar is decorative, out of the name. */}
             <span className="tc-name" title={chip.title}>
               {chip.name}
             </span>
+            <VisuallyHidden>,</VisuallyHidden>{' '}
             <Badge size="sm" tone={badge.tone} dot className="tc-badge">
               {badge.label}
             </Badge>
+            <VisuallyHidden>, team menu</VisuallyHidden>
           </span>
           <Icon icon={ChevronsUpDown} size="sm" className="tc-chev" />
         </MenuTrigger>

@@ -8,6 +8,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RepoAccessState } from '@bridge-ds/core';
+import axe from 'axe-core';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import { RECENT_TEAMS_KEY } from '../../../lib/access-view';
 import TeamChip from './TeamChip';
@@ -38,7 +39,7 @@ const stored = () => JSON.parse(localStorage.getItem(RECENT_TEAMS_KEY) ?? '[]') 
 async function openMenu() {
   const user = userEvent.setup();
   render(createElement(TeamChip, { launcher: true }));
-  const trigger = await screen.findByRole('button', { name: /, Team menu$/ });
+  const trigger = await screen.findByRole('button', { name: /, team menu$/ });
   await user.click(trigger);
   const menu = await screen.findByRole('menu');
   return { user, menu };
@@ -113,8 +114,12 @@ describe('TeamChip names the team', () => {
     page.site = { name: 'Acme Studio' };
     render(createElement(TeamChip, { launcher: true }));
     // The menu button says the name, the role and the menu, never the repository.
-    const trigger = await screen.findByRole('button', { name: 'Acme Studio, Guest, Team menu' });
+    const trigger = await screen.findByRole('button', { name: 'Acme Studio, Guest, team menu' });
     expect(within(trigger).getByText('Acme Studio')).toHaveAttribute('title', 'Acme Studio, acme/ds');
+    // Named by its visible text (WCAG 2.5.3), the avatar out of the name: no aria-label to drift from what it shows.
+    expect(trigger).not.toHaveAttribute('aria-label');
+    const mismatch = await axe.run(trigger, { runOnly: ['label-content-name-mismatch'] });
+    expect(mismatch.violations).toEqual([]);
     await waitFor(() => expect(page.listeners.length).toBeGreaterThan(0));
     act(() => page.listeners.forEach((l) => l({ state: 'reader' })));
     await waitFor(() => expect(JSON.parse(localStorage.getItem('bridge.teamNames') ?? '{}')).toEqual({ 'acme/ds': 'Acme Studio' }));
@@ -140,7 +145,7 @@ describe('TeamChip "Your teams"', () => {
     render(createElement(TeamChip, { launcher: true }));
     await waitFor(() => expect(page.listeners.length).toBeGreaterThan(0));
     act(() => page.listeners.forEach((l) => l({ state: 'admin' })));
-    await user.click(await screen.findByRole('button', { name: /^Bridge DS, .*Team menu$/ }));
+    await user.click(await screen.findByRole('button', { name: /^Bridge DS, .*team menu$/ }));
     const menu = await screen.findByRole('menu');
     const yours = within(menu).getByRole('group', { name: 'Your teams' });
     const here = within(yours).getByRole('menuitem', { name: /^Bridge DS/ });
@@ -253,14 +258,14 @@ describe('TeamChip pill and name, from the server', () => {
     render(createElement(TeamChip, { launcher: true }));
     await waitFor(() => expect(page.listeners.length).toBeGreaterThan(0));
     act(() => page.listeners.forEach((l) => l({ state: 'writer', contributor: true, admin: false } as never)));
-    expect(await screen.findByRole('button', { name: 'Ds, Admin, Team menu' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Ds, Admin, team menu' })).toBeInTheDocument();
     setContributeFetch(null);
   });
 
   it('names the team from the first paint with the name the account keeps, before its settings are read', async () => {
     localStorage.setItem('bridge.accountTeamNames', JSON.stringify({ 'acme/ds': 'Mobile Kit Pro' }));
     render(createElement(TeamChip, { launcher: true }));
-    expect(await screen.findByRole('button', { name: /^Mobile Kit Pro, .*Team menu$/ })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^Mobile Kit Pro, .*team menu$/ })).toBeInTheDocument();
     expect(screen.queryByText('Ds')).toBeNull();
   });
 });

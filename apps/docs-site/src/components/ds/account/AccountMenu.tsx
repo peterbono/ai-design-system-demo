@@ -7,7 +7,7 @@
 // without accounts: the GitHub block keeps working as before.
 import { useEffect, useState } from 'react';
 import { Compass, LogOut, Settings } from 'lucide-react';
-import { Avatar, Button, Icon, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@bridge-ds/react';
+import { Avatar, Button, Icon, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, VisuallyHidden } from '@bridge-ds/react';
 import { ChevronsUpDown } from 'lucide-react';
 import { GitHubMark } from '../studio/brand-icons';
 import { ACCOUNT_WORDS as W, accountName, roleWord, signedOutHref, type Account } from '../../../lib/account';
@@ -98,20 +98,24 @@ export default function AccountMenu({ compact = false }: AccountMenuProps) {
     await linkGitHub(location.pathname + location.search + location.hash);
   };
 
-  const label = `${W.signedInAs(name)}. Account menu`;
+  // Named by what it shows (WCAG 2.5.3: voice control finds it by its visible text): the person's name and their role or
+  // email, then a hidden "account menu". The face is decorative; the top bar's face alone says who is signed in.
   return (
     <>
     <Menu>
       {compact ? (
-        <MenuTrigger render={<Button variant="ghost" size="sm" className="acc-menu-trigger" aria-label={label} />}>
+        <MenuTrigger render={<Button variant="ghost" size="sm" className="acc-menu-trigger" />}>
           <Avatar name={name} src={face} size="sm" decorative />
+          <VisuallyHidden>{W.signedInAs(name)}, account menu</VisuallyHidden>
         </MenuTrigger>
       ) : (
-        <MenuTrigger render={<Button variant="ghost" fullWidth className="acc-menu-trigger" aria-label={label} />}>
+        <MenuTrigger render={<Button variant="ghost" fullWidth className="acc-menu-trigger" />}>
           <Avatar name={name} src={face} size="md" decorative />
           <span className="acc-menu-text">
             <span className="acc-menu-name">{name}</span>
+            <VisuallyHidden>,</VisuallyHidden>{' '}
             <span className="acc-menu-line">{line}</span>
+            <VisuallyHidden>, account menu</VisuallyHidden>
           </span>
           <Icon icon={ChevronsUpDown} size="sm" />
         </MenuTrigger>

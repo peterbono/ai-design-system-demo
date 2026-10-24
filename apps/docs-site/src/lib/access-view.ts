@@ -243,14 +243,15 @@ export interface ChipIdentity {
  */
 export function chipIdentity(team: string | null, f: { demo: boolean; state: RepoAccessState | null; signedIn: boolean; name?: string | null }): ChipIdentity {
   if (f.demo && isSampleTeam(team)) {
-    return { kind: 'demo', sample: true, name: SAMPLE_TEAM, title: `${SAMPLE_TEAM}, a sample team, ${team}`, badge: { label: 'Demo', tone: 'info' } };
+    // A designer never reads the repository on a sample: only a real team's title names it (where it helps tell two apart).
+    return { kind: 'demo', sample: true, name: SAMPLE_TEAM, title: `${SAMPLE_TEAM}, a sample team`, badge: { label: 'Demo', tone: 'info' } };
   }
   const name = team ? teamDisplayName(team, { name: f.name }) : null;
   if (f.demo) {
     return {
       kind: 'demo',
       name: name ?? teamDisplayName(DEMO_TEAM),
-      title: team ? `${name} design system, ${team}` : `${teamDisplayName(DEMO_TEAM)} design system`,
+      title: `${name ?? teamDisplayName(DEMO_TEAM)} design system`,
       badge: f.signedIn ? accessBadge(f.state, true) : { label: 'Explore freely', tone: 'info' },
     };
   }
