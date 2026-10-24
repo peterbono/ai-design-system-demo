@@ -179,6 +179,10 @@ export async function loadJoinNeeds(now: number): Promise<NeedRow[]> {
   const a = currentAccess() ?? (await resolveAccess({ owner, repo }, { anonymous: true }).catch(() => null));
   if (!a?.admin && !a?.repoAdmin) return [];
   try {
+    // Join requests are Bridge's own: a GitHub admin without a Bridge account has none to read (the server would
+    // answer 401). The account is read once a page, so asking costs nothing more.
+    const { getAccount } = await import('./account-session');
+    if (!(await getAccount()).account) return [];
     const { listJoinRequests } = await import('./entry-session');
     const { teamNameSoon } = await import('./members');
     const [rows, team] = await Promise.all([listJoinRequests(full), teamNameSoon(full)]);

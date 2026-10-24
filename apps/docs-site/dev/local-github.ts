@@ -152,7 +152,7 @@ function teamFiles(src: FixtureFiles, f: Fixture) {
  * on the first fixture call (a git command), so a server without scenarios never runs git.
  */
 /** The sample build requests module (lib/building-sample.ts), loaded only when a team seeded with them asks. */
-export type SampleBuilds = () => Promise<Pick<typeof import('../src/lib/building-sample.js'), 'sampleBuildData'>>;
+export type SampleBuilds = () => Promise<Pick<typeof import('../src/lib/building-sample.js'), 'sampleBuildData' | 'SAMPLE_BUILDERS'>>;
 
 /**
  * `samples`: never a static import. This file loads with astro.config.mjs, where workspace packages resolve to their
@@ -192,6 +192,14 @@ export function fixtureGithub(redis: Redis, files: () => FixtureFiles, next: Fet
         return jsonRes(200, { login: l, name: PERSONAS[l]!.name, avatar_url: '', type: 'User', html_url: `https://github.com/${l}` });
       }
     }
+    // The people of the fixture teams by their names, whoever asks: the personas and the builders of the sample build
+    // requests (Being built names them, as it names real people by their GitHub profile).
+    const someone = /^\/users\/([^/]+)$/.exec(u.pathname);
+    if (someone && method === 'GET') {
+      const l = decodeURIComponent(someone[1]!);
+      const name = PERSONAS[l]?.name ?? (await samples()).SAMPLE_BUILDERS[l];
+      if (name) return jsonRes(200, { login: l, name, avatar_url: '', type: 'User', html_url: `https://github.com/${l}` });
+    }
     const m = /^\/repos\/([^/]+)\/([^/]+)(\/.*)?$/.exec(u.pathname);
     if (!m) return next(url, init);
     const repo = `${decodeURIComponent(m[1]!)}/${decodeURIComponent(m[2]!)}`.toLowerCase();
@@ -228,6 +236,10 @@ export function fixtureGithub(redis: Redis, files: () => FixtureFiles, next: Fet
     if ((p = /^\/branches\/(.+?)(\/protection)?$/.exec(rest))) {
       if (!isRef(decodeURIComponent(p[1]!)) || p[2]) return notFound();
       return jsonRes(200, { name: 'main', commit, protected: false });
+    }
+    // Only main exists on a read-only fixture (no bridge-data snapshot branch): the list a reader asks before reading one.
+    if ((p = /^\/git\/matching-refs\/heads\/?(.*)$/.exec(rest))) {
+      return jsonRes(200, 'main'.startsWith(decodeURIComponent(p[1]!)) ? [{ ref: 'refs/heads/main', object: { sha: s.commit, type: 'commit' } }] : []);
     }
     if ((p = /^\/git\/refs?\/(.+)$/.exec(rest))) {
       return isRef(decodeURIComponent(p[1]!)) ? jsonRes(200, { ref: 'refs/heads/main', object: { sha: s.commit, type: 'commit' } }) : notFound();
