@@ -6,6 +6,7 @@
 //   Requested by Ann Leroy (@annleroy).     a name and a GitHub login
 //   Requested by Ann Leroy.                 a name only (someone without a GitHub account, or a demo persona)
 //   Requested by @annleroy.                 a login only
+//   Requested by Ann Leroy (ann@acme.com) through Bridge.   an email member, written by Bridge's server (api/contribute)
 // Also read: the line of a component change request, "<sub>Requested from Figma by @ann with Bridge.</sub>", and,
 // when no "Requested by" line is there, the footer of a suggestion, "<sub>Suggested from Figma by @ann with Bridge.</sub>".
 
@@ -26,7 +27,9 @@ const SUGGESTED = new RegExp(LINE.source.replace('Requested (?:from', 'Suggested
 export function requesterOf(body: string | null | undefined): Requester | null {
   const m = LINE.exec(body ?? '') ?? SUGGESTED.exec(body ?? '');
   if (!m) return null;
-  const who = m[1]!.trim().replace(/\.$/, '');
+  // Bridge's server writes an email member's line as "Requested by Ann Leroy (ann@acme.com) through Bridge.": the
+  // name is the requester, the email stays in the body (never shown as a login).
+  const who = m[1]!.trim().replace(/\.$/, '').replace(/\s+through Bridge$/i, '').replace(/\s*\([^()\s@]+@[^()\s]+\)$/, '');
   const both = /^(.+?)\s*\(@([^)\s]+)\)$/.exec(who);
   if (both) return LOGIN.test(both[2]!) ? { name: both[1]!.trim(), login: both[2]! } : null;
   if (who.startsWith('@')) return LOGIN.test(who.slice(1)) ? { name: null, login: who.slice(1) } : null;

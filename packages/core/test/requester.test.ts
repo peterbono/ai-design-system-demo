@@ -8,6 +8,11 @@ describe('requesterOf', () => {
     expect(requesterOf('Requested by @ann-l.')).toEqual({ name: null, login: 'ann-l' });
   });
 
+  it('reads the line Bridge\'s server writes for an email member, without the email', () => {
+    expect(requesterOf('Tokens\n\nRequested by Priya Shah (priya@acme.com) through Bridge.')).toEqual({ name: 'Priya Shah', login: null });
+    expect(requesterOf('Requested by Priya Shah through Bridge.')).toEqual({ name: 'Priya Shah', login: null });
+  });
+
   it('reads the component change request footer', () => {
     expect(requesterOf('Body\n\n<sub>Requested from Figma by @dana with Bridge.</sub>')).toEqual({ name: null, login: 'dana' });
   });
