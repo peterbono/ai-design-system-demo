@@ -83,9 +83,9 @@ export function healthFigures(input: HealthInput): HealthFigure[] {
     out.push({
       id: 'adoption',
       value: pct(a.now),
-      label: 'of components come from Bridge',
+      label: 'of components come from the design system',
       detail: a.before === null ? `Across ${across}.` : `Up from ${pct(a.before)} before Bridge, across ${across}.`,
-      sentence: `${pct(a.now)} of components in ${across} come from Bridge${up}.`,
+      sentence: `${pct(a.now)} of components in ${across} come from the design system${up}.`,
       tone: null,
       href: `#${HEALTH_SECTION.adoption}`,
     });
