@@ -36,7 +36,7 @@
           }
         ]
       },
-      "hash": "39210776",
+      "hash": "5e65c109",
       "source": [
         "packages/react/src/components/Accordion/Accordion.tsx",
         "packages/react/src/components/Accordion/Accordion.module.css",
@@ -236,38 +236,6 @@
           "parent": "trigger-2",
           "source": "Icon.module.css .icon, Icon.module.css .sm, Accordion.module.css .chevron",
           "icon": "Icon/ChevronDown"
-        },
-        {
-          "id": "panel-2",
-          "name": "panel",
-          "kind": "frame",
-          "parent": "item-2",
-          "source": "Accordion.module.css .panel",
-          "layout": {
-            "direction": "VERTICAL",
-            "primary": "MIN",
-            "counter": "STRETCH"
-          },
-          "clip": true
-        },
-        {
-          "id": "content-2",
-          "name": "content",
-          "kind": "frame",
-          "parent": "panel-2",
-          "source": "Accordion.module.css .content",
-          "layout": {
-            "direction": "VERTICAL",
-            "primary": "MIN",
-            "counter": "STRETCH"
-          }
-        },
-        {
-          "id": "text-2",
-          "name": "Text",
-          "kind": "text",
-          "parent": "content-2",
-          "characters": "A 4px scale from 2px to 96px."
         }
       ],
       "variants": [
@@ -362,19 +330,6 @@
               "height": "icon.size.sm",
               "stroke": "accordion.icon",
               "strokeWeight": "icon.stroke"
-            },
-            "panel-2": {},
-            "content-2": {
-              "paddingTop": 0,
-              "paddingRight": "layout.inset",
-              "paddingBottom": "layout.inset",
-              "paddingLeft": "layout.inset"
-            },
-            "text-2": {
-              "textFill": "color.text.default",
-              "fontFamily": "font.family.sans",
-              "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
             }
           },
           "slots": {
@@ -473,19 +428,6 @@
               "height": "icon.size.sm",
               "stroke": "accordion.icon",
               "strokeWeight": "icon.stroke"
-            },
-            "panel-2": {},
-            "content-2": {
-              "paddingTop": 0,
-              "paddingRight": "layout.inset",
-              "paddingBottom": "layout.inset",
-              "paddingLeft": "layout.inset"
-            },
-            "text-2": {
-              "textFill": "color.text.default",
-              "fontFamily": "font.family.sans",
-              "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
             }
           },
           "slots": {
@@ -584,19 +526,6 @@
               "height": "icon.size.sm",
               "stroke": "accordion.icon",
               "strokeWeight": "icon.stroke"
-            },
-            "panel-2": {},
-            "content-2": {
-              "paddingTop": 0,
-              "paddingRight": "layout.inset",
-              "paddingBottom": "layout.inset",
-              "paddingLeft": "layout.inset"
-            },
-            "text-2": {
-              "textFill": "color.text.default",
-              "fontFamily": "font.family.sans",
-              "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
             }
           },
           "slots": {
@@ -691,19 +620,6 @@
               "height": "icon.size.sm",
               "stroke": "accordion.icon",
               "strokeWeight": "icon.stroke"
-            },
-            "panel-2": {},
-            "content-2": {
-              "paddingTop": 0,
-              "paddingRight": 0,
-              "paddingBottom": "layout.inset",
-              "paddingLeft": 0
-            },
-            "text-2": {
-              "textFill": "color.text.default",
-              "fontFamily": "font.family.sans",
-              "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
             }
           },
           "slots": {
@@ -800,19 +716,6 @@
               "height": "icon.size.sm",
               "stroke": "accordion.icon",
               "strokeWeight": "icon.stroke"
-            },
-            "panel-2": {},
-            "content-2": {
-              "paddingTop": 0,
-              "paddingRight": 0,
-              "paddingBottom": "layout.inset",
-              "paddingLeft": 0
-            },
-            "text-2": {
-              "textFill": "color.text.default",
-              "fontFamily": "font.family.sans",
-              "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
             }
           },
           "slots": {
@@ -907,19 +810,6 @@
               "height": "icon.size.sm",
               "stroke": "accordion.icon",
               "strokeWeight": "icon.stroke"
-            },
-            "panel-2": {},
-            "content-2": {
-              "paddingTop": 0,
-              "paddingRight": 0,
-              "paddingBottom": "layout.inset",
-              "paddingLeft": 0
-            },
-            "text-2": {
-              "textFill": "color.text.default",
-              "fontFamily": "font.family.sans",
-              "fontSize": "font.size.200",
-              "lineHeight": "font.line-height.normal"
             }
           },
           "slots": {
@@ -937,12 +827,6 @@
         },
         {
           "part": "panel",
-          "property": "height",
-          "value": "var(--accordion-panel-height)",
-          "reason": "--accordion-panel-height is not a token"
-        },
-        {
-          "part": "panel-2",
           "property": "height",
           "value": "var(--accordion-panel-height)",
           "reason": "--accordion-panel-height is not a token"
@@ -9102,7 +8986,7 @@
           }
         ]
       },
-      "hash": "3bdc010a",
+      "hash": "44389b96",
       "source": [
         "packages/react/src/components/CheckboxGroup/CheckboxGroup.tsx",
         "packages/react/src/components/Checkbox/Checkbox.module.css",
@@ -9248,6 +9132,26 @@
             "primary": "CENTER",
             "counter": "CENTER"
           }
+        },
+        {
+          "id": "indicator",
+          "name": "indicator",
+          "kind": "frame",
+          "parent": "box",
+          "source": "Checkbox.module.css .indicator",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "primary": "MIN",
+            "counter": "STRETCH"
+          }
+        },
+        {
+          "id": "icon",
+          "name": "Icon",
+          "kind": "icon",
+          "parent": "indicator",
+          "source": "Icon.module.css .icon, Icon.module.css .xs, Checkbox.module.css .glyph, Checkbox.module.css .checkGlyph",
+          "icon": "Icon/Check"
         },
         {
           "id": "text",
@@ -9431,7 +9335,7 @@
               "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box": {
-              "fill": "checkbox.bg",
+              "fill": "checkbox.bg-checked",
               "cornerRadius": "checkbox.radius",
               "paddingTop": 0,
               "paddingRight": 0,
@@ -9440,7 +9344,14 @@
               "width": "size.4",
               "height": "size.4",
               "strokeWeight": "border-width.default",
-              "stroke": "checkbox.border"
+              "stroke": "checkbox.bg-checked"
+            },
+            "indicator": {},
+            "icon": {
+              "width": "icon.size.xs",
+              "height": "icon.size.xs",
+              "stroke": "checkbox.fg-checked",
+              "strokeWeight": 3
             },
             "text": {
               "itemSpacing": "space.0-5"
@@ -9527,6 +9438,7 @@
             }
           },
           "slots": {
+            "icon": "Icon/Check",
             "icon-7": "Icon/CircleAlert"
           }
         },
@@ -9574,7 +9486,7 @@
               "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box": {
-              "fill": "checkbox.bg",
+              "fill": "color.control.checked.bg-hover",
               "cornerRadius": "checkbox.radius",
               "paddingTop": 0,
               "paddingRight": 0,
@@ -9583,7 +9495,14 @@
               "width": "size.4",
               "height": "size.4",
               "strokeWeight": "border-width.default",
-              "stroke": "color.border.hover"
+              "stroke": "color.control.checked.bg-hover"
+            },
+            "indicator": {},
+            "icon": {
+              "width": "icon.size.xs",
+              "height": "icon.size.xs",
+              "stroke": "checkbox.fg-checked",
+              "strokeWeight": 3
             },
             "text": {
               "itemSpacing": "space.0-5"
@@ -9670,6 +9589,7 @@
             }
           },
           "slots": {
+            "icon": "Icon/Check",
             "icon-7": "Icon/CircleAlert"
           }
         },
@@ -9728,6 +9648,13 @@
               "strokeWeight": "border-width.default",
               "stroke": "color.border.default"
             },
+            "indicator": {},
+            "icon": {
+              "width": "icon.size.xs",
+              "height": "icon.size.xs",
+              "stroke": "color.action.disabled.text",
+              "strokeWeight": 3
+            },
             "text": {
               "itemSpacing": "space.0-5"
             },
@@ -9813,6 +9740,7 @@
             }
           },
           "slots": {
+            "icon": "Icon/Check",
             "icon-7": "Icon/CircleAlert"
           }
         },
@@ -9861,7 +9789,7 @@
               "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box": {
-              "fill": "checkbox.bg",
+              "fill": "checkbox.bg-checked",
               "cornerRadius": "checkbox.radius",
               "paddingTop": 0,
               "paddingRight": 0,
@@ -9870,7 +9798,14 @@
               "width": "size.4",
               "height": "size.4",
               "strokeWeight": "border-width.default",
-              "stroke": "checkbox.border"
+              "stroke": "checkbox.bg-checked"
+            },
+            "indicator": {},
+            "icon": {
+              "width": "icon.size.xs",
+              "height": "icon.size.xs",
+              "stroke": "checkbox.fg-checked",
+              "strokeWeight": 3
             },
             "text": {
               "itemSpacing": "space.0-5"
@@ -9957,6 +9892,7 @@
             }
           },
           "slots": {
+            "icon": "Icon/Check",
             "icon-7": "Icon/CircleAlert"
           },
           "layout": {
@@ -10013,7 +9949,7 @@
               "minHeight": "calc(size.6 + space.0-5 + space.0-5)"
             },
             "box": {
-              "fill": "checkbox.bg",
+              "fill": "color.control.checked.bg-hover",
               "cornerRadius": "checkbox.radius",
               "paddingTop": 0,
               "paddingRight": 0,
@@ -10022,7 +9958,14 @@
               "width": "size.4",
               "height": "size.4",
               "strokeWeight": "border-width.default",
-              "stroke": "color.border.hover"
+              "stroke": "color.control.checked.bg-hover"
+            },
+            "indicator": {},
+            "icon": {
+              "width": "icon.size.xs",
+              "height": "icon.size.xs",
+              "stroke": "checkbox.fg-checked",
+              "strokeWeight": 3
             },
             "text": {
               "itemSpacing": "space.0-5"
@@ -10109,6 +10052,7 @@
             }
           },
           "slots": {
+            "icon": "Icon/Check",
             "icon-7": "Icon/CircleAlert"
           },
           "layout": {
@@ -10176,6 +10120,13 @@
               "strokeWeight": "border-width.default",
               "stroke": "color.border.default"
             },
+            "indicator": {},
+            "icon": {
+              "width": "icon.size.xs",
+              "height": "icon.size.xs",
+              "stroke": "color.action.disabled.text",
+              "strokeWeight": 3
+            },
             "text": {
               "itemSpacing": "space.0-5"
             },
@@ -10261,6 +10212,7 @@
             }
           },
           "slots": {
+            "icon": "Icon/Check",
             "icon-7": "Icon/CircleAlert"
           },
           "layout": {
@@ -10307,6 +10259,7 @@
             },
             "easingToken": "motion.easing.standard",
             "properties": [
+              "background-color",
               "border-color"
             ]
           }

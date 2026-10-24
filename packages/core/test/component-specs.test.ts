@@ -138,6 +138,15 @@ export const Area = forwardRef(function Area({ rows = 3 }, ref) {
     expect(spec.unmapped.filter((u) => u.property === 'min-height')).toEqual([]);
   });
 
+  it('a defaultValue list opens or checks its items: closed accordion panels are not drawn, listed checkboxes are checked', () => {
+    const { components } = generateRepoComponentSpecs(ROOT, ['Accordion', 'CheckboxGroup']);
+    const accordion = components.find((c) => c.name === 'Accordion')!;
+    const panels = accordion.parts.filter((p) => /^panel/.test(p.id)).map((p) => p.id);
+    expect(panels).toEqual(['panel']);
+    const group = components.find((c) => c.name === 'CheckboxGroup')!;
+    expect(group.variants[0]!.values.box).toMatchObject({ fill: 'checkbox.bg-checked' });
+  });
+
   it('calc() of tokens becomes an expression of token paths; a single token stays a token', () => {
     const files: Record<string, string> = {
       'c/Pill/Pill.tsx': `import styles from './Pill.module.css';
