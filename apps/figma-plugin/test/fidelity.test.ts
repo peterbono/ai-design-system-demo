@@ -9,6 +9,7 @@ import {
   FIGMA_REFERENCES_BRANCH,
   FIGMA_REFERENCES_DIR,
   FIGMA_REFERENCES_MANIFEST,
+  type ComponentSpecsFile,
   type FigmaReferenceManifest,
   type RgbaImage,
   parseComponentSpecs,
@@ -23,6 +24,7 @@ import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
 import { buildComponentPlan, loadComponentSpecs, writablePlan } from '../src/sync/component-pull';
 import { fidelitySummary, runFidelityCheck, type FidelityDeps } from '../src/sync/fidelity';
+import { overlayMeasured, parseMeasuredSpecs } from '../src/sync/measured-specs';
 import { analyze, buildPull } from '../src/sync/flows';
 import { FakeGitHub } from './fake-github';
 import { SimFigma } from './figma-api';
@@ -32,7 +34,7 @@ const ROOT = join(process.cwd(), '../..');
 const SPECS_PATH = 'packages/react/component-specs.json';
 const specsText = () => readFileSync(join(ROOT, SPECS_PATH), 'utf8');
 
-async function fileWithSets() {
+async function fileWithSets(edit?: (specs: ComponentSpecsFile) => ComponentSpecsFile) {
   const sim = new SimFigma();
   sim.install();
   const files: Record<string, string> = {};
@@ -44,7 +46,7 @@ async function fileWithSets() {
   const a = await analyze(client, DEFAULT_SETTINGS, {}, await takeSnapshot());
   await applyPullPlan(buildPull(a, new Map()).plan);
   const loaded = await loadComponentSpecs(client, a.headFiles.treeSha, a.headFiles.config);
-  await applyComponentPlan(writablePlan(buildComponentPlan(loaded!.specs, loaded!.path, await scanGenerated(), a.head)));
+  await applyComponentPlan(writablePlan(buildComponentPlan(edit ? edit(loaded!.specs) : loaded!.specs, loaded!.path, await scanGenerated(), a.head)));
   return { sim, sets: await scanGenerated() };
 }
 
@@ -100,6 +102,19 @@ function deps(sets: FidelityDeps['sets'], manifest: FigmaReferenceManifest | und
     fileName: 'UI kit',
   };
 }
+
+test('sets built from measured values keep the code version the code images record, so fidelity compares them', async () => {
+  const measured = parseMeasuredSpecs(readFileSync(join(process.cwd(), 'test/fixtures/measured-specs.json'), 'utf8'));
+  measured.stories[0]!.spec!.values.root!.fill = 'button.secondary.bg';
+  const { sets } = await fileWithSets((specs) => overlayMeasured(specs, measured).specs);
+  const manifest = manifestFor(() => [10, 10]);
+  const button = sets.find((s) => s.componentId === 'Button')!;
+  assert.notEqual(button.specHash, manifest.components.Button!.specHash, 'built from measured values');
+  assert.equal(button.codeHash, manifest.components.Button!.specHash, 'drawn from this version of the code');
+  // Static sets: the code version is the spec hash, as before.
+  const card = sets.find((s) => s.componentId === 'Card')!;
+  assert.equal(card.codeHash, card.specHash);
+});
 
 test('a selected generated variant names its code image: the same key as the references manifest (REQ-2)', async () => {
   const { sim, sets } = await fileWithSets();

@@ -126,6 +126,7 @@ export async function scanGenerated(): Promise<GeneratedSet[]> {
     name: s.name,
     page: pageOf(s)?.name,
     specHash: s.getSharedPluginData(NS, 'specHash'),
+    ...(s.getSharedPluginData(NS, 'codeHash') ? { codeHash: s.getSharedPluginData(NS, 'codeHash') } : {}),
     variants: s.children
       .filter((c): c is ComponentNode => c.type === 'COMPONENT' && c.getSharedPluginData(NS, 'orphan') !== 'true')
       .map(keyOfVariant),
@@ -1499,6 +1500,7 @@ async function buildSet(comp: PlannedComponent, existingSet: ComponentSetNode | 
       report.partial = [...(report.partial ?? []), { name: comp.name, built: comp.variants.length - failed.length, total: comp.variants.length, reason: failed[0]!.reason, variants: failed.map((f) => f.name) }];
     } else {
       set.setSharedPluginData(NS, 'specHash', comp.hash);
+      set.setSharedPluginData(NS, 'codeHash', comp.codeHash);
       // Rebuilt from the code: a change pushed from Figma is now the reviewed code (or gone), so its mark goes.
       if (set.getSharedPluginData(NS, PUSHED_KEY)) set.setSharedPluginData(NS, PUSHED_KEY, '');
     }
