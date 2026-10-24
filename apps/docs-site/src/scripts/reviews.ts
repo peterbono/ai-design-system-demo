@@ -902,8 +902,9 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   const developer = !seat && viewerRoles(login, OWNERS()).includes('tech');
   // Who may use the owner override: the same rule as the Branches list (pr-status rowWho), so the list and the page
   // never disagree. The More menu item still needs the gate and write access (showOverride).
+  const lookAgain = lookAgainReviewers(reviews, pull.head.sha, pull.user.login);
   const who = whoActs(
-    needFromDetail({ state: lifecycle, ci, gate, changesRequestedBy: approvals.changesRequested, lookAgain: lookAgainReviewers(reviews, pull.head.sha, pull.user.login), exploration, mergeable: pull.mergeable, claude: claudeStage(pull.labels) }),
+    needFromDetail({ state: lifecycle, ci, gate, changesRequestedBy: approvals.changesRequested, lookAgain, exploration, mergeable: pull.mergeable, claude: claudeStage(pull.labels) }),
     people(author, { viewer, approvers: approvals.approvers, canMerge: reviewer && gate.canShip, overridable: !seat && canOverride(login, HOLDERS()) }),
   );
   const viewerPeople = people(author, { viewer });
@@ -911,7 +912,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   // Malik (the members who review tech, lib/invites.ts sampleTeam) checks the code: "Waiting for Malik", never
   // "Covered by your approval".
   const sampleSeat = Boolean(seat) && isSampleTeam(`${repo.owner}/${repo.repo}`);
-  const repoRows = approvalRows({ tier, approvals, people: viewerPeople, open });
+  const repoRows = approvalRows({ tier, approvals, people: viewerPeople, open, lookAgain });
   const rows = sampleSeat ? sampleApprovalRows(repoRows, (r) => r.role === 'tech', sampleCodeReviewers(sampleTeam(seat ?? undefined))) : repoRows;
   const codeNext = sampleSeat ? (rows.some((r) => r.role === 'tech' && r.state === 'waiting') ? sampleCodeReviewers(sampleTeam(seat ?? undefined)) : null) : null;
   const review = x.review instanceof Error ? null : x.review;

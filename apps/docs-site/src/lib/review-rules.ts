@@ -27,6 +27,8 @@ import {
   parseTier,
   pullState,
   REVIEW_STATUS_LABEL,
+  reviewStatusLabel,
+  lookAgainReviewers,
   REVIEW_STATUS_ORDER,
   reviewStatusKind,
   shipPolicy,
@@ -149,7 +151,15 @@ export const REVIEW_STATUS: Record<ReviewStatusKind, { label: string; tone: Stat
 
 /** One status chip for a pull request, from real data (core reviewStatusKind, the same rules as the merge gate), with its DS Badge tone. */
 export function reviewStatus(input: Parameters<typeof reviewStatusKind>[0]): ReviewStatus {
-  const kind = reviewStatusKind(input);
+  return statusOf(reviewStatusKind(input));
+}
+
+/**
+ * The chip of a status kind. Changes requested on a branch updated since (core lookAgainReviewers not empty) reads
+ * "Updated, look again" and waits like an approval (core reviewStatusLabel), never a stale red "Changes requested".
+ */
+export function statusOf(kind: ReviewStatusKind, lookAgain?: readonly string[] | null): ReviewStatus {
+  if (kind === 'changes-requested' && (lookAgain?.length ?? 0) > 0) return { kind, label: reviewStatusLabel(kind, lookAgain), tone: 'info' };
   return { kind, ...REVIEW_STATUS[kind] };
 }
 
@@ -164,7 +174,7 @@ export function reviewStatus(input: Parameters<typeof reviewStatusKind>[0]): Rev
 export function studioVerdict(input: {
   site: Pick<SiteRepo, 'owners' | 'rights' | 'soloOwnerCanApproveBoth'> & { override?: OverridePolicy | null | undefined };
   teams?: TeamStates | null | undefined;
-  pull: { state?: string | undefined; draft?: boolean | undefined; merged_at?: string | null | undefined; labels?: LabelLike[] | undefined; user: { login: string } };
+  pull: { state?: string | undefined; draft?: boolean | undefined; merged_at?: string | null | undefined; labels?: LabelLike[] | undefined; user: { login: string }; head?: { sha?: string | null | undefined } | null | undefined };
   tier: Tier | null;
   ci: CiSummary | null;
   reviews: ReviewLike[] | null;
@@ -194,5 +204,7 @@ export function studioVerdict(input: {
     exploration: isActiveExploration(pull.labels ?? []),
     ship: input.ship,
     figmaPush: input.figmaPush,
+    // Updated after every changes request (core lookAgainReviewers): "Updated, look again", as in the MCP server and the CLI.
+    lookAgain: input.reviews ? lookAgainReviewers(input.reviews, pull.head?.sha, pull.user.login) : [],
   });
 }

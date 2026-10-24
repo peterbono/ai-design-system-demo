@@ -12,7 +12,7 @@ import { CONFLICT_REASON, mergeGate, REVIEW_STATUS, type ApprovalSummary, type C
 import type { TokenReview } from './token-review';
 import { ghAction } from './gh-wording';
 import { branchCount, VOCAB } from './vocabulary';
-import { eligibleReviewers, entriesFor, hasOwnerApproval, pendingApprovals, requiredApprovals, soloOwnerSentence, type ApprovalRole, type TeamStates } from '@bridge-ds/core';
+import { eligibleReviewers, entriesFor, hasOwnerApproval, LOOK_AGAIN_STATUS_LABEL, pendingApprovals, requiredApprovals, soloOwnerSentence, type ApprovalRole, type TeamStates } from '@bridge-ds/core';
 
 export type StatusGroup = 'blocked' | 'waiting' | 'ready' | 'neutral';
 
@@ -446,7 +446,7 @@ export function whoActs(need: Need, p: People): WhoActs {
       // the merge still waits for).
       const mine = need.by.some((l) => same(l, p.viewer));
       if (mine) return { who: 'you', logins: need.by, yourTurn: true, action: 'look-again', sentence: `@${author} updated it after your changes: look again.`, short: 'Your turn: look again' };
-      return { who: 'reviewer', logins: need.by, yourTurn: false, action: 'look-again', sentence: `Waiting for ${at(need.by)} to look again.`, short: 'Reviewer to look again' };
+      return { who: 'reviewer', logins: need.by, yourTurn: false, action: 'look-again', sentence: `Waiting for ${at(need.by)} to look again.`, short: LOOK_AGAIN_STATUS_LABEL };
     }
     case 'resolve-conflict':
       // A conflict is a developer's to resolve (token conflicts get their own resolver on the branch page): never
@@ -504,7 +504,9 @@ export function whoActs(need: Need, p: People): WhoActs {
  * home cards. The kind comes from core reviewStatusKind, the words from who acts now (whoActs short: "Design owner to
  * approve", "Owner override needed"), else the status itself ("Needs design approval"). Tone follows the kind.
  */
-export function statusPill(kind: ReviewStatusKind, who: Pick<WhoActs, 'short'> | null | undefined): { label: string; tone: StatusTone } {
+export function statusPill(kind: ReviewStatusKind, who: (Pick<WhoActs, 'short'> & Partial<Pick<WhoActs, 'action'>>) | null | undefined): { label: string; tone: StatusTone } {
+  // Updated after the changes request: it waits for the reviewers' approval now, not on a blocker (core reviewStatusLabel).
+  if (who?.action === 'look-again') return { label: who.short ?? LOOK_AGAIN_STATUS_LABEL, tone: GROUP_TONE.waiting };
   return { label: who?.short ?? REVIEW_STATUS[kind].label, tone: statusTone(kind) };
 }
 
@@ -529,7 +531,7 @@ const ROW_ACTION: Record<ApprovalRole, string> = { design: 'Approve design', tec
  * tier needs (requiredApprovals), each with who approved, who requested changes, or who it waits for. Only the first
  * row the viewer can give carries the action (one review covers one role).
  */
-export function approvalRows(input: { tier: Tier | null; approvals: ApprovalSummary; people: People; open: boolean }): ApprovalRow[] {
+export function approvalRows(input: { tier: Tier | null; approvals: ApprovalSummary; people: People; open: boolean; lookAgain?: readonly string[] | null }): ApprovalRow[] {
   const { approvals: a, people: p } = input;
   const covered: Record<ApprovalRole, boolean> = { design: a.design, tech: a.tech, approval: hasOwnerApproval(a) };
   // The only owner covers both parts with one review: the first row carries "Approve", the other says so.
@@ -546,6 +548,13 @@ export function approvalRows(input: { tier: Tier | null; approvals: ApprovalSumm
     const e = eligibleFor(role, { ...p, approvers: a.approvers });
     const base = { role, label: ROW_LABEL[role], canAct, actionLabel: solo ? ROW_ACTION.approval : ROW_ACTION[role] };
     if (covered[role]) return { ...base, state: 'approved' as const, text: by.length ? `Approved by @${by.join(', @')}` : 'Approved' };
+    // Updated after every changes request of this role (core lookAgainReviewers): the reviewers look again, never a
+    // stale "Changes requested" (core reviewStatusLabel says "Updated, look again" for the whole branch).
+    const again = asked.filter((l) => (input.lookAgain ?? []).some((x) => same(x, l)));
+    if (asked.length && again.length === asked.length) {
+      const you = again.some((l) => same(l, p.viewer));
+      return { ...base, state: 'waiting' as const, text: you ? 'Updated after your changes: look again' : `Updated, waiting for ${namesFor(role, again, p)} to look again` };
+    }
     if (asked.length) return { ...base, state: 'changes' as const, text: `Changes requested by @${asked.join(', @')}` };
     const text = canAct
       ? 'Waiting for you'
