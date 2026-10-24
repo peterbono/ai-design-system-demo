@@ -96,7 +96,7 @@ describe('sign-in screen, email', () => {
     await user.clear(screen.getByRole('textbox', { name: 'Work email' }));
     await user.type(screen.getByRole('textbox', { name: 'Work email' }), 'leo@acme.design{Enter}');
     expect(await screen.findByRole('heading', { name: 'Check your inbox' })).toBeInTheDocument();
-    expect(posts('code')[0]!.body).toEqual({ action: 'code', email: 'leo@acme.design' });
+    await waitFor(() => expect(posts('code')[0]?.body ?? null).toEqual({ action: 'code', email: 'leo@acme.design' }));
     expect(posts('code')[0]!.headers['X-Bridge-Account']).toBe('1');
     const field = screen.getByRole('textbox', { name: 'Code' });
     expect(field).toHaveAttribute('inputmode', 'numeric');
@@ -106,7 +106,7 @@ describe('sign-in screen, email', () => {
     await user.click(field);
     await user.paste('123 456');
     await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/acme/ds/tokens/'));
-    expect(posts('verify')[0]!.body).toEqual({ action: 'verify', email: 'leo@acme.design', code: '123456' });
+    await waitFor(() => expect(posts('verify')[0]?.body ?? null).toEqual({ action: 'verify', email: 'leo@acme.design', code: '123456' }));
     expect(document.documentElement.hasAttribute('data-account')).toBe(true);
     // ?next= wins: Bridge does not pick a room.
     expect(entryCalls).toHaveLength(0);
@@ -251,7 +251,7 @@ describe('sign-in screen, email', () => {
     expect(screen.getByText('Add your name, so your team knows who made a change.')).toBeInTheDocument();
     await user.type(screen.getByRole('textbox', { name: 'Your name' }), 'Leo Martin{Enter}');
     await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/workspace/?setup=create'));
-    expect(posts('rename')[0]!.body).toEqual({ action: 'rename', name: 'Leo Martin' });
+    await waitFor(() => expect(posts('rename')[0]?.body ?? null).toEqual({ action: 'rename', name: 'Leo Martin' }));
     expect(entryCalls[0]!.method).toBe('GET');
     expect(entryCalls[0]!.url).toBe('/api/entry');
   });
@@ -279,7 +279,7 @@ describe('sign-in screen, the other ways', () => {
       render(createElement(SignIn));
     });
     await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/acme/ds/tokens/'));
-    expect(posts('github')[0]!.body).toEqual({ action: 'github', token: 'ghu_abc' });
+    await waitFor(() => expect(posts('github')[0]?.body ?? null).toEqual({ action: 'github', token: 'ghu_abc' }));
     expect(sessionStorage.getItem(GITHUB_PENDING_KEY)).toBeNull();
   });
 
@@ -354,7 +354,7 @@ describe('entry: Bridge picks the room after the code (E3 to E6)', () => {
     await expectNoAxeViolations(container);
     await userEvent.setup().click(screen.getByRole('button', { name: 'Join Acme Design' }));
     await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/acme/ds/'));
-    expect(entryPosts('accept-invite')[0]!.body).toEqual({ action: 'accept-invite', repo: 'acme/ds', id: 'inv1' });
+    await waitFor(() => expect(entryPosts('accept-invite')[0]?.body ?? null).toEqual({ action: 'accept-invite', repo: 'acme/ds', id: 'inv1' }));
     expect(entryPosts('accept-invite')[0]!.headers['X-Bridge-Contribute']).toBe('1');
   });
 
@@ -419,7 +419,7 @@ describe('entry: Bridge picks the room after the code (E3 to E6)', () => {
     expect(screen.getByText("We asked Sam Rivera to let you in. You'll get an email.")).toBeInTheDocument();
     expect(screen.getByText('Waiting for Sam')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Explore the demo while you wait' })).toBeInTheDocument();
-    expect(entryPosts('request')[0]!.body).toEqual({ action: 'request', team: 'tacmeds' });
+    await waitFor(() => expect(entryPosts('request')[0]?.body ?? null).toEqual({ action: 'request', team: 'tacmeds' }));
     await expectNoAxeViolations(container);
   });
 
@@ -450,13 +450,13 @@ describe('entry: Bridge picks the room after the code (E3 to E6)', () => {
     await user.click(screen.getByRole('button', { name: 'Ask to join Acme B' }));
     expect(await screen.findByRole('heading', { name: 'Request sent' })).toBeInTheDocument();
     expect(screen.getByText("We asked the admins to let you in. You'll get an email. You can ask other teams too.")).toBeInTheDocument();
-    expect(entryPosts('request')[0]!.body).toEqual({ action: 'request', team: 'tb' });
+    await waitFor(() => expect(entryPosts('request')[0]?.body ?? null).toEqual({ action: 'request', team: 'tb' }));
     await user.click(screen.getByRole('button', { name: 'Ask again to join Acme C' }));
     expect(await screen.findByRole('heading', { name: '2 requests sent' })).toBeInTheDocument();
     await expectNoAxeViolations(container);
     await user.click(screen.getByRole('button', { name: 'Cancel the request to Acme B' }));
     expect(await screen.findByRole('heading', { name: 'Request sent' })).toBeInTheDocument();
-    expect(entryPosts('cancel-request')[0]!.body).toEqual({ action: 'cancel-request', team: 'tb' });
+    await waitFor(() => expect(entryPosts('cancel-request')[0]?.body ?? null).toEqual({ action: 'cancel-request', team: 'tb' }));
     expect(screen.getByRole('button', { name: 'Ask to join Acme B' })).toBeInTheDocument();
   });
 
@@ -493,7 +493,7 @@ describe('entry: Bridge picks the room after the code (E3 to E6)', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Cancel the request' }));
     expect(await screen.findByRole('heading', { name: 'Your colleagues already use Bridge' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ask to join' })).toBeInTheDocument();
-    expect(entryPosts('cancel-request')[0]!.body).toEqual({ action: 'cancel-request', team: 'tacmeds' });
+    await waitFor(() => expect(entryPosts('cancel-request')[0]?.body ?? null).toEqual({ action: 'cancel-request', team: 'tacmeds' }));
     expect(entryPosts('cancel-request')[0]!.headers['X-Bridge-Contribute']).toBe('1');
   });
 
@@ -570,10 +570,10 @@ describe('the invite link: one identity, the account of the invited email', () =
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Send code' }));
     expect(await screen.findByText(/Bridge sent a 6-digit code to m•••@acme\.com/)).toBeInTheDocument();
-    expect(posts('code')[0]!.body).toEqual({ action: 'code', invite: TOKEN });
+    await waitFor(() => expect(posts('code')[0]?.body ?? null).toEqual({ action: 'code', invite: TOKEN }));
     expect(screen.queryByRole('button', { name: 'Use another email' })).toBeNull();
     await user.type(screen.getByRole('textbox', { name: 'Code' }), '123456');
-    expect(posts('verify')[0]!.body).toEqual({ action: 'verify', invite: TOKEN, code: '123456' });
+    await waitFor(() => expect(posts('verify')[0]?.body ?? null).toEqual({ action: 'verify', invite: TOKEN, code: '123456' }));
     await user.type(await screen.findByRole('textbox', { name: 'Your name' }), 'Mia Rossi{Enter}');
     expect(await screen.findByRole('heading', { name: 'Acme Product invited you' })).toHaveFocus();
     await user.click(screen.getByRole('button', { name: 'Join Acme Product' }));
@@ -582,7 +582,7 @@ describe('the invite link: one identity, the account of the invited email', () =
     // The team opens signed in as its new member, not as a guest.
     expect(JSON.parse(localStorage.getItem('bridge.contribute.member:acme/acme-product')!)).toMatchObject({ email: 'mia@acme.com', role: 'edit' });
     // Never a separate contributor session: no /api/contribute call, the account joins.
-    expect(entryCalls.filter((c) => c.body?.action === 'accept-invite')[0]!.body).toEqual({ action: 'accept-invite', repo: 'acme/acme-product', id: 'inv1' });
+    await waitFor(() => expect(entryCalls.filter((c) => c.body?.action === 'accept-invite')[0]?.body ?? null).toEqual({ action: 'accept-invite', repo: 'acme/acme-product', id: 'inv1' }));
   });
 
   it('signed in as another email: says where it went, and "Sign in as that email" signs out and sends the code there', async () => {
