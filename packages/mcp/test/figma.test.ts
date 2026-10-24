@@ -3,7 +3,7 @@
 // brief to draft it, and the "drafted by Claude AI" mark once the code is pushed. Through @bridge-ds/core, like the plugin.
 import { describe, expect, it } from 'vitest';
 import { BridgeContext, figma } from '../dist/lib.js';
-import { parseFigmaOrigin, type ComponentPushDiff } from '@bridge-ds/core';
+import { isFigmaPush, parseFigmaOrigin, type ComponentPushDiff } from '@bridge-ds/core';
 import { runFigma } from '../../cli/src/figma.js';
 import { fakeGitHub, readTree, REAL_PATHS, REPO } from './helpers.js';
 
@@ -56,6 +56,8 @@ describe('bridge_push_figma_component', () => {
     expect(r.library).toMatchObject({ route: 'token-change' });
     const pr = gh.pulls[r.library!.number - 1]!;
     expect(labels(pr)).toEqual(expect.arrayContaining(['from-figma', 'source: mcp']));
+    // The gate knows it as a push from Figma (docs/BUILD-REQUESTS.md), whoever sent the diff.
+    expect(isFigmaPush({ labels: labels(pr) })).toBe(true);
     expect(parseFigmaOrigin(pr.body)).toMatchObject({ component: 'Button', route: 'token-change' });
     const file = gh.commits.get(gh.refs.get(pr.head.ref)!)!.files.get('packages/tokens/src/components/button.tokens.json')!;
     expect(file).toMatch(/"bg": \{\s*"\$value": "\{color\.action\.primary\.bg-active\}"/);

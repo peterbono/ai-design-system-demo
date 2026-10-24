@@ -68,6 +68,8 @@ export function figmaPushScope(input: { files: readonly ChangedFile[]; tokenChan
   const changes = input.tokenChanges;
   if (changes?.some((c) => c.kind === 'renamed' || c.kind === 'removed')) return 'token-structure';
   if (tokenFiles && !changes) return 'token-unknown';
+  // Nothing but a spec, docs or a changeset: no token value to ship, so nothing ships by itself.
+  if (!tokenFiles || !changes?.length) return 'component';
   return 'token-values';
 }
 
@@ -130,7 +132,12 @@ export function figmaPushOf(
 ): FigmaPush | null {
   if (names(pr.labels).includes(EXPLORATION_LABEL)) return null;
   if (!isFigmaPush(pr) && !facts.closesFigmaBuildRequest) return null;
-  return { scope: figmaPushScope(facts) };
+  const scope = figmaPushScope(facts);
+  // A library branch that carries a component spec (Claude draft, a build request's branch) is code work: it never ships
+  // by itself, even while it only holds the spec.
+  const l = names(pr.labels);
+  const draft = l.includes(WAITING_FOR_CLAUDE_LABEL) || l.includes(DRAFTED_BY_CLAUDE_LABEL) || parseFigmaOrigin(pr.body)?.route === 'claude-draft' || facts.closesFigmaBuildRequest;
+  return { scope: draft && scope.startsWith('token-') ? 'component' : scope };
 }
 
 /** Whether a scope ships with no person in the loop: design approved by the push, tech approved by being values only. */

@@ -35,6 +35,7 @@ import {
   whoCanShipSentence,
   type ApprovalSummary,
   type BranchVerdict,
+  type FigmaPush,
   type CiRunLike,
   type CiState,
   type CiStatusLike,
@@ -171,6 +172,8 @@ export function studioVerdict(input: {
   mergeable?: boolean | null | undefined;
   viewer?: string | null | undefined;
   ship?: ShipPolicy | null | undefined;
+  /** A push from the Figma plugin (core figmaPushOf over the files and tokenFileChanges): docs/BUILD-REQUESTS.md. */
+  figmaPush?: FigmaPush | null | undefined;
 }): BranchVerdict {
   const { site, pull } = input;
   const owners = approverLists(site.owners, site.rights, input.teams ?? null);
@@ -190,5 +193,6 @@ export function studioVerdict(input: {
     viewer: input.viewer,
     exploration: isActiveExploration(pull.labels ?? []),
     ship: input.ship,
+    figmaPush: input.figmaPush,
   });
 }

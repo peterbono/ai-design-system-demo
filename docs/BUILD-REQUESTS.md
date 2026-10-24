@@ -29,8 +29,11 @@ with `withFigmaPushApprovals`:
   branch. The pull request of a build request (its body says `Closes #n` on one sent from Figma) counts too
   (`closesFigmaBuildRequest`).
 - The scope comes from the pull request's real files and token changes, never from its body (`figmaPushScope`):
-  `token-values` (token files, changesets, docs and `.bridge/` only; tokens changed or added), `token-structure`
+  `token-values` (token files, changesets, docs and `.bridge/` only; at least one token changed or added, none
+  renamed or removed), `token-structure`
   (a rename or removal), `token-unknown` (token changes not read), `component` (code), `outside` (a guardrail file).
+- A library branch carrying a component spec (`waiting-for-claude`, `drafted-by-claude`, a Claude draft origin) and
+  the pull request of a build request are code work: never `token-values`, so they never ship by themselves.
 - Design approval: every scope but `outside`. Tech approval: `token-values` only. Everything else still gates as in
   [GOVERNANCE.md](GOVERNANCE.md): CI, changes requested, conflicts, the ship right.
 - `verdict.autoShip` is true on an open `token-values` push: review queues and "Needs you" leave it out.
@@ -106,3 +109,23 @@ Developers split and track the work in GitHub or Jira. Bridge never writes to a 
 builders, age, stale flag, timeline, Jira key (`jira: DS-12` label) and Figma link. `matchesBuildFilter` gives the
 Studio filters (All, Waiting to be picked up, In progress, Shipped this week), `buildSummaryLine` the home line and
 `figmaAheadLine` the Library line "Figma is ahead: 2 changes being built (Ana)."
+
+## For developers
+
+Read only, from the terminal or Claude Code with the Bridge MCP server:
+
+```sh
+bridge build list                                   # every build request: status, who builds it, age, PR, Jira
+bridge build list --filter waiting                  # waiting to be picked up (also in-progress, shipped-this-week)
+bridge build list --component Button --json
+bridge build show 42                                # what was sent, the status timeline, the links
+bridge build show 42 --brief                        # only the brief: claude "$(bridge build show 42 --brief)"
+```
+
+MCP tools: `bridge_list_build_requests` (filter, component) and `bridge_get_build_request` (number: the request,
+before and after, props, the spec, the timeline and `brief`). Assign yourself on GitHub to read as "Picked up", and
+open the pull request with `Closes #<n>` on a branch named `agent/build-<n>`.
+
+`bridge branch status` and `bridge_branch_status` read the same verdict as Studio for a push from Figma
+(`fromFigma`: its scope and whether it ships by itself), and `bridge branch list` / `bridge_what_needs_me` leave
+out a token push that ships by itself until something holds it (a failing check, a conflict, changes requested).
