@@ -207,4 +207,12 @@ export const Pill = forwardRef(function Pill({ size = 'md', children }, ref) {
     expect(v.head?.height).toBe('calc(control.height.md + border-width.default)');
     expect(v.cell?.height).toBe('calc(table.row-height + border-width.default)');
   });
+
+  it('a button counts its border box (browsers\' own stylesheet): a NumberField stepper is its height token wide', () => {
+    // Base UI renders NumberField.Increment as a <button> (its docs say so): its 1px border is inside the width.
+    const [field] = generateRepoComponentSpecs(ROOT, ['NumberField']).components;
+    const v = field!.variants.find((x) => x.props.Size === 'md')!.values;
+    expect(v.stepper?.width).toBe('control.height.md');
+  });
 });
+
