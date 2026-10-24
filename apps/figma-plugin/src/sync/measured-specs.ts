@@ -68,6 +68,8 @@ function storyVariant(spec: ComponentSpec, story: MeasuredSpecsStory): Record<st
     const values = (axis.values ?? []).map(norm);
     let value = axis.prop ? props[norm(axis.prop)] : undefined;
     if (value === undefined && !axis.prop && norm(axis.name) === 'state') value = stateWords(story, props).find((w) => values.includes(w));
+    // A mixed checkbox is `indeterminate`, its `checked` false: the Checked axis reads "mixed".
+    if (value === undefined && !axis.prop && values.includes('mixed') && props.indeterminate === 'true') value = 'mixed';
     value ??= props[norm(axis.name)] ?? (axis.default !== undefined ? norm(axis.default) : undefined);
     if (value === undefined || (values.length && !values.includes(value))) return undefined;
     out[axis.name] = value;

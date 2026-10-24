@@ -73,7 +73,8 @@ export async function runFidelityCheck(d: FidelityDeps): Promise<FidelityOutcome
       items.push({ nodeId: set.nodeId, name: set.name, result: summarizeComponent(set.componentId, [], 'no image of its code yet, it is new or not drawn from code') });
       continue;
     }
-    if (entry.specHash !== set.specHash) {
+    // The code version the set was drawn from: its static spec hash, also when measured values were laid on.
+    if (entry.specHash !== (set.codeHash || set.specHash)) {
       items.push({
         nodeId: set.nodeId,
         name: set.name,

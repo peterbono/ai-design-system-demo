@@ -50,6 +50,11 @@ export interface GeneratedSet {
   name: string;
   page?: string | undefined;
   specHash: string;
+  /**
+   * The version of the code the set was drawn from (the static spec's `hash`, as the code images record it). Equal to
+   * specHash unless measured values were laid on; empty for sets built before it was stored.
+   */
+  codeHash?: string | undefined;
   /** Variant keys (variantKeyOf) of the generated variants, orphans excluded. */
   variants: string[];
   /** The library branch this set was pushed to from Figma (shared plugin data dsbridge / pushed), until a pull rebuilds it. */
@@ -236,6 +241,8 @@ export interface PlannedComponent {
   /** Component folder it comes from, when not its own name (the Radio set comes from RadioGroup). */
   component?: string | undefined;
   hash: string;
+  /** The static spec's hash: the code version Check fidelity compares with (GeneratedSet.codeHash). */
+  codeHash: string;
   status: ComponentStatus;
   nodeId?: string | undefined;
   description: string;
@@ -759,6 +766,7 @@ export function buildComponentPlan(
       ...(spec.drafted ? { drafted: spec.drafted } : {}),
       ...(fromFigma ? { fromFigma } : {}),
       hash,
+      codeHash: spec.hash || hash,
       status,
       ...(existing ? { nodeId: existing.nodeId } : {}),
       description: describeSpec(spec),
