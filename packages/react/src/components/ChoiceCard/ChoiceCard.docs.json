@@ -1,7 +1,7 @@
 {
   "summary": "One choice among two to four options that each need a title and a short description, shown as cards: Keep mine or Use the library's, a starting brand, a corner style. The whole card is the click target.",
   "preview": { "c": "ChoiceCardGroup", "p": { "label": "Which value should this change keep?", "defaultValue": "library" }, "children": [
-    { "c": "ChoiceCard", "p": { "value": "mine", "title": "Keep mine", "description": "{color.harbor.600}, the value on your branch." } },
+    { "c": "ChoiceCard", "p": { "value": "mine", "title": "Keep mine", "description": "{color.harbor.600}, the value in your change." } },
     { "c": "ChoiceCard", "p": { "value": "library", "title": "Use the library's", "description": "{color.harbor.700}, the value published in the library." } }
   ] },
   "whenToUse": [
@@ -65,7 +65,7 @@
     "Legend: the decision, as a question or a noun, sentence case: \"Which value should this change keep?\", \"Starting brand\".",
     "Title: a verb or a short name, a few words: \"Keep mine\", \"Use the library's\", \"Ocean\".",
     "Description: one or two lines, the consequence or the value. No period after a lone value.",
-    "Error: what to do, not what went wrong: \"Pick a value before you merge.\""
+    "Error: what to do, not what went wrong: \"Pick a value before you add it to the library.\""
   ],
   "anatomy": {
     "group": "Grid of cards (Base UI RadioGroup)",

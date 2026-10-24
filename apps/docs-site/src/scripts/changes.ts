@@ -39,7 +39,7 @@ const openPullsForExplorations = () => {
   return listLoaded.then((pulls) => (pulls.every((p) => 'body' in p) ? (pulls as unknown as ExplorationPullLike[]) : null));
 };
 
-const VIEW_TITLE: Record<View, string> = { review: 'Branches', requests: 'Requests', explorations: 'Explorations', history: 'History' };
+const VIEW_TITLE: Record<View, string> = { review: 'Changes', requests: 'Requests', explorations: 'Explorations', history: 'History' };
 
 function selectTab(view: View) {
   const title = document.querySelector<HTMLElement>('#cg-main .st-title');
@@ -107,7 +107,7 @@ function showSuggestion(n: number, push: boolean) {
   if (push) history.pushState({ suggestion: n }, '', `?suggestion=${n}`);
   window.scrollTo({ top: 0 });
   const el = sgHost();
-  if (el) void openSuggestion(n, { el, crumbs: [{ label: 'Branches', href: studioHref('changes/') }, { label: 'Suggestion' }] });
+  if (el) void openSuggestion(n, { el, crumbs: [{ label: 'Changes', href: studioHref('changes/') }, { label: 'Suggestion' }] });
 }
 
 function showView(view: View) {

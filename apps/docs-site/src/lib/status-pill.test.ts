@@ -35,7 +35,7 @@ describe('statusPill', () => {
   });
 
   it('falls back to the status words when who acts adds nothing', () => {
-    expect(statusPill('merged', null)).toEqual({ label: 'Merged', tone: 'neutral' });
+    expect(statusPill('merged', null)).toEqual({ label: 'Added to the library', tone: 'neutral' });
     expect(statusPill('needs-design', { short: null })).toEqual({ label: 'Needs design approval', tone: 'info' });
   });
 });

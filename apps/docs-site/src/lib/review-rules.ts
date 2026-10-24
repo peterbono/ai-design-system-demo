@@ -4,6 +4,7 @@
 // `governance.rights` in bridge.config.json (@bridge-ds/core rights.ts); GitHub write access is checked as well.
 
 import type { StatusTone } from './changes';
+import { VOCAB } from './vocabulary';
 import {
   allowedMergeMethods,
   approverLists,
@@ -104,7 +105,7 @@ export type {
 
 /** Label and pill tone of each state, for list and detail views. */
 export const PULL_STATE_PILL: Record<PullState, { label: string; cls: string }> = {
-  merged: { label: 'Merged', cls: '' },
+  merged: { label: VOCAB.merged, cls: '' },
   closed: { label: 'Closed', cls: '' },
   draft: { label: 'Draft', cls: '' },
   open: { label: 'Open', cls: '' },
@@ -129,12 +130,13 @@ export interface ReviewStatus {
 }
 
 /**
- * Label (core REVIEW_STATUS_LABEL, the words the MCP server and the CLI use too) and tone of each status. Color means status only (lib/changes.ts): red when something blocks the merge,
+ * Label (core REVIEW_STATUS_LABEL, the words the MCP server and the CLI use too, except the three git words a designer
+ * never reads: merged, conflict with main and ready to merge say "library" here, lib/vocabulary) and tone of each status. Color means status only (lib/changes.ts): red when something blocks the merge,
  * violet while it waits for an approval, green when it is ready, grey for drafts, running checks, unknown, merged
  * and closed. Risk tiers never take a color.
  */
 export const REVIEW_STATUS: Record<ReviewStatusKind, { label: string; tone: StatusTone }> = {
-  merged: { label: REVIEW_STATUS_LABEL.merged, tone: 'neutral' },
+  merged: { label: VOCAB.merged, tone: 'neutral' },
   closed: { label: REVIEW_STATUS_LABEL.closed, tone: 'neutral' },
   draft: { label: REVIEW_STATUS_LABEL.draft, tone: 'neutral' },
   'ci-failing': { label: REVIEW_STATUS_LABEL['ci-failing'], tone: 'danger' },
@@ -143,9 +145,9 @@ export const REVIEW_STATUS: Record<ReviewStatusKind, { label: string; tone: Stat
   'needs-design': { label: REVIEW_STATUS_LABEL['needs-design'], tone: 'info' },
   'needs-tech': { label: REVIEW_STATUS_LABEL['needs-tech'], tone: 'info' },
   'needs-approval': { label: REVIEW_STATUS_LABEL['needs-approval'], tone: 'info' },
-  conflict: { label: REVIEW_STATUS_LABEL.conflict, tone: 'danger' },
+  conflict: { label: 'Conflict with the library', tone: 'danger' },
   checking: { label: REVIEW_STATUS_LABEL.checking, tone: 'neutral' },
-  ready: { label: REVIEW_STATUS_LABEL.ready, tone: 'success' },
+  ready: { label: VOCAB.readyToMerge, tone: 'success' },
   unknown: { label: REVIEW_STATUS_LABEL.unknown, tone: 'neutral' },
 };
 

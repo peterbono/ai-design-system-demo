@@ -125,8 +125,8 @@ export default function InstallView({ data }: { data: LibraryData }) {
         <>
           <h2 id="figma-plugin">Figma plugin</h2>
           <p>
-            DS Bridge connects Figma Variables to the repository. <strong>Pull</strong> brings the latest tokens from main into Figma Variables. <strong>Push</strong> sends your Figma edits
-            back as a pull request for review, with a three-way diff and the contrast gate. It works on the free Figma plan and never writes to main.
+            DS Bridge connects Figma Variables to the repository. <strong>Pull</strong> brings the latest tokens from the library into Figma Variables. <strong>Push</strong> sends your Figma edits
+            back as a pull request for review, with a three-way diff and the contrast gate. It works on the free Figma plan and never writes to the library directly.
           </p>
           <ol className="lib-steps">
             <li>

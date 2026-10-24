@@ -161,7 +161,7 @@ export async function loadTeamModel(
   onProgress?.({ step: 'head' });
   const info = await client.getRepo();
   const sha = await client.getBranchSha(info.defaultBranch);
-  if (!sha) throw new GitHubError(404, `${repo} has no ${info.defaultBranch} branch.`);
+  if (!sha) throw new GitHubError(404, `${repo} has no library on ${info.defaultBranch}.`);
   const remember = (model: RepoModel) =>
     rememberRepo(client.owner, client.name, { defaultBranch: info.defaultBranch, site: { ...model.site, owner: client.owner, repo: client.name, defaultBranch: info.defaultBranch } });
 

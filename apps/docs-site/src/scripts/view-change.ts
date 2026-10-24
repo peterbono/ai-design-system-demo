@@ -280,12 +280,12 @@ export async function scopeLibrary(main: Record<string, string>, root: string, e
   const pulls = (await currentPulls())!;
   const sources = await Promise.all(pulls.map((p) => readTogetherSource(p, root)));
   const code = sources.find((x) => !x.tokens);
-  if (code) throw new TogetherError(`${viewTitle(code.title)}: ${CODE_LINE.charAt(0).toLowerCase()}${CODE_LINE.slice(1)} Go back to Branches and check branches with token edits only.`);
+  if (code) throw new TogetherError(`${viewTitle(code.title)}: ${CODE_LINE.charAt(0).toLowerCase()}${CODE_LINE.slice(1)} Go back to Changes and check changes with token edits only.`);
   const combo = combineChanges(main, sources.map((x) => x.edits!), decodePicks(scope.kind === 'view' ? scope.use : null));
-  if (combo.problems.length) throw new TogetherError(`These branches cannot be combined here: ${combo.problems[0]}.`);
+  if (combo.problems.length) throw new TogetherError(`These changes cannot be combined here: ${combo.problems[0]}.`);
   if (combo.missing.length) {
     const n = combo.missing.length;
-    throw new TogetherError(`${n === 1 ? '1 token has' : `${n} tokens have`} different values in these branches. Pick which one to use in Branches, then view them again.`);
+    throw new TogetherError(`${n === 1 ? '1 token has' : `${n} tokens have`} different values in these changes. Pick which one to use in Changes, then view them again.`);
   }
   return { files: combo.files, extra: null, from: combo.from, picked: combo.conflicts.length > 0 };
 }
@@ -312,7 +312,7 @@ function bannerOf(): BannerState | null {
   if (scope.kind !== 'view') return null;
   const together = isTogether(scope);
   bannerState ??= {
-    title: together ? scopeChanges(scope).map((n) => `#${n}`).join(', ') : `branch #${scope.change}`,
+    title: together ? scopeChanges(scope).map((n) => `#${n}`).join(', ') : `change #${scope.change}`,
     body: pageOf(location.pathname) === 'quality' ? '' : together ? 'Reading their tokens.' : 'Reading its tokens.',
   };
   return bannerState;
@@ -359,7 +359,7 @@ export function setBannerBody(body: string) {
 export function setBannerError(text: string) {
   const banner = bannerOf();
   if (!banner) return;
-  Object.assign(banner, { title: isTogether(pageScope()) ? 'These branches could not be shown together' : 'This branch could not be shown', body: text, error: true });
+  Object.assign(banner, { title: isTogether(pageScope()) ? 'These changes could not be shown together' : 'This change could not be shown', body: text, error: true });
   paintBanner();
 }
 
@@ -386,7 +386,7 @@ export function initViewChange() {
   if (!document.querySelector('[data-view-pick]')) return;
   const together = isTogether(scope);
   const value = together ? togetherValue(scopeChanges(scope)) : optionValue(scope.kind === 'latest' ? null : scope.change);
-  const placeholder = scope.kind === 'latest' ? [] : together ? [togetherOption(scopeChanges(scope), [])] : [{ value, label: `Branch #${scope.change}`, description: 'Reading it', group: 'Open branches' }];
+  const placeholder = scope.kind === 'latest' ? [] : together ? [togetherOption(scopeChanges(scope), [])] : [{ value, label: `Change #${scope.change}`, description: 'Reading it', group: 'Open changes' }];
   /** The options with the changes shown together first, as the selector's current value. */
   const withTogether = (options: ReturnType<typeof viewOptions>, titles: string[]) => (together ? [options[0]!, togetherOption(scopeChanges(scope), titles), ...options.slice(1)] : options);
   let titles: string[] = [];
@@ -409,7 +409,7 @@ export function initViewChange() {
     })
     .catch(async () => {
       const cur = pull ? await pull.catch(() => null) : null;
-      sendOptions({ options: withTogether(viewOptions([], { defaultBranch, lifecycleOf, current: together ? null : cur }), titles), value, note: `GitHub could not be reached, so no branch is listed. ${ghVerb(prefersSignIn())} or try again in a minute.` });
+      sendOptions({ options: withTogether(viewOptions([], { defaultBranch, lifecycleOf, current: together ? null : cur }), titles), value, note: `GitHub could not be reached, so no change is listed. ${ghVerb(prefersSignIn())} or try again in a minute.` });
     });
   if (together) {
     currentPulls()!
@@ -419,7 +419,7 @@ export function initViewChange() {
         banner.titles = pulls.map((p) => viewTitle(p.title));
         paintBanner();
       })
-      .catch((err) => setBannerError(readFailure(err, 'These branches')));
+      .catch((err) => setBannerError(readFailure(err, 'These changes')));
   } else if (scope.kind === 'view' && pull) {
     pull
       .then((p) => {
@@ -429,6 +429,6 @@ export function initViewChange() {
         banner.editable = isTokenChange({ ...p, state: p.state ?? 'open' }, `${owner}/${repo}`);
         paintBanner();
       })
-      .catch((err) => setBannerError(readFailure(err, `Branch #${scope.change}`)));
+      .catch((err) => setBannerError(readFailure(err, `Change #${scope.change}`)));
   }
 }

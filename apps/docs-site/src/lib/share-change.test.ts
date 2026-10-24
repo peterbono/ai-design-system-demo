@@ -154,7 +154,7 @@ describe('showShare', () => {
 describe('shareDescription', () => {
   it('explains the preview while it can be tried, says where it stands once finished', () => {
     expect(shareDescription({ kind: 'building' })).toBe(EXPLAIN);
-    expect(EXPLAIN).toBe('Product teams can install this branch in their app before it is merged, and remove it any time.');
-    expect(shareDescription({ kind: 'shipped', stillWorks: false, command: 'x' })).toMatch(/^This branch was merged, so its preview version was removed\./);
+    expect(EXPLAIN).toBe('Product teams can install this change in their app before it is in the library, and remove it any time.');
+    expect(shareDescription({ kind: 'shipped', stillWorks: false, command: 'x' })).toMatch(/^This change was added to the library, so its preview version was removed\./);
   });
 });

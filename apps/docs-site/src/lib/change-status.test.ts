@@ -152,9 +152,9 @@ describe('statusAction and lifecycleSentence', () => {
   });
   it('says the state in plain words', () => {
     expect(lifecycleSentence({ lifecycle: 'draft', isAuthor: false, author: 'ann' })).toBe('Waiting for @ann to request a review.');
-    expect(lifecycleSentence({ lifecycle: 'shipped', isAuthor: false, author: 'ann', mergedAt: '2026-10-03T12:00:00Z' })).toBe('Merged into main on Oct 3, 2026.');
+    expect(lifecycleSentence({ lifecycle: 'shipped', isAuthor: false, author: 'ann', mergedAt: '2026-10-03T12:00:00Z' })).toBe('Added to the library on Oct 3, 2026.');
     expect(lifecycleSentence({ lifecycle: 'closed', isAuthor: true, author: 'ann', reopen: { kind: 'gone' } })).toBe(GONE_SENTENCE);
-    expect(lifecycleSentence({ lifecycle: 'closed', isAuthor: true, author: 'ann' })).toBe('Closed without merging.');
+    expect(lifecycleSentence({ lifecycle: 'closed', isAuthor: true, author: 'ann' })).toBe('Closed without adding it to the library.');
     expect(lifecycleSentence({ lifecycle: 'ready', isAuthor: true, author: 'ann' })).toBe(null);
   });
 });
@@ -180,12 +180,12 @@ describe('statusOpener', () => {
       { number: 43, title: 'A', kind: 'ci-failing' as const, lifecycle: 'waiting' as const, updated_at: '2026-10-16' },
       { number: 42, title: 'B', kind: 'needs-design' as const, lifecycle: 'ready' as const, updated_at: '2026-10-17' },
     ];
-    expect(statusOpener(rows)).toEqual({ sentence: '1 branch in review and 1 waiting for code. #42 waits for a design approval.', action: { label: 'Review #42', pr: 42 } });
-    expect(statusOpener([rows[0]!])).toEqual({ sentence: '1 branch waiting for code.', action: null });
-    expect(statusOpener([rows[1]!]).sentence).toBe('1 branch in review. #42 waits for a design approval.');
+    expect(statusOpener(rows)).toEqual({ sentence: '1 change in review and 1 waiting for code. #42 waits for a design approval.', action: { label: 'Review #42', pr: 42 } });
+    expect(statusOpener([rows[0]!])).toEqual({ sentence: '1 change waiting for code.', action: null });
+    expect(statusOpener([rows[1]!]).sentence).toBe('1 change in review. #42 waits for a design approval.');
     // Drafts are counted apart: they are not in review.
     const draft = { number: 41, title: 'C', kind: 'draft' as const, lifecycle: 'draft' as const, updated_at: '2026-10-18' };
-    expect(statusOpener([...rows, draft]).sentence).toBe('1 branch in review, 1 waiting for code and 1 draft. #42 waits for a design approval.');
+    expect(statusOpener([...rows, draft]).sentence).toBe('1 change in review, 1 waiting for code and 1 draft. #42 waits for a design approval.');
     expect(statusOpener([draft])).toEqual({ sentence: '1 draft, nothing in review yet.', action: null });
   });
 
@@ -193,8 +193,8 @@ describe('statusOpener', () => {
     const blocked = { number: 50, title: 'D', kind: 'ci-failing' as const, lifecycle: 'ready' as const, updated_at: '2026-10-18', developer: true };
     const mine = { number: 42, title: 'B', kind: 'needs-design' as const, lifecycle: 'ready' as const, updated_at: '2026-10-17', yourTurn: true };
     const waitingCode = { number: 43, title: 'A', kind: 'ci-failing' as const, lifecycle: 'waiting' as const, updated_at: '2026-10-16' };
-    expect(statusOpener([blocked, mine, waitingCode])).toEqual({ sentence: '2 branches in review and 1 waiting for code. Your turn on #42: it waits for a design approval.', action: { label: 'Review #42', pr: 42 } });
-    expect(statusOpener([blocked, waitingCode])).toEqual({ sentence: '1 branch in review and 1 waiting for code. #50 waits on a developer to fix its tests.', action: null });
+    expect(statusOpener([blocked, mine, waitingCode])).toEqual({ sentence: '2 changes in review and 1 waiting for code. Your turn on #42: it waits for a design approval.', action: { label: 'Review #42', pr: 42 } });
+    expect(statusOpener([blocked, waitingCode])).toEqual({ sentence: '1 change in review and 1 waiting for code. #50 waits on a developer to fix its tests.', action: null });
   });
 
   it('lists work someone can move first, then waiting for code, then drafts', () => {
@@ -213,7 +213,7 @@ describe('todoBadge', () => {
 
 describe('status filter', () => {
   it('names each state exactly as the status model does', () => {
-    expect(STATUS_FILTERS.map((f) => f.label)).toEqual(['All open', 'Draft', 'In review', 'Approved, waiting for code', 'Merged', 'Closed']);
+    expect(STATUS_FILTERS.map((f) => f.label)).toEqual(['All open', 'Draft', 'In review', 'Approved, waiting for code', 'Added to the library', 'Closed']);
     expect(STATUS_FILTERS.slice(1).map((f) => f.label)).toEqual(Object.values(LIFECYCLE).map((l) => l.label));
   });
   it('reads the address, Open by default', () => {
@@ -231,7 +231,7 @@ describe('status filter', () => {
     expect(showsUnderStatus('ready', 'waiting')).toBe(false);
     expect(needsClosed('shipped')).toBe(true);
     expect(needsClosed('draft')).toBe(false);
-    expect(emptyFilterLine('waiting')).toBe('No approved branch waits for code.');
+    expect(emptyFilterLine('waiting')).toBe('No approved change waits for code.');
   });
 });
 

@@ -20,7 +20,7 @@ const BOTH = {
 
 const DIRECT_DIALOG = dialogHtml({
   id: 'gh-direct-dialog',
-  title: 'Allow Bridge to save to branches',
+  title: 'Allow Bridge to save your changes',
   body: trusted(
     '<div data-gh-direct-view="consent"></div><div data-gh-direct-view="setup" hidden><p data-gh-direct-setup-text></p></div><div data-gh-direct-note hidden><span data-gh-direct-note-text></span></div>',
   ),
@@ -71,7 +71,7 @@ describe('Bridge Direct on a team page in direct mode', () => {
     const calls = fakeGitHub({});
     const err = await ghWrite('POST', '/repos/acme/ds/git/refs', { ref: 'refs/heads/bridge/x', sha: 'a' }).catch((e: unknown) => e);
     expect(isDirectWait(err)).toBe(true);
-    expect((err as Error).message).toBe('Allow Bridge to save to branches, then try again.');
+    expect((err as Error).message).toBe('Allow Bridge to save your changes, then try again.');
     expect(directOpen()).toBe(true);
     expect(calls).toEqual([]);
   });
@@ -81,7 +81,7 @@ describe('Bridge Direct on a team page in direct mode', () => {
     const calls = fakeGitHub({});
     const err = await studioClient('acme/ds').createBranch('bridge/x', 'a'.repeat(40)).catch((e: unknown) => e);
     expect(isDirectWait(err)).toBe(true);
-    expect((err as Error).message).toMatch(/^Allow Bridge to save to branches/);
+    expect((err as Error).message).toMatch(/^Allow Bridge to save your changes/);
     expect(writes(calls)).toEqual([]);
   });
 
@@ -107,7 +107,7 @@ describe('Bridge Direct on a team page in direct mode', () => {
     const calls = fakeGitHub({ 'GET /user': { body: { login: 'ann' } }, 'GET /user/installations?per_page=100': none, 'GET /user/installations?per_page=100&page=1': none });
     const err = await ghWrite('PUT', '/repos/acme/ds/pulls/3/merge', {}).catch((e: unknown) => e);
     expect(isDirectWait(err)).toBe(true);
-    expect((err as Error).message).toBe('Saving to branches is not set up for this team yet.');
+    expect((err as Error).message).toBe('Saving changes is not set up for this team yet.');
     expect(writes(calls)).toEqual([]);
     const dialog = document.getElementById('gh-direct-dialog')!;
     expect(dialog.querySelector<HTMLElement>('[data-gh-direct-view="setup"]')!.hidden).toBe(false);

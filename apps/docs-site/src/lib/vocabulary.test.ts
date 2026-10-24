@@ -2,24 +2,31 @@ import { describe, expect, it } from 'vitest';
 import { branchCount, branchWithJiraKey, isJiraKey, jargonIn, jiraKeyOf, parseJiraKey, STATUS_WORDS, titleWithJiraKey, VOCAB, withoutJiraKey } from './vocabulary';
 
 describe('vocabulary', () => {
-  it('speaks Figma branching', () => {
-    expect(VOCAB.createBranch).toBe('Create branch');
+  it('speaks changes and the library, never git', () => {
+    expect(VOCAB.createBranch).toBe('Start a change');
     expect(VOCAB.requestReview).toBe('Send for review');
-    expect(VOCAB.updateFromMain).toBe('Update from main');
-    expect(VOCAB.reviewAndMerge).toBe('Review and merge');
+    expect(VOCAB.updateFromMain).toBe('Update from the library');
+    expect(VOCAB.reviewAndMerge).toBe('Review and add to the library');
+    expect(VOCAB.merge).toBe('Add to the library');
+    expect(VOCAB.readyToMerge).toBe('Ready to add to the library');
+    expect(VOCAB.Branches).toBe('Changes');
     expect(STATUS_WORDS.inReview).toBe('In review');
-    expect(STATUS_WORDS.merged).toBe('Merged');
-    expect(branchCount(1)).toBe('1 branch');
-    expect(branchCount(3)).toBe('3 branches');
+    expect(STATUS_WORDS.merged).toBe('Added to the library');
+    expect(branchCount(1)).toBe('1 change');
+    expect(branchCount(3)).toBe('3 changes');
+    for (const w of Object.values(VOCAB)) expect(jargonIn(w)).toEqual([]);
   });
 
-  it('finds developer words, never the Figma ones', () => {
+  it('finds developer words, git ones included', () => {
     expect(jargonIn('Open the pull request')).toEqual(['pull', 'pull request']);
     expect(jargonIn('3 commits behind, PR #12, CI failed')).toEqual(['commit', 'PR', 'CI']);
     expect(jargonIn('Add a changeset')).toEqual(['changeset']);
-    expect(jargonIn('Review and merge this branch into main')).toEqual([]);
+    expect(jargonIn('Review and merge this branch into main')).toEqual(['branch', 'merge', 'main']);
+    expect(jargonIn('Merged branches, merging')).toEqual(['branch', 'merge']);
+    expect(jargonIn('Review and add this change to the library')).toEqual([]);
     expect(jargonIn('Precise prices, pushy copy, social')).toEqual([]);
-    expect(jargonIn('Shape and size')).toEqual([]);
+    expect(jargonIn('Shape and size, the main domain')).toEqual(['main']);
+    expect(jargonIn('Remains, domains, emerge')).toEqual([]);
   });
 });
 

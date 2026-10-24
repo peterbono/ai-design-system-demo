@@ -11,7 +11,7 @@
 import { readPreviewComment } from './previews';
 
 /** The dialog's explanation, in designer words. */
-export const SHARE_EXPLAIN = 'Product teams can install this branch in their app before it is merged, and remove it any time.';
+export const SHARE_EXPLAIN = 'Product teams can install this change in their app before it is in the library, and remove it any time.';
 
 export type ChangeLifecycle = 'open' | 'draft' | 'merged' | 'closed';
 type Source = 'pkg.pr.new' | 'release' | 'other';
@@ -83,23 +83,23 @@ export function stateSentence(s: ShareState): string | null {
     case 'ready':
       return null;
     case 'building':
-      return 'The preview version is being prepared. It is usually ready a couple of minutes after each update to the branch.';
+      return 'The preview version is being prepared. It is usually ready a couple of minutes after each update to the change.';
     case 'failed':
-      return 'The preview version could not be prepared for the latest update. Update the branch to try again, or ask a developer to run it again on GitHub.';
+      return 'The preview version could not be prepared for the latest update. Update the change to try again, or ask a developer to run it again on GitHub.';
     case 'no-packages':
-      return 'This branch does not touch the library tokens or components, so there is no preview version to install.';
+      return 'This change does not touch the library tokens or components, so there is no preview version to install.';
     case 'shipped':
       return s.stillWorks === true
-        ? 'This branch was merged. Its preview version still installs, and products get it with the next library release.'
+        ? 'This change was added to the library. Its preview version still installs, and products get it with the next library release.'
         : s.stillWorks === false
-          ? 'This branch was merged, so its preview version was removed. Products get it with the next library release.'
-          : 'This branch was merged. Products get it with the next library release.';
+          ? 'This change was added to the library, so its preview version was removed. Products get it with the next library release.'
+          : 'This change was added to the library. Products get it with the next library release.';
     case 'closed':
       return s.stillWorks === true
-        ? 'This branch was closed without merging. Its preview version still installs, but it will not reach the library.'
+        ? 'This change was closed without adding it to the library. Its preview version still installs, but it will not reach the library.'
         : s.stillWorks === false
-          ? 'This branch was closed without merging, so its preview version was removed.'
-          : 'This branch was closed without merging.';
+          ? 'This change was closed without adding it to the library, so its preview version was removed.'
+          : 'This change was closed without adding it to the library.';
   }
 }
 

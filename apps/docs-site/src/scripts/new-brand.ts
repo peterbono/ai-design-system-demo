@@ -25,13 +25,13 @@ export async function proposeBrand(draft: BrandDraft, repo: { owner: string; nam
   if (!token) throw new Error(`${ghAction(sendGoal('brand', mode), prefersSignIn())}.`);
   const probe = studioClient(`${repo.owner}/${repo.name}`, token);
   const mainSha = await probe.getBranchSha(repo.defaultBranch);
-  if (!mainSha) throw new Error(`Branch ${repo.defaultBranch} was not found in ${repo.owner}/${repo.name}.`);
+  if (!mainSha) throw new Error(`The library (${repo.defaultBranch}) was not found in ${repo.owner}/${repo.name}.`);
   const latest = await loadRepoFiles(probe, mainSha, configTokensRoot);
-  if (!latest.config) throw new Error('main has no bridge.config.json, so Bridge cannot add a brand to it.');
+  if (!latest.config) throw new Error('The library has no bridge.config.json, so Bridge cannot add a brand to it.');
   const plan = planNewBrand({ config: latest.config, configText: latest.configText, files: latest.files, contrastText: latest.contrastChecks }, draftInput(draft));
   const errors = plan.issues.filter((i) => i.level === 'error');
   if (errors.length) throw new Error(`${errors[0]!.message} Fix it in the draft, then try again.`);
-  if (plan.contrast.failing.length) throw new Error(`${plan.contrast.failing.length} contrast pairs fail on main. Adjust the colors, then try again.`);
+  if (plan.contrast.failing.length) throw new Error(`${plan.contrast.failing.length} contrast pairs fail in the library. Adjust the colors, then try again.`);
   const body = composeNewBrandBody(plan, { tool: 'the Bridge Studio', notes: 'Drafted in the Studio new brand flow, checked with real components in light and dark.' });
   if (mode === 'suggest') {
     const summary = `New brand "${plan.slug}", started from ${plan.from}. Drafted in the Studio new brand flow, checked with real components in light and dark.`;

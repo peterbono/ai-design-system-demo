@@ -134,9 +134,9 @@ describe('rows', () => {
   it('a review: who asks, how long it waits', () => {
     const r = changeNeed(facts({}), NOW);
     expect(r).toMatchObject({ kind: 'review', line: 'Ann asks for your review', waitsOnYou: true, pill: { label: 'Waiting 4 days', tone: 'warning' }, href: '/studio/changes/?pr=1' });
-    expect(changeNeed(facts({ task: 'ship' }), NOW).line).toBe('Ann waits for you to merge it');
+    expect(changeNeed(facts({ task: 'ship' }), NOW).line).toBe('Ann waits for you to add it to the library');
     // Who asked, not the account that opened it (the Bridge app for an email member).
-    expect(changeNeed(facts({ task: 'ship', asker: { ...facts({}).asker, name: 'Priya' } }), NOW).line).toBe('Priya waits for you to merge it');
+    expect(changeNeed(facts({ task: 'ship', asker: { ...facts({}).asker, name: 'Priya' } }), NOW).line).toBe('Priya waits for you to add it to the library');
     expect(changeNeed(facts({ task: 'guidance', asker: CLAUDE }), NOW).line).toBe('Claude AI asks you to check the usage guidance');
     const tech = changeNeed(facts({ task: 'tech' }), NOW);
     expect(tech).toMatchObject({ kind: 'review', waitsOnYou: true, line: 'Ann asks for your tech review' });
@@ -147,7 +147,7 @@ describe('rows', () => {
     expect(changeNeed(facts({ task: 'own-changes' }), NOW).line).toBe('A reviewer asked for changes');
     expect(changeNeed(facts({ task: 'own-changes', changesBy: [dana] }), NOW).action).toBe('Update');
     expect(changeNeed(facts({ task: 'own-blocked', blocker: '2 tests fail' }), NOW).pill).toEqual({ label: '2 tests fail', tone: 'danger' });
-    expect(changeNeed(facts({ task: 'own-ship' }), NOW).pill).toEqual({ label: 'Ready to merge', tone: 'success' });
+    expect(changeNeed(facts({ task: 'own-ship' }), NOW).pill).toEqual({ label: 'Ready to add to the library', tone: 'success' });
   });
   it('guidance drafts are Claude waiting', () => {
     const g = guidanceNeed({ name: 'Tooltip', href: '/components/tooltip/?edit=1', since: daysAgo(2) }, NOW);
@@ -156,8 +156,8 @@ describe('rows', () => {
   });
   it('contrast failing on main is a danger row', () => {
     expect(contrastNeed(0)).toBeNull();
-    expect(contrastNeed(2)).toMatchObject({ kind: 'health', title: '2 contrast checks fail on main', pill: { label: '2 checks fail', tone: 'danger' } });
-    expect(contrastNeed(1)?.title).toBe('1 contrast check fails on main');
+    expect(contrastNeed(2)).toMatchObject({ kind: 'health', title: '2 contrast checks fail in the library', pill: { label: '2 checks fail', tone: 'danger' } });
+    expect(contrastNeed(1)?.title).toBe('1 contrast check fails in the library');
   });
 });
 
@@ -171,7 +171,7 @@ describe('order and grouping', () => {
     const rows = [...Array.from({ length: 12 }, (_, i) => row(`r${i}`, 'review', null)), ...Array.from({ length: 5 }, (_, i) => row(`g${i}`, 'guidance', null)), row('o', 'own', null), row('h', 'health', null)];
     const s = splitNeeds(sortNeeds(rows));
     expect(s.shown).toHaveLength(3);
-    expect(s.more).toEqual({ count: 16, label: '16 more', parts: '9 reviews · 1 of your branches · 5 documentation drafts · 1 library check' });
+    expect(s.more).toEqual({ count: 16, label: '16 more', parts: '9 reviews · 1 of your changes · 5 documentation drafts · 1 library check' });
     expect(splitNeeds(rows.slice(0, 3)).more).toBeNull();
     expect(splitNeeds([...rows.slice(0, 3), row('g', 'guidance', null)]).more?.parts).toBe('1 documentation draft');
   });
@@ -278,7 +278,7 @@ describe('contributors: what waits on someone without a review right', () => {
 
   it('tours their branches, then how to start', () => {
     expect(CONTRIBUTOR_TOUR_STEPS).toEqual(['branches', 'start']);
-    expect(contributorTour('branches').title).toBe('Your branches');
+    expect(contributorTour('branches').title).toBe('Your changes');
     expect(contributorTour('branches').text).toMatch(/until a reviewer approves them/);
     // No branch yet: nothing to point at but where to start.
     expect(contributorTourSteps(true)).toEqual(['start']);

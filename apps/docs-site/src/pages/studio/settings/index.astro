@@ -423,7 +423,7 @@ const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? 
                 <p class="rq-error" role="alert" data-int-error hidden></p>
                 <div class="rq-actions">
                   <Button variant="secondary" type="submit" data-int-submit data-gh-gate="propose integrations">{VOCAB.requestReview}</Button>
-                  <span class="set-muted">Nothing changes until the branch is merged. A repository admin then adds the Jira credentials once. <Link href={jiraHelpUrl} external>{VOCAB.howOnGitHub}</Link></span>
+                  <span class="set-muted">Nothing changes until it is added to the library. A repository admin then adds the Jira credentials once. <Link href={jiraHelpUrl} external>{VOCAB.howOnGitHub}</Link></span>
                 </div>
                 <div class="rq-done" role="status" data-int-done hidden></div>
               </form>

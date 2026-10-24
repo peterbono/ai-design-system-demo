@@ -71,7 +71,7 @@ describe('checkStory', () => {
   it('does not claim the old value without test annotations', () => {
     const s = checkStory({ failed: PR101.map((c) => classifyCheck({ name: c.name, url: c.url })), pending: 0, passed: 27, design: passingDesign, tokenOnly: true });
     // The plugin check names no test without its job: they read as checks.
-    expect(s.developer?.text).toBe('3 developer checks fail on this branch. A developer needs to look at them.');
+    expect(s.developer?.text).toBe('3 developer checks fail on this change. A developer needs to look at them.');
     expect(s.oldValue).toBe(false);
   });
 
@@ -94,7 +94,7 @@ describe('checkStory', () => {
   it('says a token problem is the designer’s, and a missing release note a developer’s', () => {
     const s = checkStory({ failed: [classifyCheck({ name: 'Guardrails', step: 'Build tokens' }), classifyCheck({ name: 'Changeset present' })], pending: 0, passed: 3, design: { ...passingDesign, problems: ['color.x in semantic/light.tokens.json has no $type.'] }, tokenOnly: true });
     expect(s.design?.text).toBe('color.x in semantic/light.tokens.json has no $type. Fix it in the token editor.');
-    expect(s.developer?.text).toBe('The release note for this branch is missing. A developer adds it.');
+    expect(s.developer?.text).toBe('The release note for this change is missing. A developer adds it.');
   });
 
   it('reports running and passing checks', () => {
@@ -111,7 +111,7 @@ describe('failingSentence', () => {
     expect(s.sentence).not.toMatch(/fix/);
   });
   it('lets a design owner approve while developer tests fail', () => {
-    expect(failingSentence({ story, author: 'ana', viewerIsAuthor: false, viewerApprovesDesign: true, approvalsMissing: true })).toEqual({ sentence: 'Your turn: approve the design. Merging waits for a developer to update 3 tests.', yourTurn: true });
+    expect(failingSentence({ story, author: 'ana', viewerIsAuthor: false, viewerApprovesDesign: true, approvalsMissing: true })).toEqual({ sentence: 'Your turn: approve the design. Adding it to the library waits for a developer to update 3 tests.', yourTurn: true });
   });
   it('tells a designer who is on it, never which tests', () => {
     const d = { story, author: 'ana', forDesigner: true, approvalsMissing: true };
@@ -122,7 +122,7 @@ describe('failingSentence', () => {
   it('names the author when a design rule fails', () => {
     const bad = { ...story, designFails: true };
     expect(failingSentence({ story: bad, author: 'ana', viewerIsAuthor: false, viewerApprovesDesign: false, approvalsMissing: true }).sentence).toBe('Waiting for @ana to fix a design rule.');
-    expect(failingSentence({ story: bad, author: 'ana', viewerIsAuthor: true, viewerApprovesDesign: false, approvalsMissing: true })).toEqual({ sentence: 'Your turn: a design rule fails. Fix it before this can merge.', yourTurn: true });
+    expect(failingSentence({ story: bad, author: 'ana', viewerIsAuthor: true, viewerApprovesDesign: false, approvalsMissing: true })).toEqual({ sentence: 'Your turn: a design rule fails. Fix it before this can go into the library.', yourTurn: true });
   });
 });
 
@@ -130,11 +130,11 @@ describe('approvalHelp', () => {
   it('#101: the author is the only owner and holds the override', () => {
     const h = approvalHelp({ viewerIsAuthor: true, waiting: ['design', 'tech'], eligible: { design: [], tech: [] }, viewerHoldsOverride: true, testsPass: false });
     expect(h?.rowText).toEqual({ design: 'Waiting for another design owner', tech: 'Waiting for another tech owner' });
-    expect(h?.why).toBe('You made this branch, and GitHub does not let authors approve their own. No one else is an owner yet: add one in Settings and ask them, or merge it yourself with the owner override once tests pass.');
+    expect(h?.why).toBe('You made this change, and GitHub does not let authors approve their own. No one else is an owner yet: add one in Settings and ask them, or add it to the library yourself with the owner override once tests pass.');
   });
   it('names who else can approve', () => {
     const h = approvalHelp({ viewerIsAuthor: true, waiting: ['design'], eligible: { design: ['ana'] }, viewerHoldsOverride: false, testsPass: true });
-    expect(h).toEqual({ rowText: { design: 'Waiting for @ana' }, why: 'You made this branch, and GitHub does not let authors approve their own. Ask another design owner.', others: ['ana'] });
+    expect(h).toEqual({ rowText: { design: 'Waiting for @ana' }, why: 'You made this change, and GitHub does not let authors approve their own. Ask another design owner.', others: ['ana'] });
   });
   it('says nothing to someone who did not make the change', () => {
     expect(approvalHelp({ viewerIsAuthor: false, waiting: ['design'], eligible: {}, viewerHoldsOverride: true, testsPass: true })).toBeNull();
@@ -148,8 +148,8 @@ describe('reviewAskMessage and shipWhen', () => {
     );
   });
   it('says what unlocks shipping, in plain words', () => {
-    expect(shipWhen({ ciFail: true, missingApprovals: 2 })).toBe('Merge unlocks once tests pass and the approvals are in.');
-    expect(shipWhen({ ciPending: true, missingApprovals: 1, conflict: true })).toBe('Merge unlocks once tests finish, the approval is in and the conflict is resolved.');
+    expect(shipWhen({ ciFail: true, missingApprovals: 2 })).toBe('Adding to the library unlocks once tests pass and the approvals are in.');
+    expect(shipWhen({ ciPending: true, missingApprovals: 1, conflict: true })).toBe('Adding to the library unlocks once tests finish, the approval is in and the conflict is resolved.');
     expect(shipWhen({})).toBeNull();
   });
 });

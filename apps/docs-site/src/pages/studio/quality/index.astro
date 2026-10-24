@@ -86,14 +86,14 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
 
     {/* Showing an open branch (?change=N, lib/view-scope): these numbers are main's, so they give way to
         one line that points to the branch's own checks (html[data-view-change], set before the page paints). */}
-    <section class="ql-view" data-change-only aria-label="Quality of this branch">
+    <section class="ql-view" data-change-only aria-label="Quality of this change">
       <EmptyState icon={ShieldCheck} title={QUALITY_IN_CHECKS} description={QUALITY_IN_CHECKS_BODY} headingLevel={2} align="start">
         <ButtonLink slot="actions" variant="primary" href={studioHref('changes/')} data-change-href>See its checks</ButtonLink>
       </EmptyState>
     </section>
-    <section class="ql-view" data-together-only aria-label="Quality of these branches together">
+    <section class="ql-view" data-together-only aria-label="Quality of these changes together">
       <EmptyState icon={ShieldCheck} title={QUALITY_TOGETHER} description={QUALITY_TOGETHER_BODY} headingLevel={2} align="start">
-        <ButtonLink slot="actions" variant="primary" href={studioHref('changes/')}>Go to Branches</ButtonLink>
+        <ButtonLink slot="actions" variant="primary" href={studioHref('changes/')}>Go to Changes</ButtonLink>
       </EmptyState>
     </section>
 

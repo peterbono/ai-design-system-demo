@@ -204,7 +204,7 @@ function Controls({ mode }: { mode: Mode }) {
       <Checkbox label="Include dark theme" defaultChecked id={`sp-cb-on-${mode}`} />
       <Checkbox label="Include compact density" id={`sp-cb-off-${mode}`} />
       <Switch label="Sync from Figma" defaultChecked id={`sp-sw-on-${mode}`} />
-      <Switch label="Auto-merge" id={`sp-sw-off-${mode}`} />
+      <Switch label="Auto-save" id={`sp-sw-off-${mode}`} />
       <TokenCaption>control.checked · control.track · control.thumb</TokenCaption>
     </div>
   );

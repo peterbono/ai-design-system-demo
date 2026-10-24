@@ -301,7 +301,7 @@ export interface PushResult {
 export async function openPullRequest(client: GitHubClient, a: Analysis, p: PushProposal, opts: PushOptions): Promise<PushResult> {
   if (p.unresolvedConflicts.length) throw new Error('Resolve every conflict before you request review.');
   if (p.validation.blocking.length) throw new Error('Fix the blocking problems before you request review.');
-  if (!Object.keys(p.files).length && !p.brandFiles.length) throw new Error('Nothing to send: the Figma variables match main.');
+  if (!Object.keys(p.files).length && !p.brandFiles.length) throw new Error('Nothing to send: the Figma variables match the library.');
   const plans = p.brands.flatMap((b) => (b.plan ? [b.plan] : []));
   const title = opts.title.trim() || (p.changes.length ? defaultTitle(p.changes) : plans.map((x) => x.title).join(', '));
   const prefix = a.headFiles.tokensPath;
@@ -314,7 +314,7 @@ export async function openPullRequest(client: GitHubClient, a: Analysis, p: Push
   const repoFiles = [...Object.entries(p.files).map(([rel, content]) => ({ path: `${prefix}/${rel}`, content })), ...(changeset ? [changeset] : []), ...p.brandFiles];
 
   const parent = appended ? await client.getBranchSha(branch) : a.headSha;
-  if (!parent) throw new Error(`Branch ${branch} no longer exists.`);
+  if (!parent) throw new Error(`The change ${branch} no longer exists.`);
   const baseTree = await client.getCommitTree(parent);
   const blobs = [];
   for (const f of repoFiles) blobs.push({ path: f.path, sha: await client.createBlob(f.content) });
@@ -625,7 +625,7 @@ const fileLink = (opts: Pick<SuggestOptions, 'fileKey'>) => (opts.fileKey ? { fi
 export async function sendSuggestion(client: GitHubClient, a: Analysis, p: PushProposal, opts: SuggestOptions): Promise<SuggestResult> {
   if (p.unresolvedConflicts.length) throw new Error('Resolve every conflict before you send a suggestion.');
   if (p.validation.blocking.length) throw new Error('Fix the blocking problems before you send a suggestion.');
-  if (!Object.keys(p.files).length && !p.brandFiles.length) throw new Error('Nothing to send: the Figma variables match main.');
+  if (!Object.keys(p.files).length && !p.brandFiles.length) throw new Error('Nothing to send: the Figma variables match the library.');
   const lib = libraryTokens(a.headFiles);
   if (!lib) throw new Error('This repo has no bridge.config.json, so Bridge cannot send a suggestion. Add the config (bridge init).');
   const plans = p.brands.flatMap((b) => (b.plan ? [b.plan] : []));
@@ -660,7 +660,7 @@ export async function sendSuggestion(client: GitHubClient, a: Analysis, p: PushP
     const r = await createSuggestionOnGitHub(client, payload, { labels: ['tokens'], details: newBrandSection(plan) });
     out.push({ kind: 'brand', number: r.number, url: r.url, title: plan.title });
   }
-  if (!out.length) throw new Error('Nothing to send: the Figma variables match main.');
+  if (!out.length) throw new Error('Nothing to send: the Figma variables match the library.');
   return { suggestions: out, tags: variableTags(a, p) };
 }
 

@@ -2160,7 +2160,7 @@ function newBrandCard(r: PushState, b: PushBrand): HTMLElement {
                 refreshProposals();
               },
             }),
-            'Create it in this branch',
+            'Create it in this change',
           ),
           b.included && plan ? h('p', { class: 'muted' }, `Adds ${plan.files.filter((f) => f.action === 'create' && f.path.endsWith('.tokens.json')).map((f) => f.path.split('/').slice(-2).join('/')).join(', ')} and lists ${c.slug} in bridge.config.json. Tier 3: a design owner and a tech owner approve.`) : null,
           b.included ? result : null,
@@ -2945,7 +2945,7 @@ function refreshTryIt(r: PushState): void {
 /** The hint under a preview: what it shows, or where its build stands. */
 function linkHint(l: { hint: string; url: string | null; state: string }): string {
   // A build that failed before it had a URL (a rate limit) would otherwise wait forever.
-  if (l.state === 'failed') return l.url ? 'This deploy failed, the branch in Studio says why' : 'This preview did not build. The branch in Studio says why';
+  if (l.state === 'failed') return l.url ? 'This deploy failed, the change in Studio says why' : 'This preview did not build. The change in Studio says why';
   if (!l.url) return 'Link not ready yet';
   if (l.state === 'building') return 'Rebuilding with your edits';
   return l.hint;
@@ -2978,13 +2978,13 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
             ? 'The test build is being prepared, a few minutes. Checking every 15 seconds.'
             : 'The test build is being prepared, a few minutes.'
         : t.state === 'failed'
-          ? 'The test build did not finish. The branch in Studio says why.'
+          ? 'The test build did not finish. The change in Studio says why.'
           : null;
   const status = statusText === null && r.checkingTryIt && !t
     ? h('p', { class: 'row-hint', 'data-region': 'tryit-status', 'data-sig': 'checking' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('span', null, 'Checking the test build'))
     : statusText !== null
       ? statusLine(statusText, r)
-      : h('p', { class: 'lede', 'data-region': 'tryit-status', 'data-sig': 'ready' }, 'A developer installs it in a staging branch of your product. The message has the command, the previews and the link.');
+      : h('p', { class: 'lede', 'data-region': 'tryit-status', 'data-sig': 'ready' }, 'A developer installs it in a staging version of your product. The message has the command, the previews and the link.');
   // Nothing online reported: explorations are not deployed, a developer opens it on their machine (Share with a developer).
   // Vercel reports a deploy within a minute or two, the test build takes a few: "no preview" only once that one settled.
   const local = triedLocally(r.previews) && (!!r.tryItTimedOut || (!!t && t.state !== 'building'));

@@ -174,7 +174,7 @@ describe('libraryPreviewState', () => {
     assert.equal(libraryPreviewState(base).key, 'preview');
     assert.equal(libraryPreviewState(base).action, null);
     assert.deepEqual(libraryPreviewState({ ...base, missing: 1 }).action, { kind: 'refresh-preview', label: 'Get the latest preview' });
-    assert.deepEqual(libraryPreviewState({ ...base, missing: 2 }).action, { kind: 'use-preview', label: 'Use its preview in my branch' });
+    assert.deepEqual(libraryPreviewState({ ...base, missing: 2 }).action, { kind: 'use-preview', label: 'Use its preview in my feature' });
     assert.equal(libraryPreviewState({ ...base, missing: null, total: null }).key, 'not-used');
     assert.equal(libraryPreviewState({ ...base, kind: 'exploration', hasChanges: false }).key, 'nothing-yet');
   });
@@ -203,17 +203,17 @@ describe('productBranchSentence', () => {
 
   test('the mockup sentence when Claude opened the one library branch', () => {
     const s = productBranchSentence(r);
-    assert.equal(`${s.lead}${s.strong}${s.rest}`, 'Built with the library. 1 piece was missing, and Claude AI opened a library branch for it.');
+    assert.equal(`${s.lead}${s.strong}${s.rest}`, 'Built with the library. 1 piece was missing, and Claude AI opened a library change for it.');
     assert.equal(s.strong, '1 piece was missing');
   });
 
   test('you, a teammate, none linked, some linked, nothing missing, never checked', () => {
     const mine = { ...r, links: [link({ agent: undefined, openedBy: 'ann' })] };
-    assert.match(Object.values(productBranchSentence(mine, { viewer: 'ann' })).join(''), /and you opened a library branch for it\.$/);
+    assert.match(Object.values(productBranchSentence(mine, { viewer: 'ann' })).join(''), /and you opened a library change for it\.$/);
     assert.match(Object.values(productBranchSentence(mine, { viewer: 'dana' })).join(''), /and @ann opened/);
     const two = { ...r, pieces: [piece(), piece({ id: 'b' })] };
-    assert.equal(Object.values(productBranchSentence({ ...two, links: [] })).join(''), 'Built with the library. 2 pieces are missing: open a library branch for each.');
-    assert.equal(Object.values(productBranchSentence(two)).join(''), 'Built with the library. 2 pieces were missing: 1 has a library branch, 1 still needs one.');
+    assert.equal(Object.values(productBranchSentence({ ...two, links: [] })).join(''), 'Built with the library. 2 pieces are missing: open a library change for each.');
+    assert.equal(Object.values(productBranchSentence(two)).join(''), 'Built with the library. 2 pieces were missing: 1 has a library change, 1 still needs one.');
     assert.equal(Object.values(productBranchSentence({ ...r, pieces: [], links: [] })).join(''), 'Built with the library. Nothing is missing: every value and component comes from it.');
     assert.equal(productBranchSentence(undefined).lead, 'Not checked against the library yet.');
   });

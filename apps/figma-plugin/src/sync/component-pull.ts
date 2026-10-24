@@ -413,7 +413,7 @@ export function evaluateCalc(expr: string, head: TokenSet): number | { problem: 
     }
     const num = /^(-?\d+(?:\.\d+)?)(px)?$/.exec(t);
     if (num) return Number(num[1]);
-    if (!head.byPath.has(t)) return fail(`${t} is not a token on this branch`);
+    if (!head.byPath.has(t)) return fail(`${t} is not a token in the library`);
     const n = numberValue(head, t);
     return n === undefined ? fail(`${t} does not resolve to a number`) : n;
   };
@@ -479,7 +479,7 @@ function planValueOf(field: SpecField, value: unknown, head: TokenSet): PlannedV
     return typeof n === 'number' ? { kind: 'number', value: n, expr: value } : n;
   }
   const t = head.byPath.get(value);
-  if (!t) return { problem: `${value} is not a token on this branch` };
+  if (!t) return { problem: `${value} is not a token in the library` };
   if (field === 'fontFamily') {
     const families = familiesOf(head, value);
     if (!families?.length) return { problem: `${value} does not resolve to a font family` };

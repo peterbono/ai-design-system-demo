@@ -243,11 +243,11 @@ export const contributorTourSteps = (empty: boolean): ContributorTourAt[] => (em
 const CONTRIBUTOR_TOUR: Record<ContributorTourAt, { title: string; text: string }> = {
   branches: {
     title: `Your ${VOCAB.branches}`,
-    text: 'Your changes stay apart from the library until a reviewer approves them. When a reviewer asks for changes, the branch shows up here.',
+    text: 'Your changes stay apart from the library until a reviewer approves them. When a reviewer asks for changes, the change shows up here.',
   },
   start: {
     title: 'Start a change',
-    text: 'Pick what you want to change. Bridge keeps it on its own branch, so you can try things without touching the library until a reviewer approves it.',
+    text: 'Pick what you want to change. Bridge keeps it as a change of its own, so you can try things without touching the library until a reviewer approves it.',
   },
 };
 
@@ -331,7 +331,7 @@ export function changeNeed(c: ChangeFacts, now: number): NeedRow {
   const waiting = c.since ? { label: waitingLabel(c.since, now), tone: 'warning' as const } : null;
   switch (c.task) {
     case 'ship':
-      return { ...base, kind: 'review', person: c.asker, line: `${c.asker.name} waits for you to merge it`, waitsOnYou: true, pill: waiting };
+      return { ...base, kind: 'review', person: c.asker, line: `${c.asker.name} waits for you to add it to the library`, waitsOnYou: true, pill: waiting };
     case 'guidance':
       return { ...base, kind: 'review', person: c.asker, line: `${c.asker.name} asks you to check the usage guidance`, waitsOnYou: true, pill: waiting };
     case 'look-again':
@@ -348,9 +348,9 @@ export function changeNeed(c: ChangeFacts, now: number): NeedRow {
       return { ...base, kind: 'own', person: c.changesBy?.[0] ?? null, line: `${by} asked for changes`, waitsOnYou: false, pill: { label: 'Changes requested', tone: 'warning' }, action: 'Update' };
     }
     case 'own-blocked':
-      return { ...base, kind: 'own', person: null, line: `Your ${VOCAB.branch} cannot be merged yet`, waitsOnYou: false, pill: { label: c.blocker ? capitalize(c.blocker) : 'Blocked', tone: 'danger' } };
+      return { ...base, kind: 'own', person: null, line: `Your ${VOCAB.branch} cannot be added to the library yet`, waitsOnYou: false, pill: { label: c.blocker ? capitalize(c.blocker) : 'Blocked', tone: 'danger' } };
     case 'own-ship':
-      return { ...base, kind: 'own', person: null, line: 'Approved. Merge it to ship it with the next release', waitsOnYou: false, pill: { label: 'Ready to merge', tone: 'success' } };
+      return { ...base, kind: 'own', person: null, line: 'Approved. Add it to the library to ship it with the next release', waitsOnYou: false, pill: { label: VOCAB.readyToMerge, tone: 'success' } };
   }
 }
 
@@ -378,7 +378,7 @@ export function contrastNeed(fail: number): NeedRow | null {
   return {
     key: 'health-contrast',
     kind: 'health',
-    title: `${plural(fail, 'contrast check fails', 'contrast checks fail')} on ${VOCAB.main}`,
+    title: `${plural(fail, 'contrast check fails', 'contrast checks fail')} in ${VOCAB.main}`,
     href: studioHref('quality/'),
     person: null,
     line: 'The token build waits until every pair passes',

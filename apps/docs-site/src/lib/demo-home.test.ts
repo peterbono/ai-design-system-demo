@@ -86,8 +86,8 @@ describe("the DS lead's queue on the demo", () => {
     ]);
     expect(cards.map((c) => [c.number, c.stage, c.statusLine])).toEqual([
       [36, 'draft', { stage: 'Exploration in Account', detail: 'ann' }],
-      [20, 'ready', { stage: 'Library branch', detail: 'in review' }],
-      [15, 'draft', { stage: 'Library branch', detail: 'draft' }],
+      [20, 'ready', { stage: 'Library change', detail: 'in review' }],
+      [15, 'draft', { stage: 'Library change', detail: 'draft' }],
     ]);
     expect(cards[1]!.reviewer?.login).toBe('dana');
     // No "Sample" chip on the cards: the demo banner already says it is sample data.

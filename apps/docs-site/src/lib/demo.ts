@@ -85,7 +85,7 @@ export const DEMO_WORDS = {
   /** The same banner for someone who has no workspace yet. */
   connectOwn: 'Connect your design system',
   /** The home's branches (board D1). */
-  branches: 'Explorations and branches',
+  branches: 'Explorations and changes',
   /** A write action on the sample team (board D2). */
   dialogTitle: 'This is a sample team.',
   dialogLead: 'Nothing is sent from Acme Design. Get started to do this with your own team.',
@@ -283,7 +283,7 @@ const DEMO_TOUR: Record<TourAt, { title: string; text: string }> = {
   },
   branches: {
     title: 'Work in progress stays apart',
-    text: 'Explorations try a product screen with Claude AI; branches change the library. Nothing reaches it until it is reviewed and merged.',
+    text: 'Explorations try a product screen with Claude AI; changes edit the library. Nothing reaches it until it is reviewed and added.',
   },
 };
 

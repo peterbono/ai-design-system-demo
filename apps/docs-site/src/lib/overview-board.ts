@@ -96,7 +96,7 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** The person shown on a card: never the viewer. */
 const other = (login: string | null | undefined, viewer: string | null) => (login && !same(login, viewer) ? login : null);
 
-const LABEL: Record<ColumnId, string> = { exploring: 'Exploring', review: 'In review', ready: 'Ready to merge', release: 'Next release' };
+const LABEL: Record<ColumnId, string> = { exploring: 'Exploring', review: 'In review', ready: 'Ready to add to the library', release: 'Next release' };
 const HREF: Record<ColumnId, string> = {
   exploring: studioHref('changes/?view=explorations'),
   review: studioHref('changes/'),
@@ -142,7 +142,7 @@ function readyCard(c: BoardChange, viewer: string | null): BoardCard {
     title: c.title,
     who: other(c.author, viewer),
     href: studioHref(`changes/?pr=${c.number}`),
-    note: yours ? 'Approved and tested. Merge it to put it in the next release.' : `Approved and tested. ${c.who?.sentence.replace(/^Ready to merge: /, '') ?? ''}`.trim(),
+    note: yours ? 'Approved and tested. Add it to the library to put it in the next release.' : `Approved and tested. ${c.who?.sentence.replace(/^Ready to add to the library: /, '') ?? ''}`.trim(),
     status: yours ? YOU : null,
   };
 }

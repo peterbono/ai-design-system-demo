@@ -143,10 +143,10 @@ export function teamBranches(pulls: DemoPull[], opts: LeadOptions = {}): BranchC
         updated: p.updated_at,
         reviewer: reviewer ? who(reviewer, opts.people) : null,
         thumb: opts.thumbs?.get(p.number) ?? { kind: 'icon', icon: guidanceBranch(p) ? 'guidance' : 'branch' },
-        // Board D1: "Exploration in Admin demo · Ann", "Library branch · in review", "Library branch · draft".
+        // Board D1: "Exploration in Admin demo · Ann", "Library change · in review", "Library change · draft".
         statusLine: isExploration(p)
           ? { stage: productOf(p) ? `Exploration in ${productOf(p)}` : 'Exploration', detail: askerOf(p, opts.people).name }
-          : { stage: 'Library branch', detail: isDraft(p) ? 'draft' : opts.approved?.has(p.number) ? 'approved' : 'in review' },
+          : { stage: 'Library change', detail: isDraft(p) ? 'draft' : opts.approved?.has(p.number) ? 'approved' : 'in review' },
       } satisfies BranchCard;
     });
 }

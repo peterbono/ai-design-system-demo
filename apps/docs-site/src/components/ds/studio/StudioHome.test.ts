@@ -49,7 +49,7 @@ describe('StudioHome, contributor', () => {
   it('lists a branch sent back with changes, with Update and its one status', async () => {
     localStorage.setItem('bridge.home.contributor-tour', 'done');
     const { container } = render(createElement(StudioHome, props({ needs: [sentBack] })));
-    expect(screen.getByText('Your branches need you.')).toBeTruthy();
+    expect(screen.getByText('Your changes need you.')).toBeTruthy();
     expect(container.textContent).toContain('Dana asked for changes');
     expect(screen.getAllByText('Changes requested').length).toBeGreaterThan(0);
     expect(screen.getByText('Update')).toBeTruthy();
@@ -62,7 +62,8 @@ describe('StudioHome, contributor', () => {
     const user = userEvent.setup();
     render(createElement(StudioHome, props()));
     await user.click(await screen.findByRole('button', { name: 'Next' }));
-    expect(await screen.findByText('Start a change')).toBeTruthy();
+    // The tour step and the button it points at now share the words "Start a change".
+    expect((await screen.findAllByText('Start a change')).length).toBeGreaterThan(1);
     await user.click(screen.getByRole('button', { name: 'Done' }));
     expect(localStorage.getItem('bridge.home.contributor-tour')).toBe('done');
   });
@@ -76,8 +77,8 @@ describe('StudioHome, contributor', () => {
 describe('StudioHome, contributor with nothing yet', () => {
   it('tours only where to start: there are no branches to point at', async () => {
     render(createElement(StudioHome, props({ state: 'empty' })));
-    expect(await screen.findByText('Start a change')).toBeTruthy();
-    expect(screen.queryByText('Your branches')).toBeNull();
+    expect((await screen.findAllByText('Start a change')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Your changes')).toBeNull();
     expect(screen.queryByText(/of 1$/)).toBeNull();
     expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
   });
@@ -110,7 +111,7 @@ describe('StudioHome, demo', () => {
     const { container } = render(createElement(StudioHome, props({ contributor: false, demo, tour: () => null })));
     const items = container.querySelectorAll('.sh-cards > li');
     expect(items[0]!.classList.contains('sh-create')).toBe(true);
-    expect(items[0]!.querySelector('[data-demo-write="create branches"]')).toBeTruthy();
+    expect(items[0]!.querySelector('[data-demo-write="start changes"]')).toBeTruthy();
     expect(screen.queryByText('Sample')).toBeNull();
   });
 });

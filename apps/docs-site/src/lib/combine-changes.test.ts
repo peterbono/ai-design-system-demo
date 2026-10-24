@@ -82,11 +82,11 @@ describe('the combination', () => {
     expect(conflicts.map((c) => c.path)).toEqual(['color.bg.default']);
     const unpicked = combineChanges(latest, [A, B, C]);
     expect(combineSummary({ changes: 3, tokens: unpicked.tokens, conflicts: unpicked.conflicts.length, missing: unpicked.missing.length })).toBe(
-      'Combines 3 tokens from 3 branches. 1 token has different values in these branches: pick which one to use.',
+      'Combines 3 tokens from 3 changes. 1 token has different values in these changes: pick which one to use.',
     );
     const picked = combineChanges(latest, [A, B, C], { [conflicts[0]!.key]: 118 });
     expect(combineSummary({ changes: 3, tokens: picked.tokens, conflicts: picked.conflicts.length, missing: picked.missing.length })).toBe(
-      'Combines 3 tokens from 3 branches. You picked the value of 1 token they set differently.',
+      'Combines 3 tokens from 3 changes. You picked the value of 1 token they set differently.',
     );
     expect(picked.files[LIGHT]).toContain('{palette.neutral.100}');
     expect(picked.files[LIGHT]).toContain('{palette.primary.800}');
@@ -97,12 +97,12 @@ describe('the combination', () => {
     const picked = combineChanges(latest, [A, B, C], { [conflicts[0]!.key]: 101 });
     const g = togetherGuardrail(reviewTokenChange(latest, picked.files, pairs, options));
     expect(g.ok).toBe(true);
-    expect(g.sentence).toMatch(/^All \d+ contrast checks pass with these branches together\.$/);
+    expect(g.sentence).toMatch(/^All \d+ contrast checks pass with these changes together\.$/);
     // A link that no longer reads on the canvas fails, counted on the combination.
     const bad = edits(130, { 'color.text.link': '{palette.neutral.100}' });
     const failing = togetherGuardrail(reviewTokenChange(latest, combineChanges(latest, [A, bad]).files, pairs, options));
     expect(failing.ok).toBe(false);
-    expect(failing.sentence).toMatch(/contrast checks? fails? with these branches together/);
+    expect(failing.sentence).toMatch(/contrast checks? fails? with these changes together/);
     expect(failing.failing[0]!.pair).toMatch(/color\.text\.link on /);
   });
 

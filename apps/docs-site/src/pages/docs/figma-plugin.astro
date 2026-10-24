@@ -15,13 +15,13 @@ const sections = [
     <p>DS Bridge lets you edit design tokens as Figma Variables and send those edits back to the repository for review. The repository stays the source of truth. It works on the free Figma plan, and nothing is written to main directly.</p>
 
     <h3>Pull the kit generated from code</h3>
-    <p>Pull brings the latest tokens from main into Figma Variables, showing the plan before anything is written. Tokens changed on both sides show as conflicts for you to decide.</p>
+    <p>Pull brings the latest tokens from the library into Figma Variables, showing the plan before anything is written. Tokens changed on both sides show as conflicts for you to decide.</p>
     <p>When the repository has component specs, Pull can also build the coded components as component sets bound to those variables, once you tick <strong>Also pull components</strong>.</p>
 
     <h3>Push variables and components</h3>
     <p>Push sends your edits either to <strong>Send for review</strong> or to <strong>Try in an exploration</strong>.</p>
     <p>Variable edits become one draft pull request with a change table, contrast before and after, and the risk tier. Blocking guardrail problems disable <strong>Send for review</strong>.</p>
-    <p>Each component change goes to its own library branch: an exact token change, a spec that a developer builds with Claude, then a person reviews, or <strong>Fix in Figma first</strong> when the scan cannot read it with confidence.</p>
+    <p>Each component change goes to its own library change: an exact token change, a spec that a developer builds with Claude, then a person reviews, or <strong>Fix in Figma first</strong> when the scan cannot read it with confidence.</p>
 
     <h3>Fidelity check</h3>
     <p><strong>Check fidelity</strong>, in the Pull preview, compares every generated variant with an image of it rendered from code, and says <strong>Matches the code</strong> or <strong>Differs from the code</strong>. Nothing in the file changes.</p>

@@ -268,7 +268,7 @@ export async function publish(client: GitHubClient, input: PublishInput): Promis
   const { prFiles, drafts } = publishPlan(input);
   if (!prFiles && !drafts.length) throw new Error('Nothing is checked. Check a variable or a component to push.');
   const mode = input.mode ?? 'direct';
-  if (mode === 'suggest' && input.exploration) throw new Error('This repo takes changes as suggestions, and an exploration is a branch: send it for review as a suggestion instead.');
+  if (mode === 'suggest' && input.exploration) throw new Error('This repo takes changes as suggestions, and an exploration is a separate copy of the library: send it for review as a suggestion instead.');
   const out: PublishResult = { requests: [], branches: [], suggestions: [], held: [], failed: [], outcomes: [], ...(input.exploration ? { exploration: { branch: input.exploration.branch, pr: input.exploration.pr, unchanged: false } } : {}) };
   if (prFiles && input.exploration) {
     const res = await commitToExploration(client, input.analysis, input.proposal, { target: input.exploration, title: input.title, notes: input.description, ...(input.now ? { now: input.now } : {}) });

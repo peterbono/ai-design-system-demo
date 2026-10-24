@@ -43,7 +43,7 @@ export const Blocked: Story = {
       label="What it needs to ship"
       footer={
         <>
-          <p>This change waits on a failing test. Fix it on the branch, or ask a developer to look.</p>
+          <p>This change waits on a failing test. Fix it in the change, or ask a developer to look.</p>
           <div>
             <Button size="sm" variant="secondary">Open the test report</Button>
           </div>

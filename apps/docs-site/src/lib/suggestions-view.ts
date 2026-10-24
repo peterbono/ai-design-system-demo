@@ -48,7 +48,7 @@ export const SUGGESTION_WORDS = {
   /** After an approval that completes the review. */
   ready: 'Approved, ready to apply',
   /** Once approved: who acts next. The commands sit under For developers, for developers only. */
-  applyHint: 'A developer applies it next. It reaches the library once their change merges, without a second review.',
+  applyHint: 'A developer applies it next. It reaches the library once their change is in, without a second review.',
 } as const;
 
 const KIND_LABEL: Record<SuggestionKind, string> = {
@@ -265,7 +265,7 @@ const listModes = (modes: string[]) => (modes.length === 2 && modes.includes('li
  */
 export function proofChips(p: Pick<SuggestionPayloadV1, 'checks' | 'kind'>, today?: TodayChecks | null): ProofChip[] {
   const errors = today ? today.newErrors : p.checks.newErrors;
-  const when = today ? "on today's main" : 'when it was suggested';
+  const when = today ? "on today's library" : 'when it was suggested';
   const chips: ProofChip[] = [
     errors
       ? { key: 'checks', label: `${errors} design system ${errors === 1 ? 'error' : 'errors'}`, tone: 'danger', detail: `The token checks found ${errors} new ${errors === 1 ? 'error' : 'errors'} ${when}.` }
@@ -317,9 +317,9 @@ export function staleLines(x: {
   }
   if (x.conflicts?.length) {
     const first = x.conflicts[0]!;
-    out.push({ tone: 'danger', title: 'Main changed since it was suggested', text: `${first.detail}${x.conflicts.length > 1 ? ` And ${x.conflicts.length - 1} more.` : ''} Ask the author to send it again on today's main.` });
+    out.push({ tone: 'danger', title: 'The library changed since it was suggested', text: `${first.detail}${x.conflicts.length > 1 ? ` And ${x.conflicts.length - 1} more.` : ''} Ask the author to send it again on today's main.` });
   } else if (x.mainMoved && x.conflicts) {
-    out.push({ tone: 'success', title: 'Still applies cleanly', text: 'Main changed since it was suggested, and every change still applies.' });
+    out.push({ tone: 'success', title: 'Still applies cleanly', text: 'The library changed since it was suggested, and every change still applies.' });
   }
   return out;
 }
@@ -383,7 +383,7 @@ export function suggestionGate(x: {
   const mine = x.approvals?.approvers.some((l) => same(l, x.viewer)) ?? false;
   const role = missing.find((m) => roles.includes(m)) ?? null;
   const base = { ...none, canRequestChanges: x.status !== 'outdated', canDecline: true };
-  if (x.status === 'outdated') return { ...base, why: 'Main changed under it: ask the author to send it again before anyone approves it.' };
+  if (x.status === 'outdated') return { ...base, why: 'The library changed under it: ask the author to send it again before anyone approves it.' };
   if (mine) {
     const left = missing[0];
     const others = (left === 'design' ? x.owners.design : left === 'tech' ? x.owners.tech : listed).filter((l) => !same(l, x.viewer));

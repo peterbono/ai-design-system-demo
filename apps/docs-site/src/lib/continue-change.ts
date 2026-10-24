@@ -118,9 +118,9 @@ export function targetOptions(targets: ChangeTarget[], ago: (iso: string) => str
     ...shown.map((t) => ({
       value: targetValue({ kind: 'change', number: t.number }),
       label: `Add to ${t.title}`,
-      description: [t.mine ? 'Your branch' : `Opened by ${t.author}`, t.updatedAt ? `updated ${ago(t.updatedAt)}` : ''].filter(Boolean).join(', ') + '.',
+      description: [t.mine ? 'Your change' : `Opened by ${t.author}`, t.updatedAt ? `updated ${ago(t.updatedAt)}` : ''].filter(Boolean).join(', ') + '.',
     })),
-    { value: 'new', label: 'Create a new branch', description: 'It gets its own title and its own review.' },
+    { value: 'new', label: 'Start a new change', description: 'It gets its own title and its own review.' },
   ];
 }
 
@@ -156,7 +156,7 @@ export class ChangeConflictError extends Error {
 export function conflictSentence(paths: string[], scoped = true): string {
   const n = paths.length;
   const what = n === 1 ? paths[0] : n === 2 ? `${paths[0]} and ${paths[1]}` : `${paths[0]} and ${n - 1} other tokens`;
-  const where = scoped ? `Someone also edited ${what} in this branch after you opened it.` : `This branch already edits ${what}, to another value than yours.`;
+  const where = scoped ? `Someone also edited ${what} in this change after you opened it.` : `This change already edits ${what}, to another value than yours.`;
   return `${where} Nothing was saved, so no edit is lost. Keep your value, or keep theirs and drop your edit.`;
 }
 
@@ -186,7 +186,7 @@ export function scopeBanner(title: string): { title: string; body: string } {
 /** Status line once the edits are added. */
 export function addedSentence(n: number, title: string, upstream: number): string {
   const edits = `${n} edit${n === 1 ? '' : 's'}`;
-  const moved = upstream ? ` It had moved since you opened it: ${upstream === 1 ? '1 other token stays as the branch has it' : `${upstream} other tokens stay as the branch has them`}.` : '';
+  const moved = upstream ? ` It had moved since you opened it: ${upstream === 1 ? '1 other token stays as the change has it' : `${upstream} other tokens stay as the change has them`}.` : '';
   return `Added ${edits} to ${title}.${moved}`;
 }
 
@@ -195,7 +195,7 @@ export const addedNotice = (n: number) => `Added ${n} edit${n === 1 ? '' : 's'} 
 
 /** The local draft strip on Changes: where the draft goes when sent. */
 export function draftDestination(target: ChangeTarget | null, edits = 2): string {
-  return target ? `${edits === 1 ? 'It goes' : 'They go'} to ${target.title}.` : 'Requesting review creates a new branch.';
+  return target ? `${edits === 1 ? 'It goes' : 'They go'} to ${target.title}.` : 'Sending it for review starts a new change.';
 }
 
 /** The comment posted on the change, so reviewers see what was added and from where (core addedComment). */

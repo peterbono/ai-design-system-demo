@@ -65,18 +65,18 @@ const GET_STARTED = signInHref(null, true);
         title="Start it in Bridge. Every change is tracked."
         lede="Explore with Claude AI as usual. Bridge tracks what it changes in your system."
         steps={[
-          { title: 'Start your exploration from Bridge', text: 'Pick the product, link the Jira ticket, start with Claude AI. It works on its own branch, with its own preview.' },
+          { title: 'Start your exploration from Bridge', text: 'Pick the product, link the Jira ticket, start with Claude AI. It works on its own copy, with its own preview.' },
           { title: 'Bridge traces what changed', text: 'New pieces, changed tokens, values written by hand: everything the exploration did to your design system is listed.' },
           { title: 'Your DS lead reviews just that', text: 'No screenshots to compare. The DS lead and a developer review exactly those changes, in the product, with contrast checked.' },
         ]}
         labels={[
-          'Create branch dialog: A feature in a product is selected, with a field to link a Jira ticket and a Start with Claude AI button',
+          'Start a change dialog: A feature in a product is selected, with a field to link a Jira ticket and a Start with Claude AI button',
           'A sieve labelled Bridge: the pieces your library already has, an avatar, text and a Follow button, fall through; the new Profile header is caught on top. New, Bridge keeps it',
           'Drawing: the kept Profile header is clipped onto a review easel; Dana, design, then Leo, code, tick their checklists, the swatch flips between light and dark, and it is approved',
         ]}
       >
         <div slot="p0" class="hp-card hp-dlg">
-          <span class="hp-xs hp-muted">Create branch</span>
+          <span class="hp-xs hp-muted">Start a change</span>
           <strong class="hp-dt">What are you working on?</strong>
           <div class="hp-opt hp-pick"><span class="hp-radio"></span><span><strong>A feature in a product</strong><small>A new screen or flow, built with your library.</small></span></div>
           <div class="hp-opt"><span class="hp-radio"></span><span><strong>A change to the library</strong><small>A token, a variant or a component.</small></span></div>
@@ -91,14 +91,14 @@ const GET_STARTED = signInHref(null, true);
         id="hp-b3"
         flip
         title="Ship it everywhere at once."
-        lede="Merge once. The code is published and your Figma kit follows."
+        lede="Add it to the library once. The code is published and your Figma kit follows."
         steps={[
-          { title: 'Merge', text: 'Design and code approved, contrast checked, other products unchanged. One merge.' },
+          { title: 'Add to the library', text: 'Design and code approved, contrast checked, other products unchanged. One step.' },
           { title: 'The code is published', text: 'The Profile header ships in @bridge-ds/react, ready to import.' },
           { title: 'Your Figma kit follows', text: 'One Pull in the DS Bridge plugin brings it into the Figma kit.' },
         ]}
         labels={[
-          'Drawing: the approved Profile header drops once into a funnel marked Merge, tagged Bridge; it flows down three pipes and lands in code, the Figma kit and the docs at once',
+          'Drawing: the approved Profile header drops once into a funnel marked Library, tagged Bridge; it flows down three pipes and lands in code, the Figma kit and the docs at once',
           'Drawing: a parcel addressed @bridge-ds/react, to your developers, opens; the Profile header rises out of it, ready to import, and the line import ProfileHeader from @bridge-ds/react writes itself. Delivered as code, no handoff',
           'Drawing: a Pull crank draws the Profile header along a line from the code post into the Figma kit toolbox; a tracing of the code lands exactly on it, and a check confirms it matches the code',
         ]}
@@ -151,7 +151,7 @@ const GET_STARTED = signInHref(null, true);
       <div class="hp-wrap hp-hz-text">
         <p class="hp-eyebrow">Open source · MIT</p>
         <h2 id="hp-close-t" class="hp-hz-h">Explore freely. <span class="hp-keep">Keep<svg class="hp-ul hp-ul-late" viewBox="0 0 150 18" preserveAspectRatio="none" aria-hidden="true"><path d="M3 12C28 6 66 3.5 104 6.5S140 11 147 7" pathLength="1"></path></svg></span> what works.</h2>
-        <p class="hp-hz-p">Your next exploration is one branch away.</p>
+        <p class="hp-hz-p">Your next exploration is one change away.</p>
         <div class="hp-hz-cta"><ButtonLink variant="primary" size="lg" iconEnd={ArrowRight} href={GET_STARTED}>Get started</ButtonLink></div>
       </div>
       <div class="hp-pano" data-pano>

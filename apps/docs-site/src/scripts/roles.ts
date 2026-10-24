@@ -149,7 +149,7 @@ function initForm(form: HTMLFormElement) {
       setEditing(false);
       done.hidden = false;
     } catch (err) {
-      showGhError(error, err, `GitHub did not create the branch: ${(err as Error).message}`, 'create branches');
+      showGhError(error, err, `GitHub did not start the change: ${(err as Error).message}`, 'start changes');
       error.hidden = false;
     } finally {
       setButtonBusy(submit, false, 'Send for review');

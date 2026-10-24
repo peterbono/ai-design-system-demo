@@ -597,7 +597,7 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
                 {named ? named.name : step.detail}. {TEAM_NAME_WORDS.applies}
               </p>
               <p>
-                <Link href={studioHref(`changes/?pr=${named?.number ?? step.pr ?? ''}`)}>See the branch</Link>
+                <Link href={studioHref(`changes/?pr=${named?.number ?? step.pr ?? ''}`)}>See the change</Link>
               </p>
             </div>
           ) : (
@@ -717,7 +717,7 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
                 <strong>Sent for review{sent ? `, #${sent.number}` : ''}.</strong> {sent ? CHANGES_CHOICE[mode].title : step.detail}. It applies once your team approves and merges the branch.
               </p>
               <p>
-                <Link href={studioHref(`changes/?pr=${sent?.number ?? step.pr ?? ''}`)}>See the branch</Link>
+                <Link href={studioHref(`changes/?pr=${sent?.number ?? step.pr ?? ''}`)}>See the change</Link>
               </p>
             </div>
           ) : (

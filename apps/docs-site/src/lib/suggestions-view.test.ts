@@ -193,7 +193,7 @@ describe('proof chips', () => {
     const today = proofChips(payload(), { newErrors: 2, newFailures: [{ pair: 'a on b' }, { pair: 'c on d' }] });
     expect(today[0]).toMatchObject({ label: '2 design system errors', tone: 'danger' });
     expect(today[1]).toMatchObject({ label: '2 contrast pairs fail', tone: 'danger' });
-    expect(today[0]!.detail).toContain("today's main");
+    expect(today[0]!.detail).toContain("today's library");
   });
 
   it('leaves contrast and usage out of a docs change', () => {
@@ -209,7 +209,7 @@ describe('stale', () => {
   });
 
   it('says when main moved under it, and when it still applies', () => {
-    expect(staleLines({ stale: [], mainMoved: true, conflicts: [{ path: 'color.bg.default', detail: 'color.bg.default changed since it was suggested (now #eeeeee, suggested from #ffffff).' }] })[0]).toMatchObject({ tone: 'danger', title: 'Main changed since it was suggested' });
+    expect(staleLines({ stale: [], mainMoved: true, conflicts: [{ path: 'color.bg.default', detail: 'color.bg.default changed since it was suggested (now #eeeeee, suggested from #ffffff).' }] })[0]).toMatchObject({ tone: 'danger', title: 'The library changed since it was suggested' });
     expect(staleLines({ stale: [], mainMoved: true, conflicts: [] })[0]).toMatchObject({ tone: 'success', title: 'Still applies cleanly' });
     expect(staleLines({ stale: [], mainMoved: true })).toEqual([]);
   });

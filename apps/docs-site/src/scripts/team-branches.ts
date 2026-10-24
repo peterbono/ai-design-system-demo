@@ -28,7 +28,7 @@ export async function initTeamBranches(): Promise<void> {
   const main = $('cg-main');
   if (!state || !main) return;
   let stateRoot: Root | null = createRoot(state);
-  stateRoot.render(createElement(TeamLoadProgress, { label: "Reading this team's branches" }));
+  stateRoot.render(createElement(TeamLoadProgress, { label: "Reading this team's changes" }));
 
   let data: TeamData;
   try {
@@ -138,7 +138,7 @@ export async function initTeamBranches(): Promise<void> {
     reviews.closePr();
     if (r.view === 'suggestion') {
       showMain(null);
-      if (sgHost) void suggestions.openSuggestion(r.n, { el: sgHost, crumbs: [{ label: 'Branches', href: studioHref('changes/') }, { label: 'Suggestion' }] });
+      if (sgHost) void suggestions.openSuggestion(r.n, { el: sgHost, crumbs: [{ label: 'Changes', href: studioHref('changes/') }, { label: 'Suggestion' }] });
       return;
     }
     if (r.view === 'request') {

@@ -116,14 +116,14 @@ export default function ProtectionRow() {
         >
           <ul className="set-protect-list">
             <li>
-              <strong>Every branch goes through review.</strong> Someone approves it before it is merged into main.
+              <strong>Every change goes through review.</strong> Someone approves it before it is added to the library.
             </li>
             <li>
               <strong>Checks must pass.</strong>{' '}
-              {checks === null ? 'Reading your checks from GitHub.' : checks.length ? `The ${checks.length} checks your team already runs must pass before a branch is merged.` : 'Your repository runs no checks yet, so only review applies.'}
+              {checks === null ? 'Reading your checks from GitHub.' : checks.length ? `The ${checks.length} checks your team already runs must pass before a change is added to the library.` : 'Your repository runs no checks yet, so only review applies.'}
             </li>
             <li>
-              <strong>Nobody rewrites history.</strong> Merged branches stay as they are, and nobody can delete the library.
+              <strong>Nobody rewrites history.</strong> Changes in the library stay as they are, and nobody can delete the library.
             </li>
           </ul>
           <p className="set-protect-note">

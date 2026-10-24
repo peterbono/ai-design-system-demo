@@ -118,7 +118,7 @@ const crumbItems = trail.map((c, i) => (c.href && i < trail.length - 1 ? { label
 // Page sources for "View source": real files only; "git log" is said in the popover title instead.
 const files = sources.filter((s) => s !== 'git log');
 const logged = sources.includes('git log');
-const searchLabel = isStudio ? 'Search tokens, components, branches' : 'Search tokens, components, pages';
+const searchLabel = isStudio ? 'Search tokens, components, changes' : 'Search tokens, components, pages';
 // The team chip names the repository: from the build on the self-hosted Studio, from the address on a team shell.
 const builtRepo = hosted ? null : `${siteRepo().owner}/${siteRepo().repo}`;
 // A team's Library signs in with the same GitHub App as the team's Studio, so a Studio sign-in reads private repos here.

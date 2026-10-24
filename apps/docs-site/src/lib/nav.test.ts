@@ -50,7 +50,7 @@ describe('navigation data', () => {
   it('finds the group and entry for breadcrumbs, nested pages included', () => {
     expect(locate('/foundations/accessibility/')).toMatchObject({ space: 'library', group: 'Foundations', item: { label: 'Accessibility' } });
     expect(locate('/tokens/')).toMatchObject({ space: 'library', group: 'Foundations', item: { label: 'All tokens' } });
-    expect(locate('/studio/changes/')).toMatchObject({ space: 'studio', item: { label: 'Branches' } });
+    expect(locate('/studio/changes/')).toMatchObject({ space: 'studio', item: { label: 'Changes' } });
     expect(locate('/studio/review/')).toMatchObject({ space: 'studio', item: { label: 'Home' } });
     expect(locate('/components/button/').entry?.label).toBe('Components');
     expect(locate('/studio/settings/')).toMatchObject({ space: 'studio', item: { label: 'Settings' } });
@@ -110,17 +110,17 @@ describe('navigation shape', () => {
 
   it('shows one count in the Studio nav: reviews, on Changes', () => {
     const counted = navFor('studio').filter((e) => e.badge);
-    expect(counted.map((e) => [e.label, e.badge])).toEqual([['Branches', 'reviews']]);
+    expect(counted.map((e) => [e.label, e.badge])).toEqual([['Changes', 'reviews']]);
   });
 });
 
 describe('studio nav', () => {
   it('lists Home, Branches, Being built, Components, Tokens, Quality, Settings', () => {
-    expect(navFor('studio').map((e) => e.label)).toEqual(['Home', 'Branches', 'Being built', 'Components', 'Tokens', 'Quality', 'Settings']);
+    expect(navFor('studio').map((e) => e.label)).toEqual(['Home', 'Changes', 'Being built', 'Components', 'Tokens', 'Quality', 'Settings']);
   });
 
   it('makes Changes one page with the review count, and drops the pages it replaced', () => {
-    const changes = navFor('studio').find((e) => e.label === 'Branches')!;
+    const changes = navFor('studio').find((e) => e.label === 'Changes')!;
     expect(changes).toMatchObject({ href: '/studio/changes/', badge: 'reviews' });
     expect(changes.children).toBeUndefined();
     const hrefs = allPages().map((p) => p.href);

@@ -147,7 +147,7 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
         setErrorHref(null);
         return;
       }
-      const auth = ghAuthFailure(e, suggest ? 'send suggestions' : 'create branches');
+      const auth = ghAuthFailure(e, suggest ? 'send suggestions' : 'start changes');
       setError(auth?.text ?? (e as Error).message);
       setErrorHref(auth?.href ?? null);
     } finally {
@@ -430,12 +430,12 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
             <div>
               <dt>Review</dt>
               <dd className="nb-tier">
-                <span>{suggest ? `Needs design and tech approval. ${SUGGEST_NEXT}` : 'Needs design and tech approval. Starts as a draft branch.'}</span>
+                <span>{suggest ? `Needs design and tech approval. ${SUGGEST_NEXT}` : 'Needs design and tech approval. Starts as a draft change.'}</span>
               </dd>
             </div>
           </dl>
           <div className="nb-jira">
-            <Input label="Jira ticket" value={jira} onChange={(e) => setJira(e.currentTarget.value)} placeholder="DS-42" hint={`Optional. Links this ${suggest ? 'suggestion' : 'branch'} to the ticket in Jira.`} spellCheck={false} autoComplete="off" />
+            <Input label="Jira ticket" value={jira} onChange={(e) => setJira(e.currentTarget.value)} placeholder="DS-42" hint={`Optional. Links this ${suggest ? 'suggestion' : 'change'} to the ticket in Jira.`} spellCheck={false} autoComplete="off" />
           </div>
           {(errors.length > 0 || slugIssues.length > 0) && (
             <Alert tone="danger" title="Fix these first">
@@ -447,7 +447,7 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
             </Alert>
           )}
           {error && (
-            <Alert tone="danger" title={suggest ? 'The suggestion was not sent' : 'The branch was not created'}>
+            <Alert tone="danger" title={suggest ? 'The suggestion was not sent' : 'The change was not started'}>
               {error}
               {errorHref && (
                 <>
@@ -501,7 +501,7 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
             {CONTRIBUTE_WORDS.newBrandOff}
           </span>
         )}
-        {draft.step === 3 && ready && !connected && <span className="nb-actions-note">The draft stays in this browser until you {suggest ? 'send it' : 'create the branch'}.</span>}
+        {draft.step === 3 && ready && !connected && <span className="nb-actions-note">The draft stays in this browser until you {suggest ? 'send it' : 'start the change'}.</span>}
       </div>
     </section>
   );

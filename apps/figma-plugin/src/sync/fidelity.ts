@@ -50,7 +50,7 @@ export type FidelityOutcome =
   | { kind: 'no-references' }
   | { kind: 'no-sets' };
 
-export const NO_REFERENCES_TEXT = 'Images of the code are not published yet. They are made each time a change ships to main; ask a developer to run the "Figma references" check once.';
+export const NO_REFERENCES_TEXT = 'Images of the code are not published yet. They are made each time a change ships to the library; ask a developer to run the "Figma references" check once.';
 
 /** Reads the published manifest, or undefined when the repo has none yet. */
 export async function loadReferenceManifest(client: FidelityDeps['client']): Promise<FigmaReferenceManifest | undefined> {

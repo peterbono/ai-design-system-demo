@@ -257,7 +257,7 @@ function GuidanceSectionBlock({
     try {
       await onSave(section.key, draft);
       setDraft(null);
-      setSaid('Saved to this branch.');
+      setSaid('Saved to this change.');
     } catch (err) {
       setSaid((err as Error).message);
       setFailed(true);
@@ -588,7 +588,7 @@ function Outline(p: BranchReviewProps & { current: string | null; seen: Set<stri
   const progress = lookedProgress(p.changes, p.seen);
   const changed = p.visual?.state === 'changes' && p.visual.shots.length > 0;
   return (
-    <aside className="br-outline" aria-label="Changes in this branch">
+    <aside className="br-outline" aria-label="What this change changes">
       <p className="br-outline-count">
         <strong>
           {p.changes.length} changes
@@ -929,7 +929,7 @@ function DecisionBar({ p, leftLine, inputRef, tried, onTry }: { p: BranchReviewP
             label="Comment"
             hideLabel
             size="lg"
-            placeholder={leftLine ? 'Add a comment on the whole branch (optional)' : 'Add a comment (optional)'}
+            placeholder={leftLine ? 'Add a comment on the whole change (optional)' : 'Add a comment (optional)'}
             value={text}
             onValueChange={setText}
             onKeyDown={(e) => {
@@ -975,7 +975,7 @@ function DecisionBar({ p, leftLine, inputRef, tried, onTry }: { p: BranchReviewP
           <MenuContent side="top" align="end">
             {a.menu.override && (
               <MenuGroup label={a.menu.override}>
-                <MenuItem onClick={p.onOverride}>Merge with owner override</MenuItem>
+                <MenuItem onClick={p.onOverride}>Add to the library with owner override</MenuItem>
               </MenuGroup>
             )}
             {a.menu.override && <MenuSeparator />}
@@ -1003,9 +1003,9 @@ function DecisionBar({ p, leftLine, inputRef, tried, onTry }: { p: BranchReviewP
       {!said && !p.note && <p className="br-said" role="status" aria-live="polite" />}
       <AlertDialog open={confirm === 'merge'} onOpenChange={(o) => !o && setConfirm(null)}>
         <AlertDialogContent
-          title={primary?.kind === 'approve-merge' ? 'Approve and merge into main?' : 'Merge into main?'}
+          title={primary?.kind === 'approve-merge' ? 'Approve and add it to the library?' : 'Add it to the library?'}
           description="It goes out with the next release of the library."
-          confirmLabel={primary?.kind === 'approve-merge' ? 'Approve and merge' : 'Merge'}
+          confirmLabel={primary?.kind === 'approve-merge' ? 'Approve and add to the library' : 'Add to the library'}
           tone="primary"
           onConfirm={() => {
             setConfirm(null);
@@ -1015,9 +1015,9 @@ function DecisionBar({ p, leftLine, inputRef, tried, onTry }: { p: BranchReviewP
       </AlertDialog>
       <AlertDialog open={confirm === 'close'} onOpenChange={(o) => !o && setConfirm(null)}>
         <AlertDialogContent
-          title="Close this branch without merging?"
+          title="Close this change without adding it to the library?"
           description="Nothing reaches the library. Its author can reopen it."
-          confirmLabel="Close branch"
+          confirmLabel="Close change"
           tone="danger"
           onConfirm={() => {
             setConfirm(null);

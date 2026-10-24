@@ -172,7 +172,7 @@ describe('pullState', () => {
   it('reads a merged pull request as Merged, even though GitHub reports it closed', () => {
     const merged = { state: 'closed', draft: false, merged_at: '2026-10-10T09:00:00Z' };
     expect(pullState(merged)).toBe('merged');
-    expect(PULL_STATE_PILL[pullState(merged)].label).toBe('Merged');
+    expect(PULL_STATE_PILL[pullState(merged)].label).toBe('Added to the library');
     expect(pullState({ state: 'closed', merged: true })).toBe('merged');
   });
 
@@ -217,7 +217,7 @@ describe('reviewStatus', () => {
 
   it('reads each state from real data', () => {
     expect(st().kind).toBe('ready');
-    expect(st().label).toBe('Ready to merge');
+    expect(st().label).toBe('Ready to add to the library');
     expect(st().tone).toBe('success');
     expect(st({ state: 'closed', merged_at: '2026-10-10T09:00:00Z' }).kind).toBe('merged');
     expect(st({ state: 'closed' }).kind).toBe('closed');

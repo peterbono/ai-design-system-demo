@@ -254,7 +254,7 @@ async function propose(title: string, notes: string, jira: string | null): Promi
   const { owner, name, defaultBranch } = repoOf(S.config);
   const client = studioClient(`${owner}/${name}`, token);
   const mainSha = await client.getBranchSha(defaultBranch);
-  if (!mainSha) throw new Error(`Branch ${defaultBranch} not found.`);
+  if (!mainSha) throw new Error(`The library (${defaultBranch}) was not found on GitHub.`);
   // Re-read the latest token files so the change applies on top of main as it is now.
   const latest = await loadRepoFiles(client, mainSha, S.config.tokens.root);
   const config = latest.config ?? S.config;
@@ -262,9 +262,9 @@ async function propose(title: string, notes: string, jira: string | null): Promi
   const head = buildTokenSet(latest.files, opts);
   const pairs = parseContrastChecks(latest.contrastChecks);
   const applied = applyDraft(head, latest.files, S.draft, opts);
-  if (!applied.changes.length) throw new Error('main already has these values, so there is nothing to review.');
+  if (!applied.changes.length) throw new Error('The library already has these values, so there is nothing to review.');
   const validation = validateProposal(applied.proposed, head, pairs);
-  if (validation.blocking.length) throw new Error(`Guardrails block these edits on main: ${validation.blocking[0]!.message}`);
+  if (validation.blocking.length) throw new Error(`Guardrails block these edits in the library: ${validation.blocking[0]!.message}`);
   const docsNotes = docsNotesForTokens(applied.changes.map((c) => (c.target ?? c.current)!.path), usedByComponents);
   if (changesModeOnPage() === 'suggest') return suggest({ config, latest, head, pairs, mainSha, defaultBranch, title, notes: [notes.trim(), docsNotes].filter(Boolean).join('\n\n'), jira });
   const branch = branchWithJiraKey(branchName(draftSlug(S.draft), new Date()), jira);
@@ -328,8 +328,8 @@ async function suggest(a: {
   const plain = suggestionTitleFrom(a.title) || proposalSummary()?.title || `${n} token change${n === 1 ? '' : 's'}`;
   const before = new LayeredTokenSet(a.config, new Map(Object.entries(a.latest.files)));
   const plan = planTokenProposal({ before, pairs: a.pairs, edits, title: titleWithJiraKey(plain, a.jira), summary: a.notes || undefined, config: a.config, tool: 'Bridge Studio' });
-  if (!plan) throw new Error('main already has these values, so there is nothing to suggest.');
-  if (plan.blocked) throw new Error(`Guardrails block these edits on main: ${plan.blocked}.`);
+  if (!plan) throw new Error('The library already has these values, so there is nothing to suggest.');
+  if (plan.blocked) throw new Error(`Guardrails block these edits in the library: ${plan.blocked}.`);
   const r = await suggestTokenProposalOnGitHub(client, plan, {
     base: a.defaultBranch,
     baseSha: a.mainSha,
@@ -515,7 +515,7 @@ export function undoToken(path: string) {
  */
 export function sendLabel(): string {
   if (changesModeOnPage() === 'suggest') return sendButton('tokens', 'suggest');
-  return scope ? 'Add to this change' : choice.kind === 'change' ? 'Add to branch' : VOCAB.requestReview;
+  return scope ? 'Add to this change' : choice.kind === 'change' ? 'Add to this change' : VOCAB.requestReview;
 }
 
 /** Where the draft goes, for the review sheet's note (null: nothing to say). */
@@ -543,12 +543,12 @@ function paintScope() {
 /** Reads the change and its token files, then swaps them in as the values the editor edits. */
 async function openScope(n: number) {
   if (!S) return;
-  const sc: Scope = { number: n, title: `branch #${n}`, baseSha: null, state: 'loading' };
+  const sc: Scope = { number: n, title: `change #${n}`, baseSha: null, state: 'loading' };
   scope = sc;
   paintScope();
   try {
     // Suggest mode: a branch takes no edits from Studio. The way out is the draft outside the branch.
-    assertBranchWrites('add edits to branches', 'Open Tokens without a branch and send your edits as a suggestion.');
+    assertBranchWrites('add edits to changes', 'Open Tokens without a change and send your edits as a suggestion.');
     const pull = await readChange(S.config, n);
     sc.title = changeTitle(pull.title);
     paintScope();
@@ -556,8 +556,8 @@ async function openScope(n: number) {
     if (!isTokenChange(pull, `${owner}/${name}`)) {
       throw new Error(
         pull.state !== 'open' || pull.merged_at
-          ? 'It is no longer open, so it takes no more edits. Open Tokens to create a new branch.'
-          : 'This branch does not edit tokens. Explorations, brands and docs keep their own editors.',
+          ? 'It is no longer open, so it takes no more edits. Open Tokens to start a new change.'
+          : 'This change does not edit tokens. Explorations, brands and docs keep their own editors.',
       );
     }
     // A draft made earlier on this change keeps the version it was made on, so the 3-way check stays honest.
@@ -609,7 +609,7 @@ function paintSend() {
   const who = field('propose-who');
   if (who) who.hidden = false;
   const approvals = 'Approvals given before may need to be given again.';
-  if (who && adding) who.textContent = scope ? `Your edits go on top of ${name}, and reviewers see them there. ${approvals}` : `Reviewers see your edits in the branch you pick. ${approvals}`;
+  if (who && adding) who.textContent = scope ? `Your edits go on top of ${name}, and reviewers see them there. ${approvals}` : `Reviewers see your edits in the change you pick. ${approvals}`;
   const go = $<HTMLButtonElement>('ed-propose-go');
   if (go) setButtonLabel(go, sendLabel());
   const slot = field('propose-target');
@@ -644,9 +644,9 @@ function paintSend() {
 async function addInto(into: number, keepMine: string[] = []) {
   const out = $('ed-propose-status')!;
   if (!S?.applied) return;
-  out.textContent = 'Adding to the branch';
+  out.textContent = 'Adding to the change';
   try {
-    assertBranchWrites('add to branches', 'Send your edits as a suggestion instead.');
+    assertBranchWrites('add to changes', 'Send your edits as a suggestion instead.');
     const r = await addToChange({ n: into, config: S.config, base: S.head, ours: S.applied.proposed, draft: S.draft, scoped: Boolean(scope), keepMine });
     out.textContent = addedSentence(r.added.length, r.title, r.upstream);
     // Token edits are in the change now; docs edits stay in the local draft (the docs editor sends them).
@@ -657,7 +657,7 @@ async function addInto(into: number, keepMine: string[] = []) {
     if (err instanceof ChangeConflictError) {
       out.textContent = '';
       showConflict(err);
-    } else showGhError(out, err, `Not added: ${(err as Error).message}`, 'add to branches');
+    } else showGhError(out, err, `Not added: ${(err as Error).message}`, 'add to changes');
   }
 }
 
@@ -701,7 +701,7 @@ function showConflict(err: ChangeConflictError) {
         recompute();
         if (S.draft.edits.some((e) => e.kind !== 'docs')) void addInto(err.change);
         else {
-          $('ed-propose-status')!.textContent = 'Your edit was dropped. The branch keeps its value, so there is nothing left to add.';
+          $('ed-propose-status')!.textContent = 'Your edit was dropped. The change keeps its value, so there is nothing left to add.';
           paintSend();
         }
       },
@@ -901,7 +901,7 @@ export function initTokenEditor() {
       recompute();
       showSent(sent);
     } catch (err) {
-      showGhError(out, err, notSentLine(mode, (err as Error).message), mode === 'suggest' ? 'send suggestions' : 'create branches');
+      showGhError(out, err, notSentLine(mode, (err as Error).message), mode === 'suggest' ? 'send suggestions' : 'start changes');
       setButtonDisabled(go, false);
     }
   });

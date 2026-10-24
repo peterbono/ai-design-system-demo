@@ -268,8 +268,8 @@ export function purposeLine(name: string, purpose: string): string | null {
 /** The status sentence of an exploration detail, without branch names. */
 export function explorationStateLine(status: ExplorationStatus): string {
   if (status === 'promoted') return 'Promoted to review: it is in review now, and goes through the usual approvals.';
-  if (status === 'closed') return 'Closed without merging. Its previews stay for reference.';
-  return 'It never merges as is: promote it to review when the idea is validated, or close it.';
+  if (status === 'closed') return 'Closed without adding it to the library. Its previews stay for reference.';
+  return 'It never goes into the library as is: promote it to review when the idea is validated, or close it.';
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -292,7 +292,7 @@ export interface PromoteAsk {
  */
 export function promoteAsk(tier: Tier | null, owners: { design: string[]; tech: string[] }): PromoteAsk {
   if (tier === 1) {
-    return { who: 'One teammate will be asked to approve: any reviewer can.', next: 'It moves to In review. One approval, then it can be merged.' };
+    return { who: 'One teammate will be asked to approve: any reviewer can.', next: 'It moves to In review. One approval, then it can be added to the library.' };
   }
   const design = handles(owners.design);
   const tech = handles(owners.tech);
@@ -300,7 +300,7 @@ export function promoteAsk(tier: Tier | null, owners: { design: string[]; tech: 
   const t = tech.length ? `${list(tech)} (tech)` : 'a tech owner';
   const same = design.length > 0 && design.length === tech.length && design.every((x) => tech.includes(x));
   const who = same ? `${list(design)} will be asked to approve, for design and for tech.` : `${d} and ${t} will be asked to approve.`;
-  return { who: `${who.charAt(0).toUpperCase()}${who.slice(1)}`, next: 'It moves to In review. Design and tech approve, then it can be merged.' };
+  return { who: `${who.charAt(0).toUpperCase()}${who.slice(1)}`, next: 'It moves to In review. Design and tech approve, then it can be added to the library.' };
 }
 
 /** After the promotion: one sentence, the link goes next to it. */

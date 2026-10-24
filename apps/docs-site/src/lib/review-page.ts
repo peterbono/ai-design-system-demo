@@ -26,7 +26,7 @@ export function reviewCrumbs(
   const key = productOf(files, products, opts.labels ?? null);
   const group = opts.exploration ? 'Explorations' : (headingsOf(products).find((p) => p.key === key) ?? PRODUCTS.find((p) => p.key === key) ?? PRODUCTS[0]!).label;
   return [
-    { label: 'Branches', href: studioHref('changes/') },
+    { label: 'Changes', href: studioHref('changes/') },
     { label: group, href: studioHref('changes/') },
     { label: title },
   ];
@@ -99,7 +99,7 @@ export function bodyWhy(body: string | null | undefined): string | null {
 
 /** The sentence under "See it": "An exploration in Account app, to try ..." or "A screen of Account app, built with the library." */
 export function productWorkLine(v: Pick<ProductWorkView, 'kind' | 'product' | 'purpose' | 'useCase'>): string {
-  const what = v.kind === 'exploration' ? `An exploration in ${v.product}, never merged as is.` : `A change to ${v.product}, built with the library.`;
+  const what = v.kind === 'exploration' ? `An exploration in ${v.product}, never added to the library as is.` : `A change to ${v.product}, built with the library.`;
   const why = v.purpose ? ` ${v.purpose.replace(/\s+/g, ' ').replace(/([^.!?])$/, '$1.')}` : '';
   return `${what}${why}`;
 }
@@ -109,7 +109,7 @@ export function productWorkEmpty(v: Pick<ProductWorkView, 'product' | 'previewSt
   if (v.previewState === 'failed') return 'The preview of the latest version did not build. Ask a developer to run it again.';
   if (v.previewState === 'building') return 'Its preview is being built. It shows here in a few minutes.';
   if (v.previewState === 'missing') return 'No preview of this version yet. Ask a developer to publish one.';
-  return `No preview of it yet. Once ${v.product} publishes a preview for each branch, you can try it from here. Ask a developer to turn previews on.`;
+  return `No preview of it yet. Once ${v.product} publishes a preview for each change, you can try it from here. Ask a developer to turn previews on.`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -479,7 +479,7 @@ const SAID: Record<string, string> = {
   APPROVED: 'Approved.',
   CHANGES_REQUESTED: 'Suggested changes.',
   DISMISSED: 'Review dismissed.',
-  OVERRIDE: 'Merged it as owner override.',
+  OVERRIDE: 'Added it to the library as owner override.',
   OVERRIDE_REFUSED: 'Tried an owner override.',
 };
 
@@ -616,12 +616,12 @@ export interface ReviewActions {
   };
 }
 
-export const OVERRIDE_SENTENCE = 'Nobody else can give the missing approvals: merge it as owner, with a reason posted on the branch.';
+export const OVERRIDE_SENTENCE = 'Nobody else can give the missing approvals: add it to the library as owner, with a reason posted on the change.';
 
 const PRIMARY_LABEL: Record<PrimaryKind, string> = {
   approve: 'Approve',
-  'approve-merge': 'Approve and merge',
-  merge: 'Merge',
+  'approve-merge': 'Approve and add to the library',
+  merge: 'Add to the library',
   'request-review': 'Send for review',
   reopen: 'Reopen',
   restart: 'Start again from this',
