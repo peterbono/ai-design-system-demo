@@ -111,6 +111,11 @@ export async function writeTokenProposalOnGitHub(
     labelsAfter?: string[] | undefined;
     /** Who proposes it, in the commit message: "Bridge MCP (source: mcp)". */
     tool?: string | undefined;
+    /**
+     * Open it as a draft or not. Default: a draft from tier 2, until design review. A token push from Figma with values
+     * only opens ready (false): it ships after the automatic checks (docs/BUILD-REQUESTS.md).
+     */
+    draft?: boolean | undefined;
   },
 ): Promise<OpenedTokenProposal> {
   if (plan.blocked) throw new Error(`Not opened: ${plan.blocked}. Bridge never opens a branch that breaks the gate.`);
@@ -119,7 +124,7 @@ export async function writeTokenProposalOnGitHub(
   for (let i = 2; await gh.getBranchSha(branch).then(Boolean, () => false); i++) branch = branchWithJiraKey(`${opts.branchPrefix}${plan.slug}-${i}`, jira);
   const commit = await gh.commitToNewBranch({ base: opts.base, branch, message: `feat(tokens): ${plan.title}\n\nProposed through ${opts.tool ?? 'Bridge MCP'}. Tier ${plan.tier.tier}.`, files: plan.files });
   const labels = tokenLabels(plan, opts.labels, opts.labelsAfter);
-  const draft = plan.tier.tier >= 2;
+  const draft = opts.draft ?? plan.tier.tier >= 2;
   const pr = await gh.createPullRequest({ base: opts.base, head: branch, title: titleWithJiraKey(`feat(tokens): ${plan.title}`, jira), body: plan.body, draft });
   await gh.addLabels(pr.number, labels);
   return { branch, commit: commit.sha, pr: pr.number, url: pr.url, labels, draft };

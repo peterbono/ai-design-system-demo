@@ -187,6 +187,11 @@ export interface PullRequestSummary {
   updatedAt: string;
   /** Description, when the list endpoint returns it (component change requests read "Closes #n" from it). */
   body?: string | undefined;
+  /** ISO dates, when GitHub returns them (build requests: in progress since, shipped on). */
+  createdAt?: string | undefined;
+  mergedAt?: string | undefined;
+  /** Who is assigned (logins), when any. */
+  assignees?: string[] | undefined;
 }
 
 export interface ClientOptions {
@@ -1536,6 +1541,9 @@ function toSummary(r: Record<string, any>): PullRequestSummary & PullRequest {
     url: r.html_url,
     updatedAt: r.updated_at,
     ...(typeof r.body === 'string' ? { body: r.body } : {}),
+    ...(r.created_at ? { createdAt: r.created_at } : {}),
+    ...(r.merged_at ? { mergedAt: r.merged_at } : {}),
+    ...(r.assignees?.length ? { assignees: (r.assignees as { login?: string }[]).map((a) => a.login ?? '').filter(Boolean) } : {}),
   };
 }
 
@@ -1640,6 +1648,10 @@ export interface IssueSummary {
   author: string;
   createdAt: string;
   updatedAt: string;
+  /** Who is assigned (logins), when any (build requests: "Ana is on it"). */
+  assignees?: string[] | undefined;
+  /** ISO date it was closed, when closed. */
+  closedAt?: string | undefined;
 }
 
 interface RawIssue {
@@ -1653,6 +1665,8 @@ interface RawIssue {
   user?: { login?: string } | null;
   created_at: string;
   updated_at: string;
+  closed_at?: string | null;
+  assignees?: { login?: string }[] | null;
   pull_request?: unknown;
 }
 
@@ -1668,5 +1682,7 @@ function toIssue(r: RawIssue): IssueSummary {
     author: r.user?.login ?? '',
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    ...(r.assignees?.length ? { assignees: r.assignees.map((a) => a.login ?? '').filter(Boolean) } : {}),
+    ...(r.closed_at ? { closedAt: r.closed_at } : {}),
   };
 }
