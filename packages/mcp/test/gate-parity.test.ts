@@ -121,6 +121,9 @@ beforeAll(async () => {
   const renamed = structuredClone(radius);
   renamed[group][`${first}-renamed`] = renamed[group][first];
   delete renamed[group][first];
+  // Merged without the approvals it once waited for (an override, or rules changed since): done, nothing missing.
+  pr.mergedNone = openPull(gh, { title: 'Tokens: merged long ago', files: DOC('k'), labels: ['tier-3'] });
+  Object.assign(gh.pulls[pr.mergedNone - 1]!, { state: 'closed', merged: true, merged_at: '2026-10-20T00:00:00Z' });
   pr.figmaRename = openPull(gh, { title: 'Tokens: rename a radius', files: { [RADIUS]: `${JSON.stringify(renamed, null, 2)}\n` }, labels: ['tier-3', 'tokens', 'breaking', 'source: figma'] });
 }, 60000);
 
@@ -223,6 +226,7 @@ describe('the same fixture pull requests give the same verdict in Studio, the MC
     ['applyAsked', { status: 'changes-requested', allowed: false, reason: /changes/i }],
     ['figmaWaiting', { status: 'draft', allowed: false, reason: /draft/i }],
     ['figmaDrafted', { status: 'ready', allowed: true }],
+    ['mergedNone', { status: 'merged', allowed: false, reason: /^This branch is already merged\.$/ }],
   ];
 
   for (const [name, want] of EXPECTED) {
@@ -248,6 +252,21 @@ describe('the same fixture pull requests give the same verdict in Studio, the MC
     expect([lea.studio.override, lea.mcp.override, lea.cli.override]).toEqual([false, false, false]);
     // theo owns tech but the list does not name him.
     expect([theo.studio.override, theo.mcp.override, theo.cli.override]).toEqual([false, false, false]);
+  });
+
+  it('a merged branch reads as merged everywhere and lists no approval it no longer waits for', async () => {
+    for (const viewer of VIEWERS) {
+      const v = await verdicts(pr.mergedNone!, viewer);
+      for (const side of [v.studio, v.mcp, v.cli]) expect(side.reasons).toEqual(['This branch is already merged.']);
+    }
+    const m = (await branches.branchStatus(await as('ann'), { pr: pr.mergedNone! })) as any;
+    expect(m.approvalNeeded).toBeNull();
+    expect(m.next).toMatch(/^Merged\./);
+    gh.viewer.login = 'ann';
+    const c = cliIO('ann');
+    expect(await runBranch(argv('branch', 'status', String(pr.mergedNone)), dir, c.io)).toBe(0);
+    expect(c.out()).toMatch(/^Merged\.$/m);
+    expect(c.out()).not.toMatch(/approval|needed|Tests/i);
   });
 
   it('the status says why an applied suggestion counts', async () => {
@@ -350,6 +369,6 @@ describe('merging from the MCP server and the CLI follows the same verdict', () 
   it('wrote nothing to GitHub while checking', () => {
     const merges = gh.log.filter((l) => l.method === 'PUT' && /\/merge$/.test(l.path));
     expect(merges).toEqual([]);
-    expect(gh.pulls.every((p) => p.state === 'open')).toBe(true);
+    expect(gh.pulls.filter((p) => p.number !== pr.mergedNone).every((p) => p.state === 'open')).toBe(true);
   });
 });

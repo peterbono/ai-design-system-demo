@@ -286,9 +286,12 @@ export function mergeGate(input: {
   const missing: MissingApproval[] = [];
   const approvalReasons: string[] = [];
   const lifecycle = pullState(input);
-  if (lifecycle === 'merged') blocking.push('This branch is already merged.');
-  else if (lifecycle === 'closed') blocking.push('This branch is closed.');
-  if (input.exploration && lifecycle !== 'merged' && lifecycle !== 'closed') blocking.push('It is an exploration: promote it to review first.');
+  // A merged or closed branch is done: its state is the one answer. Approvals, tests and who ships no longer apply, so
+  // a merged branch never lists missing approvals (Studio, the MCP tools and the CLI all read this).
+  if (lifecycle === 'merged' || lifecycle === 'closed') {
+    return { allowed: false, reasons: [lifecycle === 'merged' ? 'This branch is already merged.' : 'This branch is closed.'], overridable: false, missing: [], canShip: !input.viewer || canShip(input.viewer, input.ship) };
+  }
+  if (input.exploration) blocking.push('It is an exploration: promote it to review first.');
   if (input.draft) blocking.push('It is a draft. Mark it ready for review on GitHub first.');
   if (input.ci.state === 'fail') blocking.push(`Tests fail: ${input.ci.failed.map((f) => f.name).join(', ')}.`);
   if (input.ci.state === 'pending') blocking.push('Tests are still running.');
@@ -313,7 +316,7 @@ export function mergeGate(input: {
   // Only a known viewer is checked: without a login the Merge button asks to connect first anyway.
   const shipper = !input.viewer || canShip(input.viewer, input.ship);
   // A team holding the right that GitHub would not show: say why and how to fix it, never treat it as empty.
-  const ship = !shipper && lifecycle !== 'merged' && lifecycle !== 'closed' ? [whoCanShipSentence(input.ship!), ...unreadableShipTeams(input.ship).map((t) => (t.status === 'unreadable' ? t.message : ''))] : [];
+  const ship = !shipper ? [whoCanShipSentence(input.ship!), ...unreadableShipTeams(input.ship).map((t) => (t.status === 'unreadable' ? t.message : ''))] : [];
   // Order: state, draft, CI, changes requested, approvals, who ships, conflict.
   const reasons = [...blocking, ...approvalReasons, ...ship, ...conflict];
   const allowed = reasons.length === 0;
