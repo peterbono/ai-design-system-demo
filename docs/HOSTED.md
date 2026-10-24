@@ -694,7 +694,7 @@ functions use, and prints who to sign in as and what each person should see: a w
 open to it, a closed team, invites (valid, expired, sent to another email, reviewer and admin), members of one or
 three teams, admins with 0, 1 and 4 join requests, a pending request, a request and an invite for the same team, the
 last admin, sign-in code edge cases, a team made in Bridge with no repository yet (S17) and an email admin without
-GitHub (S18), build requests in every status for Being built (S19) , a writable team for the change lifecycle (S20) and the same in suggest mode (S21) (`dev/scenarios.ts`). It works while the server runs. The "recent team" of
+GitHub (S18), build requests in every status for Being built (S19), a writable team for the change lifecycle (S20) and the same in suggest mode (S21) (`dev/scenarios.ts`). It works while the server runs. The "recent team" of
 someone on several teams lives in the browser: set it in the page console with
 `localStorage.setItem("bridge.recentTeams", JSON.stringify(["lumen/mobile-kit"]))`, or clear it to get the picker.
 
