@@ -283,7 +283,7 @@ test('send with what code draws now: a build request with the code image before 
   const res = await sendComponentRequest(client, { request: req, images: ['iVBORw0KGgo='], before: [code], baseBranch: 'main', now: new Date('2026-10-24T10:00:00Z') });
   const issue = gh.issues[0]!;
   assert.ok(issue.labels.includes(BUILD_REQUEST_LABEL), 'a build request: Being built shows it with its images');
-  assert.match(issue.body, /\| Before \| After \|/);
+  assert.match(issue.body, /\| In code now \| In Figma \|/);
   const parsed = parseBuildRequestIssue(issue.body)!;
   assert.deepEqual(parsed.build, { v: 1, before: [code], after: res.images });
   // No export attached: nothing to put it next to, a plain request.

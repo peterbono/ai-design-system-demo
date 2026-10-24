@@ -437,7 +437,7 @@ export function composeBuildRequestIssue(input: BuildRequestInput, opts: { label
   if (before.length && after.length) {
     for (const [i, u] of after.entries()) body = body.replace(`![${r.component} design ${i + 1}](${u})\n`, '');
     const rows = Math.max(before.length, after.length);
-    const table = ['| Before | After |', '| --- | --- |', ...Array.from({ length: rows }, (_, i) => `| ${before[i] ? img(before[i]!, i, 'before') : ''} | ${after[i] ? img(after[i]!, i, 'after') : ''} |`)];
+    const table = [`| ${BUILD_IMAGE_LABEL.before} | ${BUILD_IMAGE_LABEL.after} |`, '| --- | --- |', ...Array.from({ length: rows }, (_, i) => `| ${before[i] ? img(before[i]!, i, 'before') : ''} | ${after[i] ? img(after[i]!, i, 'after') : ''} |`)];
     body = insertBefore(body, '## How to implement', [...table, ''].join('\n'));
   } else if (before.length) {
     body = insertBefore(body, '## How to implement', [...before.map((u, i) => img(u, i, 'before')), ''].join('\n'));
