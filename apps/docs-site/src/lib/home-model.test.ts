@@ -138,6 +138,8 @@ describe('rows', () => {
     // Who asked, not the account that opened it (the Bridge app for an email member).
     expect(changeNeed(facts({ task: 'ship', asker: { ...facts({}).asker, name: 'Priya' } }), NOW).line).toBe('Priya waits for you to merge it');
     expect(changeNeed(facts({ task: 'guidance', asker: CLAUDE }), NOW).line).toBe('Claude AI asks you to check the usage guidance');
+    const tech = changeNeed(facts({ task: 'tech' }), NOW);
+    expect(tech).toMatchObject({ kind: 'review', waitsOnYou: true, line: 'Ann asks for your tech review' });
     expect(changeNeed(facts({ since: null }), NOW).pill).toBeNull();
   });
   it('own branches: changes requested, blocked with what failed, ready to merge', () => {

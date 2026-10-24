@@ -259,7 +259,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     });
     // Who acts now, by the one rule of every "waiting on me" surface (lib/waiting-on.ts).
     const role = reviewer ? 'reviewer' : 'contributor';
-    const design = owners().design;
+    const { design, tech } = owners();
     return changes.map(({ pull, c }): Classified => {
       const requested = (pull.requested_reviewers ?? []).map((r) => r.login);
       const base = { pull, agent: Boolean(c.agent), guidance: Boolean(c.guidance), onlyReviewer: false, task: null as ChangeFacts['task'] | null };
@@ -269,7 +269,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
       );
       if (!task) return base;
       if (task === 'own-changes') return { ...base, task, changesBy: c.changesBy ?? [] };
-      return { ...base, task, onlyReviewer: isReviewTask(task) && isOnlyReviewer({ eligible: design, requested, author: pull.user.login, viewer }) };
+      return { ...base, task, onlyReviewer: isReviewTask(task) && isOnlyReviewer({ eligible: task === 'tech' ? tech : design, requested, author: pull.user.login, viewer }) };
     });
   };
 
