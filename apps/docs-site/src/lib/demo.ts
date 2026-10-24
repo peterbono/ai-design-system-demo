@@ -8,6 +8,7 @@
 // every other action that would write opens the sample-team dialog (components/ds/studio/MakeItYours.tsx,
 // scripts/demo-gate.ts). Someone who can write to the demo repository (its owner) keeps the normal Studio.
 
+import type { Owners } from '@bridge-ds/core';
 import { isTeamKey } from './team-path.js';
 
 /**
@@ -267,12 +268,21 @@ export function tourSteps(x: { rows: boolean; more: boolean; branches: boolean }
 export const demoLeadName = (persona: { viewer?: string } | null | undefined): string => persona?.viewer?.trim() || 'Your design system lead';
 
 /**
- * The people of the sample team's Settings (components/ds/studio/TeamSettings.tsx): the demo tells one story, the visitor in
- * the seat of the persona who leads the design system (Dana), so its Settings never show the repository's real
- * accounts. The persona holds both owner groups and every override; the rules themselves (rights, override on or off,
- * the written reason) stay the repository's. The only-owner line keeps its words, with the persona.
+ * The people of the sample team's Settings (components/ds/studio/TeamSettings.tsx): the same people as its Members
+ * (`team`: lib/invites.ts sampleTeam, the one source, passed in so this module imports nothing the /api functions
+ * would load), never the repository's real accounts. The design owners are the members
+ * who review design (Dana, the visitor's seat, and Ann), the tech owners those who review tech (Malik), by their sample
+ * logins (~dana...) so each face matches Members. The rules themselves (which group holds each right, the exception
+ * on or off, its written reason) stay the repository's. The exception, owners only, names the lead (a design owner).
+ * More than one owner: no only-owner line.
  */
-export function demoSettingsPeople(site: { demo?: { viewer?: string } | undefined; soloOwnerCanApproveBoth: boolean }): { lead: string; nameOf: (login: string) => string; solo: string | null } {
+export function demoSettingsPeople(
+  site: { demo?: { viewer?: string } | undefined },
+  team: (lead: string) => { members: readonly { login: string; name: string; reviews: readonly string[] }[] },
+): { lead: string; owners: Owners; nameOf: (login: string) => string } {
   const lead = demoLeadName(site.demo);
-  return { lead, nameOf: () => lead, solo: site.soloOwnerCanApproveBoth ? `As the only owner, ${lead} approves design and code in one review.` : null };
+  const { members } = team(lead);
+  const group = (g: 'design' | 'tech') => members.filter((m) => m.reviews.includes(g)).map((m) => m.login);
+  const names = new Map(members.map((m) => [m.login.toLowerCase(), m.name]));
+  return { lead, owners: { design: group('design'), tech: group('tech') }, nameOf: (login) => names.get(login.trim().toLowerCase()) ?? lead };
 }

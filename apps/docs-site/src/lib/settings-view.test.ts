@@ -1,7 +1,7 @@
 // Studio Settings: approvals in plain words and the Claude connect command.
 import { describe, expect, it } from 'vitest';
 import { tierSummaries } from './governance';
-import { adminOnlyText, appReach, CHANGES_PLAIN, RIGHT_PLAIN, soloPlain, teamPlain, approvalRules, changesInConfig, changesProposal, effectiveChanges, INTERIM_APP_TEXT, overridePlain, overrideRow, READ_ONLY_APP_TEXT, soloOwnerRow, suggestAppText, plainApprovals, ruleSentence, withChanges } from './settings-view';
+import { adminOnlyText, appReach, CHANGES_PLAIN, RIGHT_PLAIN, TOKEN_VALUES_PLAIN, soloPlain, teamPlain, approvalRules, changesInConfig, changesProposal, effectiveChanges, INTERIM_APP_TEXT, overridePlain, overrideRow, READ_ONLY_APP_TEXT, soloOwnerRow, suggestAppText, plainApprovals, ruleSentence, withChanges } from './settings-view';
 
 const GOVERNANCE = `# Governance
 
@@ -135,5 +135,16 @@ describe('team Settings in designer words (D9)', () => {
 
   it('says the owner exception without developer words', () => {
     expect(overridePlain(['Ann', 'Lea'], 20)).toEqual({ label: 'Exception', help: 'Adds a change before every check is in. Owners only.', value: 'Ann and Lea, with a written reason of at least 20 characters.' });
+  });
+});
+
+describe('token values from Figma (docs/BUILD-REQUESTS.md "The rule")', () => {
+  it('ship on the automatic checks, nobody approves; a rename or removal waits for a code check', () => {
+    const w = TOKEN_VALUES_PLAIN;
+    expect(w.label).toBe('Token values from Figma');
+    expect(w.title).toBe('Ship once the automatic checks pass.');
+    expect(w.text).toBe('Nobody needs to approve them. A renamed or removed token waits for a code check.');
+    // Designer words: no repository, pull request, branch or main, no em dash.
+    for (const s of Object.values(w)) expect(s).not.toMatch(/\b(repo|repository|pull request|PR|branch|main|merge)\b|\u2014/i);
   });
 });
