@@ -2,7 +2,8 @@
 // reports stay separate; the toggle only picks which one a view shows, and every demo view carries a banner.
 // On a team shell (multi-team PR 3b) there is no build-time history: it is read from GitHub with core
 // loadGitHubHistory, lazily (only when a view asks), when signed in (it costs a few reads per change); a guest reads
-// the history the team's CI published in activity.json (scripts/guest-activity.ts).
+// the history the team's CI published in activity.json (scripts/guest-activity.ts), with the usage guidance changes of
+// a public team next to it.
 import { buildReport, gitHubHistoryBackend, layoutOptions, loadConfig, loadGitHubHistory, parseContrastChecks, requesterOf, type BridgeConfig, type ContrastPair, type GitHubClient, type HistoryEntry, type HistoryReport } from '@bridge-ds/core';
 import { guidanceHistoryEntry, guidancePulls } from '../../lib/history-guidance';
 import { reviewTokenChange, type TokenReview } from '../../lib/token-review';
@@ -51,8 +52,13 @@ async function teamHistoryData(): Promise<HistoryData> {
   let client = d.client;
   if (!client.canWrite) {
     // A guest reads the history the team's CI published (activity.json), whatever its age: no API request.
-    const real = await guestHistory();
-    if (real) return { ...base, real, realNote: real.truncated ? teamHistoryCapNote(TEAM_HISTORY_LIMIT) : null };
+    const published = await guestHistory();
+    if (published) {
+      // A public team lists its usage guidance changes to visitors too, as its members see them (one read of the
+      // recent pull requests); a private one never reaches here without a member's session.
+      const real = d.private ? published : await withGuidance(published, client, d.defaultBranch);
+      return { ...base, real, realNote: real.truncated ? teamHistoryCapNote(TEAM_HISTORY_LIMIT) : null };
+    }
     // A Bridge account on this team by email whose membership this page did not know yet: reading the account writes
     // it, then the history reads through Bridge's server like the rest of the Studio.
     try {
