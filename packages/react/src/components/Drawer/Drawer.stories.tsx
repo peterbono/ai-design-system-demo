@@ -43,3 +43,32 @@ export const Start: Story = { args: { side: 'start' }, render: (args) => <TokenD
 export const Bottom: Story = { args: { side: 'bottom' }, render: (args) => <TokenDetails side={args.side ?? 'bottom'} /> };
 
 export const AllStates: Story = { render: () => <TokenDetails side="end" defaultOpen /> };
+
+const CHANGES = Array.from({ length: 24 }, (_, i) => `color.surface.step-${i + 1}: value moved to the new neutral ramp.`);
+
+/** Body taller than the sheet: it becomes a focusable region, so Tab reaches it and arrow keys scroll it. */
+export const LongContent: Story = {
+  render: () => (
+    <Drawer side="end" defaultOpen>
+      <DrawerTrigger render={<Button variant="secondary" />}>Review changes</DrawerTrigger>
+      <DrawerContent
+        title="24 token changes"
+        description="Read them all before you approve."
+        footer={
+          <ButtonGroup align="end">
+            <DrawerClose render={<Button variant="ghost" />}>Cancel</DrawerClose>
+            <DrawerClose render={<Button />}>Approve</DrawerClose>
+          </ButtonGroup>
+        }
+      >
+        <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
+          {CHANGES.map((line) => (
+            <p key={line} style={{ margin: 0 }}>
+              {line}
+            </p>
+          ))}
+        </div>
+      </DrawerContent>
+    </Drawer>
+  ),
+};

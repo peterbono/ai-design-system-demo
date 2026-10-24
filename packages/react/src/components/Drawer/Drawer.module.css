@@ -180,6 +180,12 @@
   overflow-y: auto;
 }
 
+/* Only focusable when it overflows: inset ring so the panel edges do not clip it. */
+.body:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
 .footer {
   flex: none;
   padding: var(--space-3) var(--layout-inset);
