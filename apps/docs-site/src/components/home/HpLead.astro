@@ -2,6 +2,9 @@
 // "Decide in seconds.": the design system lead's board, ported from the owner-validated test page (hp-run/parts/lead.html).
 // One picture (role img): Ann's review card in front, the next changes stacked behind; a 9 s loop where the next change
 // joins the stack and Approve pulses; Before and After stay still (styles/home-illus.css, ldec). No live controls.
+// The aria-label carries the meaning; every visual child is aria-hidden, so its text is part of the picture
+// (presentational, exempt from text contrast under WCAG 1.4.3) while the cards fade in and out. Keep it free of
+// anything focusable: no links, buttons or tabindex inside the stack.
 // The faces are the DS illustrated avatars (Notionists, seeds `ann` and `dana`), drawn at build time: no JS on the page.
 import { Kbd } from '@bridge-ds/react';
 import { illustratedAvatarUri } from '@bridge-ds/react/avatar-illustrated';
@@ -19,11 +22,11 @@ const dana = illustratedAvatarUri('dana');
     </div>
 
     <div class="hp-ldec-stack" role="img" aria-label="A review card: Ann Leroy asks for your review of the profile header, follow button and avatar. Before and after previews side by side, with design system checks, contrast in light and dark, and usage in Admin demo and Docs site already passed. Approve and Suggest changes buttons, with keyboard shortcuts A, S and J. Behind it, the next changes wait their turn: from Leo, from Claude AI and from Dana's team.">
-      <div class="hp-ldec-back hp-ldec-join"><div class="hp-ldec-bl"><img class="hp-ldec-mini" src={dana} alt="" width="14" height="14" /><span>Card spacing · Dana's team</span></div></div>
-      <div class="hp-ldec-back hp-ldec-b2"><div class="hp-ldec-bl"><span class="hp-ldec-bot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M12 2.6v2.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /><circle cx="12" cy="2.4" r="1.3" data-f="ink" /><path d="M6.2 6.4C9.6 5.9 14.6 6 17.9 6.5C19.1 6.7 19.6 7.6 19.6 8.9L19.4 15.6C19.3 17 18.6 17.7 17.3 17.8C13.9 18.1 9.8 18.1 6.6 17.8C5.3 17.7 4.6 17 4.5 15.6L4.4 8.9C4.4 7.5 5 6.6 6.2 6.4Z" data-f="page" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" /><circle cx="9.2" cy="11.2" r="1.35" data-f="ink" /><circle cx="14.8" cy="11.2" r="1.35" data-f="ink" /><path d="M9.6 14.6Q12 15.8 14.4 14.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none" /><path d="M4.4 10.6H2.9M19.6 10.6h1.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /><path d="M8.6 18v2.6M15.4 18v2.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg></span><span>Focus ring offset · Claude AI</span></div></div>
-      <div class="hp-ldec-back hp-ldec-b1"><div class="hp-ldec-bl"><span class="hp-ldec-leo">L</span><span>Darker default background · Leo</span></div></div>
+      <div class="hp-ldec-back hp-ldec-join" aria-hidden="true"><div class="hp-ldec-bl"><img class="hp-ldec-mini" src={dana} alt="" width="14" height="14" /><span>Card spacing · Dana's team</span></div></div>
+      <div class="hp-ldec-back hp-ldec-b2" aria-hidden="true"><div class="hp-ldec-bl"><span class="hp-ldec-bot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M12 2.6v2.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /><circle cx="12" cy="2.4" r="1.3" data-f="ink" /><path d="M6.2 6.4C9.6 5.9 14.6 6 17.9 6.5C19.1 6.7 19.6 7.6 19.6 8.9L19.4 15.6C19.3 17 18.6 17.7 17.3 17.8C13.9 18.1 9.8 18.1 6.6 17.8C5.3 17.7 4.6 17 4.5 15.6L4.4 8.9C4.4 7.5 5 6.6 6.2 6.4Z" data-f="page" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" /><circle cx="9.2" cy="11.2" r="1.35" data-f="ink" /><circle cx="14.8" cy="11.2" r="1.35" data-f="ink" /><path d="M9.6 14.6Q12 15.8 14.4 14.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none" /><path d="M4.4 10.6H2.9M19.6 10.6h1.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /><path d="M8.6 18v2.6M15.4 18v2.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg></span><span>Focus ring offset · Claude AI</span></div></div>
+      <div class="hp-ldec-back hp-ldec-b1" aria-hidden="true"><div class="hp-ldec-bl"><span class="hp-ldec-leo">L</span><span>Darker default background · Leo</span></div></div>
 
-      <div class="hp-ldec-card">
+      <div class="hp-ldec-card" aria-hidden="true">
         <div class="hp-ldec-hd">
           <span class="hp-ldec-ann"><img src={ann} alt="" width="36" height="36" /></span>
           <span class="hp-ldec-ask"><span class="hp-ldec-l1"><b>Ann Leroy</b> <span class="hp-ldec-mut">asks for your review</span></span><span class="hp-ldec-l2">Profile header, follow button and avatar</span></span>
