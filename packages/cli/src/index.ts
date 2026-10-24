@@ -16,6 +16,7 @@ import { runPieces } from './pieces.js';
 import { runFigma } from './figma.js';
 import { runSpecs } from './specs.js';
 import { runFixes, runGap } from './fixes.js';
+import { runFix, runGaps } from './fix.js';
 import { snapshotLines, writeSnapshot } from './snapshot.js';
 import { changesFlag, runApply, runReview, runSuggestions } from './suggest.js';
 import { defaultIO } from './request.js';
@@ -90,6 +91,12 @@ Usage:
              [--built built.json] [--shots manifest.json] [--no-fixes] [--json]
                                       what differs between Figma and the code for one component, per
                                       variant: story, args, state, shot and each difference in words
+  bridge gaps [--json]                Fix with Claude: the components whose Figma build differs from their
+                                      story (or can't be checked), from the plugin's Check fidelity run
+  bridge fix <component> [--case | --try fixes.json | --propose fixes.json --summary "..." | --with-claude]
+                                      its gap case and the fix schema; the values referee on fixes (closer,
+                                      same or worse, offline); figma-fixes.json on a branch for review;
+                                      or the loop with your own ANTHROPIC_API_KEY (\`bridge fix help\`)
   bridge history [token] [--json] [--limit n] [--author a] [--tier n] [--version v]
                                       token history: versions, merged changes, who, when, why
   bridge revert <pr|commit|id> [--dry-run] [--restore-conflicts] [--use-before path@file] [--suggest | --direct] [--json]
@@ -209,7 +216,7 @@ function parse(argv: string[]): Args {
       const next = argv[i + 1];
       // --json and --md print to stdout, or write a file when followed by one (bridge audit).
       const fileArg = (k === 'json' && /\.json$/i.test(next ?? '')) || (k === 'md' && /\.(md|markdown)$/i.test(next ?? ''));
-      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking', 'claude', 'all', 'offline', 'approve', 'patch', 'accept-edited', 'force-unapproved', 'suggest', 'direct', 'use-gh-auth', 'measure', 'open', 'variants', 'check', 'tokens', 'shots', 'resume', 'no-fixes'].includes(k));
+      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking', 'claude', 'all', 'offline', 'approve', 'patch', 'accept-edited', 'force-unapproved', 'suggest', 'direct', 'use-gh-auth', 'measure', 'open', 'variants', 'check', 'tokens', 'shots', 'resume', 'no-fixes', 'case', 'with-claude'].includes(k));
       (out.flags[k] ??= []).push(inline ?? (takesValue ? argv[++i]! : 'true'));
     } else out._.push(a);
   }
@@ -839,6 +846,8 @@ async function main(): Promise<number> {
   if (cmd === 'specs') return runSpecs(a, root);
   if (cmd === 'fixes') return runFixes(a, root);
   if (cmd === 'gap') return runGap(a, root);
+  if (cmd === 'gaps') return runGaps(a, root);
+  if (cmd === 'fix') return runFix(a, root);
   if (cmd === 'suggestions' || cmd === 'suggest') return runSuggestions(a, root);
   if (cmd === 'apply') return runApply(a, root);
   if (cmd === 'review') return runReview(a, root);

@@ -161,9 +161,84 @@ reason is a note shown with the set. `matches` is refused.
 - `applied`: one record per fix: `applied`, `not-found` (its component, part or story is not in this measure: the code
   or the measure moved, re-check it) or `already` (the file already carried it). Fixes run in file order.
 
+## Fix with Claude
+
+**For designers:** when a component you pulled into Figma does not look like its story, your team's own Claude
+proposes a correction, Bridge checks that it brings the component closer to the code, and a person approves it
+like any other change; a component that will not come closer keeps an honest Differs or Can't check status.
+
+Bridge holds no API key. The reasoning is done by the team's Claude: Claude Code or Claude Desktop through the Bridge
+MCP server (on the person's own plan), or the CLI with the team's own `ANTHROPIC_API_KEY`. Bridge gives the tools and
+is the referee. Code: `packages/core/src/figma-fix-loop.ts` (pure: gaps, gap case, the values referee, the prompt),
+`packages/mcp/src/figma-fixes.ts` (the tools), `packages/cli/src/fix.ts` (the commands and the loop runner).
+
+### Where the files are
+
+| File | Where | Written by |
+| --- | --- | --- |
+| `measured-specs.json` | repo root | `bridge specs --measure --variants --shots` |
+| `figma-fixes.json` | repo root | the fixes, through reviewed pull requests |
+| `figma-fidelity.json` | repo root, else the `bridge-requests` branch | the plugin's Check fidelity run (`FigmaFidelityRun`: the report, plus per set the layers read back and the Figma renders). The plugin's "Copy the report" output works too, passed inline or as a file. |
+
+Without a fidelity run, the gaps come from the measure's own check (`bridge specs --measure --check`), and the gap
+case compares the rebuilt set with the measure only.
+
+### The two referees
+
+- **Values (offline, here).** `bridge_try_figma_fix` validates the fixes (the strict validator above), lays them on
+  the measure (`applyFixes`), rebuilds the set the way the plugin pulls it (`specsFromMeasure`, now in core), and
+  compares each differing variant with what the code renders, before and after. Each difference is `resolved`,
+  `closer`, `same`, `worse` or `unknown`; a difference the fixes add where the set agreed with the code is a
+  regression. A variant's height or width after the fixes is exact when the root gets a fixed size, else worked out
+  from the layer boxes and the changed paddings, gaps and fixed sizes along that axis (`estimated`). The verdict is
+  `closer` when more moved closer than got worse, `worse` the other way, else `same`.
+- **Pixels (later, in the plugin).** The story shot against the real Figma render, in Check fidelity, after the next
+  pull of the fix branch. Only this one can say a variant matches.
+
+### MCP flow (Claude Code, Claude Desktop)
+
+1. `bridge_figma_gaps`: the components that differ (Differs) or cannot be checked (Can't check, with the reason).
+2. `bridge_get_gap_case { component }`: the gap case (`GapCase`), the fix schema, the ids already in the file.
+3. `bridge_try_figma_fix { component, fixes }`: the values referee. At most 3 rounds per component: keep what moved
+   closer, revise the rest with the deltas. Nothing is written.
+4. `bridge_propose_figma_fixes { component, fixes, summary }`: figma-fixes.json with the fixes (a fix with the id of
+   one already there replaces it) on a new `bridge/figma-fixes-<component>` branch, and a draft pull request labelled
+   `drafted-by-claude`, `figma-fixes`, `source: mcp` and its tier (classifyRisk: Tier 2, a source file). Locally, a new
+   local branch, never pushed. The body has the gap, each fix with its reason and the before and after deltas. It runs
+   the values referee again and refuses fixes that move the component further from the code, and part or story fixes
+   that move nothing. When no round came closer, propose a `status` fix instead.
+
+The MCP server may use the person's `gh` sign-in as its token (as for every write from MCP); the CLI writes only with
+a token passed on purpose (`GITHUB_TOKEN`, `--token`, or `--use-gh-auth`), and without one opens a local branch.
+
+### CLI flow
+
+```sh
+bridge gaps                                    # what differs
+bridge fix TextInput --case                    # the gap case and the schema
+bridge fix TextInput --try fixes.json          # the values referee (exit 0 when closer)
+bridge fix TextInput --propose fixes.json --summary "TextInput keeps its label row height." [--dry-run]
+bridge fix TextInput --with-claude [--model claude-sonnet-5-5] [--dry-run]
+```
+
+`--with-claude` runs the loop with the team's `ANTHROPIC_API_KEY`: the prompt is the gap case plus the schema
+(`fixPrompt`), the reply is parsed into fix objects (`parseFixReply`), Bridge tries them, and the next round gets the
+problems or the deltas, up to 3 rounds. The closest fixes are proposed; when none came closer, a `status` fix
+(Differs, with the gap's summary as the reason). Without a key, the command says how to run the same loop from
+Claude Code with the MCP server.
+
+### What the plugin's "Fix with Claude" button calls
+
+After Check fidelity, for a set whose result is Differs: write the run (`FigmaFidelityRun`: `report`, `built` read
+back per variant with `values`, `hidden` and `boxes`, `figmaRenders`) to `figma-fidelity.json` on the
+`bridge-requests` branch (the branch "Draft with my Claude" already writes to), then show the prompt to paste into
+Claude: "Fix <component> in Figma with Bridge". The designer's Claude reads it through `bridge_figma_gaps` and
+`bridge_get_gap_case`. Before building, the pull applies figma-fixes.json (see the contract in `applyFixes` above).
+
 ## Review
 
 A fix is a change like any other: it lands through a pull request on `figma-fixes.json`, drafted by Claude (`by:
 "claude"`), reviewed by a person. `bridge fixes check` can run in CI next to `bridge check`. The reviewer reads the
 reason and the next Check fidelity: the fix stays when the variant moved closer to its shot, and goes back to Claude
-with the new gap case when it did not (three attempts, then a `status` fix with the honest reason).
+with the new gap case when it did not (three attempts, then a `status` fix with the honest reason). The pull
+request says which fixes Claude drafted (`drafted-by-claude`) and the values referee's before and after.

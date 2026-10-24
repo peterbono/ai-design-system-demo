@@ -15,8 +15,9 @@ import * as branches from './branches.js';
 import * as studio from './studio.js';
 import * as pieces from './pieces.js';
 import * as figma from './figma.js';
+import * as figmaFixes from './figma-fixes.js';
 import * as suggestions from './suggestions.js';
-import { DRAFT_LINE_MAX, DRAFT_PHRASE, DRAFT_TITLE_MAX, EXPLORATION_USE_CASES, REQUEST_KINDS } from '@bridge-ds/core';
+import { DRAFT_LINE_MAX, DRAFT_PHRASE, FIX_LOOP_MAX_ROUNDS, DRAFT_TITLE_MAX, EXPLORATION_USE_CASES, REQUEST_KINDS } from '@bridge-ds/core';
 
 declare const __BRIDGE_MCP_VERSION__: string | undefined;
 /** The package version, injected at build time; tests and source runs fall back to "dev". */
@@ -78,6 +79,7 @@ export function createServer(ctx: BridgeContext): McpServer {
         'Products: work starts for a product (bridge_list_products). Tools that start work take "product"; without it Bridge uses the product of the current folder or repo. Ask the person when it is not obvious.',
         'Product branches and the library: when a designer explores a product feature with you (an exploration for a product), check it with bridge_missing_pieces (record: true) before they share it; for each piece the library lacks, offer bridge_open_library_branch, which opens the library side linked to their branch. bridge_product_branch says where each library branch stands; bridge_switch_to_published moves the product branch to the real version once the library ships.',
         'Components from Figma: the DS Bridge plugin sends a component changed in Figma to a library branch. Token swaps go as exact token changes; new variants, properties and components go to a branch carrying the spec, waiting for Claude AI. When the person asks you to draft one, bridge_figma_changes lists them and bridge_get_figma_change gives the spec and the steps; write the code on that branch, push it, then bridge_mark_figma_change_drafted. Never claim a branch is drafted before its code is pushed.',
+        'Fix with Claude: when a component built in Figma differs from its story, you are the team\'s Claude and Bridge is the referee. bridge_figma_gaps lists them, bridge_get_gap_case gives one gap case and the fix schema, bridge_try_figma_fix checks fixes on the measured values (at most 3 rounds per component), bridge_propose_figma_fixes opens them for review; a component that will not come closer gets a status fix (Differs or Can\'t check, with the reason), never Matches. The plugin\'s Check fidelity (the story shots) decides after the next pull.',
         'Explorations try experimental variables and components in a product staging branch without touching main: an explore/<slug> branch with a draft pull request labeled exploration, previews and a snapshot package. bridge_start_exploration starts one, bridge_list_explorations lists them. To work on one, pass "branch": "explore/<slug>" to bridge_propose_token_change, bridge_draft_docs and bridge_get_request, and never open a pull request to main from it: a person promotes it to review or closes it.',
       ].join(' '),
     },
@@ -792,6 +794,71 @@ export function createServer(ctx: BridgeContext): McpServer {
       annotations: WRITE,
     },
     run((a) => figma.pushFigmaComponentOp(ctx, { diff: a.diff as never, dryRun: a.dryRun, source: 'mcp', changes: a.changes })),
+  );
+
+  // --- Fix with Claude: the team's own Claude fixes components whose Figma build differs from their story ---
+  const FixFiles = {
+    measured: z.string().optional().describe('measured-specs.json path in the repo (default measured-specs.json).'),
+    fidelity: z
+      .union([z.string(), z.record(z.string(), z.unknown())])
+      .optional()
+      .describe('The Check fidelity run: a path in the repo, or the report itself (pasted from the plugin\'s "Copy the report"). Default: figma-fidelity.json in the repo, else on the bridge-requests branch where the plugin\'s "Fix with Claude" saves it.'),
+    fixesFile: z.string().optional().describe('figma-fixes.json path in the repo (default figma-fixes.json).'),
+  };
+  const FixesArg = z.array(z.record(z.string(), z.unknown())).min(1).describe('Fix objects for figma-fixes.json, for this component only (bridge_get_gap_case gives the schema). A fix with the id of one already in the file replaces it.');
+
+  server.registerTool(
+    'bridge_figma_gaps',
+    {
+      title: 'Components that differ in Figma',
+      description:
+        "The components whose Figma build differs from their story (Differs) or cannot be checked (Can't check, with the reason), from the latest Check fidelity run of the DS Bridge plugin (the story shots are the referee), else from the measure's own check; a status fix in figma-fixes.json shows with its reason. Read only. Start of Fix with Claude: you are the team's Claude, Bridge is the referee and a person approves.",
+      inputSchema: FixFiles,
+      annotations: RO,
+    },
+    run((a) => figmaFixes.figmaGapsOp(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_get_gap_case',
+    {
+      title: 'Get the gap case of one component',
+      description:
+        'One component\'s gap case: per differing variant, its story, args, state, shot and every difference with the part id, property, expected (code) and actual (Figma) and the delta in px, plus the figma-fixes.json schema. Write fixes for this component only from the part ids and deltas it gives, never an invented part or token, then call bridge_try_figma_fix. Read only.',
+      inputSchema: { component: z.string().min(1).describe('The Figma set name, e.g. "TextInput".'), ...FixFiles },
+      annotations: RO,
+    },
+    run((a) => figmaFixes.getGapCaseOp(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_try_figma_fix',
+    {
+      title: 'Try fixes for one component (values referee)',
+      description:
+        `Checks proposed fixes offline, nothing is written: validates them (the strict figma-fixes.json validator), lays them on the measure, rebuilds the set the way the plugin pulls it, and compares each differing variant with what the code renders. Returns per variant every difference before and after with its delta, new differences the fixes add, and a verdict closer, same or worse. The pixel referee (story shot against the real Figma render) is not run here: it runs in the plugin's Check fidelity after the next pull. Use at most ${FIX_LOOP_MAX_ROUNDS} rounds per component: keep what moved closer, revise the rest; when no round is closer, propose a status fix (Differs or Can't check, with the reason) instead.`,
+      inputSchema: { component: z.string().min(1).describe('The Figma set name.'), fixes: FixesArg, ...FixFiles },
+      annotations: RO,
+    },
+    run((a) => figmaFixes.tryFigmaFixOp(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_propose_figma_fixes',
+    {
+      title: 'Propose fixes for review',
+      description:
+        'Opens the accepted fixes for review like other Bridge changes: figma-fixes.json with them on a new bridge/* branch and a draft pull request labelled drafted-by-claude, figma-fixes and its tier (locally: a new local branch, never pushed). The body has the gap, each fix with its reason, and the before and after deltas. Runs the values referee again first and refuses fixes that move the component further from the code, or part fixes that move nothing (propose a status fix instead). Never main. dryRun shows the body and the file. Needs a GitHub token with Contents and Pull requests write in remote mode. Only when the person asked.',
+      inputSchema: {
+        component: z.string().min(1).describe('The Figma set name.'),
+        fixes: FixesArg,
+        summary: z.string().min(1).describe('One or two sentences for the reviewer: what the fixes do for the designer. No em dash.'),
+        dryRun: z.boolean().optional(),
+        ...FixFiles,
+      },
+      annotations: WRITE,
+    },
+    run((a) => figmaFixes.proposeFigmaFixesOp(ctx, { ...a, source: 'mcp' })),
   );
 
   server.registerTool(

@@ -25,11 +25,13 @@ const TOOLS = [
   'bridge_draft_docs',
   'bridge_figma_changes',
   'bridge_figma_coverage',
+  'bridge_figma_gaps',
   'bridge_get_build_request',
   'bridge_get_component',
   'bridge_get_config',
   'bridge_get_design_language',
   'bridge_get_figma_change',
+  'bridge_get_gap_case',
   'bridge_get_guidelines',
   'bridge_get_history',
   'bridge_get_request',
@@ -59,6 +61,7 @@ const TOOLS = [
   'bridge_product_branch',
   'bridge_promote_exploration',
   'bridge_propose_brand',
+  'bridge_propose_figma_fixes',
   'bridge_propose_revert',
   'bridge_propose_token_change',
   'bridge_push_figma_component',
@@ -73,6 +76,7 @@ const TOOLS = [
   'bridge_start_exploration',
   'bridge_switch_to_published',
   'bridge_try_branch',
+  'bridge_try_figma_fix',
   'bridge_update_from_main',
   'bridge_use_library_preview',
   'bridge_validate_tokens',
@@ -111,7 +115,7 @@ describe('MCP over stdio', () => {
     expect(config.source).toContain(config.write);
   });
 
-  it('lists the 67 tools with JSON schemas and read-only hints', async () => {
+  it('lists the 73 tools with JSON schemas and read-only hints', async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(TOOLS);
     const getToken = tools.find((t) => t.name === 'bridge_get_token')!;
