@@ -2,7 +2,8 @@
 // or a removal waits for a developer, structure becomes a build request. The rules and the GitHub reads are core's
 // (PublishOutcome, libraryArrival); this file shapes them for the result screen and polls the shipped pull requests.
 
-import { type LibraryArrival, type PublishOutcome, type PublishRoute, PUBLISH_ROUTE_COPY } from '@bridge-ds/core';
+import { type LibraryArrivalKey, type PublishOutcome, type PublishRoute, PUBLISH_ROUTE_COPY } from '@bridge-ds/core';
+import { type ArmAnswer, CHECKS_PENDING } from './ship';
 
 export type { PublishRoute };
 
@@ -27,8 +28,44 @@ export type PluginOutcome = PublishOutcome & { waitingFor?: WaitReason | undefin
 export const routedItems = (outcomes: readonly PluginOutcome[]): RoutedItem[] =>
   outcomes.map((o) => ({ label: o.subject.name, kind: o.subject.type, route: o.route, number: o.ref.number, url: o.ref.url, ...(o.waitingFor ? { waitingFor: o.waitingFor } : {}) }));
 
-/** Where a shipped pull request stands (core's libraryArrival): on its way, in the library, held, not shipped. */
-export type ShipStatus = Pick<LibraryArrival, 'key' | 'label' | 'final'>;
+/**
+ * Where a token pull request stands: being armed by Bridge (`arming`, the checks still run), waiting for a developer
+ * because Bridge said why (`waiting`, with its reason as is), or after arming core's libraryArrival (on its way, in the
+ * library, held, not shipped).
+ */
+export interface ShipStatus {
+  key: LibraryArrivalKey | 'arming' | 'waiting';
+  label: string;
+  final: boolean;
+  /** `waiting`: Bridge's sentence, shown as is. */
+  reason?: string | undefined;
+}
+
+const ARMING: ShipStatus = { key: 'arming', label: 'Getting ready to ship: the checks are running', final: false };
+const ARMED: ShipStatus = { key: 'on-its-way', label: PUBLISH_ROUTE_COPY.shipped.label, final: false };
+const MERGED: ShipStatus = { key: 'in-the-library', label: 'In the library', final: true };
+
+/** What an /api/ship answer means for the screen, and when to ask again (checks still running). */
+export function armStatus(a: ArmAnswer): { status: ShipStatus; retryInMs?: number | undefined } {
+  if (a.armed) return { status: a.merged ? MERGED : ARMED };
+  if (a.code === CHECKS_PENDING) return { status: ARMING, retryInMs: (a.retryAfter ?? 60) * 1000 };
+  return { status: { key: 'waiting', label: 'Waiting for a developer', final: true, reason: a.reason } };
+}
+
+/**
+ * The items as the screen groups them: a token change Bridge is arming or armed shows with the token values (route
+ * shipped); one Bridge would not ship waits for a developer, with Bridge's reason.
+ */
+export function effectiveItems(items: readonly RoutedItem[], statuses: ReadonlyMap<number, ShipStatus>): RoutedItem[] {
+  return items.map((i) => {
+    if (i.route !== 'waiting-for-developer' || i.waitingFor !== 'not-armed') return i;
+    const s = statuses.get(i.number);
+    return s?.key === 'waiting' ? i : { ...i, route: 'shipped' as const };
+  });
+}
+
+/** The token pull requests to ask Bridge to ship: values only (a rename or removal waits), once each. */
+export const toArm = (items: readonly RoutedItem[]): number[] => [...new Set(items.filter((i) => i.route === 'waiting-for-developer' && i.waitingFor === 'not-armed').map((i) => i.number))];
 
 /** Reads where one shipped pull request stands (libraryArrivalOnGitHub). */
 export type ShipPoll = (number: number) => Promise<ShipStatus>;
@@ -55,13 +92,13 @@ export const shipStateLabel = (s: ShipStatus | undefined): string => s?.label ??
 /** Every shipped pull request is final: in the library, held for a developer, or not shipped. */
 export const shipSettled = (g: RouteGroups, statuses: ReadonlyMap<number, ShipStatus>): boolean => shippedNumbers(g).every((n) => !!statuses.get(n)?.final);
 
-/** What the waiting group says: why a developer acts, from the reasons of its items. */
+/** What the waiting group says: why a developer acts. Bridge's own reasons show on their rows. */
 export function waitingLede(items: readonly RoutedItem[]): string {
   const rename = items.some((i) => i.waitingFor === 'rename');
   const notArmed = items.some((i) => i.waitingFor === 'not-armed');
-  const armNote = 'Bridge cannot ship it by itself on this repository yet, so a developer merges it once the checks pass.';
-  if (rename && notArmed) return `${PUBLISH_ROUTE_COPY['waiting-for-developer'].sentence} For the other changes: ${armNote.charAt(0).toLowerCase()}${armNote.slice(1)}`;
-  return notArmed ? armNote : PUBLISH_ROUTE_COPY['waiting-for-developer'].sentence;
+  if (rename && !notArmed) return PUBLISH_ROUTE_COPY['waiting-for-developer'].sentence;
+  if (!rename) return 'Bridge could not ship it by itself, so a developer merges it. The row says why.';
+  return `${PUBLISH_ROUTE_COPY['waiting-for-developer'].sentence} Bridge could not ship the others by itself; each row says why.`;
 }
 
 const plural = (n: number, word: string, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
@@ -98,7 +135,11 @@ export const SHIP_TIMEOUT_MS = 15 * 60_000;
 
 export interface ShipPollerOptions {
   poll: ShipPoll;
+  /** Pull requests already armed: only their arrival is read. */
   numbers: number[];
+  /** Pull requests to ask Bridge to ship first (/api/ship); once armed, their arrival is read too. */
+  arming?: number[] | undefined;
+  arm?: ((n: number) => Promise<ArmAnswer>) | undefined;
   onUpdate: (statuses: Map<number, ShipStatus>) => void;
   /** 15 minutes with a pull request still on its way. Polling stops; start() polls again. */
   onTimeout: () => void;
@@ -110,14 +151,22 @@ export interface ShipPollerOptions {
   clearTimer?: ((handle: unknown) => void) | undefined;
 }
 
-/** Reads each shipped pull request every 20 seconds, for up to 15 minutes, until each one is final. */
+/**
+ * Asks Bridge to ship each token pull request (again when the checks still run), then reads each armed one every 20
+ * seconds, for up to 15 minutes, until each one is final.
+ */
 export class ShipPoller {
   readonly statuses = new Map<number, ShipStatus>();
   private handle: unknown;
   private startedAt = 0;
   private running = false;
+  private readonly armAt = new Map<number, number>();
+  private readonly all: number[];
 
-  constructor(private readonly o: ShipPollerOptions) {}
+  constructor(private readonly o: ShipPollerOptions) {
+    this.all = [...new Set([...(o.arming ?? []), ...o.numbers])];
+    for (const n of o.arming ?? []) this.statuses.set(n, ARMING);
+  }
 
   get active(): boolean {
     return this.running;
@@ -153,17 +202,30 @@ export class ShipPoller {
     this.schedule();
   }
 
-  /** Reads the pull requests not final yet. True when all are final (polling stops). */
+  /** Arms what is due, reads the armed ones not final yet. True when all are final (polling stops). */
   async check(): Promise<boolean> {
-    const open = this.o.numbers.filter((n) => !this.statuses.get(n)?.final);
+    const now = (this.o.now ?? Date.now)();
     try {
-      for (const n of open) this.statuses.set(n, await this.o.poll(n));
+      for (const n of this.all) {
+        const s = this.statuses.get(n);
+        if (s?.final) continue;
+        if (s?.key === 'arming' && this.o.arm) {
+          if ((this.armAt.get(n) ?? 0) > now) continue;
+          // Bridge unreachable or refusing the request (sign-in, site down): a developer merges it, and the row says why.
+          const answer = await this.o.arm(n).catch((err: unknown): ArmAnswer => ({ armed: false, route: 'waiting-for-developer', code: 'error', reason: err instanceof Error ? err.message : String(err) }));
+          const { status, retryInMs } = armStatus(answer);
+          this.statuses.set(n, status);
+          if (retryInMs !== undefined) this.armAt.set(n, now + retryInMs);
+          continue;
+        }
+        this.statuses.set(n, await this.o.poll(n));
+      }
     } catch (err) {
       this.o.onError?.(err);
       return false;
     }
     this.o.onUpdate(new Map(this.statuses));
-    const done = this.o.numbers.every((n) => !!this.statuses.get(n)?.final);
+    const done = this.all.every((n) => !!this.statuses.get(n)?.final);
     if (done) this.stop();
     return done;
   }

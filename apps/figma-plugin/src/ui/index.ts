@@ -29,7 +29,8 @@ import { IMAGES_NEED_WRITE, type SentComponentPush, sendLabel, sentTitle, sugges
 import { type Destination, type PublishItem, type PublishResult, sendComponentPush, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
 import { type ComponentsReadProblem, NEW_TOKEN_REFUSED, TOKEN_REJECTED_CALLOUT, TOKEN_REJECTED_DETAIL, TOKEN_SETTINGS_URL, type TokenProblem, checkToken, componentsReadProblem, errorText, friendlyError, tokenProblem } from '../sync/token-health';
 import { type BuildItem, type StudioTarget, developerMessage, sentLinks, studioChangeUrl } from '../sync/studio';
-import { type RoutedItem, type ShipPoll, type ShipStatus, ShipPoller, groupRoutes, libraryHeadline, routedItems, shipStateLabel, shippedNumbers, waitingLede } from '../sync/library-routes';
+import { type RoutedItem, type ShipPoll, type ShipStatus, ShipPoller, effectiveItems, groupRoutes, libraryHeadline, routedItems, shipStateLabel, shippedNumbers, toArm, waitingLede } from '../sync/library-routes';
+import { type ArmAnswer, armShip } from '../sync/ship';
 import { libraryArrivalOnGitHub } from '@bridge-ds/core';
 import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, triedLocally, tryItLinks } from '../sync/explorations';
 import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
@@ -983,7 +984,7 @@ function submitPush(): void {
       r.result = result;
       r.sentTo = exploration;
       r.routed = !exploration && result.outcomes.length ? routedItems(result.outcomes) : undefined;
-      if (r.routed) startShipPolling(r, (n) => libraryArrivalOnGitHub(getClient(), n));
+      if (r.routed) startShipPolling(r, (n) => libraryArrivalOnGitHub(getClient(), n), (n) => armShip(state.init!.token ?? '', state.init!.settings.repo, n));
       r.tryIt = undefined;
       r.previews = undefined;
       r.shared = false;
@@ -3066,8 +3067,8 @@ function buildMessage(r: PushState, items: BuildItem[]): HTMLElement {
  * developer, build requests sent to developers. One group per route, the same row for each item, its link on the row.
  */
 function libraryResult(r: PushState, items: RoutedItem[]): Child[] {
-  const g = groupRoutes(items);
   const statuses = r.ship?.statuses ?? new Map<number, ShipStatus>();
+  const g = groupRoutes(effectiveItems(items, statuses));
   const head = libraryHeadline(g, statuses);
   const row = (i: RoutedItem, hint: string, spin = false) =>
     h(
@@ -3094,21 +3095,27 @@ function libraryResult(r: PushState, items: RoutedItem[]): Child[] {
           }),
         )
       : null,
-    g.waiting.length ? group('Waiting for a developer', waitingLede(g.waiting), g.waiting.map((i) => row(i, i.waitingFor === 'rename' ? 'Renamed or removed' : 'Waiting for a developer'))) : null,
+    g.waiting.length ? group('Waiting for a developer', waitingLede(g.waiting), g.waiting.map((i) => row(i, i.waitingFor === 'rename' ? 'Renamed or removed' : (statuses.get(i.number)?.reason ?? 'Waiting for a developer')))) : null,
     g.builds.length ? group('Build requests', 'Each one has the Figma link, before and after and what to build. Developers pick it up in GitHub or Jira.', g.builds.map((i) => row(i, 'Requested'))) : null,
   ];
 }
 
-/** Starts reading the shipped pull requests (on their way, in the library) while the result screen is open. */
-function startShipPolling(r: PushState, poll: ShipPoll): void {
+/**
+ * Asks Bridge to ship the token pull requests (values only), then reads where each stands (on its way, in the
+ * library) while the result screen is open.
+ */
+function startShipPolling(r: PushState, poll: ShipPoll, arm: (n: number) => Promise<ArmAnswer>): void {
   const numbers = shippedNumbers(groupRoutes(r.routed ?? []));
+  const arming = toArm(r.routed ?? []);
   r.ship?.poller?.stop();
   r.ship = { statuses: new Map() };
-  if (!numbers.length) return;
+  if (!numbers.length && !arming.length) return;
   const ship = r.ship;
   ship.poller = new ShipPoller({
     poll,
     numbers,
+    arming,
+    arm,
     onUpdate: (statuses) => {
       ship.statuses = statuses;
       if (state.push === r) render();
