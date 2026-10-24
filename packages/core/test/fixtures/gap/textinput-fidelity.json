@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "report": {
+    "version": 1,
+    "checkedAt": "2026-10-24T10:00:00.000Z",
+    "reference": { "sha": "abc1234", "createdAt": "2026-10-24T09:00:00.000Z" },
+    "options": { "scale": 2, "threshold": 0.1, "radius": 2, "maxPercent": 3, "sizeTolerance": 1 },
+    "components": [
+      {
+        "component": "TextInput",
+        "status": "differs",
+        "checked": 2,
+        "differing": 1,
+        "skipped": 0,
+        "worst": { "key": "Invalid=false", "percent": 12, "size": { "figma": { "width": 300, "height": 72 }, "code": { "width": 300, "height": 83.98 } } },
+        "variants": [
+          { "key": "Invalid=false", "status": "differs", "percent": 12, "size": { "figma": { "width": 300, "height": 72 }, "code": { "width": 300, "height": 83.98 } } },
+          { "key": "Invalid=true", "status": "matches", "percent": 0.5, "size": { "figma": { "width": 300, "height": 84 }, "code": { "width": 300, "height": 83.98 } } }
+        ]
+      },
+      {
+        "component": "Toggle",
+        "status": "matches",
+        "checked": 1,
+        "differing": 0,
+        "skipped": 0,
+        "variants": [{ "key": "Toggled=false, State=Default", "status": "matches", "percent": 0.2 }]
+      },
+      {
+        "component": "IconButton",
+        "status": "not-checked",
+        "checked": 0,
+        "differing": 0,
+        "skipped": 1,
+        "reason": "No render of the story",
+        "variants": [{ "key": "Default", "status": "skipped", "reason": "No render of the story" }]
+      }
+    ],
+    "summary": { "components": 3, "matches": 1, "differs": 1, "notChecked": 1, "variantsChecked": 3, "variantsSkipped": 1 }
+  },
+  "built": {
+    "TextInput": {
+      "Invalid=false": {
+        "boxes": {
+          "root": { "x": 0, "y": 0, "width": 300, "height": 72 },
+          "cds--text-input-label-wrapper": { "x": 0, "y": 0, "width": 300, "height": 16 },
+          "cds--label": { "x": 0, "y": 0, "width": 56, "height": 16 },
+          "cds--text-input-field-outer-wrapper": { "x": 0, "y": 16, "width": 300, "height": 56 },
+          "cds--text-input-field-wrapper": { "x": 0, "y": 16, "width": 300, "height": 40 },
+          "cds--text-input": { "x": 0, "y": 16, "width": 300, "height": 40 },
+          "cds--form-helper-text": { "x": 0, "y": 56, "width": 300, "height": 16 }
+        }
+      }
+    }
+  }
+}

@@ -54,6 +54,8 @@ export * from './fidelity';
 export * from './fidelity-references';
 export * from './gap-case';
 export * from './figma-fixes';
+export * from './measured-only';
+export * from './figma-fix-loop';
 export * from './review-gate';
 export * from './library-update';
 export * from './branch-actions';

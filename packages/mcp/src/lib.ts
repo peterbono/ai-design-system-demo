@@ -22,6 +22,7 @@ export * as branches from './branches.js';
 export * as studio from './studio.js';
 export * as pieces from './pieces.js';
 export * as figma from './figma.js';
+export * as figmaFixes from './figma-fixes.js';
 export * as suggestions from './suggestions.js';
 // The docs logic the docs-draft GitHub Action (scripts/docs-draft.mjs) runs, from the core compiled into this bundle:
 // the workflow builds the MCP library, not core.
