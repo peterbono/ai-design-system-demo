@@ -185,6 +185,9 @@ describe('splitInstances: stories that render the component many times', () => {
     expect(splitInstances(n('div', ['g'], [button('a'), button('b')], {}, { role: 'radiogroup' }))).toEqual([]);
     expect(splitInstances(n('div', ['wrap'], [button('a')]))).toEqual([]);
     expect(splitInstances(n('fieldset', ['f'], [button('a'), button('b')]))).toEqual([]);
+    // An empty state draws nothing itself: its sentence and media are content, its two buttons are its actions.
+    const sentence: MeasuredNode = { ...caption('Connect a repository to see its tokens here.'), text: 'Connect a repository to see its tokens here.' };
+    expect(splitInstances(n('div', ['emptyState'], [n('div', ['media'], [], { 'background-color': 'rgb(1, 1, 1)' }), sentence, n('div', ['actions'], [button('a'), button('b')])]))).toEqual([]);
   });
 });
 
@@ -219,7 +222,8 @@ describe('measureStory: popups, args, states and props', () => {
       forcePseudo: async (sel, states) => (forced.push([sel, states]), true),
     };
     const m = await measureStory(page, 'https://sb.example.com', 'b--c', { state: 'hover' });
-    expect(forced).toEqual([['[data-bridge-measure-root]', ['hover']], ['[data-bridge-measure-root]', []]]);
+    const all = '[data-bridge-measure-root], [data-bridge-measure-root] *';
+    expect(forced).toEqual([[all, ['hover']], [all, []]]);
     expect(m.state).toBe('hover');
   });
 });

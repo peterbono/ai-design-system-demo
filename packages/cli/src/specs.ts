@@ -71,9 +71,9 @@ const defaultOpen: OpenPage = async () => {
     await cdp.send('DOM.enable');
     await cdp.send('CSS.enable');
     const { root } = await cdp.send('DOM.getDocument', { depth: 0 });
-    const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector });
-    if (!nodeId) return false;
-    await cdp.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: states });
+    const { nodeIds } = await cdp.send('DOM.querySelectorAll', { nodeId: root.nodeId, selector });
+    if (!nodeIds.length) return false;
+    for (const nodeId of nodeIds.slice(0, 400)) await cdp.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: states });
     return true;
   };
   return {
@@ -92,9 +92,11 @@ const defaultOpen: OpenPage = async () => {
 const STATES = ['rest', 'hover', 'focus-visible', 'active', 'disabled'] as const;
 
 /** The story entry written to the file, from one measure. */
-function storyEntry(p: { id: string; title: string; name: string }, m: MeasuredStory, tokenOf: ((v: string) => string | undefined) | undefined, extra: Partial<MeasuredSpecsStory> = {}): MeasuredSpecsStory {
+function storyEntry(p: { id: string; title: string; name: string }, m: MeasuredStory, tokenOf: ((v: string) => string | undefined) | undefined, extra: Partial<MeasuredSpecsStory> = {}, setClasses: string[] = []): MeasuredSpecsStory {
   const o = tokenOf ? { tokenOf } : {};
-  const parts = splitInstances(m.root);
+  // A root that carries a class of the Figma set's root is the component itself, never a gallery of instances.
+  const isComponent = (m.root?.classes ?? []).map(localClassName).some((c) => setClasses.includes(c));
+  const parts = isComponent ? [] : splitInstances(m.root);
   const instances = parts.length >= 2 ? parts.map((root, i) => measuredToSpec({ id: `${m.id}#${i + 1}`, root }, o)) : undefined;
   const spec = m.root ? (instances?.[0] ?? measuredToSpec(m, o)) : undefined;
   const props = m.props && typeof m.props === 'object' ? m.props : undefined;
@@ -112,10 +114,26 @@ function storyEntry(p: { id: string; title: string; name: string }, m: MeasuredS
   };
 }
 
-/** The Figma set's root class ("Radio.module.css .item, Radio.module.css .md" -> item): what its stories must measure. */
-function rootClassOf(ref: FigmaComponentRef | undefined): string | undefined {
+/**
+ * The classes that name a set's root, its axis values aside: Pagination/Compact ".pagination, .md, .compact" ->
+ * pagination, compact (md is a Size value). A story's element with one of them is that set's component.
+ */
+function setClassesOf(ref: FigmaComponentRef | undefined): string[] {
   const root = ref?.parts.find((x) => !x.parent);
-  return /(?:^|[\s,])\.([A-Za-z][\w-]*)/.exec(root?.source ?? '')?.[1];
+  const values = new Set((ref?.properties ?? []).flatMap((x) => (x.type === 'VARIANT' ? (x.values ?? []) : [])).map((v) => v.toLowerCase()));
+  return [...(root?.source ?? '').matchAll(/(?:^|[\s,])\.([A-Za-z][\w-]*)/g)].map((x) => x[1]!).filter((c) => !values.has(c.toLowerCase()));
+}
+
+/** A selector for the element a set draws: its root classes (CSS modules hash them: `_item_x1y2z_3`). */
+const classSelector = (classes: string[]) => (classes.length ? `${classes.map((c) => `.${c}`).join('')}, ${classes.map((c) => `[class*="_${c}_"]`).join('')}` : '');
+
+/** Menu parts share one class (`.item`); their role tells them apart. */
+function roleOf(name: string): string | undefined {
+  if (/CheckboxItem$/.test(name)) return '[role="menuitemcheckbox"]';
+  if (/RadioItem$/.test(name)) return '[role="menuitemradio"]';
+  if (/^Menu.*Submenu$/.test(name)) return '[role="menuitem"][aria-haspopup]';
+  if (/^Menu.*Item$/.test(name)) return '[role="menuitem"]:not([aria-haspopup])';
+  return undefined;
 }
 
 /** The Figma side of each component, from component-specs.json (what the Figma library was drawn from). */
@@ -155,11 +173,13 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
 
   // The Figma side for --check: component-specs.json, read before the browser opens so a bad path fails fast.
   let refs: Map<string, FigmaComponentRef> | undefined;
+  let specsFile: ComponentSpecsFile | undefined;
   if (has(a, 'check')) {
     const specsPath = resolve(root, flag(a, 'specs') ?? 'packages/react/component-specs.json');
     if (existsSync(specsPath)) {
       try {
-        refs = figmaRefs(JSON.parse(readFileSync(specsPath, 'utf8')) as ComponentSpecsFile);
+        specsFile = JSON.parse(readFileSync(specsPath, 'utf8')) as ComponentSpecsFile;
+        refs = figmaRefs(specsFile);
       } catch (e) {
         throw new RequestUsageError(`--specs ${specsPath} is not a component specs file: ${(e as Error).message}`);
       }
@@ -177,7 +197,9 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
     throw e;
   }
   const variants = has(a, 'variants');
-  const picks = pickStoriesToMeasure(index, { only: list(flag(a, 'only')), ids: list(flag(a, 'stories')), perComponent: variants ? 1 : per });
+  // --variants: every story as written (each can be a variant's closest render), and the variant args on the first.
+  const picks = pickStoriesToMeasure(index, { only: list(flag(a, 'only')), ids: list(flag(a, 'stories')), perComponent: variants ? (per ?? 1000) : per });
+  const firstOf = new Set(picks.reduce((m, x) => (m.has(x.title) ? m : m.set(x.title, x.id)), new Map<string, string>()).values());
   if (!picks.length) {
     io.error(`bridge: no story to measure in ${base}${flag(a, 'only') ? ` for ${flag(a, 'only')}` : ''}.`);
     return 2;
@@ -214,6 +236,50 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
     else io.print(`  ${label}: ${s.spec.parts.length} layers${s.instances ? ` (${s.instances.length} instances)` : ''}, ${s.spec.coverage.declared} of ${s.spec.coverage.fields} values tied to tokens`);
   };
   const browser = await open();
+  /**
+   * Sets that are parts of this component (MenuItem, MenuSubmenu in Menu; AccordionItem in Accordion) and have no
+   * story of their own: measured inside the component's stories, the first element with the part's root classes (and
+   * role, for menu items), popups opened. Written as `<title>/<Set>` entries, with the element's own checked and
+   * disabled state as props.
+   */
+  const measureParts = async (p: (typeof picks)[number]) => {
+    const name = p.title.split('/').pop()!.trim().toLowerCase();
+    const own = new Set(index.components.map((c) => c.name.toLowerCase()));
+    const parts = (specsFile?.components ?? []).filter((c) => c.component?.toLowerCase() === name && c.name.toLowerCase() !== name && !c.name.includes('/') && !own.has(c.name.toLowerCase()));
+    for (const set of parts) {
+      const ref = refs!.get(set.name.toLowerCase())!;
+      const classes = classSelector(setClassesOf(ref));
+      const role = roleOf(set.name);
+      const sel = role ? classes.split(', ').map((x) => `${x}${role}`).join(', ') : classes;
+      if (!sel) continue;
+      const title = `${p.title}/${set.name}`;
+      // The part reads the tokens its component's page resolved (the overlay confirms a token swap by value).
+      const parentComp = file.components!.find((c) => c.title === p.title);
+      if (!file.components!.some((c) => c.title === title)) file.components!.push({ title, name: set.name, argTypes: {}, ...(parentComp?.resolved ? { resolved: parentComp.resolved } : {}) });
+      let found = false;
+      for (const s of picks.filter((x) => x.title === p.title)) {
+        try {
+          const m = await measureStory(browser.page, base, s.id, { within: sel, open: true });
+          if (!m.root) continue;
+          const attrs = m.root.attrs ?? {};
+          const own = { ...(attrs['aria-checked'] ? { checked: attrs['aria-checked'] === 'true' } : {}), ...(attrs['aria-disabled'] === 'true' || attrs['data-disabled'] !== undefined ? { disabled: true } : {}) };
+          const props = { ...(m.props?.props ?? {}), ...own };
+          const entry = storyEntry({ ...s, title }, m, tokenOf, {}, setClassesOf(ref));
+          file.stories.push({ ...entry, props });
+          say(entry, `${title} / ${s.name}`);
+          for (const st of (states ?? []).filter((x): x is MeasuredState => x === 'hover' || x === 'active' || x === 'focus-visible')) {
+            const ms = await measureStory(browser.page, base, s.id, { within: sel, open: true, state: st });
+            if (ms.root && ms.state) file.stories.push({ ...storyEntry({ ...s, title }, ms, tokenOf, {}, setClassesOf(ref)), props });
+          }
+          found = true;
+          break;
+        } catch {
+          // the next story may show it
+        }
+      }
+      if (!found) file.stories.push({ id: p.id, title, name: p.name, url: '', ms: 0, error: `no story of ${p.title} shows a ${set.name}` });
+    }
+  };
   try {
     for (const p of picks) {
       try {
@@ -222,9 +288,12 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
         // A story that renders the item inside its group (a radio in its fieldset, a menu item in its open menu):
         // measure the element with the Figma set's root class, not the group around it.
         let cmo = mo;
-        const cls = rootClassOf(ref);
-        if (!within && cls && m.root && !(m.root.classes ?? []).map(localClassName).includes(cls)) {
-          const sel = `.${cls}, [class*="_${cls}_"]`;
+        // The set's root classes: its own set, else the sets drawn from it under its folder (Pagination/Full, /Compact).
+        const lname = p.title.split('/').pop()!.trim().toLowerCase();
+        const sets = ref ? [ref] : [...(refs ?? new Map<string, FigmaComponentRef>()).entries()].filter(([k]) => k.startsWith(`${lname}/`)).map(([, v]) => v);
+        const cls = [...new Set(sets.flatMap(setClassesOf))];
+        if (!within && cls.length && m.root && !(m.root.classes ?? []).map(localClassName).some((c) => cls.includes(c))) {
+          const sel = sets.map((x) => classSelector(setClassesOf(x).slice(0, 1))).filter(Boolean).join(', ');
           let mw = await measureStory(browser.page, base, p.id, { ...mo, within: sel });
           if (!mw.root && !mo.open) mw = await measureStory(browser.page, base, p.id, { ...mo, within: sel, open: true });
           if (mw.root) {
@@ -232,17 +301,21 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
             cmo = { ...mo, within: sel, ...(mw.opened && mw.opened !== 'none' ? { open: true } : {}) };
           }
         }
-        const entry = storyEntry(p, m, tokenOf);
+        const entry = storyEntry(p, m, tokenOf, {}, cls);
         file.stories.push(entry);
         say(entry, `${p.title} / ${p.name}`);
         const props = m.props && typeof m.props === 'object' ? m.props : undefined;
         if (m.root && !file.components!.some((c) => c.title === p.title)) {
           const name = p.title.split('/').pop()!.trim();
           const comp: MeasuredSpecsComponent = { title: p.title, name, argTypes: props?.argTypes ?? {}, ...(props?.component ? { component: props.component } : {}) };
-          if (ref) comp.resolved = await resolveTokenValues(browser.page, varsFor(ref)).catch(() => ({}));
+          // The tokens its Figma sets name: its own set, the sets drawn from it under its folder (Progress/Linear), and
+          // its parts' sets (MenuItem in Menu).
+          const partRefs = (specsFile?.components ?? []).filter((c) => c.component?.toLowerCase() === lname && c.name.toLowerCase() !== lname).map((c) => refs!.get(c.name.toLowerCase())!).filter(Boolean);
+          if (sets.length || partRefs.length) comp.resolved = await resolveTokenValues(browser.page, Object.assign({}, ...[...sets, ...partRefs].map(varsFor))).catch(() => ({}));
           file.components!.push(comp);
         }
-        if (!variants || !props) continue;
+        if (firstOf.has(p.id) && specsFile) await measureParts(p);
+        if (!variants || !props || !firstOf.has(p.id)) continue;
         // Every variant of the component: its first story, with args for each combination and each state.
         // With a Figma side, the variants are its axes mapped to props (booleans like Checked included).
         const combos = ref ? variantCombosFromMapping(mapPropsToFigma(props.argTypes, ref.properties)) : undefined;
@@ -264,7 +337,7 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
               if (!json) io.print(`  ${p.title} / ${label}: not measured (the story does not take ${ignored[0]})`);
               continue;
             }
-            const ev = storyEntry(p, mv, tokenOf, { overrides: v.overrides });
+            const ev = storyEntry(p, mv, tokenOf, { overrides: v.overrides }, cls);
             file.stories.push(ev);
             say(ev, `${p.title} / ${label}`);
           } catch (e) {
@@ -286,16 +359,31 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
     // ("Figma variants/ChoiceCard") together, their props merged.
     const nameOf = (title: string) => title.split('/').pop()!.trim();
     const names = [...new Set(file.stories.map((s) => nameOf(s.title)))];
-    statuses = names.map((name) => {
-      const comps = file.components!.filter((c) => nameOf(c.title) === name);
+    statuses = names.flatMap((name) => {
+      // A part's entries ("Overlays/Menu/MenuItem") read the tokens and props of the component they were measured in.
+      const parentTitle = (t: string) => t.split('/').slice(0, -1).join('/');
+      const partOf = file.stories.find((s) => nameOf(s.title) === name && file.components!.some((c) => c.title === parentTitle(s.title)));
+      const comps = file.components!.filter((c) => nameOf(c.title) === name || (partOf && c.title === parentTitle(partOf.title)));
       const resolved = comps.reduce<Record<string, string> | undefined>((acc, c) => (c.resolved ? { ...(acc ?? {}), ...c.resolved } : acc), undefined);
-      return componentStatus({
-        name,
-        stories: file.stories.filter((s) => nameOf(s.title) === name),
-        argTypes: comps.length ? Object.assign({}, ...comps.map((c) => c.argTypes)) : undefined,
-        figma: refs?.get(name.toLowerCase()),
-        ...(resolved ? { resolve: (path: string) => resolved[path] } : {}),
-      });
+      const stories = file.stories.filter((s) => nameOf(s.title) === name);
+      // Props a part entry read from its element (checked, disabled) are its props too.
+      const readProps = Object.fromEntries(stories.flatMap((s) => Object.entries(s.props ?? {})).filter(([, v]) => typeof v === 'boolean').map(([k]) => [k, { kind: 'boolean' as const }]));
+      const base = { argTypes: comps.length || Object.keys(readProps).length ? Object.assign({}, readProps, ...comps.map((c) => c.argTypes)) : undefined, ...(resolved ? { resolve: (path: string) => resolved[path] } : {}) };
+      const own = refs?.get(name.toLowerCase());
+      // Sets drawn from this component under its folder: one per fixed prop (Progress/Linear is variant=linear), and
+      // popups drawn open (Dialog/Popup), compared only when measured open.
+      const folder = own ? [] : (specsFile?.components ?? []).filter((c) => c.name.toLowerCase().startsWith(`${name.toLowerCase()}/`));
+      const fixedSets = folder.filter((c) => c.fixed && Object.keys(c.fixed).length && c.view !== 'popup');
+      if (fixedSets.length)
+        return fixedSets.map((set) =>
+          componentStatus({
+            ...base,
+            name: set.name,
+            stories: stories.filter((s) => Object.entries(set.fixed!).every(([k, v]) => String({ ...(s.props ?? {}), ...(s.overrides ?? {}) }[k] ?? '') === v)),
+            figma: refs?.get(set.name.toLowerCase()),
+          }),
+        );
+      return [componentStatus({ ...base, name, stories, figma: own, ...(folder.length ? { figmaSets: folder.map((c) => c.name) } : {}) })];
     });
     file.statuses = statuses;
   }

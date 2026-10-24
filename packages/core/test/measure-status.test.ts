@@ -219,3 +219,47 @@ describe('Checked=mixed is the indeterminate prop', () => {
   });
 });
 
+describe('triage of the full-library measure: pairing and story noise', () => {
+  const S = (id: string, parent: string | undefined, kind: SpecPart['kind'], source?: string, characters?: string): SpecPart => ({ id, name: id, kind, ...(parent ? { parent } : {}), ...(source ? { source } : {}), ...(characters ? { characters } : {}) });
+
+  it('pairs by any class of the part, not only the last (a size modifier)', () => {
+    const pairs = pairParts([S('root', undefined, 'frame'), S('control', 'root', 'frame', 'Input.module.css .control, Input.module.css .md')], spec([S('root', undefined, 'frame'), S('label', 'root', 'frame', 'label'), S('control', 'root', 'frame', 'control')]));
+    expect(pairs.get('control')).toBe('control');
+  });
+
+  it('leaves a classless static frame (a drawn decoration) off a measured part another static part names', () => {
+    const statics = [S('root', undefined, 'frame'), S('decoration', 'root', 'frame'), S('tab', 'root', 'frame', 'Tabs.module.css .tab')];
+    const pairs = pairParts(statics, spec([S('root', undefined, 'frame'), S('tab', 'root', 'frame', 'tab'), S('tab-2', 'root', 'frame', 'tab')]));
+    expect(pairs.get('tab')).toBe('tab');
+    expect(pairs.get('decoration')).toBeUndefined();
+  });
+
+  it('does not pair the same words in another role (the current crumb against a crumb link)', () => {
+    const statics = [S('root', undefined, 'frame'), S('current', 'root', 'text', 'Breadcrumb.module.css .current', 'Input')];
+    expect(pairParts(statics, spec([S('root', undefined, 'frame'), S('link', 'root', 'text', 'link subtle', 'Input')])).get('current')).toBeUndefined();
+  });
+
+  it('keeps the parts of a hidden classed parent unpaired, whatever classes they share', () => {
+    const statics = [S('root', undefined, 'frame'), S('error', 'root', 'frame', 'Field.module.css .error'), S('icon', 'error', 'icon', 'Icon.module.css .icon, Icon.module.css .xs')];
+    expect(pairParts(statics, spec([S('root', undefined, 'frame'), S('check', 'root', 'icon', 'icon xs glyph')])).get('icon')).toBeUndefined();
+  });
+
+  const parts = [S('root', undefined, 'frame')];
+  const figma: FigmaComponentRef = { properties: [{ name: 'State', type: 'VARIANT', values: ['Default', 'Disabled'] }], parts, variants: [{ props: { State: 'Default' }, values: { root: { fill: 'table.bg' } } }, { props: { State: 'Disabled' }, values: { root: { fill: 'table.bg' } } }] };
+  const st = (id: string, fill: string, extra: Partial<MeasuredSpecsStory> = {}): MeasuredSpecsStory => ({ id, title: 'Data/Table', name: id, url: '', ms: 1, props: {}, spec: spec(parts, { root: { fill } }), ...extra });
+
+  it('compares a variant with the closest of the stories that render its props', () => {
+    const s = componentStatus({ name: 'Table', argTypes: {}, figma: { ...figma, variants: [figma.variants[0]!] }, stories: [st('sortable', 'table.bg-selected'), st('plain', 'table.bg')] });
+    expect(s.variants[0]).toMatchObject({ status: 'matches', story: 'plain' });
+  });
+
+  it('says which arg the story refused when a variant has no story', () => {
+    const s = componentStatus({ name: 'Table', argTypes: {}, figma, stories: [st('plain', 'table.bg'), st('plain', 'table.bg', { spec: undefined, overrides: { disabled: true }, error: 'the story does not take the arg disabled=true' })] });
+    expect(s.summary).toBe('No story shows some variants: State=Disabled; the story does not take disabled');
+  });
+
+  it('names the open popup Figma draws when the component itself has no set', () => {
+    expect(componentStatus({ name: 'Dialog', stories: [st('d', 'x')], figmaSets: ['Dialog/Popup'] })).toMatchObject({ reason: 'no-figma', summary: 'Figma draws the open popup (Dialog/Popup): measure it open with --open' });
+  });
+});
+
