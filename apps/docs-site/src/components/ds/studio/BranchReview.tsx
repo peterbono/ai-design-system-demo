@@ -1048,6 +1048,8 @@ export function BranchReview(p: BranchReviewProps) {
     setTried(true);
   };
   const status = tried && p.sample ? { label: 'Approved', tone: 'success' as const } : p.status;
+  // The line under the title follows: never "Ann asks for your review" once the visitor approved.
+  const who = tried && p.sample ? { person: null, lead: null, rest: 'You approved it.' } : p.who;
   // Only the visitor's own row turns approved: the code check stays with whoever the Review rules name ("Waiting for Malik").
   const approvals = tried && p.sample ? p.approvals.map((a) => (a.state === 'waiting' && a.text === 'Waiting for you' ? { ...a, state: 'approved' as const, text: 'You approved' } : a)) : p.approvals;
   const multi = p.changes.length > 1;
@@ -1094,9 +1096,9 @@ export function BranchReview(p: BranchReviewProps) {
           </Badge>
         </Heading>
         <p className="br-who">
-          <Face person={p.who.lead === 'Claude AI' ? { login: 'claude', name: 'Claude AI', agent: true } : p.who.person} size="sm" />
+          <Face person={who.lead === 'Claude AI' ? { login: 'claude', name: 'Claude AI', agent: true } : who.person} size="sm" />
           <span>
-            {p.who.lead && <strong>{p.who.lead}</strong>} {p.who.rest}
+            {who.lead && <strong>{who.lead}</strong>} {who.rest}
             {p.jira && (
               <>
                 {' · '}

@@ -196,7 +196,7 @@ function gh(f: FetchLike, token: string) {
 
 /** Who asks: a GitHub token that can read the repository, or an email member of the team signed in to Studio. */
 async function allowed(req: Request, owner: string, repo: string, full: string, env: ContribEnv, deps: ShipDeps): Promise<'bearer' | 'member' | null> {
-  const bearer = /^Bearer\s+([A-Za-z0-9_.-]{20,255})$/i.exec(req.headers.get('authorization') ?? '')?.[1];
+  const bearer = /^Bearer\s+([A-Za-z0-9_.-]{8,255})$/i.exec(req.headers.get('authorization') ?? '')?.[1];
   if (bearer) {
     const r = await gh(deps.fetch, bearer).call('GET', `/repos/${owner}/${repo}`);
     return r.status === 200 && r.data?.permissions?.pull ? 'bearer' : null;
