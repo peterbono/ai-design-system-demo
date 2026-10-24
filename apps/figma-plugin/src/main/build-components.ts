@@ -634,11 +634,14 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
     variant.setSharedPluginData(NS, 'orphan', '');
     if (variant.description.startsWith(ORPHAN_PREFIX)) variant.description = variant.description.slice(ORPHAN_PREFIX.length);
   }
+  // The parts with this variant's layouts (a group laid out in a column in one variant, a row in another): sizing in
+  // the parent follows the layout the variant has, not the base one.
+  const parts = comp.parts.map((p) => (pv.layout?.[p.id] ? { ...p, layout: pv.layout[p.id] } : p));
   const nodes = new Map<string, SceneNode>();
   // Parts with a width of their own (a fixed width, a root that fills its container in code) or filling such a parent.
   const definite = new Set<string>();
-  for (const part of comp.parts) {
-    const parentPart = comp.parts.find((p) => p.id === part.parent);
+  for (const part of parts) {
+    const parentPart = parts.find((p) => p.id === part.parent);
     const hasWidth = (pv.parts[part.id] ?? []).some((f) => f.field === 'width');
     const fills = !!parentPart && definite.has(parentPart.id) && ((parentPart.layout?.direction === 'VERTICAL' && parentPart.layout.counter === 'STRETCH') || (parentPart.layout?.direction === 'HORIZONTAL' && !!part.grow));
     if (hasWidth || fills) definite.add(part.id);
@@ -646,14 +649,14 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
   // Rows whose height is known: a height of their own, filling such a row, or a child that sets it (a text, an icon,
   // a part with a height) for the others to stretch to.
   const tall = new Set<string>();
-  for (const part of comp.parts) {
-    const parentPart = comp.parts.find((p) => p.id === part.parent);
+  for (const part of parts) {
+    const parentPart = parts.find((p) => p.id === part.parent);
     const hasHeight = (pv.parts[part.id] ?? []).some((f) => f.field === 'height');
     const fills = !!parentPart && tall.has(parentPart.id) && parentPart.layout?.direction === 'HORIZONTAL' && parentPart.layout.counter === 'STRETCH';
-    const anchored = comp.parts.some((c) => c.parent === part.id && (c.kind === 'text' || !!c.icon || !!c.swap || (pv.parts[c.id] ?? []).some((f) => f.field === 'height')));
+    const anchored = parts.some((c) => c.parent === part.id && (c.kind === 'text' || !!c.icon || !!c.swap || (pv.parts[c.id] ?? []).some((f) => f.field === 'height')));
     if (hasHeight || fills || anchored) tall.add(part.id);
   }
-  for (const part of comp.parts) {
+  for (const part of parts) {
     let node = findPart(variant, part.id);
     const parent = ((part.parent ? nodes.get(part.parent) : variant) ?? variant) as Box;
     if (part.swap || part.icon) {
@@ -672,7 +675,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
         if ((await inst.getMainComponentAsync())?.id !== main.id) inst.swapComponent(main);
         await styleInstance(inst, part.kind, pv.parts[part.id] ?? [], ctx);
         try {
-          sizeInParent(inst, comp.parts.find((p) => p.id === part.parent), definite.has(part.parent ?? ''), tall.has(part.parent ?? ''));
+          sizeInParent(inst, parts.find((p) => p.id === part.parent), definite.has(part.parent ?? ''), tall.has(part.parent ?? ''));
         } catch (err) {
           ctx.problems.push(`${ctx.where}, fill container: ${errorText(err)}`);
         }
@@ -687,7 +690,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
     nodes.set(part.id, node);
     if (part.id !== 'root') intoLayout(node);
     if (part.id !== 'root' && node.name !== part.name) node.name = part.name;
-    const parentPart = comp.parts.find((p) => p.id === part.parent);
+    const parentPart = parts.find((p) => p.id === part.parent);
     ctx.where = `${comp.name} ${pv.name}, ${part.name}`;
     const fields = pv.parts[part.id] ?? [];
     // Fields the variant sets are written by apply below: resetting them first wrote each one twice (a third of the
@@ -737,7 +740,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
     // where they still apply (an update, or a figma-fixes.json fix, can take a fill away).
     unfill(node, fields);
     for (const f of fields) apply(node, f, ctx);
-    if (part.kind === 'frame' && !comp.parts.some((c) => c.parent === part.id)) emptyAtMinimum(node, fields);
+    if (part.kind === 'frame' && !parts.some((c) => c.parent === part.id)) emptyAtMinimum(node, fields);
     try {
       sizeInParent(node, parentPart, definite.has(part.parent ?? ''), tall.has(part.parent ?? ''), fields.some((f) => f.field === 'height'));
     } catch (err) {
@@ -747,18 +750,18 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
   placeParts(variant, comp, nodes, pv);
   // After placing: covers take their parent's size, hidden parts are hidden (unless a BOOLEAN property shows them).
   const hidden = new Set(pv.hidden ?? []);
-  for (const part of comp.parts) {
+  for (const part of parts) {
     const node = nodes.get(part.id);
     if (!node || part.id === 'root') continue;
     if (pv.pins?.[part.id]) pinToParent(node, pv.pins[part.id]!, ctx);
     else if (part.cover) coverParent(node, ctx);
     else if (comp.pins?.[part.id]) pinToParent(node, comp.pins[part.id]!, ctx);
-    else if (part.grow && growsIn(comp.parts.find((p) => p.id === part.parent), pv, definite)) growInParent(node, comp.parts.find((p) => p.id === part.parent), pv, ctx);
+    else if (part.grow && growsIn(parts.find((p) => p.id === part.parent), pv, definite)) growInParent(node, parts.find((p) => p.id === part.parent), pv, ctx);
     if (part.stretch || part.fraction !== undefined) stretchInParent(node, part, ctx);
     if (!part.visible) node.visible = !hidden.has(part.id);
   }
   // Thumbs last: their track has its final size once its other layers are placed.
-  for (const part of comp.parts) {
+  for (const part of parts) {
     const node = nodes.get(part.id);
     if (node && part.at !== undefined) placeAt(node, part.at, ctx);
   }
