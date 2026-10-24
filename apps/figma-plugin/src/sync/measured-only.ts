@@ -208,7 +208,9 @@ function setOf(name: string, stories: MeasuredSpecsStory[], argTypes: Record<str
   spacerWrappers(parts, variants, spacersOf);
   const properties = textProperties(parts, base.story, argTypes, new Set(axes.map((a) => a.name)));
   const kept = drawnAxes(axes, variants);
-  const spec: ComponentSpec = { name, hash: '', source: [source], axes: kept.axes, properties, parts, variants: withoutIdleStates(kept.variants), unmapped: [] };
+  // The story it was measured from: the set's doc section links to it.
+  const story = `${source.replace(/\/+$/, '')}/?path=/story/${base.story.id}`;
+  const spec: ComponentSpec = { name, hash: '', source: [story], axes: kept.axes, properties, parts, variants: withoutIdleStates(kept.variants), unmapped: [] };
   // Pruning an axis rewrites a variant's props (a new object): its shot follows by position in the kept list.
   const shots: Record<string, VariantShot> = {};
   kept.variants.forEach((v) => {

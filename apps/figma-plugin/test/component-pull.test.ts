@@ -14,7 +14,7 @@ import { exportThumbnails, scanComponents } from '../src/main/components';
 import { onlyComponent, plannedSignature, reviewUpdates, withoutComponents } from '../src/sync/component-review';
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
-import { buildComponentPlan, coverageView, draftedSetNote, evaluateCalc, loadComponentSpecs, pendingComponents, planValue, writablePlan } from '../src/sync/component-pull';
+import { buildComponentPlan, coverageView, draftedSetNote, evaluateCalc, loadComponentSpecs, pendingComponents, planValue, storyLinks, writablePlan } from '../src/sync/component-pull';
 import { classifyComponents, pullBaselines, suggestLine, suggestTitle } from '../src/sync/components';
 import { analyze, buildPull } from '../src/sync/flows';
 import { FakeGitHub } from './fake-github';
@@ -122,8 +122,13 @@ test('apply: every generated set on a Components page, bound to the variables, w
   assert.deepEqual(report.problems, []);
   assert.equal(report.fontNote, undefined);
   const page = sim.root.children.find((p) => p.name === 'Components')!;
-  assert.deepEqual(page.children.map((s) => `${s.type}:${s.name}`), SPEC_COMPONENTS.map((n) => `COMPONENT_SET:${n}`));
-  const button = page.children.find((s) => s.name === 'Button')!;
+  // Each set in its doc section: its name, the sync status, the values of the grid's columns and rows.
+  assert.deepEqual(page.children.map((s) => `${s.type}:${s.name}`), SPEC_COMPONENTS.map((n) => `SECTION:${n}`));
+  assert.deepEqual(page.children.map((s) => s.children.filter((c) => c.type === 'COMPONENT_SET').map((c) => c.name)), SPEC_COMPONENTS.map((n) => [n]));
+  const button = sim.sets().find((s) => s.name === 'Button')!;
+  const doc = button.parent!.children.filter((c) => c.type === 'TEXT').map((t) => t.characters);
+  assert.ok(doc.includes('Button') && doc.includes('In sync with the code.'), doc.join(' / '));
+  assert.ok(doc.includes('State: Default') && doc.some((t) => t.startsWith('Variant: primary')), doc.join(' / '));
   assert.equal(button.children.length, 72);
   const defs = button.componentPropertyDefinitions;
   assert.deepEqual(
@@ -154,7 +159,7 @@ test('apply: every generated set on a Components page, bound to the variables, w
   assert.deepEqual(ghost.fills, []);
   assert.equal(boundName(sim, partOf(ghost, 'text'), 'fills'), 'Semantic:color/action/disabled/text');
   // Card: compound parts with their own text properties.
-  const card = page.children.find((s) => s.name === 'Card')!;
+  const card = sim.sets().find((s) => s.name === 'Card')!;
   assert.deepEqual(
     partOf(variantOf(card, 'Padding=default'), 'root').children.map((c) => c.name),
     ['Header', 'Body', 'Footer'],
@@ -1023,4 +1028,12 @@ test('an empty slot sized on one axis takes its padding on the other, as CSS dra
   const v = set.children[0]!;
   for (const id of ['leading-2', 'leading-3']) assert.ok(partOf(v, id).height < 1, `${id} is ${partOf(v, id).height}px tall`);
   assert.ok(partOf(v, 'leading').height >= 8, 'the slot that holds the dot keeps the dot\'s size');
+});
+
+test('doc section links: a Storybook story gives its story and its docs page; a source file gives none', () => {
+  assert.deepEqual(storyLinks(['https://react.carbondesignsystem.com/?path=/story/components-toggle--default']), {
+    stories: 'https://react.carbondesignsystem.com/?path=/story/components-toggle--default',
+    docs: 'https://react.carbondesignsystem.com/?path=/docs/components-toggle--docs',
+  });
+  assert.equal(storyLinks(['packages/react/src/components/Button/Button.tsx']), undefined);
 });

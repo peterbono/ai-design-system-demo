@@ -770,7 +770,11 @@ export class SimFigma {
   loose(): SimNode[] {
     return this.root.children.flatMap((page) =>
       page.children.filter(
-        (n) => !(n.type === 'COMPONENT_SET' && n.getSharedPluginData('dsbridge', 'componentId')) && !(n.type === 'COMPONENT' && (n.getSharedPluginData('dsbridge', 'iconId') || n.getSharedPluginData('dsbridge', 'slotId'))),
+        (n) =>
+          !(n.type === 'COMPONENT_SET' && n.getSharedPluginData('dsbridge', 'componentId')) &&
+          !(n.type === 'COMPONENT' && (n.getSharedPluginData('dsbridge', 'iconId') || n.getSharedPluginData('dsbridge', 'slotId'))) &&
+          // A set's doc section holding its set is not loose; an empty one is.
+          !(n.type === 'SECTION' && n.getSharedPluginData('dsbridge', 'docFor') && n.children.some((c) => c.type === 'COMPONENT_SET')),
       ),
     );
   }

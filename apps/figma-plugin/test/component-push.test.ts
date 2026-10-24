@@ -51,7 +51,7 @@ async function pulledButton() {
   const plan = buildComponentPlan(loaded.specs, loaded.path, await scanGenerated(), first.head);
   await applyComponentPlan(onlyComponent(writablePlan(plan), 'Button'));
   const sync = { baseSha: first.headSha };
-  const button = sim.root.children.find((p) => p.name === 'Components')!.children.find((s) => s.name === 'Button')!;
+  const button = sim.sets().find((s) => s.name === 'Button')!;
   return { sim, gh, client, sync, button };
 }
 

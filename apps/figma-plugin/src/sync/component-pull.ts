@@ -250,6 +250,8 @@ export interface PlannedComponent {
   status: ComponentStatus;
   nodeId?: string | undefined;
   description: string;
+  /** Where a designer reads the component in code: its Storybook story and docs page, when the spec comes from one. */
+  links?: { stories: string; docs?: string | undefined } | undefined;
   axes: SpecAxis[];
   properties: SpecProperty[];
   parts: SpecPart[];
@@ -462,6 +464,14 @@ export async function loadComponentSpecs(
 
 // ---------------------------------------------------------------------------------------------
 // Planning
+
+/** A Storybook story URL among a spec's sources, and the docs page of its component (`?path=/docs/<title>--docs`). */
+export function storyLinks(sources: readonly string[]): PlannedComponent['links'] {
+  const story = sources.find((x) => /^https?:\/\/.+[?&]path=\/story\/[\w-]+--[\w-]+/.test(x));
+  if (!story) return undefined;
+  const docs = story.replace(/path=\/story\/([\w-]+?)--[\w-]+/, 'path=/docs/$1--docs');
+  return { stories: story, ...(docs !== story ? { docs } : {}) };
+}
 
 /**
  * Width of a root that fills its container in code (Card, Input): a component in Figma needs a width of its own. A size
@@ -836,6 +846,10 @@ export function buildComponentPlan(
       status,
       ...(existing ? { nodeId: existing.nodeId } : {}),
       description: describeSpec(spec),
+      ...(() => {
+        const links = storyLinks(spec.source);
+        return links ? { links } : {};
+      })(),
       ...(() => {
         const reactions = componentMotion(spec).reactions;
         const notes = motionNotesOf(spec);
