@@ -1044,9 +1044,9 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
         if (email) paintDrawnAvatar(avatar, email.login);
         else if (viewer) paintAvatar(avatar, viewer.login, viewer.avatar_url, 64);
       }
-      acct
-        .querySelector('summary')
-        ?.setAttribute('aria-label', email ? `${CONTRIBUTE_WORDS.account}: ${email.name ?? email.login}. Account menu` : viewer ? `GitHub: connected as ${viewer.login}. Account menu` : 'GitHub account');
+      // Named by its visible text (WCAG 2.5.3, as the account menu): the name, the team and the role, then a hidden
+      // ", account menu"; never an aria-label that drifts from what it shows.
+      acct.querySelector('summary')?.removeAttribute('aria-label');
     });
     paintGates();
     if (forget) {
