@@ -25,8 +25,11 @@ export function BuildLine() {
   if (!line) return null;
   return (
     <p className="t-ui t-muted sh-health bb-home">
-      <Icon icon={Wrench} size="sm" />
-      <span>Build requests: {line.charAt(0).toLowerCase() + line.slice(1)}</span>
+      {/* The wrench stays with its sentence (at the start of the first line on a phone); the link wraps after. */}
+      <span className="bb-home-text">
+        <Icon icon={Wrench} size="sm" className="bb-home-icon" />
+        <span>Build requests: {line.charAt(0).toLowerCase() + line.slice(1)}</span>
+      </span>
       <Link href={studioHref('building/')}>See what is being built</Link>
     </p>
   );

@@ -4,9 +4,8 @@
 import { canonicalTeamPath, isHosted, pageTeamFromPath, repoFromPath, STUDIO_ROOT, studioBase, studioHref } from '../lib/team-path';
 import { loadReserved } from '../lib/team-open';
 import { libraryHref } from '../lib/library-shells';
-import { teamDisplayName } from '../lib/demo';
 import { siteConfig } from './repo-context';
-import { knownTeamName } from '../lib/recent-teams';
+import { knownTeamName, teamNameFor } from '../lib/recent-teams';
 
 /** The sign-in callback is one address for every team (lib/github-signin.ts CALLBACK_PATH). */
 const SHARED = `${STUDIO_ROOT}auth/`;
@@ -39,9 +38,9 @@ export function fillTeamShell(root: ParentNode = document) {
   if (!team) return;
   const name = `${team.owner}/${team.repo}`;
   const paintName = () => {
-    // Before its settings are read, the name this browser already knows (server-kept or read before): no flip later.
-    const cfg = siteConfig();
-    const shown = teamDisplayName(name, Object.keys(cfg).length ? cfg : { name: knownTeamName(name) });
+    // The settings' name, else the name this browser already knows (server-kept or read before), before and after the
+    // settings are read: settings without a `name` never swap the account's name for the repository in words.
+    const shown = teamNameFor(name, siteConfig());
     for (const el of root.querySelectorAll<HTMLElement>('[data-team-display]')) el.textContent = shown;
   };
   paintName();

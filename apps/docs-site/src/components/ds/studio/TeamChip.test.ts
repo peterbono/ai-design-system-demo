@@ -268,4 +268,14 @@ describe('TeamChip pill and name, from the server', () => {
     expect(await screen.findByRole('button', { name: /^Mobile Kit Pro, .*team menu$/ })).toBeInTheDocument();
     expect(screen.queryByText('Ds')).toBeNull();
   });
+
+  it("keeps the account's name once settings without a name are read, never the repository in words", async () => {
+    localStorage.setItem('bridge.accountTeamNames', JSON.stringify({ 'acme/ds': 'Acme Build' }));
+    page.site = { tokens: 'tokens' } as never;
+    render(createElement(TeamChip, { launcher: true }));
+    expect(await screen.findByRole('button', { name: /^Acme Build, .*team menu$/ })).toBeInTheDocument();
+    act(() => void document.dispatchEvent(new Event('bridge:team-model')));
+    expect(screen.getByRole('button', { name: /^Acme Build, .*team menu$/ })).toBeInTheDocument();
+    expect(screen.queryByText('Ds')).toBeNull();
+  });
 });
