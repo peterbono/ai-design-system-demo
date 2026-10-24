@@ -83,7 +83,7 @@ export default function LibraryHome() {
               <h1 id="hero-title" className="t-display">
                 {team ? `The ${teamDisplayName(`${team.owner}/${team.repo}`)} design system` : 'Design system'}
               </h1>
-              <p className="t-body">Tokens, components and how to use them, published from the repository.</p>
+              <p className="t-body">Tokens, components and how to use them, published from the code.</p>
             </div>
             <div className="hm-hero-art">
               <Drawing name="hero" width={400} />
