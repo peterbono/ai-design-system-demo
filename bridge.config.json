@@ -1,0 +1,36 @@
+{
+  "tokens": {
+    "root": "tokens",
+    "include": [
+      "**/*.tokens.json"
+    ],
+    "tiers": {
+      "primitive": [
+        "primitives"
+      ],
+      "semantic": [
+        "semantic"
+      ]
+    },
+    "layers": [
+      {
+        "files": "primitives/*.tokens.json"
+      },
+      {
+        "files": "semantic/{theme}.tokens.json"
+      }
+    ]
+  },
+  "modes": {
+    "theme": {
+      "values": [
+        "white",
+        "g10",
+        "g90",
+        "g100"
+      ],
+      "default": "white"
+    }
+  },
+  "name": "Carbon (measured)"
+}

@@ -1,0 +1,4008 @@
+{
+  "version": 1,
+  "tool": "@bridge-ds/cli",
+  "createdAt": "2026-10-24T18:01:39.931Z",
+  "storybook": "https://react.carbondesignsystem.com",
+  "scale": 2,
+  "components": {
+    "Button": {
+      "variants": {
+        "story=components-button--default": {
+          "file": "components-button-default.png",
+          "width": 123.5,
+          "height": 48,
+          "story": "components-button--default",
+          "props": {
+            "dangerDescription": "danger",
+            "disabled": false,
+            "isExpressive": false,
+            "kind": "primary",
+            "size": "lg",
+            "type": "button"
+          }
+        },
+        "story=components-button--danger": {
+          "file": "components-button-danger.png",
+          "width": 123.5,
+          "height": 48,
+          "story": "components-button--danger",
+          "props": {
+            "kind": "danger",
+            "dangerDescription": "danger",
+            "disabled": false,
+            "isExpressive": false,
+            "size": "lg",
+            "type": "button"
+          }
+        },
+        "story=components-button--danger-ghost": {
+          "file": "components-button-danger-ghost.png",
+          "width": 75.5,
+          "height": 48,
+          "story": "components-button--danger-ghost",
+          "props": {
+            "kind": "danger--ghost",
+            "dangerDescription": "danger",
+            "disabled": false,
+            "isExpressive": false,
+            "size": "lg",
+            "type": "button"
+          }
+        },
+        "story=components-button--danger-tertiary": {
+          "file": "components-button-danger-tertiary.png",
+          "width": 123.5,
+          "height": 48,
+          "story": "components-button--danger-tertiary",
+          "props": {
+            "kind": "danger--tertiary",
+            "dangerDescription": "danger",
+            "disabled": false,
+            "isExpressive": false,
+            "size": "lg",
+            "type": "button"
+          }
+        },
+        "story=components-button--ghost": {
+          "file": "components-button-ghost.png",
+          "width": 75.5,
+          "height": 48,
+          "story": "components-button--ghost",
+          "props": {
+            "kind": "ghost",
+            "disabled": false,
+            "isExpressive": false,
+            "size": "lg",
+            "type": "button"
+          }
+        },
+        "story=components-button--icon-button": {
+          "file": "components-button-icon-button.png",
+          "width": 48,
+          "height": 48,
+          "story": "components-button--icon-button",
+          "props": {
+            "hasIconOnly": true,
+            "autoAlign": false,
+            "dangerDescription": "danger",
+            "disabled": false,
+            "isExpressive": false,
+            "isSelected": false,
+            "kind": "primary",
+            "size": "lg",
+            "tooltipAlignment": "center",
+            "tooltipDropShadow": false,
+            "tooltipHighContrast": true,
+            "tooltipPosition": "top",
+            "type": "button",
+            "renderIcon": "Add",
+            "iconDescription": "Icon Description"
+          }
+        },
+        "story=components-button--icon-button-with-badge": {
+          "file": "components-button-icon-button-with-badge.png",
+          "width": 48,
+          "height": 48,
+          "story": "components-button--icon-button-with-badge",
+          "props": {
+            "hasIconOnly": true,
+            "kind": "ghost",
+            "size": "lg",
+            "autoAlign": false,
+            "disabled": false,
+            "isExpressive": false,
+            "isSelected": false,
+            "tooltipAlignment": "center",
+            "tooltipDropShadow": false,
+            "tooltipHighContrast": true,
+            "tooltipPosition": "top",
+            "type": "button",
+            "renderIcon": "Notification",
+            "iconDescription": "Notification",
+            "badgeCount": 4
+          }
+        },
+        "story=components-button--radius": {
+          "file": "components-button-radius.png",
+          "width": 1116,
+          "height": 540,
+          "story": "components-button--radius",
+          "props": {
+            "disabled": false,
+            "isExpressive": false,
+            "kind": "primary",
+            "size": "lg",
+            "type": "button",
+            "radius": "max",
+            "radiusSs": "unset",
+            "radiusSe": "unset",
+            "radiusEs": "unset",
+            "radiusEe": "unset"
+          }
+        },
+        "story=components-button--secondary": {
+          "file": "components-button-secondary.png",
+          "width": 123.5,
+          "height": 48,
+          "story": "components-button--secondary",
+          "props": {
+            "kind": "secondary",
+            "disabled": false,
+            "isExpressive": false,
+            "size": "lg",
+            "type": "button"
+          }
+        },
+        "story=components-button--skeleton": {
+          "file": "components-button-skeleton.png",
+          "width": 150,
+          "height": 48,
+          "story": "components-button--skeleton",
+          "props": {
+            "size": "lg"
+          }
+        },
+        "story=components-button--tertiary": {
+          "file": "components-button-tertiary.png",
+          "width": 123.5,
+          "height": 48,
+          "story": "components-button--tertiary",
+          "props": {
+            "kind": "tertiary",
+            "disabled": false,
+            "isExpressive": false,
+            "size": "lg",
+            "type": "button"
+          }
+        }
+      }
+    },
+    "Checkbox": {
+      "variants": {
+        "story=components-checkbox--default": {
+          "file": "components-checkbox-default.png",
+          "width": 1116,
+          "height": 89.98,
+          "story": "components-checkbox--default",
+          "props": {
+            "disabled": false,
+            "helperText": "Helper text goes here",
+            "invalid": false,
+            "invalidText": "Invalid message goes here",
+            "legendText": "Group label",
+            "orientation": "vertical",
+            "readOnly": false,
+            "warn": false,
+            "warnText": "Warning message goes here"
+          }
+        },
+        "story=components-checkbox--default, orientation=horizontal": {
+          "file": "components-checkbox-default__orientation-horizontal.png",
+          "width": 1116,
+          "height": 63.98,
+          "story": "components-checkbox--default",
+          "props": {
+            "disabled": false,
+            "helperText": "Helper text goes here",
+            "invalid": false,
+            "invalidText": "Invalid message goes here",
+            "legendText": "Group label",
+            "orientation": "horizontal",
+            "readOnly": false,
+            "warn": false,
+            "warnText": "Warning message goes here"
+          }
+        },
+        "story=components-checkbox--default, orientation=horizontal, state=hover": {
+          "file": "components-checkbox-default__orientation-horizontal__state-hover.png",
+          "width": 1116,
+          "height": 63.98,
+          "story": "components-checkbox--default",
+          "props": {
+            "disabled": false,
+            "helperText": "Helper text goes here",
+            "invalid": false,
+            "invalidText": "Invalid message goes here",
+            "legendText": "Group label",
+            "orientation": "horizontal",
+            "readOnly": false,
+            "warn": false,
+            "warnText": "Warning message goes here"
+          },
+          "state": "hover"
+        },
+        "story=components-checkbox--default, orientation=horizontal, state=active": {
+          "file": "components-checkbox-default__orientation-horizontal__state-active.png",
+          "width": 1116,
+          "height": 63.98,
+          "story": "components-checkbox--default",
+          "props": {
+            "disabled": false,
+            "helperText": "Helper text goes here",
+            "invalid": false,
+            "invalidText": "Invalid message goes here",
+            "legendText": "Group label",
+            "orientation": "horizontal",
+            "readOnly": false,
+            "warn": false,
+            "warnText": "Warning message goes here"
+          },
+          "state": "active"
+        },
+        "story=components-checkbox--default, orientation=horizontal, disabled=true": {
+          "file": "components-checkbox-default__orientation-horizontal__disabled-true.png",
+          "width": 1116,
+          "height": 63.98,
+          "story": "components-checkbox--default",
+          "props": {
+            "disabled": true,
+            "helperText": "Helper text goes here",
+            "invalid": false,
+            "invalidText": "Invalid message goes here",
+            "legendText": "Group label",
+            "orientation": "horizontal",
+            "readOnly": false,
+            "warn": false,
+            "warnText": "Warning message goes here"
+          }
+        },
+        "story=components-checkbox--default, orientation=vertical": {
+          "file": "components-checkbox-default.png",
+          "width": 1116,
+          "height": 89.98,
+          "story": "components-checkbox--default",
+          "props": {
+            "disabled": false,
+            "helperText": "Helper text goes here",
+            "invalid": false,
+            "invalidText": "Invalid message goes here",
+            "legendText": "Group label",
+            "orientation": "vertical",
+            "readOnly": false,
+            "warn": false,
+            "warnText": "Warning message goes here"
+          }
+        },
+        "story=components-checkbox--default, orientation=vertical, state=hover": {
+          "file": "components-checkbox-default__orientation-vertical__state-hover.png",
+          "width": 1116,
+          "height": 89.98,
+          "story": "components-checkbox--default",
+          "props": {
+            "disabled": false,
+            "helperText": "Helper text goes here",
+            "invalid": false,
+            "invalidText": "Invalid message goes here",
+            "legendText": "Group label",
+            "orientation": "vertical",
+            "readOnly": false,
+            "warn": false,
+            "warnText": "Warning message goes here"
+          },
+          "state": "hover"
+        },
+        "story=components-checkbox--default, orientation=vertical, state=active": {
+          "file": "components-checkbox-default__orientation-vertical__state-active.png",
+          "width": 1116,
+          "height": 89.98,
+          "story": "components-checkbox--default",
+          "props": {
+            "disabled": false,
+            "helperText": "Helper text goes here",
+            "invalid": false,
+            "invalidText": "Invalid message goes here",
+            "legendText": "Group label",
+            "orientation": "vertical",
+            "readOnly": false,
+            "warn": false,
+            "warnText": "Warning message goes here"
+          },
+          "state": "active"
+        },
+        "story=components-checkbox--default, orientation=vertical, disabled=true": {
+          "file": "components-checkbox-default__orientation-vertical__disabled-true.png",
+          "width": 1116,
+          "height": 89.98,
+          "story": "components-checkbox--default",
+          "props": {
+            "disabled": true,
+            "helperText": "Helper text goes here",
+            "invalid": false,
+            "invalidText": "Invalid message goes here",
+            "legendText": "Group label",
+            "orientation": "vertical",
+            "readOnly": false,
+            "warn": false,
+            "warnText": "Warning message goes here"
+          }
+        },
+        "story=components-checkbox--horizontal": {
+          "file": "components-checkbox-horizontal.png",
+          "width": 1116,
+          "height": 63.98,
+          "story": "components-checkbox--horizontal",
+          "props": {
+            "disabled": false,
+            "helperText": "Helper text goes here",
+            "invalid": false,
+            "invalidText": "Invalid message goes here",
+            "legendText": "Group label",
+            "orientation": "horizontal",
+            "readOnly": false,
+            "warn": false,
+            "warnText": "Warning message goes here"
+          }
+        },
+        "story=components-checkbox--single": {
+          "file": "components-checkbox-single.png",
+          "width": 1116,
+          "height": 39.98,
+          "story": "components-checkbox--single",
+          "props": {
+            "indeterminate": false,
+            "title": "",
+            "checked": false,
+            "disabled": false,
+            "helperText": "Helper text goes here",
+            "hideLabel": false,
+            "invalid": false,
+            "invalidText": "Invalid text goes here",
+            "labelText": "Checkbox label",
+            "readOnly": false,
+            "warn": false,
+            "warnText": "Warning text goes here"
+          }
+        },
+        "story=components-checkbox--skeleton": {
+          "file": "components-checkbox-skeleton.png",
+          "width": 126,
+          "height": 20,
+          "story": "components-checkbox--skeleton",
+          "props": {
+            "indeterminate": false,
+            "title": ""
+          }
+        },
+        "story=components-checkbox--with-ai-label": {
+          "file": "components-checkbox-with-ai-label.png",
+          "width": 1116,
+          "height": 366,
+          "story": "components-checkbox--with-ai-label",
+          "props": {
+            "disabled": false,
+            "helperText": "",
+            "invalid": false,
+            "invalidText": "Invalid message goes here",
+            "legendText": "Group Label",
+            "orientation": "vertical",
+            "readOnly": false,
+            "warn": false,
+            "warnText": "Warning message goes here"
+          }
+        }
+      }
+    },
+    "Link": {
+      "variants": {
+        "story=components-link--default": {
+          "file": "components-link-default.png",
+          "width": 26.48,
+          "height": 18,
+          "story": "components-link--default",
+          "props": {
+            "disabled": false,
+            "inline": false,
+            "visited": false
+          }
+        },
+        "story=components-link--default, size=sm": {
+          "file": "components-link-default__size-sm.png",
+          "width": 23.44,
+          "height": 15.98,
+          "story": "components-link--default",
+          "props": {
+            "disabled": false,
+            "inline": false,
+            "visited": false,
+            "size": "sm"
+          }
+        },
+        "story=components-link--default, size=sm, state=hover": {
+          "file": "components-link-default__size-sm__state-hover.png",
+          "width": 23.44,
+          "height": 15.98,
+          "story": "components-link--default",
+          "props": {
+            "disabled": false,
+            "inline": false,
+            "visited": false,
+            "size": "sm"
+          },
+          "state": "hover"
+        },
+        "story=components-link--default, size=sm, state=active": {
+          "file": "components-link-default__size-sm__state-active.png",
+          "width": 23.44,
+          "height": 15.98,
+          "story": "components-link--default",
+          "props": {
+            "disabled": false,
+            "inline": false,
+            "visited": false,
+            "size": "sm"
+          },
+          "state": "active"
+        },
+        "story=components-link--default, size=sm, disabled=true": {
+          "file": "components-link-default__size-sm__disabled-true.png",
+          "width": 23.44,
+          "height": 15.98,
+          "story": "components-link--default",
+          "props": {
+            "disabled": true,
+            "inline": false,
+            "visited": false,
+            "size": "sm"
+          }
+        },
+        "story=components-link--default, size=md": {
+          "file": "components-link-default__size-md.png",
+          "width": 26.48,
+          "height": 18,
+          "story": "components-link--default",
+          "props": {
+            "disabled": false,
+            "inline": false,
+            "visited": false,
+            "size": "md"
+          }
+        },
+        "story=components-link--default, size=md, state=hover": {
+          "file": "components-link-default__size-md__state-hover.png",
+          "width": 26.48,
+          "height": 18,
+          "story": "components-link--default",
+          "props": {
+            "disabled": false,
+            "inline": false,
+            "visited": false,
+            "size": "md"
+          },
+          "state": "hover"
+        },
+        "story=components-link--default, size=md, state=active": {
+          "file": "components-link-default__size-md__state-active.png",
+          "width": 26.48,
+          "height": 18,
+          "story": "components-link--default",
+          "props": {
+            "disabled": false,
+            "inline": false,
+            "visited": false,
+            "size": "md"
+          },
+          "state": "active"
+        },
+        "story=components-link--default, size=md, disabled=true": {
+          "file": "components-link-default__size-md__disabled-true.png",
+          "width": 26.48,
+          "height": 18,
+          "story": "components-link--default",
+          "props": {
+            "disabled": true,
+            "inline": false,
+            "visited": false,
+            "size": "md"
+          }
+        },
+        "story=components-link--default, size=lg": {
+          "file": "components-link-default__size-lg.png",
+          "width": 29.55,
+          "height": 22,
+          "story": "components-link--default",
+          "props": {
+            "disabled": false,
+            "inline": false,
+            "visited": false,
+            "size": "lg"
+          }
+        },
+        "story=components-link--default, size=lg, state=hover": {
+          "file": "components-link-default__size-lg__state-hover.png",
+          "width": 29.55,
+          "height": 22,
+          "story": "components-link--default",
+          "props": {
+            "disabled": false,
+            "inline": false,
+            "visited": false,
+            "size": "lg"
+          },
+          "state": "hover"
+        },
+        "story=components-link--default, size=lg, state=active": {
+          "file": "components-link-default__size-lg__state-active.png",
+          "width": 29.55,
+          "height": 22,
+          "story": "components-link--default",
+          "props": {
+            "disabled": false,
+            "inline": false,
+            "visited": false,
+            "size": "lg"
+          },
+          "state": "active"
+        },
+        "story=components-link--default, size=lg, disabled=true": {
+          "file": "components-link-default__size-lg__disabled-true.png",
+          "width": 29.55,
+          "height": 22,
+          "story": "components-link--default",
+          "props": {
+            "disabled": true,
+            "inline": false,
+            "visited": false,
+            "size": "lg"
+          }
+        },
+        "story=components-link--inline": {
+          "file": "components-link-inline.png",
+          "width": 1116,
+          "height": 138,
+          "story": "components-link--inline",
+          "props": {
+            "disabled": false,
+            "inline": true,
+            "visited": false
+          }
+        },
+        "story=components-link--paired-with-icon": {
+          "file": "components-link-paired-with-icon.png",
+          "width": 105.39,
+          "height": 18,
+          "story": "components-link--paired-with-icon",
+          "props": {
+            "disabled": false,
+            "inline": false,
+            "visited": false
+          }
+        }
+      }
+    },
+    "RadioButton": {
+      "variants": {
+        "story=components-radiobutton--default": {
+          "file": "components-radiobutton-default.png",
+          "width": 1116,
+          "height": 66.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-2",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-1, labelPosition=right, orientation=horizontal": {
+          "file": "components-radiobutton-default__defaultselected-radio-1__labelposition-right__orientation-horizontal.png",
+          "width": 1116,
+          "height": 66.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-1",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "right",
+            "orientation": "horizontal"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-1, labelPosition=right, orientation=horizontal, state=hover": {
+          "file": "components-radiobutton-default__defaultselected-radio-1__labelposition-right__orientation-horizontal__state-hover.png",
+          "width": 1116,
+          "height": 66.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-1",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "right",
+            "orientation": "horizontal"
+          },
+          "state": "hover"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-1, labelPosition=right, orientation=horizontal, state=active": {
+          "file": "components-radiobutton-default__defaultselected-radio-1__labelposition-right__orientation-horizontal__state-active.png",
+          "width": 1116,
+          "height": 66.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-1",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "right",
+            "orientation": "horizontal"
+          },
+          "state": "active"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-1, labelPosition=right, orientation=horizontal, disabled=true": {
+          "file": "components-radiobutton-default__defaultselected-radio-1__labelposition-right__orientation-horizontal__disabled-true.png",
+          "width": 1116,
+          "height": 45,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-1",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "disabled": true,
+            "labelPosition": "right",
+            "orientation": "horizontal"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-1, labelPosition=right, orientation=vertical": {
+          "file": "components-radiobutton-default__defaultselected-radio-1__labelposition-right__orientation-vertical.png",
+          "width": 1116,
+          "height": 123.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-1",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "right",
+            "orientation": "vertical"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-1, labelPosition=right, orientation=vertical, state=hover": {
+          "file": "components-radiobutton-default__defaultselected-radio-1__labelposition-right__orientation-vertical__state-hover.png",
+          "width": 1116,
+          "height": 123.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-1",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "right",
+            "orientation": "vertical"
+          },
+          "state": "hover"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-1, labelPosition=right, orientation=vertical, state=active": {
+          "file": "components-radiobutton-default__defaultselected-radio-1__labelposition-right__orientation-vertical__state-active.png",
+          "width": 1116,
+          "height": 123.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-1",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "right",
+            "orientation": "vertical"
+          },
+          "state": "active"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-1, labelPosition=right, orientation=vertical, disabled=true": {
+          "file": "components-radiobutton-default__defaultselected-radio-1__labelposition-right__orientation-vertical__disabled-true.png",
+          "width": 1116,
+          "height": 102,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-1",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "disabled": true,
+            "labelPosition": "right",
+            "orientation": "vertical"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-1, labelPosition=left, orientation=horizontal": {
+          "file": "components-radiobutton-default__defaultselected-radio-1__labelposition-left__orientation-horizontal.png",
+          "width": 1116,
+          "height": 66.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-1",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "left",
+            "orientation": "horizontal"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-1, labelPosition=left, orientation=horizontal, state=hover": {
+          "file": "components-radiobutton-default__defaultselected-radio-1__labelposition-left__orientation-horizontal__state-hover.png",
+          "width": 1116,
+          "height": 66.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-1",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "left",
+            "orientation": "horizontal"
+          },
+          "state": "hover"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-1, labelPosition=left, orientation=horizontal, state=active": {
+          "file": "components-radiobutton-default__defaultselected-radio-1__labelposition-left__orientation-horizontal__state-active.png",
+          "width": 1116,
+          "height": 66.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-1",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "left",
+            "orientation": "horizontal"
+          },
+          "state": "active"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-1, labelPosition=left, orientation=horizontal, disabled=true": {
+          "file": "components-radiobutton-default__defaultselected-radio-1__labelposition-left__orientation-horizontal__disabled-true.png",
+          "width": 1116,
+          "height": 45,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-1",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "disabled": true,
+            "labelPosition": "left",
+            "orientation": "horizontal"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-1, labelPosition=left, orientation=vertical": {
+          "file": "components-radiobutton-default__defaultselected-radio-1__labelposition-left__orientation-vertical.png",
+          "width": 1116,
+          "height": 123.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-1",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "left",
+            "orientation": "vertical"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-1, labelPosition=left, orientation=vertical, state=hover": {
+          "file": "components-radiobutton-default__defaultselected-radio-1__labelposition-left__orientation-vertical__state-hover.png",
+          "width": 1116,
+          "height": 123.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-1",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "left",
+            "orientation": "vertical"
+          },
+          "state": "hover"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-1, labelPosition=left, orientation=vertical, state=active": {
+          "file": "components-radiobutton-default__defaultselected-radio-1__labelposition-left__orientation-vertical__state-active.png",
+          "width": 1116,
+          "height": 123.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-1",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "left",
+            "orientation": "vertical"
+          },
+          "state": "active"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-1, labelPosition=left, orientation=vertical, disabled=true": {
+          "file": "components-radiobutton-default__defaultselected-radio-1__labelposition-left__orientation-vertical__disabled-true.png",
+          "width": 1116,
+          "height": 102,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-1",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "disabled": true,
+            "labelPosition": "left",
+            "orientation": "vertical"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-2, labelPosition=right, orientation=horizontal": {
+          "file": "components-radiobutton-default__defaultselected-radio-2__labelposition-right__orientation-horizontal.png",
+          "width": 1116,
+          "height": 66.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-2",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "right",
+            "orientation": "horizontal"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-2, labelPosition=right, orientation=horizontal, state=hover": {
+          "file": "components-radiobutton-default__defaultselected-radio-2__labelposition-right__orientation-horizontal__state-hover.png",
+          "width": 1116,
+          "height": 66.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-2",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "right",
+            "orientation": "horizontal"
+          },
+          "state": "hover"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-2, labelPosition=right, orientation=horizontal, state=active": {
+          "file": "components-radiobutton-default__defaultselected-radio-2__labelposition-right__orientation-horizontal__state-active.png",
+          "width": 1116,
+          "height": 66.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-2",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "right",
+            "orientation": "horizontal"
+          },
+          "state": "active"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-2, labelPosition=right, orientation=horizontal, disabled=true": {
+          "file": "components-radiobutton-default__defaultselected-radio-2__labelposition-right__orientation-horizontal__disabled-true.png",
+          "width": 1116,
+          "height": 45,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-2",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "disabled": true,
+            "labelPosition": "right",
+            "orientation": "horizontal"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-2, labelPosition=right, orientation=vertical": {
+          "file": "components-radiobutton-default__defaultselected-radio-2__labelposition-right__orientation-vertical.png",
+          "width": 1116,
+          "height": 123.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-2",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "right",
+            "orientation": "vertical"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-2, labelPosition=right, orientation=vertical, state=hover": {
+          "file": "components-radiobutton-default__defaultselected-radio-2__labelposition-right__orientation-vertical__state-hover.png",
+          "width": 1116,
+          "height": 123.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-2",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "right",
+            "orientation": "vertical"
+          },
+          "state": "hover"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-2, labelPosition=right, orientation=vertical, state=active": {
+          "file": "components-radiobutton-default__defaultselected-radio-2__labelposition-right__orientation-vertical__state-active.png",
+          "width": 1116,
+          "height": 123.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-2",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "right",
+            "orientation": "vertical"
+          },
+          "state": "active"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-2, labelPosition=right, orientation=vertical, disabled=true": {
+          "file": "components-radiobutton-default__defaultselected-radio-2__labelposition-right__orientation-vertical__disabled-true.png",
+          "width": 1116,
+          "height": 102,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-2",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "disabled": true,
+            "labelPosition": "right",
+            "orientation": "vertical"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-2, labelPosition=left, orientation=horizontal": {
+          "file": "components-radiobutton-default__defaultselected-radio-2__labelposition-left__orientation-horizontal.png",
+          "width": 1116,
+          "height": 66.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-2",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "left",
+            "orientation": "horizontal"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-2, labelPosition=left, orientation=horizontal, state=hover": {
+          "file": "components-radiobutton-default__defaultselected-radio-2__labelposition-left__orientation-horizontal__state-hover.png",
+          "width": 1116,
+          "height": 66.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-2",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "left",
+            "orientation": "horizontal"
+          },
+          "state": "hover"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-2, labelPosition=left, orientation=horizontal, state=active": {
+          "file": "components-radiobutton-default__defaultselected-radio-2__labelposition-left__orientation-horizontal__state-active.png",
+          "width": 1116,
+          "height": 66.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-2",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "left",
+            "orientation": "horizontal"
+          },
+          "state": "active"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-2, labelPosition=left, orientation=horizontal, disabled=true": {
+          "file": "components-radiobutton-default__defaultselected-radio-2__labelposition-left__orientation-horizontal__disabled-true.png",
+          "width": 1116,
+          "height": 45,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-2",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "disabled": true,
+            "labelPosition": "left",
+            "orientation": "horizontal"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-2, labelPosition=left, orientation=vertical": {
+          "file": "components-radiobutton-default__defaultselected-radio-2__labelposition-left__orientation-vertical.png",
+          "width": 1116,
+          "height": 123.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-2",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "left",
+            "orientation": "vertical"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-2, labelPosition=left, orientation=vertical, state=hover": {
+          "file": "components-radiobutton-default__defaultselected-radio-2__labelposition-left__orientation-vertical__state-hover.png",
+          "width": 1116,
+          "height": 123.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-2",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "left",
+            "orientation": "vertical"
+          },
+          "state": "hover"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-2, labelPosition=left, orientation=vertical, state=active": {
+          "file": "components-radiobutton-default__defaultselected-radio-2__labelposition-left__orientation-vertical__state-active.png",
+          "width": 1116,
+          "height": 123.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-2",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "left",
+            "orientation": "vertical"
+          },
+          "state": "active"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-2, labelPosition=left, orientation=vertical, disabled=true": {
+          "file": "components-radiobutton-default__defaultselected-radio-2__labelposition-left__orientation-vertical__disabled-true.png",
+          "width": 1116,
+          "height": 102,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-2",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "disabled": true,
+            "labelPosition": "left",
+            "orientation": "vertical"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-3, labelPosition=right, orientation=horizontal": {
+          "file": "components-radiobutton-default__defaultselected-radio-3__labelposition-right__orientation-horizontal.png",
+          "width": 1116,
+          "height": 66.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-3",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "right",
+            "orientation": "horizontal"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-3, labelPosition=right, orientation=horizontal, state=hover": {
+          "file": "components-radiobutton-default__defaultselected-radio-3__labelposition-right__orientation-horizontal__state-hover.png",
+          "width": 1116,
+          "height": 66.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-3",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "right",
+            "orientation": "horizontal"
+          },
+          "state": "hover"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-3, labelPosition=right, orientation=horizontal, state=active": {
+          "file": "components-radiobutton-default__defaultselected-radio-3__labelposition-right__orientation-horizontal__state-active.png",
+          "width": 1116,
+          "height": 66.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-3",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "right",
+            "orientation": "horizontal"
+          },
+          "state": "active"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-3, labelPosition=right, orientation=horizontal, disabled=true": {
+          "file": "components-radiobutton-default__defaultselected-radio-3__labelposition-right__orientation-horizontal__disabled-true.png",
+          "width": 1116,
+          "height": 45,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-3",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "disabled": true,
+            "labelPosition": "right",
+            "orientation": "horizontal"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-3, labelPosition=right, orientation=vertical": {
+          "file": "components-radiobutton-default__defaultselected-radio-3__labelposition-right__orientation-vertical.png",
+          "width": 1116,
+          "height": 123.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-3",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "right",
+            "orientation": "vertical"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-3, labelPosition=right, orientation=vertical, state=hover": {
+          "file": "components-radiobutton-default__defaultselected-radio-3__labelposition-right__orientation-vertical__state-hover.png",
+          "width": 1116,
+          "height": 123.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-3",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "right",
+            "orientation": "vertical"
+          },
+          "state": "hover"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-3, labelPosition=right, orientation=vertical, state=active": {
+          "file": "components-radiobutton-default__defaultselected-radio-3__labelposition-right__orientation-vertical__state-active.png",
+          "width": 1116,
+          "height": 123.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-3",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "right",
+            "orientation": "vertical"
+          },
+          "state": "active"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-3, labelPosition=right, orientation=vertical, disabled=true": {
+          "file": "components-radiobutton-default__defaultselected-radio-3__labelposition-right__orientation-vertical__disabled-true.png",
+          "width": 1116,
+          "height": 102,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-3",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "disabled": true,
+            "labelPosition": "right",
+            "orientation": "vertical"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-3, labelPosition=left, orientation=horizontal": {
+          "file": "components-radiobutton-default__defaultselected-radio-3__labelposition-left__orientation-horizontal.png",
+          "width": 1116,
+          "height": 66.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-3",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "left",
+            "orientation": "horizontal"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-3, labelPosition=left, orientation=horizontal, state=hover": {
+          "file": "components-radiobutton-default__defaultselected-radio-3__labelposition-left__orientation-horizontal__state-hover.png",
+          "width": 1116,
+          "height": 66.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-3",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "left",
+            "orientation": "horizontal"
+          },
+          "state": "hover"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-3, labelPosition=left, orientation=horizontal, state=active": {
+          "file": "components-radiobutton-default__defaultselected-radio-3__labelposition-left__orientation-horizontal__state-active.png",
+          "width": 1116,
+          "height": 66.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-3",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "left",
+            "orientation": "horizontal"
+          },
+          "state": "active"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-3, labelPosition=left, orientation=horizontal, disabled=true": {
+          "file": "components-radiobutton-default__defaultselected-radio-3__labelposition-left__orientation-horizontal__disabled-true.png",
+          "width": 1116,
+          "height": 45,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-3",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "disabled": true,
+            "labelPosition": "left",
+            "orientation": "horizontal"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-3, labelPosition=left, orientation=vertical": {
+          "file": "components-radiobutton-default__defaultselected-radio-3__labelposition-left__orientation-vertical.png",
+          "width": 1116,
+          "height": 123.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-3",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "left",
+            "orientation": "vertical"
+          }
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-3, labelPosition=left, orientation=vertical, state=hover": {
+          "file": "components-radiobutton-default__defaultselected-radio-3__labelposition-left__orientation-vertical__state-hover.png",
+          "width": 1116,
+          "height": 123.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-3",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "left",
+            "orientation": "vertical"
+          },
+          "state": "hover"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-3, labelPosition=left, orientation=vertical, state=active": {
+          "file": "components-radiobutton-default__defaultselected-radio-3__labelposition-left__orientation-vertical__state-active.png",
+          "width": 1116,
+          "height": 123.98,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-3",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "labelPosition": "left",
+            "orientation": "vertical"
+          },
+          "state": "active"
+        },
+        "story=components-radiobutton--default, defaultSelected=radio-3, labelPosition=left, orientation=vertical, disabled=true": {
+          "file": "components-radiobutton-default__defaultselected-radio-3__labelposition-left__orientation-vertical__disabled-true.png",
+          "width": 1116,
+          "height": 102,
+          "story": "components-radiobutton--default",
+          "props": {
+            "defaultSelected": "radio-3",
+            "helperText": "Helper text",
+            "hideLabel": false,
+            "invalidText": "Invalid selection",
+            "warn": false,
+            "warnText": "Please notice the warning",
+            "disabled": true,
+            "labelPosition": "left",
+            "orientation": "vertical"
+          }
+        },
+        "story=components-radiobutton--skeleton": {
+          "file": "components-radiobutton-skeleton.png",
+          "width": 1116,
+          "height": 18,
+          "story": "components-radiobutton--skeleton",
+          "props": {}
+        },
+        "story=components-radiobutton--vertical": {
+          "file": "components-radiobutton-vertical.png",
+          "width": 1116,
+          "height": 102,
+          "story": "components-radiobutton--vertical",
+          "props": {}
+        },
+        "story=components-radiobutton--with-ai-label": {
+          "file": "components-radiobutton-with-ai-label.png",
+          "width": 1116,
+          "height": 306,
+          "story": "components-radiobutton--with-ai-label",
+          "props": {}
+        }
+      }
+    },
+    "Search": {
+      "variants": {
+        "story=components-search--default": {
+          "file": "components-search-default.png",
+          "width": 800,
+          "height": 40,
+          "story": "components-search--default",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "disabled": false,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "md"
+          }
+        },
+        "story=components-search--default, size=xs": {
+          "file": "components-search-default__size-xs.png",
+          "width": 800,
+          "height": 24,
+          "story": "components-search--default",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "disabled": false,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "xs"
+          }
+        },
+        "story=components-search--default, size=xs, state=hover": {
+          "file": "components-search-default__size-xs__state-hover.png",
+          "width": 800,
+          "height": 24,
+          "story": "components-search--default",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "disabled": false,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "xs"
+          },
+          "state": "hover"
+        },
+        "story=components-search--default, size=xs, state=active": {
+          "file": "components-search-default__size-xs__state-active.png",
+          "width": 800,
+          "height": 24,
+          "story": "components-search--default",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "disabled": false,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "xs"
+          },
+          "state": "active"
+        },
+        "story=components-search--default, size=xs, disabled=true": {
+          "file": "components-search-default__size-xs__disabled-true.png",
+          "width": 800,
+          "height": 24,
+          "story": "components-search--default",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "disabled": true,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "xs"
+          }
+        },
+        "story=components-search--default, size=sm": {
+          "file": "components-search-default__size-sm.png",
+          "width": 800,
+          "height": 32,
+          "story": "components-search--default",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "disabled": false,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "sm"
+          }
+        },
+        "story=components-search--default, size=sm, state=hover": {
+          "file": "components-search-default__size-sm__state-hover.png",
+          "width": 800,
+          "height": 32,
+          "story": "components-search--default",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "disabled": false,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "sm"
+          },
+          "state": "hover"
+        },
+        "story=components-search--default, size=sm, state=active": {
+          "file": "components-search-default__size-sm__state-active.png",
+          "width": 800,
+          "height": 32,
+          "story": "components-search--default",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "disabled": false,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "sm"
+          },
+          "state": "active"
+        },
+        "story=components-search--default, size=sm, disabled=true": {
+          "file": "components-search-default__size-sm__disabled-true.png",
+          "width": 800,
+          "height": 32,
+          "story": "components-search--default",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "disabled": true,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "sm"
+          }
+        },
+        "story=components-search--default, size=md": {
+          "file": "components-search-default.png",
+          "width": 800,
+          "height": 40,
+          "story": "components-search--default",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "disabled": false,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "md"
+          }
+        },
+        "story=components-search--default, size=md, state=hover": {
+          "file": "components-search-default__size-md__state-hover.png",
+          "width": 800,
+          "height": 40,
+          "story": "components-search--default",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "disabled": false,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "md"
+          },
+          "state": "hover"
+        },
+        "story=components-search--default, size=md, state=active": {
+          "file": "components-search-default__size-md__state-active.png",
+          "width": 800,
+          "height": 40,
+          "story": "components-search--default",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "disabled": false,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "md"
+          },
+          "state": "active"
+        },
+        "story=components-search--default, size=md, disabled=true": {
+          "file": "components-search-default__size-md__disabled-true.png",
+          "width": 800,
+          "height": 40,
+          "story": "components-search--default",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "disabled": true,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "md"
+          }
+        },
+        "story=components-search--default, size=lg": {
+          "file": "components-search-default__size-lg.png",
+          "width": 800,
+          "height": 48,
+          "story": "components-search--default",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "disabled": false,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "lg"
+          }
+        },
+        "story=components-search--default, size=lg, state=hover": {
+          "file": "components-search-default__size-lg__state-hover.png",
+          "width": 800,
+          "height": 48,
+          "story": "components-search--default",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "disabled": false,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "lg"
+          },
+          "state": "hover"
+        },
+        "story=components-search--default, size=lg, state=active": {
+          "file": "components-search-default__size-lg__state-active.png",
+          "width": 800,
+          "height": 48,
+          "story": "components-search--default",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "disabled": false,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "lg"
+          },
+          "state": "active"
+        },
+        "story=components-search--default, size=lg, disabled=true": {
+          "file": "components-search-default__size-lg__disabled-true.png",
+          "width": 800,
+          "height": 48,
+          "story": "components-search--default",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "disabled": true,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "lg"
+          }
+        },
+        "story=components-search--expandable": {
+          "file": "components-search-expandable.png",
+          "width": 40,
+          "height": 40,
+          "story": "components-search--expandable",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "isExpanded": true,
+            "disabled": false,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "md"
+          }
+        },
+        "story=components-search--expandable-with-layer": {
+          "file": "components-search-expandable-with-layer.png",
+          "width": 1200,
+          "height": 800,
+          "story": "components-search--expandable-with-layer",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "isExpanded": true,
+            "disabled": false,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "md"
+          }
+        },
+        "story=components-search--skeleton": {
+          "file": "components-search-skeleton.png",
+          "width": 800,
+          "height": 40,
+          "story": "components-search--skeleton",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "disabled": false,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "placeholder": "Placeholder text",
+            "size": "md",
+            "type": "search"
+          }
+        },
+        "story=components-search--with-layer": {
+          "file": "components-search-with-layer.png",
+          "width": 1200,
+          "height": 800,
+          "story": "components-search--with-layer",
+          "props": {
+            "closeButtonLabelText": "Clear search input",
+            "placeholder": "Placeholder text",
+            "type": "search",
+            "autoComplete": "off",
+            "disabled": false,
+            "defaultWidth": 800,
+            "labelText": "Site search",
+            "size": "md"
+          }
+        }
+      }
+    },
+    "Tag": {
+      "variants": {
+        "story=components-tag--dismissible": {
+          "file": "components-tag-dismissible.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "bottom"
+          }
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=top": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-top.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "top"
+          }
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=top, state=hover": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-top__state-hover.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "top"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=top, state=active": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-top__state-active.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "top"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=top-start": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-top-start.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "top-start"
+          }
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=top-start, state=hover": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-top-start__state-hover.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "top-start"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=top-start, state=active": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-top-start__state-active.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "top-start"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=top-end": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-top-end.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "top-end"
+          }
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=top-end, state=hover": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-top-end__state-hover.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "top-end"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=top-end, state=active": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-top-end__state-active.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "top-end"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=bottom": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-bottom.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "bottom"
+          }
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=bottom, state=hover": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-bottom__state-hover.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "bottom"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=bottom, state=active": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-bottom__state-active.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "bottom"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=bottom-start": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-bottom-start.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "bottom-start"
+          }
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=bottom-start, state=hover": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-bottom-start__state-hover.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "bottom-start"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=bottom-start, state=active": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-bottom-start__state-active.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "bottom-start"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=bottom-end": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-bottom-end.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "bottom-end"
+          }
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=bottom-end, state=hover": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-bottom-end__state-hover.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "bottom-end"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=bottom-end, state=active": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-bottom-end__state-active.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "bottom-end"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=left": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-left.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "left"
+          }
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=left, state=hover": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-left__state-hover.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "left"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=left, state=active": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-left__state-active.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "left"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=left-start": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-left-start.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "left-start"
+          }
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=left-start, state=hover": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-left-start__state-hover.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "left-start"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=left-start, state=active": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-left-start__state-active.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "left-start"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=left-end": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-left-end.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "left-end"
+          }
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=left-end, state=hover": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-left-end__state-hover.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "left-end"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=left-end, state=active": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-left-end__state-active.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "left-end"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=right": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-right.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "right"
+          }
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=right, state=hover": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-right__state-hover.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "right"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=right, state=active": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-right__state-active.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "right"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=right-start": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-right-start.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "right-start"
+          }
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=right-start, state=hover": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-right-start__state-hover.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "right-start"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=right-start, state=active": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-right-start__state-active.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "right-start"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=right-end": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-right-end.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "right-end"
+          }
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=right-end, state=hover": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-right-end__state-hover.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "right-end"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=sm, dismissTooltipAlignment=right-end, state=active": {
+          "file": "components-tag-dismissible__size-sm__dismisstooltipalignment-right-end__state-active.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "sm",
+            "dismissTooltipAlignment": "right-end"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=top": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-top.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "top"
+          }
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=top, state=hover": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-top__state-hover.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "top"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=top, state=active": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-top__state-active.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "top"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=top-start": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-top-start.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "top-start"
+          }
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=top-start, state=hover": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-top-start__state-hover.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "top-start"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=top-start, state=active": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-top-start__state-active.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "top-start"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=top-end": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-top-end.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "top-end"
+          }
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=top-end, state=hover": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-top-end__state-hover.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "top-end"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=top-end, state=active": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-top-end__state-active.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "top-end"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=bottom": {
+          "file": "components-tag-dismissible.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "bottom"
+          }
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=bottom, state=hover": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-bottom__state-hover.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "bottom"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=bottom, state=active": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-bottom__state-active.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "bottom"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=bottom-start": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-bottom-start.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "bottom-start"
+          }
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=bottom-start, state=hover": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-bottom-start__state-hover.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "bottom-start"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=bottom-start, state=active": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-bottom-start__state-active.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "bottom-start"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=bottom-end": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-bottom-end.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "bottom-end"
+          }
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=bottom-end, state=hover": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-bottom-end__state-hover.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "bottom-end"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=bottom-end, state=active": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-bottom-end__state-active.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "bottom-end"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=left": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-left.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "left"
+          }
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=left, state=hover": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-left__state-hover.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "left"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=left, state=active": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-left__state-active.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "left"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=left-start": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-left-start.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "left-start"
+          }
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=left-start, state=hover": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-left-start__state-hover.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "left-start"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=left-start, state=active": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-left-start__state-active.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "left-start"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=left-end": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-left-end.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "left-end"
+          }
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=left-end, state=hover": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-left-end__state-hover.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "left-end"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=left-end, state=active": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-left-end__state-active.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "left-end"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=right": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-right.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "right"
+          }
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=right, state=hover": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-right__state-hover.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "right"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=right, state=active": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-right__state-active.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "right"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=right-start": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-right-start.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "right-start"
+          }
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=right-start, state=hover": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-right-start__state-hover.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "right-start"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=right-start, state=active": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-right-start__state-active.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "right-start"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=right-end": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-right-end.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "right-end"
+          }
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=right-end, state=hover": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-right-end__state-hover.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "right-end"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=md, dismissTooltipAlignment=right-end, state=active": {
+          "file": "components-tag-dismissible__size-md__dismisstooltipalignment-right-end__state-active.png",
+          "width": 1116,
+          "height": 148,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md",
+            "dismissTooltipAlignment": "right-end"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=top": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-top.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "top"
+          }
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=top, state=hover": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-top__state-hover.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "top"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=top, state=active": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-top__state-active.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "top"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=top-start": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-top-start.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "top-start"
+          }
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=top-start, state=hover": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-top-start__state-hover.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "top-start"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=top-start, state=active": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-top-start__state-active.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "top-start"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=top-end": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-top-end.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "top-end"
+          }
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=top-end, state=hover": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-top-end__state-hover.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "top-end"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=top-end, state=active": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-top-end__state-active.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "top-end"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=bottom": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-bottom.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "bottom"
+          }
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=bottom, state=hover": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-bottom__state-hover.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "bottom"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=bottom, state=active": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-bottom__state-active.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "bottom"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=bottom-start": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-bottom-start.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "bottom-start"
+          }
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=bottom-start, state=hover": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-bottom-start__state-hover.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "bottom-start"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=bottom-start, state=active": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-bottom-start__state-active.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "bottom-start"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=bottom-end": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-bottom-end.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "bottom-end"
+          }
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=bottom-end, state=hover": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-bottom-end__state-hover.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "bottom-end"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=bottom-end, state=active": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-bottom-end__state-active.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "bottom-end"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=left": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-left.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "left"
+          }
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=left, state=hover": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-left__state-hover.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "left"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=left, state=active": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-left__state-active.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "left"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=left-start": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-left-start.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "left-start"
+          }
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=left-start, state=hover": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-left-start__state-hover.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "left-start"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=left-start, state=active": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-left-start__state-active.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "left-start"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=left-end": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-left-end.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "left-end"
+          }
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=left-end, state=hover": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-left-end__state-hover.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "left-end"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=left-end, state=active": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-left-end__state-active.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "left-end"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=right": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-right.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "right"
+          }
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=right, state=hover": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-right__state-hover.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "right"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=right, state=active": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-right__state-active.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "right"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=right-start": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-right-start.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "right-start"
+          }
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=right-start, state=hover": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-right-start__state-hover.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "right-start"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=right-start, state=active": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-right-start__state-active.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "right-start"
+          },
+          "state": "active"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=right-end": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-right-end.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "right-end"
+          }
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=right-end, state=hover": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-right-end__state-hover.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "right-end"
+          },
+          "state": "hover"
+        },
+        "story=components-tag--dismissible, size=lg, dismissTooltipAlignment=right-end, state=active": {
+          "file": "components-tag-dismissible__size-lg__dismisstooltipalignment-right-end__state-active.png",
+          "width": 1116,
+          "height": 164,
+          "story": "components-tag--dismissible",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "lg",
+            "dismissTooltipAlignment": "right-end"
+          },
+          "state": "active"
+        },
+        "story=components-tag--operational": {
+          "file": "components-tag-operational.png",
+          "width": 1116,
+          "height": 136,
+          "story": "components-tag--operational",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false,
+            "size": "md"
+          }
+        },
+        "story=components-tag--read-only": {
+          "file": "components-tag-read-only.png",
+          "width": 1116,
+          "height": 52,
+          "story": "components-tag--read-only",
+          "props": {
+            "title": "Clear filter",
+            "disabled": false,
+            "filter": false,
+            "size": "md"
+          }
+        },
+        "story=components-tag--selectable": {
+          "file": "components-tag-selectable.png",
+          "width": 1116,
+          "height": 24,
+          "story": "components-tag--selectable",
+          "props": {
+            "defaultSelected": false,
+            "disabled": false
+          }
+        },
+        "story=components-tag--skeleton": {
+          "file": "components-tag-skeleton.png",
+          "width": 1116,
+          "height": 24,
+          "story": "components-tag--skeleton",
+          "props": {
+            "size": "md"
+          }
+        },
+        "story=components-tag--with-ai-label": {
+          "file": "components-tag-with-ai-label.png",
+          "width": 1116,
+          "height": 24,
+          "story": "components-tag--with-ai-label",
+          "props": {
+            "title": "Clear filter",
+            "disabled": false,
+            "size": "md",
+            "text": "Tag content"
+          }
+        }
+      }
+    },
+    "TextInput": {
+      "variants": {
+        "story=components-textinput--default": {
+          "file": "components-textinput-default.png",
+          "width": 300,
+          "height": 83.98,
+          "story": "components-textinput--default",
+          "props": {
+            "invalid": false,
+            "disabled": false,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "md",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          }
+        },
+        "story=components-textinput--default, size=xs": {
+          "file": "components-textinput-default__size-xs.png",
+          "width": 300,
+          "height": 67.98,
+          "story": "components-textinput--default",
+          "props": {
+            "invalid": false,
+            "disabled": false,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "xs",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          }
+        },
+        "story=components-textinput--default, size=xs, state=hover": {
+          "file": "components-textinput-default__size-xs__state-hover.png",
+          "width": 300,
+          "height": 67.98,
+          "story": "components-textinput--default",
+          "props": {
+            "invalid": false,
+            "disabled": false,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "xs",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          },
+          "state": "hover"
+        },
+        "story=components-textinput--default, size=xs, state=active": {
+          "file": "components-textinput-default__size-xs__state-active.png",
+          "width": 300,
+          "height": 67.98,
+          "story": "components-textinput--default",
+          "props": {
+            "invalid": false,
+            "disabled": false,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "xs",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          },
+          "state": "active"
+        },
+        "story=components-textinput--default, size=xs, disabled=true": {
+          "file": "components-textinput-default__size-xs__disabled-true.png",
+          "width": 300,
+          "height": 67.98,
+          "story": "components-textinput--default",
+          "props": {
+            "invalid": false,
+            "disabled": true,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "xs",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          }
+        },
+        "story=components-textinput--default, size=sm": {
+          "file": "components-textinput-default__size-sm.png",
+          "width": 300,
+          "height": 75.98,
+          "story": "components-textinput--default",
+          "props": {
+            "invalid": false,
+            "disabled": false,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "sm",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          }
+        },
+        "story=components-textinput--default, size=sm, state=hover": {
+          "file": "components-textinput-default__size-sm__state-hover.png",
+          "width": 300,
+          "height": 75.98,
+          "story": "components-textinput--default",
+          "props": {
+            "invalid": false,
+            "disabled": false,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "sm",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          },
+          "state": "hover"
+        },
+        "story=components-textinput--default, size=sm, state=active": {
+          "file": "components-textinput-default__size-sm__state-active.png",
+          "width": 300,
+          "height": 75.98,
+          "story": "components-textinput--default",
+          "props": {
+            "invalid": false,
+            "disabled": false,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "sm",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          },
+          "state": "active"
+        },
+        "story=components-textinput--default, size=sm, disabled=true": {
+          "file": "components-textinput-default__size-sm__disabled-true.png",
+          "width": 300,
+          "height": 75.98,
+          "story": "components-textinput--default",
+          "props": {
+            "invalid": false,
+            "disabled": true,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "sm",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          }
+        },
+        "story=components-textinput--default, size=md": {
+          "file": "components-textinput-default.png",
+          "width": 300,
+          "height": 83.98,
+          "story": "components-textinput--default",
+          "props": {
+            "invalid": false,
+            "disabled": false,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "md",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          }
+        },
+        "story=components-textinput--default, size=md, state=hover": {
+          "file": "components-textinput-default__size-md__state-hover.png",
+          "width": 300,
+          "height": 83.98,
+          "story": "components-textinput--default",
+          "props": {
+            "invalid": false,
+            "disabled": false,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "md",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          },
+          "state": "hover"
+        },
+        "story=components-textinput--default, size=md, state=active": {
+          "file": "components-textinput-default__size-md__state-active.png",
+          "width": 300,
+          "height": 83.98,
+          "story": "components-textinput--default",
+          "props": {
+            "invalid": false,
+            "disabled": false,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "md",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          },
+          "state": "active"
+        },
+        "story=components-textinput--default, size=md, disabled=true": {
+          "file": "components-textinput-default__size-md__disabled-true.png",
+          "width": 300,
+          "height": 83.98,
+          "story": "components-textinput--default",
+          "props": {
+            "invalid": false,
+            "disabled": true,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "md",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          }
+        },
+        "story=components-textinput--default, size=lg": {
+          "file": "components-textinput-default__size-lg.png",
+          "width": 300,
+          "height": 91.98,
+          "story": "components-textinput--default",
+          "props": {
+            "invalid": false,
+            "disabled": false,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "lg",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          }
+        },
+        "story=components-textinput--default, size=lg, state=hover": {
+          "file": "components-textinput-default__size-lg__state-hover.png",
+          "width": 300,
+          "height": 91.98,
+          "story": "components-textinput--default",
+          "props": {
+            "invalid": false,
+            "disabled": false,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "lg",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          },
+          "state": "hover"
+        },
+        "story=components-textinput--default, size=lg, state=active": {
+          "file": "components-textinput-default__size-lg__state-active.png",
+          "width": 300,
+          "height": 91.98,
+          "story": "components-textinput--default",
+          "props": {
+            "invalid": false,
+            "disabled": false,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "lg",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          },
+          "state": "active"
+        },
+        "story=components-textinput--default, size=lg, disabled=true": {
+          "file": "components-textinput-default__size-lg__disabled-true.png",
+          "width": 300,
+          "height": 91.98,
+          "story": "components-textinput--default",
+          "props": {
+            "invalid": false,
+            "disabled": true,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "lg",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          }
+        },
+        "story=components-textinput--inline": {
+          "file": "components-textinput-inline.png",
+          "width": 450,
+          "height": 40,
+          "story": "components-textinput--inline",
+          "props": {
+            "invalid": false,
+            "disabled": false,
+            "warn": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "md",
+            "readOnly": false,
+            "inline": true,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 450,
+            "defaultValue": ""
+          }
+        },
+        "story=components-textinput--read-only": {
+          "file": "components-textinput-read-only.png",
+          "width": 300,
+          "height": 83.98,
+          "story": "components-textinput--read-only",
+          "props": {
+            "inline": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalid": false,
+            "invalidText": "Error message goes here",
+            "disabled": false,
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warn": false,
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "md",
+            "readOnly": true,
+            "hideLabel": false,
+            "enableCounter": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": "This is read only, you can't type more."
+          }
+        },
+        "story=components-textinput--skeleton": {
+          "file": "components-textinput-skeleton.png",
+          "width": 1116,
+          "height": 62,
+          "story": "components-textinput--skeleton",
+          "props": {
+            "hideLabel": false,
+            "size": "md"
+          }
+        },
+        "story=components-textinput--test-invalid-text-no-overlap": {
+          "file": "components-textinput-test-invalid-text-no-overlap.png",
+          "width": 300,
+          "height": 163.97,
+          "story": "components-textinput--test-invalid-text-no-overlap",
+          "props": {
+            "invalid": false,
+            "disabled": false,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "md",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          }
+        },
+        "story=components-textinput--with-ai-label": {
+          "file": "components-textinput-with-ai-label.png",
+          "width": 300,
+          "height": 83.98,
+          "story": "components-textinput--with-ai-label",
+          "props": {
+            "invalid": false,
+            "disabled": false,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "md",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          }
+        },
+        "story=components-textinput--with-layer": {
+          "file": "components-textinput-with-layer.png",
+          "width": 1200,
+          "height": 800,
+          "story": "components-textinput--with-layer",
+          "props": {
+            "invalid": false,
+            "disabled": false,
+            "warn": false,
+            "inline": false,
+            "enableCounter": false,
+            "type": "text",
+            "className": "input-test-class",
+            "id": "text-input-1",
+            "placeholder": "Placeholder text",
+            "invalidText": "Error message goes here",
+            "labelText": "Label text",
+            "helperText": "Helper text",
+            "warnText": "Warning message that is really long can wrap to more lines but should not be excessively long.",
+            "size": "md",
+            "readOnly": false,
+            "hideLabel": false,
+            "maxCount": 10,
+            "defaultWidth": 300,
+            "defaultValue": ""
+          }
+        }
+      }
+    },
+    "Toggle": {
+      "variants": {
+        "story=components-toggle--default": {
+          "file": "components-toggle-default.png",
+          "width": 74.19,
+          "height": 57.98,
+          "story": "components-toggle--default",
+          "props": {
+            "defaultToggled": false,
+            "disabled": false,
+            "hideLabel": false,
+            "labelA": "Off",
+            "labelB": "On",
+            "size": "md"
+          }
+        },
+        "story=components-toggle--default, size=sm": {
+          "file": "components-toggle-default__size-sm.png",
+          "width": 58.19,
+          "height": 51.97,
+          "story": "components-toggle--default",
+          "props": {
+            "defaultToggled": false,
+            "disabled": false,
+            "hideLabel": false,
+            "labelA": "Off",
+            "labelB": "On",
+            "size": "sm"
+          }
+        },
+        "story=components-toggle--default, size=sm, state=hover": {
+          "file": "components-toggle-default__size-sm__state-hover.png",
+          "width": 58.19,
+          "height": 51.97,
+          "story": "components-toggle--default",
+          "props": {
+            "defaultToggled": false,
+            "disabled": false,
+            "hideLabel": false,
+            "labelA": "Off",
+            "labelB": "On",
+            "size": "sm"
+          },
+          "state": "hover"
+        },
+        "story=components-toggle--default, size=sm, state=active": {
+          "file": "components-toggle-default__size-sm__state-active.png",
+          "width": 58.19,
+          "height": 51.97,
+          "story": "components-toggle--default",
+          "props": {
+            "defaultToggled": false,
+            "disabled": false,
+            "hideLabel": false,
+            "labelA": "Off",
+            "labelB": "On",
+            "size": "sm"
+          },
+          "state": "active"
+        },
+        "story=components-toggle--default, size=sm, disabled=true": {
+          "file": "components-toggle-default__size-sm__disabled-true.png",
+          "width": 58.19,
+          "height": 51.97,
+          "story": "components-toggle--default",
+          "props": {
+            "defaultToggled": false,
+            "disabled": true,
+            "hideLabel": false,
+            "labelA": "Off",
+            "labelB": "On",
+            "size": "sm"
+          }
+        },
+        "story=components-toggle--default, size=md": {
+          "file": "components-toggle-default.png",
+          "width": 74.19,
+          "height": 57.98,
+          "story": "components-toggle--default",
+          "props": {
+            "defaultToggled": false,
+            "disabled": false,
+            "hideLabel": false,
+            "labelA": "Off",
+            "labelB": "On",
+            "size": "md"
+          }
+        },
+        "story=components-toggle--default, size=md, state=hover": {
+          "file": "components-toggle-default__size-md__state-hover.png",
+          "width": 74.19,
+          "height": 57.98,
+          "story": "components-toggle--default",
+          "props": {
+            "defaultToggled": false,
+            "disabled": false,
+            "hideLabel": false,
+            "labelA": "Off",
+            "labelB": "On",
+            "size": "md"
+          },
+          "state": "hover"
+        },
+        "story=components-toggle--default, size=md, state=active": {
+          "file": "components-toggle-default__size-md__state-active.png",
+          "width": 74.19,
+          "height": 57.98,
+          "story": "components-toggle--default",
+          "props": {
+            "defaultToggled": false,
+            "disabled": false,
+            "hideLabel": false,
+            "labelA": "Off",
+            "labelB": "On",
+            "size": "md"
+          },
+          "state": "active"
+        },
+        "story=components-toggle--default, size=md, disabled=true": {
+          "file": "components-toggle-default__size-md__disabled-true.png",
+          "width": 74.19,
+          "height": 57.98,
+          "story": "components-toggle--default",
+          "props": {
+            "defaultToggled": false,
+            "disabled": true,
+            "hideLabel": false,
+            "labelA": "Off",
+            "labelB": "On",
+            "size": "md"
+          }
+        },
+        "story=components-toggle--skeleton": {
+          "file": "components-toggle-skeleton.png",
+          "width": 1116,
+          "height": 18,
+          "story": "components-toggle--skeleton",
+          "props": {}
+        },
+        "story=components-toggle--small-toggle": {
+          "file": "components-toggle-small-toggle.png",
+          "width": 58.19,
+          "height": 51.97,
+          "story": "components-toggle--small-toggle",
+          "props": {
+            "defaultToggled": false,
+            "disabled": false,
+            "hideLabel": false,
+            "labelA": "Off",
+            "labelB": "On",
+            "size": "md"
+          }
+        },
+        "story=components-toggle--with-accessible-labels": {
+          "file": "components-toggle-with-accessible-labels.png",
+          "width": 1116,
+          "height": 279.98,
+          "story": "components-toggle--with-accessible-labels",
+          "props": {
+            "defaultToggled": false,
+            "disabled": false,
+            "hideLabel": false,
+            "labelA": "Off",
+            "labelB": "On",
+            "size": "md"
+          }
+        }
+      }
+    }
+  }
+}
