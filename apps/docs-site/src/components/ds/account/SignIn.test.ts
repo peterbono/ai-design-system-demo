@@ -133,8 +133,10 @@ describe('sign-in screen, email', () => {
     const field = await screen.findByRole('textbox', { name: 'Code' });
     await user.type(field, '123456');
     await user.keyboard('{Enter}');
+    // The check loads its module before it posts: release the answer only once the request is out, else it hangs.
+    await waitFor(() => expect(posts('verify')).toHaveLength(1));
     await act(async () => release());
-    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/acme/ds/tokens/'));
+    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith('/studio/acme/ds/tokens/'), { timeout: 5000 });
     await user.keyboard('{Enter}');
     expect(posts('verify')).toHaveLength(1);
     // The account's email team knows its member before the page opens: no "Sign in to open" there.
@@ -162,6 +164,7 @@ describe('sign-in screen, email', () => {
     await waitFor(() => expect(go).toHaveAttribute('aria-busy', 'true'));
     expect(go).toHaveAttribute('data-disabled');
     await user.click(go);
+    await waitFor(() => expect(posts('verify')).toHaveLength(1));
     await act(async () => release());
     expect(await screen.findByText('This code is not the one we sent. 2 tries left.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Continue' }));
