@@ -46,6 +46,11 @@ export interface ReferenceRender {
    * MenuItem in Menu): the part needs its parent around it to render, and the image shows the part alone.
    */
   within?: string | undefined;
+  /**
+   * A popup drawn open (Dialog/Popup): the root renders open (`defaultOpen`), and the image is the popup Base UI
+   * portals, found by the class of the spec's root part ("popup", "tooltip"), not the trigger.
+   */
+  popup?: { className: string } | undefined;
 }
 
 export type ReferencePlan = { ok: true; render: ReferenceRender } | { ok: false; reason: string };
@@ -69,8 +74,7 @@ const exportName = (name: string) => name.replace(/[^A-Za-z0-9]+/g, '');
 
 /** How to render one generated variant from code, or why it cannot be compared. */
 export function planReference(spec: ComponentSpec, variant: SpecVariant, file?: Pick<ComponentSpecsFile, 'slots'>): ReferencePlan {
-  // A popup drawn open: the code image shows the component closed, so there is nothing to compare it with.
-  if (spec.view === 'popup') return { ok: false, reason: 'drawn open in Figma; the code image shows it closed' };
+  if (spec.view === 'popup') return planPopup(spec, variant);
   const props: Record<string, unknown> = { ...(spec.fixed ?? {}) };
   let pseudo: ReferencePseudo | undefined;
   for (const axis of spec.axes) {
@@ -101,6 +105,7 @@ export function planReference(spec: ComponentSpec, variant: SpecVariant, file?: 
     if (part.swap && swapTo) {
       const slot = file?.slots?.find((s) => s.name === swapTo);
       if (!slot) return { reason: `${swapTo} is not in the specs` };
+      if (slot.kind === 'media') return { reason: `Figma shows a media placeholder (${swapTo}); code shows the image it is given, nothing to compare` };
       if (slot.kind !== 'text' || !slot.text) return { reason: `Figma shows a placeholder (${swapTo}) that code has no example of` };
       return slot.text.default;
     }
@@ -180,6 +185,36 @@ export function planReference(spec: ComponentSpec, variant: SpecVariant, file?: 
       ...(pseudo ? { pseudo } : {}),
       ...(root.fill ? { width: FIGMA_FILL_WIDTH_TOKEN } : {}),
     },
+  };
+}
+
+/**
+ * A popup drawn open in Figma (Dialog/Popup), rendered open in code: the component's root with `defaultOpen`, around
+ * its example. An example of the content part (DialogContent) goes inside the root with its trigger (a popover is
+ * placed against it); an example of the root itself (a Select with options) only gets `defaultOpen`.
+ */
+function planPopup(spec: ComponentSpec, variant: SpecVariant): ReferencePlan {
+  const root = spec.parts.find((p) => !p.parent);
+  // The variant's axes are props of the element the example draws (DialogContent's size, AlertDialogContent's tone).
+  const own: Record<string, unknown> = {};
+  for (const axis of spec.axes) {
+    const value = variant.props[axis.name];
+    if (!axis.prop || value === undefined) return { ok: false, reason: `${axis.name} has no matching option in code` };
+    own[axis.prop] = value === 'true' ? true : value === 'false' ? false : value;
+  }
+  // "Dialog.module.css .popup, Dialog.module.css .md": the first class of its module, the one the popup carries.
+  const className = /\.module\.css \.([\w-]+)/.exec(root?.source ?? '')?.[1];
+  const component = spec.component ? exportName(spec.component) : undefined;
+  const example = spec.example;
+  if (!component || !example) return { ok: false, reason: 'drawn open from no code example: nothing to open in code' };
+  if (!className) return { ok: false, reason: 'the popup has no class to find it by in code' };
+  const popup = { className };
+  if (exportName(example.c) === component) {
+    return { ok: true, render: { component, props: { ...(example.p ?? {}), ...own, defaultOpen: true }, ...(example.children?.length ? { children: example.children } : {}), popup } };
+  }
+  return {
+    ok: true,
+    render: { component, props: { defaultOpen: true }, children: [{ c: `${component}Trigger`, children: ['Open'] }, { ...example, p: { ...(example.p ?? {}), ...own } }], popup },
   };
 }
 

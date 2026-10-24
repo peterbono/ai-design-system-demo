@@ -198,8 +198,25 @@ describe('planReference: the code render of each generated variant', () => {
     });
     expect(planReference(spec('Card'), variant('Card', { Padding: 'none' }), file)).toEqual({
       ok: false,
-      reason: 'Figma shows a placeholder (Slot/Media) that code has no example of',
+      reason: 'Figma shows a media placeholder (Slot/Media); code shows the image it is given, nothing to compare',
     });
+  });
+
+  it('popups drawn open render open: the root with defaultOpen, the content part inside with its trigger, the popup found by its class', () => {
+    expect(planReference(spec('Dialog/Popup'), variant('Dialog/Popup', { Size: 'lg' }), file)).toMatchObject({
+      ok: true,
+      render: {
+        component: 'Dialog',
+        props: { defaultOpen: true },
+        children: [{ c: 'DialogTrigger', children: ['Open'] }, { c: 'DialogContent', p: { size: 'lg' } }],
+        popup: { className: 'popup' },
+      },
+    });
+    // A root that is its own example (a Select with its options) only opens.
+    expect(planReference(spec('Select/Popup'), variant('Select/Popup', {}), file)).toMatchObject({ ok: true, render: { component: 'Select', props: { defaultOpen: true }, popup: { className: 'popup' } } });
+    expect(planReference(spec('Tooltip/Popup'), variant('Tooltip/Popup', {}), file)).toMatchObject({ ok: true, render: { component: 'Tooltip', popup: { className: 'tooltip' } } });
+    // A popup drawn from no code example stays skipped, with why.
+    expect(planReference(spec('Menu/Popup'), variant('Menu/Popup', {}), file)).toEqual({ ok: false, reason: 'drawn open from no code example: nothing to open in code' });
   });
 
   it('Checkbox: the Checked axis to checked and indeterminate; hidden optional texts are not passed', () => {
@@ -278,9 +295,9 @@ describe('planReference: the code render of each generated variant', () => {
     const all = planReferences(file);
     expect(all.length).toBe(file.components.reduce((n, c) => n + c.variants.length, 0));
     const skipped = all.filter((x) => !x.plan.ok).map((x) => `${x.component} ${x.key}`);
-    // Popups drawn open have no closed-state code image to match; the Card media placeholder has no code example.
-    expect(skipped.filter((x) => !/\/Popup /.test(x))).toEqual(['Card Padding=none']);
-    expect(all.filter((x) => /\/Popup$/.test(x.component)).every((x) => !x.plan.ok && /drawn open/.test(x.plan.reason))).toBe(true);
+    // Popups render open in code, except the menu (drawn from no example); the Card media placeholder has no code example.
+    expect(skipped).toEqual(['Card Padding=none', 'Menu/Popup Default']);
+    expect(all.filter((x) => /\/Popup$/.test(x.component) && x.component !== 'Menu/Popup').every((x) => x.plan.ok && !!x.plan.render.popup)).toBe(true);
     expect(referenceImagePath('Button', 'Size=md, State=Default, Variant=primary')).toBe('button/size-md__state-default__variant-primary.png');
   });
 });

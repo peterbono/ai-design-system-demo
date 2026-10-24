@@ -26,6 +26,7 @@ interface Render {
   width?: string;
   children?: (string | ExampleNode)[];
   within?: string;
+  popup?: { className: string };
 }
 
 const lucide = icons as Record<string, unknown>;
@@ -85,6 +86,27 @@ function MarkPrevious({ width }: { width: string | undefined }) {
     return () => cancelAnimationFrame(frame);
   }, [width]);
   return <template ref={ref} data-fidelity-anchor="" />;
+}
+
+/**
+ * Marks the popup a component renders open (a dialog, a select's list, a tooltip) as the capture target: Base UI portals
+ * it out of the story root, so it is found by its CSS module class (`_popup_<hash>`), once it is placed and visible.
+ */
+function MarkPopup({ className }: { className: string }) {
+  useEffect(() => {
+    const own = new RegExp(`^_?${className.replace(/[^\w-]/g, '')}(_|$)`);
+    let frame = 0;
+    const mark = () => {
+      const el = [...document.querySelectorAll('body *')].find(
+        (e) => !e.closest('[data-fidelity-root]') && [...e.classList].some((c) => own.test(c)) && e.getBoundingClientRect().width > 0,
+      );
+      if (el) el.setAttribute('data-fidelity-target', '');
+      else frame = requestAnimationFrame(mark);
+    };
+    mark();
+    return () => cancelAnimationFrame(frame);
+  }, [className]);
+  return null;
 }
 
 /**
@@ -212,6 +234,8 @@ function Reference({ r, plan }: { r: Render; plan: string }) {
       r.component,
     );
   }
+  // A popup drawn open: the root renders open, and the portaled popup is the image (not the trigger).
+  if (r.popup) content = [content, <MarkPopup key="popup" className={r.popup.className} />];
   // pseudo-states addon classes: every descendant behaves as hovered, pressed or focused.
   const pseudo = r.pseudo ? `pseudo-${r.pseudo}-all` : undefined;
   // The width goes to the part itself when it sits in a parent; the parent sizes around it.
