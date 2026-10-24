@@ -14,10 +14,10 @@ describe('teamHomeStatic', () => {
     expect(contrastFailures(failing)).toBe(1);
   });
 
-  it('lists every component for Create branch and links guidance to the team on GitHub, never the demo Library', () => {
+  it('lists every component for Create branch and opens guidance in the team Library edit mode, never the demo Library', () => {
     expect(stat.components).toHaveLength(repoModel.components!.list.length);
-    for (const g of stat.guidance) expect(g.href.startsWith(`https://github.com/acme/ds/blob/${sha}/`)).toBe(true);
-    for (const href of Object.values(stat.startHrefs)) expect(href).toMatch(/^(\/studio\/|https:\/\/github\.com\/acme\/ds\/)/);
+    for (const g of stat.guidance) expect(g.href).toMatch(/^\/library\/acme\/ds\/components\/[a-z0-9-]+\/\?edit=1$/);
+    for (const href of Object.values(stat.startHrefs)) expect(href).toMatch(/^(\/studio\/|\/library\/acme\/ds\/components\/[a-z0-9-]+\/\?edit=1$)/);
   });
 
   it('works for a repository without components', () => {

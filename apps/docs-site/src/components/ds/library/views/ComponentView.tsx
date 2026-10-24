@@ -20,7 +20,7 @@ import { COMPONENT_TABS, componentMotion, componentNotes, exampleCode, mainStory
 import { tokenAxes } from '../../../../lib/library/tokens';
 import { humanDate } from '../../../../lib/library/stats';
 import { mdTitleParts } from '../../../../lib/markdown';
-import { componentHref, libraryLink, pageHref, sourceHref, studioLink, type LibraryData } from '../library-data';
+import { componentHref, libraryLink, pageHref, sourceHref, type LibraryData } from '../library-data';
 
 export interface ComponentViewProps {
   data: LibraryData;
@@ -111,7 +111,8 @@ export default function ComponentView({ data, component: c, Example, heroTools, 
   const motion = componentMotion(model, c, extras.motion);
   const manager = storybook && story ? storybookManagerUrl(storybook, story.id) : undefined;
   const own = !data.team;
-  const editHref = own ? `/components/${c.slug}/?edit=1` : studioLink(data, `components/docs/${c.slug}/`);
+  // Edit mode on the page itself (?edit=1), on Bridge's own Library and on a team's.
+  const editHref = own ? `/components/${c.slug}/?edit=1` : `${componentHref(data, c.slug)}?edit=1`;
   const file = (path: string, href: string | undefined) => (href ? <Link href={href}><code>{path}</code></Link> : <code>{path}</code>);
   const locked = (
     <p className="le-locked le-locked-note" data-le-locked="">

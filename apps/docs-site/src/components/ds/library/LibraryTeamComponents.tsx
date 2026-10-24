@@ -16,6 +16,7 @@ import ComponentFilter from './ComponentFilter';
 import ComponentsView, { COMPONENTS_PAGE, componentFamilies } from './views/ComponentsView';
 import ComponentView from './views/ComponentView';
 import { FigmaAhead } from './FigmaAhead';
+import TeamEditMode from './TeamEditMode';
 import { buildViewsFor } from '../../../scripts/building-data';
 import { LibraryPage, LibrarySourceNote, LibraryZone, usePageTeam } from './LibraryState';
 import { studioLink, teamLibraryData, type LibraryData } from './library-data';
@@ -132,6 +133,8 @@ function Ready({ page, data, refreshing }: { page: LibraryComponentsPage; data: 
           ahead={<FigmaAhead component={c.name} href={studioLink(view, 'building/')} load={() => buildViewsFor(`${data.owner}/${data.repo}`, data.client)} />}
         />
       </div>
+      {/* Edit mode (?edit=1): a reader who can write to the team edits its usage guidance in place, as on Bridge's own pages. */}
+      {view.extras.canEdit && <TeamEditMode data={data} component={c} />}
       {source}
     </>
   );
