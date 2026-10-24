@@ -52,3 +52,10 @@ describe('raw files of a team repository', () => {
     expect(r.url).toBe('https://api.github.com/repos/acme/ds/contents/docs/a.md?ref=bridge%2Fdarker');
   });
 });
+
+describe('a profile read for an email member', () => {
+  it('answers not found without asking GitHub', async () => {
+    await expect(ghGet('/users/priya%40acme.com')).rejects.toMatchObject({ status: 404 });
+    expect(calls).toEqual([]);
+  });
+});

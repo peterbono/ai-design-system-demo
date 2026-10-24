@@ -788,6 +788,10 @@ const inflight = new Map<string, Promise<Fetched<unknown>>>();
 
 /** GET with cache fallback. `path` is relative to api.github.com, or an absolute URL. */
 export function ghGet<T>(path: string, opts: { accept?: string; raw?: boolean } = {}): Promise<Fetched<T>> {
+  // An email member stands in for a login with their email (contribute-session asMine): GitHub has no such user, so
+  // answer the 404 here instead of a failed request in the console.
+  const user = /^\/users\/([^/?]+)/.exec(path);
+  if (user && !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:%5Bbot%5D|\[bot\])?$/.test(user[1]!)) return Promise.reject(new GitHubError(404, `GitHub answered 404 for ${path}`));
   const url = path.startsWith('http') ? path : `${API}${path}`;
   const key = `${url}|${opts.accept ?? ''}|${opts.raw ? 'raw' : ''}|${hasWorkingToken() ? 'auth' : 'anon'}`;
   const pending = inflight.get(key);
