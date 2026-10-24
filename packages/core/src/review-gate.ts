@@ -148,6 +148,12 @@ export interface ApprovalSummary {
    * hand): any approval counts.
    */
   owner?: boolean;
+  /**
+   * A token value change (withTokenValueApprovals, decision TV-1 in docs/BUILD-REQUESTS.md): token values changed or
+   * tokens added, nothing renamed or removed, no code. The design approval is all it needs: once it is in, `tech` counts
+   * as given and the change ships after the automatic checks. mergeGate never asks for the tech approval then.
+   */
+  valuesOnly?: boolean;
 }
 
 /** Whether the Tier 1 approval is in: one owner approved (GOVERNANCE.md "1 code owner"), else any approval without owners. */
@@ -245,6 +251,18 @@ export function withFigmaPushApprovals(pr: ApprovalSummary, push: FigmaPush | nu
   return { ...pr, design: true, tech, owner: true };
 }
 
+/**
+ * Decision TV-1 (docs/BUILD-REQUESTS.md, "Token values from Studio"): a token value change follows the rule of a push
+ * from Figma, whoever opened it (Studio, the CLI, the MCP server, an agent). Once the design approval is given, it
+ * ships after the automatic checks with no developer code OK: the tech approval counts as given. A rename or removal,
+ * unread token changes, code or a guardrail file is not a value change (isTokenValueChange) and still needs it. Changes
+ * requested, CI, a conflict and the ship right gate the merge as before.
+ */
+export function withTokenValueApprovals(pr: ApprovalSummary, valuesOnly: boolean | null | undefined): ApprovalSummary {
+  if (!valuesOnly) return pr;
+  return { ...pr, tech: pr.tech || pr.design, valuesOnly: true };
+}
+
 export type MissingApproval = 'design approval' | 'tech approval' | 'approval';
 
 export interface MergeGate {
@@ -326,7 +344,8 @@ export function mergeGate(input: {
       approvalReasons.push('It needs a design owner approval.');
       missing.push('design approval');
     }
-    if (!input.approvals.tech) {
+    // A token value change needs the design approval only (withTokenValueApprovals): never ask a developer for it.
+    if (!input.approvals.tech && !input.approvals.valuesOnly) {
       approvalReasons.push('It needs a tech owner approval.');
       missing.push('tech approval');
     }
@@ -383,6 +402,12 @@ export interface BranchVerdictInput {
   /** Pushed from the Figma plugin (figmaPushOf): design approved by the push, tech too for token values only. */
   figmaPush?: FigmaPush | null | undefined;
   /**
+   * The pull request only changes token values (isTokenValueChange over its real files and token changes), whoever
+   * opened it: the design approval is all it needs (withTokenValueApprovals, decision TV-1). Absent: not known, the
+   * tech approval is still asked.
+   */
+  tokenValues?: boolean | null | undefined;
+  /**
    * The reviewers to look again (lookAgainReviewers over the reviews and the head sha): the author updated the branch
    * after every changes request. The status stays `changes-requested` and the merge stays blocked; only its words say
    * "Updated, look again".
@@ -410,7 +435,9 @@ export interface BranchVerdict {
 
 export function branchVerdict(input: BranchVerdictInput): BranchVerdict {
   const own = input.approvals ? withFigmaPushApprovals(input.approvals, input.figmaPush) : null;
-  const approvals = own ? withSuggestionApprovals(own, input.suggestion, input.tier) : null;
+  const carried = own ? withSuggestionApprovals(own, input.suggestion, input.tier) : null;
+  // A token value change needs the design approval only, from Studio as from Figma (decision TV-1).
+  const approvals = carried ? withTokenValueApprovals(carried, input.tokenValues || input.figmaPush?.scope === 'token-values') : null;
   const override = ownerOverridePolicy(input.override, input.owners);
   const state = input.state ?? 'open';
   const draft = isDraft(input);
@@ -701,9 +728,12 @@ export type ApprovalRole = 'design' | 'tech' | 'approval';
 const NO_CI: CiSummary = { state: 'pass', total: 0, passed: 0, failed: [], pending: [] };
 const ROLE_OF_MISSING: Record<MissingApproval, ApprovalRole> = { 'design approval': 'design', 'tech approval': 'tech', approval: 'approval' };
 
-/** The approvals a tier needs, as mergeGate counts them (Tier 2 and 3: design and tech; Tier 1: one approval). */
-export function requiredApprovals(tier: RiskTier | null): ApprovalRole[] {
-  return mergeGate({ tier, ci: NO_CI, approvals: { approvers: [], changesRequested: [], design: false, tech: false }, draft: false, state: 'open' }).missing.map((m) => ROLE_OF_MISSING[m]);
+/**
+ * The approvals a tier needs, as mergeGate counts them (Tier 2 and 3: design and tech; Tier 1: one approval). A token
+ * value change (`valuesOnly`, withTokenValueApprovals) needs the design approval only.
+ */
+export function requiredApprovals(tier: RiskTier | null, valuesOnly?: boolean | null): ApprovalRole[] {
+  return mergeGate({ tier, ci: NO_CI, approvals: { approvers: [], changesRequested: [], design: false, tech: false, ...(valuesOnly ? { valuesOnly: true } : {}) }, draft: false, state: 'open' }).missing.map((m) => ROLE_OF_MISSING[m]);
 }
 
 /** The approvals still missing on a branch, from its tier and the reviews read (empty when either is unknown). */

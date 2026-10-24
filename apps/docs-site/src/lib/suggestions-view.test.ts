@@ -272,6 +272,11 @@ describe('approvals and apply', () => {
     expect(approvalRows({ tier: 1, approvals: approvals({ changesRequested: ['theo'] }), owners })[0]).toMatchObject({ label: 'One approval', state: 'changes' });
   });
 
+  it('a token value suggestion lists the design approval only (decision TV-1)', () => {
+    expect(approvalRows({ tier: 3, approvals: approvals({ valuesOnly: true }), owners })).toEqual([{ label: 'Design approval', state: 'waiting', text: 'Waiting for @dana' }]);
+    expect(approvalRows({ tier: 3, approvals: approvals({ approvers: ['dana'], design: true, tech: true, valuesOnly: true }), owners, names: { dana: 'Dana' } })).toEqual([{ label: 'Design approval', state: 'approved', text: 'Approved by Dana' }]);
+  });
+
   it('says how a developer applies it', () => {
     expect(applyLines(42)).toEqual([
       { label: 'In a terminal', value: 'npx bridge apply 42' },

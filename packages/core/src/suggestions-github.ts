@@ -23,6 +23,7 @@ import {
   composeSuggestionIssue,
   parseSuggestionIssue,
   SUGGESTION_LABEL,
+  suggestionIsTokenValues,
   suggestionKindFromLabels,
   suggestionLabelChanges,
   suggestionStateFromLabels,
@@ -156,7 +157,7 @@ export async function getSuggestionOnGitHub(gh: GitHubClient, n: number, gov: Su
   const parsed = parseSuggestionIssue(issue.body, { comments, author: issue.author || undefined });
   const linkedPrs = linkedPullsOf(n, pulls);
   const applied = comments.flatMap((c) => parseSuggestionAppliedComment(c.body) ?? []);
-  const approvals = parsed.ok ? summarizeSuggestionApprovals(comments, gov, { payloadSha: parsed.sha, author: issue.author }) : undefined;
+  const approvals = parsed.ok ? summarizeSuggestionApprovals(comments, gov, { payloadSha: parsed.sha, author: issue.author, valuesOnly: suggestionIsTokenValues(parsed.payload) }) : undefined;
   const status = suggestionStatus({
     state: issue.state,
     stateReason: issue.stateReason,

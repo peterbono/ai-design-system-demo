@@ -156,7 +156,8 @@ describe('suggestions on GitHub', () => {
     expect(drive.warnings[0]).toMatch(/does not count/);
     f.as('dana');
     const design = await reviewSuggestionOnGitHub(f.gh(), 42, { event: 'approve', role: 'design', payloadSha: sha }, gov);
-    expect(design).toMatchObject({ counts: true, status: 'needs-review', payloadSha: sha });
+    // A token value suggestion: the design approval is all it needs (decision TV-1).
+    expect(design).toMatchObject({ counts: true, status: 'approved', payloadSha: sha });
     f.as('teo');
     const tech = await reviewSuggestionOnGitHub(f.gh(), 42, { event: 'approve', role: 'tech' }, gov);
     expect(tech.status).toBe('approved');

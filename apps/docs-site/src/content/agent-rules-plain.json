@@ -11,7 +11,7 @@
     { "match": "agent-authored", "plain": "Says clearly that the change was written by an AI agent." }
   ],
   "Ask before": [
-    { "match": "Adding, renaming or removing any token", "plain": "Adding, renaming or removing a token. Design and tech owners both have to approve." },
+    { "match": "Adding, renaming or removing any token", "plain": "Adding, renaming or removing a token. A rename or a removal needs the design and tech owners; a new token or value needs the design owner only." },
     { "match": "Adding a new component or a new variant", "plain": "Adding a component, a variant or an option. It opens as a draft for design review first." },
     { "match": "Changing a public prop name", "plain": "Changing how an existing component is used in code. That can break product screens, so it is a major release." },
     { "match": "Adding a dependency", "plain": "Adding a third-party library." },

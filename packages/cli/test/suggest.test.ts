@@ -62,7 +62,9 @@ describe('bridge suggestions, review, apply', () => {
     expect(t.out()).toMatch(new RegExp(`#${n}\\s+Needs review\\s+token-change\\s+tier 3\\s+Tokens: darken muted text`));
     t.clear();
     expect(await runSuggestions(args('suggestions', 'show', String(n)), dir, t.io)).toBe(0);
-    expect(t.out()).toMatch(/Missing: design approval and tech approval/);
+    // A token value suggestion needs the design approval only (decision TV-1).
+    expect(t.out()).toMatch(/Missing: design approval\b/);
+    expect(t.out()).not.toMatch(/tech approval/);
     expect(t.out()).toMatch(/color\.text\.muted/);
     t.clear();
 

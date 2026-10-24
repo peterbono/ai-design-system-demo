@@ -21,7 +21,7 @@ import { contrastDelta, diffLayered, runLayeredContrast, type ContrastDelta, typ
 import { pendingApprovals, type ApprovalRole } from './review-gate';
 import { classifyRisk, type RiskResult, type RiskTier } from './risk';
 import { composeSuggestionAppliedComment, summarizeSuggestionApprovals, suggestionReviewState, type SuggestionApprovals, type SuggestionCommentLike, type SuggestionGovernance } from './suggestion-review';
-import { canonicalJson, gitBlobSha, suggestionPathProblems, type ParsedSuggestion, type SuggestionPayloadV1, type SuggestionTokenChange } from './suggestions';
+import { canonicalJson, gitBlobSha, suggestionIsTokenValues, suggestionPathProblems, type ParsedSuggestion, type SuggestionPayloadV1, type SuggestionTokenChange } from './suggestions';
 import { applyTokenEdits, coerceValue, type TokenEdit } from './token-edits';
 import { parseContrastChecks, type ContrastPair } from './wcag';
 
@@ -296,7 +296,7 @@ export async function planSuggestionApply(input: PlanSuggestionApplyInput): Prom
 
   // 2. Gate: approvals by owners on the current payload sha.
   const governance = input.governance ?? { owners: config.governance.owners, rights: config.governance.rights ?? null, soloOwnerCanApproveBoth: config.governance.soloOwnerCanApproveBoth };
-  const approvals = summarizeSuggestionApprovals(input.comments, governance, { payloadSha: parsed.sha, author: input.author });
+  const approvals = summarizeSuggestionApprovals(input.comments, governance, { payloadSha: parsed.sha, author: input.author, valuesOnly: suggestionIsTokenValues(payload) });
   const review = suggestionReviewState(payload.tier.tier, approvals);
   const missing = pendingApprovals(payload.tier.tier, approvals);
   const approved = review === 'approved';

@@ -16,7 +16,7 @@
 //   Review rules  who the design and tech owners are (people or GitHub teams, read from GitHub), who checks the look,
 //                 who checks the code and who adds it to the library, in designer words and names (edited in place, a review is requested on a branch that edits
 //                 bridge.config.json), what each kind of change needs (plain rules from docs/GOVERNANCE.md, no tier
-//                 numbers), and that token values pushed from Figma ship once the automatic checks pass.
+//                 numbers), and that token values ship once the look is approved and the automatic checks pass (TV-1).
 //   Safety        protection of the library and when the visual before and after runs, each with its action.
 //   Figma and Claude, then Integrations (Jira), then Appearance: light or dark, a preference of this browser,
 //   not a team rule (components/ds/studio/AppearanceSetting.tsx).
@@ -44,7 +44,7 @@ import { exists, lastUpdated, readText } from '../../../lib/repo';
 import { VOCAB } from '../../../lib/vocabulary';
 import { CHOICE_LABEL, OWNER_GROUP_HELP, OWNER_GROUP_LABEL, roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL, type RightChoice } from '../../../lib/roles-view';
 import OwnersField from '../../../components/ds/studio/OwnersField';
-import { andList, approvalRules, changesInConfig, overrideRow, ANYONE_WHO_CODES, RIGHT_PLAIN, soloOwnerRow, teamPlain, TOKEN_VALUES_PLAIN } from '../../../lib/settings-view';
+import { andList, approvalRules, changesInConfig, overrideRow, ANYONE_WHO_CODES, RIGHT_PLAIN, soloOwnerRow, teamPlain, TOKEN_VALUES_DEV, TOKEN_VALUES_PLAIN } from '../../../lib/settings-view';
 import { personName } from '../../../lib/people';
 import { overrideHolders, overrideReasonMin } from '@bridge-ds/core';
 import ChangesModeSetting from '../../../components/ds/studio/ChangesMode';
@@ -276,6 +276,7 @@ const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? 
                 { term: 'Tech owners', value: entries(r.owners.tech), code: true },
                 ...roles.map((x) => ({ term: `governance.rights.${x.right}`, value: x.choice === null ? 'not set: anyone with write access merges' : x.choice === 'both' ? 'design, tech' : x.choice, code: true })),
                 ...(overrideLogins.length ? [{ term: 'Owner override', value: `${entries(overrideLogins)}, reason of ${overrideMin}+ characters, posted on the pull request`, code: true }] : []),
+                { term: 'Token values', value: TOKEN_VALUES_DEV },
                 { term: 'Protected branches', value: protectedBranches.join(', ') || 'none', code: true },
                 { term: 'Branch prefix', value: branchPrefix || 'none', code: true },
                 { term: 'Set in', value: `${file}, governance; ${GOVERNANCE_FILE}`, code: true },

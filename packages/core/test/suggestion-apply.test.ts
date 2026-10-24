@@ -228,7 +228,8 @@ describe('planSuggestionApply: the approval gate', () => {
     const none = await plan(p, initialFiles(), { comments: [] });
     expect(none.outcome).toBe('not-approved');
     expect(none.exitCode).toBe(1);
-    expect(none.gate?.missing).toEqual(['design', 'tech']);
+    // A token value suggestion needs the design approval only (decision TV-1).
+    expect(none.gate?.missing).toEqual(['design']);
     expect(none.writes).toEqual([]);
     // Ops are still planned, so a dry run shows what would happen.
     expect(none.ops.length).toBe(2);
@@ -249,7 +250,8 @@ describe('planSuggestionApply: the approval gate', () => {
 
   it('the author never approves their own suggestion', async () => {
     const p = payload();
-    const r = await plan(p, initialFiles(), { comments: [review('dana', p), review('theo', p)], author: 'theo' });
+    // dana, the design owner, sent it: her approval does not count, and theo's tech approval does not cover the look.
+    const r = await plan(p, initialFiles(), { comments: [review('dana', p), review('theo', p)], author: 'dana' });
     expect(r.outcome).toBe('not-approved');
   });
 

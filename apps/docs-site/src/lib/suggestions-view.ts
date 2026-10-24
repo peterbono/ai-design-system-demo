@@ -420,6 +420,8 @@ export function approvalRows(x: { tier: 1 | 2 | 3; approvals: SuggestionApproval
     return { label, state: 'waiting' as const, text: who.length ? `Waiting for ${people(who, x.names)}` : 'Waiting for someone who can edit the library' };
   };
   if (x.tier === 1) return [row('One approval', Boolean(a && (a.design || a.tech)), [...new Set([...x.owners.design, ...x.owners.tech])])];
+  // A token value suggestion needs the design approval only (core suggestionIsTokenValues, decision TV-1).
+  if (a?.valuesOnly) return [row('Design approval', a.design, x.owners.design)];
   return [row('Design approval', Boolean(a?.design), x.owners.design), row('Tech approval', Boolean(a?.tech), x.owners.tech)];
 }
 

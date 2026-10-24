@@ -67,6 +67,9 @@ import {
   closingIssueNumbers,
   eligibleReviewers,
   figmaPushOf,
+  isTokenPath,
+  isTokenValueChange,
+  mayBeTokenValueChange,
   isBuildRequestIssue,
   isFigmaPush,
   SOURCE_FIGMA_LABEL,
@@ -144,18 +147,42 @@ export async function viewerOf(ctx: BridgeContext, gh: GitHubClient): Promise<st
   return gh.getViewer().then((v) => v.login, () => null);
 }
 
+type PullForTokens = { labels: string[]; body: string; baseRef: string; headSha: string };
+
+/**
+ * The token changes of a pull request, from its token files at the base and the head (never from its body). A renamed
+ * token file, or a read that fails, leaves them unknown (null): the tech approval is then still needed.
+ */
+export async function tokenChangesOf(gh: GitHubClient, config: BridgeConfig, pr: PullForTokens, files: PullRequestFile[], base: string | null | undefined): Promise<ReturnType<typeof tokenFileChanges> | null> {
+  const tokenFiles = files.filter((f) => isTokenPath(f.filename, config));
+  if (tokenFiles.some((f) => f.status === 'renamed')) return null;
+  try {
+    const from = base ?? pr.baseRef;
+    const pairs = await Promise.all(
+      tokenFiles.map(async (f) => ({
+        before: f.status === 'added' ? null : ((await gh.getFileText(f.filename, from)) ?? null),
+        after: f.status === 'removed' ? null : ((await gh.getFileText(f.filename, pr.headSha)) ?? null),
+      })),
+    );
+    return tokenFileChanges(pairs);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The Figma push facts of a pull request (docs/BUILD-REQUESTS.md), read the way Studio reads them: only for a push
  * from the Figma plugin (labels or the "From Figma" block) or the pull request of a build request sent from Figma
- * (its body closes one labeled source: figma). The token changes come from the token files at the base and the head,
- * never from the body; a renamed token file, or a read that fails, leaves them unknown (tech approval still needed).
+ * (its body closes one labeled source: figma). The token changes come from tokenChangesOf (`read`, when the caller
+ * already reads them).
  */
 export async function figmaPushFacts(
   gh: GitHubClient,
   config: BridgeConfig,
-  pr: { labels: string[]; body: string; baseRef: string; headSha: string },
+  pr: PullForTokens,
   files: PullRequestFile[],
   base: string | null | undefined,
+  read: () => Promise<ReturnType<typeof tokenFileChanges> | null> = () => tokenChangesOf(gh, config, pr, files, base),
 ): Promise<FigmaPush | null> {
   let closesFigmaBuildRequest = false;
   if (!isFigmaPush(pr)) {
@@ -168,24 +195,23 @@ export async function figmaPushFacts(
     }
     if (!closesFigmaBuildRequest) return null;
   }
-  const root = config.tokens.root.replace(/\/+$/, '');
-  const tokenFiles = files.filter((f) => f.filename.endsWith('.tokens.json') || (f.filename.startsWith(`${root}/`) && f.filename.endsWith('.json')));
-  let tokenChanges: ReturnType<typeof tokenFileChanges> | null = null;
-  if (!tokenFiles.some((f) => f.status === 'renamed')) {
-    try {
-      const from = base ?? pr.baseRef;
-      const pairs = await Promise.all(
-        tokenFiles.map(async (f) => ({
-          before: f.status === 'added' ? null : ((await gh.getFileText(f.filename, from)) ?? null),
-          after: f.status === 'removed' ? null : ((await gh.getFileText(f.filename, pr.headSha)) ?? null),
-        })),
-      );
-      tokenChanges = tokenFileChanges(pairs);
-    } catch {
-      tokenChanges = null;
-    }
-  }
+  const tokenChanges = await read();
   return figmaPushOf({ labels: pr.labels, body: pr.body }, { files: files.map((f) => ({ path: f.filename, status: f.status })), tokenChanges, config, closesFigmaBuildRequest });
+}
+
+/**
+ * Whether a pull request only changes token values (core isTokenValueChange, decision TV-1), whoever opened it: the
+ * design approval is then all it needs, as in Studio. Reads the token files only when its files could be one.
+ */
+export async function tokenValuesFact(
+  config: BridgeConfig,
+  pr: Pick<PullForTokens, 'labels'>,
+  files: PullRequestFile[],
+  read: () => Promise<ReturnType<typeof tokenFileChanges> | null>,
+): Promise<boolean> {
+  const changed = files.map((f) => ({ path: f.filename, status: f.status }));
+  if (!mayBeTokenValueChange(changed, config)) return false;
+  return isTokenValueChange({ files: changed, tokenChanges: await read(), config, labels: pr.labels });
 }
 
 /** Everything Studio reads about one branch to paint its header and decide its actions. */
@@ -222,17 +248,21 @@ export async function branchFacts(ctx: BridgeContext, gh: GitHubClient, n: numbe
   // The pull request that applies an approved suggestion ("Closes #n") carries its approvals, as in Studio.
   const suggestion = closingIssueNumbers(pr.body).length ? await approvedSuggestionOnGitHub(gh, pr.body, who.gov) : null;
   // A push from the Figma plugin is design-approved, token values only tech-approved too (core withFigmaPushApprovals).
-  const figmaPush = pr.state === 'open' ? await figmaPushFacts(gh, config, pr, files, compare?.mergeBase).catch(() => null) : null;
+  let tokenRead: ReturnType<typeof tokenChangesOf> | null = null;
+  const readTokens = () => (tokenRead ??= tokenChangesOf(gh, config, pr, files, compare?.mergeBase));
+  const figmaPush = pr.state === 'open' ? await figmaPushFacts(gh, config, pr, files, compare?.mergeBase, readTokens).catch(() => null) : null;
+  // Token values only, whoever opened it: the design approval is all it needs (core withTokenValueApprovals, TV-1).
+  const tokenValues = pr.state === 'open' ? await tokenValuesFact(config, pr, files, readTokens).catch(() => false) : false;
   // One verdict (core branchVerdict), the one Studio's branch page and status chips read: Tier 1 needs one owner
   // approval, the override is for its owner holders only, an applied suggestion's approvals carry.
-  const verdict = branchVerdict({ tier, ci, approvals: own, suggestion, owners: who.lists, override: config.governance.override ?? DEFAULT_OVERRIDE, mergeable: pr.mergeable, ...pullLike, viewer, exploration, ship: who.ship, figmaPush, lookAgain });
+  const verdict = branchVerdict({ tier, ci, approvals: own, suggestion, owners: who.lists, override: config.governance.override ?? DEFAULT_OVERRIDE, mergeable: pr.mergeable, ...pullLike, viewer, exploration, ship: who.ship, figmaPush, tokenValues, lookAgain });
   const approvals = verdict.approvals!;
   const gate = verdict.gate!;
   const status: ReviewStatusKind = verdict.status;
   const override = verdict.override ?? DEFAULT_OVERRIDE;
   const fresh = freshness({ compare: compare ? { behind_by: compare.behindBy, merge_base_commit: compare.mergeBase ? { sha: compare.mergeBase } : null } : null, mergeable: pr.mergeable, open: pr.state === 'open' });
   const product = productOfBranch(productsOf(config), { files: files.map((f) => f.filename), labels: pr.labels });
-  return { config, pr, files, ci, approvals, tier, gate, status, override, suggestion, fresh, compare, exploration, product, lookAgain, lifecycle: pullState(pullLike), write: repo ? hasWriteAccess(repo.permissions) : null, repo, solo: who.solo, lists: who.lists, figmaPush, autoShip: verdict.autoShip, statusLabel: verdict.label };
+  return { config, pr, files, ci, approvals, tier, gate, status, override, suggestion, fresh, compare, exploration, product, lookAgain, lifecycle: pullState(pullLike), write: repo ? hasWriteAccess(repo.permissions) : null, repo, solo: who.solo, lists: who.lists, figmaPush, tokenValues, autoShip: verdict.autoShip, statusLabel: verdict.label };
 }
 
 // The status words Studio shows too (core REVIEW_STATUS_LABEL, and reviewStatusLabel's "Updated, look again" through
@@ -256,7 +286,7 @@ export async function branchStatus(ctx: BridgeContext, a: { pr: number | string 
     lifecycle: f.lifecycle,
     status: { kind: f.status, label: f.statusLabel },
     // A merged or closed branch needs nothing more: null, never a list of approvals it no longer waits for.
-    approvalNeeded: f.lifecycle === 'merged' || f.lifecycle === 'closed' ? null : f.tier === 1 ? 'One owner approval' : 'Design and tech approval',
+    approvalNeeded: f.lifecycle === 'merged' || f.lifecycle === 'closed' ? null : f.tier === 1 ? 'One owner approval' : f.approvals.valuesOnly ? 'Design approval (token values ship after the checks)' : 'Design and tech approval',
     approvals: { approvedBy: f.approvals.approvers, changesRequestedBy: f.approvals.changesRequested, ...(f.lookAgain.length ? { lookAgain: f.lookAgain } : {}), design: f.approvals.design, tech: f.approvals.tech, owner: hasOwnerApproval(f.approvals), ...(f.suggestion ? { carriedFrom: `Suggestion #${f.suggestion.number}: its approvals count here (it applies that approved suggestion).` } : {}), ...(f.solo && (f.tier ?? 3) > 1 ? { soloOwner: soloOwnerSentence(f.solo, Boolean(viewer && viewer.toLowerCase() === f.solo)) } : {}) },
     tests: { state: f.ci.state, label: CI_STATE_LABEL[f.ci.state], failing: f.ci.failed.map((x) => x.name), running: f.ci.pending.map((x) => x.name) },
     main: { state: f.fresh.state, behindBy: f.fresh.behindBy },

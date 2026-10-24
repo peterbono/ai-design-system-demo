@@ -349,6 +349,14 @@ describe('approval rows', () => {
     expect(waiting.some((r) => r.canAct)).toBe(false);
   });
 
+  it('a token value change shows the design row only (decision TV-1): never waits for the tech owner', () => {
+    const rows = approvalRows({ tier: 3, approvals: approvals({ valuesOnly: true }), people: { owners, author: 'ann' }, open: true });
+    expect(rows.map((r) => [r.label, r.state, r.text])).toEqual([['Design', 'waiting', 'Waiting for @dana']]);
+    const done = approvalRows({ tier: 3, approvals: approvals({ approvers: ['dana'], design: true, tech: true, valuesOnly: true }), people: { owners, author: 'ann' }, open: true });
+    expect(done.map((r) => [r.label, r.state])).toEqual([['Design', 'approved']]);
+    expect(requiredApprovals(3, true)).toEqual(['design']);
+  });
+
   it('puts the action on the row the viewer holds, once', () => {
     const rows = approvalRows({ tier: 3, approvals: approvals(), people: { owners, author: 'ann', viewer: 'theo' }, open: true });
     expect(rows.map((r) => r.canAct)).toEqual([false, true]);

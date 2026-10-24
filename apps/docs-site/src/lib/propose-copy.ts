@@ -119,12 +119,15 @@ function who(groups: readonly OwnerGroup[]): string {
  * Who approves a change sent from Studio, from its risk tier and `governance.rights`. Tier 3 (every token value,
  * add, rename or delete): a design and a tech approval, "A design owner and a tech owner approve it before it
  * reaches the library." Tier 2 (new component, variant or prop) too. Tier 1 (a description only): one approval.
- * In suggest mode the end says who applies it: "..., then a developer applies it to the code."
+ * In suggest mode the end says who applies it: "..., then a developer applies it to the code." A token value change
+ * (`valuesOnly`: values changed or tokens added, nothing renamed or removed, decision TV-1) needs the design approval
+ * only: "A design owner approves it, then it reaches the library once the automatic checks pass."
  */
-export function reviewSentence(tier: 1 | 2 | 3, rights?: Rights | null, mode: 'suggest' | 'direct' = 'direct'): string {
+export function reviewSentence(tier: 1 | 2 | 3, rights?: Rights | null, mode: 'suggest' | 'direct' = 'direct', valuesOnly = false): string {
   const end = mode === 'suggest' ? ', then a developer applies it to the code.' : ' before it reaches the library.';
   if (tier === 1) return `One reviewer approves it${end}`;
   const designGroups = rights?.approveDesign ?? ['design'];
+  if (valuesOnly) return `${cap(who(designGroups))} approves it${mode === 'suggest' ? end : ', then it reaches the library once the automatic checks pass.'}`;
   const techGroups = rights?.approveTech ?? ['tech'];
   const design = who(designGroups);
   const tech = who(techGroups);

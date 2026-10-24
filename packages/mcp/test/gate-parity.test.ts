@@ -4,12 +4,13 @@
 // (`bridge branch status|merge`), must give the same status, the same merge verdict, the same reasons and the same
 // owner override answer. The rules covered: Tier 1 needs one owner approval (RV-11), the override is for owners only
 // (RV-08) and always needs a reason, 20 characters by default (RV-18), and the pull request that applies an approved
-// suggestion with "Closes #n" carries its approvals while it stays approved and the tier is not higher (RV-14).
+// suggestion with "Closes #n" carries its approvals while it stays approved and the tier is not higher (RV-14), and a
+// token value change, whoever opened it, needs the design approval only (TV-1).
 // Nothing leaves the process: the GitHub is a fake, the CLI's token is a fake passed in its own env, never gh.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { approvedSuggestionNumber, closingIssueNumbers, lookAgainReviewers, figmaPushOf, GitHubClient, tokenFileChanges, parseModelConfig, shipPolicy, siteRepoFromConfig, summarizeCi, type ReviewLike, type SuggestionGovernance } from '@bridge-ds/core';
+import { approvedSuggestionNumber, closingIssueNumbers, lookAgainReviewers, figmaPushOf, GitHubClient, isTokenValueChange, tokenFileChanges, parseModelConfig, shipPolicy, siteRepoFromConfig, summarizeCi, type ReviewLike, type SuggestionGovernance } from '@bridge-ds/core';
 import { BridgeContext, branches, ops, studio, suggestions } from '../src/lib.js';
 import { runBranch } from '../../cli/src/branch.js';
 import type { RequestIO } from '../../cli/src/request.js';
@@ -82,11 +83,15 @@ beforeAll(async () => {
   const author = await as('agent');
   issue.tier3Approved = ((await ops.proposeTokenChange(author, DARKEN)) as any).number;
   issue.tier3Half = ((await ops.proposeTokenChange(author, { ...DARKEN, title: 'Darken muted text more', edits: [{ ...DARKEN.edits[0]!, value: '{palette.neutral.800}' }] })) as any).number;
+  // Decision TV-1: a token value suggestion needs the design approval only.
+  issue.valuesDesign = ((await ops.proposeTokenChange(author, { ...DARKEN, title: 'Darken muted text a lot', edits: [{ ...DARKEN.edits[0]!, value: '{palette.neutral.900}' }] })) as any).number;
   issue.tier1Approved = ((await studio.saveDocs(author, { component: 'Button', docs: { summary: 'Starts an action in one click.' } })) as any).number;
   for (const [n, who] of [
     [issue.tier3Approved, 'ann'],
     [issue.tier3Approved, 'theo'],
-    [issue.tier3Half, 'ann'],
+    // The tech approval alone never covers a value change: the design approval is the one it needs.
+    [issue.tier3Half, 'theo'],
+    [issue.valuesDesign, 'ann'],
     [issue.tier1Approved, 'ann'],
   ] as const) {
     await suggestions.reviewSuggestionOp(await as(who), { number: n!, event: 'approve' });
@@ -102,6 +107,7 @@ beforeAll(async () => {
   // The pull requests that apply suggestions ("Closes #n").
   pr.applyApproved = openPull(gh, { title: 'Apply the approved suggestion', files: DOC('d'), labels: ['tier-3'], body: `Applies it.\n\nCloses #${issue.tier3Approved}` });
   pr.applyHalf = openPull(gh, { title: 'Apply a half approved suggestion', files: DOC('e'), labels: ['tier-3'], body: `Closes #${issue.tier3Half}` });
+  pr.applyValues = openPull(gh, { title: 'Apply a token value suggestion approved for design', files: DOC('m'), labels: ['tier-3'], body: `Closes #${issue.valuesDesign}` });
   pr.applyTierUp = openPull(gh, { title: 'Apply a Tier 1 suggestion as Tier 2', files: DOC('f'), labels: ['tier-2'], body: `Closes #${issue.tier1Approved}` });
   pr.applyTier1 = openPull(gh, { title: 'Apply a Tier 1 suggestion', files: DOC('g'), body: `Closes #${issue.tier1Approved}` });
   pr.applyAsked = openPull(gh, { title: 'Apply, with changes asked on the branch', files: DOC('h'), labels: ['tier-3'], body: `Closes #${issue.tier3Approved}` });
@@ -137,6 +143,15 @@ beforeAll(async () => {
     p.head.sha = sha2;
   }
   pr.figmaRename = openPull(gh, { title: 'Tokens: rename a radius', files: { [RADIUS]: `${JSON.stringify(renamed, null, 2)}\n` }, labels: ['tier-3', 'tokens', 'breaking', 'source: figma'] });
+  // Decision TV-1: the same token value change made in Studio (or by an agent through the MCP server): the design
+  // approval is all it needs, then it ships after the checks. A rename still waits for the tech owner.
+  pr.valuesNone = openPull(gh, { title: 'Tokens: rounder radius from Studio', files: { [RADIUS]: `${JSON.stringify(values, null, 2)}\n` }, labels: ['tier-3', 'tokens', 'source: mcp'] });
+  pr.valuesDesign = openPull(gh, { title: 'Tokens: rounder radius, approved', files: { [RADIUS]: `${JSON.stringify(values, null, 2)}\n` }, labels: ['tier-3', 'tokens', 'source: mcp'] });
+  review(gh, pr.valuesDesign, 'ann', 'APPROVED');
+  pr.valuesTechOnly = openPull(gh, { title: 'Tokens: rounder radius, code checked only', files: { [RADIUS]: `${JSON.stringify(values, null, 2)}\n` }, labels: ['tier-3', 'tokens', 'source: mcp'] });
+  review(gh, pr.valuesTechOnly, 'theo', 'APPROVED');
+  pr.renameDesign = openPull(gh, { title: 'Tokens: rename a radius from Studio', files: { [RADIUS]: `${JSON.stringify(renamed, null, 2)}\n` }, labels: ['tier-3', 'tokens', 'breaking', 'source: mcp'] });
+  review(gh, pr.renameDesign, 'ann', 'APPROVED');
 }, 60000);
 
 const RADIUS = 'packages/tokens/src/primitives/radius.tokens.json';
@@ -183,7 +198,10 @@ async function studioReads(n: number, viewer: string | null) {
   const tokenFiles = files.filter((f) => f.filename.endsWith('.tokens.json'));
   const tokenChanges = tokenFileChanges(await Promise.all(tokenFiles.map(async (f) => ({ before: f.status === 'added' ? null : await raw(f.filename, 'main'), after: f.status === 'removed' ? null : await raw(f.filename, pull.head.sha) }))));
   const figmaPush = figmaPushOf({ labels: pull.labels, body: pull.body }, { files: files.map((f) => ({ path: f.filename, status: f.status })), tokenChanges, config: parsed.config });
-  return studioVerdict({ site, pull, tier, ci, reviews, suggestion, mergeable: pull.mergeable, viewer, ship: shipPolicy(site.owners, site.rights), figmaPush });
+  // Token values only, whoever opened it (decision TV-1), read the way scripts/figma-push-read.ts tokenValuesFor reads it.
+  const changed = files.map((f) => ({ path: f.filename, status: f.status }));
+  const tokenValues = isTokenValueChange({ files: changed, tokenChanges, config: parsed.config, labels: pull.labels });
+  return studioVerdict({ site, pull, tier, ci, reviews, suggestion, mergeable: pull.mergeable, viewer, ship: shipPolicy(site.owners, site.rights), figmaPush, tokenValues });
 }
 
 function cliIO(viewer: string | null) {
@@ -227,7 +245,7 @@ async function verdicts(n: number, viewer: string | null) {
 }
 
 describe('the same fixture pull requests give the same verdict in Studio, the MCP server and the CLI', () => {
-  const EXPECTED: [string, { status: string; allowed: boolean; reason?: RegExp }][] = [
+  const EXPECTED: [string, { status: string; allowed: boolean; reason?: RegExp; never?: RegExp }][] = [
     ['t1NotOwner', { status: 'needs-approval', allowed: false, reason: /It needs one owner approval\./ }],
     ['t1Owner', { status: 'ready', allowed: true }],
     ['t3None', { status: 'needs-design', allowed: false, reason: /design owner approval/ }],
@@ -239,6 +257,12 @@ describe('the same fixture pull requests give the same verdict in Studio, the MC
     ['figmaWaiting', { status: 'draft', allowed: false, reason: /draft/i }],
     ['figmaDrafted', { status: 'ready', allowed: true }],
     ['mergedNone', { status: 'merged', allowed: false, reason: /^This branch is already merged\.$/ }],
+    // Decision TV-1: a token value change needs the design approval only, never a developer's.
+    ['valuesNone', { status: 'needs-design', allowed: false, reason: /design owner approval/, never: /tech owner approval/ }],
+    ['valuesDesign', { status: 'ready', allowed: true }],
+    ['valuesTechOnly', { status: 'needs-design', allowed: false, reason: /design owner approval/, never: /tech owner approval/ }],
+    ['renameDesign', { status: 'needs-tech', allowed: false, reason: /tech owner approval/ }],
+    ['applyValues', { status: 'ready', allowed: true }],
   ];
 
   for (const [name, want] of EXPECTED) {
@@ -252,6 +276,7 @@ describe('the same fixture pull requests give the same verdict in Studio, the MC
         expect(v.studio.allowed).toBe(want.allowed && viewer !== 'lea');
         if (want.allowed && viewer === 'lea') expect(v.studio.reasons.join(' ')).toMatch(/can merge/);
         if (want.reason) expect(v.studio.reasons.join(' ')).toMatch(want.reason);
+        if (want.never) expect(v.studio.reasons.join(' ')).not.toMatch(want.never);
       }
     });
   }
@@ -314,6 +339,10 @@ describe('the same fixture pull requests give the same verdict in Studio, the MC
     expect(r.approvalNeeded).toBe('Design and tech approval');
     const t1 = (await branches.branchStatus(await as('ann'), { pr: pr.t1NotOwner! })) as any;
     expect(t1.approvalNeeded).toBe('One owner approval');
+    const values = (await branches.branchStatus(await as('ann'), { pr: pr.valuesNone! })) as any;
+    expect(values.approvalNeeded).toBe('Design approval (token values ship after the checks)');
+    const rename = (await branches.branchStatus(await as('ann'), { pr: pr.renameDesign! })) as any;
+    expect(rename.approvalNeeded).toBe('Design and tech approval');
   });
 });
 
@@ -339,6 +368,14 @@ describe('a push from the Figma plugin reads the same in Studio, the MCP server 
     });
   }
 
+  it('never asks the tech owner for a token value change made in Studio (TV-1), asks the design owner', async () => {
+    const theo = (await branches.whatNeedsMe(await as('theo'), { limit: 50 })) as any;
+    expect(theo.branches.find((b: any) => b.pr === pr.valuesNone)?.needsYou ?? null).toBeNull();
+    expect(theo.branches.find((b: any) => b.pr === pr.renameDesign)?.needsYou).toBe('Your tech approval');
+    const ann = (await branches.whatNeedsMe(await as('ann'), { limit: 50 })) as any;
+    expect(ann.branches.find((b: any) => b.pr === pr.valuesNone)?.needsYou).toBe('Your design approval');
+  });
+
   it('leaves a token push that ships by itself out of what needs me, keeps a rename for the tech owner', async () => {
     const theo = (await branches.whatNeedsMe(await as('theo'), { limit: 50 })) as any;
     expect(theo.branches.some((b: any) => b.pr === pr.figmaValues)).toBe(false);
@@ -358,6 +395,9 @@ describe('merging from the MCP server and the CLI follows the same verdict', () 
       ['applyTier1', true],
       ['t1NotOwner', false],
       ['applyHalf', false],
+      ['valuesDesign', true],
+      ['applyValues', true],
+      ['renameDesign', false],
       ['applyTierUp', false],
       ['applyAsked', false],
     ] as const) {

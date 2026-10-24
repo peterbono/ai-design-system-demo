@@ -3,7 +3,7 @@
 // whether it merges cleanly, then core branchVerdict (the verdict the MCP server and the CLI read too). Shared by the Studio Overview and the In
 // review list. Reads go through ghGet, so they are cached in this browser and survive a rate limit; statuses are
 // kept per head commit for 10 minutes (lib/status-budget).
-import { figmaPushFor } from './figma-push-read';
+import { figmaPushFor, tokenValuesFor } from './figma-push-read';
 import { effectiveTier } from '../lib/review-queue';
 import { isGuidanceOnly } from '../lib/overview-todo';
 import { touchesVisuals } from '../lib/visual-impact';
@@ -158,8 +158,9 @@ export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}
   // MCP server and the CLI read.
   const suggestion = reviews && closingIssueNumbers(p.body).length ? await approvedSuggestionOf(p.body) : null;
   // Pushed from the Figma plugin: design approved by the push, token values tech approved too (docs/BUILD-REQUESTS.md).
-  const figmaPush = await figmaPushFor(p, files);
-  const verdict = (mergeable?: boolean | null) => studioVerdict({ site: siteRoles(), teams: teamSnapshot(), pull: p, tier, ci, reviews, suggestion, mergeable, figmaPush });
+  // Token values only, whoever opened it: the design approval is all it needs (core isTokenValueChange, TV-1).
+  const [figmaPush, tokenValues] = await Promise.all([figmaPushFor(p, files), files ? tokenValuesFor(p, files) : Promise.resolve(false)]);
+  const verdict = (mergeable?: boolean | null) => studioVerdict({ site: siteRoles(), teams: teamSnapshot(), pull: p, tier, ci, reviews, suggestion, mergeable, figmaPush, tokenValues });
   const first = verdict();
   const approvals = first.approvals;
   // Only an open change that nothing else blocks needs to know whether it merges cleanly.

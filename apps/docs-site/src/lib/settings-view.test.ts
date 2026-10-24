@@ -140,12 +140,13 @@ describe('team Settings in designer words (D9)', () => {
   });
 });
 
-describe('token values from Figma (docs/BUILD-REQUESTS.md "The rule")', () => {
-  it('ship on the automatic checks, nobody approves; a rename or removal waits for a code check', () => {
+describe('token values (docs/BUILD-REQUESTS.md "The rule", decision TV-1)', () => {
+  it('ship once the look is approved and the checks pass, no code check; a rename or removal waits for one', () => {
     const w = TOKEN_VALUES_PLAIN;
-    expect(w.label).toBe('Token values from Figma');
-    expect(w.title).toBe('Ship once the automatic checks pass.');
-    expect(w.text).toBe('Nobody needs to approve them. A renamed or removed token waits for a code check.');
+    expect(w.label).toBe('Token values');
+    expect(w.help).toMatch(/in Studio or send from Figma/);
+    expect(w.title).toBe('Ship once the look is approved and the automatic checks pass.');
+    expect(w.text).toBe('Nobody checks the code. From Figma, sending counts as the approval. A renamed or removed token waits for a code check.');
     // Designer words: no repository, pull request, branch or main, no em dash.
     for (const s of Object.values(w)) expect(s).not.toMatch(/\b(repo|repository|pull request|PR|branch|main|merge)\b|\u2014/i);
   });
