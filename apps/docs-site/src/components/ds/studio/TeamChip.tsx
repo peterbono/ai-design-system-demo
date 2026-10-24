@@ -23,7 +23,7 @@ import { Check, ChevronsUpDown, LogIn, Plus, UserPlus, X } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
 import { Avatar, Badge, Button, Icon, Menu, MenuContent, MenuGroup, MenuItem, MenuSeparator, MenuTrigger, VisuallyHidden } from '@bridge-ds/react';
 import type { RepoAccessState } from '@bridge-ds/core';
-import { chipIdentity, isDemoTeam, memberRole, ownerAvatarUrl, recentTeamName } from '../../../lib/access-view';
+import { chipIdentity, isDemoTeam, memberRole, ownerAvatarUrl, recentTeamName, roleBadge } from '../../../lib/access-view';
 import { forgetRecentTeam, knownTeamName, loadRecentTeams, loadTeamNames, loadTeamRoles, noteTeamAccess, noteTeamName, noteTeamRole } from '../../../lib/recent-teams';
 import { pillState } from '../../../lib/access';
 import { teamHref } from '../../../lib/team-path';
@@ -85,6 +85,8 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   const [viewerName, setViewerName] = useState<string | null>(null);
   const [facts, setFacts] = useState<StartFacts | null>(null);
   const [access, setAccess] = useState<RepoAccessState | null>(null);
+  // A GitHub account with write access who holds a review right reads "Reviewer", never "Can edit" (scripts/needs-you).
+  const [reviewer, setReviewer] = useState(false);
   const [ghSignedIn, setSignedIn] = useState(false);
   // A Bridge account (GET /api/account): its teams join "Your teams", each with its role.
   const account = useAccount();
@@ -137,8 +139,19 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
         const { contributeInfo } = await import('../../../scripts/contribute-session');
         return (await contributeInfo(team)).member?.role ?? null;
       };
+      // Whether this GitHub account reviews here: the same rule as the review queues, once the owners are known (the
+      // team's settings, then its GitHub teams).
+      const readReviewer = async () => {
+        const a = session.currentAccess();
+        if (!a || a.contributor || a.state !== 'writer') return live && setReviewer(false);
+        const [{ viewerRole }, { loadTeams }] = await Promise.all([import('../../../scripts/needs-you'), import('../../../scripts/teams')]);
+        await loadTeams().catch(() => undefined);
+        if (live) setReviewer(viewerRole() === 'reviewer');
+      };
+      document.addEventListener('bridge:team-model', () => void readReviewer());
       session.onAccess((a) => {
         setAccess(pillState(a));
+        void readReviewer();
         void contributeRole(a).then((role) => live && a && setAccess(pillState(a, role)));
       });
     })();
@@ -163,8 +176,8 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
   // Signed in, the person's role here: a team they belong to joins "Your teams" on the next pages. Signed out says nothing.
   useEffect(() => {
     if (!hosted || !name || !access || !ghSignedIn) return;
-    setRoles(noteTeamRole(name, memberRole(access, ghSignedIn)));
-  }, [hosted, name, access, ghSignedIn, recent]);
+    setRoles(noteTeamRole(name, memberRole(access, ghSignedIn, reviewer)));
+  }, [hosted, name, access, ghSignedIn, recent, reviewer]);
 
   const forget = (team: string) => setRecent(others(forgetRecentTeam(team), name));
 
@@ -182,7 +195,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     : // The settings' name, else the account's name for this team, else the one this browser knows (the server keeps
       // it), before and after the settings are read: settings without a `name` never flip it to the repository in words.
       chipIdentity(name, { demo: isDemoTeam(name, hosted), state: access, signedIn: ghSignedIn, name: cfg.name ?? (name ? (accountTeamName(name) ?? knownTeamName(name)) : null) });
-  const badge = chip.badge;
+  const badge = chip.kind === 'team' ? roleBadge(access, ghSignedIn, reviewer) : chip.badge;
   const offerTeams = launcher || hosted;
   // "Your teams": the teams the signed-in person belongs to (their role known in this browser), the one you are on first
   // with a check and your role. The browser workspace shows only while you are in it or have no team of your own; from
@@ -209,7 +222,7 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     const here = chip.kind !== 'workspace' && name && !isSampleTeam(name) ? name : null;
     const mine = (t: string) => account?.teams.find((x) => x.repo.toLowerCase() === t.toLowerCase());
     const here_ = here ? mine(here) : undefined;
-    const role = memberRole(access, ghSignedIn) ?? (here_ ? roleWord(here_.role) : null);
+    const role = memberRole(access, ghSignedIn, reviewer) ?? (here_ ? roleWord(here_.role) : null);
     // The team you are on: yours when you belong to it; a guest still sees where they are on someone else's team.
     if (here && (role || chip.kind === 'team')) rows.push(teamRowOf(here, true, role ?? badge.label));
     for (const t of recent) {

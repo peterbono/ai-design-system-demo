@@ -140,8 +140,9 @@ export function systemName(data: Pick<LibraryData, 'team' | 'model'>): string {
 }
 
 /** What a team's Library view reads: its model and team, and whether the reader may open its Studio to edit. */
-export const teamLibraryData = (data: Pick<TeamData, 'model' | 'owner' | 'repo' | 'client'>): LibraryData => ({
+export const teamLibraryData = (data: Pick<TeamData, 'model' | 'owner' | 'repo' | 'canEdit'>): LibraryData => ({
   model: data.model,
   team: { owner: data.owner, repo: data.repo },
-  extras: { canEdit: data.client.canWrite },
+  // A member with an edit right only (scripts/team-data editRight), never any signed-in GitHub account.
+  extras: { canEdit: Boolean(data.canEdit) },
 });
