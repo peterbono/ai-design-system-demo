@@ -447,6 +447,18 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
     await flush();
   };
   let current: string | undefined;
+  let pending: (() => Promise<void>) | undefined;
+  const runPending = async () => {
+    const job = pending;
+    pending = undefined;
+    if (!job) return;
+    try {
+      await job();
+    } catch (e) {
+      io.error(`bridge: variants of ${current} stopped: ${(e as Error).message.split('\n')[0]}`);
+      await browser.reset?.();
+    }
+  };
   try {
     // The library's variables first, in a fresh tab: a story that fails later cannot lose them.
     if (has(a, 'tokens') && !file.tokens && picks[0]) {
@@ -461,6 +473,7 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
     for (const p of picks) {
       if (skip.has(p.title)) continue;
       if (current !== p.title) {
+        await runPending();
         await finish(current);
         current = p.title;
         await browser.reset?.();
@@ -499,91 +512,117 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
         }
         if (firstOf.has(p.id) && specsFile) await measureParts(p);
         if (!variants || !props || !firstOf.has(p.id)) continue;
-        // Every variant of the component: its first story, with args for each combination and each state.
-        // With a Figma side, the variants are its axes mapped to props (booleans like Checked included).
-        const stateList = (states ?? ['rest', 'hover', 'disabled']) as ('rest' | MeasuredState | 'disabled')[];
-        const comp = file.components!.find((c) => c.title === p.title);
-        let combos: Record<string, string | boolean>[] | undefined;
-        if (ref) combos = variantCombosFromMapping(mapPropsToFigma(props.argTypes, ref.properties));
-        else {
-          // No Figma set: vary only the args the story declares, and only those that change what renders. Each is
-          // probed once (one value away from its default); one that changes nothing the measure reads is left out.
-          const declaredArgs = new Set(Object.keys(props.args));
-          const candidates = Object.entries(props.argTypes).filter(([k, at]) => (declaredArgs.size ? declaredArgs.has(k) : true) && !/^(is)?disabled$/i.test(k) && ((at.kind === 'enum' && (at.options?.length ?? 0) >= 2 && (at.options?.length ?? 0) <= 12) || at.kind === 'boolean'));
-          const sig = (sp: MeasuredSpec | undefined) => JSON.stringify(sp ? { p: sp.parts.map((x) => [x.id, x.kind, x.characters ?? '']), b: Object.entries(sp.boxes).map(([k, b]) => [k, Math.round(b.width), Math.round(b.height), Math.round(b.x), Math.round(b.y)]), r: sp.raw } : null);
-          const baseSig = sig(entry.spec);
-          const ignored: Record<string, string> = {};
-          const axes: [string, (string | boolean)[]][] = [];
-          const probe = async (k: string, v: string | boolean) => {
-            const mp = await measureStory(browser.page, base, p.id, { ...cmo, args: { [k]: v } });
-            if (mp.props && mp.props.args[k] !== v) return 'not taken' as const;
-            return mp.root ? sig(storyEntry(p, mp, tokenOf, {}, cls).spec) : null;
+        // The variants run once every story of the component is measured as written, so each combination can start
+        // from the story closest to it.
+        const job = async () => {
+          const closest = (combo: Record<string, string | number | boolean>) => {
+            const own = file.stories.filter((x) => x.title === p.title && !x.overrides && !x.state && x.spec && x.props);
+            let best: { id: string; title: string; name: string } | undefined;
+            let score = -1;
+            for (const x of own) {
+              const sc = Object.entries(combo).filter(([k, val]) => String(x.props![k]) === String(val)).length;
+              if (sc > score) [best, score] = [{ id: x.id, title: x.title, name: x.name }, sc];
+            }
+            return best;
           };
-          for (const [k, at] of candidates) {
-            const cur = props.props[k];
+          // Every variant of the component: its first story, with args for each combination and each state.
+          // With a Figma side, the variants are its axes mapped to props (booleans like Checked included).
+          const stateList = (states ?? ['rest', 'hover', 'disabled']) as ('rest' | MeasuredState | 'disabled')[];
+          const comp = file.components!.find((c) => c.title === p.title);
+          let combos: Record<string, string | boolean>[] | undefined;
+          if (ref) combos = variantCombosFromMapping(mapPropsToFigma(props.argTypes, ref.properties));
+          else {
+            // No Figma set: vary only the args the story declares, and only those that change what renders. Each is
+            // probed once (one value away from its default); one that changes nothing the measure reads is left out.
+            const declaredArgs = new Set(Object.keys(props.args));
+            const candidates = Object.entries(props.argTypes).filter(([k, at]) => (declaredArgs.size ? declaredArgs.has(k) : true) && !/^(is)?disabled$/i.test(k) && ((at.kind === 'enum' && (at.options?.length ?? 0) >= 2 && (at.options?.length ?? 0) <= 12) || at.kind === 'boolean'));
+            // What renders, popovers and tooltips aside: an arg that only opens, aligns or moves one is not a variant axis.
+            const sig = (sp: MeasuredSpec | undefined) => {
+              if (!sp) return null;
+              const pop = new Set<string>();
+              for (const x of sp.parts) if (/(^|[\s_-])(popover|tooltip|toggletip)([\s_-]|$)/i.test(x.source ?? '') || (x.parent && pop.has(x.parent))) pop.add(x.id);
+              const keep = sp.parts.filter((x) => !pop.has(x.id));
+              return JSON.stringify({ p: keep.map((x) => [x.id, x.kind, x.characters ?? '']), b: keep.map((x) => { const b = sp.boxes[x.id]!; return [x.id, Math.round(b.width), Math.round(b.height), Math.round(b.x), Math.round(b.y)]; }), r: keep.map((x) => sp.raw[x.id] ?? null) });
+            };
+            const ignored: Record<string, string> = {};
+            const axes: [string, (string | boolean)[]][] = [];
+            const probe = async (k: string, v: string | boolean) => {
+              const mp = await measureStory(browser.page, base, p.id, { ...cmo, args: { [k]: v } });
+              if (mp.props && mp.props.args[k] !== v) return 'not taken' as const;
+              return mp.root ? sig(storyEntry(p, mp, tokenOf, {}, cls).spec) : null;
+            };
+            for (const [k, at] of candidates) {
+              const cur = props.props[k];
+              try {
+                if (at.kind === 'boolean') {
+                  // Both values, compared with each other: the story may render the non-default one (a toggle shown on).
+                  const [off, on] = [await probe(k, false), await probe(k, true)];
+                  if (off === 'not taken' || on === 'not taken') ignored[k] = 'not taken';
+                  else if (off === null || on === null || off === on) ignored[k] = 'no visual effect';
+                  else axes.push([k, [cur === true, cur !== true]]);
+                  continue;
+                }
+                const first = String(cur ?? at.default ?? at.options![0]);
+                const values: (string | boolean)[] = [first, ...at.options!.filter((x) => x !== first)];
+                // The default and one other value, both rendered through args, compared with each other.
+                const [dflt, alt] = [await probe(k, values[0]!), await probe(k, values[1]!)];
+                if (alt === 'not taken' || dflt === 'not taken') ignored[k] = 'not taken';
+                else if (alt === null || dflt === null || alt === dflt) ignored[k] = 'no visual effect';
+                else axes.push([k, values]);
+              } catch {
+                ignored[k] = 'not taken';
+              }
+            }
+            const bounded = boundedCombos(axes, Math.max(1, Math.floor(48 / Math.max(1, stateList.length))));
+            combos = bounded.combos;
+            if (comp) comp.variantPlan = { axes: axes.map(([k]) => k), ...(Object.keys(ignored).length ? { ignored } : {}), combos: combos.length, ...(bounded.capped ? { capped: true } : {}) };
+          }
+          const plan = planVariantMeasures(props.argTypes, { states: stateList, max: 1000, ...(combos && combos.some((c) => Object.keys(c).length) ? { combos } : {}) });
+          for (const v of plan) {
+            const label = Object.entries(v.overrides).map(([k, x]) => `${k}=${x}`).join(', ') + (v.state ? ` :${v.state}` : '');
+            if (!label) continue; // the story as written is already measured
+            // The story whose own props are closest to the combination (a "multi" story for type=multi): its structure
+            // and content are the ones that variant has. Ties go to the first story.
+            const sp = closest(v.overrides) ?? p;
             try {
-              if (at.kind === 'boolean') {
-                // Both values, compared with each other: the story may render the non-default one (a toggle shown on).
-                const [off, on] = [await probe(k, false), await probe(k, true)];
-                if (off === 'not taken' || on === 'not taken') ignored[k] = 'not taken';
-                else if (off === null || on === null || off === on) ignored[k] = 'no visual effect';
-                else axes.push([k, [cur === true, cur !== true]]);
+              const mv = await measureStory(browser.page, base, sp.id, { ...cmo, args: v.overrides, ...(v.state ? { state: v.state } : {}), ...shotOpt(sp.id, { ...v.overrides, state: v.state }) });
+              const dropShot = () => {
+                try {
+                  if (mv.shot) unlinkSync(mv.shot.file);
+                } catch {
+                  // nothing written
+                }
+              };
+              if (v.state && !mv.state) {
+                dropShot();
+                file.stories.push({ ...sp, url: mv.url, ms: mv.ms, overrides: v.overrides, error: `the browser could not force :${v.state}` });
                 continue;
               }
-              const first = String(cur ?? at.default ?? at.options![0]);
-              const values: (string | boolean)[] = [first, ...at.options!.filter((x) => x !== first)];
-              const alt = await probe(k, values[1]!);
-              if (alt === 'not taken') ignored[k] = 'not taken';
-              else if (alt === null || alt === baseSig) ignored[k] = 'no visual effect';
-              else axes.push([k, values]);
-            } catch {
-              ignored[k] = 'not taken';
-            }
-          }
-          const bounded = boundedCombos(axes, Math.max(1, Math.floor(48 / Math.max(1, stateList.length))));
-          combos = bounded.combos;
-          if (comp) comp.variantPlan = { axes: axes.map(([k]) => k), ...(Object.keys(ignored).length ? { ignored } : {}), combos: combos.length, ...(bounded.capped ? { capped: true } : {}) };
-        }
-        const plan = planVariantMeasures(props.argTypes, { states: stateList, max: 1000, ...(combos && combos.some((c) => Object.keys(c).length) ? { combos } : {}) });
-        for (const v of plan) {
-          const label = Object.entries(v.overrides).map(([k, x]) => `${k}=${x}`).join(', ') + (v.state ? ` :${v.state}` : '');
-          if (!label) continue; // the story as written is already measured
-          try {
-            const mv = await measureStory(browser.page, base, p.id, { ...cmo, args: v.overrides, ...(v.state ? { state: v.state } : {}), ...shotOpt(p.id, { ...v.overrides, state: v.state }) });
-            const dropShot = () => {
-              try {
-                if (mv.shot) unlinkSync(mv.shot.file);
-              } catch {
-                // nothing written
+              // An arg the story does not take (not in its argTypes, or overwritten by its render) did not reach the component.
+              const took = mv.props?.args;
+              const ignored = took ? Object.entries(v.overrides).find(([k, x]) => took[k] !== x) : undefined;
+              if (ignored) {
+                dropShot();
+                file.stories.push({ ...sp, url: mv.url, ms: mv.ms, overrides: v.overrides, error: `the story does not take the arg ${ignored[0]}=${String(ignored[1])}` });
+                if (!json) io.print(`  ${p.title} / ${label}: not measured (the story does not take ${ignored[0]})`);
+                continue;
               }
-            };
-            if (v.state && !mv.state) {
-              dropShot();
-              file.stories.push({ ...p, url: mv.url, ms: mv.ms, overrides: v.overrides, error: `the browser could not force :${v.state}` });
-              continue;
+              const ev = storyEntry(sp, mv, tokenOf, { overrides: v.overrides }, cls, book);
+              file.stories.push(ev);
+              say(ev, `${p.title} / ${label}`);
+            } catch (e) {
+              file.stories.push({ ...sp, url: '', ms: 0, overrides: v.overrides, error: (e as Error).message.split('\n')[0] });
             }
-            // An arg the story does not take (not in its argTypes, or overwritten by its render) did not reach the component.
-            const took = mv.props?.args;
-            const ignored = took ? Object.entries(v.overrides).find(([k, x]) => took[k] !== x) : undefined;
-            if (ignored) {
-              dropShot();
-              file.stories.push({ ...p, url: mv.url, ms: mv.ms, overrides: v.overrides, error: `the story does not take the arg ${ignored[0]}=${String(ignored[1])}` });
-              if (!json) io.print(`  ${p.title} / ${label}: not measured (the story does not take ${ignored[0]})`);
-              continue;
-            }
-            const ev = storyEntry(p, mv, tokenOf, { overrides: v.overrides }, cls, book);
-            file.stories.push(ev);
-            say(ev, `${p.title} / ${label}`);
-          } catch (e) {
-            file.stories.push({ ...p, url: '', ms: 0, overrides: v.overrides, error: (e as Error).message.split('\n')[0] });
           }
-        }
+        };
+        pending = job;
       } catch (e) {
         file.stories.push({ ...p, url: '', ms: 0, error: (e as Error).message.split('\n')[0] });
         if (!json) io.print(`  ${p.title} / ${p.name}: not measured (${(e as Error).message.split('\n')[0]})`);
         await browser.reset?.();
       }
     }
+    await runPending();
     await finish(current);
   } finally {
     await browser.close();

@@ -33,6 +33,8 @@ export interface MeasuredNode {
   /** Tag name, `#text` for a text run inside an element that also holds elements. */
   tag: string;
   kind: 'frame' | 'text' | 'icon' | 'vector';
+  /** Width or height set by the CSS (not auto, a percentage or content-sized). */
+  sized?: { width?: boolean | undefined; height?: boolean | undefined } | undefined;
   /** Inline SVG: each shape's stroke in order (rgb), as drawn. */
   svgStrokes?: string[] | undefined;
   /** A ::before or ::after drawn as a box (a switch knob, a checkbox's box): its tag is `::before` / `::after`. */
@@ -76,6 +78,13 @@ export interface MeasuredSpec {
    * shape's stroke in order. The pull draws it in place of an empty icon frame.
    */
   vectors?: Record<string, SpecVector> | undefined;
+  /** Part id -> the width and height its CSS sets (px): keep them fixed, do not hug (a 40x40 icon button around a 16 px icon). */
+  sized?: Record<string, { width?: number | undefined; height?: number | undefined }> | undefined;
+  /**
+   * Part id -> extra space before it in its parent's auto layout (px), when the gaps between children are not uniform
+   * (margins): the parent's itemSpacing is the smallest gap, this is what a child adds on top.
+   */
+  spacers?: Record<string, number> | undefined;
 }
 
 const px = (v: string | undefined): number | undefined => {

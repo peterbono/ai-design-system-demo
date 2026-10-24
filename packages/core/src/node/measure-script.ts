@@ -313,6 +313,10 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
   }
   function visible(el, cs) {
     if (cs.display === 'none' || cs.visibility === 'hidden' || cs.visibility === 'collapse') return false;
+    // Closed or hidden content is not a layer: transparent, hidden, inert, clipped away, or a hidden popover.
+    if (parseFloat(cs.opacity) === 0 || el.hidden || el.hasAttribute('inert')) return false;
+    if (/inset\((50|100)%/.test(cs.clipPath || '')) return false;
+    if (el.getAttribute('aria-hidden') === 'true' && (/^(tooltip|dialog|menu|listbox)$/.test(el.getAttribute('role') || '') || /popover|tooltip/i.test(String(el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className)))) return false;
     var r = el.getBoundingClientRect();
     if (r.width === 0 && r.height === 0 && !el.children.length) return false;
     // Visually hidden text for screen readers (1 px, clipped): not drawn, not a layer.
@@ -396,7 +400,7 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
       if (t) tokens[p] = t;
     }
     count++;
-    return { tag: '::' + which, kind: 'frame', pseudo: which, classes: [], box: { x: round(x - originX), y: round(y - originY), width: round(w), height: round(h) }, style: style, tokens: tokens, children: [] };
+    return { tag: '::' + which, kind: 'frame', pseudo: which, sized: { width: true, height: true }, classes: [], box: { x: round(x - originX), y: round(y - originY), width: round(w), height: round(h) }, style: style, tokens: tokens, children: [] };
   }
   var originX = 0, originY = 0;
   function node(el, depth) {
@@ -415,9 +419,17 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
       var t = tokenFor(el, p, v);
       if (t) tokens[p] = t;
     }
+    // A width or height the CSS sets (not auto, a percentage or content-sized): the pull keeps it fixed.
+    var sized = {};
+    ['width', 'height'].forEach(function (k) {
+      var dv = declared(el, k);
+      var v = dv ? dv.value.trim() : (el.style && el.style.getPropertyValue(k)) || '';
+      if (v && !/^(auto|inherit|initial|unset|revert|fit-content|max-content|min-content|stretch|-webkit-fill-available)/.test(v) && !/%/.test(v)) sized[k] = true;
+    });
     var n = { tag: tag, classes: Array.prototype.slice.call(el.classList || []).slice(0, 8), box: { x: round(r.left - originX), y: round(r.top - originY), width: round(r.width), height: round(r.height) }, style: style, tokens: tokens, children: [] };
     var role = el.getAttribute('role');
     if (role) n.role = role;
+    if (sized.width || sized.height) n.sized = sized;
     var dataState = {};
     for (var ai = 0; ai < el.attributes.length; ai++) {
       var an = el.attributes[ai].name;
@@ -450,9 +462,12 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
       } else if (c.nodeType === 1) {
         var ccs = getComputedStyle(c);
         if (!visible(c, ccs)) continue;
+        if (depth + 1 > MAX_DEPTH) { hasEl = true; n.truncated = true; continue; }
+        var cn = node(c, depth + 1);
+        // A box with no area and nothing drawn inside (a closed popover's shell) is not a layer.
+        if (cn.kind === 'frame' && !cn.children.length && !(cn.box.width * cn.box.height) && !cn.input && !cn.media) continue;
         hasEl = true;
-        if (depth + 1 > MAX_DEPTH) { n.truncated = true; continue; }
-        n.children.push(node(c, depth + 1));
+        n.children.push(cn);
       }
     }
     if (after) { n.children.push(after); hasEl = true; }

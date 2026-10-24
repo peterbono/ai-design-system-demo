@@ -286,3 +286,34 @@ describe('controls drawn in CSS: pseudo-elements, grids, SVG', () => {
   });
 });
 
+describe('form fields as Carbon draws them: margins, declared sizes, round radii, block flow', () => {
+  const box = (x: number, y: number, width: number, height: number) => ({ x, y, width, height });
+  const el = (tag: string, cls: string, b: ReturnType<typeof box>, style: Record<string, string>, children: MeasuredNode[] = [], extra: Partial<MeasuredNode> = {}): MeasuredNode => ({ tag, kind: 'frame', classes: [cls], box: b, style: { 'border-top-style': 'none', ...style }, tokens: {}, children, ...extra });
+  const text = (t: string, b: ReturnType<typeof box>, style: Record<string, string> = {}): MeasuredNode => ({ tag: 'span', kind: 'text', classes: [`t-${t}`], text: t, box: b, style, tokens: {}, children: [] });
+
+  it('turns a label margin and a helper margin into the auto layout gaps of the field', () => {
+    // Label 16 px tall with margin-bottom 8, field 40 px, helper 4 px below it.
+    const field = el('div', 'wrapper', box(0, 0, 400, 84), { display: 'flex', 'flex-direction': 'column', 'align-items': 'flex-start', 'row-gap': '0px' }, [
+      text('Label', box(0, 0, 60, 16), { 'margin-bottom': '8px' }),
+      el('div', 'field', box(0, 24, 400, 40), { display: 'block' }),
+      text('Helper', box(0, 68, 80, 16), { 'margin-top': '4px' }),
+    ]);
+    const spec = measuredToSpec({ id: 'textinput', root: field });
+    expect(spec.values.root?.itemSpacing).toBe(4);
+    expect(spec.spacers).toEqual({ field: 4 });
+  });
+
+  it('keeps declared sizes, and reads a 50% radius in px', () => {
+    const icon: MeasuredNode = { tag: 'svg', kind: 'icon', box: box(12, 12, 16, 16), style: {}, tokens: {}, children: [], sized: { width: true, height: true } };
+    const button = el('button', 'copy', box(0, 0, 40, 40), { display: 'flex', 'border-top-left-radius': '50%' }, [icon], { sized: { width: true, height: true } });
+    const spec = measuredToSpec({ id: 'copybutton', root: button });
+    expect(spec.sized).toEqual({ root: { width: 40, height: 40 }, icon: { width: 16, height: 16 } });
+    expect(spec.values.root?.cornerRadius).toBe(20);
+  });
+
+  it('lays an inline label holding blocks out by its boxes', () => {
+    const label = el('label', 'toggle__label', box(0, 0, 74, 56), { display: 'inline' }, [text('Label', box(0, 0, 74, 16)), el('div', 'appearance', box(0, 32, 74, 24), { display: 'flex' })]);
+    expect(measuredToSpec({ id: 't', root: label }).parts[0]!.layout?.direction).toBe('VERTICAL');
+  });
+});
+
