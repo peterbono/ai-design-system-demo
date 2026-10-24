@@ -2187,7 +2187,14 @@
   background-color: var(--color-bg-subtle);
 }
 
-.xe-tabs > button,
+.xe-tablist {
+  display: flex;
+  flex: var(--xe-tabs) 1 0;
+  gap: var(--space-0-5);
+  min-width: 0;
+}
+
+.xe-tablist > button,
 .xe-tab-more {
   display: inline-flex;
   flex: 1 1 0;
@@ -2207,13 +2214,13 @@
   cursor: pointer;
 }
 
-.xe-tabs > button[aria-selected="true"] {
+.xe-tablist > button[aria-selected="true"] {
   background-color: var(--color-surface-default);
   box-shadow: inset 0 0 0 var(--border-width-default) var(--color-border-default);
   color: var(--color-text-default);
 }
 
-.xe-tabs > button:focus-visible,
+.xe-tablist > button:focus-visible,
 .xe-tab-more:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
 }
