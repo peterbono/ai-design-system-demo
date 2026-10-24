@@ -32,7 +32,8 @@ import {
 import { currentContributor, currentViewer, getToken, hasWorkingToken, initGitHubConnect, onAccess, prefersSignIn, readRepo, studioClient, ghGet } from './github-session';
 import { loadTeams, siteApprovers, siteRoles, siteSoloOwner } from './teams';
 import { siteConfig } from './repo-context';
-import { isSampleTeam } from '../lib/demo';
+import { isSampleTeam, sampleApprovalRows, sampleCodeReviewers } from '../lib/demo';
+import { sampleTeam } from '../lib/invites';
 import { ghAction } from '../lib/gh-wording';
 import { canReview } from '../lib/access';
 import { person, requesterPerson, type NeedRow, type Person } from '../lib/home-model';
@@ -399,7 +400,10 @@ export async function openSuggestion(n: number, host: SuggestionHost): Promise<v
       proofsWhen: today ? 'today' : conflicts === undefined && hasWorkingToken() ? 'checking' : 'suggested',
       stale: staleLines({ stale: d.approvals?.stale ?? [], names: nameMap, mainMoved, conflicts }),
       edited: d.parsed.ok && d.parsed.edited,
-      approvals: approvalRows({ tier: payload.tier.tier, approvals: d.approvals, owners, names: nameMap }),
+      // The sample team's Review rules: Malik checks the code (lib/demo.ts sampleApprovalRows), never the seat.
+      approvals: seat
+        ? sampleApprovalRows(approvalRows({ tier: payload.tier.tier, approvals: d.approvals, owners, names: nameMap }), (r) => r.label === 'Tech approval', sampleCodeReviewers(sampleTeam(seat)))
+        : approvalRows({ tier: payload.tier.tier, approvals: d.approvals, owners, names: nameMap }),
       gate,
       approveLabel: approveLabel(gate, payload.tier.tier),
       apply: status === 'approved' ? applyLines(n) : null,

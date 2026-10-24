@@ -180,9 +180,10 @@ export interface BranchReviewProps {
   code?: { files: string[]; branch: string; url: string; number: number; install: string | null } | null;
   /**
    * The sample team (lib/demo.ts): Approve can be tried. It shows the approved state and what happens next, and
-   * writes nothing. `author` is who asked for the review.
+   * writes nothing. `author` is who asked for the review; `codeBy` who checks the code next ("Malik"), when the change
+   * still needs that check.
    */
-  sample?: { author: string | null } | null;
+  sample?: { author: string | null; codeBy?: string | null } | null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -865,8 +866,8 @@ function ProductWork({ work, link, hasVisual }: { work: ProductWorkView; link: s
 // The decision bar
 
 /** Approve, tried on the sample team: approved, what happens next, and that nothing was sent. */
-function TriedApprove({ author }: { author: string | null }) {
-  const w = demoApproved(author);
+function TriedApprove({ author, codeBy }: { author: string | null; codeBy: string | null }) {
+  const w = demoApproved(author, codeBy);
   return (
     <Alert tone="success" title={w.title} className="br-tried">
       {w.next} {w.note}
@@ -993,7 +994,7 @@ function DecisionBar({ p, leftLine, inputRef, tried, onTry }: { p: BranchReviewP
           </MenuContent>
         </Menu>
       </div>
-      {tried && p.sample && <TriedApprove author={p.sample.author} />}
+      {tried && p.sample && <TriedApprove author={p.sample.author} codeBy={p.sample.codeBy ?? null} />}
       {(said || p.note) && (
         <p className="br-said" role="status" aria-live="polite">
           {said || p.note}
@@ -1045,7 +1046,8 @@ export function BranchReview(p: BranchReviewProps) {
     setTried(true);
   };
   const status = tried && p.sample ? { label: 'Approved', tone: 'success' as const } : p.status;
-  const approvals = tried && p.sample ? p.approvals.map((a) => ({ ...a, state: 'approved' as const, text: a.state === 'waiting' && /\byou\b/i.test(a.text) ? 'You approved' : a.text })) : p.approvals;
+  // Only the visitor's own row turns approved: the code check stays with whoever the Review rules name ("Waiting for Malik").
+  const approvals = tried && p.sample ? p.approvals.map((a) => (a.state === 'waiting' && a.text === 'Waiting for you' ? { ...a, state: 'approved' as const, text: 'You approved' } : a)) : p.approvals;
   const multi = p.changes.length > 1;
   const current = multi ? currentChange(p.changes, looked, picked) : (p.changes[0]?.id ?? null);
   const progress = lookedProgress(p.changes, looked);

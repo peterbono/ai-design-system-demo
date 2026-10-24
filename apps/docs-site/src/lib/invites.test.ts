@@ -71,7 +71,7 @@ describe('reading roles back from GitHub', () => {
     expect(roleOf({ login: 'ANN', role_name: 'write' }, owners)).toEqual({ role: 'reviewer', reviews: ['design'] });
     expect(roleOf({ login: 'malik', role_name: 'maintain' }, owners)).toEqual({ role: 'reviewer', reviews: ['tech'] });
     expect(roleOf({ login: 'leo', role_name: 'write' }, owners)).toEqual({ role: 'edit', reviews: [] });
-    expect(roleOf({ login: 'sofia', role_name: 'read' }, owners)).toEqual({ role: 'view', reviews: [] });
+    expect(roleOf({ login: 'priya', role_name: 'read' }, owners)).toEqual({ role: 'view', reviews: [] });
     expect(roleOf({ login: 'tri', role_name: 'triage' }, owners)).toEqual({ role: 'view', reviews: [] });
   });
 
@@ -128,7 +128,7 @@ describe('who may change what', () => {
 
 describe('the email field', () => {
   it('takes several emails at once, lower case, valid and new only', () => {
-    expect(parseEmails('Ann@Acme.design, leo@acme.design; nope bad@ <sofia@acme.design>', ['leo@acme.design'])).toEqual(['ann@acme.design', 'sofia@acme.design']);
+    expect(parseEmails('Ann@Acme.design, leo@acme.design; nope bad@ <priya@acme.design>', ['leo@acme.design'])).toEqual(['ann@acme.design', 'priya@acme.design']);
     expect(isEmail('a@b.co')).toBe(true);
     expect(isEmail('a@b')).toBe(false);
     expect(isEmail('a b@c.de')).toBe(false);
@@ -144,7 +144,11 @@ describe('the email field', () => {
     expect(mal[1]!.disabled).toBeUndefined();
     expect(inviteOptions('new@acme.design', f)).toContainEqual({ value: 'new@acme.design', label: 'new@acme.design', description: 'Invite by email' });
     // Pending invites count as in the team.
-    expect(inviteOptions('sofia@acme.design', f).at(-1)).toMatchObject({ disabled: true });
+    expect(inviteOptions('priya@acme.design', f).at(-1)).toMatchObject({ disabled: true });
+    // Sofia is a member (she asks for work in the demo): listed, disabled, already in.
+    expect(inviteOptions('sofia', f)).toEqual([expect.objectContaining({ label: 'Sofia', disabled: true })]);
+    // Two people the field suggests who are not in the team yet.
+    expect(inviteOptions('', f).filter((o) => !o.disabled).map((o) => o.label)).toEqual(['Mal Reyes', 'Jonas Berg']);
     // Chosen addresses stay listed so their chips keep a label.
     expect(inviteOptions('', { ...f, chosen: ['x@y.co'] }).some((o) => o.value === 'x@y.co')).toBe(true);
   });
@@ -178,11 +182,14 @@ describe('contexts', () => {
     expect(membersContext(null, false)).toBe('none');
   });
 
-  it('the sample team is Dana (you, admin), Ann, Leo, Malik and Sofia not joined yet', () => {
+  it('the sample team is Dana (you, admin), Ann, Leo, Malik, Sofia and Priya not joined yet', () => {
     const s = sampleTeam();
-    expect(s.members.map((m) => `${m.name}:${roleText(m)}`)).toEqual(['Dana:Admin', 'Ann:Reviewer: design', 'Leo:Can edit', 'Malik:Reviewer: tech']);
+    expect(s.members.map((m) => `${m.name}:${roleText(m)}`)).toEqual(['Dana:Admin', 'Ann:Reviewer: design', 'Leo:Can edit', 'Malik:Reviewer: tech', 'Sofia:Can edit']);
     expect(s.members[0]!.you).toBe(true);
-    expect(s.pending).toEqual([expect.objectContaining({ email: 'sofia@acme.design', role: 'edit' })]);
+    // Sofia asks for work in the demo ("Requested by Sofia Reyes."), so she is a member; Priya has no work there.
+    expect(s.members.find((m) => m.name === 'Sofia')).toMatchObject({ login: '~sofia-reyes', email: 'sofia@acme.design' });
+    expect(s.pending).toEqual([expect.objectContaining({ email: 'priya@acme.design', role: 'edit', face: '~priya-natarajan' })]);
+    expect(s.people.some((p) => /priya/i.test(p.email ?? ''))).toBe(false);
     expect(sampleTeam('Robin').members[0]!.name).toBe('Robin');
   });
 });

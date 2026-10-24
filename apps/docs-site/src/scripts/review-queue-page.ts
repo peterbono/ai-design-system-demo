@@ -260,7 +260,7 @@ export function initReviewQueue() {
     if (!d) return;
     // The sample team: the approved state and what happens next, nothing sent.
     if (onSampleTeam()) {
-      const w = demoApproved(d.row.person?.name ?? null);
+      const w = demoApproved(d.row.person?.name ?? null, detail.dataset.codeNext || null);
       // Once Undo has passed, the visit remembers it: the home and the branch say Approved too (scripts/demo-approvals.ts).
       later(d, async () => rememberDemoApproval(n), `${w.next} ${w.note}`);
       return;

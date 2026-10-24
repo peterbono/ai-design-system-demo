@@ -102,15 +102,51 @@ export const DEMO_WORDS = {
 
 /**
  * Approve, tried on the sample team (a branch or its review page): the approved state and what happens next, nothing
- * written anywhere. `author` is who asked for the review ("Ann"), when known.
+ * written anywhere. `author` is who asked for the review ("Ann"), when known. `codeBy` names who still checks the code
+ * ("Malik", sampleCodeReviewers), when the change needs that check: Settings > Review rules on the sample team.
  */
-export function demoApproved(author?: string | null): { title: string; next: string; note: string } {
-  const who = author?.trim() ? author.trim().split(/\s+/)[0]! : 'The teammate who asked';
+export function demoApproved(author?: string | null, codeBy?: string | null): { title: string; next: string; note: string } {
+  const who = author?.trim() ? author.trim().split(/\s+/)[0]! : 'the teammate who asked';
+  const code = codeBy?.trim();
   return {
     title: 'Approved',
-    next: `On your team, ${who} hears it at once, and a developer ships the change once the checks pass.`,
+    next: code
+      ? `On your team, ${who} hears it at once. ${code} checks the code next, then it ships once the checks pass.`
+      : `On your team, ${who} hears it at once, and a developer ships the change once the checks pass.`,
     note: 'Sample data, nothing is sent.',
   };
+}
+
+/**
+ * Who checks the code on the sample team, by first name ("Malik", "Malik or Kim"): the members who review tech, as its
+ * Settings > Review rules and Members say. `team` is lib/invites.ts sampleTeam(lead), passed in (see samplePersonOf).
+ */
+export function sampleCodeReviewers(team: { members: readonly { name: string; reviews: readonly string[]; you?: boolean }[] }): string | null {
+  const names = team.members.filter((m) => !m.you && m.reviews.includes('tech')).map((m) => m.name);
+  if (!names.length) return null;
+  return names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} or ${names.at(-1)}`;
+}
+
+/**
+ * The approval checklist on the sample team, as its Review rules say: the visitor's seat (Dana) checks the look, the
+ * members who review tech check the code. The repository behind it has one owner, whose one review would cover both
+ * parts ("Covered by your approval"): on the sample team a code row that is not approved yet waits for `codeBy`
+ * ("Waiting for Malik") and never carries the visitor's action. `isCode` tells the code row (a branch's `role` is
+ * 'tech', a suggestion's label is "Tech approval").
+ */
+export function sampleApprovalRows<R extends { state: string; text: string; canAct?: boolean }>(rows: readonly R[], isCode: (r: R) => boolean, codeBy: string | null): R[] {
+  if (!codeBy) return [...rows];
+  return rows.map((r) => (isCode(r) && r.state === 'waiting' ? { ...r, text: `Waiting for ${codeBy}`, ...('canAct' in r ? { canAct: false } : {}) } : r));
+}
+
+/**
+ * The who-acts line on the sample team: never the only owner's "your approval covers design and code" (the visitor's
+ * seat checks the look only); `codeBy` checks the code next when the change still needs it. `solo` is that sentence
+ * (core soloOwnerSentence(login, true)), passed in so this module loads nothing at runtime for the /api functions.
+ */
+export function sampleTurnSentence(sentence: string, solo: string, codeBy: string | null): string {
+  if (!sentence.includes(solo)) return sentence;
+  return sentence.replace(solo, codeBy ? `${codeBy} checks the code next.` : '').replace(/\s+$/, '');
 }
 
 // ---------------------------------------------------------------------------------------------------------------

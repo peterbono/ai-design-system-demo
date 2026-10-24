@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { sampleTeam } from './invites';
 import { roleRows } from './roles-view';
-import { samplePersonOf } from './demo';
+import { sampleApprovalRows, sampleCodeReviewers, samplePersonOf, sampleTurnSentence } from './demo';
+import { soloOwnerSentence } from '@bridge-ds/core';
 import { DEMO_APPROVED_KEY, demoApprovedSet, markDemoApproved, DEMO_REPOS, demoApproved, demoBanner, demoDialog, DEMO_STASH_KEY, DEMO_VISIT_KEY, DEMO_WORDS, SHARED_DRAFT_KEY, swapDemoDrafts, demoLeadName, demoSettingsPeople, demoTour, demoWaiting, exploresDemo, humanizeRepo, onBridge, isDemoRepo, OWN_TEAM, teamDisplayName, tourSteps } from './demo';
 
 describe('the demo', () => {
@@ -39,8 +40,14 @@ describe('the demo', () => {
       next: 'On your team, Ann hears it at once, and a developer ships the change once the checks pass.',
       note: 'Sample data, nothing is sent.',
     });
-    expect(demoApproved(null).next).toMatch(/^On your team, The teammate who asked hears it/);
+    expect(demoApproved(null).next).toMatch(/^On your team, the teammate who asked hears it/);
     for (const t of Object.values(demoApproved('Ann'))) expect(t).not.toMatch(/\u2014|merge|pull request/);
+  });
+
+  it('says who checks the code next when the change still needs it (the Review rules)', () => {
+    expect(demoApproved('Ann Lee', 'Malik').next).toBe('On your team, Ann hears it at once. Malik checks the code next, then it ships once the checks pass.');
+    expect(demoApproved('Ann', null).next).toBe('On your team, Ann hears it at once, and a developer ships the change once the checks pass.');
+    for (const t of Object.values(demoApproved('Ann', 'Malik'))) expect(t).not.toMatch(/\u2014|merge|pull request/);
   });
 
   it("never calls Bridge's own design system the demo", () => {
@@ -208,7 +215,40 @@ describe('drafts on the sample team', () => {
   });
 });
 
+describe('approvals on the sample team follow its Review rules', () => {
+  it('names the members who check the code', () => {
+    expect(sampleCodeReviewers(sampleTeam())).toBe('Malik');
+    expect(sampleCodeReviewers({ members: [{ name: 'Dana', reviews: ['tech'], you: true }, { name: 'Malik', reviews: ['tech'] }, { name: 'Kim', reviews: ['tech'] }] })).toBe('Malik or Kim');
+    expect(sampleCodeReviewers({ members: [] })).toBeNull();
+  });
+
+  it('the code row waits for Malik, never covered by the visitor, and never carries their action', () => {
+    const rows = [
+      { role: 'design', state: 'waiting', text: 'Waiting for you', canAct: true },
+      { role: 'tech', state: 'waiting', text: 'Covered by your approval', canAct: false },
+    ];
+    expect(sampleApprovalRows(rows, (r) => r.role === 'tech', 'Malik')).toEqual([rows[0], { role: 'tech', state: 'waiting', text: 'Waiting for Malik', canAct: false }]);
+    // The visitor holds the code role on the repository too: on the sample team it is still Malik's.
+    expect(sampleApprovalRows([{ role: 'tech', state: 'waiting', text: 'Waiting for you', canAct: true }], (r) => r.role === 'tech', 'Malik')[0]).toMatchObject({ text: 'Waiting for Malik', canAct: false });
+    // An approved code row stays approved; a suggestion's row has no action.
+    const done = { role: 'tech', state: 'approved', text: 'Approved', canAct: false };
+    expect(sampleApprovalRows([done], (r) => r.role === 'tech', 'Malik')).toEqual([done]);
+    expect(sampleApprovalRows([{ label: 'Tech approval', state: 'waiting', text: 'Waiting for Dana' }], (r) => r.label === 'Tech approval', 'Malik')).toEqual([{ label: 'Tech approval', state: 'waiting', text: 'Waiting for Malik' }]);
+  });
+
+  it("never says the visitor's approval covers the code", () => {
+    const solo = soloOwnerSentence('peterbono', true);
+    expect(sampleTurnSentence(`Your turn: approve. ${solo}`, solo, 'Malik')).toBe('Your turn: approve. Malik checks the code next.');
+    expect(sampleTurnSentence(`Your turn: approve. ${solo}`, solo, null)).toBe('Your turn: approve.');
+    expect(sampleTurnSentence('Your turn: approve design.', solo, 'Malik')).toBe('Your turn: approve design.');
+  });
+});
+
 describe('samplePersonOf: people on the sample team', () => {
+  it('Sofia, who asks for work in the demo, is a member with her own face', () => {
+    expect(samplePersonOf('~sofia-reyes', sampleTeam())).toEqual({ login: '~sofia-reyes', name: 'Sofia' });
+  });
+
   it('a sample member reads as that member, by the login Members uses', () => {
     expect(samplePersonOf('~ann-leroy', sampleTeam())).toEqual({ login: '~ann-leroy', name: 'Ann' });
     expect(samplePersonOf('malik-haddad', sampleTeam())).toEqual({ login: '~malik-haddad', name: 'Malik' });
