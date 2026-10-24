@@ -2,7 +2,7 @@
   "version": 1,
   "sessionId": "a1s70y8e16utp2px",
   "createdAt": "2026-10-24T14:54:16.382Z",
-  "status": "pending",
+  "status": "drafted",
   "source": "figma",
   "items": [
     {
@@ -41,6 +41,22 @@
           "title": "Use color.bg.subtle for the fill"
         }
       ]
+    }
+  ],
+  "results": [
+    {
+      "id": "item-1",
+      "title": "Soften the neutral tag fill",
+      "summary": "subtle, so it reads lighter on dense tables. bg.",
+      "lines": [
+        {
+          "id": "2:4653",
+          "line": "Fill uses color.bg.subtle instead of tag.bg in neutral sm",
+          "title": "Use a lighter fill for neutral tags"
+        }
+      ],
+      "by": "claude",
+      "at": "2026-10-24T14:55:16.112Z"
     }
   ]
 }
