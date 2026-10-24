@@ -1,5 +1,70 @@
 # @bridge-ds/cli
 
+## 0.13.0
+
+### Minor Changes
+
+- 625a692: Try it works without online previews: when nothing reported a deployment for an exploration (explorations and library branches are not deployed on Vercel any more), the Figma plugin says a developer opens it on their computer, the share message gives `git fetch origin && git switch <branch>`, polling stops, and `bridge branch try` / bridge_try_branch return the same local command (`local`). New core helpers: noOnlinePreview, localTryCommand.
+
+### Patch Changes
+
+- ae25831: The bridge-data workflow template stops when the snapshot fails (pipefail), instead of publishing an empty bridge-data branch.
+- 3364ee9: Build requests in the CLI and the MCP server: `bridge build list|show` and `bridge_list_build_requests` /
+  `bridge_get_build_request` (read only, status read from GitHub, the brief for Claude). Branch status, merge and
+  "what needs me" read a push from the Figma plugin with the shared gate (design approved, token values ship by
+  themselves). Core: a spec-only or Claude draft branch from Figma never ships by itself.
+- 4fd6e15: CLI errors say how to recover: `propose` names `--file` and `--mode` (not the MCP fields) for a token defined in several files, and explains a missing or non-array `--edits` file instead of a JavaScript error; `audit --baseline` with a file that is not an audit report no longer prints "undefined"; `snapshot --activity` without a token says how to read GitHub without a stray write hint; `request show` on another issue points to `bridge request list`; bad JSON for `docs save` and `figma push` says what to pass.
+- e52619d: The bridge CLI never writes on GitHub with a credential you did not pass: writes (suggestions, requests, reviews, comments, merges, branches) use `GITHUB_TOKEN`, `BRIDGE_GITHUB_TOKEN` or `--token`, or your gh sign-in only with `--use-gh-auth`. Reads may still use the gh sign-in, say so in one line on stderr, and cannot write. `bridge branch merge --dry-run` needs no write token. A merge the gate blocks exits 1, not 2, and `bridge --help` documents the exit codes. CLI messages name commands and flags (`bridge branch merge 12 --override "why"`), never MCP tools or JSON fields, the rate-limit message says how to pass a token in the CLI, and suggestions, pull requests and docs proposals made from the CLI say "the bridge CLI" and "source: cli". `bridge_get_config`, the server instructions and its start line say what Bridge may write in the same sentence. `bridge docs help`, `bridge brand help` and `-v`/`-h` work, `bridge tokens` says when it shows only the best matches (`--limit`), `bridge diff` explains a bad git ref, `bridge coverage` counts the 53 components once and says what the other numbers are, `bridge audit --fix` keeps what the audit keeps (ignore comments, `--allowlist`, `audit.exclude`) and takes `--json`, and a Figma change drafted by Claude no longer says so twice.
+- 4fb54b4: Marking a Figma change drafted (`bridge_mark_figma_change_drafted`, `bridge figma drafted <n>`) now also marks its pull request ready for review, in the same step, through GitHub's `markPullRequestReadyForReview` mutation. Ready goes first: when GitHub refuses it, the labels and the description stay as they were and the error says why, so a branch is never labelled `drafted-by-claude` while reviewers cannot see it. `markFigmaChangeDraftedOnGitHub` returns `ready: true`.
+
+  The Bridge MCP server (and `bridge mcp`) uses your gh sign-in (`gh auth token`) when `GITHUB_TOKEN` and `BRIDGE_GITHUB_TOKEN` are not set, and says once at start where its token came from, or that it runs without one (read-only, 60 requests an hour) and how to fix that. It never logs the token. The other CLI commands keep their rule: writes use your gh sign-in only with `--use-gh-auth`.
+
+- 9be32eb: Figma references: one variant that fails to render no longer skips every variant after it. The reference story catches a render error and shows it as that variant's skip reason, and the capture reloads the story if Storybook still lands on its error screen. Parts of a compound component (AccordionItem, Radio, menu items, SidebarNavItem, TableEmpty) render inside their parent (`within` in the render plan) and are captured alone, at the width Figma draws them. Menu parts render the part itself instead of the Menu root, and a capture that comes out invisible is skipped with a reason instead of saved as a blank image.
+- 0b3aa07: One merge verdict everywhere: `branchVerdict` and `approvedSuggestionOnGitHub` in core compose the review rules once, and Studio, the MCP tools (`bridge_branch_status`, `bridge_merge_branch`, `bridge_what_needs_me`, `bridge_get_settings`) and the CLI (`bridge branch status|merge|list`, `bridge settings`) read them. Tier 1 needs one owner approval, the owner override is for owners only and always needs a reason (20 characters by default), and a pull request that applies an approved suggestion with `Closes #n` carries its approvals.
+- a9cbbab: The team snapshot now carries releases, packages and motion, so a team's hosted Library can show its Changelog, Install and motion sections. `bridge snapshot` reads each workspace package and its CHANGELOG.md, the pending changesets and the release dates (tags, or git history on a full clone), and core adds the motion section of every component from its specs. Schema version stays 1: older snapshots still read. Core also exports the Changelog model (collectReleases, groupReleases) and motionDocs, moved from the docs site.
+
+  For you: nothing to change. Add `fetch-depth: 0` to the checkout in bridge-data.yml if you want release dates without release tags.
+
+- 57f26bf: A branch updated after every changes request reads "Updated, look again" (core reviewStatusLabel, branchVerdict label) in Studio, the MCP server and the CLI, never a stale "Changes requested". The merge gate is unchanged. Studio's approval checklist says who looks again instead of "Failed".
+- e4c34ee: Measure controls drawn in CSS and keep long runs cheap and safe. The measure reads `::before` / `::after` that draw a box as parts (box, fill, border, radius, pin or cover, with their own declarations in the cascade), gives a grid a direction (flow, tracks, or where its children sit), writes inline SVG with every shape's fill and stroke and currentColor resolved (`vectors`, with strokes), keeps BEM element classes (`cds--toggle__switch`) whole, lays out a root that fills its container at 400 px (`fillWidth`) so the measure and the shot agree, flags gallery stories and orders single-instance stories first, and waits for DOM ready plus a short settle with animations paused. `--variants` varies only the args a story declares; without a Figma set it probes each one once and leaves out args with no visual effect (`variantPlan`), with at most 48 renders per component (each value, then pairs). The CLI stays on the story (links do not navigate), opens a fresh tab per component and after any failure, reads `--tokens` first, writes after each component with `--resume`, and runs `--check` only against a Figma side that belongs to the Storybook.
+- ce6a8c7: Measure as the referee: `bridge specs --measure` now opens popups (`--open`), measures parts inside a parent or portal (`--within`), reads tokens defined on provider elements, splits stories that render many instances, records the props each story rendered with, measures every variant (`--variants`, `--states`, hover and focus forced in Chrome, disabled as an arg) and gives each component a status (`--check`: Matches, Differs, or Can't check yet with the reason). Core pairs text layers by their words, and exports the measured-specs shapes, `parseMeasuredSpecsFile`, `pairParts`, `compareSpecToMeasured`, `mapPropsToFigma`, `planVariantMeasures` and `componentStatus` from the browser-safe entry.
+- fd0191c: `bridge specs --measure --tokens` harvests the library's variables: every CSS custom property its stylesheets define (root, provider and theme selectors), the declaration that applies where the story sits, resolved (colors as rgb, lengths in px), per theme, brand or density mode (Storybook globals, or a theme attribute such as `data-carbon-theme`), in two tiers (literal: primitive, `var()`: semantic, and semantic by value when a compiled theme writes a primitive's value per mode), with Figma variable paths and the properties the measured stories use. Written as `tokens` in measured-specs.json (`MeasuredTokens` in core).
+
+  `--shots` writes a PNG of each measured root at 2x (one per distinct render) to `measured-shots/` with a manifest keyed by Figma variant, and records `shot` on each story; the measured root part carries `fill` when it spans its container. `@bridge-ds/visual`'s `openMeasurePage` takes a `scale`.
+
+- 4d61987: Measure triage on the full library. The measure: forced states apply to the component and everything in it (a field's Hover is its control's hover), logical properties (`padding-block-start`) are read in the cascade, a declaration whose variable does not give the computed value is not taken as the token, visually hidden text is not a layer, and a component that draws nothing itself is not split into instances. Pairing reads every class of a part, prefers the part's own parent, keeps classless decorations and same-word texts in another role unpaired. The status compares a variant with the closest story that renders its props, names an arg a story refuses, checks sets drawn under a folder (Progress/Linear) and names the open popup Figma draws. `--variants` measures every story as written; parts with no story of their own (MenuItem, MenuSubmenu, AccordionItem) are measured inside their component as `<title>/<Set>` entries, and every measured component, popups and parts included, carries the token values its Figma sets name (`resolved`).
+- 44f49ff: `bridge specs --measure`: the set's root class is read from the spec source correctly (it read `module`), so items inside their group are measured alone; a forced Pressed state is also a hover, as a real press is; `--check` gives one status per component name, its own stories and its "Figma variants" stories together.
+- 07380d7: `bridge specs --measure` measures the item, not its group: when a story renders a set's component inside its parent (a radio in its fieldset, a menu item in its open menu), the measure reads the element with the Figma set's root class, opening the popup if needed. A Figma `Checked=mixed` value maps to the `indeterminate` prop (`mapPropsToFigma` `also`, `variantCombosFromMapping`), so `--variants` measures it and `--check` compares it.
+- b822435: A merged or closed branch reads as done everywhere: the merge gate gives its state as the one reason and lists no missing approval; `bridge branch status` prints "Merged." and who approved, without approvals, tests or blockers.
+- 4aa0cd7: Storybook measure: `bridge specs --measure --storybook <url>` opens each story in Chrome and records what it really draws (layers, boxes, auto layout, fills, borders, radii, text styles, and the token behind each value), in the component specs shape. Works on any React Storybook, whatever the styling. Core adds `measureStory`, `measuredToSpec` and `compareSpecToMeasured` under `@bridge-ds/core/node`; visual exports `openMeasurePage`. The Figma pull does not read it yet.
+- d8e5e84: Token values follow the Figma rule wherever they are made (decision TV-1): a pull request or a suggestion that only
+  changes token values (values changed or tokens added, nothing renamed or removed, no code) needs the design approval
+  only. Once it is in, the tech approval counts as given and the change ships after the automatic checks
+  (`isTokenValueChange`, `mayBeTokenValueChange`, `withTokenValueApprovals`, `branchVerdict` `tokenValues`,
+  `suggestionIsTokenValues`, `summarizeSuggestionApprovals` `valuesOnly`, `requiredApprovals(tier, valuesOnly)`).
+  Renames and removals still need a developer OK. Studio, the MCP server and the CLI read the same verdict
+  (`bridge_branch_status` says "Design approval (token values ship after the checks)").
+- Updated dependencies [7eb8a27]
+- Updated dependencies [3364ee9]
+- Updated dependencies [e52619d]
+- Updated dependencies [ea27992]
+- Updated dependencies [4fb54b4]
+- Updated dependencies [02d38ad]
+- Updated dependencies [9be32eb]
+- Updated dependencies [0b3aa07]
+- Updated dependencies [1635400]
+- Updated dependencies [57f26bf]
+- Updated dependencies [0b415fd]
+- Updated dependencies [fd0191c]
+- Updated dependencies [b822435]
+- Updated dependencies [2b01116]
+- Updated dependencies [4aa0cd7]
+- Updated dependencies [80ee954]
+- Updated dependencies [d8e5e84]
+- Updated dependencies [625a692]
+  - @bridge-ds/mcp@0.9.0
+  - @bridge-ds/visual@0.3.13
+
 ## 0.12.0
 
 ### Minor Changes

@@ -1,5 +1,93 @@
 # @bridge-ds/docs-site
 
+## 0.21.0
+
+### Minor Changes
+
+- b372de6: The demo for visitors, as the approved boards show it (D1, D1b, D2). A "Demo workspace" banner over every Studio page says the data is read-only sample data, with "See it on GitHub" and "Use your own repo" (it opens "Create a new team"). Studio home is the signed-in home from the DS lead's seat: "Good evening, Dana.", "8 changes need your review. Ann and Claude AI are waiting on Dana, who leads this design system.", the Needs you rows with their Review buttons, the grouped row with "Review all (N)", the library health line and "Explorations and branches". A three-step tour runs on the first visit. Every action that would change the demo (Create branch, New brand, Send suggestion, Approve, Start an exploration...) opens "Sign in with GitHub to do this for real." The demo is one list (lib/demo.ts DEMO_REPOS), and its activity is read through one function (scripts/demo-home.ts readDemoActivity) so a published activity snapshot can replace the GitHub reads. Owners with write access keep the normal Studio. The Studio side nav's ground now runs the full height of long pages.
+- 080008c: Invite collaborators: a dialog from the team menu and Settings that takes several work emails, a role picker (Can view, Can edit, Reviewer as Designer or Developer, Admin) and lists who has access with Resend. Settings > Members lists the team with a role and a More menu per person for admins (Make admin, Remove from team with a confirm step), and as read only text for everyone else. The sample team shows its sample people and opens the demo dialog on every change; a site without invites set up says so and sends nothing. New page /studio/invite/ where the invitation email leads.
+- c399625: Invites, hardened. Only the invited person can accept: the GitHub account must have the invited email, verified (the GitHub Apps need the account permission "Email addresses: Read-only"; people signed in before sign in again). Otherwise nothing is granted, the invite stays valid, and the invite page says which address it was sent to, masked ("m•••@acme.design"), and how to fix it. Daily caps per admin (20), per team (40) and for the whole site (80), overridable with INVITES_MAX_PER_ADMIN_DAY, INVITES_MAX_PER_TEAM_DAY and INVITES_MAX_SITE_DAY, plus a 10 minute pause and 3 resends a day per invite: over a cap the server answers 429 and Studio says "You reached today's invite limit. Try again tomorrow." Each invite record now expires in Redis with the invite and is deleted on accept and cancel.
+- 81ef880: Invites by email, the server side: `/api/invites` keeps pending invites (email, role, team, who invited, expiry, only a hash of the link token) in an Upstash Redis store, emails a one-time link through Resend, and once the invitee signs in with GitHub gives their account access with the role's permission (Can view: read, Can edit: write, Reviewer: write plus a pull request listing them as design or tech owner, Admin: admin) using the Bridge Direct app's installation token. Admins change roles, remove people, resend and cancel invites; every call re-checks the caller on GitHub. Without storage, email or the app configured, it answers "Invites are not available yet on this site." Setup in docs/HOSTED.md.
+- 0d1d8bb: Library access, server: /api/library-access stores who reads each team's Library (Anyone with the link, Anyone with a work email at listed domains, Only the team; admins only, checked on GitHub), emails readers a one-time sign-in link (15 minutes, only its hash kept, exact domain match, consumer domains refused), and opens a signed httpOnly session cookie for that team's Library (30 days, ended at once when the setting changes). Private Libraries are served from their published snapshot with a read-only app token after the session check; public ones keep 0 GitHub API calls. Daily caps per email, network, team and site. New env: LIBRARY_SESSION_SECRET (docs/HOSTED.md). Invites now offer contributor roles only: the server refuses Can view for new invites and role changes; existing ones keep it.
+- 92f35f8: Library access, Studio and Library: Settings has a Library access band (who reads the library: Anyone with the link, Anyone with a work email at your domains, Only the team; admins change it, everyone else reads it) with Copy library link to share it with the company. A team Library that asks for a work email shows a calm gate: enter your email, Check your inbox, a wrong domain said on the field ("This library is open to @acme.design emails. Ask your design system team for access."), an expired link, or not available yet on this site; Only the team asks to sign in from Studio. Private Libraries open from the snapshot this site serves after the check. The sample team shows "Anyone with a work email at acme.design" and Save opens the demo dialog, with no call. Invites and Members offer contributor roles only (Can edit, Reviewer, Admin); someone who already has Can view still shows it and can be moved to a contributor role.
+
+### Patch Changes
+
+- 3bf221d: How Bridge compares: three marks (does it, does part of it, does not) instead of two, with the reason for each half mark in a tooltip and on /compare/. Cells re-checked against public docs (October 2026): Figma Make, Figma branch review, Tokens Studio branch reviews and more now get the credit they are due. The homepage table and /compare/ share one data source.
+- 0b415fd: MCP server: the README lists every tool, generated from the server (`npm run readme:tools -w @bridge-ds/mcp`), and a test fails when they disagree. `bridge_plan_revert` lists 50 edits, conflicts and changes at a time with the totals (`limit`, `offset`) and cuts a very long PR body; `bridge_draft_docs` returns its prompt in pages (`page`) with a summary first. The docs draft lists only the contrast pairs the component takes part in (both sides among the tokens it reads, aliases followed), not every pair that shares a surface with it. `/llms.txt` no longer links the missing `/foundations/` page and links `/tokens.css` and each component's `/docs-ai/<component>.json`.
+- Updated dependencies [fbf7f55]
+- Updated dependencies [7eb8a27]
+- Updated dependencies [aaac948]
+- Updated dependencies [29162d9]
+- Updated dependencies [efb3281]
+- Updated dependencies [3364ee9]
+- Updated dependencies [d89f7b7]
+- Updated dependencies [57b8d89]
+- Updated dependencies [3ed1ee5]
+- Updated dependencies [4fd6e15]
+- Updated dependencies [e52619d]
+- Updated dependencies [64d3e8b]
+- Updated dependencies [9044d1a]
+- Updated dependencies [48ee872]
+- Updated dependencies [af6e3e9]
+- Updated dependencies [ea27992]
+- Updated dependencies [e65d3ee]
+- Updated dependencies [4fb54b4]
+- Updated dependencies [e1d05e0]
+- Updated dependencies [f5cfbf0]
+- Updated dependencies [02d38ad]
+- Updated dependencies [8919183]
+- Updated dependencies [7b9e2c2]
+- Updated dependencies [7c52639]
+- Updated dependencies [eb4ace6]
+- Updated dependencies [0ed940f]
+- Updated dependencies [9be32eb]
+- Updated dependencies [e075f3b]
+- Updated dependencies [fe906a6]
+- Updated dependencies [a83618b]
+- Updated dependencies [788b3f8]
+- Updated dependencies [7f6064b]
+- Updated dependencies [0b3aa07]
+- Updated dependencies [9d0dc16]
+- Updated dependencies [a9cbbab]
+- Updated dependencies [1635400]
+- Updated dependencies [57f26bf]
+- Updated dependencies [30e8c14]
+- Updated dependencies [43b6e31]
+- Updated dependencies [e4c34ee]
+- Updated dependencies [ce6a8c7]
+- Updated dependencies [fd0191c]
+- Updated dependencies [4d61987]
+- Updated dependencies [44f49ff]
+- Updated dependencies [07380d7]
+- Updated dependencies [ff50cd9]
+- Updated dependencies [1c5563b]
+- Updated dependencies [b822435]
+- Updated dependencies [8fa49c7]
+- Updated dependencies [d199eb5]
+- Updated dependencies [96acdf2]
+- Updated dependencies [d157472]
+- Updated dependencies [eb4d6ce]
+- Updated dependencies [8403d3d]
+- Updated dependencies [f198e92]
+- Updated dependencies [2b01116]
+- Updated dependencies [c46846d]
+- Updated dependencies [efa01d6]
+- Updated dependencies [d8848ff]
+- Updated dependencies [7f9930c]
+- Updated dependencies [9ec466a]
+- Updated dependencies [d8c7494]
+- Updated dependencies [5309e2e]
+- Updated dependencies [4aa0cd7]
+- Updated dependencies [80ee954]
+- Updated dependencies [df92fcf]
+- Updated dependencies [d8e5e84]
+- Updated dependencies [fe5fb1b]
+- Updated dependencies [2d89e58]
+- Updated dependencies [625a692]
+  - @bridge-ds/core@0.19.0
+  - @bridge-ds/react@1.8.0
+
 ## 0.20.1
 
 ### Patch Changes
