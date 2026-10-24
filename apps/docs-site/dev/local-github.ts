@@ -36,13 +36,15 @@ export interface Fixture {
    * the GitHub personas (dana, malik) are its owners, so the change lifecycle runs with no GitHub.
    */
   writable?: boolean;
+  /** Its bridge.config.json says `"changes": "suggest"`: members send suggestions (issues) instead of branches. */
+  suggest?: boolean;
 }
 
 export async function putFixture(redis: Redis, f: Fixture): Promise<void> {
   const repo = f.repo.trim().toLowerCase();
   await redis.pipe([
     ['SADD', FIXTURES_KEY, repo],
-    ['SET', fixtureKey(repo), JSON.stringify({ repo, name: f.name, ...(f.builds ? { builds: true } : {}), ...(f.writable ? { writable: true } : {}) })],
+    ['SET', fixtureKey(repo), JSON.stringify({ repo, name: f.name, ...(f.builds ? { builds: true } : {}), ...(f.writable ? { writable: true } : {}), ...(f.suggest ? { suggest: true } : {}) })],
   ]);
 }
 
@@ -128,6 +130,7 @@ function configFor(source: Buffer | null, f: Fixture): Buffer | null {
       const g = (c.governance ?? {}) as Record<string, any>;
       c.governance = { ...g, owners: { design: ['dana'], tech: ['malik'] }, soloOwnerCanApproveBoth: false, override: { ...(g.override ?? {}), allowed: ['malik'] } };
     }
+    if (f.suggest) c.changes = 'suggest';
     return Buffer.from(`${JSON.stringify(c, null, 2)}\n`);
   } catch {
     return source;

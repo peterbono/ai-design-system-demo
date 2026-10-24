@@ -688,13 +688,13 @@ are in your shell or `.env.local`, so it cannot touch the real site's data or se
 session secret the first time. It refuses to start when `NODE_ENV=production` or on Vercel, and nothing of it is part
 of the build.
 
-**Scenarios.** `npm run dev:scenario <name>` (`S0` to `S20`, a number or a slug; `npm run dev:scenario list` lists
+**Scenarios.** `npm run dev:scenario <name>` (`S0` to `S21`, a number or a slug; `npm run dev:scenario list` lists
 them) clears local accounts, teams, codes and the outbox, writes one situation with the same storage functions the
 functions use, and prints who to sign in as and what each person should see: a work domain with one or five teams
 open to it, a closed team, invites (valid, expired, sent to another email, reviewer and admin), members of one or
 three teams, admins with 0, 1 and 4 join requests, a pending request, a request and an invite for the same team, the
 last admin, sign-in code edge cases, a team made in Bridge with no repository yet (S17) and an email admin without
-GitHub (S18), build requests in every status for Being built (S19) and a writable team for the change lifecycle (S20) (`dev/scenarios.ts`). It works while the server runs. The "recent team" of
+GitHub (S18), build requests in every status for Being built (S19) , a writable team for the change lifecycle (S20) and the same in suggest mode (S21) (`dev/scenarios.ts`). It works while the server runs. The "recent team" of
 someone on several teams lives in the browser: set it in the page console with
 `localStorage.setItem("bridge.recentTeams", JSON.stringify(["lumen/mobile-kit"]))`, or clear it to get the picker.
 
