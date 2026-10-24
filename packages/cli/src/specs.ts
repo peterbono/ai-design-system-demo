@@ -514,13 +514,27 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
           const baseSig = sig(entry.spec);
           const ignored: Record<string, string> = {};
           const axes: [string, (string | boolean)[]][] = [];
+          const probe = async (k: string, v: string | boolean) => {
+            const mp = await measureStory(browser.page, base, p.id, { ...cmo, args: { [k]: v } });
+            if (mp.props && mp.props.args[k] !== v) return 'not taken' as const;
+            return mp.root ? sig(storyEntry(p, mp, tokenOf, {}, cls).spec) : null;
+          };
           for (const [k, at] of candidates) {
             const cur = props.props[k];
-            const values: (string | boolean)[] = at.kind === 'boolean' ? [cur === true, cur !== true] : [String(cur ?? at.default ?? at.options![0]), ...at.options!.filter((x) => x !== String(cur ?? at.default ?? at.options![0]))];
             try {
-              const mp = await measureStory(browser.page, base, p.id, { ...cmo, args: { [k]: values[1]! } });
-              if (mp.props && mp.props.args[k] !== values[1]) ignored[k] = 'not taken';
-              else if (!mp.root || sig(storyEntry(p, mp, tokenOf, {}, cls).spec) === baseSig) ignored[k] = 'no visual effect';
+              if (at.kind === 'boolean') {
+                // Both values, compared with each other: the story may render the non-default one (a toggle shown on).
+                const [off, on] = [await probe(k, false), await probe(k, true)];
+                if (off === 'not taken' || on === 'not taken') ignored[k] = 'not taken';
+                else if (off === null || on === null || off === on) ignored[k] = 'no visual effect';
+                else axes.push([k, [cur === true, cur !== true]]);
+                continue;
+              }
+              const first = String(cur ?? at.default ?? at.options![0]);
+              const values: (string | boolean)[] = [first, ...at.options!.filter((x) => x !== first)];
+              const alt = await probe(k, values[1]!);
+              if (alt === 'not taken') ignored[k] = 'not taken';
+              else if (alt === null || alt === baseSig) ignored[k] = 'no visual effect';
               else axes.push([k, values]);
             } catch {
               ignored[k] = 'not taken';
