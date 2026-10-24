@@ -513,6 +513,21 @@ function setupFrame(node: Box, part: SpecPart, layout?: SpecLayout, sized = true
  * its auto layout parent already. A text that fills the width wraps: fixed width, height grows.
  */
 /**
+ * An auto layout frame with nothing inside that hugs keeps the 100px a new frame starts with (a vertical Divider was
+ * 1x100 for 1x16 in code). With no size of its own on an axis, it takes its minimum there, as CSS draws an empty box.
+ */
+function emptyAtMinimum(node: SceneNode, fields: readonly PlannedField[]): void {
+  if (!('layoutMode' in node) || node.layoutMode === 'NONE') return;
+  const has = (f: SpecField) => fields.some((x) => x.field === f);
+  const h = !has('height') && typeof node.minHeight === 'number' && node.minHeight > 0 ? node.minHeight : undefined;
+  const w = !has('width') && typeof node.minWidth === 'number' && node.minWidth > 0 ? node.minWidth : undefined;
+  if (h === undefined && w === undefined) return;
+  node.resize(w ?? node.width, h ?? node.height);
+  if (h !== undefined) node.layoutSizingVertical = 'FIXED';
+  if (w !== undefined) node.layoutSizingHorizontal = 'FIXED';
+}
+
+/**
  * Back in its parent's auto layout. A layer the last pull pinned or laid over its parent is absolute, and Figma refuses
  * to make an absolute layer fill: it is sized in the layout first, then pinned again after placing.
  */
@@ -686,6 +701,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
       }
     }
     for (const f of fields) apply(node, f, ctx);
+    if (part.kind === 'frame' && !comp.parts.some((c) => c.parent === part.id)) emptyAtMinimum(node, fields);
     try {
       sizeInParent(node, parentPart, definite.has(part.parent ?? ''), tall.has(part.parent ?? ''), fields.some((f) => f.field === 'height'));
     } catch (err) {
