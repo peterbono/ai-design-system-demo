@@ -73,8 +73,8 @@ export type OpenPage = (o?: { scale?: number }) => Promise<{ page: MeasurePageLi
 
 const defaultOpen: OpenPage = async (oo = {}) => {
   const { openMeasurePage } = await import('@bridge-ds/visual');
-  const opened = await openMeasurePage(oo.scale ? { scale: oo.scale } : {});
-  const ctx = opened.page.context();
+  let opened = await openMeasurePage(oo.scale ? { scale: oo.scale } : {});
+  let ctx = opened.page.context();
   let page = opened.page;
   // Stay on the story: a link in a story (href="#", an overflow menu's items) must not navigate the page away and
   // destroy the measure's context. Navigations away from iframe.html are aborted; clicks on links do not follow.
@@ -100,7 +100,15 @@ const defaultOpen: OpenPage = async (oo = {}) => {
   // A fresh tab: one story that hangs or navigates away never spreads to the next (one tab open at a time).
   const reset = async () => {
     const old = page;
-    page = await ctx.newPage();
+    try {
+      page = await ctx.newPage();
+    } catch {
+      // The browser itself went away (crashed, out of memory): launch it again and carry on.
+      await opened.close().catch(() => undefined);
+      opened = await openMeasurePage(oo.scale ? { scale: oo.scale } : {});
+      ctx = opened.page.context();
+      page = opened.page;
+    }
     cdp = undefined;
     await guard(page);
     await old.close().catch(() => undefined);
@@ -128,7 +136,7 @@ const defaultOpen: OpenPage = async (oo = {}) => {
         return { width: Math.round(box.width * 100) / 100, height: Math.round(box.height * 100) / 100 };
       },
     },
-    close: opened.close,
+    close: () => opened.close(),
     reset,
   };
 };
@@ -577,7 +585,8 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
             combos = bounded.combos;
             if (comp) comp.variantPlan = { axes: axes.map(([k]) => k), ...(Object.keys(ignored).length ? { ignored } : {}), combos: combos.length, ...(bounded.capped ? { capped: true } : {}) };
           }
-          const plan = planVariantMeasures(props.argTypes, { states: stateList, max: 1000, ...(combos && combos.some((c) => Object.keys(c).length) ? { combos } : {}) });
+          // The combinations decided above, even when none is left (the states only): never back to every enum crossed.
+          const plan = planVariantMeasures(props.argTypes, { states: stateList, max: 1000, ...(combos ? { combos: combos.length ? combos : [{}] } : {}) });
           for (const v of plan) {
             const label = Object.entries(v.overrides).map(([k, x]) => `${k}=${x}`).join(', ') + (v.state ? ` :${v.state}` : '');
             if (!label) continue; // the story as written is already measured
