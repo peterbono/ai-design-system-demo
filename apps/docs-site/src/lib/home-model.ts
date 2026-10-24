@@ -40,6 +40,12 @@ export interface Person {
   agent?: boolean;
 }
 
+/**
+ * The separator between two parts of a status line (" · "), glued to what comes before it by a no-break space: when
+ * the line wraps, the dot ends the first line and never starts the next.
+ */
+export const SEP = '\u00a0· ';
+
 export const CLAUDE: Person = { login: 'claude', name: 'Claude AI', avatar: null, agent: true };
 
 /** Articles a profile name may start with ("The Octocat", "La Poste"): never a first name on their own. */

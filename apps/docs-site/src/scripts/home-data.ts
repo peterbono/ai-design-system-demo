@@ -16,6 +16,7 @@ import { isDraft } from '../lib/review-rules';
 import { byUrgency, statusPill } from '../lib/changes';
 import { isReviewTask, waitingOn } from '../lib/waiting-on';
 import { analyzeTokenFiles, isTokenFile } from './reviews/token-review';
+import type { ChangedFile } from '../lib/blob-batch';
 import { manifestPublished } from './reviews/visual-impact';
 import { visualBase, visualState, type VisualManifest } from '../lib/visual-impact';
 import { branchThumb, type ThumbInput, type ThumbSpec } from '../lib/branch-thumb';
@@ -112,20 +113,25 @@ async function visualTop(n: number, sha: string): Promise<ThumbInput['visual']> 
   }
 }
 
-const fileLists = new Map<string, Promise<string[] | null>>();
+const fileLists = new Map<string, Promise<ChangedFile[] | null>>();
 
-/** The files a branch changes (first 100), read once per head commit; null when GitHub cannot be read. */
-export function filesOf(n: number, sha: string): Promise<string[] | null> {
+/** The files a branch changes (first 100) as GitHub lists them, with their blob shas, read once per head commit. */
+function changedFilesOf(n: number, sha: string): Promise<ChangedFile[] | null> {
   const key = `${n}@${sha}`;
   let f = fileLists.get(key);
   if (!f) {
     const { owner, repo } = readRepo();
-    f = ghGet<{ filename: string }[]>(`/repos/${owner}/${repo}/pulls/${n}/files?per_page=100`)
-      .then((r) => r.data.map((x) => x.filename))
+    f = ghGet<ChangedFile[]>(`/repos/${owner}/${repo}/pulls/${n}/files?per_page=100`)
+      .then((r) => r.data)
       .catch(() => null);
     fileLists.set(key, f);
   }
   return f;
+}
+
+/** The files a branch changes (first 100), read once per head commit; null when GitHub cannot be read. */
+export function filesOf(n: number, sha: string): Promise<string[] | null> {
+  return changedFilesOf(n, sha).then((list) => list?.map((x) => x.filename) ?? null);
 }
 
 /** The before/after of a branch, read once per head commit. */
@@ -135,11 +141,13 @@ export function thumbOf(p: Pick<HomePull, 'number' | 'head' | 'base'>, guidance:
   if (!t) {
     const { owner, repo } = readRepo();
     t = (async () => {
-      const files = await filesOf(p.number, p.head.sha);
-      if (!files) return branchThumb({ guidance });
+      const changed = await changedFilesOf(p.number, p.head.sha);
+      if (!changed) return branchThumb({ guidance });
+      const files = changed.map((x) => x.filename);
       const tokenFiles = files.filter(isTokenFile);
       if (tokenFiles.length) {
-        const review = await analyzeTokenFiles({ owner, repo, baseSha: p.base.sha, headSha: p.head.sha, files: tokenFiles.map((filename) => ({ filename })) }).catch(() => null);
+        // The change's own file list stands for its head (no head tree read), and every card's blobs share one batch.
+        const review = await analyzeTokenFiles({ owner, repo, baseSha: p.base.sha, headSha: p.head.sha, files: tokenFiles.map((filename) => ({ filename })), changed }).catch(() => null);
         return branchThumb({ files, tokens: review?.changes ?? null, guidance, theme: theme() });
       }
       const visual = files.some((f) => f.startsWith('packages/react/src/')) ? await visualTop(p.number, p.head.sha) : null;

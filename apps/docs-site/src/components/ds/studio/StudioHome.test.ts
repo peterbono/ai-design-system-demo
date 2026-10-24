@@ -5,10 +5,11 @@ import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
 import { render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { expectNoAxeViolations } from '../../../../../../packages/react/src/test/axe';
 import { StudioHome, type StudioHomeProps } from './StudioHome';
-import { changeNeed, joinNeed, person, type BranchCard } from '../../../lib/home-model';
+import { changeNeed, joinNeed, person, SEP, type BranchCard } from '../../../lib/home-model';
+import { NARROW_TOUR, tourPlacement } from './HomeTour';
 
 const NOW = Date.parse('2026-10-22T10:00:00Z');
 const dana = person('dana', 'Dana Kim', null);
@@ -121,5 +122,54 @@ describe('StudioHome, lead (a reviewer, or an admin, an email admin included)', 
     render(createElement(StudioHome, props({ contributor: false, lead: true })));
     expect(await screen.findByText('Work in progress stays apart')).toBeTruthy();
     expect(screen.queryByText(/until a reviewer approves them/)).toBeNull();
+  });
+});
+
+describe('StudioHome, the tour on a phone', () => {
+  const phone = (matches: boolean) => {
+    window.matchMedia = ((q: string) => ({ matches: matches && q === NARROW_TOUR, media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
+  };
+  afterEach(() => {
+    delete (window as { matchMedia?: unknown }).matchMedia;
+  });
+
+  it('places a step in the page flow on a narrow screen, a popover otherwise', () => {
+    expect(tourPlacement(true)).toBe('inline');
+    expect(tourPlacement(false)).toBe('popover');
+  });
+
+  it('shows the step as a card between the heading and the cards: it covers no card', async () => {
+    phone(true);
+    const { container } = render(createElement(StudioHome, props()));
+    const step = await screen.findByRole('group', { name: 'Your changes' });
+    expect(step.hasAttribute('data-tour-inline')).toBe(true);
+    // In the section, right before the cards, never floating over them.
+    expect(step.nextElementSibling?.classList.contains('sh-cards')).toBe(true);
+    expect(screen.getByText('1 of 2')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeTruthy();
+    await expectNoAxeViolations(container);
+  });
+
+  it('keeps the popover on a wide screen', async () => {
+    phone(false);
+    render(createElement(StudioHome, props()));
+    expect(await screen.findByText(/until a reviewer approves them/)).toBeTruthy();
+    expect(document.querySelector('[data-tour-inline]')).toBeNull();
+  });
+});
+
+describe('StudioHome, status lines', () => {
+  it('never starts a wrapped line with the separator: the dot is glued to what comes before it', () => {
+    localStorage.setItem('bridge.home.contributor-tour', 'done');
+    const card: BranchCard = { ...branch, stage: 'draft' };
+    const { container } = render(createElement(StudioHome, props({ branches: [card] })));
+    const status = container.querySelector('.sh-card-status')!;
+    // Each part wraps on its own; the first part ends with " ·", no part starts with the dot.
+    const parts = [...status.children].map((c) => c.textContent ?? '');
+    expect(parts[0]).toMatch(/ ·$/);
+    for (const p of parts) expect(p.trimStart().startsWith('·')).toBe(false);
+    expect(SEP).toBe(' · ');
+    // No breakable space before a dot anywhere on the home.
+    expect(container.textContent).not.toMatch(/ ·/);
   });
 });

@@ -26,6 +26,7 @@ import {
   type ContributorTourAt,
   BRANCH_FILTERS,
   branchStatus,
+  SEP,
   hintSnoozed,
   oldestLabel,
   onlyReviewerLine,
@@ -138,7 +139,12 @@ function Needs({ needs, now, snoozed, demo, tour, join }: { needs: NeedRow[]; no
         <div className="sh-more">
           <p className="t-body sh-more-text">
             <b className="sh-strong">{more.label}</b>
-            {more.parts && <span className="t-muted"> · {more.parts}</span>}
+            {more.parts && (
+              <span className="t-muted">
+                {SEP}
+                {more.parts}
+              </span>
+            )}
           </p>
           {/* Always the Review page: the one queue, the same rows as this list (the demo lead's included). */}
           <ButtonLink variant="primary" href={studioHref('review/')} className="sh-more-btn">
@@ -165,13 +171,17 @@ function BranchCardItem({ b, now }: { b: BranchCard; now: number }) {
             </Link>
           </span>
           <span className="t-ui t-muted sh-card-status">
-            <span className="sh-card-stage">{s.stage}</span> ·{' '}
+            {/* Each part is its own wrapping item and the dot rides with the stage: a wrap never starts a line on it. */}
+            <span>
+              <span className="sh-card-stage">{s.stage}</span>
+              {SEP.trimEnd()}
+            </span>
             {b.stage === 'ready' && b.reviewer && !b.status && !b.statusLine ? (
               <>
-                <Who p={b.reviewer} size="xs" /> {s.detail}
+                <Who p={b.reviewer} size="xs" /> <span>{s.detail}</span>
               </>
             ) : (
-              s.detail
+              <span>{s.detail}</span>
             )}
           </span>
         </div>

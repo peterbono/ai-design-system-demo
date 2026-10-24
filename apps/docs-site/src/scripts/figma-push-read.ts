@@ -3,10 +3,14 @@
 // counts as design-approved, token values only also as tech-approved) and whether it only changes token values (core
 // isTokenValueChange, decision TV-1: the design approval is then all it needs, whoever opened it). Reads its files
 // (when not read yet) and the before and after text of its token files, from raw.githubusercontent.com (no API
-// budget), only when the answer depends on them. Unreadable token files leave the changes unknown: the change then
+// budget), only when the answer depends on them. An email member reads those texts by blob sha in Bridge's batch
+// (scripts/blob-reads.ts), shared with the home's token cards of the same changes. Unreadable token files leave the changes unknown: the change then
 // waits for a developer, never ships by mistake.
 import { figmaPushOf, isFigmaPush, isTokenValueChange, mayBeTokenValueChange, tokenFileChanges, type FigmaPush, type LabelLike } from '@bridge-ds/core';
-import { ghGet, readRepo } from './github-session';
+import { isContribAuth } from '../lib/contribute';
+import { SHA40 } from '../lib/blob-batch';
+import { blobText, treeAt } from './blob-reads';
+import { getToken, ghGet, readRepo } from './github-session';
 
 const isTokenFile = (path: string) => path.endsWith('.tokens.json');
 
@@ -27,7 +31,7 @@ async function rawAt(ref: string, path: string): Promise<string | null> {
   }
 }
 
-type Files = { filename: string; status?: string }[];
+type Files = { filename: string; status?: string; sha?: string | null }[];
 type Changes = ReturnType<typeof tokenFileChanges> | null;
 
 const filesCache = new Map<string, Promise<Files>>();
@@ -59,6 +63,19 @@ function tokenChangesOf(pull: PushPull, files: Files): Promise<Changes> {
   return p;
 }
 
+/**
+ * A token file's text before and after: by blob sha for an email member (the after's blob is in the file list, the
+ * before's in the base commit's tree, both read once per page), else from the raw host as before. null: not read.
+ */
+async function textsOf(pull: PushPull, before: string, f: Files[number]): Promise<{ b: string | null; a: string | null }> {
+  const { owner, repo } = readRepo();
+  const byBlob = isContribAuth(getToken());
+  const at = (ref: string, blob: string | null | undefined) => (byBlob && blob && SHA40.test(blob) ? blobText(owner, repo, ref, f.filename, blob).catch(() => null) : rawAt(ref, f.filename));
+  const baseBlob = byBlob && f.status !== 'added' && SHA40.test(before) ? await treeAt(owner, repo, before).then((t) => t.get(f.filename), () => undefined) : undefined;
+  const [b, a] = await Promise.all([f.status === 'added' ? null : at(before, baseBlob), f.status === 'removed' ? null : at(pull.head.sha, f.sha)]);
+  return { b, a };
+}
+
 async function readTokenChanges(pull: PushPull, files: Files): Promise<Changes> {
   const { defaultBranch } = readRepo();
   const before = pull.base?.sha ?? pull.base?.ref ?? defaultBranch;
@@ -67,8 +84,7 @@ async function readTokenChanges(pull: PushPull, files: Files): Promise<Changes> 
       files
         .filter((f) => isTokenFile(f.filename))
         .map(async (f) => {
-          const b = f.status === 'added' ? null : await rawAt(before, f.filename);
-          const a = f.status === 'removed' ? null : await rawAt(pull.head.sha, f.filename);
+          const { b, a } = await textsOf(pull, before, f);
           if ((f.status !== 'added' && b === null) || (f.status !== 'removed' && a === null)) throw new Error('unread');
           return { before: b, after: a };
         }),

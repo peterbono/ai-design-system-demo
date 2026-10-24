@@ -8,7 +8,7 @@
 import type { MouseEvent, ReactNode } from 'react';
 import { Badge, Card, CardBody, Link } from '@bridge-ds/react';
 import { BranchThumb } from './BranchThumb';
-import type { PillTone } from '../../../lib/home-model';
+import { SEP, type PillTone } from '../../../lib/home-model';
 import type { ThumbSpec } from '../../../lib/branch-thumb';
 
 const TONE = { warning: 'warning', danger: 'danger', success: 'success', neutral: 'neutral', info: 'info' } as const;
@@ -62,7 +62,12 @@ export function BranchRow({ thumb, who, title, href, onClick, linkAttributes, se
               <Link href={href} variant="subtle" className="t-body sh-row-title" title={line ? `${title} · ${line}` : title} data-card-primary onClick={onClick} aria-current={selected ? 'true' : undefined} {...linkAttributes}>
                 <span className="sh-strong">{title}</span>
                 {jira && <span className="t-ui t-muted sh-mono"> {jira}</span>}
-                {line && <span className="t-ui t-muted"> · {line}</span>}
+                {line && (
+                  <span className="t-ui t-muted">
+                    {SEP}
+                    {line}
+                  </span>
+                )}
               </Link>
               {detail && <span className="t-ui t-muted sh-row-detail">{detail}</span>}
             </span>
