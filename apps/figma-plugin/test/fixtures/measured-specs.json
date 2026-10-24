@@ -242,5 +242,15 @@
         }
       }
     }
+  ],
+  "components": [
+    {
+      "title": "Actions/Button",
+      "name": "Button",
+      "argTypes": {},
+      "resolved": {
+        "border-width.default": "1px"
+      }
+    }
   ]
 }
