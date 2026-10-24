@@ -7,7 +7,7 @@
 // Without a token the bar's primary connects GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
 import { figmaPushFor } from './figma-push-read';
-import { EXPLORATION_USE_CASES, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, canOverride, overrideReasonMin, ownerOverridePolicy, soloOwnerSentence, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
+import { EXPLORATION_USE_CASES, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, lookAgainReviewers, canOverride, overrideReasonMin, ownerOverridePolicy, soloOwnerSentence, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
 import { loadTeams, siteApprovalRules, siteApprovers, siteRoles, siteShipPolicy, siteSoloOwner, teamDirectory, teamSnapshot } from './teams';
 import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
@@ -244,7 +244,7 @@ function people(author: string, extra: Partial<People> = {}): People {
 }
 
 /** The facts of a row the who-acts rules read (pr-status rowWho, shared with the Home). */
-const facts = (r: Row) => ({ author: r.user.login, labels: r.labels, approvers: r.approvers, changesRequested: r.changesRequested, failing: r.failing, failingChecks: r.failingChecks, pending: r.pending, skipped: r.skipped, autoShip: r.autoShip });
+const facts = (r: Row) => ({ author: r.user.login, labels: r.labels, approvers: r.approvers, changesRequested: r.changesRequested, lookAgain: r.lookAgain, failing: r.failing, failingChecks: r.failingChecks, pending: r.pending, skipped: r.skipped, autoShip: r.autoShip });
 
 // ---------------------------------------------------------------------------------------------------------------
 // The Branches list (components/ds/studio/BranchesList): every open branch, the running explorations with them, and
@@ -281,6 +281,7 @@ interface Row {
   /** From the status read: who approved, who asked for changes, how many checks fail. */
   approvers?: string[];
   changesRequested?: string[];
+  lookAgain?: string[];
   failing?: number;
   /** The design approval is in, and the names of the failing checks: the waiting-for-code rule (lib/change-status). */
   design?: boolean;
@@ -543,7 +544,7 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
     const prior = r.kind;
     r.kind = st && st.kind === 'unknown' && prior ? prior : (st?.kind ?? (skipped ? (known.get(p.number) ?? null) : null));
     r.skipped = skipped && !r.kind;
-    if (st && st.kind !== 'unknown') Object.assign(r, { approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing, design: st.design, failingChecks: st.failingChecks, pending: st.pending, autoShip: st.autoShip });
+    if (st && st.kind !== 'unknown') Object.assign(r, { approvers: st.approvers, changesRequested: st.changesRequested, lookAgain: st.lookAgain, failing: st.failing, design: st.design, failingChecks: st.failingChecks, pending: st.pending, autoShip: st.autoShip });
     if (st?.tier) r.tier = st.tier;
     if (st?.files) {
       r.nature = natureOf(r.title, r.labels, st.files);
@@ -897,7 +898,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   // Who may use the owner override: the same rule as the Branches list (pr-status rowWho), so the list and the page
   // never disagree. The More menu item still needs the gate and write access (showOverride).
   const who = whoActs(
-    needFromDetail({ state: lifecycle, ci, gate, changesRequestedBy: approvals.changesRequested, exploration, mergeable: pull.mergeable, claude: claudeStage(pull.labels) }),
+    needFromDetail({ state: lifecycle, ci, gate, changesRequestedBy: approvals.changesRequested, lookAgain: lookAgainReviewers(reviews, pull.head.sha, pull.user.login), exploration, mergeable: pull.mergeable, claude: claudeStage(pull.labels) }),
     people(author, { viewer, approvers: approvals.approvers, canMerge: reviewer && gate.canShip, overridable: !seat && canOverride(login, HOLDERS()) }),
   );
   const viewerPeople = people(author, { viewer });

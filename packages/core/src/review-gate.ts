@@ -133,6 +133,8 @@ export interface ReviewLike {
   user: { login: string } | null;
   state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING' | string;
   submitted_at?: string | null;
+  /** The commit the review was given on (GitHub `commit_id`): tells whether the branch moved on since. */
+  commit_id?: string | null;
 }
 
 export interface ApprovalSummary {
@@ -190,6 +192,27 @@ export function summarizeApprovals(reviews: ReviewLike[], owners: { design: stri
     tech = a.length >= 2;
   }
   return { approvers, changesRequested, design, tech, owner };
+}
+
+/**
+ * The reviewers to look again: the author updated the branch after every changes request that still counts (the
+ * latest decisive review of each of those reviewers was given on a commit other than `headSha`). Then it is the
+ * reviewers' turn, not the author's, like GitHub's re-request but read from what happened (an email member cannot
+ * request reviewers). Empty while one request was given on the current head, or a review does not say its commit.
+ * The merge gate is unchanged: the changes request still blocks until that reviewer approves.
+ */
+export function lookAgainReviewers(reviews: ReviewLike[], headSha: string | null | undefined, author?: string): string[] {
+  if (!headSha) return [];
+  const latest = new Map<string, ReviewLike>();
+  const sorted = [...reviews].sort((a, b) => String(a.submitted_at ?? '').localeCompare(String(b.submitted_at ?? '')));
+  for (const r of sorted) {
+    const login = r.user?.login;
+    if (!login || login === author) continue;
+    if (r.state === 'APPROVED' || r.state === 'CHANGES_REQUESTED' || r.state === 'DISMISSED') latest.set(login, r);
+  }
+  const asked = [...latest.values()].filter((r) => r.state === 'CHANGES_REQUESTED');
+  if (!asked.length) return [];
+  return asked.every((r) => r.commit_id && r.commit_id !== headSha) ? asked.map((r) => r.user!.login) : [];
 }
 
 /**
