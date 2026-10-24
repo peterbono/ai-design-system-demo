@@ -180,6 +180,12 @@ describe('proof chips', () => {
     ]);
   });
 
+  it('names the theme of a brand and theme combo, never its key', () => {
+    const p = payload();
+    p.checks.contrast = p.checks.contrast.map((c) => ({ ...c, mode: 'brand=bridge,theme=light,density=comfortable' }));
+    expect(proofChips(p)[1]!.label).toBe('Contrast light');
+  });
+
   it('says what fails, and today wins over the checks recorded when suggested', () => {
     const p = payload();
     p.checks.contrast[1]!.pass = false;
