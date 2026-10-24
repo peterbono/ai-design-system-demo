@@ -11,8 +11,8 @@
 // component-specs.json (parts + per-part field values with token paths), plus the raw values and token evidence a
 // spec does not carry.
 
-import type { SpecField, SpecLayout, SpecPart, SpecValue } from '../component-spec';
-import { sharedTokenPrefix, tokenVariablePath, type MeasuredBox, type MeasuredMode, type MeasuredNode, type MeasuredProps, type MeasuredSpec, type MeasuredState, type MeasuredToken, type MeasuredTokenProperty, type MeasuredTokens } from '../measured-spec';
+import type { SpecField, SpecLayout, SpecValue } from '../component-spec';
+import { sharedTokenPrefix, tokenVariablePath, type MeasuredBox, type MeasuredMode, type MeasuredNode, type MeasuredPart, type MeasuredProps, type MeasuredSpec, type MeasuredState, type MeasuredToken, type MeasuredTokenProperty, type MeasuredTokens } from '../measured-spec';
 import { storybookIframeUrl, type StorybookIframeOptions, type StorybookIndex } from '../storybook';
 import { MEASURE_SCRIPT } from './measure-script';
 import { GLOBALS_SCRIPT, TOKENS_SCRIPT } from './tokens-script';
@@ -740,7 +740,7 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
     const id = idFor(n, !parent, parent);
     const style = n.kind === 'text' && n.tag === '#text' ? (parentStyle ?? {}) : n.style;
     const tokens = n.kind === 'text' && n.tag === '#text' ? {} : n.tokens;
-    const part: SpecPart = { id, name: id === 'root' ? 'Root' : id.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase()), kind: n.kind };
+    const part: MeasuredPart = { id, name: id === 'root' ? 'Root' : id.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase()), kind: n.kind };
     if (parent) part.parent = parent;
     if (n.classes?.length) part.source = n.classes.map(localClassName).join(' ');
     if (n.kind === 'frame') {
@@ -760,7 +760,10 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
     }
     if (n.kind === 'text') part.characters = n.text ?? '';
     if (!parent && m.rootFill) part.fill = true;
+    const margins = Object.fromEntries((['top', 'right', 'bottom', 'left'] as const).map((k) => [k, px(n.style[`margin-${k}`]) ?? 0]).filter(([, v]) => Math.abs(v as number) > 0.5));
+    if (Object.keys(margins).length) part.margins = margins;
     out.parts.push(part);
+    partById.set(id, part);
     out.boxes[id] = n.box;
     const values: Partial<Record<SpecField, SpecValue>> = {};
     const raw: Partial<Record<SpecField, string | number>> = {};
@@ -803,14 +806,22 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
         }
         else if (field === 'cornerRadius' && v && /%$/.test(v.trim())) {
           // 50% is half the smaller side (a round knob or dot): px from the box.
-          const r = Math.round((Math.min(n.box.width, n.box.height) * Number.parseFloat(v)) / 100 * 100) / 100;
+          const half = Math.min(n.box.width, n.box.height) / 2;
+          const r = Math.min(half, Math.round((Math.min(n.box.width, n.box.height) * Number.parseFloat(v)) / 100 * 100) / 100);
+          if (r >= half - 0.5) part.fullRadius = true;
           if (r > 0) {
             out.coverage.fields++;
             out.coverage.literal++;
             raw[field] = r;
             values[field] = r;
           }
-        } else put(field, prop, px(v) || undefined); // zero paddings and radii are Figma's default: not a field
+        } else {
+          // A radius of half the shorter side or more (9999px pills) is a full radius: half the side in Figma.
+          const half = Math.min(n.box.width, n.box.height) / 2;
+          if (field === 'cornerRadius' && (px(v) ?? 0) >= half - 0.5 && half > 0) part.fullRadius = true;
+          put(field, prop, px(v) || undefined); // zero paddings and radii are Figma's default: not a field
+          if (part.fullRadius && field === 'cornerRadius' && typeof values.cornerRadius === 'number' && values.cornerRadius > half) values.cornerRadius = Math.round(half * 100) / 100;
+        }
       }
       const widths = (['top', 'right', 'bottom', 'left'] as const).map((s) => (n.style[`border-${s}-style`] === 'none' ? 0 : (px(n.style[`border-${s}-width`]) ?? 0)));
       if (widths.some((w) => w > 0)) {
@@ -856,7 +867,63 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
     if (n.sized && (n.sized.width || n.sized.height)) (out.sized ??= {})[id] = { ...(n.sized.width ? { width: n.box.width } : {}), ...(n.sized.height ? { height: n.box.height } : {}) };
     const kids = n.children.map((c) => [c, visit(c, id, n.style, n.box)] as const);
     if (part.layout) spacing(id, n, part.layout, kids);
+    if (n.kind === 'frame') positioned(id, part, n, kids);
     return id;
+  };
+  const partById = new Map<string, MeasuredPart>();
+  const byId = (id: string) => partById.get(id) ?? out.parts.find((p) => p.id === id);
+  /**
+   * Out of flow children. A lone decoration (a switch knob, a radio dot) is rebuilt in auto layout: the parent aligns
+   * it start, center or end on each axis and its padding carries the offset, when that reproduces the measured
+   * position within 1 px. Anything else out of flow that overlaps its siblings or leaves its parent is an overlay.
+   */
+  const positioned = (id: string, parentPart: MeasuredPart, n: MeasuredNode, kids: (readonly [MeasuredNode, string])[]) => {
+    const abs = kids.filter(([c]) => c.style.position === 'absolute' || c.style.position === 'fixed');
+    if (!abs.length) return;
+    const flow = kids.filter(([c]) => !(c.style.position === 'absolute' || c.style.position === 'fixed') && (c.box.width > 0 || c.box.height > 0));
+    const st = n.style;
+    const b = (k: string) => (st[`border-${k}-style`] === 'none' ? 0 : (px(st[`border-${k}-width`]) ?? 0));
+    const inner = { x: n.box.x + b('left'), y: n.box.y + b('top'), r: n.box.x + n.box.width - b('right'), bottom: n.box.y + n.box.height - b('bottom') };
+    const r2 = (x: number) => Math.round(x * 100) / 100;
+    if (abs.length === 1 && !flow.length) {
+      const [c, cid] = abs[0]!;
+      const p = byId(cid);
+      if (p && !p.cover) {
+        const left = r2(c.box.x - inner.x), right = r2(inner.r - (c.box.x + c.box.width));
+        const top = r2(c.box.y - inner.y), bottom = r2(inner.bottom - (c.box.y + c.box.height));
+        const ax = (a: number, z: number) => (Math.abs(a - z) <= 1 ? 'center' : a <= z ? 'start' : 'end') as 'start' | 'center' | 'end';
+        const x = ax(left, right), y = ax(top, bottom);
+        if (left >= -0.5 && right >= -0.5 && top >= -0.5 && bottom >= -0.5) {
+          p.align = { x, y };
+          delete p.pin;
+          const map = { start: 'MIN', center: 'CENTER', end: 'MAX' } as const;
+          parentPart.layout = { direction: 'HORIZONTAL', primary: map[x], counter: map[y] };
+          const vals = (out.values[id] ??= {});
+          const raws = (out.raw[id] ??= {});
+          const set = (k: 'paddingLeft' | 'paddingRight' | 'paddingTop' | 'paddingBottom', v: number) => {
+            if (v > 0.5) {
+              vals[k] = v;
+              raws[k] = v;
+            } else {
+              delete vals[k];
+              delete raws[k];
+            }
+          };
+          set('paddingLeft', x === 'start' ? left : 0);
+          set('paddingRight', x === 'end' ? right : 0);
+          set('paddingTop', y === 'start' ? top : 0);
+          set('paddingBottom', y === 'end' ? bottom : 0);
+          return;
+        }
+      }
+    }
+    const overlaps = (a: MeasuredBox, z: MeasuredBox) => a.x < z.x + z.width - 0.5 && z.x < a.x + a.width - 0.5 && a.y < z.y + z.height - 0.5 && z.y < a.y + a.height - 0.5;
+    for (const [c, cid] of abs) {
+      const p = byId(cid);
+      if (!p || p.cover) continue;
+      const outside = c.box.x < inner.x - 0.5 || c.box.y < inner.y - 0.5 || c.box.x + c.box.width > inner.r + 0.5 || c.box.y + c.box.height > inner.bottom + 0.5;
+      if (outside || flow.some(([f]) => overlaps(c.box, f.box))) p.overlay = true;
+    }
   };
   /**
    * Margins become auto layout: the space the boxes show before the first child and after the last becomes padding,
@@ -901,9 +968,20 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
     if (uniform && Math.abs(gaps[0]! - declaredGap) <= 0.5) return;
     vals.itemSpacing = uniform ? gaps[0]! : min;
     raws.itemSpacing = vals.itemSpacing as number;
-    if (!uniform) flow.slice(1).forEach(([, cid], i) => gaps[i]! - min > 0.5 && ((out.spacers ??= {})[cid] = Math.round((gaps[i]! - min) * 100) / 100));
+    if (!uniform)
+      flow.slice(1).forEach(([c, cid], i) => {
+        const extra = Math.round((gaps[i]! - min) * 100) / 100;
+        if (!(extra > 0.5)) return;
+        (out.spacers ??= {})[cid] = extra;
+        // The margin's owner gets a wrapper with that padding: the previous child's end margin, else this child's start.
+        const [prev, pid] = flow[i]!;
+        const onPrev = num(prev.style[`margin-${side[1]}`]) > 0.5 && !(num(c.style[`margin-${side[0]}`]) > num(prev.style[`margin-${side[1]}`]));
+        const owner = byId(onPrev ? pid : cid);
+        if (owner) owner.wrap = { padding: { ...(owner.wrap?.padding ?? {}), [onPrev ? side[1] : side[0]]: extra } };
+      });
   };
   visit(m.root, undefined, undefined);
+  for (const p of out.parts) if (p.cover || (p.pin && !p.align)) delete p.align;
   for (const k of Object.keys(out.values)) if (!Object.keys(out.values[k]!).length) delete out.values[k];
   for (const k of Object.keys(out.raw)) if (!Object.keys(out.raw[k]!).length) delete out.raw[k];
   return out;
