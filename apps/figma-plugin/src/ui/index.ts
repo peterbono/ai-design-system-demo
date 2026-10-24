@@ -59,7 +59,7 @@ interface PullState {
   /** Component sets from component-specs.json on the branch; undefined when the repo has none. */
   components?: ComponentPullPlan | undefined;
   componentsError?: ComponentsReadProblem | undefined;
-  /** Opt-in: also build the component sets code added ("Also pull new components"). Updates are always offered. */
+  /** Also build the sets code added ("Include components" in the footer): on by default on a first pull. Updates are always offered. */
   includeComponents: boolean;
   componentsReport?: ComponentApplyReport | undefined;
   /** "Review updates": what an update changes in each generated set that changed in code. */
@@ -228,6 +228,8 @@ interface ActionBar {
   disabled?: boolean | undefined;
   hint?: string | undefined;
   secondary?: { label: string; onClick: () => void } | undefined;
+  /** A choice that changes what the primary action does, next to it (proximity): "Include components (62)". */
+  toggle?: { label: string; checked: boolean; focusId: string; onChange: (checked: boolean) => void } | undefined;
 }
 
 const state: State = { tab: 'pull', settingsDraft: { repo: '', branch: '', tokensPath: '' }, tokenDraft: '', claudeKeyDraft: '', expanded: new Set(), selection: null };
@@ -651,7 +653,8 @@ async function loadPull(prev?: PullState): Promise<PullState> {
     proposal: buildPull(analysis, choices),
     components,
     componentsError,
-    includeComponents: prev?.includeComponents ?? false,
+    // A first pull brings the whole library, as enabling a Figma library does; later pulls offer new sets opt-in.
+    includeComponents: prev?.includeComponents ?? (!!components?.components.length && components.components.every((c) => c.status === 'new')),
     reviews,
     inReview,
     before,
@@ -1832,19 +1835,25 @@ function viewPull(): View {
   body.push(notes(a));
 
   const open = prop.unresolvedConflicts.length;
+  // New sets from code: the choice sits next to the action it changes (on by default on a first pull).
+  const freshSets = (p.components?.components ?? []).filter((c) => c.status === 'new').length;
+  const toggle = freshSets
+    ? { label: `Include components (${freshSets})`, checked: p.includeComponents, focusId: 'pull-components', onChange: (v: boolean) => { p.includeComponents = v; render(); } }
+    : undefined;
   return {
     body,
     bar: upToDate && !withComponents && !behind
-      ? { label: 'Check again', onClick: checkPull }
+      ? { label: 'Check again', onClick: checkPull, toggle }
       : catchUp && !withComponents
-        ? { label: 'Update', onClick: applyPull, hint: 'Nothing changes in Figma', secondary: { label: 'Check again', onClick: checkPull } }
+        ? { label: 'Update', onClick: applyPull, hint: 'Nothing changes in Figma', secondary: { label: 'Check again', onClick: checkPull }, toggle }
         : {
+          toggle,
           label: pending.some((c) => c.status === 'updated') ? 'Update all' : 'Apply to Figma',
           onClick: applyPull,
           disabled: open > 0,
           hint: open
             ? `Decide ${plural(open, 'conflict')} first`
-            : [upToDate ? '' : `${plural(prop.plan.variables.length, 'variable')}${prop.plan.orphans.length ? `, ${prop.plan.orphans.length} orphaned` : ''}`, withComponents ? plural(pending.length, 'component') : ''].filter(Boolean).join(', '),
+            : [upToDate ? '' : `${plural(prop.plan.variables.length, 'variable')}${prop.plan.orphans.length ? `, ${prop.plan.orphans.length} orphaned` : ''}`, withComponents ? plural(pending.length, 'component') : ''].filter(Boolean).join(' and '),
           secondary: { label: 'Check again', onClick: checkPull },
         },
   };
@@ -1915,20 +1924,12 @@ function componentsGroup(p: PullState): Child {
   }
   // Honest coverage: how many coded components are in Figma, and why the others are not (folded under the count).
   const cov = coverageView(plan);
-  // Sets and components: a component can bring more than one set (RadioGroup and Radio), counts are per component.
-  const freshComponents = new Set(fresh.map((c) => c.component ?? c.name)).size;
   out.push(
     group(
       fresh.length ? 'New components' : 'Components',
-      fresh.length ? freshComponents : new Set(plan.components.map((c) => c.component ?? c.name)).size,
-      fresh.length
-        ? h(
-            'label',
-            { class: 'check' },
-            h('input', { type: 'checkbox', checked: p.includeComponents, 'data-focus-id': 'pull-components', onChange: (e: Event) => { p.includeComponents = (e.target as HTMLInputElement).checked; render(); } }),
-            `Also pull new components (${freshComponents})`,
-          )
-        : null,
+      // One count on the screen, the sets built (the footer's "Include components" uses it too).
+      fresh.length ? fresh.length : plan.components.length,
+      null,
       fresh.length
         ? `${cov.headline}. New ones are built on a "Components" page from the code and bound to these variables, then updated in place on the next pull.`
         : reviews.length
@@ -3569,14 +3570,26 @@ function designSystemName(): string {
 function actionBar(bar: ActionBar | undefined): Child {
   if (!bar && !state.busy) return null;
   // Fitts: a lone action takes the whole bar; with a secondary or a status it stays on the right.
-  const lone = !!bar && !bar.secondary && !bar.hint && !state.busy;
+  const lone = !!bar && !bar.secondary && !bar.hint && !bar.toggle && !state.busy;
   return h(
     'div',
     { class: lone ? 'bar lone' : 'bar' },
     h(
       'div',
       { class: 'bar-status', 'aria-live': 'polite' },
-      state.busy ? [h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('span', { id: 'busy-text' }, state.busy)] : bar?.hint ? h('span', null, bar.hint) : null,
+      state.busy
+        ? [h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('span', { id: 'busy-text' }, state.busy)]
+        : [
+            bar?.toggle
+              ? h(
+                  'label',
+                  { class: 'check' },
+                  h('input', { type: 'checkbox', checked: bar.toggle.checked, 'data-focus-id': bar.toggle.focusId, onChange: (e: Event) => bar.toggle!.onChange((e.target as HTMLInputElement).checked) }),
+                  bar.toggle.label,
+                )
+              : null,
+            bar?.hint ? h('span', null, bar.hint) : null,
+          ],
     ),
     state.busy && state.cancel ? h('button', { class: 'btn', 'data-focus-id': 'stop-build', onClick: state.cancel }, 'Stop') : null,
     bar?.secondary && !state.cancel ? h('button', { class: 'btn', disabled: !!state.busy, onClick: bar.secondary.onClick }, bar.secondary.label) : null,
