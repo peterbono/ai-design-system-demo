@@ -230,7 +230,7 @@ export async function branchFacts(ctx: BridgeContext, gh: GitHubClient, n: numbe
   const labels = pr.labels.map((name) => ({ name }));
   const ci = summarizeCi(
     runs.map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion, ...(r.url ? { html_url: r.url } : {}) })),
-    statuses.map((s) => ({ context: s.context, state: s.state, target_url: s.target_url })),
+    statuses.map((s) => ({ context: s.context, state: s.state, target_url: s.target_url, description: s.description })),
   );
   const reviewLikes = reviews.map((r) => ({ user: r.user ? { login: r.user } : null, state: r.state, submitted_at: r.submittedAt ?? null, commit_id: r.commitId ?? null }));
   // Updated after every changes request: the reviewers who asked look again (core lookAgainReviewers, as in Studio).

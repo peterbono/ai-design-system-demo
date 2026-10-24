@@ -250,7 +250,8 @@ export interface LibraryArrival {
 /**
  * Where a published pull request stands, for the plugin to poll after `shipped` (every 20 to 30 seconds is plenty)
  * and for Studio. Never names a technical blocker: a failing check, a conflict or a change request all read "Held for a
- * developer". `held` is final for polling: a person picks it up from there.
+ * developer". `held` is final for polling on a conflict or a change request (a person picks it up from there), not on a
+ * failed check, which a re-run can clear.
  */
 export function libraryArrival(p: {
   state: string;
@@ -263,8 +264,11 @@ export function libraryArrival(p: {
   const lifecycle = pullState({ state: p.state, merged_at: p.merged_at ?? null, merged: p.merged ?? p.state === 'merged' });
   if (lifecycle === 'merged') return { key: 'in-the-library', label: 'In the library', sentence: 'It is in the library. Storybook shows it after the next deploy.', final: true };
   if (lifecycle === 'closed') return { key: 'not-shipped', label: 'Not shipped', sentence: 'A developer closed it without shipping. Pull in the plugin to bring Figma back in line with the library.', final: true };
-  if (p.ci?.state === 'fail' || p.mergeable === false || (p.changesRequested ?? 0) > 0)
-    return { key: 'held', label: 'Held for a developer', sentence: 'Something needs a developer before it ships. They are told on GitHub; nothing to do on your side.', final: true };
+  // A failed check can be re-run and the armed auto-merge then ships it, so polling goes on; a conflict or a change
+  // request needs a person, so polling stops there.
+  const needsPerson = p.mergeable === false || (p.changesRequested ?? 0) > 0;
+  if (needsPerson || p.ci?.state === 'fail')
+    return { key: 'held', label: 'Held for a developer', sentence: 'Something needs a developer before it ships. They are told on GitHub; nothing to do on your side.', final: needsPerson };
   return { key: 'on-its-way', label: 'On its way to the library', sentence: PUBLISH_ROUTE_COPY.shipped.sentence, final: false };
 }
 

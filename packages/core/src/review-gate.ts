@@ -91,6 +91,15 @@ export interface CiStatusLike {
   context: string;
   state: 'success' | 'failure' | 'error' | 'pending' | string;
   target_url?: string | null;
+  description?: string | null;
+}
+
+/**
+ * A status the hosting platform posts when it refused to run at all (Vercel "Deployment rate limited"): it says nothing
+ * about the change, and GitHub does not require it, so it never counts as a failed check.
+ */
+export function isPlatformRefusal(s: Pick<CiStatusLike, 'state' | 'description'>): boolean {
+  return s.state !== 'success' && s.state !== 'pending' && /rate.limited/i.test(s.description ?? '');
 }
 
 export type CiState = 'pass' | 'fail' | 'pending' | 'none';
@@ -120,6 +129,7 @@ export function summarizeCi(runs: CiRunLike[], statuses: CiStatusLike[] = []): C
   for (const s of statuses) {
     if (seen.has(s.context)) continue;
     seen.add(s.context);
+    if (isPlatformRefusal(s)) continue;
     if (s.state === 'success') passed++;
     else if (s.state === 'pending') pending.push({ name: s.context, url: s.target_url ?? undefined });
     else failed.push({ name: s.context, url: s.target_url ?? undefined });
