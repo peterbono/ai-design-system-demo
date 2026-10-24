@@ -8,7 +8,7 @@
 // every other action that would write opens the sample-team dialog (components/ds/studio/MakeItYours.tsx,
 // scripts/demo-gate.ts). Someone who can write to the demo repository (its owner) keeps the normal Studio.
 
-import { isTeamKey } from './team-path';
+import { isTeamKey } from './team-path.js';
 
 /**
  * The design systems that are the public demo, lower case "owner/repo": the self-hosted site's own repository and
