@@ -3,7 +3,7 @@
 // Figma plugin's UI reads measured-specs.json and pairs layers with these. The measure itself (a browser driving
 // Storybook) lives in '@bridge-ds/core/node' (measure.ts).
 
-import type { SpecField, SpecPart, SpecValue, SpecVariant, SpecVector } from './component-spec';
+import type { SpecField, SpecLayout, SpecPart, SpecValue, SpecVariant, SpecVector } from './component-spec';
 import type { ComponentStatus } from './measure-status';
 
 /** How a value was tied to a custom property. */
@@ -60,17 +60,28 @@ export interface MeasuredNode {
 }
 
 /** A measure in the Figma pull's shape: the parts of one variant and their field values, plus what a spec leaves out. */
+/** Figma alignment of one child in its parent's auto layout, relative to the parent's direction. */
+export interface MeasuredChildAlign {
+  primary?: 'MIN' | 'CENTER' | 'MAX' | undefined;
+  counter?: 'MIN' | 'CENTER' | 'MAX' | undefined;
+}
+
+/** A measured auto layout: the spec layout, plus per child alignment for out-of-flow decorations rebuilt in it. */
+export interface MeasuredLayout extends SpecLayout {
+  /** Child part id -> its alignment; the parent's padding (in `values`) carries the offset. */
+  align?: Record<string, MeasuredChildAlign> | undefined;
+}
+
 /** A measured part: a spec part, plus what auto layout needs to rebuild margins, overlays and decorations. */
 export interface MeasuredPart extends SpecPart {
+  layout?: MeasuredLayout | undefined;
   /** Out of flow and over its siblings or outside its parent (a popover, a badge, a focus ring): absolute in Figma, never in the size. */
   overlay?: boolean | undefined;
-  /** An out-of-flow decoration rebuilt in auto layout: its parent's alignment on each axis (the parent's padding carries the offset). */
-  align?: { x: 'start' | 'center' | 'end'; y: 'start' | 'center' | 'end' } | undefined;
   /** Margins the part has (px, non-zero sides). */
   margins?: { top?: number | undefined; right?: number | undefined; bottom?: number | undefined; left?: number | undefined } | undefined;
   /** Uneven margins between siblings: wrap the part in a frame with this padding. */
   wrap?: { padding: { top?: number | undefined; right?: number | undefined; bottom?: number | undefined; left?: number | undefined } } | undefined;
-  /** The radius is half the shorter side or more: a pill or a circle. */
+  /** The radius is half the shorter side or more: a pill or a circle (its value is 999 px, or the token it is bound to). */
   fullRadius?: boolean | undefined;
 }
 

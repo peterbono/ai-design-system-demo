@@ -10,6 +10,14 @@
 
 import {
   type FigmaReferenceManifest,
+  type FigmaHints,
+  type FixedMeasuredSpecsFile,
+  type MeasuredSpecsFile,
+  DEFAULT_FIGMA_FIXES_FILE,
+  FigmaFixesError,
+  appliedFixLines,
+  applyFixes,
+  parseFigmaFixes,
   type BridgeConfig,
   COLOR_FIELDS,
   type ComponentSpec,
@@ -375,6 +383,13 @@ export interface LoadedSpecs {
    * and the repo folder its files are in. Check fidelity compares with these instead of the code images.
    */
   shots?: { manifest: FigmaReferenceManifest; dir: string } | undefined;
+  /**
+   * Measured-only source: figma-fixes.json laid on the measure before the sets are drawn. `lines`: what each fix did
+   * (appliedFixLines); `problems`: why the file was not used (invalid); `hints`: per set, its status and notes.
+   */
+  fixes?: { lines: string[]; problems?: string[] | undefined; hints: Record<string, FigmaHints> } | undefined;
+  /** Measured-only source: the measure the sets were drawn from (fixes applied), for the gap cases after Check fidelity. */
+  measure?: FixedMeasuredSpecsFile | undefined;
 }
 
 /**
@@ -414,8 +429,23 @@ async function loadMeasuredOnlySpecs(client: Pick<GitHubClient, 'getTree' | 'get
   const { entries } = await client.getTree(treeSha, true);
   const entry = entries.find((e) => e.type === 'blob' && e.path === MEASURED_SPECS_FILE);
   if (!entry) throw new Error(`Spec source is set to Measured only, but the repo has no ${MEASURED_SPECS_FILE}. Run bridge specs --measure --variants and commit it, or set Spec source back to Static in Settings.`);
-  const file = parseMeasuredSpecs(await client.getBlobText(entry.sha));
-  const { specs, report, shots } = specsFromMeasure(file, head ? { known: (path) => head.byPath.has(path) } : {});
+  const measured = parseMeasuredSpecs(await client.getBlobText(entry.sha));
+  // figma-fixes.json (optional, next to the measure): reviewed corrections of what the measure gives. An invalid file is
+  // not used, and says why.
+  const fixesEntry = entries.find((e) => e.type === 'blob' && e.path === DEFAULT_FIGMA_FIXES_FILE);
+  let file: MeasuredSpecsFile | FixedMeasuredSpecsFile = measured;
+  let fixLines: string[] = [];
+  let fixProblems: string[] | undefined;
+  if (fixesEntry) {
+    try {
+      const fixed = applyFixes(measured, parseFigmaFixes(await client.getBlobText(fixesEntry.sha)));
+      file = fixed.file;
+      fixLines = appliedFixLines(fixed.applied);
+    } catch (err) {
+      fixProblems = err instanceof FigmaFixesError ? err.problems : [err instanceof Error ? err.message : String(err)];
+    }
+  }
+  const { specs, report, shots, hints } = specsFromMeasure(file, head ? { known: (path) => head.byPath.has(path) } : {});
   const code = await loadComponentSpecs(client, treeSha, config).catch(() => undefined);
   const codeHash = new Map(code?.specs.components.map((c) => [c.name, c.hash]) ?? []);
   // With the stories' own screenshots, a set is compared with what it was built from: its own hash is its version.
@@ -433,7 +463,14 @@ async function loadMeasuredOnlySpecs(client: Pick<GitHubClient, 'getTree' | 'get
         components: Object.fromEntries(components.filter((c) => shots[c.name]).map((c) => [c.name, { specHash: c.hash, variants: shots[c.name]! }])),
       }
     : undefined;
-  return { path: MEASURED_SPECS_FILE, specs: { ...specs, components }, measuredOnly: report, ...(manifest ? { shots: { manifest, dir: MEASURED_SPECS_FILE.includes('/') ? MEASURED_SPECS_FILE.replace(/\/[^/]*$/, '') : '' } } : {}) };
+  return {
+    path: MEASURED_SPECS_FILE,
+    specs: { ...specs, components },
+    measuredOnly: report,
+    measure: file,
+    ...(fixesEntry ? { fixes: { lines: fixLines, ...(fixProblems ? { problems: fixProblems } : {}), hints } } : {}),
+    ...(manifest ? { shots: { manifest, dir: MEASURED_SPECS_FILE.includes('/') ? MEASURED_SPECS_FILE.replace(/\/[^/]*$/, '') : '' } } : {}),
+  };
 }
 
 /** The static specs with measured-specs.json laid on. A missing measure fails: the developer asked for it. */
