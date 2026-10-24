@@ -23,6 +23,11 @@ describe('Being built', () => {
     expect(views.find((v) => v.component === 'Card')!.sentence).toBe('Ana is on it.');
     expect(views.find((v) => v.component === 'Select')!.builders).toEqual(['theo']);
     expect(views.find((v) => v.component === 'Badge')!.jira).toBe('DS-128');
+    // One build request per change: the spec branch from Figma that closes #41 is not a second row, and the sender
+    // who opened it is not its builder.
+    const button = views.filter((v) => v.component === 'Button');
+    expect(button).toHaveLength(1);
+    expect(button[0]).toMatchObject({ kind: 'issue', status: 'requested', builders: [] });
   });
 
   it('counts the filters and says the page in one sentence', () => {

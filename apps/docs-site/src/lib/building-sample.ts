@@ -141,5 +141,22 @@ export function sampleBuildData(now: number, repo = 'acme/design-system'): { iss
       });
     }
   }
+  // The Button request also has its library branch from Figma, opened by the sender with the spec only (direct mode):
+  // one build request per change, so it reads as the issue alone, still waiting for a developer.
+  pulls.push({
+    number: 53,
+    title: 'Button: add a lg size',
+    body: `Spec from Figma for a developer to build with Claude.\n\nCloses #41`,
+    html_url: `https://github.com/${repo}/pull/53`,
+    state: 'open',
+    draft: true,
+    merged_at: null,
+    created_at: iso(now, 1),
+    updated_at: iso(now, 1),
+    labels: ['from-figma', 'component-change', 'waiting-for-claude'],
+    user: { login: 'dana' },
+    assignees: [],
+    head: { ref: 'bridge/button-add-a-lg-size' },
+  });
   return { issues, pulls };
 }
