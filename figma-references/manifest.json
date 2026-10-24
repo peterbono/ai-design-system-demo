@@ -1,8 +1,8 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-24T16:22:55.715Z",
-  "sha": "7ddcab28714ae9b864ca192afd4a4a2661c189a2",
+  "createdAt": "2026-10-24T17:00:36.235Z",
+  "sha": "274e972790b6e4c082fb5f6b7a539200a83579dc",
   "scale": 2,
   "mode": {
     "brand": "bridge",
@@ -1578,7 +1578,7 @@
       }
     },
     "NumberField": {
-      "specHash": "ddb5a90d",
+      "specHash": "8461ea61",
       "variants": {
         "Size=sm, State=Default": {
           "file": "numberfield/size-sm__state-default.png",
