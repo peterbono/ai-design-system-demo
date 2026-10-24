@@ -2769,7 +2769,7 @@ function destinationControl(r: PushState): HTMLElement {
     'section',
     { class: 'destination' },
     h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Where your changes go' }, option('review', 'For review'), option('exploration', 'Try in an exploration')),
-    h('p', { class: 'muted' }, exploring ? 'See it in Studio with before and after screenshots. It never reaches the product as is.' : 'Owners approve it, then it reaches the product.'),
+    h('p', { class: 'muted' }, exploring ? 'Try it in its previews, and see before and after in Studio. It never reaches the product as is.' : 'Owners approve it, then it reaches the product.'),
     exploring
       ? h(
           'div',
@@ -2953,7 +2953,8 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
       ? statusLine(statusText, r)
       : h('p', { class: 'lede', 'data-region': 'tryit-status', 'data-sig': 'ready' }, 'A developer installs it in a staging branch of your product. The message has the command, the previews and the link.');
   // Nothing online reported: explorations are not deployed, a developer opens it on their machine (Share with a developer).
-  const local = triedLocally(r.previews);
+  // Vercel reports a deploy within a minute or two, the test build takes a few: "no preview" only once that one settled.
+  const local = triedLocally(r.previews) && (!!r.tryItTimedOut || (!!t && t.state !== 'building'));
   const linksSig = JSON.stringify([local, links.map((l) => [l.app, l.url, l.state])]);
   return [
     intro({ title: `Sent to ${e.name}`, text: text.join(' '), art: 'review' }),
@@ -2968,9 +2969,9 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
         local
           ? // Not deployed: Studio shows the screenshots of what changes (Visual impact runs when tokens change on the branch).
             res.explorationTokens?.length || vars
-            ? 'Screenshots of what changes appear in Studio in a few minutes. To click through it, Share with a developer: they open it on their computer.'
+            ? 'No preview online for this exploration. Studio shows screenshots of what changes in a few minutes; to click through it, Share with a developer: they open it on their computer.'
             : 'Nothing to see yet: the changes wait for code. Once a developer builds them, Studio shows the screenshots.'
-          : 'Previews rebuild from the exploration in a few minutes.',
+          : 'Previews rebuild from the exploration in a few minutes. Studio shows before and after next to them.',
       ),
       local
         ? null
@@ -3066,7 +3067,7 @@ function viewPush(): View {
         steps([
           ['Edit in Figma', 'Change synced variables, or change a component: a variant, a prop, a part, the token a part uses.'],
           ['Review the changes', 'Every change is listed and checked. Uncheck what is not ready; mark work in progress as exploration only.'],
-          ['Send', 'Send for review: owners approve before anything ships. In an exploration, you see it in Studio first.'],
+          ['Send', 'Send for review: owners approve before anything ships. In an exploration, you try it in its previews first.'],
         ]),
         requestLine(undefined),
       ],
