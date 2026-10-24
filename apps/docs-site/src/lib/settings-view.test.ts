@@ -47,7 +47,8 @@ describe('approval rules', () => {
 describe('only owner', () => {
   it('shows the line only when the rule is on and one person holds both roles', () => {
     const owners = { design: ['peterbono'], tech: ['peterbono'] };
-    expect(soloOwnerRow({ owners, rights: null, soloOwnerCanApproveBoth: true })).toEqual({ label: 'Only owner', help: 'A design system run by one person.', value: 'As the only owner, @peterbono approves design and code in one review.' });
+    expect(soloOwnerRow({ owners, rights: null, soloOwnerCanApproveBoth: true })).toEqual({ label: 'Only owner', help: 'A design system run by one person.', value: 'As the only owner, peterbono checks the look and the code in one review.' });
+    expect(soloOwnerRow({ owners, rights: null, soloOwnerCanApproveBoth: true }, () => 'Florian')?.value).toBe('As the only owner, Florian checks the look and the code in one review.');
     expect(soloOwnerRow({ owners, rights: null, soloOwnerCanApproveBoth: false })).toBeNull();
     expect(soloOwnerRow({ owners: { design: ['dana'], tech: ['theo'] }, rights: null, soloOwnerCanApproveBoth: true })).toBeNull();
   });
@@ -105,10 +106,11 @@ describe('how changes reach your code', () => {
 describe('Settings, owner override row', () => {
   const override = { allowed: ['ann', 'lea'], requireReason: false, minReasonLength: 0 };
   it('names the owners who may use it, never someone who is not an owner, and the reason it always needs', () => {
+    // Designer words and names, the same as the hosted team Settings: no merge, branch or @handle.
     expect(overrideRow({ owners: { design: ['ann'], tech: ['theo'] }, override })).toEqual({
-      label: 'Owner override',
-      help: 'Merges a branch before every approval is in. Owners only: it never shows as a review step.',
-      value: '@ann, with a written reason of at least 20 characters, posted on the branch.',
+      label: 'Exception',
+      help: 'Adds a change before every check is in. Owners only.',
+      value: 'ann, with a written reason of at least 20 characters.',
     });
     expect(overrideRow({ owners: { design: ['ann'], tech: ['theo'] }, override }, () => 'Dana')?.value).toMatch(/^Dana, /);
     expect(overrideRow({ owners: { design: ['theo'], tech: ['theo'] }, override })).toBeNull();
