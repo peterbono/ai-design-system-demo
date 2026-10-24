@@ -25,5 +25,5 @@ test('armShip: not armed keeps the code, the reason and when to ask again; an er
 
 test('armShip: the network failing reads as a sentence, not "Failed to fetch"', async () => {
   const offline = (async () => { throw new TypeError('Failed to fetch'); }) as unknown as typeof fetch;
-  await assert.rejects(armShip('tok', 'o/r', 1, offline), /^Error: Bridge could not be reached, so a developer merges it\.$/);
+  await assert.rejects(armShip('tok', 'o/r', 1, offline), /^Error: Bridge could not be reached, so a developer adds it to the library\.$/);
 });
