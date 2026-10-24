@@ -33,7 +33,7 @@ import { PREVIEW_APPS, PREVIEW_PACKAGES, sourceUrl } from '../../../lib/repo';
 import { VOCAB } from '../../../lib/vocabulary';
 import { siteRepo } from '../../../lib/config';
 import { ghAction } from '../../../lib/gh-wording';
-import { COPY_MESSAGE, FRAME_MISSING } from '../../../lib/change-intent';
+import { COPY_MESSAGE, FRAME_MISSING, PICK_COMPONENT_LINE } from '../../../lib/change-intent';
 import { signInConfig } from '../../../lib/signin-config';
 import { PAGE_SOURCES, freshness } from '../../../lib/sources';
 import { studioHref } from '../../../lib/team-path';
@@ -94,6 +94,7 @@ const signIn = Boolean(signInConfig());
       {primary && <Fragment slot="actions"><ButtonLink variant="primary" href={primary.href} iconStart={FileText} data-latest-only>{primary.label}</ButtonLink></Fragment>}
     </StudioHeader>
     <div class="view-banner" data-view-banner hidden></div>
+    <p class="cm-pick" role="status" data-cm-pick hidden>{PICK_COMPONENT_LINE}</p>
     <p class="sbq-quiet cm-sb-line" data-cm-storybook hidden>
       <span data-cm-storybook-text></span> <Link href={studioHref('components/storybook/')}>See them</Link>
     </p>

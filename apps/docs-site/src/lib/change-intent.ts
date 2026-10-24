@@ -291,3 +291,9 @@ export function buildSentLines(mode: BuildFormMode, n: number): { lead: string; 
     ? { lead: `Report #${n} sent to your developers.`, next: 'It reads Shipped in Being built once the fix is in the library.', link: 'Follow it in Being built' }
     : { lead: `Build request #${n} sent to your developers.`, next: 'You follow it in Being built until it is in the library.', link: 'Follow it in Being built' };
 }
+
+/**
+ * Said above the Components list when a home's "Ask for a component change" led here without a component
+ * (?intent=variant): the next step, in one line.
+ */
+export const PICK_COMPONENT_LINE = 'Pick the component you want to change, then choose Change this component.';

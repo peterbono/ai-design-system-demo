@@ -433,3 +433,13 @@
   flex-wrap: wrap;
   gap: var(--space-1);
 }
+
+/* A home's "Ask for a component change" without a component: the next step, in one calm line. */
+.cm-pick {
+  margin: 0 0 var(--space-4);
+  font-weight: var(--font-weight-medium);
+}
+
+.cm-pick[hidden] {
+  display: none;
+}

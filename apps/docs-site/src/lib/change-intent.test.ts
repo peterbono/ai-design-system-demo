@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHANGE_INTENTS, TEAM_CHANGE_INTENTS, TEAM_FRAME_MISSING, MISMATCH_KIND, STRUCTURE_KINDS, buildFormCopy, buildFormProblems, buildModeFor, buildSentLines, teamBuildRequest, teamIntentOptions, FRAME_MISSING, developerMessage, NO_TOKEN_LINE, REQUEST_KIND_OF, changeFormCopy, changeFormProblems, changeRequest, formModeFor, intentOptions, isChangeIntent, sentLine, startedLines } from './change-intent';
+import { PICK_COMPONENT_LINE, CHANGE_INTENTS, TEAM_CHANGE_INTENTS, TEAM_FRAME_MISSING, MISMATCH_KIND, STRUCTURE_KINDS, buildFormCopy, buildFormProblems, buildModeFor, buildSentLines, teamBuildRequest, teamIntentOptions, FRAME_MISSING, developerMessage, NO_TOKEN_LINE, REQUEST_KIND_OF, changeFormCopy, changeFormProblems, changeRequest, formModeFor, intentOptions, isChangeIntent, sentLine, startedLines } from './change-intent';
 import { BUILD_KINDS, REQUEST_KINDS, composeBuildRequestIssue, parseBuildRequestIssue } from '@bridge-ds/core';
 
 const hasEmDash = (s: string) => s.includes(String.fromCharCode(0x2014));
@@ -173,5 +173,12 @@ describe('Change this component on a team: build requests', () => {
   it('says where she follows it, in her words', () => {
     expect(buildSentLines('structure', 12)).toEqual({ lead: 'Build request #12 sent to your developers.', next: 'You follow it in Being built until it is in the library.', link: 'Follow it in Being built' });
     expect(buildSentLines('mismatch', 13).lead).toBe('Report #13 sent to your developers.');
+  });
+});
+
+describe('Change this component: from a home without a component', () => {
+  it('says the next step in one plain line', () => {
+    expect(PICK_COMPONENT_LINE).toBe('Pick the component you want to change, then choose Change this component.');
+    expect(JARGON.test(PICK_COMPONENT_LINE)).toBe(false);
   });
 });

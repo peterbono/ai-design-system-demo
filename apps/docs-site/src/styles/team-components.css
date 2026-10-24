@@ -297,3 +297,10 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* A home's "Ask for a component change" without a component: the next step, in one calm line. */
+.tcm-pick {
+  margin: 0;
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-medium);
+}

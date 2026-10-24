@@ -15,6 +15,7 @@ import TokenSpecimens from './TokenSpecimens';
 import ComponentsList from './ComponentsList';
 import ClientExample from './ClientExample';
 import { ChangeFooter, ChangeStep, CLOSED_FLOW, type ChangeFlow } from './ChangeComponent';
+import { isChangeIntent, PICK_COMPONENT_LINE, type ChangeIntent } from '../../../lib/change-intent';
 import { filterTeamRows, pickStorybook, rowExceptions, storyPreview, teamCatalogRows, teamComponentRows, teamComponentsLead, teamFamilies, type TeamComponentRow } from '../../../lib/team-components';
 import type { ProductAudit } from '../../../lib/components-studio';
 import { fitFrames } from '../../../scripts/explorer/preview-frames';
@@ -77,7 +78,7 @@ function useStoryListed(base: string | undefined, id: string | undefined): 'list
   return state?.key === key ? state.value : undefined;
 }
 
-function ComponentDrawer({ row, data, storybook, onClose }: { row: TeamComponentRow | null; data: TeamData; storybook: string | undefined; onClose: () => void }) {
+function ComponentDrawer({ row, data, storybook, startIntent = null, onClose }: { row: TeamComponentRow | null; data: TeamData; storybook: string | undefined; startIntent?: ChangeIntent | null; onClose: () => void }) {
   const found = row ? storyPreview(storybook, row) : null;
   const listed = useStoryListed(found?.base, found?.id);
   // A story the published Storybook does not have yet would show Storybook's own error: the code instead.
@@ -87,7 +88,12 @@ function ComponentDrawer({ row, data, storybook, onClose }: { row: TeamComponent
   // primary action). A new component starts closed.
   const [flow, setFlow] = useState<ChangeFlow>(CLOSED_FLOW);
   const formId = useId();
-  useEffect(() => setFlow(CLOSED_FLOW), [row?.slug]);
+  // A deep link (the home's "Ask for a component change", ?c=<slug>&intent=...) opens the step on that choice;
+  // "Adjust the look" stays unpicked on a component with no token.
+  useEffect(() => {
+    const tokens = (row?.tokens ?? 0) > 0;
+    setFlow(row && startIntent ? { ...CLOSED_FLOW, open: true, intent: startIntent === 'look' && !tokens ? null : startIntent } : CLOSED_FLOW);
+  }, [row, startIntent]);
   const repo = `${data.owner}/${data.repo}`;
   const hasTokens = (row?.tokens ?? 0) > 0;
   const more = github && (
@@ -200,6 +206,25 @@ function Ready({ data, refreshing, onRefresh }: { data: TeamData; refreshing: bo
   const [query, setQuery] = useState('');
   const [family, setFamily] = useState('');
   const [open, setOpen] = useState<TeamComponentRow | null>(null);
+  // From a home's "Ask for a component change" (?intent=, and ?c=<slug> when it names one): the drawer opens on that
+  // component with the step on that choice; without a component, one line says to pick one. Read once, then the
+  // intent leaves the address so a reload or another row starts plain.
+  const [deep, setDeep] = useState<{ intent: ChangeIntent | null; pick: boolean }>({ intent: null, pick: false });
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const intent = params.get('intent');
+    const slug = params.get('c');
+    const row = slug ? rows.find((r) => r.slug === slug.toLowerCase()) : undefined;
+    if (row) setOpen(row);
+    if (isChangeIntent(intent)) {
+      setDeep({ intent: row ? intent : null, pick: !row });
+      params.delete('intent');
+      const q = params.toString();
+      history.replaceState(null, '', `${location.pathname}${q ? `?${q}` : ''}${location.hash}`);
+    }
+    // Once, with the rows of this read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const shown = useMemo(() => filterTeamRows(rows, query, family), [rows, query, family]);
   const audits = useProductUsage(data);
   const catalog = useMemo(() => teamCatalogRows(data.model, shown, audits), [data.model, shown, audits]);
@@ -249,6 +274,11 @@ function Ready({ data, refreshing, onRefresh }: { data: TeamData; refreshing: bo
       ) : (
         <>
           <p className="tcm-lead">{teamComponentsLead(rows)}</p>
+          {deep.pick && (
+            <p className="tcm-pick" role="status">
+              {PICK_COMPONENT_LINE}
+            </p>
+          )}
           {noStorybook}
           {!storybook && <TokenSpecimens set={specimens} />}
           <div className="tcm-tools" role="search">
@@ -279,12 +309,24 @@ function Ready({ data, refreshing, onRefresh }: { data: TeamData; refreshing: bo
             </p>
           ) : (
             <div ref={listRef}>
-              <ComponentsList rows={catalog} products={audits?.length ?? 0} Thumb={ClientExample} onOpen={(slug) => setOpen(rows.find((r) => r.slug === slug) ?? null)} openSlug={open?.slug ?? null} />
+              <ComponentsList rows={catalog} products={audits?.length ?? 0} Thumb={ClientExample} onOpen={(slug) => {
+                  setDeep({ intent: null, pick: false });
+                  setOpen(rows.find((r) => r.slug === slug) ?? null);
+                }} openSlug={open?.slug ?? null} />
             </div>
           )}
         </>
       )}
-      <ComponentDrawer row={open} data={data} storybook={storybook} onClose={() => setOpen(null)} />
+      <ComponentDrawer
+        row={open}
+        data={data}
+        storybook={storybook}
+        startIntent={deep.intent}
+        onClose={() => {
+          setDeep({ intent: null, pick: false });
+          setOpen(null);
+        }}
+      />
     </div>
   );
 }
