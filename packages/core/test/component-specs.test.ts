@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseComponentSpecs, validateComponentSpec } from '../src/component-spec';
 import { generateComponentSpec, generateRepoComponentSpecs, repoSpecOptions, serializeComponentSpecs } from '../src/node/component-specs';
-import { DEFAULT_STATE, declaredFor, parseCssModule, parseSelector } from '../src/node/spec-css';
+import { DEFAULT_STATE, SPEC_VIEWPORT_WIDTH, declaredFor, mediaApplies, parseCssModule, parseSelector } from '../src/node/spec-css';
 
 const ROOT = join(__dirname, '../../..');
 
@@ -180,5 +180,23 @@ export const Pill = forwardRef(function Pill({ size = 'md', children }, ref) {
     expect(card!.parts.filter((p) => p.clip).map((p) => p.id)).toEqual(['root']);
     expect(tag!.parts.map((p) => p.id)).toEqual(['root', 'icon', 'text']);
     expect(tag!.parts[0]!.fill).toBeUndefined();
+  });
+
+  it('a menu part drawn alone takes what the popup gives its content: snug lines, as in code', () => {
+    const file = generateRepoComponentSpecs(ROOT);
+    const menuSets = file.components.filter((c) => c.component === 'Menu' && c.view === 'without-popup');
+    expect(menuSets.map((c) => c.name)).toContain('MenuGroup');
+    for (const set of menuSets)
+      for (const v of set.variants) for (const values of Object.values(v.values)) if (values.lineHeight !== undefined) expect([set.name, values.lineHeight]).toEqual([set.name, 'font.line-height.snug']);
+  });
+
+  it('width media queries read at the viewport the code images use: the page title is h1 sized at 1200 px', () => {
+    expect(SPEC_VIEWPORT_WIDTH).toBe(1200);
+    expect(mediaApplies('@media (min-width: 900px)')).toBe(true);
+    expect(mediaApplies('@media (max-width: 640px)')).toBe(false);
+    expect(mediaApplies('@media (hover: hover) and (min-width: 640px)')).toBe(true);
+    expect(mediaApplies('@media (prefers-reduced-motion: reduce)')).toBe(false);
+    const [header] = generateRepoComponentSpecs(ROOT, ['PageHeader']).components;
+    expect(header!.variants[0]!.values['title-text']).toMatchObject({ fontSize: 'typography.h1.size', lineHeight: 'typography.h1.line-height', letterSpacing: 'typography.h1.tracking' });
   });
 });
