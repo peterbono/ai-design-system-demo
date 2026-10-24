@@ -205,22 +205,28 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
   }
   var isColorProp = function (p) { return /color$/.test(p) || p === 'fill' || p === 'stroke'; };
 
-  // Root variables (tokens defined on :root, html or body), for value matching.
+  // Variables in scope at the component (for value matching): defined on :root, or on a provider element around the
+  // story (Fluent's FluentProvider, a theme wrapper). Custom properties inherit, so the component root's computed style
+  // holds both.
   var rootVars = null;
+  var scopeEl = null;
   function rootTokens() {
     if (rootVars) return rootVars;
-    rootVars = { colors: {}, lengths: {}, count: 0 };
-    var cs = getComputedStyle(document.documentElement);
+    rootVars = { colors: {}, lengths: {}, count: 0, scoped: 0 };
+    var cs = getComputedStyle(scopeEl || document.documentElement);
+    var top = scopeEl ? getComputedStyle(document.documentElement) : cs;
     var names = {};
     for (var i = 0; i < rules.length; i++) {
       var st = rules[i].style;
       for (var k = 0; k < st.length; k++) if (st[k].indexOf('--') === 0) names[st[k]] = 1;
     }
     for (var i2 = 0; i2 < cs.length; i2++) if (cs[i2].indexOf('--') === 0) names[cs[i2]] = 1;
+    for (var i3 = 0; scopeEl && i3 < top.length; i3++) if (top[i3].indexOf('--') === 0) names[top[i3]] = 1;
     for (var n in names) {
       var v = cs.getPropertyValue(n).trim();
       if (!v) continue;
       rootVars.count++;
+      if (scopeEl && !top.getPropertyValue(n).trim()) rootVars.scoped++;
       if (/^(#|rgb|hsl|oklch|oklab|lab|lch|color\()/i.test(v)) {
         var c = normColor(v);
         if (c) (rootVars.colors[c] = rootVars.colors[c] || []).push(n);
@@ -352,6 +358,29 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
 
   var host = document.querySelector(rootSel);
   if (!host) return { error: 'no element matches ' + rootSel + ' in the page' };
+  // Popups portaled to the body (a menu, a dialog, a toast region): visible elements outside the story root.
+  var portals = [];
+  for (var b = document.body.firstElementChild; b; b = b.nextElementSibling) {
+    if (b === probe || b.contains(host) || /^(SCRIPT|STYLE|LINK|TEMPLATE)$/.test(b.tagName)) continue;
+    if (/sb-(wrapper|errordisplay|nopreview|preparing)|sb-show-main/.test(b.className || '')) continue;
+    var bcs = getComputedStyle(b);
+    if (!visible(b, bcs)) continue;
+    // A portal container can be zero-size around its positioned popup: it counts when anything in it has a box.
+    var br = b.getBoundingClientRect();
+    if (br.width > 0 && br.height > 0) { portals.push(b); continue; }
+    var inner = b.querySelectorAll('*');
+    for (var q = 0; q < inner.length && q < 200; q++) { var ir = inner[q].getBoundingClientRect(); if (ir.width > 0 && ir.height > 0) { portals.push(b); break; } }
+  }
+  var storyRoot = host;
+  // target 'portal': the component is the open popup (the newest portal), not the trigger in the story root.
+  if (arg.target === 'portal') {
+    if (!portals.length) { probe.remove(); return { error: 'no popup is open outside the story root' }; }
+    host = portals[portals.length - 1];
+    portals = portals.slice(0, -1);
+    // A modal portal holds a backdrop beside the popup: the popup is the element with a popup role, when there is one.
+    var roled = host.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [role="tree"], [role="grid"]');
+    if (roled && visible(roled, getComputedStyle(roled))) host = roled;
+  }
   // Decorators and plain wrappers: go down while an element has one child and draws nothing itself.
   var el = host, wrappers = 0;
   // A decorator canvas the size of the viewport (a theme frame with a background and padding) is a wrapper too.
@@ -374,16 +403,31 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
     el = only;
     wrappers++;
   }
-  var portals = [];
-  for (var b = document.body.firstElementChild; b; b = b.nextElementSibling) {
-    if (b === probe || b.contains(host) || /^(SCRIPT|STYLE|LINK|TEMPLATE)$/.test(b.tagName)) continue;
-    if (/sb-(wrapper|errordisplay|nopreview|preparing)|sb-show-main/.test(b.className || '')) continue;
-    var bcs = getComputedStyle(b);
-    if (visible(b, bcs) && b.getBoundingClientRect().width > 0) portals.push(b);
+  // within: a part that only renders inside its parent or a popup (a menu item, an accordion item, a toast) is measured
+  // alone: the first visible match in the component, then in the popups.
+  if (arg.within) {
+    var pool = [el].concat(portals), hit = null;
+    for (var wi = 0; wi < pool.length && !hit; wi++) {
+      var cands = [];
+      try { if (pool[wi].matches(arg.within)) cands.push(pool[wi]); cands = cands.concat(Array.prototype.slice.call(pool[wi].querySelectorAll(arg.within))); } catch (e) { probe.remove(); return { error: 'not a CSS selector: ' + arg.within }; }
+      for (var ci = 0; ci < cands.length && !hit; ci++) if (visible(cands[ci], getComputedStyle(cands[ci])) && cands[ci].getBoundingClientRect().width > 0) hit = cands[ci];
+    }
+    if (!hit) { probe.remove(); return { error: 'no element matches ' + arg.within + ' in the story or its popups' }; }
+    portals = portals.filter(function (p) { return !p.contains(hit); });
+    el = hit;
   }
+  // mark: tag the component element (for a forced :hover / :focus-visible from the browser driver) and stop.
+  if (arg.mark) {
+    var prev = document.querySelectorAll('[data-bridge-measure-root]');
+    for (var mi = 0; mi < prev.length; mi++) prev[mi].removeAttribute('data-bridge-measure-root');
+    el.setAttribute('data-bridge-measure-root', '');
+    probe.remove();
+    return { marked: true };
+  }
+  scopeEl = el;
   var hr = el.getBoundingClientRect();
   originX = hr.left; originY = hr.top;
-  var tree = arg.unwrap !== false && el === host && !host.children.length && !directText(host) ? null : node(el, 0);
+  var tree = arg.unwrap !== false && el === storyRoot && !storyRoot.children.length && !directText(storyRoot) ? null : node(el, 0);
   var portalTrees = [];
   for (var pi = 0; pi < portals.length && pi < 3; pi++) portalTrees.push(node(portals[pi], 0));
   probe.remove();
@@ -396,6 +440,7 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
     rules: rules.length,
     sheets: { read: sheetsRead, blocked: sheetsBlocked },
     rootVariables: rt.count,
+    scopedVariables: rt.scoped || 0,
     viewport: { width: window.innerWidth, height: window.innerHeight },
     error: document.body.classList.contains('sb-show-errordisplay') ? (document.querySelector('#error-message') || {}).textContent || 'the story threw' : undefined
   };

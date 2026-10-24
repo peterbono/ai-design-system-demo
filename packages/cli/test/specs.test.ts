@@ -124,4 +124,19 @@ describe('bridge specs --measure', () => {
     expect(await runSpecs(args('--measure', '--storybook', 'https://sb.example.com', '--only', 'Nope'), dir, o.value, fakeOpen().open)).toBe(2);
     expect(o.errors[0]).toContain('no story to measure');
   });
+
+  it('--check gives each component a status for the contract screen, with its reason', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bridge-test-measure-'));
+    const o = io();
+    await runSpecs(args('--measure', '--storybook', 'https://sb.example.com', '--per', '1', '--check', '--out', 'm.json'), dir, o.value, fakeOpen().open);
+    const file = JSON.parse(readFileSync(join(dir, 'm.json'), 'utf8')) as MeasuredSpecsFile;
+    expect(file.statuses?.map((s) => [s.name, s.status, s.reason])).toEqual([
+      ['Button', 'cant-check', 'no-figma'],
+      ['Input', 'cant-check', 'did-not-render'],
+    ]);
+    expect(o.lines).toContain("0 of 2 components match Figma. 0 differ, 2 can't be checked yet.");
+    await expect(runSpecs(args('--measure', '--storybook', 'https://sb.example.com', '--check', '--specs', 'nope.json'), dir, io().value)).rejects.toThrow(/no file/);
+    await expect(runSpecs(args('--measure', '--storybook', 'https://sb.example.com', '--states', 'hover,pressed'), dir, io().value)).rejects.toThrow(/--states/);
+  });
 });
+

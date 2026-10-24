@@ -64,4 +64,24 @@ describe('MEASURE_SCRIPT', () => {
     expect(run({ root: '.decorator', unwrap: false }).root?.tag).toBe('div');
     expect(run({ root: '#nope' })).toMatchObject({ error: expect.stringContaining('#nope') });
   });
+
+  it('measures the open popup portaled to the body, and a part within it', () => {
+    document.body.insertAdjacentHTML('beforeend', '<div id="portal"><div class="backdrop"></div><div role="menu" class="_popup_m1n2o"><div role="menuitem" class="_item_p3q4r">Rename</div><div role="menuitem" class="_item_p3q4r">Delete</div></div></div>');
+    const popup = run({ target: 'portal' });
+    expect(popup.root?.role).toBe('menu');
+    expect(popup.root?.children.map((c) => c.text)).toEqual(['Rename', 'Delete']);
+    const item = run({ within: '[role="menuitem"]' });
+    expect(item.root).toMatchObject({ role: 'menuitem', text: 'Rename' });
+    expect(run({ within: '[role="tab"]' })).toMatchObject({ error: expect.stringContaining('[role="tab"]') });
+  });
+
+  it('says when no popup is open', () => {
+    expect(run({ target: 'portal' })).toMatchObject({ error: 'no popup is open outside the story root' });
+  });
+
+  it('tags the component element for a forced pseudo state', () => {
+    expect(run({ mark: true })).toEqual({ marked: true });
+    expect(document.querySelector('[data-bridge-measure-root]')?.tagName).toBe('BUTTON');
+  });
 });
+

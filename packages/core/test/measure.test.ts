@@ -14,7 +14,11 @@ import {
   measuredToSpec,
   measureStory,
   pickStoriesToMeasure,
+  OPEN_SCRIPT,
+  PROPS_SCRIPT,
   repoSpecOptions,
+  splitInstances,
+  type MeasuredNode,
   type MeasurePage,
   type MeasuredStory,
 } from '../src/node';
@@ -155,3 +159,68 @@ describe('measureStory over an injected page', () => {
     expect(slow.error).toBe('the story did not render within 500 ms');
   });
 });
+
+describe('splitInstances: stories that render the component many times', () => {
+  const n = (tag: string, classes: string[], children: MeasuredNode[] = [], style: Record<string, string> = {}, extra: Partial<MeasuredNode> = {}): MeasuredNode => ({
+    tag,
+    kind: 'frame',
+    classes,
+    box: { x: 10, y: 10, width: 80, height: 32 },
+    style: { 'background-color': 'rgba(0, 0, 0, 0)', 'border-top-style': 'none', ...style },
+    tokens: {},
+    children,
+    ...extra,
+  });
+  const button = (size: string) => n('button', ['chakra-button', `css-${size}`], [], { 'background-color': 'rgb(0, 0, 0)' });
+  const caption = (t: string): MeasuredNode => ({ tag: 'span', kind: 'text', text: t, box: { x: 0, y: 0, width: 10, height: 10 }, style: {}, tokens: {}, children: [] });
+
+  it('finds the instances in a matrix of rows and captions, boxes on their own corner', () => {
+    const story = n('div', ['stack'], [n('table', ['t'], [n('tbody', [], [n('tr', [], [n('td', [], [caption('sm')]), n('td', [], [button('a')]), n('td', [], [button('b')])]), n('tr', [], [n('td', [], [button('c')])])])])]);
+    const inst = splitInstances(story);
+    expect(inst).toHaveLength(3);
+    expect(inst[0]!.box).toMatchObject({ x: 0, y: 0 });
+  });
+
+  it('keeps a component with repeated parts whole: a group with a role, a single instance', () => {
+    expect(splitInstances(n('div', ['g'], [button('a'), button('b')], {}, { role: 'radiogroup' }))).toEqual([]);
+    expect(splitInstances(n('div', ['wrap'], [button('a')]))).toEqual([]);
+    expect(splitInstances(n('fieldset', ['f'], [button('a'), button('b')]))).toEqual([]);
+  });
+});
+
+describe('in-page scripts', () => {
+  it('are valid JavaScript', () => {
+    expect(() => new Function(`return ${OPEN_SCRIPT('#storybook-root')}`)).not.toThrow();
+    expect(() => new Function(`return ${PROPS_SCRIPT('actions-button--primary')}`)).not.toThrow();
+  });
+});
+
+describe('measureStory: popups, args, states and props', () => {
+  const tree = { root: { tag: 'div', kind: 'frame', role: 'menu', box: { x: 0, y: 0, width: 10, height: 10 }, style: {}, tokens: {}, children: [] }, portals: [], wrappers: 0, nodes: 1, rules: 1, sheets: { read: 1, blocked: 0 }, rootVariables: 0, viewport: { width: 1200, height: 800 } };
+  const props = { props: { size: 'lg', disabled: false }, args: { size: 'lg' }, argTypes: { size: { kind: 'enum', options: ['sm', 'lg'] } } };
+
+  it('opens the popup, measures the portal, and reads the props the story rendered with', async () => {
+    const exprs: string[] = [];
+    const urls: string[] = [];
+    const answers: unknown[] = ['rendered', 'click', tree, props];
+    const page: MeasurePage = { goto: async (u) => void urls.push(u), evaluate: async <T>(e: string) => (exprs.push(e), answers.shift() as T) };
+    const m = await measureStory(page, 'https://sb.example.com', 'overlays-menu--actions', { open: true, args: { size: 'lg', modal: false } });
+    expect(urls[0]).toBe('https://sb.example.com/iframe.html?id=overlays-menu--actions&viewMode=story&args=size:lg;modal:!false');
+    expect(exprs[2]).toContain('"target":"portal"');
+    expect(m).toMatchObject({ opened: 'click', props });
+  });
+
+  it('forces a pseudo state on the component when the browser can, and says so', async () => {
+    const forced: [string, string[]][] = [];
+    const answers: unknown[] = ['rendered', { marked: true }, undefined, tree, props];
+    const page: MeasurePage = {
+      goto: async () => undefined,
+      evaluate: async <T>() => answers.shift() as T,
+      forcePseudo: async (sel, states) => (forced.push([sel, states]), true),
+    };
+    const m = await measureStory(page, 'https://sb.example.com', 'b--c', { state: 'hover' });
+    expect(forced).toEqual([['[data-bridge-measure-root]', ['hover']], ['[data-bridge-measure-root]', []]]);
+    expect(m.state).toBe('hover');
+  });
+});
+
