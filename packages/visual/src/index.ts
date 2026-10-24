@@ -6,4 +6,5 @@ export { COMMENT_MARKER, hasVisualChange, rankShots, renderComment, summarize, s
 export { DEFAULT_ROUTES, DEFAULT_TENANTS, routeUrl, storyUrl, shotKey } from './routes.js';
 export { captureFigmaReferences, type ReferencesOptions, type ReferencesResult } from './references.js';
 export { linkNodeModules } from './workspace.js';
+export { openMeasurePage } from './capture.js';
 export type * from './types.js';

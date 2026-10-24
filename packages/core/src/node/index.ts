@@ -8,3 +8,4 @@ export * from './spec-css';
 export * from './spec-motion';
 export * from './suggestion-apply-node';
 export * from './fs-source';
+export * from './measure';
