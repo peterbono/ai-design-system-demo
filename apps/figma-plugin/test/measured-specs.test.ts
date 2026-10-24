@@ -76,6 +76,22 @@ test('a hover story stands for Hover, a disabled one for Disabled, never for Def
   assert.deepEqual(variantOf(d.specs, PRIMARY_MD), variantOf(specs, PRIMARY_MD), 'Default keeps the static values');
 });
 
+test('a story titled by the set wins over the folder title several sets share', () => {
+  const specs = parseComponentSpecs(specsText());
+  const m = measured();
+  const story = m.stories[0]!;
+  // A Radio story through its group (Figma variants/Radio): checked comes from the group's value, as a story arg.
+  const radio = { ...story, id: 'figma-variants-radio--checked', title: 'Figma variants/Radio', props: { label: 'Label', checked: true, disabled: false } };
+  m.stories = [radio];
+  const { specs: out, report } = overlayMeasured(specs, m);
+  assert.equal(report.matched, 1);
+  const radioSet = out.components.find((c) => c.name === 'Radio')!;
+  const checked = radioSet.variants.find((v) => v.props.Checked === 'true' && v.props.State === 'Default')!;
+  assert.notDeepEqual(checked, parseComponentSpecs(specsText()).components.find((c) => c.name === 'Radio')!.variants.find((v) => v.props.Checked === 'true' && v.props.State === 'Default'));
+  // The same story under the folder title (Forms/RadioGroup) is not taken for the RadioGroup set: its axes differ.
+  assert.equal(out.components.find((c) => c.name === 'RadioGroup')!.variants.every((v, i) => v === specs.components.find((c) => c.name === 'RadioGroup')!.variants[i]), true);
+});
+
 test('a story without props, or with an error, matches nothing', () => {
   const specs = parseComponentSpecs(specsText());
   const noProps = measured();
