@@ -354,9 +354,10 @@ function GuideCards({ k }: { k: 'dos' | 'donts' }) {
               </Badge>
               <IconButton className="le-remove" icon={X} size="sm" label={`Remove ${word} ${i + 1}`} onClick={() => e.setList(k, items.filter((_, j) => j !== i) as DocsGuidance[])} />
             </div>
-            <h4>
+            {/* h3 under the section's h2, as on the read page (components/UsagePanel.tsx): no skipped level. */}
+            <h3 className="verdict-title">
               <InlineText field={{ key: k, index: i, part: 'title' }} label={`${word} ${i + 1}, title`} placeholder="Title" />
-            </h4>
+            </h3>
             {/* A div, not a p: the field is a block (Textarea), and a p cannot hold one. */}
             <div className="verdict-text">
               <InlineText field={{ key: k, index: i, part: 'text' }} label={`${word} ${i + 1}, why`} placeholder="Why, in one sentence" />

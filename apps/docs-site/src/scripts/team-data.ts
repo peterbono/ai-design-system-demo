@@ -101,7 +101,11 @@ async function seedLibraryMember(team: { owner: string; repo: string }): Promise
  * host refuses a token).
  */
 export const readTeamSnapshot: SnapshotReader = async (client, repo) => {
-  const text = repo.private && client.canWrite ? await client.getRawText(SNAPSHOT_FILE, SNAPSHOT_BRANCH) : await client.readRawFile(SNAPSHOT_FILE, SNAPSHOT_BRANCH);
+  // Through the API, the branch is asked first: most teams publish no snapshot, and a missing file would leave a 404
+  // in the console on every page. The list answers 200, empty, when the branch is not there.
+  const viaApi = repo.private && client.canWrite;
+  if (viaApi && !(await client.hasBranch(SNAPSHOT_BRANCH))) return null;
+  const text = viaApi ? await client.getRawText(SNAPSHOT_FILE, SNAPSHOT_BRANCH) : await client.readRawFile(SNAPSHOT_FILE, SNAPSHOT_BRANCH);
   if (!text || text.length > SNAPSHOT_MAX_BYTES) return null;
   try {
     return parseSnapshot(text);
@@ -294,6 +298,8 @@ export function loadTeamLlms(): Promise<boolean> {
         const { readLibraryFile } = await import('./library-access-api');
         return Boolean(await readLibraryFile(`${d.owner}/${d.repo}`, 'llms').catch(() => ''));
       }
+      // llms.txt sits next to the snapshot: no snapshot, nothing to ask (and no 404 in the console).
+      if (!(await loadTeamSnapshot())) return false;
       if (d.private) return d.client.canWrite ? Boolean(await d.client.getRawText(SNAPSHOT_LLMS_FILE, SNAPSHOT_BRANCH)) : false;
       const url = `https://raw.githubusercontent.com/${encodeURIComponent(d.owner)}/${encodeURIComponent(d.repo)}/${SNAPSHOT_BRANCH}/${SNAPSHOT_LLMS_FILE}`;
       return (await fetch(url, { method: 'HEAD' })).ok;
@@ -315,6 +321,7 @@ export function loadTeamLlmsText(): Promise<string | null> {
         const { readLibraryFile } = await import('./library-access-api');
         return (await readLibraryFile(`${d.owner}/${d.repo}`, 'llms').catch(() => '')) || null;
       }
+      if (!(await loadTeamSnapshot())) return null;
       if (d.private) return d.client.canWrite ? ((await d.client.getRawText(SNAPSHOT_LLMS_FILE, SNAPSHOT_BRANCH)) ?? null) : null;
       return (await d.client.readRawFile(SNAPSHOT_LLMS_FILE, SNAPSHOT_BRANCH)) ?? null;
     })

@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const s = vi.hoisted(() => ({
   pulls: null as null | (() => Promise<unknown>),
   requests: vi.fn(),
+  account: { email: 'sam@acme.com' } as null | { email: string },
 }));
 
 vi.mock('./github-session', () => ({
@@ -24,6 +25,7 @@ vi.mock('../lib/team-path', async (orig) => ({ ...(await orig<object>()), isHost
 vi.mock('./teams', () => ({ loadTeams: async () => undefined }));
 vi.mock('./pr-status', () => ({ loadStatuses: async () => undefined, owners: () => ({ design: [], tech: [] }), shippers: () => [], rowWho: () => null }));
 vi.mock('./suggestions', () => ({ loadSuggestionNeeds: async () => [] }));
+vi.mock('./account-session', () => ({ getAccount: async () => ({ available: true, account: s.account }) }));
 
 import { loadHome, type HomeData } from './home-data';
 
@@ -32,6 +34,7 @@ const STAT = { guidance: [], contrastFail: 0 };
 const joinRows = (d: HomeData | undefined) => (d?.needs ?? []).filter((r) => r.request);
 
 beforeEach(() => {
+  s.account = { email: 'sam@acme.com' };
   s.requests.mockReset();
   s.requests.mockResolvedValue([REQUEST]);
 });
@@ -68,5 +71,14 @@ describe('loadHome and join requests', () => {
     facts = { guidance: [], contrastFail: 2 };
     repaint();
     expect(seen.at(-1)!.needs.length).toBeGreaterThan(0);
+  });
+  it('never asks for join requests without a Bridge account (a GitHub-only admin: the server would answer 401)', async () => {
+    s.account = null;
+    s.pulls = () => Promise.reject(new Error('offline'));
+    const seen: HomeData[] = [];
+    await loadHome(STAT, (d) => seen.push(d));
+    await vi.waitFor(() => expect(seen.at(-1)?.settled).toBe(true));
+    expect(s.requests).not.toHaveBeenCalled();
+    expect(joinRows(seen.at(-1))).toHaveLength(0);
   });
 });
