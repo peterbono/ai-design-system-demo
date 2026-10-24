@@ -1,8 +1,8 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-24T11:41:15.107Z",
-  "sha": "b539c3eed5943254f47345801377476446783f24",
+  "createdAt": "2026-10-24T11:48:29.597Z",
+  "sha": "cffec519bd217b89a1e255e28772ec310b689e4b",
   "scale": 2,
   "mode": {
     "brand": "bridge",
@@ -95,10 +95,10 @@
       "specHash": "91904bda",
       "variants": {
         "Tone=danger": {
-          "skipped": "drawn open in Figma; the code image shows it closed"
+          "skipped": "ul is not exported by @bridge-ds/react"
         },
         "Tone=primary": {
-          "skipped": "drawn open in Figma; the code image shows it closed"
+          "skipped": "ul is not exported by @bridge-ds/react"
         }
       }
     },
@@ -691,7 +691,7 @@
       "specHash": "bbaaef62",
       "variants": {
         "Padding=none": {
-          "skipped": "Figma shows a placeholder (Slot/Media) that code has no example of"
+          "skipped": "Figma shows a media placeholder (Slot/Media); code shows the image it is given, nothing to compare"
         },
         "Padding=compact": {
           "file": "card/padding-compact.png",
@@ -909,7 +909,9 @@
       "specHash": "8ed62203",
       "variants": {
         "Default": {
-          "skipped": "drawn open in Figma; the code image shows it closed"
+          "file": "combobox-popup/default.png",
+          "width": 244,
+          "height": 132
         }
       }
     },
@@ -917,13 +919,19 @@
       "specHash": "df468a0d",
       "variants": {
         "Size=sm": {
-          "skipped": "drawn open in Figma; the code image shows it closed"
+          "file": "dialog-popup/size-sm.png",
+          "width": 384,
+          "height": 147
         },
         "Size=md": {
-          "skipped": "drawn open in Figma; the code image shows it closed"
+          "file": "dialog-popup/size-md.png",
+          "width": 560,
+          "height": 147
         },
         "Size=lg": {
-          "skipped": "drawn open in Figma; the code image shows it closed"
+          "file": "dialog-popup/size-lg.png",
+          "width": 720,
+          "height": 147
         }
       }
     },
@@ -946,13 +954,13 @@
       "specHash": "6c415fb5",
       "variants": {
         "Size=sm": {
-          "skipped": "drawn open in Figma; the code image shows it closed"
+          "skipped": "div is not exported by @bridge-ds/react"
         },
         "Size=md": {
-          "skipped": "drawn open in Figma; the code image shows it closed"
+          "skipped": "div is not exported by @bridge-ds/react"
         },
         "Size=lg": {
-          "skipped": "drawn open in Figma; the code image shows it closed"
+          "skipped": "div is not exported by @bridge-ds/react"
         }
       }
     },
@@ -1440,7 +1448,7 @@
       "specHash": "47df6448",
       "variants": {
         "Default": {
-          "skipped": "drawn open in Figma; the code image shows it closed"
+          "skipped": "drawn open from no code example: nothing to open in code"
         }
       }
     },
@@ -1718,7 +1726,7 @@
       "specHash": "caff0a81",
       "variants": {
         "Default": {
-          "skipped": "drawn open in Figma; the code image shows it closed"
+          "skipped": "p is not exported by @bridge-ds/react"
         }
       }
     },
@@ -2061,7 +2069,9 @@
       "specHash": "ec9e0627",
       "variants": {
         "Default": {
-          "skipped": "drawn open in Figma; the code image shows it closed"
+          "file": "select-popup/default.png",
+          "width": 85,
+          "height": 118
         }
       }
     },
@@ -2574,7 +2584,7 @@
       "specHash": "b8f5f366",
       "variants": {
         "Default": {
-          "skipped": "drawn open in Figma; the code image shows it closed"
+          "skipped": "Tooltip threw while rendering: Minified React error #130; visit https://reactjs.org/docs/error-decoder.html?invariant=130&args[]=undefined&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
         }
       }
     }
