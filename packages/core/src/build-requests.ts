@@ -53,13 +53,19 @@ export type FigmaPushScope = 'token-values' | 'token-structure' | 'token-unknown
 
 const VALUE_SIDE = [/^\.changeset\//, /^\.bridge\//, /\.md$/, /^docs\//];
 
+/** A token file: `*.tokens.json`, or a JSON file under `tokens.root`. */
+export function isTokenPath(path: string, config?: BridgeConfig | undefined): boolean {
+  const p = path.replace(/^\/+/, '');
+  const tokenDir = config?.tokens?.root?.replace(/\/+$/, '');
+  return p.endsWith('.tokens.json') || (tokenDir ? p.startsWith(`${tokenDir}/`) && p.endsWith('.json') : false);
+}
+
 export function figmaPushScope(input: { files: readonly ChangedFile[]; tokenChanges: readonly { kind: TokenChangeKind | string }[] | null | undefined; config?: BridgeConfig | undefined }): FigmaPushScope {
-  const tokenDir = input.config?.tokens?.root?.replace(/\/+$/, '');
   let code = false;
   let tokenFiles = false;
   for (const f of input.files) {
     const p = f.path.replace(/^\/+/, '');
-    const isToken = p.endsWith('.tokens.json') || (tokenDir ? p.startsWith(`${tokenDir}/`) && p.endsWith('.json') : false);
+    const isToken = isTokenPath(p, input.config);
     if (isGuardrail(p, input.config)) return 'outside';
     if (isToken) tokenFiles = true;
     else if (!VALUE_SIDE.some((r) => r.test(p))) code = true;
@@ -71,6 +77,33 @@ export function figmaPushScope(input: { files: readonly ChangedFile[]; tokenChan
   // Nothing but a spec, docs or a changeset: no token value to ship, so nothing ships by itself.
   if (!tokenFiles || !changes?.length) return 'component';
   return 'token-values';
+}
+
+/**
+ * Whether the token files of a pull request are worth reading to tell a token value change (isTokenValueChange): it
+ * changes token files, and nothing beside them but changesets, docs and Bridge's own files. Every other pull request
+ * (code, a guardrail file, no token file) is not one, with no read.
+ */
+export function mayBeTokenValueChange(files: readonly ChangedFile[], config?: BridgeConfig | undefined): boolean {
+  // As if the token files held a value change: the files alone decide whether reading them can tell one.
+  return figmaPushScope({ files, tokenChanges: [{ kind: 'changed' }], config }) === 'token-values';
+}
+
+/**
+ * Decision TV-1 (docs/BUILD-REQUESTS.md, "Token values from Studio"): a pull request that only changes token values
+ * (values changed or tokens added, from its real files and token changes, never from its body), whoever opened it.
+ * Once the design approval is given it ships after the automatic checks, with no developer code OK (review-gate
+ * withTokenValueApprovals, branchVerdict `tokenValues`). A rename or removal, unread token changes (null), code, a
+ * guardrail file or a running exploration is not one: those still need the tech approval.
+ */
+export function isTokenValueChange(input: {
+  files: readonly ChangedFile[];
+  tokenChanges: readonly { kind: TokenChangeKind | string }[] | null | undefined;
+  config?: BridgeConfig | undefined;
+  labels?: readonly ({ name?: string } | string)[] | null | undefined;
+}): boolean {
+  if (names(input.labels).includes(EXPLORATION_LABEL)) return false;
+  return figmaPushScope(input) === 'token-values';
 }
 
 /**

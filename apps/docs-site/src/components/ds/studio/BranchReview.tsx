@@ -183,7 +183,8 @@ export interface BranchReviewProps {
    * writes nothing. `author` is who asked for the review; `codeBy` who checks the code next ("Malik"), when the change
    * still needs that check.
    */
-  sample?: { author: string | null; codeBy?: string | null } | null;
+  /** `valuesOnly`: a token value change, the design approval is all it needs (core withTokenValueApprovals). */
+  sample?: { author: string | null; codeBy?: string | null; valuesOnly?: boolean | undefined } | null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -866,8 +867,8 @@ function ProductWork({ work, link, hasVisual }: { work: ProductWorkView; link: s
 // The decision bar
 
 /** Approve, tried on the sample team: approved, what happens next, and that nothing was sent. */
-function TriedApprove({ author, codeBy }: { author: string | null; codeBy: string | null }) {
-  const w = demoApproved(author, codeBy);
+function TriedApprove({ author, codeBy, valuesOnly }: { author: string | null; codeBy: string | null; valuesOnly?: boolean | undefined }) {
+  const w = demoApproved(author, codeBy, valuesOnly);
   return (
     <Alert tone="success" title={w.title} className="br-tried">
       {w.next} {w.note}
@@ -994,7 +995,7 @@ function DecisionBar({ p, leftLine, inputRef, tried, onTry }: { p: BranchReviewP
           </MenuContent>
         </Menu>
       </div>
-      {tried && p.sample && <TriedApprove author={p.sample.author} codeBy={p.sample.codeBy ?? null} />}
+      {tried && p.sample && <TriedApprove author={p.sample.author} codeBy={p.sample.codeBy ?? null} valuesOnly={p.sample.valuesOnly} />}
       {(said || p.note) && (
         <p className="br-said" role="status" aria-live="polite">
           {said || p.note}

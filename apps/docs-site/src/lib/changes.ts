@@ -537,7 +537,8 @@ export function approvalRows(input: { tier: Tier | null; approvals: ApprovalSumm
   // The only owner covers both parts with one review: the first row carries "Approve", the other says so.
   const solo = input.open && soloCovers((['design', 'tech'] as const).filter((r) => !covered[r]), { ...p, approvers: a.approvers }) && viewerCanApprove('design', { ...p, approvers: a.approvers });
   let acted = false;
-  return requiredApprovals(input.tier).map((role) => {
+  // A token value change needs the design approval only (core withTokenValueApprovals, decision TV-1): no code row.
+  return requiredApprovals(input.tier, a.valuesOnly).map((role) => {
     const listed = listedFor(role, p.owners);
     // Every approval counts from that role's owners (mergeGate): a plain approval (Tier 1) from any owner, either list.
     const inRole = (l: string) => listed.length === 0 || listed.some((x) => same(x, l));

@@ -473,7 +473,9 @@ export function proposalSummary(): { title: string; tier: 1 | 2 | 3; sentence: s
     });
   const risk = classifyRisk({ tokenChanges: S.applied.changes, config: S.config });
   const tier = (risk.tier === 1 || risk.tier === 2 ? risk.tier : 3) as 1 | 2 | 3;
-  return { title: proposalTitle(edits), tier, sentence: reviewSentence(tier, S.config.governance.rights, changesModeOnPage()) };
+  // Values changed or tokens added only, no guidance edit: the design approval is all it needs (core TV-1).
+  const valuesOnly = S.applied.changes.length > 0 && S.applied.changes.every((c) => Boolean(c.target) && (!c.current || c.current.path === c.target!.path)) && !S.draft.edits.some((e) => e.kind === 'docs');
+  return { title: proposalTitle(edits), tier, sentence: reviewSentence(tier, S.config.governance.rights, changesModeOnPage(), valuesOnly) };
 }
 
 /** Removes one draft edit by its index in the draft. */

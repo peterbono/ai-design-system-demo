@@ -119,7 +119,8 @@ describe('list, get, review, decline', () => {
 
     const got = (await suggestions.getSuggestionOp(ctx, { number: `#${n}` })) as any;
     expect(got.status).toBe('needs-review');
-    expect(got.approvals.missing).toEqual(['design approval', 'tech approval']);
+    // A token value suggestion needs the design approval only (decision TV-1).
+    expect(got.approvals.missing).toEqual(['design approval']);
     expect(got.payloadSha).toMatch(/^[0-9a-f]{64}$/);
     expect(got.change.tokens[0].path).toBe('color.text.muted');
 
@@ -129,7 +130,8 @@ describe('list, get, review, decline', () => {
     await expect(suggestions.reviewSuggestionOp(ctx, { number: n, event: 'approve', payloadSha: 'deadbee' })).rejects.toThrow(/changed since you read it/);
     const one = (await suggestions.reviewSuggestionOp(ctx, { number: n, event: 'approve', payloadSha: got.payloadSha })) as any;
     expect(one.counts).toBe(true);
-    expect(one.status).toBe('needs-review');
+    // The design approval is all a token value suggestion needs (TV-1); the developer's OK changes nothing.
+    expect(one.status).toBe('approved');
     gh.viewer.login = 'dev';
     const two = (await suggestions.reviewSuggestionOp(ctx, { number: n, event: 'approve', payloadSha: got.version })) as any;
     expect(two.status).toBe('approved');

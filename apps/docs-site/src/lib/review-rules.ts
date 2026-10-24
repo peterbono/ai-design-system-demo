@@ -186,6 +186,8 @@ export function studioVerdict(input: {
   ship?: ShipPolicy | null | undefined;
   /** A push from the Figma plugin (core figmaPushOf over the files and tokenFileChanges): docs/BUILD-REQUESTS.md. */
   figmaPush?: FigmaPush | null | undefined;
+  /** Token values only (core isTokenValueChange, decision TV-1): the design approval is all it needs. */
+  tokenValues?: boolean | null | undefined;
 }): BranchVerdict {
   const { site, pull } = input;
   const owners = approverLists(site.owners, site.rights, input.teams ?? null);
@@ -206,6 +208,7 @@ export function studioVerdict(input: {
     exploration: isActiveExploration(pull.labels ?? []),
     ship: input.ship,
     figmaPush: input.figmaPush,
+    tokenValues: input.tokenValues,
     // Updated after every changes request (core lookAgainReviewers): "Updated, look again", as in the MCP server and the CLI.
     lookAgain: input.reviews ? lookAgainReviewers(input.reviews, pull.head?.sha, pull.user.login) : [],
   });

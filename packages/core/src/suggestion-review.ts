@@ -5,7 +5,7 @@
 // Pure; posting lives in suggestions-github.ts.
 
 import type { Owners } from './config';
-import { pendingApprovals, summarizeApprovals, type ApprovalRole, type ApprovalSummary, type ReviewLike } from './review-gate';
+import { pendingApprovals, summarizeApprovals, withTokenValueApprovals, type ApprovalRole, type ApprovalSummary, type ReviewLike } from './review-gate';
 import { approverLists, type Rights } from './rights';
 import type { RiskTier } from './risk';
 import type { TeamStates } from './teams';
@@ -136,7 +136,16 @@ const COLLABORATOR = ['OWNER', 'MEMBER', 'COLLABORATOR'];
  * sha count; the suggestion's author never approves their own suggestion. With `soloOwnerCanApproveBoth` and one
  * owner holding both roles, that owner's approval covers design and tech.
  */
-export function summarizeSuggestionApprovals(comments: readonly SuggestionCommentLike[], gov: SuggestionGovernance, opts: { payloadSha: string; author?: string | null | undefined }): SuggestionApprovals {
+export function summarizeSuggestionApprovals(
+  comments: readonly SuggestionCommentLike[],
+  gov: SuggestionGovernance,
+  opts: {
+    payloadSha: string;
+    author?: string | null | undefined;
+    /** A token value suggestion (suggestionIsTokenValues): the design approval is all it needs (decision TV-1). */
+    valuesOnly?: boolean | undefined;
+  },
+): SuggestionApprovals {
   const lists = approverLists(gov.owners, gov.rights ?? null, gov.teams);
   const owners = new Set([...lists.design, ...lists.tech].map(norm));
   const anyOwner = owners.size > 0;
@@ -164,7 +173,7 @@ export function summarizeSuggestionApprovals(comments: readonly SuggestionCommen
     latestOld.delete(c.author);
     reviews.push({ user: { login: c.author }, state: r.event === 'approve' ? 'APPROVED' : 'CHANGES_REQUESTED', submitted_at: at });
   });
-  const summary = summarizeApprovals(reviews, lists, opts.author ?? undefined, { soloOwnerCanApproveBoth: gov.soloOwnerCanApproveBoth });
+  const summary = withTokenValueApprovals(summarizeApprovals(reviews, lists, opts.author ?? undefined, { soloOwnerCanApproveBoth: gov.soloOwnerCanApproveBoth }), opts.valuesOnly);
   const stale = [...latestOld.keys()].filter((l) => !summary.approvers.includes(l) && !summary.changesRequested.includes(l));
   return { ...summary, stale, ignored: [...ignored].filter((l) => !summary.approvers.includes(l)) };
 }

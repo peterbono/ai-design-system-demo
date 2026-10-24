@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BridgeContext, branches, ops, studio } from '../dist/lib.js';
 import { previewComment } from '@bridge-ds/core';
-import { fakeGitHub, pinStart, pinValue, readTree, REAL_PATHS, REPO, withoutSoloOwner } from './helpers.js';
+import { addCodeTo, fakeGitHub, pinStart, pinValue, readTree, REAL_PATHS, REPO, withoutSoloOwner } from './helpers.js';
 
 const LIGHT = 'packages/tokens/src/semantic/light.tokens.json';
 const MUTED = ['color', 'text', 'muted'];
@@ -59,6 +59,8 @@ describe('a branch in review, from draft to merged', () => {
     const { gh, ro, rw } = setup();
     await ops.proposeTokenChange(await rw(), { title: 'Darken muted text', edits: [edit()] });
     expect(gh.pulls[0]).toMatchObject({ draft: true });
+    // With code beside the token value, it is no token value change (TV-1): the tech approval is needed.
+    addCodeTo(gh, 'bridge/darken-muted-text');
 
     // Reads work without a token; writes say what the token needs.
     const s0 = (await branches.branchStatus(await ro(), { pr: '#1' })) as any;
@@ -124,9 +126,12 @@ describe('a branch in review, from draft to merged', () => {
     gh.pulls[0]!.labels = [{ name: 'tier: 1' }];
     gh.pulls[0]!.body = '';
     const mod = (await branches.branchStatus(await rw(), { pr: 1 })) as any;
-    expect(mod.approvalNeeded).toBe('Design and tech approval'); // the files still say Tier 3: highest wins
+    // The files still say Tier 3 (highest wins), and a token value change needs the design approval only (TV-1).
+    expect(mod.approvalNeeded).toBe('Design approval (token values ship after the checks)');
     gh.viewer.login = 'peterbono';
     await branches.reviewBranch(await rw(), { pr: 1, decision: 'approve' });
+    // Decision TV-1: the design approval alone makes a token value change ready, no developer OK.
+    expect(((await branches.branchStatus(await rw(), { pr: 1 })) as any).status.kind).toBe('ready');
     gh.viewer.login = 'tech-person';
     await branches.reviewBranch(await rw(), { pr: 1, decision: 'approve', body: 'Looks right.' });
     gh.viewer.login = 'peterbono';

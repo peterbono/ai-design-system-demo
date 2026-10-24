@@ -6,7 +6,7 @@
 // "Copy link", "Link for a developer"; the page itself never links to GitHub.
 // Without a token the bar's primary connects GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
-import { figmaPushFor } from './figma-push-read';
+import { figmaPushFor, tokenValuesFor } from './figma-push-read';
 import { EXPLORATION_USE_CASES, parseExplorationBody, resolveBranchPreviews, askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, markSuggestionsAppliedOnGitHub, mergeOnGitHub, visualOffer, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, requesterOf, requesterFirstName, lookAgainReviewers, canOverride, overrideReasonMin, ownerOverridePolicy, soloOwnerSentence, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
 import { loadTeams, siteApprovalRules, siteApprovers, siteRoles, siteShipPolicy, siteSoloOwner, teamDirectory, teamSnapshot } from './teams';
 import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
@@ -676,11 +676,12 @@ export async function openPr(n: number, push = true) {
     // approved suggestion carries its approvals, the override is for its owner holders, Tier 1 needs one owner.
     const carried = await approvedSuggestionOf(pull.body);
     // Pushed from the Figma plugin: design approved by the push, token values tech approved too (docs/BUILD-REQUESTS.md).
-    const figmaPush = await figmaPushFor(pull, files);
+    // Token values only, whoever opened it: the design approval is all it needs (core isTokenValueChange, TV-1).
+    const [figmaPush, tokenValues] = await Promise.all([figmaPushFor(pull, files), tokenValuesFor(pull, files)]);
     const ship = await viewerShipPolicy(SHIP(), access?.login);
     if (seq !== openSeq) return;
     // lib/review-rules studioVerdict: the composition the status chips read, and the MCP server and the CLI too.
-    const verdictOf = (rs: ReviewLike[]) => studioVerdict({ site: { ...siteRoles(), override: OVERRIDE }, teams: teamSnapshot(), pull, tier, ci, reviews: rs, suggestion: carried, mergeable: pull.mergeable, viewer: access?.login, ship, figmaPush });
+    const verdictOf = (rs: ReviewLike[]) => studioVerdict({ site: { ...siteRoles(), override: OVERRIDE }, teams: teamSnapshot(), pull, tier, ci, reviews: rs, suggestion: carried, mergeable: pull.mergeable, viewer: access?.login, ship, figmaPush, tokenValues });
     const gateOf = (rs: ReviewLike[]) => verdictOf(rs).gate!;
     const own = verdictOf(reviews);
     const approvals = own.approvals!;
@@ -714,6 +715,7 @@ export async function openPr(n: number, push = true) {
     // Review all on the sample team says who checks the code next after Approve (lib/demo.ts demoApproved).
     if (props.sample?.codeBy) d.dataset.codeNext = props.sample.codeBy;
     else delete d.dataset.codeNext;
+    d.toggleAttribute('data-values-only', Boolean(props.sample?.valuesOnly));
     runCurrent = (kind, text) => props.onAct(kind, text);
     // Who the approval rows and the status line name, by their profile name once GitHub says it.
     const unnamed = renamedLogins.filter((l) => !profiles.has(l.toLowerCase()) && !aliases.has(l.toLowerCase()));
@@ -1012,7 +1014,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   });
   // The sample team, in the lead's seat: Approve can be tried (BranchReview shows the result and writes nothing).
   // Anything else there opens no GitHub sign-in: the banner's "Get started" is the one way in.
-  const sample = sampleSeat && (status.lifecycle === 'ready' || status.lifecycle === 'waiting') && !exploration ? { author: seatAuthor, codeBy: onItsWay ? null : codeNext } : null;
+  const sample = sampleSeat && (status.lifecycle === 'ready' || status.lifecycle === 'waiting') && !exploration ? { author: seatAuthor, codeBy: onItsWay ? null : codeNext, ...(approvals.valuesOnly ? { valuesOnly: true } : {}) } : null;
   if (sampleSeat && actions.primary?.kind === 'connect') actions.primary = sample ? { kind: 'approve', label: 'Approve' } : null;
   if (actions.primary?.kind === 'connect') actions.primary.label = ghAction('review', prefersSignIn());
   if (actions.primary && (actions.primary.kind === 'reopen' || actions.primary.kind === 'restart') && statusRun.kind) actions.primary.label = ACTION_LABEL[statusRun.kind];

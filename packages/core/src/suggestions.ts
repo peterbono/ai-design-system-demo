@@ -382,6 +382,17 @@ export interface SuggestionStatusInput {
 }
 
 /**
+ * Decision TV-1 (docs/BUILD-REQUESTS.md, "Token values from Studio"): a token suggestion that only changes values or
+ * adds tokens (every edit a `set` or an `add`, no file beside its changeset) needs the design approval only, the same
+ * rule as a pull request (isTokenValueChange). A rename, a removal or any other kind still needs the tech approval.
+ */
+export function suggestionIsTokenValues(p: Pick<SuggestionPayloadV1, 'kind' | 'tokens' | 'files' | 'docs' | 'componentSpec'>): boolean {
+  if (p.kind !== 'token-change' || !p.tokens?.edits.length || p.docs?.length || p.componentSpec) return false;
+  if (!p.tokens.edits.every((e) => e.op === 'set' || e.op === 'add')) return false;
+  return (p.files ?? []).every((f) => f.path.endsWith('.md'));
+}
+
+/**
  * Where a suggestion stands. Closed: applied when a linked pull request merged or the issue was closed as completed,
  * declined otherwise. Open: applying when a linked pull request is open or an applied marker exists; outdated when the
  * dry run found a conflict; then the review state (changes requested, approved, needs review).

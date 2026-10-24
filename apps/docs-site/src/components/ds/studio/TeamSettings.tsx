@@ -5,7 +5,7 @@
 //   How changes reach your code  what happens once the team keeps a change (bridge.config.json `changes`)
 //   Review rules                 who checks the look, who checks the code, who adds it to the library: the team's own
 //                                rules (governance owners and rights), never Bridge's build-time tiers (RV-20), and that token values
-//                                from Figma ship once the automatic checks pass (docs/BUILD-REQUESTS.md "The rule")
+//                                ship once the look is approved and the checks pass (docs/BUILD-REQUESTS.md "The rule", TV-1)
 //   Safety                       when the visual before and after runs
 // Each section closes on a "For developers" fold with the file, keys, repository and branch behind it. A member who is
 // not an admin reads who can change it, by name (SettingsParts AdminOnlyNote, BR-20).
@@ -18,7 +18,7 @@ import { TeamLoadError, TeamLoadProgress, useTeamData } from './TeamState';
 import { AdminOnlyNote, Code, DevFold } from './SettingsParts';
 import { useTeamPeople } from './members-state';
 import { roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL } from '../../../lib/roles-view';
-import { andList, ANYONE_WHO_CODES, CHANGES_DEV, CHANGES_PLAIN, NOBODY_NAMED, overridePlain, RIGHT_PLAIN, soloPlain, teamPlain, TOKEN_VALUES_PLAIN } from '../../../lib/settings-view';
+import { andList, ANYONE_WHO_CODES, CHANGES_DEV, CHANGES_PLAIN, NOBODY_NAMED, overridePlain, RIGHT_PLAIN, soloPlain, teamPlain, TOKEN_VALUES_DEV, TOKEN_VALUES_PLAIN } from '../../../lib/settings-view';
 import { Who } from './faces';
 import { demoSettingsPeople, isSampleTeam, teamDisplayName } from '../../../lib/demo';
 import { loginKey, ownerName } from '../../../lib/people';
@@ -191,7 +191,7 @@ export default function TeamSettings() {
                 { term: 'Design owners', value: <Code>{demo ? andList(owners.design.map(demo.nameOf)) : entries(site.owners.design)}</Code> },
                 { term: 'Tech owners', value: <Code>{demo ? andList(owners.tech.map(demo.nameOf)) : entries(site.owners.tech)}</Code> },
                 ...rows.map((x) => ({ term: `governance.rights.${x.right}`, value: <Code>{x.choice === null ? 'not set: anyone with write access merges' : andList(x.choice === 'both' ? ['design', 'tech'] : [x.choice])}</Code> })),
-                { term: 'Token values from Figma', value: 'Bridge approves the pull request and turns on auto-merge: it merges once the required checks pass. A renamed or removed token waits for a tech owner (docs/BUILD-REQUESTS.md).' },
+                { term: 'Token values', value: TOKEN_VALUES_DEV },
                 { term: 'Protected branches', value: <Code>{gov.protectedBranches.join(', ') || 'none'}</Code> },
                 { term: 'Branch prefix', value: <Code>{gov.branchPrefix || 'none'}</Code> },
                 ...(holders.length ? [{ term: 'Owner override', value: <Code>{`${demo ? andList(holderNames) : entries(holders)}, reason of ${overrideReasonMin(site.override)}+ characters, posted on the pull request`}</Code> }] : []),

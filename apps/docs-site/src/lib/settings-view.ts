@@ -239,16 +239,21 @@ export const RIGHT_PLAIN: Record<'approveDesign' | 'approveTech' | 'ship', { lab
 };
 
 /**
- * Token values pushed from Figma, as a designer reads it (docs/BUILD-REQUESTS.md "The rule"): they ship once the
- * automatic checks pass, nobody approves them; a renamed or removed token waits for a tech owner. Shown on every
- * team's Review rules, so the people named above never read as a wait on a token value.
+ * Token values, as a designer reads it (docs/BUILD-REQUESTS.md "The rule" and decision TV-1): a value changed in Studio
+ * ships once the look is approved and the automatic checks pass, with no code check; from Figma the push counts as the
+ * approval. A renamed or removed token waits for a code check. Shown on every team's Review rules, so the people named
+ * above never read as a wait on a token value.
  */
 export const TOKEN_VALUES_PLAIN = {
-  label: 'Token values from Figma',
-  help: 'Values your designers change in Figma and send with Bridge.',
-  title: 'Ship once the automatic checks pass.',
-  text: 'Nobody needs to approve them. A renamed or removed token waits for a code check.',
+  label: 'Token values',
+  help: 'Colors, sizes and other values your designers change in Studio or send from Figma.',
+  title: 'Ship once the look is approved and the automatic checks pass.',
+  text: 'Nobody checks the code. From Figma, sending counts as the approval. A renamed or removed token waits for a code check.',
 } as const;
+
+/** The same rule for developers (the Review rules fold). */
+export const TOKEN_VALUES_DEV =
+  'A pull request that only changes token values (values changed or tokens added, nothing renamed or removed, no code) needs the design approval only: the tech approval counts as given, and it merges once the required checks pass. From Figma, Bridge approves it and turns on auto-merge. A renamed or removed token waits for a tech owner (docs/BUILD-REQUESTS.md).';
 
 /** Nobody is named for a right (owner lists empty), or merging is left to anyone with write access. */
 export const NOBODY_NAMED = 'Nobody named yet';

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { BridgeContext, ops } from '@bridge-ds/mcp';
 import { runBranch, runDocsSave, runStudioRead } from '../src/branch.js';
 import type { RequestIO } from '../src/request.js';
-import { fakeGitHub, pinStart, readTree, REAL_PATHS, REPO, tempGitRepo, withoutSoloOwner } from '../../mcp/test/helpers.js';
+import { addCodeTo, fakeGitHub, pinStart, readTree, REAL_PATHS, REPO, tempGitRepo, withoutSoloOwner } from '../../mcp/test/helpers.js';
 
 const OWNER = 'peterbono';
 const NAME = 'ai-design-system-demo';
@@ -46,6 +46,8 @@ describe('bridge branch', () => {
     const gh = fakeGitHub(OWNER, NAME, withoutSoloOwner(pinStart(readTree(REPO, [...REAL_PATHS, 'packages/react/component-specs.json']))));
     const ctx = await BridgeContext.create({ repo: `${OWNER}/${NAME}`, token: 't', fetch: gh.fetch });
     await ops.proposeTokenChange(ctx, { title: 'Darken muted text', edits: [edit] });
+    // With code beside the token value, it is no token value change (TV-1): the tech approval flow below applies.
+    addCodeTo(gh, 'bridge/darken-muted-text');
     return gh;
   }
 

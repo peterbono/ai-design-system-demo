@@ -104,15 +104,19 @@ export const DEMO_WORDS = {
  * Approve, tried on the sample team (a branch or its review page): the approved state and what happens next, nothing
  * written anywhere. `author` is who asked for the review ("Ann"), when known. `codeBy` names who still checks the code
  * ("Malik", sampleCodeReviewers), when the change needs that check: Settings > Review rules on the sample team.
+ * `valuesOnly`: a token value change (core withTokenValueApprovals, decision TV-1) needs no code check, so the design
+ * approval sends it on to the library once the automatic checks pass.
  */
-export function demoApproved(author?: string | null, codeBy?: string | null): { title: string; next: string; note: string } {
+export function demoApproved(author?: string | null, codeBy?: string | null, valuesOnly?: boolean): { title: string; next: string; note: string } {
   const who = author?.trim() ? author.trim().split(/\s+/)[0]! : 'the teammate who asked';
   const code = codeBy?.trim();
   return {
     title: 'Approved',
-    next: code
-      ? `On your team, ${who} hears it at once. ${code} checks the code next, then it ships once the checks pass.`
-      : `On your team, ${who} hears it at once, and a developer ships the change once the checks pass.`,
+    next: valuesOnly
+      ? `On your team, ${who} hears it at once. A token value needs no code check: it reaches the library once the automatic checks pass.`
+      : code
+        ? `On your team, ${who} hears it at once. ${code} checks the code next, then it ships once the checks pass.`
+        : `On your team, ${who} hears it at once, and a developer ships the change once the checks pass.`,
     note: 'Sample data, nothing is sent.',
   };
 }

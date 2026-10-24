@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Settings on a team shell: the owner exception reads once, in designer words; the sample team names its sample
-// members (the same as Members), never the repository's accounts; token values from Figma never wait for a reviewer.
+// members (the same as Members), never the repository's accounts; token values never wait for a code check.
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
 import { render, screen } from '@testing-library/react';
@@ -55,11 +55,11 @@ describe('TeamSettings', () => {
     expect(screen.getByText('Sam Rivera, with a written reason of at least 20 characters.')).toBeInTheDocument();
   });
 
-  it('says token values from Figma ship on the automatic checks', () => {
+  it('says token values ship once the look is approved and the automatic checks pass, with no code check', () => {
     render(createElement(TeamSettings));
-    expect(screen.getByText('Token values from Figma')).toBeInTheDocument();
-    expect(screen.getByText('Ship once the automatic checks pass.')).toBeInTheDocument();
-    expect(screen.getByText('Nobody needs to approve them. A renamed or removed token waits for a code check.')).toBeInTheDocument();
+    expect(screen.getByText('Token values')).toBeInTheDocument();
+    expect(screen.getByText('Ship once the look is approved and the automatic checks pass.')).toBeInTheDocument();
+    expect(screen.getByText('Nobody checks the code. From Figma, sending counts as the approval. A renamed or removed token waits for a code check.')).toBeInTheDocument();
   });
 
   it('on the sample team, names the members who review, as Members does, never the repository account', () => {
@@ -75,7 +75,7 @@ describe('TeamSettings', () => {
       expect([...row('Checks the look').querySelectorAll('[data-face]')].map((f) => f.getAttribute('data-face'))).toEqual(['~dana', '~ann-leroy']);
       expect(screen.queryByText('Only owner')).toBeNull();
       expect(screen.getByText('Dana, with a written reason of at least 20 characters.')).toBeInTheDocument();
-      expect(screen.getByText('Token values from Figma')).toBeInTheDocument();
+      expect(screen.getByText('Token values')).toBeInTheDocument();
       expect(container.textContent).not.toMatch(/peterbono/);
     } finally {
       Object.assign(at, { owner: 'acme', repo: 'acme-product', site });

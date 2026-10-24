@@ -50,6 +50,13 @@ describe('the demo', () => {
     for (const t of Object.values(demoApproved('Ann', 'Malik'))) expect(t).not.toMatch(/\u2014|merge|pull request/);
   });
 
+  it('a token value needs no code check once approved (decision TV-1): Malik is never next', () => {
+    const w = demoApproved('Ann Lee', null, true);
+    expect(w.next).toBe('On your team, Ann hears it at once. A token value needs no code check: it reaches the library once the automatic checks pass.');
+    expect(demoApproved('Ann', 'Malik', true).next).not.toMatch(/Malik/);
+    for (const t of Object.values(w)) expect(t).not.toMatch(/\u2014|merge|pull request|branch/);
+  });
+
   it("never calls Bridge's own design system the demo", () => {
     const own = demoDialog('peterbono/ai-design-system-demo');
     expect(`${own.title} ${own.lead}`).not.toMatch(/demo|for real/i);

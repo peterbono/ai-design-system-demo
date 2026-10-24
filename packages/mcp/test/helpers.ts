@@ -436,3 +436,17 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
   };
   return { fetch: f as typeof fetch, refs, commits, pulls, reviews, issues, comments, commentMeta, associations, statuses, log, viewer, lineComments, id, fileAt: (ref: string, p: string) => commits.get(resolveRef(ref)!)?.files.get(p) };
 }
+
+/**
+ * Adds a code file to a branch (a new commit on its head): the pull request is no longer a token value change
+ * (decision TV-1, core isTokenValueChange), so it needs the tech approval again. For tests of the tech approval flow.
+ */
+export function addCodeTo(gh: ReturnType<typeof fakeGitHub>, ref: string, path = 'packages/react/src/components/Button/notes.ts'): void {
+  const head = gh.refs.get(ref)!;
+  const files = new Map(gh.commits.get(head)!.files);
+  files.set(path, 'export const notes = 1;\n');
+  const sha = gh.id();
+  gh.commits.set(sha, { files, parents: [head] });
+  gh.refs.set(ref, sha);
+  for (const p of gh.pulls) if (p.head.ref === ref) p.head.sha = sha;
+}

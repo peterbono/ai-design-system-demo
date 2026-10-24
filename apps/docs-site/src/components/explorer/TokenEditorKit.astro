@@ -62,7 +62,7 @@ const previews = hosted ? [] : loadComponents().flatMap((c) => (c.docs?.preview 
 
   <ScriptDialog id="ed-add-dialog" title="New semantic color" closeLabel="Close">
     <div class="gh-dialog-body">
-      <p>A semantic token names a job, like <code>color.bg.canvas</code>. Point each theme at a palette role so brands can re-theme it. It stays a draft in this browser until you {suggest ? 'send it as a suggestion' : 'request review'}; a new token needs a design and a tech approval.</p>
+      <p>A semantic token names a job, like <code>color.bg.canvas</code>. Point each theme at a palette role so brands can re-theme it. It stays a draft in this browser until you {suggest ? 'send it as a suggestion' : 'request review'}; a new token needs a design approval.</p>
       <Input label="Name" data-ed-field="add-path" placeholder="color.bg.canvas" spellCheck={false} autoComplete="off" />
       <Input label="Light points to" data-ed-field="add-light" list="ed-palette" placeholder="palette.neutral.50" spellCheck={false} autoComplete="off" />
       <Input label="Dark points to" data-ed-field="add-dark" list="ed-palette" placeholder="palette.neutral.950" spellCheck={false} autoComplete="off" />
@@ -79,7 +79,7 @@ const previews = hosted ? [] : loadComponents().flatMap((c) => (c.docs?.preview 
 
   <ScriptDialog id="ed-propose-dialog" title={sendDialogTitle(mode)} closeLabel="Close" popup={{ 'aria-describedby': 'ed-propose-who' }}>
     <div class="gh-dialog-body">
-      <p id="ed-propose-who" data-ed-field="propose-who">{suggest ? SUGGEST_NEXT : 'A design owner and a tech owner approve it before it reaches the library.'}</p>
+      <p id="ed-propose-who" data-ed-field="propose-who">{suggest ? SUGGEST_NEXT : 'A design owner approves it, then it reaches the library once the automatic checks pass.'}</p>
       <div class="xe-propose-target" data-ed-field="propose-target" hidden></div>
       <div class="xe-propose-new" data-ed-field="propose-new">
         <Input label="Title" data-ed-field="propose-title" placeholder="Darker primary action fill" />

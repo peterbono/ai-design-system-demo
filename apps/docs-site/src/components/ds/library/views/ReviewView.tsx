@@ -24,7 +24,7 @@ const JOURNEY: { title: string; text: string }[] = [
     text: 'The pull request is a diff with a risk tier, a changelog entry and a note on what to review. Studio shows it as a change with its status: Draft, In review, Approved, waiting for code, Added to the library or Closed.',
   },
   { title: 'CI guardrails', text: 'Checks run on every pull request: tokens build, types check, no raw colors or shadows in components, Storybook builds, a changelog entry exists.' },
-  { title: 'Design and tech review', text: 'The design owner checks both themes, contrast and keyboard focus. The tech owner checks naming, API and version bump. Token changes need both.' },
+  { title: 'Design and tech review', text: 'The design owner checks both themes, contrast and keyboard focus. The tech owner checks naming, API and version bump. A token rename or removal needs both; a new token value needs the design owner only.' },
   { title: 'Review and add to the library', text: 'A person who owns that area adds the change to the library (on GitHub, merges it into main). The AI agent never does.' },
   { title: 'Publish', text: 'Changesets bumps the version and writes the changelog from the entries collected in each pull request.' },
   {

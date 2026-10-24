@@ -17,6 +17,25 @@ shipped.
 | A token renamed or removed | A pull request waiting for a developer OK (the tech approval) | A tech owner, because it can break product code |
 | Structure: a new variant, option (prop), layout, a new component | A **build request**: a GitHub issue developers build from | Developers, in GitHub or Jira |
 
+### Token values from Studio (decision TV-1)
+
+The same rule holds for a token change made anywhere else: in Studio, from the CLI, the MCP server or an agent. A pull
+request (or a suggestion) that only changes token values ships after the automatic checks **once the design approval
+is given**, with no developer code OK. Only the design approval is asked, since nothing in Figma vouched for the look.
+
+| What the change does | Approvals |
+| --- | --- |
+| Token values changed, tokens added (`isTokenValueChange`, `suggestionIsTokenValues`) | Design approval only: the tech approval counts as given once it is in |
+| A token renamed or removed, or token changes not read | Design and tech approval, as before |
+| Structure (a variant, a prop, a new component) | A build request or a component branch, as before |
+
+`branchVerdict` takes `tokenValues` (Studio, the MCP server and the CLI read the token files of the pull request at the
+base and the head, only when its files could be a value change: `mayBeTokenValueChange`) and credits it with
+`withTokenValueApprovals`: `approvals.valuesOnly` is set, `tech` follows `design`, and `mergeGate`, `pendingApprovals`
+and `requiredApprovals` never ask a developer for it. Suggestions count it the same way (`summarizeSuggestionApprovals`
+`valuesOnly`), so the pull request that applies an approved value suggestion carries both approvals. Studio shows the
+design approval row only and Settings > Review rules says so ("Token values"). The gate parity test covers it.
+
 Explorations keep their own flow ([EXPLORATIONS.md](EXPLORATIONS.md)): a pull request or issue labelled
 `exploration` gets none of this.
 

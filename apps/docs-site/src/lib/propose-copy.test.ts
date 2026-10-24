@@ -69,6 +69,11 @@ describe('reviewSentence', () => {
     );
   });
 
+  it('a token value change needs the design owner only (decision TV-1)', () => {
+    expect(reviewSentence(3, null, 'direct', true)).toBe('A design owner approves it, then it reaches the library once the automatic checks pass.');
+    expect(reviewSentence(3, null, 'suggest', true)).toBe('A design owner approves it, then a developer applies it to the code.');
+  });
+
   it('follows the configured rights', () => {
     expect(reviewSentence(3, { approveDesign: ['design', 'tech'], approveTech: ['tech'], ship: ['tech'] })).toBe(
       'A design owner or a tech owner approves the design and a tech owner the code before it reaches the library.',

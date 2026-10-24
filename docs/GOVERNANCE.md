@@ -9,7 +9,7 @@ through the same gates; agent PRs are additionally labelled and never self-merge
 | ---- | -------- | -------- | ------------------ | --------- |
 | 1, low | Docs, story fixes, a11y fixes with no visual change, lint fixes, a token description edit (no value change) | Ready for review | 1 code owner | `patch` or none (docs only) |
 | 2, medium | New component, new variant or prop, visual tweak using existing tokens | Draft until design review | Design owner + tech owner | `minor` |
-| 3, high | Token added, changed, renamed or removed; breaking prop change; guardrail or `AGENTS.md` change | Draft, labelled `tokens` or `breaking` | Design owner **and** tech owner, mandatory | `minor` (added or changed token) or `major` (renamed or removed token) |
+| 3, high | Token added, changed, renamed or removed; breaking prop change; guardrail or `AGENTS.md` change | Draft, labelled `tokens` or `breaking` | Design owner **and** tech owner, mandatory. A token value change (values changed or tokens added only): design owner only, see [BUILD-REQUESTS.md](BUILD-REQUESTS.md) (TV-1) | `minor` (added or changed token) or `major` (renamed or removed token) |
 
 If a PR spans tiers, the highest tier applies. The DS Bridge plugin, the docs site editor and Reviews, the CLI
 and the MCP server compute the tier with the same classifier (`classifyRisk` in `@bridge-ds/core`).
@@ -36,6 +36,9 @@ combines, in one place:
 - **Tier 1 needs one owner approval** (`hasOwnerApproval`): an approval from someone in the design or tech list,
   teams expanded. Only when no owner is configured does any approval count.
 - **Tier 2 and 3 need a design owner and a tech owner** (`summarizeApprovals`).
+- **A token value change needs the design owner only** (`isTokenValueChange`, `withTokenValueApprovals`), whoever
+  opened it: once the design approval is in, the tech approval counts as given and it ships after the checks. A
+  rename, a removal or code still needs the tech owner (decision TV-1, [BUILD-REQUESTS.md](BUILD-REQUESTS.md)).
 - **The pull request that applies an approved suggestion** (its body says `Closes #<n>`) carries the suggestion's
   approvals (`approvedSuggestionOnGitHub`, `withSuggestionApprovals`), see [Suggestions](#suggestions-approved-on-the-issue-applied-by-a-developer).
 - **The owner override is for owners only** (`ownerOverridePolicy`) and needs a written reason every time
@@ -268,7 +271,8 @@ Tier 3.
 
 | Area | Design owner | Tech owner |
 | ---- | ------------ | ---------- |
-| Token values and names | Approves | Approves |
+| Token values (changed or added) | Approves | Not needed (TV-1) |
+| Token names (renamed or removed) | Approves | Approves |
 | Component visuals, states, a11y | Approves | Reviews |
 | Component API, types, build | Reviews | Approves |
 | CI, lint rules, `AGENTS.md` | Approves | Approves |
@@ -283,8 +287,9 @@ DS Bridge (`apps/figma-plugin`) turns Figma variable edits into pull requests:
 - Branches are named `tokens/<slug>-<yyyymmdd-hhmm>`, with a single commit that only touches the
   changed token files plus a changeset (`minor`, or `major` when a token is renamed or removed).
 - Value, type, rename and removal changes are **Tier 3** (token change); a change that only edits
-  descriptions is Tier 1 (`patch`). Tier 3 PRs are opened as draft, labelled `tokens`, and they need
-  **design owner and tech owner** approval, like any other token change.
+  descriptions is Tier 1 (`patch`). Tier 3 PRs are opened as draft, labelled `tokens`. A push from
+  Figma counts as design-approved and token values ship after the checks; a rename or removal needs the tech owner
+  ([BUILD-REQUESTS.md](BUILD-REQUESTS.md)).
 - The plugin refuses to open the PR while its guardrails fail (aliases, cycles, scopes, type changes,
   WCAG contrast on `packages/tokens/src/contrast.checks.json`). That is a convenience, not a gate:
   CI and CODEOWNERS remain the authority.
