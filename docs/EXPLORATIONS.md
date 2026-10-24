@@ -96,12 +96,13 @@ exploration (or start a new one with a name and a purpose), and the checked vari
 another variable) is committed there too, through the same contrast gate as for review; component changes that need
 code become requests labeled `exploration`. Items marked "Exploration only" start checked there.
 
-Explorations are tried locally: Vercel does not deploy `explore/**` (nor `bridge/**`, `agent/**`, `test/**`), to
-stay under the free plan's daily limit. After sending, the main action is **See it in Studio**: the exploration's
-page shows the Visual impact screenshots (every brand and theme, before and after) once the token change is on the
-branch. **Share with a developer** copies a message with `git fetch origin && git switch explore/<name>`, the
-install command for a product staging branch when the test build is ready, and the pull request. A repository that
-does deploy previews keeps the preview links: they show as soon as Vercel reports them (see [PREVIEWS.md](PREVIEWS.md)).
+Explorations are tried in their previews: Vercel deploys `explore/**` (docs, Storybook, admin demo), and **Try it**
+lists each preview link as soon as Vercel reports it (see [PREVIEWS.md](PREVIEWS.md)). Next to it, **See it in
+Studio** opens the exploration's page with the Visual impact screenshots (every brand and theme, before and after)
+once the token change is on the branch. **Share with a developer** copies a message with the preview links, the
+install command for a product staging branch when the test build is ready, and the pull request. When no preview is
+reported (a repository without previews, or a deploy that did not run), Try it says so and the message gives
+`git fetch origin && git switch explore/<name>` instead, to open it on a developer's machine.
 
 On GitHub (`--repo` mode with a token), token edits are one commit on the exploration branch. Locally, the branch
 must be checked out: Bridge writes the files to that working tree and you commit and push them. A request brief for
