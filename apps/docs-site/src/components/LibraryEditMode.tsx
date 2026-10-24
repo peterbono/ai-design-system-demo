@@ -351,9 +351,10 @@ function GuideCards({ k }: { k: 'dos' | 'donts' }) {
             <h4>
               <InlineText field={{ key: k, index: i, part: 'title' }} label={`${word} ${i + 1}, title`} placeholder="Title" />
             </h4>
-            <p>
+            {/* A div, not a p: the field is a block (Textarea), and a p cannot hold one. */}
+            <div className="verdict-text">
               <InlineText field={{ key: k, index: i, part: 'text' }} label={`${word} ${i + 1}, why`} placeholder="Why, in one sentence" />
-            </p>
+            </div>
           </figcaption>
         </figure>
       ))}
