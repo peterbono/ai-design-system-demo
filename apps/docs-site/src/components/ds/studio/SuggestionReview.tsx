@@ -385,6 +385,8 @@ function Peeks({ next }: { next: NextCard[] }) {
 
 export function SuggestionReview(p: SuggestionReviewProps) {
   const keys = p.inQueue && p.gate.canApprove;
+  // In the review queue the page heading is the queue's: the suggestion title is one level down (as a branch).
+  const Heading = p.inQueue ? 'h2' : 'h1';
   return (
     <div className="sg">
       {p.crumbs && <Breadcrumb items={p.crumbs} className="sg-crumbs" />}
@@ -397,9 +399,9 @@ export function SuggestionReview(p: SuggestionReviewProps) {
               <p className="sg-who">
                 <strong>{p.author.name}</strong> <span className="sg-muted">suggests a change</span>
               </p>
-              <h1 className="sg-title br-title" tabIndex={-1}>
+              <Heading className="sg-title br-title" tabIndex={-1}>
                 {p.title}
-              </h1>
+              </Heading>
               <p className="sg-meta">
                 <Badge tone={p.status.tone} size="sm">
                   {p.status.label}
