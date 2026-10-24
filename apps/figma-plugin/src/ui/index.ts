@@ -198,6 +198,8 @@ interface RequestForm {
   titleSource: TextSource;
   summarySource: TextSource;
   assist: AssistState;
+  /** Where the request goes: '' for review (the default), or an exploration's branch the designer picked here. */
+  target: string;
 }
 
 interface State {
@@ -2167,7 +2169,7 @@ function openForm(r: PushState, item: ComponentChangeItem | undefined): void {
   const draft: RequestDraft = item
     ? { component: item.component, kind: item.kind, title: titleOf(r, item), summary: suggestSummary(item), line: lineOf(r, item), changes: item.changes, nodeId: item.nodeId, nodeName: item.figmaName }
     : { component: coded[0] ?? '', kind: 'visual', title: '', summary: '', changes: [], nodeId: state.selection?.nodeId, nodeName: state.selection?.name };
-  r.form = { key: item?.nodeId ?? 'manual', item, draft, attach: item ? true : !!state.selection, titleSource: item && claudeTitle(r, item) ? 'claude' : 'draft', summarySource: 'draft', assist: { pasteText: '' } };
+  r.form = { key: item?.nodeId ?? 'manual', item, draft, attach: item ? true : !!state.selection, titleSource: item && claudeTitle(r, item) ? 'claude' : 'draft', summarySource: 'draft', assist: { pasteText: '' }, target: '' };
   void request('selection', {}).then((sel) => {
     state.selection = sel;
     render();
@@ -2199,7 +2201,8 @@ function sendRequest(r: PushState): void {
       const draft = sel ? { ...d, nodeId: sel.nodeId, nodeName: sel.name } : f.item ? d : { ...d, nodeId: undefined, nodeName: undefined };
       const coded = (r.components?.coded ?? []).includes(d.component.trim());
       // Sent on its own while the destination is an exploration: the request is built there too.
-      const exploration = r.destination === 'exploration' ? pickedExploration(r) : undefined;
+      // Built in an exploration only when the designer picked it in the form; the push's destination never carries over.
+      const exploration = f.target ? requestTargets(r).find((e) => e.branch === f.target) : undefined;
       const res = await sendComponentRequest(getClient(), {
         request: { ...toRequest(draft, { fileKey: r.fileKey }), ...(exploration ? { exploration: exploration.branch } : {}) },
         images,
@@ -2309,6 +2312,31 @@ function changeSummary(line: string, changes: { field: string; before?: string |
   ];
 }
 
+/** Explorations a request can go into: the one just sent to and the one picked for the push first, then the others. */
+function requestTargets(r: PushState): ExplorationChoice[] {
+  if (modeOf(r) === 'suggest') return [];
+  const out: ExplorationChoice[] = [];
+  for (const e of [r.sentTo, pickedExploration(r), ...(r.explorations ?? [])]) if (e && !out.some((x) => x.branch === e.branch)) out.push(e);
+  return out;
+}
+
+/** "Where it goes": for review unless the designer picks an exploration here (never inherited from the last push). */
+function requestDestination(r: PushState, f: RequestForm): Child {
+  const targets = requestTargets(r);
+  if (!targets.length) return null;
+  return h(
+    'label',
+    { class: 'field' },
+    h('span', null, 'Where it goes'),
+    h(
+      'select',
+      { 'data-focus-id': 'req-target', onChange: (e: Event) => (f.target = (e.target as HTMLSelectElement).value) },
+      h('option', { value: '', selected: !f.target }, 'For review (owners approve it)'),
+      targets.map((e) => h('option', { value: e.branch, selected: f.target === e.branch }, `Into ${e.name} (exploration)`)),
+    ),
+  );
+}
+
 function requestFormView(r: PushState, f: RequestForm): HTMLElement {
   const d = f.draft;
   const coded = r.components?.coded ?? [];
@@ -2395,10 +2423,7 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
     ),
     h('small', { id: 'attach-hint', class: 'attach-hint' }, attachHint()),
     f.error ? h('p', { class: 'form-error', role: 'alert' }, icon('alert'), f.error) : null,
-    // Sent while the push goes to an exploration, the request is built there: said before sending, not after.
-    r.destination === 'exploration' && pickedExploration(r)
-      ? h('p', { class: 'muted', role: 'note' }, `Goes to the exploration ${pickedExploration(r)!.name}: it is built there, not sent for review. Pick For review above to send it for review instead.`)
-      : null,
+    requestDestination(r, f),
     h(
       'div',
       { class: 'inline-actions' },
