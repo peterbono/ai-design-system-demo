@@ -35,7 +35,8 @@ import { libraryArrivalOnGitHub } from '@bridge-ds/core';
 import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, triedLocally, tryItLinks } from '../sync/explorations';
 import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
 import { type Selection, onProgress, onSelection, request } from './bridge';
-import { type FidelityOutcome, NO_REFERENCES_TEXT, fidelitySummary, runFidelityCheck } from '../sync/fidelity';
+import { type FidelityOutcome, NO_REFERENCES_TEXT, fidelitySummary, loadReferenceManifest, runFidelityCheck } from '../sync/fidelity';
+import { FIGMA_REFERENCES_BRANCH, FIGMA_REFERENCES_DIR } from '@bridge-ds/core';
 import { fidelityComponentLine, fidelityVerdict } from '@bridge-ds/core';
 import { decodePng, encodePng } from './png';
 import { type Child, h } from './dom';
@@ -2277,6 +2278,18 @@ function openForm(r: PushState, item: ComponentChangeItem | undefined): void {
   render();
 }
 
+/**
+ * What code draws for this variant now: its image from the Figma references (Check fidelity reads the same ones), as a
+ * GitHub link. Undefined when none is published for it; a request never waits on it.
+ */
+async function codeImageOf(g: { componentId: string; variant: string }): Promise<string | undefined> {
+  const manifest = await loadReferenceManifest(getClient()).catch(() => undefined);
+  const ref = manifest?.components[g.componentId]?.variants[g.variant];
+  if (!ref || !('file' in ref)) return undefined;
+  const { owner, name } = parseRepo(state.init!.settings.repo);
+  return `https://github.com/${owner}/${name}/blob/${FIGMA_REFERENCES_BRANCH}/${FIGMA_REFERENCES_DIR}/${ref.file}?raw=true`;
+}
+
 function sendRequest(r: PushState): void {
   const f = r.form;
   if (!f) return;
@@ -2300,12 +2313,15 @@ function sendRequest(r: PushState): void {
       const sel = !f.item && f.attach ? state.selection : null;
       const draft = sel ? { ...d, nodeId: sel.nodeId, nodeName: sel.name } : f.item ? d : { ...d, nodeId: undefined, nodeName: undefined };
       const coded = (r.components?.coded ?? []).includes(d.component.trim());
+      // A variant Bridge built from code: its code image is the "before" next to the export (REQ-2).
+      const before = images.length && sel?.generated ? await codeImageOf(sel.generated) : undefined;
       // Sent on its own while the destination is an exploration: the request is built there too.
       // Built in an exploration only when the designer picked it in the form; the push's destination never carries over.
       const exploration = f.target ? requestTargets(r).find((e) => e.branch === f.target) : undefined;
       const res = await sendComponentRequest(getClient(), {
         request: { ...toRequest(draft, { fileKey: r.fileKey }), ...(exploration ? { exploration: exploration.branch } : {}) },
         images,
+        ...(before ? { before: [before] } : {}),
         baseBranch: state.init!.settings.branch,
         config: a.headFiles.config,
         coded,

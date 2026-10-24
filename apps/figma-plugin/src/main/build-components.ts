@@ -1328,7 +1328,7 @@ function bottomOf(page: PageNode): number {
 }
 
 /** A variant's key: the one Bridge stored, else read from its name (its properties throw while the set is in error). */
-function keyOfVariant(c: ComponentNode): string {
+export function keyOfVariant(c: ComponentNode): string {
   const stored = c.getSharedPluginData(NS, 'variant');
   if (stored) return stored;
   return variantKeyOf(propsOfKey(c.name));

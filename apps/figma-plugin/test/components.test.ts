@@ -2,7 +2,7 @@
 // (Figma-only restructures, variable value edits) triggers nothing.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { REQUESTS_BRANCH, parseRequestIssue } from '@bridge-ds/core';
+import { BUILD_REQUEST_LABEL, REQUESTS_BRANCH, parseBuildRequestIssue, parseRequestIssue } from '@bridge-ds/core';
 import {
   type RawComponent,
   type RawLayer,
@@ -273,6 +273,22 @@ test('send: Figma link when the file key is known; no images means no branch; su
   assert.equal(gh.branches.has(REQUESTS_BRANCH), false);
   assert.match(gh.issues[0]!.body, /\[Card\]\(https:\/\/www\.figma\.com\/design\/ABC\/\?node-id=12-34\)/);
   await assert.rejects(sendComponentRequest(client, { request: { ...req, summary: '  ' }, baseBranch: 'main' }), /summary/);
+});
+
+test('send with what code draws now: a build request with the code image before and the Figma export after (REQ-2)', async () => {
+  const gh = new FakeGitHub({ 'README.md': '#' });
+  const client = gh.client();
+  const code = 'https://github.com/o/r/blob/bridge-visual/figma-references/button/size-md.png?raw=true';
+  const req = toRequest({ component: 'Button', kind: 'visual', title: 'Rounder corners', summary: 'Buttons read softer.', changes: [], nodeId: '1:5', nodeName: 'Size=md' }, { fileKey: 'ABC' });
+  const res = await sendComponentRequest(client, { request: req, images: ['iVBORw0KGgo='], before: [code], baseBranch: 'main', now: new Date('2026-10-24T10:00:00Z') });
+  const issue = gh.issues[0]!;
+  assert.ok(issue.labels.includes(BUILD_REQUEST_LABEL), 'a build request: Being built shows it with its images');
+  assert.match(issue.body, /\| Before \| After \|/);
+  const parsed = parseBuildRequestIssue(issue.body)!;
+  assert.deepEqual(parsed.build, { v: 1, before: [code], after: res.images });
+  // No export attached: nothing to put it next to, a plain request.
+  await sendComponentRequest(client, { request: req, before: [code], baseBranch: 'main' });
+  assert.equal(gh.issues[1]!.labels.includes(BUILD_REQUEST_LABEL), false);
 });
 
 // ---------------------------------------------------------------------------------------------

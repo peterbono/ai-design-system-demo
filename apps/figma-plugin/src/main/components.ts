@@ -2,7 +2,8 @@
 // shared plugin data, and exports PNGs to attach to requests. No network. The diff logic is in src/sync/components.ts.
 
 import { RENDER_VERSION, type ComponentSignature, type RawBinding, type RawComponent, type RawLayer, type RawVariant, buildSignature, fnv1a, bindingKind, newRawValues, parseSignature, propName, rawKey, variantKey } from '../sync/components';
-import { EXPERIMENTAL_KEY, PUSHED_KEY, type ScanComponentsRequest, type ScannedComponentsPayload } from '../shared/messages';
+import { EXPERIMENTAL_KEY, PUSHED_KEY, type ScanComponentsRequest, type ScannedComponentsPayload, type SelectionInfo } from '../shared/messages';
+import { keyOfVariant } from './build-components';
 import { variantKeyOf } from '@bridge-ds/core';
 import { LONE_VARIANT, isRemovedValue, propsOfKey } from '../sync/component-pull';
 
@@ -630,7 +631,14 @@ export async function exportThumbnails(nodeIds: string[], width: number): Promis
   return out;
 }
 
-export function selectionInfo(): { nodeId: string; name: string } | undefined {
+/**
+ * The selection, and when it is a variant of a set Bridge built from code, which one: its code image can stand as the
+ * "before" of a request (the export of the variant is the "after").
+ */
+export function selectionInfo(): SelectionInfo | undefined {
   const s = figma.currentPage.selection[0];
-  return s ? { nodeId: s.id, name: s.name } : undefined;
+  if (!s) return undefined;
+  const set = s.type === 'COMPONENT' && s.parent?.type === 'COMPONENT_SET' ? s.parent : undefined;
+  const componentId = set?.getSharedPluginData(NS, 'componentId');
+  return { nodeId: s.id, name: s.name, ...(componentId ? { generated: { componentId, variant: keyOfVariant(s as ComponentNode) } } : {}) };
 }
