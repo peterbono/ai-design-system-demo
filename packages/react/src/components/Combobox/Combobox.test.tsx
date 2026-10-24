@@ -20,7 +20,26 @@ describe('Combobox', () => {
     expect(input).toHaveAttribute('aria-expanded', 'false');
     await userEvent.click(input);
     await waitFor(() => expect(input).toHaveAttribute('aria-expanded', 'true'));
-    expect(await screen.findByRole('listbox')).toBeInTheDocument();
+    expect(await screen.findByRole('listbox', { name: 'Reviewer' })).toBeInTheDocument();
+    await expectNoAxeViolations();
+  });
+
+  it('names its listbox after the field, so it is never an anonymous list while it closes', async () => {
+    render(
+      <>
+        <label id="who-label" htmlFor="who">
+          Work email
+        </label>
+        <Combobox id="who" aria-labelledby="who-label" multiple options={REVIEWERS} />
+      </>,
+    );
+    await userEvent.click(screen.getByRole('combobox', { name: 'Work email' }));
+    expect(await screen.findByRole('listbox', { name: 'Work email' })).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.getByRole('combobox')).toHaveAttribute('aria-expanded', 'false'));
+    // Mid exit motion, the input no longer points at the list: the list still has its own name.
+    const closing = document.querySelector('[role="listbox"]');
+    if (closing) expect(closing).toHaveAttribute('aria-labelledby', 'who-label');
     await expectNoAxeViolations();
   });
 

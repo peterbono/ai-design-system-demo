@@ -102,6 +102,7 @@ export default function InviteDialog({ open, onOpenChange, shared }: InviteDialo
   const [busy, setBusy] = useState(false);
   const inputId = `${useId()}-email`;
   const hintId = `${inputId}-hint`;
+  const labelId = `${inputId}-label`;
 
   // Cleared when it closes, so it opens empty next time.
   useEffect(() => {
@@ -180,7 +181,7 @@ export default function InviteDialog({ open, onOpenChange, shared }: InviteDialo
           <>
             {data.canManage ? (
               <div className="inv-form">
-                <label className="inv-label" htmlFor={inputId}>
+                <label id={labelId} className="inv-label" htmlFor={inputId}>
                   {MEMBERS_WORDS.email}
                 </label>
                 <div className="inv-row">
@@ -197,6 +198,7 @@ export default function InviteDialog({ open, onOpenChange, shared }: InviteDialo
                     onKeyDown={onKeyDown}
                     placeholder={emails.length ? undefined : MEMBERS_WORDS.emailPlaceholder}
                     emptyMessage="Type a full work email to invite someone new."
+                    aria-labelledby={labelId}
                     aria-describedby={hintId}
                     size="lg"
                     autoComplete="off"
