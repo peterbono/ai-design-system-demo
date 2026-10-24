@@ -139,8 +139,8 @@ test('runFidelityCheck: every generated set compared with its code images; a bad
   );
   assert.match(card.result.variants[0]!.reason!, /placeholder/);
   assert.equal(card.images?.diff, 'data:image/png;base64,80x46');
-  // Popups drawn open have no code image to compare with (the code renders them closed): not checked, said so.
-  const open = out.items.filter((x) => /\/Popup$/.test(x.result.component));
+  // Popups drawn open are compared with the popup rendered open; only the menu (drawn from no example) is not checked.
+  const open = out.items.filter((x) => x.result.component === 'Menu/Popup');
   for (const i of open) assert.equal(i.result.status, 'not-checked', i.result.component);
   for (const i of out.items.filter((x) => x.result.component !== 'Card' && !open.includes(x))) assert.equal(i.result.status, 'matches', i.result.component);
   assert.equal(out.report.summary.differs, 1);
