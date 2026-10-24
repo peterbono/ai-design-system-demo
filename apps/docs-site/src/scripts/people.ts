@@ -90,11 +90,14 @@ export interface PersonOptions {
 /** The avatar and the name of a person (or Claude) for plain-script markup. Call paintPeople() after inserting it. */
 export function personHtml(login: string, { size = 'xs', agent = false, withName = true }: PersonOptions = {}): string {
   const claude = agent || isClaudeLogin(login);
-  const label = displayName(login, claude);
+  // A name instead of a login (an email member Bridge recorded as "Requested by Priya Shah"): shown as written, never
+  // looked up on GitHub nor repainted from its lower-cased key.
+  const written = !claude && /\s/.test(login.trim());
+  const label = written ? login.trim() : displayName(login, claude);
   const avatar = claude
     ? avatarHtml({ kind: 'agent', brand: 'claude', size, decorative: true, className: 'person-avatar' })
     : avatarHtml({ name: label, size, decorative: true, fallback: 'illustrated', className: 'person-avatar', attributes: { 'data-face': personKey(login), 'data-face-size': size } });
-  const nameAttrs = claude && isClaudeLogin(login) ? '' : ` data-person="${esc(personKey(login))}"${claude ? ' data-person-agent' : ''}`;
+  const nameAttrs = written || (claude && isClaudeLogin(login)) ? '' : ` data-person="${esc(personKey(login))}"${claude ? ' data-person-agent' : ''}`;
   // Without a written name (dense rows) the avatar stays decorative and screen readers hear ", by <name>".
   if (!withName) return `${avatar}<span class="sr-only">, by <span${nameAttrs}>${esc(label)}</span></span>`;
   return `<span class="person">${avatar}<span class="person-name"${nameAttrs}>${esc(label)}</span></span>`;

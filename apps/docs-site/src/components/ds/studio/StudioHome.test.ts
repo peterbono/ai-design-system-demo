@@ -95,6 +95,13 @@ describe('StudioHome, lead', () => {
     render(createElement(StudioHome, props({ contributor: false, lead: true, needs: [review] })));
     expect(screen.getByText(/Changes wait for the lead/)).toBeTruthy();
   });
+
+  it('skips the rows step when the rows on screen are join requests and the changes are folded under N more', () => {
+    const joins = ['a', 'b', 'c'].map((x, i) => joinNeed({ id: `${x}1b2c3d4e5f6071${i}`, name: `Person ${x}`, email: `${x}@acme.com`, createdAt: '2026-10-22T08:00:00Z' }, 'Acme Product', NOW));
+    render(createElement(StudioHome, props({ contributor: false, lead: true, needs: [...joins, review] })));
+    expect(screen.queryByText(/Changes wait for the lead/)).toBeNull();
+    expect(screen.getByText(/The whole queue, one by one/)).toBeTruthy();
+  });
 });
 
 describe('StudioHome, demo', () => {

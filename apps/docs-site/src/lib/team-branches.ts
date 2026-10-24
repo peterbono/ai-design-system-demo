@@ -38,7 +38,7 @@ export function teamBranchesRoute(search: string, requestTriage: boolean = REQUE
 }
 
 /** The History card's sentence until the team's release branch is read (it replaces it when there is one). */
-export const TEAM_HISTORY_LINE = 'Every token change your team added to the library, by release.';
+export const TEAM_HISTORY_LINE = 'Every token and usage guidance change your team added to the library, by release.';
 
 /** The page title per view, as on the self-hosted page. */
 export const TEAM_VIEW_TITLE = { list: 'Branches', history: 'History', requests: 'Requests', explorations: 'Explorations' } as const;

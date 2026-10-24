@@ -77,3 +77,16 @@ describe('personHtml on another team', () => {
     expect(name()).toBe('Claude AI, with Florian G');
   });
 });
+
+describe('personHtml with a written name', () => {
+  it('shows a name Bridge recorded ("Requested by Priya Shah") as written, never looked up nor lower-cased', async () => {
+    s.repo = { owner: 'acme', repo: 'acme-flow' };
+    const el = host(personHtml('Priya Shah'));
+    const name = () => el.querySelector('.person-name')?.textContent;
+    expect(name()).toBe('Priya Shah');
+    expect(el.querySelector('[data-person]')).toBeNull();
+    await paintPeople(el);
+    expect(name()).toBe('Priya Shah');
+    expect(s.ghGet).not.toHaveBeenCalledWith(expect.stringContaining('Priya'));
+  });
+});

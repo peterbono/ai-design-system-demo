@@ -599,10 +599,17 @@ function repaint(patch: Partial<BranchReviewProps>) {
  * (Dana) and the author as who asked for the change (Ann), so the sample team never shows a real account.
  */
 const aliases = new Map<string, string>();
+/** First names from GitHub profiles (scripts/home-data personOf), once read: "Waiting for Malik", not "malik". */
+const profiles = new Map<string, string>();
 const nameOf = (login: string) => {
   const l = login.replace(/^@/, '');
-  return aliases.get(l.toLowerCase()) ?? (isClaudeLogin(login) ? AGENT_NAME : l.replace(/\[bot\]$/i, ''));
+  return aliases.get(l.toLowerCase()) ?? profiles.get(l.toLowerCase()) ?? (isClaudeLogin(login) ? AGENT_NAME : l.replace(/\[bot\]$/i, ''));
 };
+/** The page's lines that name people, built again once profile names land (openPr). */
+let renamed: (() => Pick<BranchReviewProps, 'approvals' | 'who'>) | null = null;
+let renamedLogins: string[] = [];
+/** The logins a text names as "@login" (lib/review-page namesIn). */
+const loginsIn = (text: string) => [...text.matchAll(/(?:^|[^\w@./-])@([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))(?![\w/@.\[-])/g)].map((m) => m[1]!);
 const named = (text: string) => namesIn(text, nameOf);
 
 /** The docs.json at a commit, parsed, or null (missing or unreadable). */
@@ -708,6 +715,24 @@ export async function openPr(n: number, push = true) {
     if (props.sample?.codeBy) d.dataset.codeNext = props.sample.codeBy;
     else delete d.dataset.codeNext;
     runCurrent = (kind, text) => props.onAct(kind, text);
+    // Who the approval rows and the status line name, by their profile name once GitHub says it.
+    const unnamed = renamedLogins.filter((l) => !profiles.has(l.toLowerCase()) && !aliases.has(l.toLowerCase()));
+    if (renamed && unnamed.length && hasWorkingToken()) {
+      const again = renamed;
+      void import('./home-data')
+        .then((h) => Promise.all(unnamed.map((l) => h.personOf(l).catch(() => null))))
+        .then((found) => {
+          let any = false;
+          for (const [i, p] of found.entries()) {
+            const first = p?.name && p.name !== p.login ? p.name.split(/\s+/)[0]! : null;
+            if (first) {
+              profiles.set(unnamed[i]!.toLowerCase(), first);
+              any = true;
+            }
+          }
+          if (any && seq === openSeq && view) repaint(again());
+        });
+    }
     // "Why it exists": the product preview and the name of who needs it, read after the first paint.
     if (props.productContext) {
       const nb = props.productContext.neededBy;
@@ -1018,8 +1043,17 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   // Who asked, as Bridge recorded it ("Requested by Priya Shah ... through Bridge."), before the account that opened it
   // (the Bridge app for an email member, an agent or a lead acting for someone): the same person as on the home row.
   const requested = seat ? null : requesterOf(pull.body);
-  const askerName = requested ? (requested.name ?? (requested.login ? nameOf(requested.login) : nameOf(author))) : nameOf(author);
-  const line = whoLine({ author: askerName, agent, guidanceOnly, canEdit: canEditGuidance, asked, lifecycle: status.lifecycle, sentence: named(statusRun.sentence) });
+  // Who asked, by name, re-read when profile names land.
+  const lineNow = () => whoLine({ author: requested ? (requested.name ?? (requested.login ? nameOf(requested.login) : nameOf(author))) : nameOf(author), agent, guidanceOnly, canEdit: canEditGuidance, asked, lifecycle: status.lifecycle, sentence: named(statusRun.sentence) });
+  const whoNow = (): BranchReviewProps['who'] => {
+    const l = lineNow();
+    return { person: seat ? { login: `~${author}`, name: nameOf(author), avatarUrl: null, agent: agent && !asked0 } : { login: pull.user.login, name: nameOf(pull.user.login), avatarUrl: pull.user.avatar_url, agent }, lead: l.lead, rest: l.rest };
+  };
+  const rowText = (r: (typeof rows)[number]) => (status.lifecycle === 'draft' && r.state === 'waiting' ? 'Not asked until a review is requested' : r.text);
+  const approvalsNow = (): BranchReviewProps['approvals'] => (sampleSeat && onItsWay ? [] : rows.map((r) => ({ label: r.role === 'approval' ? 'Approval' : `${r.label} approval`, state: r.state, text: named(rowText(r)) })));
+  // Profile names for the people these lines name, read after the first paint (never in the demo seat: its aliases).
+  renamed = seat ? null : () => ({ approvals: approvalsNow(), who: whoNow() });
+  renamedLogins = seat ? [] : [...new Set([...rows.flatMap((r) => loginsIn(rowText(r))), ...loginsIn(statusRun.sentence)])];
   const editable = tokenFilesOf(files) > 0 && isTokenChange(pull, REPO_KEY) && canAddTo(pull, login ?? undefined, write);
   const added = Number(new URLSearchParams(location.search).get('added'));
   if (added > 0) history.replaceState(history.state, '', `?pr=${pull.number}`);
@@ -1066,7 +1100,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     // In the demo seat: the list's pill for the same branch ("Waiting 1 day").
     status: onItsWay ? { label: status.label, tone: 'info', lifecycle: status.lifecycle } : seat && status.lifecycle === 'ready' && !exploration && pull.created_at ? { label: waitingLabel(pull.created_at, Date.now()), tone: 'warning', lifecycle: status.lifecycle } : status.lifecycle === 'ready' && !exploration ? { ...statusPill(reviewStatus({ state: pull.state, draft: pull.draft, labels: pull.labels, merged_at: pull.merged_at, ci, approvals, tier, mergeable: pull.mergeable }).kind, who), lifecycle: status.lifecycle } : { label: status.label, tone: status.tone, lifecycle: status.lifecycle },
     // In the demo seat, who asked for it, the face the list shows for the same branch.
-    who: { person: seat ? { login: `~${author}`, name: nameOf(author), avatarUrl: null, agent: agent && !asked0 } : { login: pull.user.login, name: nameOf(pull.user.login), avatarUrl: pull.user.avatar_url, agent }, lead: line.lead, rest: line.rest },
+    who: whoNow(),
     added: added > 0 ? addedNotice(added) : null,
     changes,
     looked: [...readLookedNow(pull.number)],
@@ -1102,7 +1136,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     checks: checksLine(story, { forDesigner: !developer }),
     developer: developer ? { tests: story.developer?.state === 'fail' ? story.developer.text : null, failing: ci.failed.map((c) => c.name), url: pull.html_url, number: pull.number } : null,
     // A token push from Figma on the sample team ships once the checks pass (its Review rules): nobody approves it.
-    approvals: sampleSeat && onItsWay ? [] : rows.map((r) => ({ label: r.role === 'approval' ? 'Approval' : `${r.label} approval`, state: r.state, text: named(status.lifecycle === 'draft' && r.state === 'waiting' ? 'Not asked until a review is requested' : r.text) })),
+    approvals: approvalsNow(),
     update,
     actions,
     onAct: (kind, text) => act(kind, text, { pull, gate, docs: x.docs, write, statusRun }),

@@ -358,9 +358,13 @@ export function StudioHome(p: StudioHomeProps) {
 function HomeBody(p: StudioHomeProps) {
   const snoozed = hintSnoozed(readSnooze(), p.now);
   const own = useTour<ContributorTourAt>(CONTRIBUTOR_TOUR_KEY, contributorTourSteps(p.state === 'empty'), contributorTour, Boolean(p.contributor) && !p.demo && (p.state === 'busy' || p.state === 'empty'));
-  // The lead's tour speaks of changes: rows that are only join requests (or a health note) are not what it shows.
-  const changeRows = p.needs.some((r) => r.kind === 'review' || r.kind === 'guidance');
-  const leadSteps = tourSteps({ rows: changeRows, more: changeRows && Boolean(splitNeeds(p.needs).more), branches: p.branches.length > 0 });
+  // The lead's tour speaks of changes: rows that are only join requests (or a health note) are not what it shows. Its
+  // first step points at the rows on screen, so it runs only when they hold a change; changes folded under "N more"
+  // get the Review all step alone.
+  const isChange = (r: NeedRow) => r.kind === 'review' || r.kind === 'guidance';
+  const changeRows = p.needs.some(isChange);
+  const split = splitNeeds(p.needs);
+  const leadSteps = tourSteps({ rows: split.shown.some(isChange), more: changeRows && Boolean(split.more), branches: p.branches.length > 0 });
   const lead = useTour<TourAt>(LEAD_TOUR_KEY, leadSteps, (at) => demoTour(at), Boolean(p.lead) && !p.contributor && !p.demo && p.state === 'busy' && leadSteps.length > 0);
   const tour: StudioHomeProps['tour'] =
     p.tour ??
