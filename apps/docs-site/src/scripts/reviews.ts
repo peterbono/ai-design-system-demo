@@ -974,7 +974,9 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     }),
     ...x.lineComments.map((c) => ({ login: c.user?.login ?? null, at: c.created_at, body: c.body, kind: 'COMMENT', path: c.path ?? null })),
   ].map((e) => ({ ...e, body: named(mdTitleText(e.body)) }));
-  const conv = conversation(entries, { author: pull.user.login, reviewers });
+  // In the demo seat the author is who asked for the change (`author`), not the account that opened it on GitHub,
+  // which reads as Dana: her comments are a reviewer's, never "author".
+  const conv = conversation(entries, { author: seatAuthor ? author : pull.user.login, reviewers });
   const peopleMap: Record<string, PersonRef> = {};
   for (const u of [pull.user, ...reviews.map((r) => r.user), ...comments.map((c) => c.user), ...x.lineComments.map((c) => c.user)]) {
     if (u) peopleMap[u.login.toLowerCase()] = { login: u.login, name: nameOf(u.login), avatarUrl: aliases.has(u.login.toLowerCase()) ? null : u.avatar_url, agent: isClaudeLogin(u.login) || undefined };

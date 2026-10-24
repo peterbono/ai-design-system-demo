@@ -10,6 +10,7 @@
 // Who may change anything comes from the session's access (repository admin) and is checked again by the server.
 import type { Owners } from '@bridge-ds/core';
 import { teamDisplayName } from '../lib/demo';
+import { knownTeamName } from '../lib/recent-teams';
 import { accountName } from '../lib/account';
 import { teamKeyOfPage } from '../lib/team-path';
 import { emailMembers, membersContext, roleOf, sampleTeam, type KnownPerson, type Member, type MembersContext, type PendingInvite } from '../lib/invites';
@@ -94,9 +95,14 @@ async function ownersOfTeam(hosted: boolean): Promise<{ owners: Owners; known: b
   return (await Promise.race([read, late])) ?? { owners: { design: [], tech: [] }, known: false };
 }
 
-/** The name the team goes by (lib/demo.ts teamDisplayName): its own once its settings are read. */
+/**
+ * The name the team goes by (lib/demo.ts teamDisplayName): its own once its settings are read, else the name its
+ * Bridge team has (the one the team chip shows, lib/recent-teams), and only then words made from the repository.
+ */
 function teamName(repo: string): string {
-  return teamDisplayName(repo, siteConfig());
+  const config = siteConfig();
+  if (typeof config.name === 'string' && config.name.trim()) return teamDisplayName(repo, config);
+  return knownTeamName(repo) ?? teamDisplayName(repo, config);
 }
 
 /**
