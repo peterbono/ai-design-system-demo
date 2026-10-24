@@ -132,6 +132,8 @@
 
 .sg-body {
   display: grid;
+  /* One column that may shrink below its content (long chips, the before and after plates) on a phone. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-5);
   padding: var(--space-6);
 }

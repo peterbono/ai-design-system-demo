@@ -292,7 +292,7 @@ function Decide({ p }: { p: SuggestionReviewProps }) {
   // Decline stays reachable when nothing else is (an outdated suggestion): in More actions, next to the reason.
   const more = acts || g.canDecline;
   return (
-    <footer className="sg-foot" role="region" aria-label="Your decision">
+    <section className="sg-foot" aria-label="Your decision">
       {asking ? (
         <div className="sg-ask">
           <Textarea
@@ -368,7 +368,7 @@ function Decide({ p }: { p: SuggestionReviewProps }) {
       <p className="sg-said" role="status" aria-live="polite">
         {said}
       </p>
-    </footer>
+    </section>
   );
 }
 
@@ -394,6 +394,8 @@ export const whyOf = (summary: string | null | undefined): string => (summary ??
 
 export function SuggestionReview(p: SuggestionReviewProps) {
   const keys = p.inQueue && p.gate.canApprove;
+  // In the review queue the page heading is the queue's: the suggestion title is one level down (as a branch).
+  const Heading = p.inQueue ? 'h2' : 'h1';
   return (
     <div className="sg">
       {p.crumbs && <Breadcrumb items={p.crumbs} className="sg-crumbs" />}
@@ -406,9 +408,9 @@ export function SuggestionReview(p: SuggestionReviewProps) {
               <p className="sg-who">
                 <strong>{p.author.name}</strong> <span className="sg-muted">suggests a change</span>
               </p>
-              <h2 className="sg-title br-title" tabIndex={-1}>
+              <Heading className="sg-title br-title" tabIndex={-1}>
                 {p.title}
-              </h2>
+              </Heading>
               <p className="sg-meta">
                 <Badge tone={p.status.tone} size="sm">
                   {p.status.label}

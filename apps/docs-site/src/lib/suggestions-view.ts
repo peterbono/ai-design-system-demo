@@ -273,7 +273,8 @@ export function proofChips(p: Pick<SuggestionPayloadV1, 'checks' | 'kind'>, toda
   ];
   if (p.kind === 'token-change' || p.kind === 'brand' || p.kind === 'revert' || p.checks.contrast.length) {
     const failing = today ? today.newFailures.map((f) => f.pair) : p.checks.contrast.filter((c) => !c.pass).map((c) => c.pair);
-    const modes = [...new Set(p.checks.contrast.map((c) => c.mode).filter((m): m is string => Boolean(m)))].sort();
+    // A mode is a theme ("light"), or a combo key ("brand=bridge,theme=light,density=comfortable"): its theme reads.
+    const modes = [...new Set(p.checks.contrast.map((c) => c.mode).filter((m): m is string => Boolean(m)).map((m) => /(?:^|,)theme=([^,]+)/.exec(m)?.[1] ?? m))].sort();
     if (failing.length) chips.push({ key: 'contrast', label: `${failing.length} contrast ${failing.length === 1 ? 'pair fails' : 'pairs fail'}`, tone: 'danger', detail: `Below the minimum ${when}: ${failing.slice(0, 3).join(', ')}${failing.length > 3 ? ` and ${failing.length - 3} more` : ''}.` });
     else if (p.checks.contrast.length) chips.push({ key: 'contrast', label: modes.length ? `Contrast ${listModes(modes)}` : 'Contrast', tone: 'success', detail: `${p.checks.contrast.length} contrast ${p.checks.contrast.length === 1 ? 'pair moves and passes' : 'pairs move and pass'} ${when}.` });
     else chips.push({ key: 'contrast', label: 'No contrast pair moves', tone: 'neutral', detail: 'None of the text and background pairs the library checks uses these tokens.' });
