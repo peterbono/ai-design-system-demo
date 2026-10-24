@@ -17,6 +17,7 @@ import { guestActivity } from './guest-activity';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
 import { canOverride, closingIssueNumbers, DEFAULT_OVERRIDE, lookAgainReviewers, ownerOverridePolicy, PUBLISH_ROUTE_COPY, type OverridePolicy, type TeamStates } from '@bridge-ds/core';
 import { approvedSuggestionOf } from './suggestions';
+import { prefetchChangeStatuses } from './contribute-session';
 import { siteConfig } from './repo-context';
 import { loadTeams, siteApproverEntries, siteApprovers, siteRoles, siteShipPolicy, siteSoloOwner, teamSnapshot } from './teams';
 import {
@@ -296,6 +297,11 @@ export async function loadStatuses(
   const byNumber = new Map(pulls.map((p) => [p.number, p]));
   for (const [n, st] of plan.cached) onStatus(byNumber.get(n)!, st, false);
   for (const n of plan.skipped) onStatus(byNumber.get(n)!, null, true);
+  // A member reading through Bridge: one request answers every change's status reads (shared with the team for 30 s).
+  if (connected && plan.fetch.length) {
+    const { owner, repo } = readRepo();
+    await prefetchChangeStatuses(`${owner}/${repo}`, plan.fetch.map((n) => byNumber.get(n)!));
+  }
   const read = async (n: number) => {
     const p = byNumber.get(n)!;
     const st = await pullStatus(p, { lean: !connected });

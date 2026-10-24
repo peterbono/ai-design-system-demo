@@ -86,6 +86,11 @@ function NotYou({ onOtherEmail }: { onOtherEmail: () => void }) {
 export interface RoomProps {
   /** Leaves Entry for an address. */
   leave: (href: string) => void;
+  /**
+   * The page a sign-in through a link (?next=) goes on to: joining, asking or skipping leads there, and "Skip for now"
+   * or "Continue where you were" takes the place of the demo.
+   */
+  onward?: string | null;
   /** Signs out, back to the email field. */
   onOtherEmail: () => void;
   /** Links GitHub and comes back here. */
@@ -108,6 +113,7 @@ export function InviteRoom({
   more,
   github,
   leave,
+  onward,
   onJoined,
   onOtherEmail,
   onConnectGitHub,
@@ -128,12 +134,12 @@ export function InviteRoom({
     try {
       const r = await api.acceptInvite(invite.repo, invite.id);
       if (r.status === 'accept-on-github') {
-        setOnGitHub({ repo: r.repo, role: roleWord(String(r.role)), url: r.acceptUrl ?? `https://github.com/${r.repo}/invitations`, next: r.next || teamHome(r.repo) });
+        setOnGitHub({ repo: r.repo, role: roleWord(String(r.role)), url: r.acceptUrl ?? `https://github.com/${r.repo}/invitations`, next: onward || r.next || teamHome(r.repo) });
         setBusy(false);
         return;
       }
       await onJoined?.(r.repo, String(r.role), invite.team);
-      leave(r.next || teamHome(r.repo));
+      leave(onward || r.next || teamHome(r.repo));
     } catch (err) {
       setBusy(false);
       if (err instanceof api.EntryError && err.code === 'github-required') return setNeedsGitHub(true);
@@ -150,7 +156,7 @@ export function InviteRoom({
             {W.acceptOnGitHubButton}
           </ButtonLink>
           <ButtonLink href={onGitHub.next} variant="ghost" size="lg" fullWidth>
-            {W.openTeam}
+            {onward ? W.continueOnward : W.openTeam}
           </ButtonLink>
         </div>
       </>
@@ -198,8 +204,8 @@ export function InviteRoom({
         ) : needsGitHub ? (
           <>
             <p className="ent-note">{W.githubOff(role, invite.invitedBy)}</p>
-            <ButtonLink href={DEMO_HOME} variant="secondary" size="lg" fullWidth>
-              {ACCOUNT_WORDS.demo}
+            <ButtonLink href={onward || DEMO_HOME} variant="secondary" size="lg" fullWidth>
+              {onward ? W.continueOnward : ACCOUNT_WORDS.demo}
             </ButtonLink>
           </>
         ) : (
@@ -213,6 +219,11 @@ export function InviteRoom({
           <ButtonLink href={CREATE_TEAM_HREF} variant="secondary" size="lg" fullWidth>
             {W.createInstead}
           </ButtonLink>
+        )}
+        {onward && !(needsGitHub && !githubOnSite()) && (
+          <Button variant="ghost" size="lg" fullWidth onClick={() => leave(onward)}>
+            {problem ? W.continueOnward : W.skipForNow}
+          </Button>
         )}
       </div>
       {more > 0 && <p className="acc-quiet">{W.moreInvites(more)}</p>}
@@ -299,7 +310,7 @@ const teamLines = (t: DomainTeam): ReactNode[] => [<TeamPeople key="people" team
 /** How often E4b asks whether the admin let them in (and each time the tab comes back). */
 export const APPROVAL_POLL_MS = 20_000;
 
-export function DomainRoom({ domain, teams: initial, leave, onJoined, onOtherEmail, header }: RoomProps & { domain: string; teams: DomainTeam[]; header: (h: Header) => ReactNode }) {
+export function DomainRoom({ domain, teams: initial, leave, onward, onJoined, onOtherEmail, header }: RoomProps & { domain: string; teams: DomainTeam[]; header: (h: Header) => ReactNode }) {
   const [teams, setTeams] = useState(initial);
   const [all, setAll] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -344,7 +355,7 @@ export function DomainRoom({ domain, teams: initial, leave, onJoined, onOtherEma
       const r = await api.requestJoin(t.id);
       if ('joined' in r) {
         if (r.status === 'joined') await onJoined?.(r.repo, String(r.role), t.name);
-        return leave(r.next || teamHome(r.repo));
+        return leave(onward || r.next || teamHome(r.repo));
       }
       const done = { ...t, requested: true, expired: false };
       setTeams((xs) => xs.map((x) => (x.id === t.id ? done : x)));
@@ -352,7 +363,7 @@ export function DomainRoom({ domain, teams: initial, leave, onJoined, onOtherEma
       if (teams.length === 1) setSent(done);
     } catch (err) {
       const repo = err instanceof api.EntryError ? err.details.repo : undefined;
-      if (err instanceof api.EntryError && err.code === 'already' && typeof repo === 'string') return leave(teamHome(repo));
+      if (err instanceof api.EntryError && err.code === 'already' && typeof repo === 'string') return leave(onward || teamHome(repo));
       setProblem(err instanceof Error ? err.message : null);
     } finally {
       setBusy(null);
@@ -386,10 +397,10 @@ export function DomainRoom({ domain, teams: initial, leave, onJoined, onOtherEma
             size="lg"
             fullWidth
             onClick={() => {
-              void Promise.resolve(onJoined?.(joined.repo, 'edit', joined.team.name)).then(() => leave(teamHome(joined.repo)));
+              void Promise.resolve(onJoined?.(joined.repo, 'edit', joined.team.name)).then(() => leave(onward || teamHome(joined.repo)));
             }}
           >
-            {W.openNamed(joined.team.name)}
+            {onward ? W.continueOnward : W.openNamed(joined.team.name)}
           </Button>
         </div>
       </>
@@ -409,8 +420,8 @@ export function DomainRoom({ domain, teams: initial, leave, onJoined, onOtherEma
           }
         />
         <div className="ent-actions">
-          <ButtonLink href={DEMO_HOME} variant="secondary" size="lg" fullWidth>
-            {W.exploreDemo}
+          <ButtonLink href={onward || DEMO_HOME} variant="secondary" size="lg" fullWidth>
+            {onward ? W.continueOnward : W.exploreDemo}
           </ButtonLink>
           <ButtonLink href={CREATE_TEAM_HREF} variant="ghost" size="lg" fullWidth>
             {W.createInstead}
@@ -496,9 +507,14 @@ export function DomainRoom({ domain, teams: initial, leave, onJoined, onOtherEma
             {teams[0]!.expired ? W.askAgain : W.ask}
           </Button>
         )}
+        {onward && !asked && (
+          <Button variant="ghost" size="lg" fullWidth onClick={() => leave(onward)}>
+            {W.skipForNow}
+          </Button>
+        )}
         {asked > 0 && (
-          <ButtonLink href={DEMO_HOME} variant="secondary" size="lg" fullWidth>
-            {W.exploreDemo}
+          <ButtonLink href={onward || DEMO_HOME} variant="secondary" size="lg" fullWidth>
+            {onward ? W.continueOnward : W.exploreDemo}
           </ButtonLink>
         )}
         <ButtonLink href={CREATE_TEAM_HREF} variant="ghost" size="lg" fullWidth>

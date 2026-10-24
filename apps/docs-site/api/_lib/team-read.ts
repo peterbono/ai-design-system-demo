@@ -15,6 +15,12 @@
 //       { users: { <login lower case>: { login, name, avatar_url, type } | null } }  the public GitHub profile of each
 //       login (name and avatar, nothing else), null for one GitHub does not know. Studio names the builders and
 //       reviewers of the team with it for a member without GitHub (an email member), instead of anonymous GitHub reads.
+//   GET /api/contribute?repo=owner/name&changes=<number>:<head sha>,...   (members only, at most MAX_CHANGES)
+//       { changes: { <number>: { <path under the repository, with its query>: { status, body } } } }  every read the
+//       status of an open change needs (scripts/pr-status.ts pullStatus: the pull request, its reviews and files, the
+//       check runs and commit status of its head), read once on the server and kept FRESH_MS for every member of the
+//       team: the home of each member asks once for all its changes instead of five reads per change. A change Bridge
+//       could not read (GitHub busy or down, nothing kept) is left out: the page reads it on its own.
 //   GET /api/contribute?repo=owner/name&blobs=<sha>,<sha>,...   (at most MAX_BATCH full blob shas)
 //       { blobs: { <sha>: "<text>" | null } , later: [<sha>...] }  the bodies of these blobs at once (null: GitHub has
 //       none), `later` the ones left out to keep the answer under MAX_BATCH_BYTES (ask again).
@@ -33,6 +39,8 @@
 //                                                 FRESH_MS, then revalidated with If-None-Match (a 304 does not count
 //                                                 against GitHub's limit); kept KEEP_S for stale-on-limit
 //   bridge:read:blob:<repo>:<sha>                 a blob's text (content-addressed), BLOB_KEEP_S
+//   bridge:read:change:<repo>:<number>:<sha>      the reads of one change's status { at, reads }, shared by the
+//                                                 team's members while fresh (FRESH_MS, and no write since)
 //   bridge:read:user:<login>                      a public profile { login, name, avatar_url, type } or "null", USER_KEEP_S
 //                                                 (public data, shared by every team)
 //   bridge:read:wrote:<repo>                      when a write went through Bridge (api/contribute): older answers
@@ -61,6 +69,8 @@ export const BLOB_KEEP_S = 7 * 24 * 60 * 60;
 /** Bigger answers are not kept in Redis (one Upstash request carries at most 1 MB). */
 export const MAX_KEPT_CHARS = 700_000;
 export const MAX_BATCH = 100;
+/** Changes per status request (an open list page of the home or Branches). */
+export const MAX_CHANGES = 20;
 /** Logins per people request, and how long a public profile is kept. */
 export const MAX_USERS = 30;
 export const USER_KEEP_S = 24 * 60 * 60;
@@ -180,6 +190,7 @@ const secondsToNextWindow = (now: number) => Math.max(1, (windowOf(now) + 1) * R
 export const countKey = (kind: 'ip' | 'member' | 'guest' | 'team', who: string, now: number) => `bridge:read:count:${kind}:${who}:${windowOf(now)}`;
 export const wroteKey = (repo: string) => `bridge:read:wrote:${repo.toLowerCase()}`;
 const getKey = (repo: string, accept: string, url: string) => `bridge:read:get:${repo.toLowerCase()}:${sha256(`${accept} ${url}`).slice(0, 40)}`;
+export const changeKey = (repo: string, n: number, sha: string) => `bridge:read:change:${repo.toLowerCase()}:${n}:${sha}`;
 const blobKey = (repo: string, sha: string) => `bridge:read:blob:${repo.toLowerCase()}:${sha}`;
 export const userKey = (login: string) => `bridge:read:user:${login.toLowerCase()}`;
 
@@ -347,6 +358,44 @@ export interface ReadTarget {
   query: string;
 }
 
+/**
+ * A kept answer that is not fresh any more (or none): GitHub again, with the kept ETag (a 304 does not count against
+ * GitHub's limit), kept for the next reader. GitHub busy or down: what was kept, else busy or unreachable.
+ */
+async function throughGitHub(ctx: ReadCtx, owner: string, repo: string, url: string, accept: string, key: string, kept: Kept | null, o: { keep: boolean; forever: boolean }): Promise<{ k: Kept; source: 'revalidated' | 'miss' | 'stale' }> {
+  const now = ctx.now();
+  const token = await tokenFor(ctx, owner, repo);
+  let res: Response;
+  try {
+    res = await upstream(ctx, url, token, accept, kept?.etag ?? null);
+  } catch (e) {
+    if (kept) return { k: kept, source: 'stale' };
+    throw e;
+  }
+  const wait = limitedFor(res, now);
+  if (wait !== null) {
+    if (kept) return { k: kept, source: 'stale' };
+    throw busy(wait);
+  }
+  if (res.status >= 500) {
+    if (kept) return { k: kept, source: 'stale' };
+    throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+  }
+  if (res.status === 304 && kept) {
+    const fresh = { ...kept, at: now };
+    if (kept.body.length <= MAX_KEPT_CHARS) await ctx.redis.cmd('SET', key, JSON.stringify(fresh), 'EX', KEEP_S);
+    return { k: fresh, source: 'revalidated' };
+  }
+  const body = res.status === 204 || res.status === 304 ? '' : await res.text();
+  const k: Kept = { status: res.status === 304 ? 200 : res.status, etag: res.headers.get('etag'), type: res.headers.get('content-type') ?? '', link: res.headers.get('link'), body, at: now };
+  // Answers worth keeping: a success, or a 404 (a missing file stays missing for a while).
+  if (o.keep && (k.status === 200 || k.status === 404)) {
+    if (o.forever && k.status === 200) remember(key, k);
+    if (body.length <= MAX_KEPT_CHARS) await ctx.redis.cmd('SET', key, JSON.stringify(k), 'EX', o.forever && k.status === 200 ? IMMUTABLE_KEEP_S : KEEP_S);
+  }
+  return { k, source: 'miss' };
+}
+
 /** One GitHub GET through the policy and the cache. */
 export async function onRead(req: Request, ctx: ReadCtx, t: ReadTarget, reader: Reader): Promise<Response> {
   if (!readAllowed(t.rest, reader)) throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);
@@ -371,37 +420,112 @@ export async function onRead(req: Request, ctx: ReadCtx, t: ReadTarget, reader: 
     if (forever) remember(key, kept);
     return answer(kept, 'hit', inm);
   }
+  const { k, source } = await throughGitHub(ctx, t.owner, t.repo, url, accept, key, kept, { keep, forever });
+  return answer(k, source, inm);
+}
 
-  const token = await tokenFor(ctx, t.owner, t.repo);
-  let res: Response;
+// ---------------------------------------------------------------------------------------------------------------
+// The status of open changes, read once for the team
+
+/** One change of a status request: its number and the head commit the page knows. */
+export interface ChangeRef {
+  number: number;
+  sha: string;
+}
+
+/**
+ * The reads one change's status needs, as scripts/pr-status.ts pullStatus asks them (same paths, same queries), so
+ * the page answers them from this one request. Fixed resources of the read allow-list, nothing else.
+ */
+export function changeReads(c: ChangeRef): string[] {
+  return [`/pulls/${c.number}`, `/pulls/${c.number}/reviews?per_page=100`, `/pulls/${c.number}/files?per_page=100`, `/commits/${c.sha}/check-runs?per_page=100`, `/commits/${c.sha}/status`];
+}
+
+/** Parses `changes=` (comma separated <number>:<full head sha>, at most MAX_CHANGES, no repeats). */
+export function parseChangeList(v: string | null): ChangeRef[] {
+  const parts = (v ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const out = new Map<number, ChangeRef>();
+  for (const p of parts) {
+    const m = /^([1-9]\d{0,9}):([0-9a-f]{40})$/.exec(p);
+    if (!m) throw new HttpError(400, 'bad_request', `Ask for 1 to ${MAX_CHANGES} changes as number:sha.`);
+    out.set(Number(m[1]), { number: Number(m[1]), sha: m[2]! });
+  }
+  if (!out.size || out.size > MAX_CHANGES) throw new HttpError(400, 'bad_request', `Ask for 1 to ${MAX_CHANGES} changes as number:sha.`);
+  return [...out.values()];
+}
+
+/** What a change's status reads answered: GitHub's status and body for each path (a success or a 404 only). */
+type ChangeReads = Record<string, { status: number; body: string }>;
+interface KeptChange {
+  at: number;
+  reads: ChangeReads;
+}
+
+const parseKeptChange = (raw: unknown): KeptChange | null => {
+  if (typeof raw !== 'string') return null;
   try {
-    res = await upstream(ctx, url, token, accept, kept?.etag ?? null);
-  } catch (e) {
-    if (kept) return answer(kept, 'stale', inm);
-    throw e;
+    const v = JSON.parse(raw) as KeptChange;
+    return v && typeof v.at === 'number' && v.reads && typeof v.reads === 'object' ? v : null;
+  } catch {
+    return null;
   }
-  const wait = limitedFor(res, now);
-  if (wait !== null) {
-    if (kept) return answer(kept, 'stale', inm);
-    throw busy(wait);
-  }
-  if (res.status >= 500) {
-    if (kept) return answer(kept, 'stale', inm);
-    throw new HttpError(502, 'unreachable', GITHUB_DOWN);
-  }
-  if (res.status === 304 && kept) {
-    const fresh = { ...kept, at: now };
-    if (kept.body.length <= MAX_KEPT_CHARS) await ctx.redis.cmd('SET', key, JSON.stringify(fresh), 'EX', KEEP_S);
-    return answer(fresh, 'revalidated', inm);
-  }
-  const body = res.status === 204 || res.status === 304 ? '' : await res.text();
-  const k: Kept = { status: res.status === 304 ? 200 : res.status, etag: res.headers.get('etag'), type: res.headers.get('content-type') ?? '', link: res.headers.get('link'), body, at: now };
-  // Answers worth keeping: a success, or a 404 (a missing file stays missing for a while).
-  if (keep && (k.status === 200 || k.status === 404)) {
-    if (forever && k.status === 200) remember(key, k);
-    if (body.length <= MAX_KEPT_CHARS) await ctx.redis.cmd('SET', key, JSON.stringify(k), 'EX', forever && k.status === 200 ? IMMUTABLE_KEEP_S : KEEP_S);
-  }
-  return answer(k, 'miss', inm);
+};
+
+const STATUS_ACCEPT = 'application/vnd.github+json';
+
+/**
+ * The status reads of several open changes, for a member: each change's reads kept together for FRESH_MS (and only
+ * until a write through Bridge), shared by every member of the team; past that, each read is checked with GitHub
+ * through the same cache as a single read (its ETag, so an unchanged answer does not count against GitHub's limit).
+ * Counts one read per change on the member's budget. A change GitHub would not answer (busy, down) is left out.
+ */
+export async function onChanges(req: Request, ctx: ReadCtx, t: Pick<ReadTarget, 'owner' | 'repo' | 'full'>, changes: ChangeRef[], reader: Reader): Promise<Response> {
+  if (reader.kind !== 'member') throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);
+  const { values, wrote } = await countAndRead(ctx, req, t.full, reader, changes.length, changes.map((c) => changeKey(t.full, c.number, c.sha)));
+  const now = ctx.now();
+  const out: Record<string, ChangeReads> = {};
+  const cold: ChangeRef[] = [];
+  changes.forEach((c, i) => {
+    const kept = parseKeptChange(values[i]);
+    if (kept && now - kept.at < FRESH_MS && kept.at >= wrote) out[c.number] = kept.reads;
+    else cold.push(c);
+  });
+  let limited: number | null = null;
+  const urlOf = (path: string) => `${API}/repos/${t.owner}/${t.repo}${path}`;
+  const writes: (string | number)[][] = [];
+  const readCold = async (c: ChangeRef) => {
+    const paths = changeReads(c);
+    const keys = paths.map((p) => getKey(t.full, STATUS_ACCEPT, urlOf(p)));
+    const kept = (await ctx.redis.pipe(keys.map((k) => ['GET', k]))).map(parseKept);
+    const reads: ChangeReads = {};
+    for (const [i, path] of paths.entries()) {
+      const k0 = kept[i] ?? null;
+      let k: Kept;
+      if (k0 && now - k0.at < FRESH_MS && k0.at >= wrote) k = k0;
+      else {
+        try {
+          k = (await throughGitHub(ctx, t.owner, t.repo, urlOf(path), STATUS_ACCEPT, keys[i]!, k0, { keep: true, forever: false })).k;
+        } catch (e) {
+          if (e instanceof HttpError && e.status === 429) limited = Number(e.headers?.['Retry-After']) || 60;
+          if (e instanceof HttpError && e.code === 'app_missing') throw e;
+          return;
+        }
+      }
+      if (k.status !== 200 && k.status !== 404) return;
+      reads[path] = { status: k.status, body: k.body };
+    }
+    out[c.number] = reads;
+    const text = JSON.stringify({ at: now, reads });
+    if (text.length <= MAX_KEPT_CHARS) writes.push(['SET', changeKey(t.full, c.number, c.sha), text, 'EX', KEEP_S]);
+  };
+  let i = 0;
+  const worker = async () => {
+    while (i < cold.length) await readCold(cold[i++]!);
+  };
+  await Promise.all(Array.from({ length: Math.min(4, cold.length) }, worker));
+  if (writes.length) await ctx.redis.pipe(writes).catch(() => undefined);
+  if (limited !== null && !Object.keys(out).length) throw busy(limited);
+  return json(200, { changes: out }, { 'Cache-Control': 'private, no-store' });
 }
 
 /** Parses `blobs=` (comma separated full shas, at most MAX_BATCH, no repeats). */

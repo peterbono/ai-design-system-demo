@@ -606,7 +606,7 @@ const nameOf = (login: string) => {
   return aliases.get(l.toLowerCase()) ?? profiles.get(l.toLowerCase()) ?? (isClaudeLogin(login) ? AGENT_NAME : l.replace(/\[bot\]$/i, ''));
 };
 /** The page's lines that name people, built again once profile names land (openPr). */
-let renamed: (() => Pick<BranchReviewProps, 'approvals' | 'who'>) | null = null;
+let renamed: (() => Pick<BranchReviewProps, 'approvals' | 'who' | 'people'>) | null = null;
 let renamedLogins: string[] = [];
 /** The logins a text names as "@login" (lib/review-page namesIn). */
 const loginsIn = (text: string) => [...text.matchAll(/(?:^|[^\w@./-])@([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))(?![\w/@.\[-])/g)].map((m) => m[1]!);
@@ -1033,10 +1033,18 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   // In the demo seat the author is who asked for the change (`author`), not the account that opened it on GitHub,
   // which reads as Dana: her comments are a reviewer's, never "author".
   const conv = conversation(entries, { author: seatAuthor ? author : pull.user.login, reviewers });
-  const peopleMap: Record<string, PersonRef> = {};
-  for (const u of [pull.user, ...reviews.map((r) => r.user), ...comments.map((c) => c.user), ...x.lineComments.map((c) => c.user)]) {
-    if (u) peopleMap[u.login.toLowerCase()] = { login: u.login, name: nameOf(u.login), avatarUrl: aliases.has(u.login.toLowerCase()) ? null : u.avatar_url, agent: isClaudeLogin(u.login) || undefined };
-  }
+  const peopleUsers = [pull.user, ...reviews.map((r) => r.user), ...comments.map((c) => c.user), ...x.lineComments.map((c) => c.user)].filter((u): u is NonNullable<typeof u> => Boolean(u));
+  // The conversation's people by their profile name once read (built again then, like the approval rows): "Malik",
+  // not "malik", for a member without GitHub too.
+  const peopleNow = (): Record<string, PersonRef> => {
+    const map: Record<string, PersonRef> = {};
+    for (const u of peopleUsers) {
+      const l = u.login.toLowerCase();
+      map[l] = { login: u.login, name: nameOf(u.login), avatarUrl: aliases.has(l) ? null : u.avatar_url, agent: isClaudeLogin(u.login) || undefined };
+    }
+    return map;
+  };
+  const peopleMap = peopleNow();
 
   const title = humanTitle(mdTitleText(withoutJiraKey(pull.title)));
   const asked = status.yourTurn && !isAuthor && canApprove;
@@ -1052,8 +1060,9 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   const rowText = (r: (typeof rows)[number]) => (status.lifecycle === 'draft' && r.state === 'waiting' ? 'Not asked until a review is requested' : r.text);
   const approvalsNow = (): BranchReviewProps['approvals'] => (sampleSeat && onItsWay ? [] : rows.map((r) => ({ label: r.role === 'approval' ? 'Approval' : `${r.label} approval`, state: r.state, text: named(rowText(r)) })));
   // Profile names for the people these lines name, read after the first paint (never in the demo seat: its aliases).
-  renamed = seat ? null : () => ({ approvals: approvalsNow(), who: whoNow() });
-  renamedLogins = seat ? [] : [...new Set([...rows.flatMap((r) => loginsIn(rowText(r))), ...loginsIn(statusRun.sentence)])];
+  renamed = seat ? null : () => ({ approvals: approvalsNow(), who: whoNow(), people: peopleNow() });
+  const talkers = peopleUsers.map((u) => u.login).filter((l) => !/\[bot\]$/i.test(l) && !isClaudeLogin(l));
+  renamedLogins = seat ? [] : [...new Set([...rows.flatMap((r) => loginsIn(rowText(r))), ...loginsIn(statusRun.sentence), ...talkers])];
   const editable = tokenFilesOf(files) > 0 && isTokenChange(pull, REPO_KEY) && canAddTo(pull, login ?? undefined, write);
   const added = Number(new URLSearchParams(location.search).get('added'));
   if (added > 0) history.replaceState(history.state, '', `?pr=${pull.number}`);

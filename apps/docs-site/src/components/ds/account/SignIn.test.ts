@@ -573,6 +573,87 @@ describe('entry: Bridge picks the room after the code (E3 to E6)', () => {
   });
 });
 
+describe('a sign-in through a link (?next=): the entry step once, then the link', () => {
+  const NEXT = '/studio/acme/ds/tokens/';
+  const domainEntry = () => json(200, { kind: 'domain', domain: 'acme.com', teams: [{ id: 'tacmeds', name: 'Acme Design', memberCount: 12, people: ['Sam Rivera'], adminName: 'Sam Rivera', requested: false }] });
+  /** A new account (no team) signs in with the code on /signin/?next=... */
+  async function signInWithCode(entry: (c: EntryCall) => Response) {
+    entryReply = entry;
+    reply = (c) => {
+      if (c.method === 'GET') return json(200, { available: true, account: null });
+      if (c.body?.action === 'verify') return json(200, { account: account({ email: 'jordan.lee@acme.com', name: 'Jordan Lee' }), created: true, next: '/start/' });
+      return json(200, { ok: true });
+    };
+    const view = render(createElement(SignIn));
+    const user = userEvent.setup();
+    await user.type(await emailField(), 'jordan.lee@acme.com{Enter}');
+    await user.type(await screen.findByRole('textbox', { name: 'Code' }), '123456');
+    return { ...view, user };
+  }
+
+  it('E4 first: a new account whose work domain has a team sees it, Skip for now goes on to the link', async () => {
+    const { container, user } = await signInWithCode(domainEntry);
+    expect(await screen.findByRole('heading', { name: 'Your colleagues already use Bridge' })).toBeInTheDocument();
+    expect(navigate.to).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Ask to join' }).className).toMatch(/primary/);
+    await expectNoAxeViolations(container);
+    await user.click(screen.getByRole('button', { name: 'Skip for now' }));
+    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith(NEXT));
+  });
+
+  it('E4 then E4b: after asking, Continue where you were leads to the link, not the demo', async () => {
+    const { user } = await signInWithCode((c) => (c.method === 'GET' ? domainEntry() : json(200, { requested: true, expiresAt: '2026-11-06T00:00:00Z' })));
+    await user.click(await screen.findByRole('button', { name: 'Ask to join' }));
+    expect(await screen.findByRole('heading', { name: 'Request sent' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Continue where you were' })).toHaveAttribute('href', NEXT);
+    expect(screen.queryByRole('link', { name: 'Explore the demo while you wait' })).toBeNull();
+  });
+
+  it('shows the step once: it remembers it by opaque ids, and the next sign-in through a link goes straight on', async () => {
+    await signInWithCode(domainEntry);
+    expect(await screen.findByRole('heading', { name: 'Your colleagues already use Bridge' })).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem('bridge.entry.shown')!)).toEqual(['d:tacmeds']);
+  });
+
+  it('a step this browser showed already: straight to the link', async () => {
+    localStorage.setItem('bridge.entry.shown', JSON.stringify(['d:tacmeds']));
+    await signInWithCode(domainEntry);
+    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith(NEXT));
+    expect(screen.queryByRole('heading', { name: 'Your colleagues already use Bridge' })).toBeNull();
+  });
+
+  it('E3 first: an invite waits, Join goes on to the link', async () => {
+    const { user } = await signInWithCode((c) =>
+      c.method === 'GET'
+        ? json(200, { kind: 'invites', invites: [{ id: 'inv1', team: 'Acme Design', repo: 'acme/ds', role: 'edit', invitedBy: 'Sam Rivera' }] })
+        : json(200, { joined: true, status: 'joined', repo: 'acme/ds', role: 'edit', next: '/studio/acme/ds/' }),
+    );
+    expect(await screen.findByRole('heading', { name: 'Acme Design invited you' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Skip for now' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Join Acme Design' }));
+    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith(NEXT));
+  });
+
+  it('nothing to show (Create your team): straight to the link, not the setup', async () => {
+    await signInWithCode(() => json(200, { kind: 'create' }));
+    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith(NEXT));
+    expect(entryCalls).toHaveLength(1);
+  });
+
+  it('/api/entry cannot answer: straight to the link', async () => {
+    await signInWithCode(() => new Response('<html></html>', { status: 404, headers: { 'Content-Type': 'text/html' } }));
+    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith(NEXT));
+  });
+
+  it('an account already signed in goes straight on, without asking Bridge for a room', async () => {
+    entryReply = domainEntry;
+    reply = () => json(200, { available: true, account: account({ email: 'jordan.lee@acme.com' }) });
+    render(createElement(SignIn));
+    await waitFor(() => expect(navigate.to).toHaveBeenCalledWith(NEXT));
+    expect(entryCalls).toHaveLength(0);
+  });
+});
+
 describe('the invite link: one identity, the account of the invited email', () => {
   const TOKEN = 'K'.repeat(43);
   const live = { state: 'live', team: 'Acme Product', invitedBy: 'Sam Rivera', role: 'edit', sentTo: 'm•••@acme.com', member: false };

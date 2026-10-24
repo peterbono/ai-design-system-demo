@@ -22,6 +22,8 @@
 //   GET  /api/contribute?repo=owner/name&gh=<GitHub REST path and query, URL-encoded, starting with />
 //   GET  /api/contribute?repo=owner/name&blobs=<sha>,<sha>,...
 //   GET  /api/contribute?repo=owner/name&users=<login>,...   (members only: public names and avatars)
+//   GET  /api/contribute?repo=owner/name&changes=<n>:<sha>,... (members only: the status reads of open changes, read
+//                                                        once and shared by the team's members for 30 s)
 //                                                        a read of the team's repository through Bridge, for its
 //                                                        members and for anyone on a public demo team: allow-listed,
 //                                                        read-only token, cached, rate limited (api/_lib/team-read.ts)
@@ -105,7 +107,7 @@ import { redisRest, type Redis } from '../_lib/redis.js';
 import { configName, putTeamName } from '../_lib/teams.js';
 import { cookieAttrs, readCookie, signClaims, verifyClaims } from '../_lib/session.js';
 import { accountTeamsKey } from '../_lib/members.js';
-import { isPublicRepo, noteWrite, onBlobs, onRead, onUsers, parseBlobList, parseUserList, PUBLIC_TEAMS, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
+import { isPublicRepo, noteWrite, onBlobs, onChanges, onRead, onUsers, parseBlobList, parseChangeList, parseUserList, PUBLIC_TEAMS, READ_BASE, READ_PERMISSIONS, readAllowed, READ_WORDS, type ReadCtx, type Reader } from '../_lib/team-read.js';
 
 export type { FetchLike };
 
@@ -911,7 +913,10 @@ async function readerOf(ctx: Ctx, req: Request, full: string, rctx: ReadCtx): Pr
   return null;
 }
 
-/** GET gh= (one GitHub read) or blobs= (many blobs at once), for a member or a visitor of a public demo team. */
+/**
+ * GET gh= (one GitHub read), blobs= (many blobs at once), users= (public profiles) or changes= (the status reads of
+ * open changes), for a member or (gh= and blobs= only) a visitor of a public demo team.
+ */
 async function onTeamRead(req: Request, ctx: Ctx, params: URLSearchParams): Promise<Response> {
   const { owner, repo, full } = parseRepo(params.get('repo'));
   const rctx: ReadCtx = {
@@ -923,10 +928,12 @@ async function onTeamRead(req: Request, ctx: Ctx, params: URLSearchParams): Prom
   };
   const blobs = params.get('blobs');
   const usersArg = params.get('users');
+  const changesArg = params.get('changes');
   // The path is checked before anyone is looked up: a bad address costs no storage call.
   const logins = usersArg !== null ? parseUserList(usersArg) : null;
-  const target = blobs === null && !logins ? parseTarget(params.get('gh'), owner, repo) : null;
-  const shas = blobs !== null && !logins ? parseBlobList(blobs) : null;
+  const changes = changesArg !== null && !logins ? parseChangeList(changesArg) : null;
+  const target = blobs === null && !logins && !changes ? parseTarget(params.get('gh'), owner, repo) : null;
+  const shas = blobs !== null && !logins && !changes ? parseBlobList(blobs) : null;
   if (target && !readAllowed(target.rest, { kind: 'member' })) throw new HttpError(403, 'not-allowed', READ_WORDS.notAllowed);
   const reader = await readerOf(ctx, req, full, rctx);
   if (!reader) {
@@ -935,6 +942,7 @@ async function onTeamRead(req: Request, ctx: Ctx, params: URLSearchParams): Prom
     return json(401, { error: 'signin', message: SIGNIN }, stale ? { 'Set-Cookie': clearSession(full) } : {});
   }
   if (logins) return onUsers(req, rctx, { owner, repo, full }, logins, reader);
+  if (changes) return onChanges(req, rctx, { owner, repo, full }, changes, reader);
   if (shas) return onBlobs(req, rctx, { owner, repo, full }, shas, reader);
   return onRead(req, rctx, { owner, repo, full, rest: target!.rest, rawRest: target!.rawRest, query: target!.query }, reader);
 }
@@ -1018,8 +1026,9 @@ export async function handleContribute(req: Request, env: ContribEnv, deps: Cont
     const gh = params.get('gh');
     const blobs = params.get('blobs');
     const users = params.get('users');
+    const changes = params.get('changes');
 
-    if (method === 'GET' && gh === null && blobs === null && users === null) {
+    if (method === 'GET' && gh === null && blobs === null && users === null && changes === null) {
       const repoArg = params.get('repo');
       if (repoArg === null || !svc) {
         if (repoArg !== null) parseRepo(repoArg);
@@ -1041,7 +1050,7 @@ export async function handleContribute(req: Request, env: ContribEnv, deps: Cont
 
     if (!svc) return fail(503, 'not_configured', NOT_CONFIGURED);
     const ctx: Ctx = { f: deps.fetch, now: deps.now ?? Date.now, random: deps.random ?? ((n) => randomBytes(n)), svc, env };
-    if (gh !== null || ((blobs !== null || users !== null) && method === 'GET')) return await onProxy(req, ctx, params);
+    if (gh !== null || ((blobs !== null || users !== null || changes !== null) && method === 'GET')) return await onProxy(req, ctx, params);
     if (method !== 'POST') return fail(400, 'bad_request', 'Say which GitHub call, with gh.');
     return await onAction(req, ctx);
   } catch (e) {

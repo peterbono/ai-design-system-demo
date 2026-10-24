@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PEOPLE_SHOWN, invitedOn, teamAvatars, askedAgo, CREATE_TEAM_HREF, discoveryLine, emailDomain, ENTRY_WORDS, inviteRole, joinedNote, inviteTokenFromHash, parseDiscovery, parseInviteLink, parseEntry, parseRequests, parseTeamInfo, routeEntry, sortDomainTeams, splitDomainTeams, teamHome, teamNameFromDomain, yourRole, type Entry } from './entry';
+import { PEOPLE_SHOWN, entryStepKey, entryStepOnce, invitedOn, teamAvatars, askedAgo, CREATE_TEAM_HREF, discoveryLine, emailDomain, ENTRY_WORDS, inviteRole, joinedNote, inviteTokenFromHash, parseDiscovery, parseInviteLink, parseEntry, parseRequests, parseTeamInfo, routeEntry, sortDomainTeams, splitDomainTeams, teamHome, teamNameFromDomain, yourRole, type Entry } from './entry';
 
 const team = (repo: string, name: string, role = 'edit') => ({ repo, name, role, via: 'email' });
 
@@ -194,5 +194,31 @@ describe('a team made in Bridge', () => {
     });
     expect(parseTeamInfo({ id: 'x', key: 'k', name: 'N', role: 'owner', repo: 'acme/ds', discovery: {} })).toMatchObject({ role: 'edit', repo: 'acme/ds', discovery: null, memberCount: 0, people: [] });
     expect(parseTeamInfo({ name: 'No id' })).toBeNull();
+  });
+});
+
+describe('entryStepOnce: a link sign-in shows an invite or domain teams once', () => {
+  const domain: Entry = { kind: 'domain', domain: 'acme.com', teams: [{ id: 'tb', name: 'B', memberCount: 1, people: [], adminName: '', requested: false, expired: false }, { id: 'ta', name: 'A', memberCount: 2, people: [], adminName: '', requested: false, expired: false }] };
+  const invites: Entry = { kind: 'invites', invites: [{ id: 'inv1', team: 'Acme', repo: 'acme/ds', role: 'edit', invitedBy: '', invitedAt: '', memberCount: 0, people: [] }] };
+
+  it('keys invites and domain teams by opaque ids, nothing for teams or create', () => {
+    expect(entryStepKey(domain)).toBe('d:ta,tb');
+    expect(entryStepKey(invites)).toBe('i:inv1');
+    expect(entryStepKey({ kind: 'create' })).toBeNull();
+    expect(entryStepKey({ kind: 'teams', teams: [] })).toBeNull();
+  });
+
+  it('shows once, then not again; a new team or invite shows again', () => {
+    const first = entryStepOnce(domain, null);
+    expect(first).toEqual({ store: JSON.stringify(['d:ta,tb']) });
+    expect(entryStepOnce(domain, first!.store)).toBeNull();
+    expect(entryStepOnce(invites, first!.store)).toEqual({ store: JSON.stringify(['i:inv1', 'd:ta,tb']) });
+    expect(entryStepOnce({ kind: 'create' }, null)).toBeNull();
+  });
+
+  it('survives what the storage held being broken, and keeps at most 20', () => {
+    expect(entryStepOnce(invites, '{nope')).toEqual({ store: JSON.stringify(['i:inv1']) });
+    const full = JSON.stringify(Array.from({ length: 20 }, (_, i) => `i:x${i}`));
+    expect(JSON.parse(entryStepOnce(invites, full)!.store)).toHaveLength(20);
   });
 });

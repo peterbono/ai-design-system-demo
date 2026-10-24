@@ -375,7 +375,10 @@ async function handle(redis: Redis, base: RepoBase, req: { method: string; rest:
   const headShaOf = (it: Item) => (it.state === 'open' && it.head && st.refs[it.head] ? st.refs[it.head]! : (it.headSha ?? null));
   const pullJson = async (it: Item) => {
     const head = headShaOf(it);
-    const baseSha = st.refs[it.base ?? 'main'] ?? base.commit;
+    // A merged pull request keeps the base it was merged onto (the merge commit's first parent), as on GitHub: the
+    // branch page compares its head with that base, not with the base branch that now holds the change.
+    const mergedOnto = it.merged_at && it.merge_commit_sha ? ((await commitOf(it.merge_commit_sha))?.parents[0] ?? null) : null;
+    const baseSha = mergedOnto ?? st.refs[it.base ?? 'main'] ?? base.commit;
     let mergeable: boolean | null = true;
     let mergeableState = it.draft ? 'draft' : 'clean';
     if (it.state === 'open' && head) {

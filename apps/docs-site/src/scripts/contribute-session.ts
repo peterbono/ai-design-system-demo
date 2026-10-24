@@ -310,6 +310,7 @@ const recentKey = (repo: string, target: string, accept: string) => `${RECENT_PR
 
 /** Forgets what this tab kept of `repo` (null: of every team). */
 export function forgetRecent(repo: string | null) {
+  forgetChangeReads(repo);
   const prefix = repo === null ? RECENT_PREFIX : `${RECENT_PREFIX}${key(repo)}:`;
   for (const k of [...recent.keys()]) if (k.startsWith(prefix)) {
     recent.delete(k);
@@ -387,6 +388,66 @@ async function recentRead(repo: string, target: string, path: string, headers: R
   const r = await p;
   // The caller that sent it reads its own answer (any status); the others share the kept copy.
   return first && !r ? first : r ? toResponse(r) : send();
+}
+
+// --- Change statuses through Bridge -------------------------------------------------------------------------------
+// The status of each open change takes five reads (scripts/pr-status.ts pullStatus: the pull request, its reviews and
+// files, the check runs and commit status of its head). For a member, the page asks the server once for all its open
+// changes (api/_lib/team-read.ts onChanges, which reads each change once and shares it with the team's members for
+// 30 s), then those five reads are answered here, for RECENT_MS, in this page's memory only. Forgotten with the rest
+// on any write to the team.
+
+const STATUS_ACCEPT = 'application/vnd.github+json';
+/** Change reads answered by the server: `<team>|<path under the repository, with its query>`. */
+const changeReads = new Map<string, { at: number; status: number; body: string }>();
+const CHANGES_PER_REQUEST = 20;
+
+function forgetChangeReads(repo: string | null) {
+  if (repo === null) return changeReads.clear();
+  for (const k of [...changeReads.keys()]) if (k.startsWith(`${key(repo)}|`)) changeReads.delete(k);
+}
+
+/** The path of a call under /repos/<repo> (with its query), or null when it is not the team's repository. */
+function repoPath(repo: string, path: string): string | null {
+  const base = `/repos/${key(repo)}`;
+  return path.toLowerCase().startsWith(base) && /^(\/|\?|$)/.test(path.slice(base.length)) ? path.slice(base.length) : null;
+}
+
+/** A read the server already answered for this page, as GitHub's answer; null when there is none (or it is old). */
+function changeRead(repo: string, path: string, headers: Record<string, string>): Response | null {
+  if (!changeReads.size) return null;
+  const accept = Object.entries(headers).find(([h]) => h.toLowerCase() === 'accept')?.[1] ?? STATUS_ACCEPT;
+  const rel = accept === STATUS_ACCEPT ? repoPath(repo, path) : null;
+  const kept = rel === null ? undefined : changeReads.get(`${key(repo)}|${rel.toLowerCase()}`);
+  if (!kept || Date.now() - kept.at > RECENT_MS) return null;
+  return new Response(kept.body, { status: kept.status, headers: { 'Content-Type': 'application/json; charset=utf-8' } });
+}
+
+/**
+ * Asks Bridge for the status reads of these open changes at once, for a member of `repo` (their session); nothing for
+ * anyone else. Never throws: a change the server left out is read on its own, as before.
+ */
+export async function prefetchChangeStatuses(repo: string, changes: readonly { number: number; head: { sha: string } }[]): Promise<void> {
+  if (!contributorFor(repo)) return;
+  const list = changes.filter((c) => /^[0-9a-f]{40}$/.test(c.head.sha));
+  for (let i = 0; i < list.length; i += CHANGES_PER_REQUEST) {
+    const part = list.slice(i, i + CHANGES_PER_REQUEST);
+    try {
+      const res = await fetchImpl(`${CONTRIBUTE_API}?repo=${encodeURIComponent(repo)}&changes=${part.map((c) => `${c.number}:${c.head.sha}`).join(',')}`, { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+      if (res.status === 401) endedEmailSession(repo);
+      if (!res.ok || !/json/i.test(res.headers.get('content-type') ?? '')) return;
+      const data = (await res.json()) as { changes?: Record<string, Record<string, { status?: unknown; body?: unknown }>> };
+      const at = Date.now();
+      for (const reads of Object.values(data.changes ?? {})) {
+        for (const [path, r] of Object.entries(reads ?? {})) {
+          if (!path.startsWith('/') || (r?.status !== 200 && r?.status !== 404) || typeof r.body !== 'string') continue;
+          changeReads.set(`${key(repo)}|${path.toLowerCase()}`, { at, status: r.status, body: r.body });
+        }
+      }
+    } catch {
+      return;
+    }
+  }
 }
 
 // --- People through Bridge -----------------------------------------------------------------------------------------
@@ -483,8 +544,10 @@ export async function contributeFetch(repo: string, url: string, init: RequestIn
   // Any write: what this tab kept of the team is read again.
   if (method !== 'GET') forgetRecent(repo);
   const send = () => fetchImpl(target, { ...init, headers: { ...headers, [CONTRIBUTE_HEADER]: '1', ...(method === 'GET' ? { [MISSING_HEADER]: '1' } : {}) }, credentials: 'same-origin' });
+  // The status reads of an open change the server answered for the whole list (prefetchChangeStatuses).
+  const answered = method === 'GET' ? changeRead(repo, path, headers) : null;
   const [res, mine] = await Promise.all([
-    (method === 'GET' ? recentRead(repo, target, path, headers, send) : send()).then(restoreMissing),
+    answered ? Promise.resolve(answered) : (method === 'GET' ? recentRead(repo, target, path, headers, send) : send()).then(restoreMissing),
     authored ? contributeMine(repo) : Promise.resolve(null),
   ]);
   if (res.status === 401) endedEmailSession(repo);

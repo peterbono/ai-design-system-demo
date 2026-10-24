@@ -205,6 +205,38 @@ export function inviteTokenFromHash(hash: string): string | null {
   return m ? m[1]! : null;
 }
 
+/**
+ * A sign-in through a link (?next=) still shows an invite (E3) or the teams found by work domain (E4) once, then goes
+ * on to the link. This browser keeps which ones it showed (localStorage, opaque ids only, never an email).
+ */
+export const ENTRY_SHOWN_KEY = 'bridge.entry.shown';
+const ENTRY_SHOWN_MAX = 20;
+
+/** What an entry answer offers that a link sign-in shows once: the invites or the domain teams by id, else null. */
+export function entryStepKey(e: Entry): string | null {
+  if (e.kind === 'invites' && e.invites.length) return `i:${e.invites.map((i) => i.id).sort().join(',')}`;
+  if (e.kind === 'domain' && e.teams.length) return `d:${e.teams.map((t) => t.id).sort().join(',')}`;
+  return null;
+}
+
+/**
+ * Whether a sign-in that came with ?next= first shows this entry step: an invite or domain teams this browser has not
+ * shown yet. Pure: `raw` is what ENTRY_SHOWN_KEY held. Returns the step and the value to store, or null to go on.
+ */
+export function entryStepOnce(e: Entry, raw: string | null): { store: string } | null {
+  const key = entryStepKey(e);
+  if (!key) return null;
+  let shown: string[] = [];
+  try {
+    const v = raw ? (JSON.parse(raw) as unknown) : [];
+    shown = Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    shown = [];
+  }
+  if (shown.includes(key)) return null;
+  return { store: JSON.stringify([key, ...shown].slice(0, ENTRY_SHOWN_MAX)) };
+}
+
 /** Largest first, then by name: the order the server sends, kept when a list comes back unsorted. */
 export const sortDomainTeams = <T extends Pick<DomainTeam, 'memberCount' | 'name'>>(teams: readonly T[]): T[] =>
   [...teams].sort((a, b) => b.memberCount - a.memberCount || a.name.localeCompare(b.name));
@@ -370,6 +402,9 @@ export const ENTRY_WORDS = {
   sentLead: (admin: string) => (admin ? `We asked ${admin} to let you in. You'll get an email.` : "We asked an admin to let you in. You'll get an email."),
   waitingFor: (admin: string) => (admin ? `Waiting for ${firstName(admin)}` : 'Waiting for an admin'),
   exploreDemo: 'Explore the demo while you wait',
+  /** A sign-in through a link (?next=): the way on to that page, before and after asking. */
+  skipForNow: 'Skip for now',
+  continueOnward: 'Continue where you were',
   changedMind: 'Changed your mind?',
   cancelRequest: 'Cancel the request',
   inTitle: "You're in",
