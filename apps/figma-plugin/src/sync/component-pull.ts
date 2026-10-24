@@ -42,6 +42,7 @@ import { COLLECTIONS, type FigmaResolvedType } from '../shared/messages';
 import { isUnmappable, pathToName, tokenToPlanned } from './mapping';
 import { checkComponentSpecs } from './spec-check';
 import { MEASURED_SPECS_FILE, type MeasuredOverlayReport, overlayMeasured, parseMeasuredSpecs } from './measured-specs';
+import { type MeasuredOnlyReport, specsFromMeasure } from './measured-only';
 
 /** A component set Bridge generated, as the main thread finds it (shared plugin data). */
 export interface GeneratedSet {
@@ -362,13 +363,15 @@ export interface LoadedSpecs {
   specs: ComponentSpecsFile;
   /** Measured source: what the measured values changed, and how many variants no story matched. */
   measured?: MeasuredOverlayReport | undefined;
+  /** Measured-only source: the sets and variants built from the stories alone. */
+  measuredOnly?: MeasuredOnlyReport | undefined;
 }
 
 /**
  * Sources of component specs. `static`: component-specs.json, generated from the CSS source (npm run specs).
  * `measured`: the same, with the values `bridge specs --measure` read in Storybook laid on (measured-specs.ts).
  */
-export type SpecSourceKind = 'static' | 'measured';
+export type SpecSourceKind = 'static' | 'measured' | 'measured-only';
 
 /**
  * Where the pull reads what code draws. Every source returns the same shape (ComponentSpecsFile), so planning and
@@ -386,7 +389,25 @@ export function specSource(kind: SpecSourceKind = 'static'): SpecSource {
       return { kind, load: loadComponentSpecs };
     case 'measured':
       return { kind, load: loadMeasuredSpecs };
+    case 'measured-only':
+      return { kind, load: loadMeasuredOnlySpecs };
   }
+}
+
+/**
+ * The specs built from measured-specs.json alone (measured-only.ts): what any design system with a Storybook gives,
+ * without a static spec. When the repo also has component-specs.json, each set keeps the static set's hash as its code
+ * version, so Check fidelity compares it with the code images of that version.
+ */
+async function loadMeasuredOnlySpecs(client: Pick<GitHubClient, 'getTree' | 'getBlobText'>, treeSha: string, config: BridgeConfig | undefined): Promise<LoadedSpecs | undefined> {
+  const { entries } = await client.getTree(treeSha, true);
+  const entry = entries.find((e) => e.type === 'blob' && e.path === MEASURED_SPECS_FILE);
+  if (!entry) throw new Error(`Spec source is set to Measured only, but the repo has no ${MEASURED_SPECS_FILE}. Run bridge specs --measure --variants and commit it, or set Spec source back to Static in Settings.`);
+  const { specs, report } = specsFromMeasure(parseMeasuredSpecs(await client.getBlobText(entry.sha)));
+  const code = await loadComponentSpecs(client, treeSha, config).catch(() => undefined);
+  const codeHash = new Map(code?.specs.components.map((c) => [c.name, c.hash]) ?? []);
+  const components = specs.components.map((c) => (codeHash.has(c.name) ? { ...c, hash: codeHash.get(c.name)! } : c));
+  return { path: MEASURED_SPECS_FILE, specs: { ...specs, components }, measuredOnly: report };
 }
 
 /** The static specs with measured-specs.json laid on. A missing measure fails: the developer asked for it. */

@@ -36,6 +36,7 @@ import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, r
 import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
 import { type Selection, onProgress, onSelection, request } from './bridge';
 import { MEASURED_SPECS_FILE, type MeasuredOverlayReport } from '../sync/measured-specs';
+import type { MeasuredOnlyReport } from '../sync/measured-only';
 import { type FidelityOutcome, NO_REFERENCES_TEXT, fidelitySummary, loadReferenceManifest, runFidelityCheck } from '../sync/fidelity';
 import { FIGMA_REFERENCES_BRANCH, FIGMA_REFERENCES_DIR } from '@bridge-ds/core';
 import { fidelityComponentLine, fidelityVerdict } from '@bridge-ds/core';
@@ -66,6 +67,8 @@ interface PullState {
   componentsError?: ComponentsReadProblem | undefined;
   /** Spec source Measured: how many variants a measured story gave values to. */
   measured?: MeasuredOverlayReport | undefined;
+  /** Spec source Measured only: the sets built from the stories. */
+  measuredOnly?: MeasuredOnlyReport | undefined;
   /** Also build the sets code added ("Include components" in the footer): on by default on a first pull. Updates are always offered. */
   includeComponents: boolean;
   componentsReport?: ComponentApplyReport | undefined;
@@ -652,10 +655,12 @@ async function loadPull(prev?: PullState): Promise<PullState> {
   let reviews: ComponentReview[] = [];
   let inReview: PullState['inReview'] = [];
   let measured: MeasuredOverlayReport | undefined;
+  let measuredOnly: MeasuredOnlyReport | undefined;
   const before: Record<string, string> = { ...(prev?.before ?? {}) };
   try {
     const loaded = await specSource(state.init!.settings.specSource).load(getClient(), analysis.headFiles.treeSha, analysis.headFiles.config);
     measured = loaded?.measured;
+    measuredOnly = loaded?.measuredOnly;
     if (loaded) {
       const generated = await request('scan-generated', {});
       // Sets pushed from Figma: where their library branch stands decides whether the pull rebuilds them from code.
@@ -688,6 +693,7 @@ async function loadPull(prev?: PullState): Promise<PullState> {
     reviews,
     inReview,
     ...(measured ? { measured } : {}),
+    ...(measuredOnly ? { measuredOnly } : {}),
     before,
     after: prev?.after ?? {},
     done: prev?.done ?? new Map(),
@@ -1915,7 +1921,7 @@ function viewPull(): View {
       : [lastPulled, behind ? `${plural(behind, 'new change')} in the design system` : ''].filter(Boolean).join(' · ');
   const body: Child[] = [
     h('section', { class: 'zone' }, h('h2', { class: 'headline' }, headline), meta ? h('p', { class: 'muted' }, meta) : null),
-    forDevelopers([...repoRows(), ['Last pulled commit', short(a.baseSha)], ['Latest commit', short(a.headSha)], ['Spec source', measuredLine(p.measured)]]),
+    forDevelopers([...repoRows(), ['Last pulled commit', short(a.baseSha)], ['Latest commit', short(a.headSha)], ['Spec source', p.measuredOnly ? `Measured only: ${p.measuredOnly.sets} sets, ${p.measuredOnly.variants} variants from ${p.measuredOnly.stories} stories` : measuredLine(p.measured)]]),
   ];
 
   if (remote.length) {
@@ -3735,11 +3741,17 @@ function viewSettings(): View {
               field('Tokens folder', 'tokensPath', "Used when the design system has no bridge.config.json to say where its tokens are.", 'tokens'),
               h(
                 'label',
-                { class: 'check' },
-                h('input', { type: 'checkbox', checked: d.specSource === 'measured', onChange: (e: Event) => (d.specSource = (e.target as HTMLInputElement).checked ? 'measured' : 'static') }),
-                h('span', null, 'Spec source: measured in Storybook'),
+                { class: 'field' },
+                h('span', null, 'Spec source'),
+                h(
+                  'select',
+                  { onChange: (e: Event) => (d.specSource = (e.target as HTMLSelectElement).value as NonNullable<RepoSettings['specSource']>) },
+                  h('option', { value: 'static', selected: !d.specSource || d.specSource === 'static' }, 'component-specs.json (static)'),
+                  h('option', { value: 'measured', selected: d.specSource === 'measured' }, 'Static, with measured values'),
+                  h('option', { value: 'measured-only', selected: d.specSource === 'measured-only' }, 'Measured in Storybook only'),
+                ),
+                h('small', null, `Measured comes from ${MEASURED_SPECS_FILE} (bridge specs --measure --variants). "Measured only" builds every set from the stories, for a design system without component-specs.json.`),
               ),
-              h('small', { class: 'muted' }, `Off: component values come from component-specs.json. On: the values bridge specs --measure read (${MEASURED_SPECS_FILE}) replace them for each variant a story matches.`),
             ),
             init.settings.repo
               ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', onClick: () => { state.expanded.delete('repo-edit'); state.settingsDraft = { ...init.settings }; render(); } }, 'Cancel'))
@@ -3754,7 +3766,7 @@ function viewSettings(): View {
               h('span', { class: 'opt-text' }, h('span', { class: 'opt-title' }, 'Design system'), h('small', { class: 'mono-line' }, init.settings.repo)),
               h('span', { class: 'opt-status ok' }, icon('check'), 'Connected'),
             ),
-            forDevelopers([['Branch', init.settings.branch], ['Tokens folder', init.settings.tokensPath], ['Spec source', init.settings.specSource === 'measured' ? 'Measured in Storybook' : undefined]]),
+            forDevelopers([['Branch', init.settings.branch], ['Tokens folder', init.settings.tokensPath], ['Spec source', init.settings.specSource === 'measured' ? 'Static, with measured values' : init.settings.specSource === 'measured-only' ? 'Measured in Storybook only' : undefined]]),
             h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', 'data-focus-id': 'repo-edit', onClick: () => { state.expanded.add('repo-edit'); render(); } }, 'Edit')),
           ),
       // A saved token is a state, not a question: one row with "Connected" (or "Stopped working") and its actions.

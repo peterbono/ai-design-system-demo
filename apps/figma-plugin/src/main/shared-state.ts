@@ -32,7 +32,7 @@ export function sharedSettings(store: SharedStore): RepoSettings {
     repo: store.get('repo') || legacy || DEFAULT_SETTINGS.repo,
     branch: store.get('branch') || DEFAULT_SETTINGS.branch,
     tokensPath: store.get('tokensPath') || DEFAULT_SETTINGS.tokensPath,
-    ...(store.get('specSource') === 'measured' ? { specSource: 'measured' as const } : {}),
+    ...(store.get('specSource') === 'measured' || store.get('specSource') === 'measured-only' ? { specSource: store.get('specSource') as 'measured' | 'measured-only' } : {}),
   };
 }
 
@@ -65,7 +65,8 @@ export function saveSettings(store: SharedStore, settings: RepoSettings): RepoSe
   store.set('branch', settings.branch.trim());
   store.set('tokensPath', settings.tokensPath.trim().replace(/^\/+|\/+$/g, ''));
   // Static is the default: nothing stored until a developer turns Measured on.
-  if (settings.specSource === 'measured' || store.get('specSource')) store.set('specSource', settings.specSource === 'measured' ? 'measured' : '');
+  const measured = settings.specSource === 'measured' || settings.specSource === 'measured-only' ? settings.specSource : '';
+  if (measured || store.get('specSource')) store.set('specSource', measured);
   const reset = syncResetOnSettings(before, sharedSettings(store));
   for (const [field, value] of Object.entries(reset)) {
     if ((PER_USER as readonly string[]).includes(field)) {
