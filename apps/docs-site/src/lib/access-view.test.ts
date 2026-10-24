@@ -222,3 +222,16 @@ describe('signed out in another tab', () => {
     expect(`${s.title} ${s.body}`).not.toMatch(/link|GitHub|\u2014/);
   });
 });
+
+describe('roleBadge: a GitHub reviewer reads Reviewer', () => {
+  it('says Reviewer for a writer who holds a review right, the GitHub words otherwise', async () => {
+    const { roleBadge, memberRole } = await import('./access-view');
+    expect(roleBadge('writer', true, true)).toEqual({ label: 'Reviewer', tone: 'success' });
+    expect(roleBadge('writer', true, false).label).toBe('Can edit');
+    expect(roleBadge('admin', true, true).label).toBe('Admin');
+    expect(roleBadge('reader', true, true).label).toBe('Can suggest');
+    expect(roleBadge('writer', false, true).label).toBe('Can edit');
+    expect(memberRole('writer', true, true)).toBe('Reviewer');
+    expect(memberRole('writer', true)).toBe('Can edit');
+  });
+});

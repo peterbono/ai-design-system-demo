@@ -10,7 +10,7 @@
 // A team's Library (/library/<owner>/<repo>/..., multi-team PR 4a) reads the same way when signed in. Signed out, it
 // reads the published snapshot first, straight from the raw host: no GitHub API call at all, so an anonymous reader
 // never spends the 60 requests an hour GitHub gives an address. Only a team without a snapshot is read live.
-import { loadRepoModel, parseSnapshot, SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, SNAPSHOT_MAX_BYTES, snapshotSource, storybookUrl, type GitHubClient, type RepoModel, type RepoSnapshot } from '@bridge-ds/core';
+import { hasWriteAccess, loadRepoModel, parseSnapshot, SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, SNAPSHOT_MAX_BYTES, snapshotSource, storybookUrl, type GitHubClient, type RepoModel, type RepoSnapshot } from '@bridge-ds/core';
 import { getToken, hasWorkingToken, studioClient } from './github-session';
 import { contributeBlobs, contributorFor } from './contribute-session';
 import { CONTRIB_TOKEN, contributeEligible, isContribAuth } from '../lib/contribute';
@@ -33,6 +33,12 @@ export interface TeamData {
   storybook: string | undefined;
   /** The client the data was read with (the visitor's token, or anonymous). */
   client: GitHubClient;
+  /**
+   * The reader may change this team's library (its Library pages show Edit): an email member of the team (Can edit or
+   * Admin), or a GitHub account with write access to its repository. A token alone is not enough: a GitHub account
+   * that only reads the repository explores and suggests. Absent: no.
+   */
+  canEdit?: boolean;
   /**
    * When the snapshot read was published (its commit date, else when it was written). Set on a signed-out Library
    * read, which takes the snapshot as published without asking GitHub for the head.
@@ -71,6 +77,21 @@ export function teamToken(team: { owner: string; repo: string }): string | null 
   if (token || !onLibraryPage()) return token;
   const repo = `${team.owner}/${team.repo}`;
   return contributeEligible(repo, true) && contributorFor(repo) ? CONTRIB_TOKEN : null;
+}
+
+/**
+ * Whether the reader may edit the team's library: an email member reads through Bridge with the stand-in token (their
+ * membership is Can edit or Admin); a GitHub account needs write access to the repository, as GitHub's own answer for
+ * the repository says (cached by the client, read once already for the model). Never throws.
+ */
+async function editRight(team: { owner: string; repo: string }, client: GitHubClient): Promise<boolean> {
+  if (!client.canWrite) return false;
+  if (isContribAuth(teamToken(team))) return true;
+  try {
+    return hasWriteAccess((await client.getRepo()).permissions);
+  } catch {
+    return false;
+  }
 }
 
 /** A client for the team, with the visitor's token when it works. */
@@ -227,6 +248,7 @@ export function loadTeamData(): Promise<TeamData> {
       source: read.source,
       storybook: storybookUrl(read.model.config),
       client,
+      canEdit: await editRight(team, client),
     };
   })();
   pending.catch(() => {
