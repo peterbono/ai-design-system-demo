@@ -38,7 +38,7 @@ import {
 } from '../lib/home-model';
 import { isHosted, studioHref } from '../lib/team-path';
 import { busyText } from '../lib/team-load';
-import { isDemoRepo, teamDisplayName } from '../lib/demo';
+import { isDemoRepo } from '../lib/demo';
 
 export interface HomePull extends QueuePullFull {
   html_url: string;
@@ -180,9 +180,9 @@ export async function loadJoinNeeds(now: number): Promise<NeedRow[]> {
   if (!a?.admin && !a?.repoAdmin) return [];
   try {
     const { listJoinRequests } = await import('./entry-session');
-    const { siteConfig } = await import('./repo-context');
-    const team = teamDisplayName(full, siteConfig());
-    return (await listJoinRequests(full)).map((r) => joinNeed(r, team, now));
+    const { teamNameSoon } = await import('./members');
+    const [rows, team] = await Promise.all([listJoinRequests(full), teamNameSoon(full)]);
+    return rows.map((r) => joinNeed(r, team, now));
   } catch {
     return [];
   }

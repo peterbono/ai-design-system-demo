@@ -12,6 +12,7 @@ import { putRequest } from '../../api/_lib/teams';
 import { handleAccount } from '../../api/account/index';
 import { handleContribute } from '../../api/contribute/index';
 import { ADMIN_ONLY, handleEntry } from '../../api/entry/index';
+import { handleInvites, inviteStoreOn } from '../../api/invites/index';
 import { localDevHost, parseMember } from './contribute';
 
 const ORIGIN = 'https://bridge.example.com';
@@ -124,6 +125,28 @@ describe('/api/account and /api/contribute without the local dependency', () => 
       { fetch: w.fetch, redis: w.redis, localAdmins: w.localAdmins },
     );
     expect(del.status).toBe(409);
+  });
+});
+
+describe('Settings > Members (/api/invites)', () => {
+  const members = async (w: Awaited<ReturnType<typeof world>>, withLocal: boolean) => {
+    const req = new Request(`${ORIGIN}/api/invites?repo=${REPO}`, { headers: { Cookie: w.cookie, host: 'bridge.example.com' } });
+    const deps = { fetch: w.fetch, redis: w.redis, members: memberStore(w.redis), store: inviteStoreOn(w.redis), email: { send: async () => undefined }, ...(withLocal ? { localAdmins: w.localAdmins } : {}) };
+    const r = await handleInvites(req, ENV, deps);
+    return { status: r.status, body: (await r.json()) as { members?: { email: string; role: string }[] } };
+  };
+
+  it('lists the seeded admin as Admin in local mode, the others as they are', async () => {
+    local();
+    const r = await members(await world(), true);
+    expect(r.status).toBe(200);
+    expect(r.body.members).toEqual(expect.arrayContaining([expect.objectContaining({ email: 'sam@acme.com', role: 'admin' }), expect.objectContaining({ email: 'priya@acme.com', role: 'edit' })]));
+  });
+
+  it('without the local dependency the seeded admin is not an admin at all', async () => {
+    local();
+    const r = await members(await world(), false);
+    expect(r.status).toBe(403);
   });
 });
 

@@ -1211,6 +1211,16 @@ async function onEmailAdminPost(ctx: Ctx, req: Request, env: InvitesEnv, body: R
   }
 }
 
+/**
+ * Local mode only (api/_lib/local-admin.ts): a seeded local admin is also listed as an email member, whose own role says
+ * Can edit. Members shows them as what they are, Admin. Production never passes local admins.
+ */
+async function withLocalAdmins(ctx: Ctx, full: string, members: EmailMember[]): Promise<EmailMember[]> {
+  const admins = ctx.svc.localAdmins ? new Set(await ctx.svc.localAdmins.adminsOf(full)) : null;
+  if (!admins?.size) return members;
+  return members.map((m) => (m.role !== 'admin' && admins.has(m.email.toLowerCase()) ? { ...m, role: 'admin' } : m));
+}
+
 const EMAIL_ADMIN_ACTIONS = new Set(['invite', 'resend', 'invite-role', 'cancel', 'set-role', 'remove']);
 
 async function onGet(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise<Response> {
@@ -1222,12 +1232,12 @@ async function onGet(req: Request, env: InvitesEnv, deps: InvitesDeps): Promise<
   if (asAccount(ctx, req, repoArg)) {
     const ad = await emailAdmin(ctx, req, repoArg);
     const list = await pending(ctx, ad.full);
-    const members = await ctx.svc.members!.list(ad.full);
+    const members = await withLocalAdmins(ctx, ad.full, await ctx.svc.members!.list(ad.full));
     return json(200, { invites: list.map(publicInvite), personal: false, members: members.map(publicMember) }, { 'Cache-Control': 'private, no-store' });
   }
   const { facts } = await authorize(ctx, req, repoArg, 'push');
   const list = await pending(ctx, facts.full);
-  const members = ctx.svc.members ? await ctx.svc.members.list(facts.full) : [];
+  const members = ctx.svc.members ? await withLocalAdmins(ctx, facts.full, await ctx.svc.members.list(facts.full)) : [];
   return json(200, { invites: list.map(publicInvite), personal: facts.personal, members: members.map(publicMember) });
 }
 

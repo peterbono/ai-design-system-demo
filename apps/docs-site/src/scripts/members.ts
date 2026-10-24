@@ -99,6 +99,18 @@ function teamName(repo: string): string {
   return teamDisplayName(repo, siteConfig());
 }
 
+/**
+ * The team's own name, waiting a moment for its settings when they are not read yet (as ownersOfTeam does), so a
+ * sentence never names the team by its repository ("Acme product") when bridge.config.json says "Acme Product".
+ */
+export async function teamNameSoon(repo: string): Promise<string> {
+  if (siteConfig().name || !repoContext().hosted) return teamName(repo);
+  const { loadTeamData } = await import('./team-data');
+  const late = new Promise<null>((resolve) => setTimeout(() => resolve(null), OWNERS_WAIT_MS));
+  await Promise.race([loadTeamData().catch(() => null), late]);
+  return teamName(repo);
+}
+
 const noRepoPage = () => typeof document !== 'undefined' && document.documentElement.hasAttribute('data-no-repo');
 
 /**
@@ -237,5 +249,6 @@ export async function loadMembers(): Promise<MembersData> {
       people = [];
     }
   }
-  return { context, repo, team, members, pending, people, canManage, personal, complete, invites, ownersKnown: team0.known };
+  // The team's name once more: its settings have often landed by now ("Acme Product", not "Acme product").
+  return { context, repo, team: teamName(repo), members, pending, people, canManage, personal, complete, invites, ownersKnown: team0.known };
 }

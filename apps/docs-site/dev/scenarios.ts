@@ -552,7 +552,7 @@ export const SCENARIOS: Scenario[] = [
           { ...P.kai, kind: 'domain', expect: 'E4: Northwind Design, Admin: Jordan Blake, 2 members. Ask to join.' },
         ],
         [
-          'Settings > Account as Jordan: Delete my account says at once that Jordan is the only admin of Northwind Design, with "Make Dee Okafor admin".',
+          'Account (account menu, Account settings) as Jordan: Delete my account says at once that Jordan is the only admin of Northwind Design, with "Make Dee Okafor admin".',
           'Linking a repository needs GitHub (an admin of it): not in local mode. The tests cover it (link-team).',
         ],
       );

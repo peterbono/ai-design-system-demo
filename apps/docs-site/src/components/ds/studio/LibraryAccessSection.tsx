@@ -195,7 +195,7 @@ export default function LibraryAccessSection() {
       <Header intro={ACCESS_WORDS.intro} />
       <div className="set-band-body">
         {data.context === 'real' && data.canManage && !data.available && <Alert tone="info">{ACCESS_WORDS.unavailable}</Alert>}
-        <Card aria-labelledby="set-library-access">
+        <Card>
           <CardBody>
             <div className="set-rows">
               <div className="set-row">
