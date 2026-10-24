@@ -97,7 +97,7 @@ describe('create-team: a real team at step 1', () => {
     expect((await s.entry(jo)).body).toEqual({ kind: 'teams', teams: [{ repo: team.key, id: expect.any(String), name: 'Northwind Design', role: 'admin', via: 'email' }] });
     expect(teamHref('_team', team.id, null)).toBe(`/studio/workspace/?team=${team.id}`);
     // The account lists it, with its home.
-    const me = await handleAccount(new Request(`${ORIGIN}/api/account`, { headers: { host: HOST, cookie: jo } }), ENV, { fetch: async () => res(404), redis: s.redis, members: s.members });
+    const me = await handleAccount(new Request(`${ORIGIN}/api/account`, { headers: { host: HOST, cookie: jo } }), ENV, { fetch: async () => res(404), now: () => T0, redis: s.redis, members: s.members });
     expect((await me.json()).account.teams).toEqual([{ repo: team.key, name: 'Northwind Design', role: 'admin', via: 'email' }]);
   });
 
@@ -286,7 +286,7 @@ describe('email admins (no GitHub)', () => {
     await s.members.put(REPO, { ...(await s.members.get(REPO, 'leo@northwind.io'))!, role: 'edit' });
     expect((await s.inv(leo, undefined, 'GET', `?repo=${REPO}`)).status).toBe(403);
     // A POST without the account header is refused (CSRF).
-    const r = await handleInvites(new Request(`${ORIGIN}/api/invites`, { method: 'POST', headers: { host: HOST, origin: ORIGIN, cookie: priya, 'content-type': 'application/json' }, body: JSON.stringify({ action: 'cancel', repo: REPO, id: 'a'.repeat(16) }) }), ENV, { fetch: async () => res(404), redis: s.redis, members: s.members, store: s.invites, email: { send: async () => undefined } });
+    const r = await handleInvites(new Request(`${ORIGIN}/api/invites`, { method: 'POST', headers: { host: HOST, origin: ORIGIN, cookie: priya, 'content-type': 'application/json' }, body: JSON.stringify({ action: 'cancel', repo: REPO, id: 'a'.repeat(16) }) }), ENV, { fetch: async () => res(404), now: () => T0, redis: s.redis, members: s.members, store: s.invites, email: { send: async () => undefined } });
     expect(r.status).toBe(403);
   });
 });
