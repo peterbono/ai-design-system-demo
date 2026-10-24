@@ -40,7 +40,8 @@ import {
 } from '../lib/editor-model';
 import { badgeHtml, closeDialog, isDialogOpen, openDialog, tokenValueHtml } from '@bridge-ds/react/dom';
 import { currentViewer, esc, getToken, hasWorkingToken, initGitHubConnect, onAccess, paintGates, prefersSignIn, readRepo, relativeTime, setButtonDisabled, setButtonLabel, showGhError, studioClient } from './github-session';
-import { ghVerb, notSentLine, SEE_SUGGESTION, sendButton, sendDialogTitle, sendingLine, SUGGEST_NEXT, suggestionSentLine } from '../lib/gh-wording';
+import { suggestionHref } from '../lib/suggestions-view';
+import { ghVerb, notSentLine, SEE_SUGGESTION, sendButton, sendDialogTitle, sendingLine, suggestionSentLine } from '../lib/gh-wording';
 import { assertBranchWrites, changesModeOnPage } from './changes-mode';
 import { draftTokenEdits } from '../lib/draft-token-edits';
 import { branchWithJiraKey, parseJiraKey, titleWithJiraKey, VOCAB } from '../lib/vocabulary';
@@ -915,8 +916,9 @@ function showSent(sent: Extract<Sent, { kind: 'suggestion' }>) {
   if (h) h.textContent = 'Suggestion sent';
   const fields = field('propose-new');
   if (fields) fields.hidden = true;
+  // The status line below says who reviews and who applies: the send dialog's own line would say it twice.
   const who = field('propose-who');
-  if (who) who.textContent = SUGGEST_NEXT;
+  if (who) who.hidden = true;
   const target = field('propose-target');
   if (target) target.hidden = true;
   const go = field('propose-go');
@@ -927,13 +929,15 @@ function showSent(sent: Extract<Sent, { kind: 'suggestion' }>) {
     setButtonLabel(close, 'Done');
   }
   const out = $('ed-propose-status');
-  if (out) out.innerHTML = `${esc(suggestionSentLine(sent.number))} <a href="${attrUrl(sent.url)}" target="_blank" rel="noopener">${esc(SEE_SUGGESTION)}</a>${sent.warnings.length ? ` <span class="muted">${esc(sent.warnings.join(' '))}</span>` : ''}`;
+  if (out) out.innerHTML = `${esc(suggestionSentLine(sent.number))} <a href="${attrUrl(suggestionHref(sent.number))}">${esc(SEE_SUGGESTION)}</a>${sent.warnings.length ? ` <span class="muted">${esc(sent.warnings.join(' '))}</span>` : ''}`;
 }
 
 /** Back to the send state after a suggestion was shown (the next open of the dialog). */
 function resetSent() {
   const go = field('propose-go');
   if (go) go.hidden = false;
+  const who = field('propose-who');
+  if (who) who.hidden = false;
   const close = $('ed-propose-dialog')?.querySelector<HTMLButtonElement>('[data-dialog-close]:not([aria-label])');
   if (close?.dataset.edLabel !== undefined) {
     setButtonLabel(close, close.dataset.edLabel);

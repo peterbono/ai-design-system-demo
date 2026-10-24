@@ -42,6 +42,7 @@ import { currentContributor, ghAuthFailure, hasWorkingToken, isDirectWait, token
 import { CONTRIBUTE_WORDS } from '../../../lib/contribute';
 import { sampleVisitor } from '../../../scripts/demo-gate';
 import { type ProposedBrand, proposeBrand } from '../../../scripts/new-brand';
+import { suggestionHref } from '../../../lib/suggestions-view';
 import { ghAction, SEE_SUGGESTION, sendButton, sendGoal, SUGGEST_NEXT, SUGGESTION_SENT, suggestionSentLine } from '../../../lib/gh-wording';
 import { parseJiraKey } from '../../../lib/vocabulary';
 import { studioHref } from '../../../lib/team-path';
@@ -198,7 +199,7 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
             {suggestionSentLine(done.number)} The Library shows {draft.name} once it is applied.
           </p>
           <div className="nb-actions">
-            <Button variant="primary" iconStart={Send} render={<a href={done.url} target="_blank" rel="noopener" />}>
+            <Button variant="primary" iconStart={Send} render={<a href={suggestionHref(done.number)} />}>
               {SEE_SUGGESTION}
             </Button>
           </div>

@@ -1376,9 +1376,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
             {sent?.suggestion ? (
               <p className="le-sent">
                 {suggestionSentLine(sent.pr ?? 0)}{' '}
-                <Link href={sent.suggestion} external>
-                  {SEE_SUGGESTION}
-                </Link>
+                <Link href={sent.pr ? studio(`changes/?suggestion=${sent.pr}`) : sent.suggestion}>{SEE_SUGGESTION}</Link>
               </p>
             ) : sent ? (
               <p className="le-sent">
