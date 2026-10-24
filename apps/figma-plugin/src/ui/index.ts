@@ -35,6 +35,7 @@ import { libraryArrivalOnGitHub } from '@bridge-ds/core';
 import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, triedLocally, tryItLinks } from '../sync/explorations';
 import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
 import { type Selection, onProgress, onSelection, request } from './bridge';
+import { MEASURED_SPECS_FILE, type MeasuredOverlayReport } from '../sync/measured-specs';
 import { type FidelityOutcome, NO_REFERENCES_TEXT, fidelitySummary, loadReferenceManifest, runFidelityCheck } from '../sync/fidelity';
 import { FIGMA_REFERENCES_BRANCH, FIGMA_REFERENCES_DIR } from '@bridge-ds/core';
 import { fidelityComponentLine, fidelityVerdict } from '@bridge-ds/core';
@@ -63,6 +64,8 @@ interface PullState {
   /** Component sets from component-specs.json on the branch; undefined when the repo has none. */
   components?: ComponentPullPlan | undefined;
   componentsError?: ComponentsReadProblem | undefined;
+  /** Spec source Measured: how many variants a measured story gave values to. */
+  measured?: MeasuredOverlayReport | undefined;
   /** Also build the sets code added ("Include components" in the footer): on by default on a first pull. Updates are always offered. */
   includeComponents: boolean;
   componentsReport?: ComponentApplyReport | undefined;
@@ -637,9 +640,11 @@ async function loadPull(prev?: PullState): Promise<PullState> {
   let componentsError: ComponentsReadProblem | undefined;
   let reviews: ComponentReview[] = [];
   let inReview: PullState['inReview'] = [];
+  let measured: MeasuredOverlayReport | undefined;
   const before: Record<string, string> = { ...(prev?.before ?? {}) };
   try {
-    const loaded = await specSource().load(getClient(), analysis.headFiles.treeSha, analysis.headFiles.config);
+    const loaded = await specSource(state.init!.settings.specSource).load(getClient(), analysis.headFiles.treeSha, analysis.headFiles.config);
+    measured = loaded?.measured;
     if (loaded) {
       const generated = await request('scan-generated', {});
       // Sets pushed from Figma: where their library branch stands decides whether the pull rebuilds them from code.
@@ -671,6 +676,7 @@ async function loadPull(prev?: PullState): Promise<PullState> {
     includeComponents: prev?.includeComponents ?? (!!components?.components.length && components.components.every((c) => c.status === 'new')),
     reviews,
     inReview,
+    ...(measured ? { measured } : {}),
     before,
     after: prev?.after ?? {},
     done: prev?.done ?? new Map(),
@@ -1725,6 +1731,12 @@ function steps(items: [string, string][]): HTMLElement {
  * Repository, branch and commit, for whoever needs them: folded under "For developers", never in a designer's
  * sentence. Rows without a value are left out.
  */
+/** "Measured: 18 of 72 variants matched a story (54 use component-specs.json)", for the pull's developer rows. */
+function measuredLine(m: MeasuredOverlayReport | undefined): string | undefined {
+  if (!m) return undefined;
+  return `Measured: ${m.matched} of ${m.variants} variants matched a story${m.unmatched ? ` (${m.unmatched} use component-specs.json)` : ''}, ${m.fields} values from the measure${m.keptTokens ? `, ${m.keptTokens} tokens kept over a measured literal` : ''}`;
+}
+
 function forDevelopers(rows: [string, string | undefined][]): Child {
   const shown = rows.filter((r): r is [string, string] => !!r[1]);
   if (!shown.length) return null;
@@ -1861,7 +1873,7 @@ function viewPull(): View {
       : [lastPulled, behind ? `${plural(behind, 'new change')} in the design system` : ''].filter(Boolean).join(' · ');
   const body: Child[] = [
     h('section', { class: 'zone' }, h('h2', { class: 'headline' }, headline), meta ? h('p', { class: 'muted' }, meta) : null),
-    forDevelopers([...repoRows(), ['Last pulled commit', short(a.baseSha)], ['Latest commit', short(a.headSha)]]),
+    forDevelopers([...repoRows(), ['Last pulled commit', short(a.baseSha)], ['Latest commit', short(a.headSha)], ['Spec source', measuredLine(p.measured)]]),
   ];
 
   if (remote.length) {
@@ -3626,7 +3638,7 @@ function viewSettings(): View {
   const rejected = init.tokenState === 'rejected';
   // The token field shows without a token, or after "Replace token".
   const tokenField = !init.hasToken || state.expanded.has('token-replace');
-  const field = (label: string, key: keyof RepoSettings, hint: string, placeholder: string) =>
+  const field = (label: string, key: 'repo' | 'branch' | 'tokensPath', hint: string, placeholder: string) =>
     h(
       'label',
       { class: 'field' },
@@ -3651,6 +3663,13 @@ function viewSettings(): View {
               h('summary', null, 'For developers'),
               field('Base branch', 'branch', 'Updates read from it; changes sent for review target it.', 'main'),
               field('Tokens folder', 'tokensPath', "Used when the design system has no bridge.config.json to say where its tokens are.", 'tokens'),
+              h(
+                'label',
+                { class: 'check' },
+                h('input', { type: 'checkbox', checked: d.specSource === 'measured', onChange: (e: Event) => (d.specSource = (e.target as HTMLInputElement).checked ? 'measured' : 'static') }),
+                h('span', null, 'Spec source: measured in Storybook'),
+              ),
+              h('small', { class: 'muted' }, `Off: component values come from component-specs.json. On: the values bridge specs --measure read (${MEASURED_SPECS_FILE}) replace them for each variant a story matches.`),
             ),
             init.settings.repo
               ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', onClick: () => { state.expanded.delete('repo-edit'); state.settingsDraft = { ...init.settings }; render(); } }, 'Cancel'))
@@ -3665,7 +3684,7 @@ function viewSettings(): View {
               h('span', { class: 'opt-text' }, h('span', { class: 'opt-title' }, 'Design system'), h('small', { class: 'mono-line' }, init.settings.repo)),
               h('span', { class: 'opt-status ok' }, icon('check'), 'Connected'),
             ),
-            forDevelopers([['Branch', init.settings.branch], ['Tokens folder', init.settings.tokensPath]]),
+            forDevelopers([['Branch', init.settings.branch], ['Tokens folder', init.settings.tokensPath], ['Spec source', init.settings.specSource === 'measured' ? 'Measured in Storybook' : undefined]]),
             h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', 'data-focus-id': 'repo-edit', onClick: () => { state.expanded.add('repo-edit'); render(); } }, 'Edit')),
           ),
       // A saved token is a state, not a question: one row with "Connected" (or "Stopped working") and its actions.

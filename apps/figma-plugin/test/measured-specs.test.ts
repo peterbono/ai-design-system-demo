@@ -1,0 +1,99 @@
+// Spec source "measured": the values `bridge specs --measure` read in Storybook laid onto the static specs. The
+// fixture is the recorded measure of our Button primary story (packages/core/test/fixtures/measure, #475) in the
+// measured-specs.json shape, with its props added by hand until the measure records them.
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { test } from 'node:test';
+import { parseComponentSpecs } from '@bridge-ds/core';
+import { type SharedStore, saveSettings, sharedSettings } from '../src/main/shared-state';
+import { loadComponentSpecs, specSource } from '../src/sync/component-pull';
+import { MEASURED_SPECS_FILE, type MeasuredSpecsFile, overlayMeasured, parseMeasuredSpecs } from '../src/sync/measured-specs';
+import { FakeGitHub } from './fake-github';
+import { realConfigText } from './helpers';
+
+const ROOT = join(process.cwd(), '../..');
+const SPECS_PATH = 'packages/react/component-specs.json';
+const specsText = () => readFileSync(join(ROOT, SPECS_PATH), 'utf8');
+const measuredText = () => readFileSync(join(process.cwd(), 'test/fixtures/measured-specs.json'), 'utf8');
+const measured = (): MeasuredSpecsFile => parseMeasuredSpecs(measuredText());
+const variantOf = (specs: ReturnType<typeof parseComponentSpecs>, props: Record<string, string>) =>
+  specs.components.find((c) => c.name === 'Button')!.variants.find((v) => Object.entries(props).every(([k, x]) => v.props[k] === x))!;
+const PRIMARY_MD = { Variant: 'primary', Size: 'md', State: 'Default' };
+
+test('a measured story gives its values to the variant its props name; the others stay static and are counted', () => {
+  const specs = parseComponentSpecs(specsText());
+  const { specs: out, report } = overlayMeasured(specs, measured());
+  const buttonVariants = specs.components.find((c) => c.name === 'Button')!.variants.length;
+  assert.equal(report.matched, 1, 'primary md at rest: the State axis takes its default');
+  assert.equal(report.variants, specs.components.reduce((n, c) => n + c.variants.length, 0));
+  assert.equal(report.unmatched, report.variants - 1);
+  assert.ok(buttonVariants > 1);
+  // Same values as the static spec on our library (the bench agrees on 95.9%): nothing moves here.
+  const before = variantOf(specs, PRIMARY_MD);
+  const after = variantOf(out, PRIMARY_MD);
+  assert.equal(after.values.root!.fill, 'button.primary.bg');
+  assert.equal(after.values.text!.textFill, 'button.primary.text', 'the label pairs with the text part by its CSS class');
+  // The structure stays static: no width the measure read on a hugging button, same parts.
+  assert.equal(after.values.root!.width, undefined);
+  assert.deepEqual(Object.keys(after.values), Object.keys(before.values));
+  // A border shorthand measures as the literal 1: the static token stays.
+  assert.equal(after.values.root!.strokeWeight, before.values.root!.strokeWeight);
+  assert.ok(report.keptTokens >= 1);
+  // Unmatched variants are the static ones, untouched.
+  assert.deepEqual(variantOf(out, { Variant: 'secondary', Size: 'md', State: 'Default' }), variantOf(specs, { Variant: 'secondary', Size: 'md', State: 'Default' }));
+});
+
+test('where the measure reads another token, it wins', () => {
+  const m = measured();
+  m.stories[0]!.spec!.values.root!.fill = 'button.secondary.bg';
+  const { specs } = overlayMeasured(parseComponentSpecs(specsText()), m);
+  assert.equal(variantOf(specs, PRIMARY_MD).values.root!.fill, 'button.secondary.bg');
+});
+
+test('a story without props, or with an error, matches nothing', () => {
+  const specs = parseComponentSpecs(specsText());
+  const noProps = measured();
+  delete noProps.stories[0]!.props;
+  assert.equal(overlayMeasured(specs, noProps).report.matched, 0);
+  const failed = measured();
+  failed.stories[0]!.error = 'the story threw';
+  assert.equal(overlayMeasured(specs, failed).report.matched, 0);
+  assert.throws(() => parseMeasuredSpecs('{"version":2,"stories":[]}'), /not a measured specs file/);
+});
+
+/** A repo with the static specs (and the measure), and the tree of its main. */
+async function repo(withMeasure: boolean) {
+  const files: Record<string, string> = { 'bridge.config.json': realConfigText(), [SPECS_PATH]: specsText() };
+  if (withMeasure) files[MEASURED_SPECS_FILE] = measuredText();
+  const client = new FakeGitHub(files).client();
+  return { client, treeSha: await client.getCommitTree((await client.getBranchSha('main'))!), config: JSON.parse(realConfigText()) };
+}
+
+test('spec source measured: the static specs with the measure laid on, and what it did; static reads as before', async () => {
+  const { client, treeSha, config } = await repo(true);
+  const loaded = (await specSource('measured').load(client, treeSha, config))!;
+  assert.equal(loaded.path, SPECS_PATH);
+  assert.equal(loaded.measured?.matched, 1);
+  const plain = await specSource().load(client, treeSha, config);
+  assert.deepEqual(plain, await loadComponentSpecs(client, treeSha, config));
+  assert.equal(plain?.measured, undefined);
+});
+
+test('spec source measured without a measure in the repo: says how to make one or turn it off', async () => {
+  const { client, treeSha, config } = await repo(false);
+  await assert.rejects(specSource('measured').load(client, treeSha, config), /no measured-specs\.json\. Run bridge specs --measure .* or set Spec source back to Static/);
+});
+
+test('the setting: static stores nothing, measured round-trips, and turning it off clears it', () => {
+  const data = new Map<string, string>();
+  const root: SharedStore = { get: (k) => data.get(k) ?? '', set: (k, v) => void data.set(k, v), keys: () => [...data.keys()] };
+  const base = { repo: 'acme/ds', branch: 'main', tokensPath: 'tokens' };
+  saveSettings(root, base);
+  assert.equal(data.has('specSource'), false);
+  assert.equal(sharedSettings(root).specSource, undefined);
+  saveSettings(root, { ...base, specSource: 'measured' });
+  assert.equal(sharedSettings(root).specSource, 'measured');
+  saveSettings(root, { ...base, specSource: 'static' });
+  assert.equal(sharedSettings(root).specSource, undefined);
+});
