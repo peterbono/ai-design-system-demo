@@ -112,8 +112,8 @@ export function demoApproved(author?: string | null): { title: string; next: str
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Drafts made on the sample team (token edits, docs edits, a new brand) stay in this browser for the visit and never
-// mix with a real team's: entering the sample team puts a real draft aside, leaving it for any other page drops the
+// Drafts made on the sample team (token edits, docs edits, a new brand), and the branches approved there, stay in this
+// browser for the visit and never mix with a real team's: entering the sample team puts a real draft aside, leaving it for any other page drops the
 // sample drafts and brings the real draft back. Pure over a Storage-like store (scripts/demo-drafts.ts runs it).
 
 /** The token and docs draft every Studio page shares (scripts/token-editor.ts). */
@@ -137,6 +137,31 @@ const sampleScoped = (k: string) => {
   return low.startsWith('bridge.') && low.includes(SAMPLE_REPO) && /draft/.test(low);
 };
 
+/**
+ * Branches the visitor approved on the sample team (Approve tried, nothing sent), by number: kept for the visit like
+ * the sample drafts, so the approved branch leaves the lead's queue and shows Approved on every page, and dropped
+ * when the visitor leaves the sample team. Never read off the sample team.
+ */
+export const DEMO_APPROVED_KEY = 'bridge.demo.approved';
+
+/** The sample team's branches approved during this visit. */
+export function demoApprovedSet(store: Pick<DraftStore, 'getItem'>): Set<number> {
+  try {
+    const v = JSON.parse(store.getItem(DEMO_APPROVED_KEY) ?? '[]') as unknown;
+    return new Set(Array.isArray(v) ? v.filter((n): n is number => Number.isInteger(n) && n > 0) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+/** Approve tried on a sample team branch: remembered for the visit (`approved` false forgets it, for Undo). */
+export function markDemoApproved(store: Pick<DraftStore, 'getItem' | 'setItem'>, pr: number, approved = true): void {
+  const set = demoApprovedSet(store);
+  if (approved) set.add(pr);
+  else set.delete(pr);
+  store.setItem(DEMO_APPROVED_KEY, JSON.stringify([...set]));
+}
+
 /** Keeps sample drafts and real drafts apart. `onSample`: this page is the sample team. Returns what it did. */
 export function swapDemoDrafts(store: DraftStore, onSample: boolean): 'entered' | 'left' | 'none' {
   const visiting = store.getItem(DEMO_VISIT_KEY) === '1';
@@ -145,6 +170,8 @@ export function swapDemoDrafts(store: DraftStore, onSample: boolean): 'entered' 
     const real = store.getItem(SHARED_DRAFT_KEY);
     if (real !== null) store.setItem(DEMO_STASH_KEY, real);
     store.removeItem(SHARED_DRAFT_KEY);
+    // A new visit starts with nothing approved (a visit that ended without passing through another page).
+    store.removeItem(DEMO_APPROVED_KEY);
     store.setItem(DEMO_VISIT_KEY, '1');
     return 'entered';
   }
@@ -155,6 +182,7 @@ export function swapDemoDrafts(store: DraftStore, onSample: boolean): 'entered' 
     if (k && sampleScoped(k)) scoped.push(k);
   }
   for (const k of scoped) store.removeItem(k);
+  store.removeItem(DEMO_APPROVED_KEY);
   const real = store.getItem(DEMO_STASH_KEY);
   if (real !== null) store.setItem(SHARED_DRAFT_KEY, real);
   else store.removeItem(SHARED_DRAFT_KEY);

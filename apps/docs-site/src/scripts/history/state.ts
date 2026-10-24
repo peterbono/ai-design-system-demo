@@ -7,13 +7,17 @@ import { buildReport, gitHubHistoryBackend, layoutOptions, loadConfig, loadGitHu
 import { reviewTokenChange, type TokenReview } from '../../lib/token-review';
 import type { HistoryData } from '../../lib/history';
 import { isHosted, studioHref } from '../../lib/team-path';
-import { loadTeamData } from '../team-data';
+import { loadTeamData, teamClient } from '../team-data';
 import { guestHistory } from '../guest-activity';
 import { explorerConfig } from '../explorer/data';
 
 /** Changes read from a team's repository: each costs a few GitHub reads (its pull request, its token files). */
 export const TEAM_HISTORY_LIMIT = 20;
-export const TEAM_HISTORY_SIGN_IN = "Sign in with GitHub to see this repository's token history. Reading it takes more GitHub requests than a visit without signing in allows.";
+/**
+ * A visitor who is not on the team, and the team's CI published no history: designer words, no GitHub. People on the
+ * team read it, a GitHub sign-in or an email member alike (an email member's client reads through Bridge's server).
+ */
+export const TEAM_HISTORY_SIGN_IN = "The token history shows to the people on this team. Sign in to see it.";
 /** Under a capped team history: where the older changes are. */
 export const teamHistoryCapNote = (limit: number) => `The ${limit} latest token changes. Older ones are on GitHub.`;
 
@@ -43,12 +47,23 @@ async function teamHistoryData(): Promise<HistoryData> {
     demo: { ...empty('demo'), demo: true },
     reviews: {},
   };
-  if (!d.client.canWrite) {
+  let client = d.client;
+  if (!client.canWrite) {
     // A guest reads the history the team's CI published (activity.json), whatever its age: no API request.
     const real = await guestHistory();
-    return real ? { ...base, real, realNote: real.truncated ? teamHistoryCapNote(TEAM_HISTORY_LIMIT) : null } : { ...base, real: null, realNote: TEAM_HISTORY_SIGN_IN };
+    if (real) return { ...base, real, realNote: real.truncated ? teamHistoryCapNote(TEAM_HISTORY_LIMIT) : null };
+    // A Bridge account on this team by email whose membership this page did not know yet: reading the account writes
+    // it, then the history reads through Bridge's server like the rest of the Studio.
+    try {
+      const { getAccount } = await import('../account-session');
+      await getAccount();
+    } catch {
+      /* no account, or Bridge cannot be reached */
+    }
+    client = teamClient(d);
+    if (!client.canWrite) return { ...base, real: null, realNote: TEAM_HISTORY_SIGN_IN };
   }
-  const real = await loadGitHubHistory(d.client, loadConfig(config), { ref: d.defaultBranch, limit: TEAM_HISTORY_LIMIT });
+  const real = await loadGitHubHistory(client, loadConfig(config), { ref: d.defaultBranch, limit: TEAM_HISTORY_LIMIT });
   return { ...base, real, realNote: real.truncated ? teamHistoryCapNote(TEAM_HISTORY_LIMIT) : null };
 }
 

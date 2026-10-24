@@ -96,6 +96,8 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
   const verifying = useRef(false);
   /** The code was accepted: no second check (it works once), the page is on its way. */
   const verified = useRef(false);
+  /** The code the server just turned down: Continue on the same digits would only spend another try. */
+  const rejected = useRef<string | null>(null);
   const signedInAs = useRef<SignedIn['account'] | null>(null);
 
   /** Signed out on an invite link that waits: the code goes to the invited address, never typed or shown in full. */
@@ -306,6 +308,7 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
     const api = await import('../../../scripts/account-session');
     try {
       await api.sendCode(codeFor());
+      rejected.current = null;
       startCooldown();
       setLimited(false);
       if (step === 'code') setSaid(W.resent);
@@ -326,6 +329,11 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
   const verify = async (value = code) => {
     // In flight or already accepted: the 6th digit checks it at once, so an Enter right after must not send it again.
     if (verifying.current || verified.current) return;
+    // The same digits the server just refused (the 6th digit checked them, then Continue): no second try spent.
+    if (value === rejected.current) {
+      codeField.current?.select();
+      return;
+    }
     if (value.length !== CODE_LENGTH) {
       setError(W.badCode);
       codeField.current?.focus();
@@ -340,6 +348,7 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
       verified.current = true;
       done(r);
     } catch (err) {
+      if (err instanceof api.AccountError && err.status >= 400 && err.status < 500 && err.status !== 429) rejected.current = value;
       const tries = err instanceof api.AccountError ? err.details.triesLeft : undefined;
       const text = err instanceof Error ? err.message : W.failed;
       setError(typeof tries === 'number' && tries > 0 ? `${text} ${W.triesLeft(tries)}` : text);
@@ -582,7 +591,7 @@ export default function SignIn({ invite = false }: { invite?: boolean }) {
               if (digits.length === CODE_LENGTH && digits !== code) void verify(digits);
             }}
           />
-          <Button type="submit" variant="primary" size="lg" fullWidth loading={busy === 'verify'}>
+          <Button type="submit" variant="primary" size="lg" fullWidth loading={busy === 'verify'} disabled={busy === 'verify'}>
             {W.verify}
           </Button>
           <div className="acc-row">

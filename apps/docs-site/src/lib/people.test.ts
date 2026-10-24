@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { authorLine, isBotLogin, isClaudeLogin, loginKey, loginsToFetch, markLogins, NAME_TTL_MS, nameBudget, personName, readNameCache } from './people';
+import { authorLine, isBotLogin, isClaudeLogin, loginKey, loginsToFetch, markLogins, NAME_TTL_MS, nameBudget, ownerName, personName, readNameCache } from './people';
 
 const NOW = Date.parse('2026-10-19T12:00:00Z');
 
@@ -22,6 +22,16 @@ describe('personName', () => {
     expect(isClaudeLogin('@Claude')).toBe(true);
     expect(isClaudeLogin('claudette')).toBe(false);
     expect(loginKey(' @PeterBono ')).toBe('peterbono');
+  });
+});
+
+describe('ownerName', () => {
+  it("names an owner by the team member's Bridge name, else the profile name, else the login without the @", () => {
+    const members = [{ login: 'sam-gh', name: 'Sam Ortiz' }, { login: 'bare', name: 'bare' }];
+    expect(ownerName('@Sam-GH', members)).toBe('Sam Ortiz');
+    expect(ownerName('analima', members, { analima: { name: 'Ana Lima', at: NOW } })).toBe('Ana Lima');
+    expect(ownerName('@nodisplay', members, { nodisplay: { name: null, at: NOW } })).toBe('nodisplay');
+    expect(ownerName('bare', members)).toBe('bare');
   });
 });
 

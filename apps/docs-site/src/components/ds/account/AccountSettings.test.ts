@@ -66,7 +66,7 @@ describe('the account', () => {
     const { container } = render(createElement(AccountSettings));
     expect(await screen.findByText('leo@acme.design')).toBeInTheDocument();
     expect(screen.getByText('GitHub not linked')).toBeInTheDocument();
-    expect(screen.getByText('Reviewers approve changes on GitHub, and admins merge there: link your GitHub account.')).toBeInTheDocument();
+    expect(screen.getByText('Only needed to review changes on GitHub or connect a repository. You can propose and comment without it.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Acme Design' })).toHaveAttribute('href', '/studio/~/acme/ds/');
     expect(screen.getByText('Admin')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Web' })).toBeInTheDocument();

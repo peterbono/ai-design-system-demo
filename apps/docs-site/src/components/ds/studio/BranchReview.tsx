@@ -3,7 +3,7 @@
 // highlighted and click-to-edit; tokens as before and after; components as before and after screens), the
 // conversation, one line about checks, and one sticky decision bar. A branch with several changes gets an outline
 // and a "looked at" reading aid. Rules: lib/review-page.ts. Data and GitHub writes: scripts/reviews.ts.
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { Who } from './faces';
@@ -77,6 +77,7 @@ import { VISUAL_CHECKS_DOCS } from '@bridge-ds/core';
 import type { ShownValue } from '../../../lib/token-review';
 import type { Lifecycle, LifecycleTone } from '../../../lib/change-status';
 import { demoApproved } from '../../../lib/demo';
+import { demoApprovals, rememberDemoApproval } from '../../../scripts/demo-approvals';
 
 export interface PersonRef {
   login: string;
@@ -1035,8 +1036,14 @@ export function BranchReview(p: BranchReviewProps) {
   const [picked, setPicked] = useState<string | null>(null);
   const [added, setAdded] = useState(p.added ?? null);
   const inputRef = useRef<HTMLInputElement>(null);
-  // Approve tried on the sample team: the page shows the approved state; nothing is sent.
-  const [tried, setTried] = useState(false);
+  // Approve tried on the sample team: the page shows the approved state, again on any page of the visit (the branch
+  // is remembered in this browser, scripts/demo-approvals.ts); nothing is sent.
+  const [tried, setTried] = useState(() => Boolean(p.sample) && demoApprovals().has(p.pr));
+  useEffect(() => setTried(Boolean(p.sample) && demoApprovals().has(p.pr)), [p.sample, p.pr]);
+  const tryApprove = () => {
+    rememberDemoApproval(p.pr);
+    setTried(true);
+  };
   const status = tried && p.sample ? { label: 'Approved', tone: 'success' as const } : p.status;
   const approvals = tried && p.sample ? p.approvals.map((a) => ({ ...a, state: 'approved' as const, text: a.state === 'waiting' && /\byou\b/i.test(a.text) ? 'You approved' : a.text })) : p.approvals;
   const multi = p.changes.length > 1;
@@ -1135,7 +1142,7 @@ export function BranchReview(p: BranchReviewProps) {
           <span id="rv-lib-act" />
         </div>
       )}
-      {!p.inQueue && <DecisionBar p={p} leftLine={multi ? progress.leftLine : null} inputRef={inputRef} tried={tried} onTry={() => setTried(true)} />}
+      {!p.inQueue && <DecisionBar p={p} leftLine={multi ? progress.leftLine : null} inputRef={inputRef} tried={tried} onTry={tryApprove} />}
     </div>
   );
 }

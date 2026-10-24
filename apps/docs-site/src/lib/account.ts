@@ -215,7 +215,7 @@ export const ACCOUNT_WORDS = {
   githubLinked: (login: string) => `GitHub @${login}`,
   githubNone: 'GitHub not linked',
   linkGitHub: 'Link GitHub',
-  linkGitHubWhy: 'Reviewers approve changes on GitHub, and admins merge there: link your GitHub account.',
+  linkGitHubWhy: 'Only needed to review changes on GitHub or connect a repository. You can propose and comment without it.',
   teams: 'Your teams',
   noTeams: 'No team yet.',
   rename: 'Rename',

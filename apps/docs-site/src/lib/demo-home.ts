@@ -63,6 +63,8 @@ export interface LeadOptions {
   thumbs?: Map<number, ThumbSpec>;
   /** Display names (GitHub profiles), by lower-case login. */
   people?: Map<string, Person>;
+  /** Branches the visitor approved during this visit (Approve tried, lib/demo.ts DEMO_APPROVED_KEY): out of the queue. */
+  approved?: ReadonlySet<number>;
 }
 
 function who(u: { login: string; avatar_url?: string } | null, people?: Map<string, Person>): Person {
@@ -99,7 +101,7 @@ export const waitsOnLead = (p: DemoPull): boolean =>
  */
 export function leadQueue(pulls: DemoPull[], suggestions: DemoSuggestion[], now: number, opts: LeadOptions = {}): NeedRow[] {
   const changes = pulls
-    .filter(waitsOnLead)
+    .filter((p) => waitsOnLead(p) && !opts.approved?.has(p.number))
     .map((p) => {
       const guidance = guidanceBranch(p);
       return {
@@ -144,7 +146,7 @@ export function teamBranches(pulls: DemoPull[], opts: LeadOptions = {}): BranchC
         // Board D1: "Exploration in Admin demo · Ann", "Library branch · in review", "Library branch · draft".
         statusLine: isExploration(p)
           ? { stage: productOf(p) ? `Exploration in ${productOf(p)}` : 'Exploration', detail: askerOf(p, opts.people).name }
-          : { stage: 'Library branch', detail: isDraft(p) ? 'draft' : 'in review' },
+          : { stage: 'Library branch', detail: isDraft(p) ? 'draft' : opts.approved?.has(p.number) ? 'approved' : 'in review' },
       } satisfies BranchCard;
     });
 }

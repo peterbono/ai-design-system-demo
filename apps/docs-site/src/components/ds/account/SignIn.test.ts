@@ -141,6 +141,39 @@ describe('sign-in screen, email', () => {
     expect(JSON.parse(localStorage.getItem('bridge.contribute.member:acme/ds') ?? 'null')).toEqual({ email: 'leo@acme.design', name: 'Leo', role: 'edit' });
   });
 
+  it('a code the 6th digit already got refused: Continue does not spend a second try, and is off while it checks', async () => {
+    let release: () => void = () => {};
+    setAccountFetch(async (_url, init) => {
+      const c = { method: init?.method ?? 'GET', body: init?.body ? JSON.parse(String(init.body)) : null, headers: (init?.headers ?? {}) as Record<string, string> };
+      calls.push(c);
+      if (c.method === 'GET') return json(200, { available: true, account: null });
+      if (c.body?.action === 'verify') {
+        await new Promise<void>((ok) => (release = ok));
+        return json(400, { error: 'wrong-code', message: 'This code is not the one we sent.', triesLeft: 2 });
+      }
+      return json(200, { ok: true });
+    });
+    render(createElement(SignIn));
+    const user = userEvent.setup();
+    await user.type(await emailField(), 'leo@acme.design{Enter}');
+    const field = await screen.findByRole('textbox', { name: 'Code' });
+    await user.type(field, '123456');
+    const go = screen.getByRole('button', { name: 'Continue' });
+    await waitFor(() => expect(go).toHaveAttribute('aria-busy', 'true'));
+    expect(go).toHaveAttribute('data-disabled');
+    await user.click(go);
+    await act(async () => release());
+    expect(await screen.findByText('This code is not the one we sent. 2 tries left.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.keyboard('{Enter}');
+    expect(posts('verify')).toHaveLength(1);
+    expect(screen.getByText('This code is not the one we sent. 2 tries left.')).toBeInTheDocument();
+    // New digits are checked again.
+    await user.clear(field);
+    await user.type(field, '654321');
+    await waitFor(() => expect(posts('verify')).toHaveLength(2));
+  });
+
   it("says You're signed out once, above the email field", async () => {
     history.replaceState(null, '', '/signin/?next=%2Fstudio%2Facme%2Fds%2F&bye=out');
     const { container } = render(createElement(SignIn));

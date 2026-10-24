@@ -3,7 +3,8 @@
 // tests, the branch on GitHub) folds under "For developers" for tech owners only.
 import '../../../../../../packages/react/src/test/setup';
 import { createElement } from 'react';
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { BranchReview, type BranchReviewProps } from './BranchReview';
 
@@ -83,5 +84,23 @@ describe('BranchReview', () => {
     render(createElement(BranchReview, { ...base, productWork: { ...work, previews: [], tryUrl: null, previewState: 'none' }, code }));
     expect(screen.getByText(/No preview of it yet\. Once Account app publishes a preview/)).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Try it in the product' })).toBeNull();
+  });
+
+  it('on the sample team, a tried Approve still shows Approved when the branch is opened again in the visit', async () => {
+    localStorage.clear();
+    const sample = { ...base, sample: { author: 'Ann' }, actions: { ...base.actions, primary: { kind: 'approve' as const, label: 'Approve' } } };
+    render(createElement(BranchReview, sample));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Approve' }));
+    expect(screen.getAllByText('Approved').length).toBeGreaterThan(0);
+    cleanup();
+    // Another page of the visit opens the same branch.
+    render(createElement(BranchReview, sample));
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    expect(screen.getAllByText('Approved').length).toBeGreaterThan(0);
+    cleanup();
+    // Another branch still waits.
+    render(createElement(BranchReview, { ...sample, pr: 18 }));
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeTruthy();
+    localStorage.clear();
   });
 });
