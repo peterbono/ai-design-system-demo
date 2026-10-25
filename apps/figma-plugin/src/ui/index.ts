@@ -28,7 +28,7 @@ import type { ComponentSignature } from '../sync/components';
 import { type ComponentPush, ROUTE_TAG, componentPushes } from '../sync/component-push';
 import { IMAGES_NEED_WRITE, type SentComponentPush, sendLabel, sentTitle, suggestionLines, tokenHelp } from '../sync/publish';
 import { type Destination, type PublishItem, type PublishResult, sendComponentPush, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
-import { type ComponentsReadProblem, NEW_TOKEN_REFUSED, TOKEN_REJECTED_CALLOUT, TOKEN_REJECTED_DETAIL, TOKEN_SETTINGS_URL, type TokenProblem, checkToken, componentsReadProblem, errorText, friendlyError, tokenProblem } from '../sync/token-health';
+import { type ComponentsReadProblem, NEW_TOKEN_REFUSED, isOffline, TOKEN_REJECTED_CALLOUT, TOKEN_REJECTED_DETAIL, TOKEN_SETTINGS_URL, type TokenProblem, checkToken, componentsReadProblem, errorText, friendlyError, tokenProblem } from '../sync/token-health';
 import { type BuildItem, type StudioTarget, developerMessage, sentLinks, studioChangeUrl } from '../sync/studio';
 import { type RoutedItem, type ShipPoll, type ShipStatus, ShipPoller, effectiveItems, groupRoutes, libraryHeadline, routedItems, shipStateLabel, shippedNumbers, toArm, waitingLede } from '../sync/library-routes';
 import { type ArmAnswer, armShip } from '../sync/ship';
@@ -246,7 +246,8 @@ interface State {
   /** While a long build runs: "Stop" in the action bar calls it. */
   cancel?: (() => void) | undefined;
   /** `problem`: the failure was about the token (rejected, or a missing permission named with its GitHub link). */
-  error?: { message: string; detail?: string | undefined; retry?: (() => void) | undefined; problem?: TokenProblem | undefined } | undefined;
+  /** `offline`: no network. One sentence and one retry; it retries by itself when the connection is back. */
+  error?: { message: string; detail?: string | undefined; retry?: (() => void) | undefined; problem?: TokenProblem | undefined; offline?: boolean | undefined } | undefined;
   pull?: PullState | undefined;
   push?: PushState | undefined;
   settingsDraft: RepoSettings;
@@ -297,6 +298,15 @@ onSelection((selection) => {
   refreshRequestAssist();
 });
 
+// Back online: what failed offline runs again by itself (the callout promised it).
+window.addEventListener('online', () => {
+  if (!state.error?.offline) return;
+  const retry = state.error.retry;
+  state.error = undefined;
+  if (retry) retry();
+  else render();
+});
+
 onProgress((message) => {
   if (!state.busy) return;
   state.busy = message;
@@ -328,7 +338,7 @@ async function run(label: string, task: () => Promise<void>, retry?: () => void)
   } catch (err) {
     const problem = noteTokenProblem(err);
     const f = friendlyError(err);
-    state.error = { message: problem?.text ?? f.text, detail: problem ? undefined : f.detail, retry, problem };
+    state.error = { message: problem?.text ?? f.text, detail: problem ? undefined : f.detail, retry, problem, offline: isOffline(err) };
   } finally {
     state.busy = undefined;
     render();
@@ -3725,7 +3735,8 @@ function viewPush(): View {
                 ? 'Nothing reaches the product as is.'
                 : modeOf(r) === 'suggest'
                   ? 'Nothing reaches the product until owners approve.'
-                  : 'Token values ship once the checks pass; what needs code goes to developers.',
+                  // What happens after the send is said once, under the destination: here, only what to do.
+                  : 'Check the changes below, then send them for review.',
         ),
       ),
     );
@@ -4180,11 +4191,19 @@ function claudeCard(): HTMLElement {
   );
 }
 
-/** The design system's own name (its bridge.config.json "name", once read), else the repository's name. */
+/**
+ * The design system's one name: its bridge.config.json "name", kept with the file once read (so it does not change
+ * between the first frame and the first scan), else the repository's name until the config is read.
+ */
 function designSystemName(): string {
+  const init = state.init;
   const config = (state.push?.analysis ?? state.pull?.analysis)?.headFiles.config;
-  if (config?.name) return config.name;
-  return state.init?.settings.repo.split('/').pop() ?? '';
+  if (init && config?.name && config.name !== init.settings.name) {
+    init.settings = { ...init.settings, name: config.name };
+    state.settingsDraft = { ...state.settingsDraft, name: config.name };
+    void request('save-settings', { settings: init.settings }).catch(() => undefined);
+  }
+  return init?.settings.name || config?.name || init?.settings.repo.split('/').pop() || '';
 }
 
 function actionBar(bar: ActionBar | undefined): Child {
@@ -4288,7 +4307,8 @@ function render(): void {
   const error = shownError
     ? h(
         'div',
-        { class: 'callout error', role: 'alert' },
+        // Offline is not an error of the designer's: a calm, neutral callout.
+        { class: shownError.offline ? 'callout' : 'callout error', role: shownError.offline ? 'status' : 'alert' },
         h('div', { class: 'callout-title' }, icon('alert'), shownError.message),
         shownError.detail ? h('details', { class: 'notes command' }, h('summary', null, 'Details'), h('pre', { class: 'mono-area', tabindex: '0', 'aria-label': 'Error details' }, shownError.detail)) : null,
         shownError.retry || permission
@@ -4302,6 +4322,8 @@ function render(): void {
       )
     : null;
 
+  // Offline: the callout's "Try again" is the one action; the bar's would fail the same way.
+  if (shownError?.offline && view.bar) view.bar = { ...view.bar, disabled: true, hint: 'Offline', secondary: undefined, toggle: undefined };
   app.replaceChildren(tabs, h('main', { id: 'panel', role: 'tabpanel', 'aria-labelledby': `tab-${state.tab}`, 'aria-busy': state.busy ? 'true' : 'false' }, tokenCallout, error, view.body), ...([actionBar(view.bar)].filter(Boolean) as Node[]));
 
   const main = document.querySelector('main');

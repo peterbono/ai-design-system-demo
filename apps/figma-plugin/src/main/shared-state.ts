@@ -33,6 +33,7 @@ export function sharedSettings(store: SharedStore): RepoSettings {
     branch: store.get('branch') || DEFAULT_SETTINGS.branch,
     tokensPath: store.get('tokensPath') || DEFAULT_SETTINGS.tokensPath,
     ...(store.get('specSource') === 'measured' || store.get('specSource') === 'measured-only' ? { specSource: store.get('specSource') as 'measured' | 'measured-only' } : {}),
+    ...(store.get('dsName') ? { name: store.get('dsName') } : {}),
   };
 }
 
@@ -67,6 +68,9 @@ export function saveSettings(store: SharedStore, settings: RepoSettings): RepoSe
   // Static is the default: nothing stored until a developer turns Measured on.
   const measured = settings.specSource === 'measured' || settings.specSource === 'measured-only' ? settings.specSource : '';
   if (measured || store.get('specSource')) store.set('specSource', measured);
+  // The name belongs to the repository: another repository forgets it until its own config is read.
+  const name = (settings.name ?? (settings.repo.trim() === before.repo ? before.name : undefined) ?? '').trim();
+  if (name || store.get('dsName')) store.set('dsName', name);
   const reset = syncResetOnSettings(before, sharedSettings(store));
   for (const [field, value] of Object.entries(reset)) {
     if ((PER_USER as readonly string[]).includes(field)) {

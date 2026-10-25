@@ -189,9 +189,9 @@ test('errors: Bridge and GitHub sentences pass, anything else becomes one senten
   assert.equal(crash.detail, "TypeError: Cannot read properties of undefined (reading 'id')");
   assert.equal(friendlyError(new SyntaxError('Unexpected token < in JSON')).text, UNEXPECTED_ERROR);
   assert.equal(friendlyError('boom').text, UNEXPECTED_ERROR);
-  const gh = friendlyError(new GitHubError(0, 'Could not reach GitHub. Check your connection, then try again.', 'Failed to fetch'));
-  assert.equal(gh.text, 'Could not reach GitHub. Check your connection, then try again.');
-  assert.equal(gh.detail, 'Failed to fetch', 'the raw error stays available, folded');
+  const gh = friendlyError(new GitHubError(502, 'GitHub is not answering right now. Try again in a minute.', 'Bad gateway from upstream'));
+  assert.equal(gh.text, 'GitHub is not answering right now. Try again in a minute.');
+  assert.equal(gh.detail, 'Bad gateway from upstream', 'the raw error stays available, folded');
   assert.equal(friendlyError(new GitHubError(401, 'Saving needs a GitHub token.', 'no-token')).detail, undefined, 'a code word adds nothing');
   assert.equal(errorText(new TypeError('x')), UNEXPECTED_ERROR);
   assert.doesNotMatch(UNEXPECTED_ERROR, EM_DASH);
