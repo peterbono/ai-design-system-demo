@@ -273,6 +273,10 @@ Claude busy (429, 529, 5xx, no answer in 150 s): the run stays where it is and t
 times, then it fails calmly. The fix engine on the server is core's own code bundled into one module
 (`apps/docs-site/api/_lib/fix-engine.gen.js`, `node scripts/build-fix-engine.mjs`; a test fails when it is stale).
 
+**In Studio.** Being built opens with "Claude's fixes" when the team has runs of the last 7 days: one row per run
+(the component, the run's sentence, who asked, one status tag), a ready fix opening its review in Studio ("See Claude's
+fix"), the others the component. A run in progress moves while the page shows it (one request at a time).
+
 **Limits.** One run per component at a time (asking again answers the run in progress), and 5 runs per team per hour
 (`CLAUDE_RUNS_PER_HOUR`).
 
