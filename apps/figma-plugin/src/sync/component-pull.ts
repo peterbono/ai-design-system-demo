@@ -51,7 +51,7 @@ import { COLLECTIONS, type FigmaResolvedType } from '../shared/messages';
 import { isUnmappable, pathToName, tokenToPlanned } from './mapping';
 import { checkComponentSpecs } from './spec-check';
 import { MEASURED_SPECS_FILE, type MeasuredOverlayReport, overlayMeasured, parseMeasuredSpecs } from './measured-specs';
-import { type MeasuredOnlyReport, specsFromMeasure } from '@bridge-ds/core';
+import { cssColorsToRgb, type MeasuredOnlyReport, specsFromMeasure } from '@bridge-ds/core';
 
 /** A component set Bridge generated, as the main thread finds it (shared plugin data). */
 export interface GeneratedSet {
@@ -634,8 +634,10 @@ function planValueOf(field: SpecField, value: unknown, head: TokenSet): PlannedV
     return typeof n === 'number' ? { kind: 'number', value: n, expr: value } : n;
   }
   // Literals a measure reads where no token is (a design system Bridge has no tokens for): a color, a font family list.
-  if (COLOR_FIELDS.has(field) && /^(#|rgba?\()/i.test(value.trim())) {
-    const c = rgbOf(value.trim()) ?? parseColor(value.trim());
+  if (COLOR_FIELDS.has(field) && /^(#|rgba?\(|(oklch|oklab|lab|lch|color)\()/i.test(value.trim())) {
+    // A measure from a page that keeps oklch(), lab() or color() reads as sRGB.
+    const text = cssColorsToRgb(value.trim());
+    const c = rgbOf(text) ?? parseColor(text);
     return c ? { kind: 'color', r: c.r, g: c.g, b: c.b, a: c.a } : { problem: `${value} is not a color` };
   }
   if (field === 'fontFamily' && !head.byPath.has(value) && /[,"']|^[A-Z]/.test(value)) {
@@ -733,8 +735,11 @@ export function buildComponentPlan(
     for (const [field, value] of Object.entries(values) as [SpecField, SpecValue][]) {
       if (!fieldFits(field, text)) continue;
       const pv = planValue(field, value, head);
-      if ('problem' in pv) problem({ component: owner, part, property: field, reason: pv.problem });
-      else fields.push({ field, value: pv });
+      if ('problem' in pv) {
+        problem({ component: owner, part, property: field, reason: pv.problem });
+        // A border whose color is not read still takes its width in code: an invisible stroke keeps that room.
+        if (field === 'stroke') fields.push({ field, value: { kind: 'none' } });
+      } else fields.push({ field, value: pv });
     }
     return fields;
   };
@@ -809,8 +814,11 @@ export function buildComponentPlan(
         for (const [field, value] of Object.entries(values) as [SpecField, SpecValue][]) {
           if (!fieldFits(field, kinds.get(part) === 'text')) continue;
           const pv = planValue(field, value, head);
-          if ('problem' in pv) problem({ component: spec.name, part, property: field, reason: pv.problem });
-          else {
+          if ('problem' in pv) {
+            problem({ component: spec.name, part, property: field, reason: pv.problem });
+            // A border whose color is not read still takes its width in code: an invisible stroke keeps that room.
+            if (field === 'stroke') fields.push({ field, value: { kind: 'none' } });
+          } else {
             fields.push({ field, value: pv });
             if (pv.kind === 'number' && pv.expr) problem({ component: spec.name, part, property: field, reason: `${pv.expr} = ${pv.value}, set, not bound` });
           }

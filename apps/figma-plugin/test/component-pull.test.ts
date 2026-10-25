@@ -979,6 +979,20 @@ test('spec values: numbers, tokens and calc() plan; any other shape is a problem
   assert.ok(plan.problems.some((p) => p.component === 'Button' && p.property === 'paddingTop' && /update Bridge$/.test(p.reason)));
 });
 
+test('colors a page keeps in oklch() or color() plan as sRGB; a border whose color is not read keeps its room', async () => {
+  const { a, specs } = await pulledFile();
+  const head = a.head;
+  assert.deepEqual(planValue('fill', 'oklch(0.205 0 0)', head), { kind: 'color', r: 23 / 255, g: 23 / 255, b: 23 / 255, a: 1 });
+  assert.deepEqual(planValue('stroke', 'color(srgb 1 0 0 / 0.5)', head), { kind: 'color', r: 1, g: 0, b: 0, a: 0.5 });
+  const odd: ComponentSpecsFile = structuredClone(specs);
+  const button = odd.components.find((c) => c.name === 'Button')!;
+  Object.assign(button.variants[0]!.values.root as Record<string, unknown>, { stroke: 'color(a98-rgb 1 0 0)', strokeWeight: 1 });
+  const plan = buildComponentPlan(odd, SPECS_PATH, [], head);
+  assert.ok(plan.problems.some((p) => p.component === 'Button' && p.property === 'stroke' && /not a color/.test(p.reason)));
+  const planned = plan.components.find((c) => c.name === 'Button')!.variants[0]!.parts.root!;
+  assert.deepEqual(planned.find((f) => f.field === 'stroke')?.value, { kind: 'none' });
+});
+
 test('older kit: a file generated before swaps and interactions reviews main like Pull does, with thumbnails', async () => {
   // The kit an older DS Bridge generated: icon placeholders, no slots, no prototype interactions.
   const old = specsBeforeSwaps(parseComponentSpecs(specsText()));
