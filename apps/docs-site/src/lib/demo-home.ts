@@ -28,6 +28,9 @@ export interface DemoPull {
   requested_reviewers?: { login: string }[] | null;
   head?: { ref: string; sha?: string };
   base?: { ref: string; sha?: string };
+  /** Read from the closed list: "closed", and when it was merged. */
+  state?: string;
+  merged_at?: string | null;
 }
 
 /** The fields of a suggestion the demo home reads (GET /repos/{o}/{r}/issues?labels=bridge-suggestion). */

@@ -1,4 +1,5 @@
-// The explorations of the Studio home (components/ds/studio/StudioHome.tsx, "Your explorations"): what the product
+// The explorations of the Studio home (components/ds/studio/StudioHome.tsx, "Explorations", or "Your explorations" for
+// a contributor): what the product
 // promises ("Explore with AI. Keep what works in your design system."), shown as work, not as a list of branches.
 // An exploration is a product screen tried with Claude AI: a pull request that is or was an exploration (core
 // isExplorationPull: the `exploration` label, an `explore/*` branch or the Bridge block), or a branch started for a
@@ -47,6 +48,8 @@ export interface ExplorationCard {
   updated: string;
   /** The explored screen ({ kind: 'screen' }), or its sketch while no capture exists. */
   preview: ThumbSpec;
+  /** The viewer's own (isOwnExploration): a contributor's home shows only these. */
+  own: boolean;
 }
 
 const labelNames = (p: Pick<ExplorationPull, 'labels'>) => (p.labels ?? []).map((l) => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean);
@@ -98,9 +101,10 @@ export function explorationTitle(p: Pick<ExplorationPull, 'title' | 'body'>): st
   return oneLineTitle(humanTitle(p.title));
 }
 
-/** Where its card opens: the exploration (or product branch) page while it is one, the change page once promoted. */
+/** Where its card opens: the exploration (or product branch) page while it is one, the change page once kept or a plain change. */
 export function explorationHref(p: ExplorationPull): string {
-  const exploration = isExplorationPull({ state: p.state ?? 'open', labels: p.labels ?? [], headRef: p.head?.ref, body: p.body });
+  const kept = Boolean(p.merged_at) || p.state === 'merged';
+  const exploration = !kept && isExplorationPull({ state: p.state ?? 'open', labels: p.labels ?? [], headRef: p.head?.ref, body: p.body });
   return studioHref(exploration ? `changes/?exploration=${p.number}` : `changes/?pr=${p.number}`);
 }
 
@@ -117,21 +121,32 @@ const ORDER: Record<ExplorationStage, number> = { exploring: 0, found: 0, 'in-re
 
 export interface HomeExplorationsOptions<P extends ExplorationPull = ExplorationPull> {
   products: readonly ProductConfig[];
-  /** Only the viewer's own (a team member's home). Omitted: every exploration of the team (the demo, from the lead's seat). */
+  /** Who looks: marks their own (`own`). Omitted on the demo, where the visitor has none. */
   viewer?: string | null;
+  /** Only the viewer's own: the home of a contributor (home by role). Leads and reviewers see the team's. */
+  onlyOwn?: boolean;
   /** Who explores it (the asker, Claude AI for agent work without one). */
   author: (p: P) => Person;
   /** The explored screen, once known. */
   preview?: (p: P) => ThumbSpec | null | undefined;
 }
 
+/** Closed without being kept: an exploration given up, not one the home shows. */
+const givenUp = (p: Pick<ExplorationPull, 'state' | 'merged_at'>) => p.state === 'closed' && !p.merged_at;
+
 /**
- * The home's exploration cards: still being tried first, then in review, then kept; newest activity first inside.
- * Library changes and automation are left out.
+ * The home's exploration cards, from the open pull requests and the recently closed ones (a merged one is kept): still
+ * being tried first, then in review, then kept; newest activity first inside. Library changes, automation and
+ * explorations closed without merging are left out.
  */
 export function homeExplorations<P extends ExplorationPull>(pulls: P[], opts: HomeExplorationsOptions<P>): ExplorationCard[] {
+  const seen = new Set<number>();
   return pulls
-    .filter((p) => isHomeExploration(p, opts.products) && (opts.viewer === undefined || isOwnExploration(p, opts.viewer)))
+    .filter((p) => {
+      if (seen.has(p.number)) return false;
+      seen.add(p.number);
+      return !givenUp(p) && isHomeExploration(p, opts.products) && (!opts.onlyOwn || isOwnExploration(p, opts.viewer));
+    })
     .map((p): ExplorationCard => {
       const { stage, state } = explorationStage(p);
       return {
@@ -144,6 +159,7 @@ export function homeExplorations<P extends ExplorationPull>(pulls: P[], opts: Ho
         state,
         updated: p.updated_at,
         preview: opts.preview?.(p) ?? SCREEN_SKETCH,
+        own: isOwnExploration(p, opts.viewer),
       };
     })
     .sort((a, b) => ORDER[a.stage] - ORDER[b.stage] || b.updated.localeCompare(a.updated) || b.number - a.number);
@@ -160,3 +176,13 @@ export function libraryChangesLine(n: number): string | null {
 
 /** Changes, on the viewer's own work. */
 export const YOUR_CHANGES_HREF = () => studioHref('changes/?who=mine');
+
+/**
+ * The section by role (home by role): a contributor sees only their own explorations, under "Your explorations", and
+ * "See all" opens their own work; a lead or reviewer sees the team's, under "Explorations", and "See all" opens Changes.
+ */
+export function explorationsFor(cards: ExplorationCard[], contributor: boolean): { cards: ExplorationCard[]; title: string; seeAll: string } {
+  return contributor
+    ? { cards: cards.filter((c) => c.own), title: 'Your explorations', seeAll: YOUR_CHANGES_HREF() }
+    : { cards, title: 'Explorations', seeAll: studioHref('changes/') };
+}

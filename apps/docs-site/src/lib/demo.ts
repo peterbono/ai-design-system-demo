@@ -43,6 +43,9 @@ export const isSampleTeam = (repo: string | null | undefined): boolean => (repo 
 export const SAMPLE_EXPLORATION_PREVIEWS: Readonly<Record<string, string>> = {
   'explore/profile-page': '/sample/explorations/profile-page.png',
   'agent/billing-invoice-status': '/sample/explorations/billing-invoice-status.png',
+  'explore/team-seats-and-roles': '/sample/explorations/team-seats-and-roles.png',
+  'explore/notification-channels': '/sample/explorations/notification-channels.png',
+  'explore/plan-comparison': '/sample/explorations/plan-comparison.png',
 };
 
 /** The capture of a sample exploration's screen, by its branch, or null. */
