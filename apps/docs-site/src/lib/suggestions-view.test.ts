@@ -24,6 +24,7 @@ import {
   tokenRows,
   viewerRoles,
   waitsOnViewer,
+  OWNER_OVERRIDE_WORDS,
 } from './suggestions-view';
 import { queueBuckets } from './review-queue';
 import { jargonIn } from './vocabulary';
@@ -315,5 +316,27 @@ describe('ownSuggestionCard: the author sees their suggestion calmly', () => {
     expect(ownSuggestionCard({ number: 12, title: 'x', createdAt: '', status: 'approved' })?.statusLine?.detail).toBe('approved, a developer applies it');
     expect(ownSuggestionCard({ number: 12, title: 'x', createdAt: '', status: 'applied' })).toBeNull();
     expect(ownSuggestionCard({ number: 12, title: 'x', createdAt: '', status: 'declined' })).toBeNull();
+  });
+});
+
+describe('the owner override on a suggestion', () => {
+  const solo = { design: ['peterbono'], tech: ['peterbono'] };
+  const base = { status: 'needs-review' as const, viewer: 'peterbono', author: 'peterbono', owners: solo, tier: 3 as const, approvals: undefined, signInLine: 'Sign in to review', override: { holders: ['peterbono'], min: 20 } };
+  it('offers Approve as owner to the only owner the rules allow, on their own suggestion', () => {
+    const g = suggestionGate(base);
+    expect(g).toMatchObject({ canOverride: true, overrideMin: 20, canApprove: false, why: OWNER_OVERRIDE_WORDS.why });
+  });
+  it('never when someone else can review, the rules allow no override, or it is not waiting for review', () => {
+    expect(suggestionGate({ ...base, owners: { design: ['peterbono', 'dana'], tech: ['peterbono'] } }).canOverride).toBeFalsy();
+    expect(suggestionGate({ ...base, override: null }).canOverride).toBeFalsy();
+    expect(suggestionGate({ ...base, override: null }).why).toMatch(/nobody else can yet\. Add a reviewer in Settings/);
+    expect(suggestionGate({ ...base, override: { holders: ['dana'], min: 20 } }).canOverride).toBeFalsy();
+    expect(suggestionGate({ ...base, status: 'changes-requested' }).canOverride).toBeFalsy();
+  });
+  it('shows who approved as owner in the checklist, in designer words', () => {
+    const a = { approvers: [], changesRequested: [], design: true, tech: true, owner: true, stale: [], ignored: [], override: { login: 'peterbono', reason: 'Solo maintainer, checked it.', missing: ['design approval'], payloadSha: 'a'.repeat(64) } };
+    const rows = approvalRows({ tier: 3, approvals: a, owners: solo, names: { peterbono: 'Florian' } });
+    expect(rows.every((r) => r.state === 'approved' && r.text === 'Approved as owner by Florian')).toBe(true);
+    for (const t of Object.values(OWNER_OVERRIDE_WORDS)) expect(t).not.toMatch(/\b(PR|pull request|branch|merge|GitHub)\b|—/i);
   });
 });

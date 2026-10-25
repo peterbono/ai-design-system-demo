@@ -37,7 +37,7 @@ import {
 } from '@bridge-ds/react';
 import { Face, TokenRows, type PersonRef } from './BranchReview';
 import { Who, type Face as FaceData } from './faces';
-import { suggestionHref, SUGGESTION_WORDS, type ProofChip, type StaleView, type SuggestionGate, type SuggestionTokenRow } from '../../../lib/suggestions-view';
+import { OWNER_OVERRIDE_WORDS, suggestionHref, SUGGESTION_WORDS, type ProofChip, type StaleView, type SuggestionGate, type SuggestionTokenRow } from '../../../lib/suggestions-view';
 import { valueName } from '../../../lib/review-page';
 import { demoApproved } from '../../../lib/demo';
 import { demoApprovals, rememberDemoApproval } from '../../../scripts/demo-approvals';
@@ -88,6 +88,8 @@ export interface SuggestionReviewProps {
   onApprove: (text: string) => Promise<string | void>;
   onRequestChanges: (text: string) => Promise<string | void>;
   onDecline: () => void;
+  /** The owner override: approve their own suggestion as owner, with the reason (gate.canOverride). */
+  onOverride?: (reason: string) => Promise<string | void>;
   /**
    * The sample team (lib/demo.ts), in the demo seat: Approve can be tried, as on a branch. It shows the approved state
    * and what happens next, and writes nothing; the page never asks for GitHub (the banner's "Get started" is the way in).
@@ -254,8 +256,9 @@ function Proof({ p }: { p: SuggestionReviewProps }) {
 
 function Decide({ p, tried, onTry }: { p: SuggestionReviewProps; tried: boolean; onTry: () => void }) {
   const [asking, setAsking] = useState(false);
+  const [owning, setOwning] = useState(false);
   const [text, setText] = useState('');
-  const [busy, setBusy] = useState<'approve' | 'changes' | null>(null);
+  const [busy, setBusy] = useState<'approve' | 'changes' | 'override' | null>(null);
   const [said, setSaid] = useState(p.said ?? '');
   const [invalid, setInvalid] = useState<string | null>(null);
   const field = useRef<HTMLTextAreaElement>(null);
@@ -264,8 +267,30 @@ function Decide({ p, tried, onTry }: { p: SuggestionReviewProps; tried: boolean;
     setSaid(p.said ?? '');
   }, [p.said]);
   useEffect(() => {
-    if (asking) field.current?.focus();
-  }, [asking]);
+    if (asking || owning) field.current?.focus();
+  }, [asking, owning]);
+
+  const runOverride = async () => {
+    const min = g.overrideMin ?? 20;
+    const n = text.trim().length;
+    if (n < min) {
+      setInvalid(`Write at least ${min} characters (${n} so far), so the history says why.`);
+      field.current?.focus();
+      return;
+    }
+    setBusy('override');
+    setSaid('');
+    try {
+      const r = await p.onOverride?.(text.trim());
+      setText('');
+      setOwning(false);
+      setSaid(r ?? '');
+    } catch (err) {
+      setSaid((err as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const run = async (kind: 'approve' | 'changes') => {
     if (kind === 'changes' && !text.trim()) {
@@ -300,7 +325,30 @@ function Decide({ p, tried, onTry }: { p: SuggestionReviewProps; tried: boolean;
   const more = acts || g.canDecline;
   return (
     <section className="sg-foot" aria-label="Your decision">
-      {asking ? (
+      {owning ? (
+        <div className="sg-ask">
+          <Textarea
+            ref={field}
+            label={OWNER_OVERRIDE_WORDS.reason}
+            rows={3}
+            hint={`At least ${g.overrideMin ?? 20} characters. It is recorded on the suggestion and in History.`}
+            error={invalid ?? undefined}
+            value={text}
+            onValueChange={(v) => {
+              setText(v);
+              setInvalid(null);
+            }}
+          />
+          <ButtonGroup align="end">
+            <Button variant="secondary" size="lg" disabled={busy !== null} onClick={() => setOwning(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="lg" loading={busy === 'override'} onClick={() => void runOverride()}>
+              {OWNER_OVERRIDE_WORDS.button}
+            </Button>
+          </ButtonGroup>
+        </div>
+      ) : asking ? (
         <div className="sg-ask">
           <Textarea
             ref={field}
@@ -325,7 +373,14 @@ function Decide({ p, tried, onTry }: { p: SuggestionReviewProps; tried: boolean;
         </div>
       ) : (
         <div className="sg-foot-row">
-          {more ? (
+          {g.canOverride && p.onOverride ? (
+            <>
+              <p className="sg-why">{g.why}</p>
+              <Button variant="primary" size="lg" data-sg-override="" disabled={busy !== null} onClick={() => setOwning(true)}>
+                {OWNER_OVERRIDE_WORDS.button}
+              </Button>
+            </>
+          ) : more ? (
             g.why && <p className="sg-why">{g.why}</p>
           ) : (
             <p className="sg-why">

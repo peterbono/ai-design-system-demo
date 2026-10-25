@@ -132,7 +132,7 @@ turns this off explicitly:
   approved with one review.
 - **What it does not do.** The author of a change still never approves it: GitHub refuses self-approval on a pull
   request, and Bridge ignores a suggestion author's own review. CI, changes requested, drafts and the ship right
-  gate the merge as before. For the owner's own pull requests, the [owner override](#owner-override-solo-maintainers-and-small-teams)
+  gate the merge as before. For the owner's own pull requests and suggestions, the [owner override](#owner-override-solo-maintainers-and-small-teams)
   stays the audited way through.
 - **Where it shows.** Studio Settings, Review rules, shows "Only owner: As the only owner, @login approves design and
   code in one review." The owner reads "As the only owner, your approval covers design and code." on a suggestion
@@ -231,6 +231,14 @@ message repeats it. If GitHub refuses the merge, for example because branch prot
 review, Bridge shows GitHub's message and rewrites the comment to end with `Merge refused by GitHub: <message>.
 Not merged.`, so the record never claims a merge that did not happen. History and the PR timeline find
 overrides by that first line.
+
+**Suggestions.** The same override covers a suggestion, for its holder's own suggestion only, when nobody else in the
+approver lists can review it. Studio Review shows "Approve as owner" (the CLI: `bridge review <n> --override --message
+"..."`, the MCP server: `bridge_review_suggestion` with event `override`). It needs the same written reason, posts the
+same audit line on the suggestion (first line `**Bridge owner override**`, "Approved as owner from Bridge.", bound to
+the version like a review: an edit makes it stale) and counts as every missing approval (`summarizeSuggestionApprovals`,
+`suggestionOverrideOf`), never over changes someone asked for. A developer then applies it as any approved suggestion;
+its pull request carries the approval, and History says "Applied with the owner override by <name>", with the reason.
 
 **Branch protection still wins.** The override changes what Bridge allows, not what GitHub enforces. With the
 Bridge ruleset (see [Protection](#protection-bridge-is-the-only-way-in)), the override merge goes through for a

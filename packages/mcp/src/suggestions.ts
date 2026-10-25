@@ -26,6 +26,7 @@ import {
   pendingApprovals,
   planSuggestionApply,
   reviewSuggestionOnGitHub,
+  overrideSuggestionOnGitHub,
   SUGGESTION_KINDS,
   SUGGESTION_LABEL,
   SUGGESTION_SCHEMA,
@@ -193,7 +194,7 @@ export async function suggestionGovernance(ctx: BridgeContext, gh: GitHubClient)
   const { owners, rights } = config.governance;
   const hasTeams = [...owners.design, ...owners.tech].some((o) => o.includes('/'));
   const teams = hasTeams ? await new TeamDirectory(gh).resolve(owners).catch(() => undefined) : undefined;
-  return { config, gov: { owners, rights: rights ?? null, ...(teams ? { teams } : {}), ...(config.governance.soloOwnerCanApproveBoth ? { soloOwnerCanApproveBoth: true } : {}) } };
+  return { config, gov: { owners, rights: rights ?? null, ...(teams ? { teams } : {}), ...(config.governance.soloOwnerCanApproveBoth ? { soloOwnerCanApproveBoth: true } : {}), ...(config.governance.override ? { override: config.governance.override } : {}) } };
 }
 
 export type SuggestionStatusFilter = SuggestionStatus | 'all';
@@ -314,6 +315,7 @@ export async function getSuggestionOp(ctx: BridgeContext, a: { number: number | 
       ...(approvals.stale.length ? { staleReviews: approvals.stale } : {}),
       ...(approvals.ignored.length ? { notCounted: approvals.ignored } : {}),
       ...(solo && p.tier.tier > 1 ? { soloOwner: soloOwnerSentence(solo) } : {}),
+      ...(approvals.override ? { ownerOverride: suggestionOverrideLine(approvals.override) } : {}),
     },
     applied: d.applied,
     ...(stale?.outdated ? { outdated: { mainSha: stale.mainSha, conflicts: stale.conflicts.map((c) => ({ path: c.path, detail: c.detail })) } } : {}),
@@ -333,7 +335,11 @@ export async function getSuggestionOp(ctx: BridgeContext, a: { number: number | 
   };
 }
 
-export type SuggestionReviewEventArg = 'approve' | 'request-changes' | 'comment' | 'decline';
+export type SuggestionReviewEventArg = 'approve' | 'request-changes' | 'comment' | 'decline' | 'override';
+
+/** The owner override on a suggestion, as Studio and History say it. */
+export const suggestionOverrideLine = (o: { login: string; reason: string; missing: readonly string[] }): string =>
+  `Approved with the owner override by @${o.login}${o.missing.length ? ` without ${o.missing.join(' and ')}` : ''}. Reason: ${o.reason}.`;
 
 /**
  * bridge_review_suggestion / `bridge review <n>`: approve, request changes, comment on or decline a suggestion, as the
@@ -353,6 +359,23 @@ export async function reviewSuggestionOp(ctx: BridgeContext, a: { number: number
     }
     const r = await declineSuggestionOnGitHub(gh, n, a.message.trim(), viewer);
     return { number: n, status: 'declined' as SuggestionStatus, said: SUGGESTION_STATUS_LABEL.declined, ...(r.warnings.length ? { warnings: r.warnings } : {}), next: 'Closed as not planned, with your reason. Reopen it on GitHub to look at it again.' };
+  }
+  if (a.event === 'override') {
+    // The owner override (docs/GOVERNANCE.md): the owner it allows approves their own suggestion when nobody else can.
+    if (!a.message?.trim()) throw new Error('Say why it goes without the missing approvals, in a sentence: the reason is recorded on the suggestion and in History.');
+    const payload = a.payloadSha && /^[0-9a-f]{64}$/.test(a.payloadSha) ? a.payloadSha : undefined;
+    const r = await overrideSuggestionOnGitHub(gh, n, { reason: a.message, payloadSha: payload, ...(viewer ? { by: viewer } : {}) }, gov);
+    return {
+      number: n,
+      event: a.event,
+      counts: r.counts,
+      version: r.payloadSha.slice(0, 7),
+      status: r.status,
+      said: SUGGESTION_STATUS_LABEL[r.status],
+      comment: r.commentUrl,
+      ...(r.warnings.length ? { warnings: r.warnings } : {}),
+      next: r.status === 'approved' ? `Approved as owner: a developer applies it with \`bridge apply ${n}\`${say(ctx, ' or bridge_apply_suggestion', '')}.` : 'Waiting for the other approvals.',
+    };
   }
   if (a.event !== 'comment' && viewer) {
     const lists = approverLists(gov.owners, gov.rights ?? null, gov.teams ?? undefined);

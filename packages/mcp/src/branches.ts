@@ -139,7 +139,7 @@ async function people(gh: GitHubClient, config: BridgeConfig) {
   const lists = approverLists(owners, rights, teams ?? null);
   // The governance a suggestion's approvals are counted with, as Studio reads it (an approved suggestion's approvals
   // carry to the pull request that applies it).
-  const gov: SuggestionGovernance = { owners, rights: rights ?? null, ...(teams ? { teams } : {}), ...(config.governance.soloOwnerCanApproveBoth ? { soloOwnerCanApproveBoth: true } : {}) };
+  const gov: SuggestionGovernance = { owners, rights: rights ?? null, ...(teams ? { teams } : {}), ...(config.governance.soloOwnerCanApproveBoth ? { soloOwnerCanApproveBoth: true } : {}), ...(config.governance.override ? { override: config.governance.override } : {}) };
   return { lists, gov, ship: shipPolicy(owners, rights, teams), solo: config.governance.soloOwnerCanApproveBoth ? soloApprover(lists) : null };
 }
 
