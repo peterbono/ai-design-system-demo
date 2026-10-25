@@ -100,12 +100,13 @@ Whatever Claude writes, nothing is sent until you press Send request, Send for r
 When Compare with code finds a component that differs, **Ask Claude to fix it** hands it to the team's own Claude (Bridge
 is a connector in it; no API key anywhere). The first time in a file, one sentence says to add Bridge to the team's
 Claude once, with **How to connect** (Studio Settings, Claude). Then the plugin saves the check for Claude to read
-(`figma-fidelity.json` on `bridge-requests`), copies the request ("Fix IconButton in Figma with Bridge") and opens
-Claude to paste it in (a prefilled chat once claude.ai confirms one). The row then follows Claude: "Waiting for Claude",
+(`figma-fidelity.json` on `bridge-requests`), opens Claude with the request written
+(`https://claude.ai/new?q=…`, "Fix IconButton in Figma with Bridge", not sent: the designer presses send), and copies it
+too in case the box comes up empty. The row then follows Claude: "Waiting for Claude",
 "Claude is working on IconButton" with its real steps (read from the Bridge site, which records Claude's calls to
 Bridge), and "Claude's fix is ready" with **See Claude's fix**, or "Claude stopped: …" / "Claude went quiet" with **Copy
 for your developer**. Without the steps (the Bridge site cannot say), it watches GitHub for the draft pull request on
-`bridge/figma-fixes-<component>` labelled `figma-fixes`. It looks every 20 seconds while the plugin is open, and
+`bridge/figma-fixes-<component>` labelled `figma-fixes`. It reads every 10 seconds, one request at a time, while the plugin is open, and
 resumes when it opens again.
 
 ## How it works

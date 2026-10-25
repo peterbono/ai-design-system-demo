@@ -50,11 +50,16 @@ test('Ask Claude to fix it: connect once, the request copied, waiting, working w
   await p.click('How to connect');
   assert.ok(p.calls.includes('open-url'));
 
-  // Bridge is in the team's Claude: the request is copied, Claude opens, the row asks to paste it.
+  // Bridge is in the team's Claude: Claude opens with the request written (not sent), and it is copied as a fallback.
+  const opened: string[] = [];
+  p.main['open-url'] = (m: { url: string }) => (opened.push(m.url), { opened: true });
   await p.click('Bridge is in our Claude');
   await p.until(() => !!p.document.querySelector('[data-claude="asked"]'));
-  assert.ok(p.copied.includes('Fix Button in Figma with Bridge'), 'the request on the clipboard');
-  assert.match(p.document.querySelector('[data-claude="asked"]')!.textContent ?? '', /The request is copied\. Paste it in Claude\./);
+  assert.ok(opened.includes('https://claude.ai/new?q=Fix%20Button%20in%20Figma%20with%20Bridge'), opened.join(', '));
+  assert.ok(p.copied.includes('Fix Button in Figma with Bridge'), 'the request on the clipboard too');
+  const asked = p.document.querySelector('[data-claude="asked"]')!.textContent ?? '';
+  assert.match(asked, /Claude opened with the request written: send it there\./);
+  assert.match(asked, /If the message is empty, paste it: the request is copied\./);
   assert.ok(p.calls.includes('PUT /repos/acme/acme-design-system/contents/figma-fidelity.json'), 'the check for Claude to read');
   // No API key path anywhere.
   assert.ok(!p.calls.some((c) => /anthropic|\/api\/claude/.test(c)));
