@@ -1,8 +1,8 @@
 // The suggestion review: a DS lead decides on one suggestion (a change filed as a GitHub issue, applied later by a
 // developer). Built on the "Decide in seconds" direction: one change at a time on a card, who suggests it, Before and
 // After, three proof chips (design system checks, contrast in light and dark, where it is used), a big Approve with
-// Suggest changes next to it, and the next items stacked behind the card. A suggestion approved for an older version,
-// or one main moved under, says so first. Approve and Suggest changes show only to owners; everyone else reads why.
+// Ask for changes next to it, and the next items stacked behind the card. A suggestion approved for an older version,
+// or one main moved under, says so first. Approve and Ask for changes show only to owners; everyone else reads why.
 // Details (who approved, every token, previews, the GitHub link) stay folded. Opened from Branches (?suggestion=N) and
 // in the review queue. Data, GitHub writes and words: scripts/suggestions.ts, lib/suggestions-view.ts.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -459,7 +459,7 @@ export function SuggestionReview(props: SuggestionReviewProps) {
               </p>
             </div>
             {keys && (
-              <p className="sg-keys sg-muted" aria-label="Keyboard: A approve, S suggest changes, J next">
+              <p className="sg-keys sg-muted" aria-label="Keyboard: A approve, S ask for changes, J next">
                 <span className="sg-key">
                   <Kbd keys="A" size="sm" /> approve
                 </span>

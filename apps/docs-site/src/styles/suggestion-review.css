@@ -375,7 +375,7 @@
     padding: 0 var(--space-4) var(--space-4);
   }
 
-  /* Suggest changes and More actions share a row; Approve fills the last one, under the thumb. */
+  /* Ask for changes and More actions share a row; Approve fills the last one, under the thumb. */
   .sg-foot-row > [data-sg-suggest] {
     flex: 1;
   }

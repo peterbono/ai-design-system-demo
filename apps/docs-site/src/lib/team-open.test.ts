@@ -56,7 +56,7 @@ describe('teamCheck (the live line)', () => {
 
   it('uses the briefed words, with no em dash', () => {
     const states: RepoAccessState[] = ['admin', 'outside-contributor', 'not-installed', 'no-access', 'anonymous-unknown'];
-    expect(states.map((s) => teamCheck(s, { signedIn: true })?.label)).toEqual(['Ready', 'Read only', 'Bridge is not installed yet', 'Not found or private', 'Sign in to check']);
+    expect(states.map((s) => teamCheck(s, { signedIn: true })?.label)).toEqual(['Ready', 'Can view', 'Bridge is not installed yet', 'Not found or private', 'Sign in to check']);
     for (const s of states) expect(JSON.stringify(teamCheck(s, { signedIn: true }))).not.toContain('—');
   });
 });

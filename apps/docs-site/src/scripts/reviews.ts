@@ -38,6 +38,7 @@ import {
   filterByTier,
   listSource,
   needFromDetail,
+  isDeveloper,
   readSnapshot,
   tierParam,
   whoActs,
@@ -243,7 +244,8 @@ function showNotice(tone: 'warn' | 'fail' | 'info', text: string) {
 
 /** People around a pull request, for the who-acts line (lib/changes whoActs). */
 function people(author: string, extra: Partial<People> = {}): People {
-  return { owners: OWNERS(), ...teamPeople(), author, viewer: currentViewer()?.login ?? null, overrideBy: HOLDERS().allowed, shippers: SHIP()?.logins, soloOwner: siteSoloOwner(), ...extra };
+  const viewer = currentViewer()?.login ?? null;
+  return { owners: OWNERS(), ...teamPeople(), author, viewer, overrideBy: HOLDERS().allowed, shippers: SHIP()?.logins, soloOwner: siteSoloOwner(), developer: isDeveloper(viewer, OWNERS(), SHIP()?.logins), ...extra };
 }
 
 /** The facts of a row the who-acts rules read (pr-status rowWho, shared with the Home). */
@@ -1282,7 +1284,7 @@ async function act(kind: ActKind | 'close', text: string, x: { pull: Pull; gate:
     await openPr(pull.number, false);
     return approvedSaid(shipped);
   }
-  const said = { suggest: 'Changes suggested.', comment: 'Comment posted.', approve: 'Approved.', merge: 'Added to the library.', 'approve-merge': 'Approved and added to the library.', close: 'Closed.' }[kind as string] ?? 'Done.';
+  const said = { suggest: 'Changes asked for.', comment: 'Comment posted.', approve: 'Approved.', merge: 'Added to the library.', 'approve-merge': 'Approved and added to the library.', close: 'Closed.' }[kind as string] ?? 'Done.';
   await openPr(pull.number, false);
   return said;
 }

@@ -63,7 +63,7 @@ describe('what an email contributor may do', () => {
     expect(canReview(null)).toBe(false);
   });
 
-  it('gets no approve, suggest changes, merge or override in the review bar', () => {
+  it('gets no approve, ask for changes, merge or override in the review bar', () => {
     const base: ActionInput = { lifecycle: 'ready', connected: true, canWrite: true, isAuthor: false, canApprove: true, canMerge: true, mergeAfterApprove: true, overrideOnly: true, visual: false, shareable: false, exploration: false, statusAction: null };
     expect(reviewActions(base).primary?.kind).toBe('approve-merge');
     const r = reviewActions({ ...base, canMerge: false, canReview: false });

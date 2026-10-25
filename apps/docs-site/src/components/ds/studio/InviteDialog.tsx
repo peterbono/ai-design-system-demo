@@ -64,7 +64,7 @@ function AccessList({ data, update, onNotice }: { data: MembersData; update: (fn
             <li key={m.login} className="inv-access-row">
               <PersonCell name={m.name} seed={m.login} line={memberLine(m)} you={m.you} avatar={m.avatar} />
               {can.changeRole ? (
-                <RolePicker label={`Role for ${m.name}`} value={choiceOf(m)} personal={data.personal} variant="ghost" onChange={(c) => void run(() => act.changeRole(m, c))} />
+                <RolePicker label={`Role for ${m.name}`} value={choiceOf(m)} shown={roleText(m)} personal={data.personal} variant="ghost" onChange={(c) => void run(() => act.changeRole(m, c))} />
               ) : (
                 <span className="mem-role-text">{roleText(m)}</span>
               )}

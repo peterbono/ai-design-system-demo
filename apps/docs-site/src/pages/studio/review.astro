@@ -1,11 +1,11 @@
 ---
 // The review queue, reached from "Review all" on the Studio home. Everything that waits on the viewer on the left, each
 // row marked with what the viewer did to it (components/ds/studio/ReviewQueue, rows read by scripts/home-data.ts), the
-// selected item in the main area, and one bar about that item: comment, Suggest changes, Approve, More actions. A branch opens
+// selected item in the main area, and one bar about that item: comment, Ask for changes, Approve, More actions. A branch opens
 // in place with the branch review of Branches (scripts/reviews.ts openPr into #rv-detail), so this page carries what
 // that review needs: the notice, the owner override dialog, the promote dialog and the contrast and branches data.
 // A suggestion row (a change a developer applies once owners approve it) opens the suggestion review in place
-// (components/ds/studio/SuggestionReview), with its own Approve and Suggest changes; Decline uses RequestDecide.
+// (components/ds/studio/SuggestionReview), with its own Approve and Ask for changes; Decline uses RequestDecide.
 // Usage guidance drafts, library health and setup rows show a short card with the link that handles them.
 // Script: scripts/review-queue-page.ts. Moves: lib/queue-nav.ts.
 import { jsonForScript } from '../../lib/html';

@@ -69,7 +69,7 @@ export function teamCheck(state: RepoAccessState | null, f: { signedIn: boolean;
     case 'reader':
       return { kind: 'ready', label: 'Ready', tone: 'success', text: 'You can review and send suggestions.' };
     case 'outside-contributor':
-      return { kind: 'read-only', label: 'Read only', tone: 'info', text: 'You are not on this team on GitHub. You can look around and suggest.' };
+      return { kind: 'read-only', label: 'Can view', tone: 'info', text: 'You are not on this team on GitHub. You can look around and suggest.' };
     case 'not-installed':
       return f.repoAdmin
         ? { kind: 'not-installed', label: 'Bridge is not installed yet', tone: 'warning', text: 'Install it once for your whole team.', install: true }

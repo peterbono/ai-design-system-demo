@@ -54,7 +54,7 @@ const SUGGESTION_STEPS: { title: string; text: string }[] = [
   },
   {
     title: 'Review',
-    text: 'Owners decide in Studio (Changes and the review queue) or on GitHub: Approve, Suggest changes or Decline. Only owners listed in `bridge.config.json` count, and an approval counts for the version they saw: when the suggestion changes, earlier approvals stop counting and Studio says so.',
+    text: 'Owners decide in Studio (Changes and the review queue) or on GitHub: Approve, Ask for changes or Decline. Only owners listed in `bridge.config.json` count, and an approval counts for the version they saw: when the suggestion changes, earlier approvals stop counting and Studio says so.',
   },
   {
     title: 'Apply',

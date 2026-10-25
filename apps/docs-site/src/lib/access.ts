@@ -119,5 +119,6 @@ export function accessLabel(signedIn: boolean, a: RepoAccess | null): string {
   if (!signedIn) return '';
   if (!a) return 'Unknown';
   if (a.reach === false) return 'No access';
-  return a.write ? 'Read and write' : 'Read only';
+  // The one set of role names (lib/invites ROLE_WORDS): Admin, Can edit, Can view.
+  return a.admin ? 'Admin' : a.write ? 'Can edit' : 'Can view';
 }

@@ -10,7 +10,9 @@ import { VOCAB } from './vocabulary';
 /** One choice per right in the form: design owners, tech owners, or both. */
 export type RightChoice = 'design' | 'tech' | 'both';
 
-export const CHOICE_LABEL: Record<RightChoice, string> = { design: 'Design owners', tech: 'Tech owners', both: 'Both' };
+// Role names (one set everywhere): a person is "Reviewer: design", "Reviewer: code" or "Reviewer: design and code"; a
+// group of them reads "Design reviewers", "Code reviewers", "Design and code reviewers".
+export const CHOICE_LABEL: Record<RightChoice, string> = { design: 'Design reviewers', tech: 'Code reviewers', both: 'Both' };
 
 export const choiceOf = (groups: readonly OwnerGroup[]): RightChoice => (groups.includes('design') && groups.includes('tech') ? 'both' : groups.includes('design') ? 'design' : 'tech');
 
@@ -22,7 +24,7 @@ export const groupsOf = (c: RightChoice): OwnerGroup[] => (c === 'both' ? ['desi
  */
 export const RIGHT_LABEL: Record<Right, string> = {
   approveDesign: 'Approve design',
-  approveTech: 'Approve tech',
+  approveTech: 'Approve code',
   ship: VOCAB.merge,
 };
 
@@ -45,7 +47,7 @@ export interface RoleRow {
   choice: RightChoice | null;
 }
 
-const WHO: Record<RightChoice, string> = { design: 'Design owners', tech: 'Tech owners', both: 'Design and tech owners' };
+const WHO: Record<RightChoice, string> = { design: 'Design reviewers', tech: 'Code reviewers', both: 'Design and code reviewers' };
 
 /** The three rows of the Roles section, from the owner lists and `governance.rights` (null: not set yet). */
 export function roleRows(owners: Owners, rights: Rights | null): RoleRow[] {
@@ -70,7 +72,7 @@ export function rolesSummary(owners: Owners, rights: Rights | null): string {
   const [d, t, s] = roleRows(owners, rights);
   const lower = (x: string) => x.charAt(0).toLowerCase() + x.slice(1);
   const merge = s!.who === 'Anyone with write access' ? 'anyone with write access adds to the library' : `${lower(s!.who)} add to the library`;
-  return `${d!.who} approve design, ${lower(t!.who)} approve tech, ${merge}.`;
+  return `${d!.who} approve design, ${lower(t!.who)} approve code, ${merge}.`;
 }
 
 export const VISUAL_MODE_LABEL: Record<VisualImpactMode, string> = { auto: 'Automatic', 'on-demand': 'On demand' };
@@ -83,7 +85,7 @@ export const VISUAL_MODE_HELP: Record<VisualImpactMode, string> = {
 // ---------------------------------------------------------------------------------------------------------------
 // Owners: people and teams
 
-export const OWNER_GROUP_LABEL: Record<OwnerGroup, string> = { design: 'Design owners', tech: 'Tech owners' };
+export const OWNER_GROUP_LABEL: Record<OwnerGroup, string> = { design: 'Design reviewers', tech: 'Code reviewers' };
 
 export const OWNER_GROUP_HELP: Record<OwnerGroup, string> = {
   design: 'People or GitHub teams who answer for how it looks.',

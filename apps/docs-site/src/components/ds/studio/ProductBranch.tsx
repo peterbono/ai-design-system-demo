@@ -58,6 +58,8 @@ export interface ProductBranchProps {
   /** Exploration actions: promote to review (the shared dialog), close without merging. Null when not offered. */
   onPromote: (() => void) | null;
   onClose: (() => Promise<string | void>) | null;
+  /** Why Send for review and Close are not offered to this viewer, and who can (lib/write-route keepExplorationLine). */
+  keepNote?: string | null;
   developer: { label: string; value: string }[];
   githubUrl: string;
   ask: string;
@@ -171,6 +173,7 @@ export function ProductBranch(p: ProductBranchProps) {
         {p.sentence.strong && <strong>{p.sentence.strong}</strong>}
         {p.sentence.rest}
       </p>
+      {p.keepNote && <p className="pb-keep-note">{p.keepNote}</p>}
       <div className={twoRegions ? 'pb-grid' : 'pb-grid is-one'}>
         {twoRegions && (
           <section className="pb-screen" aria-label={`Your screen in ${p.product}`}>

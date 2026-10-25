@@ -41,7 +41,9 @@ import { devTag, markWork, natureAttr } from './work-filter';
 import { badgeHtml } from '@bridge-ds/react/dom';
 import { paintPeople, personHtml } from './people';
 import { sampleVisitor } from './demo-gate';
-import { currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError } from './github-session';
+import { currentAccess, currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError } from './github-session';
+import { canKeepExploration, keepExplorationLine } from '../lib/write-route';
+import { viewerRole } from './needs-you';
 import { EXPLORATION_SUGGEST_LINE, ghAction, rateLimitedLine } from '../lib/gh-wording';
 import { changesModeOnPage } from './changes-mode';
 import { explorationClient, explorationsConfig, startLinkedExploration } from './exploration-start';
@@ -354,14 +356,20 @@ export function previewList(previews: BranchPreview[]): string {
 /**
  * `suggest`: the team works in suggest mode (bridge.config.json "changes"): promoting and closing are branch writes,
  * so they are not offered, as on the product page (scripts/product-branch.ts). Absent: read from the page.
+ * `keeper`: Send for review and Close are for the person who started it or a reviewer, with write access
+ * (lib/write-route); false: others read who can.
  */
-export function renderExplorationDetail(r: ExplorationRow, opts: { connected: boolean; suggest?: boolean }): string {
+const keeperOf = (r: ExplorationRow) => canKeepExploration({ viewer: currentViewer()?.login ?? null, author: r.author, reviewer: viewerRole() === 'reviewer', write: currentAccess()?.write ?? null });
+
+export function renderExplorationDetail(r: ExplorationRow, opts: { connected: boolean; suggest?: boolean; keeper?: boolean }): string {
   const suggest = opts.suggest ?? changesModeOnPage() === 'suggest';
   const actions =
     r.status !== 'active'
       ? `<a class="btn btn-primary btn-lg" href="?pr=${r.number}" data-open-pr="${r.number}">Open the change</a>`
       : suggest
         ? ''
+        : opts.connected && opts.keeper === false
+          ? `<p class="cg-muted">${esc(keepExplorationLine(r.author))}</p>`
         : opts.connected
         ? `<button type="button" class="btn btn-primary btn-lg" data-ex-promote="${r.number}">${VOCAB.requestReview}</button> <button type="button" class="btn btn-secondary btn-lg" data-ex-close-ask="${r.number}">Close</button>`
         : sampleVisitor()
@@ -484,7 +492,7 @@ export async function openExploration(n: number, push = true) {
     if (product) return pb.openProductBranch(d, r, pull, product, products, () => void openExploration(n, false));
   }
   d.innerHTML = r
-    ? renderExplorationDetail(r, { connected: connected() })
+    ? renderExplorationDetail(r, { connected: connected(), keeper: keeperOf(r) })
     : `${crumbs(n)}<p class="cg-muted">#${n} is not an exploration in ${esc(`${CFG.owner}/${CFG.repo}`)}, or GitHub cannot be read right now. <a href="https://github.com/${esc(`${CFG.owner}/${CFG.repo}`)}/pull/${n}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}</a>.</p>`;
   if (r) {
     void paintTryIt(r);
@@ -567,7 +575,7 @@ export function initExplorations() {
   initGitHubConnect(() => {
     paintStartAuth();
     if (current && !$('rv-detail').hidden && new URLSearchParams(location.search).get('exploration')) {
-      $('rv-detail').innerHTML = renderExplorationDetail(current, { connected: connected() });
+      $('rv-detail').innerHTML = renderExplorationDetail(current, { connected: connected(), keeper: keeperOf(current) });
       void paintTryIt(current);
       void paintVisual(current);
     }

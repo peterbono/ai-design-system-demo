@@ -597,7 +597,7 @@ export interface ActionInput {
   claudeWaiting?: boolean;
   /** The review queue holds the view's primary (Approve and next): the bar's approval is secondary there. */
   inQueue?: boolean;
-  /** False for an email contributor: no approve, suggest changes, merge or override (default true). */
+  /** False for an email contributor: no approve, ask for changes, merge or override (default true). */
   canReview?: boolean;
 }
 
@@ -605,7 +605,7 @@ export interface ReviewActions {
   primary: { kind: PrimaryKind; label: string } | null;
   /** The bar shows the comment field. */
   comment: boolean;
-  /** "Suggest changes" (request changes). */
+  /** "Ask for changes" (request changes). */
   suggest: boolean;
   menu: {
     /** The one sentence that explains the owner override, when it is the only way. */

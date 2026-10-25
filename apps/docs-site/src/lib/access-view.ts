@@ -159,7 +159,7 @@ export function accessScreen(state: RepoAccessState, f: AccessScreenInput): Acce
       return {
         layout: 'banner',
         tone: 'info',
-        title: 'Read only',
+        title: 'Can view',
         body: `${who(f.login)} is not on this team on GitHub. You can look around and still send suggestions: the team reviews them.`,
         primary: { kind: 'copy', label: 'Ask to join the team', text: askJoinMessage(f.login, repo, f.link), copied: 'Message copied. Paste it to your lead.' },
       };
@@ -200,9 +200,9 @@ export function accessBadge(state: RepoAccessState | null, signedIn: boolean): {
     case 'writer':
       return { label: 'Can edit', tone: 'success' };
     case 'reader':
-      return { label: 'Can suggest', tone: 'info' };
+      return { label: 'Can view', tone: 'info' };
     case 'outside-contributor':
-      return { label: 'Read only', tone: 'neutral' };
+      return { label: 'Can view', tone: 'neutral' };
     case 'not-installed':
       return { label: 'Not set up', tone: 'warning' };
     case 'no-access':
@@ -320,14 +320,14 @@ export function whoCanDoWhat(f: { changes?: ChangesMode | null; owners?: { desig
   const owners = [...new Set([...(f.owners?.design ?? []), ...(f.owners?.tech ?? [])])];
   const named = owners.length && owners.length <= 3 ? `: ${owners.map((o) => (o.startsWith('@') ? o : `@${o}`)).join(', ')}` : '';
   return [
-    { id: 'read', who: 'Read access on GitHub', can: 'Browse, comment, and send suggestions' },
+    { id: 'read', who: 'Can view', can: 'Browse, comment, and send suggestions' },
     {
       id: 'write',
-      who: 'Write access',
+      who: 'Can edit',
       can: direct ? 'Also start changes: Bridge opens them for review' : 'Same as read: changes go to developers as suggestions',
     },
     { id: 'admin', who: 'Admin', can: 'Also change Settings, and who gets in on GitHub' },
-    { id: 'owners', who: 'Owners in Bridge settings', can: `Approve design or tech${named}` },
+    { id: 'owners', who: 'Reviewer: design or code', can: `Approve design or code${named}` },
   ];
 }
 

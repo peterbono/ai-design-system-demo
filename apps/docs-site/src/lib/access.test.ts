@@ -62,7 +62,7 @@ describe('resolveAccess states (plan 3.3) as the Studio sees them', () => {
   it('outside contributor: read only, never "not installed" (reach unknown)', async () => {
     const { a } = await view({ 'GET /repos/acme/ds': repo({ pull: true }), ...NOT_INSTALLED });
     expect(a).toEqual({ state: 'outside-contributor', write: false, admin: false, private: false });
-    expect(accessLabel(true, a)).toBe('Read only');
+    expect(accessLabel(true, a)).toBe('Can view');
   });
 
   it('reader, writer and admin where the app is installed', async () => {
@@ -115,7 +115,7 @@ describe('access cache', () => {
     expect(accessLabel(false, null)).toBe('');
     expect(accessLabel(true, null)).toBe('Unknown');
     expect(accessLabel(true, { state: 'not-installed', write: false, admin: false, reach: false })).toBe('No access');
-    expect(accessLabel(true, { state: 'writer', write: true, admin: false })).toBe('Read and write');
+    expect(accessLabel(true, { state: 'writer', write: true, admin: false })).toBe('Can edit');
   });
 });
 

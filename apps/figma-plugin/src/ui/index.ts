@@ -5,7 +5,7 @@
 
 import type { ConflictChoice, DiffEntry } from '@bridge-ds/core';
 import { type Analysis, type PullProposal, type PushBrand, type PushProposal, analyze, buildPull, buildPush, changesModeOf, commitsBehind, pullCollections, pullHeadline } from '../sync/flows';
-import { type ChangesMode, GitHubClient, type PullRequest, changesMode, loadConfig, parseRepo } from '@bridge-ds/core';
+import { type ChangesMode, GitHubClient, type PullRequest, changesMode, figmaPushNextLine, loadConfig, parseRepo } from '@bridge-ds/core';
 import type { RenameSuggestion } from '@bridge-ds/core';
 import { type FigmaFidelityRun, type GapBuiltVariant, type GapCase, type MeasuredSpecsFile, affectedContrast, buildGapCase, defaultTitle } from '@bridge-ds/core';
 import { fixCommand, fixPhrase, writeFidelityRun } from '../sync/fix-with-claude';
@@ -3582,7 +3582,9 @@ function viewPush(): View {
     const mode = modeOf(r);
     const text = [
       ...suggestionLines(res),
-      pr ? `${pr.appended ? 'Added to your change in review' : 'Variable edits sent as a draft'}. Checks run, then a design owner and a tech owner approve before it ships.` : '',
+      // Edits added to an open change (no new outcome to route): what happens next follows core's rule for a push from
+      // Figma (TV-1: values ship once the checks pass; a rename or removal waits for a developer OK).
+      pr ? `${pr.appended ? 'Added to your change in review' : 'Variable edits sent as a draft'}. ${figmaPushNextLine((r.proposal?.changes ?? []).map((c) => ({ kind: !c.target ? 'removed' : !c.current ? 'added' : c.target.path !== c.current.path ? 'renamed' : 'changed' })))}` : '',
       res.requests.length ? `${plural(res.requests.length, 'request')} sent for ${res.requests.map((x) => x.component).join(', ')}.` : '',
       ...res.branches.filter((x) => !x.suggested).map((x) => (x.route === 'token-change' ? `${x.component}: an exact token change, checked for contrast.` : `${x.component}: a developer builds it with Claude. Send them the message below.`)),
       res.held.length ? `Not sent, fix in Figma first: ${res.held.map((x) => x.component).join(', ')}.` : '',

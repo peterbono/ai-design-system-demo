@@ -43,7 +43,7 @@ export const SUGGESTION_WORDS = {
   /** The row line for a developer once it is approved. */
   toApply: (name: string) => `Approved. ${name} waits for you to apply it`,
   approve: 'Approve',
-  requestChanges: 'Suggest changes',
+  requestChanges: 'Ask for changes',
   decline: 'Decline',
   /** After an approval that completes the review. */
   ready: 'Approved, ready to apply',

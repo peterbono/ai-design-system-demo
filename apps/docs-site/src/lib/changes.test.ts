@@ -15,6 +15,7 @@ import {
   requiredApprovals,
   whoActs,
   viewerCanApprove,
+  isDeveloper,
   openerFor,
   primaryAction,
   readSnapshot,
@@ -313,7 +314,7 @@ describe('who acts now', () => {
     const p = { owners, author: 'ann' };
     expect(whoActs(needFromStatus('needs-design'), p).short).toBe('Design owner to approve');
     expect(whoActs(needFromStatus('needs-tech'), p).short).toBe('Tech owner to approve');
-    expect(whoActs(needFromStatus('ci-failing'), p).short).toBe('Blocked by tests');
+    expect(whoActs(needFromStatus('ci-failing'), p).short).toBe('A developer is on it');
     expect(whoActs(needFromStatus('ready'), p).short).toBe('Ready to add to the library');
     expect(whoActs(needFromStatus('ci-running'), p).short).toBe('Tests running');
     expect(whoActs(needFromStatus('checking'), p).short).toBe('Checking');
@@ -395,17 +396,17 @@ describe('failing developer tests on a list row', () => {
     expect(whoActs(needFromStatus('ci-failing', { failing: 1, developerOnly: true }), p)).toMatchObject({
       who: 'developer',
       yourTurn: false,
-      short: 'Blocked by tests',
+      short: 'A developer is on it',
       sentence: 'Waiting for a developer to fix the failing check.',
     });
     // Failures not named yet: never "Your turn: fix tests" on the pill, the same as the Home (a developer is on it).
-    expect(whoActs(needFromStatus('ci-failing', { failing: 1 }), p)).toMatchObject({ who: 'developer', yourTurn: false, short: 'Blocked by tests', sentence: 'Blocked: a check fails. A developer is on it.' });
+    expect(whoActs(needFromStatus('ci-failing', { failing: 1 }), p)).toMatchObject({ who: 'developer', yourTurn: false, short: 'A developer is on it', sentence: 'Blocked: a check fails. A developer is on it.' });
   });
 
   it('never makes a conflict the author\'s turn either', () => {
     const p = { owners: { design: ['dana'], tech: ['theo'] }, author: 'ann', viewer: 'ann' };
-    expect(whoActs({ kind: 'resolve-conflict' }, p)).toMatchObject({ who: 'developer', yourTurn: false, short: 'Blocked by a conflict', sentence: 'Blocked: it clashes with the library. A developer is on it.' });
-    expect(whoActs({ kind: 'resolve-conflict' }, { ...p, viewer: 'dana' })).toMatchObject({ who: 'author', yourTurn: false, short: 'Blocked by a conflict' });
+    expect(whoActs({ kind: 'resolve-conflict' }, p)).toMatchObject({ who: 'developer', yourTurn: false, short: 'A developer is on it', sentence: 'Blocked: it clashes with the library. A developer is on it.' });
+    expect(whoActs({ kind: 'resolve-conflict' }, { ...p, viewer: 'dana' })).toMatchObject({ who: 'author', yourTurn: false, short: 'A developer is on it' });
   });
 
   it('puts an approval the viewer can give before the developer fix', () => {
@@ -418,7 +419,27 @@ describe('failing developer tests on a list row', () => {
       sentence: 'Your turn: approve the design. A developer fixes 2 failing checks meanwhile.',
     });
     // Nothing left for the viewer to approve: still a developer's to fix.
-    expect(whoActs(needFromStatus('ci-failing', { failing: 2, developerOnly: true, pending: ['tech'] }), p)).toMatchObject({ who: 'developer', short: 'Blocked by tests' });
+    expect(whoActs(needFromStatus('ci-failing', { failing: 2, developerOnly: true, pending: ['tech'] }), p)).toMatchObject({ who: 'developer', short: 'A developer is on it' });
+  });
+});
+
+describe('technical blockers on the pill', () => {
+  const owners = { design: ['dana'], tech: ['theo'] };
+  it('says "A developer is on it" to anyone who is not a developer, the precise blocker to a developer', () => {
+    const designer = { owners, author: 'ann', viewer: 'dana', developer: isDeveloper('dana', owners) };
+    const dev = { owners, author: 'ann', viewer: 'theo', developer: isDeveloper('theo', owners) };
+    expect(designer.developer).toBe(false);
+    expect(dev.developer).toBe(true);
+    expect(whoActs(needFromStatus('ci-failing', { failing: 1 }), designer).short).toBe('A developer is on it');
+    expect(whoActs({ kind: 'resolve-conflict' }, designer).short).toBe('A developer is on it');
+    expect(whoActs(needFromStatus('ci-failing', { failing: 1 }), dev).short).toBe('Blocked by tests');
+    expect(whoActs({ kind: 'resolve-conflict' }, dev).short).toBe('Blocked by a conflict');
+    expect(whoActs(needFromStatus('ci-failing', { failing: 1, developerOnly: true }), designer).short).toBe('A developer is on it');
+  });
+  it('counts the ship right as a developer, and nobody signed out', () => {
+    expect(isDeveloper('sam', owners, ['sam'])).toBe(true);
+    expect(isDeveloper('@Theo', owners)).toBe(true);
+    expect(isDeveloper(null, owners, ['sam'])).toBe(false);
   });
 });
 

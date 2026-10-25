@@ -1,6 +1,6 @@
 // The review queue chrome (pages/studio/review.astro, scripts/review-queue-page.ts): the list on the start side
 // ("‹ Home", "Review all · 3 of 20" with its progress, each row with what the viewer did to it) and the one bar at the
-// bottom, about the item on screen only: comment, Suggest changes, Approve, More actions. The queue moves on after a
+// bottom, about the item on screen only: comment, Ask for changes, Approve, More actions. The queue moves on after a
 // decision; a toast says what was done, with Undo. Rules: lib/queue-nav.ts.
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronLeft, Circle, CircleAlert, CircleDot, CircleX, Ellipsis, UserRoundPlus } from 'lucide-react';
@@ -25,7 +25,7 @@ export interface QueueListProps {
 
 const MARK: Record<QueueOutcome | 'current' | 'todo', { icon: typeof Check; label: string }> = {
   approved: { icon: Check, label: 'Approved' },
-  suggested: { icon: CircleAlert, label: 'Changes suggested' },
+  suggested: { icon: CircleAlert, label: 'Changes asked for' },
   asked: { icon: UserRoundPlus, label: 'Asked someone else' },
   declined: { icon: CircleX, label: 'Declined' },
   current: { icon: CircleDot, label: 'Open now' },
@@ -154,7 +154,7 @@ export function QueueBar(p: QueueBarProps) {
           />
         </div>
         <Button variant="secondary" size="lg" disabled={!p.canSuggest || Boolean(p.busy)} loading={p.busy === 'suggest'} onClick={suggest}>
-          Suggest changes
+          Ask for changes
         </Button>
         <Button
           variant="primary"
@@ -187,7 +187,7 @@ export function QueueBar(p: QueueBarProps) {
         </Menu>
       </div>
       <p className="rq-bar-keys rq-muted">
-        Keyboard: <Kbd keys="A" /> approve · <Kbd keys="S" /> suggest changes · <Kbd keys="J" /> <Kbd keys="K" /> next and previous
+        Keyboard: <Kbd keys="A" /> approve · <Kbd keys="S" /> ask for changes · <Kbd keys="J" /> <Kbd keys="K" /> next and previous
       </p>
       <p className="rq-said" role="status" aria-live="polite">
         {said}

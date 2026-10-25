@@ -320,7 +320,23 @@ export interface People {
    * Absent: not known (the MCP server and the CLI), the owner lists decide as before.
    */
   reviews?: boolean;
+  /**
+   * The viewer is a developer: holds the tech approval or the ship right. Only developers read a technical blocker on
+   * a pill ("Blocked by tests", "Blocked by a conflict"); everyone else reads "A developer is on it" (designers never
+   * see technical blockers). Absent: not a developer.
+   */
+  developer?: boolean;
 }
+
+/** A developer, for the blocker pills: the viewer holds the tech approval (approver lists after rights) or the ship right. */
+export function isDeveloper(viewer: string | null | undefined, owners: { tech: readonly string[] }, shippers?: readonly string[] | null): boolean {
+  if (!viewer) return false;
+  const v = viewer.trim().replace(/^@/, '').toLowerCase();
+  return [...owners.tech, ...(shippers ?? [])].some((l) => l.trim().replace(/^@/, '').toLowerCase() === v);
+}
+
+/** The pill a designer reads for a technical blocker. */
+export const DEVELOPER_ON_IT = 'A developer is on it';
 
 export type WhoAction =
   | 'approve-design'
@@ -411,6 +427,9 @@ function namedRole(role: ApprovalRole, logins: string[], p: People): string {
 export function whoActs(need: Need, p: People): WhoActs {
   const author = p.author;
   const isAuthor = same(p.viewer, author);
+  // A technical blocker's pill: precise for a developer, "A developer is on it" for everyone else.
+  const tests = p.developer ? 'Blocked by tests' : DEVELOPER_ON_IT;
+  const conflict = p.developer ? 'Blocked by a conflict' : DEVELOPER_ON_IT;
   const authorTurn = (action: WhoAction, yours: string, theirs: string, shortTheirs: string, shortYours: string): WhoActs =>
     isAuthor
       ? { who: 'you', logins: [author], yourTurn: true, action, sentence: `Your turn: ${yours}.`, short: shortYours }
@@ -438,11 +457,11 @@ export function whoActs(need: Need, p: People): WhoActs {
         const mine = need.then?.find((r) => viewerCanApprove(r, p));
         if (mine) return { who: 'you', logins: p.viewer ? [p.viewer] : [], yourTurn: true, action: APPROVE_ACTION[mine], sentence: `Your turn: ${YOUR_APPROVAL[mine]}. A developer fixes ${checks(need.failing)} meanwhile.`, short: YOUR_SHORT[mine] };
       }
-      if (need.developerOnly) return { who: 'developer', logins: [], yourTurn: false, action: 'fix-checks', sentence: `Waiting for a developer to fix ${checks(need.failing)}.`, short: 'Blocked by tests' };
+      if (need.developerOnly) return { who: 'developer', logins: [], yourTurn: false, action: 'fix-checks', sentence: `Waiting for a developer to fix ${checks(need.failing)}.`, short: tests };
       // The author's own change: never "Your turn: fix tests" (the Home says the same, lib/overview-todo blockerOf). A
       // design rule that fails is named on the branch page (lib/check-explain failingSentence), with the fix.
-      if (isAuthor) return { who: 'developer', logins: [], yourTurn: false, action: 'fix-checks', sentence: `Blocked: ${need.failing === 1 ? 'a check fails' : 'checks fail'}. A developer is on it.`, short: 'Blocked by tests' };
-      return authorTurn('fix-checks', `fix ${checks(need.failing)}`, `fix ${checks(need.failing)}`, 'Blocked by tests', 'Blocked by tests');
+      if (isAuthor) return { who: 'developer', logins: [], yourTurn: false, action: 'fix-checks', sentence: `Blocked: ${need.failing === 1 ? 'a check fails' : 'checks fail'}. A developer is on it.`, short: tests };
+      return authorTurn('fix-checks', `fix ${checks(need.failing)}`, `fix ${checks(need.failing)}`, tests, tests);
     case 'address-changes': {
       const by = need.by.length ? ` @${need.by.join(', @')} requested` : ' a reviewer requested';
       return authorTurn('address-changes', `address the changes${by}`, `address the changes${by}`, 'Author to address changes', 'Your turn: address changes');
@@ -457,8 +476,8 @@ export function whoActs(need: Need, p: People): WhoActs {
     case 'resolve-conflict':
       // A conflict is a developer's to resolve (token conflicts get their own resolver on the branch page): never
       // "Your turn: resolve a conflict", the same as the Home.
-      if (isAuthor) return { who: 'developer', logins: [], yourTurn: false, action: 'resolve-conflict', sentence: `Blocked: it clashes with ${VOCAB.main}. A developer is on it.`, short: 'Blocked by a conflict' };
-      return authorTurn('resolve-conflict', `resolve a conflict with ${VOCAB.main}`, `resolve a conflict with ${VOCAB.main}`, 'Blocked by a conflict', 'Blocked by a conflict');
+      if (isAuthor) return { who: 'developer', logins: [], yourTurn: false, action: 'resolve-conflict', sentence: `Blocked: it clashes with ${VOCAB.main}. A developer is on it.`, short: conflict };
+      return authorTurn('resolve-conflict', `resolve a conflict with ${VOCAB.main}`, `resolve a conflict with ${VOCAB.main}`, conflict, conflict);
     case 'checks-running': {
       const next = need.then[0];
       const then = next ? ` Then ${namedRole(next, eligibleFor(next, p).logins, p)} approves.` : ' Then it is ready to add to the library.';
