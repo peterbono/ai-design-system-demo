@@ -15,7 +15,7 @@
 //
 // Keys (Upstash Redis; hashes are SHA-256 hex):
 //   bridge:oauth:client:<client_id>       a registered client (DCR) or a fetched client metadata document (CIMD, 1 hour)
-//   bridge:oauth:req:<id>                 an authorization request waiting for the person, 10 minutes
+//   bridge:oauth:req:<id>                 an authorization request waiting for the person, 30 minutes (sign-in on the way)
 //   bridge:oauth:gh:<hash(state)>         the GitHub leg of a request, 10 minutes
 //   bridge:oauth:code:<hash(code)>        an authorization code, 2 minutes, used once (GETDEL)
 //   bridge:oauth:grant:<id>               a grant { repo, client, who, sealed GitHub tokens, dates }, 90 days after last use
@@ -32,7 +32,8 @@ import { seal, unseal, type Sealed } from './sealed.js';
 export const ACCESS_TTL_S = 60 * 60;
 export const REFRESH_TTL_S = 30 * 24 * 60 * 60;
 export const GRANT_TTL_S = 90 * 24 * 60 * 60;
-const REQ_TTL_S = 10 * 60;
+/** Long enough to sign in to Bridge (an email code) on the way, and come back to the same request. */
+export const REQ_TTL_S = 30 * 60;
 const CODE_TTL_S = 2 * 60;
 const CLIENT_TTL_S = 180 * 24 * 60 * 60;
 const CIMD_TTL_S = 60 * 60;
