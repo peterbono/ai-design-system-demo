@@ -182,3 +182,21 @@ describe('partWords', () => {
     expect(partWords({ id: 'iconStart', name: 'Icon start' })).toBe('icon start');
   });
 });
+
+describe('gap case: values that agree on a variant the shot says differs', () => {
+  const f = load();
+  const s = story(f, 'components-toggle--default');
+  const spec = setFrom('Toggle', s);
+
+  it('over 5% of pixels: Bridge does not measure what differs yet, never a match', () => {
+    const gap = buildGapCase({ component: 'Toggle', measured: f, spec, fidelity: fidelity('Toggle', { width: 74, height: 58 }, { width: 74, height: 58 }, 30.6) });
+    expect(gap.variants[0]!.unexplained).toBe("Bridge doesn't measure what differs here yet: the measured values agree, but 30.6% of the pixels differ. Not a match: the images decide");
+    expect(gap.summary).toBe("Toggle differs from the code on 1 of 1 variant: Bridge doesn't measure what differs here yet (the measured values agree, the images do not).");
+  });
+
+  it('a few percent: a near match to compare by eye', () => {
+    const gap = buildGapCase({ component: 'Toggle', measured: f, spec, fidelity: fidelity('Toggle', { width: 74, height: 58 }, { width: 74, height: 58 }, 4.2) });
+    expect(gap.variants[0]!.unexplained).toMatch(/^The measured values agree with what Figma drew/);
+    expect(gap.summary).toBe('Toggle differs from the code on 1 of 1 variant: the measure agrees, compare the images.');
+  });
+});
