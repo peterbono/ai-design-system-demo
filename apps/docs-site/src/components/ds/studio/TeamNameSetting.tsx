@@ -31,6 +31,8 @@ function readFacts(r: { owner: string; repo: string }, c: { name?: string }): Fa
 export default function TeamNameSetting({ prefix, protectedBranches }: TeamNameSettingProps) {
   const [facts, setFacts] = useState<Facts | null>(null);
   const [admin, setAdmin] = useState(false);
+  /** An admin signed in by email: the name is a GitHub change they cannot send (the email proxy refuses it). */
+  const [emailAdmin, setEmailAdmin] = useState(false);
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +50,11 @@ export default function TeamNameSetting({ prefix, protectedBranches }: TeamNameS
     read();
     document.addEventListener('bridge:team-model', read);
     void import('../../../scripts/github-session').then(({ onAccess }) => {
-      onAccess((a) => live && setAdmin(Boolean(a?.admin || a?.repoAdmin)));
+      onAccess((a) => {
+        if (!live) return;
+        setAdmin(Boolean(a?.admin || a?.repoAdmin));
+        setEmailAdmin(Boolean(a?.contributor && a.admin));
+      });
     });
     return () => {
       live = false;
@@ -57,7 +63,7 @@ export default function TeamNameSetting({ prefix, protectedBranches }: TeamNameS
   }, []);
 
   const shown = facts ? teamDisplayName(facts.repo, { name: facts.set ?? undefined }) : '';
-  const editable = Boolean(facts) && admin && !isSampleTeam(facts?.repo);
+  const editable = Boolean(facts) && admin && !emailAdmin && !isSampleTeam(facts?.repo);
   const changed = value.trim().replace(/\s+/g, ' ') !== (facts?.set ?? '');
 
   const save = async () => {
@@ -123,7 +129,8 @@ export default function TeamNameSetting({ prefix, protectedBranches }: TeamNameS
             ) : (
               <div className="set-row-value">
                 <p className="set-who">{shown || ' '}</p>
-                {facts && !isSampleTeam(facts.repo) && (facts.set ? <AdminOnlyNote fallback /> : <p className="set-row-help">{TEAM_NAME_WORDS.notSet}</p>)}
+                {facts && !isSampleTeam(facts.repo) && !facts.set && <p className="set-row-help">{TEAM_NAME_WORDS.notSet}</p>}
+                {facts && !isSampleTeam(facts.repo) && (emailAdmin ? <p className="set-row-help">{TEAM_NAME_WORDS.githubOnly}</p> : facts.set && <AdminOnlyNote fallback />)}
               </div>
             )}
           </div>

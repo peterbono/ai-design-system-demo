@@ -122,6 +122,7 @@ export function TeamKeyName({ team, onRenamed }: { team: TeamInfo; onRenamed?: (
             ) : (
               <div className="set-row-value">
                 <p className="set-who">{current}</p>
+                <p className="set-row-help set-admin-only">{adminOnlyText(team.people.filter((p) => p.role === 'admin').map((p) => p.name))}</p>
               </div>
             )}
           </div>

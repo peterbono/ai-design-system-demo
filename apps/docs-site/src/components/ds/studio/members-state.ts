@@ -6,6 +6,10 @@ import { useCallback, useEffect, useState } from 'react';
 import type { MembersData } from '../../../scripts/members';
 import { MEMBERS_WORDS, normalizeChoice, roleLabel, sentSummary, type Member, type PendingInvite, type RoleChoice, type KnownPerson } from '../../../lib/invites';
 import { inviteePeople } from '../../../lib/invites';
+import { isTeamKey } from '../../../lib/team-path';
+
+/** A team made in Bridge with no repository yet: Reviewer waits until one is connected (the invites server refuses it). */
+export const noRepo = (data: Pick<MembersData, 'repo' | 'context'>): boolean => data.context === 'real' && isTeamKey(data.repo);
 
 export type MembersLoad = { status: 'loading' } | { status: 'ready'; data: MembersData } | { status: 'error'; message: string };
 

@@ -1,7 +1,7 @@
 // Studio Settings: approvals in plain words and the Claude connect command.
 import { describe, expect, it } from 'vitest';
 import { tierSummaries } from './governance';
-import { adminOnlyText, appReach, CHANGES_PLAIN, RIGHT_PLAIN, TOKEN_VALUES_PLAIN, soloPlain, teamPlain, approvalRules, changesInConfig, changesProposal, effectiveChanges, INTERIM_APP_TEXT, overridePlain, overrideRow, READ_ONLY_APP_TEXT, soloOwnerRow, suggestAppText, plainApprovals, ruleSentence, withChanges } from './settings-view';
+import { adminOnlyText, appReach, canProposeSettings, GITHUB_WRITE_ONLY, CHANGES_PLAIN, RIGHT_PLAIN, TOKEN_VALUES_PLAIN, soloPlain, teamPlain, approvalRules, changesInConfig, changesProposal, effectiveChanges, INTERIM_APP_TEXT, overridePlain, overrideRow, READ_ONLY_APP_TEXT, soloOwnerRow, suggestAppText, plainApprovals, ruleSentence, withChanges } from './settings-view';
 
 const GOVERNANCE = `# Governance
 
@@ -149,5 +149,15 @@ describe('token values (docs/BUILD-REQUESTS.md "The rule", decision TV-1)', () =
     expect(w.text).toBe('Nobody checks the code. From Figma, sending counts as the approval. A renamed or removed token waits for a code check.');
     // Designer words: no repository, pull request, branch or main, no em dash.
     for (const s of Object.values(w)) expect(s).not.toMatch(/\b(repo|repository|pull request|PR|branch|main|merge)\b|\u2014/i);
+  });
+});
+
+describe('settings stored in the design system files', () => {
+  it('only a GitHub account that can edit proposes a change; email members and readers read who can', () => {
+    expect(canProposeSettings({ write: true })).toBe(true);
+    expect(canProposeSettings({ write: true, contributor: true })).toBe(false);
+    expect(canProposeSettings({ write: false })).toBe(false);
+    expect(canProposeSettings(null)).toBeNull();
+    expect(GITHUB_WRITE_ONLY).not.toMatch(/\b(repo|repository|pull request|PR|branch|merge)\b|\u2014/i);
   });
 });

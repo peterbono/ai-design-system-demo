@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { overviewProtectionLine, protectionRow, type ProtectionRowState } from './protection-view';
+import { overviewProtectionLine, PROTECT_ADMIN_ONLY, protectionRow, type ProtectionRowState } from './protection-view';
 
 const RULES = 'https://github.com/acme/ds/settings/rules';
 const ALL = ['review', 'checks', 'history', 'deletion'] as const;
@@ -53,5 +53,18 @@ describe('overviewProtectionLine', () => {
     expect(overviewProtectionLine({ kind: 'unprotected', missing: [...ALL] }, false)).toBeNull();
     expect(overviewProtectionLine({ kind: 'partial', missing: ['checks'] }, true)).toBeNull();
     expect(overviewProtectionLine({ kind: 'unknown', missing: [...ALL] }, true)).toBeNull();
+  });
+});
+
+describe('protectionRow for someone who is not a GitHub admin', () => {
+  it('offers no action they would be refused, and says who can', () => {
+    expect(protectionRow({ kind: 'unprotected', missing: [...ALL] }, RULES, false, false)).toEqual({ text: `Your library can be changed without review. ${PROTECT_ADMIN_ONLY}` });
+    expect(protectionRow({ kind: 'partial', missing: ['checks'] }, RULES, false, false).action).toBeUndefined();
+    expect(protectionRow({ kind: 'unprotected', missing: [...ALL] }, RULES, false, true).action).toBe('Protect the library');
+    expect(protectionRow({ kind: 'unprotected', missing: [...ALL] }, RULES, false, null).action).toBe('Protect the library');
+    expect(PROTECT_ADMIN_ONLY).toBe('Only a GitHub admin of the library can turn this on.');
+  });
+  it('the unknown line says what it cannot see in designer words', () => {
+    expect(protectionRow({ kind: 'unknown', missing: [...ALL] }, RULES).text).not.toMatch(/\b(merge|main)\b/);
   });
 });

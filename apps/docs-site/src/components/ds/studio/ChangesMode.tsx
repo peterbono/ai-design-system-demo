@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Lock } from 'lucide-react';
 import { bridgeMcpInstallCommand, type ChangesMode } from '@bridge-ds/core';
 import { Alert, Badge, Button, Card, CardBody, ChoiceCard, ChoiceCardGroup, CodeBlock, Icon, Link } from '@bridge-ds/react';
-import { appReach, CHANGES_CHOICE, CHANGES_ORDER, CHANGES_PLAIN, effectiveChanges, suggestAppText, type AppReach } from '../../../lib/settings-view';
+import { appReach, canProposeSettings, GITHUB_WRITE_ONLY, CHANGES_CHOICE, CHANGES_ORDER, CHANGES_PLAIN, effectiveChanges, suggestAppText, type AppReach } from '../../../lib/settings-view';
 import type { SignInApp } from '../../../lib/github-signin';
 import { ghAction } from '../../../lib/gh-wording';
 import { VOCAB } from '../../../lib/vocabulary';
@@ -102,8 +102,11 @@ export default function ChangesModeSetting({ set, repo, prefix, protectedBranche
   const [done, setDone] = useState<{ number: number; url: string } | null>(null);
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [reach, setReach] = useState<AppReach | null>(null);
+  /** Kept changes live in the design system's files: only a GitHub account that can edit it proposes a change (BR-20). */
+  const [canPropose, setCanPropose] = useState<boolean | null>(null);
 
   useEffect(() => {
+    void import('../../../scripts/github-session').then(({ onAccess }) => onAccess((a) => setCanPropose(canProposeSettings(a))));
     initGitHubConnect((v) => {
       setViewer(v);
       setReach(null);
@@ -148,19 +151,23 @@ export default function ChangesModeSetting({ set, repo, prefix, protectedBranche
                 <p className="cm-strong">{plain.title}</p>
                 <p className="set-row-help">{plain.text}</p>
               </div>
-              <div className="set-row-action">
-                <Button
-                  variant="secondary"
-                  data-density="compact"
-                  onClick={() => {
-                    if (!getToken()) return setError(`${ghAction('change how changes reach your code', prefersSignIn())}.`);
-                    setDone(null);
-                    setEditing(true);
-                  }}
-                >
-                  Change
-                </Button>
-              </div>
+              {canPropose === false ? (
+                <p className="set-row-help set-admin-only">{GITHUB_WRITE_ONLY}</p>
+              ) : (
+                <div className="set-row-action">
+                  <Button
+                    variant="secondary"
+                    data-density="compact"
+                    onClick={() => {
+                      if (!getToken()) return setError(`${ghAction('change how changes reach your code', prefersSignIn())}.`);
+                      setDone(null);
+                      setEditing(true);
+                    }}
+                  >
+                    Change
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="cm-edit">

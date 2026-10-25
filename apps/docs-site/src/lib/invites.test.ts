@@ -9,6 +9,7 @@ import {
   inviteOptions,
   isEmail,
   memberActions,
+  MEMBERS_WORDS,
   memberLine,
   membersContext,
   normalizeChoice,
@@ -107,6 +108,14 @@ describe('who may change what', () => {
     expect(memberActions(m('edit'), { canManage: false, admins: 1 })).toEqual({ changeRole: false, makeAdmin: false, remove: false });
     expect(memberActions(m('admin', true), { canManage: true, admins: 2 })).toEqual({ changeRole: false, makeAdmin: false, remove: false });
     expect(memberActions(m('edit'), { canManage: true, admins: 1 })).toEqual({ changeRole: true, makeAdmin: true, remove: true });
+  });
+
+  it('an admin signed in by email manages email members only: a GitHub member reads as text', () => {
+    expect(memberActions({ role: 'edit', via: 'email' }, { canManage: true, admins: 2, emailAdmin: true })).toEqual({ changeRole: true, makeAdmin: true, remove: true });
+    expect(memberActions({ role: 'edit' }, { canManage: true, admins: 2, emailAdmin: true })).toEqual({ changeRole: false, makeAdmin: false, remove: false });
+    expect(memberActions({ role: 'edit' }, { canManage: true, admins: 2 })).toEqual({ changeRole: true, makeAdmin: true, remove: true });
+    expect(MEMBERS_WORDS.githubPeople).toMatch(/signed in with GitHub as an admin of the repository/);
+    for (const t of [MEMBERS_WORDS.githubPeople, MEMBERS_WORDS.reviewerNeedsRepo, MEMBERS_WORDS.personalAdmin]) expect(t).not.toMatch(/\u2014/);
   });
 
   it('never leaves the team without an admin', () => {

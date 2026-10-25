@@ -219,8 +219,10 @@ export function sortMembers<M extends Pick<Member, 'role' | 'name' | 'you'>>(xs:
 export const adminCount = (xs: readonly Pick<Member, 'role'>[]) => xs.filter((m) => m.role === 'admin').length;
 
 /** What a viewer may do to one member (board I3): never to themselves, never leave the team without an admin. */
-export function memberActions(m: Pick<Member, 'role' | 'you'>, f: { canManage: boolean; admins: number }): { changeRole: boolean; makeAdmin: boolean; remove: boolean } {
-  if (!f.canManage || m.you) return { changeRole: false, makeAdmin: false, remove: false };
+export function memberActions(m: Pick<Member, 'role' | 'you'> & Partial<Pick<Member, 'via'>>, f: { canManage: boolean; admins: number; emailAdmin?: boolean }): { changeRole: boolean; makeAdmin: boolean; remove: boolean } {
+  // An admin signed in by email manages email members only: a GitHub member's role is changed on GitHub (the invites
+  // server refuses it, GITHUB_PEOPLE), so their row reads as text (MEMBERS_WORDS.githubPeople says why).
+  if (!f.canManage || m.you || (f.emailAdmin && m.via !== 'email')) return { changeRole: false, makeAdmin: false, remove: false };
   const lastAdmin = m.role === 'admin' && f.admins <= 1;
   return { changeRole: !lastAdmin, makeAdmin: m.role !== 'admin', remove: !lastAdmin };
 }
@@ -352,11 +354,17 @@ export const MEMBERS_WORDS = {
   resend: 'Resend',
   resent: 'Sent again.',
   makeAdmin: 'Make admin',
+  /** Why Make admin is off for a GitHub member of a personal account's repository. */
+  personalAdmin: 'One person owns this design system on GitHub, so only they are admin there.',
   remove: 'Remove from team',
   cancelInvite: 'Cancel invite',
   removeConfirm: (name: string, team: string) => `Remove ${name} from ${team}? They lose access on GitHub too.`,
   removeConfirmEmail: (name: string, team: string) => `Remove ${name} from ${team}? They are signed out at once.`,
   reviewerNote: 'Reviewers start once the settings change is approved.',
+  /** An admin signed in by email reads it above GitHub members (the invites server's GITHUB_PEOPLE, in a list's words). */
+  githubPeople: 'People who work with GitHub: change their role while signed in with GitHub as an admin of the repository.',
+  /** A team with no repository yet: Reviewer waits (the invites server's REVIEWER_NEEDS_REPO). */
+  reviewerNeedsRepo: 'Reviewers approve changes on GitHub. Connect the repository first, then invite reviewers.',
   limitReached: "You reached today's invite limit. Try again tomorrow.",
 } as const;
 

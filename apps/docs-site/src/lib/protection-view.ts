@@ -18,14 +18,27 @@ export interface ProtectionRowView {
   link?: { label: string; href: string };
 }
 
-export function protectionRow(state: ProtectionRowState, rulesUrl: string, signIn = false): ProtectionRowView {
+/** What a viewer who is not a GitHub admin of the library reads instead of the action they could not take. */
+export const PROTECT_ADMIN_ONLY = 'Only a GitHub admin of the library can turn this on.';
+
+/**
+ * The Protection row. `admin`: GitHub says whether the viewer administers the repository (null: not known). Not an
+ * admin: no action, the sentence says who can (BR-20), instead of a refusal after the confirmation.
+ */
+export function protectionRow(state: ProtectionRowState, rulesUrl: string, signIn = false, admin: boolean | null = null): ProtectionRowView {
+  const view = rowFor(state, rulesUrl, signIn);
+  if (admin === false && view.action) return { text: `${view.text} ${PROTECT_ADMIN_ONLY}` };
+  return view;
+}
+
+function rowFor(state: ProtectionRowState, rulesUrl: string, signIn: boolean): ProtectionRowView {
   switch (state.kind) {
     case 'loading':
       return { text: 'Checking whether every change goes through review.' };
     case 'no-token':
       return { text: `${ghAction('see whether every change goes through review', signIn)}.` };
     case 'unknown':
-      return { text: 'Studio cannot see who may merge into main with your GitHub access. A GitHub admin of the library can see it.' };
+      return { text: 'Studio cannot see whether every change goes through review with your GitHub access. A GitHub admin of the library can see it.' };
     case 'protected':
       return { text: protectionSentence(state), link: { label: VOCAB.openOnGitHub, href: state.url ?? rulesUrl } };
     case 'unprotected':

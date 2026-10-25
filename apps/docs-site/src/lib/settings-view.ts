@@ -278,6 +278,20 @@ export function andList(names: readonly string[]): string {
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 
+/**
+ * A setting stored in the design system's files (review rules, when the visual check runs, Jira, kept changes): a
+ * change to them is proposed on GitHub, so only a GitHub account that can edit the repository may send it. An email
+ * member (contributor or admin) and a GitHub reader read the value and GITHUB_WRITE_ONLY instead (BR-20). Null access:
+ * not known yet or signed out, the control stays (signed out, it opens Connect).
+ */
+export function canProposeSettings(access: { write: boolean; contributor?: boolean | undefined } | null | undefined): boolean | null {
+  if (!access) return null;
+  return access.write && !access.contributor;
+}
+
+/** Who changes such a setting, for anyone else. */
+export const GITHUB_WRITE_ONLY = 'Someone who edits the design system on GitHub changes this.';
+
 /** The line a non-admin reads under a setting: who can change it, by name (BR-20: no disabled control instead). */
 export function adminOnlyText(admins: readonly string[], does = 'can change this'): string {
   const names = [...new Set(admins.map((a) => a.trim()).filter(Boolean))];
