@@ -1,7 +1,7 @@
 // Studio Settings: approvals in plain words and the Claude connect command.
 import { describe, expect, it } from 'vitest';
 import { tierSummaries } from './governance';
-import { adminOnlyText, appReach, canProposeSettings, GITHUB_WRITE_ONLY, CHANGES_PLAIN, RIGHT_PLAIN, TOKEN_VALUES_PLAIN, soloPlain, teamPlain, approvalRules, changesInConfig, leadsPublishRow, changesProposal, effectiveChanges, INTERIM_APP_TEXT, overridePlain, overrideRow, READ_ONLY_APP_TEXT, soloOwnerRow, suggestAppText, plainApprovals, ruleSentence, withChanges } from './settings-view';
+import { adminOnlyText, appReach, canEditReviewRules, RULES_ADMIN_ONLY, RULES_NEED_REVIEW, canProposeSettings, GITHUB_WRITE_ONLY, CHANGES_PLAIN, RIGHT_PLAIN, TOKEN_VALUES_PLAIN, soloPlain, teamPlain, approvalRules, changesInConfig, leadsPublishRow, changesProposal, effectiveChanges, INTERIM_APP_TEXT, overridePlain, overrideRow, READ_ONLY_APP_TEXT, soloOwnerRow, suggestAppText, plainApprovals, ruleSentence, withChanges } from './settings-view';
 
 const GOVERNANCE = `# Governance
 
@@ -169,5 +169,18 @@ describe('Leads can publish small changes without review', () => {
     expect(leadsPublishRow({ leadsPublishTier1: true }).value).toMatch(/^On:/);
     expect(leadsPublishRow({ leadsPublishTier1: false }).value).toBe('Off: every small change waits for one reviewer.');
     for (const s of Object.values(leadsPublishRow({}))) expect(s).not.toMatch(/\b(repo|repository|pull request|PR|branch|merge|Tier)\b|\u2014/i);
+  });
+});
+
+describe('who edits the review rules', () => {
+  it('an admin with GitHub access; never an email admin, a writer who is not admin, or a reader', () => {
+    expect(canEditReviewRules({ admin: true })).toBe(true);
+    expect(canEditReviewRules({ admin: true, contributor: true })).toBe(false);
+    expect(canEditReviewRules({ admin: false })).toBe(false);
+    expect(canEditReviewRules(null)).toBeNull();
+  });
+  it('says why the change waits, and who changes the rules, in designer words', () => {
+    expect(RULES_NEED_REVIEW).toBe('This change needs a review because it changes the rules');
+    for (const t of [RULES_NEED_REVIEW, RULES_ADMIN_ONLY]) expect(t).not.toMatch(/\b(repo|repository|pull request|PR|branch|merge)\b|\u2014/i);
   });
 });

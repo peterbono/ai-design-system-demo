@@ -156,7 +156,11 @@ export function sameOwners(a: string[], b: string[]): boolean {
  * written when it differs from what the file says (absent means auto), so an unchanged mode adds no line; owners
  * likewise.
  */
-export function withRoles(configText: string, next: { rights: Rights; visualMode: VisualImpactMode; owners?: Owners }): string {
+/**
+ * `leadsPublishTier1` (docs/GOVERNANCE.md "Tier 1 publish by leads"): absent leaves the file as it is; false writes
+ * false; true removes the key (absent counts as on), so the file stays as short as the defaults allow.
+ */
+export function withRoles(configText: string, next: { rights: Rights; visualMode: VisualImpactMode; owners?: Owners; leadsPublishTier1?: boolean }): string {
   const doc = parseJson(configText);
   if (doc.root.kind !== 'object') throw new Error('bridge.config.json is not a JSON object.');
   const root = doc.root as JsonObject;
@@ -197,6 +201,16 @@ export function withRoles(configText: string, next: { rights: Rights; visualMode
     else root.entries.push({ key: 'visualImpact', value: node });
     root.raw = undefined;
   }
+  if (next.leadsPublishTier1 !== undefined) {
+    const lp = getEntry(gov, 'leadsPublishTier1');
+    const on = !(lp?.value.kind === 'boolean' && toPlain(lp.value) === false);
+    if (on !== next.leadsPublishTier1) {
+      if (next.leadsPublishTier1) gov.entries = gov.entries.filter((e) => e.key !== 'leadsPublishTier1');
+      else gov.entries.push({ key: 'leadsPublishTier1', value: fromPlain(false) });
+      gov.raw = undefined;
+      root.raw = undefined;
+    }
+  }
   return serializeJson(doc);
 }
 
@@ -211,7 +225,7 @@ export interface RolesProposal {
 export function rolesProposal(
   rows: { label: string; who: string }[],
   mode: VisualImpactMode,
-  opts: { date: Date; prefix?: string; tierLabel: string; owners?: Owners },
+  opts: { date: Date; prefix?: string; tierLabel: string; owners?: Owners; leadsPublishTier1?: boolean },
 ): RolesProposal {
   const stamp = opts.date.toISOString().slice(0, 10).replace(/-/g, '');
   const title = 'chore(config): set who approves and merges, and when visual checks run';
@@ -224,6 +238,7 @@ export function rolesProposal(
     ...(opts.owners ? [`- Design owners: ${names(opts.owners.design)}.`, `- Tech owners: ${names(opts.owners.tech)}.`] : []),
     ...rows.map((r) => `- ${r.label}: ${r.who}.`),
     `- Visual before and after: ${VISUAL_MODE_LABEL[mode]}. ${VISUAL_MODE_HELP[mode]}`,
+    ...(opts.leadsPublishTier1 === undefined ? [] : [`- Leads can publish small changes without review: ${opts.leadsPublishTier1 ? 'on' : 'off'} (\`governance.leadsPublishTier1\`).`]),
     '',
     `**Risk:** ${opts.tierLabel}. Configuration only: no token, component or package changes.`,
     '',

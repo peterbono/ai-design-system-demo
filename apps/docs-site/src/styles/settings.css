@@ -209,6 +209,18 @@
   margin: 0;
 }
 
+/* Team Settings > Review rules: Edit, then Send for review and Cancel, on one line under the rules. */
+.set-rules-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.set-rules-sent {
+  margin-top: var(--space-4);
+}
+
 /* Review rules: the table of what each change needs. */
 .set-change-rules {
   display: grid;
