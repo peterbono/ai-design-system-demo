@@ -226,6 +226,26 @@ export interface PairOptions {
 
 const normText = (t: string | undefined) => (t ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
 
+/** An icon whose SVG the measure captured is drawn as a vector: the same element on both sides. */
+const graphic = (k: SpecPart['kind']) => (k === 'icon' || k === 'vector' ? 'graphic' : k);
+
+/**
+ * The parts without the wrappers the pull adds around one part (`<part>-wrapper`: a margin Figma's one gap per frame
+ * cannot give). The render has no such element: the part inside stands for it, under the wrapper's parent.
+ */
+export function withoutAddedWrappers(parts: SpecPart[], measured: Pick<MeasuredSpec, 'parts'>): SpecPart[] {
+  const real = new Set(measured.parts.map((m) => m.id));
+  const added = new Map<string, string | undefined>();
+  for (const p of parts) {
+    if (p.kind !== 'frame' || !p.parent || real.has(p.id)) continue;
+    const kids = parts.filter((c) => c.parent === p.id);
+    if (kids.length === 1 && `${kids[0]!.id}-wrapper` === p.id) added.set(p.id, p.parent);
+  }
+  if (!added.size) return parts;
+  const up = (id: string | undefined): string | undefined => (id && added.has(id) ? up(added.get(id)) : id);
+  return parts.filter((p) => !added.has(p.id)).map((p) => (p.parent && added.has(p.parent) ? { ...p, parent: up(p.parent) } : p));
+}
+
 /**
  * Pairs static parts with measured parts: root to root, text layers by their characters (a TEXT property's default, or
  * fixed characters), then CSS class under the paired parent, then kind and order under the paired parent. A part whose
@@ -328,7 +348,7 @@ export function pairParts(staticParts: SpecPart[], measured: Pick<MeasuredSpec, 
     if (p.parent && !pairs.has(p.parent)) continue;
     const parent = p.parent ? pairs.get(p.parent) : undefined;
     const known = p.kind === 'text' && !!textOf(p);
-    const free = measured.parts.filter((m) => !taken.has(m.id) && m.kind === p.kind && !claimedByOther(p, m));
+    const free = measured.parts.filter((m) => !taken.has(m.id) && graphic(m.kind) === graphic(p.kind) && !claimedByOther(p, m));
     // Text runs can sit deeper than the static parent (a span inside a label): any free text under the parent.
     const hit = free.find((m) => !parent || m.parent === parent) ?? (p.kind === 'text' && parent && !known ? free.find((m) => ancestors(m.id).includes(parent)) : undefined);
     if (hit) take(p.id, hit.id);
