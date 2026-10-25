@@ -96,9 +96,12 @@ export async function openPlugin(o: Open = {}): Promise<Harness> {
   let settings = { repo: o.connected === false ? '' : REPO, branch: 'main', tokensPath: 'packages/tokens/src' } as InitPayload['settings'];
   let sync: InitPayload['sync'] = o.pulled ? { baseSha: data.headSha, lastPullAt: '2026-10-24T09:12:00.000Z' } : {};
   let token: string | undefined = o.connected === false ? undefined : 'test-token';
+  // Where the token came from and who signed in (figma.clientStorage in Figma): none for a legacy pasted token.
+  let tokenSource: string | undefined = o.bridge ? 'bridge' : undefined;
+  let tokenAccount: string | undefined;
   let generated: unknown[] = [];
   const main: Record<string, (payload: any) => unknown> = {
-    init: () => ({ settings, sync, hasToken: !!token, token, tokenState: token ? 'ok' : undefined, ...(o.bridge && token ? { tokenSource: 'bridge' } : {}), fileName: 'Checkout redesign', claude: { hasKey: false, key: undefined, model: 'claude-sonnet-5-5' } }),
+    init: () => ({ settings, sync, hasToken: !!token, token, tokenState: token ? 'ok' : undefined, ...(token && tokenSource ? { tokenSource } : {}), ...(token && tokenAccount ? { tokenAccount } : {}), fileName: 'Checkout redesign', claude: { hasKey: false, key: undefined, model: 'claude-sonnet-5-5' } }),
     snapshot: () => snapshot,
     'scan-generated': () => generated,
     'apply-pull': () => {
@@ -119,8 +122,8 @@ export async function openPlugin(o: Open = {}): Promise<Harness> {
     'token-state': (m: { state: string }) => ({ tokenState: m.state }),
     'save-sync': (m: { sync: typeof sync }) => (sync = { ...sync, ...m.sync }),
     'save-settings': (m: { settings: typeof settings }) => (settings = m.settings),
-    'save-token': (m: { token: string }) => ((token = m.token), { saved: true }),
-    'clear-token': () => ((token = undefined), { cleared: true }),
+    'save-token': (m: { token: string; source?: string; account?: string }) => ((token = m.token), (tokenSource = m.source), (tokenAccount = m.account), { saved: true }),
+    'clear-token': () => ((token = undefined), (tokenSource = undefined), (tokenAccount = undefined), { cleared: true }),
     'tag-variables': () => ({ tagged: 0 }),
     'mark-pushed': () => ({ saved: true }),
     'set-experimental': () => ({ updated: 0 }),

@@ -180,7 +180,9 @@ export interface InitPayload {
   /** Undefined without a token. "rejected" until a new token is saved or a check with this one succeeds. */
   tokenState: TokenState | undefined;
   /** "bridge": the token came from Sign in with Bridge, so "Sign in again" renews it (no token to paste). */
-  tokenSource?: 'bridge' | undefined;
+  tokenSource?: 'bridge' | 'developer' | undefined;
+  /** Signed in with Bridge as (their GitHub login). */
+  tokenAccount?: string | undefined;
   fileName: string;
   /** Optional "Draft with Claude": the designer's own Anthropic API key (client storage) and model. */
   claude: { hasKey: boolean; key: string | undefined; model: ClaudeModel };
@@ -209,7 +211,7 @@ export interface ScannedComponentsPayload {
 export interface RequestMap {
   init: { request: Record<string, never>; response: InitPayload };
   'save-settings': { request: { settings: RepoSettings }; response: RepoSettings };
-  'save-token': { request: { token: string; source?: 'bridge' | undefined }; response: { saved: true } };
+  'save-token': { request: { token: string; source?: 'bridge' | 'developer' | undefined; account?: string | undefined }; response: { saved: true } };
   'clear-token': { request: Record<string, never>; response: { cleared: true } };
   /** Records what the last GitHub call with the saved token showed ("rejected" after a 401). */
   'token-state': { request: { state: TokenState }; response: { tokenState: TokenState | undefined } };
