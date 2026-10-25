@@ -647,6 +647,26 @@ export function localClassName(cls: string): string {
   return m ? m[1]! : cls;
 }
 
+/** Tailwind-style utility keywords that are a class on their own (`flex`, `relative`, `truncate`). */
+const UTILITY_KEYWORDS = new Set(
+  'flex inline-flex grid inline-grid block inline-block inline hidden contents table relative absolute fixed sticky static truncate uppercase lowercase capitalize normal-case italic not-italic underline overline line-through no-underline grow shrink border rounded shadow outline ring transition transform visible invisible collapse isolate container antialiased subpixel-antialiased group peer sr-only not-sr-only resize filter blur'.split(' '),
+);
+/** Utility shapes: a property prefix and a value (`px-4`, `text-sm`, `rounded-lg`, `gap-x-1`, `w-full`). */
+const UTILITY_SHAPE =
+  /^(?:p|px|py|pt|pr|pb|pl|ps|pe|m|mx|my|mt|mr|mb|ml|ms|me|w|h|min-w|min-h|max-w|max-h|size|gap|gap-x|gap-y|space-x|space-y|text|bg|from|via|to|border|border-[trblxyse]|rounded|rounded-[trblse]{1,2}|font|leading|tracking|z|top|right|bottom|left|start|end|inset|inset-x|inset-y|opacity|shadow|ring|ring-offset|outline|outline-offset|items|justify|justify-items|justify-self|content|self|place-items|place-content|place-self|flex|basis|grow|shrink|order|col|col-span|col-start|col-end|row|row-span|row-start|row-end|grid-cols|grid-rows|grid-flow|auto-cols|auto-rows|overflow|overflow-x|overflow-y|cursor|select|pointer-events|transition|duration|ease|delay|animate|scale|scale-x|scale-y|rotate|translate-x|translate-y|skew-x|skew-y|origin|fill|stroke|object|aspect|line-clamp|whitespace|break|decoration|underline-offset|list|align|appearance|backdrop|brightness|contrast|drop-shadow|grayscale|invert|saturate|sepia|hue-rotate|tabular|caret|accent|scroll|snap|touch|will-change|columns|divide|divide-x|divide-y|indent|box|float|clear|mix-blend|bg-blend)-[\w.-]+$/;
+
+/**
+ * A class that says how an element looks, not what it is: a utility (`flex`, `px-4`, `hover:bg-blue`, `w-[12px]`,
+ * `-mt-1`) or a class a CSS-in-JS library generated from the styles (`css-1g7m1fs`, `sc-bdVaJa`). It changes with the
+ * look from one variant to the next, so it never names or pairs a part: tag and position do. A BEM or semantic
+ * class (`cds--btn__label`, `chakra-alert__title`, a CSS module's `label`) still does.
+ */
+export function isUtilityClass(cls: string): boolean {
+  if (/[:[\]/!]/.test(cls) || /^-[a-z]/.test(cls) || /\.\d/.test(cls)) return true;
+  if (/^css-[a-z0-9]{5,8}$/.test(cls) || (/^(?:emotion|sc|jsx|svelte|astro)-[A-Za-z0-9_-]{4,}$/.test(cls) && /\d|[A-Z]/.test(cls))) return true;
+  return UTILITY_KEYWORDS.has(cls) || UTILITY_SHAPE.test(cls);
+}
+
 const defaultTokenOf = (v: string) => (/^--_/.test(v) ? undefined : v.replace(/^--/, '').split('-').filter(Boolean).join('.'));
 const px = (v: string | undefined): number | undefined => {
   if (!v) return undefined;
@@ -728,7 +748,8 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
   const used = new Set<string>();
   const idFor = (n: MeasuredNode, isRoot: boolean, inherited?: string) => {
     if (isRoot) return 'root';
-    const cls = (n.classes ?? []).map(localClassName).find((c) => /^[A-Za-z]/.test(c) && c.length < 40);
+    const cls = (n.classes ?? []).map(localClassName).find((c) => /^[A-Za-z]/.test(c) && c.length < 40 && !isUtilityClass(c));
+    // Without a class that names it: its tag, numbered in order (the same structure gives the same ids in every variant).
     let base = cls ?? (n.pseudo ? `${inherited ?? 'root'}-${n.pseudo}` : n.kind === 'text' ? (inherited ? `${inherited}-text` : 'text') : n.kind === 'icon' ? 'icon' : n.tag);
     base = base.replace(/[^A-Za-z0-9-]+/g, '-').toLowerCase() || 'part';
     let id = base;
@@ -742,7 +763,8 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
     const tokens = n.kind === 'text' && n.tag === '#text' ? {} : n.tokens;
     const part: MeasuredPart = { id, name: id === 'root' ? 'Root' : id.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase()), kind: n.kind };
     if (parent) part.parent = parent;
-    if (n.classes?.length) part.source = n.classes.map(localClassName).join(' ');
+    const named = (n.classes ?? []).map(localClassName).filter((c) => !isUtilityClass(c));
+    if (named.length) part.source = named.join(' ');
     if (n.kind === 'frame') {
       const l = measuredLayout(n.style, n.children.filter((c) => c.style.position !== 'absolute' && c.style.position !== 'fixed').map((c) => c.box));
       if (l) part.layout = l;

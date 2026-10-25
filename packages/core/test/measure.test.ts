@@ -9,6 +9,7 @@ import { parseStorybookIndex } from '../src/storybook';
 import {
   compareSpecToMeasured,
   evalCalc,
+  isUtilityClass,
   localClassName,
   measuredLayout,
   measuredToSpec,
@@ -353,3 +354,35 @@ describe('auto layout everywhere: overlays, margin wrappers, full radii', () => 
   });
 });
 
+
+describe('utility classes never name or pair a part', () => {
+  it('tells a utility or a generated class from a BEM, semantic or module class, by its shape', () => {
+    for (const c of ['flex', 'relative', 'px-4', 'gap-x-1', 'w-full', 'rounded-medium', 'text-small', 'hover:bg-default-100', 'data-[open=true]:flex', 'w-[12px]', '-mt-1', 'py-2.5', 'css-1g7m1fs', 'css-kqzqgg'])
+      expect(isUtilityClass(c), c).toBe(true);
+    for (const c of ['cds--btn', 'cds--toggle__switch', 'data-container', 'chakra-alert__title', 'Banner', 'BannerTitle', 'octicon', 'label', 'control', 'is-filled'])
+      expect(isUtilityClass(c), c).toBe(false);
+  });
+
+  it('a Tailwind tree: parts named by tag and order, the same in two variants whose classes differ', () => {
+    const box = { x: 0, y: 0, width: 100, height: 40 };
+    const tree = (look: string[]): MeasuredNode => ({
+      tag: 'button',
+      kind: 'frame',
+      classes: ['inline-flex', 'items-center', ...look],
+      box,
+      style: { display: 'flex' },
+      tokens: {},
+      children: [
+        { tag: 'span', kind: 'frame', classes: ['relative', 'flex', ...look], box, style: {}, tokens: {}, children: [{ tag: '#text', kind: 'text', text: 'Save', box, style: {}, tokens: {}, children: [] }] },
+        { tag: 'span', kind: 'frame', classes: ['cds--btn__icon', 'w-4'], box, style: {}, tokens: {}, children: [] },
+      ],
+    });
+    const a = measuredToSpec({ id: 'a', root: tree(['bg-primary', 'px-4']) });
+    const b = measuredToSpec({ id: 'b', root: tree(['bg-danger', 'px-3', 'hover:opacity-80']) });
+    expect(a.parts.map((p) => p.id)).toEqual(b.parts.map((p) => p.id));
+    expect(a.parts.map((p) => p.id)).toEqual(['root', 'span', 'span-text', 'cds--btn-icon']);
+    // The named class is kept for pairing, the utilities are not.
+    expect(a.parts.find((p) => p.id === 'cds--btn-icon')?.source).toBe('cds--btn__icon');
+    expect(a.parts.find((p) => p.id === 'span')?.source).toBeUndefined();
+  });
+});
