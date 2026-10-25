@@ -131,6 +131,11 @@ export interface RepoSettings {
   tokensPath: string;
   /** Where the pull reads component values (sync/component-pull.ts specSource). Static unless a developer turns it on. */
   specSource?: 'static' | 'measured' | 'measured-only' | undefined;
+  /**
+   * The design system's own name (its bridge.config.json "name"), kept with the file once read, so the plugin shows one
+   * stable name from the first frame instead of the repository's until a scan reads the config.
+   */
+  name?: string | undefined;
 }
 
 export interface SyncState {

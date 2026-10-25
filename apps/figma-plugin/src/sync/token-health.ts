@@ -44,9 +44,19 @@ export const UNEXPECTED_ERROR = 'Something went wrong in Bridge. Try again, and 
  * sentence; GitHub errors already say what happened and what to do; a plain Error is one of Bridge's own sentences.
  * Anything else (a TypeError, a JSON parse error, a string) is not written for people: one sentence, the rest as detail.
  */
+/** No network: one calm sentence, no details. The plugin tries again by itself once the connection is back. */
+export const OFFLINE_TEXT = "You're offline. Bridge will try again when you're back.";
+
+/** The request never reached GitHub (no network): the client's status 0, or the browser's own fetch failure. */
+export function isOffline(err: unknown): boolean {
+  if (err instanceof GitHubError) return err.status === 0;
+  return err instanceof TypeError && /failed to fetch|network|load failed/i.test(err.message);
+}
+
 export function friendlyError(err: unknown): { text: string; detail?: string | undefined } {
   const p = tokenProblem(err);
   if (p) return { text: p.text };
+  if (isOffline(err)) return { text: OFFLINE_TEXT };
   if (err instanceof GitHubError) return { text: err.message, ...(err.detail && /\s/.test(err.detail) && err.detail !== err.message ? { detail: err.detail } : {}) };
   if (err instanceof Error && err.constructor === Error && err.message) return { text: err.message };
   const raw = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
