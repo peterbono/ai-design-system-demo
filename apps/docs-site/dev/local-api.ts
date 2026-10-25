@@ -245,6 +245,8 @@ export function sessionSecret(dir: string): string {
 export function localEnv(secret: string, sources: Record<string, string | undefined>[]): Record<string, string | undefined> {
   const env: Record<string, string | undefined> = {
     LIBRARY_SESSION_SECRET: secret,
+    // The team Claude keys (api/_lib/claude-key.ts) are encrypted under the same local secret.
+    BRIDGE_SECRETS_KEY: secret,
     KV_REST_API_URL: undefined,
     KV_REST_API_TOKEN: undefined,
     UPSTASH_REDIS_REST_URL: undefined,
@@ -366,6 +368,8 @@ export function handlerFor(rel: string, mod: Mod, local: Local, method: string, 
       return call('handleInvites', { store: extra.invites, members: extra.members, redis, ...admins, ...apps });
     case 'api/ship/index.ts':
       return call('handleShip', { redis, ...apps });
+    case 'api/claude/index.ts':
+      return call('handleClaude', { redis, ...apps });
     case 'api/library-access/index.ts':
       return call('handleLibraryAccess', { store: extra.library });
     case 'api/github/token.ts': {

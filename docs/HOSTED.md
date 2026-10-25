@@ -4,7 +4,7 @@ One Bridge site serves any team's design system repository at `/studio/<owner>/<
 opening that link and signing in with GitHub: GitHub repository permissions decide what each person can do, and roles
 stay in the repository's `bridge.config.json`. Bridge keeps no accounts. Its one store holds pending invites by
 email (see "Invites by email" below), each team's Library access setting and short-lived Library sign-in links (see
-"Library access" below), and nothing else.
+"Library access" below), each team's own Claude key, encrypted (see "Team Claude" below), and nothing else.
 
 This page grows with the hosted mode. It covers the snapshot a team can publish for it, the team's hosted Library,
 invites by email, and who reads a team's Library without a GitHub account.
@@ -474,6 +474,38 @@ The Bridge Direct app already has **Contents** and **Pull requests: Read and wri
 statuses: Read** (optional, used only when GitHub can merge on the spot) come with team reads. In each design system
 repository, an admin turns on **Settings, General, Allow auto-merge**; without it, pushes wait for a developer
 (`auto_merge_off`). The Figma plugin calls the site, so its manifest lists the site's origin in `allowedDomains`.
+
+## Team Claude
+
+A team admin connects the team's own Claude in Studio, Settings, Claude: they paste the team's Anthropic API key, and
+Bridge runs the Figma fix loop for that team with it ([FIGMA-FIXES.md](FIGMA-FIXES.md), "Claude runs it for the
+team"). Claude's work is billed to the team's Anthropic account, never to the site. Code: `apps/docs-site/api/claude`
+and `apps/docs-site/api/_lib/claude-key.ts`.
+
+| Request | Answer |
+| ------- | ------ |
+| `GET /api/claude?repo=<owner/repo>` | `200 { "available", "connected", "addedBy"?, "at"?, "canManage" }`: any member of the team, never the key |
+| `POST /api/claude` `{ "action": "connect", "repo", "key" }` | admins: `200 { "connected": true, "addedBy", "at" }`; `400 bad_key` (not a key), `400 key_rejected` (Anthropic refused it), `429 limit` (10 tries per team and hour) |
+| `POST /api/claude` `{ "action": "disconnect", "repo" }` | admins: `200 { "connected": false }` |
+
+- **Who**: a GitHub token whose account can push to the repository, read with that token (`Authorization: Bearer`:
+  Studio's GitHub sign-in and the Figma plugin; CORS open, no cookie), admin for connect and disconnect; or an email
+  member of the team signed in to Studio (`X-Bridge-Contribute: 1` from a page of this site), Admin for connect and
+  disconnect. Everyone else on the team reads who connected it and when, and who can connect it, by name.
+- **What is kept**: `bridge:claude:key:<owner/repo>`, the key sealed with AES-256-GCM under a key derived (HKDF-SHA256)
+  from `BRIDGE_SECRETS_KEY`, the repository as additional data (a sealed key never opens for another team), plus the
+  display name of who added it and when. No expiry; Disconnect deletes it. The key is checked once with Anthropic
+  (`GET /v1/models`, free) before it is stored, is used only on the server, is never sent back to a browser and is
+  never logged.
+
+### Set it up (owner of the site)
+
+| Env var | What |
+| ------- | ---- |
+| `BRIDGE_SECRETS_KEY` | 32 random bytes or more, base64 (`openssl rand -base64 32`). Sensitive, server only. Without it Settings says "Connecting Claude is not available yet on this site." and nothing is stored. Changing it makes every stored key unreadable: teams connect again |
+
+It also uses the storage env (`KV_REST_API_URL` and `KV_REST_API_TOKEN`), and for email admins `LIBRARY_SESSION_SECRET`
+and the Bridge Direct app. Locally (`npm run dev:full`) the local session secret stands in for `BRIDGE_SECRETS_KEY`.
 
 ## Team reads through Bridge
 
