@@ -180,6 +180,8 @@ describe('partWords', () => {
     expect(partWords({ id: 'cds--toggle-switch-before', name: 'x' })).toBe('toggle switch before');
     expect(partWords({ id: 'root', name: 'Root' })).toBe('component');
     expect(partWords({ id: 'iconStart', name: 'Icon start' })).toBe('icon start');
+    expect(partWords({ id: 'lucide', name: 'lucide' })).toBe('icon');
+    expect(partWords({ id: 'lucide-chevron-down', name: 'x' })).toBe('icon');
   });
 });
 

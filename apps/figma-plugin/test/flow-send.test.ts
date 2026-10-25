@@ -29,4 +29,17 @@ test('Send for review ends on "Sent for review", even when Bridge cannot ship th
   assert.doesNotMatch(p.text(), /Waiting for a developer/);
   // What happened to the ship is said once, on the token's row, in calm words.
   assert.match(p.text(), /a developer adds it to the library/);
+
+  // Back on Pull, the edit just sent is in review, not "to send from Push" (finding 6).
+  p.routes.push((method, path) =>
+    method === 'GET' && /\/pulls$/.test(path)
+      ? { status: 200, body: [{ number: 555, html_url: 'https://github.com/acme/acme-design-system/pull/555', title: 'Tokens from Figma', draft: true, state: 'open', head: { ref: 'bridge/figma-1', sha: 'x' }, base: { ref: 'main' }, user: { login: 'ana' }, labels: [], body: '' }] }
+      : undefined,
+  );
+  await p.click('Pull');
+  await p.click('Check for updates');
+  await p.until(() => /Your Figma edits/.test(p.text()));
+  assert.match(p.text(), /Your Figma edits, in review/);
+  assert.doesNotMatch(p.text(), /Send them from Push/);
+  assert.ok([...p.document.querySelectorAll('button')].some((b) => b.textContent?.trim() === 'See it in Studio'));
 });

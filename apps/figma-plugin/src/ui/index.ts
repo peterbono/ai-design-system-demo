@@ -84,6 +84,8 @@ interface PullState {
   componentsReport?: ComponentApplyReport | undefined;
   /** "Review updates": what an update changes in each generated set that changed in code. */
   reviews: ComponentReview[];
+  /** This person's change still open for review (the last send): the kept edits it holds are "in review", not "to send". */
+  sentPr?: PullRequest | undefined;
   /** Thumbnails (base64 PNG) per set node id, before and after its update. */
   before: Record<string, string>;
   after: Record<string, string>;
@@ -267,6 +269,8 @@ interface State {
   expanded: Set<string>;
   /** Current Figma selection, for "Attach the current selection". */
   selection: Selection;
+  /** Just connected (a sign-in or a saved token): Pull says "Connected to …" once, then never again. */
+  justConnected?: string | undefined;
   /** "Sign in with Bridge": waiting for the designer in Studio (with the page to reopen), or why it stopped. */
   link?: { status: 'waiting'; url: string; poller: BridgeSignInPoller } | { status: 'error'; message: string } | undefined;
 }
@@ -472,7 +476,7 @@ async function finishSignIn(p: LinkPoll): Promise<void> {
     state.pull = undefined;
     state.push = undefined;
     state.tokenReadOnly = false;
-    state.settingsMessage = { kind: 'ok', text: SIGN_IN_WORDS.connected(p.name ?? p.repo) };
+    state.justConnected = p.name ?? p.repo;
     // Connected: straight to what the designer came for.
     state.tab = 'pull';
     void request('notify', { message: SIGN_IN_WORDS.connected(p.name ?? p.repo) });
@@ -859,10 +863,13 @@ async function loadPull(prev?: PullState): Promise<PullState> {
   } catch (err) {
     componentsError = componentsErrorOf(err, 'pull');
   }
+  const lastBranch = state.init!.sync.lastPrBranch;
+  const sentPr = lastBranch ? await getClient().findOpenPullRequest(lastBranch).catch(() => undefined) : undefined;
   return {
     analysis,
     choices,
     overwrite: false,
+    ...(sentPr ? { sentPr } : {}),
     proposal: buildPull(analysis, choices),
     components,
     componentsError,
@@ -883,6 +890,7 @@ async function loadPull(prev?: PullState): Promise<PullState> {
 }
 
 function checkPull(): void {
+  state.justConnected = undefined;
   void run(
     'Reading the design system and your variables',
     async () => {
@@ -1358,10 +1366,15 @@ function saveSettings(): void {
       state.expanded.delete('repo-edit');
       state.expanded.delete('token-replace');
       await request('save-settings', { settings: draft });
+      const wasConnected = connected();
       await loadInit();
       state.pull = undefined;
       state.push = undefined;
-      state.settingsMessage = { kind: 'ok', text: message };
+      // A first connection lands on Pull, where the next step is; a change to a connected file stays in Settings.
+      if (!wasConnected && connected()) {
+        state.justConnected = draft.repo;
+        state.tab = 'pull';
+      } else state.settingsMessage = { kind: 'ok', text: message };
     } catch (err) {
       // Nothing was saved: the connected design system, its results on Pull and Push, and the header stay as they were.
       state.settingsMessage = err instanceof FieldError ? { kind: 'error', text: err.message, field: err.field } : { kind: 'error', text: errorText(err) };
@@ -2004,7 +2017,7 @@ function needSetup(): View {
     body: intro({ title: 'Connect your design system', text: "Bridge brings your design system's tokens and components into Figma, and sends your edits back to it. Pick the design system this file uses.", art: 'guide', moment: 'welcome' }),
     // No sign-in yet: the one action is to sign in, right here. A design system without a token goes to Settings.
     bar: state.init?.hasToken
-      ? { label: 'Open Settings', onClick: () => { state.tab = 'settings'; render(); } }
+      ? { label: 'Connect your design system', onClick: () => { state.tab = 'settings'; state.expanded.add('repo-edit'); render(); } }
       : { label: SIGN_IN_WORDS.action, onClick: () => { state.tab = 'settings'; signInWithBridge(); } },
   };
 }
@@ -2016,11 +2029,14 @@ function viewPull(): View {
   if (!p) {
     return {
       body: [intro({
-        title: 'Get the latest design system',
+        title: init.sync.baseSha ? 'Get the latest design system' : 'Get your design system',
         text: 'See every change before anything is written. Your own edits are kept, nothing is deleted.',
-        meta: init.sync.baseSha
-          ? init.sync.lastPullAt ? `Last updated in this file on ${when(init.sync.lastPullAt)}.` : undefined
-          : 'First time in this file: Bridge adds its variables and components.',
+        // "Connected" is said once, here, right after connecting.
+        meta: state.justConnected
+          ? `Connected to ${state.justConnected}.`
+          : init.sync.baseSha
+            ? init.sync.lastPullAt ? `Last updated in this file on ${when(init.sync.lastPullAt)}.` : undefined
+            : 'First time in this file: Bridge adds its variables and components.',
         art: 'tokens',
       }), steps([
         ['Check', "Bridge reads the design system's tokens and components."],
@@ -2047,10 +2063,13 @@ function viewPull(): View {
     const text = [
       r ? `${[r.created ? `${plural(r.created, 'variable')} created` : '', r.updated ? `${plural(r.updated, 'variable')} updated` : '', r.orphaned ? `${r.orphaned} flagged as orphan` : ''].filter(Boolean).join(', ') || 'Variables already matched'}.` : '',
       // Everything new and built in one place (a first pull): one sentence, not "All 62 built. 62 created".
-      cr && view && cr.created && !cr.updated && !cr.orphaned && !cr.elsewhere && cr.created === (cr.total ?? cr.created) && !view.retry
-        ? `${cr.created === 1 ? 'The component is' : `All ${cr.created} components are`} on the ${cr.page} page.`
-        : cr && view
-        ? `${view.headline} ${[cr.created ? `${cr.created} created` : '', cr.updated ? `${cr.updated} updated` : '', cr.orphaned ? `${plural(cr.orphaned, 'variant')} flagged as orphan` : ''].filter(Boolean).join(', ')}${cr.created || cr.updated || cr.orphaned ? (cr.elsewhere ? `, ${cr.elsewhere} of them where they are kept in this file.` : ` on the ${cr.page} page.`) : ''}`.trim()
+      // One sentence per pull: what was built or updated, and where. Never "built" then "1 updated" for the same set.
+      cr && view
+        ? view.retry
+          ? view.headline
+          : cr.created || cr.updated
+            ? `${[cr.created ? plural(cr.created, cr.updated ? 'new component' : 'component') : '', cr.updated ? `${plural(cr.updated, 'component')} updated` : ''].filter(Boolean).join(' and ')}${cr.created && !cr.updated ? ' added' : ''} ${cr.elsewhere ? 'where they are kept in this file' : `on the ${cr.page} page`}.${cr.orphaned ? ` ${plural(cr.orphaned, 'variant')} no longer in code ${cr.orphaned === 1 ? 'is' : 'are'} marked "[orphan]".` : ''}`
+            : view.headline
         : '',
       prop.kept.length ? `${plural(prop.kept.length, 'Figma edit')} kept: send them from Push.` : '',
     ].filter(Boolean);
@@ -2065,7 +2084,7 @@ function viewPull(): View {
         intro({
           title: view?.stopped ? 'Pull stopped' : left ? 'Some components were not built' : problems.length ? 'Pulled, with problems' : building ? 'Variables are in, building components' : firstDone ? 'Your design system is in Figma' : 'Figma is up to date',
           text: text.join(' '),
-          meta: r ? (r.layout === 'single-collection' ? 'Themes are modes of the Semantic collection.' : 'This file allows one mode per collection, so each theme has its own Semantic collection.') : undefined,
+          meta: undefined,
           // The first pull, done: the bridge builds itself, plank by plank (one per component row it brought).
           art: problems.length ? 'fix' : firstDone && cr?.created ? 'components' : 'tokens',
           moment: firstDone ? p : undefined,
@@ -2084,6 +2103,7 @@ function viewPull(): View {
         cr?.interactionsNote ? h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Interactions not added'), h('p', null, cr.interactionsNote)) : null,
         cr?.fontNote ? h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Font replaced'), h('p', null, cr.fontNote)) : null,
         p.done.size ? reviewGroup(p, [...p.done.values()], 'Updated components') : null,
+        r ? forDevelopers([['Themes', r.layout === 'single-collection' ? 'Modes of the Semantic collection' : 'One Semantic collection per theme (this file allows one mode per collection)']]) : null,
         problems.length
           ? h(
               'section',
@@ -2108,11 +2128,11 @@ function viewPull(): View {
   const counts: Record<string, number> = {};
   remote.forEach((e) => (counts[e.remote!.kind] = (counts[e.remote!.kind] ?? 0) + 1));
   const summary = [
-    counts.added ? `${counts.added} new` : '',
-    counts.changed ? `${counts.changed} edited` : '',
-    counts.renamed ? `${counts.renamed} renamed` : '',
-    // The headline names the branch once ("2 new, 1 deleted on next").
-    counts.removed ? `${counts.removed} deleted` : '',
+    // Always with their noun: "1 edited token", never "1 edited".
+    counts.added ? plural(counts.added, 'new token') : '',
+    counts.changed ? plural(counts.changed, 'edited token') : '',
+    counts.renamed ? plural(counts.renamed, 'renamed token') : '',
+    counts.removed ? plural(counts.removed, 'deleted token') : '',
   ].filter(Boolean);
 
   // Summary first: one sentence for the whole screen, then one line of where it comes from.
@@ -2171,12 +2191,19 @@ function viewPull(): View {
     );
   }
   if (prop.kept.length) {
+    // Edits already sent for review are not "to send": say where they are, with the way to follow them.
+    const sentUrl = p.sentPr?.url;
+    const studio = p.sentPr ? studioChangeUrl(init.settings.repo, 'pr', p.sentPr.number) : undefined;
     body.push(
       group(
-        'Your Figma edits, kept',
+        sentUrl ? 'Your Figma edits, in review' : 'Your Figma edits, kept',
         prop.kept.length,
-        prop.kept.some((e) => e.head) ? h('button', { class: 'btn ghost', onClick: () => { p.overwrite = true; refreshProposals(); } }, "Use the design system's version") : null,
-        'Not in the design system yet. Send them from Push.',
+        sentUrl
+          ? h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: studio ?? sentUrl }) }, studio ? 'See it in Studio' : 'Open on GitHub')
+          : prop.kept.some((e) => e.head)
+            ? h('button', { class: 'btn ghost', onClick: () => { p.overwrite = true; refreshProposals(); } }, "Use the design system's version")
+            : null,
+        sentUrl ? 'Sent for review. They stay here until the change is in the design system; anything you edit after it goes with your next send.' : 'Not in the design system yet. Send them from Push.',
         rowList('pull-kept', prop.kept.map((e) => diffRow(a, e.local!.kind, { before: e.base, after: e.figma, beforeIndex: a.base?.byPath ?? a.head.byPath, afterIndex: fi })), 5),
       ),
     );
@@ -2289,20 +2316,32 @@ function componentsGroup(p: PullState): Child {
       // One count on the screen, the sets built (the footer's "Include components" uses it too).
       fresh.length ? fresh.length : plan.components.length,
       null,
+      // One count and one noun ("components", the sets Figma shows): lists are counted, the names on demand.
       fresh.length
-        ? `${cov.headline}. New ones are built on a "Components" page from the code and bound to these variables, then updated in place on the next pull.`
+        ? `${plural(fresh.length, 'component')} to add, on a "Components" page, using these variables.`
         : reviews.length
-          ? `${cov.headline}. ${upToDate.length ? `Up to date: ${upToDate.map((c) => c.name).join(', ')}.` : 'The others in this file match the code.'}`
-          : `${cov.headline}. The ones in this file match the code.`,
+          ? `${plural(reviews.length, 'component')} changed in code${upToDate.length ? `, ${upToDate.length} up to date` : ''}.`
+          : `${plural(plan.components.length, 'component')}, all up to date with the code.`,
       [
-        coverageDetails(cov),
-        motionDetails(plan),
-        plan.skipped?.length
+        cov.missing.length
+          ? h('details', { class: 'notes' }, h('summary', null, `${plural(cov.missing.length, 'component')} from the code ${cov.missing.length === 1 ? 'is' : 'are'} not in Figma yet`), h('ul', null, cov.missing.map((m) => h('li', null, m.name))))
+          : null,
+        // How each set was made (drafted with Claude, layout helpers), motion Figma cannot play, unreadable specs.
+        cov.drafted.length || cov.layout.length || plan.components.some((c) => c.motionNotes?.length) || plan.skipped?.length
           ? h(
               'details',
-              { class: 'notes' },
-              h('summary', null, `${plural(plan.skipped.length, 'component')} in component-specs.json cannot be read, the others are pulled`),
-              h('ul', null, plan.skipped.map((x) => h('li', null, `${x.name}: ${x.reason}.`))),
+              { class: 'notes dev-details' },
+              h('summary', null, 'For developers'),
+              coverageDetails({ ...cov, missing: [] }),
+              motionDetails(plan),
+              plan.skipped?.length
+                ? h(
+                    'details',
+                    { class: 'notes' },
+                    h('summary', null, `${plural(plan.skipped.length, 'component')} in component-specs.json cannot be read, the others are pulled`),
+                    h('ul', null, plan.skipped.map((x) => h('li', null, `${x.name}: ${x.reason}.`))),
+                  )
+                : null,
             )
           : null,
         fresh.length
@@ -3345,7 +3384,7 @@ function componentNotes(r: PushState): Child[] {
         'details',
         { class: 'notes candidates', open: candidates.some((c) => r.form?.key === c.nodeId) },
         h('summary', null, `Not in the design system yet (${candidates.length})`),
-        h('p', { class: 'muted' }, `Components in this file with no folder in ${scan?.coded.length ? 'the code' : 'code'}. Nothing is sent unless you ask for it.${routed(r) ? ' Sent to the library, each becomes a build request with its spec: developers build it, then it ships.' : ''}`),
+        h('p', { class: 'muted' }, `Components in this file with no folder in ${scan?.coded.length ? 'the code' : 'code'}. Nothing is sent unless you ask for it.${routed(r) ? ' Sent for review, a developer builds each one from what you send.' : ''}`),
         h('ul', { class: 'rows' }, candidates.map((item) => componentRow(r, item, 'Request as new component'))),
       ),
     );
@@ -3790,11 +3829,11 @@ function viewPush(): View {
           art: 'paint',
         }),
         steps([
-          ['Edit in Figma', 'Change synced variables, or change a component: a variant, a prop, a part, the token a part uses.'],
-          ['Review the changes', knownMode() === 'suggest' ? 'Every change is listed and checked. Uncheck what is not ready.' : 'Every change is listed and checked. Uncheck what is not ready; mark work in progress as exploration only.'],
+          ['Edit in Figma', 'Change the design system\'s variables, or a component: a variant, a property, a part, the color or size it uses.'],
+          ['Review the changes', 'Every change is listed and checked. Uncheck what is not ready.'],
           knownMode() === 'suggest'
             ? ['Send', 'Send suggestion: your DS lead approves it, then a developer applies it.']
-            : ['Send', 'Token values ship once the checks pass; what needs code goes to developers as a build request. In an exploration, you try it in its previews first.'],
+            : ['Send', 'Send for review: your team checks it, and what needs code goes to a developer.'],
         ]),
         requestLine(undefined),
       ],

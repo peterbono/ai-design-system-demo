@@ -118,7 +118,7 @@ test('contrast below the pair minimum blocks in the brand x theme it fails; prob
   // Same problem on both sides: reported, not blocking.
   const again = validateProposal(bad, bad, pairs);
   assert.equal(again.blocking.length, 0);
-  assert.ok(again.warnings.every((w) => w.message.startsWith('Already on main:')));
+  assert.ok(again.warnings.every((w) => w.message.startsWith('Already in the design system:')));
 });
 
 test('type changes always block', () => {
