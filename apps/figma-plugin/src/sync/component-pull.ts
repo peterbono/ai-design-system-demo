@@ -51,7 +51,7 @@ import { COLLECTIONS, type FigmaResolvedType } from '../shared/messages';
 import { isUnmappable, pathToName, tokenToPlanned } from './mapping';
 import { checkComponentSpecs } from './spec-check';
 import { MEASURED_SPECS_FILE, type MeasuredOverlayReport, overlayMeasured, parseMeasuredSpecs } from './measured-specs';
-import { cssColorsToRgb, type MeasuredOnlyReport, specsFromMeasure } from '@bridge-ds/core';
+import { cssColorsToRgb, type CssShadow, type MeasuredOnlyReport, parseBoxShadow, specsFromMeasure } from '@bridge-ds/core';
 
 /** A component set Bridge generated, as the main thread finds it (shared plugin data). */
 export interface GeneratedSet {
@@ -118,7 +118,9 @@ export type PlannedValue =
     }
   | { kind: 'keyword'; value: string }
   /** A color written as is (no token in the library): a measured `rgb()` of a design system Bridge has no tokens for. */
-  | { kind: 'color'; r: number; g: number; b: number; a: number };
+  | { kind: 'color'; r: number; g: number; b: number; a: number }
+  /** A measured box-shadow list: drop and inner shadows. */
+  | { kind: 'shadow'; shadows: CssShadow[] };
 
 export interface PlannedField {
   field: SpecField;
@@ -622,6 +624,11 @@ function rgbOf(text: string): { r: number; g: number; b: number; a: number } | u
 
 function planValueOf(field: SpecField, value: unknown, head: TokenSet): PlannedValue | { problem: string } {
   if (value === null) return COLOR_FIELDS.has(field) ? { kind: 'none' } : { problem: 'no value' };
+  if (field === 'shadow') {
+    if (typeof value !== 'string') return { problem: `${String(value)} is not a shadow` };
+    const shadows = parseBoxShadow(value);
+    return shadows.length ? { kind: 'shadow', shadows } : { kind: 'none' };
+  }
   if (field === 'textDecoration') return typeof value === 'string' && /^(UNDERLINE|STRIKETHROUGH|NONE)$/.test(value) ? { kind: 'keyword', value } : { problem: `${String(value)} is not a text decoration` };
   if (typeof value === 'number') {
     if (COLOR_FIELDS.has(field)) return { problem: `${value}: a color cannot be a number` };

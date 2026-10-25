@@ -243,6 +243,17 @@ test('fonts: a system family (ui-sans-serif, system-ui) draws with the platform 
   assert.equal(label.fontName.family, 'SF Pro');
 });
 
+test('a measured box-shadow is drawn as Figma shadows; none clears them', async () => {
+  const { sim, a, specs } = await pulledFile();
+  assert.deepEqual(planValue('shadow', 'rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0.1) 0px 1px 3px 0px', a.head), { kind: 'shadow', shadows: [{ inset: false, x: 0, y: 1, blur: 3, spread: 0, color: { r: 0, g: 0, b: 0, a: 0.1 } }] });
+  assert.deepEqual(planValue('shadow', 'none', a.head), { kind: 'none' });
+  const shadowed: ComponentSpecsFile = structuredClone(specs);
+  for (const v of shadowed.components.find((c) => c.name === 'Button')!.variants) (v.values.root ??= {}).shadow = 'rgba(0, 0, 0, 0.1) 0px 1px 3px 0px, rgb(255, 0, 0) 0px 0px 0px 2px inset';
+  await applyComponentPlan(writablePlan(buildComponentPlan(shadowed, SPECS_PATH, [], a.head)));
+  const primary = variantOf(sim.sets().find((s) => s.name === 'Button')!, 'Variant=primary, Size=md, State=Default');
+  assert.deepEqual(primary.effects.map((e) => [e.type, (e as { radius: number }).radius, (e as { spread: number }).spread]), [['DROP_SHADOW', 3, 0], ['INNER_SHADOW', 0, 2]]);
+});
+
 test('variables missing in Figma: the part is reported, never bound to something else', async () => {
   const { sim, plan } = await pulledFile();
   // Someone deleted the Component collection after the pull.

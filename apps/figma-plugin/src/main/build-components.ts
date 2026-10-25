@@ -11,7 +11,7 @@
 
 import { variantKeyOf } from '@bridge-ds/core';
 import { familyKey } from '../sync/mapping';
-import type { SpecField, SpecLayout, SpecPart } from '@bridge-ds/core';
+import type { CssShadow, SpecField, SpecLayout, SpecPart } from '@bridge-ds/core';
 import { figmaPropName, matchVariants, parsePushedMark, propsOfKey } from '../sync/component-pull';
 import { PUSHED_KEY } from '../shared/messages';
 import type { ComponentApplyReport, ComponentPullPlan, GeneratedSet, PlannedComponent, PlannedField, PlannedIcon, PlannedSlot, PlannedValue, PlannedVariant } from '../sync/component-pull';
@@ -315,6 +315,7 @@ const FRAME_FIELDS: SpecField[] = [
   'minWidth',
   'minHeight',
   'opacity',
+  'shadow',
 ];
 const TEXT_FIELDS: SpecField[] = ['textFill', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'textDecoration', 'opacity'];
 const ICON_FIELDS: SpecField[] = ['width', 'height', 'stroke', 'strokeWeight', 'opacity'];
@@ -397,6 +398,9 @@ function reset(node: SceneNode, field: SpecField): void {
         bind(node, field, null);
         n.opacity = 1;
         return;
+      case 'shadow':
+        n.effects = [];
+        return;
       case 'textDecoration':
         n.textDecoration = 'NONE';
         return;
@@ -407,6 +411,20 @@ function reset(node: SceneNode, field: SpecField): void {
   } catch {
     /* a field the node does not have (stroke weights on text): nothing to reset */
   }
+}
+
+/** A CSS shadow as a Figma effect (CSS blur and spread are Figma's radius and spread). */
+function effectOf(s: CssShadow): Effect {
+  return {
+    type: s.inset ? 'INNER_SHADOW' : 'DROP_SHADOW',
+    color: s.color,
+    offset: { x: s.x, y: s.y },
+    radius: s.blur,
+    spread: s.spread,
+    visible: true,
+    blendMode: 'NORMAL',
+    ...(s.inset ? {} : { showShadowBehindNode: false }),
+  } as Effect;
 }
 
 /** Fixed sizing on one axis, so a set or bound size holds (auto layout would hug or fill over it). */
@@ -428,6 +446,10 @@ function apply(node: SceneNode, f: PlannedField, ctx: Ctx): void {
     ctx.problems.push(`${ctx.where}, ${f.field}: ${why}`);
   };
   try {
+    if (f.field === 'shadow') {
+      n.effects = v.kind === 'shadow' ? v.shadows.map(effectOf) : [];
+      return;
+    }
     if (v.kind === 'none') {
       // A transparent border still takes its width in code (box-sizing): keep an invisible stroke so it counts in layout.
       if (f.field === 'stroke') n.strokes = [TRANSPARENT];
@@ -483,6 +505,7 @@ function apply(node: SceneNode, f: PlannedField, ctx: Ctx): void {
       else n.fills = [paint];
       return;
     }
+    if (v.kind === 'shadow') return fail('a shadow only goes on a frame');
     const variable = ctx.vars.find(v);
     if (!variable) return fail(`no variable "${v.name}" in ${v.collection}. Pull the variables, then pull components again.`);
     if (variable.resolvedType !== v.resolvedType) return fail(`"${v.name}" is a ${variable.resolvedType} variable, expected ${v.resolvedType}.`);

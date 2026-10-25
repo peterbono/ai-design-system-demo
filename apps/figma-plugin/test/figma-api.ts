@@ -126,6 +126,7 @@ export class SimNode {
   }
   description = '';
   fills: Dict[] = [];
+  effects: Dict[] = [];
   strokes: Dict[] = [];
   remote = false;
   componentPropertyReferences: Record<string, string> | null = null;

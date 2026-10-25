@@ -12,7 +12,7 @@
 // spec does not carry.
 
 import type { SpecField, SpecLayout, SpecValue } from '../component-spec';
-import { withSrgbColors } from '../css-color';
+import { parseBoxShadow, withSrgbColors } from '../css-color';
 import { sharedTokenPrefix, tokenVariablePath, type MeasuredBox, type MeasuredMode, type MeasuredNode, type MeasuredPart, type MeasuredProps, type MeasuredSpec, type MeasuredState, type MeasuredToken, type MeasuredTokenProperty, type MeasuredTokens } from '../measured-spec';
 import { storybookIframeUrl, type StorybookIframeOptions, type StorybookIndex } from '../storybook';
 import { MEASURE_SCRIPT } from './measure-script';
@@ -864,6 +864,8 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
         if (widths.every((w) => w === widths[0])) put('strokeWeight', 'border-top-width', widths[0]);
         else (['top', 'right', 'bottom', 'left'] as const).forEach((x, i) => put(({ top: 'strokeTopWeight', right: 'strokeRightWeight', bottom: 'strokeBottomWeight', left: 'strokeLeftWeight' } as const)[x], `border-${x}-width`, widths[i]));
       }
+      // A shadow (an elevation, a focus ring drawn as one): the computed list, drawn as Figma effects.
+      if (parseBoxShadow(n.style['box-shadow']).length) put('shadow', 'box-shadow', n.style['box-shadow']);
       const l = part.layout;
       if (l && /flex|grid/.test(n.style.display ?? '')) {
         const gap = l.direction === 'HORIZONTAL' ? n.style['column-gap'] : n.style['row-gap'];
@@ -904,6 +906,13 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
     }
     if (part.layout) spacing(id, n, part.layout, kids);
     if (n.kind === 'frame') positioned(id, part, n, kids);
+    // Moved or scaled by a transform (a progress indicator slid left, a check scaled in): the layer sits where it is
+    // drawn, at the size it is drawn, out of the flow (its box is the drawn one).
+    const t = /matrix\(([^)]+)\)/.exec(n.style.transform ?? '')?.[1]?.split(',').map(Number);
+    if (parent && parentBox && t && t.length === 6 && Math.abs(t[1]!) < 1e-6 && Math.abs(t[2]!) < 1e-6 && (Math.abs(t[4]!) >= 0.5 || Math.abs(t[5]!) >= 0.5 || Math.abs(t[0]! - 1) > 0.01 || Math.abs(t[3]! - 1) > 0.01) && !part.cover) {
+      part.pin = { top: Math.round((n.box.y - parentBox.y) * 100) / 100, left: Math.round((n.box.x - parentBox.x) * 100) / 100 };
+      if (Math.abs(t[0]! - 1) > 0.01 || Math.abs(t[3]! - 1) > 0.01) (out.sized ??= {})[id] = { width: n.box.width, height: n.box.height };
+    }
     return id;
   };
   const partById = new Map<string, MeasuredPart>();

@@ -61,7 +61,7 @@ function checkedOf(s: MeasuredSpecsStory): string {
 }
 
 /** Fields a literal can stand in for when no token is known: the look a design system without tokens still has. */
-const LITERAL_FIELDS: SpecField[] = ['fill', 'textFill', 'stroke', 'fontFamily'];
+const LITERAL_FIELDS: SpecField[] = ['fill', 'textFill', 'stroke', 'fontFamily', 'shadow'];
 
 /**
  * A part's values in the pull's shape. Frames with content hug it: their measured px are what the content made, not a

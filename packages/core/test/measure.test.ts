@@ -297,6 +297,22 @@ expect(k).toMatchObject({ kind: 'frame' });
     expect(Object.values(spec.sized ?? {}).map((s) => s.width)).toEqual([400, 16, 376, 16, 376]);
   });
 
+  it('keeps a shadow, and draws a part a transform moved or scaled where and as big as it is drawn', () => {
+    const bar = frame('div', box(-180, 0, 400, 12), { 'background-color': 'rgb(0, 111, 238)', transform: 'matrix(1, 0, 0, 1, -180, 0)' });
+    const dot = frame('span', box(395, 2, 4, 4), { 'background-color': 'rgb(0, 0, 0)', transform: 'matrix(0.5, 0, 0, 0.5, 0, 0)' });
+    const track = frame('div', box(0, 0, 400, 12), { display: 'flex', overflow: 'hidden', 'box-shadow': 'rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0.1) 0px 1px 3px 0px' }, [bar, dot]);
+    const spec = measuredToSpec({ id: 'progress', root: track });
+    expect(spec.raw.root?.shadow).toBe('rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0.1) 0px 1px 3px 0px');
+    expect(spec.parts.find((p) => p.id === 'div')?.pin).toEqual({ top: 0, left: -180 });
+    expect(spec.sized?.div).toBeUndefined();
+    expect(spec.parts.find((p) => p.id === 'span')?.pin).toEqual({ top: 2, left: 395 });
+    expect(spec.sized?.span).toEqual({ width: 4, height: 4 });
+    // No transform, no shadow: nothing new.
+    const plain = measuredToSpec({ id: 'plain', root: frame('div', box(0, 0, 40, 12), { display: 'flex', 'box-shadow': 'none' }, [frame('span', box(0, 0, 4, 4), { transform: 'none' })]) });
+    expect(plain.raw.root?.shadow).toBeUndefined();
+    expect(plain.parts[1]?.pin).toBeUndefined();
+  });
+
   it('covers its parent at inset 0, and carries an SVG with its strokes', () => {
     const cover = frame('::after', box(0, 0, 20, 20), { position: 'absolute', top: '0px', right: '0px', bottom: '0px', left: '0px', 'border-top-style': 'solid', 'border-top-width': '1px', 'border-top-color': 'rgb(0, 0, 0)' }, [], { pseudo: 'after' });
     const icon: MeasuredNode = { tag: 'svg', kind: 'icon', box: box(2, 2, 16, 16), style: { fill: 'rgb(22, 22, 22)' }, tokens: {}, children: [], svg: '<svg width="16" height="16"><path fill="rgb(22, 22, 22)"/></svg>', svgStrokes: [] };
