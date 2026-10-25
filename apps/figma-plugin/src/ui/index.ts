@@ -30,7 +30,7 @@ import { IMAGES_NEED_WRITE, type SentComponentPush, sendLabel, sentTitle, sugges
 import { type Destination, type PublishItem, type PublishResult, sendComponentPush, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
 import { type ComponentsReadProblem, NEW_TOKEN_REFUSED, isOffline, TOKEN_REJECTED_CALLOUT, TOKEN_REJECTED_DETAIL, TOKEN_SETTINGS_URL, type TokenProblem, checkToken, componentsReadProblem, errorText, friendlyError, tokenProblem } from '../sync/token-health';
 import { type BuildItem, type StudioTarget, developerMessage, sentLinks, studioChangeUrl } from '../sync/studio';
-import { type RoutedItem, type ShipPoll, type ShipStatus, ShipPoller, effectiveItems, groupRoutes, libraryHeadline, routedItems, shipStateLabel, shippedNumbers, toArm, waitingLede } from '../sync/library-routes';
+import { type RoutedItem, type ShipPoll, type ShipStatus, ShipPoller, groupRoutes, routedItems, shipStateLabel, shippedNumbers, toArm, waitingLede } from '../sync/library-routes';
 import { type ArmAnswer, armShip } from '../sync/ship';
 import { libraryArrivalOnGitHub } from '@bridge-ds/core';
 import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, triedLocally, tryItLinks } from '../sync/explorations';
@@ -3667,8 +3667,12 @@ function buildMessage(r: PushState, items: BuildItem[]): HTMLElement {
  */
 function libraryResult(r: PushState, items: RoutedItem[]): Child[] {
   const statuses = r.ship?.statuses ?? new Map<number, ShipStatus>();
-  const g = groupRoutes(effectiveItems(items, statuses));
-  const head = libraryHeadline(g, statuses);
+  // The send succeeded: the headline says so and never changes (B2). Where each token change stands (on its way, in
+  // the library, or "a developer adds it" when Bridge cannot ship it by itself) is a calm line on its own row. Token
+  // values Bridge still has to arm are token values from the start, not "waiting for a developer".
+  const g = groupRoutes(items.map((i) => (i.route === 'waiting-for-developer' && i.waitingFor === 'not-armed' ? { ...i, route: 'shipped' as const } : i)));
+  const notShipped = g.shipped.filter((i) => statuses.get(i.number)?.key === 'waiting');
+  const sent = [g.shipped.length ? plural(g.shipped.length, 'token change') : '', g.waiting.length ? plural(g.waiting.length, 'rename or removal', 'renames or removals') : '', g.builds.length ? plural(g.builds.length, 'component', 'components') + ' for developers to build' : ''].filter(Boolean);
   const row = (i: RoutedItem, hint: string, spin = false) =>
     h(
       'li',
@@ -3678,25 +3682,27 @@ function libraryResult(r: PushState, items: RoutedItem[]): Child[] {
         { class: 'row-head' },
         h('span', { class: 'row-label' }, h('span', { class: i.kind === 'token' ? 'mono' : '' }, i.label), h('small', null, hint)),
         spin ? h('span', { class: 'spinner row-wait', role: 'img', 'aria-label': `${i.label}: on its way` }) : null,
-        h('button', { class: 'btn ghost row-action', 'aria-label': `Open #${i.number} on GitHub`, title: i.url, onClick: () => void request('open-url', { url: i.url }) }, icon('external'), `#${i.number}`),
       ),
     );
   const group = (title: string, lede: string, rows: Child[]) => h('section', null, h('h2', null, title), h('p', { class: 'lede' }, lede), h('ul', { class: 'rows' }, rows));
   return [
-    // Sent and on its way: the moment. Held for a developer or a failed check stays calm.
-    intro({ title: head.title, text: head.text, art: 'review', moment: head.title !== 'Held for a developer' && !r.result?.failed.length ? r.result : undefined }),
+    intro({ title: sentTitle({ suggestions: [] }, 'direct'), text: `${andList(sent)} sent. Follow ${sent.length === 1 && !g.shipped.length && !g.builds.length ? 'it' : 'them'} in Studio.`, art: 'review', moment: !r.result?.failed.length ? r.result : undefined }),
     g.shipped.length
       ? group(
           'Token values',
-          r.ship?.timedOut ? 'Still on its way after 15 minutes. Open it on GitHub to see which check is still running.' : 'Checked for contrast and tests, then added to the library on its own. No second review: it was approved in Figma.',
+          notShipped.length
+            ? `Bridge could not add ${notShipped.length === g.shipped.length ? (g.shipped.length === 1 ? 'it' : 'them') : plural(notShipped.length, 'of them', 'of them')} to the library by itself, so a developer does. Nothing to do on your side.`
+            : r.ship?.timedOut
+              ? 'Still on its way after 15 minutes. A developer can see which check is still running.'
+              : 'Checked for contrast and tests, then added to the library on its own. No second review: it was approved in Figma.',
           g.shipped.map((i) => {
             const s = statuses.get(i.number);
-            return row(i, shipStateLabel(s), !s?.final);
+            return row(i, s?.key === 'waiting' ? (s.reason ?? 'A developer adds it to the library') : shipStateLabel(s), !!s && !s.final && s.key !== 'waiting');
           }),
         )
       : null,
-    g.waiting.length ? group('Waiting for a developer', waitingLede(g.waiting), g.waiting.map((i) => row(i, i.waitingFor === 'rename' ? 'Renamed or removed' : (statuses.get(i.number)?.reason ?? 'Waiting for a developer')))) : null,
-    g.builds.length ? group('Build requests', 'Each one has the Figma link, before and after and what to build. Developers pick it up in GitHub or Jira.', g.builds.map((i) => row(i, 'Requested'))) : null,
+    g.waiting.length ? group('Renames and removals', waitingLede(g.waiting), g.waiting.map((i) => row(i, 'A developer checks it, then it ships'))) : null,
+    g.builds.length ? group('For developers to build', 'Each one has the Figma link, before and after and what to build.', g.builds.map((i) => row(i, 'Requested'))) : null,
   ];
 }
 
