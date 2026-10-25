@@ -54,6 +54,8 @@ import {
   summarizeApprovals,
   soloApprover,
   soloOwnerSentence,
+  publishedWithoutReview,
+  tier1PublishOf,
   summarizeCi,
   TeamDirectory,
   localTryCommand,
@@ -253,16 +255,19 @@ export async function branchFacts(ctx: BridgeContext, gh: GitHubClient, n: numbe
   const figmaPush = pr.state === 'open' ? await figmaPushFacts(gh, config, pr, files, compare?.mergeBase, readTokens).catch(() => null) : null;
   // Token values only, whoever opened it: the design approval is all it needs (core withTokenValueApprovals, TV-1).
   const tokenValues = pr.state === 'open' ? await tokenValuesFact(config, pr, files, readTokens).catch(() => false) : false;
+  // Tier 1 published by a lead without review (core tier1PublishOf: the app's approving review on the head commit,
+  // docs/GOVERNANCE.md "Tier 1 publish by leads"): on its way while the checks do not fail, as in Studio.
+  const publishedBy = tier1PublishOf(reviews.map((r) => ({ state: r.state, body: r.body, commit_id: r.commitId ?? null })), pr.headSha);
   // One verdict (core branchVerdict), the one Studio's branch page and status chips read: Tier 1 needs one owner
   // approval, the override is for its owner holders only, an applied suggestion's approvals carry.
-  const verdict = branchVerdict({ tier, ci, approvals: own, suggestion, owners: who.lists, override: config.governance.override ?? DEFAULT_OVERRIDE, mergeable: pr.mergeable, ...pullLike, viewer, exploration, ship: who.ship, figmaPush, tokenValues, autoMerge: pr.autoMerge, lookAgain });
+  const verdict = branchVerdict({ tier, ci, approvals: own, suggestion, owners: who.lists, override: config.governance.override ?? DEFAULT_OVERRIDE, mergeable: pr.mergeable, ...pullLike, viewer, exploration, ship: who.ship, figmaPush, tokenValues, autoMerge: pr.autoMerge, tier1Published: Boolean(publishedBy), lookAgain });
   const approvals = verdict.approvals!;
   const gate = verdict.gate!;
   const status: ReviewStatusKind = verdict.status;
   const override = verdict.override ?? DEFAULT_OVERRIDE;
   const fresh = freshness({ compare: compare ? { behind_by: compare.behindBy, merge_base_commit: compare.mergeBase ? { sha: compare.mergeBase } : null } : null, mergeable: pr.mergeable, open: pr.state === 'open' });
   const product = productOfBranch(productsOf(config), { files: files.map((f) => f.filename), labels: pr.labels });
-  return { config, pr, files, ci, approvals, tier, gate, status, override, suggestion, fresh, compare, exploration, product, lookAgain, lifecycle: pullState(pullLike), write: repo ? hasWriteAccess(repo.permissions) : null, repo, solo: who.solo, lists: who.lists, figmaPush, tokenValues, autoShip: verdict.autoShip, statusLabel: verdict.label };
+  return { config, pr, files, ci, approvals, tier, gate, status, override, suggestion, fresh, compare, exploration, product, lookAgain, lifecycle: pullState(pullLike), write: repo ? hasWriteAccess(repo.permissions) : null, repo, solo: who.solo, lists: who.lists, figmaPush, tokenValues, autoShip: verdict.autoShip, statusLabel: verdict.label, publishedBy };
 }
 
 // The status words Studio shows too (core REVIEW_STATUS_LABEL, and reviewStatusLabel's "Updated, look again" through
@@ -295,6 +300,7 @@ export async function branchStatus(ctx: BridgeContext, a: { pr: number | string 
       blockedBy: f.gate.reasons,
       ...(viewer ? { you: viewer, youCanShip: f.gate.canShip, ownerOverride: f.gate.overridable } : { you: null, note: 'Without a GitHub token Bridge cannot tell whether you may merge.' }),
     },
+    ...(f.publishedBy ? { published: publishedWithoutReview(f.publishedBy) } : {}),
     ...(f.figmaPush ? { fromFigma: { scope: f.figmaPush.scope, shipsByItself: f.autoShip, said: figmaSaid(f.figmaPush, f.autoShip) } } : {}),
     next: nextStep(ctx, f, viewer),
   };

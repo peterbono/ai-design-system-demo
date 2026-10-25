@@ -4,7 +4,8 @@
 import { describe, expect, it } from 'vitest';
 import type { AppTokens } from '../../api/_lib/github-app';
 import { FIGMA_SHIP_HEADING, VALUES_SHIP_HEADING } from '../../api/_lib/figma-ship';
-import { bearerToken, handleShip, SHIP_DEVELOPER_WORDS, SHIP_WORDS, type FetchLike, type ShipDeps } from '../../api/ship/index';
+import { TIER1_PUBLISH_HEADING } from '../../api/_lib/tier1-publish';
+import { bearerToken, handleShip, PUBLISH_WORDS, SHIP_DEVELOPER_WORDS, SHIP_WORDS, type FetchLike, type ShipDeps } from '../../api/ship/index';
 
 const HOST = 'bridge.example.com';
 const BASE_SHA = 'b'.repeat(40);
@@ -316,5 +317,119 @@ describe('POST /api/ship, a token value change from Studio (TV-1)', () => {
     expect((await ok(await call({ repo: 'acme/design', pr: 7 }))).body).toEqual({ armed: true, route: 'shipped' });
     const two = setup({ reviews: [approval('dana')], approveStatus: 422, rules: [{ type: 'pull_request', parameters: { required_approving_review_count: 2 } }] }, { ...studio, user: { login: 'bridge-app[bot]', type: 'Bot' } });
     expect((await ok(await two.call({ repo: 'acme/design', pr: 7 }))).body.code).toBe('needs_approval');
+  });
+});
+
+// Tier 1 publish by leads (docs/GOVERNANCE.md): the author of a Tier 1 change, a repository admin or in the approver
+// list of its domain, publishes it without review. Anything else goes to review, in designer words.
+describe('POST /api/ship, Tier 1 publish by leads', () => {
+  const DOCS = 'packages/react/src/components/Button/Button.docs.json';
+  const docsPr = { labels: [{ name: 'source: bridge-web' }, { name: 'tier: 1' }], body: 'Button guidance.', draft: false, user: { login: 'dana', type: 'User' }, changed_files: 1 };
+  const people: Record<string, { login: string; name: string | null }> = {
+    'Bearer ghu_lead_dana_token_00000': { login: 'dana', name: 'Dana Reyes' },
+    'Bearer ghu_lead_malik_token_0000': { login: 'malik', name: null },
+    'Bearer ghu_admin_sam_token_00000': { login: 'sam', name: 'Sam' },
+  };
+  function publishSetup(over: Partial<World> = {}, pr: Record<string, any> = {}, opts: { admins?: string[]; config?: unknown } = {}) {
+    const s = setup({ files: [{ filename: DOCS, status: 'modified' }], ...over }, { ...docsPr, ...pr });
+    const inner = github(s.w);
+    const fetch: FetchLike = async (url, init) => {
+      const u = new URL(url);
+      const person = people[init.headers.Authorization ?? ''];
+      if (person) {
+        s.w.calls.push({ method: init.method, path: u.pathname, auth: 'person' });
+        if (u.pathname === '/repos/acme/design') return res(200, { permissions: { pull: true } });
+        if (u.pathname === '/user') return res(200, person);
+        return res(404, {});
+      }
+      const perm = /^\/repos\/acme\/design\/collaborators\/(.+)\/permission$/.exec(u.pathname);
+      if (perm) return res(200, { permission: (opts.admins ?? []).includes(perm[1]!) ? 'admin' : 'write' });
+      if (opts.config !== undefined && u.pathname === '/repos/acme/design/contents/bridge.config.json') return new Response(JSON.stringify(opts.config), { status: 200 });
+      return inner(url, init);
+    };
+    s.deps.fetch = fetch;
+    const app = s.deps.app!;
+    const publish = (token = 'Bearer ghu_lead_dana_token_00000', extra: Record<string, string> = {}) =>
+      handleShip(new Request(`https://${HOST}/api/ship`, { method: 'POST', headers: { 'content-type': 'application/json', host: HOST, authorization: token, ...extra }, body: JSON.stringify({ repo: 'acme/design', pr: 7, publish: 'tier1' }) }), {}, { fetch, app, readApp: app });
+    return { ...s, publish };
+  }
+  const writes = (w: World) => w.calls.filter((c) => c.method !== 'GET' && c.auth !== 'person');
+
+  it('a design reviewer publishes their docs change: Bridge approves it with the record and turns auto-merge on', async () => {
+    const { w, publish } = publishSetup();
+    expect((await ok(await publish())).body).toEqual({ armed: true, route: 'shipped' });
+    const review = w.calls.find((c) => c.method === 'POST' && c.path.endsWith('/reviews'))!;
+    expect(review.body).toMatchObject({ event: 'APPROVE', commit_id: HEAD_SHA });
+    expect(review.body.body.startsWith(TIER1_PUBLISH_HEADING)).toBe(true);
+    expect(review.body.body).toContain('Published by Dana Reyes without review (Tier 1).');
+    expect(w.calls.some((c) => c.path === '/graphql' && c.body.query.includes('enablePullRequestAutoMerge'))).toBe(true);
+    // Asked again: no second review on the same head.
+    await publish();
+    expect(w.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/reviews'))).toHaveLength(1);
+  });
+
+  it('a repository admin publishes whatever the domain; a tech reviewer publishes a story fix, not docs', async () => {
+    const admin = publishSetup({}, { user: { login: 'sam', type: 'User' } }, { admins: ['sam'] });
+    expect((await ok(await admin.publish('Bearer ghu_admin_sam_token_00000'))).body.armed).toBe(true);
+    const techDocs = publishSetup({}, { user: { login: 'malik', type: 'User' } });
+    expect((await ok(await techDocs.publish('Bearer ghu_lead_malik_token_0000'))).body).toMatchObject({ armed: false, route: 'review', code: 'not_lead', reason: PUBLISH_WORDS.not_lead });
+    const story = publishSetup({ files: [{ filename: 'packages/react/src/components/Button/Button.stories.tsx', status: 'modified' }] }, { user: { login: 'malik', type: 'User' } });
+    const r = await ok(await story.publish('Bearer ghu_lead_malik_token_0000'));
+    expect(r.body.armed).toBe(true);
+    expect(story.w.calls.find((c) => c.method === 'POST' && c.path.endsWith('/reviews'))!.body.body).toContain('Published by malik without review');
+  });
+
+  it('a person who is not a lead goes to review, with nothing written', async () => {
+    const { w, publish } = publishSetup({}, { user: { login: 'sam', type: 'User' } });
+    expect((await ok(await publish('Bearer ghu_admin_sam_token_00000'))).body).toMatchObject({ armed: false, route: 'review', code: 'not_lead' });
+    expect(writes(w)).toEqual([]);
+  });
+
+  it('a Tier 2 change, a guardrail file or a token value goes to review', async () => {
+    const code = publishSetup({ files: [{ filename: DOCS, status: 'modified' }, { filename: 'packages/react/src/components/Button/Button.tsx', status: 'modified' }] });
+    expect((await ok(await code.publish())).body).toMatchObject({ route: 'review', code: 'not_tier1', reason: PUBLISH_WORDS.not_tier1 });
+    expect(writes(code.w)).toEqual([]);
+    const guard = publishSetup({ files: [{ filename: 'AGENTS.md', status: 'modified' }] });
+    expect((await ok(await guard.publish())).body.code).toBe('not_tier1');
+    const values = publishSetup({ files: [{ filename: TOKEN_FILE, status: 'modified' }] });
+    expect((await ok(await values.publish())).body.code).toBe('not_tier1');
+  });
+
+  it('a token description edit is Tier 1', async () => {
+    const described = JSON.stringify({ color: { a: { $type: 'color', $value: '#000', $description: 'Ink.' }, b: { $type: 'color', $value: '#111' } } });
+    const { publish } = publishSetup({ files: [{ filename: TOKEN_FILE, status: 'modified' }], head: described });
+    expect((await ok(await publish())).body.armed).toBe(true);
+  });
+
+  it('the team turned it off: it goes to review', async () => {
+    const config = { tokens: { root: 'design/tokens' }, governance: { owners: { design: ['dana'], tech: ['malik'] }, leadsPublishTier1: false } };
+    const { w, publish } = publishSetup({}, {}, { config });
+    expect((await ok(await publish())).body).toMatchObject({ armed: false, route: 'review', code: 'publish_off', reason: PUBLISH_WORDS.publish_off });
+    expect(writes(w)).toEqual([]);
+  });
+
+  it('a check that already failed: nothing is armed, it goes to review, and the designer never reads which check', async () => {
+    const { w, publish } = publishSetup({ ci: { runs: [{ status: 'completed', conclusion: 'failure', name: 'Typecheck' }], statuses: [] } });
+    const r = (await ok(await publish())).body;
+    expect(r).toMatchObject({ armed: false, route: 'review', code: 'checks_failed', reason: 'It goes to review like any change.' });
+    expect(r.reason).not.toMatch(/check|test|Typecheck/i);
+    expect(writes(w)).toEqual([]);
+  });
+
+  it('only the author publishes, never someone else on their change, nor an email member session', async () => {
+    const { w, publish } = publishSetup({}, { user: { login: 'sam', type: 'User' } });
+    expect((await ok(await publish())).body).toMatchObject({ armed: false, route: 'review', code: 'not_author' });
+    expect(writes(w)).toEqual([]);
+    const bot = publishSetup({}, { user: { login: 'bridge-app[bot]', type: 'Bot' } });
+    expect((await ok(await bot.publish())).body.code).toBe('not_author');
+  });
+
+  it('refuses an unknown publish value', async () => {
+    const { call } = setup();
+    expect((await call({ repo: 'acme/design', pr: 7, publish: 'everything' })).status).toBe(400);
+  });
+
+  it('the designer words name no GitHub setting, test or em dash', () => {
+    for (const s of Object.values(PUBLISH_WORDS)) expect(s).not.toMatch(/auto-?merge|pull request|branch|merge|test|—/i);
   });
 });

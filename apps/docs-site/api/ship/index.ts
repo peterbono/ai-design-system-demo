@@ -10,6 +10,12 @@
 //                                                                    adds it (reason: designer words, developer: the cause)
 //     -> 4xx/5xx { error, message }                                         the call itself was refused
 //
+//   POST /api/ship  { repo: "owner/name", pr: 42, publish: "tier1" }   Tier 1 publish by leads (docs/GOVERNANCE.md)
+//     -> 200 { armed: true,  route: "shipped", merged?: true }           published: merges once the checks pass
+//     -> 200 { armed: false, route: "review", code, reason, developer }  not published: it waits for a review as usual
+//   Only with a GitHub token (Bearer), whose account must be the author, a repository admin or in the approver list of
+//   the change's domain, the change Tier 1 and governance.leadsPublishTier1 not false. A failing check: route review.
+//
 // Who may ask: a GitHub token that can read the repository (`Authorization: Bearer`, the Figma plugin and the CLI; any
 // origin, no cookie, so CORS allows it), or an email member of the team signed in to Studio (the contribute cookie or
 // a Bridge account session; `X-Bridge-Contribute: 1` from a page of this site). Asking never widens anything: Bridge
@@ -58,6 +64,7 @@ import {
   type TokenChange,
 } from '../_lib/figma-ship.js';
 import { localAdminsOn } from '../_lib/local-admin.js';
+import { isLead, isTier1, leadsPublishTier1On, tier1Domain, tier1PublishReviewBody, TIER1_PUBLISH_HEADING } from '../_lib/tier1-publish.js';
 import type { MemberStore } from '../_lib/members.js';
 import type { Redis } from '../_lib/redis.js';
 
@@ -89,11 +96,18 @@ export type ShipCode =
   | 'needs_approval'
   | 'checks_failed'
   | 'checks_pending'
-  | 'not_mergeable';
+  | 'not_mergeable'
+  // Tier 1 publish by leads (body `publish: "tier1"`, docs/GOVERNANCE.md "Tier 1 publish by leads").
+  | 'not_author'
+  | 'not_tier1'
+  | 'publish_off'
+  | 'not_lead'
+  | 'publish_needs_github';
 
 export interface ShipResult {
   armed: boolean;
-  route: 'shipped' | 'waiting-for-developer';
+  /** `review`: a Tier 1 publish Bridge could not arm; the change waits for a review like any other. */
+  route: 'shipped' | 'waiting-for-developer' | 'review';
   /** Set when Bridge merged it on the spot (GitHub said it could merge now and every check had passed). */
   merged?: boolean;
   code?: ShipCode;
@@ -130,6 +144,11 @@ export const SHIP_WORDS: Record<ShipCode, string> = {
   needs_design_approval: 'It ships once a design owner approves it.',
   approval_outdated: 'It changed since it was approved: it ships once a design owner approves this version.',
   changes_requested: 'Changes were suggested: it ships once they are made and approved.',
+  not_author: 'Only the person who made it can publish it.',
+  not_tier1: 'It changes more than docs or guidance, so someone reviews it.',
+  publish_off: 'Your team asks for a review on every change.',
+  not_lead: 'Only admins and the reviewers of this part publish without review.',
+  publish_needs_github: 'Publishing without review needs a GitHub sign-in for now.',
 };
 
 /** The cause, for the "For developers" fold of Studio and the API answer. Developer words are fine here. */
@@ -149,7 +168,26 @@ export const SHIP_DEVELOPER_WORDS: Record<ShipCode, string> = {
   needs_design_approval: 'No design approver (governance.owners and rights in bridge.config.json on the default branch) approved it.',
   approval_outdated: 'The design approval was given on an older commit; it needs one on the head commit.',
   changes_requested: 'A reviewer requested changes and has not approved since.',
+  not_author: 'The requester is not the author of the pull request; only the author publishes a Tier 1 change without review.',
+  not_tier1: 'classifyRisk does not read Tier 1 for the changed files (code, a guardrail file, a token value, or token files Bridge could not read).',
+  publish_off: 'governance.leadsPublishTier1 is false in bridge.config.json on the default branch.',
+  not_lead: 'The author is neither a repository admin nor in the approver list of the domain (design for docs, tech for stories and tests) in bridge.config.json.',
+  publish_needs_github: 'The request came from an email member session; Bridge publishes without review only for a GitHub-signed-in author (the app cannot approve a pull request it opened).',
 };
+
+/**
+ * What the designer reads when a Tier 1 publish falls back to review: the cause when it is theirs to know, then that it
+ * goes to review like any change. Never a failing test, a conflict or a GitHub setting.
+ */
+const TO_REVIEW = 'It goes to review like any change.';
+export const PUBLISH_WORDS: Partial<Record<ShipCode, string>> = {
+  not_author: `${SHIP_WORDS.not_author} ${TO_REVIEW}`,
+  not_tier1: SHIP_WORDS.not_tier1,
+  publish_off: `${SHIP_WORDS.publish_off} ${TO_REVIEW}`,
+  not_lead: `${SHIP_WORDS.not_lead} ${TO_REVIEW}`,
+  publish_needs_github: `${SHIP_WORDS.publish_needs_github} ${TO_REVIEW}`,
+};
+const publishWords = (code: ShipCode): string => PUBLISH_WORDS[code] ?? TO_REVIEW;
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Max-Age': '600', Vary: 'Origin' };
 const SIGNIN = 'Sign in to Bridge first: with GitHub in the Figma plugin, or with your email in Studio.';
@@ -218,6 +256,8 @@ async function allowed(req: Request, owner: string, repo: string, full: string, 
 }
 
 const notArmed = (code: ShipCode, extra: Partial<ShipResult> = {}): ShipResult => ({ armed: false, route: 'waiting-for-developer', code, reason: SHIP_WORDS[code], developer: SHIP_DEVELOPER_WORDS[code], ...extra });
+/** A Tier 1 publish Bridge does not arm: the change goes to review, in designer words. */
+const toReview = (code: ShipCode, extra: Partial<ShipResult> = {}): ShipResult => ({ ...notArmed(code, extra), route: 'review', reason: publishWords(code) });
 
 /** A team entry ("@org/slug") of the design list counts the approvers who are active members of it, when the app can read it. */
 async function withTeamMembers(call: ReturnType<typeof gh>['call'], design: string[], approvers: string[]): Promise<string[]> {
@@ -258,6 +298,39 @@ async function ciState(call: ReturnType<typeof gh>['call'], owner: string, repo:
   return pending ? 'pending' : 'pass';
 }
 
+type PrFile = { path: string; status: string; previous: string | null };
+
+/** The token changes of the pull request: each token file at the merge base and at the head. Null when unreadable. */
+async function readTokenChanges(call: ReturnType<typeof gh>['call'], raw: ReturnType<typeof gh>['raw'], owner: string, repo: string, pr: any, files: PrFile[], config: ShipConfig): Promise<TokenChange[] | null> {
+  const tokenFiles = files.filter((x) => isTokenFile(x.path, config) || (x.previous && isTokenFile(x.previous, config)));
+  if (!tokenFiles.length) return [];
+  const cmp = await call('GET', `/repos/${owner}/${repo}/compare/${pr.base.sha}...${pr.head.sha}`);
+  const mergeBase = cmp.status === 200 ? cmp.data?.merge_base_commit?.sha : null;
+  if (!mergeBase) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+  const texts = await Promise.all(
+    tokenFiles.map(async (x) => ({
+      before: x.status === 'added' ? null : await raw(owner, repo, x.previous ?? x.path, mergeBase),
+      after: x.status === 'removed' ? null : await raw(owner, repo, x.path, pr.head.sha),
+    })),
+  );
+  try {
+    return tokenFileChanges(texts);
+  } catch {
+    return null;
+  }
+}
+
+/** bridge.config.json on the default branch, as parsed JSON; null when absent or unreadable. */
+async function readConfig(raw: ReturnType<typeof gh>['raw'], owner: string, repo: string, ref: string): Promise<unknown> {
+  try {
+    const text = await raw(owner, repo, 'bridge.config.json', ref);
+    return text ? JSON.parse(text) : null;
+  } catch (e) {
+    if (e instanceof HttpError) throw e;
+    return null;
+  }
+}
+
 /** The ship itself, once the caller is allowed. Exported for tests. */
 export async function armShip(f: FetchLike, token: string, readToken: string | null, owner: string, repo: string, n: number): Promise<ShipResult> {
   const { call, raw, graphql } = gh(f, token);
@@ -277,34 +350,10 @@ export async function armShip(f: FetchLike, token: string, readToken: string | n
   const filesR = await call('GET', `${base}/pulls/${n}/files?per_page=100`);
   if (filesR.status !== 200 || !Array.isArray(filesR.data)) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
   if (filesR.data.length >= 100 || (typeof pr.changed_files === 'number' && pr.changed_files > filesR.data.length)) return notArmed('too_many_files');
-  let rawConfig: unknown = null;
-  try {
-    const text = await raw(owner, repo, 'bridge.config.json', r.default_branch);
-    rawConfig = text ? JSON.parse(text) : null;
-  } catch (e) {
-    if (e instanceof HttpError) throw e;
-    rawConfig = null;
-  }
+  const rawConfig = await readConfig(raw, owner, repo, r.default_branch);
   const config: ShipConfig = shipConfig(rawConfig);
-  const files = filesR.data.map((x: any) => ({ path: String(x.filename), status: String(x.status), previous: typeof x.previous_filename === 'string' ? x.previous_filename : null }));
-  const tokenFiles = files.filter((x: { path: string; previous: string | null }) => isTokenFile(x.path, config) || (x.previous && isTokenFile(x.previous, config)));
-  let changes: TokenChange[] | null = [];
-  if (tokenFiles.length) {
-    const cmp = await call('GET', `${base}/compare/${pr.base.sha}...${pr.head.sha}`);
-    const mergeBase = cmp.status === 200 ? cmp.data?.merge_base_commit?.sha : null;
-    if (!mergeBase) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
-    const texts = await Promise.all(
-      tokenFiles.map(async (x: { path: string; status: string; previous: string | null }) => ({
-        before: x.status === 'added' ? null : await raw(owner, repo, x.previous ?? x.path, mergeBase),
-        after: x.status === 'removed' ? null : await raw(owner, repo, x.path, pr.head.sha),
-      })),
-    );
-    try {
-      changes = tokenFileChanges(texts);
-    } catch {
-      changes = null;
-    }
-  }
+  const files: PrFile[] = filesR.data.map((x: any) => ({ path: String(x.filename), status: String(x.status), previous: typeof x.previous_filename === 'string' ? x.previous_filename : null }));
+  const changes = await readTokenChanges(call, raw, owner, repo, pr, files, config);
   const scope = figmaPushScope(files, changes, config);
   if (scope !== 'token-values') return notArmed('not_values');
 
@@ -329,6 +378,39 @@ export async function armShip(f: FetchLike, token: string, readToken: string | n
     designers = v.atHead;
   }
 
+  const heading = figma ? FIGMA_SHIP_HEADING : VALUES_SHIP_HEADING;
+  const body = figma ? figmaShipReviewBody(pr.user?.type === 'Bot' ? null : pr.user?.login) : valuesShipReviewBody(designers);
+  return approveAndArm({ f, token, readToken, owner, repo, n, r, pr, heading, body, counted: designers.length, reviewList, notArmed });
+}
+
+interface ArmInput {
+  f: FetchLike;
+  token: string;
+  readToken: string | null;
+  owner: string;
+  repo: string;
+  n: number;
+  /** The repository and the pull request as GitHub answered them. */
+  r: any;
+  pr: any;
+  /** The first line of Bridge's review, and the review itself (once per head commit). */
+  heading: string;
+  body: string;
+  /** People's approvals on the head that already count toward what the branch requires. */
+  counted: number;
+  reviewList: any[] | null;
+  /** How a not-armed answer reads on this route. */
+  notArmed: (code: ShipCode, extra?: Partial<ShipResult>) => ShipResult;
+}
+
+/**
+ * Ready for review, Bridge's approving review (a comment when GitHub refuses the app's approval), then auto-merge;
+ * merged on the spot only when GitHub can merge now and every check passed. Shared by the values and Tier 1 routes.
+ */
+async function approveAndArm(a: ArmInput): Promise<ShipResult> {
+  const { f, token, readToken, owner, repo, n, r, pr, heading, body, counted, reviewList, notArmed } = a;
+  const { call, graphql } = gh(f, token);
+  const base = `/repos/${owner}/${repo}`;
   // Auto-merge in the first merge method the repository allows (squash first). Off in the repository: an error.
   const enableAutoMerge = async (): Promise<{ errors: string[] }> => {
     const m = MERGE_METHODS.find(([k]) => r[k] !== false);
@@ -346,11 +428,9 @@ export async function armShip(f: FetchLike, token: string, readToken: string | n
     if (g.errors.length) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
   }
   const reviews = reviewList ? { data: reviewList } : await call('GET', `${base}/pulls/${n}/reviews?per_page=100`);
-  const heading = figma ? FIGMA_SHIP_HEADING : VALUES_SHIP_HEADING;
   const ours = (reviews.data ?? []).filter((x: any) => typeof x.body === 'string' && x.body.startsWith(heading) && x.commit_id === pr.head.sha && x.user?.type === 'Bot');
   let approved = ours.some((x: any) => x.state === 'APPROVED');
   if (!ours.length) {
-    const body = figma ? figmaShipReviewBody(pr.user?.type === 'Bot' ? null : pr.user?.login) : valuesShipReviewBody(designers);
     const a = await call('POST', `${base}/pulls/${n}/reviews`, { event: 'APPROVE', body, commit_id: pr.head.sha });
     approved = a.status === 200;
     // GitHub refuses an app's approval of a pull request the app opened: the record stays, as a comment.
@@ -359,7 +439,7 @@ export async function armShip(f: FetchLike, token: string, readToken: string | n
   if (!approved) {
     const rules = await call('GET', `${base}/rules/branches/${encodeURIComponent(r.default_branch)}`);
     // The design approvals on the head already count toward what the branch requires.
-    const needs = Array.isArray(rules.data) && rules.data.some((x: any) => x?.type === 'pull_request' && Number(x.parameters?.required_approving_review_count ?? 0) > designers.length);
+    const needs = Array.isArray(rules.data) && rules.data.some((x: any) => x?.type === 'pull_request' && Number(x.parameters?.required_approving_review_count ?? 0) > counted);
     if (needs) {
       // Auto-merge still goes on where it can: a developer's approval then ships it with no second step.
       await enableAutoMerge();
@@ -386,6 +466,59 @@ export async function armShip(f: FetchLike, token: string, readToken: string | n
   throw new HttpError(502, 'unreachable', GITHUB_DOWN);
 }
 
+/** Who publishes: the GitHub account of the Bearer token, read with that token. */
+export interface Publisher {
+  login: string;
+  /** The GitHub profile name, else the login. */
+  name: string;
+}
+
+/**
+ * Tier 1 publish by leads (docs/GOVERNANCE.md "Tier 1 publish by leads"): the author of a Tier 1 change, a repository
+ * admin or in the approver list of its domain, publishes it without review. Bridge approves it with the record
+ * "Published by <name> without review (Tier 1)." and arms auto-merge, so it merges once the checks pass. Anything that
+ * stops it answers `route: "review"`: the change waits for a review like any other. Exported for tests.
+ */
+export async function armPublish(f: FetchLike, token: string, readToken: string | null, owner: string, repo: string, n: number, who: Publisher): Promise<ShipResult> {
+  const { call, raw } = gh(f, token);
+  const base = `/repos/${owner}/${repo}`;
+  const [repoR, prR] = await Promise.all([call('GET', base), call('GET', `${base}/pulls/${n}`)]);
+  if (prR.status === 404) throw new HttpError(404, 'not_found', `There is no pull request #${n} on ${owner}/${repo}.`);
+  if (repoR.status !== 200 || prR.status !== 200) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+  const r = repoR.data;
+  const pr = prR.data;
+  if (pr.state !== 'open' || pr.merged_at) return toReview('not_open');
+  if (pr.base?.ref !== r.default_branch) return toReview('not_default_branch');
+  if (isExploration(pr.labels)) return toReview('exploration');
+  const lower = (x: string) => x.trim().replace(/^@/, '').toLowerCase();
+  if (pr.user?.type === 'Bot' || lower(String(pr.user?.login ?? '')) !== lower(who.login)) return toReview('not_author');
+
+  const filesR = await call('GET', `${base}/pulls/${n}/files?per_page=100`);
+  if (filesR.status !== 200 || !Array.isArray(filesR.data)) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+  if (filesR.data.length >= 100 || (typeof pr.changed_files === 'number' && pr.changed_files > filesR.data.length)) return toReview('too_many_files');
+  const rawConfig = await readConfig(raw, owner, repo, r.default_branch);
+  const config = shipConfig(rawConfig);
+  const files: PrFile[] = filesR.data.map((x: any) => ({ path: String(x.filename), status: String(x.status), previous: typeof x.previous_filename === 'string' ? x.previous_filename : null }));
+  // A rename counts its old path too: moving a component's source into docs is not docs.
+  const paths = files.flatMap((x) => (x.previous ? [x.path, x.previous] : [x.path]));
+  const changes = await readTokenChanges(call, raw, owner, repo, pr, files, config);
+  if (!isTier1(paths.map((path) => ({ path })), changes, config)) return toReview('not_tier1');
+  if (!leadsPublishTier1On(rawConfig)) return toReview('publish_off');
+
+  // A lead: an admin of the repository on GitHub (read by the app), or in the approver list of the change's domain.
+  const perm = await call('GET', `${base}/collaborators/${encodeURIComponent(who.login)}/permission`);
+  const admin = perm.status === 200 && perm.data?.permission === 'admin';
+  const domain = tier1Domain(paths);
+  const listed = approverEntriesOf(rawConfig)[domain];
+  const approvers = admin || !listed.some((x) => x.includes('/')) ? listed : await withTeamMembers(call, listed, [who.login]);
+  if (!isLead(who.login, { admin, approvers })) return toReview('not_lead');
+
+  if (r.allow_auto_merge === false || !MERGE_METHODS.some(([k]) => r[k] !== false)) return toReview('auto_merge_off');
+  // A check that already failed: nothing is written, it goes to review. The designer never reads which one.
+  if ((await ciState(gh(f, readToken ?? token).call, owner, repo, pr.head.sha)) === 'fail') return toReview('checks_failed');
+  return approveAndArm({ f, token, readToken, owner, repo, n, r, pr, heading: TIER1_PUBLISH_HEADING, body: tier1PublishReviewBody(who.name, who.login), counted: 0, reviewList: null, notArmed: toReview });
+}
+
 export async function handleShip(req: Request, env: ContribEnv, deps: ShipDeps): Promise<Response> {
   const bearerCall = /^Bearer\s/i.test(req.headers.get('authorization') ?? '');
   const cors = (r: Response) => {
@@ -405,13 +538,23 @@ export async function handleShip(req: Request, env: ContribEnv, deps: ShipDeps):
     const appId = env.GITHUB_APP_ID?.trim();
     const pem = env.GITHUB_APP_PRIVATE_KEY?.trim();
     const app = deps.app ?? (appId && pem ? githubApp(appId, pem, deps.fetch, now, { permissions: { ...SHIP_PERMISSIONS }, require: { ...SHIP_PERMISSIONS }, userAgent: 'bridge-ship' }) : null);
+    if (body.publish !== undefined && body.publish !== 'tier1') return cors(fail(400, 'bad_request', 'Say what to publish: "tier1", or leave it out.'));
+    const publish = body.publish === 'tier1';
     const who = await allowed(req, owner, repo, full, env, { ...deps, ...(app ? { app } : {}) });
     if (!who) return cors(fail(401, 'signin', SIGNIN));
+    // Publishing names a person: the GitHub account of the token. An email member's change goes to review.
+    let publisher: Publisher | null = null;
+    if (publish) {
+      if (who !== 'bearer') return cors(json(200, toReview('publish_needs_github')));
+      const me = await gh(deps.fetch, bearerToken(req.headers.get('authorization'))!).call('GET', '/user');
+      if (me.status !== 200 || typeof me.data?.login !== 'string') return cors(fail(401, 'signin', SIGNIN));
+      publisher = { login: me.data.login, name: typeof me.data.name === 'string' && me.data.name.trim() ? me.data.name.trim() : me.data.login };
+    }
     const token = app ? await app.installationToken(owner, repo) : null;
-    if (!token) return cors(json(200, notArmed('app_missing')));
+    if (!token) return cors(json(200, publish ? toReview('app_missing') : notArmed('app_missing')));
     const readApp = deps.readApp ?? deps.app ?? (appId && pem ? githubApp(appId, pem, deps.fetch, now, { permissions: { ...SHIP_READ_PERMISSIONS }, require: { ...SHIP_READ_PERMISSIONS }, userAgent: 'bridge-ship' }) : null);
     const readToken = readApp ? await readApp.installationToken(owner, repo).catch(() => null) : null;
-    return cors(json(200, await armShip(deps.fetch, token, readToken, owner, repo, n)));
+    return cors(json(200, publisher ? await armPublish(deps.fetch, token, readToken, owner, repo, n, publisher) : await armShip(deps.fetch, token, readToken, owner, repo, n)));
   } catch (e) {
     if (e instanceof HttpError) return cors(json(e.status, { error: e.code, message: e.message, ...e.extra }, e.headers));
     return cors(fail(502, 'unreachable', GITHUB_DOWN));

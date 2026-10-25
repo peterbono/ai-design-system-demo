@@ -4,6 +4,7 @@
 // production; in development the demo switch at the bottom swaps in the fixture report and a banner. Filters wait
 // behind the Filter button.
 import type { HistoryEntry, HistoryFilter, HistoryReport } from '@bridge-ds/core';
+import { publishedWithoutReview, tier1PublishOf } from '@bridge-ds/core';
 import { authorsOf, countsLabel, shortDate, viewTimeline } from '../../lib/history-view';
 import { renderTokenReview } from '../reviews';
 import { currentViewer, esc, ghGet, hasWorkingToken, signedInWithGitHub, initGitHubConnect, readRepo } from '../github-session';
@@ -223,10 +224,32 @@ async function paintOverride(e: HistoryEntry, n: number) {
   }
   const ov = await read;
   const el = $('hs-detail').querySelector<HTMLElement>('[data-hs-override]');
-  if (!ov || !el || new URLSearchParams(location.search).get('entry') !== e.id) return;
+  if (!el || new URLSearchParams(location.search).get('entry') !== e.id) return;
+  if (!ov) return paintPublished(e, n, el);
   el.innerHTML = overrideLine(ov, esc, (login) => personHtml(login, { size: 'sm' }));
   el.hidden = false;
   void paintPeople(el);
+}
+
+const published = new Map<number, Promise<string | null>>();
+
+/**
+ * A Tier 1 change a lead published without review (docs/GOVERNANCE.md "Tier 1 publish by leads"): "Published by Ana
+ * without review (Tier 1).", read back from Bridge's review on it (core tier1PublishOf). Nothing for any other merge.
+ */
+async function paintPublished(e: HistoryEntry, n: number, el: HTMLElement) {
+  let read = published.get(n);
+  if (!read) {
+    const r = readRepo();
+    read = ghGet<{ state: string; body?: string | null }[]>(`/repos/${r.owner}/${r.repo}/pulls/${n}/reviews?per_page=100`)
+      .then((f) => tier1PublishOf(f.data))
+      .catch(() => null);
+    published.set(n, read);
+  }
+  const by = await read;
+  if (!by || new URLSearchParams(location.search).get('entry') !== e.id) return;
+  el.textContent = publishedWithoutReview(by);
+  el.hidden = false;
 }
 
 /** Paints the History view from the URL (?view=history, &entry=). */

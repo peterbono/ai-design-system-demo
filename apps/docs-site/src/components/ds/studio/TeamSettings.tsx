@@ -18,7 +18,7 @@ import { TeamLoadError, TeamLoadProgress, useTeamData } from './TeamState';
 import { AdminOnlyNote, Code, DevFold } from './SettingsParts';
 import { useTeamPeople } from './members-state';
 import { roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL } from '../../../lib/roles-view';
-import { andList, ANYONE_WHO_CODES, CHANGES_DEV, CHANGES_PLAIN, NOBODY_NAMED, overridePlain, RIGHT_PLAIN, soloPlain, teamPlain, TOKEN_VALUES_DEV, TOKEN_VALUES_PLAIN } from '../../../lib/settings-view';
+import { andList, ANYONE_WHO_CODES, CHANGES_DEV, CHANGES_PLAIN, leadsPublishRow, NOBODY_NAMED, overridePlain, RIGHT_PLAIN, soloPlain, teamPlain, TOKEN_VALUES_DEV, TOKEN_VALUES_PLAIN } from '../../../lib/settings-view';
 import { Who } from './faces';
 import { demoSettingsPeople, isSampleTeam, teamDisplayName } from '../../../lib/demo';
 import { loginKey, ownerName } from '../../../lib/people';
@@ -107,6 +107,7 @@ export default function TeamSettings() {
   const holders = overrideHolders(site.override, site.owners);
   const holderNames = demo ? [demo.lead] : [...new Set(holders.map((l) => name(l)?.name ?? l))];
   const override = holders.length ? overridePlain(holderNames, overrideReasonMin(site.override)) : null;
+  const leads = leadsPublishRow(site);
   const mode = site.visualImpact.mode;
   const branch = site.defaultBranch;
   const repoFact = { term: 'Repository', value: <Code>{full}</Code> };
@@ -165,6 +166,13 @@ export default function TeamSettings() {
                   <p className="set-row-value set-row-span">{solo}</p>
                 </div>
               )}
+              <div className="set-row">
+                <div>
+                  <p className="set-row-label">{leads.label}</p>
+                  <p className="set-row-help">{leads.help}</p>
+                </div>
+                <p className="set-row-value set-row-span">{leads.value}</p>
+              </div>
               {override && (
                 <div className="set-row">
                   <div>

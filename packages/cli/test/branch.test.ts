@@ -119,6 +119,7 @@ describe('bridge branch', () => {
     const s = io(gh, {});
     await runStudioRead('settings', args('settings'), dir, s.io);
     expect(s.out()).toContain('Owner override: @peterbono.');
+    expect(s.out()).toContain('Small changes: Tier 1 (docs, guidance, token descriptions, story and test fixes): team admins and the reviewers of that part publish it without review');
     const c = io(gh, {});
     await runStudioRead('coverage', args('coverage', 'Button'), dir, c.io);
     expect(c.out()).toMatch(/Button +Yes/);

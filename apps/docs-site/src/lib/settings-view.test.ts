@@ -1,7 +1,7 @@
 // Studio Settings: approvals in plain words and the Claude connect command.
 import { describe, expect, it } from 'vitest';
 import { tierSummaries } from './governance';
-import { adminOnlyText, appReach, canProposeSettings, GITHUB_WRITE_ONLY, CHANGES_PLAIN, RIGHT_PLAIN, TOKEN_VALUES_PLAIN, soloPlain, teamPlain, approvalRules, changesInConfig, changesProposal, effectiveChanges, INTERIM_APP_TEXT, overridePlain, overrideRow, READ_ONLY_APP_TEXT, soloOwnerRow, suggestAppText, plainApprovals, ruleSentence, withChanges } from './settings-view';
+import { adminOnlyText, appReach, canProposeSettings, GITHUB_WRITE_ONLY, CHANGES_PLAIN, RIGHT_PLAIN, TOKEN_VALUES_PLAIN, soloPlain, teamPlain, approvalRules, changesInConfig, leadsPublishRow, changesProposal, effectiveChanges, INTERIM_APP_TEXT, overridePlain, overrideRow, READ_ONLY_APP_TEXT, soloOwnerRow, suggestAppText, plainApprovals, ruleSentence, withChanges } from './settings-view';
 
 const GOVERNANCE = `# Governance
 
@@ -159,5 +159,15 @@ describe('settings stored in the design system files', () => {
     expect(canProposeSettings({ write: false })).toBe(false);
     expect(canProposeSettings(null)).toBeNull();
     expect(GITHUB_WRITE_ONLY).not.toMatch(/\b(repo|repository|pull request|PR|branch|merge)\b|\u2014/i);
+  });
+});
+
+describe('Leads can publish small changes without review', () => {
+  it('reads on when absent, off when the team turned it off, in designer words', () => {
+    expect(leadsPublishRow({}).label).toBe('Leads can publish small changes without review');
+    expect(leadsPublishRow({}).value).toMatch(/^On: team admins and the reviewers of that part publish them/);
+    expect(leadsPublishRow({ leadsPublishTier1: true }).value).toMatch(/^On:/);
+    expect(leadsPublishRow({ leadsPublishTier1: false }).value).toBe('Off: every small change waits for one reviewer.');
+    for (const s of Object.values(leadsPublishRow({}))) expect(s).not.toMatch(/\b(repo|repository|pull request|PR|branch|merge|Tier)\b|\u2014/i);
   });
 });

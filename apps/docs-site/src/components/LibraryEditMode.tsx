@@ -6,7 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createPortal } from 'react-dom';
 import { Avatar, Alert, AlertDialog, AlertDialogContent, Badge, Button, Dialog, DialogContent, IconButton, Input, Link, Menu, MenuContent, MenuGroup, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, Popover, PopoverContent, PopoverTrigger, Spinner, Textarea } from '@bridge-ds/react';
 import { Check, ChevronDown, Circle, CircleX, Copy, Ellipsis, PenLine, Plus, Sparkles, X } from 'lucide-react';
-import { docsAuthorLine, DRAFT_PHRASE, eligibleReviewers, overrideHolders, type ComponentDocsJson, type DocsGuidance, type OverridePolicy, type ProseKey } from '@bridge-ds/core';
+import { docsAuthorLine, DRAFT_PHRASE, eligibleReviewers, leadsPublishTier1On, overrideHolders, PUBLISH_LABEL, type ComponentDocsJson, type DocsGuidance, type OverridePolicy, type ProseKey } from '@bridge-ds/core';
 import { REGISTRY, resolveProps } from './registry';
 import type { ExampleNode } from '../lib/components';
 import { cleanDocs, docsEdits, docsFileText, setDocsEdit, validateDocs, type DocsEdit } from '../lib/docs-draft-model';
@@ -43,6 +43,9 @@ import {
   sendBlockedReason,
   sendReview,
   sendTitle,
+  canPublishGuidance,
+  PUBLISH_LINE,
+  publishedSaid,
   setField,
   setValue,
   toReview,
@@ -643,9 +646,11 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   const [setupOpen, setSetupOpen] = useState(false);
   const [confirm, setConfirm] = useState<'cancel' | 'rewrite' | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
-  const [sent, setSent] = useState<{ pr: number | null; title: string; continued?: boolean; suggestion?: string } | null>(null);
+  const [sent, setSent] = useState<{ pr: number | null; title: string; continued?: boolean; suggestion?: string; published?: { title: string; line: string } } | null>(null);
   /** Who reviews what Send sends (sendReview), read when the send step opens. Null until then: "Your team". */
   const [review, setReview] = useState<SendReview | null>(null);
+  /** The viewer leads guidance here and the team lets leads publish small changes: Publish instead of Send for review. */
+  const [publish, setPublish] = useState(false);
   // How changes reach the code (bridge.config.json "changes"): a suggestion, or a branch in review.
   const mode = useMemo(() => changesModeOnPage(), []);
   const suggest = mode === 'suggest';
@@ -1049,6 +1054,11 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
       const owners = teams.siteApprovers();
       const overrideBy = overrideHolders((repo.siteConfig() as { override?: OverridePolicy }).override, owners);
       setReview(sendReview({ viewer: who, owners, overrideBy, suggest }));
+      // Publish: a team admin (GitHub-linked) or a design reviewer, when the team lets leads publish (core rules).
+      const session = await import('../scripts/github-session');
+      const access = await session.resolveAccess().catch(() => null);
+      const enabled = leadsPublishTier1On(repo.siteConfig() as { leadsPublishTier1?: boolean });
+      setPublish(canPublishGuidance({ viewer: who, approvers: owners, admin: Boolean(access?.admin && !access.contributor), enabled, suggest, continuing: Boolean(branch) }));
       const logins = eligibleReviewers('approval', { owners, author: who ?? '' }).logins.filter((l) => !l.includes('/'));
       if (logins.length) {
         await people.lookUpNames(logins);
@@ -1056,8 +1066,13 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
       }
     } catch {
       setReview(null);
+      setPublish(false);
     }
   };
+  // The bar's button says Publish before the send step opens: read who leads once the viewer is known.
+  useEffect(() => {
+    if (editing && viewer) void loadReview(viewer);
+  }, [editing, viewer, Boolean(branch)]);
   const send = async () => {
     setBusy(true);
     setSendError('');
@@ -1082,9 +1097,20 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
         continued = r.continued;
         forgetLocal();
         // A suggestion links to its page; a branch opens in Studio.
-        setSent({ pr: r.number, title: title.trim() || sendTitle(p.name), continued: r.continued, ...(r.kind === 'suggestion' ? { suggestion: r.url } : {}) });
+        // Publish: Bridge checks the lead, the tier and the setting again, then merges once the checks pass. When it
+        // cannot (a check failed, a rule refused), the change is in review like any other: the sent step says who reviews.
+        let published: { title: string; line: string } | null = null;
+        if (publish && r.kind !== 'suggestion' && r.number) {
+          const [{ askBridgeToShip }, session] = await Promise.all([import('../lib/values-ship'), import('../scripts/github-session')]);
+          published = publishedSaid(await askBridgeToShip(`${p.repo.owner}/${p.repo.repo}`, r.number, { bearer: session.signedInWithGitHub() ? session.getToken() : null }, undefined, 'tier1'));
+        }
+        setSent({ pr: r.number, title: title.trim() || sendTitle(p.name), continued: r.continued, ...(r.kind === 'suggestion' ? { suggestion: r.url } : {}), ...(published ? { published } : {}) });
         if (r.kind === 'suggestion') {
           announce(`${SUGGESTION_SENT}.`);
+          return;
+        }
+        if (published) {
+          announce(`${published.title}.`);
           return;
         }
       }
@@ -1129,7 +1155,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   );
   const keepAll = keepAllLabel(pending.length);
   const barState = editBarState({ dirty, sent: Boolean(sent), savesLocally: !branch });
-  const sendLabel = branch ? 'Send update' : sendWords('docs', mode);
+  const sendLabel = branch ? 'Send update' : publish ? PUBLISH_LABEL : sendWords('docs', mode);
   const stateText = barState !== 'sent' && sendBlock ? sendBlock : editBarLabel(barState, Boolean(branch?.continues));
   const sendButton = (
     <Button variant="primary" disabled={Boolean(sendBlock)} aria-describedby="le-bar-state" onClick={() => void openSend()}>
@@ -1367,13 +1393,15 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
         <Dialog open={sendOpen} onOpenChange={(o) => (o ? setSendOpen(true) : sent ? doneSent() : setSendOpen(false))}>
           <DialogContent
             size="md"
-            title={sent ? (sent.suggestion ? SUGGESTION_SENT : sent.continued || branch ? 'Update sent' : 'Sent for review') : branch ? 'Send your update' : suggest ? sendWords('docs', mode) : 'Send for review'}
+            title={sent ? (sent.suggestion ? SUGGESTION_SENT : sent.published ? sent.published.title : sent.continued || branch ? 'Update sent' : 'Sent for review') : branch ? 'Send your update' : publish ? PUBLISH_LABEL : suggest ? sendWords('docs', mode) : 'Send for review'}
             description={
               sent
                 ? undefined
                 : branch?.continues && branch.author
                   ? `Your update joins ${branch.author === viewer ? 'your open proposal' : `the open proposal by @${branch.author}`}. Your team reviews it in Studio before it reaches the Library.`
-                  : review && !branch
+                  : publish && !branch
+                    ? PUBLISH_LINE
+                    : review && !branch
                     ? [review.line, review.own].filter(Boolean).join(' ')
                     : suggest
                       ? 'Your DS lead reviews the new guidance. Once approved, a developer applies it to the Library.'
@@ -1402,6 +1430,10 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
               <p className="le-sent">
                 {suggestionSentLine(sent.pr ?? 0)}{' '}
                 <Link href={sent.pr ? studio(`changes/?suggestion=${sent.pr}`) : sent.suggestion}>{SEE_SUGGESTION}</Link>
+              </p>
+            ) : sent?.published ? (
+              <p className="le-sent">
+                {sent.published.line} <Link href={sent.pr ? studio(`changes/?pr=${sent.pr}`) : studio('changes/')}>{sent.title}</Link>
               </p>
             ) : sent ? (
               <p className="le-sent">

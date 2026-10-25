@@ -423,6 +423,12 @@ export interface BranchVerdictInput {
    */
   autoMerge?: boolean | null | undefined;
   /**
+   * A lead published this Tier 1 change without review (the app's review starts with TIER1_PUBLISH_HEADING, on the
+   * head commit; docs/GOVERNANCE.md "Tier 1 publish by leads"). With `autoMerge` and the checks not failing, it reads
+   * `autoShip`. A failing check drops it back to review: the status reads as any other change waiting for an approval.
+   */
+  tier1Published?: boolean | null | undefined;
+  /**
    * The reviewers to look again (lookAgainReviewers over the reviews and the head sha): the author updated the branch
    * after every changes request. The status stays `changes-requested` and the merge stays blocked; only its words say
    * "Updated, look again".
@@ -464,7 +470,8 @@ export function branchVerdict(input: BranchVerdictInput): BranchVerdict {
       : null;
   // A draft counts: Bridge marks it ready when it arms the merge.
   const valuesArmed = Boolean(input.autoMerge && approvals?.valuesOnly && approvals.design);
-  const autoShip = (input.figmaPush?.scope === 'token-values' || valuesArmed) && state === 'open' && !input.merged_at && !input.exploration;
+  const tier1Armed = Boolean(input.tier1Published && input.autoMerge && input.tier === 1 && input.ci?.state !== 'fail');
+  const autoShip = (input.figmaPush?.scope === 'token-values' || valuesArmed || tier1Armed) && state === 'open' && !input.merged_at && !input.exploration;
   const lookAgain = status === 'changes-requested' ? [...(input.lookAgain ?? [])] : [];
   return { approvals, override, gate, status, label: reviewStatusLabel(status, lookAgain), lookAgain, autoShip };
 }

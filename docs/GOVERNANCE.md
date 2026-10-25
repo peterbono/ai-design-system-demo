@@ -7,7 +7,7 @@ through the same gates; agent PRs are additionally labelled and never self-merge
 
 | Tier | Examples | PR state | Required approvals | Changeset |
 | ---- | -------- | -------- | ------------------ | --------- |
-| 1, low | Docs, story fixes, a11y fixes with no visual change, lint fixes, a token description edit (no value change) | Ready for review | 1 code owner | `patch` or none (docs only) |
+| 1, low | Docs, story fixes, a11y fixes with no visual change, lint fixes, a token description edit (no value change) | Ready for review | 1 code owner, or none when a lead publishes it (see [Tier 1 publish by leads](#tier-1-publish-by-leads)) | `patch` or none (docs only) |
 | 2, medium | New component, new variant or prop, visual tweak using existing tokens | Draft until design review | Design owner + tech owner | `minor` |
 | 3, high | Token added, changed, renamed or removed; breaking prop change; guardrail or `AGENTS.md` change | Draft, labelled `tokens` or `breaking` | Design owner **and** tech owner, mandatory. A token value change (values changed or tokens added only): design owner only, see [BUILD-REQUESTS.md](BUILD-REQUESTS.md) (TV-1) | `minor` (added or changed token) or `major` (renamed or removed token) |
 
@@ -243,6 +243,37 @@ override away.
 requests read and write (reviews, PR comments, close), Commit statuses read and Checks read (CI), and
 Metadata read (always on). Suggestions need less: Contents read and Issues read and write (file, review and
 decline them); the developer who applies one pushes and opens the pull request with their own access.
+
+## Tier 1 publish by leads
+
+A small, safe change does not wait for a second person when the person who made it leads that part of the design
+system. Settings, Review rules: "Leads can publish small changes without review".
+
+```json
+"governance": {
+  "leadsPublishTier1": true
+}
+```
+
+- **What counts.** Tier 1 as `classifyRisk` reads it: docs and usage guidance, a token description with no value
+  change, story and test fixes. Tier 2 and Tier 3 are unchanged: "Send for review", with who reviews it.
+- **Who.** Team admins, and the reviewers of the matching domain (`tier1Domain`): a design reviewer for docs and
+  guidance, a tech reviewer for a code-only Tier 1 change (stories, tests). The rule is `canPublishTier1` in
+  `@bridge-ds/core`, with the approver lists after `rights` and teams expanded.
+- **What they see.** "Publish" instead of "Send for review" in the editor.
+- **What happens.** Bridge opens the pull request as usual, then its app (`/api/ship`, the same path as token values,
+  TV-1) approves it with a review that starts with `**Bridge: published without review (Tier 1)**`, arms auto-merge,
+  and GitHub merges it once the required checks pass. No person approves it. The person publishing must be the one
+  who made the change.
+- **When a check fails.** Bridge does not merge. The change falls back to the normal path and reads as any change
+  waiting for review (`branchVerdict` `autoShip` turns off); the designer never sees the failing test.
+- **The record.** The pull request (the app's review) and History say "Published by <name> without review (Tier 1)."
+- **The setting.** `governance.leadsPublishTier1`, on when absent; `false` turns it off. `bridge.config.json` is a
+  guardrail file, so turning it on or off is itself a Tier 3 change. `bridge settings` and the MCP settings tool say
+  which way it is (`tier1PublishSentence`).
+- **GitHub.** The merge goes through the ruleset like the token value route: the app's approval is the one approval
+  the `pull_request` rule asks for, and "Allow auto-merge" must be on. GitHub refuses an app approving a pull request
+  the app opened (an email member's change): that change goes to review.
 
 ## Suggestions: approved on the issue, applied by a developer
 
