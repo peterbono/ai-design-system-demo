@@ -36,7 +36,6 @@ import { libraryArrivalOnGitHub } from '@bridge-ds/core';
 import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, triedLocally, tryItLinks } from '../sync/explorations';
 import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
 import { type Selection, onProgress, onSelection, request } from './bridge';
-import { BridgeSignInPoller, type LinkPoll, SIGN_IN_WORDS, startBridgeSignIn } from '../sync/bridge-sign-in';
 import { MEASURED_SPECS_FILE, type MeasuredOverlayReport } from '../sync/measured-specs';
 import type { MeasuredOnlyReport } from '@bridge-ds/core';
 import { type FidelityOutcome, NO_REFERENCES_TEXT, fidelitySummary, loadReferenceManifest, runFidelityCheck } from '../sync/fidelity';
@@ -47,6 +46,7 @@ import { type Child, h } from './dom';
 import { icon } from './icons';
 import { ILLUSTRATIONS, type IllustrationName } from './illustrations';
 import { focusFirstItem, menuKeys } from './menu';
+import { BridgeSignInPoller, type LinkPoll, SIGN_IN_WORDS, startBridgeSignIn } from '../sync/bridge-sign-in';
 
 type Tab = 'pull' | 'push' | 'settings';
 const TABS: { id: Tab; label: string }[] = [
