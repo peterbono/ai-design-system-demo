@@ -475,6 +475,31 @@ statuses: Read** (optional, used only when GitHub can merge on the spot) come wi
 repository, an admin turns on **Settings, General, Allow auto-merge**; without it, pushes wait for a developer
 (`auto_merge_off`). The Figma plugin calls the site, so its manifest lists the site's origin in `allowedDomains`.
 
+## Bridge inside Claude (the hosted MCP connector)
+
+Teams add `<site>/mcp` to their own Claude as a custom connector and sign in with Bridge; Claude then uses every Bridge
+MCP tool on their team's repository as them ([FIGMA-FIXES.md](FIGMA-FIXES.md), "Bridge inside your team's Claude", for
+the flow, the tokens and the fix sessions). One function, `apps/docs-site/api/mcp`; `vercel.json` rewrites `/mcp`,
+`/oauth/*` and the two `/.well-known/oauth-*` documents to it, and its install step builds `packages/mcp` (the
+function loads the MCP server's built `dist/lib.js`).
+
+| Request | Answer |
+| ------- | ------ |
+| `GET /api/mcp?view=connections&repo=<owner/repo>` | `200 { "connections": [{ "id", "client", "by", "createdAt", "lastUsedAt", "mine" }], "canManage" }`: anyone on the team |
+| `POST /api/mcp?view=disconnect` `{ "repo", "id" }` | the person who connected it, or a team admin: `200 { "removed": true }` |
+
+Kept (Upstash Redis): registered clients (180 days), authorization requests (10 minutes), codes (2 minutes, used
+once), connections (90 days after last use, the person's GitHub tokens sealed with a key derived from
+`LIBRARY_SESSION_SECRET`), token hashes (1 hour and 30 days), fix sessions (7 days). Nothing is logged.
+
+### Set it up (owner of the site)
+
+1. In the **Bridge Direct** GitHub App settings, add the callback URL `<site>/oauth/github` (GitHub Apps take several).
+   Keep "Expire user authorization tokens" on.
+2. It uses what is already set: `GITHUB_APP_CLIENT_ID` and `GITHUB_APP_CLIENT_SECRET` (Bridge Direct), the storage
+   env, `LIBRARY_SESSION_SECRET`, and `PUBLIC_SITE_URL` (the issuer; set it to the production origin). No new secret.
+3. Changing `LIBRARY_SESSION_SECRET` ends every connection: people connect again from Claude.
+
 ## Team reads through Bridge
 
 Members of a team without a GitHub token of their own (email members, Bridge accounts) and signed-out visitors of the
