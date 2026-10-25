@@ -12,6 +12,7 @@
 // spec does not carry.
 
 import type { SpecField, SpecLayout, SpecValue } from '../component-spec';
+import { withSrgbColors } from '../css-color';
 import { sharedTokenPrefix, tokenVariablePath, type MeasuredBox, type MeasuredMode, type MeasuredNode, type MeasuredPart, type MeasuredProps, type MeasuredSpec, type MeasuredState, type MeasuredToken, type MeasuredTokenProperty, type MeasuredTokens } from '../measured-spec';
 import { storybookIframeUrl, type StorybookIframeOptions, type StorybookIndex } from '../storybook';
 import { MEASURE_SCRIPT } from './measure-script';
@@ -308,7 +309,7 @@ export async function harvestTokens(page: MeasurePage, storybook: string, story:
     await page.goto(storybookIframeUrl(storybook, story, iframe), { waitUntil: 'domcontentloaded', timeout: timeout + 15000 });
     await page.evaluate<string>(WAIT_SCRIPT('#storybook-root, #root', timeout));
     const r = await page.evaluate<{ properties: RawTokenProperty[] } | null>(`(${TOKENS_SCRIPT})({})`);
-    return r?.properties ?? [];
+    return withSrgbColors(r?.properties ?? []);
   };
   const base = await read({});
   // A theme on a page attribute: set it where it lives (the root when nowhere), let styles apply, read again.
@@ -321,7 +322,7 @@ export async function harvestTokens(page: MeasurePage, storybook: string, story:
     }
     await page.evaluate(`(async () => { const els = document.querySelectorAll('[${attr}]'); (els.length ? Array.from(els) : [document.documentElement]).forEach((e) => e.setAttribute('${attr}', ${JSON.stringify(value)})); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); })()`);
     const r = await page.evaluate<{ properties: RawTokenProperty[] } | null>(`(${TOKENS_SCRIPT})({})`);
-    return r?.properties ?? [];
+    return withSrgbColors(r?.properties ?? []);
   };
   const found = o.modes === false ? [] : ((await page.evaluate<MeasuredMode[] | null>(GLOBALS_SCRIPT).catch(() => null)) ?? []);
   // Views that are not a theme (Primer's "all" shows every scheme side by side).
@@ -523,7 +524,8 @@ export async function measureRendered(page: MeasurePage, o: MeasureOptions = {})
     }
   }
   if (state) await page.forcePseudo?.(STATE_TARGETS, []).catch(() => false);
-  return { ...base, ...(state ? { state } : {}), ...(shot ? { shot } : {}), ms: Date.now() - t0 };
+  // Colors as sRGB: a page keeps oklch(), lab() and color() in computed values; Figma and the token files read rgb().
+  return { ...withSrgbColors(base), ...(state ? { state } : {}), ...(shot ? { shot } : {}), ms: Date.now() - t0 };
 }
 
 export interface StoryPick {
