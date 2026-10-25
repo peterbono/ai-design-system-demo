@@ -1,7 +1,7 @@
 // Edit mode of a Library component page, as pure functions: which sections exist, what changed since the page on
 // main (or on a change's branch), the Claude drafts waiting for Keep or Discard, the To review list of the rail and
 // text replacements for a selection. The island (components/LibraryEditMode.tsx) keeps an EditState and calls these.
-import { markClaudeDraft, missingProse, PROSE_KEYS, sectionsNeedingReview, type ComponentDocsJson, type DocsAuthorship, type DocsGuidance, type ProseKey } from '@bridge-ds/core';
+import { eligibleReviewers, markClaudeDraft, missingProse, PROSE_KEYS, sectionsNeedingReview, type ComponentDocsJson, type DocsAuthorship, type DocsGuidance, type Owners, type ProseKey } from '@bridge-ds/core';
 import { cleanDocs } from './docs-draft-model';
 
 /** Editable sections, in page order. Do and don't is one section that holds two keys. */
@@ -391,5 +391,48 @@ export const editBarLabel = (state: EditBarState, continuing: boolean): string =
  */
 export function guestEditLine(signIn: boolean): string {
   return `Draft only: your edits stay in this browser. ${signIn ? 'Sign in' : 'Connect GitHub'} to send them.`;
+}
+
+/** "Ana", "Ana or Ben", "Ana, Ben or 2 more": an unread GitHub team ("acme/design") reads as someone in it. */
+function reviewerNames(logins: readonly string[], name: (login: string) => string): string {
+  const who = logins.map((l) => (l.includes('/') ? `someone in ${l.replace(/^@/, '')}` : name(l)));
+  return who.length <= 2 ? who.join(' or ') : `${who.slice(0, 2).join(', ')} or ${who.length - 2} more`;
+}
+
+const sameLogin = (a: string | null | undefined, b: string) => Boolean(a) && a!.replace(/^@/, '').toLowerCase() === b.replace(/^@/, '').toLowerCase();
+
+export interface SendReview {
+  /** The send step's line: who reviews it, by name, and what happens next. */
+  line: string;
+  /** The owner nobody else can review, who holds the owner override: their own way through after sending. */
+  own: string | null;
+  /** The sent line's lead, before the link to the change. */
+  sent: string;
+}
+
+/**
+ * Who reviews what the edit bar sends, in the send step. A guidance change is Tier 1: one approval from an owner
+ * (either list), never from the person who sent it (docs/GOVERNANCE.md: GitHub refuses self-approval, Bridge ignores a
+ * suggestion author's own review). `owners` are the approver lists the Review page reads (scripts/teams
+ * siteApprovers); `overrideBy` the owners allowed the owner override (core overrideHolders). An owner nobody else can
+ * review, who holds the override, reads their own way through: after sending, add it as owner from Review.
+ * Suggestions have no override, so there the line says nobody else can approve it yet.
+ */
+export function sendReview(x: { viewer: string | null | undefined; owners: Owners; overrideBy: readonly string[]; suggest: boolean; name?: (login: string) => string }): SendReview {
+  const name = x.name ?? ((l: string) => l.replace(/^@/, ''));
+  const e = eligibleReviewers('approval', { owners: x.owners, author: x.viewer ?? '' });
+  const next = x.suggest ? 'Once approved, a developer applies it to the Library.' : 'It reaches the Library once approved.';
+  if (e.open) return { line: `Your team reviews it in Studio. ${next}`, own: null, sent: 'Your team can review it in Studio:' };
+  if (e.logins.length) {
+    const named = reviewerNames(e.logins, name);
+    const who = named.charAt(0).toUpperCase() + named.slice(1);
+    return { line: `${who} reviews it in Studio. ${next}`, own: null, sent: `${who} can review it in Studio:` };
+  }
+  const only = e.listed.length === 1 && sameLogin(x.viewer, e.listed[0]!);
+  const lead = only ? 'You are the only owner, so nobody else can approve it.' : 'Nobody else can approve it yet.';
+  if (!x.suggest && x.overrideBy.some((l) => sameLogin(x.viewer, l))) {
+    return { line: lead, own: 'After sending, you can add it to the Library as owner, from Review.', sent: 'Add it to the Library as owner, from Review:' };
+  }
+  return { line: `${lead} An admin adds a reviewer in Settings.`, own: null, sent: 'It waits for a reviewer:' };
 }
 
