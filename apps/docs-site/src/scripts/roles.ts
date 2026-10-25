@@ -13,7 +13,7 @@ import { choiceOf, groupsOf, roleRows, rolesProposal, sameOwners, withRoles, typ
 import { selectSegment } from './shell';
 import { getToken, ghGet, prefersSignIn, readRepo, readSignInConfig, sessionMode, setButtonBusy, setButtonDisabled, prLinksHtml, showGhError, studioClient } from './github-session';
 import { ghAction } from '../lib/gh-wording';
-import { canProposeSettings, changesProposal, GITHUB_WRITE_ONLY, withChanges, type AppPermissions } from '../lib/settings-view';
+import { canEditReviewRules, canProposeSettings, changesProposal, GITHUB_WRITE_ONLY, RULES_ADMIN_ONLY, RULES_NEED_REVIEW, withChanges, type AppPermissions } from '../lib/settings-view';
 import { teamNameProposal, withTeamName } from '../lib/team-name';
 import { installationFor, type InstallationLike } from '../lib/github-signin';
 import type { ChangesMode } from '@bridge-ds/core';
@@ -55,6 +55,34 @@ function ownersIn(group: 'design' | 'tech'): string[] {
 export function initRoles() {
   document.querySelectorAll<HTMLFormElement>('[data-roles-form]').forEach(initForm);
   gateSettingsWrites();
+  gateReviewRules();
+}
+
+/**
+ * Settings > Review rules ([data-needs-admin]): an admin with GitHub access edits them (lib/settings-view
+ * canEditReviewRules); everyone else reads the rules and who changes them (BR-20).
+ */
+export function gateReviewRules(root: ParentNode = document) {
+  void import('./github-session').then(({ onAccess }) =>
+    onAccess((a) => {
+      const can = canEditReviewRules(a);
+      root.querySelectorAll<HTMLElement>('[data-needs-admin]').forEach((el) => {
+        // Signed out (null): the button stays and opens Connect (data-gh-gate).
+        const off = can === false;
+        el.hidden = off;
+        let note = el.nextElementSibling as HTMLElement | null;
+        if (!note?.hasAttribute('data-admin-note')) {
+          if (!off) return;
+          note = document.createElement('p');
+          note.className = 'set-row-help';
+          note.setAttribute('data-admin-note', '');
+          note.textContent = RULES_ADMIN_ONLY;
+          el.after(note);
+        }
+        note.hidden = !off;
+      });
+    }),
+  );
 }
 
 /**
@@ -149,6 +177,9 @@ function initForm(form: HTMLFormElement) {
     };
     const rights: Rights = { approveDesign: pick('approveDesign'), approveTech: pick('approveTech'), ship: pick('ship') };
     const visualMode: VisualImpactMode = valueIn(form, '[data-visual-mode]') === 'on-demand' ? 'on-demand' : 'auto';
+    // Leads publishing small changes (governance.leadsPublishTier1): only when its control is on the page.
+    const leadsValue = valueIn(form, '[data-leads]');
+    const leadsPublishTier1 = leadsValue ? leadsValue === 'on' : undefined;
     // Owners: the people and teams picked in this form, only when they changed (the file keeps its own otherwise).
     const owners: Owners | undefined = ownersChanged() ? { design: ownersIn('design'), tech: ownersIn('tech') } : undefined;
     const token = getToken();
@@ -163,16 +194,17 @@ function initForm(form: HTMLFormElement) {
       });
       const current = await gh.getFileText(FILE, repo.defaultBranch);
       if (current === undefined) throw new Error('The repository has no Bridge settings file yet.');
-      const next = withRoles(current, { rights, visualMode, ...(owners ? { owners } : {}) });
+      const next = withRoles(current, { rights, visualMode, ...(owners ? { owners } : {}), ...(leadsPublishTier1 !== undefined ? { leadsPublishTier1 } : {}) });
       if (next === current) return fail('This is already the current setting. Nothing to review.');
       const risk = classifyRisk({ files: [{ path: FILE, status: 'modified' }] });
-      const p = rolesProposal(roleRows(owners ?? d.owners, rights), visualMode, { date: new Date(), prefix: d.prefix, tierLabel: `Tier ${risk.tier}${risk.reasons[0] ? ` (${risk.reasons[0]})` : ''}`, ...(owners ? { owners } : {}) });
+      const p = rolesProposal(roleRows(owners ?? d.owners, rights), visualMode, { date: new Date(), prefix: d.prefix, tierLabel: `Tier ${risk.tier}${risk.reasons[0] ? ` (${risk.reasons[0]})` : ''}`, ...(owners ? { owners } : {}), ...(leadsPublishTier1 !== undefined ? { leadsPublishTier1 } : {}) });
       let branch = p.branch;
       for (let i = 2; await gh.getBranchSha(branch); i++) branch = `${p.branch}-${i}`;
       await gh.commitToNewBranch({ base: repo.defaultBranch, branch, message: p.message, files: [{ path: FILE, content: next }] });
       const pr = await gh.createPullRequest({ title: p.title, head: branch, base: repo.defaultBranch, body: p.body, draft: false });
       await gh.addLabels(pr.number, ['config', 'source: bridge-web', `tier-${risk.tier}`]).catch(() => false);
-      done.innerHTML = `<p><strong>Sent for review.</strong> It applies once your team approves it.</p>
+      const why = done.hasAttribute('data-rules-done') ? `${RULES_NEED_REVIEW}.` : 'It applies once your team approves it.';
+      done.innerHTML = `<p><strong>Sent for review.</strong> ${why}</p>
         <p>${prLinksHtml(pr)}</p>`;
       setEditing(false);
       done.hidden = false;
@@ -215,6 +247,18 @@ async function proposeConfig(
   const pr = await gh.createPullRequest({ title: p.title, head: branch, base: repo.defaultBranch, body: p.body, draft: false });
   await gh.addLabels(pr.number, ['config', 'source: bridge-web', `tier: ${risk.tier}`]).catch(() => false);
   return { number: pr.number, url: pr.url };
+}
+
+/**
+ * Opens the pull request that edits the review rules in bridge.config.json (hosted team Settings): who approves design,
+ * who approves code, who ships, and whether leads publish small changes. A Tier 3 change, reviewed before it applies.
+ */
+export function proposeReviewRules(next: { rights: Rights; leadsPublishTier1: boolean; owners: Owners; visualMode: VisualImpactMode }, opts: { prefix?: string; protectedBranches?: string[] } = {}): Promise<{ number: number; url: string }> {
+  return proposeConfig(
+    (current) => withRoles(current, { rights: next.rights, visualMode: next.visualMode, leadsPublishTier1: next.leadsPublishTier1 }),
+    (tierLabel) => rolesProposal(roleRows(next.owners, next.rights), next.visualMode, { date: new Date(), prefix: opts.prefix, tierLabel, leadsPublishTier1: next.leadsPublishTier1 }),
+    opts,
+  );
 }
 
 /** Opens the pull request that sets `changes` in bridge.config.json (Settings and the onboarding step). */

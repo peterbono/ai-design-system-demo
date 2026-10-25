@@ -290,7 +290,7 @@ describe('editing as a guest', () => {
 
 describe('Publish for leads (Tier 1 guidance)', () => {
   const approvers = { design: ['dana'], tech: ['theo'] };
-  const base = { approvers, admin: false, enabled: true, suggest: false, continuing: false };
+  const base = { approvers, admin: false, enabled: true, continuing: false };
   it('offers Publish to a team admin and a design reviewer, not to a tech reviewer or a contributor', async () => {
     const { canPublishGuidance } = await import('./library-edit-model');
     expect(canPublishGuidance({ ...base, viewer: 'dana' })).toBe(true);
@@ -298,11 +298,18 @@ describe('Publish for leads (Tier 1 guidance)', () => {
     expect(canPublishGuidance({ ...base, viewer: 'theo' })).toBe(false);
     expect(canPublishGuidance({ ...base, viewer: 'sam' })).toBe(false);
   });
-  it('keeps Send for review when the team turned it off, in suggest mode, and on an open proposal', async () => {
+  it('keeps Send for review or Send suggestion when the team turned it off, and on an open proposal', async () => {
     const { canPublishGuidance } = await import('./library-edit-model');
     expect(canPublishGuidance({ ...base, viewer: 'dana', enabled: false })).toBe(false);
-    expect(canPublishGuidance({ ...base, viewer: 'dana', suggest: true })).toBe(false);
     expect(canPublishGuidance({ ...base, viewer: 'dana', continuing: true })).toBe(false);
+  });
+  it('after Publish: published, else in review (direct mode or an open proposal), else a suggestion (suggest mode)', async () => {
+    const { afterPublish } = await import('./library-edit-model');
+    expect(afterPublish({ armed: true, suggest: true, continued: false })).toBe('published');
+    expect(afterPublish({ armed: true, suggest: false, continued: false })).toBe('published');
+    expect(afterPublish({ armed: false, suggest: false, continued: false })).toBe('review');
+    expect(afterPublish({ armed: false, suggest: true, continued: false })).toBe('suggest');
+    expect(afterPublish({ armed: false, suggest: true, continued: true })).toBe('review');
   });
   it('says what Bridge did, and falls back to review in silence when it could not publish', async () => {
     const { publishedSaid, PUBLISH_LINE } = await import('./library-edit-model');

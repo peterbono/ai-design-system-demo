@@ -4,8 +4,8 @@
 // the payload sha the reviewer saw: an approval of an older payload no longer counts, like a stale pull request review.
 // Pure; posting lives in suggestions-github.ts.
 
-import type { Owners } from './config';
-import { pendingApprovals, summarizeApprovals, withTokenValueApprovals, type ApprovalRole, type ApprovalSummary, type ReviewLike } from './review-gate';
+import type { OverridePolicy, Owners } from './config';
+import { eligibleReviewers, OVERRIDE_HEADING, overrideComment, overrideHolders, overrideReasonProblem, pendingApprovals, summarizeApprovals, withTokenValueApprovals, type ApprovalRole, type ApprovalSummary, type MissingApproval, type ReviewLike } from './review-gate';
 import { approverLists, type Rights } from './rights';
 import type { RiskTier } from './risk';
 import type { TeamStates } from './teams';
@@ -117,6 +117,11 @@ export interface SuggestionGovernance {
   teams?: TeamStates | null | undefined;
   /** `governance.soloOwnerCanApproveBoth`: the only owner's approval covers design and tech (review-gate summarizeApprovals). */
   soloOwnerCanApproveBoth?: boolean | undefined;
+  /**
+   * `governance.override`: an owner it allows, whom nobody else can review, approves their own suggestion as owner with
+   * a written reason (suggestionOverrideOf, docs/GOVERNANCE.md "Owner override"). Absent: no override.
+   */
+  override?: OverridePolicy | null | undefined;
 }
 
 export interface SuggestionApprovals extends ApprovalSummary {
@@ -124,6 +129,75 @@ export interface SuggestionApprovals extends ApprovalSummary {
   stale: string[];
   /** People whose review does not count because they are not owners (or not collaborators when no owner is set). */
   ignored: string[];
+  /** Approved with the owner override on this version (suggestionOverrideOf): who, why, and what it went without. */
+  override?: SuggestionOverrideRecord | undefined;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The owner override on a suggestion: the same audit trail as on a pull request (review-gate overrideComment, first
+// line OVERRIDE_HEADING), bound to the version like a review, recorded as a comment on the suggestion.
+
+export const SUGGESTION_OVERRIDE_MARK = 'bridge-suggestion-override';
+
+export interface SuggestionOverrideRecord {
+  login: string;
+  reason: string;
+  missing: string[];
+  /** The version it was approved on (suggestionPayloadSha). */
+  payloadSha: string;
+}
+
+/** The override comment: the PR override's audit line ("Approved as owner from Bridge."), the version, the record. */
+export function composeSuggestionOverrideComment(r: { login: string; reason: string; missing: MissingApproval[]; payloadSha: string }): string {
+  const audit = overrideComment(r.login, r.reason, r.missing).replace(/ Merged from Bridge\.$/, ' Approved as owner from Bridge.');
+  const record = { payloadSha: r.payloadSha, login: r.login.replace(/^@/, '').toLowerCase(), missing: r.missing };
+  return [audit, '', `<sub>Applies to version \`${r.payloadSha.slice(0, 7)}\` of this suggestion.</sub>`, '', `<!-- ${SUGGESTION_OVERRIDE_MARK} ${JSON.stringify(record)} -->`].join('\n');
+}
+
+/** Reads an override comment on a suggestion back; null for any other comment. */
+export function parseSuggestionOverrideComment(body: string | null | undefined): SuggestionOverrideRecord | null {
+  const text = (body ?? '').trim();
+  if (!text.startsWith(OVERRIDE_HEADING)) return null;
+  const m = new RegExp(`<!-- ${SUGGESTION_OVERRIDE_MARK} (\\{[^\\n]*?\\}) -->`).exec(text);
+  if (!m) return null;
+  try {
+    const r = JSON.parse(m[1]!) as Partial<SuggestionOverrideRecord>;
+    if (typeof r.payloadSha !== 'string' || typeof r.login !== 'string') return null;
+    const why = /Owner override by @[\w-]+: ([\s\S]*?)\. Missing:/.exec(text);
+    return { login: r.login, reason: why?.[1] ?? '', missing: Array.isArray(r.missing) ? r.missing.map(String) : [], payloadSha: r.payloadSha };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Who may approve this suggestion as owner, and why not: an owner `governance.override` allows (overrideHolders), on
+ * their own suggestion, when nobody else in the approver lists can review it. Null when they may.
+ */
+export function suggestionOverrideProblem(x: { viewer: string | null | undefined; author: string; gov: SuggestionGovernance }): string | null {
+  const lists = approverLists(x.gov.owners, x.gov.rights ?? null, x.gov.teams);
+  const holders = overrideHolders(x.gov.override, lists).map(norm);
+  if (!x.viewer || !holders.includes(norm(x.viewer))) return 'Only an owner the review rules allow to use the owner override can approve as owner.';
+  if (norm(x.viewer) !== norm(x.author)) return 'The owner override is for your own suggestion: approve this one the usual way.';
+  const others = eligibleReviewers('approval', { owners: lists, author: x.author });
+  if (others.open || others.logins.length) return 'Someone else can review it: ask them instead.';
+  return null;
+}
+
+/**
+ * The owner override in force on this version: the latest override comment for `payloadSha`, posted by the person it
+ * names, who may use it (suggestionOverrideProblem) with a reason long enough. Null otherwise.
+ */
+export function suggestionOverrideOf(comments: readonly SuggestionCommentLike[], gov: SuggestionGovernance, opts: { payloadSha: string; author?: string | null | undefined }): SuggestionOverrideRecord | null {
+  if (!gov.override || !opts.author) return null;
+  for (const c of [...comments].reverse()) {
+    const r = parseSuggestionOverrideComment(c.body);
+    if (!r || r.payloadSha !== opts.payloadSha || !c.author || norm(c.author) !== norm(r.login)) continue;
+    if (suggestionOverrideProblem({ viewer: c.author, author: opts.author, gov })) continue;
+    if (overrideReasonProblem(r.reason, gov.override)) continue;
+    return r;
+  }
+  return null;
 }
 
 const norm = (l: string) => l.trim().replace(/^@/, '').toLowerCase();
@@ -175,7 +249,10 @@ export function summarizeSuggestionApprovals(
   });
   const summary = withTokenValueApprovals(summarizeApprovals(reviews, lists, opts.author ?? undefined, { soloOwnerCanApproveBoth: gov.soloOwnerCanApproveBoth }), opts.valuesOnly);
   const stale = [...latestOld.keys()].filter((l) => !summary.approvers.includes(l) && !summary.changesRequested.includes(l));
-  return { ...summary, stale, ignored: [...ignored].filter((l) => !summary.approvers.includes(l)) };
+  const out = { ...summary, stale, ignored: [...ignored].filter((l) => !summary.approvers.includes(l)) };
+  // The owner override covers the missing approvals, never changes someone asked for (the same as on a pull request).
+  const override = summary.changesRequested.length ? null : suggestionOverrideOf(comments, gov, { payloadSha: opts.payloadSha, author: opts.author });
+  return override ? { ...out, design: true, tech: true, owner: true, override } : out;
 }
 
 /** The review state for the status machine: changes requested beats approved; approved when no approval is missing. */

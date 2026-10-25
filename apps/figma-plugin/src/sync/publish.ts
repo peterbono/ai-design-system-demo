@@ -464,14 +464,14 @@ async function fileBuildRequest(client: GitHubClient, input: SendPushInput, d: R
 // Wording per change mode (bridge.config.json "changes"): one source for the bar, the result and the token help.
 
 /**
- * The one verb for sending, everywhere in the plugin (the bar, a component row, the request form): "Send to the library"
+ * The one verb for sending, everywhere in the plugin (the bar, a component row, the request form): "Send for review"
  * when changes go straight to it (docs/BUILD-REQUESTS.md), "Send suggestion" when the DS lead decides first.
  */
-export const sendLabel = (mode: ChangesMode) => (mode === 'suggest' ? 'Send suggestion' : 'Send to the library');
+export const sendLabel = (mode: ChangesMode) => (mode === 'suggest' ? 'Send suggestion' : 'Send for review');
 
-/** The result title: "Suggestion sent to your DS lead" (suggest), "Sent to the library" (direct). No issue numbers. */
+/** The result title: "Suggestion sent to your DS lead" (suggest), "Sent for review" (direct). No issue numbers. */
 export function sentTitle(res: Pick<PublishResult, 'suggestions'>, mode: ChangesMode): string {
-  if (mode !== 'suggest' || !res.suggestions.length) return 'Sent to the library';
+  if (mode !== 'suggest' || !res.suggestions.length) return 'Sent for review';
   return res.suggestions.length === 1 ? 'Suggestion sent to your DS lead' : `${res.suggestions.length} suggestions sent to your DS lead`;
 }
 

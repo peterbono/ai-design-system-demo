@@ -29,6 +29,8 @@ Usage:
                      the plan and the diff and writes nothing
   bridge review <n> --approve | --request-changes --message "..." | --decline --message "..." [--version <sha>]
                      as the owner your GitHub token belongs to; counts only for owners in bridge.config.json
+  bridge review <n> --override --message "reason"
+                     the owner override: approve your own suggestion as owner when nobody else can review it
 
 ${TOKEN_HELP}
 Exit codes (apply): 0 applied, already applied or a clean dry run; 1 not approved, blocked by a check or refused;
@@ -100,6 +102,7 @@ export async function runSuggestions(a: SuggestArgs, root: string, io: RequestIO
       io.print(`Approved by: ${r.approvals.approvedBy.map((l: string) => `@${l}`).join(', ') || 'nobody yet'}`);
       if (r.approvals.missing.length) io.print(`Missing: ${r.approvals.missing.join(' and ')}`);
       if (r.approvals.soloOwner) io.print(r.approvals.soloOwner);
+      if (r.approvals.ownerOverride) io.print(r.approvals.ownerOverride);
       if (r.approvals.changesRequestedBy.length) io.print(`Changes requested by: ${r.approvals.changesRequestedBy.map((l: string) => `@${l}`).join(', ')}`);
       for (const p of r.linkedPrs ?? []) io.print(`Pull request: #${p.number} ${p.merged ? 'merged' : p.state}  ${p.url}`);
       io.print(`\nNext: ${r.next}`);
@@ -166,15 +169,15 @@ export async function runApply(a: SuggestArgs, root: string, io: RequestIO = def
 /** `bridge review <n> --approve | --request-changes | --decline`. */
 export async function runReview(a: SuggestArgs, root: string, io: RequestIO = defaultIO()): Promise<number> {
   if (has(a, 'help') || a._[1] === 'help') return io.print(SUGGESTIONS_HELP), 0;
-  const usage = 'bridge review <number> --approve | --request-changes --message "..." | --decline --message "..."';
+  const usage = 'bridge review <number> --approve | --request-changes --message "..." | --decline --message "..." | --override --message "reason"';
   const n = issueNumber(a._[1], usage);
-  const events = (['approve', 'request-changes', 'decline', 'comment'] as const).filter((e) => has(a, e));
+  const events = (['approve', 'request-changes', 'decline', 'comment', 'override'] as const).filter((e) => has(a, e));
   if (events.length !== 1) throw new SuggestUsageError(`Usage: ${usage}`);
   const event = events[0]!;
   // `--request-changes "text"` works too, like `bridge branch review`.
   const inline = flag(a, event);
   const message = flag(a, 'message') ?? (inline && inline !== 'true' ? inline : undefined);
-  if ((event === 'request-changes' || event === 'decline' || event === 'comment') && !message?.trim()) throw new SuggestUsageError(`--${event} needs --message "..." (the author reads it).`);
+  if ((event === 'request-changes' || event === 'decline' || event === 'comment' || event === 'override') && !message?.trim()) throw new SuggestUsageError(`--${event} needs --message "..." (the author reads it).`);
   const role = flag(a, 'role');
   if (role && !['design', 'tech', 'approval'].includes(role)) throw new SuggestUsageError(`--role takes design, tech or approval, got "${role}"`);
   const ctx = await context(root, io, a, 'write');
@@ -187,7 +190,7 @@ export async function runReview(a: SuggestArgs, root: string, io: RequestIO = de
     ...(version ? { payloadSha: version } : {}),
   })) as Record<string, any>;
   if (has(a, 'json')) return io.print(JSON.stringify(r, null, 2)), 0;
-  const done = event === 'approve' ? 'Approved' : event === 'request-changes' ? 'Changes requested on' : event === 'decline' ? 'Declined' : 'Commented on';
+  const done = event === 'override' ? 'Approved as owner' : event === 'approve' ? 'Approved' : event === 'request-changes' ? 'Changes requested on' : event === 'decline' ? 'Declined' : 'Commented on';
   io.print(`${done} #${n}${r.version ? ` (version ${r.version})` : ''}. Now: ${SUGGESTION_STATUS_LABEL[r.status as SuggestionStatus] ?? r.status}.`);
   for (const w of r.warnings ?? []) io.error(`warning: ${w}`);
   if (r.next) io.print(`Next: ${r.next}`);

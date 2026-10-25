@@ -340,7 +340,21 @@ export interface SuggestionGate {
   covers: ApprovalRole[];
   /** Why the viewer cannot approve, in one sentence; null when they can. */
   why: string | null;
+  /**
+   * The owner override (docs/GOVERNANCE.md): the viewer is an owner the review rules allow, it is their own
+   * suggestion and nobody else can review it. They approve it as owner with a reason of `overrideMin` characters.
+   */
+  canOverride?: boolean;
+  overrideMin?: number;
 }
+
+/** The words of the owner override on a suggestion, the same in the gate, the button and the result. */
+export const OWNER_OVERRIDE_WORDS = {
+  button: 'Approve as owner',
+  why: 'You are the only owner, so nobody else can approve it. Approve it as owner, with a reason everyone can read.',
+  reason: 'Why it goes without another review',
+  done: 'Approved as owner. A developer applies it next.',
+} as const;
 
 const ROLE_WORD: Record<ApprovalRole, string> = { design: 'design', tech: 'tech', approval: 'an' };
 
@@ -364,6 +378,8 @@ export function suggestionGate(x: {
   signInLine: string;
   /** The only owner whose approval covers design and tech (core soloOwnerOf), null when the rule is off. */
   soloOwner?: string | null;
+  /** The owner override as the review rules allow it (core overrideHolders) and its reason length. Absent: none. */
+  override?: { holders: readonly string[]; min: number } | null;
 }): SuggestionGate {
   const none: SuggestionGate = { canApprove: false, canRequestChanges: false, canDecline: false, role: null, covers: [], why: null };
   if (!x.viewer) return { ...none, why: `${x.signInLine}.` };
@@ -375,7 +391,13 @@ export function suggestionGate(x: {
   const listed = [...new Set([...x.owners.design, ...x.owners.tech])];
   // Approved: its author has nothing left to do, a developer applies it.
   if (x.status === 'approved' && same(x.viewer, x.author)) return { ...none, why: 'Approved. A developer applies it next: nothing more for you to do.' };
-  if (same(x.viewer, x.author)) return { ...none, why: `You suggested it, so someone else approves it${listed.length ? `: ${people(listed, x.names)}` : ''}.` };
+  if (same(x.viewer, x.author)) {
+    // Nobody else in the approver lists: the owner override is the way through, for the owner it allows.
+    const others = listed.filter((l) => !same(l, x.author));
+    const holds = Boolean(x.override?.holders.some((h) => same(h, x.viewer)));
+    if (listed.length && !others.length && holds && x.status === 'needs-review') return { ...none, why: OWNER_OVERRIDE_WORDS.why, canOverride: true, overrideMin: x.override!.min };
+    return { ...none, why: `You suggested it, so someone else approves it${others.length ? `: ${people(others, x.names)}` : listed.length ? ', and nobody else can yet. Add a reviewer in Settings' : ''}.` };
+  }
   if (!roles.length) {
     return { ...none, why: open ? 'Only people who can edit the library approve suggestions.' : `Only the design system owners approve suggestions: ${people(listed, x.names)}.` };
   }
@@ -416,7 +438,7 @@ export function approvalRows(x: { tier: 1 | 2 | 3; approvals: SuggestionApproval
   const changes = a?.changesRequested ?? [];
   const row = (label: string, done: boolean, who: readonly string[]) => {
     if (changes.length) return { label, state: 'changes' as const, text: `Changes asked by ${by(changes)}` };
-    if (done) return { label, state: 'approved' as const, text: a?.approvers.length ? `Approved by ${by(a.approvers)}` : 'Approved' };
+    if (done) return { label, state: 'approved' as const, text: a?.override ? `Approved as owner by ${by([a.override.login])}` : a?.approvers.length ? `Approved by ${by(a.approvers)}` : 'Approved' };
     return { label, state: 'waiting' as const, text: who.length ? `Waiting for ${people(who, x.names)}` : 'Waiting for someone who can edit the library' };
   };
   if (x.tier === 1) return [row('One approval', Boolean(a && (a.design || a.tech)), [...new Set([...x.owners.design, ...x.owners.tech])])];

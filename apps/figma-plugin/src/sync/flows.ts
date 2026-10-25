@@ -489,7 +489,7 @@ export function pullCollections(plan: Pick<PullPlan, 'collections' | 'variables'
 export function pullHeadline(o: { baseSha: string | undefined; variablesUpToDate: boolean; behind: number; status: string[] }): string {
   // Designer words: "the design system", never the branch name or a commit.
   const changes = o.behind ? `${o.behind} new ${o.behind === 1 ? 'change' : 'changes'} in the design system` : '';
-  if (!o.baseSha) return 'First time in this file';
+  if (!o.baseSha) return 'Bring your design system into this file';
   if (!o.variablesUpToDate) return o.status.join(', ') || changes || 'Already up to date';
   if (o.behind) return [changes, ...o.status].join(', ');
   return o.status.length ? `Up to date with the design system. ${o.status.join(', ')}.` : 'Already up to date';

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   composeSuggestionAppliedComment,
+  composeSuggestionOverrideComment,
   composeSuggestionReviewComment,
+  parseOverrideComment,
+  parseSuggestionOverrideComment,
+  suggestionOverrideProblem,
+  OVERRIDE_HEADING,
   parseSuggestionAppliedComment,
   parseSuggestionReviewComment,
   suggestionReviewState,
@@ -148,5 +153,44 @@ describe('suggestion status', () => {
     expect(suggestionStateLabel('applied')).toBe('suggestion: applied');
     expect(suggestionStateLabel('declined')).toBe('suggestion: declined');
     expect(suggestionStateLabel('outdated')).toBeNull();
+  });
+});
+
+describe('the owner override on a suggestion', () => {
+  const policy = { allowed: ['peterbono'], requireReason: true, minReasonLength: 20 };
+  const solo = { owners: { design: ['peterbono'], tech: ['peterbono'] }, override: policy };
+  const reason = 'Solo maintainer, checked the contrast myself.';
+  const ov = (author: string, payloadSha = SHA, why = reason): SuggestionCommentLike => ({ author, body: composeSuggestionOverrideComment({ login: author, reason: why, missing: ['design approval', 'tech approval'], payloadSha }) });
+
+  it('writes the same audit line as on a pull request, bound to the version, and reads it back', () => {
+    const body = ov('peterbono').body;
+    expect(body.startsWith(OVERRIDE_HEADING)).toBe(true);
+    expect(body).toContain('Owner override by @peterbono: Solo maintainer, checked the contrast myself. Missing: design approval, tech approval. Approved as owner from Bridge.');
+    expect(body).toContain('version `aaaaaaa`');
+    expect(body).not.toMatch(/—/);
+    expect(parseSuggestionOverrideComment(body)).toEqual({ login: 'peterbono', reason: 'Solo maintainer, checked the contrast myself', missing: ['design approval', 'tech approval'], payloadSha: SHA });
+    // Never read as a pull request merge.
+    expect(parseOverrideComment(body)).toBeNull();
+    expect(parseSuggestionOverrideComment('LGTM')).toBeNull();
+  });
+
+  it('only the owner it allows, on their own suggestion, when nobody else can review it', () => {
+    expect(suggestionOverrideProblem({ viewer: 'peterbono', author: 'peterbono', gov: solo })).toBeNull();
+    expect(suggestionOverrideProblem({ viewer: 'peterbono', author: 'ana', gov: solo })).toMatch(/your own suggestion/);
+    expect(suggestionOverrideProblem({ viewer: 'ana', author: 'ana', gov: solo })).toMatch(/Only an owner/);
+    expect(suggestionOverrideProblem({ viewer: 'peterbono', author: 'peterbono', gov: { ...solo, override: null } })).toMatch(/Only an owner/);
+    const two = { owners: { design: ['peterbono', 'dana'], tech: ['peterbono'] }, override: policy };
+    expect(suggestionOverrideProblem({ viewer: 'peterbono', author: 'peterbono', gov: two })).toMatch(/Someone else can review it/);
+  });
+
+  it('counts as every missing approval on its version, never on another, without a reason, or from someone else', () => {
+    const a = summarizeSuggestionApprovals([ov('peterbono')], solo, { payloadSha: SHA, author: 'peterbono' });
+    expect(a).toMatchObject({ design: true, tech: true, owner: true });
+    expect(a.override?.login).toBe('peterbono');
+    expect(suggestionReviewState(3, a)).toBe('approved');
+    expect(summarizeSuggestionApprovals([ov('peterbono', OLD)], solo, { payloadSha: SHA, author: 'peterbono' }).override).toBeUndefined();
+    expect(summarizeSuggestionApprovals([ov('peterbono', SHA, 'too short')], solo, { payloadSha: SHA, author: 'peterbono' }).override).toBeUndefined();
+    expect(summarizeSuggestionApprovals([{ ...ov('peterbono'), author: 'mallory' }], solo, { payloadSha: SHA, author: 'peterbono' }).override).toBeUndefined();
+    expect(summarizeSuggestionApprovals([ov('peterbono')], { ...solo, override: null }, { payloadSha: SHA, author: 'peterbono' }).override).toBeUndefined();
   });
 });

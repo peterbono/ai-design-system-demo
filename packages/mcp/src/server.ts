@@ -1139,10 +1139,10 @@ export function createServer(ctx: BridgeContext): McpServer {
     {
       title: 'Review a suggestion',
       description:
-        'Approve, request changes on, comment on or decline a suggestion, as the person whose GitHub token the server has. Approvals and requested changes count only from the owners in bridge.config.json (read from the default branch) and only on the version reviewed: pass payloadSha from bridge_get_suggestion so a newer version is never approved by mistake. Request changes and decline need a message. Decline closes the issue as not planned. Needs GITHUB_TOKEN (Issues: read and write). Only when the person asked, with the decision they asked for.',
+        'Approve, request changes on, comment on or decline a suggestion, as the person whose GitHub token the server has. Approvals and requested changes count only from the owners in bridge.config.json (read from the default branch) and only on the version reviewed: pass payloadSha from bridge_get_suggestion so a newer version is never approved by mistake. Request changes and decline need a message. Decline closes the issue as not planned. "override": the owner override (docs/GOVERNANCE.md): an owner governance.override allows approves their own suggestion as owner when nobody else can review it, with the reason in message (at least the minimum length); it is recorded on the suggestion. Needs GITHUB_TOKEN (Issues: read and write). Only when the person asked, with the decision they asked for.',
       inputSchema: {
         number: SuggestionNumber,
-        event: z.enum(['approve', 'request-changes', 'comment', 'decline']),
+        event: z.enum(['approve', 'request-changes', 'comment', 'decline', 'override']),
         message: z.string().optional().describe('What should change, why it is declined, or the comment. Plain sentences, no em dash.'),
         role: z.enum(['design', 'tech', 'approval']).optional().describe('The role you approve for, shown in the comment. Informative: what counts is who you are in the owner lists.'),
         payloadSha: z.string().optional().describe('The version you reviewed (payloadSha or version from bridge_get_suggestion).'),

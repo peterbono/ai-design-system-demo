@@ -473,7 +473,9 @@ const PILLS_MAX = 8;
 /** Contrast pairs a change moves, directly or through aliases, in every brand x theme. */
 function contrastPills(current: LogicalToken | undefined, target: LogicalToken | undefined, after: ContrastResult[] | undefined, before: ContrastResult[] = []): Child {
   if (!after) return null;
-  const rows = affectedContrast({ current, target }, before, after).filter((x) => x.after?.ratio !== undefined);
+  // Only the pairs that fail, next to the edit that breaks them: pairs that still pass are one sentence in the summary
+  // and a fold under Contrast (no second copy of the table on the row).
+  const rows = affectedContrast({ current, target }, before, after).filter((x) => x.after?.ratio !== undefined && x.after.level === 'fail');
   if (!rows.length) return null;
   rows.sort((x, y) => Number(y.after!.level === 'fail') - Number(x.after!.level === 'fail') || x.after!.ratio! - y.after!.ratio!);
   return h(
@@ -1027,7 +1029,7 @@ function submitPush(): void {
   const toExploration = r.destination === 'exploration';
   const mode = modeOf(r);
   void run(
-    toExploration ? (r.exploreTarget === 'new' ? 'Starting the exploration' : 'Sending to the exploration') : mode === 'suggest' ? 'Sending the suggestion' : withPr ? (r.appendToOpen && r.openPr ? 'Adding to your change' : 'Sending to the library') : 'Sending the requests',
+    toExploration ? (r.exploreTarget === 'new' ? 'Starting the exploration' : 'Sending to the exploration') : mode === 'suggest' ? 'Sending the suggestion' : withPr ? (r.appendToOpen && r.openPr ? 'Adding to this change' : 'Sending for review') : 'Sending the requests',
     async () => {
       let exploration: ExplorationChoice | undefined;
       if (toExploration) {
@@ -1096,7 +1098,7 @@ function submitPush(): void {
         ? [`Sent to ${exploration.name}`]
         : mode === 'suggest'
           ? [result.suggestions.length ? sentTitle(result, mode) : '', result.requests.length ? `${plural(result.requests.length, 'request')} sent` : ''].filter(Boolean)
-          : [result.pr ? (result.pr.appended ? 'Added to your change in review' : 'Sent for review') : '', result.requests.length ? `${plural(result.requests.length, 'request')} sent` : '', result.branches.length ? `${plural(result.branches.length, 'component')} sent` : ''].filter(Boolean);
+          : [result.pr ? (result.pr.appended ? 'Added to this change' : 'Sent for review') : '', result.requests.length ? `${plural(result.requests.length, 'request')} sent` : '', result.branches.length ? `${plural(result.branches.length, 'component')} sent` : ''].filter(Boolean);
       void request('notify', { message: parts.join(', ') });
     },
     submitPush,
@@ -1861,13 +1863,13 @@ function viewPull(): View {
         text: 'See every change before anything is written. Your own edits are kept, nothing is deleted.',
         meta: init.sync.baseSha
           ? init.sync.lastPullAt ? `Last updated in this file on ${when(init.sync.lastPullAt)}.` : undefined
-          : 'First time in this file: one collection per tier, with its modes.',
+          : 'First time in this file: Bridge adds its variables and components.',
         art: 'tokens',
-      }), forDevelopers([...repoRows(), ['Last pulled commit', short(init.sync.baseSha)]]), steps([
+      }), steps([
         ['Check', "Bridge reads the design system's tokens and components."],
         ['Review', 'Every new, edited or deleted token is listed with its value. Nothing is written yet.'],
         ['Apply', 'Figma variables are created or updated, and components are built from the code. Your own edits stay until you send them from Push.'],
-      ])],
+      ]), forDevelopers([...repoRows(), ['Last pulled commit', short(init.sync.baseSha)]])],
       bar: { label: 'Check for updates', onClick: checkPull },
     };
   }
@@ -1885,7 +1887,7 @@ function viewPull(): View {
     const problems = [...(r?.errors ?? []), ...(cr?.problems ?? [])];
     const view = cr ? componentReportView(cr) : undefined;
     const text = [
-      r ? `${plural(r.created, 'variable')} created, ${r.updated} updated${r.orphaned ? `, ${r.orphaned} flagged as orphan` : ''}.` : '',
+      r ? `${[r.created ? `${plural(r.created, 'variable')} created` : '', r.updated ? `${plural(r.updated, 'variable')} updated` : '', r.orphaned ? `${r.orphaned} flagged as orphan` : ''].filter(Boolean).join(', ') || 'Variables already matched'}.` : '',
       cr && view
         ? `${view.headline} ${[cr.created ? `${cr.created} created` : '', cr.updated ? `${cr.updated} updated` : '', cr.orphaned ? `${plural(cr.orphaned, 'variant')} flagged as orphan` : ''].filter(Boolean).join(', ')}${cr.created || cr.updated || cr.orphaned ? (cr.elsewhere ? `, ${cr.elsewhere} of them where they are kept in this file.` : ` on the ${cr.page} page.`) : ''}`.trim()
         : '',
@@ -1894,10 +1896,13 @@ function viewPull(): View {
     const left = view?.retry ?? false;
     // Variables are written first, then the components: until they are built, the file is not up to date yet.
     const building = !cr && !!state.busy;
+    // The first pull of this file, done: the designer's next step, in one sentence (orientation, no dead end).
+    const firstDone = !p.analysis.baseSha && !problems.length && !left && !building && !view?.stopped;
+    if (firstDone) text.push('To change something, edit it in Figma, then send it from Push.');
     return {
       body: [
         intro({
-          title: view?.stopped ? 'Pull stopped' : left ? 'Some components were not built' : problems.length ? 'Pulled, with problems' : building ? 'Variables are in, building components' : 'Figma is up to date',
+          title: view?.stopped ? 'Pull stopped' : left ? 'Some components were not built' : problems.length ? 'Pulled, with problems' : building ? 'Variables are in, building components' : firstDone ? 'Your design system is in Figma' : 'Figma is up to date',
           text: text.join(' '),
           meta: r ? (r.layout === 'single-collection' ? 'Themes are modes of the Semantic collection.' : 'This file allows one mode per collection, so each theme has its own Semantic collection.') : undefined,
           art: problems.length ? 'fix' : 'tokens',
@@ -1955,14 +1960,14 @@ function viewPull(): View {
   const catchUp = upToDate && behind > 0;
   const headline = pullHeadline({ baseSha: a.baseSha, variablesUpToDate: upToDate, behind, status });
   const lastPulled = a.baseSha && init.sync.lastPullAt ? `Last updated in this file on ${when(init.sync.lastPullAt)}` : '';
+  const freshCount = (p.components?.components ?? []).filter((c) => c.status === 'new').length;
   const meta = !a.baseSha
-    ? `${plural(prop.plan.variables.length, 'variable')} from the design system, in the ${andList(pullCollections(prop.plan))} ${pullCollections(prop.plan).length === 1 ? 'collection' : 'collections'}.`
+    ? `${plural(prop.plan.variables.length, 'variable')}${freshCount ? ` and ${plural(freshCount, 'component')}` : ''} from the design system. Nothing is written until you apply.`
     : catchUp
       ? [lastPulled, 'Your variables already match the design system: update to catch up with its latest changes.'].filter(Boolean).join('. ')
       : [lastPulled, behind ? `${plural(behind, 'new change')} in the design system` : ''].filter(Boolean).join(' · ');
   const body: Child[] = [
     h('section', { class: 'zone' }, h('h2', { class: 'headline' }, headline), meta ? h('p', { class: 'muted' }, meta) : null),
-    forDevelopers([...repoRows(), ['Last pulled commit', short(a.baseSha)], ['Latest commit', short(a.headSha)], ['Spec source', p.measuredOnly ? `Measured only: ${p.measuredOnly.sets} sets, ${p.measuredOnly.variants} variants from ${p.measuredOnly.stories} stories` : measuredLine(p.measured)], ...fixesRows(p.fixes)]),
   ];
 
   if (remote.length) {
@@ -2005,6 +2010,8 @@ function viewPull(): View {
   body.push(fidelityGroup(p));
   if (prop.skipped.length) body.push(issueList('warn', 'Not written', prop.skipped.map((s) => ({ code: 'file-problem', severity: 'warning', message: `${s.path}: ${s.reason}` }))));
   body.push(notes(a));
+  // Repository, commits, spec source and collections: last, folded, for whoever needs them (never above the changes).
+  body.push(forDevelopers([...repoRows(), ['Last pulled commit', short(a.baseSha)], ['Latest commit', short(a.headSha)], ['Collections', andList(pullCollections(prop.plan))], ['Spec source', p.measuredOnly ? `Measured only: ${p.measuredOnly.sets} sets, ${p.measuredOnly.variants} variants from ${p.measuredOnly.stories} stories` : measuredLine(p.measured)], ...fixesRows(p.fixes)]));
 
   const open = prop.unresolvedConflicts.length;
   // New sets from code: the choice sits next to the action it changes (on by default on a first pull).
@@ -2122,7 +2129,7 @@ function componentsGroup(p: PullState): Child {
             )
           : null,
         fresh.length
-          ? rowList(
+          ? foldOnFirstPull(p, `See the ${plural(fresh.length, 'component')}`, rowList(
               'pull-components',
               fresh.map((c) =>
                 h(
@@ -2140,12 +2147,17 @@ function componentsGroup(p: PullState): Child {
                 ),
               ),
               10,
-            )
+            ))
           : null,
       ],
     ),
   );
   return out;
+}
+
+/** A first pull brings everything, all new: the headline says it, the list is there on demand (as for variables). */
+function foldOnFirstPull(p: PullState, summary: string, content: HTMLElement): HTMLElement {
+  return p.analysis.baseSha ? content : h('details', { class: 'notes' }, h('summary', null, summary), content);
 }
 
 /** "Check fidelity": exports each generated set's variants and compares them with the code images. Read only. */
@@ -3588,7 +3600,7 @@ function viewPush(): View {
       ...suggestionLines(res),
       // Edits added to an open change (no new outcome to route): what happens next follows core's rule for a push from
       // Figma (TV-1: values ship once the checks pass; a rename or removal waits for a developer OK).
-      pr ? `${pr.appended ? 'Added to your change in review' : 'Variable edits sent as a draft'}. ${figmaPushNextLine((r.proposal?.changes ?? []).map((c) => ({ kind: !c.target ? 'removed' : !c.current ? 'added' : c.target.path !== c.current.path ? 'renamed' : 'changed' })))}` : '',
+      pr ? `${pr.appended ? 'Added to this change' : 'Variable edits sent'}. ${figmaPushNextLine((r.proposal?.changes ?? []).map((c) => ({ kind: !c.target ? 'removed' : !c.current ? 'added' : c.target.path !== c.current.path ? 'renamed' : 'changed' })))}` : '',
       res.requests.length ? `${plural(res.requests.length, 'request')} sent for ${res.requests.map((x) => x.component).join(', ')}.` : '',
       ...res.branches.filter((x) => !x.suggested).map((x) => (x.route === 'token-change' ? `${x.component}: an exact token change, checked for contrast.` : `${x.component}: a developer builds it with Claude. Send them the message below.`)),
       res.held.length ? `Not sent, fix in Figma first: ${res.held.map((x) => x.component).join(', ')}.` : '',
@@ -3635,6 +3647,8 @@ function viewPush(): View {
   const prFiles = Object.keys(prop.files).length + prop.brandFiles.length;
 
   const body: Child[] = [];
+  // What stops the send, said once at the top (orientation): never "ready to send" above a problem to fix.
+  const blocking = prFiles ? prop.validation.blocking : [];
   if (!nothing) {
     // Summary first: what goes and whether contrast holds, in the screen's one Harbor zone.
     const fails = changedContrast.filter((x) => x.level === 'fail').length;
@@ -3644,11 +3658,13 @@ function viewPush(): View {
         'section',
         { class: 'zone' },
         // Nothing sendable: a new brand alone, or only changes to fix in Figma first (never "a new brand" then).
-        h('h2', { class: 'headline' }, n ? `${plural(n, 'change')} ready to send` : newBrands ? 'A new brand to propose' : 'Nothing to send yet'),
+        h('h2', { class: 'headline' }, blocking.length ? `${plural(blocking.length, 'problem')} to fix before sending` : n ? `${plural(n, 'change')} ready to send` : newBrands ? 'A new brand to propose' : 'Nothing to send yet'),
         h(
           'p',
           { class: 'muted' },
-          !n && !newBrands
+          blocking.length
+            ? `Fix ${blocking.length === 1 ? 'it' : 'them'} in Figma, then scan again.${n > blocking.length ? ' Or uncheck what is not ready and send the rest.' : ''}`
+            : !n && !newBrands
             ? 'Fix the changes below in Figma, then scan again.'
             : fails
             ? `${plural(fails, 'contrast pair')} fail${fails === 1 ? 's' : ''}. Fix ${fails === 1 ? 'it' : 'them'} or uncheck the edit before sending.`
@@ -3663,6 +3679,7 @@ function viewPush(): View {
       ),
     );
   }
+  body.push(issueList('error', 'Fix before sending', blocking));
   body.push(...sentNotes(r));
   if (suggestions.length) {
     body.push(
@@ -3717,12 +3734,10 @@ function viewPush(): View {
     body.push(h('p', { class: 'muted' }, `${plural(a.diff.remote.length, 'token')} changed in the design system since your last pull. Your edits leave them as they are; pull to see them here.`));
   }
   if (changedContrast.length) {
-    body.push(
-      h(
-        'section',
-        null,
-        h('h2', null, 'Contrast'),
-        h('p', { class: 'lede' }, 'Pairs from contrast.checks.json whose ratio moves with the checked edits, in every brand and theme.'),
+    // Every pair passes: one folded line (the summary already says it). A failing pair keeps the table open.
+    const failing = changedContrast.some((x) => x.level === 'fail');
+    const contrastBody: Child[] = [
+        h('p', { class: 'lede' }, 'Color pairs your design system checks whose ratio moves with the checked edits, in every brand and theme.'),
         h(
           'table',
           { class: 'contrast' },
@@ -3746,10 +3761,13 @@ function viewPush(): View {
         changedContrast.length > contrastShown.length
           ? h('button', { class: 'btn ghost more', onClick: () => { state.expanded.add(contrastKey); render(); } }, `Show all ${changedContrast.length} pairs`)
           : null,
-      ),
+    ];
+    body.push(
+      failing
+        ? h('section', null, h('h2', null, 'Contrast'), contrastBody)
+        : h('details', { class: 'notes' }, h('summary', { 'data-focus-id': 'contrast-pairs' }, `Contrast: ${plural(changedContrast.length, 'pair')} checked, all pass`), contrastBody),
     );
   }
-  if (prFiles) body.push(issueList('error', 'Fix before sending', prop.validation.blocking));
   body.push(issueList('warn', 'Warnings (not blocking)', prop.validation.warnings));
   if (!nothing) {
     // The message is its own section after a divider: the words that go with everything sent, not a row detail.
@@ -3783,7 +3801,7 @@ function viewPush(): View {
               'label',
               { class: 'check' },
               h('input', { type: 'checkbox', checked: r.appendToOpen, onChange: (e: Event) => { r.appendToOpen = (e.target as HTMLInputElement).checked; render(); } }),
-              `Add to your change in review: ${r.openPr.title.replace(/^[a-z]+(\([^)]*\))?!?:\s*/i, '')}`,
+              `Add to this change: ${r.openPr.title.replace(/^[a-z]+(\([^)]*\))?!?:\s*/i, '')}`,
             )
           : null,
         // An exploration's title is generated (it only names the change on the exploration): nothing to fill in.
@@ -3807,8 +3825,10 @@ function viewPush(): View {
             )
           : null,
         // What the push sends is summed up once, in the bar ("2 variables, 1 request"); this only says how it goes.
-        prFiles
-          ? h('p', { class: 'muted' }, exploring ? 'Owners review it only if the exploration is promoted.' : modeOf(r) === 'suggest' ? 'Token changes need two approvals on the suggestion: a design owner and a tech owner.' : 'Token changes need two approvals: a design owner and a tech owner.')
+        // Direct mode: what happens after the send is said once, under the destination ("Token values ship once the
+        // checks pass"), never contradicted here.
+        prFiles && (exploring || modeOf(r) === 'suggest')
+          ? h('p', { class: 'muted' }, exploring ? 'Owners review it only if the exploration is promoted.' : 'Token changes need two approvals on the suggestion: a design owner and a tech owner.')
           : null,
       ),
     );
@@ -3952,8 +3972,10 @@ function viewSettings(): View {
             'section',
             { class: 'card' },
             h('div', { class: 'group-head' }, h('h2', null, 'GitHub token'), h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: 'https://github.com/settings/personal-access-tokens/new' }) }, 'Create one on GitHub')),
-            h('p', { class: 'lede' }, tokenHelp(state.push ? changesModeOf(state.push.analysis) : undefined)),
-            tokenInput('Fine-grained token', 'Stays on this computer, never in the file, never shown again.'),
+            h('p', { class: 'lede' }, "Bridge uses it to read your design system and send your edits. Your design system's owner can give you one."),
+            tokenInput('Token', 'Stays on this computer, never in the file, never shown again.'),
+            // The permissions are for whoever creates the token: folded.
+            h('details', { class: 'notes dev-details' }, h('summary', null, 'Creating the token yourself?'), h('p', { class: 'muted' }, tokenHelp(state.push ? changesModeOf(state.push.analysis) : undefined))),
           ),
       state.settingsMessage
         ? h(
@@ -3962,7 +3984,8 @@ function viewSettings(): View {
             h('div', { class: 'callout-title' }, icon(state.settingsMessage.kind === 'ok' ? 'check' : 'alert'), state.settingsMessage.text),
           )
         : null,
-      claudeCard(),
+      // Optional writing help: offered once the design system is connected, never on the first screen.
+      connected() ? claudeCard() : null,
     ],
     // Nothing to save while everything is connected: the bar shows when there is something to set up or change.
     bar: editingRepo || tokenField ? { label: tokenField && init.hasToken && !editingRepo ? 'Replace and check access' : 'Save and check access', onClick: saveSettings } : undefined,

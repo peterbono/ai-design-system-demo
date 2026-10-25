@@ -84,8 +84,9 @@ default branch only changes when a reviewed pull request merges.
 ## Roles: who approves and who ships
 
 `governance.owners` lists the design owners and the tech owners. `governance.rights` says which of those two
-groups holds each right. Each team changes it in Studio, Settings, Roles, which proposes the edit as a pull request
-on `bridge.config.json` (a guardrail file, so it is reviewed at Tier 3).
+groups holds each right. An admin of the team with GitHub access changes it in Studio, Settings, Review rules, which
+proposes the edit as a pull request on `bridge.config.json` (a guardrail file, so it is reviewed at Tier 3; Studio says
+"This change needs a review because it changes the rules"). Everyone else reads the rules and who can change them.
 
 ```json
 "governance": {
@@ -132,7 +133,7 @@ turns this off explicitly:
   approved with one review.
 - **What it does not do.** The author of a change still never approves it: GitHub refuses self-approval on a pull
   request, and Bridge ignores a suggestion author's own review. CI, changes requested, drafts and the ship right
-  gate the merge as before. For the owner's own pull requests, the [owner override](#owner-override-solo-maintainers-and-small-teams)
+  gate the merge as before. For the owner's own pull requests and suggestions, the [owner override](#owner-override-solo-maintainers-and-small-teams)
   stays the audited way through.
 - **Where it shows.** Studio Settings, Review rules, shows "Only owner: As the only owner, @login approves design and
   code in one review." The owner reads "As the only owner, your approval covers design and code." on a suggestion
@@ -232,6 +233,14 @@ review, Bridge shows GitHub's message and rewrites the comment to end with `Merg
 Not merged.`, so the record never claims a merge that did not happen. History and the PR timeline find
 overrides by that first line.
 
+**Suggestions.** The same override covers a suggestion, for its holder's own suggestion only, when nobody else in the
+approver lists can review it. Studio Review shows "Approve as owner" (the CLI: `bridge review <n> --override --message
+"..."`, the MCP server: `bridge_review_suggestion` with event `override`). It needs the same written reason, posts the
+same audit line on the suggestion (first line `**Bridge owner override**`, "Approved as owner from Bridge.", bound to
+the version like a review: an edit makes it stale) and counts as every missing approval (`summarizeSuggestionApprovals`,
+`suggestionOverrideOf`), never over changes someone asked for. A developer then applies it as any approved suggestion;
+its pull request carries the approval, and History says "Applied with the owner override by <name>", with the reason.
+
 **Branch protection still wins.** The override changes what Bridge allows, not what GitHub enforces. With the
 Bridge ruleset (see [Protection](#protection-bridge-is-the-only-way-in)), the override merge goes through for a
 repository admin, who may bypass it in pull request mode; for anyone else GitHub refuses it. With classic branch
@@ -260,16 +269,23 @@ system. Settings, Review rules: "Leads can publish small changes without review"
 - **Who.** Team admins, and the reviewers of the matching domain (`tier1Domain`): a design reviewer for docs and
   guidance, a tech reviewer for a code-only Tier 1 change (stories, tests). The rule is `canPublishTier1` in
   `@bridge-ds/core`, with the approver lists after `rights` and teams expanded.
-- **What they see.** "Publish" instead of "Send for review" in the editor.
+- **What they see.** "Publish" instead of "Send for review" (direct mode) or "Send suggestion" (suggest mode) in the
+  editor.
 - **What happens.** Bridge opens the pull request as usual, then its app (`/api/ship`, the same path as token values,
   TV-1) approves it with a review that starts with `**Bridge: published without review (Tier 1)**`, arms auto-merge,
   and GitHub merges it once the required checks pass. No person approves it. The person publishing must be the one
   who made the change.
 - **When a check fails.** Bridge does not merge. The change falls back to the normal path and reads as any change
   waiting for review (`branchVerdict` `autoShip` turns off); the designer never sees the failing test.
+- **In suggest mode.** Publishing is approve and apply in one step, so it takes the same route: Bridge opens the
+  change directly for this one publish (no suggestion waits for a person) and its app merges it as above, with the
+  same record. When Bridge cannot publish it at that moment (a check already failed, a rule refused), it closes that
+  change and the edits go out as a suggestion, the team's usual way; the designer reads the usual "Suggestion sent"
+  line. A check that fails later leaves the change in review, as in direct mode.
 - **The record.** The pull request (the app's review) and History say "Published by <name> without review (Tier 1)."
-- **The setting.** `governance.leadsPublishTier1`, on when absent; `false` turns it off. `bridge.config.json` is a
-  guardrail file, so turning it on or off is itself a Tier 3 change. `bridge settings` and the MCP settings tool say
+- **The setting.** `governance.leadsPublishTier1`, on when absent; `false` turns it off. An admin with GitHub access
+  turns it on or off in Studio, Settings, Review rules, saved as a reviewed Tier 3 change (`bridge.config.json` is a
+  guardrail file). `bridge settings` and the MCP settings tool say
   which way it is (`tier1PublishSentence`).
 - **GitHub.** The merge goes through the ruleset like the token value route: the app's approval is the one approval
   the `pull_request` rule asks for, and "Allow auto-merge" must be on. GitHub refuses an app approving a pull request

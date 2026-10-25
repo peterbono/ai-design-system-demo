@@ -304,6 +304,22 @@ export function canProposeSettings(access: { write: boolean; contributor?: boole
 /** Who changes such a setting, for anyone else. */
 export const GITHUB_WRITE_ONLY = 'Someone who edits the design system on GitHub changes this.';
 
+/**
+ * Settings > Review rules (who approves, who ships, leads publishing small changes): an admin with GitHub access edits
+ * them, saved as a reviewed change (docs/GOVERNANCE.md). An email admin, a reviewer, a contributor and a reader read
+ * the rules and who can change them. Null: not known yet, nothing is offered until it is.
+ */
+export function canEditReviewRules(access: { admin: boolean; contributor?: boolean | undefined } | null | undefined): boolean | null {
+  if (!access) return null;
+  return access.admin && !access.contributor;
+}
+
+/** Said before and after saving review rules: they never apply without a review. */
+export const RULES_NEED_REVIEW = 'This change needs a review because it changes the rules';
+
+/** Who changes the review rules, for everyone else (BR-20). */
+export const RULES_ADMIN_ONLY = 'An admin of this team with GitHub access changes the review rules.';
+
 /** The line a non-admin reads under a setting: who can change it, by name (BR-20: no disabled control instead). */
 export function adminOnlyText(admins: readonly string[], does = 'can change this'): string {
   const names = [...new Set(admins.map((a) => a.trim()).filter(Boolean))];

@@ -91,6 +91,16 @@ export interface OverrideShown {
 }
 
 /**
+ * The History line of a change that applied a suggestion its owner approved with the owner override (core
+ * parseSuggestionOverrideComment on the suggestion it closes): who, without which approvals, and the reason. HTML.
+ */
+export function suggestionOverrideLine(ov: Pick<OverrideShown, 'login' | 'reason' | 'missing'>, esc: (s: string) => string, person: (login: string) => string): string {
+  const missing = ov.missing.length ? ` without ${ov.missing.join(' and ')}` : '';
+  const reason = ov.reason ? ` Reason: ${esc(ov.reason)}.` : ' No reason was given.';
+  return `Applied with the owner override by ${person(ov.login)}${esc(missing)}.${reason}`;
+}
+
+/**
  * The History line of a branch merged with the owner override: who, without which approvals, and the reason they
  * posted. `esc` escapes text, `person` renders the merger (an avatar and name). Returns HTML.
  */

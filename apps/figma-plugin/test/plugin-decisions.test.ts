@@ -116,8 +116,8 @@ test('the primary link after a send is the main thing sent, in Studio, with GitH
 // ---------------------------------------------------------------------------------------------------------------
 // D8: one verb. D4: a developer builds it with Claude.
 
-test('one verb for sending: "Send to the library", or "Send suggestion"; results without issue numbers', () => {
-  assert.equal(sendLabel('direct'), 'Send to the library');
+test('one verb for sending: "Send for review", or "Send suggestion"; results without issue numbers', () => {
+  assert.equal(sendLabel('direct'), 'Send for review');
   assert.equal(sendLabel('suggest'), 'Send suggestion');
   assert.equal(sentTitle({ suggestions: [{ kind: 'variables', number: 12, url: 'u' }] }, 'suggest'), 'Suggestion sent to your DS lead');
   const lines = suggestionLines({ suggestions: [{ kind: 'variables', number: 12, url: 'u' }, { kind: 'component-spec', number: 13, url: 'u', component: 'Card' }] });

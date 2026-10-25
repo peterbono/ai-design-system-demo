@@ -337,3 +337,26 @@ describe('outdated suggestions and final labels (the same rules as Studio)', () 
     expect(labels(gh)).not.toContain('suggestion: applying');
   });
 });
+
+describe('the owner override on a suggestion (docs/GOVERNANCE.md)', () => {
+  it('the only owner approves their own suggestion as owner, with a reason, and get says so', async () => {
+    // The repo's own rules: peterbono is the only owner and the override allows them.
+    const files = readTree(REPO, REAL_PATHS);
+    files['bridge.config.json'] = files['bridge.config.json']!.replace(/\n\s*"changes": "direct",/, '');
+    const gh = fakeGitHub(OWNER, NAME, files);
+    gh.viewer.login = 'peterbono';
+    const ctx = await BridgeContext.create({ repo: FULL, token: 'test-token', fetch: gh.fetch });
+    const n = ((await ops.proposeTokenChange(ctx, DARKEN)) as any).number as number;
+    // The fake files issues as 'agent': the owner filed this one.
+    gh.issues[0]!.user.login = 'peterbono';
+    await expect(suggestions.reviewSuggestionOp(ctx, { number: n, event: 'override' })).rejects.toThrow(/Say why/);
+    await expect(suggestions.reviewSuggestionOp(ctx, { number: n, event: 'override', message: 'too short' })).rejects.toThrow(/at least 20 characters/);
+    const r = (await suggestions.reviewSuggestionOp(ctx, { number: n, event: 'override', message: 'Solo maintainer, checked it in the Library.' })) as any;
+    expect(r).toMatchObject({ counts: true, status: 'approved' });
+    expect(r.next).toMatch(/Approved as owner/);
+    const got = (await suggestions.getSuggestionOp(ctx, { number: n })) as any;
+    expect(got.approvals.ownerOverride).toBe('Approved with the owner override by @peterbono without design approval. Reason: Solo maintainer, checked it in the Library.');
+    gh.viewer.login = 'outsider';
+    await expect(suggestions.reviewSuggestionOp(ctx, { number: n, event: 'override', message: 'Someone else trying the override here.' })).rejects.toThrow(/Only an owner/);
+  });
+});

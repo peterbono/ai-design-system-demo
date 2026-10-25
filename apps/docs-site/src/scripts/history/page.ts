@@ -4,7 +4,7 @@
 // production; in development the demo switch at the bottom swaps in the fixture report and a banner. Filters wait
 // behind the Filter button.
 import type { HistoryEntry, HistoryFilter, HistoryReport } from '@bridge-ds/core';
-import { publishedWithoutReview, tier1PublishOf } from '@bridge-ds/core';
+import { closingIssueNumbers, parseSuggestionOverrideComment, publishedWithoutReview, tier1PublishOf, type SuggestionOverrideRecord } from '@bridge-ds/core';
 import { authorsOf, countsLabel, shortDate, viewTimeline } from '../../lib/history-view';
 import { renderTokenReview } from '../reviews';
 import { currentViewer, esc, ghGet, hasWorkingToken, signedInWithGitHub, initGitHubConnect, readRepo } from '../github-session';
@@ -17,7 +17,7 @@ import { openRevertPlanner } from './planner';
 import { activeReport, DEMO_EVENT, demoOn, loadHistory, setDemo, teamEntryReview, type Loaded } from './state';
 import { isHosted } from '../../lib/team-path';
 import { parseOverrideComment, type OverrideRecord } from '../../lib/review-rules';
-import { overrideLine } from '../../lib/history-view';
+import { overrideLine, suggestionOverrideLine } from '../../lib/history-view';
 import { onSelectPick, selectValue, setSelect } from '../../lib/select-bridge';
 import { jiraKeyOf, VOCAB, withoutJiraKey } from '../../lib/vocabulary';
 import { agentMade } from '../../lib/work-nature';
@@ -225,8 +225,39 @@ async function paintOverride(e: HistoryEntry, n: number) {
   const ov = await read;
   const el = $('hs-detail').querySelector<HTMLElement>('[data-hs-override]');
   if (!el || new URLSearchParams(location.search).get('entry') !== e.id) return;
-  if (!ov) return paintPublished(e, n, el);
+  if (!ov) return paintSuggestionOverride(e, n, el);
   el.innerHTML = overrideLine(ov, esc, (login) => personHtml(login, { size: 'sm' }));
+  el.hidden = false;
+  void paintPeople(el);
+}
+
+const suggestionOverrides = new Map<number, Promise<SuggestionOverrideRecord | null>>();
+
+/**
+ * A change that applied a suggestion its owner approved with the owner override (docs/GOVERNANCE.md): the record is
+ * on the suggestion it closes ("Closes #n"), read back with core parseSuggestionOverrideComment. Else the Tier 1
+ * publish line, else nothing.
+ */
+async function paintSuggestionOverride(e: HistoryEntry, n: number, el: HTMLElement) {
+  let read = suggestionOverrides.get(n);
+  if (!read) {
+    const r = readRepo();
+    read = ghGet<{ body?: string | null }>(`/repos/${r.owner}/${r.repo}/pulls/${n}`)
+      .then(async (pr) => {
+        for (const issue of closingIssueNumbers(pr.data.body)) {
+          const c = await ghGet<{ body?: string | null }[]>(`/repos/${r.owner}/${r.repo}/issues/${issue}/comments?per_page=100`);
+          const ov = c.data.map((x) => parseSuggestionOverrideComment(x.body)).filter((x): x is SuggestionOverrideRecord => x !== null).pop();
+          if (ov) return ov;
+        }
+        return null;
+      })
+      .catch(() => null);
+    suggestionOverrides.set(n, read);
+  }
+  const ov = await read;
+  if (new URLSearchParams(location.search).get('entry') !== e.id) return;
+  if (!ov) return paintPublished(e, n, el);
+  el.innerHTML = suggestionOverrideLine(ov, esc, (login) => personHtml(login, { size: 'sm' }));
   el.hidden = false;
   void paintPeople(el);
 }

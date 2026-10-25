@@ -70,3 +70,23 @@ describe('withRoles', () => {
     expect(p.body).not.toMatch(/—/);
   });
 });
+
+describe('leads publishing small changes, edited with the review rules', () => {
+  const rights = { approveDesign: ['design'], approveTech: ['tech'], ship: ['tech'] } as const;
+  const r = { approveDesign: [...rights.approveDesign], approveTech: [...rights.approveTech], ship: [...rights.ship] };
+  it('writes false when turned off, removes the key when turned back on, and leaves the file alone when unchanged', () => {
+    const off = withRoles(CONFIG, { rights: r, visualMode: 'auto', leadsPublishTier1: false });
+    expect(loadConfig(JSON.parse(off)).governance.leadsPublishTier1).toBe(false);
+    const on = withRoles(off, { rights: r, visualMode: 'auto', leadsPublishTier1: true });
+    expect(JSON.parse(on).governance.leadsPublishTier1).toBeUndefined();
+    expect(loadConfig(JSON.parse(on)).governance.leadsPublishTier1).toBeUndefined();
+    const same = withRoles(CONFIG, { rights: r, visualMode: 'auto' });
+    expect(withRoles(same, { rights: r, visualMode: 'auto', leadsPublishTier1: true })).toBe(same);
+    expect(withRoles(off, { rights: r, visualMode: 'auto' })).toBe(off);
+  });
+  it('says the setting in the proposal', () => {
+    const p = rolesProposal(roleRows(owners, r), 'auto', { date: new Date('2026-10-25'), tierLabel: 'Tier 3', leadsPublishTier1: false });
+    expect(p.body).toMatch(/Leads can publish small changes without review: off/);
+    expect(rolesProposal(roleRows(owners, r), 'auto', { date: new Date('2026-10-25'), tierLabel: 'Tier 3' }).body).not.toMatch(/Leads can publish/);
+  });
+});
