@@ -2218,15 +2218,32 @@ function viewPull(): View {
 }
 
 /** Before and after thumbnails side by side; "after" exists once the set is updated. */
-function thumbs(p: PullState, nodeId: string, name: string): HTMLElement {
-  const img = (b64: string | undefined, label: string, empty: string) =>
+/**
+ * Before and after, side by side; "Enlarge" shows them one above the other at the panel's width, big enough to see a
+ * padding change. Before an update, "After" says what will change (the update builds it; nothing is drawn yet).
+ */
+function thumbs(p: PullState, nodeId: string, name: string, changes: { field: string; before?: string | undefined; after?: string | undefined }[] = []): HTMLElement {
+  const key = `thumbs-${nodeId}`;
+  const big = state.expanded.has(key);
+  const coming = changes.slice(0, 3).map((c) => `${c.field.replace(/ \(.*\)$/, '')}: ${c.before ?? 'none'} to ${c.after ?? 'none'}`);
+  const img = (b64: string | undefined, label: string, empty: Child) =>
     h(
       'figure',
       { class: 'thumb' },
       b64 ? h('img', { src: `data:image/png;base64,${b64}`, alt: `${name}, ${label.toLowerCase()}` }) : h('div', { class: 'thumb-empty' }, empty),
       h('figcaption', null, label),
     );
-  return h('div', { class: 'thumbs' }, img(p.before[nodeId], 'Before', 'No preview'), img(p.after[nodeId], 'After', 'Shown once updated'));
+  const pending = coming.length
+    ? h('div', { class: 'thumb-coming' }, h('b', null, 'What changes'), h('ul', null, coming.map((c) => h('li', null, c))), changes.length > 3 ? h('small', null, `And ${changes.length - 3} more below`) : null)
+    : 'Shown once updated';
+  return h(
+    'div',
+    { class: 'thumbs-wrap' },
+    h('div', { class: big ? 'thumbs one' : 'thumbs' }, img(p.before[nodeId], 'Before', 'No preview'), img(p.after[nodeId], 'After', pending)),
+    p.before[nodeId] || p.after[nodeId]
+      ? h('button', { class: 'btn ghost', 'data-focus-id': key, 'aria-pressed': big ? 'true' : 'false', onClick: () => { big ? state.expanded.delete(key) : state.expanded.add(key); render(); } }, big ? 'Show side by side' : 'Enlarge')
+      : null,
+  );
 }
 
 /** Figma's "Review updates": one card per changed set, before and after, what changes, and "Update" on its own. */
@@ -2248,7 +2265,7 @@ function reviewGroup(p: PullState, reviews: ComponentReview[], title = 'Componen
           ? h('span', { class: 'kind added row-end' }, 'Updated')
           : h('button', { class: 'btn row-end', 'data-focus-id': `update-${r.componentId}`, disabled: !!state.busy || p.proposal.unresolvedConflicts.length > 0, onClick: () => updateComponent(r.componentId) }, 'Update'),
       ),
-      thumbs(p, r.nodeId, r.name),
+      thumbs(p, r.nodeId, r.name, done ? [] : r.changes),
       changeTable(r.changes, ['What', 'In Figma', 'From code']),
     );
   });
@@ -4584,7 +4601,35 @@ function render(): void {
 
   const main = document.querySelector('main');
   if (main) main.scrollTop = scrollTop;
+  fitWindow();
   if (focusedId) (document.querySelector(`[data-focus-id="${focusedId}"]`) as HTMLElement | null)?.focus();
+}
+
+/** The window Figma opened (manifest default), the most a screen asks for, and the least Figma allows. */
+const WINDOW_MAX = 640;
+const WINDOW_MIN = 400;
+let windowHeight = WINDOW_MAX;
+let fitting = 0;
+
+/**
+ * A short result leaves no large empty area: the window shrinks to what the screen holds (down to Figma's minimum), and
+ * grows back up to the default when a screen needs it. Asked once per frame, and only for a real difference.
+ */
+function fitWindow(): void {
+  if (typeof requestAnimationFrame !== 'function') return;
+  cancelAnimationFrame(fitting);
+  fitting = requestAnimationFrame(() => {
+    const main = document.querySelector('main');
+    if (!main) return;
+    const tabs = document.querySelector<HTMLElement>('.tabs')?.offsetHeight ?? 0;
+    const bar = document.querySelector<HTMLElement>('.bar')?.offsetHeight ?? 0;
+    const last = main.lastElementChild as HTMLElement | null;
+    const content = last ? last.getBoundingClientRect().bottom - main.getBoundingClientRect().top + main.scrollTop + 16 : 0;
+    const want = Math.round(Math.min(WINDOW_MAX, Math.max(WINDOW_MIN, tabs + content + bar)));
+    if (!content || Math.abs(want - windowHeight) < 24) return;
+    windowHeight = want;
+    void request('resize', { width: window.innerWidth || 480, height: want }).catch(() => undefined);
+  });
 }
 
 /** One call at start (the repository) so a token GitHub stopped accepting shows before the designer tries an action. */
