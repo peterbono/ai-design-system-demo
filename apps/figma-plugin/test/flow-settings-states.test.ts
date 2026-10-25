@@ -34,7 +34,8 @@ test('Settings: legacy token, then Sign in with Bridge, then Sign out', async ()
   // 2. Sign in with Bridge: the old token is replaced by the Bridge sign-in.
   await p.click('Sign in with Bridge');
   await p.until(() => p.calls.includes('save-token'), 8000);
-  await p.until(() => p.headline() === 'Get the latest design system' || p.text().includes('Pull'));
+  // Connected: the plugin lands on Pull and says it once (wait for it: the switch happens after the save).
+  await p.until(() => p.text().includes('Connected to Acme DS.'), 15000);
   await p.click('Settings');
   await p.until(() => !!p.document.querySelector('[data-connection="bridge"]'));
   assert.match(designerText(), /Connected with Bridge as ana/);
