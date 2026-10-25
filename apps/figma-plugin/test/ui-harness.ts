@@ -85,7 +85,7 @@ export async function openPlugin(o: Open = {}): Promise<Harness> {
   g.addEventListener = w.addEventListener.bind(w);
   g.navigator = { clipboard: { writeText: async () => undefined }, onLine: true };
   const calls: string[] = [];
-  const snapshot = structuredClone(o.pulled ? data.pulled : { fileName: 'Checkout redesign', collections: [], variables: [] });
+  let snapshot = structuredClone(o.pulled ? data.pulled : { fileName: 'Checkout redesign', collections: [], variables: [] });
   o.edit?.(snapshot);
   const blobs = Object.fromEntries(Object.entries(data.files).map(([p, t]) => [p, Buffer.from(t, 'utf8').toString('base64')]));
   const paths = Object.keys(blobs);
@@ -98,6 +98,8 @@ export async function openPlugin(o: Open = {}): Promise<Harness> {
     snapshot: () => snapshot,
     'scan-generated': () => generated,
     'apply-pull': () => {
+      // Figma now holds the design system's variables (what a pull writes).
+      if (!snapshot.variables.length) snapshot = structuredClone(data.pulled);
       sync = { baseSha: data.headSha, lastPullAt: '2026-10-25T09:12:00.000Z' };
       return { created: 812, updated: 0, orphaned: 0, layout: 'single-collection', errors: [] };
     },
@@ -163,7 +165,11 @@ export async function openPlugin(o: Open = {}): Promise<Harness> {
     } catch (err) {
       error = String(err);
     }
-    setTimeout(() => w.postMessage({ pluginMessage: { kind: 'response', reqId: m.reqId, ok: !error, payload, error } }, '*'), 1);
+    // A stand-in may answer later (a Promise): the plugin waits, as it waits for Figma.
+    void Promise.resolve(payload).then(
+      (value) => setTimeout(() => w.postMessage({ pluginMessage: { kind: 'response', reqId: m.reqId, ok: !error, payload: value, error } }, '*'), 1),
+      (err: unknown) => setTimeout(() => w.postMessage({ pluginMessage: { kind: 'response', reqId: m.reqId, ok: false, error: String(err) } }, '*'), 1),
+    );
   });
   // The plugin UI itself, as Figma loads it.
   await import('../src/ui/index');
