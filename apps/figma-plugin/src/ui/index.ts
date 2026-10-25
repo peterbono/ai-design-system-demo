@@ -12,7 +12,7 @@ import { DIFFERS_HANDOFF_TEXT, FIX_ASKED_TEXT, FIX_NEXT_TEXT, NO_REFERENCES_HAND
 import { type PathIndex, type ResolveContext, resolve } from '@bridge-ds/core';
 import { contextFor, modesOf } from '@bridge-ds/core';
 import { type LogicalToken, SINGLE_MODE } from '@bridge-ds/core';
-import type { Issue, PushIssue } from '@bridge-ds/core';
+import type { Issue, IssueCode, PushIssue } from '@bridge-ds/core';
 import { formatValue, isAlias, parseColor, rgbaToHex } from '@bridge-ds/core';
 import { type ContrastResult, contextLabel, pairKey } from '@bridge-ds/core';
 import { type ApplyReport, type FigmaSnapshot, type InitPayload, type RepoSettings, STUDIO_ORIGIN, modeDisplayName } from '../shared/messages';
@@ -583,36 +583,6 @@ function modesFor(a: Analysis, t: LogicalToken): string[] {
   return modesOf(a.head.layout, t.tier);
 }
 
-const PILLS_MAX = 3;
-
-/** Contrast pairs a change moves, directly or through aliases, in every brand x theme. */
-function contrastPills(current: LogicalToken | undefined, target: LogicalToken | undefined, after: ContrastResult[] | undefined, before: ContrastResult[] = []): Child {
-  if (!after) return null;
-  // Only the pairs that fail, next to the edit that breaks them: pairs that still pass are one sentence in the summary
-  // and a fold under Contrast (no second copy of the table on the row).
-  const rows = affectedContrast({ current, target }, before, after).filter((x) => x.after?.ratio !== undefined && x.after.level === 'fail');
-  if (!rows.length) return null;
-  rows.sort((x, y) => Number(y.after!.level === 'fail') - Number(x.after!.level === 'fail') || x.after!.ratio! - y.after!.ratio!);
-  return h(
-    'div',
-    { class: 'pills' },
-    rows.slice(0, PILLS_MAX).map(({ before: b, after: r }) => {
-      const was = b?.ratio;
-      const level = r!.level === 'fail' ? 'Fails' : r!.level;
-      return h(
-        'span',
-        {
-          class: `pill ${r!.level}`,
-          title: `${r!.pair.foreground} on ${r!.pair.background}, ${contextLabel(r!)}, needs ${r!.pair.min}:1${was !== undefined && was !== r!.ratio ? `. Was ${was}:1` : ''}`,
-        },
-        h('strong', null, level ?? ''),
-        ` ${r!.ratio}:1 ${contextLabel(r!)}, ${r!.pair.foreground.replace(/^color\./, '')} on ${r!.pair.background.replace(/^color\./, '')}`,
-      );
-    }),
-    rows.length > PILLS_MAX ? h('span', { class: 'pill' }, `${rows.length - PILLS_MAX} more pairs in Contrast below`) : null,
-  );
-}
-
 interface RowSides {
   before: LogicalToken | undefined;
   after: LogicalToken | undefined;
@@ -712,7 +682,7 @@ const PROBLEMS_SHOWN = 3;
  * Problems from the checks, in designer words: one line per kind with its count, the first few shown, then "Show all".
  * The exact messages (token paths, contrast.checks.json) are folded under "For developers".
  */
-function problemList(kind: 'error' | 'warn', title: string, issues: readonly Issue[], key: string): Child {
+function problemList(kind: 'error' | 'warn', title: string, issues: readonly Issue[], key: string, more: { actions?: Partial<Record<IssueCode, Child>>; details?: Child } = {}): Child {
   if (!issues.length) return null;
   const lines = blockerLines(issues);
   const all = state.expanded.has(key);
@@ -721,7 +691,9 @@ function problemList(kind: 'error' | 'warn', title: string, issues: readonly Iss
     'div',
     { class: `callout ${kind}`, role: kind === 'error' ? 'alert' : undefined },
     h('div', { class: 'callout-title' }, icon('alert'), title),
-    h('ul', null, shown.map((l) => h('li', null, l.text))),
+    // A line, then what the designer can do about it, right under it (proximity).
+    h('ul', null, shown.map((l) => h('li', null, l.text, more.actions?.[l.code] ? h('div', { class: 'inline-actions' }, more.actions[l.code]) : null))),
+    more.details ?? null,
     lines.length > shown.length ? h('button', { class: 'btn ghost more', 'data-focus-id': `${key}-all`, onClick: () => { state.expanded.add(key); render(); } }, `Show all ${lines.length}`) : null,
     h(
       'details',
@@ -3316,18 +3288,54 @@ function changeGroup(r: PushState, kind: 'variable' | 'component', title: string
   );
 }
 
+/**
+ * What the designer can do about a contrast blocker, next to it: see the edit that causes it, or leave it out of this
+ * send (the others still go). The edits are the checked variable edits that move a failing pair.
+ */
+function contrastActions(r: PushState): Child {
+  const after = r.proposal.validation.contrastAfter;
+  const before = r.proposal.validation.contrastBefore;
+  const causes = r.analysis.diff.local.filter((e) => {
+    const item = itemOf(r, variableKey(e.id));
+    return item && isChecked(r.unchecked, item) && affectedContrast({ current: e.head, target: e.figma }, before, after).some((x) => x.after?.level === 'fail');
+  });
+  if (!causes.length) return null;
+  const keys = causes.map((e) => variableKey(e.id));
+  const one = causes.length === 1;
+  return [
+    h('button', {
+      class: 'btn',
+      'data-focus-id': 'contrast-show',
+      onClick: () => {
+        const row = document.querySelector<HTMLElement>(`[data-row-key="${keys[0]}"]`);
+        row?.scrollIntoView({ block: 'center' });
+        row?.querySelector<HTMLInputElement>('input[type="checkbox"]')?.focus();
+      },
+    }, one ? 'Show the edit' : `Show the ${causes.length} edits`),
+    h('button', {
+      class: 'btn ghost',
+      'data-focus-id': 'contrast-leave-out',
+      onClick: () => {
+        keys.forEach((k) => r.unchecked.add(k));
+        refreshProposals();
+      },
+    }, one ? 'Leave it out of this send' : 'Leave them out of this send'),
+  ];
+}
+
 function variablesGroup(r: PushState): Child {
   const a = r.analysis;
   const fi = figmaIndex(a);
-  const after = r.proposal.validation.contrastAfter;
-  const before = r.proposal.validation.contrastBefore;
   const rows = a.diff.local.map((e) => {
     const item = itemOf(r, variableKey(e.id));
     const name = (e.figma ?? e.head ?? e.base)?.path ?? e.path;
-    return diffRow(a, e.local!.kind, { before: e.head ?? e.base, after: e.figma, beforeIndex: a.head.byPath, afterIndex: fi }, isChecked(r.unchecked, item ?? { key: '' }) ? contrastPills(e.head, e.figma, after, before) : null, {
+    // Contrast is said in one place, the blocker (or the folded pairs): never again as chips under the row.
+    const row = diffRow(a, e.local!.kind, { before: e.head ?? e.base, after: e.figma, beforeIndex: a.head.byPath, afterIndex: fi }, null, {
       lead: selectBox(r, item, name),
       tail: rowTail(r, item, name),
     });
+    if (item) row.setAttribute('data-row-key', item.key);
+    return row;
   });
   if (!rows.length) return null;
   const lede = r.destination === 'exploration' ? 'Checked edits go into the exploration. Unchecked ones stay in Figma.' : modeOf(r) === 'suggest' ? 'Checked edits go together for review. Unchecked ones stay in Figma for later.' : 'Checked edits go to the library together. Unchecked ones stay in Figma for later.';
@@ -3956,7 +3964,8 @@ function viewPush(): View {
       ),
     );
   }
-  body.push(problemList('error', 'Fix before sending', blocking, 'push-blocking'));
+  // Filled once the contrast pairs are known (below): the failing pairs fold into this one callout.
+  const blockingAt = body.push(null) - 1;
   body.push(...sentNotes(r));
   if (suggestions.length) {
     body.push(
@@ -4010,8 +4019,9 @@ function viewPush(): View {
   if (a.diff.remote.length) {
     body.push(h('p', { class: 'muted' }, `${plural(a.diff.remote.length, 'token')} changed in the design system since your last pull. Your edits leave them as they are; pull to see them here.`));
   }
+  let contrastInBlocker: Child = null;
   if (changedContrast.length) {
-    // Every pair passes: one folded line (the summary already says it). A failing pair keeps the table open.
+    // One place: failing pairs fold inside the blocker; when every pair passes, one folded line.
     const failing = changedContrast.some((x) => x.level === 'fail');
     const contrastBody: Child[] = [
         h('p', { class: 'lede' }, 'Color pairs your design system checks whose ratio moves with the checked edits, in every brand and theme.'),
@@ -4039,12 +4049,10 @@ function viewPush(): View {
           ? h('button', { class: 'btn ghost more', onClick: () => { state.expanded.add(contrastKey); render(); } }, `Show all ${changedContrast.length} pairs`)
           : null,
     ];
-    body.push(
-      failing
-        ? h('section', null, h('h2', null, 'Contrast'), contrastBody)
-        : h('details', { class: 'notes' }, h('summary', { 'data-focus-id': 'contrast-pairs' }, `Contrast: ${plural(changedContrast.length, 'pair')} checked, all pass`), contrastBody),
-    );
+    if (failing && blocking.some((i) => i.code === 'contrast')) contrastInBlocker = h('details', { class: 'notes' }, h('summary', { 'data-focus-id': 'contrast-pairs' }, `See the ${plural(changedContrast.filter((x) => x.level === 'fail').length, 'color pair')}`), contrastBody);
+    else body.push(h('details', { class: 'notes' }, h('summary', { 'data-focus-id': 'contrast-pairs' }, `Contrast: ${plural(changedContrast.length, 'pair')} checked, ${failing ? 'some fail' : 'all pass'}`), contrastBody));
   }
+  body[blockingAt] = problemList('error', 'Fix before sending', blocking, 'push-blocking', { actions: { contrast: contrastActions(r) }, details: contrastInBlocker });
   body.push(problemList('warn', 'Worth a look (not blocking)', prop.validation.warnings, 'push-warnings'));
   if (!nothing) {
     // The message is its own section after a divider: the words that go with everything sent, not a row detail.
