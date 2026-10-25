@@ -340,6 +340,8 @@ async function onMcp(req: Request, env: ConnectorEnv, deps: ConnectorDeps, svc: 
   const headers = new Headers(req.headers);
   headers.delete('content-length');
   const forward = new Request(req.url, { method: req.method, headers });
+  // Each Claude session opens with one 400 here: Claude tries the 2026-07-28 revision first, Bridge (2025-11-25 and
+  // earlier) says no, Claude falls back to initialize. That is the spec's era detection, not an error (see handleHttp).
   const res = await (deps.mcp ?? ((c, r, b) => handleHttp(c, r, b)))(ctx, forward, body);
   const calls = toolCalls(body).filter((c) => c.name === 'bridge_get_gap_case' || c.name === 'bridge_try_figma_fix' || c.name === 'bridge_propose_figma_fixes');
   if (!calls.length || !/json/i.test(res.headers.get('content-type') ?? '')) return res;

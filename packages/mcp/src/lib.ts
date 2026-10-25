@@ -57,6 +57,16 @@ export function tokenNote(source: TokenSource | undefined): string | undefined {
  * One Streamable HTTP request to a Bridge MCP server (the hosted connector, apps/docs-site/api/mcp): stateless, a
  * server per request on `ctx` (a remote repo with the signed-in person's GitHub token), JSON answers, no session id.
  * `parsedBody` is the JSON-RPC body when the caller already read it.
+ *
+ * The first POST of a Claude session answers 400, on purpose. Bridge speaks the initialize-based ("legacy") MCP
+ * revisions up to 2025-11-25, the newest the SDK supports. Claude is a dual-era client: it first tries a request of the
+ * stateless 2026-07-28 revision (no initialize, `MCP-Protocol-Version: 2026-07-28`), the SDK rejects that version with
+ * 400 and a plain -32000 error, and Claude falls back to initialize (200), notifications/initialized (202), tools/list
+ * (200). That 400 is the era detection the spec defines (2026-07-28 Streamable HTTP, Backward Compatibility; Versioning,
+ * compatibility matrix "Dual-era client, Legacy server"): a 4xx without a recognized modern error means "fall back".
+ * Never answer it with a modern error (UnsupportedProtocolVersionError -32022, HeaderMismatch -32020): Claude would
+ * then treat Bridge as a 2026-07-28 server and retry instead of falling back. The 400 goes away only when Bridge
+ * implements 2026-07-28 itself (server/discover, per-request _meta), which needs an SDK that supports it.
  */
 export async function handleHttp(ctx: BridgeContext, req: Request, parsedBody?: unknown): Promise<Response> {
   const server = createServer(ctx);

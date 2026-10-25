@@ -22,7 +22,7 @@ const b64url = (b: Buffer) => b.toString('base64').replace(/=+$/, '').replace(/\
 const VERIFIER = 'v'.repeat(64);
 const CHALLENGE = b64url(createHash('sha256').update(VERIFIER).digest());
 
-function world(o: { push?: boolean; refreshFails?: boolean } = {}) {
+function world(o: { push?: boolean; refreshFails?: boolean; realMcp?: boolean } = {}) {
   let t = Date.parse('2026-10-25T10:00:00Z');
   const calls: { url: string; method: string; body?: string }[] = [];
   let issued = 0;
@@ -55,7 +55,9 @@ function world(o: { push?: boolean; refreshFails?: boolean } = {}) {
     if (m.method !== 'tools/call') return res(200, { jsonrpc: '2.0', id: m.id, result: { tools: [] } });
     return res(200, { jsonrpc: '2.0', id: m.id, result: { content: [{ type: 'text', text: JSON.stringify(toolAnswers[m.params!.name!]) }] } });
   };
-  const deps = { fetch: f, now: () => t, redis, mcp, context: async (x: { repo: string; token: string }) => ({ repo: x.repo, token: x.token }) as unknown as BridgeContext };
+  // realMcp: the real Bridge MCP server (packages/mcp handleHttp) on a real context, GitHub faked by `f`.
+  const fakes = o.realMcp ? {} : { mcp, context: async (x: { repo: string; token: string }) => ({ repo: x.repo, token: x.token }) as unknown as BridgeContext };
+  const deps = { fetch: f, now: () => t, redis, ...fakes };
   const call = (path: string, init: { method?: string; headers?: Record<string, string>; body?: string } = {}) =>
     handleConnector(new Request(`${SITE}${path}`, { method: init.method ?? 'GET', headers: { host: HOST, ...(init.headers ?? {}) }, ...(init.body !== undefined ? { body: init.body } : {}) }), env, deps);
   const sessionsCall = (path: string, headers: Record<string, string>) => handleFixSessions(new Request(`${SITE}${path}`, { headers: { host: HOST, ...headers } }), env, deps);
@@ -340,4 +342,47 @@ describe('the real Bridge MCP server over Streamable HTTP (packages/mcp handleHt
     const names = ((await list.json()).result.tools as { name: string }[]).map((t) => t.name);
     expect(names).toEqual(expect.arrayContaining(['bridge_figma_gaps', 'bridge_get_gap_case', 'bridge_try_figma_fix', 'bridge_propose_figma_fixes']));
   });
+});
+
+describe("Claude's handshake on the hosted connector (production logs: 400, 200, 202, 200 per session)", () => {
+  // Claude is a dual-era client: it tries the stateless 2026-07-28 revision first, then falls back to initialize. Bridge
+  // speaks 2025-11-25 and earlier, so the probe gets the spec's legacy answer, a 400 without a modern error, and the
+  // initialize handshake that follows works (packages/mcp handleHttp says why the 400 stays).
+  const MODERN_ERRORS = [-32020, -32021, -32022];
+  const headers = (token: string, extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream', ...extra });
+  const meta = { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientInfo': { name: 'claude-ai', version: '0.1.0' }, 'io.modelcontextprotocol/clientCapabilities': {} };
+
+  for (const probe of ['server/discover', 'tools/list']) {
+    it(`a ${probe} probe at 2026-07-28 gets 400 without a modern error, then initialize, initialized and tools/list work`, async () => {
+      const w = world({ realMcp: true });
+      const { clientId, to } = await signIn(w);
+      const token = (await tokens(w, clientId, to.searchParams.get('code')!)).body.access_token as string;
+      const post = (body: unknown, extra?: Record<string, string>) => w.call('/api/mcp', { method: 'POST', headers: headers(token, extra), body: JSON.stringify(body) });
+
+      // 1. The modern probe: 400, and a body Claude does not read as a 2026-07-28 server, so it falls back.
+      const first = await post({ jsonrpc: '2.0', id: 0, method: probe, params: { _meta: meta } }, { 'mcp-protocol-version': '2026-07-28', 'mcp-method': probe });
+      expect(first.status).toBe(400);
+      const err = (await first.json()).error;
+      expect(MODERN_ERRORS).not.toContain(err.code);
+      expect(err.data?.supported).toBeUndefined();
+      expect(err.message).toMatch(/Unsupported protocol version: 2026-07-28/);
+
+      // 2. initialize at the newest legacy revision: 200 with Bridge's identity, no session (stateless).
+      const init = await post({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'claude-ai', version: '0.1.0' } } });
+      expect(init.status).toBe(200);
+      const result = (await init.json()).result;
+      expect(result.protocolVersion).toBe('2025-11-25');
+      expect(result.serverInfo).toMatchObject({ name: 'bridge', title: 'Bridge' });
+      expect(init.headers.get('mcp-session-id')).toBeNull();
+
+      // 3. notifications/initialized: 202.
+      const initialized = await post({ jsonrpc: '2.0', method: 'notifications/initialized' }, { 'mcp-protocol-version': '2025-11-25' });
+      expect(initialized.status).toBe(202);
+
+      // 4. tools/list: 200 with the tools.
+      const list = await post({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, { 'mcp-protocol-version': '2025-11-25' });
+      expect(list.status).toBe(200);
+      expect(((await list.json()).result.tools as { name: string }[]).map((t) => t.name)).toContain('bridge_get_gap_case');
+    });
+  }
 });
