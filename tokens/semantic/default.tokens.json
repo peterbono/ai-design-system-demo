@@ -1,0 +1,18 @@
+{
+  "color": {
+    "foreground": {
+      "$type": "color",
+      "$value": "{foreground}"
+    },
+    "muted": {
+      "foreground": {
+        "$type": "color",
+        "$value": "{muted.foreground}"
+      }
+    },
+    "primary": {
+      "$type": "color",
+      "$value": "{primary.default}"
+    }
+  }
+}
