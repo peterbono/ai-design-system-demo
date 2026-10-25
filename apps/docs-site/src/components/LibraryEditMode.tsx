@@ -6,7 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createPortal } from 'react-dom';
 import { Avatar, Alert, AlertDialog, AlertDialogContent, Badge, Button, Dialog, DialogContent, IconButton, Input, Link, Menu, MenuContent, MenuGroup, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, Popover, PopoverContent, PopoverTrigger, Spinner, Textarea } from '@bridge-ds/react';
 import { Check, ChevronDown, Circle, CircleX, Copy, Ellipsis, PenLine, Plus, Sparkles, X } from 'lucide-react';
-import { docsAuthorLine, DRAFT_PHRASE, type ComponentDocsJson, type DocsGuidance, type ProseKey } from '@bridge-ds/core';
+import { docsAuthorLine, DRAFT_PHRASE, eligibleReviewers, overrideHolders, type ComponentDocsJson, type DocsGuidance, type OverridePolicy, type ProseKey } from '@bridge-ds/core';
 import { REGISTRY, resolveProps } from './registry';
 import type { ExampleNode } from '../lib/components';
 import { cleanDocs, docsEdits, docsFileText, setDocsEdit, validateDocs, type DocsEdit } from '../lib/docs-draft-model';
@@ -41,6 +41,7 @@ import {
   sectionOf,
   sectionState,
   sendBlockedReason,
+  sendReview,
   sendTitle,
   setField,
   setValue,
@@ -49,6 +50,7 @@ import {
   type EditState,
   type FieldRef,
   type SectionId,
+  type SendReview,
 } from '../lib/library-edit-model';
 import type { DraftScope, DraftWay } from '../scripts/docs-ai';
 import { studioHref } from '../lib/team-path';
@@ -642,6 +644,8 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   const [confirm, setConfirm] = useState<'cancel' | 'rewrite' | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
   const [sent, setSent] = useState<{ pr: number | null; title: string; continued?: boolean; suggestion?: string } | null>(null);
+  /** Who reviews what Send sends (sendReview), read when the send step opens. Null until then: "Your team". */
+  const [review, setReview] = useState<SendReview | null>(null);
   // How changes reach the code (bridge.config.json "changes"): a suggestion, or a branch in review.
   const mode = useMemo(() => changesModeOnPage(), []);
   const suggest = mode === 'suggest';
@@ -1035,6 +1039,24 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
     setSendError('');
     setSent(null);
     setSendOpen(true);
+    void loadReview(session.currentViewer()?.login ?? viewer);
+  };
+  // Who reviews it, from the approver lists and the owner override the Review page reads (scripts/teams, core).
+  const loadReview = async (who: string | null) => {
+    try {
+      const [teams, people, repo] = await Promise.all([import('../scripts/teams'), import('../scripts/people'), import('../scripts/repo-context')]);
+      await teams.loadTeams();
+      const owners = teams.siteApprovers();
+      const overrideBy = overrideHolders((repo.siteConfig() as { override?: OverridePolicy }).override, owners);
+      setReview(sendReview({ viewer: who, owners, overrideBy, suggest }));
+      const logins = eligibleReviewers('approval', { owners, author: who ?? '' }).logins.filter((l) => !l.includes('/'));
+      if (logins.length) {
+        await people.lookUpNames(logins);
+        setReview(sendReview({ viewer: who, owners, overrideBy, suggest, name: (l) => people.displayName(l) }));
+      }
+    } catch {
+      setReview(null);
+    }
   };
   const send = async () => {
     setBusy(true);
@@ -1351,9 +1373,11 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
                 ? undefined
                 : branch?.continues && branch.author
                   ? `Your update joins ${branch.author === viewer ? 'your open proposal' : `the open proposal by @${branch.author}`}. Your team reviews it in Studio before it reaches the Library.`
-                  : suggest
-                    ? 'Your DS lead reviews the new guidance. Once approved, a developer applies it to the Library.'
-                    : 'Your team reviews the new guidance in Studio before it reaches the Library.'
+                  : review && !branch
+                    ? [review.line, review.own].filter(Boolean).join(' ')
+                    : suggest
+                      ? 'Your DS lead reviews the new guidance. Once approved, a developer applies it to the Library.'
+                      : 'Your team reviews the new guidance in Studio before it reaches the Library.'
             }
             footer={
               sent ? (
@@ -1381,7 +1405,8 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
               </p>
             ) : sent ? (
               <p className="le-sent">
-                {sent.continued ? 'Added to the open proposal. ' : ''}Your team can review it in Studio: <Link href={sent.pr ? studio(`changes/?pr=${sent.pr}`) : studio('changes/')}>{sent.title}</Link>.
+                {sent.continued ? 'Added to the open proposal. ' : ''}
+                {review && !branch ? review.sent : 'Your team can review it in Studio:'} <Link href={sent.pr ? studio(`changes/?pr=${sent.pr}`) : studio('changes/')}>{sent.title}</Link>.
               </p>
             ) : (
               <div className="le-send">

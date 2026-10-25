@@ -287,3 +287,38 @@ describe('editing as a guest', () => {
     expect(/demo/i.test(guestEditLine(true))).toBe(false);
   });
 });
+
+describe('who reviews what the edit bar sends', () => {
+  const solo = { design: ['peterbono'], tech: ['peterbono'] };
+  it('names the people who can approve, never the sender', async () => {
+    const { sendReview } = await import('./library-edit-model');
+    const r = sendReview({ viewer: 'peterbono', owners: { design: ['peterbono', 'ana'], tech: ['ben'] }, overrideBy: ['peterbono'], suggest: false, name: (l) => (l === 'ana' ? 'Ana Lima' : l) });
+    expect(r.line).toBe('Ana Lima or ben reviews it in Studio. It reaches the Library once approved.');
+    expect(r.own).toBeNull();
+    expect(r.sent).toBe('Ana Lima or ben can review it in Studio:');
+    expect(sendReview({ viewer: 'x', owners: { design: ['a', 'b'], tech: ['c', 'd'] }, overrideBy: [], suggest: true }).line).toBe('A, b or 2 more reviews it in Studio. Once approved, a developer applies it to the Library.');
+  });
+  it('gives the only owner holding the override their own way through, in one short line', async () => {
+    const { sendReview } = await import('./library-edit-model');
+    const r = sendReview({ viewer: '@PeterBono', owners: solo, overrideBy: ['peterbono'], suggest: false });
+    expect(r.line).toBe('You are the only owner, so nobody else can approve it.');
+    expect(r.own).toBe('After sending, you can add it to the Library as owner, from Review.');
+  });
+  it('never promises the override on a suggestion, nor to someone who does not hold it', async () => {
+    const { sendReview } = await import('./library-edit-model');
+    expect(sendReview({ viewer: 'peterbono', owners: solo, overrideBy: ['peterbono'], suggest: true }).own).toBeNull();
+    const r = sendReview({ viewer: 'peterbono', owners: solo, overrideBy: [], suggest: false });
+    expect(r.own).toBeNull();
+    expect(r.line).toMatch(/adds a reviewer in Settings/);
+  });
+  it('says your team when the config names no owner, and someone in a team not read yet', async () => {
+    const { sendReview } = await import('./library-edit-model');
+    expect(sendReview({ viewer: 'ana', owners: { design: [], tech: [] }, overrideBy: [], suggest: false }).line).toMatch(/^Your team reviews it/);
+    expect(sendReview({ viewer: 'ana', owners: { design: ['@acme/design'], tech: [] }, overrideBy: [], suggest: false }).line).toMatch(/^Someone in acme\/design reviews it/);
+  });
+  it('speaks designer words: no GitHub jargon, no em dash', async () => {
+    const { sendReview } = await import('./library-edit-model');
+    const all = [sendReview({ viewer: 'p', owners: solo, overrideBy: ['peterbono'], suggest: false }), sendReview({ viewer: 'peterbono', owners: solo, overrideBy: ['peterbono'], suggest: false })];
+    for (const r of all) for (const t of [r.line, r.own ?? '', r.sent]) expect(t).not.toMatch(/\b(PR|pull request|branch|merge|commit)\b|—/i);
+  });
+});
