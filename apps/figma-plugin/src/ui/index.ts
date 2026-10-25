@@ -473,7 +473,9 @@ const PILLS_MAX = 8;
 /** Contrast pairs a change moves, directly or through aliases, in every brand x theme. */
 function contrastPills(current: LogicalToken | undefined, target: LogicalToken | undefined, after: ContrastResult[] | undefined, before: ContrastResult[] = []): Child {
   if (!after) return null;
-  const rows = affectedContrast({ current, target }, before, after).filter((x) => x.after?.ratio !== undefined);
+  // Only the pairs that fail, next to the edit that breaks them: pairs that still pass are one sentence in the summary
+  // and a fold under Contrast (no second copy of the table on the row).
+  const rows = affectedContrast({ current, target }, before, after).filter((x) => x.after?.ratio !== undefined && x.after.level === 'fail');
   if (!rows.length) return null;
   rows.sort((x, y) => Number(y.after!.level === 'fail') - Number(x.after!.level === 'fail') || x.after!.ratio! - y.after!.ratio!);
   return h(
@@ -1027,7 +1029,7 @@ function submitPush(): void {
   const toExploration = r.destination === 'exploration';
   const mode = modeOf(r);
   void run(
-    toExploration ? (r.exploreTarget === 'new' ? 'Starting the exploration' : 'Sending to the exploration') : mode === 'suggest' ? 'Sending the suggestion' : withPr ? (r.appendToOpen && r.openPr ? 'Adding to your change' : 'Sending to the library') : 'Sending the requests',
+    toExploration ? (r.exploreTarget === 'new' ? 'Starting the exploration' : 'Sending to the exploration') : mode === 'suggest' ? 'Sending the suggestion' : withPr ? (r.appendToOpen && r.openPr ? 'Adding to this change' : 'Sending for review') : 'Sending the requests',
     async () => {
       let exploration: ExplorationChoice | undefined;
       if (toExploration) {
@@ -1096,7 +1098,7 @@ function submitPush(): void {
         ? [`Sent to ${exploration.name}`]
         : mode === 'suggest'
           ? [result.suggestions.length ? sentTitle(result, mode) : '', result.requests.length ? `${plural(result.requests.length, 'request')} sent` : ''].filter(Boolean)
-          : [result.pr ? (result.pr.appended ? 'Added to your change in review' : 'Sent for review') : '', result.requests.length ? `${plural(result.requests.length, 'request')} sent` : '', result.branches.length ? `${plural(result.branches.length, 'component')} sent` : ''].filter(Boolean);
+          : [result.pr ? (result.pr.appended ? 'Added to this change' : 'Sent for review') : '', result.requests.length ? `${plural(result.requests.length, 'request')} sent` : '', result.branches.length ? `${plural(result.branches.length, 'component')} sent` : ''].filter(Boolean);
       void request('notify', { message: parts.join(', ') });
     },
     submitPush,
@@ -3588,7 +3590,7 @@ function viewPush(): View {
       ...suggestionLines(res),
       // Edits added to an open change (no new outcome to route): what happens next follows core's rule for a push from
       // Figma (TV-1: values ship once the checks pass; a rename or removal waits for a developer OK).
-      pr ? `${pr.appended ? 'Added to your change in review' : 'Variable edits sent as a draft'}. ${figmaPushNextLine((r.proposal?.changes ?? []).map((c) => ({ kind: !c.target ? 'removed' : !c.current ? 'added' : c.target.path !== c.current.path ? 'renamed' : 'changed' })))}` : '',
+      pr ? `${pr.appended ? 'Added to this change' : 'Variable edits sent'}. ${figmaPushNextLine((r.proposal?.changes ?? []).map((c) => ({ kind: !c.target ? 'removed' : !c.current ? 'added' : c.target.path !== c.current.path ? 'renamed' : 'changed' })))}` : '',
       res.requests.length ? `${plural(res.requests.length, 'request')} sent for ${res.requests.map((x) => x.component).join(', ')}.` : '',
       ...res.branches.filter((x) => !x.suggested).map((x) => (x.route === 'token-change' ? `${x.component}: an exact token change, checked for contrast.` : `${x.component}: a developer builds it with Claude. Send them the message below.`)),
       res.held.length ? `Not sent, fix in Figma first: ${res.held.map((x) => x.component).join(', ')}.` : '',
@@ -3635,6 +3637,8 @@ function viewPush(): View {
   const prFiles = Object.keys(prop.files).length + prop.brandFiles.length;
 
   const body: Child[] = [];
+  // What stops the send, said once at the top (orientation): never "ready to send" above a problem to fix.
+  const blocking = prFiles ? prop.validation.blocking : [];
   if (!nothing) {
     // Summary first: what goes and whether contrast holds, in the screen's one Harbor zone.
     const fails = changedContrast.filter((x) => x.level === 'fail').length;
@@ -3644,11 +3648,13 @@ function viewPush(): View {
         'section',
         { class: 'zone' },
         // Nothing sendable: a new brand alone, or only changes to fix in Figma first (never "a new brand" then).
-        h('h2', { class: 'headline' }, n ? `${plural(n, 'change')} ready to send` : newBrands ? 'A new brand to propose' : 'Nothing to send yet'),
+        h('h2', { class: 'headline' }, blocking.length ? `${plural(blocking.length, 'problem')} to fix before sending` : n ? `${plural(n, 'change')} ready to send` : newBrands ? 'A new brand to propose' : 'Nothing to send yet'),
         h(
           'p',
           { class: 'muted' },
-          !n && !newBrands
+          blocking.length
+            ? `Fix ${blocking.length === 1 ? 'it' : 'them'} in Figma, then scan again.${n > blocking.length ? ' Or uncheck what is not ready and send the rest.' : ''}`
+            : !n && !newBrands
             ? 'Fix the changes below in Figma, then scan again.'
             : fails
             ? `${plural(fails, 'contrast pair')} fail${fails === 1 ? 's' : ''}. Fix ${fails === 1 ? 'it' : 'them'} or uncheck the edit before sending.`
@@ -3663,6 +3669,7 @@ function viewPush(): View {
       ),
     );
   }
+  body.push(issueList('error', 'Fix before sending', blocking));
   body.push(...sentNotes(r));
   if (suggestions.length) {
     body.push(
@@ -3717,12 +3724,10 @@ function viewPush(): View {
     body.push(h('p', { class: 'muted' }, `${plural(a.diff.remote.length, 'token')} changed in the design system since your last pull. Your edits leave them as they are; pull to see them here.`));
   }
   if (changedContrast.length) {
-    body.push(
-      h(
-        'section',
-        null,
-        h('h2', null, 'Contrast'),
-        h('p', { class: 'lede' }, 'Pairs from contrast.checks.json whose ratio moves with the checked edits, in every brand and theme.'),
+    // Every pair passes: one folded line (the summary already says it). A failing pair keeps the table open.
+    const failing = changedContrast.some((x) => x.level === 'fail');
+    const contrastBody: Child[] = [
+        h('p', { class: 'lede' }, 'Color pairs your design system checks whose ratio moves with the checked edits, in every brand and theme.'),
         h(
           'table',
           { class: 'contrast' },
@@ -3746,10 +3751,13 @@ function viewPush(): View {
         changedContrast.length > contrastShown.length
           ? h('button', { class: 'btn ghost more', onClick: () => { state.expanded.add(contrastKey); render(); } }, `Show all ${changedContrast.length} pairs`)
           : null,
-      ),
+    ];
+    body.push(
+      failing
+        ? h('section', null, h('h2', null, 'Contrast'), contrastBody)
+        : h('details', { class: 'notes' }, h('summary', { 'data-focus-id': 'contrast-pairs' }, `Contrast: ${plural(changedContrast.length, 'pair')} checked, all pass`), contrastBody),
     );
   }
-  if (prFiles) body.push(issueList('error', 'Fix before sending', prop.validation.blocking));
   body.push(issueList('warn', 'Warnings (not blocking)', prop.validation.warnings));
   if (!nothing) {
     // The message is its own section after a divider: the words that go with everything sent, not a row detail.
@@ -3783,7 +3791,7 @@ function viewPush(): View {
               'label',
               { class: 'check' },
               h('input', { type: 'checkbox', checked: r.appendToOpen, onChange: (e: Event) => { r.appendToOpen = (e.target as HTMLInputElement).checked; render(); } }),
-              `Add to your change in review: ${r.openPr.title.replace(/^[a-z]+(\([^)]*\))?!?:\s*/i, '')}`,
+              `Add to this change: ${r.openPr.title.replace(/^[a-z]+(\([^)]*\))?!?:\s*/i, '')}`,
             )
           : null,
         // An exploration's title is generated (it only names the change on the exploration): nothing to fill in.
@@ -3807,8 +3815,10 @@ function viewPush(): View {
             )
           : null,
         // What the push sends is summed up once, in the bar ("2 variables, 1 request"); this only says how it goes.
-        prFiles
-          ? h('p', { class: 'muted' }, exploring ? 'Owners review it only if the exploration is promoted.' : modeOf(r) === 'suggest' ? 'Token changes need two approvals on the suggestion: a design owner and a tech owner.' : 'Token changes need two approvals: a design owner and a tech owner.')
+        // Direct mode: what happens after the send is said once, under the destination ("Token values ship once the
+        // checks pass"), never contradicted here.
+        prFiles && (exploring || modeOf(r) === 'suggest')
+          ? h('p', { class: 'muted' }, exploring ? 'Owners review it only if the exploration is promoted.' : 'Token changes need two approvals on the suggestion: a design owner and a tech owner.')
           : null,
       ),
     );
