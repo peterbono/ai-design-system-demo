@@ -1,6 +1,7 @@
 // Public API of @bridge-ds/mcp, used by the `bridge` CLI.
 import { execFileSync } from 'node:child_process';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { BridgeContext, type ContextOptions } from './context.js';
 import { createServer, VERSION } from './server.js';
 
@@ -50,6 +51,22 @@ export function tokenNote(source: TokenSource | undefined): string | undefined {
   if (source === 'none')
     return 'No GitHub token: GITHUB_TOKEN and BRIDGE_GITHUB_TOKEN are not set and gh is not signed in. Bridge reads GitHub without a token (60 requests an hour) and cannot write there. Set GITHUB_TOKEN where the server runs, or run gh auth login, then restart the server.';
   return undefined;
+}
+
+/**
+ * One Streamable HTTP request to a Bridge MCP server (the hosted connector, apps/docs-site/api/mcp): stateless, a
+ * server per request on `ctx` (a remote repo with the signed-in person's GitHub token), JSON answers, no session id.
+ * `parsedBody` is the JSON-RPC body when the caller already read it.
+ */
+export async function handleHttp(ctx: BridgeContext, req: Request, parsedBody?: unknown): Promise<Response> {
+  const server = createServer(ctx);
+  const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+  await server.connect(transport);
+  try {
+    return await transport.handleRequest(req, parsedBody === undefined ? {} : { parsedBody });
+  } finally {
+    await server.close().catch(() => {});
+  }
 }
 
 /** Starts the stdio MCP server. Logs go to stderr: stdout belongs to the protocol. */

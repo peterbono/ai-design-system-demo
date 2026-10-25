@@ -44,6 +44,11 @@ const ALLOWED: { file: string; line: string; why: string }[] = [
     why: 'the page the Figma plugin opens with its one-time code: one page for every team, the person picks the team there',
   },
   {
+    file: 'api/_lib/oauth.ts',
+    line: "CONNECT_PAGE = '/studio/connect-claude/'",
+    why: 'the page Claude sends people to when they add the Bridge connector: one page for every team, the person picks the team there',
+  },
+  {
     file: 'api/contribute/index.ts',
     line: '/studio/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/#contribute=',
     why: 'the sign-in link emailed to an email contributor: the team shell address, built on the server (no page)',

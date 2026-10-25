@@ -238,9 +238,109 @@ and `figmaRenders`) to `figma-fidelity.json` on the `bridge-requests` branch (th
 writes to), then show one sentence and **Copy for your developer**. The copied request holds both ways to run the
 fix (the MCP phrase "Fix <component> in Figma with Bridge" and `npx @bridge-ds/cli fix <component> --with-claude`);
 the plugin never displays a command, an API key or MCP to the designer. The developer's Claude reads the run through
-`bridge_figma_gaps` and `bridge_get_gap_case`. Before building, the pull already applies
+`bridge_figma_gaps` and `bridge_get_gap_case`. When the team uses Bridge inside its Claude (the hosted connector below),
+the plugin opens Claude with the request prefilled instead, and shows the fix session while Claude works. Before
+building, the pull already applies
 figma-fixes.json. The plugin can import `specsFromMeasure` from core and drop its own copy (a core test keeps both
 identical until then).
+
+### Bridge inside your team's Claude (the hosted connector)
+
+The team adds Bridge to its own Claude (claude.ai, Claude Desktop, Claude mobile, Claude Code; Pro, Max, Team or
+Enterprise) as a custom connector, and that Claude does the fix through Bridge's MCP tools, on the team's own Claude
+plan. Bridge runs no model and holds no Anthropic key. Anthropic does not let third-party apps use a Claude
+subscription for their own calls, so it goes this way round: Claude calls Bridge.
+
+- **URL:** `https://bridge.floriangouloubi.com/mcp` (any Bridge site: `<site>/mcp`). In Claude: Settings, Connectors,
+  Add custom connector, paste the URL, then Connect and sign in with Bridge. On Team and Enterprise an Owner adds it for
+  the organization first; each person then connects with their own Bridge sign-in. Claude Code:
+  `claude mcp add --transport http bridge https://bridge.floriangouloubi.com/mcp`, then `/mcp` to sign in.
+- **What it is:** every tool of the Bridge MCP server (`packages/mcp`, the same as `npx @bridge-ds/mcp`) over Streamable
+  HTTP, stateless, JSON answers (`apps/docs-site/api/mcp`, `handleHttp` in `packages/mcp/src/lib.ts`). It works on the
+  repository of the team picked at sign-in, with that person's GitHub App user token, so every write is theirs and
+  goes through the usual paths: the fix is a draft pull request on `bridge/figma-fixes-<component>`, labelled
+  `drafted-by-claude` and `figma-fixes`, Tier 2. Never the default branch.
+- **Sign-in (MCP authorization, spec 2026-07-28):** the MCP endpoint answers `401` with
+  `WWW-Authenticate: Bearer resource_metadata="<site>/.well-known/oauth-protected-resource/mcp", scope="bridge"`.
+  Protected resource metadata (RFC 9728) names the site as the authorization server; its metadata (RFC 8414) is at
+  `<site>/.well-known/oauth-authorization-server`. Clients register with a Client ID Metadata Document (an https
+  `client_id` URL Bridge fetches and checks; Claude Code uses one) or Dynamic Client Registration (RFC 7591,
+  `/oauth/register`), as public clients (`token_endpoint_auth_method: none`). The authorization code flow requires
+  PKCE S256, checks `resource` (RFC 8707) and returns `iss` (RFC 9207). Redirect URIs match exactly, except loopback
+  ones (Claude Code), matched on any port. Code: `apps/docs-site/api/_lib/oauth.ts`.
+- **Who:** `/oauth/authorize` sends the person to `/studio/connect-claude/`: signed in to Bridge, they pick the team and
+  press Allow; GitHub (the Bridge GitHub App) confirms who they are, Bridge checks that account can push to the team's
+  repository, then they go back to Claude. The page names the app and the address it returns to.
+- **Tokens:** Bridge's own, opaque: access 1 hour, refresh 30 days and rotated on every use. Only their SHA-256 is
+  stored. The person's GitHub token stays on the server, sealed (AES-256-GCM, key derived from
+  `LIBRARY_SESSION_SECRET`), renewed there, never sent to any client. No secret goes in a URL. Each connection (one
+  person, one team, one app) shows in Studio Settings, Claude, and its owner or a team admin removes it: its tokens
+  stop at once.
+
+### Work in progress: fix sessions
+
+While Claude fixes a component through the connector, Bridge records each Bridge tool call as a step, in designer
+words, with who triggered it (the person signed in to the connector) and when. One session per team and component,
+kept 7 days after its last step (`apps/docs-site/api/_lib/fix-sessions.ts`):
+
+| Tool call | Step |
+| --- | --- |
+| `bridge_get_gap_case` (starts the session) | Claude read the differences (N) |
+| `bridge_try_figma_fix` | Claude tried a fix (round n): closer, no change, or further away |
+| `bridge_propose_figma_fixes`, a fix | Claude opened its fix for review (the pull request and its review in Studio): ready |
+| `bridge_propose_figma_fixes`, a status fix | Claude stopped: the reason Claude gave: stopped |
+| `bridge_propose_figma_fixes`, refused by the referee | Bridge did not open it: the reason (still working) |
+| nothing for 10 minutes while working | Claude went quiet (`quiet: true`, the state stays working: a new step resumes it) |
+
+There is no percentage: rounds vary, so a session is its steps and the time since it started.
+
+#### Contract (for the plugin)
+
+Auth: `Authorization: Bearer <the Bridge sign-in token>` (the GitHub token the plugin gets from "Sign in with Bridge");
+the account must be able to read the repository. CORS is open. Studio sends its session instead. Errors are
+`{ "error", "message" }`, the message to show as is.
+
+```http
+GET https://bridge.floriangouloubi.com/api/fix-sessions?repo=acme/design&component=TextInput   // the plugin's path
+GET https://bridge.floriangouloubi.com/api/mcp?view=session&repo=acme/design&component=TextInput  // the same answer
+200 { "session": SessionView }
+GET https://bridge.floriangouloubi.com/api/mcp?view=sessions&repo=acme/design
+200 { "sessions": SessionView[] }      // the last 7 days, newest first, at most 20
+401 signin, 403 forbidden (not on this team), 400 bad_request
+```
+
+```ts
+interface SessionView {
+  component: string;
+  state: 'waiting' | 'working' | 'ready' | 'stopped'; // waiting: no session yet for this component
+  startedAt: string | null;  // ISO
+  updatedAt: string | null;  // the last real step
+  elapsed: number;           // seconds since it started (to the last step once ready, stopped or quiet)
+  quiet: boolean;            // working, but no step for 10 minutes: show "Claude went quiet"
+  reason?: string;           // stopped: Claude's reason, without "Claude stopped: "
+  pr?: { number: number; url: string };  // ready (or a stopped status fix): the draft pull request
+  round?: number;            // the rounds tried so far
+  maxRounds: number;         // 3
+  steps: {
+    label: string;           // the sentence to show as is (same as text)
+    status: 'done' | 'current' | 'failed';  // current: the last step while working; failed: refused, stopped, quiet
+    text: string;
+    kind: 'read' | 'try' | 'proposed' | 'refused' | 'stopped' | 'quiet';
+    at: string;              // ISO
+    by: string;              // who triggered it, a name
+    round?: number;          // try
+    verdict?: 'closer' | 'same' | 'worse' | 'invalid';
+    differences?: number;    // read
+    pr?: { number: number; url: string };
+    review?: string;         // the Studio path of its review: "changes/?pr=91" under the team's Studio
+  }[];
+}
+```
+
+The plugin opens Claude with the prompt prefilled: `https://claude.ai/new?q=Fix%20TextInput%20in%20Figma%20with%20Bridge`
+fills the message box without sending it (checked 2026-10-25; claude.ai shows a "be careful before running this prompt"
+notice above it and the person presses send). Then it reads the session every few seconds while the state is `waiting`
+or `working`.
 
 ## Review
 
