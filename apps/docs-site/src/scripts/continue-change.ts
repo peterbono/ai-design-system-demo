@@ -39,8 +39,10 @@ export interface ChangePull extends ChangePullLike {
   base: { ref: string; sha: string };
 }
 
+// Write access to anyone's change: an email member writes through Bridge's proxy, which only changes their own work,
+// so their write access never offers "Add to this change" on a teammate's change (core canAddTo).
 let write = false;
-onAccess((a) => (write = Boolean(a?.write)));
+onAccess((a) => (write = Boolean(a?.write && !a.contributor)));
 
 /** Whether the signed-in account may write to the repository, as last read. */
 export const viewerCanWrite = () => write;

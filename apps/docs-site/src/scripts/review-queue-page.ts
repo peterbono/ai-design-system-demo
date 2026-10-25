@@ -19,8 +19,9 @@ import { Badge, Button, Card, CardBody, EmptyState, Progress, Select, Skeleton, 
 import { Inbox } from 'lucide-react';
 import ButtonLink from '../components/ds/ButtonLink';
 import { QueueBar, QueueList, QueueToasts } from '../components/ds/studio/ReviewQueue';
-import { currentAccess, currentContributor, currentViewer, initGitHubConnect, prefersSignIn, readRepo } from './github-session';
+import { currentAccess, currentViewer, initGitHubConnect, prefersSignIn, readRepo } from './github-session';
 import { joinHandlers } from './join-handlers';
+import { viewerRole } from './needs-you';
 import { loadDemoHome } from './demo-home';
 import { exploresDemo } from '../lib/demo';
 import { ENTRY_WORDS } from '../lib/entry';
@@ -396,13 +397,13 @@ export function initReviewQueue() {
       size: 'lg',
       headingLevel: 2,
       title: 'Nothing waits on you.',
-      // Someone who can edit but not review (an email member, Can edit): this queue is the reviewers'; what comes back
-      // to them is on Home, never "new reviews land here".
+      // Someone without a review right (an email member or admin, a GitHub reader: needs-you viewerRole): this queue is
+      // the reviewers'; what comes back to them is on Home, never "new reviews land here".
       description:
         failed ??
         (!signedIn
           ? `${ghAction('see what waits on you', signIn)}.`
-          : currentContributor()?.role === 'edit'
+          : viewerRole() !== 'reviewer'
             ? 'Reviewers look at changes here. When one sends your change back, it shows on Home.'
             : 'New reviews, usage guidance drafts and library checks land here.'),
       actions: signedIn

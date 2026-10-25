@@ -3,6 +3,7 @@ import {
   joinNeed,
   rowAction,
   holdsReviewRight,
+  moreNeedsAction,
   waitsOnContributor,
   CONTRIBUTOR_TOUR_STEPS,
   contributorTourSteps,
@@ -325,5 +326,12 @@ describe('join requests on the home (board E7b)', () => {
     expect(shown[0]!.key).toBe('join-r1');
     expect(more).toMatchObject({ count: 1, parts: '1 review' });
     expect(splitNeeds([review, review, review, row, { ...row, key: 'j2' }]).more?.parts).toBe('2 join requests');
+  });
+});
+
+describe('more than 3 waiting', () => {
+  it('opens the review queue for a reviewer, their own work on Changes for anyone else', () => {
+    expect(moreNeedsAction(false)).toEqual({ label: 'Review all', path: 'review/' });
+    expect(moreNeedsAction(true)).toEqual({ label: 'See all', path: 'changes/?who=mine' });
   });
 });

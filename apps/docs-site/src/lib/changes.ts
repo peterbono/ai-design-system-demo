@@ -314,6 +314,12 @@ export interface People {
   overridable?: boolean;
   /** The only owner whose approval covers design and tech (governance.soloOwnerCanApproveBoth, core soloOwnerOf). */
   soloOwner?: string | null;
+  /**
+   * The viewer holds a review right (scripts/needs-you viewerRole, lib/home-model holdsReviewRight). false: an email
+   * contributor or admin, or a GitHub reader: never "Your turn: approve" nor "Your turn: add it to the library".
+   * Absent: not known (the MCP server and the CLI), the owner lists decide as before.
+   */
+  reviews?: boolean;
 }
 
 export type WhoAction =
@@ -371,7 +377,7 @@ function soloCovers(roles: readonly ApprovalRole[], p: People): boolean {
 
 /** Whether the viewer can give this approval now. */
 export function viewerCanApprove(role: ApprovalRole, p: People): boolean {
-  if (!p.viewer || same(p.viewer, p.author) || (p.approvers ?? []).some((a) => same(a, p.viewer))) return false;
+  if (p.reviews === false || !p.viewer || same(p.viewer, p.author) || (p.approvers ?? []).some((a) => same(a, p.viewer))) return false;
   const e = eligibleFor(role, p);
   return e.open || e.logins.some((l) => same(l, p.viewer));
 }
@@ -491,7 +497,7 @@ export function whoActs(need: Need, p: People): WhoActs {
     case 'ready': {
       const owners = (p.shippers?.length ? uniq(p.shippers) : uniq([...p.owners.design, ...p.owners.tech])).map((x) => x.replace(/^@/, ''));
       const mine = p.canMerge ?? owners.some((o) => same(o, p.viewer));
-      if (p.viewer && mine) return { who: 'you', logins: [p.viewer], yourTurn: true, action: 'merge', sentence: 'Your turn: ready to add to the library.', short: 'Your turn: add it to the library' };
+      if (p.viewer && mine && p.reviews !== false) return { who: 'you', logins: [p.viewer], yourTurn: true, action: 'merge', sentence: 'Your turn: ready to add to the library.', short: 'Your turn: add it to the library' };
       const named = p.teams && (p.shipEntries ?? p.entries) ? entriesFor(p.shipEntries ?? [...p.entries!.design, ...p.entries!.tech], owners, p.teams) : [];
       const who = named.length ? or(named) : owners.length ? at(owners) : 'an owner';
       return { who: 'owner', logins: owners, yourTurn: false, action: 'merge', sentence: `Ready to add to the library: ${who} can add it.`, short: VOCAB.readyToMerge };
