@@ -72,6 +72,13 @@ describe('what an email contributor may do', () => {
     expect(r.menu.override).toBeNull();
     expect(r.comment).toBe(true);
   });
+
+  it('closes only their own change: the proxy refuses anyone else\'s', () => {
+    const base: ActionInput = { lifecycle: 'ready', connected: true, canWrite: true, isAuthor: false, canApprove: false, canMerge: false, mergeAfterApprove: false, overrideOnly: false, visual: false, shareable: false, exploration: false, statusAction: null, canReview: false };
+    expect(reviewActions(base).menu.close).toBe(false);
+    expect(reviewActions({ ...base, isAuthor: true }).menu.close).toBe(true);
+    expect(reviewActions({ ...base, canReview: true }).menu.close).toBe(true);
+  });
 });
 
 describe('signed-out screens', () => {

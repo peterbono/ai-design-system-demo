@@ -14,6 +14,7 @@ import {
   pendingApprovals,
   requiredApprovals,
   whoActs,
+  viewerCanApprove,
   openerFor,
   primaryAction,
   readSnapshot,
@@ -428,5 +429,19 @@ describe('pendingApprovals', () => {
     expect(pendingApprovals(2, { ...none, approvers: ['dana'], design: true })).toEqual(['tech']);
     expect(pendingApprovals(null, none)).toEqual([]);
     expect(pendingApprovals(2, null)).toEqual([]);
+  });
+});
+
+describe('who acts: a viewer without a review right', () => {
+  const open = { owners: { design: [], tech: [] }, author: 'pat', viewer: 'eve' };
+  it('never reads "Your turn: approve" nor "add it to the library", even with no owners set', () => {
+    expect(viewerCanApprove('approval', open)).toBe(true);
+    expect(viewerCanApprove('approval', { ...open, reviews: false })).toBe(false);
+    expect(whoActs({ kind: 'approve', roles: ['approval'] }, { ...open, reviews: false }).yourTurn).toBe(false);
+    expect(whoActs({ kind: 'ready' }, { ...open, canMerge: true, reviews: false }).yourTurn).toBe(false);
+    expect(approvalRows({ tier: 1, approvals: { approvers: [], changesRequested: [], design: false, tech: false }, people: { ...open, reviews: false }, open: true }).some((r) => r.canAct)).toBe(false);
+  });
+  it('keeps the owner lists deciding when the right is not known (the MCP server and the CLI)', () => {
+    expect(whoActs({ kind: 'approve', roles: ['approval'] }, open).yourTurn).toBe(true);
   });
 });

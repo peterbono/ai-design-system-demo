@@ -941,11 +941,14 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   // Who may use the owner override: the same rule as the Branches list (pr-status rowWho), so the list and the page
   // never disagree. The More menu item still needs the gate and write access (showOverride).
   const lookAgain = lookAgainReviewers(reviews, pull.head.sha, pull.user.login);
+  // An email member or a GitHub reader never reads "Your turn: approve" (no Approve button follows). The demo seat
+  // keeps its lead's turn: Approve is tried there and writes nothing.
+  const reviewsRight = seat ? {} : { reviews: reviewer };
   const who = whoActs(
     needFromDetail({ state: lifecycle, ci, gate, changesRequestedBy: approvals.changesRequested, lookAgain, exploration, mergeable: pull.mergeable, claude: claudeStage(pull.labels) }),
-    people(author, { viewer, approvers: approvals.approvers, canMerge: reviewer && gate.canShip, overridable: !seat && canOverride(login, HOLDERS()) }),
+    people(author, { viewer, approvers: approvals.approvers, canMerge: reviewer && gate.canShip, overridable: !seat && canOverride(login, HOLDERS()), ...reviewsRight }),
   );
-  const viewerPeople = people(author, { viewer });
+  const viewerPeople = people(author, { viewer, ...reviewsRight });
   // The sample team, in the lead's seat: its Review rules, not the repository's only owner. The seat checks the look,
   // Malik (the members who review tech, lib/invites.ts sampleTeam) checks the code: "Waiting for Malik", never
   // "Covered by your approval".
@@ -1076,7 +1079,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   renamed = seat ? null : () => ({ approvals: approvalsNow(), who: whoNow(), people: peopleNow() });
   const talkers = peopleUsers.map((u) => u.login).filter((l) => !/\[bot\]$/i.test(l) && !isClaudeLogin(l));
   renamedLogins = seat ? [] : [...new Set([...rows.flatMap((r) => loginsIn(rowText(r))), ...loginsIn(statusRun.sentence), ...talkers])];
-  const editable = tokenFilesOf(files) > 0 && isTokenChange(pull, REPO_KEY) && canAddTo(pull, login ?? undefined, write);
+  const editable = tokenFilesOf(files) > 0 && isTokenChange(pull, REPO_KEY) && canAddTo(pull, login ?? undefined, write && !access?.contributor);
   const added = Number(new URLSearchParams(location.search).get('added'));
   if (added > 0) history.replaceState(history.state, '', `?pr=${pull.number}`);
   // Behind main is a developer's to update: designers only see a conflict (token conflicts have their resolver).

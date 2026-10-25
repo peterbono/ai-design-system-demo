@@ -62,6 +62,14 @@ describe('explorations HTML (untrusted pull request and preview data)', () => {
     expect(box.querySelector('h1')?.textContent).toContain(TEXT);
   });
 
+  it('offers Promote and Close in direct mode only, as the product page does', () => {
+    const r = row('https://x-git-explore-x.vercel.app/');
+    expect(expectInert(renderExplorationDetail(r, { connected: true, suggest: false })).querySelector('[data-ex-promote]')).not.toBeNull();
+    const box = expectInert(renderExplorationDetail(r, { connected: true, suggest: true }));
+    expect(box.querySelector('[data-ex-promote]')).toBeNull();
+    expect(box.querySelector('[data-ex-close-ask]')).toBeNull();
+  });
+
   it('keeps https links', () => {
     const box = expectInert(rowHtml(row('https://x-git-explore-x.vercel.app/')));
     expect(box.querySelector('a[target="_blank"]')?.getAttribute('href')).toBe('https://x-git-explore-x.vercel.app/');

@@ -351,11 +351,18 @@ export function previewList(previews: BranchPreview[]): string {
     .join('')}</ul>`;
 }
 
-export function renderExplorationDetail(r: ExplorationRow, opts: { connected: boolean }): string {
+/**
+ * `suggest`: the team works in suggest mode (bridge.config.json "changes"): promoting and closing are branch writes,
+ * so they are not offered, as on the product page (scripts/product-branch.ts). Absent: read from the page.
+ */
+export function renderExplorationDetail(r: ExplorationRow, opts: { connected: boolean; suggest?: boolean }): string {
+  const suggest = opts.suggest ?? changesModeOnPage() === 'suggest';
   const actions =
     r.status !== 'active'
       ? `<a class="btn btn-primary btn-lg" href="?pr=${r.number}" data-open-pr="${r.number}">Open the change</a>`
-      : opts.connected
+      : suggest
+        ? ''
+        : opts.connected
         ? `<button type="button" class="btn btn-primary btn-lg" data-ex-promote="${r.number}">${VOCAB.requestReview}</button> <button type="button" class="btn btn-secondary btn-lg" data-ex-close-ask="${r.number}">Close</button>`
         : sampleVisitor()
           ? // The sample team: the button says what it does; a click opens the demo dialog (scripts/demo-gate.ts).

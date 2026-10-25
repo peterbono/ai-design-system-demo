@@ -9,7 +9,8 @@ import { isGuidanceOnly } from '../lib/overview-todo';
 import { touchesVisuals } from '../lib/visual-impact';
 import { fileSignals, type FileSignals } from '../lib/work-nature';
 import { badgeHtml, tooltipAttributes } from '@bridge-ds/react/dom';
-import { currentViewer, ghGet, hasWorkingToken, prefersSignIn, readRepo } from './github-session';
+import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, prefersSignIn, readRepo } from './github-session';
+import { holdsReviewRight } from '../lib/home-model';
 import { ghAction } from '../lib/gh-wording';
 import { needFromStatus, pendingApprovals, statusPill, whoActs, type ApprovalRole, type WhoActs } from '../lib/changes';
 import { developerOnlyFailures } from '../lib/check-explain';
@@ -237,6 +238,9 @@ export function rowWho(kind: ReviewStatusKind | null, o: RowFacts): WhoActs | nu
     ...teamPeople(),
     author: o.author,
     viewer,
+    // The viewer's review right (the same rule as needs-you viewerRole): an email member or a GitHub reader never
+    // reads "Your turn: approve" on a row. Unknown while the access is not read: the owner lists decide.
+    ...(viewer ? { reviews: holdsReviewRight({ viewer, contributor: Boolean(currentContributor()) || currentAccess()?.contributor === true, approvers: [...owners().design, ...owners().tech], shippers: shippers(), write: currentAccess()?.write ?? null }) } : {}),
     approvers: o.approvers,
     overrideBy: policy.allowed,
     overridable: canOverride(viewer, policy),

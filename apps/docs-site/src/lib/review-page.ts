@@ -648,7 +648,9 @@ export function reviewActions(x: ActionInput): ReviewActions {
       override: x.connected && open && x.canWrite && reviews && x.overrideOnly && !x.canMerge ? OVERRIDE_SENTENCE : null,
       share: live && x.visual && x.shareable,
       draft: x.connected && x.isAuthor && open && !x.exploration && x.canWrite,
-      close: x.connected && live && x.canWrite,
+      // An email member gets write access through Bridge's proxy, which only changes their own work: closing someone
+      // else's change is for the author or a reviewer.
+      close: x.connected && live && x.canWrite && (x.isAuthor || reviews),
     },
   };
 }

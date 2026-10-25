@@ -236,6 +236,14 @@ export function holdsReviewRight(x: { viewer: string | null; contributor: boolea
  * reviewer sent back with changes to make. Reviews, usage guidance drafts, suggestions and library checks belong to
  * the reviewers' queue.
  */
+/**
+ * The action under more than 3 waiting rows: a reviewer opens the review queue ("Review all"); someone without a
+ * review right never gets the queue (only reviewers do), so their own work opens on Changes, filtered to theirs.
+ */
+export function moreNeedsAction(contributor: boolean): { label: string; path: string } {
+  return contributor ? { label: 'See all', path: 'changes/?who=mine' } : { label: 'Review all', path: 'review/' };
+}
+
 export const waitsOnContributor = (task: ChangeFacts['task'] | null): boolean => task === 'own-changes';
 
 /** The contributor's tour (components/ds/studio/HomeTour.tsx): where their work lives, then how to start some. */

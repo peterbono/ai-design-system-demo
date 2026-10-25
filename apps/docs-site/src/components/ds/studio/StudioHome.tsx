@@ -22,6 +22,7 @@ import ButtonLink from '../ButtonLink';
 import {
   AVATARS_SHOWN,
   contributorTourSteps,
+  moreNeedsAction,
   contributorTour,
   type ContributorTourAt,
   BRANCH_FILTERS,
@@ -127,8 +128,9 @@ function OnlyReviewerHint({ needs, snoozed }: { needs: NeedRow[]; snoozed: boole
   );
 }
 
-function Needs({ needs, now, snoozed, demo, tour, join }: { needs: NeedRow[]; now: number; snoozed: boolean; demo?: boolean; tour?: StudioHomeProps['tour']; join?: JoinHandlers }) {
+function Needs({ needs, now, snoozed, demo, tour, join, contributor }: { needs: NeedRow[]; now: number; snoozed: boolean; demo?: boolean; tour?: StudioHomeProps['tour']; join?: JoinHandlers; contributor?: boolean }) {
   const { shown, more } = splitNeeds(needs);
+  const moreAction = moreNeedsAction(Boolean(contributor) && !demo);
   // On a phone the rows can fill the first screen: the first step sits above them, in view where the page opens (a
   // card in the flow, HomeTour.tsx). On a wide screen it floats under the rows it talks about.
   const narrow = useNarrow();
@@ -150,9 +152,10 @@ function Needs({ needs, now, snoozed, demo, tour, join }: { needs: NeedRow[]; no
               </span>
             )}
           </p>
-          {/* Always the Review page: the one queue, the same rows as this list (the demo lead's included). */}
-          <ButtonLink variant="primary" href={studioHref('review/')} className="sh-more-btn">
-            Review all
+          {/* A reviewer: the Review page, the one queue, the same rows as this list (the demo lead's included). Someone
+              without a review right: their own work on Changes (only reviewers get the review queue). */}
+          <ButtonLink variant="primary" href={studioHref(moreAction.path)} className="sh-more-btn">
+            {moreAction.label}
           </ButtonLink>
         </div>
       )}
@@ -465,7 +468,7 @@ function HomeBody(p: StudioHomeProps) {
             </ul>
           </>
         ) : (
-          p.needs.length > 0 && <Needs needs={p.needs} now={p.now} snoozed={snoozed} demo={Boolean(p.demo)} tour={tour} join={p.join} />
+          p.needs.length > 0 && <Needs needs={p.needs} now={p.now} snoozed={snoozed} demo={Boolean(p.demo)} tour={tour} join={p.join} contributor={Boolean(p.contributor)} />
         )}
       </section>
       {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}
