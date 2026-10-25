@@ -1,0 +1,10 @@
+{
+  "default": {
+    "font": {
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{palette.string.}"
+      }
+    }
+  }
+}

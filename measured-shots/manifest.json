@@ -1,0 +1,2043 @@
+{
+  "version": 1,
+  "tool": "@bridge-ds/cli",
+  "createdAt": "2026-10-25T00:30:55.205Z",
+  "storybook": "https://registry.lloydrichards.dev/storybook",
+  "scale": 2,
+  "components": {
+    "Alert": {
+      "variants": {
+        "story=ui-radix-alert--default": {
+          "file": "ui-radix-alert-default.png",
+          "width": 400,
+          "height": 68,
+          "story": "ui-radix-alert--default",
+          "props": {
+            "variant": "default"
+          }
+        },
+        "story=ui-radix-alert--destructive": {
+          "file": "ui-radix-alert-destructive.png",
+          "width": 400,
+          "height": 68,
+          "story": "ui-radix-alert--destructive",
+          "props": {
+            "variant": "destructive"
+          }
+        },
+        "story=ui-radix-alert--default, variant=default": {
+          "file": "ui-radix-alert-default.png",
+          "width": 400,
+          "height": 68,
+          "story": "ui-radix-alert--default",
+          "props": {
+            "variant": "default"
+          }
+        },
+        "story=ui-radix-alert--default, variant=default, state=hover": {
+          "file": "ui-radix-alert-default__variant-default__state-hover.png",
+          "width": 400,
+          "height": 68,
+          "story": "ui-radix-alert--default",
+          "props": {
+            "variant": "default"
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-alert--default, variant=default, state=active": {
+          "file": "ui-radix-alert-default__variant-default__state-active.png",
+          "width": 400,
+          "height": 68,
+          "story": "ui-radix-alert--default",
+          "props": {
+            "variant": "default"
+          },
+          "state": "active"
+        },
+        "story=ui-radix-alert--default, variant=default, disabled=true": {
+          "file": "ui-radix-alert-default__variant-default__disabled-true.png",
+          "width": 400,
+          "height": 68,
+          "story": "ui-radix-alert--default",
+          "props": {
+            "variant": "default",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-alert--destructive, variant=destructive": {
+          "file": "ui-radix-alert-destructive.png",
+          "width": 400,
+          "height": 68,
+          "story": "ui-radix-alert--destructive",
+          "props": {
+            "variant": "destructive"
+          }
+        },
+        "story=ui-radix-alert--destructive, variant=destructive, state=hover": {
+          "file": "ui-radix-alert-destructive__variant-destructive__state-hover.png",
+          "width": 400,
+          "height": 68,
+          "story": "ui-radix-alert--destructive",
+          "props": {
+            "variant": "destructive"
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-alert--destructive, variant=destructive, state=active": {
+          "file": "ui-radix-alert-destructive__variant-destructive__state-active.png",
+          "width": 400,
+          "height": 68,
+          "story": "ui-radix-alert--destructive",
+          "props": {
+            "variant": "destructive"
+          },
+          "state": "active"
+        },
+        "story=ui-radix-alert--destructive, variant=destructive, disabled=true": {
+          "file": "ui-radix-alert-destructive__variant-destructive__disabled-true.png",
+          "width": 400,
+          "height": 68,
+          "story": "ui-radix-alert--destructive",
+          "props": {
+            "variant": "destructive",
+            "disabled": true
+          }
+        }
+      }
+    },
+    "Avatar": {
+      "variants": {
+        "story=ui-radix-avatar--default": {
+          "file": "ui-radix-avatar-default.png",
+          "width": 64,
+          "height": 64,
+          "story": "ui-radix-avatar--default",
+          "props": {
+            "size": "default"
+          }
+        },
+        "story=ui-radix-avatar--default, size=default": {
+          "file": "ui-radix-avatar-default.png",
+          "width": 64,
+          "height": 64,
+          "story": "ui-radix-avatar--default",
+          "props": {
+            "size": "default"
+          }
+        },
+        "story=ui-radix-avatar--default, size=default, state=hover": {
+          "file": "ui-radix-avatar-default__size-default__state-hover.png",
+          "width": 64,
+          "height": 64,
+          "story": "ui-radix-avatar--default",
+          "props": {
+            "size": "default"
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-avatar--default, size=default, state=active": {
+          "file": "ui-radix-avatar-default__size-default__state-active.png",
+          "width": 64,
+          "height": 64,
+          "story": "ui-radix-avatar--default",
+          "props": {
+            "size": "default"
+          },
+          "state": "active"
+        },
+        "story=ui-radix-avatar--default, size=default, disabled=true": {
+          "file": "ui-radix-avatar-default__size-default__disabled-true.png",
+          "width": 64,
+          "height": 64,
+          "story": "ui-radix-avatar--default",
+          "props": {
+            "size": "default",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-avatar--default, size=sm": {
+          "file": "ui-radix-avatar-default__size-sm.png",
+          "width": 56,
+          "height": 56,
+          "story": "ui-radix-avatar--default",
+          "props": {
+            "size": "sm"
+          }
+        },
+        "story=ui-radix-avatar--default, size=sm, state=hover": {
+          "file": "ui-radix-avatar-default__size-sm__state-hover.png",
+          "width": 56,
+          "height": 56,
+          "story": "ui-radix-avatar--default",
+          "props": {
+            "size": "sm"
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-avatar--default, size=sm, state=active": {
+          "file": "ui-radix-avatar-default__size-sm__state-active.png",
+          "width": 56,
+          "height": 56,
+          "story": "ui-radix-avatar--default",
+          "props": {
+            "size": "sm"
+          },
+          "state": "active"
+        },
+        "story=ui-radix-avatar--default, size=sm, disabled=true": {
+          "file": "ui-radix-avatar-default__size-sm__disabled-true.png",
+          "width": 56,
+          "height": 56,
+          "story": "ui-radix-avatar--default",
+          "props": {
+            "size": "sm",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-avatar--default, size=lg": {
+          "file": "ui-radix-avatar-default__size-lg.png",
+          "width": 72,
+          "height": 72,
+          "story": "ui-radix-avatar--default",
+          "props": {
+            "size": "lg"
+          }
+        },
+        "story=ui-radix-avatar--default, size=lg, state=hover": {
+          "file": "ui-radix-avatar-default__size-lg__state-hover.png",
+          "width": 72,
+          "height": 72,
+          "story": "ui-radix-avatar--default",
+          "props": {
+            "size": "lg"
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-avatar--default, size=lg, state=active": {
+          "file": "ui-radix-avatar-default__size-lg__state-active.png",
+          "width": 72,
+          "height": 72,
+          "story": "ui-radix-avatar--default",
+          "props": {
+            "size": "lg"
+          },
+          "state": "active"
+        },
+        "story=ui-radix-avatar--default, size=lg, disabled=true": {
+          "file": "ui-radix-avatar-default__size-lg__disabled-true.png",
+          "width": 72,
+          "height": 72,
+          "story": "ui-radix-avatar--default",
+          "props": {
+            "size": "lg",
+            "disabled": true
+          }
+        }
+      }
+    },
+    "Badge": {
+      "variants": {
+        "story=ui-radix-badge--default": {
+          "file": "ui-radix-badge-default.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--default",
+          "props": {
+            "asChild": false,
+            "variant": "default",
+            "children": "Badge"
+          }
+        },
+        "story=ui-radix-badge--secondary": {
+          "file": "ui-radix-badge-secondary.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--secondary",
+          "props": {
+            "asChild": false,
+            "variant": "secondary",
+            "children": "Badge"
+          }
+        },
+        "story=ui-radix-badge--destructive": {
+          "file": "ui-radix-badge-destructive.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--destructive",
+          "props": {
+            "asChild": false,
+            "variant": "destructive",
+            "children": "Badge"
+          }
+        },
+        "story=ui-radix-badge--outline": {
+          "file": "ui-radix-badge-outline.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--outline",
+          "props": {
+            "asChild": false,
+            "variant": "outline",
+            "children": "Badge"
+          }
+        },
+        "story=ui-radix-badge--default, variant=default": {
+          "file": "ui-radix-badge-default.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--default",
+          "props": {
+            "asChild": false,
+            "variant": "default",
+            "children": "Badge"
+          }
+        },
+        "story=ui-radix-badge--default, variant=default, state=hover": {
+          "file": "ui-radix-badge-default__variant-default__state-hover.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--default",
+          "props": {
+            "asChild": false,
+            "variant": "default",
+            "children": "Badge"
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-badge--default, variant=default, state=active": {
+          "file": "ui-radix-badge-default__variant-default__state-active.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--default",
+          "props": {
+            "asChild": false,
+            "variant": "default",
+            "children": "Badge"
+          },
+          "state": "active"
+        },
+        "story=ui-radix-badge--default, variant=default, disabled=true": {
+          "file": "ui-radix-badge-default__variant-default__disabled-true.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--default",
+          "props": {
+            "asChild": false,
+            "variant": "default",
+            "children": "Badge",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-badge--secondary, variant=secondary": {
+          "file": "ui-radix-badge-secondary.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--secondary",
+          "props": {
+            "asChild": false,
+            "variant": "secondary",
+            "children": "Badge"
+          }
+        },
+        "story=ui-radix-badge--secondary, variant=secondary, state=hover": {
+          "file": "ui-radix-badge-secondary__variant-secondary__state-hover.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--secondary",
+          "props": {
+            "asChild": false,
+            "variant": "secondary",
+            "children": "Badge"
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-badge--secondary, variant=secondary, state=active": {
+          "file": "ui-radix-badge-secondary__variant-secondary__state-active.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--secondary",
+          "props": {
+            "asChild": false,
+            "variant": "secondary",
+            "children": "Badge"
+          },
+          "state": "active"
+        },
+        "story=ui-radix-badge--secondary, variant=secondary, disabled=true": {
+          "file": "ui-radix-badge-secondary__variant-secondary__disabled-true.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--secondary",
+          "props": {
+            "asChild": false,
+            "variant": "secondary",
+            "children": "Badge",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-badge--destructive, variant=destructive": {
+          "file": "ui-radix-badge-destructive.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--destructive",
+          "props": {
+            "asChild": false,
+            "variant": "destructive",
+            "children": "Badge"
+          }
+        },
+        "story=ui-radix-badge--destructive, variant=destructive, state=hover": {
+          "file": "ui-radix-badge-destructive__variant-destructive__state-hover.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--destructive",
+          "props": {
+            "asChild": false,
+            "variant": "destructive",
+            "children": "Badge"
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-badge--destructive, variant=destructive, state=active": {
+          "file": "ui-radix-badge-destructive__variant-destructive__state-active.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--destructive",
+          "props": {
+            "asChild": false,
+            "variant": "destructive",
+            "children": "Badge"
+          },
+          "state": "active"
+        },
+        "story=ui-radix-badge--destructive, variant=destructive, disabled=true": {
+          "file": "ui-radix-badge-destructive__variant-destructive__disabled-true.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--destructive",
+          "props": {
+            "asChild": false,
+            "variant": "destructive",
+            "children": "Badge",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-badge--outline, variant=outline": {
+          "file": "ui-radix-badge-outline.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--outline",
+          "props": {
+            "asChild": false,
+            "variant": "outline",
+            "children": "Badge"
+          }
+        },
+        "story=ui-radix-badge--outline, variant=outline, state=hover": {
+          "file": "ui-radix-badge-outline__variant-outline__state-hover.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--outline",
+          "props": {
+            "asChild": false,
+            "variant": "outline",
+            "children": "Badge"
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-badge--outline, variant=outline, state=active": {
+          "file": "ui-radix-badge-outline__variant-outline__state-active.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--outline",
+          "props": {
+            "asChild": false,
+            "variant": "outline",
+            "children": "Badge"
+          },
+          "state": "active"
+        },
+        "story=ui-radix-badge--outline, variant=outline, disabled=true": {
+          "file": "ui-radix-badge-outline__variant-outline__disabled-true.png",
+          "width": 86.77,
+          "height": 56,
+          "story": "ui-radix-badge--outline",
+          "props": {
+            "asChild": false,
+            "variant": "outline",
+            "children": "Badge",
+            "disabled": true
+          }
+        }
+      }
+    },
+    "Button": {
+      "variants": {
+        "story=ui-radix-button--default": {
+          "file": "ui-radix-button-default.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--default",
+          "props": {
+            "variant": "default",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--outline": {
+          "file": "ui-radix-button-outline.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--outline",
+          "props": {
+            "variant": "outline",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--ghost": {
+          "file": "ui-radix-button-ghost.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--ghost",
+          "props": {
+            "variant": "ghost",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--secondary": {
+          "file": "ui-radix-button-secondary.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--secondary",
+          "props": {
+            "variant": "secondary",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--destructive": {
+          "file": "ui-radix-button-destructive.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--destructive",
+          "props": {
+            "variant": "destructive",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--link": {
+          "file": "ui-radix-button-link.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--link",
+          "props": {
+            "variant": "link",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--loading": {
+          "file": "ui-radix-button-loading.png",
+          "width": 128.2,
+          "height": 68,
+          "story": "ui-radix-button--loading",
+          "props": {
+            "variant": "outline",
+            "size": "default",
+            "children": "Button",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-button--with-icon": {
+          "file": "ui-radix-button-with-icon.png",
+          "width": 238.8,
+          "height": 68,
+          "story": "ui-radix-button--with-icon",
+          "props": {
+            "variant": "secondary",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--small": {
+          "file": "ui-radix-button-small.png",
+          "width": 98.2,
+          "height": 64,
+          "story": "ui-radix-button--small",
+          "props": {
+            "variant": "default",
+            "size": "sm",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--large": {
+          "file": "ui-radix-button-large.png",
+          "width": 98.2,
+          "height": 72,
+          "story": "ui-radix-button--large",
+          "props": {
+            "variant": "default",
+            "size": "lg",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--icon": {
+          "file": "ui-radix-button-icon.png",
+          "width": 68,
+          "height": 68,
+          "story": "ui-radix-button--icon",
+          "props": {
+            "variant": "secondary",
+            "size": "icon",
+            "disabled": false,
+            "title": "Mail"
+          }
+        },
+        "story=ui-radix-button--icon-small": {
+          "file": "ui-radix-button-icon-small.png",
+          "width": 64,
+          "height": 64,
+          "story": "ui-radix-button--icon-small",
+          "props": {
+            "variant": "secondary",
+            "size": "icon-sm",
+            "disabled": false,
+            "title": "Mail"
+          }
+        },
+        "story=ui-radix-button--icon-large": {
+          "file": "ui-radix-button-icon-large.png",
+          "width": 72,
+          "height": 72,
+          "story": "ui-radix-button--icon-large",
+          "props": {
+            "variant": "secondary",
+            "size": "icon-lg",
+            "disabled": false,
+            "title": "Mail"
+          }
+        },
+        "story=ui-radix-button--disabled": {
+          "file": "ui-radix-button-disabled.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--disabled",
+          "props": {
+            "variant": "default",
+            "size": "default",
+            "children": "Button",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-button--default, variant=default, size=default": {
+          "file": "ui-radix-button-default.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--default",
+          "props": {
+            "variant": "default",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--default, variant=default, size=default, state=hover": {
+          "file": "ui-radix-button-default__variant-default__size-default__state-hover.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--default",
+          "props": {
+            "variant": "default",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-button--default, variant=default, size=default, state=active": {
+          "file": "ui-radix-button-default__variant-default__size-default__state-active.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--default",
+          "props": {
+            "variant": "default",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "active"
+        },
+        "story=ui-radix-button--disabled, variant=default, size=default, disabled=true": {
+          "file": "ui-radix-button-disabled.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--disabled",
+          "props": {
+            "variant": "default",
+            "size": "default",
+            "children": "Button",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-button--destructive, variant=destructive, size=default": {
+          "file": "ui-radix-button-destructive.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--destructive",
+          "props": {
+            "variant": "destructive",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--destructive, variant=destructive, size=default, state=hover": {
+          "file": "ui-radix-button-destructive__variant-destructive__size-default__state-hover.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--destructive",
+          "props": {
+            "variant": "destructive",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-button--destructive, variant=destructive, size=default, state=active": {
+          "file": "ui-radix-button-destructive__variant-destructive__size-default__state-active.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--destructive",
+          "props": {
+            "variant": "destructive",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "active"
+        },
+        "story=ui-radix-button--destructive, variant=destructive, size=default, disabled=true": {
+          "file": "ui-radix-button-destructive__variant-destructive__size-default__disabled-true.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--destructive",
+          "props": {
+            "variant": "destructive",
+            "size": "default",
+            "children": "Button",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-button--outline, variant=outline, size=default": {
+          "file": "ui-radix-button-outline.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--outline",
+          "props": {
+            "variant": "outline",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--outline, variant=outline, size=default, state=hover": {
+          "file": "ui-radix-button-outline__variant-outline__size-default__state-hover.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--outline",
+          "props": {
+            "variant": "outline",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-button--outline, variant=outline, size=default, state=active": {
+          "file": "ui-radix-button-outline__variant-outline__size-default__state-active.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--outline",
+          "props": {
+            "variant": "outline",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "active"
+        },
+        "story=ui-radix-button--loading, variant=outline, size=default, disabled=true": {
+          "file": "ui-radix-button-loading.png",
+          "width": 128.2,
+          "height": 68,
+          "story": "ui-radix-button--loading",
+          "props": {
+            "variant": "outline",
+            "size": "default",
+            "children": "Button",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-button--secondary, variant=secondary, size=default": {
+          "file": "ui-radix-button-secondary.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--secondary",
+          "props": {
+            "variant": "secondary",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--secondary, variant=secondary, size=default, state=hover": {
+          "file": "ui-radix-button-secondary__variant-secondary__size-default__state-hover.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--secondary",
+          "props": {
+            "variant": "secondary",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-button--secondary, variant=secondary, size=default, state=active": {
+          "file": "ui-radix-button-secondary__variant-secondary__size-default__state-active.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--secondary",
+          "props": {
+            "variant": "secondary",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "active"
+        },
+        "story=ui-radix-button--secondary, variant=secondary, size=default, disabled=true": {
+          "file": "ui-radix-button-secondary__variant-secondary__size-default__disabled-true.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--secondary",
+          "props": {
+            "variant": "secondary",
+            "size": "default",
+            "children": "Button",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-button--ghost, variant=ghost, size=default": {
+          "file": "ui-radix-button-ghost.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--ghost",
+          "props": {
+            "variant": "ghost",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--ghost, variant=ghost, size=default, state=hover": {
+          "file": "ui-radix-button-ghost__variant-ghost__size-default__state-hover.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--ghost",
+          "props": {
+            "variant": "ghost",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-button--ghost, variant=ghost, size=default, state=active": {
+          "file": "ui-radix-button-ghost__variant-ghost__size-default__state-active.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--ghost",
+          "props": {
+            "variant": "ghost",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "active"
+        },
+        "story=ui-radix-button--ghost, variant=ghost, size=default, disabled=true": {
+          "file": "ui-radix-button-ghost__variant-ghost__size-default__disabled-true.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--ghost",
+          "props": {
+            "variant": "ghost",
+            "size": "default",
+            "children": "Button",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-button--link, variant=link, size=default": {
+          "file": "ui-radix-button-link.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--link",
+          "props": {
+            "variant": "link",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--link, variant=link, size=default, state=hover": {
+          "file": "ui-radix-button-link__variant-link__size-default__state-hover.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--link",
+          "props": {
+            "variant": "link",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-button--link, variant=link, size=default, state=active": {
+          "file": "ui-radix-button-link__variant-link__size-default__state-active.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--link",
+          "props": {
+            "variant": "link",
+            "size": "default",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "active"
+        },
+        "story=ui-radix-button--link, variant=link, size=default, disabled=true": {
+          "file": "ui-radix-button-link__variant-link__size-default__disabled-true.png",
+          "width": 98.2,
+          "height": 68,
+          "story": "ui-radix-button--link",
+          "props": {
+            "variant": "link",
+            "size": "default",
+            "children": "Button",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-button--small, variant=default, size=sm": {
+          "file": "ui-radix-button-small.png",
+          "width": 98.2,
+          "height": 64,
+          "story": "ui-radix-button--small",
+          "props": {
+            "variant": "default",
+            "size": "sm",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--small, variant=default, size=sm, state=hover": {
+          "file": "ui-radix-button-small__variant-default__size-sm__state-hover.png",
+          "width": 98.2,
+          "height": 64,
+          "story": "ui-radix-button--small",
+          "props": {
+            "variant": "default",
+            "size": "sm",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-button--small, variant=default, size=sm, state=active": {
+          "file": "ui-radix-button-small__variant-default__size-sm__state-active.png",
+          "width": 98.2,
+          "height": 64,
+          "story": "ui-radix-button--small",
+          "props": {
+            "variant": "default",
+            "size": "sm",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "active"
+        },
+        "story=ui-radix-button--small, variant=default, size=sm, disabled=true": {
+          "file": "ui-radix-button-small__variant-default__size-sm__disabled-true.png",
+          "width": 98.2,
+          "height": 64,
+          "story": "ui-radix-button--small",
+          "props": {
+            "variant": "default",
+            "size": "sm",
+            "children": "Button",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-button--large, variant=default, size=lg": {
+          "file": "ui-radix-button-large.png",
+          "width": 98.2,
+          "height": 72,
+          "story": "ui-radix-button--large",
+          "props": {
+            "variant": "default",
+            "size": "lg",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--large, variant=default, size=lg, state=hover": {
+          "file": "ui-radix-button-large__variant-default__size-lg__state-hover.png",
+          "width": 98.2,
+          "height": 72,
+          "story": "ui-radix-button--large",
+          "props": {
+            "variant": "default",
+            "size": "lg",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-button--large, variant=default, size=lg, state=active": {
+          "file": "ui-radix-button-large__variant-default__size-lg__state-active.png",
+          "width": 98.2,
+          "height": 72,
+          "story": "ui-radix-button--large",
+          "props": {
+            "variant": "default",
+            "size": "lg",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "active"
+        },
+        "story=ui-radix-button--large, variant=default, size=lg, disabled=true": {
+          "file": "ui-radix-button-large__variant-default__size-lg__disabled-true.png",
+          "width": 98.2,
+          "height": 72,
+          "story": "ui-radix-button--large",
+          "props": {
+            "variant": "default",
+            "size": "lg",
+            "children": "Button",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-button--default, variant=default, size=icon": {
+          "file": "ui-radix-button-default__variant-default__size-icon.png",
+          "width": 68,
+          "height": 68,
+          "story": "ui-radix-button--default",
+          "props": {
+            "variant": "default",
+            "size": "icon",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--default, variant=default, size=icon, state=hover": {
+          "file": "ui-radix-button-default__variant-default__size-icon__state-hover.png",
+          "width": 68,
+          "height": 68,
+          "story": "ui-radix-button--default",
+          "props": {
+            "variant": "default",
+            "size": "icon",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-button--default, variant=default, size=icon, state=active": {
+          "file": "ui-radix-button-default__variant-default__size-icon__state-active.png",
+          "width": 68,
+          "height": 68,
+          "story": "ui-radix-button--default",
+          "props": {
+            "variant": "default",
+            "size": "icon",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "active"
+        },
+        "story=ui-radix-button--disabled, variant=default, size=icon, disabled=true": {
+          "file": "ui-radix-button-disabled__variant-default__size-icon__disabled-true.png",
+          "width": 68,
+          "height": 68,
+          "story": "ui-radix-button--disabled",
+          "props": {
+            "variant": "default",
+            "size": "icon",
+            "children": "Button",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-button--destructive, variant=destructive, size=sm": {
+          "file": "ui-radix-button-destructive__variant-destructive__size-sm.png",
+          "width": 98.2,
+          "height": 64,
+          "story": "ui-radix-button--destructive",
+          "props": {
+            "variant": "destructive",
+            "size": "sm",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--destructive, variant=destructive, size=sm, state=hover": {
+          "file": "ui-radix-button-destructive__variant-destructive__size-sm__state-hover.png",
+          "width": 98.2,
+          "height": 64,
+          "story": "ui-radix-button--destructive",
+          "props": {
+            "variant": "destructive",
+            "size": "sm",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-button--destructive, variant=destructive, size=sm, state=active": {
+          "file": "ui-radix-button-destructive__variant-destructive__size-sm__state-active.png",
+          "width": 98.2,
+          "height": 64,
+          "story": "ui-radix-button--destructive",
+          "props": {
+            "variant": "destructive",
+            "size": "sm",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "active"
+        },
+        "story=ui-radix-button--destructive, variant=destructive, size=sm, disabled=true": {
+          "file": "ui-radix-button-destructive__variant-destructive__size-sm__disabled-true.png",
+          "width": 98.2,
+          "height": 64,
+          "story": "ui-radix-button--destructive",
+          "props": {
+            "variant": "destructive",
+            "size": "sm",
+            "children": "Button",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-button--destructive, variant=destructive, size=lg": {
+          "file": "ui-radix-button-destructive__variant-destructive__size-lg.png",
+          "width": 98.2,
+          "height": 72,
+          "story": "ui-radix-button--destructive",
+          "props": {
+            "variant": "destructive",
+            "size": "lg",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--destructive, variant=destructive, size=lg, state=hover": {
+          "file": "ui-radix-button-destructive__variant-destructive__size-lg__state-hover.png",
+          "width": 98.2,
+          "height": 72,
+          "story": "ui-radix-button--destructive",
+          "props": {
+            "variant": "destructive",
+            "size": "lg",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-button--destructive, variant=destructive, size=lg, state=active": {
+          "file": "ui-radix-button-destructive__variant-destructive__size-lg__state-active.png",
+          "width": 98.2,
+          "height": 72,
+          "story": "ui-radix-button--destructive",
+          "props": {
+            "variant": "destructive",
+            "size": "lg",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "active"
+        },
+        "story=ui-radix-button--destructive, variant=destructive, size=lg, disabled=true": {
+          "file": "ui-radix-button-destructive__variant-destructive__size-lg__disabled-true.png",
+          "width": 98.2,
+          "height": 72,
+          "story": "ui-radix-button--destructive",
+          "props": {
+            "variant": "destructive",
+            "size": "lg",
+            "children": "Button",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-button--destructive, variant=destructive, size=icon": {
+          "file": "ui-radix-button-destructive__variant-destructive__size-icon.png",
+          "width": 68,
+          "height": 68,
+          "story": "ui-radix-button--destructive",
+          "props": {
+            "variant": "destructive",
+            "size": "icon",
+            "children": "Button",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-button--destructive, variant=destructive, size=icon, state=hover": {
+          "file": "ui-radix-button-destructive__variant-destructive__size-icon__state-hover.png",
+          "width": 68,
+          "height": 68,
+          "story": "ui-radix-button--destructive",
+          "props": {
+            "variant": "destructive",
+            "size": "icon",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-button--destructive, variant=destructive, size=icon, state=active": {
+          "file": "ui-radix-button-destructive__variant-destructive__size-icon__state-active.png",
+          "width": 68,
+          "height": 68,
+          "story": "ui-radix-button--destructive",
+          "props": {
+            "variant": "destructive",
+            "size": "icon",
+            "children": "Button",
+            "disabled": false
+          },
+          "state": "active"
+        },
+        "story=ui-radix-button--destructive, variant=destructive, size=icon, disabled=true": {
+          "file": "ui-radix-button-destructive__variant-destructive__size-icon__disabled-true.png",
+          "width": 68,
+          "height": 68,
+          "story": "ui-radix-button--destructive",
+          "props": {
+            "variant": "destructive",
+            "size": "icon",
+            "children": "Button",
+            "disabled": true
+          }
+        }
+      }
+    },
+    "Card": {
+      "variants": {
+        "story=ui-radix-card--default": {
+          "file": "ui-radix-card-default.png",
+          "width": 416,
+          "height": 364,
+          "story": "ui-radix-card--default",
+          "props": {
+            "size": "default",
+            "className": "w-96"
+          }
+        },
+        "story=ui-radix-card--with-card-action": {
+          "file": "ui-radix-card-with-card-action.png",
+          "width": 416,
+          "height": 252,
+          "story": "ui-radix-card--with-card-action",
+          "props": {
+            "size": "default",
+            "className": "w-96"
+          }
+        },
+        "story=ui-radix-card--minimal-card": {
+          "file": "ui-radix-card-minimal-card.png",
+          "width": 416,
+          "height": 140,
+          "story": "ui-radix-card--minimal-card",
+          "props": {
+            "size": "default",
+            "className": "w-96"
+          }
+        },
+        "story=ui-radix-card--header-only": {
+          "file": "ui-radix-card-header-only.png",
+          "width": 416,
+          "height": 128,
+          "story": "ui-radix-card--header-only",
+          "props": {
+            "size": "default",
+            "className": "w-96"
+          }
+        },
+        "story=ui-radix-card--default, , state=hover": {
+          "file": "ui-radix-card-default__state-hover.png",
+          "width": 416,
+          "height": 364,
+          "story": "ui-radix-card--default",
+          "props": {
+            "size": "default",
+            "className": "w-96"
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-card--default, , state=active": {
+          "file": "ui-radix-card-default__state-active.png",
+          "width": 416,
+          "height": 364,
+          "story": "ui-radix-card--default",
+          "props": {
+            "size": "default",
+            "className": "w-96"
+          },
+          "state": "active"
+        },
+        "story=ui-radix-card--default, disabled=true": {
+          "file": "ui-radix-card-default__disabled-true.png",
+          "width": 416,
+          "height": 364,
+          "story": "ui-radix-card--default",
+          "props": {
+            "size": "default",
+            "className": "w-96",
+            "disabled": true
+          }
+        }
+      }
+    },
+    "Checkbox": {
+      "variants": {
+        "story=ui-radix-checkbox--default": {
+          "file": "ui-radix-checkbox-default.png",
+          "width": 245.36,
+          "height": 48,
+          "story": "ui-radix-checkbox--default",
+          "props": {
+            "id": "terms",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-checkbox--disabled": {
+          "file": "ui-radix-checkbox-disabled.png",
+          "width": 245.36,
+          "height": 48,
+          "story": "ui-radix-checkbox--disabled",
+          "props": {
+            "id": "disabled-terms",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-checkbox--should-toggle-check": {
+          "file": "ui-radix-checkbox-should-toggle-check.png",
+          "width": 245.36,
+          "height": 48,
+          "story": "ui-radix-checkbox--should-toggle-check",
+          "props": {
+            "id": "terms",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-checkbox--default, , state=hover": {
+          "file": "ui-radix-checkbox-default__state-hover.png",
+          "width": 245.36,
+          "height": 48,
+          "story": "ui-radix-checkbox--default",
+          "props": {
+            "id": "terms",
+            "disabled": false
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-checkbox--default, , state=active": {
+          "file": "ui-radix-checkbox-default__state-active.png",
+          "width": 245.36,
+          "height": 48,
+          "story": "ui-radix-checkbox--default",
+          "props": {
+            "id": "terms",
+            "disabled": false
+          },
+          "state": "active"
+        },
+        "story=ui-radix-checkbox--disabled, disabled=true": {
+          "file": "ui-radix-checkbox-disabled.png",
+          "width": 245.36,
+          "height": 48,
+          "story": "ui-radix-checkbox--disabled",
+          "props": {
+            "id": "disabled-terms",
+            "disabled": true
+          }
+        }
+      }
+    },
+    "Input": {
+      "variants": {
+        "story=ui-radix-input--default": {
+          "file": "ui-radix-input-default.png",
+          "width": 416,
+          "height": 68,
+          "story": "ui-radix-input--default",
+          "props": {
+            "className": "w-96",
+            "type": "email",
+            "placeholder": "Email",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-input--disabled": {
+          "file": "ui-radix-input-disabled.png",
+          "width": 416,
+          "height": 68,
+          "story": "ui-radix-input--disabled",
+          "props": {
+            "className": "w-96",
+            "type": "email",
+            "placeholder": "Email",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-input--with-label": {
+          "file": "ui-radix-input-with-label.png",
+          "width": 416,
+          "height": 88,
+          "story": "ui-radix-input--with-label",
+          "props": {
+            "className": "w-96",
+            "type": "email",
+            "placeholder": "Email",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-input--with-helper-text": {
+          "file": "ui-radix-input-with-helper-text.png",
+          "width": 416,
+          "height": 114,
+          "story": "ui-radix-input--with-helper-text",
+          "props": {
+            "className": "w-96",
+            "type": "email",
+            "placeholder": "Email",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-input--with-button": {
+          "file": "ui-radix-input-with-button.png",
+          "width": 512.52,
+          "height": 68,
+          "story": "ui-radix-input--with-button",
+          "props": {
+            "className": "w-96",
+            "type": "email",
+            "placeholder": "Email",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-input--should-enter-text": {
+          "file": "ui-radix-input-should-enter-text.png",
+          "width": 416,
+          "height": 68,
+          "story": "ui-radix-input--should-enter-text",
+          "props": {
+            "className": "w-96",
+            "type": "email",
+            "placeholder": "Email",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-input--default, , state=hover": {
+          "file": "ui-radix-input-default__state-hover.png",
+          "width": 416,
+          "height": 68,
+          "story": "ui-radix-input--default",
+          "props": {
+            "className": "w-96",
+            "type": "email",
+            "placeholder": "Email",
+            "disabled": false
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-input--default, , state=active": {
+          "file": "ui-radix-input-default__state-active.png",
+          "width": 416,
+          "height": 68,
+          "story": "ui-radix-input--default",
+          "props": {
+            "className": "w-96",
+            "type": "email",
+            "placeholder": "Email",
+            "disabled": false
+          },
+          "state": "active"
+        },
+        "story=ui-radix-input--disabled, disabled=true": {
+          "file": "ui-radix-input-disabled.png",
+          "width": 416,
+          "height": 68,
+          "story": "ui-radix-input--disabled",
+          "props": {
+            "className": "w-96",
+            "type": "email",
+            "placeholder": "Email",
+            "disabled": true
+          }
+        }
+      }
+    },
+    "Kbd": {
+      "variants": {
+        "story=ui-radix-kbd--with-input-group": {
+          "file": "ui-radix-kbd-with-input-group.png",
+          "width": 277.61,
+          "height": 68,
+          "story": "ui-radix-kbd--with-input-group",
+          "props": {}
+        },
+        "story=ui-radix-kbd--group": {
+          "file": "ui-radix-kbd-group.png",
+          "width": 390.11,
+          "height": 53,
+          "story": "ui-radix-kbd--group",
+          "props": {}
+        },
+        "story=ui-radix-kbd--with-button": {
+          "file": "ui-radix-kbd-with-button.png",
+          "width": 236.77,
+          "height": 64,
+          "story": "ui-radix-kbd--with-button",
+          "props": {}
+        },
+        "story=ui-radix-kbd--with-tooltip": {
+          "file": "ui-radix-kbd-with-tooltip.png",
+          "width": 138,
+          "height": 64,
+          "story": "ui-radix-kbd--with-tooltip",
+          "props": {}
+        },
+        "story=ui-radix-kbd--group, , state=hover": {
+          "file": "ui-radix-kbd-group__state-hover.png",
+          "width": 390.11,
+          "height": 53,
+          "story": "ui-radix-kbd--group",
+          "props": {},
+          "state": "hover"
+        },
+        "story=ui-radix-kbd--group, , state=active": {
+          "file": "ui-radix-kbd-group__state-active.png",
+          "width": 390.11,
+          "height": 53,
+          "story": "ui-radix-kbd--group",
+          "props": {},
+          "state": "active"
+        },
+        "story=ui-radix-kbd--group, disabled=true": {
+          "file": "ui-radix-kbd-group__disabled-true.png",
+          "width": 390.11,
+          "height": 53,
+          "story": "ui-radix-kbd--group",
+          "props": {
+            "disabled": true
+          }
+        }
+      }
+    },
+    "Progress": {
+      "variants": {
+        "story=ui-radix-progress--default": {
+          "file": "ui-radix-progress-default.png",
+          "width": 400,
+          "height": 6,
+          "story": "ui-radix-progress--default",
+          "props": {
+            "aria-label": "Progress",
+            "value": 30,
+            "max": 100
+          }
+        },
+        "story=ui-radix-progress--indeterminate": {
+          "file": "ui-radix-progress-indeterminate.png",
+          "width": 400,
+          "height": 6,
+          "story": "ui-radix-progress--indeterminate",
+          "props": {
+            "aria-label": "Progress",
+            "max": 100
+          }
+        },
+        "story=ui-radix-progress--completed": {
+          "file": "ui-radix-progress-completed.png",
+          "width": 400,
+          "height": 6,
+          "story": "ui-radix-progress--completed",
+          "props": {
+            "aria-label": "Progress",
+            "value": 100,
+            "max": 100
+          }
+        },
+        "story=ui-radix-progress--default, , state=hover": {
+          "file": "ui-radix-progress-default__state-hover.png",
+          "width": 400,
+          "height": 6,
+          "story": "ui-radix-progress--default",
+          "props": {
+            "aria-label": "Progress",
+            "value": 30,
+            "max": 100
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-progress--default, , state=active": {
+          "file": "ui-radix-progress-default__state-active.png",
+          "width": 400,
+          "height": 6,
+          "story": "ui-radix-progress--default",
+          "props": {
+            "aria-label": "Progress",
+            "value": 30,
+            "max": 100
+          },
+          "state": "active"
+        },
+        "story=ui-radix-progress--default, disabled=true": {
+          "file": "ui-radix-progress-default__disabled-true.png",
+          "width": 400,
+          "height": 6,
+          "story": "ui-radix-progress--default",
+          "props": {
+            "aria-label": "Progress",
+            "value": 30,
+            "max": 100,
+            "disabled": true
+          }
+        }
+      }
+    },
+    "RadioGroup": {
+      "variants": {
+        "story=ui-radix-radiogroup--default": {
+          "file": "ui-radix-radiogroup-default.png",
+          "width": 400,
+          "height": 64,
+          "story": "ui-radix-radiogroup--default",
+          "props": {
+            "defaultValue": "comfortable",
+            "className": "grid gap-2 grid-cols-[1rem_1fr] items-center"
+          }
+        },
+        "story=ui-radix-radiogroup--should-toggle-radio": {
+          "file": "ui-radix-radiogroup-should-toggle-radio.png",
+          "width": 400,
+          "height": 64,
+          "story": "ui-radix-radiogroup--should-toggle-radio",
+          "props": {
+            "defaultValue": "comfortable",
+            "className": "grid gap-2 grid-cols-[1rem_1fr] items-center"
+          }
+        },
+        "story=ui-radix-radiogroup--default, , state=hover": {
+          "file": "ui-radix-radiogroup-default__state-hover.png",
+          "width": 400,
+          "height": 64,
+          "story": "ui-radix-radiogroup--default",
+          "props": {
+            "defaultValue": "comfortable",
+            "className": "grid gap-2 grid-cols-[1rem_1fr] items-center"
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-radiogroup--default, , state=active": {
+          "file": "ui-radix-radiogroup-default__state-active.png",
+          "width": 400,
+          "height": 64,
+          "story": "ui-radix-radiogroup--default",
+          "props": {
+            "defaultValue": "comfortable",
+            "className": "grid gap-2 grid-cols-[1rem_1fr] items-center"
+          },
+          "state": "active"
+        },
+        "story=ui-radix-radiogroup--default, disabled=true": {
+          "file": "ui-radix-radiogroup-default__disabled-true.png",
+          "width": 400,
+          "height": 64,
+          "story": "ui-radix-radiogroup--default",
+          "props": {
+            "defaultValue": "comfortable",
+            "className": "grid gap-2 grid-cols-[1rem_1fr] items-center",
+            "disabled": true
+          }
+        }
+      }
+    },
+    "Select": {
+      "variants": {
+        "story=ui-radix-select--default": {
+          "file": "ui-radix-select-default.png",
+          "width": 416,
+          "height": 68,
+          "story": "ui-radix-select--default",
+          "props": {}
+        },
+        "story=ui-radix-select--should-select-option": {
+          "file": "ui-radix-select-should-select-option.png",
+          "width": 416,
+          "height": 68,
+          "story": "ui-radix-select--should-select-option",
+          "props": {}
+        },
+        "story=ui-radix-select--default, , state=hover": {
+          "file": "ui-radix-select-default__state-hover.png",
+          "width": 416,
+          "height": 68,
+          "story": "ui-radix-select--default",
+          "props": {},
+          "state": "hover"
+        },
+        "story=ui-radix-select--default, , state=active": {
+          "file": "ui-radix-select-default__state-active.png",
+          "width": 416,
+          "height": 68,
+          "story": "ui-radix-select--default",
+          "props": {},
+          "state": "active"
+        },
+        "story=ui-radix-select--default, disabled=true": {
+          "file": "ui-radix-select-default__disabled-true.png",
+          "width": 416,
+          "height": 68,
+          "story": "ui-radix-select--default",
+          "props": {
+            "disabled": true
+          }
+        }
+      }
+    },
+    "Spinner": {
+      "variants": {
+        "story=ui-radix-spinner--with-item": {
+          "file": "ui-radix-spinner-with-item.png",
+          "width": 313,
+          "height": 82,
+          "story": "ui-radix-spinner--with-item",
+          "props": {}
+        },
+        "story=ui-radix-spinner--with-button": {
+          "file": "ui-radix-spinner-with-button.png",
+          "width": 139.22,
+          "height": 64,
+          "story": "ui-radix-spinner--with-button",
+          "props": {}
+        },
+        "story=ui-radix-spinner--with-badge": {
+          "file": "ui-radix-spinner-with-badge.png",
+          "width": 112.3,
+          "height": 56,
+          "story": "ui-radix-spinner--with-badge",
+          "props": {}
+        },
+        "story=ui-radix-spinner--with-empty": {
+          "file": "ui-radix-spinner-with-empty.png",
+          "width": 512,
+          "height": 313.5,
+          "story": "ui-radix-spinner--with-empty",
+          "props": {}
+        },
+        "story=ui-radix-spinner--with-item, , state=hover": {
+          "file": "ui-radix-spinner-with-item__state-hover.png",
+          "width": 313,
+          "height": 82,
+          "story": "ui-radix-spinner--with-item",
+          "props": {},
+          "state": "hover"
+        },
+        "story=ui-radix-spinner--with-item, , state=active": {
+          "file": "ui-radix-spinner-with-item__state-active.png",
+          "width": 313,
+          "height": 82,
+          "story": "ui-radix-spinner--with-item",
+          "props": {},
+          "state": "active"
+        },
+        "story=ui-radix-spinner--with-item, disabled=true": {
+          "file": "ui-radix-spinner-with-item__disabled-true.png",
+          "width": 313,
+          "height": 82,
+          "story": "ui-radix-spinner--with-item",
+          "props": {
+            "disabled": true
+          }
+        },
+        "story=ui-radix-spinner--with-input-group": {
+          "file": "ui-radix-spinner-with-input-group.png",
+          "width": 228,
+          "height": 188,
+          "story": "ui-radix-spinner--with-input-group",
+          "props": {}
+        }
+      }
+    },
+    "Switch": {
+      "variants": {
+        "story=ui-radix-switch--default": {
+          "file": "ui-radix-switch-default.png",
+          "width": 167.5,
+          "height": 50.39,
+          "story": "ui-radix-switch--default",
+          "props": {
+            "size": "default",
+            "id": "default-switch"
+          }
+        },
+        "story=ui-radix-switch--disabled": {
+          "file": "ui-radix-switch-disabled.png",
+          "width": 167.5,
+          "height": 50.39,
+          "story": "ui-radix-switch--disabled",
+          "props": {
+            "size": "default",
+            "id": "disabled-switch",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-switch--should-toggle": {
+          "file": "ui-radix-switch-should-toggle.png",
+          "width": 167.5,
+          "height": 50.39,
+          "story": "ui-radix-switch--should-toggle",
+          "props": {
+            "size": "default"
+          }
+        },
+        "story=ui-radix-switch--default, , state=hover": {
+          "file": "ui-radix-switch-default__state-hover.png",
+          "width": 167.5,
+          "height": 50.39,
+          "story": "ui-radix-switch--default",
+          "props": {
+            "size": "default",
+            "id": "default-switch"
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-switch--default, , state=active": {
+          "file": "ui-radix-switch-default__state-active.png",
+          "width": 167.5,
+          "height": 50.39,
+          "story": "ui-radix-switch--default",
+          "props": {
+            "size": "default",
+            "id": "default-switch"
+          },
+          "state": "active"
+        },
+        "story=ui-radix-switch--disabled, disabled=true": {
+          "file": "ui-radix-switch-disabled.png",
+          "width": 167.5,
+          "height": 50.39,
+          "story": "ui-radix-switch--disabled",
+          "props": {
+            "size": "default",
+            "id": "disabled-switch",
+            "disabled": true
+          }
+        }
+      }
+    },
+    "Textarea": {
+      "variants": {
+        "story=ui-radix-textarea--default": {
+          "file": "ui-radix-textarea-default.png",
+          "width": 400,
+          "height": 64,
+          "story": "ui-radix-textarea--default",
+          "props": {
+            "placeholder": "Type your message here.",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-textarea--disabled": {
+          "file": "ui-radix-textarea-disabled.png",
+          "width": 400,
+          "height": 64,
+          "story": "ui-radix-textarea--disabled",
+          "props": {
+            "placeholder": "Type your message here.",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-textarea--with-label": {
+          "file": "ui-radix-textarea-with-label.png",
+          "width": 400,
+          "height": 84,
+          "story": "ui-radix-textarea--with-label",
+          "props": {
+            "placeholder": "Type your message here.",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-textarea--with-text": {
+          "file": "ui-radix-textarea-with-text.png",
+          "width": 400,
+          "height": 110,
+          "story": "ui-radix-textarea--with-text",
+          "props": {
+            "placeholder": "Type your message here.",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-textarea--with-button": {
+          "file": "ui-radix-textarea-with-button.png",
+          "width": 400,
+          "height": 108,
+          "story": "ui-radix-textarea--with-button",
+          "props": {
+            "placeholder": "Type your message here.",
+            "disabled": false
+          }
+        },
+        "story=ui-radix-textarea--default, , state=hover": {
+          "file": "ui-radix-textarea-default__state-hover.png",
+          "width": 400,
+          "height": 64,
+          "story": "ui-radix-textarea--default",
+          "props": {
+            "placeholder": "Type your message here.",
+            "disabled": false
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-textarea--default, , state=active": {
+          "file": "ui-radix-textarea-default__state-active.png",
+          "width": 400,
+          "height": 64,
+          "story": "ui-radix-textarea--default",
+          "props": {
+            "placeholder": "Type your message here.",
+            "disabled": false
+          },
+          "state": "active"
+        },
+        "story=ui-radix-textarea--disabled, disabled=true": {
+          "file": "ui-radix-textarea-disabled.png",
+          "width": 400,
+          "height": 64,
+          "story": "ui-radix-textarea--disabled",
+          "props": {
+            "placeholder": "Type your message here.",
+            "disabled": true
+          }
+        }
+      }
+    },
+    "Toggle": {
+      "variants": {
+        "story=ui-radix-toggle--default": {
+          "file": "ui-radix-toggle-default.png",
+          "width": 68,
+          "height": 68,
+          "story": "ui-radix-toggle--default",
+          "props": {
+            "aria-label": "Toggle bold"
+          }
+        },
+        "story=ui-radix-toggle--outline": {
+          "file": "ui-radix-toggle-outline.png",
+          "width": 68,
+          "height": 68,
+          "story": "ui-radix-toggle--outline",
+          "props": {
+            "aria-label": "Toggle italic",
+            "variant": "outline"
+          }
+        },
+        "story=ui-radix-toggle--with-text": {
+          "file": "ui-radix-toggle-with-text.png",
+          "width": 109.66,
+          "height": 68,
+          "story": "ui-radix-toggle--with-text",
+          "props": {
+            "aria-label": "Toggle italic",
+            "variant": "outline"
+          }
+        },
+        "story=ui-radix-toggle--small": {
+          "file": "ui-radix-toggle-small.png",
+          "width": 64,
+          "height": 64,
+          "story": "ui-radix-toggle--small",
+          "props": {
+            "aria-label": "Toggle bold",
+            "size": "sm"
+          }
+        },
+        "story=ui-radix-toggle--large": {
+          "file": "ui-radix-toggle-large.png",
+          "width": 72,
+          "height": 72,
+          "story": "ui-radix-toggle--large",
+          "props": {
+            "aria-label": "Toggle bold",
+            "size": "lg"
+          }
+        },
+        "story=ui-radix-toggle--disabled": {
+          "file": "ui-radix-toggle-disabled.png",
+          "width": 68,
+          "height": 68,
+          "story": "ui-radix-toggle--disabled",
+          "props": {
+            "aria-label": "Toggle bold",
+            "disabled": true
+          }
+        },
+        "story=ui-radix-toggle--default, , state=hover": {
+          "file": "ui-radix-toggle-default__state-hover.png",
+          "width": 68,
+          "height": 68,
+          "story": "ui-radix-toggle--default",
+          "props": {
+            "aria-label": "Toggle bold"
+          },
+          "state": "hover"
+        },
+        "story=ui-radix-toggle--default, , state=active": {
+          "file": "ui-radix-toggle-default__state-active.png",
+          "width": 68,
+          "height": 68,
+          "story": "ui-radix-toggle--default",
+          "props": {
+            "aria-label": "Toggle bold"
+          },
+          "state": "active"
+        },
+        "story=ui-radix-toggle--disabled, disabled=true": {
+          "file": "ui-radix-toggle-disabled.png",
+          "width": 68,
+          "height": 68,
+          "story": "ui-radix-toggle--disabled",
+          "props": {
+            "aria-label": "Toggle bold",
+            "disabled": true
+          }
+        }
+      }
+    }
+  }
+}
