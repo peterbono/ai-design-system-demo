@@ -71,7 +71,7 @@ function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: Member
         <TableCell className="mem-role-cell" label="">
           <span className="mem-role">
             {can.changeRole ? (
-              <RolePicker label={`Role for ${m.name}`} value={choiceOf(m)} personal={data.personal} emailOnly={email || noRepo(data)} emailNote={!email && noRepo(data) ? MEMBERS_WORDS.reviewerNeedsRepo : undefined} disabled={busy} size="sm" onChange={(c) => void run(() => act.changeRole(m, c))} />
+              <RolePicker label={`Role for ${m.name}`} value={choiceOf(m)} shown={roleText(m)} personal={data.personal} emailOnly={email || noRepo(data)} emailNote={!email && noRepo(data) ? MEMBERS_WORDS.reviewerNeedsRepo : undefined} disabled={busy} size="sm" onChange={(c) => void run(() => act.changeRole(m, c))} />
             ) : (
               <span className="mem-role-text">{roleText(m)}</span>
             )}

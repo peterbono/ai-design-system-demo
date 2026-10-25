@@ -67,7 +67,7 @@ describe('access screens', () => {
 
   it('keeps people outside the team read only, still able to suggest', () => {
     const s = accessScreen('outside-contributor', base)!;
-    expect(s).toMatchObject({ layout: 'banner', title: 'Read only' });
+    expect(s).toMatchObject({ layout: 'banner', title: 'Can view' });
     expect(s.body).toContain('send suggestions');
     expect(s.body).not.toMatch(/not installed/i);
   });
@@ -101,7 +101,7 @@ describe('the team chip', () => {
   it('says the access in a word', () => {
     expect(accessBadge('admin', true).label).toBe('Admin');
     expect(accessBadge('writer', true).label).toBe('Can edit');
-    expect(accessBadge('reader', true).label).toBe('Can suggest');
+    expect(accessBadge('reader', true).label).toBe('Can view');
     expect(accessBadge('no-access', true)).toEqual({ label: 'No access', tone: 'danger' });
     expect(accessBadge(null, true).label).toBe('Checking');
     expect(accessBadge(null, false).label).toBe('Guest');
@@ -170,9 +170,9 @@ describe('who can do what', () => {
     const suggest = whoCanDoWhat({ changes: 'suggest', owners: { design: ['ann'], tech: ['bob', 'ann'] } });
     expect(suggest.map((r) => r.id)).toEqual(['read', 'write', 'admin', 'owners']);
     expect(suggest[1]!.can).toContain('suggestions');
-    expect(suggest[3]!.can).toBe('Approve design or tech: @ann, @bob');
+    expect(suggest[3]!.can).toBe('Approve design or code: @ann, @bob');
     expect(whoCanDoWhat({ changes: 'direct' })[1]!.can).toContain('Bridge opens them for review');
-    expect(whoCanDoWhat({ owners: { design: ['a', 'b', 'c', 'd'] } })[3]!.can).toBe('Approve design or tech');
+    expect(whoCanDoWhat({ owners: { design: ['a', 'b', 'c', 'd'] } })[3]!.can).toBe('Approve design or code');
   });
 
   it('marks the viewer row', () => {
@@ -229,7 +229,7 @@ describe('roleBadge: a GitHub reviewer reads Reviewer', () => {
     expect(roleBadge('writer', true, true)).toEqual({ label: 'Reviewer', tone: 'success' });
     expect(roleBadge('writer', true, false).label).toBe('Can edit');
     expect(roleBadge('admin', true, true).label).toBe('Admin');
-    expect(roleBadge('reader', true, true).label).toBe('Can suggest');
+    expect(roleBadge('reader', true, true).label).toBe('Can view');
     expect(roleBadge('writer', false, true).label).toBe('Can edit');
     expect(memberRole('writer', true, true)).toBe('Reviewer');
     expect(memberRole('writer', true)).toBe('Can edit');

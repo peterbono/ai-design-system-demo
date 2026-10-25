@@ -53,7 +53,7 @@ export const REVIEW_AS_ORDER: readonly ReviewAs[] = ['design', 'tech'];
 /** "They review as" (board I2): two mini cards, each with its own drawing. */
 export const REVIEW_AS_WORDS: Record<ReviewAs, { label: string; help: string; short: string }> = {
   design: { label: 'Designer', help: 'How it looks and works', short: 'design' },
-  tech: { label: 'Developer', help: 'How it is built', short: 'tech' },
+  tech: { label: 'Developer', help: 'How it is built', short: 'code' },
 };
 
 /** The GitHub permission behind each role (documented above). Never shown to designers. */
@@ -142,8 +142,12 @@ export function memberLine(m: { role: MemberRole; reviews: ReviewAs[] }): string
   return 'Sees everything, comments and suggests';
 }
 
-/** The role as plain text, for a reader who cannot change it (board I4): "Reviewer: design", "Can view". */
+/**
+ * The role as plain text, for a reader who cannot change it (board I4), in the one set of role names: "Admin",
+ * "Reviewer: design", "Reviewer: code", "Reviewer: design and code", "Can edit", "Can view".
+ */
 export function roleText(m: { role: MemberRole; reviews: ReviewAs[] }): string {
+  if (m.role === 'reviewer' && m.reviews.includes('design') && m.reviews.includes('tech')) return `${ROLE_WORDS.reviewer.label}: design and code`;
   return roleLabel(choiceOf(m));
 }
 

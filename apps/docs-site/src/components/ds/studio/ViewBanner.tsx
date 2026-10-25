@@ -1,7 +1,7 @@
 // The persistent banner while Studio shows the library as a change (lib/view-scope): one DS Banner, the mode the page
 // is in, that says what the page shows and that nothing is saved. The way out sits on the same line (back to the
-// main) with at most one more action: "Edit tokens in this branch" on Tokens, else "Open the branch". When
-// both apply, "Open the branch" moves to the detail line as a link. When the change cannot be read, a warning Alert
+// main) with at most one more action: "Edit tokens in this branch" on Tokens, else "Open the change". When
+// both apply, "Open the change" moves to the detail line as a link. When the change cannot be read, a warning Alert
 // says why instead: an error is a message about the page, not a mode. Mounted by scripts/view-change.ts into the slot
 // under the page title ([data-view-banner] on Tokens, Components and Quality).
 import { createRoot, type Root } from 'react-dom/client';
@@ -23,7 +23,7 @@ export interface ViewBannerProps {
 export function ViewBanner({ title, body, latestHref, changeHref, editHref, error }: ViewBannerProps) {
   const back = (
     <ButtonLink variant="secondary" href={latestHref}>
-      Back to main
+      Back to the Library
     </ButtonLink>
   );
   if (error) {
@@ -39,7 +39,7 @@ export function ViewBanner({ title, body, latestHref, changeHref, editHref, erro
             {back}
             {changeHref && (
               <ButtonLink variant="ghost" href={changeHref}>
-                Open the branch
+                Open the change
               </ButtonLink>
             )}
           </>
@@ -53,11 +53,11 @@ export function ViewBanner({ title, body, latestHref, changeHref, editHref, erro
   const openInDetail = editHref && changeHref ? changeHref : null;
   const more = editHref ? (
     <ButtonLink variant="secondary" href={editHref}>
-      Edit tokens in this branch
+      Edit tokens in this change
     </ButtonLink>
   ) : changeHref ? (
     <ButtonLink variant="secondary" href={changeHref}>
-      Open the branch
+      Open the change
     </ButtonLink>
   ) : null;
   return (
@@ -80,7 +80,7 @@ export function ViewBanner({ title, body, latestHref, changeHref, editHref, erro
           {body && openInDetail ? ' ' : null}
           {openInDetail && (
             <Link variant="subtle" href={openInDetail}>
-              Open the branch
+              Open the change
             </Link>
           )}
         </>

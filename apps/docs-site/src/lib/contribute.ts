@@ -112,7 +112,7 @@ export const CONTRIBUTE_WORDS = {
   signedInWithEmail: 'Signed in with your email',
   signOut: 'Sign out',
   // Members.
-  newBrandOff: 'A new brand changes the team settings, so a developer or an admin creates it. You can still draft it here.',
+  newBrandOff: 'A new brand changes the team settings, so someone with GitHub access to the library creates it. You can still draft it here.',
   emailRoleNote: 'Reviewer needs a GitHub account: reviewers approve changes on GitHub. Admin works with the email.',
 } as const;
 

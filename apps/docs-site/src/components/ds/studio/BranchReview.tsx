@@ -947,7 +947,7 @@ function DecisionBar({ p, leftLine, inputRef, tried, onTry }: { p: BranchReviewP
         )}
         {a.suggest && (
           <Button variant="secondary" size="lg" loading={busy === 'suggest'} onClick={() => void run('suggest')} data-demo-write="review changes">
-            Suggest changes
+            Ask for changes
           </Button>
         )}
         {primary && p.sample && (primary.kind === 'approve' || primary.kind === 'approve-merge') ? (

@@ -38,7 +38,9 @@ import {
   saveDraft,
   withHue,
 } from '../../../lib/new-brand';
-import { currentContributor, ghAuthFailure, hasWorkingToken, isDirectWait, tokenRejected } from '../../../scripts/github-session';
+import { currentContributor, ghAuthFailure, hasWorkingToken, isDirectWait, onAccess, tokenRejected } from '../../../scripts/github-session';
+import type { RepoAccess } from '../../../lib/access';
+import { READER_SUGGESTS, sendModeFor } from '../../../lib/write-route';
 import { CONTRIBUTE_WORDS } from '../../../lib/contribute';
 import { sampleVisitor } from '../../../scripts/demo-gate';
 import { type ProposedBrand, proposeBrand } from '../../../scripts/new-brand';
@@ -70,8 +72,7 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
   const source = useMemo<BrandSource>(() => ({ config: loadConfig(configText), configText, files, contrastText }), [files, configText, contrastText]);
   const brands = useMemo(() => listBrands(source), [source]);
   // How changes reach the code (bridge.config.json "changes"): a suggestion, or a draft branch in review.
-  const mode = changesMode(source.config);
-  const suggest = mode === 'suggest';
+  const teamMode = changesMode(source.config);
   const facts = useMemo(() => Object.fromEntries(brands.map((b) => [b.slug, brandFacts(source, b.slug)])), [brands, source]);
   const defaultBrand = brands.find((b) => b.default)?.slug ?? brands[0]?.slug ?? 'bridge';
   const [draft, setDraft] = useState<BrandDraft>(() => emptyDraft(defaultBrand, facts[defaultBrand]));
@@ -79,6 +80,11 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
   const [connected, setConnected] = useState(false);
   // An email contributor drafts but never creates a brand: it changes bridge.config.json (lib/contribute.ts).
   const [contributor, setContributor] = useState(false);
+  // What the account may do on the library: a reader in a direct-mode team sends a suggestion (lib/write-route).
+  const [access, setAccess] = useState<RepoAccess | null>(null);
+  const mode = sendModeFor(access, teamMode);
+  const suggest = mode === 'suggest';
+  const readerSuggests = suggest && teamMode === 'direct';
   const [rejected, setRejected] = useState(false);
   const [slugOpen, setSlugOpen] = useState(false);
   const [pairsOpen, setPairsOpen] = useState(false);
@@ -105,8 +111,13 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
       setRejected(tokenRejected());
     };
     sync();
+    let live = true;
+    onAccess((a) => live && setAccess(a));
     document.addEventListener('bridge:auth', sync);
-    return () => document.removeEventListener('bridge:auth', sync);
+    return () => {
+      live = false;
+      document.removeEventListener('bridge:auth', sync);
+    };
   }, [brands, draftScope]);
   useEffect(() => {
     if (restored && !done) saveDraft(draft, draftScope);
@@ -496,6 +507,7 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
           </Button>
         )}
         {draft.step === 3 && !ready && <span className="nb-actions-note">{plan.contrast.failing.length ? `${suggest ? 'Sending it' : 'Sending it for review'} needs every contrast pair to pass.` : `Fix the problems above to ${suggest ? 'send it' : 'send it for review'}.`}</span>}
+        {draft.step === 3 && connected && !contributor && readerSuggests && <span className="nb-actions-note">{READER_SUGGESTS}</span>}
         {draft.step === 3 && connected && contributor && (
           <span className="nb-actions-note" id="nb-email-off">
             {CONTRIBUTE_WORDS.newBrandOff}

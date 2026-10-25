@@ -12,7 +12,7 @@ import type { ExampleNode } from '../lib/components';
 import { cleanDocs, docsEdits, docsFileText, setDocsEdit, validateDocs, type DocsEdit } from '../lib/docs-draft-model';
 import type { Draft } from '../lib/editor-model';
 import { parseJiraKey, VOCAB } from '../lib/vocabulary';
-import { SEE_SUGGESTION, sendButton as sendWords, SUGGESTION_SENT, suggestionSentLine } from '../lib/gh-wording';
+import { SEE_SUGGESTION, sendButton as sendWords, sendGoal, SUGGESTION_SENT, suggestionSentLine } from '../lib/gh-wording';
 import { changesModeOnPage } from '../scripts/changes-mode';
 import {
   SECTIONS,
@@ -1114,11 +1114,11 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
           return;
         }
       }
-      announce(branch || continued ? 'Update sent.' : 'Sent for review.');
+      announce(branch || continued ? 'Added to this change.' : 'Sent for review.');
     } catch (err) {
       // The session's words: sign-in or token, and the site's way in.
       const { ghAuthFailure } = await import('../scripts/github-session');
-      setSendError(ghAuthFailure(err, branch ? 'send this update' : suggest ? 'send suggestions' : 'request review')?.text ?? `Not sent: ${(err as Error).message}`);
+      setSendError(ghAuthFailure(err, branch ? 'add to this change' : sendGoal('docs', mode))?.text ?? `Not sent: ${(err as Error).message}`);
     } finally {
       setBusy(false);
     }
@@ -1155,7 +1155,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   );
   const keepAll = keepAllLabel(pending.length);
   const barState = editBarState({ dirty, sent: Boolean(sent), savesLocally: !branch });
-  const sendLabel = branch ? 'Send update' : publish ? PUBLISH_LABEL : sendWords('docs', mode);
+  const sendLabel = branch ? 'Add to this change' : publish ? PUBLISH_LABEL : sendWords('docs', mode);
   const stateText = barState !== 'sent' && sendBlock ? sendBlock : editBarLabel(barState, Boolean(branch?.continues));
   const sendButton = (
     <Button variant="primary" disabled={Boolean(sendBlock)} aria-describedby="le-bar-state" onClick={() => void openSend()}>
@@ -1393,7 +1393,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
         <Dialog open={sendOpen} onOpenChange={(o) => (o ? setSendOpen(true) : sent ? doneSent() : setSendOpen(false))}>
           <DialogContent
             size="md"
-            title={sent ? (sent.suggestion ? SUGGESTION_SENT : sent.published ? sent.published.title : sent.continued || branch ? 'Update sent' : 'Sent for review') : branch ? 'Send your update' : publish ? PUBLISH_LABEL : suggest ? sendWords('docs', mode) : 'Send for review'}
+            title={sent ? (sent.suggestion ? SUGGESTION_SENT : sent.published ? sent.published.title : sent.continued || branch ? 'Added to this change' : 'Sent for review') : branch ? 'Add to this change' : publish ? PUBLISH_LABEL : suggest ? sendWords('docs', mode) : 'Send for review'}
             description={
               sent
                 ? undefined

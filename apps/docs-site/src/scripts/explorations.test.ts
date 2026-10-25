@@ -70,6 +70,16 @@ describe('explorations HTML (untrusted pull request and preview data)', () => {
     expect(box.querySelector('[data-ex-close-ask]')).toBeNull();
   });
 
+  it('offers Send for review and Close only to the person who started it or a reviewer', () => {
+    const r = { ...row('https://x.vercel.app/'), status: 'active' } as Parameters<typeof renderExplorationDetail>[0];
+    const keeper = expectInert(renderExplorationDetail(r, { connected: true, suggest: false, keeper: true }));
+    expect(keeper.querySelector('[data-ex-promote]')).not.toBeNull();
+    const other = expectInert(renderExplorationDetail(r, { connected: true, suggest: false, keeper: false }));
+    expect(other.querySelector('[data-ex-promote]')).toBeNull();
+    expect(other.querySelector('[data-ex-close-ask]')).toBeNull();
+    expect(other.textContent).toMatch(/or a reviewer can send it for review or close it/);
+  });
+
   it('keeps https links', () => {
     const box = expectInert(rowHtml(row('https://x-git-explore-x.vercel.app/')));
     expect(box.querySelector('a[target="_blank"]')?.getAttribute('href')).toBe('https://x-git-explore-x.vercel.app/');

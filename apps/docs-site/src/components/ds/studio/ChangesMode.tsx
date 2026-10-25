@@ -4,14 +4,15 @@
 import { useEffect, useState } from 'react';
 import { Lock } from 'lucide-react';
 import { bridgeMcpInstallCommand, type ChangesMode } from '@bridge-ds/core';
-import { Alert, Badge, Button, Card, CardBody, ChoiceCard, ChoiceCardGroup, CodeBlock, Icon, Link } from '@bridge-ds/react';
-import { appReach, canProposeSettings, GITHUB_WRITE_ONLY, CHANGES_CHOICE, CHANGES_ORDER, CHANGES_PLAIN, effectiveChanges, suggestAppText, type AppReach } from '../../../lib/settings-view';
+import { Badge, Button, Card, CardBody, ChoiceCard, ChoiceCardGroup, CodeBlock, Icon, Link } from '@bridge-ds/react';
+import { appReach, canProposeSettings, GITHUB_WRITE_ONLY, CHANGES_CHOICE, CHANGES_DEV, CHANGES_ORDER, CHANGES_PLAIN, effectiveChanges, suggestAppText, type AppReach } from '../../../lib/settings-view';
 import type { SignInApp } from '../../../lib/github-signin';
 import { ghAction } from '../../../lib/gh-wording';
 import { VOCAB } from '../../../lib/vocabulary';
 import { currentViewer, getToken, initGitHubConnect, prefersSignIn, type Viewer } from '../../../scripts/github-session';
 import { proposeChangesMode, readAppPermissions } from '../../../scripts/roles';
 import { studioHref } from '../../../lib/team-path';
+import { DevFold } from './SettingsParts';
 
 function ChoiceText({ mode }: { mode: ChangesMode }) {
   const c = CHANGES_CHOICE[mode];
@@ -21,11 +22,6 @@ function ChoiceText({ mode }: { mode: ChangesMode }) {
         {c.lead && <b className="cm-strong">{c.lead} </b>}
         {c.text}
       </span>
-      {mode === 'suggest' && (
-        <span>
-          Developers apply it with <code className="mono">bridge apply</code> or Claude AI.
-        </span>
-      )}
       <span className="cm-needs">
         <Icon icon={Lock} size="xs" />
         {c.needs}
@@ -175,31 +171,19 @@ export default function ChangesModeSetting({ set, repo, prefix, protectedBranche
                 Kept changes
               </p>
               <ChangesChoices value={value} onChange={setValue} />
-              {value === 'suggest' && (
-                <>
-                  {appNote && (
-                    <Alert tone="info" className="cm-interim">
-                      {appNote}
-                    </Alert>
-                  )}
-                  <DevelopersGet repo={repo} />
-                </>
-              )}
-            </div>
-          )}
-          {viewer && reach && (
-            <div className="set-row">
-              <p className="set-row-label">Bridge's GitHub App</p>
-              <p className="set-row-value set-row-span">
-                <span>{reach.text}</span>
-              </p>
+              {value === 'suggest' && <DevelopersGet repo={repo} />}
             </div>
           )}
         </div>
-        {!editing && current === 'suggest' && appNote && (
-          <Alert tone="info" className="cm-interim">
-            {appNote}
-          </Alert>
+        {/* GitHub words (the app, its permissions, the commands) stay in the fold: designers read the sentence above. */}
+        {!editing && (
+          <DevFold
+            facts={[
+              { term: 'What developers get', value: CHANGES_DEV[current] },
+              ...(viewer && reach ? [{ term: "Bridge's GitHub App", value: reach.text }] : []),
+              ...(current === 'suggest' && appNote ? [{ term: 'Suggest mode', value: appNote }] : []),
+            ]}
+          />
         )}
         {editing && (
           <div className="set-savebar">

@@ -106,13 +106,13 @@ export const CHANGES_CHOICE: Record<ChangesMode, ChangesChoice> = {
   suggest: {
     title: 'Suggestions your developers apply',
     lead: 'Bridge writes nothing in your code.',
-    text: 'Each kept change becomes a GitHub issue on your design system repo, with the exact change, previews and checks.',
-    needs: 'Needs permission to create issues only',
+    text: 'Each kept change goes to your developers as a request, with the exact change, previews and checks.',
+    needs: 'Bridge only files requests for your developers',
   },
   direct: {
     title: 'Bridge opens pull requests',
-    text: 'Bridge writes each kept change on a new branch of your repo and opens a pull request for review. For teams who want it.',
-    needs: 'Needs write access to the repo',
+    text: 'Bridge writes each kept change into the code and sends it for review. For teams who want it.',
+    needs: 'Bridge needs permission to change the code',
   },
 };
 

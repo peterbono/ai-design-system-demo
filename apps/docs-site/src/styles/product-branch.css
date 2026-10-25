@@ -53,6 +53,13 @@
   font-weight: var(--font-weight-semibold);
 }
 
+.pb-keep-note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
 .pb-grid {
   display: grid;
   grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);

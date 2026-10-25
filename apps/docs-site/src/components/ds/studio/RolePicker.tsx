@@ -28,11 +28,13 @@ export interface RolePickerProps {
   size?: 'sm' | 'md' | 'lg';
   /** ghost: a quiet trigger inside a list (the dialog's "Who has access"). */
   variant?: 'secondary' | 'ghost';
+  /** The role the trigger names, when it says more than one choice can ("Reviewer: design and code", lib/invites roleText). */
+  shown?: string;
 }
 
 const REVIEW_ICON = { design: PenTool, tech: Code2 } as const;
 
-export default function RolePicker({ value, onChange, label, personal = false, emailOnly = false, emailNote, disabled = false, size = 'md', variant = 'secondary' }: RolePickerProps) {
+export default function RolePicker({ value, onChange, label, personal = false, emailOnly = false, emailNote, disabled = false, size = 'md', variant = 'secondary', shown }: RolePickerProps) {
   const [open, setOpen] = useState(false);
   const choice = normalizeChoice(value);
   const id = useId();
@@ -54,10 +56,10 @@ export default function RolePicker({ value, onChange, label, personal = false, e
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        render={<Button variant={variant} size={size} className="rp-trigger" disabled={disabled} aria-label={`${label}: ${roleLabel(choice)}`} />}
+        render={<Button variant={variant} size={size} className="rp-trigger" disabled={disabled} aria-label={`${label}: ${shown ?? roleLabel(choice)}`} />}
       >
         <span className="rp-trigger-body">
-          <span>{roleLabel(choice)}</span>
+          <span>{shown ?? roleLabel(choice)}</span>
           <Icon icon={ChevronDown} size="sm" />
         </span>
       </PopoverTrigger>

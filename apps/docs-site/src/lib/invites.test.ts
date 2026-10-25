@@ -42,7 +42,7 @@ describe('roles', () => {
     expect(roleLabel({ role: 'edit' })).toBe('Can edit');
     expect(roleLabel({ role: 'view' })).toBe('Can view');
     expect(roleLabel({ role: 'reviewer', reviewAs: 'design' })).toBe('Reviewer: design');
-    expect(roleLabel({ role: 'reviewer', reviewAs: 'tech' })).toBe('Reviewer: tech');
+    expect(roleLabel({ role: 'reviewer', reviewAs: 'tech' })).toBe('Reviewer: code');
     expect(roleLabel({ role: 'admin' })).toBe('Admin');
   });
 
@@ -97,7 +97,7 @@ describe('reading roles back from GitHub', () => {
     expect(memberLine({ role: 'edit', reviews: [] })).toBe('Explores and changes the library');
     expect(memberLine({ role: 'view', reviews: [] })).toBe('Sees everything, comments and suggests');
     expect(choiceOf({ role: 'reviewer', reviews: ['tech'] })).toEqual({ role: 'reviewer', reviewAs: 'tech' });
-    expect(roleText({ role: 'reviewer', reviews: ['design', 'tech'] })).toBe('Reviewer: design');
+    expect(roleText({ role: 'reviewer', reviews: ['design', 'tech'] })).toBe('Reviewer: design and code');
   });
 });
 
@@ -193,7 +193,7 @@ describe('contexts', () => {
 
   it('the sample team is Dana (you, admin), Ann, Leo, Malik, Sofia and Priya not joined yet', () => {
     const s = sampleTeam();
-    expect(s.members.map((m) => `${m.name}:${roleText(m)}`)).toEqual(['Dana:Admin', 'Ann:Reviewer: design', 'Leo:Can edit', 'Malik:Reviewer: tech', 'Sofia:Can edit']);
+    expect(s.members.map((m) => `${m.name}:${roleText(m)}`)).toEqual(['Dana:Admin', 'Ann:Reviewer: design', 'Leo:Can edit', 'Malik:Reviewer: code', 'Sofia:Can edit']);
     expect(s.members[0]!.you).toBe(true);
     // Sofia asks for work in the demo ("Requested by Sofia Reyes."), so she is a member; Priya has no work there.
     expect(s.members.find((m) => m.name === 'Sofia')).toMatchObject({ login: '~sofia-reyes', email: 'sofia@acme.design' });

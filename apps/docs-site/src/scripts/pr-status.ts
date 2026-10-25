@@ -12,7 +12,7 @@ import { badgeHtml, tooltipAttributes } from '@bridge-ds/react/dom';
 import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, prefersSignIn, readRepo } from './github-session';
 import { holdsReviewRight } from '../lib/home-model';
 import { ghAction } from '../lib/gh-wording';
-import { needFromStatus, pendingApprovals, statusPill, whoActs, type ApprovalRole, type WhoActs } from '../lib/changes';
+import { isDeveloper, needFromStatus, pendingApprovals, statusPill, whoActs, type ApprovalRole, type WhoActs } from '../lib/changes';
 import { developerOnlyFailures } from '../lib/check-explain';
 import { guestActivity } from './guest-activity';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
@@ -245,6 +245,7 @@ export function rowWho(kind: ReviewStatusKind | null, o: RowFacts): WhoActs | nu
     overrideBy: policy.allowed,
     overridable: canOverride(viewer, policy),
     soloOwner: siteSoloOwner(),
+    developer: isDeveloper(viewer, owners(), shippers()),
   });
 }
 

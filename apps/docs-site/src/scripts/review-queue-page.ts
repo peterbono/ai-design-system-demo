@@ -5,9 +5,9 @@
 //     its own bar: the queue's bar replaces it;
 //   - a suggestion row (a change a developer applies once owners approve it) opens the suggestion review in place
 //     (scripts/suggestions.ts openSuggestion into [data-rq-sg]), with its own decision on the card: the queue bar is for
-//     branches; A and S press its Approve and Suggest changes, an approval waits for Undo the same way;
+//     branches; A and S press its Approve and Ask for changes, an approval waits for Undo the same way;
 //   - usage guidance drafts, library health and setup rows show a short card with the link that handles them.
-// The bar is about the item on screen only: comment, Suggest changes, Approve, More actions (Ask someone else to
+// The bar is about the item on screen only: comment, Ask for changes, Approve, More actions (Ask someone else to
 // review, Copy link, Open the full review). After a decision the queue moves on: the list mark changes, the next item
 // opens, focus goes to its title, and a toast says what was done. Approve waits UNDO_MS before anything is sent, so
 // Undo only cancels: nothing reached GitHub, nobody was notified (dismissing a sent approval would leave a trace on

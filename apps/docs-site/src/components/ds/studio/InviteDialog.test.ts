@@ -195,7 +195,7 @@ describe('the role picker', () => {
     expect(within(reviewAs).getByRole('radio', { name: /Developer/ })).toHaveAttribute('aria-checked', 'true');
     // The outer list did not move with the inner arrow key.
     expect(within(roles).getByRole('radio', { name: /Reviewer/ })).toHaveAttribute('aria-checked', 'true');
-    expect(within(dialog).getByRole('button', { name: 'Role: Reviewer: tech' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Role: Reviewer: code' })).toBeInTheDocument();
     await expectNoAxeViolations(document.body);
   });
 

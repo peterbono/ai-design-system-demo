@@ -96,7 +96,7 @@ export const SHORT: CompareRow[] = [
       p('Docs only, Enterprise', 'An approval workflow for doc pages, on Enterprise.'),
       p('Via Git or Chromatic', 'Through your Git host, or Chromatic UI Review.'),
       p('No approval step', 'Token changes go back to code as a pull request. No approval step of its own.'),
-      y('Branch review with Approve or Suggest changes, on Organization and Enterprise.'),
+      y('Branch review with Approve or Ask for changes, on Organization and Enterprise.'),
     ],
   },
   {

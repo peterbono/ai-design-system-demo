@@ -42,7 +42,9 @@ import { safeUrl } from '../lib/html';
 import type { Tier } from '../lib/review-rules';
 import type { PromoteAskDetail } from '../components/ds/studio/PromoteToReview';
 import type { ProductBranchProps } from '../components/ds/studio/ProductBranch';
-import { currentViewer, ghGet, hasWorkingToken, prefersSignIn, studioClient } from './github-session';
+import { currentViewer, ghGet, hasWorkingToken, prefersSignIn, resolveAccess, studioClient } from './github-session';
+import { canKeepExploration, keepExplorationLine, sendModeFor } from '../lib/write-route';
+import { viewerRole } from './needs-you';
 import { explorationsConfig } from './exploration-start';
 import { loadVisualImpact, renderTopChange } from './reviews/visual-impact';
 import { siteConfig } from './repo-context';
@@ -151,7 +153,9 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
   const jira = jiraKeyOf(pull.title);
   const gh = client();
   let lastView: ProductBranchView | null = null;
-  const mode = changesModeOnPage();
+  // A reader in a direct-mode team suggests the missing pieces (lib/write-route): nothing fails at GitHub after a click.
+  const access = connected() ? await resolveAccess().catch(() => null) : null;
+  const mode = sendModeFor(access, changesModeOnPage());
   const act = async (row: PieceRowView, kind: PieceActionKind): Promise<string | void> => {
     const viewer = currentViewer()?.login;
     if (kind === 'open') {
@@ -222,7 +226,9 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
     document.dispatchEvent(new CustomEvent('bridge:promote-ask', { detail }));
   };
   // Suggest mode: send for review and close are branch writes, so they are not offered.
-  const writable = connected() && r.status === 'active' && mode === 'direct';
+  // Sending for review and closing have no suggestion path: the person who started it or a reviewer, with write access.
+  const keeper = canKeepExploration({ viewer: currentViewer()?.login ?? null, author: r.author, reviewer: viewerRole() === 'reviewer', write: access?.write ?? null });
+  const writable = connected() && r.status === 'active' && mode === 'direct' && keeper;
   current = {
     n: r.number,
     props: {
@@ -247,6 +253,7 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
             return 'Closed without adding it to the library.';
           }
         : null,
+      keepNote: connected() && r.status === 'active' && changesModeOnPage() === 'direct' && !keeper ? keepExplorationLine(r.author) : null,
       developer: developerLines({ number: r.number, branch: r.branch, links: record?.links ?? [] }),
       githubUrl: safeUrl(r.url, '#'),
       ask: ASK_CLAUDE,
