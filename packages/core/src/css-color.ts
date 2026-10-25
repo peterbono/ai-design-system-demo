@@ -113,3 +113,31 @@ export function withSrgbColors<T>(value: T): T {
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, withSrgbColors(v)])) as T;
   return value;
 }
+
+export interface CssShadow {
+  inset: boolean;
+  x: number;
+  y: number;
+  blur: number;
+  spread: number;
+  /** 0..1 sRGB and alpha. */
+  color: { r: number; g: number; b: number; a: number };
+}
+
+/**
+ * A computed `box-shadow` (`rgba(0, 0, 0, 0.1) 0px 1px 3px 0px, inset ...`) as shadows, transparent ones left out (the
+ * zero rings utility CSS stacks under every shadow). Colors in any notation the page kept are read as sRGB.
+ */
+export function parseBoxShadow(css: string | undefined): CssShadow[] {
+  if (!css || css.trim() === 'none') return [];
+  const out: CssShadow[] = [];
+  for (const one of cssColorsToRgb(css).split(/,(?![^(]*\))/)) {
+    const color = /rgba?\(([^)]*)\)/i.exec(one);
+    const c = color ? color[1]!.split(/[\s,/]+/).filter(Boolean).map(Number) : [0, 0, 0, 1];
+    const a = c[3] ?? 1;
+    const lengths = one.replace(/rgba?\([^)]*\)/i, '').replace(/inset/i, '').trim().split(/\s+/).filter(Boolean).map((x) => Number.parseFloat(x));
+    if (lengths.length < 2 || lengths.some((x) => !Number.isFinite(x)) || !(a > 0)) continue;
+    out.push({ inset: /\binset\b/i.test(one), x: lengths[0]!, y: lengths[1]!, blur: lengths[2] ?? 0, spread: lengths[3] ?? 0, color: { r: c[0]! / 255, g: c[1]! / 255, b: c[2]! / 255, a } });
+  }
+  return out;
+}

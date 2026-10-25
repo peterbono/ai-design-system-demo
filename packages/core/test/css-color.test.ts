@@ -1,6 +1,6 @@
 // Wide-gamut and perceptual CSS colors (what a page keeps in computed values) to the sRGB Figma paints.
 import { describe, expect, it } from 'vitest';
-import { cssColorsToRgb, withSrgbColors } from '../src';
+import { cssColorsToRgb, parseBoxShadow, withSrgbColors } from '../src';
 
 const rgb = (s: string) => s.match(/\d+(\.\d+)?/g)!.map(Number);
 const near = (a: string, b: number[]) => rgb(a).slice(0, 3).forEach((x, i) => expect(Math.abs(x - b[i]!)).toBeLessThanOrEqual(1));
@@ -23,5 +23,17 @@ describe('cssColorsToRgb', () => {
     expect(cssColorsToRgb('color(a98-rgb 1 0 0)')).toBe('color(a98-rgb 1 0 0)');
     expect(cssColorsToRgb('oklch(0.205 0 0) 0px 1px 2px 0px, oklch(97% 0 0 / 0.1) 0px 0px 1px 0px')).toBe('rgb(23, 23, 23) 0px 1px 2px 0px, rgba(245, 245, 245, 0.1) 0px 0px 1px 0px');
     expect(withSrgbColors({ style: { color: 'oklch(0.205 0 0)', width: '4px' }, svg: '<path fill="oklch(0.205 0 0)"/>', n: 2 })).toEqual({ style: { color: 'rgb(23, 23, 23)', width: '4px' }, svg: '<path fill="rgb(23, 23, 23)"/>', n: 2 });
+  });
+});
+
+describe('parseBoxShadow', () => {
+  it('reads a computed shadow list, transparent rings left out, inset and any color notation', () => {
+    expect(parseBoxShadow('rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0.1) 0px 1px 3px 0px, oklch(0 0 0 / 0.1) 0px 1px 2px -1px')).toEqual([
+      { inset: false, x: 0, y: 1, blur: 3, spread: 0, color: { r: 0, g: 0, b: 0, a: 0.1 } },
+      { inset: false, x: 0, y: 1, blur: 2, spread: -1, color: { r: 0, g: 0, b: 0, a: 0.1 } },
+    ]);
+    expect(parseBoxShadow('rgb(255, 0, 0) 0px 0px 0px 2px inset')).toEqual([{ inset: true, x: 0, y: 0, blur: 0, spread: 2, color: { r: 1, g: 0, b: 0, a: 1 } }]);
+    expect(parseBoxShadow('none')).toEqual([]);
+    expect(parseBoxShadow('rgba(0, 0, 0, 0) 0px 0px 0px 0px')).toEqual([]);
   });
 });

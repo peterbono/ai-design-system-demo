@@ -39,6 +39,8 @@ export type SpecField =
   | 'minWidth'
   | 'minHeight'
   | 'opacity'
+  /** A CSS box-shadow list (drop and inner shadows), as the page computes it. */
+  | 'shadow'
   | 'textFill'
   | 'fontFamily'
   | 'fontSize'
@@ -67,6 +69,7 @@ export const SPEC_FIELDS: readonly SpecField[] = [
   'minWidth',
   'minHeight',
   'opacity',
+  'shadow',
   'textFill',
   'fontFamily',
   'fontSize',
