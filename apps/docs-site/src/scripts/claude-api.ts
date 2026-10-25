@@ -79,3 +79,17 @@ export async function connectClaude(repo: string, key: string): Promise<Pick<Cla
 export async function disconnectClaude(repo: string): Promise<void> {
   await claudeCall('POST', '', { action: 'disconnect', repo });
 }
+
+// --- Claude fix runs (Studio, Being built) ---------------------------------------------------------------------
+
+/** The team's runs of the last 7 days, newest first. */
+export async function listClaudeRuns(repo: string): Promise<unknown[]> {
+  const r = await claudeCall<{ runs?: unknown[] }>('GET', `?repo=${encodeURIComponent(repo)}&runs=1`);
+  return Array.isArray(r.runs) ? r.runs : [];
+}
+
+/** Moves a run one step on the server (one Claude round at most) and answers where it stands. */
+export async function pollClaudeRun(repo: string, id: string): Promise<unknown> {
+  const r = await claudeCall<{ run?: unknown }>('GET', `?repo=${encodeURIComponent(repo)}&run=${encodeURIComponent(id)}`);
+  return r.run ?? null;
+}
