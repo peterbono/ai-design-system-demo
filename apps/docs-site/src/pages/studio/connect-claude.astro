@@ -1,50 +1,39 @@
 ---
 // Where Claude sends the person when they add the Bridge connector (api/mcp, docs/FIGMA-FIXES.md "Bridge inside your
-// team's Claude"). Not in the nav. The person picks the team; GitHub confirms who they are; they go back to Claude.
+// team's Claude"). Not in the nav. Standalone (Layout bare): the Bridge mark and one focused card, no team, no demo
+// banner, no Studio nav, since the three contexts (demo, empty workspace, real team) are never mixed. The person picks
+// the team; GitHub confirms who they are; they go back to Claude.
 import Layout from '../../layouts/Layout.astro';
-import Illustration from '../../components/Illustration.astro';
+import { Card } from '@bridge-ds/react';
 import ConnectClaude from '../../components/ds/studio/ConnectClaude';
 import { CLAUDE_CONNECT_WORDS as W } from '../../lib/connect-claude';
-import { lastUpdated } from '../../lib/repo';
-
-const updated = lastUpdated(['apps/docs-site/src/pages/studio/connect-claude.astro', 'apps/docs-site/src/components/ds/studio/ConnectClaude.tsx', 'apps/docs-site/api/mcp/index.ts']);
 ---
 
-<Layout title={W.title} description="Use Bridge inside your team's Claude." crumbs={false} updated={updated}>
-  <section class="zone cf" aria-labelledby="cf-title">
-    <div class="cf-art" aria-hidden="true"><Illustration name="components" width={132} /></div>
-    <div class="cf-text">
-      <h1 id="cf-title" class="cf-title">{W.title}</h1>
+<Layout title={W.title} description="Use Bridge inside your team's Claude." bare>
+  <div class="cc">
+    <Card className="cc-card" aria-labelledby="cc-title">
+      <h1 id="cc-title" class="cc-title">{W.title}</h1>
       <ConnectClaude client:load />
-    </div>
-  </section>
+    </Card>
+  </div>
 </Layout>
 
 <style>
-  .cf {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-4) var(--space-6);
-    max-width: calc(var(--size-64) * 3);
-    margin: var(--space-10) auto;
-    padding: var(--space-6) var(--space-7);
-  }
-
-  .cf-art {
-    display: flex;
-    flex: none;
-    color: var(--color-text-default);
-  }
-
-  .cf-text {
+  .cc {
     display: grid;
-    flex: 1 1 var(--size-60);
-    gap: var(--space-4);
-    min-width: 0;
+    place-items: start center;
+    padding: var(--space-10) var(--space-4);
   }
 
-  .cf-title {
+  .cc :global(.cc-card) {
+    display: grid;
+    gap: var(--space-4);
+    width: 100%;
+    max-width: var(--size-120);
+    padding: var(--space-7);
+  }
+
+  .cc-title {
     margin: 0;
     font-family: var(--typography-h2-family);
     font-size: var(--typography-h2-size);
@@ -53,30 +42,51 @@ const updated = lastUpdated(['apps/docs-site/src/pages/studio/connect-claude.ast
     line-height: var(--typography-h2-line-height);
   }
 
-  .cf-text :global(.cf-step) {
+  .cc :global(.cc-step) {
     display: grid;
     gap: var(--space-4);
-    justify-items: start;
   }
 
-  .cf-text :global(.cf-step p) {
+  .cc :global(.cc-step p) {
     margin: 0;
   }
 
-  .cf-text :global(.cc-actions) {
+  .cc :global(.cc-lede) {
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .cc :global(.cc-gets) {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .cc :global(.cc-gets ul) {
+    display: grid;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .cc :global(.cc-gets li) {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .cc :global(.cc-actions) {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
   }
 
   @media (max-width: 640px) {
-    .cf {
-      margin: var(--space-6) 0;
-      padding: var(--space-5);
+    .cc {
+      padding: var(--space-5) var(--space-4);
     }
 
-    .cf-art {
-      display: none;
+    .cc :global(.cc-card) {
+      padding: var(--space-5);
     }
   }
 </style>

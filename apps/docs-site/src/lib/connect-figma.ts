@@ -18,14 +18,21 @@ export type ConnectStep =
   | { kind: 'signin' }
   | { kind: 'github' }
   | { kind: 'no-teams' }
-  | { kind: 'pick'; teams: AccountTeam[] };
+  | { kind: 'pick'; teams: PickTeam[] };
 
-/** Where the person is: no code, not signed in, no GitHub sign-in in this browser, no team, or pick a team. */
-export function connectStep(code: string | null, account: Account | null, hasGitHub: boolean): ConnectStep {
+/** A team to pick: its repository and the name it goes by. */
+export type PickTeam = Pick<AccountTeam, 'repo'> & { name: string | null };
+
+/**
+ * Where the person is: no code, not signed in, no GitHub sign-in in this browser, no team, or pick a team. `teams` is
+ * the list the team switcher shows (scripts/pickable-teams.ts: the account's teams, the site's own design system when
+ * GitHub lets this person push to it, the teams this browser opened); without it, the account's teams.
+ */
+export function connectStep(code: string | null, account: Account | null, hasGitHub: boolean, pickable?: readonly PickTeam[]): ConnectStep {
   if (!code) return { kind: 'no-code' };
   if (!account) return { kind: 'signin' };
   if (!hasGitHub) return { kind: 'github' };
-  const teams = [...account.teams].sort((a, b) => (a.name ?? a.repo).localeCompare(b.name ?? b.repo));
+  const teams = [...(pickable ?? account.teams)].sort((a, b) => (a.name ?? a.repo).localeCompare(b.name ?? b.repo));
   return teams.length ? { kind: 'pick', teams } : { kind: 'no-teams' };
 }
 

@@ -38,6 +38,7 @@ import { GitHubMark } from './brand-icons';
 import { Drawing } from './Drawing';
 import { shortName } from '../../../lib/home-model';
 import { isSampleTeam } from '../../../lib/demo';
+import { pickableTeams } from '../../../lib/pickable-teams';
 import { DEMO_HOME, MENU_WORDS, ownTeams, TEAM_HOME_WORDS, WORKSPACE_HOME, WORKSPACE_WORDS, workspaceHref, workspaceName, workspaceTeamKey, type StartFacts } from '../../../lib/start';
 import { isTeamKey, teamKeyId } from '../../../lib/team-path';
 
@@ -225,14 +226,14 @@ export default function TeamChip({ repo: built = null, launcher = false, workspa
     const role = memberRole(access, ghSignedIn, reviewer) ?? (here_ ? roleWord(here_.role) : null);
     // The team you are on: yours when you belong to it; a guest still sees where they are on someone else's team.
     if (here && (role || chip.kind === 'team')) rows.push(teamRowOf(here, true, role ?? badge.label));
-    for (const t of recent) {
-      const r = roles[t.toLowerCase()];
-      if (r && !isSampleTeam(t) && t.toLowerCase() !== here?.toLowerCase()) rows.push(teamRowOf(t, false, r));
-    }
-    // The account's teams, wherever this browser has not opened them yet, each to its own space.
-    for (const t of account?.teams ?? []) {
-      if (isSampleTeam(t.repo) || rows.some((x) => x.key.toLowerCase() === t.repo.toLowerCase())) continue;
-      rows.push({ ...teamRowOf(t.repo, false, roleWord(t.role)), ...(t.name ? { title: t.name } : {}) });
+    // The teams this browser opened with a role, then the account's teams it has not opened yet, each to its own space:
+    // the same list the pickers of Connect Figma and Use Bridge in Claude offer (lib/pickable-teams.ts).
+    for (const t of pickableTeams({ account: account?.teams ?? [], recent, roles, names })) {
+      if (rows.some((x) => x.key.toLowerCase() === t.repo.toLowerCase())) continue;
+      const opened = recent.some((r) => r.toLowerCase() === t.repo.toLowerCase()) && roles[t.repo.toLowerCase()];
+      const acc = account?.teams.find((x) => x.repo.toLowerCase() === t.repo.toLowerCase());
+      if (opened || !acc) rows.push(teamRowOf(t.repo, false, t.role ?? undefined));
+      else rows.push({ ...teamRowOf(acc.repo, false, roleWord(acc.role)), ...(acc.name ? { title: acc.name } : {}) });
     }
     if (rows.length || !facts) return rows;
     // No team of your own here: the place you came from, a team you opened or the browser workspace.

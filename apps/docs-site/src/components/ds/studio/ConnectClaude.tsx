@@ -1,41 +1,49 @@
 // /studio/connect-claude/?request=…: where Claude sends the person when they add the Bridge connector (api/mcp,
-// api/_lib/oauth.ts). They are signed in to Bridge as usual, pick the team, and press Allow; GitHub confirms who they
-// are next, then they go back to Claude. Cancel goes back to Claude with nothing allowed. No token is ever shown.
-// Steps and words: lib/connect-claude.ts.
+// api/_lib/oauth.ts). A standalone card: no team, no demo, no Studio nav. One read (GET /oauth/request) says where they
+// are; then:
+//   signed out   Sign in, which comes back to this same request on its own (?next=), and Cancel
+//   no team      "Your Bridge account isn't in a team with a design system yet.", Create your team, ask an admin for an
+//                invite, Use another account, Cancel
+//   one team     it is preselected; several: a picker
+//   then         what Claude gets (read the design system, open changes for review in your name), Allow and Cancel.
+// Allow goes to GitHub (it confirms who they are), then back to Claude; Cancel goes back to Claude with access_denied.
+// No token is ever shown. Steps and words: lib/connect-claude.ts.
 import { useEffect, useState } from 'react';
-import { Alert, Button, Radio, RadioGroup, Spinner } from '@bridge-ds/react';
+import { Alert, Button, Icon, Radio, RadioGroup, Spinner } from '@bridge-ds/react';
+import { Check } from 'lucide-react';
 import { signInHref } from '../../../lib/account';
-import type { Account } from '../../../lib/account';
-import { appName, CLAUDE_CONNECT_WORDS as W, connectClaudeStep, readQuery, teamLabel, type ClaudeConnectStep, type RequestInfo } from '../../../lib/connect-claude';
+import { CREATE_TEAM_HREF } from '../../../lib/entry';
+import { appName, CLAUDE_CONNECT_WORDS as W, connectClaudeStep, parseRequestInfo, readQuery, type ClaudeConnectStep, type RequestInfo } from '../../../lib/connect-claude';
 
 const here = () => location.pathname + location.search;
 
-async function requestInfo(id: string): Promise<RequestInfo | null> {
-  const res = await fetch(`/oauth/request?id=${encodeURIComponent(id)}`, { credentials: 'same-origin' });
+export async function readRequestInfo(id: string): Promise<RequestInfo | null> {
+  const res = await fetch(`/oauth/request?id=${encodeURIComponent(id)}`, { credentials: 'same-origin', cache: 'no-store' });
   if (!res.ok) return null;
-  const d = (await res.json().catch(() => null)) as Partial<RequestInfo> | null;
-  return d && typeof d.client === 'string' && typeof d.redirectHost === 'string' ? { client: d.client, redirectHost: d.redirectHost, sameBrowser: d.sameBrowser === true } : null;
+  return parseRequestInfo(await res.json().catch(() => null));
 }
 
 export default function ConnectClaude() {
   const [step, setStep] = useState<ClaudeConnectStep | null>(null);
   const [team, setTeam] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'allow' | 'cancel' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const q = typeof location === 'undefined' ? { request: null, error: null } : readQuery(location.search);
 
   useEffect(() => {
     let live = true;
     void (async () => {
-      const info = q.request ? await requestInfo(q.request).catch(() => null) : null;
-      const account: Account | null = info
-        ? await import('../../../scripts/account-session')
-            .then(({ getAccount }) => getAccount())
-            .then((x) => x.account)
-            .catch(() => null)
-        : null;
+      let info = q.request ? await readRequestInfo(q.request).catch(() => null) : null;
+      // The teams to pick: the same list as the team switcher (the account's, plus the site's own design system when
+      // this browser's GitHub sign-in can push to it, plus the teams this browser opened), never the account's alone.
+      if (info?.signedIn) {
+        const [{ loadPickableTeams }, { workingGitHubToken }] = await Promise.all([import('../../../scripts/pickable-teams'), import('../../../scripts/account-session')]);
+        const token = await workingGitHubToken().catch(() => null);
+        const teams = await loadPickableTeams({ teams: info.teams.map((t) => ({ ...t, role: 'edit', via: 'email' })) }, token).catch(() => info!.teams);
+        info = { ...info, teams: teams.map((t) => ({ repo: t.repo, name: t.name })) };
+      }
       if (!live) return;
-      const s = connectClaudeStep(q, info, account);
+      const s = connectClaudeStep(q, info);
       setStep(s);
       if (s.kind === 'pick') setTeam(s.teams[0]!.repo);
     })();
@@ -48,7 +56,7 @@ export default function ConnectClaude() {
 
   async function answer(allow: boolean) {
     if (!q.request) return;
-    setBusy(true);
+    setBusy(allow ? 'allow' : 'cancel');
     setError(null);
     try {
       const res = await fetch('/oauth/approve', {
@@ -60,15 +68,27 @@ export default function ConnectClaude() {
       const body = (await res.json().catch(() => ({}))) as { redirect?: string; message?: string };
       if (!res.ok || !body.redirect) {
         setError(body.message ?? W.failed);
-        setBusy(false);
+        setBusy(null);
         return;
       }
       location.assign(body.redirect);
     } catch {
       setError(W.failed);
-      setBusy(false);
+      setBusy(null);
     }
   }
+
+  async function otherAccount() {
+    const { signOut } = await import('../../../scripts/account-session');
+    await signOut().catch(() => {});
+    location.assign(signInHref(here()));
+  }
+
+  const cancel = (
+    <Button variant="secondary" onClick={() => void answer(false)} disabled={busy !== null}>
+      {busy === 'cancel' ? W.cancelling : W.cancel}
+    </Button>
+  );
 
   if (!step) return <Spinner label="Checking your sign-in" />;
   switch (step.kind) {
@@ -82,45 +102,78 @@ export default function ConnectClaude() {
       return <Alert tone="warning">{W.otherBrowser}</Alert>;
     case 'signin':
       return (
-        <div className="cf-step">
-          <p>{W.lede(appName(step.info))}</p>
+        <div className="cc-step">
+          <p className="cc-lede">{W.lede(appName(step.info))}</p>
           <p>{W.signin}</p>
-          <Button variant="primary" onClick={() => location.assign(signInHref(here()))}>
-            {W.signinAction}
-          </Button>
+          {error && <Alert tone="danger">{error}</Alert>}
+          <div className="cc-actions">
+            <Button variant="primary" onClick={() => location.assign(signInHref(here()))}>
+              {W.signinAction}
+            </Button>
+            {cancel}
+          </div>
         </div>
       );
     case 'no-teams':
-      return <Alert tone="info">{W.noTeams}</Alert>;
+      return (
+        <div className="cc-step">
+          <p className="cc-lede">{W.noTeams}</p>
+          {step.info.name && <p className="t-ui t-muted">{W.signedInAs(step.info.name)}</p>}
+          <p>{W.askInvite}</p>
+          {error && <Alert tone="danger">{error}</Alert>}
+          <div className="cc-actions">
+            <Button variant="primary" onClick={() => location.assign(CREATE_TEAM_HREF)}>
+              {W.createTeam}
+            </Button>
+            <Button variant="secondary" onClick={() => void otherAccount()}>
+              {W.otherAccount}
+            </Button>
+            {cancel}
+          </div>
+        </div>
+      );
     case 'pick':
       return (
-        <div className="cf-step">
-          <p>
-            <strong>{W.lede(appName(step.info))}</strong>
-          </p>
-          <p>{W.what}</p>
+        <div className="cc-step">
+          <p className="cc-lede">{W.lede(appName(step.info))}</p>
           {step.teams.length > 1 ? (
             <RadioGroup label={W.teamLabel} value={team} onValueChange={setTeam}>
               {step.teams.map((t) => (
-                <Radio key={t.repo} value={t.repo} label={teamLabel(t)} />
+                <Radio key={t.repo} value={t.repo} label={t.name} />
               ))}
             </RadioGroup>
           ) : (
             <p>
-              {W.teamLabel}: <strong>{teamLabel(step.teams[0]!)}</strong>
+              {W.teamLabel}: <strong>{step.teams[0]!.name}</strong>
             </p>
           )}
-          <p className="t-ui t-muted">
-            {W.github} {W.back(step.info.redirectHost)}
-          </p>
+          <div className="cc-gets">
+            <p>{W.gets}</p>
+            <ul>
+              {[W.canRead, W.canPropose].map((x) => (
+                <li key={x}>
+                  <Icon icon={Check} size="sm" />
+                  <span>{x}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="t-ui t-muted">{W.approval}</p>
+          </div>
+          <p className="t-ui t-muted">{W.back(step.info.redirectHost)}</p>
+          {step.info.name && (
+            <p className="t-ui t-muted">
+              {W.signedInAs(step.info.name)}{' '}
+              <Button variant="link" onClick={() => void otherAccount()}>
+                {W.otherAccount}
+              </Button>
+            </p>
+          )}
           {error && <Alert tone="danger">{error}</Alert>}
           <div className="cc-actions">
-            <Button variant="primary" onClick={() => void answer(true)} disabled={busy}>
-              {busy ? W.allowing : W.allow}
+            <Button variant="primary" onClick={() => void answer(true)} disabled={busy !== null}>
+              {busy === 'allow' ? W.allowing : W.allow}
             </Button>
-            <Button variant="secondary" onClick={() => void answer(false)} disabled={busy}>
-              {W.cancel}
-            </Button>
+            {cancel}
           </div>
         </div>
       );

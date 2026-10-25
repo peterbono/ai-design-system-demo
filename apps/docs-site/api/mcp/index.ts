@@ -31,7 +31,10 @@ import { displayName, sessionAccount } from '../_lib/account.js';
 import { getSession, listSessions, recordToolCall, sessionView } from '../_lib/fix-sessions.js';
 import type { AppTokens } from '../_lib/github-app.js';
 import { clientIp, fail, HttpError, json, parseRepo, readBody, sameOrigin, type FetchLike } from '../_lib/http.js';
-import type { MemberStore } from '../_lib/members.js';
+import { accountTeamsKey, memberStore, type MemberStore } from '../_lib/members.js';
+import { getTeamNames } from '../_lib/teams.js';
+import { teamDisplayName } from '../../src/lib/demo.js';
+import { isTeamKey } from '../../src/lib/team-path.js';
 import {
   challenge,
   CONNECT_PAGE,
@@ -52,6 +55,7 @@ import {
   putRequest,
   registerClient,
   REQUEST_COOKIE,
+  REQ_TTL_S,
   resourceMetadata,
   revokeGrant,
   revokeToken,
@@ -145,6 +149,17 @@ const tokenError = (e: TokenError) => new Response(JSON.stringify({ error: e.err
 // ---------------------------------------------------------------------------------------------------------------
 // OAuth steps
 
+/** The teams of a Bridge account that have a repository (a design system), by the name their settings gave. */
+async function teamsWithDesignSystem(redis: Redis, email: string): Promise<{ repo: string; name: string }[]> {
+  const raw = await redis.cmd('SMEMBERS', accountTeamsKey(email));
+  const repos = (Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : []).filter((r) => !isTeamKey(r) && /^[^/_][^/]*\/[^/]+$/.test(r)).sort();
+  const members = memberStore(redis);
+  const live: string[] = [];
+  for (const repo of repos) if (await members.get(repo, email)) live.push(repo);
+  const names = await getTeamNames(redis, live).catch(() => new Map<string, { name: string }>());
+  return live.map((repo) => ({ repo, name: teamDisplayName(repo, { name: names.get(repo.toLowerCase())?.name }) }));
+}
+
 async function onOAuth(step: string, req: Request, env: ConnectorEnv, deps: ConnectorDeps, svc: Services, site: Site): Promise<Response> {
   const random = deps.random ?? ((n) => randomBytes(n));
   const now = (deps.now ?? Date.now)();
@@ -161,13 +176,21 @@ async function onOAuth(step: string, req: Request, env: ConnectorEnv, deps: Conn
       if (!githubApp(env)) return errorPage(OAUTH_WORDS.notConfigured, 503);
       const r = await startAuthorization(redis, deps.fetch, site, new URL(req.url).searchParams, random, now);
       if (!r.ok) return r.redirect ? redirect(r.redirect) : errorPage(r.message);
-      return redirect(`${CONNECT_PAGE}?request=${encodeURIComponent(r.req.id)}`, { 'Set-Cookie': requestCookie(r.cookie, 600) });
+      return redirect(`${CONNECT_PAGE}?request=${encodeURIComponent(r.req.id)}`, { 'Set-Cookie': requestCookie(r.cookie, REQ_TTL_S) });
     }
     case 'request': {
       // The Studio page reads what it asks the person: which app, and where it goes back to.
       const r = await getRequest(redis, new URL(req.url).searchParams.get('id') ?? '');
       if (!r) return json(410, { error: 'expired', message: OAUTH_WORDS.expired }, NO_STORE);
-      return json(200, { client: r.clientName, redirectHost: new URL(r.redirectUri).host, sameBrowser: sameBrowser(r, readCookie(req, REQUEST_COOKIE)) }, NO_STORE);
+      // Who is signed in, and their teams with a design system, read here from the session cookie: the page shows the
+      // right step with no other call (a team made in Bridge without a repository has nothing for Claude yet).
+      const account = await sessionAccount(req, redis, svc.secret, now);
+      const teams = account ? await teamsWithDesignSystem(redis, account.email) : [];
+      return json(
+        200,
+        { client: r.clientName, redirectHost: new URL(r.redirectUri).host, sameBrowser: sameBrowser(r, readCookie(req, REQUEST_COOKIE)), signedIn: Boolean(account), name: account?.name ?? null, teams },
+        NO_STORE,
+      );
     }
     case 'approve': {
       if (req.method !== 'POST' || !sameOrigin(req)) return fail(403, 'origin', OAUTH_WORDS.otherBrowser);

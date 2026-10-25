@@ -39,8 +39,10 @@ export default function ConnectFigma() {
         .then((x) => x.account)
         .catch(() => null);
       const github = account ? await freshGitHub().catch(() => null) : null;
+      // The same teams as the team switcher, the site's own design system included (scripts/pickable-teams.ts).
+      const teams = account && github ? await import('../../../scripts/pickable-teams').then(({ loadPickableTeams }) => loadPickableTeams(account, github.token)).catch(() => undefined) : undefined;
       if (!live) return;
-      const s = connectStep(code, account, Boolean(github));
+      const s = connectStep(code, account, Boolean(github), teams);
       setStep(s);
       if (s.kind === 'pick') setTeam(s.teams[0]!.repo);
     })();

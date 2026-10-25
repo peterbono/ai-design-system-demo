@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { BridgeContext } from '@bridge-ds/mcp';
 import { ACCOUNT_COOKIE, putAccount, signAccountSession } from '../../api/_lib/account';
 import { QUIET_AFTER_MS, stepOf, STEP_WORDS } from '../../api/_lib/fix-sessions';
+import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
 import { redirectMatches } from '../../api/_lib/oauth';
 import { handleConnector, type ConnectorEnv, type FetchLike, type McpHandler } from '../../api/mcp/index';
@@ -80,9 +81,14 @@ async function signIn(w: ReturnType<typeof world>, clientId?: string, redirectUr
   const request = page.searchParams.get('request')!;
   const cookie = cookieOf(auth);
   const info = await (await w.call(`/api/mcp?oauth=request&id=${request}`, { headers: { cookie: `bridge_oauth=${cookie}` } })).json();
-  expect(info).toEqual({ client: id!.startsWith('https://') ? 'Claude Code' : 'Claude', redirectHost: new URL(redirectUri).host, sameBrowser: true });
+  expect(info).toEqual({ client: id!.startsWith('https://') ? 'Claude Code' : 'Claude', redirectHost: new URL(redirectUri).host, sameBrowser: true, signedIn: false, name: null, teams: [] });
   await putAccount(w.redis, { id: 'a1', email: 'dana@acme.design', name: 'Dana', github: { login: 'dana', id: 7 }, createdAt: '2026-10-01T00:00:00Z', version: 1 });
   const account = `${ACCOUNT_COOKIE}=${signAccountSession({ email: 'dana@acme.design', v: 1, exp: w.now() + 60_000 }, SECRET)}`;
+  // Signed in now: the same read says who, and the account's teams that have a design system (not a team made in Bridge).
+  await memberStore(w.redis).put('acme/design', { email: 'dana@acme.design', name: 'Dana', role: 'admin', version: 1, addedBy: 'x', at: '2026-10-01T00:00:00Z' });
+  await memberStore(w.redis).put('_team/0123456789abcdef', { email: 'dana@acme.design', name: 'Dana', role: 'admin', version: 1, addedBy: 'x', at: '2026-10-01T00:00:00Z' });
+  const signed = await (await w.call(`/api/mcp?oauth=request&id=${request}`, { headers: { cookie: `bridge_oauth=${cookie}; ${account}` } })).json();
+  expect(signed).toMatchObject({ signedIn: true, name: 'Dana', teams: [{ repo: 'acme/design', name: 'Design' }] });
   const approve = await w.call('/api/mcp?oauth=approve', { method: 'POST', headers: { 'content-type': 'application/json', origin: SITE, cookie: `bridge_oauth=${cookie}; ${account}` }, body: JSON.stringify({ request, repo: 'acme/design', allow: true }) });
   expect(approve.status).toBe(200);
   const gh = new URL((await approve.json()).redirect);
