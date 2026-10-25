@@ -403,3 +403,28 @@
     min-width: max-content;
   }
 }
+
+/* Settings, Claude (ClaudeConnector.tsx): the two steps, the connector address, one line per connection. */
+.set-steps {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+
+.set-address {
+  overflow-wrap: anywhere;
+}
+
+.set-connection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.set-snippet {
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre;
+}
