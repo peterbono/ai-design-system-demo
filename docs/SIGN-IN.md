@@ -85,6 +85,10 @@ only the name and the permissions (step 3) differ.
 
    Administration can be "Read only" if you prefer to turn protection on from GitHub yourself.
 
+   Optional: **Workflows: Read and write** lets Settings, Claude, "Set up automatic measure" open its pull request
+   (it adds `.github/workflows/bridge-measure.yml`; GitHub refuses workflow files to an app without it). Without it,
+   Studio gives the file to commit from GitHub instead (docs/MEASURE.md).
+
    **Account permissions** (both apps): **Email addresses: Read-only**, and nothing else. Linking GitHub to a Bridge
    account uses it to read the verified emails of that GitHub account (`GET /user/emails` with their own sign-in;
    docs/HOSTED.md, "Invites by email"), so a reviewer or admin invite goes to the person it was sent to. When you add

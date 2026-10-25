@@ -58,6 +58,8 @@ export const ABOUT = '/about/';
 /** The product documentation (layouts/Docs.astro): an early version, to grow into a full guide. */
 export const DOCS_HOME = '/docs/';
 export const DOCS_FIGMA_PLUGIN = '/docs/figma-plugin/';
+/** The automatic measure: what lets Claude fix what differs in Figma, and how a developer turns it on. */
+export const DOCS_AUTOMATIC_MEASURE = '/docs/automatic-measure/';
 export const STUDIO_HOME = '/studio/';
 /** The read-only demo ("Open the demo" on /start/ and the team menu): the hosted Studio of the dedicated demo repo (lib/demo DEMO_REPOS). */
 export const DEMO = '/studio/peterbono/bridge-demo-ds/';
