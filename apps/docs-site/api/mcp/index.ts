@@ -1,5 +1,6 @@
 // /api/mcp: Bridge inside the team's own Claude (docs/FIGMA-FIXES.md "Bridge inside your team's Claude"). The Bridge MCP
-// server (packages/mcp, every tool) as a remote MCP server over Streamable HTTP, with its OAuth 2.1 authorization
+// server (packages/mcp, every tool but the merge: agents never merge here, HOSTED_REFUSED_TOOLS) as a remote MCP server
+// over Streamable HTTP, with its OAuth 2.1 authorization
 // server (api/_lib/oauth.ts), and the fix sessions people watch while Claude works (api/_lib/fix-sessions.ts). One
 // function; vercel.json rewrites give the public addresses:
 //
@@ -36,6 +37,7 @@ import { getTeamNames } from '../_lib/teams.js';
 import { teamDisplayName } from '../../src/lib/demo.js';
 import { isTeamKey } from '../../src/lib/team-path.js';
 import {
+  accountRef,
   challenge,
   CONNECT_PAGE,
   clientRedirect,
@@ -94,6 +96,14 @@ export interface ConnectorDeps {
   /** How the context is made (tests: a context without GitHub calls). */
   context?: (opts: { repo: string; token: string }) => Promise<BridgeContext>;
 }
+
+/**
+ * Agents never merge through the hosted connector: these tools are neither listed (handleHttp exclude) nor run (a call
+ * is refused here, before the MCP server). A person merges from Bridge Studio or GitHub. The local CLI and MCP server
+ * keep them.
+ */
+export const HOSTED_REFUSED_TOOLS: readonly string[] = ['bridge_merge_branch'];
+export const HOSTED_REFUSED_WORDS = 'Claude does not merge through Bridge: a person merges it from Bridge Studio or GitHub.';
 
 const STORAGE_DOWN = 'Bridge could not reach its storage. Try again in a minute.';
 const SEAL_PURPOSE = 'mcp-connector-github-tokens';
@@ -209,7 +219,7 @@ async function onOAuth(step: string, req: Request, env: ConnectorEnv, deps: Conn
       if (!app) return fail(503, 'not_configured', OAUTH_WORDS.notConfigured);
       const state = Buffer.from(random(24)).toString('base64url');
       const pkce = pkcePair(random);
-      await putRequest(redis, { ...r, repo: full, by: account.name, ghVerifier: pkce.verifier });
+      await putRequest(redis, { ...r, repo: full, by: account.name, ghVerifier: pkce.verifier, account: accountRef(account.email) });
       await redis.cmd('SET', ghStateKey(state), r.id, 'EX', 600);
       const gh = new URL('https://github.com/login/oauth/authorize');
       gh.searchParams.set('client_id', app.clientId);
@@ -241,7 +251,7 @@ async function onOAuth(step: string, req: Request, env: ConnectorEnv, deps: Conn
         return redirect(`${site.issuer}${CONNECT_PAGE}?error=no_access`, { 'Set-Cookie': requestCookie('', 0) });
       }
       const who = displayName(typeof me.data.name === 'string' ? me.data.name : null, r.by, me.data.login) || me.data.login;
-      const grant = await createGrant(redis, svc.key, { repo: r.repo, client: r, login: me.data.login, name: who, gh: tokens }, random, now);
+      const grant = await createGrant(redis, svc.key, { repo: r.repo, client: r, login: me.data.login, name: who, gh: tokens, account: r.account }, random, now);
       const issued = await issueCode(redis, r, grant.id, random);
       await dropRequest(redis, r.id);
       return redirect(clientRedirect(r, site.issuer, { code: issued }), { 'Set-Cookie': requestCookie('', 0) });
@@ -335,6 +345,13 @@ async function onMcp(req: Request, env: ConnectorEnv, deps: ConnectorDeps, svc: 
       return json(400, { jsonrpc: '2.0', error: { code: -32700, message: 'Parse error' }, id: null });
     }
   }
+  // Agents never merge here: a call to a refused tool (alone or in a batch) gets the protocol's unknown-tool error and
+  // nothing of the request runs.
+  const messages = (Array.isArray(body) ? body : [body]) as RpcMessage[];
+  if (messages.some((m) => m && m.method === 'tools/call' && typeof m.params?.name === 'string' && HOSTED_REFUSED_TOOLS.includes(m.params.name))) {
+    const errors = messages.filter((m) => m && (typeof m.id === 'string' || typeof m.id === 'number')).map((m) => ({ jsonrpc: '2.0', id: m.id, error: { code: -32602, message: HOSTED_REFUSED_WORDS } }));
+    return json(200, Array.isArray(body) ? errors : (errors[0] ?? { jsonrpc: '2.0', id: null, error: { code: -32602, message: HOSTED_REFUSED_WORDS } }), NO_STORE);
+  }
   const ctx = deps.context ? await deps.context({ repo: grant.repo, token }) : await BridgeContext.create({ repo: grant.repo, token, surface: 'mcp', fetch: deps.fetch as unknown as typeof fetch });
   // The body was read here (to record the steps): the transport takes it parsed, the request goes on without it.
   const headers = new Headers(req.headers);
@@ -342,7 +359,7 @@ async function onMcp(req: Request, env: ConnectorEnv, deps: ConnectorDeps, svc: 
   const forward = new Request(req.url, { method: req.method, headers });
   // Each Claude session opens with one 400 here: Claude tries the 2026-07-28 revision first, Bridge (2025-11-25 and
   // earlier) says no, Claude falls back to initialize. That is the spec's era detection, not an error (see handleHttp).
-  const res = await (deps.mcp ?? ((c, r, b) => handleHttp(c, r, b)))(ctx, forward, body);
+  const res = await (deps.mcp ?? ((c, r, b) => handleHttp(c, r, b, { exclude: HOSTED_REFUSED_TOOLS })))(ctx, forward, body);
   const calls = toolCalls(body).filter((c) => c.name === 'bridge_get_gap_case' || c.name === 'bridge_try_figma_fix' || c.name === 'bridge_propose_figma_fixes');
   if (!calls.length || !/json/i.test(res.headers.get('content-type') ?? '')) return res;
   const text = await res.text();

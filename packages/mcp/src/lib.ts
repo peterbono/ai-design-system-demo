@@ -3,11 +3,11 @@ import { execFileSync } from 'node:child_process';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { BridgeContext, type ContextOptions } from './context.js';
-import { createServer, VERSION } from './server.js';
+import { createServer, type ServerOptions, VERSION } from './server.js';
 
 export { BridgeContext, type ContextOptions } from './context.js';
 export { BlockedError, isBlocked, say } from './say.js';
-export { createServer, SERVER_INFO, VERSION } from './server.js';
+export { createServer, SERVER_INFO, VERSION, type ServerOptions } from './server.js';
 export { CONFIG_FILE, detectConfig, parseConfig, toConfigJson, type BridgeConfig } from './config.js';
 export { core } from './core-adapter.js';
 export { LocalSource, GitRefSource, GitHubSource, type RepoSource } from './source.js';
@@ -56,7 +56,7 @@ export function tokenNote(source: TokenSource | undefined): string | undefined {
 /**
  * One Streamable HTTP request to a Bridge MCP server (the hosted connector, apps/docs-site/api/mcp): stateless, a
  * server per request on `ctx` (a remote repo with the signed-in person's GitHub token), JSON answers, no session id.
- * `parsedBody` is the JSON-RPC body when the caller already read it.
+ * `parsedBody` is the JSON-RPC body when the caller already read it; `opts.exclude` leaves tools out (createServer).
  *
  * The first POST of a Claude session answers 400, on purpose. Bridge speaks the initialize-based ("legacy") MCP
  * revisions up to 2025-11-25, the newest the SDK supports. Claude is a dual-era client: it first tries a request of the
@@ -68,8 +68,8 @@ export function tokenNote(source: TokenSource | undefined): string | undefined {
  * then treat Bridge as a 2026-07-28 server and retry instead of falling back. The 400 goes away only when Bridge
  * implements 2026-07-28 itself (server/discover, per-request _meta), which needs an SDK that supports it.
  */
-export async function handleHttp(ctx: BridgeContext, req: Request, parsedBody?: unknown): Promise<Response> {
-  const server = createServer(ctx);
+export async function handleHttp(ctx: BridgeContext, req: Request, parsedBody?: unknown, opts: ServerOptions = {}): Promise<Response> {
+  const server = createServer(ctx, opts);
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   await server.connect(transport);
   try {

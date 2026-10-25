@@ -7,6 +7,7 @@ import { memoryRedis } from '../../api/_lib/redis';
 const HOST = 'bridge.example.com';
 const ORIGIN = `https://${HOST}`;
 const TOKEN = 'ghu_' + 'a'.repeat(36);
+const ENV = { LIBRARY_SESSION_SECRET: 'k'.repeat(48) };
 
 function req(body: unknown, from: 'plugin' | 'studio' | 'other' = 'plugin'): Request {
   const headers: Record<string, string> = { host: HOST, 'content-type': 'application/json' };
@@ -31,7 +32,7 @@ function setup() {
   const random = (n: number) => Buffer.from(Array.from({ length: n }, () => (seed = (seed * 31 + 7) % 251)));
   const deps = { fetch: github, redis, now: () => t, random };
   const call = async (body: unknown, from?: 'plugin' | 'studio' | 'other') => {
-    const res = await handleLink(req(body, from), {}, deps);
+    const res = await handleLink(req(body, from), ENV, deps);
     return { status: res.status, body: (await res.json()) as any, headers: res.headers };
   };
   return { redis, call, advance: (ms: number) => (t += ms) };
@@ -117,8 +118,32 @@ describe('POST /api/plugin-link', () => {
     expect((await call({ action: 'poll', code, secret })).body.status).toBe('approved');
   });
 
+  it('keeps the token sealed while it waits, bound to its own link', async () => {
+    const { call, redis } = setup();
+    const a = (await call({ action: 'start' })).body;
+    const b = (await call({ action: 'start' })).body;
+    await call(approve(a.code), 'studio');
+    // Nothing in storage holds the token in clear, nor any part of it.
+    const stored = JSON.stringify([...redis.dump()]);
+    expect(stored).not.toContain(TOKEN);
+    expect(stored).not.toContain('a'.repeat(12));
+    // Moved to another link (approved on paper), the sealed token does not open.
+    const sealed = JSON.parse(String(await redis.cmd('GET', linkKey(a.code))));
+    const other = JSON.parse(String(await redis.cmd('GET', linkKey(b.code))));
+    await redis.cmd('SET', linkKey(b.code), JSON.stringify({ ...sealed, poll: other.poll }), 'EX', 60);
+    expect((await call({ action: 'poll', code: b.code, secret: b.secret })).status).toBe(410);
+    // The real one opens, once.
+    expect((await call({ action: 'poll', code: a.code, secret: a.secret })).body.token).toBe(TOKEN);
+  });
+
+  it('without the session secret nothing is kept: it says Bridge is not set up', async () => {
+    const res = await handleLink(req({ action: 'start' }), {}, { fetch: github, redis: memoryRedis(() => 0) });
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as any).message).toBe(LINK_WORDS.notConfigured);
+  });
+
   it('without storage it says so, in designer words', async () => {
-    const res = await handleLink(req({ action: 'start' }), {}, { fetch: github });
+    const res = await handleLink(req({ action: 'start' }), ENV, { fetch: github });
     expect(res.status).toBe(503);
     expect(((await res.json()) as any).message).toBe(LINK_WORDS.notConfigured);
   });

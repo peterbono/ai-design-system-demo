@@ -76,7 +76,18 @@ const ChangesArg = z
   .optional()
   .describe('How this change reaches the code: "suggest" files a suggestion (a GitHub issue the owners approve and a developer applies, Issues write only), "direct" opens a branch and a pull request. Default: "changes" in bridge.config.json, else "suggest". Only set it when the person asked.');
 
-export function createServer(ctx: BridgeContext): McpServer {
+/** How a server is built for where it runs. */
+export interface ServerOptions {
+  /**
+   * Tools this server neither lists nor runs. The hosted connector (Bridge inside the team's Claude) leaves out the
+   * merge (bridge_merge_branch and its owner override): agents never merge there, a person does. The local CLI and
+   * MCP server keep every tool.
+   */
+  exclude?: readonly string[] | undefined;
+}
+
+export function createServer(ctx: BridgeContext, opts: ServerOptions = {}): McpServer {
+  const excluded = new Set(opts.exclude ?? []);
   const server = new McpServer(
     SERVER_INFO,
     {
@@ -101,9 +112,19 @@ export function createServer(ctx: BridgeContext): McpServer {
         'Components from Figma: the DS Bridge plugin sends a component changed in Figma to a library branch. Token swaps go as exact token changes; new variants, properties and components go to a branch carrying the spec, waiting for Claude AI. When the person asks you to draft one, bridge_figma_changes lists them and bridge_get_figma_change gives the spec and the steps; write the code on that branch, push it, then bridge_mark_figma_change_drafted. Never claim a branch is drafted before its code is pushed.',
         'Fix with Claude: when a component built in Figma differs from its story, you are the team\'s Claude and Bridge is the referee. bridge_figma_gaps lists them, bridge_get_gap_case gives one gap case and the fix schema, bridge_try_figma_fix checks fixes on the measured values (at most 3 rounds per component), bridge_propose_figma_fixes opens them for review; a component that will not come closer gets a status fix (Differs or Can\'t check, with the reason), never Matches. The plugin\'s Check fidelity (the story shots) decides after the next pull.',
         'Explorations try experimental variables and components in a product staging branch without touching main: an explore/<slug> branch with a draft pull request labeled exploration, previews and a snapshot package. bridge_start_exploration starts one, bridge_list_explorations lists them. To work on one, pass "branch": "explore/<slug>" to bridge_propose_token_change, bridge_draft_docs and bridge_get_request, and never open a pull request to main from it: a person promotes it to review or closes it.',
+        ...(excluded.has('bridge_merge_branch') ? ['On this server you never merge: bridge_merge_branch is not available here. When a branch is ready, say so; a person merges it from Bridge Studio or GitHub.'] : []),
       ].join(' '),
     },
   );
+
+  // Tools left out (opts.exclude) are registered then removed, so they are neither listed nor callable.
+  const registered = new Map<string, { remove(): void }>();
+  const register = server.registerTool.bind(server);
+  server.registerTool = ((name: string, config: never, cb: never) => {
+    const tool = register(name, config, cb);
+    registered.set(name, tool);
+    return tool;
+  }) as typeof server.registerTool;
 
   // --- read: config and tokens ---
   server.registerTool(
@@ -1391,5 +1412,7 @@ export function createServer(ctx: BridgeContext): McpServer {
     },
   );
 
+  for (const name of excluded) registered.get(name)?.remove();
+  server.registerTool = register;
   return server;
 }
