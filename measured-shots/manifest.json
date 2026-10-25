@@ -1,7 +1,7 @@
 {
   "version": 1,
   "tool": "@bridge-ds/cli",
-  "createdAt": "2026-10-25T23:20:50.068Z",
+  "createdAt": "2026-10-25T23:55:51.219Z",
   "storybook": "https://bridge-storybook.floriangouloubi.com",
   "scale": 2,
   "components": {
@@ -24,7 +24,7 @@
         },
         "Variant=secondary, Size=md, State=Default": {
           "file": "actions-button-secondary.png",
-          "width": 116.77,
+          "width": 116.8,
           "height": 44,
           "story": "actions-button--secondary",
           "props": {
@@ -99,7 +99,7 @@
         },
         "Variant=inverse, Size=md, State=Default": {
           "file": "actions-button-inverse.png",
-          "width": 137.73,
+          "width": 137.75,
           "height": 44,
           "story": "actions-button--inverse",
           "props": {
@@ -270,7 +270,7 @@
         },
         "Variant=secondary, Size=sm, State=Default": {
           "file": "actions-button-secondary__variant-secondary__size-sm.png",
-          "width": 108.77,
+          "width": 108.8,
           "height": 32,
           "story": "actions-button--secondary",
           "props": {
@@ -285,7 +285,7 @@
         },
         "Variant=secondary, Size=sm, State=Hover": {
           "file": "actions-button-secondary__variant-secondary__size-sm__state-hover.png",
-          "width": 108.77,
+          "width": 108.8,
           "height": 32,
           "story": "actions-button--secondary",
           "props": {
@@ -301,7 +301,7 @@
         },
         "Variant=secondary, Size=sm, State=Pressed": {
           "file": "actions-button-secondary__variant-secondary__size-sm__state-active.png",
-          "width": 108.77,
+          "width": 108.8,
           "height": 32,
           "story": "actions-button--secondary",
           "props": {
@@ -317,7 +317,7 @@
         },
         "Variant=secondary, Size=sm, State=Disabled": {
           "file": "actions-button-secondary__variant-secondary__size-sm__disabled-true.png",
-          "width": 108.77,
+          "width": 108.8,
           "height": 32,
           "story": "actions-button--secondary",
           "props": {
@@ -332,7 +332,7 @@
         },
         "Variant=secondary, Size=md, State=Hover": {
           "file": "actions-button-secondary__variant-secondary__size-md__state-hover.png",
-          "width": 116.77,
+          "width": 116.8,
           "height": 44,
           "story": "actions-button--secondary",
           "props": {
@@ -348,7 +348,7 @@
         },
         "Variant=secondary, Size=md, State=Pressed": {
           "file": "actions-button-secondary__variant-secondary__size-md__state-active.png",
-          "width": 116.77,
+          "width": 116.8,
           "height": 44,
           "story": "actions-button--secondary",
           "props": {
@@ -364,7 +364,7 @@
         },
         "Variant=secondary, Size=md, State=Disabled": {
           "file": "actions-button-secondary__variant-secondary__size-md__disabled-true.png",
-          "width": 116.77,
+          "width": 116.8,
           "height": 44,
           "story": "actions-button--secondary",
           "props": {
@@ -379,7 +379,7 @@
         },
         "Variant=secondary, Size=lg, State=Default": {
           "file": "actions-button-secondary__variant-secondary__size-lg.png",
-          "width": 136.59,
+          "width": 136.63,
           "height": 48,
           "story": "actions-button--secondary",
           "props": {
@@ -394,7 +394,7 @@
         },
         "Variant=secondary, Size=lg, State=Hover": {
           "file": "actions-button-secondary__variant-secondary__size-lg__state-hover.png",
-          "width": 136.59,
+          "width": 136.63,
           "height": 48,
           "story": "actions-button--secondary",
           "props": {
@@ -410,7 +410,7 @@
         },
         "Variant=secondary, Size=lg, State=Pressed": {
           "file": "actions-button-secondary__variant-secondary__size-lg__state-active.png",
-          "width": 136.59,
+          "width": 136.63,
           "height": 48,
           "story": "actions-button--secondary",
           "props": {
@@ -426,7 +426,7 @@
         },
         "Variant=secondary, Size=lg, State=Disabled": {
           "file": "actions-button-secondary__variant-secondary__size-lg__disabled-true.png",
-          "width": 136.59,
+          "width": 136.63,
           "height": 48,
           "story": "actions-button--secondary",
           "props": {
@@ -954,7 +954,7 @@
         },
         "Variant=inverse, Size=sm, State=Default": {
           "file": "actions-button-inverse__variant-inverse__size-sm.png",
-          "width": 129.73,
+          "width": 129.75,
           "height": 32,
           "story": "actions-button--inverse",
           "props": {
@@ -969,7 +969,7 @@
         },
         "Variant=inverse, Size=sm, State=Hover": {
           "file": "actions-button-inverse__variant-inverse__size-sm__state-hover.png",
-          "width": 129.73,
+          "width": 129.75,
           "height": 32,
           "story": "actions-button--inverse",
           "props": {
@@ -985,7 +985,7 @@
         },
         "Variant=inverse, Size=sm, State=Pressed": {
           "file": "actions-button-inverse__variant-inverse__size-sm__state-active.png",
-          "width": 129.73,
+          "width": 129.75,
           "height": 32,
           "story": "actions-button--inverse",
           "props": {
@@ -1016,7 +1016,7 @@
         },
         "Variant=inverse, Size=md, State=Hover": {
           "file": "actions-button-inverse__variant-inverse__size-md__state-hover.png",
-          "width": 137.73,
+          "width": 137.75,
           "height": 44,
           "story": "actions-button--inverse",
           "props": {
@@ -1032,7 +1032,7 @@
         },
         "Variant=inverse, Size=md, State=Pressed": {
           "file": "actions-button-inverse__variant-inverse__size-md__state-active.png",
-          "width": 137.73,
+          "width": 137.75,
           "height": 44,
           "story": "actions-button--inverse",
           "props": {
@@ -1063,7 +1063,7 @@
         },
         "Variant=inverse, Size=lg, State=Default": {
           "file": "actions-button-inverse__variant-inverse__size-lg.png",
-          "width": 160.55,
+          "width": 160.56,
           "height": 48,
           "story": "actions-button--inverse",
           "props": {
@@ -1078,7 +1078,7 @@
         },
         "Variant=inverse, Size=lg, State=Hover": {
           "file": "actions-button-inverse__variant-inverse__size-lg__state-hover.png",
-          "width": 160.55,
+          "width": 160.56,
           "height": 48,
           "story": "actions-button--inverse",
           "props": {
@@ -1094,7 +1094,7 @@
         },
         "Variant=inverse, Size=lg, State=Pressed": {
           "file": "actions-button-inverse__variant-inverse__size-lg__state-active.png",
-          "width": 160.55,
+          "width": 160.56,
           "height": 48,
           "story": "actions-button--inverse",
           "props": {
@@ -2484,7 +2484,7 @@
         },
         "Variant=standalone, State=Default": {
           "file": "actions-link-standalone.png",
-          "width": 135.06,
+          "width": 135.08,
           "height": 28,
           "story": "actions-link--standalone",
           "props": {
@@ -2535,7 +2535,7 @@
         },
         "Variant=standalone, State=Hover": {
           "file": "actions-link-standalone__variant-standalone__state-hover.png",
-          "width": 135.06,
+          "width": 135.08,
           "height": 28,
           "story": "actions-link--standalone",
           "props": {
@@ -2548,7 +2548,7 @@
         },
         "story=actions-link--standalone, variant=standalone, state=active": {
           "file": "actions-link-standalone__variant-standalone__state-active.png",
-          "width": 135.06,
+          "width": 135.08,
           "height": 28,
           "story": "actions-link--standalone",
           "props": {
@@ -2561,7 +2561,7 @@
         },
         "story=actions-link--standalone, variant=standalone, disabled=true": {
           "file": "actions-link-standalone__variant-standalone__disabled-true.png",
-          "width": 135.06,
+          "width": 135.08,
           "height": 28,
           "story": "actions-link--standalone",
           "props": {
@@ -3005,7 +3005,7 @@
       "variants": {
         "Tone=success, Appearance=subtle, Size=md": {
           "file": "data-display-badge-subtle.png",
-          "width": 86.75,
+          "width": 86.72,
           "height": 26,
           "story": "data-display-badge--subtle",
           "props": {
@@ -3018,7 +3018,7 @@
         },
         "Tone=danger, Appearance=solid, Size=md": {
           "file": "data-display-badge-solid.png",
-          "width": 93.44,
+          "width": 93.42,
           "height": 26,
           "story": "data-display-badge--solid",
           "props": {
@@ -3031,7 +3031,7 @@
         },
         "Tone=warning, Appearance=subtle, Size=md": {
           "file": "data-display-badge-with-dot.png",
-          "width": 118.77,
+          "width": 118.75,
           "height": 26,
           "story": "data-display-badge--with-dot",
           "props": {
@@ -3057,7 +3057,7 @@
         },
         "Tone=neutral, Appearance=solid, Size=sm": {
           "file": "data-display-badge-solid__tone-neutral__appearance-solid__size-sm.png",
-          "width": 80.67,
+          "width": 80.66,
           "height": 20,
           "story": "data-display-badge--solid",
           "props": {
@@ -3070,7 +3070,7 @@
         },
         "Tone=neutral, Appearance=solid, Size=md": {
           "file": "data-display-badge-solid__tone-neutral__appearance-solid__size-md.png",
-          "width": 93.44,
+          "width": 93.42,
           "height": 26,
           "story": "data-display-badge--solid",
           "props": {
@@ -3083,7 +3083,7 @@
         },
         "Tone=success, Appearance=subtle, Size=sm": {
           "file": "data-display-badge-subtle__tone-success__appearance-subtle__size-sm.png",
-          "width": 74.58,
+          "width": 74.56,
           "height": 20,
           "story": "data-display-badge--subtle",
           "props": {
@@ -3096,7 +3096,7 @@
         },
         "Tone=success, Appearance=solid, Size=sm": {
           "file": "data-display-badge-subtle__tone-success__appearance-solid__size-sm.png",
-          "width": 74.58,
+          "width": 74.56,
           "height": 20,
           "story": "data-display-badge--subtle",
           "props": {
@@ -3109,7 +3109,7 @@
         },
         "Tone=success, Appearance=solid, Size=md": {
           "file": "data-display-badge-subtle__tone-success__appearance-solid__size-md.png",
-          "width": 86.75,
+          "width": 86.72,
           "height": 26,
           "story": "data-display-badge--subtle",
           "props": {
@@ -3122,7 +3122,7 @@
         },
         "Tone=warning, Appearance=subtle, Size=sm": {
           "file": "data-display-badge-with-dot__tone-warning__appearance-subtle__size-sm.png",
-          "width": 103.81,
+          "width": 103.8,
           "height": 20,
           "story": "data-display-badge--with-dot",
           "props": {
@@ -3135,7 +3135,7 @@
         },
         "Tone=warning, Appearance=solid, Size=sm": {
           "file": "data-display-badge-solid__tone-warning__appearance-solid__size-sm.png",
-          "width": 80.67,
+          "width": 80.66,
           "height": 20,
           "story": "data-display-badge--solid",
           "props": {
@@ -3148,7 +3148,7 @@
         },
         "Tone=warning, Appearance=solid, Size=md": {
           "file": "data-display-badge-solid__tone-warning__appearance-solid__size-md.png",
-          "width": 93.44,
+          "width": 93.42,
           "height": 26,
           "story": "data-display-badge--solid",
           "props": {
@@ -3161,7 +3161,7 @@
         },
         "Tone=danger, Appearance=subtle, Size=sm": {
           "file": "data-display-badge-subtle__tone-danger__appearance-subtle__size-sm.png",
-          "width": 74.58,
+          "width": 74.56,
           "height": 20,
           "story": "data-display-badge--subtle",
           "props": {
@@ -3174,7 +3174,7 @@
         },
         "Tone=danger, Appearance=subtle, Size=md": {
           "file": "data-display-badge-subtle__tone-danger__appearance-subtle__size-md.png",
-          "width": 86.75,
+          "width": 86.72,
           "height": 26,
           "story": "data-display-badge--subtle",
           "props": {
@@ -3187,7 +3187,7 @@
         },
         "Tone=danger, Appearance=solid, Size=sm": {
           "file": "data-display-badge-solid__tone-danger__appearance-solid__size-sm.png",
-          "width": 80.67,
+          "width": 80.66,
           "height": 20,
           "story": "data-display-badge--solid",
           "props": {
@@ -3200,7 +3200,7 @@
         },
         "Tone=info, Appearance=subtle, Size=sm": {
           "file": "data-display-badge-subtle__tone-info__appearance-subtle__size-sm.png",
-          "width": 74.58,
+          "width": 74.56,
           "height": 20,
           "story": "data-display-badge--subtle",
           "props": {
@@ -3213,7 +3213,7 @@
         },
         "Tone=info, Appearance=subtle, Size=md": {
           "file": "data-display-badge-subtle__tone-info__appearance-subtle__size-md.png",
-          "width": 86.75,
+          "width": 86.72,
           "height": 26,
           "story": "data-display-badge--subtle",
           "props": {
@@ -3226,7 +3226,7 @@
         },
         "Tone=info, Appearance=solid, Size=sm": {
           "file": "data-display-badge-solid__tone-info__appearance-solid__size-sm.png",
-          "width": 80.67,
+          "width": 80.66,
           "height": 20,
           "story": "data-display-badge--solid",
           "props": {
@@ -3239,7 +3239,7 @@
         },
         "Tone=info, Appearance=solid, Size=md": {
           "file": "data-display-badge-solid__tone-info__appearance-solid__size-md.png",
-          "width": 93.44,
+          "width": 93.42,
           "height": 26,
           "story": "data-display-badge--solid",
           "props": {
@@ -3478,7 +3478,7 @@
         },
         "Size=sm": {
           "file": "data-display-kbd-combination__size-sm.png",
-          "width": 53.8,
+          "width": 53.78,
           "height": 18,
           "story": "data-display-kbd--combination",
           "props": {
@@ -3550,7 +3550,7 @@
       "variants": {
         "Tone=neutral, Size=md, State=Default": {
           "file": "data-display-tag-static.png",
-          "width": 84.25,
+          "width": 84.28,
           "height": 24,
           "story": "data-display-tag--static",
           "props": {
@@ -3562,7 +3562,7 @@
         },
         "Tone=neutral, Size=sm, State=Default": {
           "file": "data-display-tag-static__tone-neutral__size-sm.png",
-          "width": 84.25,
+          "width": 84.28,
           "height": 20,
           "story": "data-display-tag--static",
           "props": {
@@ -3574,7 +3574,7 @@
         },
         "story=data-display-tag--static, tone=neutral, size=sm, state=hover": {
           "file": "data-display-tag-static__tone-neutral__size-sm__state-hover.png",
-          "width": 84.25,
+          "width": 84.28,
           "height": 20,
           "story": "data-display-tag--static",
           "props": {
@@ -3587,7 +3587,7 @@
         },
         "story=data-display-tag--static, tone=neutral, size=sm, state=active": {
           "file": "data-display-tag-static__tone-neutral__size-sm__state-active.png",
-          "width": 84.25,
+          "width": 84.28,
           "height": 20,
           "story": "data-display-tag--static",
           "props": {
@@ -3600,7 +3600,7 @@
         },
         "Tone=neutral, Size=sm, State=Disabled": {
           "file": "data-display-tag-static__tone-neutral__size-sm__disabled-true.png",
-          "width": 84.25,
+          "width": 84.28,
           "height": 20,
           "story": "data-display-tag--static",
           "props": {
@@ -3612,7 +3612,7 @@
         },
         "story=data-display-tag--static, tone=neutral, size=md, state=hover": {
           "file": "data-display-tag-static__tone-neutral__size-md__state-hover.png",
-          "width": 84.25,
+          "width": 84.28,
           "height": 24,
           "story": "data-display-tag--static",
           "props": {
@@ -3625,7 +3625,7 @@
         },
         "story=data-display-tag--static, tone=neutral, size=md, state=active": {
           "file": "data-display-tag-static__tone-neutral__size-md__state-active.png",
-          "width": 84.25,
+          "width": 84.28,
           "height": 24,
           "story": "data-display-tag--static",
           "props": {
@@ -3638,7 +3638,7 @@
         },
         "Tone=neutral, Size=md, State=Disabled": {
           "file": "data-display-tag-static__tone-neutral__size-md__disabled-true.png",
-          "width": 84.25,
+          "width": 84.28,
           "height": 24,
           "story": "data-display-tag--static",
           "props": {
@@ -3650,7 +3650,7 @@
         },
         "Tone=signal, Size=sm, State=Default": {
           "file": "data-display-tag-static__tone-signal__size-sm.png",
-          "width": 84.25,
+          "width": 84.28,
           "height": 20,
           "story": "data-display-tag--static",
           "props": {
@@ -3662,7 +3662,7 @@
         },
         "story=data-display-tag--static, tone=signal, size=sm, state=hover": {
           "file": "data-display-tag-static__tone-signal__size-sm__state-hover.png",
-          "width": 84.25,
+          "width": 84.28,
           "height": 20,
           "story": "data-display-tag--static",
           "props": {
@@ -3675,7 +3675,7 @@
         },
         "story=data-display-tag--static, tone=signal, size=sm, state=active": {
           "file": "data-display-tag-static__tone-signal__size-sm__state-active.png",
-          "width": 84.25,
+          "width": 84.28,
           "height": 20,
           "story": "data-display-tag--static",
           "props": {
@@ -3688,7 +3688,7 @@
         },
         "Tone=signal, Size=sm, State=Disabled": {
           "file": "data-display-tag-static__tone-signal__size-sm__disabled-true.png",
-          "width": 84.25,
+          "width": 84.28,
           "height": 20,
           "story": "data-display-tag--static",
           "props": {
@@ -3700,7 +3700,7 @@
         },
         "Tone=signal, Size=md, State=Default": {
           "file": "data-display-tag-static__tone-signal__size-md.png",
-          "width": 84.25,
+          "width": 84.28,
           "height": 24,
           "story": "data-display-tag--static",
           "props": {
@@ -3712,7 +3712,7 @@
         },
         "story=data-display-tag--static, tone=signal, size=md, state=hover": {
           "file": "data-display-tag-static__tone-signal__size-md__state-hover.png",
-          "width": 84.25,
+          "width": 84.28,
           "height": 24,
           "story": "data-display-tag--static",
           "props": {
@@ -3725,7 +3725,7 @@
         },
         "story=data-display-tag--static, tone=signal, size=md, state=active": {
           "file": "data-display-tag-static__tone-signal__size-md__state-active.png",
-          "width": 84.25,
+          "width": 84.28,
           "height": 24,
           "story": "data-display-tag--static",
           "props": {
@@ -3738,7 +3738,7 @@
         },
         "Tone=signal, Size=md, State=Disabled": {
           "file": "data-display-tag-static__tone-signal__size-md__disabled-true.png",
-          "width": 84.25,
+          "width": 84.28,
           "height": 24,
           "story": "data-display-tag--static",
           "props": {
@@ -3767,7 +3767,7 @@
         },
         "Size=sm": {
           "file": "data-display-tokenvalue-small.png",
-          "width": 396.66,
+          "width": 396.67,
           "height": 22,
           "story": "data-display-tokenvalue--small",
           "props": {
@@ -6784,7 +6784,7 @@
         },
         "Size=sm, Appearance=default, State=Default": {
           "file": "forms-segmentedcontrol-small.png",
-          "width": 165.47,
+          "width": 165.5,
           "height": 38,
           "story": "forms-segmentedcontrol--small",
           "props": {
@@ -6811,7 +6811,7 @@
         },
         "Size=md, Appearance=strong, State=Default": {
           "file": "forms-segmentedcontrol-strong.png",
-          "width": 311.81,
+          "width": 311.8,
           "height": 44,
           "story": "forms-segmentedcontrol--strong",
           "props": {
@@ -6837,7 +6837,7 @@
         },
         "Size=sm, Appearance=default, State=Hover": {
           "file": "forms-segmentedcontrol-small__size-sm__appearance-default__state-hover.png",
-          "width": 165.47,
+          "width": 165.5,
           "height": 38,
           "story": "forms-segmentedcontrol--small",
           "props": {
@@ -6851,7 +6851,7 @@
         },
         "Size=sm, Appearance=default, State=Pressed": {
           "file": "forms-segmentedcontrol-small__size-sm__appearance-default__state-active.png",
-          "width": 165.47,
+          "width": 165.5,
           "height": 38,
           "story": "forms-segmentedcontrol--small",
           "props": {
@@ -6865,7 +6865,7 @@
         },
         "Size=sm, Appearance=default, State=Disabled": {
           "file": "forms-segmentedcontrol-small__size-sm__appearance-default__disabled-true.png",
-          "width": 165.47,
+          "width": 165.5,
           "height": 38,
           "story": "forms-segmentedcontrol--small",
           "props": {
@@ -6949,7 +6949,7 @@
         },
         "Size=md, Appearance=strong, State=Hover": {
           "file": "forms-segmentedcontrol-strong__size-md__appearance-strong__state-hover.png",
-          "width": 311.81,
+          "width": 311.8,
           "height": 44,
           "story": "forms-segmentedcontrol--strong",
           "props": {
@@ -6963,7 +6963,7 @@
         },
         "Size=md, Appearance=strong, State=Pressed": {
           "file": "forms-segmentedcontrol-strong__size-md__appearance-strong__state-active.png",
-          "width": 311.81,
+          "width": 311.8,
           "height": 44,
           "story": "forms-segmentedcontrol--strong",
           "props": {
@@ -8384,7 +8384,7 @@
         },
         "story=layout-pageheader--all-states": {
           "file": "layout-pageheader-all-states.png",
-          "width": 329.44,
+          "width": 329.42,
           "height": 178,
           "story": "layout-pageheader--all-states",
           "props": {
@@ -8524,7 +8524,7 @@
         },
         "story=navigation-pagination--all-states": {
           "file": "navigation-pagination-all-states.png",
-          "width": 337.25,
+          "width": 337.27,
           "height": 92,
           "story": "navigation-pagination--all-states",
           "props": {
@@ -9848,7 +9848,7 @@
       "variants": {
         "story=overlays-tooltip--default": {
           "file": "overlays-tooltip-default.png",
-          "width": 115.64,
+          "width": 115.66,
           "height": 24.19,
           "story": "overlays-tooltip--default",
           "props": {
@@ -9860,7 +9860,7 @@
         },
         "story=overlays-tooltip--toolbar": {
           "file": "overlays-tooltip-toolbar.png",
-          "width": 73.61,
+          "width": 73.63,
           "height": 24.19,
           "story": "overlays-tooltip--toolbar",
           "props": {
@@ -9884,7 +9884,7 @@
         },
         "story=overlays-tooltip--default, , state=hover": {
           "file": "overlays-tooltip-default__state-hover.png",
-          "width": 115.64,
+          "width": 115.66,
           "height": 24.19,
           "story": "overlays-tooltip--default",
           "props": {
@@ -9897,7 +9897,7 @@
         },
         "story=overlays-tooltip--default, , state=active": {
           "file": "overlays-tooltip-default__state-active.png",
-          "width": 115.64,
+          "width": 115.66,
           "height": 24.19,
           "story": "overlays-tooltip--default",
           "props": {
