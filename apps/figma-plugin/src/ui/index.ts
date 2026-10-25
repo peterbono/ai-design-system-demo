@@ -15,7 +15,7 @@ import { type LogicalToken, SINGLE_MODE } from '@bridge-ds/core';
 import type { Issue, PushIssue } from '@bridge-ds/core';
 import { formatValue, isAlias, parseColor, rgbaToHex } from '@bridge-ds/core';
 import { type ContrastResult, contextLabel, pairKey } from '@bridge-ds/core';
-import { type ApplyReport, type FigmaSnapshot, type InitPayload, type RepoSettings, modeDisplayName } from '../shared/messages';
+import { type ApplyReport, type FigmaSnapshot, type InitPayload, type RepoSettings, STUDIO_ORIGIN, modeDisplayName } from '../shared/messages';
 import { REQUEST_KINDS, type RequestKind, draftPushDescription, pushChangeRows, shortVariant, shortVariants } from '@bridge-ds/core';
 import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classifyComponents, pullBaselines, suggestLine, suggestSummary, suggestTitle, toRequest } from '../sync/components';
 import { CLAUDE_MODELS, type ClaudeDraft, type ClaudeDraftInput, ClaudeDraftError, DRAFTED_NOTE, draftWithClaude } from '../sync/claude';
@@ -36,6 +36,7 @@ import { libraryArrivalOnGitHub } from '@bridge-ds/core';
 import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, triedLocally, tryItLinks } from '../sync/explorations';
 import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
 import { type Selection, onProgress, onSelection, request } from './bridge';
+import { BridgeSignInPoller, type LinkPoll, SIGN_IN_WORDS, startBridgeSignIn } from '../sync/bridge-sign-in';
 import { MEASURED_SPECS_FILE, type MeasuredOverlayReport } from '../sync/measured-specs';
 import type { MeasuredOnlyReport } from '@bridge-ds/core';
 import { type FidelityOutcome, NO_REFERENCES_TEXT, fidelitySummary, loadReferenceManifest, runFidelityCheck } from '../sync/fidelity';
@@ -263,6 +264,8 @@ interface State {
   expanded: Set<string>;
   /** Current Figma selection, for "Attach the current selection". */
   selection: Selection;
+  /** "Sign in with Bridge": waiting for the designer in Studio (with the page to reopen), or why it stopped. */
+  link?: { status: 'waiting'; url: string; poller: BridgeSignInPoller } | { status: 'error'; message: string } | undefined;
 }
 
 interface ActionBar {
@@ -394,8 +397,89 @@ function tokenRejectedCallout(): HTMLElement {
     { class: 'callout warn', role: 'alert' },
     h('div', { class: 'callout-title' }, icon('alert'), TOKEN_REJECTED_CALLOUT),
     h('p', null, TOKEN_REJECTED_DETAIL),
-    h('div', { class: 'inline-actions' }, h('button', { class: 'btn', 'data-focus-id': 'token-replace-go', onClick: replaceToken }, 'Replace token')),
+    h(
+      'div',
+      { class: 'inline-actions' },
+      state.init?.tokenSource === 'bridge'
+        ? h('button', { class: 'btn', 'data-focus-id': 'sign-in-again', onClick: () => { state.tab = 'settings'; signInWithBridge(); } }, 'Sign in again')
+        : h('button', { class: 'btn', 'data-focus-id': 'token-replace-go', onClick: replaceToken }, 'Replace token'),
+    ),
   );
+}
+
+/**
+ * "Sign in with Bridge": a one-time code from Bridge, Studio opened with it in the browser, then a poll every few
+ * seconds until the designer picked their team there (api/plugin-link). The token never shows.
+ */
+function signInWithBridge(): void {
+  if (state.link?.status === 'waiting') state.link.poller.stop();
+  state.link = undefined;
+  void run('Opening Studio in your browser', async () => {
+    const start = await startBridgeSignIn((url, init) => fetch(url, init), STUDIO_ORIGIN);
+    await request('open-url', { url: start.url });
+    const poller = new BridgeSignInPoller((url, init) => fetch(url, init), STUDIO_ORIGIN, start, (p) => void finishSignIn(p)).start();
+    state.link = { status: 'waiting', url: start.url, poller };
+  });
+}
+
+function cancelSignIn(): void {
+  if (state.link?.status === 'waiting') state.link.poller.stop();
+  state.link = undefined;
+  render();
+}
+
+/** The designer picked their team in Studio: the token is saved on this computer, the repository with the file. */
+async function finishSignIn(p: LinkPoll): Promise<void> {
+  if (p.status !== 'approved') {
+    state.link = { status: 'error', message: p.status === 'expired' ? p.message : SIGN_IN_WORDS.expired };
+    render();
+    return;
+  }
+  state.link = undefined;
+  await run('Connecting', async () => {
+    await request('save-token', { token: p.token, source: 'bridge' });
+    const settings = state.init!.settings;
+    await request('save-settings', { settings: { ...settings, repo: p.repo, branch: p.defaultBranch ?? settings.branch } });
+    await loadInit();
+    client = undefined;
+    state.pull = undefined;
+    state.push = undefined;
+    state.tokenReadOnly = false;
+    state.settingsMessage = { kind: 'ok', text: SIGN_IN_WORDS.connected(p.name ?? p.repo) };
+    // Connected: straight to what the designer came for.
+    state.tab = 'pull';
+    void request('notify', { message: SIGN_IN_WORDS.connected(p.name ?? p.repo) });
+  });
+}
+
+/** Not connected: one action, Sign in with Bridge. The repository field and a pasted token are for developers. */
+function signInView(): View {
+  const l = state.link;
+  return {
+    body: [
+      intro({ title: 'Connect your design system', text: SIGN_IN_WORDS.lede, art: 'guide', moment: 'welcome' }),
+      l?.status === 'waiting'
+        ? h(
+            'div',
+            { class: 'callout', role: 'status' },
+            h('p', { class: 'loading' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), SIGN_IN_WORDS.waiting),
+            h(
+              'div',
+              { class: 'inline-actions' },
+              h('button', { class: 'btn', 'data-focus-id': 'sign-in-reopen', onClick: () => void request('open-url', { url: l.url }) }, icon('external'), SIGN_IN_WORDS.reopen),
+              h('button', { class: 'btn ghost', 'data-focus-id': 'sign-in-cancel', onClick: cancelSignIn }, SIGN_IN_WORDS.cancel),
+            ),
+          )
+        : null,
+      l?.status === 'error' ? h('div', { class: 'callout warn', role: 'alert' }, h('div', { class: 'callout-title' }, icon('alert'), l.message)) : null,
+      h(
+        'p',
+        { class: 'muted' },
+        h('button', { class: 'link', 'data-focus-id': 'token-connect', onClick: () => { state.expanded.add('token-connect'); render(); } }, 'For developers: connect with a token'),
+      ),
+    ],
+    bar: l?.status === 'waiting' ? undefined : { label: SIGN_IN_WORDS.action, onClick: signInWithBridge },
+  };
 }
 
 const short = (sha: string | undefined) => (sha ? sha.slice(0, 7) : '');
@@ -1889,7 +1973,10 @@ const repoRows = (): [string, string | undefined][] => [
 function needSetup(): View {
   return {
     body: intro({ title: 'Connect your design system', text: "Bridge brings your design system's tokens and components into Figma, and sends your edits back to it. Pick the design system this file uses.", art: 'guide', moment: 'welcome' }),
-    bar: { label: 'Open Settings', onClick: () => { state.tab = 'settings'; render(); } },
+    // No sign-in yet: the one action is to sign in, right here. A design system without a token goes to Settings.
+    bar: state.init?.hasToken
+      ? { label: 'Open Settings', onClick: () => { state.tab = 'settings'; render(); } }
+      : { label: SIGN_IN_WORDS.action, onClick: () => { state.tab = 'settings'; signInWithBridge(); } },
   };
 }
 
@@ -3923,11 +4010,14 @@ function viewPush(): View {
 }
 
 function viewSettings(): View {
+  // Not connected: Sign in with Bridge, unless a developer chose to connect with a token.
+  if (state.link || (!state.init!.hasToken && !state.expanded.has('token-connect'))) return signInView();
   const d = state.settingsDraft;
   const init = state.init!;
   // Not connected yet (no design system for this file, or no token): the fields show; connected, one row and Edit.
   const editingRepo = !init.hasToken || !init.settings.repo || state.expanded.has('repo-edit');
   const rejected = init.tokenState === 'rejected';
+  const bridgeSignIn = init.tokenSource === 'bridge';
   // The token field shows without a token, or after "Replace token".
   const tokenField = !init.hasToken || state.expanded.has('token-replace');
   const field = (label: string, key: 'repo' | 'branch' | 'tokensPath', hint: string, placeholder: string) =>
@@ -3997,8 +4087,8 @@ function viewSettings(): View {
               h(
                 'span',
                 { class: 'opt-text' },
-                h('span', { class: 'opt-title' }, 'GitHub token'),
-                h('small', null, rejected ? TOKEN_REJECTED_DETAIL : 'Saved on this computer, never in the file.'),
+                h('span', { class: 'opt-title' }, bridgeSignIn ? 'Signed in with Bridge' : 'GitHub token'),
+                h('small', null, rejected ? (bridgeSignIn ? 'The sign-in expired. Sign in again: it takes a click.' : TOKEN_REJECTED_DETAIL) : 'Saved on this computer, never in the file.'),
               ),
               rejected
                 ? h('span', { class: 'opt-status warn' }, icon('alert'), 'Stopped working')
@@ -4014,9 +4104,11 @@ function viewSettings(): View {
               { class: 'inline-actions' },
               tokenField
                 ? h('button', { class: 'btn ghost', onClick: () => { state.expanded.delete('token-replace'); state.tokenDraft = ''; render(); } }, 'Cancel')
-                : h('button', { class: rejected ? 'btn' : 'btn ghost', 'data-focus-id': 'token-replace', onClick: replaceToken }, 'Replace token'),
+                : bridgeSignIn
+                  ? h('button', { class: rejected ? 'btn' : 'btn ghost', 'data-focus-id': 'sign-in-again', onClick: signInWithBridge }, 'Sign in again')
+                  : h('button', { class: rejected ? 'btn' : 'btn ghost', 'data-focus-id': 'token-replace', onClick: replaceToken }, 'Replace token'),
               tokenField ? h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: 'https://github.com/settings/personal-access-tokens/new' }) }, 'Create one on GitHub') : null,
-              h('button', { class: 'btn ghost danger', onClick: removeToken }, 'Remove token'),
+              h('button', { class: 'btn ghost danger', onClick: removeToken }, bridgeSignIn ? 'Sign out' : 'Remove token'),
             ),
           )
         : h(

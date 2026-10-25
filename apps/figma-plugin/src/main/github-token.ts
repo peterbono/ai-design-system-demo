@@ -6,24 +6,30 @@ import type { TokenState } from '../shared/messages';
 
 export const TOKEN_KEY = 'github-token';
 export const TOKEN_STATE_KEY = 'github-token-state';
+/** "bridge" when the token came from Sign in with Bridge (signing in again renews it), absent for a pasted token. */
+export const TOKEN_SOURCE_KEY = 'github-token-source';
 
-export async function readGitHubToken(): Promise<{ token: string | undefined; tokenState: TokenState | undefined }> {
+export async function readGitHubToken(): Promise<{ token: string | undefined; tokenState: TokenState | undefined; tokenSource?: 'bridge' }> {
   const token = (await figma.clientStorage.getAsync(TOKEN_KEY)) as string | undefined;
   if (!token) return { token: undefined, tokenState: undefined };
   const stored = (await figma.clientStorage.getAsync(TOKEN_STATE_KEY)) as string | undefined;
-  return { token, tokenState: stored === 'rejected' ? 'rejected' : 'ok' };
+  const source = (await figma.clientStorage.getAsync(TOKEN_SOURCE_KEY)) as string | undefined;
+  return { token, tokenState: stored === 'rejected' ? 'rejected' : 'ok', ...(source === 'bridge' ? { tokenSource: 'bridge' as const } : {}) };
 }
 
 /** A new token starts clean: whatever GitHub said about the previous one no longer applies. */
-export async function saveGitHubToken(token: string): Promise<{ saved: true }> {
+export async function saveGitHubToken(token: string, source?: 'bridge'): Promise<{ saved: true }> {
   await figma.clientStorage.setAsync(TOKEN_KEY, token.trim());
   await figma.clientStorage.deleteAsync(TOKEN_STATE_KEY);
+  if (source === 'bridge') await figma.clientStorage.setAsync(TOKEN_SOURCE_KEY, 'bridge');
+  else await figma.clientStorage.deleteAsync(TOKEN_SOURCE_KEY);
   return { saved: true };
 }
 
 export async function clearGitHubToken(): Promise<{ cleared: true }> {
   await figma.clientStorage.deleteAsync(TOKEN_KEY);
   await figma.clientStorage.deleteAsync(TOKEN_STATE_KEY);
+  await figma.clientStorage.deleteAsync(TOKEN_SOURCE_KEY);
   return { cleared: true };
 }
 
