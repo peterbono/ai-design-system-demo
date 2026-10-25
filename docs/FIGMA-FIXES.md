@@ -206,7 +206,9 @@ case compares the rebuilt set with the measure only.
    `drafted-by-claude`, `figma-fixes`, `source: mcp` and its tier (classifyRisk: Tier 2, a source file). Locally, a new
    local branch, never pushed. The body has the gap, each fix with its reason and the before and after deltas. It runs
    the values referee again and refuses fixes that move the component further from the code, and part or story fixes
-   that move nothing. When no round came closer, propose a `status` fix instead.
+   that move nothing. A part fix that sizes, places or lays out a part (`width`, `height`, `direction`, `align`,
+   `overlay`) opens even when the referee says same: it can't judge layout, so the body says Check fidelity decides.
+   When no round came closer, propose a `status` fix instead.
 
 The MCP server may use the person's `gh` sign-in as its token (as for every write from MCP); the CLI writes only with
 a token passed on purpose (`GITHUB_TOKEN`, `--token`, or `--use-gh-auth`), and without one opens a local branch.
