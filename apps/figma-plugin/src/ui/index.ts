@@ -569,7 +569,7 @@ function rowList(key: string, rows: HTMLElement[], limit = PAGE): HTMLElement {
 }
 
 /** One group of the Pull screen: title and count with its action on the same line, one sentence, then its rows. */
-function group(title: string, count: number, action: Child, lede: string, content: Child): HTMLElement {
+function group(title: string, count: number, action: Child, lede: Child, content: Child): HTMLElement {
   return h(
     'section',
     { class: 'group' },
@@ -1799,13 +1799,54 @@ function ill(name: IllustrationName): HTMLElement {
 }
 
 /** The screen's one Harbor zone: a Fraunces headline, one sentence, an optional meta line, a drawing. */
-function intro(o: { title: string; text?: string; meta?: Child; art?: IllustrationName }): HTMLElement {
+function intro(o: { title: string; text?: string; meta?: Child; art?: IllustrationName; moment?: object | string | undefined }): HTMLElement {
   return h(
     'section',
     { class: `zone intro${o.art ? ' with-art' : ''}` },
     h('div', { class: 'intro-text' }, h('h2', { class: 'headline' }, o.title), o.text ? h('p', null, o.text) : null, o.meta ? h('p', { class: 'muted' }, o.meta) : null),
-    o.art ? ill(o.art) : null,
+    o.art ? (o.moment ? moment(ill(o.art), o.moment) : ill(o.art)) : null,
   );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Moments: when a designer finishes something that matters (welcome, first pull, sent for review, every component
+// matches), the Field Guide drawing assembles itself once, piece by piece. Only the drawing moves (opacity and
+// transform, WAAPI): the text and the actions are there and usable from the first frame, the layout never shifts, and
+// nothing plays while a pull or a check runs (moments are on result screens only). Reduced motion: the drawing is
+// simply there. Re-renders during the moment pick it up where it is (same start time), so it plays once, never loops.
+
+/** One moment, start to end: the pieces land over this time (DS motion: duration.400 per piece, easing expo-out). */
+const MOMENT_MS = 900;
+const PIECE_MS = 400;
+const EXPO_OUT = 'cubic-bezier(0.16, 1, 0.3, 1)';
+/** When each moment started, by what it celebrates (a result object, or a key such as "welcome"). */
+const momentStarts = new Map<object | string, number>();
+const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function moment<T extends HTMLElement>(el: T, key: object | string): T {
+  // Errors stay calm: no moment on a screen that also says something went wrong.
+  if (reducedMotion() || typeof el.animate !== 'function' || state.error) return el;
+  const now = performance.now();
+  if (!momentStarts.has(key)) momentStarts.set(key, now);
+  const elapsed = now - momentStarts.get(key)!;
+  if (elapsed >= MOMENT_MS) return el;
+  const pieces = [...el.querySelectorAll<SVGElement>('svg > *')];
+  const step = pieces.length > 1 ? (MOMENT_MS - PIECE_MS) / (pieces.length - 1) : 0;
+  pieces.forEach((piece, i) => {
+    // A piece placed with its own transform attribute only fades: a CSS transform would replace it.
+    const frames = piece.hasAttribute('transform') ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }];
+    const a = piece.animate(frames, { duration: PIECE_MS, delay: i * step, easing: EXPO_OUT, fill: 'backwards' });
+    a.currentTime = elapsed;
+  });
+  return el;
+}
+
+/** The Bridge mark (arch, deck, three posts, Harbor water), small, next to a line. Decorative. */
+function bridgeMark(): HTMLElement {
+  const art = ILLUSTRATIONS.logo;
+  const el = h('span', { class: 'mark', 'aria-hidden': 'true' });
+  el.innerHTML = `<svg viewBox="${art.viewBox}" fill="none" focusable="false">${art.svg}</svg>`;
+  return el;
 }
 
 /** What happens next, as numbered steps under the intro of an idle screen. Explains; asks for nothing. */
@@ -1847,7 +1888,7 @@ const repoRows = (): [string, string | undefined][] => [
 
 function needSetup(): View {
   return {
-    body: intro({ title: 'Connect your design system', text: "Bridge brings your design system's tokens and components into Figma, and sends your edits back to it. Pick the design system this file uses.", art: 'guide' }),
+    body: intro({ title: 'Connect your design system', text: "Bridge brings your design system's tokens and components into Figma, and sends your edits back to it. Pick the design system this file uses.", art: 'guide', moment: 'welcome' }),
     bar: { label: 'Open Settings', onClick: () => { state.tab = 'settings'; render(); } },
   };
 }
@@ -1905,7 +1946,9 @@ function viewPull(): View {
           title: view?.stopped ? 'Pull stopped' : left ? 'Some components were not built' : problems.length ? 'Pulled, with problems' : building ? 'Variables are in, building components' : firstDone ? 'Your design system is in Figma' : 'Figma is up to date',
           text: text.join(' '),
           meta: r ? (r.layout === 'single-collection' ? 'Themes are modes of the Semantic collection.' : 'This file allows one mode per collection, so each theme has its own Semantic collection.') : undefined,
-          art: problems.length ? 'fix' : 'tokens',
+          // The first pull, done: the bridge builds itself, plank by plank (one per component row it brought).
+          art: problems.length ? 'fix' : firstDone && cr?.created ? 'components' : 'tokens',
+          moment: firstDone ? p : undefined,
         }),
         view && left
           ? h(
@@ -2294,14 +2337,18 @@ function fidelityGroup(p: PullState): Child {
     { class: 'btn ghost', 'data-focus-id': 'check-fidelity', disabled: !!f?.running || !!state.busy, onClick: () => void checkFidelity(p) },
     outcome || f?.error ? 'Compare again' : 'Check fidelity',
   );
-  let lede = 'Compares every variant with the same variant rendered from the code. Nothing in the file changes.';
+  let lede: Child = 'Compares every variant with the same variant rendered from the code. Nothing in the file changes.';
   let content: Child = null;
   if (f?.running) lede = `${f.running}...`;
   else if (f?.error) content = h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Could not compare'), h('p', null, f.error));
   else if (outcome?.kind === 'no-references') lede = NO_REFERENCES_TEXT;
   else if (outcome?.kind === 'no-sets') lede = 'No component set from code in this file yet. Pull components first.';
   else if (outcome?.kind === 'done') {
-    lede = fidelitySummary(outcome.report);
+    // Every component compared matches the code: the Bridge mark lands next to the sentence, once.
+    const allMatch = outcome.report.summary.differs === 0 && outcome.report.summary.matches > 0;
+    lede = allMatch
+      ? h('span', { class: 'all-match' }, moment(bridgeMark(), outcome.report), outcome.report.summary.matches === 1 ? 'It matches the code.' : `All ${outcome.report.summary.matches} match the code.`)
+      : fidelitySummary(outcome.report);
     const order = { differs: 0, matches: 1, 'not-checked': 2 } as const;
     // Not compared: one folded line with each reason, after the rows a designer can act on (FID-2).
     const notCompared = outcome.items.filter((it) => it.result.status === 'not-checked');
@@ -3485,7 +3532,8 @@ function libraryResult(r: PushState, items: RoutedItem[]): Child[] {
     );
   const group = (title: string, lede: string, rows: Child[]) => h('section', null, h('h2', null, title), h('p', { class: 'lede' }, lede), h('ul', { class: 'rows' }, rows));
   return [
-    intro({ title: head.title, text: head.text, art: 'review' }),
+    // Sent and on its way: the moment. Held for a developer or a failed check stays calm.
+    intro({ title: head.title, text: head.text, art: 'review', moment: head.title !== 'Held for a developer' && !r.result?.failed.length ? r.result : undefined }),
     g.shipped.length
       ? group(
           'Token values',
@@ -3612,7 +3660,7 @@ function viewPush(): View {
     if (images && mode === 'suggest') (images as HTMLElement).append(h('div', { class: 'inline-actions' }, h('button', { class: 'btn', onClick: openTokenSettings }, icon('external'), 'Edit token on GitHub')));
     return {
       body: [
-        intro({ title: sentTitle(res, mode), text: text.join(' '), art: 'review' }),
+        intro({ title: sentTitle(res, mode), text: text.join(' '), art: 'review', moment: res.failed.length ? undefined : res }),
         forDevelopers([...repoRows(), ['Branch', pr?.branch], ['Pull request', pr?.pr.url], ['Suggestion', res.suggestions[0]?.url]]),
         builds.length ? buildMessage(r, builds) : null,
         images,
@@ -3889,7 +3937,7 @@ function viewSettings(): View {
     );
   return {
     body: [
-      connected() ? null : intro({ title: 'Connect your design system', text: 'Which design system does this file use? Paste its GitHub repository, then a token. Nothing is written until you send your edits.', art: 'guide' }),
+      connected() ? null : intro({ title: 'Connect your design system', text: 'Which design system does this file use? Paste its GitHub repository, then a token. Nothing is written until you send your edits.', art: 'guide', moment: 'welcome' }),
       // Connected: the design system is a state (one row, Edit). The fields show to set it up or after Edit. Branch and
       // tokens folder are for developers: folded, with defaults that work (the design system's config decides).
       editingRepo
