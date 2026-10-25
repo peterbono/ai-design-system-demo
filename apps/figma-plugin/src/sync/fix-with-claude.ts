@@ -5,7 +5,7 @@
 // The designer sees one button ("Ask Claude to fix it") and one sentence; the commands travel in the text they copy
 // for their developer (fixRequestForDeveloper), never on screen.
 
-import { DEFAULT_FIDELITY_RUN_FILE, type FidelityComponentResult, type FigmaFidelityRun, type GitHubClient, REQUESTS_BRANCH } from '@bridge-ds/core';
+import { DEFAULT_FIDELITY_RUN_FILE, type FidelityComponentResult, type FigmaFidelityRun, type GitHubClient, MEASURE_MISSING_TEXT, measureSetupSteps, REQUESTS_BRANCH } from '@bridge-ds/core';
 import { ensureRequestsBranch } from './requests';
 
 type RunClient = Pick<GitHubClient, 'owner' | 'name' | 'getBranchSha' | 'createBranch' | 'getFile' | 'putFile'>;
@@ -35,14 +35,17 @@ export const FIX_ASKED_TEXT = 'Your developer runs Claude on it. Copy the reques
 /** What happens next, in designer words: the fix comes back through a normal update. */
 export const FIX_NEXT_TEXT = 'Once the fix is approved, Check for updates brings it into this file. Then compare with code again.';
 
-/** A set that differs where Claude cannot help yet (no measure of the stories): the designer hands it on, no dead end. */
-export const DIFFERS_HANDOFF_TEXT = 'A developer can look at why. Copy the details and send them over.';
+/**
+ * A set that differs where Claude cannot help yet: Bridge has no measure of the stories (measured-specs.json in the repo
+ * or on the measure branch). Calm, and the one next step; the designer hands it on with the same one action.
+ */
+export const DIFFERS_HANDOFF_TEXT = MEASURE_MISSING_TEXT;
 /** No code images yet: the designer hands it on with the same one action. */
 export const NO_REFERENCES_HANDOFF_TEXT = 'Images of the code are not published yet. A developer turns them on once; copy the request and send it to them.';
 
 /**
  * "Copy for your developer" on a set that differs, without a measure: the component, each variant that differs with
- * its verdict, how to let Claude help next time, and the JSON of the result.
+ * its verdict, how to turn the automatic measure on so Claude can help, and the JSON of the result.
  */
 export function differsRequestForDeveloper(result: FidelityComponentResult, repo: string, verdict: (v: FidelityComponentResult['variants'][number]) => string): string {
   const differing = result.variants.filter((v) => v.status === 'differs');
@@ -51,7 +54,8 @@ export function differsRequestForDeveloper(result: FidelityComponentResult, repo
     '',
     ...differing.map((v) => `- ${v.key}: ${verdict(v)}`),
     '',
-    'To let Claude propose the fix from the plugin, commit measured-specs.json (bridge specs --measure --variants --shots) and set Spec source to "Measured" in the plugin Settings, For developers.',
+    "Claude can propose the fix once Bridge measures the components. Set up automatic measure, once:",
+    ...measureSetupSteps().slice(1),
     '',
     'The result as JSON:',
     JSON.stringify(result, null, 2),

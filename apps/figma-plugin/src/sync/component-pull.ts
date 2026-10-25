@@ -51,7 +51,7 @@ import { COLLECTIONS, type FigmaResolvedType } from '../shared/messages';
 import { isUnmappable, pathToName, tokenToPlanned } from './mapping';
 import { checkComponentSpecs } from './spec-check';
 import { MEASURED_SPECS_FILE, type MeasuredOverlayReport, overlayMeasured, parseMeasuredSpecs } from './measured-specs';
-import { cssColorsToRgb, type CssShadow, type MeasuredOnlyReport, parseBoxShadow, specsFromMeasure } from '@bridge-ds/core';
+import { cssColorsToRgb, type CssShadow, findMeasure, MEASURE_MISSING_TEXT, measureDir, type MeasuredOnlyReport, parseBoxShadow, specsFromMeasure } from '@bridge-ds/core';
 
 /** A component set Bridge generated, as the main thread finds it (shared plugin data). */
 export interface GeneratedSet {
@@ -384,7 +384,7 @@ export interface LoadedSpecs {
    * Measured-only source with screenshots (`--shots`): each variant's story render, in the code images' manifest shape,
    * and the repo folder its files are in. Check fidelity compares with these instead of the code images.
    */
-  shots?: { manifest: FigmaReferenceManifest; dir: string } | undefined;
+  shots?: { manifest: FigmaReferenceManifest; dir: string; ref?: string | undefined } | undefined;
   /**
    * Measured-only source: figma-fixes.json laid on the measure before the sets are drawn. `lines`: what each fix did
    * (appliedFixLines); `problems`: why the file was not used (invalid); `hints`: per set, its status and notes.
@@ -407,7 +407,62 @@ export type SpecSourceKind = 'static' | 'measured' | 'measured-only';
 export interface SpecSource {
   readonly kind: SpecSourceKind;
   /** `head`: the library's tokens, for a source that must tell its tokens from literals (measured only). */
-  load(client: Pick<GitHubClient, 'getTree' | 'getBlobText'>, treeSha: string, config: BridgeConfig | undefined, head?: Pick<TokenSet, 'byPath'>): Promise<LoadedSpecs | undefined>;
+  load(client: MeasureClient, treeSha: string, config: BridgeConfig | undefined, head?: Pick<TokenSet, 'byPath'>): Promise<LoadedSpecs | undefined>;
+}
+
+/** What reading the measure needs: the pulled tree, and the measure branch when the client can read a large file. */
+export type MeasureClient = Pick<GitHubClient, 'getTree' | 'getBlobText'> & Partial<Pick<GitHubClient, 'getRawText'>>;
+
+/** A measure the pull found: its text, its path, and the branch it came from when it is not in the pulled tree. */
+export interface PulledMeasure {
+  text: string;
+  path: string;
+  /** The measure branch (the automatic measure publishes there); undefined: the pulled tree. Its shots are read there too. */
+  ref?: string | undefined;
+}
+
+/**
+ * The measure, where every Bridge reader looks (core findMeasure): measured-specs.json in the pulled tree (committed on
+ * purpose), else on the measure branch, where the automatic measure workflow publishes it. Undefined when neither has it.
+ */
+export async function readMeasure(client: MeasureClient, treeSha: string): Promise<PulledMeasure | undefined> {
+  const found = await findMeasure(
+    {
+      repo: async (path) => {
+        const { entries } = await client.getTree(treeSha, true);
+        const entry = entries.find((e) => e.type === 'blob' && e.path === path);
+        return entry ? client.getBlobText(entry.sha) : undefined;
+      },
+      // The raw media type: a measure of every variant is over the 1 MB the contents API inlines.
+      ...(client.getRawText ? { branch: (path: string, branch: string) => client.getRawText!(path, branch) } : {}),
+    },
+    MEASURED_SPECS_FILE,
+  );
+  return found ? { text: found.text, path: found.path, ...(found.branch ? { ref: found.branch } : {}) } : undefined;
+}
+
+/** A spec source set to a measure the team does not have yet: the designer sentence, and the way back. */
+const measureMissing = (source: string) => `Spec source is set to ${source}, but ${MEASURE_MISSING_TEXT.charAt(0).toLowerCase()}${MEASURE_MISSING_TEXT.slice(1)} Until then, set Spec source back to Static in Settings.`;
+
+/**
+ * The measure for "Ask Claude to fix it" and the gap cases, whatever the spec source: the pulled tree's, else the
+ * measure branch's, with figma-fixes.json laid on (an invalid fixes file is left out). Undefined when there is none.
+ */
+export async function loadMeasureForFixes(client: MeasureClient, treeSha: string): Promise<{ measure: MeasuredSpecsFile | FixedMeasuredSpecsFile; ref?: string | undefined } | undefined> {
+  const found = await readMeasure(client, treeSha);
+  if (!found) return undefined;
+  const measured = parseMeasuredSpecs(found.text);
+  const { entries } = await client.getTree(treeSha, true);
+  const fixesEntry = entries.find((e) => e.type === 'blob' && e.path === DEFAULT_FIGMA_FIXES_FILE);
+  let measure: MeasuredSpecsFile | FixedMeasuredSpecsFile = measured;
+  if (fixesEntry) {
+    try {
+      measure = applyFixes(measured, parseFigmaFixes(await client.getBlobText(fixesEntry.sha))).file;
+    } catch {
+      // The pull says why the fixes file is not used; the gap case reads the measure as measured.
+    }
+  }
+  return { measure, ...(found.ref ? { ref: found.ref } : {}) };
 }
 
 /** The source the pull uses: static unless asked otherwise. */
@@ -427,11 +482,11 @@ export function specSource(kind: SpecSourceKind = 'static'): SpecSource {
  * without a static spec. When the repo also has component-specs.json, each set keeps the static set's hash as its code
  * version, so Check fidelity compares it with the code images of that version.
  */
-async function loadMeasuredOnlySpecs(client: Pick<GitHubClient, 'getTree' | 'getBlobText'>, treeSha: string, config: BridgeConfig | undefined, head?: Pick<TokenSet, 'byPath'>): Promise<LoadedSpecs | undefined> {
+async function loadMeasuredOnlySpecs(client: MeasureClient, treeSha: string, config: BridgeConfig | undefined, head?: Pick<TokenSet, 'byPath'>): Promise<LoadedSpecs | undefined> {
+  const found = await readMeasure(client, treeSha);
+  if (!found) throw new Error(measureMissing('Measured only'));
   const { entries } = await client.getTree(treeSha, true);
-  const entry = entries.find((e) => e.type === 'blob' && e.path === MEASURED_SPECS_FILE);
-  if (!entry) throw new Error(`Spec source is set to Measured only, but the repo has no ${MEASURED_SPECS_FILE}. Run bridge specs --measure --variants and commit it, or set Spec source back to Static in Settings.`);
-  const measured = parseMeasuredSpecs(await client.getBlobText(entry.sha));
+  const measured = parseMeasuredSpecs(found.text);
   // figma-fixes.json (optional, next to the measure): reviewed corrections of what the measure gives. An invalid file is
   // not used, and says why.
   const fixesEntry = entries.find((e) => e.type === 'blob' && e.path === DEFAULT_FIGMA_FIXES_FILE);
@@ -471,18 +526,17 @@ async function loadMeasuredOnlySpecs(client: Pick<GitHubClient, 'getTree' | 'get
     measuredOnly: report,
     measure: file,
     ...(fixesEntry ? { fixes: { lines: fixLines, ...(fixProblems ? { problems: fixProblems } : {}), hints } } : {}),
-    ...(manifest ? { shots: { manifest, dir: MEASURED_SPECS_FILE.includes('/') ? MEASURED_SPECS_FILE.replace(/\/[^/]*$/, '') : '' } } : {}),
+    ...(manifest ? { shots: { manifest, dir: measureDir(found.path), ...(found.ref ? { ref: found.ref } : {}) } } : {}),
   };
 }
 
 /** The static specs with measured-specs.json laid on. A missing measure fails: the developer asked for it. */
-async function loadMeasuredSpecs(client: Pick<GitHubClient, 'getTree' | 'getBlobText'>, treeSha: string, config: BridgeConfig | undefined): Promise<LoadedSpecs | undefined> {
+async function loadMeasuredSpecs(client: MeasureClient, treeSha: string, config: BridgeConfig | undefined): Promise<LoadedSpecs | undefined> {
   const loaded = await loadComponentSpecs(client, treeSha, config);
   if (!loaded) return undefined;
-  const { entries } = await client.getTree(treeSha, true);
-  const entry = entries.find((e) => e.type === 'blob' && e.path === MEASURED_SPECS_FILE);
-  if (!entry) throw new Error(`Spec source is set to Measured, but the repo has no ${MEASURED_SPECS_FILE}. Run bridge specs --measure and commit it, or set Spec source back to Static in Settings.`);
-  const { specs, report } = overlayMeasured(loaded.specs, parseMeasuredSpecs(await client.getBlobText(entry.sha)));
+  const found = await readMeasure(client, treeSha);
+  if (!found) throw new Error(measureMissing('Measured'));
+  const { specs, report } = overlayMeasured(loaded.specs, parseMeasuredSpecs(found.text));
   return { path: loaded.path, specs, measured: report };
 }
 

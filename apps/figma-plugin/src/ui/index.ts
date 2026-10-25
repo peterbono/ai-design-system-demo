@@ -21,7 +21,7 @@ import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classi
 import { type ClaudeDraft, type ClaudeDraftInput, DRAFTED_NOTE } from '../sync/claude';
 import { componentOfSet, loadCodedComponents, sendComponentRequest } from '../sync/requests';
 import { DRAFT_PHRASE, type DraftField, DraftPoller, MY_CLAUDE_NEEDS_WRITE, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, myClaudeAccess, planFill, startMyClaudeDrafts } from '../sync/my-claude';
-import { type LoadedSpecs, type ComponentApplyReport, type ComponentPullPlan, type CoverageView, type PlannedComponent, buildComponentPlan, componentReportView, coverageView, draftedSetNote, pushedInReview, pushedNumbers, specSource } from '../sync/component-pull';
+import { type LoadedSpecs, type ComponentApplyReport, type ComponentPullPlan, type CoverageView, type PlannedComponent, buildComponentPlan, componentReportView, coverageView, draftedSetNote, pushedInReview, pushedNumbers, loadMeasureForFixes, specSource } from '../sync/component-pull';
 import { type FigmaPushStatus, figmaPushStatusesOnGitHub } from '@bridge-ds/core';
 import { type ComponentReview, onlyComponent, reviewUpdates } from '../sync/component-review';
 import type { ComponentSignature } from '../sync/components';
@@ -2523,7 +2523,8 @@ async function checkFidelity(p: PullState): Promise<void> {
         ? {
             reference: {
               manifest: p.shots.manifest,
-              image: async (file: string) => (await getClient().getFileBase64(p.shots!.dir ? `${p.shots!.dir}/${file}` : file, state.init!.settings.branch))?.base64,
+              // The measure branch when the measure was published there (the automatic measure), else the pulled branch.
+              image: async (file: string) => (await getClient().getFileBase64(p.shots!.dir ? `${p.shots!.dir}/${file}` : file, p.shots!.ref ?? state.init!.settings.branch))?.base64,
             },
           }
         : {}),
@@ -2534,6 +2535,12 @@ async function checkFidelity(p: PullState): Promise<void> {
       const lastCompare = JSON.stringify({ ...outcome.report.summary, at: new Date().toISOString() });
       state.init!.sync = { ...state.init!.sync, lastCompare };
       void request('save-sync', { sync: { lastCompare } }).catch(() => undefined);
+    }
+    // Static specs: the measure still lets Claude fix what differs. Read it where every reader looks (the pulled
+    // tree, else the measure branch the automatic measure publishes to); none: the rows say how to turn it on.
+    if (outcome.kind === 'done' && !p.measure && outcome.items.some((it) => it.result.status === 'differs')) {
+      const found = await loadMeasureForFixes(getClient(), p.analysis.headFiles.treeSha).catch(() => undefined);
+      if (found) p.measure = found.measure;
     }
     p.fidelity = { outcome, ...(outcome.kind === 'done' && p.measure ? { gaps: await gapCases(p, outcome.items, built), built } : {}) };
   } catch (err) {
@@ -4615,7 +4622,7 @@ function viewSettings(): View {
                   h('option', { value: 'measured', selected: d.specSource === 'measured' }, 'Static, with measured values'),
                   h('option', { value: 'measured-only', selected: d.specSource === 'measured-only' }, 'Measured in Storybook only'),
                 ),
-                h('small', null, `Measured comes from ${MEASURED_SPECS_FILE} (bridge specs --measure --variants). "Measured only" builds every set from the stories, for a design system without component-specs.json.`),
+                h('small', null, `Measured comes from ${MEASURED_SPECS_FILE} (bridge specs --measure --variants), in the repo or on the bridge-requests branch where the automatic measure publishes it. "Measured only" builds every set from the stories, for a design system without component-specs.json.`),
               ),
             ),
             init.settings.repo

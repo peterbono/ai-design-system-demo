@@ -29,7 +29,8 @@ Usage:
       Bridge tries them, Claude revises with the deltas, up to ${FIX_LOOP_MAX_ROUNDS} rounds; then the closest fixes are
       proposed, or a status fix (Differs, with the reason) when none came closer.
 
-Files (all optional): --measured measured-specs.json, --fidelity figma-fidelity.json (the plugin's Check
+Files (all optional): --measured measured-specs.json (default: in the repo, else on the bridge-requests
+branch where the automatic measure publishes it), --fidelity figma-fidelity.json (the plugin's Check
 fidelity run; default: in the repo, else on the bridge-requests branch), --fixes-file figma-fixes.json.
 The pixel check (the story shot against the real Figma render) runs in the plugin after the next pull.
 ${TOKEN_HELP}
@@ -112,6 +113,7 @@ export async function runGaps(a: RequestArgs, root: string, io: RequestIO = defa
   const ctx = await cliContext(root, io, a, 'read');
   const r = await figmaFixes.figmaGapsOp(ctx, files(a));
   if (has(a, 'json')) return io.print(JSON.stringify(r, null, 2)), 0;
+  if ('say' in r) return io.print([r.say, '', ...(r.steps ?? [])].join('\n')), 0;
   if ('note' in r) io.print(r.note);
   for (const g of r.gaps) io.print(`${g.component}: ${g.status === 'differs' ? 'Differs' : "Can't check"}. ${g.summary}`);
   io.print(`Next: ${r.next}`);

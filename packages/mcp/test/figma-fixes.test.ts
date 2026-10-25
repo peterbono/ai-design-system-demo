@@ -51,9 +51,31 @@ describe('bridge_figma_gaps', () => {
     expect('note' in r && r.note).toMatch(/run Check fidelity, then Fix with Claude/);
   });
 
-  it('without a measure, says how to measure', async () => {
+  it('without a measure anywhere, says so calmly with the one step a developer takes', async () => {
     const gh = fakeGitHub('acme', 'ds', readTree(REPO, REAL_PATHS));
-    await expect(figmaFixes.figmaGapsOp(await BridgeContext.create({ repo: 'acme/ds', fetch: gh.fetch }))).rejects.toThrow(/bridge specs --measure --variants --shots/);
+    const ctx = await BridgeContext.create({ repo: 'acme/ds', fetch: gh.fetch });
+    const r = await figmaFixes.figmaGapsOp(ctx);
+    expect(r).toMatchObject({ status: 'no-measure', say: "Bridge hasn't measured your components yet. A developer turns it on once: Set up automatic measure.", gaps: [] });
+    expect('steps' in r && r.steps.join('\n')).toMatch(/Settings, For developers, Set up automatic measure[\s\S]*npx @bridge-ds\/cli measure setup[\s\S]*bridge-requests/);
+    // The other tools say the same sentence first, never a raw error.
+    await expect(figmaFixes.getGapCaseOp(ctx, { component: 'TextInput' })).rejects.toThrow(/^Bridge hasn't measured your components yet\. A developer turns it on once: Set up automatic measure\.\n/);
+  });
+
+  it('reads the measure the automatic measure published on the requests branch', async () => {
+    const gh = fakeGitHub('acme', 'ds', readTree(REPO, REAL_PATHS));
+    const main = gh.refs.get('main')!;
+    const sha = gh.id();
+    gh.commits.set(sha, { files: new Map([...gh.commits.get(main)!.files, ['measured-specs.json', MEASURED], ['figma-fidelity.json', RUN]]), parents: [main] });
+    gh.refs.set('bridge-requests', sha);
+    const r = await figmaFixes.figmaGapsOp(await BridgeContext.create({ repo: 'acme/ds', fetch: gh.fetch }));
+    expect(r).toMatchObject({ referee: 'shots', measured: 'measured-specs.json on bridge-requests', report: 'figma-fidelity.json on bridge-requests' });
+    expect('gaps' in r && r.gaps.map((g) => g.component)).toEqual(['TextInput', 'IconButton']);
+  });
+
+  it('a measure committed in the repo wins over the published one', async () => {
+    const { ro } = setup();
+    const r = await figmaFixes.figmaGapsOp(await ro());
+    expect(r).toMatchObject({ measured: 'measured-specs.json' });
   });
 });
 

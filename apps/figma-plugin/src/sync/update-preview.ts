@@ -20,7 +20,7 @@ export function codeImageSource(
 ): { path: string; ref: string } | undefined {
   // The stories' own shots (measured specs): the sets are built from them, so they are the incoming version.
   const shot = (shots?.manifest.components[c.componentId] ?? shots?.manifest.components[c.name])?.variants[key];
-  if (shot && 'file' in shot) return { path: shots!.dir ? `${shots!.dir}/${shot.file}` : shot.file, ref: branch };
+  if (shot && 'file' in shot) return { path: shots!.dir ? `${shots!.dir}/${shot.file}` : shot.file, ref: shots!.ref ?? branch };
   // Published code images: made each time a change ships, of the code version they name.
   const entry = refs?.components[c.componentId];
   const ref = entry?.variants[key];

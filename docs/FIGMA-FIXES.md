@@ -177,12 +177,19 @@ tools), `packages/mcp/src/figma-fixes.ts` (the tools), `packages/cli/src/fix.ts`
 
 | File | Where | Written by |
 | --- | --- | --- |
-| `measured-specs.json` | repo root | `bridge specs --measure --variants --shots` |
+| `measured-specs.json`, `measured-shots/` | repo root, else the `bridge-requests` branch | the automatic measure (`.github/workflows/bridge-measure.yml`) publishes to `bridge-requests`; `bridge specs --measure --variants --shots` by hand, committed at the root, wins |
 | `figma-fixes.json` | repo root | the fixes, through reviewed pull requests |
 | `figma-fidelity.json` | repo root, else the `bridge-requests` branch | the plugin's Compare with code run (`FigmaFidelityRun`: the report, plus per set the layers read back and the Figma renders). The plugin's "Copy the report" output works too, passed inline or as a file. |
 
 Without a fidelity run, the gaps come from the measure's own check (`bridge specs --measure --check`), and the gap
 case compares the rebuilt set with the measure only.
+
+Without a measure in either place, the tools never fail with a raw error: `bridge_figma_gaps` (and `bridge gaps`) answer
+`status: "no-measure"` with the sentence the plugin and Studio show, "Bridge hasn't measured your components yet. A
+developer turns it on once: Set up automatic measure.", and the steps (`measureSetupSteps` in
+`packages/core/src/measure-location.ts`); the other tools say the same first. In the plugin, a set that differs gets
+"Ask Claude to fix it" whenever a measure is found (whatever the Spec source), else that sentence and Copy for your
+developer.
 
 ### The two referees
 
