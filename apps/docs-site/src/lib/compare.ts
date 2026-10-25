@@ -191,6 +191,45 @@ export const GROUPS: CompareGroup[] = [
           y('Components are generated from Storybook stories and stay in sync; Dev Mode links each one to its story.'),
         ],
       },
+      {
+        feature: 'Variants and properties set up from code',
+        detail: 'Axes and readable names from the component props',
+        cells: [
+          y('Variant axes and their names come from the props your stories show; a prop that changes nothing on screen is left out.'),
+          n,
+          n,
+          n,
+          n,
+          p('Agent skill, in beta', 'An agent skill reads your component code and creates variant, boolean, text and swap properties, in beta.'),
+          p('You pick the args', 'Variants come from the story args you pick, named after the args; readable names are written by hand in JSON or in the story.'),
+        ],
+      },
+      {
+        feature: 'Primitive and semantic tokens as Figma variables, with modes',
+        detail: 'Aliased across collections, for themes and brands',
+        cells: [
+          y('One collection per tier, from Primitives to Semantic, aliased between them, with a mode per theme and brand.'),
+          y('Theme groups become variable collections, each theme a mode, on the Pro licence. You set up the tiers.', 'Pro licence'),
+          p('Figma import only', 'Keeps aliases and themes, and imports Figma variables; it does not write variables to Figma.'),
+          n,
+          p('Figma import only', 'Imports Figma variables with their aliases and modes; it does not write variables to Figma.'),
+          y('Variable collections with modes and aliases between them, built by hand or by its agent skill. Modes on paid plans.', 'Paid plans'),
+          p('One collection', 'CSS variables become Figma variables in one collection, with modes from a theme global; aliases only where the CSS has them.'),
+        ],
+      },
+      {
+        feature: 'Fix differences between Figma and code',
+        detail: 'When a Figma component no longer matches its code',
+        cells: [
+          y('Your own Claude proposes fixes through the Bridge MCP server or CLI; Bridge checks them against the code and opens them for review.', 'Claude, in your account'),
+          p('Tokens only', 'Push and pull with Git shows when tokens are out of sync; components are not covered.'),
+          n,
+          n,
+          p('Guideline audit only', 'Its MCP and Figma agent connector audit designs and code against your guidelines, not a Figma component against its code.'),
+          p('Agent skill, in beta', 'An agent skill diffs code and Figma and updates what drifted, in beta; it asks you when they disagree.'),
+          p('Vendor support', 'Fixes go through capture settings and selectors, often written by their team on a reported issue; editing in Figma breaks the link to code.'),
+        ],
+      },
     ],
   },
   {
@@ -287,20 +326,29 @@ export const SOURCES: Record<(typeof TOOLS)[number], { label: string; href: stri
   'Tokens Studio': [
     { label: 'Branch reviews', href: 'https://documentation-v2.tokens.studio/branching/branch-reviews.html' },
     { label: 'Pricing', href: 'https://tokens.studio/pricing' },
+    { label: 'Themes to Figma variables', href: 'https://docs.tokens.studio/figma/export/themes' },
+    { label: 'Export to Figma', href: 'https://docs.tokens.studio/figma/export/' },
+    { label: 'Git sync', href: 'https://docs.tokens.studio/token-storage/remote/sync-git-github' },
   ],
   Supernova: [
     { label: 'Pricing', href: 'https://www.supernova.io/pricing' },
     { label: 'Workflows', href: 'https://learn.supernova.io/latest/documentation/documentation-settings/workflows-d6QtSgzV' },
     { label: 'AI prototyping', href: 'https://www.supernova.io/blog/january-2026-product-updates' },
+    { label: 'Figma variables import', href: 'https://learn.supernova.io/latest/design-systems/import-design-system-data/importing-figma-variables/faq-T4yERPk4' },
+    { label: 'Storybook block', href: 'https://learn.supernova.io/latest/documentation/documentation-blocks/code-blocks/storybook-g484aoWs' },
   ],
   Storybook: [
     { label: 'MCP', href: 'https://storybook.js.org/docs/ai/mcp/overview' },
     { label: 'Accessibility tests', href: 'https://storybook.js.org/docs/writing-tests/accessibility-testing' },
     { label: 'Chromatic UI Review', href: 'https://www.chromatic.com/docs/review' },
+    { label: 'Design integrations', href: 'https://storybook.js.org/docs/sharing/design-integrations' },
+    { label: 'Visual tests', href: 'https://storybook.js.org/docs/writing-tests/visual-testing' },
   ],
   zeroheight: [
     { label: 'MCP', href: 'https://zeroheight.com/mcp/' },
     { label: 'Pricing', href: 'https://zeroheight.com/pricing/' },
+    { label: 'Integrations', href: 'https://zeroheight.com/integrations/' },
+    { label: 'Figma agent connector', href: 'https://zeroheight.com/figma-agent-connector/' },
   ],
   Figma: [
     { label: 'Make kits', href: 'https://help.figma.com/hc/en-us/articles/39241689698839-Get-started-with-Make-kits' },
@@ -308,6 +356,9 @@ export const SOURCES: Record<(typeof TOOLS)[number], { label: string; href: stri
     { label: 'Branch review', href: 'https://help.figma.com/hc/en-us/articles/5693123873687-Review-branch-changes' },
     { label: 'Check designs', href: 'https://help.figma.com/hc/en-us/articles/39592284074263-Check-designs-in-Figma' },
     { label: 'Agents on the canvas', href: 'https://www.figma.com/blog/the-figma-canvas-is-now-open-to-agents/' },
+    { label: 'Library from code skill', href: 'https://github.com/figma/mcp-server-guide/blob/main/skills/figma-generate-library/SKILL.md' },
+    { label: 'Variables and modes', href: 'https://help.figma.com/hc/en-us/articles/14506821864087-Overview-of-variables-collections-and-modes' },
+    { label: 'Plans and features', href: 'https://help.figma.com/hc/en-us/articles/360040328273-Figma-plans-and-features' },
   ],
   'story.to.design': [
     { label: 'Features', href: 'https://story.to.design/' },
@@ -316,6 +367,9 @@ export const SOURCES: Record<(typeof TOOLS)[number], { label: string; href: stri
     { label: 'Workflow', href: 'https://story.to.design/docs/incorporate-s2d-in-workflow' },
     { label: 'Dev Mode', href: 'https://story.to.design/docs/dev-mode' },
     { label: 'Pricing', href: 'https://story.to.design/docs/paid-plans' },
+    { label: 'Variants', href: 'https://story.to.design/docs/setup-variants-basic' },
+    { label: 'Variant properties', href: 'https://story.to.design/docs/variant-properties-api' },
+    { label: 'Report a problem', href: 'https://story.to.design/docs/report-an-issue' },
   ],
 };
 

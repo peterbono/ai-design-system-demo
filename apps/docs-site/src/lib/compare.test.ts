@@ -5,10 +5,10 @@ import { ALL_ROWS, AS_OF_LINE, GROUPS, KEY, SHORT, SOURCES, TOOLS, cellText } fr
 const marks = (row: { cells: { state: string }[] }) => row.cells.map((c) => c.state[0]).join('');
 
 describe('comparison (homepage and /compare/)', () => {
-  it('keeps seven rows up front and twelve more by group', () => {
+  it('keeps seven rows up front and fifteen more by group', () => {
     expect(SHORT).toHaveLength(7);
     expect(GROUPS.map((g) => [g.name, g.rows.length])).toEqual([
-      ['Tokens and Figma', 3],
+      ['Tokens and Figma', 6],
       ['Review and history', 3],
       ['Code and docs', 4],
       ['AI', 1],
@@ -74,6 +74,28 @@ describe('comparison (homepage and /compare/)', () => {
     expect(last('Figma kit built from code, with a fidelity check').short).toBe('No fidelity check');
     expect(last('Two-way sync between Figma variables and code').short).toBe('Code to Figma only');
     expect(last('Free, with every feature').state).toBe('no');
+  });
+
+  it('compares variants from code, two-tier variables and fixing drift in the full table only, crediting each tool', () => {
+    const row = (f: string) => ALL_ROWS.find((r) => r.feature === f)!;
+    const rows = ['Variants and properties set up from code', 'Primitive and semantic tokens as Figma variables, with modes', 'Fix differences between Figma and code'];
+    for (const f of rows) {
+      expect(SHORT.some((r) => r.feature === f), f).toBe(false);
+      expect(GROUPS[0].rows.some((r) => r.feature === f), f).toBe(true);
+    }
+    expect(marks(row(rows[0]))).toBe('ynnnnpp');
+    expect(marks(row(rows[1]))).toBe('yypnpyp');
+    expect(marks(row(rows[2]))).toBe('ypnnppp');
+    expect(row(rows[1]).cells[1].short).toBe('Pro licence');
+    expect(row(rows[2]).cells.map((c) => c.short)).toEqual([
+      'Claude, in your account',
+      'Tokens only',
+      undefined,
+      undefined,
+      'Guideline audit only',
+      'Agent skill, in beta',
+      'Vendor support',
+    ]);
   });
 
   it('has a legend for each mark, none for the worded partial cells, and a date', () => {
