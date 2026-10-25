@@ -6,6 +6,7 @@ import { isWorkflowRefusal, MEASURE_WORDS, measureSentence, measureSetupProposal
 describe('the measure sentence', () => {
   it('measured: the day; set up and waiting: its first run; none: the calm sentence with the next step', () => {
     expect(measureSentence(measureState({ date: '2026-10-25T23:10:00Z' }, true))).toBe('Bridge measured your components on Oct 25, 2026. Claude uses it to fix what differs in Figma.');
+    expect(measureSentence(measureState({ date: '2026-10-25T23:10:00Z' }, false))).toBe('Bridge measured your components once, on Oct 25, 2026. A developer keeps it fresh: Set up automatic measure.');
     expect(measureSentence(measureState(undefined, true))).toBe(MEASURE_WORDS.waiting);
     expect(measureSentence(measureState(undefined, false))).toBe("Bridge hasn't measured your components yet. A developer turns it on once: Set up automatic measure.");
     expect(measureSentence({ kind: 'unknown' })).toMatch(/Try again in a minute/);

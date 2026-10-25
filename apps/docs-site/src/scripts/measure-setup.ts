@@ -24,9 +24,8 @@ export async function readMeasureState(): Promise<MeasureState> {
   const last = await gh
     .listCommits({ sha: MEASURE_BRANCH, path: DEFAULT_MEASURED_SPECS_FILE, perPage: 1 })
     .then((c) => c[0], (e) => (missing(e) ? undefined : Promise.reject(e)));
-  if (last) return measureState(last, true);
   const workflow = await gh.readFile(MEASURE_WORKFLOW_FILE, repo.defaultBranch).catch(() => undefined);
-  return measureState(undefined, workflow !== undefined);
+  return measureState(last, workflow !== undefined);
 }
 
 /** The workflow for this team, from its bridge.config.json on the default branch (defaults without one). */
