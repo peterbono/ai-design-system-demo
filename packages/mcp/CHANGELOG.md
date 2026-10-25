@@ -1,5 +1,138 @@
 # @bridge-ds/mcp
 
+## 0.9.0
+
+### Minor Changes
+
+- 4fb54b4: Marking a Figma change drafted (`bridge_mark_figma_change_drafted`, `bridge figma drafted <n>`) now also marks its pull request ready for review, in the same step, through GitHub's `markPullRequestReadyForReview` mutation. Ready goes first: when GitHub refuses it, the labels and the description stay as they were and the error says why, so a branch is never labelled `drafted-by-claude` while reviewers cannot see it. `markFigmaChangeDraftedOnGitHub` returns `ready: true`.
+
+  The Bridge MCP server (and `bridge mcp`) uses your gh sign-in (`gh auth token`) when `GITHUB_TOKEN` and `BRIDGE_GITHUB_TOKEN` are not set, and says once at start where its token came from, or that it runs without one (read-only, 60 requests an hour) and how to fix that. It never logs the token. The other CLI commands keep their rule: writes use your gh sign-in only with `--use-gh-auth`.
+
+- 625a692: Try it works without online previews: when nothing reported a deployment for an exploration (explorations and library branches are not deployed on Vercel any more), the Figma plugin says a developer opens it on their computer, the share message gives `git fetch origin && git switch <branch>`, polling stops, and `bridge branch try` / bridge_try_branch return the same local command (`local`). New core helpers: noOnlinePreview, localTryCommand.
+
+### Patch Changes
+
+- 7eb8a27: A hosting platform that refused to run (Vercel "Deployment rate limited") no longer counts as a failed check, and a failed check no longer stops "where is my push" polling: a re-run can still ship it.
+- 3364ee9: Build requests in the CLI and the MCP server: `bridge build list|show` and `bridge_list_build_requests` /
+  `bridge_get_build_request` (read only, status read from GitHub, the brief for Claude). Branch status, merge and
+  "what needs me" read a push from the Figma plugin with the shared gate (design approved, token values ship by
+  themselves). Core: a spec-only or Claude draft branch from Figma never ships by itself.
+- e52619d: The bridge CLI never writes on GitHub with a credential you did not pass: writes (suggestions, requests, reviews, comments, merges, branches) use `GITHUB_TOKEN`, `BRIDGE_GITHUB_TOKEN` or `--token`, or your gh sign-in only with `--use-gh-auth`. Reads may still use the gh sign-in, say so in one line on stderr, and cannot write. `bridge branch merge --dry-run` needs no write token. A merge the gate blocks exits 1, not 2, and `bridge --help` documents the exit codes. CLI messages name commands and flags (`bridge branch merge 12 --override "why"`), never MCP tools or JSON fields, the rate-limit message says how to pass a token in the CLI, and suggestions, pull requests and docs proposals made from the CLI say "the bridge CLI" and "source: cli". `bridge_get_config`, the server instructions and its start line say what Bridge may write in the same sentence. `bridge docs help`, `bridge brand help` and `-v`/`-h` work, `bridge tokens` says when it shows only the best matches (`--limit`), `bridge diff` explains a bad git ref, `bridge coverage` counts the 53 components once and says what the other numbers are, `bridge audit --fix` keeps what the audit keeps (ignore comments, `--allowlist`, `audit.exclude`) and takes `--json`, and a Figma change drafted by Claude no longer says so twice.
+- ea27992: Designer words: screens a designer reads say "change" and "library", never branch, merge or main. The share and
+  product-branch sentences of `@bridge-ds/core` (`shareDescription`, `SHARE_EXPLAIN`, `libraryPreviewState`,
+  `productBranchSentence`) now read "This change was added to the library", "Your feature uses a preview of the library
+  change". The MCP fallback share sentence follows. ChoiceCard docs examples say "your change". Gate reasons, status
+  labels and developer texts (CLI, MCP, GitHub) keep their git words.
+- f7751a1: Fix with Claude: the team's own Claude fixes components whose Figma build differs from their story, Bridge is the
+  referee and a person approves; Bridge holds no API key. Core: `figmaGaps`, `gapCaseFor`, `tryFigmaFixes` (the values
+  referee: fixes validated, laid on the measure, the set rebuilt, each differing variant compared with the code before
+  and after, verdict closer, same or worse), `figmaFixesPrBody`, `fixPrompt` and `parseFixReply`, `FigmaFidelityRun`
+  (`figma-fidelity.json`), and `specsFromMeasure` (the plugin's measured-only pull, now in core). MCP:
+  `bridge_figma_gaps`, `bridge_get_gap_case`, `bridge_try_figma_fix` and `bridge_propose_figma_fixes` (a draft pull
+  request labelled drafted-by-claude). CLI: `bridge gaps` and `bridge fix <component>` (`--case`, `--try`, `--propose`,
+  and `--with-claude` with the team's ANTHROPIC_API_KEY). See docs/FIGMA-FIXES.md.
+- 0b3aa07: One merge verdict everywhere: `branchVerdict` and `approvedSuggestionOnGitHub` in core compose the review rules once, and Studio, the MCP tools (`bridge_branch_status`, `bridge_merge_branch`, `bridge_what_needs_me`, `bridge_get_settings`) and the CLI (`bridge branch status|merge|list`, `bridge settings`) read them. Tier 1 needs one owner approval, the owner override is for owners only and always needs a reason (20 characters by default), and a pull request that applies an approved suggestion with `Closes #n` carries its approvals.
+- 1635400: A branch updated after a changes request waits on the reviewer who asked: core `lookAgainReviewers`, `Review.commitId` from `listReviews`; Studio says "Your turn: look again" to that reviewer and lists it on their home, the author no longer reads "Your turn: address changes"; `bridge_branch_status` gives `approvals.lookAgain` and the next step, `bridge_what_needs_me` says "Look again: updated after your changes".
+- 57f26bf: A branch updated after every changes request reads "Updated, look again" (core reviewStatusLabel, branchVerdict label) in Studio, the MCP server and the CLI, never a stale "Changes requested". The merge gate is unchanged. Studio's approval checklist says who looks again instead of "Failed".
+- 0b415fd: MCP server: the README lists every tool, generated from the server (`npm run readme:tools -w @bridge-ds/mcp`), and a test fails when they disagree. `bridge_plan_revert` lists 50 edits, conflicts and changes at a time with the totals (`limit`, `offset`) and cuts a very long PR body; `bridge_draft_docs` returns its prompt in pages (`page`) with a summary first. The docs draft lists only the contrast pairs the component takes part in (both sides among the tokens it reads, aliases followed), not every pair that shares a surface with it. `/llms.txt` no longer links the missing `/foundations/` page and links `/tokens.css` and each component's `/docs-ai/<component>.json`.
+- b822435: A merged or closed branch reads as done everywhere: the merge gate gives its state as the one reason and lists no missing approval; `bridge branch status` prints "Merged." and who approved, without approvals, tests or blockers.
+- d54ace8: Fix with Claude: a part fix that sizes, places or lays out a part (width, height, direction, align, overlay) opens for
+  review even when the values referee says same. The referee can't judge layout; the pull request body says so and that
+  Check fidelity decides. A fix that goes the wrong way is still refused.
+- 2b01116: A branch opened from Figma and labelled drafted-by-claude reads as ready for review even while GitHub still calls it a draft (core isDraft, claudeStage), in Studio, the MCP server and the CLI alike; merging it marks it ready first. Studio says where Claude stands: a developer builds it before the draft, the owners review it after.
+- 80ee954: Token value changes ship by themselves once the design approval is in (decision TV-1). `branchVerdict` takes
+  `autoMerge` (GitHub `auto_merge` set): a design-approved token value change whose merge Bridge armed reads `autoShip`,
+  "On its way to the library". `GitHubClient.getPullRequest` returns `autoMerge`, and `bridge_branch_status` says Bridge
+  merges it once the automatic checks pass.
+- d8e5e84: Token values follow the Figma rule wherever they are made (decision TV-1): a pull request or a suggestion that only
+  changes token values (values changed or tokens added, nothing renamed or removed, no code) needs the design approval
+  only. Once it is in, the tech approval counts as given and the change ships after the automatic checks
+  (`isTokenValueChange`, `mayBeTokenValueChange`, `withTokenValueApprovals`, `branchVerdict` `tokenValues`,
+  `suggestionIsTokenValues`, `summarizeSuggestionApprovals` `valuesOnly`, `requiredApprovals(tier, valuesOnly)`).
+  Renames and removals still need a developer OK. Studio, the MCP server and the CLI read the same verdict
+  (`bridge_branch_status` says "Design approval (token values ship after the checks)").
+- Updated dependencies [fbf7f55]
+- Updated dependencies [7eb8a27]
+- Updated dependencies [401cdcc]
+- Updated dependencies [efb3281]
+- Updated dependencies [3364ee9]
+- Updated dependencies [d89f7b7]
+- Updated dependencies [57b8d89]
+- Updated dependencies [afd9ba2]
+- Updated dependencies [4fd6e15]
+- Updated dependencies [e52619d]
+- Updated dependencies [48ee872]
+- Updated dependencies [af6e3e9]
+- Updated dependencies [ea27992]
+- Updated dependencies [e65d3ee]
+- Updated dependencies [4fb54b4]
+- Updated dependencies [e806350]
+- Updated dependencies [f5cfbf0]
+- Updated dependencies [02d38ad]
+- Updated dependencies [8919183]
+- Updated dependencies [7b9e2c2]
+- Updated dependencies [7c52639]
+- Updated dependencies [afa59e8]
+- Updated dependencies [eb4ace6]
+- Updated dependencies [0ed940f]
+- Updated dependencies [9be32eb]
+- Updated dependencies [e075f3b]
+- Updated dependencies [fe906a6]
+- Updated dependencies [a83618b]
+- Updated dependencies [7f6064b]
+- Updated dependencies [f7751a1]
+- Updated dependencies [60388db]
+- Updated dependencies [4f3102a]
+- Updated dependencies [e9fd0c7]
+- Updated dependencies [0b3aa07]
+- Updated dependencies [dd97e25]
+- Updated dependencies [9d0dc16]
+- Updated dependencies [a9cbbab]
+- Updated dependencies [1635400]
+- Updated dependencies [57f26bf]
+- Updated dependencies [30e8c14]
+- Updated dependencies [4c8a5dc]
+- Updated dependencies [43b6e31]
+- Updated dependencies [d37207a]
+- Updated dependencies [db8e449]
+- Updated dependencies [4dc69ae]
+- Updated dependencies [e4c34ee]
+- Updated dependencies [ce6a8c7]
+- Updated dependencies [fd0191c]
+- Updated dependencies [4d61987]
+- Updated dependencies [1c4e347]
+- Updated dependencies [44f49ff]
+- Updated dependencies [07380d7]
+- Updated dependencies [b822435]
+- Updated dependencies [c0731d6]
+- Updated dependencies [d54ace8]
+- Updated dependencies [d199eb5]
+- Updated dependencies [96acdf2]
+- Updated dependencies [d157472]
+- Updated dependencies [eb4d6ce]
+- Updated dependencies [8403d3d]
+- Updated dependencies [f198e92]
+- Updated dependencies [2b01116]
+- Updated dependencies [27dff7f]
+- Updated dependencies [c46846d]
+- Updated dependencies [efa01d6]
+- Updated dependencies [d8848ff]
+- Updated dependencies [7f9930c]
+- Updated dependencies [9ec466a]
+- Updated dependencies [d8c7494]
+- Updated dependencies [fb3815b]
+- Updated dependencies [306774c]
+- Updated dependencies [5309e2e]
+- Updated dependencies [4aa0cd7]
+- Updated dependencies [80ee954]
+- Updated dependencies [df92fcf]
+- Updated dependencies [d8e5e84]
+- Updated dependencies [fe5fb1b]
+- Updated dependencies [2d89e58]
+- Updated dependencies [625a692]
+  - @bridge-ds/core@0.19.0
+  - @bridge-ds/visual@0.3.13
+
 ## 0.8.5
 
 ### Patch Changes
