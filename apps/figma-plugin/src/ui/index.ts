@@ -260,7 +260,8 @@ interface State {
   claudeMessage?: { kind: 'ok' | 'error'; text: string } | undefined;
   /** Which setup snippet was just copied in Settings. */
   claudeCopied?: string | undefined;
-  settingsMessage?: { kind: 'ok' | 'error'; text: string } | undefined;
+  /** `field`: the error belongs to that field and shows under it (the cause and the fix, next to what to change). */
+  settingsMessage?: { kind: 'ok' | 'error'; text: string; field?: SettingsField | undefined } | undefined;
   /** The saved token can read but not write what this repo needs: the token card says "Read only", not "Connected". */
   tokenReadOnly?: boolean | undefined;
   expanded: Set<string>;
@@ -269,6 +270,21 @@ interface State {
   /** "Sign in with Bridge": waiting for the designer in Studio (with the page to reopen), or why it stopped. */
   link?: { status: 'waiting'; url: string; poller: BridgeSignInPoller } | { status: 'error'; message: string } | undefined;
 }
+
+type SettingsField = 'repo' | 'branch' | 'tokensPath' | 'token';
+
+/** A settings problem that belongs to one field: shown under it, not in a callout far from it. */
+class FieldError extends Error {
+  constructor(
+    readonly field: SettingsField,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** GitHub's 404 on the repository: it does not exist, or this sign-in cannot see it. Cause and fix in one sentence. */
+const repoNotFound = (repo: string) => `Bridge can't find ${repo}. Check the name, or ask an admin of the design system to give you access.`;
 
 interface ActionBar {
   label: string;
@@ -1283,12 +1299,17 @@ function saveSettings(): void {
   state.settingsMessage = undefined;
   void run('Checking access to the repository', async () => {
     try {
-      if (!draft.repo.trim()) throw new Error('Paste the GitHub repository of your design system, for example acme/design-system.');
+      if (!draft.repo.trim()) throw new FieldError('repo', 'Paste the GitHub repository of your design system, for example acme/design-system.');
       // A pasted GitHub link works too: stored as owner/name.
-      const parsed = parseRepo(draft.repo);
+      let parsed: ReturnType<typeof parseRepo>;
+      try {
+        parsed = parseRepo(draft.repo);
+      } catch {
+        throw new FieldError('repo', 'Write the repository as owner/name, for example acme/design-system, or paste its GitHub link.');
+      }
       draft.repo = `${parsed.owner}/${parsed.name}`;
-      if (!draft.branch.trim()) throw new Error('Enter a base branch, for example main.');
-      if (!draft.tokensPath.trim()) throw new Error('Enter the folder that holds the *.tokens.json files, for example packages/tokens/src.');
+      if (!draft.branch.trim()) throw new FieldError('branch', 'Enter a base branch, for example main.');
+      if (!draft.tokensPath.trim()) throw new FieldError('tokensPath', 'Enter the folder that holds the *.tokens.json files, for example packages/tokens/src.');
       const newToken = state.tokenDraft.trim();
       const token = newToken || state.init?.token;
       let message = 'Settings saved. Add a token to connect.';
@@ -1297,14 +1318,15 @@ function saveSettings(): void {
         const info = await gh.getRepo().catch((err: unknown) => {
           // A token just pasted that GitHub refuses never worked; the saved one stopped working.
           if (tokenProblem(err)?.kind === 'rejected') {
-            if (newToken) throw new Error(NEW_TOKEN_REFUSED);
+            if (newToken) throw new FieldError('token', NEW_TOKEN_REFUSED);
             setTokenState('rejected');
             state.expanded.add('token-replace');
-            throw new Error(`${TOKEN_REJECTED_DETAIL} Paste a new token to replace it.`);
+            throw new FieldError('token', `${TOKEN_REJECTED_DETAIL} Paste a new token to replace it.`);
           }
+          if ((err as { status?: unknown }).status === 404) throw new FieldError('repo', repoNotFound(draft.repo));
           throw err;
         });
-        if (!(await gh.getBranchSha(draft.branch.trim()))) throw new Error(`Branch "${draft.branch.trim()}" does not exist in ${info.fullName}.`);
+        if (!(await gh.getBranchSha(draft.branch.trim()))) throw new FieldError('branch', `There is no "${draft.branch.trim()}" branch in ${info.fullName}. Check the name, for example main.`);
         // What the token may write, probed without writing (the user's role on the repo says nothing about a
         // fine-grained token). Suggestions need Issues only; direct mode needs Contents and Pull requests too.
         // Refused before saving: the token that works stays.
@@ -1324,7 +1346,7 @@ function saveSettings(): void {
         else if (!missing.length) state.tokenReadOnly = false;
         if (missing.length) {
           const list = missing.length > 1 ? `${missing.slice(0, -1).join(', ')} and ${missing[missing.length - 1]}` : missing[0];
-          throw new Error(`This token can read ${info.fullName} but cannot ${mode === 'direct' ? 'send changes to it' : 'open suggestions on it'}. Give it ${list} set to "Read and write" on GitHub, then paste it again.`);
+          throw new FieldError('token', `This token can read ${info.fullName} but cannot ${mode === 'direct' ? 'send changes to it' : 'open suggestions on it'}. Give it ${list} set to "Read and write" on GitHub, then paste it again.`);
         }
         // Read-only on code is enough when the repo takes suggestions (issues only).
         const readOnly = mode === 'suggest' && !can.contents;
@@ -1341,7 +1363,8 @@ function saveSettings(): void {
       state.push = undefined;
       state.settingsMessage = { kind: 'ok', text: message };
     } catch (err) {
-      state.settingsMessage = { kind: 'error', text: errorText(err) };
+      // Nothing was saved: the connected design system, its results on Pull and Push, and the header stay as they were.
+      state.settingsMessage = err instanceof FieldError ? { kind: 'error', text: err.message, field: err.field } : { kind: 'error', text: errorText(err) };
     }
   });
 }
@@ -4090,14 +4113,19 @@ function viewSettings(): View {
   const bridgeSignIn = init.tokenSource === 'bridge';
   // The token field shows without a token, or after "Replace token".
   const tokenField = !init.hasToken || state.expanded.has('token-replace');
-  const field = (label: string, key: 'repo' | 'branch' | 'tokensPath', hint: string, placeholder: string) =>
-    h(
+  const fieldError = (key: SettingsField) => (state.settingsMessage?.kind === 'error' && state.settingsMessage.field === key ? state.settingsMessage.text : undefined);
+  // A save that failed leaves nothing checked: no "Connected" next to the error it just gave.
+  const unsure = state.settingsMessage?.kind === 'error';
+  const field = (label: string, key: 'repo' | 'branch' | 'tokensPath', hint: string, placeholder: string) => {
+    const error = fieldError(key);
+    return h(
       'label',
       { class: 'field' },
       h('span', null, label),
-      h('input', { type: 'text', value: d[key], placeholder, spellcheck: 'false', autocomplete: 'off', onInput: (e: Event) => (d[key] = (e.target as HTMLInputElement).value) }),
-      h('small', null, hint),
+      h('input', { type: 'text', value: d[key], placeholder, spellcheck: 'false', autocomplete: 'off', 'aria-invalid': error ? 'true' : undefined, 'data-focus-id': `field-${key}`, onInput: (e: Event) => (d[key] = (e.target as HTMLInputElement).value) }),
+      error ? h('small', { class: 'form-error', role: 'alert' }, icon('alert'), error) : h('small', null, hint),
     );
+  };
   return {
     body: [
       connected() ? null : intro({ title: 'Connect your design system', text: 'Which design system does this file use? Paste its GitHub repository, then a token. Nothing is written until you send your edits.', art: 'guide', moment: 'welcome' }),
@@ -4111,7 +4139,7 @@ function viewSettings(): View {
             field('GitHub repository', 'repo', 'The repository that holds your design system, as in its GitHub address.', 'owner/name or a GitHub link'),
             h(
               'details',
-              { class: 'notes dev-details' },
+              { class: 'notes dev-details', open: !!fieldError('branch') || !!fieldError('tokensPath') },
               h('summary', null, 'For developers'),
               field('Base branch', 'branch', 'Updates read from it; changes sent for review target it.', 'main'),
               field('Tokens folder', 'tokensPath', "Used when the design system has no bridge.config.json to say where its tokens are.", 'tokens'),
@@ -4140,7 +4168,7 @@ function viewSettings(): View {
               'div',
               { class: 'token-row' },
               h('span', { class: 'opt-text' }, h('span', { class: 'opt-title' }, 'Design system'), h('small', { class: 'mono-line' }, init.settings.repo)),
-              h('span', { class: 'opt-status ok' }, icon('check'), 'Connected'),
+              unsure ? null : h('span', { class: 'opt-status ok' }, icon('check'), 'Connected'),
             ),
             forDevelopers([['Branch', init.settings.branch], ['Tokens folder', init.settings.tokensPath], ['Spec source', init.settings.specSource === 'measured' ? 'Static, with measured values' : init.settings.specSource === 'measured-only' ? 'Measured in Storybook only' : undefined]]),
             h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', 'data-focus-id': 'repo-edit', onClick: () => { state.expanded.add('repo-edit'); render(); } }, 'Edit')),
@@ -4164,8 +4192,11 @@ function viewSettings(): View {
                 ? h('span', { class: 'opt-status warn' }, icon('alert'), 'Stopped working')
                 : state.tokenReadOnly
                   ? h('span', { class: 'opt-status warn', title: 'It can read the design system but not send changes. Replace it with a token that has "Read and write".' }, icon('alert'), 'Read only')
-                  : h('span', { class: 'opt-status ok' }, icon('check'), 'Connected'),
+                  : unsure
+                    ? null
+                    : h('span', { class: 'opt-status ok' }, icon('check'), 'Connected'),
             ),
+            tokenError() && !tokenField ? h('p', { class: 'form-error', role: 'alert' }, icon('alert'), tokenError()) : null,
             tokenField
               ? tokenInput('New fine-grained token', 'Replaces the saved one when you save. Stays on this computer, never in the file.')
               : null,
@@ -4190,7 +4221,7 @@ function viewSettings(): View {
             // The permissions are for whoever creates the token: folded.
             h('details', { class: 'notes dev-details' }, h('summary', null, 'Creating the token yourself?'), h('p', { class: 'muted' }, tokenHelp(state.push ? changesModeOf(state.push.analysis) : undefined))),
           ),
-      state.settingsMessage
+      state.settingsMessage && !state.settingsMessage.field
         ? h(
             'div',
             { class: `callout ${state.settingsMessage.kind === 'ok' ? 'ok' : 'error'}`, role: state.settingsMessage.kind === 'error' ? 'alert' : 'status' },
@@ -4218,10 +4249,14 @@ function tokenInput(label: string, hint: string): HTMLElement {
       'data-focus-id': 'token-input',
       placeholder: 'github_pat_...',
       onInput: (e: Event) => (state.tokenDraft = (e.target as HTMLInputElement).value),
+      'aria-invalid': tokenError() ? 'true' : undefined,
     }),
-    h('small', null, hint),
+    tokenError() ? h('small', { class: 'form-error', role: 'alert' }, icon('alert'), tokenError()) : h('small', null, hint),
   );
 }
+
+/** The last save's error about the token, shown under the token field. */
+const tokenError = () => (state.settingsMessage?.kind === 'error' && state.settingsMessage.field === 'token' ? state.settingsMessage.text : undefined);
 
 /** A setup snippet: `text` on screen, `copy` on the clipboard (the same text with the saved token in place). */
 function snippet(id: string, label: string, text: string, copy = text): HTMLElement {

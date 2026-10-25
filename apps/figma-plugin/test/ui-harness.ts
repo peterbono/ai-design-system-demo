@@ -80,6 +80,8 @@ export async function openPlugin(o: Open = {}): Promise<Harness> {
   const g = globalThis as Record<string, unknown>;
   for (const k of ['window', 'document', 'HTMLElement', 'HTMLInputElement', 'HTMLTextAreaElement', 'HTMLSelectElement', 'HTMLDetailsElement', 'HTMLButtonElement', 'Node', 'Event', 'KeyboardEvent', 'MouseEvent', 'MessageEvent', 'CustomEvent', 'getComputedStyle', 'location']) g[k] = (w as unknown as Record<string, unknown>)[k];
   g.parent = w;
+  // Layout calls jsdom does not implement.
+  (w as unknown as { HTMLElement: { prototype: { scrollIntoView(): void } } }).HTMLElement.prototype.scrollIntoView = () => undefined;
   g.addEventListener = w.addEventListener.bind(w);
   g.navigator = { clipboard: { writeText: async () => undefined }, onLine: true };
   const calls: string[] = [];
