@@ -101,6 +101,13 @@ export class FakeGitHub {
         const f = self.contents.get(`${ref}:${path}`);
         return f ? { text: f.text, sha: f.sha } : undefined;
       },
+      // The raw media type (no 1 MB limit): files written through the contents API, else the branch's commit.
+      async getRawText(path: string, ref: string) {
+        const f = self.contents.get(`${ref}:${path}`);
+        if (f) return f.text;
+        const head = self.branches.get(ref);
+        return head ? self.commits.get(head)?.files[path] : undefined;
+      },
       async putFile(input: { path: string; content: string; branch: string; message: string; sha?: string }) {
         if (!self.branches.has(input.branch)) throw Object.assign(new Error(`No branch ${input.branch}`), { status: 404 });
         const key = `${input.branch}:${input.path}`;

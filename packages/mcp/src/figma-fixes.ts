@@ -15,6 +15,10 @@ import {
   FIX_LOOP_MAX_ROUNDS,
   FIX_SCHEMA_SUMMARY,
   figmaFixesProposal,
+  findMeasure,
+  MeasureMissingError,
+  MEASURE_MISSING_TEXT,
+  measureFromWords,
   figmaGaps,
   FigmaFixesError,
   gapCaseFor,
@@ -50,6 +54,8 @@ export interface FixFilesArgs {
 export interface FixFiles {
   measured: MeasuredSpecsFile;
   measuredPath: string;
+  /** Where the measure came from, in words: "measured-specs.json", or "measured-specs.json on bridge-requests". */
+  measuredFrom: string;
   fixes?: FigmaFixesFile | undefined;
   fixesPath: string;
   run?: FigmaFidelityRun | undefined;
@@ -57,17 +63,29 @@ export interface FixFiles {
   runFrom?: string | undefined;
 }
 
-/** Reads the measure, the team's fixes and the fidelity run (the repo, else the requests branch the plugin writes to). */
+/**
+ * Reads the measure (the repo, else the measure branch the automatic measure publishes to), the team's fixes and the
+ * fidelity run (the repo, else the requests branch the plugin writes to). No measure: MeasureMissingError, whose
+ * message is the designer sentence and the steps to turn the automatic measure on.
+ */
 export async function loadFixFiles(ctx: BridgeContext, a: FixFilesArgs): Promise<FixFiles> {
   const measuredPath = a.measured ?? MEASURED_SPECS_FILE;
-  const text = await ctx.source.read(measuredPath);
-  if (text === null || text === undefined)
-    throw new Error(`No ${measuredPath} in the repo: measure the stories first (\`bridge specs --measure --variants --shots --storybook <url>\`), then pull in the DS Bridge Figma plugin and run Check fidelity.`);
+  const gh = await ctx.github().catch(() => null);
+  const found = await findMeasure(
+    {
+      repo: (path) => ctx.source.read(path),
+      // getRawText: a measure of every variant is over the 1 MB the contents API inlines.
+      ...(gh ? { branch: (path: string, branch: string) => gh.getRawText(path, branch) } : {}),
+    },
+    measuredPath,
+  );
+  if (!found) throw new MeasureMissingError(gh ? `${gh.owner}/${gh.name}` : undefined, [`Until then, measure by hand: bridge specs --measure --storybook <url> --variants --shots, then commit ${measuredPath}.`]);
+  const measuredFrom = measureFromWords(found);
   let measured: MeasuredSpecsFile;
   try {
-    measured = parseMeasuredSpecsFile(text);
+    measured = parseMeasuredSpecsFile(found.text);
   } catch (e) {
-    throw new Error(`${measuredPath}: ${(e as Error).message}. Measure again with bridge specs --measure.`);
+    throw new Error(`${measuredFrom}: ${(e as Error).message}. Measure again with bridge specs --measure.`);
   }
   const fixesPath = a.fixesFile ?? DEFAULT_FIGMA_FIXES_FILE;
   const fixesText = await ctx.source.read(fixesPath);
@@ -94,7 +112,6 @@ export async function loadFixFiles(ctx: BridgeContext, a: FixFilesArgs): Promise
     } else if (typeof a.fidelity === 'string') throw new Error(`No fidelity report at ${path}.`);
     else {
       // The plugin saves its Check fidelity run on the requests branch, where the designer's Claude reads it.
-      const gh = await ctx.github().catch(() => null);
       const remote = gh ? await gh.getFileText(DEFAULT_FIDELITY_RUN_FILE, REQUESTS_BRANCH).catch(() => undefined) : undefined;
       if (remote) {
         run = parseFidelityRun(remote);
@@ -102,21 +119,28 @@ export async function loadFixFiles(ctx: BridgeContext, a: FixFilesArgs): Promise
       }
     }
   }
-  return { measured, measuredPath, fixes, fixesPath, run, runFrom };
+  return { measured, measuredPath, measuredFrom, fixes, fixesPath, run, runFrom };
 }
 
 const NO_RUN = `No Check fidelity report found (${DEFAULT_FIDELITY_RUN_FILE} in the repo or on ${REQUESTS_BRANCH}): the list comes from the measure's own check. In the DS Bridge Figma plugin, pull, run Check fidelity, then Fix with Claude (or Copy the report and pass it).`;
 
 /** bridge_figma_gaps / `bridge gaps`: the components whose Figma build differs from their story, or cannot be checked. */
 export async function figmaGapsOp(ctx: BridgeContext, a: FixFilesArgs = {}) {
-  const files = await loadFixFiles(ctx, a);
+  let files: FixFiles;
+  try {
+    files = await loadFixFiles(ctx, a);
+  } catch (e) {
+    // No measure yet: not an error to the person, a step a developer takes once. Say it as is.
+    if (e instanceof MeasureMissingError) return { status: 'no-measure', say: MEASURE_MISSING_TEXT, steps: e.steps, gaps: [] };
+    throw e;
+  }
   const fixed = files.fixes ? applyFixes(files.measured, files.fixes).file : files.measured;
   const gaps = figmaGaps(fixed, files.run);
   const differs = gaps.filter((g) => g.status === 'differs').length;
   return {
     referee: files.run ? 'shots' : 'values',
     ...(files.runFrom ? { report: files.runFrom, checkedAt: files.run!.report.checkedAt || undefined } : { note: NO_RUN }),
-    measured: files.measuredPath,
+    measured: files.measuredFrom,
     gaps,
     next: differs
       ? say(ctx, `Fix one: bridge_get_gap_case { component: "${gaps[0]!.component}" }, then bridge_try_figma_fix (at most ${FIX_LOOP_MAX_ROUNDS} rounds), then bridge_propose_figma_fixes.`, `Fix one: \`bridge fix ${gaps[0]!.component} --with-claude\`, or \`bridge fix ${gaps[0]!.component} --case\` to read its gap case.`)
@@ -139,7 +163,7 @@ export async function getGapCaseOp(ctx: BridgeContext, a: FixFilesArgs & { compo
   const files = await loadFixFiles(ctx, a);
   const { gap, spec } = gapCaseFor({ component: a.component, measured: files.measured, fixes: files.fixes, run: files.run });
   if (!spec && !files.measured.stories.some((s) => lc(s.title.split('/').at(-1)!) === lc(a.component)))
-    throw new Error(`No measured story of ${a.component} in ${files.measuredPath}. Measure it with \`bridge specs --measure --variants --shots --only ${a.component}\`.`);
+    throw new Error(`No measured story of ${a.component} in ${files.measuredFrom}. Measure it with \`bridge specs --measure --variants --shots --only ${a.component}\`.`);
   const used = roundsOf(ctx).get(lc(a.component)) ?? 0;
   return {
     gap,

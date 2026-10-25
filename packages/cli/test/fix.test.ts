@@ -72,6 +72,15 @@ function fakeModel(replies: string[]): FixModel & { prompts: string[] } {
 }
 
 describe('bridge gaps', () => {
+  it('without a measure anywhere: the calm sentence and how to turn the automatic measure on, exit 0', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'bridge-test-fix-'));
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root });
+    const o = io();
+    expect(await runGaps(args('gaps'), root, o.value)).toBe(0);
+    expect(o.text().split('\n')[0]).toBe("Bridge hasn't measured your components yet. A developer turns it on once: Set up automatic measure.");
+    expect(o.text()).toMatch(/npx @bridge-ds\/cli measure setup/);
+  });
+
   it('lists the components that differ or cannot be checked', async () => {
     const o = io();
     expect(await runGaps(args('gaps'), repo(), o.value)).toBe(0);

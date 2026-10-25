@@ -798,7 +798,7 @@ export function createServer(ctx: BridgeContext): McpServer {
 
   // --- Fix with Claude: the team's own Claude fixes components whose Figma build differs from their story ---
   const FixFiles = {
-    measured: z.string().optional().describe('measured-specs.json path in the repo (default measured-specs.json).'),
+    measured: z.string().optional().describe('measured-specs.json path (default measured-specs.json): read in the repo, else on the bridge-requests branch where the automatic measure (bridge-measure workflow) publishes it.'),
     fidelity: z
       .union([z.string(), z.record(z.string(), z.unknown())])
       .optional()

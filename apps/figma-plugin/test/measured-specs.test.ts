@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { type MeasuredSpecsFile, parseComponentSpecs } from '@bridge-ds/core';
 import { type SharedStore, saveSettings, sharedSettings } from '../src/main/shared-state';
-import { loadComponentSpecs, specSource } from '../src/sync/component-pull';
+import { loadComponentSpecs, loadMeasureForFixes, readMeasure, specSource } from '../src/sync/component-pull';
 import { MEASURED_SPECS_FILE, overlayMeasured, parseMeasuredSpecs } from '../src/sync/measured-specs';
 import { FakeGitHub } from './fake-github';
 import { realConfigText } from './helpers';
@@ -141,9 +141,32 @@ test('spec source measured: the static specs with the measure laid on, and what 
   assert.equal(plain?.measured, undefined);
 });
 
-test('spec source measured without a measure in the repo: says how to make one or turn it off', async () => {
+test('spec source measured without a measure anywhere: says so calmly, with the next step and the way back', async () => {
   const { client, treeSha, config } = await repo(false);
-  await assert.rejects(specSource('measured').load(client, treeSha, config), /no measured-specs\.json\. Run bridge specs --measure .* or set Spec source back to Static/);
+  await assert.rejects(
+    specSource('measured').load(client, treeSha, config),
+    /^Error: Spec source is set to Measured, but bridge hasn't measured your components yet\. A developer turns it on once: Set up automatic measure\. Until then, set Spec source back to Static in Settings\.$/,
+  );
+  assert.equal(await readMeasure(client, treeSha), undefined);
+  assert.equal(await loadMeasureForFixes(client, treeSha), undefined);
+});
+
+test('the measure the automatic measure published on bridge-requests: read when the pulled tree has none, shots from there', async () => {
+  const gh = new FakeGitHub({ 'bridge.config.json': realConfigText(), [SPECS_PATH]: specsText() });
+  const client = gh.client();
+  const main = (await client.getBranchSha('main'))!;
+  gh.branches.set('bridge-requests', gh.commit({ ...gh.filesAt('main'), [MEASURED_SPECS_FILE]: measuredText() }, [main], 'measure'));
+  const treeSha = await client.getCommitTree(main);
+  assert.deepEqual(await readMeasure(client, treeSha), { text: measuredText(), path: MEASURED_SPECS_FILE, ref: 'bridge-requests' });
+  const loaded = (await specSource('measured').load(client, treeSha, JSON.parse(realConfigText())))!;
+  assert.equal(loaded.measured?.matched, 1);
+  // Static specs: "Ask Claude to fix it" and the gap cases still get the measure.
+  const forFixes = (await loadMeasureForFixes(client, treeSha))!;
+  assert.equal(forFixes.ref, 'bridge-requests');
+  assert.equal(forFixes.measure.stories.length, measured().stories.length);
+  // A measure committed in the pulled tree wins.
+  const own = await repo(true);
+  assert.equal((await readMeasure(own.client, own.treeSha))?.ref, undefined);
 });
 
 test('the setting: static stores nothing, measured round-trips, and turning it off clears it', () => {
