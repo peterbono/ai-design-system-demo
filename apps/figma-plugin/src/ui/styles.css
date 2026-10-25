@@ -78,14 +78,14 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 .tab:hover { color: var(--text); }
 .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--brand); font-weight: 600; }
-.count { min-width: 16px; height: 16px; padding: 0 5px; border-radius: 8px; background: var(--brand); color: var(--on-brand); font-size: 10px; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums; }
+.count { min-width: 16px; height: 16px; padding: 0 5px; border-radius: 8px; background: var(--brand); color: var(--on-brand); font-size: 11px; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums; }
 .repo { margin-left: auto; align-self: center; display: inline-flex; gap: 4px; align-items: center; color: var(--text-3); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .repo .icon { width: 12px; height: 12px; flex: none; }
 
 /* Content */
 main { flex: 1; overflow-y: auto; padding: var(--s4) var(--s4) var(--s5); display: flex; flex-direction: column; gap: var(--s5); }
 section { display: flex; flex-direction: column; gap: var(--s2); }
-h2 { font-size: 13px; line-height: 20px; font-weight: 600; margin: 0; text-wrap: balance; }
+h2 { font-size: 12px; line-height: 18px; font-weight: 600; margin: 0; text-wrap: balance; }
 /* Summary zone: the one Harbor block of the screen */
 .zone { background: var(--zone); color: var(--zone-text); border-radius: var(--r-lg); padding: var(--s3) var(--s4); gap: var(--s1); }
 .zone .muted { color: var(--zone-text-2); }
@@ -93,7 +93,7 @@ h2 { font-size: 13px; line-height: 20px; font-weight: 600; margin: 0; text-wrap:
 /* Intro: the zone that opens an idle, connect or result screen, with a Field Guide drawing on the right. */
 .intro { flex-direction: row; align-items: center; gap: var(--s4); padding: var(--s4); }
 .intro-text { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
-.intro .headline { font-size: 19px; line-height: 26px; }
+.intro .headline { font-size: 17px; line-height: 24px; }
 .intro .url { font-family: var(--mono); font-size: 11px; word-break: break-all; }
 .ill { display: block; flex: none; width: 76px; height: 76px; color: var(--zone-text); }
 .ill svg { width: 100%; height: 100%; display: block; }
@@ -119,6 +119,8 @@ p { margin: 0; max-width: 68ch; }
 .lede { color: var(--text-2); }
 .muted { color: var(--text-2); }
 small { color: var(--text-3); font-size: 11px; }
+/* Help under a field reads in both themes: the secondary text color, not the tertiary one. */
+.field small { color: var(--text-2); }
 .loading { display: flex; gap: var(--s2); align-items: center; }
 .empty { display: flex; flex-direction: column; gap: var(--s1); padding: var(--s5) 0; color: var(--text-2); }
 .empty h2 { color: var(--text); }
@@ -148,7 +150,7 @@ small { color: var(--text-3); font-size: 11px; }
 .path { font-family: var(--mono); font-size: 11px; display: inline-flex; align-items: center; gap: 4px; min-width: 0; flex-wrap: wrap; }
 .path .icon { width: 12px; height: 12px; color: var(--text-3); flex: none; }
 .path-old { color: var(--text-3); text-decoration: line-through; text-decoration-color: var(--border-strong); }
-.kind { flex: none; font-size: 10px; line-height: 16px; font-weight: 600; padding: 0 6px; border-radius: var(--r-sm); background: var(--bg-sunken); color: var(--text-2); }
+.kind { flex: none; font-size: 11px; line-height: 16px; font-weight: 600; padding: 0 6px; border-radius: var(--r-sm); background: var(--bg-sunken); color: var(--text-2); }
 .kind.added { background: var(--ok-bg); color: var(--ok); }
 .kind.restored, .kind.replaced { background: var(--bg-sunken); color: var(--text-2); }
 .kind.removed { background: var(--danger-bg); color: var(--danger); }
@@ -160,7 +162,7 @@ small { color: var(--text-3); font-size: 11px; }
 .change > .icon { width: 12px; height: 12px; color: var(--text-3); flex: none; }
 .value { display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 2px 6px 2px 2px; border-radius: var(--r-sm); background: var(--bg-sunken); }
 .value.before { opacity: 0.6; }
-.value-name { font-family: var(--mono); min-width: 0; overflow-wrap: anywhere; }
+.value-name { font-family: var(--mono); font-size: 11px; min-width: 0; overflow-wrap: normal; word-break: normal; }
 .value-resolved { color: var(--text-3); font-variant-numeric: tabular-nums; }
 .note { color: var(--text-2); font-style: italic; }
 .swatch {
@@ -172,10 +174,12 @@ small { color: var(--text-3); font-size: 11px; }
 .swatch.missing { background: repeating-linear-gradient(45deg, var(--danger-bg) 0 3px, var(--bg) 3px 6px); }
 
 .pills { display: flex; flex-wrap: wrap; gap: 4px; padding-left: 48px; }
-.pill { font-size: 10px; line-height: 16px; padding: 0 6px; border-radius: 8px; background: var(--bg-sunken); color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill { font-size: 11px; line-height: 16px; padding: 0 6px; border-radius: 8px; background: var(--bg-sunken); color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pill strong { font-weight: 600; }
 .pill.AAA strong, .pill.AA strong { color: var(--ok); }
 .pill.fail { background: var(--danger-bg); color: var(--danger); }
+/* On the blocker panel (already the danger tint) a chip needs its own ground and edge to read. */
+.callout.error .pill.fail { background: var(--bg); box-shadow: inset 0 0 0 1px currentColor; }
 
 /* Conflicts */
 .choices { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
@@ -207,7 +211,7 @@ table.contrast { border-collapse: collapse; width: 100%; font-variant-numeric: t
 table.contrast th { text-align: left; font-weight: 500; color: var(--text-3); padding: 0 var(--s2) 4px 0; }
 table.contrast td { padding: 6px var(--s2) 6px 0; border-top: 1px solid var(--border); vertical-align: middle; }
 table.contrast .num { text-align: right; }
-table.contrast .pair { font-family: var(--mono); }
+table.contrast .pair { font-family: inherit; }
 
 /* Forms */
 label.field, div.field { display: flex; flex-direction: column; gap: 4px; }
@@ -235,7 +239,7 @@ details.notes ul { margin: 0; padding-left: var(--s4); color: var(--text-2); }
 
 /* Action bar */
 .bar { flex: none; display: flex; align-items: center; gap: var(--s2); padding: var(--s2) var(--s3); border-top: 1px solid var(--border); background: var(--bg); }
-.bar .btn { height: 36px; padding: 0 var(--s4); font-size: 13px; }
+.bar .btn { height: 36px; padding: 0 var(--s4); font-size: 12px; }
 .bar.lone .bar-status { display: none; }
 .bar.lone .btn.primary { flex: 1; }
 /* A hint wraps to a second line rather than being cut under the buttons. */
@@ -267,11 +271,12 @@ details.notes ul { margin: 0; padding-left: var(--s4); color: var(--text-2); }
 .row-action { margin-left: auto; margin-right: calc(-1 * var(--s2)); }
 table.changes { border-collapse: collapse; width: 100%; }
 table.changes th { text-align: left; font-weight: 500; color: var(--text-3); padding: 0 var(--s2) 2px 0; }
-table.changes td { padding: 4px var(--s2) 4px 0; border-top: 1px solid var(--border); vertical-align: top; overflow-wrap: anywhere; }
-table.changes td.mono { font-family: var(--mono); }
+table.changes td { padding: 4px var(--s2) 4px 0; border-top: 1px solid var(--border); vertical-align: top; overflow-wrap: normal; word-break: normal; }
+/* Tables read in the body type; a token name breaks at its dots (breakable), never inside a word. */
+table.changes td.mono { font-family: inherit; }
 /* The label column never breaks inside a word ("Typography"); values break where breakable() allows, else anywhere. */
 table.changes td.what { overflow-wrap: normal; word-break: normal; }
-table.changes td.mono { overflow-wrap: break-word; }
+table.changes td.mono { overflow-wrap: normal; }
 table.changes td.before { color: var(--text-3); }
 /* Component change row: one sentence of what changed, the table behind "Details" (one font size). */
 .row-line { color: var(--text); }
@@ -295,7 +300,7 @@ h2.section-title { margin-bottom: calc(-1 * var(--s3)); }
 .group-check h2 { display: inline; }
 input.select, .group-check input { flex: none; width: 14px; height: 14px; margin: 0; accent-color: var(--brand); cursor: pointer; }
 .row-head .tag { margin-left: auto; }
-.tag { flex: none; font-size: 10px; line-height: 16px; font-weight: 600; padding: 0 6px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); color: var(--text-2); }
+.tag { flex: none; font-size: 11px; line-height: 16px; font-weight: 600; padding: 0 6px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); color: var(--text-2); }
 .row-menu { position: relative; flex: none; margin-left: auto; margin-right: calc(-1 * var(--s2)); }
 .row-head .tag + .row-menu, .row-head .tag + .tag { margin-left: 0; }
 /* Push components: where a change goes (one sentence), and what Bridge cannot read, each with what to do. */
@@ -324,6 +329,13 @@ input.select, .group-check input { flex: none; width: 14px; height: 14px; margin
   width: 100%; aspect-ratio: 4 / 3; object-fit: contain; border: 1px solid var(--border); border-radius: var(--r-md);
   background: var(--bg-sunken);
 }
+/* A render (Figma's or the code's, often on white) sits in a neutral, theme-aware frame, never as a bright box. */
+.thumb img { padding: var(--s2); box-sizing: border-box; }
+.thumbs.one { grid-template-columns: 1fr; }
+.thumbs-wrap { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.thumbs-wrap .thumbs { width: 100%; }
+.thumb-coming { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; justify-content: center; text-align: left; color: var(--text-2); }
+.thumb-coming ul { margin: 0; padding-left: var(--s4); }
 .thumb-empty { display: flex; align-items: center; justify-content: center; color: var(--text-3); padding: var(--s2); text-align: center; }
 .thumb figcaption { color: var(--text-3); }
 /* Fidelity check: Figma, code and differences side by side. */
