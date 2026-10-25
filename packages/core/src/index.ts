@@ -55,6 +55,7 @@ export * from './fidelity-references';
 export * from './gap-case';
 export * from './figma-fixes';
 export * from './measured-only';
+export * from './css-color';
 export * from './figma-fix-loop';
 export * from './review-gate';
 export * from './library-update';
