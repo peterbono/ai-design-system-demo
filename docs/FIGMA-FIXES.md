@@ -167,10 +167,14 @@ reason is a note shown with the set. `matches` is refused.
 proposes a correction, Bridge checks that it brings the component closer to the code, and a person approves it
 like any other change; a component that will not come closer keeps an honest Differs or Can't check status.
 
-Bridge holds no API key. The reasoning is done by the team's Claude: Claude Code or Claude Desktop through the Bridge
-MCP server (on the person's own plan), or the CLI with the team's own `ANTHROPIC_API_KEY`. Bridge gives the tools and
-is the referee. Code: `packages/core/src/figma-fix-loop.ts` (pure: gaps, gap case, the values referee, the prompt),
-`packages/mcp/src/figma-fixes.ts` (the tools), `packages/cli/src/fix.ts` (the commands and the loop runner).
+The reasoning is always done by the team's own Claude, in one of three ways: Claude Code or Claude Desktop through the
+Bridge MCP server (on the person's own plan), the CLI with the team's own `ANTHROPIC_API_KEY`, or Bridge's server with
+the key a team admin connected in Studio Settings (see "Claude runs it for the team" below: the designer clicks "Ask
+Claude to fix it" and nobody runs a command). Bridge gives the tools and is the referee. Code:
+`packages/core/src/figma-fix-loop.ts` (pure: gaps, gap case, the values referee, the prompt),
+`packages/core/src/figma-fix-run.ts` (the loop as steps and the change for review, shared by every runner),
+`packages/mcp/src/figma-fixes.ts` (the tools), `packages/cli/src/fix.ts` (the commands and the loop runner),
+`apps/docs-site/api/claude` and `api/_lib/fix-runs.ts` (the server runner).
 
 ### Where the files are
 
@@ -237,10 +241,93 @@ and `figmaRenders`) to `figma-fidelity.json` on the `bridge-requests` branch (th
 writes to), then show one sentence and **Copy for your developer**. The copied request holds both ways to run the
 fix (the MCP phrase "Fix <component> in Figma with Bridge" and `npx @bridge-ds/cli fix <component> --with-claude`);
 the plugin never displays a command, an API key or MCP to the designer. The developer's Claude reads the run through
-`bridge_figma_gaps` and `bridge_get_gap_case`. Bridge has no server that runs Claude for the team yet: a developer
-starts the run. Before building, the pull already applies
+`bridge_figma_gaps` and `bridge_get_gap_case`. When the team connected its Claude in Studio Settings, the plugin can
+start the run itself instead (see "Claude runs it for the team"). Before building, the pull already applies
 figma-fixes.json. The plugin can import `specsFromMeasure` from core and drop its own copy (a core test keeps both
 identical until then).
+
+### Claude runs it for the team
+
+A team admin connects the team's own Claude in Studio, Settings, Claude (the team's Anthropic API key, kept encrypted
+on the server and never shown again: [HOSTED.md](HOSTED.md), "Team Claude"). Then a designer clicks **Ask Claude to fix
+it** in the plugin and reads "Claude is on it", then "Claude's fix is ready" with **See Claude's fix**, which opens the
+review of that change in Studio. Claude's work is billed to the team's Anthropic account. Nothing ships on its own: the
+fix is a draft pull request a person on the team reviews, like every Claude change.
+
+The server runs the same loop as `bridge fix <component> --with-claude`: the rounds are core's `fixLoopRound`
+(`claude-sonnet-5-5`, at most 3 rounds, 4000 output tokens per round), the outcome `fixLoopOutcome`, and the change
+`figmaFixesProposal`, so the referee runs again before anything opens and fixes that move the component further from
+the code are refused. It reads `measured-specs.json`, `figma-fixes.json` and `bridge.config.json` at the default
+branch's head, and the plugin's `figma-fidelity.json` there or on `bridge-requests`, with the Bridge GitHub App
+installation token (Contents and Pull requests: Read and write, the same as `/api/ship`). The pull request is the one the
+CLI opens (`bridge/figma-fixes-<component>`, draft, labelled `drafted-by-claude`, `figma-fixes`, its tier and
+`source: bridge-web`), its summary names who asked. When no round comes closer, no pull request opens (the run says
+no-fix); the CLI and the MCP flow propose a `status` fix instead.
+
+**How a run fits the server's limits.** Functions on the Bridge site run at most 300 s per request (Vercel fluid
+compute, the project's default). A run moves in steps instead of one long request: each request does at most one Claude
+round (and, after the last one, opens the pull request), keeps the state in Redis (`bridge:claude:run:<repo>:<id>`, 7
+days) and answers where the run stands. Whoever shows the run asks again until it is final, so a run moves while the
+plugin or Studio shows it, and waits where it stands otherwise. A lease keeps two requests from working on one run.
+Claude busy (429, 529, 5xx, no answer in 150 s): the run stays where it is and the next request asks again, three
+times, then it fails calmly. The fix engine on the server is core's own code bundled into one module
+(`apps/docs-site/api/_lib/fix-engine.gen.js`, `node scripts/build-fix-engine.mjs`; a test fails when it is stale).
+
+**Limits.** One run per component at a time (asking again answers the run in progress), and 5 runs per team per hour
+(`CLAUDE_RUNS_PER_HOUR`).
+
+#### API contract (for the plugin)
+
+Base: the Bridge site the plugin signs in with (`https://<site>/api/claude`). Auth: `Authorization: Bearer <GitHub
+token>`, the token the plugin got from Studio sign-in (the account must be able to push to the repository); CORS is
+open for these calls. Studio sends its session instead (`X-Bridge-Contribute: 1`, same origin). Errors are always
+`{ "error": "<code>", "message": "<one sentence to show as is>" }`.
+
+```http
+POST /api/claude
+Content-Type: application/json
+{ "action": "fix", "repo": "acme/design", "component": "TextInput" }
+
+200 { "run": RunView, "existing": false }      // existing: true when a run for this component is in progress
+409 { "error": "not_connected", "message": "Claude is not connected for your team. An admin connects it in Settings." }
+429 { "error": "limit", "message": "Your team asked Claude for 5 fixes this hour. Ask again in an hour." }
+401 signin, 403 forbidden (not on this team, or cannot edit), 400 bad_request, 503 not_configured
+
+GET /api/claude?repo=acme/design&run=<id>        // moves the run one step first: can take up to about 2 minutes
+GET /api/claude?repo=acme/design&run=<id>&peek=1 // reads it as it stands, no step
+200 { "run": RunView }
+404 not_found (older than 7 days, or another team's)
+
+GET /api/claude?repo=acme/design&runs=1          // the team's runs of the last 7 days, newest first (at most 20)
+200 { "runs": RunView[] }
+```
+
+```ts
+interface RunView {
+  id: string;                 // 16 hex characters
+  component: string;
+  status: 'queued' | 'running' | 'ready' | 'no-fix' | 'failed';
+  label: string;              // the tag: "Claude is on it" | "Claude's fix is ready" | "No fix found" | "Not finished"
+  sentence: string;           // one sentence to show under the component, as is
+  round?: number;             // running: the round Claude is on, 1 to maxRounds
+  maxRounds: number;          // 3
+  startedBy: string;          // who asked, by name
+  createdAt: string;          // ISO
+  updatedAt: string;
+  retryAfter?: number;        // not final: ask again (GET ?run=) after about this many seconds
+  pr?: { number: number; url: string; draft: boolean };   // ready: the draft pull request on GitHub
+  review?: string;            // ready: the Studio path under the team ("changes/?pr=91")
+  reviewUrl?: string;         // ready: the full Studio address for See Claude's fix
+  applied?: string[];         // ready: what each fix does, one plain sentence each
+  reason?: string;            // no-fix and failed: the sentence for the designer (same as sentence)
+  developer?: string;         // no-fix and failed: the cause, for a "For developers" fold only; never show a designer
+}
+```
+
+The plugin's loop: POST `fix`, show "Claude is on it" and `sentence`, then GET `?run=<id>` one request at a time (wait
+`retryAfter` seconds between answers, no parallel requests; a GET can take up to about 2 minutes) until `status` is
+`ready`, `no-fix` or `failed`. Ready: "Claude's fix is ready", the `applied` lines, and **See Claude's fix** opening
+`reviewUrl`. No-fix and failed: `sentence` as is, never `developer`.
 
 ## Review
 

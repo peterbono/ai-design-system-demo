@@ -487,6 +487,8 @@ and `apps/docs-site/api/_lib/claude-key.ts`.
 | `GET /api/claude?repo=<owner/repo>` | `200 { "available", "connected", "addedBy"?, "at"?, "canManage" }`: any member of the team, never the key |
 | `POST /api/claude` `{ "action": "connect", "repo", "key" }` | admins: `200 { "connected": true, "addedBy", "at" }`; `400 bad_key` (not a key), `400 key_rejected` (Anthropic refused it), `429 limit` (10 tries per team and hour) |
 | `POST /api/claude` `{ "action": "disconnect", "repo" }` | admins: `200 { "connected": false }` |
+| `POST /api/claude` `{ "action": "fix", "repo", "component" }` | anyone who can edit: `200 { "run", "existing" }`; `409 not_connected`, `429 limit` |
+| `GET /api/claude?repo=<owner/repo>&run=<id>` (`&peek=1`), `GET ...&runs=1` | a run, moved one step first (one Claude round); the team's runs. Contract: [FIGMA-FIXES.md](FIGMA-FIXES.md), "API contract" |
 
 - **Who**: a GitHub token whose account can push to the repository, read with that token (`Authorization: Bearer`:
   Studio's GitHub sign-in and the Figma plugin; CORS open, no cookie), admin for connect and disconnect; or an email
@@ -503,9 +505,12 @@ and `apps/docs-site/api/_lib/claude-key.ts`.
 | Env var | What |
 | ------- | ---- |
 | `BRIDGE_SECRETS_KEY` | 32 random bytes or more, base64 (`openssl rand -base64 32`). Sensitive, server only. Without it Settings says "Connecting Claude is not available yet on this site." and nothing is stored. Changing it makes every stored key unreadable: teams connect again |
+| `CLAUDE_RUNS_PER_HOUR` | optional, Claude fix runs a team starts per hour (default 5) |
 
-It also uses the storage env (`KV_REST_API_URL` and `KV_REST_API_TOKEN`), and for email admins `LIBRARY_SESSION_SECRET`
-and the Bridge Direct app. Locally (`npm run dev:full`) the local session secret stands in for `BRIDGE_SECRETS_KEY`.
+It also uses the storage env (`KV_REST_API_URL` and `KV_REST_API_TOKEN`), the Bridge Direct app (runs read the measure
+and open the draft pull request with its installation token: Contents and Pull requests, Read and write, as for Ship
+from Figma), and for email admins `LIBRARY_SESSION_SECRET`. `PUBLIC_SITE_URL`, when set, is the origin of a run's
+"See Claude's fix" link. Locally (`npm run dev:full`) the local session secret stands in for `BRIDGE_SECRETS_KEY`.
 
 ## Team reads through Bridge
 
