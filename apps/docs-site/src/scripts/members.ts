@@ -43,6 +43,8 @@ export interface MembersData {
    * being read, or could not be: review roles are missing until it lands, then Members reads again.
    */
   ownersKnown?: boolean;
+  /** The viewer administers the team signed in by email: they manage email members, never GitHub people's roles. */
+  emailAdmin?: boolean;
 }
 
 interface Collaborator {
@@ -256,5 +258,5 @@ export async function loadMembers(): Promise<MembersData> {
     }
   }
   // The team's name once more: its settings have often landed by now ("Acme Product", not "Acme product").
-  return { context, repo, team: teamName(repo), members, pending, people, canManage, personal, complete, invites, ownersKnown: team0.known };
+  return { context, repo, team: teamName(repo), members, pending, people, canManage, personal, complete, invites, ownersKnown: team0.known, ...(emailAdmin && canManage ? { emailAdmin: true } : {}) };
 }

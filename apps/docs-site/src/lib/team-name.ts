@@ -16,6 +16,8 @@ export const TEAM_NAME_WORDS = {
   generalTitle: 'General',
   generalIntro: 'How your team shows up for everyone in Bridge.',
   notSet: 'Not set yet, Bridge uses the repository name.',
+  /** An admin signed in by email: the name is a change to the design system's settings on GitHub. */
+  githubOnly: 'An admin signed in with GitHub changes the name: it is part of the design system on GitHub.',
   requested: 'Sent for review',
   applies: 'It applies once your team approves it.',
 } as const;

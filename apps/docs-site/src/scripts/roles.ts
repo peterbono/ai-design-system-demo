@@ -13,7 +13,7 @@ import { choiceOf, groupsOf, roleRows, rolesProposal, sameOwners, withRoles, typ
 import { selectSegment } from './shell';
 import { getToken, ghGet, prefersSignIn, readRepo, readSignInConfig, sessionMode, setButtonBusy, setButtonDisabled, prLinksHtml, showGhError, studioClient } from './github-session';
 import { ghAction } from '../lib/gh-wording';
-import { changesProposal, withChanges, type AppPermissions } from '../lib/settings-view';
+import { canProposeSettings, changesProposal, GITHUB_WRITE_ONLY, withChanges, type AppPermissions } from '../lib/settings-view';
 import { teamNameProposal, withTeamName } from '../lib/team-name';
 import { installationFor, type InstallationLike } from '../lib/github-signin';
 import type { ChangesMode } from '@bridge-ds/core';
@@ -54,6 +54,34 @@ function ownersIn(group: 'design' | 'tech'): string[] {
 
 export function initRoles() {
   document.querySelectorAll<HTMLFormElement>('[data-roles-form]').forEach(initForm);
+  gateSettingsWrites();
+}
+
+/**
+ * Settings stored in the design system's files ([data-needs-write]): only a GitHub account that can edit the repository
+ * proposes a change (lib/settings-view canProposeSettings). Anyone else reads the value and who changes it, never a
+ * control that fails after the click (BR-20). Repainted when the access is known or changes.
+ */
+export function gateSettingsWrites(root: ParentNode = document) {
+  void import('./github-session').then(({ onAccess }) =>
+    onAccess((a) => {
+      const can = canProposeSettings(a);
+      root.querySelectorAll<HTMLElement>('[data-needs-write]').forEach((el) => {
+        const off = can === false;
+        el.hidden = off;
+        let note = el.nextElementSibling as HTMLElement | null;
+        if (!note?.hasAttribute('data-write-note')) {
+          if (!off) return;
+          note = document.createElement('p');
+          note.className = 'set-row-help';
+          note.setAttribute('data-write-note', '');
+          note.textContent = GITHUB_WRITE_ONLY;
+          el.after(note);
+        }
+        note.hidden = !off;
+      });
+    }),
+  );
 }
 
 /** The value of a control: what the reader picked when it sits in the form being sent, else the current one. */

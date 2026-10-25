@@ -50,7 +50,7 @@ export default function ProtectionRow() {
     return () => document.removeEventListener('bridge:auth', run);
   }, [refresh]);
 
-  const view = protectionRow(state, rulesUrl, state.kind === 'no-token' && prefersSignIn());
+  const view = protectionRow(state, rulesUrl, state.kind === 'no-token' && prefersSignIn(), admin);
 
   const start = () => {
     setError(null);

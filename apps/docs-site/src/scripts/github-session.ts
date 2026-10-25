@@ -7,7 +7,7 @@
 
 import { attrUrl, escapeHtml } from '../lib/html';
 import { classifyAuth, type FetchLike, GitHubClient, GitHubError, type ClientOptions, friendlyMessage, resolveRepoAccess } from '@bridge-ds/core';
-import { accessFromCheck, accessLabel, accessStorageKey, accessView, contributorAccess, freshAccess, type RepoAccess, type RepoAccessState } from '../lib/access';
+import { accessFromCheck, accessLabel, accessStorageKey, accessView, contributorAccess, freshAccess, pillState, type RepoAccess, type RepoAccessState } from '../lib/access';
 import { repoContext } from './repo-context';
 import { clearPrivateRepoCaches, clearRepoCache } from './repo-cache';
 import {
@@ -1428,8 +1428,9 @@ function paintAccess() {
   const access = currentAccess();
   const shown = viewer ? access : null;
   document.querySelectorAll<HTMLElement>('[data-gh-perm]').forEach((el) => {
-    // An email contributor reads their role in designer words, the one they joined with.
-    el.textContent = viewer?.email ? CONTRIBUTOR_ROLE : accessLabel(Boolean(viewer), shown);
+    // An email member reads their role in designer words, the one the team chip shows (lib/access pillState): Admin
+    // for an email admin, else Can edit.
+    el.textContent = viewer?.email ? (pillState(shown) === 'admin' ? ROLE_WORDS.admin.label : CONTRIBUTOR_ROLE) : accessLabel(Boolean(viewer), shown);
     el.className = `gh-perm${shown ? (shown.write ? ' is-write' : ' is-read') : ''}`;
   });
   document.querySelectorAll<HTMLElement>('[data-gh-perm-help]').forEach((el) => {

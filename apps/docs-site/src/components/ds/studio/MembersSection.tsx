@@ -14,11 +14,11 @@
 // in the list at once (withJoined, BR-19), and a read after the row leaves confirms it.
 import { useState } from 'react';
 import { Link2Off, MoreHorizontal, UserPlus } from 'lucide-react';
-import { Alert, Button, ButtonGroup, EmptyState, IconButton, Menu, MenuContent, MenuItem, MenuTrigger, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
+import { Alert, Button, ButtonGroup, EmptyState, IconButton, Menu, MenuContent, MenuGroup, MenuItem, MenuTrigger, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
 import RolePicker from './RolePicker';
 import { NoticeLine, PersonCell } from './MemberParts';
 import InviteDialog from './InviteDialog';
-import { memberActions, useMembers, type Notice } from './members-state';
+import { memberActions, noRepo, useMembers, type Notice } from './members-state';
 import { DiscoveryLine, JoinRequests, useEntryAdmin } from './JoinRequests';
 import { loadTeamRoles } from '../../../lib/recent-teams';
 import { isHosted, isTeamKey, teamKeyOfPage } from '../../../lib/team-path';
@@ -35,8 +35,8 @@ function pageTeam(): { repo: string; context: MembersData['context'] } {
   if (key) return { repo: key, context: 'real' };
   const ctx = repoContext();
   const repo = `${ctx.owner}/${ctx.repo}`;
-  const noRepo = document.documentElement.hasAttribute('data-no-repo');
-  return { repo, context: membersContext(noRepo ? null : repo, noRepo) };
+  const withoutRepo = document.documentElement.hasAttribute('data-no-repo');
+  return { repo, context: membersContext(withoutRepo ? null : repo, withoutRepo) };
 }
 
 /** The person who just joined, in the list at once (BR-19): Can edit, by email; the next read confirms them. */
@@ -49,7 +49,7 @@ export function withJoined(d: MembersData, r: JoinRequest): MembersData {
 const now = (data: MembersData) => (data.context === 'sample' ? SAMPLE_NOW : Date.now());
 
 function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: MembersData; admins: number; act: ReturnType<typeof memberActions>; onNotice: (n: Notice | null) => void }) {
-  const can = allowed(m, { canManage: data.canManage, admins });
+  const can = allowed(m, { canManage: data.canManage, admins, emailAdmin: data.emailAdmin === true });
   // An email member: Can edit or Admin, never Reviewer (reviewers approve on GitHub; the picker says why).
   const email = m.via === 'email';
   const [confirming, setConfirming] = useState(false);
@@ -71,7 +71,7 @@ function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: Member
         <TableCell className="mem-role-cell" label="">
           <span className="mem-role">
             {can.changeRole ? (
-              <RolePicker label={`Role for ${m.name}`} value={choiceOf(m)} personal={data.personal} emailOnly={email} disabled={busy} size="sm" onChange={(c) => void run(() => act.changeRole(m, c))} />
+              <RolePicker label={`Role for ${m.name}`} value={choiceOf(m)} personal={data.personal} emailOnly={email || noRepo(data)} emailNote={!email && noRepo(data) ? MEMBERS_WORDS.reviewerNeedsRepo : undefined} disabled={busy} size="sm" onChange={(c) => void run(() => act.changeRole(m, c))} />
             ) : (
               <span className="mem-role-text">{roleText(m)}</span>
             )}
@@ -79,11 +79,15 @@ function MemberRow({ m, data, admins, act, onNotice }: { m: Member; data: Member
               <Menu>
                 <MenuTrigger render={<IconButton icon={MoreHorizontal} label={`More for ${m.name}`} variant="ghost" size="sm" />} />
                 <MenuContent align="end">
-                  {can.makeAdmin && (
-                    <MenuItem disabled={data.personal && !email} onClick={() => void run(() => act.changeRole(m, { role: 'admin' }))}>
-                      {MEMBERS_WORDS.makeAdmin}
-                    </MenuItem>
-                  )}
+                  {can.makeAdmin &&
+                    (data.personal && !email ? (
+                      // A personal account's repository has no other admin on GitHub: the item stays, off, with the reason.
+                      <MenuGroup label={MEMBERS_WORDS.personalAdmin}>
+                        <MenuItem disabled>{MEMBERS_WORDS.makeAdmin}</MenuItem>
+                      </MenuGroup>
+                    ) : (
+                      <MenuItem onClick={() => void run(() => act.changeRole(m, { role: 'admin' }))}>{MEMBERS_WORDS.makeAdmin}</MenuItem>
+                    ))}
                   {can.remove && (
                     <MenuItem tone="danger" onClick={() => setConfirming(true)}>
                       {MEMBERS_WORDS.remove}
@@ -148,7 +152,7 @@ function PendingRow({ p, data, act, onNotice }: { p: PendingInvite; data: Member
       <TableCell className="mem-role-cell" label="">
         <span className="mem-role">
           {data.canManage ? (
-            <RolePicker label={`Role for ${p.email}`} value={inviteChoice(p)} personal={data.personal} size="sm" onChange={(c) => void run(() => act.changeInviteRole(p, c))} />
+            <RolePicker label={`Role for ${p.email}`} value={inviteChoice(p)} personal={data.personal} emailOnly={noRepo(data)} emailNote={noRepo(data) ? MEMBERS_WORDS.reviewerNeedsRepo : undefined} size="sm" onChange={(c) => void run(() => act.changeInviteRole(p, c))} />
           ) : (
             <span className="mem-role-text">{roleLabel(inviteChoice(p))}</span>
           )}
@@ -224,6 +228,7 @@ export default function MembersSection() {
             {MEMBERS_WORDS.membersTitle} <span className="mem-count">{count}</span>
           </h2>
           <p className="mem-intro">{data.canManage ? MEMBERS_WORDS.membersIntro(data.team) : MEMBERS_WORDS.membersIntroReader(data.team)}</p>
+          {data.emailAdmin && members.some((m) => m.via !== 'email') && <p className="mem-intro">{MEMBERS_WORDS.githubPeople}</p>}
           {data.canManage && data.context === 'real' && <DiscoveryLine repo={data.repo} discovery={entry.discovery} github={entry.github} onChange={entry.setDiscovery} />}
         </div>
         {data.canManage && (

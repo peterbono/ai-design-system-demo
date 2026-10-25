@@ -13,7 +13,7 @@ import { Link2Off } from 'lucide-react';
 import { Alert, Button, ButtonGroup, Combobox, Dialog, DialogClose, DialogContent, EmptyState, Skeleton } from '@bridge-ds/react';
 import RolePicker from './RolePicker';
 import { NoticeLine, PersonCell } from './MemberParts';
-import { memberActions, useMembers, type Notice } from './members-state';
+import { memberActions, noRepo, useMembers, type Notice } from './members-state';
 import {
   adminCount,
   choiceOf,
@@ -203,7 +203,7 @@ export default function InviteDialog({ open, onOpenChange, shared }: InviteDialo
                     size="lg"
                     autoComplete="off"
                   />
-                  <RolePicker label="Role" value={choice} onChange={setChoice} personal={data.personal} size="lg" />
+                  <RolePicker label="Role" value={choice} onChange={setChoice} personal={data.personal} emailOnly={noRepo(data)} emailNote={noRepo(data) ? MEMBERS_WORDS.reviewerNeedsRepo : undefined} size="lg" />
                 </div>
                 <p id={hintId} className="inv-hint">
                   {MEMBERS_WORDS.emailHint}

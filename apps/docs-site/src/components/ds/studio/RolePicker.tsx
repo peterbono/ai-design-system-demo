@@ -22,6 +22,8 @@ export interface RolePickerProps {
   personal?: boolean;
   /** An email member: Reviewer is disabled, with the reason (reviewers approve on GitHub). Admin stays offered. */
   emailOnly?: boolean;
+  /** The reason under a disabled Reviewer, when it is not the email member's (a team with no repository yet). */
+  emailNote?: string;
   disabled?: boolean;
   size?: 'sm' | 'md' | 'lg';
   /** ghost: a quiet trigger inside a list (the dialog's "Who has access"). */
@@ -30,7 +32,7 @@ export interface RolePickerProps {
 
 const REVIEW_ICON = { design: PenTool, tech: Code2 } as const;
 
-export default function RolePicker({ value, onChange, label, personal = false, emailOnly = false, disabled = false, size = 'md', variant = 'secondary' }: RolePickerProps) {
+export default function RolePicker({ value, onChange, label, personal = false, emailOnly = false, emailNote, disabled = false, size = 'md', variant = 'secondary' }: RolePickerProps) {
   const [open, setOpen] = useState(false);
   const choice = normalizeChoice(value);
   const id = useId();
@@ -88,7 +90,7 @@ export default function RolePicker({ value, onChange, label, personal = false, e
             </div>
           ))}
         </RadioGroup>
-        {emailOnly ? <p className="rp-note">{CONTRIBUTE_WORDS.emailRoleNote}</p> : personal && <p className="rp-note">{PERSONAL_NOTE}</p>}
+        {emailOnly ? <p className="rp-note">{emailNote ?? CONTRIBUTE_WORDS.emailRoleNote}</p> : personal && <p className="rp-note">{PERSONAL_NOTE}</p>}
       </PopoverContent>
     </Popover>
   );
