@@ -15,7 +15,7 @@ test('a failed settings save keeps the fidelity result and never shows Connected
   await p.until(() => p.text().includes('Images of the code are not published yet'));
 
   await p.click('Settings');
-  await p.click('Edit');
+  await p.click('Edit the connection');
   const savesBefore = p.calls.filter((c) => c === 'save-settings').length;
   p.type('GitHub repository', 'acme/missing');
   await p.click('Save and check access');

@@ -29,7 +29,7 @@ import { type ComponentPush, ROUTE_TAG, componentPushes } from '../sync/componen
 import { IMAGES_NEED_WRITE, type SentComponentPush, sendLabel, sentTitle, suggestionLines, tokenHelp } from '../sync/publish';
 import { type Destination, type PublishItem, type PublishResult, sendComponentPush, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
 import { type ComponentsReadProblem, NEW_TOKEN_REFUSED, isOffline, TOKEN_REJECTED_CALLOUT, TOKEN_REJECTED_DETAIL, TOKEN_SETTINGS_URL, type TokenProblem, checkToken, componentsReadProblem, errorText, friendlyError, tokenProblem } from '../sync/token-health';
-import { type BuildItem, type StudioTarget, developerMessage, sentLinks, studioChangeUrl } from '../sync/studio';
+import { type BuildItem, type StudioTarget, developerMessage, sentLinks, studioChangeUrl, studioTeamUrl } from '../sync/studio';
 import { type RoutedItem, type ShipPoll, type ShipStatus, ShipPoller, groupRoutes, routedItems, shipStateLabel, shippedNumbers, toArm, waitingLede } from '../sync/library-routes';
 import { type ArmAnswer, armShip } from '../sync/ship';
 import { libraryArrivalOnGitHub } from '@bridge-ds/core';
@@ -510,7 +510,8 @@ async function finishSignIn(p: LinkPoll): Promise<void> {
   }
   state.link = undefined;
   await run('Connecting', async () => {
-    await request('save-token', { token: p.token, source: 'bridge' });
+    // The Bridge sign-in replaces any token pasted before: there is one token on this computer, never two.
+    await request('save-token', { token: p.token, source: 'bridge', ...(p.login ? { account: p.login } : {}) });
     const settings = state.init!.settings;
     await request('save-settings', { settings: { ...settings, repo: p.repo, branch: p.defaultBranch ?? settings.branch } });
     await loadInit();
@@ -1372,7 +1373,8 @@ function saveSettings(): void {
         }
         // Read-only on code is enough when the repo takes suggestions (issues only).
         const readOnly = mode === 'suggest' && !can.contents;
-        if (newToken) await request('save-token', { token: newToken });
+        // A developer's own choice: the plugin does not offer them Sign in with Bridge again.
+        if (newToken) await request('save-token', { token: newToken, source: 'developer' });
         else setTokenState('ok');
         message = `Connected to ${info.fullName}.${newToken ? ' The token is saved on this computer only.' : ''}${readOnly ? ' This token sends suggestions only. Screenshots and drafting with your Claude plan need "Contents: Read and write".' : ''}`;
       }
@@ -1403,7 +1405,7 @@ function removeToken(): void {
     await loadInit();
     state.pull = undefined;
     state.push = undefined;
-    state.settingsMessage = { kind: 'ok', text: 'Token removed from this computer.' };
+    state.settingsMessage = { kind: 'ok', text: 'Signed out on this computer.' };
   });
 }
 
@@ -4272,9 +4274,84 @@ function viewPush(): View {
   };
 }
 
+/**
+ * Connected: one card, the design system by its name and how this computer is connected, with its few actions. The
+ * repository, the branch and the token are for developers, folded and read-only (Edit opens the full form). A token
+ * pasted before Sign in with Bridge existed (no developer chose it) is offered the switch: one primary action.
+ */
+function connectedView(): View {
+  const init = state.init!;
+  const bridge = init.tokenSource === 'bridge';
+  const legacy = !init.tokenSource;
+  const rejected = init.tokenState === 'rejected';
+  const team = studioTeamUrl(init.settings.repo);
+  const line = rejected
+    ? bridge
+      ? 'The sign-in expired. Sign in again: it takes a click.'
+      : 'This computer can no longer reach the design system.'
+    : bridge
+      ? `Connected with Bridge${init.tokenAccount ? ` as ${init.tokenAccount}` : ''}`
+      : 'Connected on this computer';
+  const msg = state.settingsMessage;
+  return {
+    body: [
+      h(
+        'section',
+        { class: 'card', 'data-connection': bridge ? 'bridge' : legacy ? 'legacy' : 'developer' },
+        h(
+          'div',
+          { class: 'token-row' },
+          h('span', { class: 'opt-text' }, h('span', { class: 'opt-title' }, designSystemName()), h('small', null, line)),
+          rejected ? h('span', { class: 'opt-status warn' }, icon('alert'), 'Signed out') : h('span', { class: 'opt-status ok' }, icon('check'), 'Connected'),
+        ),
+        legacy && !rejected ? h('p', { class: 'lede' }, "Connect through your team's Bridge account. No token to manage.") : null,
+        h(
+          'div',
+          { class: 'inline-actions' },
+          team ? h('button', { class: 'btn ghost', 'data-focus-id': 'open-studio', onClick: () => void request('open-url', { url: team }) }, icon('external'), 'Open in Studio') : null,
+          bridge ? h('button', { class: 'btn ghost', 'data-focus-id': 'switch-ds', onClick: signInWithBridge }, 'Switch design system') : null,
+          h('button', { class: 'btn ghost danger', 'data-focus-id': 'sign-out', onClick: removeToken }, 'Sign out'),
+        ),
+      ),
+      msg ? h('div', { class: `callout ${msg.kind === 'ok' ? 'ok' : 'error'}`, role: msg.kind === 'error' ? 'alert' : 'status' }, h('div', { class: 'callout-title' }, icon(msg.kind === 'ok' ? 'check' : 'alert'), msg.text)) : null,
+      // For developers: what the connection is made of, read-only, and the developer's ways to change it.
+      h(
+        'details',
+        { class: 'notes dev-details' },
+        h('summary', null, 'For developers'),
+        h(
+          'dl',
+          { class: 'dev-list' },
+          ([
+            ['Repository', init.settings.repo],
+            ['Branch', init.settings.branch],
+            ['Tokens folder', init.settings.tokensPath],
+            ['Spec source', init.settings.specSource === 'measured' ? 'Static, with measured values' : init.settings.specSource === 'measured-only' ? 'Measured in Storybook only' : 'Static'],
+            ['GitHub token', bridge ? 'From the Bridge sign-in, on this computer only' : 'Pasted, on this computer only'],
+          ] as [string, string][]).map(([k, v]) => [h('dt', null, k), h('dd', { class: 'mono' }, breakable(v))]),
+        ),
+        h(
+          'div',
+          { class: 'inline-actions' },
+          h('button', { class: 'btn ghost', 'data-focus-id': 'repo-edit', onClick: () => { state.expanded.add('repo-edit'); render(); } }, 'Edit the connection'),
+          bridge ? null : h('button', { class: 'btn ghost', 'data-focus-id': 'token-replace', onClick: replaceToken }, 'Replace token'),
+        ),
+      ),
+      claudeCard(),
+    ],
+    bar: rejected
+      ? { label: bridge || legacy ? SIGN_IN_WORDS.action : 'Replace token', onClick: bridge || legacy ? signInWithBridge : replaceToken }
+      : legacy
+        ? { label: SIGN_IN_WORDS.action, onClick: signInWithBridge }
+        : undefined,
+  };
+}
+
 function viewSettings(): View {
   // Not connected: Sign in with Bridge, unless a developer chose to connect with a token.
   if (state.link || (!state.init!.hasToken && !state.expanded.has('token-connect'))) return signInView();
+  // Connected: one card. The full form only for a developer who asked for it (Edit the connection, Replace token).
+  if (connected() && !state.expanded.has('repo-edit') && !state.expanded.has('token-replace')) return connectedView();
   const d = state.settingsDraft;
   const init = state.init!;
   // Not connected yet (no design system for this file, or no token): the fields show; connected, one row and Edit.
