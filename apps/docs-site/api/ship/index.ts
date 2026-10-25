@@ -16,6 +16,12 @@
 //   Only with a GitHub token (Bearer), whose account must be the author, a repository admin or in the approver list of
 //   the change's domain, the change Tier 1 and governance.leadsPublishTier1 not false. A failing check: route review.
 //
+//   POST /api/ship  { repo: "owner/name", pr: 42, mark: "figma" }   the plugin, right after it opens its push
+//     -> 200 { marked: true }                     Bridge wrote its signed mark into the body (author, head commit)
+//     -> 200 { marked: false, code, reason, developer }   not marked: the push then ships only with a design approval
+//   Only with a GitHub token (Bearer) whose account is the author and has write access; the pull request open, to the
+//   default branch, from the repository itself, labelled as a push from Figma, and token values only at its head.
+//
 // Who may ask: a GitHub token that can read the repository (`Authorization: Bearer`, the Figma plugin and the CLI; any
 // origin, no cookie, so CORS allows it), or an email member of the team signed in to Studio (the contribute cookie or
 // a Bridge account session; `X-Bridge-Contribute: 1` from a page of this site). Asking never widens anything: Bridge
@@ -25,8 +31,10 @@
 //   1. reads the repository (default branch, merge settings), the pull request, its files and bridge.config.json;
 //   2. refuses unless it is open, targets the default branch, is not an exploration, and its scope is `token-values`:
 //      token files read at the merge base and at the head, compared token by token (a removed or renamed token is not
-//      values). A push from Figma (label `source: figma` or `from-figma`, or the From Figma block) needs nothing more.
-//      Any other pull request needs a design approval read from its reviews (core summarizeApprovals over the approver
+//      values), and its branch is in the repository itself (never a fork). A push from Figma needs nothing more, once
+//      verified: the caller is its author with write access, and the body holds the mark Bridge signed for this pull
+//      request, its author and its current head commit (api/_lib/figma-mark.ts; a label or a block alone never counts).
+//      Changes requested still hold it. Any other pull request needs a design approval read from its reviews (core summarizeApprovals over the approver
 //      lists of bridge.config.json on the default branch, a team entry counting its members when the app can read
 //      them), given on its head commit, and no changes requested; and auto-merge allowed on the repository (nothing is
 //      written otherwise);
@@ -63,6 +71,7 @@ import {
   type ShipConfig,
   type TokenChange,
 } from '../_lib/figma-ship.js';
+import { figmaMark, figmaMarkKey, figmaMarkValid, withFigmaMark } from '../_lib/figma-mark.js';
 import { localAdminsOn } from '../_lib/local-admin.js';
 import { isLead, isTier1, leadsPublishTier1On, tier1Domain, tier1PublishReviewBody, TIER1_PUBLISH_HEADING } from '../_lib/tier1-publish.js';
 import type { MemberStore } from '../_lib/members.js';
@@ -97,6 +106,10 @@ export type ShipCode =
   | 'checks_failed'
   | 'checks_pending'
   | 'not_mergeable'
+  | 'fork'
+  // Marking a push from Figma (body `mark: "figma"`).
+  | 'no_write'
+  | 'mark_unavailable'
   // Tier 1 publish by leads (body `publish: "tier1"`, docs/GOVERNANCE.md "Tier 1 publish by leads").
   | 'not_author'
   | 'not_tier1'
@@ -141,6 +154,9 @@ export const SHIP_WORDS: Record<ShipCode, string> = {
   checks_failed: 'Something needs a developer before it ships. They are told on GitHub; nothing to do on your side.',
   checks_pending: 'The automatic checks are still running. Bridge ships it once they finish.',
   not_mergeable: 'Something needs a developer before it ships. They are told on GitHub; nothing to do on your side.',
+  fork: `It comes from outside the team's library, so someone reviews it. ${BY_DEVELOPER}`,
+  no_write: 'Your sign-in cannot change this library, so it ships once a design owner approves it.',
+  mark_unavailable: `Bridge cannot ship by itself on this library yet. ${BY_DEVELOPER}`,
   needs_design_approval: 'It ships once a design owner approves it.',
   approval_outdated: 'It changed since it was approved: it ships once a design owner approves this version.',
   changes_requested: 'Changes were suggested: it ships once they are made and approved.',
@@ -156,7 +172,7 @@ export const SHIP_DEVELOPER_WORDS: Record<ShipCode, string> = {
   app_missing: 'The Bridge GitHub App is not installed on this repository, or the server has no app keys (GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY), so Bridge cannot approve and arm the merge. Merge it by hand once the checks pass.',
   not_open: 'The pull request is closed or merged.',
   not_default_branch: 'The pull request does not target the default branch.',
-  not_from_figma: 'The pull request is not a push from the Figma plugin.',
+  not_from_figma: 'The pull request is not labelled as a push from the Figma plugin.',
   exploration: 'The pull request is labelled exploration.',
   not_values: 'The pull request changes more than token values (a rename, a removal, code, a guardrail file, or token files Bridge could not read).',
   too_many_files: 'The pull request has 100 files or more; Bridge does not read past the first page.',
@@ -165,6 +181,9 @@ export const SHIP_DEVELOPER_WORDS: Record<ShipCode, string> = {
   checks_failed: 'A required check failed on the head commit.',
   checks_pending: 'Checks are still running on the head commit; ask again once they finish.',
   not_mergeable: 'GitHub says it cannot merge: a conflict, a blocked status or a branch rule.',
+  fork: 'The pull request comes from a fork. Bridge arms only pull requests whose branch lives in the repository itself.',
+  no_write: 'The GitHub account that asked has no write access to the repository. Bridge records a push from Figma only for its author with write access.',
+  mark_unavailable: 'The server has no LIBRARY_SESSION_SECRET (32 characters or more), so Bridge cannot sign the record of a push from Figma.',
   needs_design_approval: 'No design approver (governance.owners and rights in bridge.config.json on the default branch) approved it.',
   approval_outdated: 'The design approval was given on an older commit; it needs one on the head commit.',
   changes_requested: 'A reviewer requested changes and has not approved since.',
@@ -243,16 +262,28 @@ export function bearerToken(header: string | null, processEnv: Record<string, st
   return m.length >= (localAdminsOn(processEnv) ? 8 : 20) ? m : null;
 }
 
+/** Who asks: a GitHub token (and whether it may write to the repository), or an email member signed in to Studio. */
+export type Caller = { kind: 'bearer'; token: string; push: boolean } | { kind: 'member' };
+
 /** Who asks: a GitHub token that can read the repository, or an email member of the team signed in to Studio. */
-async function allowed(req: Request, owner: string, repo: string, full: string, env: ContribEnv, deps: ShipDeps): Promise<'bearer' | 'member' | null> {
+async function allowed(req: Request, owner: string, repo: string, full: string, env: ContribEnv, deps: ShipDeps): Promise<Caller | null> {
   const bearer = bearerToken(req.headers.get('authorization'));
   if (bearer) {
     const r = await gh(deps.fetch, bearer).call('GET', `/repos/${owner}/${repo}`);
-    return r.status === 200 && r.data?.permissions?.pull ? 'bearer' : null;
+    return r.status === 200 && r.data?.permissions?.pull ? { kind: 'bearer', token: bearer, push: r.data.permissions.push === true } : null;
   }
   if (req.headers.get('x-bridge-contribute') !== '1' || !sameOriginWhenPresent(req)) throw new HttpError(403, 'origin', 'Ship from Studio on this site, or from the Figma plugin.');
   const m = await contributorOf(req, full, env, { fetch: deps.fetch, ...(deps.now ? { now: deps.now } : {}), ...(deps.redis ? { redis: deps.redis } : {}), ...(deps.members ? { members: deps.members } : {}), ...(deps.app ? { app: deps.app } : {}) });
-  return m ? 'member' : null;
+  return m ? { kind: 'member' } : null;
+}
+
+const lowerLogin = (x: unknown) => String(x ?? '').trim().replace(/^@/, '').toLowerCase();
+
+/** The branch of the pull request lives in the repository itself: a fork's head (or a deleted one) never ships here. */
+export function sameRepository(pr: any, owner: string, repo: string): boolean {
+  const head = pr?.head?.repo?.full_name;
+  const base = pr?.base?.repo?.full_name ?? `${owner}/${repo}`;
+  return typeof head === 'string' && head.toLowerCase() === String(base).toLowerCase();
 }
 
 const notArmed = (code: ShipCode, extra: Partial<ShipResult> = {}): ShipResult => ({ armed: false, route: 'waiting-for-developer', code, reason: SHIP_WORDS[code], developer: SHIP_DEVELOPER_WORDS[code], ...extra });
@@ -331,37 +362,65 @@ async function readConfig(raw: ReturnType<typeof gh>['raw'], owner: string, repo
   }
 }
 
-/** The ship itself, once the caller is allowed. Exported for tests. */
-export async function armShip(f: FetchLike, token: string, readToken: string | null, owner: string, repo: string, n: number): Promise<ShipResult> {
-  const { call, raw, graphql } = gh(f, token);
+/** The repository and the pull request, read with the app token. */
+async function readPull(call: ReturnType<typeof gh>['call'], owner: string, repo: string, n: number): Promise<{ r: any; pr: any }> {
   const base = `/repos/${owner}/${repo}`;
   const [repoR, prR] = await Promise.all([call('GET', base), call('GET', `${base}/pulls/${n}`)]);
   if (prR.status === 404) throw new HttpError(404, 'not_found', `There is no pull request #${n} on ${owner}/${repo}.`);
   if (repoR.status !== 200 || prR.status !== 200) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
-  const r = repoR.data;
-  const pr = prR.data;
-  if (pr.state !== 'open' || pr.merged_at) return notArmed('not_open');
-  if (pr.base?.ref !== r.default_branch) return notArmed('not_default_branch');
-  if (isExploration(pr.labels)) return notArmed('exploration');
-  const figma = isFigmaPush({ labels: pr.labels, body: pr.body });
-  if (isClaudeDraft({ labels: pr.labels, body: pr.body })) return notArmed('not_values');
+  return { r: repoR.data, pr: prR.data };
+}
 
-  // What it changes, read from GitHub: the files, then each token file at the merge base and at the head.
-  const filesR = await call('GET', `${base}/pulls/${n}/files?per_page=100`);
+/** What the pull request changes at its head, read from GitHub: null when token values only, else why not. */
+async function valuesScope(call: ReturnType<typeof gh>['call'], raw: ReturnType<typeof gh>['raw'], owner: string, repo: string, n: number, r: any, pr: any): Promise<{ code: ShipCode | null; rawConfig: unknown }> {
+  const filesR = await call('GET', `/repos/${owner}/${repo}/pulls/${n}/files?per_page=100`);
   if (filesR.status !== 200 || !Array.isArray(filesR.data)) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
-  if (filesR.data.length >= 100 || (typeof pr.changed_files === 'number' && pr.changed_files > filesR.data.length)) return notArmed('too_many_files');
+  if (filesR.data.length >= 100 || (typeof pr.changed_files === 'number' && pr.changed_files > filesR.data.length)) return { code: 'too_many_files', rawConfig: null };
   const rawConfig = await readConfig(raw, owner, repo, r.default_branch);
   const config: ShipConfig = shipConfig(rawConfig);
   const files: PrFile[] = filesR.data.map((x: any) => ({ path: String(x.filename), status: String(x.status), previous: typeof x.previous_filename === 'string' ? x.previous_filename : null }));
   const changes = await readTokenChanges(call, raw, owner, repo, pr, files, config);
-  const scope = figmaPushScope(files, changes, config);
-  if (scope !== 'token-values') return notArmed('not_values');
+  return { code: figmaPushScope(files, changes, config) === 'token-values' ? null : 'not_values', rawConfig };
+}
+
+/**
+ * Whether a pull request labelled as a push from Figma is one: handleShip checks that the caller is its author, with
+ * write access, and that its body holds Bridge's mark for its current head (api/_lib/figma-mark.ts).
+ */
+export type FigmaCheck = (pr: any) => Promise<boolean>;
+const NOT_FIGMA: FigmaCheck = async () => false;
+
+/** The ship itself, once the caller is allowed. Without `verified`, nothing counts as a push from Figma. Exported for tests. */
+export async function armShip(f: FetchLike, token: string, readToken: string | null, owner: string, repo: string, n: number, verified: FigmaCheck = NOT_FIGMA): Promise<ShipResult> {
+  const { call, raw } = gh(f, token);
+  const base = `/repos/${owner}/${repo}`;
+  const { r, pr } = await readPull(call, owner, repo, n);
+  if (pr.state !== 'open' || pr.merged_at) return notArmed('not_open');
+  if (pr.base?.ref !== r.default_branch) return notArmed('not_default_branch');
+  if (!sameRepository(pr, owner, repo)) return notArmed('fork');
+  if (isExploration(pr.labels)) return notArmed('exploration');
+  const claimed = isFigmaPush({ labels: pr.labels, body: pr.body });
+  if (isClaudeDraft({ labels: pr.labels, body: pr.body })) return notArmed('not_values');
+
+  // What it changes, read from GitHub: the files, then each token file at the merge base and at the head.
+  const { code, rawConfig } = await valuesScope(call, raw, owner, repo, n, r, pr);
+  if (code) return notArmed(code);
+
+  // A label or a block only claims Figma: it counts once verified, else the change follows the TV-1 rule below.
+  const figma = claimed && (await verified(pr));
 
   // Not a push from Figma (decision TV-1): the design approval, read from GitHub, on the head commit. Nothing is written
   // before it is in, nor when the repository cannot auto-merge.
   let designers: string[] = [];
   let reviewList: any[] | null = null;
-  if (!figma) {
+  if (figma) {
+    // The push is design-approved by its author, but a reviewer's change request still holds it.
+    const rv = await call('GET', `${base}/pulls/${n}/reviews?per_page=100`);
+    if (rv.status !== 200 || !Array.isArray(rv.data)) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+    reviewList = rv.data;
+    const people = rv.data.filter((x: any) => x?.user?.type !== 'Bot');
+    if (designApprovalOf(people, approverEntriesOf(rawConfig), pr.user?.login, pr.head.sha).changesRequested.length) return notArmed('changes_requested');
+  } else {
     if (r.allow_auto_merge === false || !MERGE_METHODS.some(([k]) => r[k] !== false)) return notArmed('auto_merge_off');
     const rv = await call('GET', `${base}/pulls/${n}/reviews?per_page=100`);
     if (rv.status !== 200 || !Array.isArray(rv.data)) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
@@ -381,6 +440,40 @@ export async function armShip(f: FetchLike, token: string, readToken: string | n
   const heading = figma ? FIGMA_SHIP_HEADING : VALUES_SHIP_HEADING;
   const body = figma ? figmaShipReviewBody(pr.user?.type === 'Bot' ? null : pr.user?.login) : valuesShipReviewBody(designers);
   return approveAndArm({ f, token, readToken, owner, repo, n, r, pr, heading, body, counted: designers.length, reviewList, notArmed });
+}
+
+/** What a mark call answers. */
+export interface MarkResult {
+  marked: boolean;
+  code?: ShipCode;
+  reason?: string;
+  developer?: string;
+}
+const notMarked = (code: ShipCode): MarkResult => ({ marked: false, code, reason: SHIP_WORDS[code], developer: SHIP_DEVELOPER_WORDS[code] });
+
+/**
+ * Bridge records a push from Figma (api/_lib/figma-mark.ts): the caller is its author with write access; it is open, to
+ * the default branch, from the repository itself, labelled as a push from Figma, and token values only at its head.
+ * Bridge then writes its signed mark for that head into the body, with the app token. Exported for tests.
+ */
+export async function markFigmaPush(f: FetchLike, token: string, owner: string, repo: string, n: number, who: { login: string; push: boolean }, key: Buffer | null): Promise<MarkResult> {
+  if (!key) return notMarked('mark_unavailable');
+  if (!who.push) return notMarked('no_write');
+  const { call, raw } = gh(f, token);
+  const { r, pr } = await readPull(call, owner, repo, n);
+  if (pr.state !== 'open' || pr.merged_at) return notMarked('not_open');
+  if (pr.base?.ref !== r.default_branch) return notMarked('not_default_branch');
+  if (!sameRepository(pr, owner, repo)) return notMarked('fork');
+  if (pr.user?.type === 'Bot' || !who.login || lowerLogin(pr.user?.login) !== lowerLogin(who.login)) return notMarked('not_author');
+  if (isExploration(pr.labels)) return notMarked('exploration');
+  if (!isFigmaPush({ labels: pr.labels, body: pr.body })) return notMarked('not_from_figma');
+  if (isClaudeDraft({ labels: pr.labels, body: pr.body })) return notMarked('not_values');
+  const { code } = await valuesScope(call, raw, owner, repo, n, r, pr);
+  if (code) return notMarked(code);
+  const mark = figmaMark(key, { repo: `${owner}/${repo}`, pr: n, sha: String(pr.head.sha), author: String(pr.user.login) });
+  const w = await call('PATCH', `/repos/${owner}/${repo}/pulls/${n}`, { body: withFigmaMark(pr.body, mark) });
+  if (w.status !== 200) throw new HttpError(502, 'unreachable', GITHUB_DOWN);
+  return { marked: true };
 }
 
 interface ArmInput {
@@ -489,6 +582,7 @@ export async function armPublish(f: FetchLike, token: string, readToken: string 
   const pr = prR.data;
   if (pr.state !== 'open' || pr.merged_at) return toReview('not_open');
   if (pr.base?.ref !== r.default_branch) return toReview('not_default_branch');
+  if (!sameRepository(pr, owner, repo)) return toReview('fork');
   if (isExploration(pr.labels)) return toReview('exploration');
   const lower = (x: string) => x.trim().replace(/^@/, '').toLowerCase();
   if (pr.user?.type === 'Bot' || lower(String(pr.user?.login ?? '')) !== lower(who.login)) return toReview('not_author');
@@ -540,21 +634,48 @@ export async function handleShip(req: Request, env: ContribEnv, deps: ShipDeps):
     const app = deps.app ?? (appId && pem ? githubApp(appId, pem, deps.fetch, now, { permissions: { ...SHIP_PERMISSIONS }, require: { ...SHIP_PERMISSIONS }, userAgent: 'bridge-ship' }) : null);
     if (body.publish !== undefined && body.publish !== 'tier1') return cors(fail(400, 'bad_request', 'Say what to publish: "tier1", or leave it out.'));
     const publish = body.publish === 'tier1';
+    if (body.mark !== undefined && body.mark !== 'figma') return cors(fail(400, 'bad_request', 'Say what to mark: "figma", or leave it out.'));
+    const mark = body.mark === 'figma';
+    if (mark && publish) return cors(fail(400, 'bad_request', 'Mark or publish, not both.'));
     const who = await allowed(req, owner, repo, full, env, { ...deps, ...(app ? { app } : {}) });
     if (!who) return cors(fail(401, 'signin', SIGNIN));
+    if (mark && who.kind !== 'bearer') return cors(fail(403, 'github', 'Marking a push from Figma needs a GitHub sign-in.'));
+    // The GitHub account of the token, read with that token, once and only when needed.
+    let me: Promise<Publisher | null> | null = null;
+    const account = (): Promise<Publisher | null> => {
+      if (who.kind !== 'bearer') return Promise.resolve(null);
+      me ??= gh(deps.fetch, who.token)
+        .call('GET', '/user')
+        .then((u) => (u.status === 200 && typeof u.data?.login === 'string' ? { login: u.data.login, name: typeof u.data.name === 'string' && u.data.name.trim() ? u.data.name.trim() : u.data.login } : null));
+      return me;
+    };
     // Publishing names a person: the GitHub account of the token. An email member's change goes to review.
     let publisher: Publisher | null = null;
     if (publish) {
-      if (who !== 'bearer') return cors(json(200, toReview('publish_needs_github')));
-      const me = await gh(deps.fetch, bearerToken(req.headers.get('authorization'))!).call('GET', '/user');
-      if (me.status !== 200 || typeof me.data?.login !== 'string') return cors(fail(401, 'signin', SIGNIN));
-      publisher = { login: me.data.login, name: typeof me.data.name === 'string' && me.data.name.trim() ? me.data.name.trim() : me.data.login };
+      if (who.kind !== 'bearer') return cors(json(200, toReview('publish_needs_github')));
+      publisher = await account();
+      if (!publisher) return cors(fail(401, 'signin', SIGNIN));
+    }
+    const key = figmaMarkKey(env.LIBRARY_SESSION_SECRET);
+    if (mark) {
+      const caller = await account();
+      if (!caller) return cors(fail(401, 'signin', SIGNIN));
+      const token = app ? await app.installationToken(owner, repo) : null;
+      if (!token) return cors(json(200, notMarked('app_missing')));
+      return cors(json(200, await markFigmaPush(deps.fetch, token, owner, repo, n, { login: caller.login, push: who.kind === 'bearer' && who.push }, key)));
     }
     const token = app ? await app.installationToken(owner, repo) : null;
     if (!token) return cors(json(200, publish ? toReview('app_missing') : notArmed('app_missing')));
     const readApp = deps.readApp ?? deps.app ?? (appId && pem ? githubApp(appId, pem, deps.fetch, now, { permissions: { ...SHIP_READ_PERMISSIONS }, require: { ...SHIP_READ_PERMISSIONS }, userAgent: 'bridge-ship' }) : null);
     const readToken = readApp ? await readApp.installationToken(owner, repo).catch(() => null) : null;
-    return cors(json(200, publisher ? await armPublish(deps.fetch, token, readToken, owner, repo, n, publisher) : await armShip(deps.fetch, token, readToken, owner, repo, n)));
+    // A push from Figma counts only for its author with write access, with Bridge's mark for its current head.
+    const verified: FigmaCheck = async (pr) => {
+      if (who.kind !== 'bearer' || !who.push || pr?.user?.type === 'Bot') return false;
+      const caller = await account();
+      if (!caller || lowerLogin(caller.login) !== lowerLogin(pr?.user?.login)) return false;
+      return figmaMarkValid(pr.body, key, { repo: `${owner}/${repo}`, pr: n, sha: String(pr?.head?.sha ?? ''), author: String(pr.user.login) });
+    };
+    return cors(json(200, publisher ? await armPublish(deps.fetch, token, readToken, owner, repo, n, publisher) : await armShip(deps.fetch, token, readToken, owner, repo, n, verified)));
   } catch (e) {
     if (e instanceof HttpError) return cors(json(e.status, { error: e.code, message: e.message, ...e.extra }, e.headers));
     return cors(fail(502, 'unreachable', GITHUB_DOWN));

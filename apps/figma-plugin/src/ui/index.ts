@@ -31,7 +31,7 @@ import { type Destination, type PublishItem, type PublishResult, sendComponentPu
 import { type ComponentsReadProblem, NEW_TOKEN_REFUSED, isOffline, TOKEN_REJECTED_CALLOUT, TOKEN_REJECTED_DETAIL, TOKEN_SETTINGS_URL, type TokenProblem, checkToken, componentsReadProblem, errorText, friendlyError, tokenProblem } from '../sync/token-health';
 import { type BuildItem, type StudioTarget, developerMessage, sentLinks, studioChangeUrl, studioTeamUrl } from '../sync/studio';
 import { type RoutedItem, type ShipPoll, type ShipStatus, ShipPoller, groupRoutes, routedItems, shipStateLabel, shippedNumbers, toArm, waitingLede } from '../sync/library-routes';
-import { type ArmAnswer, armShip } from '../sync/ship';
+import { type ArmAnswer, figmaShipper } from '../sync/ship';
 import { libraryArrivalOnGitHub } from '@bridge-ds/core';
 import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, triedLocally, tryItLinks } from '../sync/explorations';
 import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
@@ -1198,7 +1198,7 @@ function submitPush(): void {
       r.result = result;
       r.sentTo = exploration;
       r.routed = !exploration && result.outcomes.length ? routedItems(result.outcomes) : undefined;
-      if (r.routed) startShipPolling(r, (n) => libraryArrivalOnGitHub(getClient(), n), (n) => armShip(state.init!.token ?? '', state.init!.settings.repo, n));
+      if (r.routed) startShipPolling(r, (n) => libraryArrivalOnGitHub(getClient(), n), figmaShipper(state.init!.token ?? '', state.init!.settings.repo));
       r.tryIt = undefined;
       r.previews = undefined;
       r.shared = false;

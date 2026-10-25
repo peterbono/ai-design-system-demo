@@ -98,8 +98,11 @@ When Bridge ships a push it leaves a review whose body starts with `**Bridge: sh
 
 ### Arming the merge (server)
 
-`POST <site>/api/ship` with `{ "repo": "<owner/repo>", "pr": <number> }` and `Authorization: Bearer <the GitHub token
-the plugin already uses>` (JSON, any origin). Answer `200 { armed, route, merged?, code?, reason?, retryAfter? }`:
+Right after it opens the push, the plugin asks Bridge to record it: `POST <site>/api/ship` with `{ "repo", "pr",
+"mark": "figma" }` and the same token. Bridge checks that the caller is the author with write access and that the
+change holds token values only, then signs the head commit into the body; only a recorded push, at that head, ships
+by itself (HOSTED.md, "A push from Figma, verified"). Then `POST <site>/api/ship` with `{ "repo": "<owner/repo>",
+"pr": <number> }` and `Authorization: Bearer <the GitHub token the plugin already uses>` (JSON, any origin). Answer `200 { armed, route, merged?, code?, reason?, retryAfter? }`:
 `armed: true` means `route: "shipped"`; otherwise `route: "waiting-for-developer"` with a designer `reason`. Bridge
 re-checks the rule on GitHub with its own app (the plugin's word is never enough), marks the pull request ready,
 approves it with the review above and turns on GitHub auto-merge; GitHub merges when the required checks pass. On
