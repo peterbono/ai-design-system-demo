@@ -595,6 +595,23 @@ test('measured only with screenshots: each variant keeps the render of the story
   for (const v of tabs.variants) assert.ok(shots.Tabs![variantKeyOf(v.props)]?.file.startsWith('measured-shots/'));
 });
 
+test('measured only: a variant draws its rest and its hover from the same story, not the first story at rest', () => {
+  const m = fixture();
+  m.stories = m.stories.filter((s) => s.title.endsWith('/Card'));
+  m.stories.forEach((s, i) => (s.shot = { file: `measured-shots/card-${i}.png`, width: 320, height: 40 }));
+  const compact = (s: (typeof m.stories)[number]) => s.overrides?.padding === 'compact' && !s.overrides?.disabled;
+  // A hover that paints, so the State axis stays.
+  for (const s of m.stories) if (s.state && s.spec) s.spec.values.root = { ...s.spec.values.root, fill: 'rgb(1, 2, 3)' };
+  // Another story at rest comes first in the index, never hovered (Kbd shown in an input group, hovered alone).
+  const other = { ...structuredClone(m.stories.find((s) => compact(s) && !s.state)!), id: 'data-display-card--in-a-group', shot: { file: 'measured-shots/other.png', width: 320, height: 40 } };
+  m.stories.unshift(other);
+  const { specs, shots } = specsFromMeasure(m);
+  const card = specs.components.find((c) => c.name === 'Card')!;
+  const files = card.variants.filter((v) => /compact/i.test(Object.values(v.props).join(' ')) && ['Default', 'Hover'].includes(v.props.State!)).map((v) => shots.Card![variantKeyOf(v.props)]!.file);
+  assert.equal(files.length, 2);
+  assert.ok(!files.includes('measured-shots/other.png'), files.join(', '));
+});
+
 /** The repo's tokens and config, with a measure and optional fixes next to them, analysed as the plugin does. */
 async function measuredRepo(extra: Record<string, string>) {
   const sim = new SimFigma();
