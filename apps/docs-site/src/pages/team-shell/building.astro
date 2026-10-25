@@ -7,10 +7,8 @@ import '../../styles/branch-thumb.css';
 import '../../styles/building.css';
 import TeamShell from '../../components/TeamShell.astro';
 import BeingBuilt from '../../components/ds/studio/BeingBuilt';
-import ClaudeFixes from '../../components/ds/studio/ClaudeFixes';
 ---
 
 <TeamShell route="building/" title="Being built" what="build requests" description="The changes sent from Figma that this team's developers are building, and where each one stands.">
-  <ClaudeFixes client:only="react" />
   <BeingBuilt client:only="react" />
 </TeamShell>

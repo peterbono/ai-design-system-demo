@@ -1,5 +1,5 @@
-// The Claude fix loop as steps, shared by every runner: the CLI (`bridge fix --with-claude`, all rounds in one process),
-// and Bridge's server (api/claude: one round per request, the state kept between requests, the team's own key). Each
+// The Claude fix loop as steps, shared by the runners: the CLI (`bridge fix --with-claude`, the team's own API key) and
+// the MCP tools (the team's Claude calls them, through the hosted Bridge connector or a local server). Each
 // round asks Claude for fixes from the gap case and the earlier rounds, and the values referee (tryFigmaFixes) judges
 // them; the outcome is the closest fixes, or an honest status fix when none came closer. The change for review
 // (figmaFixesProposal) is the same for the MCP server, the CLI and the server: the referee runs again, fixes that move

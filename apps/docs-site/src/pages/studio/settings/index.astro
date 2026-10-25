@@ -10,8 +10,6 @@
 //                 (components/ds/studio/MembersSection.tsx, boards I3 and I4; anchor #team kept for old links).
 //   Library access who reads the team's Library without a GitHub account, and its link to share
 //                 (components/ds/studio/LibraryAccessSection.tsx, api/library-access).
-//   Claude        the team's own Claude: an admin connects the team's Anthropic API key so Claude fixes differences
-//                 between Figma and the code (components/ds/studio/ClaudeSection.tsx, api/claude).
 //   How changes reach your code  suggestions (a GitHub issue developers apply) or pull requests Bridge opens, from
 //                 `changes` in bridge.config.json; what Bridge's GitHub App may do on the repo; the switch, sent for review
 //                 as a pull request (components/ds/studio/ChangesMode.tsx, scripts/roles.ts).
@@ -52,7 +50,6 @@ import { overrideHolders, overrideReasonMin } from '@bridge-ds/core';
 import ChangesModeSetting from '../../../components/ds/studio/ChangesMode';
 import MembersSection from '../../../components/ds/studio/MembersSection';
 import LibraryAccessSection from '../../../components/ds/studio/LibraryAccessSection';
-import ClaudeSection from '../../../components/ds/studio/ClaudeSection';
 import TeamNameSetting from '../../../components/ds/studio/TeamNameSetting';
 import { TEAM_NAME_WORDS } from '../../../lib/team-name';
 import '../../../styles/team-access.css';
@@ -142,10 +139,6 @@ const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? 
 
     <section class="set-band" id="library-access" aria-labelledby="set-library-access">
       <LibraryAccessSection client:only="react" />
-    </section>
-
-    <section class="set-band" id="team-claude" aria-labelledby="set-claude">
-      <ClaudeSection client:only="react" />
     </section>
 
     <section class="set-band" id="changes" aria-labelledby="set-changes">

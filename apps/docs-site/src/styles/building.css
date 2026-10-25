@@ -27,16 +27,6 @@
   min-width: 0;
 }
 
-/* Claude's fixes, above the build requests (components/ds/studio/ClaudeFixes.tsx). */
-.bb-claude {
-  margin-block-end: var(--space-6);
-}
-
-/* "See Claude's fix" on a ready row's line stays one phrase. */
-.bb-claude-see {
-  white-space: nowrap;
-}
-
 .bb-skel {
   height: var(--size-16);
 }
