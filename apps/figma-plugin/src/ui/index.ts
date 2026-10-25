@@ -36,6 +36,7 @@ import { libraryArrivalOnGitHub } from '@bridge-ds/core';
 import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, triedLocally, tryItLinks } from '../sync/explorations';
 import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
 import { type Selection, onProgress, onSelection, request } from './bridge';
+import { blockerLines } from '../sync/blockers';
 import { MEASURED_SPECS_FILE, type MeasuredOverlayReport } from '../sync/measured-specs';
 import type { MeasuredOnlyReport } from '@bridge-ds/core';
 import { type FidelityOutcome, fidelitySummary, loadReferenceManifest, runFidelityCheck } from '../sync/fidelity';
@@ -468,7 +469,7 @@ function modesFor(a: Analysis, t: LogicalToken): string[] {
   return modesOf(a.head.layout, t.tier);
 }
 
-const PILLS_MAX = 8;
+const PILLS_MAX = 3;
 
 /** Contrast pairs a change moves, directly or through aliases, in every brand x theme. */
 function contrastPills(current: LogicalToken | undefined, target: LogicalToken | undefined, after: ContrastResult[] | undefined, before: ContrastResult[] = []): Child {
@@ -587,6 +588,34 @@ function issueList(kind: 'error' | 'warn', title: string, issues: Issue[]): Chil
     h('div', { class: 'callout-title' }, icon('alert'), title),
     h('ul', null, issues.slice(0, 40).map((i) => h('li', null, i.message))),
     issues.length > 40 ? h('p', null, `And ${issues.length - 40} more.`) : null,
+  );
+}
+
+/** Lines shown before "Show all": a shared-color edit can break a hundred pairs, the callout stays a few lines. */
+const PROBLEMS_SHOWN = 3;
+
+/**
+ * Problems from the checks, in designer words: one line per kind with its count, the first few shown, then "Show all".
+ * The exact messages (token paths, contrast.checks.json) are folded under "For developers".
+ */
+function problemList(kind: 'error' | 'warn', title: string, issues: readonly Issue[], key: string): Child {
+  if (!issues.length) return null;
+  const lines = blockerLines(issues);
+  const all = state.expanded.has(key);
+  const shown = all ? lines : lines.slice(0, PROBLEMS_SHOWN);
+  return h(
+    'div',
+    { class: `callout ${kind}`, role: kind === 'error' ? 'alert' : undefined },
+    h('div', { class: 'callout-title' }, icon('alert'), title),
+    h('ul', null, shown.map((l) => h('li', null, l.text))),
+    lines.length > shown.length ? h('button', { class: 'btn ghost more', 'data-focus-id': `${key}-all`, onClick: () => { state.expanded.add(key); render(); } }, `Show all ${lines.length}`) : null,
+    h(
+      'details',
+      { class: 'notes dev-details' },
+      h('summary', null, 'For developers'),
+      h('ul', { class: 'mono-list' }, issues.slice(0, 40).map((i) => h('li', null, i.message))),
+      issues.length > 40 ? h('p', { class: 'muted' }, `And ${issues.length - 40} more.`) : null,
+    ),
   );
 }
 
@@ -3722,6 +3751,8 @@ function viewPush(): View {
   const body: Child[] = [];
   // What stops the send, said once at the top (orientation): never "ready to send" above a problem to fix.
   const blocking = prFiles ? prop.validation.blocking : [];
+  // Counted by kind, as the callout says them ("1 problem": 107 color pairs too low in contrast).
+  const blockingKinds = blockerLines(blocking).length;
   if (!nothing) {
     // Summary first: what goes and whether contrast holds, in the screen's one Harbor zone.
     const fails = changedContrast.filter((x) => x.level === 'fail').length;
@@ -3731,12 +3762,12 @@ function viewPush(): View {
         'section',
         { class: 'zone' },
         // Nothing sendable: a new brand alone, or only changes to fix in Figma first (never "a new brand" then).
-        h('h2', { class: 'headline' }, blocking.length ? `${plural(blocking.length, 'problem')} to fix before sending` : n ? `${plural(n, 'change')} ready to send` : newBrands ? 'A new brand to propose' : 'Nothing to send yet'),
+        h('h2', { class: 'headline' }, blockingKinds ? `${plural(blockingKinds, 'problem')} to fix before sending` : n ? `${plural(n, 'change')} ready to send` : newBrands ? 'A new brand to propose' : 'Nothing to send yet'),
         h(
           'p',
           { class: 'muted' },
-          blocking.length
-            ? `Fix ${blocking.length === 1 ? 'it' : 'them'} in Figma, then scan again.${n > blocking.length ? ' Or uncheck what is not ready and send the rest.' : ''}`
+          blockingKinds
+            ? `Fix ${blockingKinds === 1 ? 'it' : 'them'} in Figma, then scan again.${n > 1 ? ' Or uncheck what is not ready and send the rest.' : ''}`
             : !n && !newBrands
             ? 'Fix the changes below in Figma, then scan again.'
             : fails
@@ -3752,7 +3783,7 @@ function viewPush(): View {
       ),
     );
   }
-  body.push(issueList('error', 'Fix before sending', blocking));
+  body.push(problemList('error', 'Fix before sending', blocking, 'push-blocking'));
   body.push(...sentNotes(r));
   if (suggestions.length) {
     body.push(
@@ -3841,7 +3872,7 @@ function viewPush(): View {
         : h('details', { class: 'notes' }, h('summary', { 'data-focus-id': 'contrast-pairs' }, `Contrast: ${plural(changedContrast.length, 'pair')} checked, all pass`), contrastBody),
     );
   }
-  body.push(issueList('warn', 'Warnings (not blocking)', prop.validation.warnings));
+  body.push(problemList('warn', 'Worth a look (not blocking)', prop.validation.warnings, 'push-warnings'));
   if (!nothing) {
     // The message is its own section after a divider: the words that go with everything sent, not a row detail.
     body.push(
@@ -3919,7 +3950,7 @@ function viewPush(): View {
   const hint = open
     ? `Decide ${plural(open, 'conflict')} first`
     : blocked
-      ? `Fix ${plural(blocked, 'problem')} first`
+      ? `Fix ${plural(blockingKinds, 'problem')} first`
       : none
         ? onlyExploration
           ? 'Marked exploration only: try them in an exploration'
