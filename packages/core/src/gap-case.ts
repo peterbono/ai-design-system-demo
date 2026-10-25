@@ -439,7 +439,7 @@ export function buildGapCase(input: GapCaseInput): GapCase {
       if (!gv.differences.length) gv.unexplained = 'The pull did not pass the set it drew: only the shots tell this variant apart';
     } else {
       gv.differences = variantDifferences({ parts: spec.parts, variant: cv.variant, properties: spec.properties, built: input.built?.[cv.key], measured, size: cv.result?.size, resolve });
-      if (!gv.differences.length) gv.unexplained = 'The measured values agree with what Figma drew: compare the shot with the Figma render (text rendering, an icon, an image)';
+      if (!gv.differences.length) gv.unexplained = agreeWords(cv.result?.percent);
     }
     if (!cv.result && !gv.differences.length) continue;
     variants.push(gv);
@@ -477,6 +477,16 @@ function storyRef(s: MeasuredSpecsStory): GapStoryRef {
   };
 }
 
+/** Past this share of different pixels, values that agree mean the measure misses what differs, not a near match. */
+const UNMEASURED_PERCENT = 5;
+
+/** Why a differing variant has no measured difference: a near match to compare by eye, or what Bridge does not measure. */
+function agreeWords(percent: number | undefined): string {
+  if (percent !== undefined && percent > UNMEASURED_PERCENT)
+    return `Bridge doesn't measure what differs here yet: the measured values agree, but ${percent}% of the pixels differ. Not a match: the images decide`;
+  return 'The measured values agree with what Figma drew: compare the shot with the Figma render (text rendering, an icon, an image)';
+}
+
 /** Fix ids figma-fixes.json applied to this component (applyFixes writes them on the component entry). */
 function fixesOf(file: MeasuredSpecsFile, component: string): string[] {
   const entries = (file.components ?? []).filter((c) => lc(setNameOf(c.title)) === lc(component)) as { figma?: { fixes?: string[] } }[];
@@ -488,7 +498,7 @@ function gapSummary(component: string, variants: GapVariant[], checked: number, 
   if (!variants.length) return checked ? `${component} matches the code on ${checked} variant${checked === 1 ? '' : 's'}.` : `${component} has no variant to compare.`;
   const first = variants.flatMap((v) => v.differences)[0];
   const head = `${component} differs from the code on ${variants.length} of ${checked} variant${checked === 1 ? '' : 's'}`;
-  if (!first) return `${head}: the measure agrees, compare the images.`;
+  if (!first) return variants.some((v) => (v.percent ?? 0) > UNMEASURED_PERCENT) ? `${head}: Bridge doesn't measure what differs here yet (the measured values agree, the images do not).` : `${head}: the measure agrees, compare the images.`;
   const more = variants.reduce((n, v) => n + v.differences.length, 0) - 1;
   return `${head}. ${first.text}${more > 0 ? `, and ${more} more` : ''}.`;
 }
