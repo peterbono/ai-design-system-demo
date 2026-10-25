@@ -100,6 +100,12 @@ h2 { font-size: 13px; line-height: 20px; font-weight: 600; margin: 0; text-wrap:
 .ill [data-fill="paper"], .ill [data-fill="zone"] { fill: var(--bg); }
 .ill [data-fill="deep"] { fill: var(--brand); }
 .ill [data-stroke="paper"] { stroke: var(--bg); }
+/* The Bridge mark next to a line ("every component matches"): ink in the text color, the water in Harbor. Fixed size,
+   so its moment never moves the text. */
+.all-match { display: inline-flex; align-items: center; gap: var(--s2); }
+.mark { display: inline-block; flex: none; width: 28px; height: 22px; color: var(--text); }
+.mark svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.mark [data-fill="zone"] { fill: var(--zone); }
 /* Card: a common region for related fields (Settings). */
 .card { border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--s3) var(--s4) var(--s4); gap: var(--s3); }
 h2.headline { font-family: Fraunces, Georgia, serif; font-size: 17px; line-height: 24px; font-weight: 600; letter-spacing: -0.005em; }
