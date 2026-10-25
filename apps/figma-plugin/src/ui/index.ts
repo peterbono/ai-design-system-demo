@@ -39,7 +39,7 @@ import { type Selection, onProgress, onSelection, request } from './bridge';
 import { blockerLines } from '../sync/blockers';
 import { MEASURED_SPECS_FILE, type MeasuredOverlayReport } from '../sync/measured-specs';
 import type { MeasuredOnlyReport } from '@bridge-ds/core';
-import { type FidelityOutcome, fidelitySummary, loadReferenceManifest, runFidelityCheck } from '../sync/fidelity';
+import { type FidelityOutcome, differsSentence, fidelityHeadline, fidelitySummary, loadReferenceManifest, runFidelityCheck } from '../sync/fidelity';
 import { FIGMA_REFERENCES_BRANCH, FIGMA_REFERENCES_DIR } from '@bridge-ds/core';
 import { fidelityComponentLine, fidelityVerdict } from '@bridge-ds/core';
 import { decodePng, encodePng } from './png';
@@ -2096,16 +2096,12 @@ function viewPull(): View {
       ],
       bar: left
         ? { label: 'Try again', onClick: retryComponents, secondary: { label: 'Check again', onClick: checkPull } }
-        : {
-            label: 'Check again',
-            onClick: checkPull,
-            // After a pull that built components: does Figma look like the code? One click, as the secondary action.
-            secondary: prop.kept.length
-              ? { label: 'Send my edits', onClick: () => { state.tab = 'push'; scanPush(); } }
-              : hasBuiltSets(p) && !problems.length
-                ? { label: 'Check fidelity', onClick: () => void checkFidelityAnywhere() }
-                : undefined,
-          },
+        : prop.kept.length
+          ? { label: 'Check again', onClick: checkPull, secondary: { label: 'Send my edits', onClick: () => { state.tab = 'push'; scanPush(); } } }
+          : hasBuiltSets(p) && !problems.length
+            // Components were just built: the next thing to do is see whether they look like the code (no dead end).
+            ? { label: 'Check fidelity', onClick: () => void checkFidelityAnywhere(), secondary: { label: 'Check again', onClick: checkPull } }
+            : { label: 'Check again', onClick: checkPull },
     };
   }
 
@@ -2138,8 +2134,15 @@ function viewPull(): View {
     : catchUp
       ? [lastPulled, 'Your variables already match the design system: update to catch up with its latest changes.'].filter(Boolean).join('. ')
       : [lastPulled, behind ? `${plural(behind, 'new change')} in the design system` : ''].filter(Boolean).join(' · ');
+  // A comparison with the code, running or done: it leads the screen. With nothing else to update, its result is the
+  // headline (never "Up to date" above differences); its progress and its rows come right under the zone.
+  const fid = p.fidelity && (p.fidelity.running || p.fidelity.outcome || p.fidelity.error) ? p.fidelity : undefined;
+  const quiet = upToDate && !withComponents && !behind;
   const body: Child[] = [
-    h('section', { class: 'zone' }, h('h2', { class: 'headline' }, headline), meta ? h('p', { class: 'muted' }, meta) : null),
+    fid && quiet
+      ? h('section', { class: 'zone' }, h('h2', { class: 'headline' }, fidelityHeadline(fid)), lastPulled ? h('p', { class: 'muted' }, lastPulled) : null)
+      : h('section', { class: 'zone' }, h('h2', { class: 'headline' }, headline), meta ? h('p', { class: 'muted' }, meta) : null),
+    fid ? fidelityGroup(p) : null,
   ];
 
   if (remote.length) {
@@ -2179,7 +2182,7 @@ function viewPull(): View {
     );
   }
   body.push(componentsGroup(p));
-  body.push(fidelityGroup(p));
+  if (!fid) body.push(fidelityGroup(p));
   if (prop.skipped.length) body.push(issueList('warn', 'Not written', prop.skipped.map((s) => ({ code: 'file-problem', severity: 'warning', message: `${s.path}: ${s.reason}` }))));
   body.push(notes(a));
   // Repository, commits, spec source and collections: last, folded, for whoever needs them (never above the changes).
@@ -2191,6 +2194,8 @@ function viewPull(): View {
   const toggle = freshSets
     ? { label: `Include components (${freshSets})`, checked: p.includeComponents, focusId: 'pull-components', onChange: (v: boolean) => { p.includeComponents = v; render(); } }
     : undefined;
+  // While the comparison runs, nothing competes with it: no "Check again" until it is done.
+  if (fid?.running) return { body, bar: undefined };
   return {
     body,
     bar: upToDate && !withComponents && !behind
@@ -2446,7 +2451,7 @@ async function fixWithClaude(p: PullState, component: string): Promise<void> {
 function fixPanel(p: PullState, component: string): Child {
   const fix = p.fidelity?.fix;
   if (!fix || fix.component !== component) return null;
-  if (fix.status === 'writing') return h('p', { class: 'muted', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Getting the request ready');
+  if (fix.status === 'writing') return h('p', { class: 'muted loading', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Getting the request ready');
   if (fix.status === 'error') return h('div', { class: 'callout warn', role: 'alert' }, h('div', { class: 'callout-title' }, icon('alert'), 'Could not ask Claude'), h('p', null, fix.error));
   const text = fixRequestForDeveloper(component, state.init?.settings.repo ?? '');
   return h(
@@ -2506,7 +2511,9 @@ function fidelityGroup(p: PullState): Child {
   );
   let lede: Child = 'Compares every variant with the same variant rendered from the code. Nothing in the file changes.';
   let content: Child = null;
-  if (f?.running) lede = `${f.running}...`;
+  if (f?.running) {
+    lede = h('span', { class: 'loading', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), f.running);
+  }
   else if (f?.error) content = h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Could not compare'), h('p', null, f.error));
   else if (outcome?.kind === 'no-references') {
     lede = NO_REFERENCES_HANDOFF_TEXT;
@@ -2538,7 +2545,7 @@ function fidelityGroup(p: PullState): Child {
           'li',
           { class: 'row review' },
           h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, it.name), kind),
-          gap ? h('p', null, gap) : h('p', { class: 'muted' }, fidelityComponentLine(r)),
+          gap ? h('p', null, gap) : h('p', { class: r.status === 'differs' ? '' : 'muted' }, r.status === 'differs' ? differsSentence(r) : fidelityComponentLine(r)),
           r.status === 'differs' && p.measure && !asked
             ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn', 'data-focus-id': `fix-${it.name}`, disabled: f?.fix?.status === 'writing' || !!state.busy, onClick: () => void fixWithClaude(p, it.name) }, 'Ask Claude to fix it'))
             : null,

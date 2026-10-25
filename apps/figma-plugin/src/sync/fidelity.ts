@@ -138,6 +138,27 @@ export async function runFidelityCheck(d: FidelityDeps): Promise<FidelityOutcome
 }
 
 /** One sentence for the whole check. */
+/**
+ * The screen's headline while a comparison runs or once it is done: what the designer learns, never "Up to date" above
+ * a list of differences.
+ */
+export function fidelityHeadline(f: { running?: string | undefined; error?: string | undefined; outcome?: FidelityOutcome | undefined }): string {
+  if (f.running) return 'Comparing with the code';
+  if (f.error) return 'Could not compare with the code';
+  const o = f.outcome;
+  if (!o) return 'Compare with the code';
+  if (o.kind === 'no-references') return "Can't compare yet";
+  if (o.kind === 'no-sets') return 'Nothing to compare yet';
+  const { differs, matches, notChecked } = o.report.summary;
+  if (differs) return `${differs} ${differs === 1 ? 'component differs' : 'components differ'} from the code`;
+  if (matches) return 'Figma matches the code';
+  return notChecked ? 'Nothing could be compared' : 'Nothing to compare yet';
+}
+
+/** One designer sentence for a set that differs (the pixel figures stay one click away, under its variants). */
+export const differsSentence = (r: { differing: number; checked: number }) =>
+  r.checked > 1 ? `Looks different from the code in ${r.differing} of ${r.checked} variants.` : 'Looks different from the code.';
+
 export function fidelitySummary(r: FidelityReport): string {
   const { matches, differs, notChecked } = r.summary;
   const parts = [differs ? `${differs} ${differs === 1 ? 'component differs' : 'components differ'} from the code` : '', matches ? `${matches} ${matches === 1 ? 'matches' : 'match'}` : '', notChecked ? `${notChecked} not compared` : ''].filter(Boolean);
