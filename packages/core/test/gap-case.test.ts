@@ -147,6 +147,19 @@ describe('gap case: Carbon IconButton', () => {
     expect(d[1]!.text).toBe('Width 16 in Figma vs 48 in code: 16 px missing before the icon, 16 px missing after the icon');
   });
 
+  it('an icon drawn as a vector is the measured icon, and a wrapper the pull adds stands for its part', () => {
+    const drawn = setFrom('IconButton', s);
+    drawn.parts.find((p) => p.id === 'icon')!.kind = 'vector';
+    // A margin wrapper around the button, as the pull adds one: the render has no such element.
+    const btn = drawn.parts.find((p) => p.id === 'cds--btn')!;
+    drawn.parts.splice(drawn.parts.indexOf(btn), 0, { id: 'cds--btn-wrapper', name: 'Btn wrapper', kind: 'frame', parent: btn.parent, layout: { direction: 'VERTICAL', primary: 'MIN', counter: 'STRETCH' } });
+    btn.parent = 'cds--btn-wrapper';
+    const boxes = { ...built.boxes, 'cds--btn-wrapper': { x: 0, y: 0, width: 16, height: 16 } };
+    const d = buildGapCase({ component: 'IconButton', measured: f, spec: drawn, fidelity: fid, built: { Default: { boxes } } }).variants[0]!.differences;
+    expect(d.filter((x) => x.property === 'presence')).toEqual([]);
+    expect(d[0]!.text).toBe('Height 16 in Figma vs 48 in code: 16 px missing above the icon, 16 px missing below the icon');
+  });
+
   it('after a fixed-size fix, a Figma that still hugs reads as a sizing gap', () => {
     const { file } = applyFixes(f, [{ id: 'iconbutton-fixed', kind: 'part', component: 'IconButton', part: 'cds--btn', width: 'fixed', height: 'fixed', reason: 'Carbon sets the icon button to 48 px square.' }]);
     const gap = buildGapCase({ component: 'IconButton', measured: file, spec });

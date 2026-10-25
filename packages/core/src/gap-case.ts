@@ -6,7 +6,7 @@
 
 import { variantKeyOf, type ComponentSpec, type SpecField, type SpecPart, type SpecValue, type SpecVariant } from './component-spec';
 import type { FidelityComponentResult, FidelityVariantResult, Size } from './fidelity';
-import { compareSpecToMeasured, pairParts, type MeasuredBox, type MeasuredSpec, type MeasuredSpecsFile, type MeasuredSpecsStory, type MeasuredState } from './measured-spec';
+import { compareSpecToMeasured, pairParts, withoutAddedWrappers, type MeasuredBox, type MeasuredSpec, type MeasuredSpecsFile, type MeasuredSpecsStory, type MeasuredState } from './measured-spec';
 
 export const GAP_CASE_VERSION = 1;
 
@@ -296,7 +296,8 @@ export interface VariantGapInput {
  * where it comes from, parts one side lacks, fixed sizes Figma hugs, auto layout direction, then field values.
  */
 export function variantDifferences(input: VariantGapInput): GapDifference[] {
-  const { parts, measured } = input;
+  const { measured } = input;
+  const parts = withoutAddedWrappers(input.parts, measured);
   const builtValues: SpecVariant['values'] = {};
   for (const [id, f] of Object.entries(input.variant.values ?? {})) builtValues[id] = { ...f };
   for (const [id, f] of Object.entries(input.built?.values ?? {})) builtValues[id] = { ...(builtValues[id] ?? {}), ...f };
