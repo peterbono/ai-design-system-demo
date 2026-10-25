@@ -30,7 +30,7 @@ export interface CompareGroup {
 }
 
 /** Columns, Bridge first. */
-export const TOOLS = ['Bridge', 'Tokens Studio', 'Supernova', 'Storybook', 'zeroheight', 'Figma'] as const;
+export const TOOLS = ['Bridge', 'Tokens Studio', 'Supernova', 'Storybook', 'zeroheight', 'Figma', 'story.to.design'] as const;
 
 export const AS_OF = 'October 2026';
 export const HEADING = 'How Bridge compares.';
@@ -48,10 +48,10 @@ export const KEY: Record<MarkState, string> = {
 };
 export const SWIPE_HINT = 'Swipe the table to see every tool';
 /** Names the short table and its scroll region. */
-export const SHORT_CAPTION = 'Bridge and five design tools, the differences that matter most';
+export const SHORT_CAPTION = 'Bridge and six design tools, the differences that matter most';
 export const SHORT_FIRST_HEAD = 'What you need';
 /** Names the full table and its scroll region. */
-export const FULL_CAPTION = 'Bridge and five design tools, feature by feature';
+export const FULL_CAPTION = 'Bridge and six design tools, feature by feature';
 export const FULL_FIRST_HEAD = 'Feature';
 export const MORE_CLOSED = 'Compare every feature';
 export const MORE_OPEN = 'Hide the full comparison';
@@ -61,7 +61,7 @@ const y = (note?: string, short?: string): Cell => (short ? { state: 'yes', note
 const p = (short: string, note: string): Cell => ({ state: 'partial', short, note });
 const n: Cell = { state: 'no' };
 
-// Cells in TOOLS order: Bridge, Tokens Studio, Supernova, Storybook, zeroheight, Figma.
+// Cells in TOOLS order: Bridge, Tokens Studio, Supernova, Storybook, zeroheight, Figma, story.to.design.
 export const SHORT: CompareRow[] = [
   {
     feature: 'Start an AI exploration with your design system',
@@ -73,6 +73,7 @@ export const SHORT: CompareRow[] = [
       p('Agent via MCP', 'A coding agent builds with your stories through its MCP server, in preview. The branch is yours to set up.'),
       p('Feeds other AI tools', 'Gives your system to Figma Make and coding agents through MCP. It does not run the exploration itself.'),
       y('Figma Make with a kit of your code components, in a Git branch, with a live preview. Paid plans.', 'Paid plans'),
+      n,
     ],
   },
   {
@@ -85,6 +86,7 @@ export const SHORT: CompareRow[] = [
       p('Visual diffs via Chromatic', 'With Chromatic, a review shows the stories that changed visually.'),
       p('Audit via MCP', 'Its MCP audit flags design and code inconsistencies before a merge.'),
       p('Page by page audit', 'Check designs flags hard-coded values and detached components, one page at a time.'),
+      n,
     ],
   },
   {
@@ -97,6 +99,7 @@ export const SHORT: CompareRow[] = [
       p('Via Git or Chromatic', 'Through your Git host, or Chromatic UI Review.'),
       p('No approval step', 'Token changes go back to code as a pull request. No approval step of its own.'),
       y('Branch review with Approve or Ask for changes, on Organization and Enterprise.'),
+      p('Figma update review', 'A visual review of code changes before they update the Figma kit. No approval step or roles.'),
     ],
   },
   {
@@ -109,6 +112,7 @@ export const SHORT: CompareRow[] = [
       p('Code only', 'Code and stories, in your Git review.'),
       p('Docs and tokens', 'Docs, plus token pull requests.'),
       p('Two separate reviews', 'Design files in branch review; Make code in GitHub pull requests.'),
+      p('Figma updates only', 'Reviews code changes before they reach Figma: components as visuals, variables in a list. Code and docs are reviewed elsewhere.'),
     ],
   },
   {
@@ -121,6 +125,7 @@ export const SHORT: CompareRow[] = [
       n,
       n,
       p('Beta, no fidelity check', 'An agent skill builds components from code, in beta. Drift checks cover tokens only.'),
+      p('No fidelity check', 'Builds Figma components and variants from Storybook stories. Its visual review compares old and new Figma versions; no check of Figma against code is documented.'),
     ],
   },
   {
@@ -131,6 +136,7 @@ export const SHORT: CompareRow[] = [
       p('Plugin only', 'The Figma plugin is MIT; the platform is not.'),
       p('Exporters only', 'The code exporters are MIT; the platform is not.'),
       y('MIT.'),
+      n,
       n,
       n,
     ],
@@ -145,6 +151,7 @@ export const SHORT: CompareRow[] = [
       y('Chromatic, its visual testing service, is paid.', 'Chromatic is paid'),
       n,
       n,
+      n,
     ],
   },
 ];
@@ -156,7 +163,7 @@ export const GROUPS: CompareGroup[] = [
       {
         feature: 'Tokens in the W3C standard format',
         detail: '',
-        cells: [y(), y(), n, n, y(), y('Variables import and export.')],
+        cells: [y(), y(), n, n, y(), y('Variables import and export.'), n],
       },
       {
         feature: 'Two-way sync between Figma variables and code',
@@ -168,6 +175,7 @@ export const GROUPS: CompareGroup[] = [
           n,
           p('Figma one way', 'Two-way with Git; Figma variables come in one way.'),
           p('Agent skill, in beta', 'An agent skill syncs variables and code with drift detection, in beta.'),
+          p('Code to Figma only', 'CSS custom properties become Figma variables in one collection, one way; nothing goes back to code.'),
         ],
       },
       {
@@ -180,6 +188,7 @@ export const GROUPS: CompareGroup[] = [
           y('Storybook Connect, by Chromatic, links stories to Figma components.'),
           p('Shown side by side', 'Figma and Storybook side by side in doc pages.'),
           y('Code Connect in Dev Mode, on Organization and Enterprise.'),
+          y('Components are generated from Storybook stories and stay in sync; Dev Mode links each one to its story.'),
         ],
       },
     ],
@@ -197,6 +206,7 @@ export const GROUPS: CompareGroup[] = [
           p('Via paid Chromatic', 'With Chromatic, a separate paid service.'),
           n,
           y('Branch review, side by side or as an overlay.'),
+          y('Old and new versions of each variant, side by side or as an overlay, before the Figma update.'),
         ],
       },
       {
@@ -209,6 +219,7 @@ export const GROUPS: CompareGroup[] = [
           y('The accessibility addon runs axe on stories, and fails CI when set to.'),
           n,
           p('On demand, per page', 'Check designs tests contrast on demand, one page at a time.'),
+          n,
         ],
       },
       {
@@ -221,6 +232,7 @@ export const GROUPS: CompareGroup[] = [
           n,
           p('Releases, paid plans', 'Tokens follow styleguide releases, on paid plans.'),
           p('Whole file only', 'Version history restores a whole file, not one variable.'),
+          n,
         ],
       },
     ],
@@ -231,13 +243,13 @@ export const GROUPS: CompareGroup[] = [
       {
         feature: 'Workshop to build coded components',
         detail: '',
-        cells: [p('Built on Storybook', 'Bridge ships its components with Storybook and builds on it.'), n, n, y(), n, n],
+        cells: [p('Built on Storybook', 'Bridge ships its components with Storybook and builds on it.'), n, n, y(), n, n, n],
       },
-      { feature: 'Docs drafted by AI, reviewed by people', detail: '', cells: [y(), n, y(), n, y(), y('With the Figma agent.')] },
+      { feature: 'Docs drafted by AI, reviewed by people', detail: '', cells: [y(), n, y(), n, y(), y('With the Figma agent.'), n] },
       {
         feature: 'Hosted documentation site',
         detail: '',
-        cells: [y(), n, y(), p('Static build, self-hosted', 'A static build you host, or publish with Chromatic.'), y(), p('No docs template', 'Figma Sites, with no docs template.')],
+        cells: [y(), n, y(), p('Static build, self-hosted', 'A static build you host, or publish with Chromatic.'), y(), p('No docs template', 'Figma Sites, with no docs template.'), n],
       },
       {
         feature: 'Adoption audit in product code',
@@ -249,6 +261,7 @@ export const GROUPS: CompareGroup[] = [
           n,
           y('On Enterprise, for React and Angular.', 'Enterprise'),
           p('Figma files only', 'Library analytics count use in Figma files, not code.'),
+          n,
         ],
       },
     ],
@@ -259,7 +272,7 @@ export const GROUPS: CompareGroup[] = [
       {
         feature: 'Works with AI agents, through MCP',
         detail: '',
-        cells: [y(), n, y(), y('MCP server in preview.', 'In preview'), y(), y()],
+        cells: [y(), n, y(), y('MCP server in preview.', 'In preview'), y(), y(), n],
       },
     ],
   },
@@ -295,6 +308,14 @@ export const SOURCES: Record<(typeof TOOLS)[number], { label: string; href: stri
     { label: 'Branch review', href: 'https://help.figma.com/hc/en-us/articles/5693123873687-Review-branch-changes' },
     { label: 'Check designs', href: 'https://help.figma.com/hc/en-us/articles/39592284074263-Check-designs-in-Figma' },
     { label: 'Agents on the canvas', href: 'https://www.figma.com/blog/the-figma-canvas-is-now-open-to-agents/' },
+  ],
+  'story.to.design': [
+    { label: 'Features', href: 'https://story.to.design/' },
+    { label: 'Updates', href: 'https://story.to.design/docs/updates' },
+    { label: 'Variables', href: 'https://story.to.design/docs/variables' },
+    { label: 'Workflow', href: 'https://story.to.design/docs/incorporate-s2d-in-workflow' },
+    { label: 'Dev Mode', href: 'https://story.to.design/docs/dev-mode' },
+    { label: 'Pricing', href: 'https://story.to.design/docs/paid-plans' },
   ],
 };
 

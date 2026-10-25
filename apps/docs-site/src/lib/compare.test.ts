@@ -16,7 +16,7 @@ describe('comparison (homepage and /compare/)', () => {
   });
 
   it('gives every row one cell per tool, Bridge first', () => {
-    expect(TOOLS).toEqual(['Bridge', 'Tokens Studio', 'Supernova', 'Storybook', 'zeroheight', 'Figma']);
+    expect(TOOLS).toEqual(['Bridge', 'Tokens Studio', 'Supernova', 'Storybook', 'zeroheight', 'Figma', 'story.to.design']);
     for (const r of ALL_ROWS) expect(r.cells.length, r.feature).toBe(TOOLS.length);
   });
 
@@ -51,6 +51,7 @@ describe('comparison (homepage and /compare/)', () => {
       'Code only',
       'Docs and tokens',
       'Two separate reviews',
+      'Figma updates only',
     ]);
     expect(row('Start an AI exploration with your design system').cells[5].short).toBe('Paid plans');
   });
@@ -61,10 +62,18 @@ describe('comparison (homepage and /compare/)', () => {
 
   it('credits Figma and Tokens Studio where they do the job', () => {
     const row = (f: string) => ALL_ROWS.find((r) => r.feature === f)!;
-    expect(marks(row('Start an AI exploration with your design system'))).toBe('ynpppy');
-    expect(marks(row('Your DS lead approves just the change'))).toBe('yypppy');
-    expect(marks(row('Visual before and after of a change'))).toBe('ypppny');
-    expect(marks(row('UI kit linked to code'))).toBe('ypyypy');
+    expect(marks(row('Start an AI exploration with your design system'))).toBe('ynpppyn');
+    expect(marks(row('Your DS lead approves just the change'))).toBe('yypppyp');
+    expect(marks(row('Visual before and after of a change'))).toBe('ypppnyy');
+    expect(marks(row('UI kit linked to code'))).toBe('ypyypyy');
+  });
+
+  it('credits story.to.design for building the Figma kit from stories, and shows it goes one way', () => {
+    const row = (f: string) => ALL_ROWS.find((r) => r.feature === f)!;
+    const last = (f: string) => row(f).cells[TOOLS.length - 1];
+    expect(last('Figma kit built from code, with a fidelity check').short).toBe('No fidelity check');
+    expect(last('Two-way sync between Figma variables and code').short).toBe('Code to Figma only');
+    expect(last('Free, with every feature').state).toBe('no');
   });
 
   it('has a legend for each mark, none for the worded partial cells, and a date', () => {
