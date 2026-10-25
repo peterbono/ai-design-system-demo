@@ -1733,11 +1733,15 @@ export async function applyComponentPlan(plan: ComponentPullPlan, progress: Prog
     const minutes = Math.max(1, Math.round((Date.now() - other.started) / 60_000));
     throw new Error(`Someone else is pulling components into this file (started ${minutes} min ago). Wait until it ends, then check again: two pulls at once would build the same components twice.`);
   }
+  // A preview drawing in progress shares the builder's bookkeeping: wait for it (it is short, and capped by the UI).
+  while (rendering) await new Promise((r) => setTimeout(r, 50));
   const started = Date.now();
   holdBuildLock(started);
+  pulling = true;
   try {
     return await buildAll(plan, progress, opts, started);
   } finally {
+    pulling = false;
     releaseBuildLock();
   }
 }
@@ -1801,4 +1805,68 @@ async function buildAll(plan: ComponentPullPlan, progress: Progress, opts: Apply
     report.fontNote = `${[...ctx.fonts.missing].join(', ')} ${ctx.fonts.missing.size === 1 ? 'is' : 'are'} not available in this Figma, so text uses Inter. Install the font and pull again.`;
   }
   return report;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// "After: drawn by Bridge": the incoming version of one variant, drawn off-canvas with the same builder as a pull, then
+// exported and removed. For teams with no image of their code: the preview of an update before it is applied. The file
+// is never left modified: the drawing lives on a temporary page, every node made is removed in `finally` (even on an
+// error), parts (icons, slots) are only read, never drawn, and nothing is written to the document's plugin data.
+
+/** A pull building in this plugin, and a preview drawing: never both (they share the builder's bookkeeping). */
+let pulling = false;
+let rendering = false;
+
+/** The icons and slots already in the file, read only (a pull draws them; a preview never does). */
+async function indexParts(plan: Pick<ComponentPullPlan, 'icons'>, ctx: Ctx): Promise<void> {
+  await figma.loadAllPagesAsync();
+  for (const c of figma.root.findAllWithCriteria({ types: ['COMPONENT'] })) {
+    const iconId = c.getSharedPluginData(NS, 'iconId');
+    const slotId = c.getSharedPluginData(NS, 'slotId');
+    if (iconId) ctx.parts.set(c.name || `Icon/${iconId}`, c);
+    if (slotId) ctx.parts.set(c.name, c);
+  }
+  ctx.icons = (plan.icons ?? []).map((i) => i.component).filter((n) => ctx.parts.has(n));
+}
+
+/**
+ * Draws the incoming version of one variant of `comp` off-canvas and returns its PNG (base64) and how long it took, or
+ * null when it cannot be drawn now (a pull running here or by a teammate, Figma refused it). Read only for the file.
+ */
+export async function renderIncoming(comp: PlannedComponent, plan: Pick<ComponentPullPlan, 'icons'>, key: string, scale = 2): Promise<{ base64: string; ms: number } | null> {
+  if (rendering || pulling || otherBuild()) return null;
+  const pv = comp.variants.find((v) => v.key === key) ?? comp.variants[0];
+  if (!pv) return null;
+  rendering = true;
+  const started = Date.now();
+  const saved = created;
+  created = new Created();
+  let page: PageNode | undefined;
+  try {
+    page = figma.createPage();
+    page.name = 'Bridge preview (temporary)';
+    const ctx: Ctx = { vars: new Variables(), fonts: new Fonts(), problems: [], where: '', parts: new Map(), icons: [] };
+    await ctx.vars.load().catch(() => undefined);
+    await ctx.fonts.load();
+    await indexParts(plan, ctx);
+    const report: ComponentApplyReport = { created: 0, updated: 0, unchanged: 0, orphaned: 0, page: page.name, problems: ctx.problems, nodeIds: [], total: 1, failed: [] };
+    // One variant, a set of its own: the same builder a pull runs, on the temporary page.
+    await buildSet({ ...comp, variants: [pv], removedVariants: [], addedVariants: [], interactions: [] }, undefined, ctx, report, { page, bottom: 0, sets: [] }, []);
+    const set = page.children.find((n): n is ComponentSetNode => n.type === 'COMPONENT_SET');
+    const variant = set?.children[0] as ComponentNode | undefined;
+    if (!variant) return null;
+    const bytes = await variant.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: scale } });
+    return { base64: figma.base64Encode(bytes), ms: Date.now() - started };
+  } catch {
+    return null;
+  } finally {
+    created.rollback(0);
+    created = saved;
+    try {
+      if (page && !page.removed) page.remove();
+    } catch {
+      /* gone */
+    }
+    rendering = false;
+  }
 }

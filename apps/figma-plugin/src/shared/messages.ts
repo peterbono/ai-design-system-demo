@@ -253,6 +253,8 @@ export interface RequestMap {
   'read-built': { request: { nodeId: string; keys: string[] }; response: Record<string, { boxes: Record<string, { x: number; y: number; width: number; height: number }>; hidden: string[] }> };
   /** Build or update the component sets of a plan on the Components page, bound to the variables. */
   'apply-components': { request: { plan: ComponentPullPlan }; response: ComponentApplyReport };
+  /** "After: drawn by Bridge": one variant of the incoming version, drawn off-canvas, exported, removed. Null: not now. */
+  'render-incoming': { request: { component: ComponentPullPlan['components'][number]; icons: ComponentPullPlan['icons']; key: string; scale: number }; response: { base64: string; ms: number } | null };
   /** Stop the component build in progress after the set it is on: its report lists the sets it did not reach. */
   'cancel-components': { request: Record<string, never>; response: { cancelled: boolean } };
 }

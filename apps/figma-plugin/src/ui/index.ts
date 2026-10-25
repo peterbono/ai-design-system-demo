@@ -40,13 +40,14 @@ import { blockerLines } from '../sync/blockers';
 import { MEASURED_SPECS_FILE, type MeasuredOverlayReport } from '../sync/measured-specs';
 import type { MeasuredOnlyReport } from '@bridge-ds/core';
 import { type FidelityOutcome, differsSentence, fidelityHeadline, fidelitySummary, loadReferenceManifest, runFidelityCheck } from '../sync/fidelity';
-import { FIGMA_REFERENCES_BRANCH, FIGMA_REFERENCES_DIR } from '@bridge-ds/core';
+import { FIGMA_REFERENCES_BRANCH, FIGMA_REFERENCES_DIR, type FigmaReferenceManifest } from '@bridge-ds/core';
 import { fidelityComponentLine, fidelityVerdict } from '@bridge-ds/core';
 import { decodePng, encodePng } from './png';
 import { type Child, h } from './dom';
 import { icon } from './icons';
 import { ILLUSTRATIONS, type IllustrationName } from './illustrations';
 import { focusFirstItem, menuKeys } from './menu';
+import { PREVIEW_WORDS, RENDER_CAP_MS, type UpdatePreview, codeImageSource, previewKey } from '../sync/update-preview';
 import { CLAUDE_RUN_WORDS, ClaudeRunPoller, type RunView, RunRefused, isFinal, listClaudeRuns, readClaudeRun, startClaudeFix } from '../sync/claude-runs';
 import { BridgeSignInPoller, type LinkPoll, SIGN_IN_WORDS, startBridgeSignIn } from '../sync/bridge-sign-in';
 
@@ -87,6 +88,10 @@ interface PullState {
   reviews: ComponentReview[];
   /** This person's change still open for review (the last send): the kept edits it holds are "in review", not "to send". */
   sentPr?: PullRequest | undefined;
+  /** Published code images (Check fidelity's), read once when an update is to review: the "After" of a preview. */
+  refs?: FigmaReferenceManifest | undefined;
+  /** "Review updates": per set node id, the default variant in Figma now and the incoming version (in code). */
+  previews: Record<string, UpdatePreview>;
   /** Thumbnails (base64 PNG) per set node id, before and after its update. */
   before: Record<string, string>;
   after: Record<string, string>;
@@ -878,6 +883,7 @@ async function loadPull(prev?: PullState): Promise<PullState> {
   } catch (err) {
     componentsError = componentsErrorOf(err, 'pull');
   }
+  const refs = reviews.length ? await loadReferenceManifest(getClient()).catch(() => undefined) : undefined;
   const lastBranch = state.init!.sync.lastPrBranch;
   const sentPr = lastBranch ? await getClient().findOpenPullRequest(lastBranch).catch(() => undefined) : undefined;
   return {
@@ -885,6 +891,8 @@ async function loadPull(prev?: PullState): Promise<PullState> {
     choices,
     overwrite: false,
     ...(sentPr ? { sentPr } : {}),
+    ...(refs ? { refs } : {}),
+    previews: prev?.previews ?? {},
     proposal: buildPull(analysis, choices),
     components,
     componentsError,
@@ -920,6 +928,7 @@ function checkPull(): void {
       }
       state.pull = p;
       state.expanded.clear();
+      void loadPreviews(p);
     },
     checkPull,
   );
@@ -994,6 +1003,7 @@ function updateComponent(componentId: string): void {
       const next = await loadPull(p);
       if (report.problems.length) next.componentsReport = undefined;
       state.pull = next;
+      void loadPreviews(next);
       const notBuilt = report.failed?.[0] ?? report.partial?.[0];
       if (notBuilt) state.error = { message: `${comp.name} was not fully updated: ${notBuilt.reason}. Nothing half built was left.`, retry: () => updateComponent(componentId) };
       else if (report.problems.length) state.error = { message: `${comp.name} updated, with problems: ${report.problems.slice(0, 3).join('; ')}` };
@@ -2277,6 +2287,25 @@ function thumbs(p: PullState, nodeId: string, name: string, changes: { field: st
   const pending = coming.length
     ? h('div', { class: 'thumb-coming' }, h('b', null, 'What changes'), h('ul', null, coming.map((c) => h('li', null, c))), changes.length > 3 ? h('small', null, `And ${changes.length - 3} more below`) : null)
     : 'Shown once updated';
+  // Before an update: the default variant in Figma now, next to the incoming version (the code's image, or drawn by
+  // Bridge). Without either, today's set thumbnail and the list of what changes.
+  const pv = !p.after[nodeId] && changes.length ? p.previews[nodeId] : undefined;
+  if (pv && (pv.after || pv.state === 'loading' || pv.state === 'waiting')) {
+    return h(
+      'div',
+      { class: 'thumbs-wrap', 'data-preview': pv.source, ...(pv.state === 'waiting' ? { 'data-draw': nodeId } : {}), ...(pv.ms ? { title: `Drawn by Bridge in ${pv.ms} ms` } : {}) },
+      h(
+        'div',
+        { class: big ? 'thumbs one' : 'thumbs' },
+        img(pv.before ?? p.before[nodeId], PREVIEW_WORDS.before, 'No preview'),
+        img(pv.after, pv.source === 'bridge' ? PREVIEW_WORDS.afterBridge : PREVIEW_WORDS.afterCode, pv.state !== 'done' ? h('span', { class: 'loading' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), PREVIEW_WORDS.loading) : pending),
+      ),
+      pv.after ? h('small', null, PREVIEW_WORDS.close) : null,
+      pv.after
+        ? h('button', { class: 'btn ghost', 'data-focus-id': key, 'aria-pressed': big ? 'true' : 'false', onClick: () => { big ? state.expanded.delete(key) : state.expanded.add(key); render(); } }, big ? 'Show side by side' : 'Enlarge')
+        : null,
+    );
+  }
   return h(
     'div',
     { class: 'thumbs-wrap' },
@@ -2285,6 +2314,86 @@ function thumbs(p: PullState, nodeId: string, name: string, changes: { field: st
       ? h('button', { class: 'btn ghost', 'data-focus-id': key, 'aria-pressed': big ? 'true' : 'false', onClick: () => { big ? state.expanded.delete(key) : state.expanded.add(key); render(); } }, big ? 'Show side by side' : 'Enlarge')
       : null,
   );
+}
+
+/**
+ * The previews of the sets to review, one at a time: the default variant exported from Figma ("Before: in Figma now")
+ * and, when there is one of the incoming version, its code image ("After: in code"). Read only.
+ */
+async function loadPreviews(p: PullState): Promise<void> {
+  for (const r of p.reviews) {
+    if (p.previews[r.nodeId] || p.done.has(r.componentId)) continue;
+    const planned = p.components?.components.find((c) => c.componentId === r.componentId);
+    const key = planned && previewKey(planned);
+    if (!planned || !key) continue;
+    const source = codeImageSource(planned, key, p.refs, p.shots, state.init!.settings.branch);
+    if (!source) {
+      // No image of the code: Bridge draws the incoming version itself, off-canvas, once the row scrolls into view.
+      p.previews[r.nodeId] = { key, source: 'bridge', state: 'waiting' };
+      continue;
+    }
+    p.previews[r.nodeId] = { key, source: 'code', state: 'loading' };
+    if (state.pull === p) render();
+    const [before, after] = await Promise.all([
+      request('fidelity-export', { nodeId: r.nodeId, keys: [key], scale: p.refs?.scale ?? 2 }).then((x) => x[key]).catch(() => undefined),
+      getClient().getFileBase64(source.path, source.ref).then((x) => x?.base64).catch(() => undefined),
+    ]);
+    p.previews[r.nodeId] = { key, before, after, source: after ? 'code' : 'none', state: 'done' };
+    if (state.pull === p) render();
+  }
+}
+
+/** Drawings by Bridge, one at a time, in the order their rows came into view. */
+const drawQueue: { p: PullState; nodeId: string }[] = [];
+let drawing = false;
+
+async function drawNext(): Promise<void> {
+  if (drawing) return;
+  const next = drawQueue.shift();
+  if (!next) return;
+  drawing = true;
+  const { p, nodeId } = next;
+  try {
+    const pv = p.previews[nodeId];
+    const r = p.reviews.find((x) => x.nodeId === nodeId);
+    const planned = r && p.components?.components.find((c) => c.componentId === r.componentId);
+    if (!pv || pv.state !== 'waiting' || !planned || state.pull !== p) return;
+    p.previews[nodeId] = { ...pv, state: 'loading' };
+    render();
+    const before = await request('fidelity-export', { nodeId, keys: [pv.key], scale: 2 }).then((x) => x[pv.key]).catch(() => undefined);
+    // Capped: past it, the list of changes says what the update does (the drawing still cleans up behind it).
+    const drawn = await Promise.race([
+      request('render-incoming', { component: planned, icons: p.components?.icons, key: pv.key, scale: 2 }).catch(() => null),
+      new Promise<null>((done) => setTimeout(() => done(null), RENDER_CAP_MS)),
+    ]);
+    p.previews[nodeId] = drawn ? { key: pv.key, before, after: drawn.base64, source: 'bridge', state: 'done', ms: drawn.ms } : { key: pv.key, source: 'none', state: 'done' };
+    if (state.pull === p) render();
+  } finally {
+    drawing = false;
+    void drawNext();
+  }
+}
+
+/** Rows waiting for a drawing: drawn as they scroll into view (all at once where the browser cannot tell). */
+let drawObserver: IntersectionObserver | undefined;
+function watchDrawings(): void {
+  const p = state.pull;
+  if (!p) return;
+  const waiting = [...document.querySelectorAll<HTMLElement>('[data-draw]')];
+  if (!waiting.length) return;
+  const enqueue = (nodeId: string) => {
+    if (!drawQueue.some((x) => x.nodeId === nodeId)) drawQueue.push({ p, nodeId });
+    void drawNext();
+  };
+  if (typeof IntersectionObserver !== 'function') {
+    waiting.forEach((el) => enqueue(el.dataset.draw!));
+    return;
+  }
+  drawObserver?.disconnect();
+  drawObserver = new IntersectionObserver((entries) => {
+    for (const e of entries) if (e.isIntersecting) enqueue((e.target as HTMLElement).dataset.draw!);
+  });
+  waiting.forEach((el) => drawObserver!.observe(el));
 }
 
 /** Figma's "Review updates": one card per changed set, before and after, what changes, and "Update" on its own. */
@@ -4830,6 +4939,7 @@ function render(): void {
 
   const main = document.querySelector('main');
   if (main) main.scrollTop = scrollTop;
+  watchDrawings();
   fitWindow();
   if (focusedId) (document.querySelector(`[data-focus-id="${focusedId}"]`) as HTMLElement | null)?.focus();
 }
