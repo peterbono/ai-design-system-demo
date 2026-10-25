@@ -35,9 +35,20 @@ import { siteConfig } from '../../../scripts/repo-context';
 
 export interface StartChangeProps {
   components: { name: string; slug: string; family?: string }[];
-  /** `card`: the dashed first card of Your branches on the Studio home, always shown (the page only mounts it signed in). */
-  appearance?: 'menu' | 'card';
+  /**
+   * `card`: the dashed first card of the home's explorations, always shown (the page only mounts it signed in).
+   * `button`: a lone secondary button (the home's explorations when there are none yet).
+   */
+  appearance?: 'menu' | 'card' | 'button';
+  /**
+   * "Start an exploration" (the Studio home's explorations): the same flow on its product step, a feature in a product
+   * tried with Claude AI, with no question about the library first.
+   */
+  exploration?: boolean;
 }
+
+/** Where an exploration starts when the team lists no product but the library: the Explorations start form. */
+const EXPLORATION_FORM = () => startChangeHref('new');
 
 export const START_CHANGE_EVENT = 'bridge:start-change';
 /** Sent when the dialog opens or closes, so the page keeps one primary action (the dialog's). */
@@ -81,7 +92,7 @@ const Title = ({ step, children }: { step?: string; children: ReactNode }) => (
   </>
 );
 
-export default function StartChange({ components, appearance = 'menu' }: StartChangeProps) {
+export default function StartChange({ components, appearance = 'menu', exploration = false }: StartChangeProps) {
   // The server render and the first client render agree; the page's choice comes in right after.
   const [look, setLook] = useState<StartChangeLook>({ variant: 'primary', hidden: false });
   const [open, setOpen] = useState(false);
@@ -117,7 +128,7 @@ export default function StartChange({ components, appearance = 'menu' }: StartCh
   const start = firstStep(choices);
 
   const reset = () => {
-    setStep(start);
+    setStep(exploration ? 'feature' : start);
     setKind('feature');
     setLib('look');
     setSlug(null);
@@ -133,6 +144,11 @@ export default function StartChange({ components, appearance = 'menu' }: StartCh
 
   const onOpenChange = (next: boolean) => {
     if (busy) return;
+    // No product to explore in but the library: the exploration starts on the Explorations form.
+    if (next && exploration && !choices.length) {
+      location.href = EXPLORATION_FORM();
+      return;
+    }
     if (next) reset();
     setOpen(next);
   };
@@ -188,8 +204,8 @@ export default function StartChange({ components, appearance = 'menu' }: StartCh
     setTried(false);
     setStep(to);
   };
-  const stepTwo = start === 'kind' ? 'Step 2 of 2' : undefined;
-  const lead = (s: Step) => (s === 'kind' ? 'Step 1 of 2' : s === 'feature' ? `${stepTwo} · A feature in a product` : s === 'library' ? (stepTwo ? `${stepTwo} · A change to the library` : undefined) : s === 'report' ? `${stepTwo ?? 'Step 2 of 2'} · Something looks wrong` : undefined);
+  const stepTwo = start === 'kind' && !exploration ? 'Step 2 of 2' : undefined;
+  const lead = (s: Step) => (s === 'kind' ? 'Step 1 of 2' : s === 'feature' ? (stepTwo ? `${stepTwo} · A feature in a product` : undefined) : s === 'library' ? (stepTwo ? `${stepTwo} · A change to the library` : undefined) : s === 'report' ? `${stepTwo ?? 'Step 2 of 2'} · Something looks wrong` : undefined);
 
   const componentField = (label: string) => (
     <Combobox
@@ -232,7 +248,7 @@ export default function StartChange({ components, appearance = 'menu' }: StartCh
       </Button>,
     );
   } else if (step === 'feature') {
-    title = <Title step={lead('feature')}>What are you building?</Title>;
+    title = <Title step={lead('feature')}>{exploration ? 'What do you want to explore?' : 'What are you building?'}</Title>;
     body = (
       <form
         className="sc-form"
@@ -281,7 +297,7 @@ export default function StartChange({ components, appearance = 'menu' }: StartCh
       </form>
     );
     foot = footer(
-      start === 'kind' ? (
+      start === 'kind' && !exploration ? (
         <Button variant="link" onClick={back('kind')} disabled={busy}>
           Back
         </Button>
@@ -338,7 +354,7 @@ export default function StartChange({ components, appearance = 'menu' }: StartCh
     body = (
       <div className="sc-form">
         <p className="t-body sc-line">
-          <b>{done?.name}</b> is a new {VOCAB.branch} in {done?.product}. Say this to Claude AI in Claude Code or Claude Desktop, with the Bridge MCP server:
+          <b>{done?.name}</b> is a new {exploration ? 'exploration' : VOCAB.branch} in {done?.product}. Say this to Claude AI in Claude Code or Claude Desktop, with the Bridge MCP server:
         </p>
         <CodeBlock code={done?.prompt ?? ''} label="Say to Claude AI" />
       </div>
@@ -346,24 +362,30 @@ export default function StartChange({ components, appearance = 'menu' }: StartCh
     foot = footer(
       null,
       <Button size="lg" onClick={() => done && go(done.href)}>
-        Open the {VOCAB.branch}
+        Open the {exploration ? 'exploration' : VOCAB.branch}
       </Button>,
     );
   }
 
   const card = appearance === 'card';
-  if (look.hidden && !card) return null;
+  const label = exploration ? 'Start an exploration' : VOCAB.createBranch;
+  const gate = exploration ? 'start explorations' : 'start changes';
+  if (look.hidden && appearance === 'menu') return null;
   return (
     <Dialog open={open} onOpenChange={onOpenChange} disablePointerDismissal={step === 'feature' && Boolean(sentence.trim())}>
       <DialogTrigger
         render={
           card ? (
-            <Button variant="ghost" iconStart={Plus} fullWidth className="sh-create-btn" data-start-change data-demo-write="start changes">
-              {VOCAB.createBranch}
+            <Button variant="ghost" iconStart={Plus} fullWidth className="sh-create-btn" data-start-change data-demo-write={gate}>
+              {label}
+            </Button>
+          ) : appearance === 'button' ? (
+            <Button variant="secondary" size="lg" iconStart={Plus} data-start-change data-demo-write={gate}>
+              {label}
             </Button>
           ) : (
-            <Button variant={look.variant} iconStart={Plus} fullWidth data-start-change data-demo-write="start changes">
-              {VOCAB.createBranch}
+            <Button variant={look.variant} iconStart={Plus} fullWidth data-start-change data-demo-write={gate}>
+              {label}
             </Button>
           )
         }

@@ -354,6 +354,30 @@
   border-radius: var(--radius-container);
 }
 
+/* Who explores it: the face next to the name, kept together on a wrap. */
+.sh-card-who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* No exploration yet: the drawing, one sentence and the one button, on one line on a wide screen. */
+.sh-explore-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-6);
+  padding: var(--space-6);
+  border: var(--border-width-default) dashed var(--color-border-emphasis);
+  border-radius: var(--radius-container);
+}
+
+.sh-explore-empty-text {
+  flex: 1 1 var(--size-60);
+  max-width: var(--size-120);
+  margin: 0;
+}
+
 /* --- Nothing at all: three ways to start ---------------------------------------------------------------------- */
 
 .sh-zone-empty {

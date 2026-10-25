@@ -147,6 +147,7 @@ const home = (over: Partial<StudioHomeProps>): StudioHomeProps => ({
   greeting: 'Good morning, Sam.',
   needs: [],
   branches: [],
+  explorations: [],
   health: null,
   now: NOW,
   components: [],

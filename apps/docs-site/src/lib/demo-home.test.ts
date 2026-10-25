@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { demoLogins, isBotPull, leadQueue, teamBranches, type DemoPull } from './demo-home';
+import { demoLogins, isBotPull, leadQueue, teamExplorations, type DemoPull } from './demo-home';
 import { person, sortNeeds } from './home-model';
 
 const DAY = 24 * 3600 * 1000;
@@ -32,10 +32,9 @@ describe("the DS lead's queue on the demo", () => {
     expect(rows[2]).toMatchObject({ title: 'Raise contrast', line: 'dana suggests a change' });
   });
 
-  it('leaves out a branch the visitor approved during the visit, and its card says approved', () => {
+  it('leaves out a branch the visitor approved during the visit', () => {
     const approved = new Set([4]);
     expect(leadQueue([pull(1), pull(4)], [], now, { approved }).map((r) => r.key)).toEqual(['change-1']);
-    expect(teamBranches([pull(1), pull(4)], { approved }).map((b) => b.statusLine?.detail)).toEqual(['in review', 'approved']);
   });
 
   it('shows who asked, as Bridge recorded it, before the account that opened it', () => {
@@ -77,20 +76,42 @@ describe("the DS lead's queue on the demo", () => {
     expect(isBotPull({ user: { login: 'ann' } })).toBe(false);
   });
 
-  it("shows the team's explorations and branches as the board words them", () => {
-    const cards = teamBranches([
-      pull(36, { draft: true, title: 'Exploration: profile page', labels: [{ name: 'product: account' }, { name: 'exploration' }], head: { ref: 'explore/profile-page' } }),
-      pull(20, { title: 'New ProfileHeader component', requested_reviewers: [{ login: 'dana' }] }),
-      pull(15, { draft: true }),
-      pull(9, { user: { login: 'release[bot]', type: 'Bot' } }),
+  it("shows the team's explorations only, each with its explored screen: library changes stay in the queue", () => {
+    const cards = teamExplorations(
+      [
+        pull(36, {
+          draft: true,
+          title: 'Exploration: profile page',
+          labels: [{ name: 'product: account' }, { name: 'exploration' }],
+          head: { ref: 'explore/profile-page' },
+          body: 'Requested by Ann Leroy (@ann-leroy).',
+        }),
+        pull(45, { title: 'Billing: invoice status as badges', labels: [{ name: 'tier: 1' }, { name: 'product: account' }], head: { ref: 'agent/billing-invoice-status' } }),
+        pull(20, { title: 'New ProfileHeader component', requested_reviewers: [{ login: 'dana' }] }),
+        pull(15, { draft: true }),
+        pull(9, { user: { login: 'release[bot]', type: 'Bot' }, labels: [{ name: 'product: account' }] }),
+      ],
+      { sample: true },
+    );
+    expect(cards.map((c) => [c.number, c.title, c.product, c.state, c.author.login])).toEqual([
+      [36, 'Profile page', 'Account', 'Exploring', 'ann-leroy'],
+      [45, 'Billing: invoice status as badges', 'Account', 'In review', 'ann'],
     ]);
-    expect(cards.map((c) => [c.number, c.stage, c.statusLine])).toEqual([
-      [36, 'draft', { stage: 'Exploration in Account', detail: 'ann' }],
-      [20, 'ready', { stage: 'Library change', detail: 'in review' }],
-      [15, 'draft', { stage: 'Library change', detail: 'draft' }],
+    // The sample team's explored screens ship with the site: never a generic icon on its cards.
+    expect(cards.map((c) => c.preview)).toEqual([
+      { kind: 'screen', src: '/sample/explorations/profile-page.png' },
+      { kind: 'screen', src: '/sample/explorations/billing-invoice-status.png' },
     ]);
-    expect(cards[1]!.reviewer?.login).toBe('dana');
     // No "Sample" chip on the cards: the demo banner already says it is sample data.
     expect(cards.every((c) => !('sample' in c))).toBe(true);
+  });
+
+  it('reads the explored screen of another demo when the visual impact run has one, a sketch until then', () => {
+    const explore = pull(7, { labels: [{ name: 'exploration' }], head: { ref: 'explore/pill-buttons' } });
+    expect(teamExplorations([explore])[0]!.preview).toEqual({ kind: 'screen', src: null });
+    const previews = new Map([[7, { kind: 'screen', src: 'https://raw.githubusercontent.com/o/r/bridge-visual/pr-7/sha/after.png' } as const]]);
+    expect(teamExplorations([explore], { previews })[0]!.preview).toEqual(previews.get(7));
+    // Off the sample team, the seeded captures are not used.
+    expect(teamExplorations([pull(8, { head: { ref: 'explore/profile-page' } })])[0]!.preview).toEqual({ kind: 'screen', src: null });
   });
 });

@@ -34,7 +34,7 @@ function mount() {
 beforeEach(() => {
   s.loadHome.mockReset();
   // GitHub has not answered for the branches; the request is Bridge's own.
-  s.loadHome.mockImplementation((_stat, onUpdate) => onUpdate({ viewer: 'sam', loading: true, settled: false, failed: null, needs: [], branches: [], decisions: 0, reviewer: true }));
+  s.loadHome.mockImplementation((_stat, onUpdate) => onUpdate({ viewer: 'sam', loading: true, settled: false, failed: null, needs: [], branches: [], explorations: [], decisions: 0, reviewer: true }));
 });
 
 describe('initTeamHome', () => {
