@@ -539,6 +539,11 @@ export function fixWords(f: FigmaFix): string {
   return f.status ? `status ${f.status === 'differs' ? 'Differs' : "Can't check"}` : 'note';
 }
 
+/** A part fix that sizes, places or lays out a part: the values referee can't judge it, Check fidelity does. */
+export function touchesLayout(f: FigmaFix): boolean {
+  return f.kind === 'part' && (f.width !== undefined || f.height !== undefined || f.direction !== undefined || f.align !== undefined || f.overlay !== undefined);
+}
+
 /** The pull request body of a figma-fixes.json change: the gap, each fix with its reason, before and after. */
 export function figmaFixesPrBody(input: { component: string; summary: string; gap: GapCase; tried: TryFixesResult; fixes: FigmaFix[]; tool: string }): string {
   const { tried } = input;
@@ -572,6 +577,9 @@ export function figmaFixesPrBody(input: { component: string; summary: string; ga
       ...v.regressions.map((r) => `  - new difference: ${r.text}`),
     ]),
     '',
+    ...(tried.verdict === 'same' && input.fixes.some(touchesLayout)
+      ? ["These fixes size, place or lay out parts. The values referee can't judge layout, so it says same: Check fidelity decides.", '']
+      : []),
     'The values referee compares the rebuilt set with what the code renders. The story shot is the final referee: pull this branch in the DS Bridge Figma plugin and run Check fidelity before approving. A fix stays only when the variant moved closer to its shot.',
     '',
     `Drafted by Claude through ${input.tool}. figma-fixes.json only: no component, token or plugin change.`,

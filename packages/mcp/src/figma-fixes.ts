@@ -23,6 +23,7 @@ import {
   parseMeasuredSpecsFile,
   protectedBranchesOf,
   REQUESTS_BRANCH,
+  touchesLayout,
   tryFigmaFixes,
   type BridgeConfig,
   type FigmaFidelityRun,
@@ -194,7 +195,8 @@ const slug = (s: string) => s.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase
  * bridge_propose_figma_fixes / `bridge fix <component> --propose fixes.json`: the accepted fixes in figma-fixes.json on
  * a new branch, opened for review like other Bridge changes (a draft pull request labelled drafted-by-claude and its
  * tier; locally, a bridge/* branch never pushed). The values referee runs again first: a fix that moves the component
- * further from the code is refused, and part or story fixes that move nothing are refused (propose a status fix).
+ * further from the code is refused, and part or story fixes that move nothing are refused (propose a status fix),
+ * unless they size, place or lay out a part: the values referee can't judge layout, Check fidelity decides.
  */
 export async function proposeFigmaFixesOp(ctx: BridgeContext, a: FixFilesArgs & { component: string; fixes: unknown[]; summary: string; dryRun?: boolean | undefined; source?: 'mcp' | 'cli' | undefined }) {
   // A Storybook-only design system (measured, no token files) may have no bridge.config.json: Bridge's defaults then.
@@ -210,7 +212,8 @@ export async function proposeFigmaFixesOp(ctx: BridgeContext, a: FixFilesArgs & 
   const { gap } = gapCaseFor({ component: a.component, measured: files.measured, fixes: files.fixes, run: files.run });
   const drawing = proposed.some((f) => f.kind === 'part' || f.kind === 'story' || (f.kind === 'axis' && f.action !== 'map'));
   const measurable = gap.variants.some((v) => v.differences.length);
-  if (tried.verdict === 'worse' || (drawing && measurable && tried.verdict === 'same')) {
+  // Layout (sizes, overlays, auto layout) is beyond the values referee: "same" opens, the story shot decides.
+  if (tried.verdict === 'worse' || (drawing && measurable && tried.verdict === 'same' && !proposed.some(touchesLayout))) {
     return {
       status: 'blocked',
       verdict: tried.verdict,

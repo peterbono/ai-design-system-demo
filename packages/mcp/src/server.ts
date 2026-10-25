@@ -848,7 +848,7 @@ export function createServer(ctx: BridgeContext): McpServer {
     {
       title: 'Propose fixes for review',
       description:
-        'Opens the accepted fixes for review like other Bridge changes: figma-fixes.json with them on a new bridge/* branch and a draft pull request labelled drafted-by-claude, figma-fixes and its tier (locally: a new local branch, never pushed). The body has the gap, each fix with its reason, and the before and after deltas. Runs the values referee again first and refuses fixes that move the component further from the code, or part fixes that move nothing (propose a status fix instead). Never main. dryRun shows the body and the file. Needs a GitHub token with Contents and Pull requests write in remote mode. Only when the person asked.',
+        'Opens the accepted fixes for review like other Bridge changes: figma-fixes.json with them on a new bridge/* branch and a draft pull request labelled drafted-by-claude, figma-fixes and its tier (locally: a new local branch, never pushed). The body has the gap, each fix with its reason, and the before and after deltas. Runs the values referee again first and refuses fixes that move the component further from the code, or part fixes that move nothing (propose a status fix instead); a fix that sizes, places or lays out a part opens on "same", since Check fidelity judges layout. Never main. dryRun shows the body and the file. Needs a GitHub token with Contents and Pull requests write in remote mode. Only when the person asked.',
       inputSchema: {
         component: z.string().min(1).describe('The Figma set name.'),
         fixes: FixesArg,

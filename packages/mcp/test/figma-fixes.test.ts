@@ -120,10 +120,21 @@ describe('bridge_propose_figma_fixes', () => {
     expect(gh.fileAt('main', 'figma-fixes.json')).toBeUndefined();
   });
 
+  it('opens a layout fix the values referee calls same: Check fidelity decides', async () => {
+    const { rw, gh } = setup();
+    const r = await figmaFixes.proposeFigmaFixesOp(await rw(), { component: 'TextInput', fixes: [{ ...labelFixed, height: 'hug' }], summary: SUMMARY });
+    expect(r).toMatchObject({ status: 'pr-opened', verdict: 'same' });
+    expect(gh.pulls[0]!.body).toContain("The values referee can't judge layout, so it says same: Check fidelity decides.");
+    // A layout fix that goes the wrong way is still refused.
+    const worse = await figmaFixes.proposeFigmaFixesOp(await rw(), { component: 'TextInput', fixes: [{ ...labelFixed, height: 8 }], summary: SUMMARY });
+    expect(worse).toMatchObject({ status: 'blocked', verdict: 'worse' });
+  });
+
   it('keeps the repo\'s fixes and refuses fixes that move nothing or go the wrong way', async () => {
     const existing = { version: 1, fixes: [{ id: 'toggle-pill', kind: 'part', component: 'Toggle', part: '.cds--toggle__switch', set: { cornerRadius: 'full' }, reason: 'Carbon toggles are pills in every size.' }] };
     const { rw, gh } = setup({ 'figma-fixes.json': JSON.stringify(existing) });
-    const nothing = await figmaFixes.proposeFigmaFixesOp(await rw(), { component: 'TextInput', fixes: [{ ...labelFixed, height: 'hug' }], summary: SUMMARY });
+    const square = { id: 'textinput-label-square', kind: 'part', component: 'TextInput', part: 'cds--text-input-label-wrapper', set: { cornerRadius: 0 }, reason: 'The label row has square corners.', by: 'claude' };
+    const nothing = await figmaFixes.proposeFigmaFixesOp(await rw(), { component: 'TextInput', fixes: [square], summary: SUMMARY });
     expect(nothing).toMatchObject({ status: 'blocked', verdict: 'same' });
     const worse = await figmaFixes.proposeFigmaFixesOp(await rw(), { component: 'TextInput', fixes: [{ ...labelFixed, height: 8 }], summary: SUMMARY });
     expect(worse).toMatchObject({ status: 'blocked', verdict: 'worse' });
