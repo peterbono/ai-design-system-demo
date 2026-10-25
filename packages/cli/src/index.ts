@@ -3,6 +3,7 @@
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
+import { MEASURE_WORKFLOW_FILE } from '@bridge-ds/core';
 import { auditMarkdown, type AuditReport } from '@bridge-ds/core/audit';
 import { findDesignSystemRoot, fixCss, loadAllowlist, loadDesignSystem, originRepo, runAudit } from '@bridge-ds/core/node';
 import { fileURLToPath } from 'node:url';
@@ -17,6 +18,7 @@ import { runFigma } from './figma.js';
 import { runSpecs } from './specs.js';
 import { runFixes, runGap } from './fixes.js';
 import { runFix, runGaps } from './fix.js';
+import { runMeasure } from './measure.js';
 import { snapshotLines, writeSnapshot } from './snapshot.js';
 import { changesFlag, runApply, runReview, runSuggestions } from './suggest.js';
 import { defaultIO } from './request.js';
@@ -91,6 +93,11 @@ Usage:
              [--built built.json] [--shots manifest.json] [--no-fixes] [--json]
                                       what differs between Figma and the code for one component, per
                                       variant: story, args, state, shot and each difference in words
+  bridge measure setup [--storybook <url> | --build] [--force] [--print]
+                                      the automatic measure: writes .github/workflows/bridge-measure.yml,
+                                      which measures your Storybook each time it changes and publishes the
+                                      measure to the bridge-requests branch, where Claude reads it to fix
+                                      what differs in Figma (\`bridge measure help\`)
   bridge gaps [--json]                Fix with Claude: the components whose Figma build differs from their
                                       story (or can't be checked), from the plugin's Check fidelity run
   bridge fix <component> [--case | --try fixes.json | --propose fixes.json --summary "..." | --with-claude]
@@ -216,7 +223,7 @@ function parse(argv: string[]): Args {
       const next = argv[i + 1];
       // --json and --md print to stdout, or write a file when followed by one (bridge audit).
       const fileArg = (k === 'json' && /\.json$/i.test(next ?? '')) || (k === 'md' && /\.(md|markdown)$/i.test(next ?? ''));
-      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking', 'claude', 'all', 'offline', 'approve', 'patch', 'accept-edited', 'force-unapproved', 'suggest', 'direct', 'use-gh-auth', 'measure', 'open', 'variants', 'check', 'tokens', 'shots', 'resume', 'no-fixes', 'case', 'with-claude'].includes(k));
+      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking', 'claude', 'all', 'offline', 'approve', 'patch', 'accept-edited', 'force-unapproved', 'suggest', 'direct', 'use-gh-auth', 'measure', 'open', 'variants', 'check', 'tokens', 'shots', 'resume', 'no-fixes', 'case', 'with-claude', 'build', 'print'].includes(k));
       (out.flags[k] ??= []).push(inline ?? (takesValue ? argv[++i]! : 'true'));
     } else out._.push(a);
   }
@@ -269,6 +276,8 @@ async function init(a: Args, root: string) {
   print(JSON.stringify({ mcpServers: { bridge: desktop } }, null, 2));
   print('\nOr with the Claude Code CLI:');
   print(`  claude mcp add bridge -- ${desktop.command} ${desktop.args.join(' ')}`);
+  // The measure is what lets Claude fix what differs in Figma: one more step, offered, never done behind the back.
+  if (!existsSync(join(root, MEASURE_WORKFLOW_FILE))) print('\nTo let Claude fix what differs in Figma, turn on the automatic measure of your Storybook: bridge measure setup');
 }
 
 async function check(a: Args, root: string): Promise<number> {
@@ -848,6 +857,7 @@ async function main(): Promise<number> {
   if (cmd === 'gap') return runGap(a, root);
   if (cmd === 'gaps') return runGaps(a, root);
   if (cmd === 'fix') return runFix(a, root);
+  if (cmd === 'measure') return runMeasure(a, root);
   if (cmd === 'suggestions' || cmd === 'suggest') return runSuggestions(a, root);
   if (cmd === 'apply') return runApply(a, root);
   if (cmd === 'review') return runReview(a, root);

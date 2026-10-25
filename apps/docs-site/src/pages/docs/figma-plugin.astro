@@ -1,6 +1,8 @@
 ---
 // /docs/figma-plugin/: the DS Bridge Figma plugin. First version: facts only from apps/figma-plugin/README.md.
 import Docs from '../../layouts/Docs.astro';
+import { Link } from '@bridge-ds/react';
+import { DOCS_AUTOMATIC_MEASURE } from '../../lib/nav';
 
 const sections = [
   { id: 'what', label: 'What it does' },
@@ -25,6 +27,7 @@ const sections = [
 
     <h3>Fidelity check</h3>
     <p><strong>Compare with code</strong>, in the Pull preview, compares every generated variant with an image of it rendered from code, and says <strong>Matches the code</strong> or <strong>Differs from the code</strong>. Nothing in the file changes.</p>
+    <p>On a component that differs, <strong>Ask Claude to fix it</strong> hands it to your team's Claude. It needs the <Link href={DOCS_AUTOMATIC_MEASURE}>automatic measure</Link> of your components, which a developer turns on once.</p>
   </section>
 
   <section aria-labelledby="install">

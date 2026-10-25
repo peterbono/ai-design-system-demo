@@ -177,7 +177,7 @@ tools), `packages/mcp/src/figma-fixes.ts` (the tools), `packages/cli/src/fix.ts`
 
 | File | Where | Written by |
 | --- | --- | --- |
-| `measured-specs.json`, `measured-shots/` | repo root, else the `bridge-requests` branch | the automatic measure (`.github/workflows/bridge-measure.yml`) publishes to `bridge-requests`; `bridge specs --measure --variants --shots` by hand, committed at the root, wins |
+| `measured-specs.json`, `measured-shots/` | repo root, else the `bridge-requests` branch | the automatic measure (`.github/workflows/bridge-measure.yml`, docs/MEASURE.md) publishes to `bridge-requests`; `bridge specs --measure --variants --shots` by hand, committed at the root, wins |
 | `figma-fixes.json` | repo root | the fixes, through reviewed pull requests |
 | `figma-fidelity.json` | repo root, else the `bridge-requests` branch | the plugin's Compare with code run (`FigmaFidelityRun`: the report, plus per set the layers read back and the Figma renders). The plugin's "Copy the report" output works too, passed inline or as a file. |
 
