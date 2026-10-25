@@ -17,6 +17,17 @@ export interface DiffResult {
 export const decodePng = (buf: Buffer): PNG => PNG.sync.read(buf);
 export const encodePng = (png: PNG): Buffer => PNG.sync.write(png, { colorType: 6 });
 
+/** The `x, y, width, height` region of `src` (px of the image), clipped to it. */
+export function cropPng(src: PNG, x: number, y: number, width: number, height: number): PNG {
+  const left = Math.max(0, Math.round(x));
+  const top = Math.max(0, Math.round(y));
+  const w = Math.max(1, Math.min(src.width - left, Math.round(width)));
+  const h = Math.max(1, Math.min(src.height - top, Math.round(height)));
+  const out = new PNG({ width: w, height: h });
+  PNG.bitblt(src, out, left, top, w, h, 0, 0);
+  return out;
+}
+
 /** Copies `src` onto a `width` x `height` canvas filled with an opaque neutral, so sizes can differ. */
 export function padTo(src: PNG, width: number, height: number): PNG {
   if (src.width === width && src.height === height) return src;

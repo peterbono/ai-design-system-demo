@@ -56,6 +56,8 @@ export interface MeasuredNode {
   input?: { type: string; value: string; placeholder: string; checked: boolean } | undefined;
   /** Node or depth limit reached under this node. */
   truncated?: boolean | undefined;
+  /** A gallery's instance (splitInstances): where its box sat in the story's root before it was re-based. */
+  at?: { x: number; y: number } | undefined;
   children: MeasuredNode[];
 }
 

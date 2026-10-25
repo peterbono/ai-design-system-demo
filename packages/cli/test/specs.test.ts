@@ -1,8 +1,8 @@
 // bridge specs --measure, with the browser and the network injected: story selection, the file written, the summary,
 // and the usage errors. The measure itself is tested in packages/core/test/measure*.test.ts.
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runSpecs, type MeasuredSpecsFile, type OpenPage } from '../src/specs.js';
 import type { RequestArgs, RequestIO } from '../src/request.js';
@@ -156,3 +156,38 @@ describe('bridge specs --measure', () => {
   });
 });
 
+
+describe('bridge specs --measure --shots: a gallery', () => {
+  it('cuts the shot of a story that shows several instances to the first one, the one the spec draws', async () => {
+    const { decodePng, encodePng } = await import('@bridge-ds/visual');
+    const { PNG } = await import('pngjs');
+    const button = (x: number) => ({ tag: 'button', kind: 'frame', classes: ['btn'], box: { x, y: 0, width: 192, height: 56 }, style: { display: 'inline-flex', 'background-color': 'rgb(1, 2, 3)' }, tokens: {}, children: [{ tag: 'span', kind: 'text', text: 'Save', box: { x: x + 12, y: 18, width: 30, height: 20 }, style: {}, tokens: {}, children: [] }] });
+    const result = { root: { tag: 'div', kind: 'frame', box: { x: 0, y: 0, width: 400, height: 56 }, style: { display: 'flex', 'flex-direction': 'row', 'column-gap': '16px' }, tokens: {}, children: [button(0), button(208)] }, portals: [], wrappers: 0, nodes: 5, rules: 1, sheets: { read: 1, blocked: 0 }, rootVariables: 0, viewport: { width: 1200, height: 800 } };
+    const open: OpenPage = async () => ({
+      page: {
+        goto: async () => undefined,
+        evaluate: async <T>(expr: string) => (expr.includes('async () =>') ? 'rendered' : expr.includes('"mark":true') ? { marked: true } : result) as T,
+        // At 2x: the first instance red, the second blue.
+        screenshot: async (_selector: string, file: string) => {
+          const png = new PNG({ width: 800, height: 112 });
+          for (let i = 0; i < png.data.length; i += 4) {
+            const x = (i / 4) % 800;
+            png.data.set(x < 384 ? [255, 0, 0, 255] : [0, 0, 255, 255], i);
+          }
+          mkdirSync(dirname(file), { recursive: true });
+          writeFileSync(file, encodePng(png));
+          return { width: 400, height: 56 };
+        },
+      },
+      close: async () => undefined,
+    });
+    const dir = mkdtempSync(join(tmpdir(), 'bridge-test-gallery-'));
+    expect(await runSpecs(args('--measure', '--storybook', 'https://sb.example.com', '--stories', 'actions-button--primary', '--shots', '--out', 'm.json'), dir, io().value, open)).toBe(0);
+    const story = (JSON.parse(readFileSync(join(dir, 'm.json'), 'utf8')) as MeasuredSpecsFile).stories[0]!;
+    expect(story.gallery).toBe(true);
+    expect(story.shot).toMatchObject({ width: 192, height: 56 });
+    const png = decodePng(readFileSync(join(dir, story.shot!.file)));
+    expect([png.width, png.height]).toEqual([384, 112]);
+    expect([...png.data.subarray(png.data.length - 4)]).toEqual([255, 0, 0, 255]);
+  });
+});

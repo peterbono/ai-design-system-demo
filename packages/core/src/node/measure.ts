@@ -622,7 +622,7 @@ export function splitInstances(root: MeasuredNode | null): MeasuredNode[] {
   }
   // Most of what the story shows must be the same component (a strict majority): two buttons in an empty state are its actions.
   if (best.length < 2 || best.length * 2 <= found.length) return [];
-  return best.map((n) => rebase(n));
+  return best.map((n) => ({ ...rebase(n), at: { x: n.box.x - root.box.x, y: n.box.y - root.box.y } }));
 }
 
 // ---------------------------------------------------------------------------------------------
