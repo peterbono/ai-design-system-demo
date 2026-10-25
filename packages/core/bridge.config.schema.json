@@ -458,6 +458,11 @@
           "description": "For a design system run by one person. When true and the owners resolve to exactly one person who holds both roles, that person's approval counts as the design and the tech approval, so Tier 2 and Tier 3 changes can be approved. The author of a change still never approves it. Default false: one person never covers both approvals alone.",
           "default": false
         },
+        "leadsPublishTier1": {
+          "type": "boolean",
+          "description": "Leads can publish small changes without review. When true (or absent), team admins and the reviewers of the matching domain (design for docs and guidance, tech for code-only Tier 1) publish a Tier 1 change directly: Bridge opens the pull request, waits for the checks and merges it, recording who published it. A failing check sends it to review instead. Tier 2 and 3 are unchanged. Changing it is a Tier 3 change (bridge.config.json is a guardrail file).",
+          "default": true
+        },
         "rights": {
           "type": "object",
           "additionalProperties": false,

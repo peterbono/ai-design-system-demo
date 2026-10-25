@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { tier1PublishReviewBody } from '@bridge-ds/core';
 import {
   allowedMergeMethods,
   approverLists,
@@ -410,5 +411,21 @@ describe('studioVerdict: a token value change from Studio that Bridge armed (TV-
     expect(studioVerdict({ site, pull: pull(true), tier: 3, ci, reviews: [], mergeable: true, tokenValues: true }).autoShip).toBe(false);
     expect(studioVerdict({ site, pull: pull(false), tier: 3, ci, reviews: ann, mergeable: true, tokenValues: true }).autoShip).toBe(false);
     expect(studioVerdict({ site, pull: pull(true), tier: 3, ci, reviews: ann, mergeable: true, tokenValues: false }).autoShip).toBe(false);
+  });
+});
+
+describe('studioVerdict: a Tier 1 change a lead published without review', () => {
+  const site = { owners: { design: ['ann'], tech: ['theo'] }, rights: undefined, soloOwnerCanApproveBoth: false } as unknown as Parameters<typeof studioVerdict>[0]['site'];
+  const pull = { state: 'open', draft: false, labels: [], user: { login: 'ann' }, head: { sha: 'h2' }, auto_merge: { merge_method: 'squash' } };
+  const green = summarizeCi([{ name: 'CI', status: 'completed', conclusion: 'success' }]);
+  const red = summarizeCi([{ name: 'CI', status: 'completed', conclusion: 'failure' }]);
+  const app = (sha: string) => [{ user: { login: 'bridge-ds[bot]' }, state: 'APPROVED', commit_id: sha, body: tier1PublishReviewBody('Ann', 'ann') }];
+  it('reads as on its way with the app review on the head and the merge armed', () => {
+    expect(studioVerdict({ site, pull, tier: 1, ci: green, reviews: app('h2'), mergeable: true }).autoShip).toBe(true);
+  });
+  it('falls back to review on a failing check, an older review, or above Tier 1', () => {
+    expect(studioVerdict({ site, pull, tier: 1, ci: red, reviews: app('h2'), mergeable: true }).autoShip).toBe(false);
+    expect(studioVerdict({ site, pull, tier: 1, ci: green, reviews: app('h1'), mergeable: true }).autoShip).toBe(false);
+    expect(studioVerdict({ site, pull, tier: 2, ci: green, reviews: app('h2'), mergeable: true }).autoShip).toBe(false);
   });
 });

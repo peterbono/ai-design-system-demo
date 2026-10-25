@@ -92,6 +92,7 @@ export async function runBranch(a: RequestArgs, root: string, io: RequestIO = de
       const r = (await branches.branchStatus(ctx, { pr: number(a, 2, 'bridge branch status <n>') })) as Record<string, any>;
       return out(r, () => {
         io.print(`#${r.pr} ${r.title} (${r.product.name})`);
+        if (r.published) io.print(r.published);
         const by = r.approvals.approvedBy.map((x: string) => `@${x}`).join(', ');
         // Merged or closed: the state and who approved, never approvals, tests or blockers it no longer waits for.
         if (r.approvalNeeded === null) io.print(`${r.status.label}.${by ? ` Approved by ${by}.` : ''}`);
@@ -217,6 +218,7 @@ export async function runStudioRead(cmd: 'products' | 'settings' | 'coverage', a
     io.print(`Tech approval: ${r.roles.techApproval.join(', ') || 'any reviewer'}`);
     if (r.roles.soloOwner) io.print(r.roles.soloOwner);
     io.print(`Merge: ${r.roles.ship}`);
+    if (r.roles.tier1Publish) io.print(`Small changes: ${r.roles.tier1Publish}`);
     io.print(`Owner override: ${r.ownerOverride.on ? `${r.ownerOverride.who.join(', ')}. ${r.ownerOverride.reason}` : r.ownerOverride.reason}`);
     io.print(`Protection: ${r.protection}`);
     io.print(`Products: ${r.products.map((p: { name: string }) => p.name).join(', ')}`);

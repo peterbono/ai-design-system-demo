@@ -28,6 +28,7 @@ import {
   parseTier,
   pullState,
   REVIEW_STATUS_LABEL,
+  tier1PublishOf,
   reviewStatusLabel,
   lookAgainReviewers,
   REVIEW_STATUS_ORDER,
@@ -179,7 +180,8 @@ export function studioVerdict(input: {
   pull: { state?: string | undefined; draft?: boolean | undefined; merged_at?: string | null | undefined; labels?: LabelLike[] | undefined; user: { login: string }; head?: { sha?: string | null | undefined } | null | undefined; auto_merge?: unknown };
   tier: Tier | null;
   ci: CiSummary | null;
-  reviews: ReviewLike[] | null;
+  /** With `body` when read: the app's Tier 1 publish review is recognised by its heading (core tier1PublishOf). */
+  reviews: (ReviewLike & { body?: string | null })[] | null;
   suggestion?: { approvals: ApprovalSummary; tier: Tier } | null | undefined;
   mergeable?: boolean | null | undefined;
   viewer?: string | null | undefined;
@@ -211,6 +213,9 @@ export function studioVerdict(input: {
     tokenValues: input.tokenValues,
     // Bridge armed its merge (GitHub auto_merge set, /api/ship, TV-1): with the design approval in, it ships by itself.
     autoMerge: Boolean(pull.auto_merge),
+    // A lead published this Tier 1 change without review (core tier1PublishOf, docs/GOVERNANCE.md): on its way while the
+    // checks run or pass; a failing check drops it back to review.
+    tier1Published: Boolean(tier1PublishOf(input.reviews, pull.head?.sha)),
     // Updated after every changes request (core lookAgainReviewers): "Updated, look again", as in the MCP server and the CLI.
     lookAgain: input.reviews ? lookAgainReviewers(input.reviews, pull.head?.sha, pull.user.login) : [],
   });

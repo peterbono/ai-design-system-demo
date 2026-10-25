@@ -67,6 +67,18 @@ export function soloOwnerRow(gov: { owners: Owners; rights: Rights | null; soloO
 }
 
 /**
+ * Settings > Review rules: whether leads publish small changes without review (governance.leadsPublishTier1, on when
+ * absent; docs/GOVERNANCE.md "Tier 1 publish by leads"). Changing it is a change to bridge.config.json (Tier 3).
+ */
+export function leadsPublishRow(gov: { leadsPublishTier1?: boolean | undefined }): { label: string; help: string; value: string } {
+  return {
+    label: 'Leads can publish small changes without review',
+    help: 'Guidance, docs and fixes with no visual change.',
+    value: gov.leadsPublishTier1 === false ? 'Off: every small change waits for one reviewer.' : 'On: team admins and the reviewers of that part publish them. They go live once the automatic checks pass.',
+  };
+}
+
+/**
  * Settings > Review rules: who may use the owner exception, owners only (core overrideHolders, the same list the Home
  * and the branch page read), and the reason it always needs (docs/GOVERNANCE.md), in designer words and by name.
  * Null when nobody may.

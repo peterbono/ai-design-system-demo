@@ -23,15 +23,16 @@ export interface ShipAnswer {
 type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
 /**
- * Asks Bridge to arm the merge. `bearer`: the viewer's GitHub token (signed in with GitHub); without it, the email
+ * Asks Bridge to arm the merge. `publish: 'tier1'`: a lead publishes a Tier 1 change without review (docs/GOVERNANCE.md
+ * "Tier 1 publish by leads"); Bridge checks the lead, the tier and the setting again. `bearer`: the viewer's GitHub token (signed in with GitHub); without it, the email
  * member's session cookie of this site. Null when the call itself failed (offline, refused): nothing changes on screen.
  */
-export async function askBridgeToShip(repo: string, pr: number, auth: { bearer: string | null }, fetchImpl: FetchLike = (u, i) => fetch(u, i)): Promise<ShipAnswer | null> {
+export async function askBridgeToShip(repo: string, pr: number, auth: { bearer: string | null }, fetchImpl: FetchLike = (u, i) => fetch(u, i), publish?: 'tier1'): Promise<ShipAnswer | null> {
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (auth.bearer) headers.Authorization = `Bearer ${auth.bearer}`;
     else headers[CONTRIBUTE_HEADER] = '1';
-    const res = await fetchImpl('/api/ship', { method: 'POST', headers, credentials: 'same-origin', body: JSON.stringify({ repo, pr }) });
+    const res = await fetchImpl('/api/ship', { method: 'POST', headers, credentials: 'same-origin', body: JSON.stringify(publish ? { repo, pr, publish } : { repo, pr }) });
     if (!res.ok) return null;
     const body = (await res.json()) as Partial<ShipAnswer> | null;
     if (!body || typeof body.armed !== 'boolean') return null;

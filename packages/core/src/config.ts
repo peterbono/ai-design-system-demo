@@ -171,6 +171,11 @@ export interface GovernanceConfig {
    * person's approval counts for design and tech. Default false: one person never covers both approvals alone.
    */
   soloOwnerCanApproveBoth?: boolean | undefined;
+  /**
+   * Team admins and the reviewers of the matching domain publish a Tier 1 change without review (docs/GOVERNANCE.md,
+   * "Tier 1 publish by leads"). Absent counts as on (leadsPublishTier1On); false turns it off.
+   */
+  leadsPublishTier1?: boolean | undefined;
 }
 
 /** `bridge audit` settings: how product code that consumes the design system is measured. */
@@ -428,6 +433,7 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
         : {}),
       ...(g.rights ? { rights: normalizeRights(g.rights) } : {}),
       ...(g.soloOwnerCanApproveBoth === true ? { soloOwnerCanApproveBoth: true } : {}),
+      ...(g.leadsPublishTier1 === false ? { leadsPublishTier1: false } : {}),
     },
     products: input.products?.length ? input.products.map((p) => ({ ...p })) : DEFAULT_PRODUCTS.map((p) => ({ ...p })),
     changes: input.changes === 'direct' ? 'direct' : DEFAULT_CHANGES_MODE,
@@ -564,6 +570,7 @@ export function loadConfig(source: string | unknown): BridgeConfig {
       }
       problems.push(...rightsProblems(gov.rights));
       if (gov.soloOwnerCanApproveBoth !== undefined && typeof gov.soloOwnerCanApproveBoth !== 'boolean') problems.push('"governance.soloOwnerCanApproveBoth" must be true or false');
+      if (gov.leadsPublishTier1 !== undefined && typeof gov.leadsPublishTier1 !== 'boolean') problems.push('"governance.leadsPublishTier1" must be true or false');
     }
   }
   problems.push(...visualImpactProblems(d.visualImpact));

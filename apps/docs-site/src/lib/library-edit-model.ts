@@ -1,7 +1,7 @@
 // Edit mode of a Library component page, as pure functions: which sections exist, what changed since the page on
 // main (or on a change's branch), the Claude drafts waiting for Keep or Discard, the To review list of the rail and
 // text replacements for a selection. The island (components/LibraryEditMode.tsx) keeps an EditState and calls these.
-import { eligibleReviewers, markClaudeDraft, missingProse, PROSE_KEYS, sectionsNeedingReview, type ComponentDocsJson, type DocsAuthorship, type DocsGuidance, type Owners, type ProseKey } from '@bridge-ds/core';
+import { canPublishTier1, eligibleReviewers, markClaudeDraft, missingProse, PROSE_KEYS, sectionsNeedingReview, type ComponentDocsJson, type DocsAuthorship, type DocsGuidance, type Owners, type ProseKey } from '@bridge-ds/core';
 import { cleanDocs } from './docs-draft-model';
 
 /** Editable sections, in page order. Do and don't is one section that holds two keys. */
@@ -391,6 +391,30 @@ export const editBarLabel = (state: EditBarState, continuing: boolean): string =
  */
 export function guestEditLine(signIn: boolean): string {
   return `Draft only: your edits stay in this browser. ${signIn ? 'Sign in' : 'Connect GitHub'} to send them.`;
+}
+
+/**
+ * Publish instead of Send for review (docs/GOVERNANCE.md "Tier 1 publish by leads"): guidance is Tier 1, so a team
+ * admin or a design reviewer publishes it when the team lets leads publish small changes (core canPublishTier1).
+ * Direct mode only, on a new change: a suggestion has no pull request, and an open proposal is someone's to finish.
+ */
+export function canPublishGuidance(x: { viewer: string | null | undefined; approvers: Owners; admin: boolean; enabled: boolean; suggest: boolean; continuing: boolean }): boolean {
+  if (x.suggest || x.continuing) return false;
+  return canPublishTier1({ viewer: x.viewer, tier: 1, domain: 'design', approvers: x.approvers, admin: x.admin, enabled: x.enabled });
+}
+
+/** The publish step's line, before anything is sent. */
+export const PUBLISH_LINE = 'No review needed: you lead this part of the Library. It goes live once the automatic checks pass.';
+
+/**
+ * After Publish: what Bridge did (/api/ship with publish "tier1"). Null when it could not publish it (a check failed,
+ * the app is missing, a rule refused): the change went to review like any other, and the sent step says who reviews.
+ * Never names a test or a GitHub setting.
+ */
+export function publishedSaid(a: { armed: boolean; merged?: boolean | undefined } | null | undefined): { title: string; line: string } | null {
+  if (!a?.armed) return null;
+  if (a.merged) return { title: 'Published', line: 'It is in the Library now.' };
+  return { title: 'Publishing', line: 'It goes live in the Library once the automatic checks pass. Nothing more to do.' };
 }
 
 /** "Ana", "Ana or Ben", "Ana, Ben or 2 more": an unread GitHub team ("acme/design") reads as someone in it. */

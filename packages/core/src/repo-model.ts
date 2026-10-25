@@ -43,6 +43,8 @@ export interface SiteRepo {
   rights: Rights | null;
   /** governance.soloOwnerCanApproveBoth: the only owner's approval covers design and tech. Default false. */
   soloOwnerCanApproveBoth: boolean;
+  /** governance.leadsPublishTier1: leads publish Tier 1 changes without review. Default true. */
+  leadsPublishTier1: boolean;
   /** Visual before and after: on every pull request (auto) or when someone asks (on-demand, label visual-check). */
   visualImpact: { mode: VisualImpactMode };
   /** Token root in the repo. */
@@ -79,6 +81,7 @@ export function siteRepoFromConfig(
     override: g.override ? { ...g.override } : { ...DEFAULT_OVERRIDE },
     rights: g.rights ?? null,
     soloOwnerCanApproveBoth: g.soloOwnerCanApproveBoth === true,
+    leadsPublishTier1: g.leadsPublishTier1 !== false,
     visualImpact: { mode: config.visualImpact?.mode === 'on-demand' ? 'on-demand' : 'auto' },
     tokensRoot: config.tokens.root,
     integrations: config.integrations ?? {},

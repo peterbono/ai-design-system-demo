@@ -35,6 +35,8 @@ import {
   DEFAULT_OVERRIDE,
   overrideReasonMin,
   overrideHolders,
+  leadsPublishTier1On,
+  tier1PublishSentence,
   approverLists,
   type ChangesMode,
   type ComponentDocsJson,
@@ -200,6 +202,8 @@ export async function getSettings(ctx: BridgeContext) {
       techApproval: entries.tech.map((e) => entryLabel(e, teams)),
       ship: ship ? whoCanShipSentence(ship) : 'Anyone with write access can merge.',
       ...(solo ? { soloOwner: soloOwnerSentence(solo) } : {}),
+      // Tier 1 publish by leads (docs/GOVERNANCE.md): admins and the matching reviewer publish without review.
+      tier1Publish: tier1PublishSentence(leadsPublishTier1On(config.governance)),
       ...(unreadable.length ? { teamsNotRead: unreadable.map((t) => t.message) } : {}),
     },
     // Owners only (core overrideHolders): the same list the gate reads, and Studio Settings shows.

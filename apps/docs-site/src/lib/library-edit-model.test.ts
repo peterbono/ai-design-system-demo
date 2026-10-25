@@ -288,6 +288,32 @@ describe('editing as a guest', () => {
   });
 });
 
+describe('Publish for leads (Tier 1 guidance)', () => {
+  const approvers = { design: ['dana'], tech: ['theo'] };
+  const base = { approvers, admin: false, enabled: true, suggest: false, continuing: false };
+  it('offers Publish to a team admin and a design reviewer, not to a tech reviewer or a contributor', async () => {
+    const { canPublishGuidance } = await import('./library-edit-model');
+    expect(canPublishGuidance({ ...base, viewer: 'dana' })).toBe(true);
+    expect(canPublishGuidance({ ...base, viewer: 'sam', admin: true })).toBe(true);
+    expect(canPublishGuidance({ ...base, viewer: 'theo' })).toBe(false);
+    expect(canPublishGuidance({ ...base, viewer: 'sam' })).toBe(false);
+  });
+  it('keeps Send for review when the team turned it off, in suggest mode, and on an open proposal', async () => {
+    const { canPublishGuidance } = await import('./library-edit-model');
+    expect(canPublishGuidance({ ...base, viewer: 'dana', enabled: false })).toBe(false);
+    expect(canPublishGuidance({ ...base, viewer: 'dana', suggest: true })).toBe(false);
+    expect(canPublishGuidance({ ...base, viewer: 'dana', continuing: true })).toBe(false);
+  });
+  it('says what Bridge did, and falls back to review in silence when it could not publish', async () => {
+    const { publishedSaid, PUBLISH_LINE } = await import('./library-edit-model');
+    expect(publishedSaid({ armed: true, merged: true })?.title).toBe('Published');
+    expect(publishedSaid({ armed: true })?.line).toMatch(/once the automatic checks pass/);
+    expect(publishedSaid({ armed: false })).toBeNull();
+    expect(publishedSaid(null)).toBeNull();
+    for (const t of [PUBLISH_LINE, publishedSaid({ armed: true })!.line]) expect(t).not.toMatch(/\b(PR|pull request|branch|merge|commit|test|CI)\b|—/i);
+  });
+});
+
 describe('who reviews what the edit bar sends', () => {
   const solo = { design: ['peterbono'], tech: ['peterbono'] };
   it('names the people who can approve, never the sender', async () => {

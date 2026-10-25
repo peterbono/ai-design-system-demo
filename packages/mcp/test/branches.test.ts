@@ -5,7 +5,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BridgeContext, branches, ops, studio } from '../dist/lib.js';
-import { previewComment } from '@bridge-ds/core';
+import { previewComment, tier1PublishReviewBody } from '@bridge-ds/core';
 import { addCodeTo, fakeGitHub, pinStart, pinValue, readTree, REAL_PATHS, REPO, withoutSoloOwner } from './helpers.js';
 
 const LIGHT = 'packages/tokens/src/semantic/light.tokens.json';
@@ -315,6 +315,30 @@ describe('docs, settings, Figma coverage', () => {
     expect(joined.said).toMatch(/continues the open Button docs proposal/);
     expect(gh.pulls).toHaveLength(1);
     expect(JSON.parse(gh.fileAt(pr.head.ref, path)!).summary).toBe('Starts one action, now.');
+  });
+
+  it('says a Tier 1 change a lead published without review, only for the review on the head commit', async () => {
+    const { gh, rw } = setup();
+    await studio.saveDocs(await rw(), { component: 'Button', docs: { summary: 'Starts an action in one click.' } });
+    const pr = gh.pulls[0]!;
+    pr.draft = false;
+    pr.auto_merge = { merge_method: 'squash' };
+    const review = (commit: string) => ({ id: 990, user: { login: 'bridge-ds[bot]' }, commit_id: commit, state: 'APPROVED', body: tier1PublishReviewBody('Dana Reyes', 'dana'), submitted_at: '2026-10-16T00:00:00Z' });
+    gh.reviews.set(1, [review('an-older-commit')]);
+    expect(((await branches.branchStatus(await rw(), { pr: 1 })) as any).published).toBeUndefined();
+    gh.reviews.set(1, [review(pr.head.sha)]);
+    const s = (await branches.branchStatus(await rw(), { pr: 1 })) as any;
+    expect(s.published).toBe('Published by Dana Reyes without review (Tier 1).');
+  });
+
+  it('says who publishes small changes without review, on by default and off when the team turns it off', async () => {
+    const { ro } = setup();
+    expect(((await studio.getSettings(await ro())) as any).roles.tier1Publish).toMatch(/team admins and the reviewers of that part publish it without review/);
+    const tree = files();
+    const cfg = JSON.parse(tree['bridge.config.json']!);
+    cfg.governance = { ...cfg.governance, leadsPublishTier1: false };
+    const off = setup({ ...tree, 'bridge.config.json': `${JSON.stringify(cfg, null, 2)}\n` });
+    expect(((await studio.getSettings(await off.ro())) as any).roles.tier1Publish).toBe('Tier 1 needs one owner approval: leads publishing small changes without review is off.');
   });
 
   it('reads settings safely and the Figma coverage in Studio words', async () => {
