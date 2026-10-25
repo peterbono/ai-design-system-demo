@@ -186,6 +186,32 @@ branches** first, before anything is sent:
 Teams in suggest mode, and sites with only one of the two apps, never see this dialog. The self-hosted Studio is
 unchanged: in direct mode it signs in with Bridge Direct from the start.
 
+## The Figma plugin: Sign in with Bridge
+
+Designers connect the DS Bridge plugin with the Bridge account they already use, instead of pasting a GitHub token.
+
+1. In the plugin, **Sign in with Bridge** asks `POST /api/plugin-link { action: "start" }` for a one-time code and a
+   poll secret, and opens `/studio/connect-figma/?code=…` in the browser. The secret stays in the plugin.
+2. On that page the person signs in to Bridge if needed, connects GitHub once if this browser has no GitHub sign-in,
+   picks the team, and presses **Connect Figma**. The page sends the code, the team's repository and this browser's
+   GitHub sign-in (`approve`, same origin only). The server checks with GitHub that the sign-in can read that repository
+   (`wrong_team` otherwise) and keeps the answer.
+3. The plugin polls (`poll`, every 3 seconds, with its secret) and receives the repository, the team name, the default
+   branch and the token, once. It saves the token on that computer (`figma.clientStorage`, marked as a Bridge sign-in)
+   and the repository with the file.
+
+Codes are stored in Redis (the storage the other `/api` functions use) for 5 minutes, keyed by the code's SHA-256, with
+the poll secret as a hash. A code is used once: a second approve is refused (409) and the approved answer is taken with
+`GETDEL`. Nothing is logged, and no token is ever shown on screen.
+
+The plugin gets the access token Studio holds, renewed first when it is close to expiry, and its expiry, but not the
+refresh token. GitHub refresh tokens rotate on use, so sharing one would sign Studio out. When the token expires (8
+hours with expiring user tokens), the plugin says "Sign in again", and it takes one click once Studio is signed in.
+Without storage, the endpoint answers 503 and the plugin offers the token below.
+
+A pasted fine-grained token stays available under **For developers: connect with a token** in the plugin's Settings
+(see apps/figma-plugin/README.md).
+
 ## What people see when something is off
 
 - They cancel on GitHub: "You cancelled the sign-in on GitHub, so Studio stays read only."

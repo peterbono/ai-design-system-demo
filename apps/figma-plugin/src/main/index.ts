@@ -42,14 +42,14 @@ type Handlers = { [K in RequestType]: (payload: RequestMap[K]['request']) => Pro
 const handlers: Handlers = {
   async init() {
     const { settings, sync } = readShared();
-    const { token, tokenState } = await readGitHubToken();
-    return { settings, sync, hasToken: !!token, token, tokenState, fileName: figma.root.name, claude: await readClaudeSettings() };
+    const { token, tokenState, tokenSource } = await readGitHubToken();
+    return { settings, sync, hasToken: !!token, token, tokenState, ...(tokenSource ? { tokenSource } : {}), fileName: figma.root.name, claude: await readClaudeSettings() };
   },
   async 'save-settings'({ settings }) {
     return saveSettings(store, settings);
   },
-  async 'save-token'({ token }) {
-    return saveGitHubToken(token);
+  async 'save-token'({ token, source }) {
+    return saveGitHubToken(token, source);
   },
   async 'clear-token'() {
     return clearGitHubToken();

@@ -30,9 +30,16 @@ the pull request a Push opened (PR #4). Components are in [Storybook](https://br
 Published on Figma Community: https://www.figma.com/community/plugin/1693034743850648023 (in review since 2026-10-16). The `id` in `manifest.json` is that published id. The Community listing (copy, icon, cover,
 gallery) and the publishing steps are in [`community/`](community/listing.md).
 
-## GitHub token
+## Sign in with Bridge
 
-DS Bridge needs a fine-grained personal access token limited to this repository:
+Designers connect with **Sign in with Bridge** in Settings: it opens Studio in the browser, they pick their team, and
+the plugin receives the team's repository and a GitHub sign-in, with no token to paste (docs/SIGN-IN.md, "The Figma
+plugin"). When that sign-in expires, the plugin says "Sign in again". The token below stays available to developers
+under **For developers: connect with a token**.
+
+## GitHub token (for developers)
+
+DS Bridge can also use a fine-grained personal access token limited to this repository:
 
 1. GitHub **Settings > Developer settings > Personal access tokens > Fine-grained tokens > Generate new token**.
 2. **Repository access**: "Only select repositories", pick this repository.

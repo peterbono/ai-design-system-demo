@@ -56,6 +56,14 @@ test('a 401 is recorded with the token, survives a restart, and saving a new tok
   await setGitHubTokenState('rejected');
   await clearGitHubToken();
   assert.equal(store.has(TOKEN_KEY) || store.has(TOKEN_STATE_KEY), false);
+  // Sign in with Bridge marks its token, so "Sign in again" renews it; a pasted token, or signing out, drops the mark.
+  await saveGitHubToken('test-token-c', 'bridge');
+  assert.deepEqual(await readGitHubToken(), { token: 'test-token-c', tokenState: 'ok', tokenSource: 'bridge' });
+  await saveGitHubToken('test-token-d');
+  assert.deepEqual(await readGitHubToken(), { token: 'test-token-d', tokenState: 'ok' });
+  await saveGitHubToken('test-token-e', 'bridge');
+  await clearGitHubToken();
+  assert.equal(store.size, 0, 'signing out leaves nothing');
 });
 
 test('Pull with a rejected token: one callout pointing to Settings, never the raw error', async () => {

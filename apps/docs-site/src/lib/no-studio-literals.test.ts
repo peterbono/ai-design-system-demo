@@ -39,6 +39,11 @@ const ALLOWED: { file: string; line: string; why: string }[] = [
     why: 'the invite link emailed to people: one page for every team, the team is in the stored invite',
   },
   {
+    file: 'api/plugin-link/index.ts',
+    line: "CONNECT_PATH = '/studio/connect-figma/'",
+    why: 'the page the Figma plugin opens with its one-time code: one page for every team, the person picks the team there',
+  },
+  {
     file: 'api/contribute/index.ts',
     line: '/studio/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/#contribute=',
     why: 'the sign-in link emailed to an email contributor: the team shell address, built on the server (no page)',
