@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LayeredTokenSet, applyTokenEdits, composeProposalBody, demoHistory, planRevert } from '@bridge-ds/core';
-import { authorsOf, countsLabel, demoBeforeFiles, humanAuthored, laterThan, overrideLine, realSummary, viewTimeline } from './history-view';
+import { authorsOf, countsLabel, demoBeforeFiles, humanAuthored, laterThan, overrideLine, realSummary, suggestionOverrideLine, viewTimeline } from './history-view';
 import { overrideComment, parseOverrideComment } from './review-rules';
 import { currentTokenFiles, siteConfig } from './history';
 
@@ -74,5 +74,12 @@ describe('overrideLine', () => {
   });
   it('says so when no reason was given', () => {
     expect(overrideLine({ login: 'dana', reason: 'no reason given', missing: [] }, (x) => x, (l) => l)).toBe('Merged with the owner override by dana. No reason was given.');
+  });
+});
+
+describe('a suggestion applied with the owner override', () => {
+  it('says who approved it as owner, without what, and why', () => {
+    const line = suggestionOverrideLine({ login: 'peterbono', reason: 'Solo maintainer, <checked>', missing: ['design approval'] }, (x) => x.replace(/</g, '&lt;'), (l) => `<b>${l}</b>`);
+    expect(line).toBe('Applied with the owner override by <b>peterbono</b> without design approval. Reason: Solo maintainer, &lt;checked>.');
   });
 });

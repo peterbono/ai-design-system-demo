@@ -16,6 +16,10 @@ import {
   loadConfig,
   requesterOf,
   reviewSuggestionOnGitHub,
+  overrideSuggestionOnGitHub,
+  overrideHolders,
+  overrideReasonMin,
+  type OverridePolicy,
   stalenessStatus,
   suggestionStalenessOnGitHub,
   type ApprovalRole,
@@ -58,6 +62,7 @@ import {
   waitsOnViewer,
   type TodayChecks,
   viewerRoles,
+  OWNER_OVERRIDE_WORDS,
 } from '../lib/suggestions-view';
 import type { DeclineAskDetail } from '../components/ds/studio/RequestDecide';
 import type { SuggestionReviewProps, NextCard } from '../components/ds/studio/SuggestionReview';
@@ -76,10 +81,19 @@ let write = false;
 // An email contributor never approves: they count as a collaborator for nothing here (lib/access canReview).
 onAccess((a) => (write = canReview(a)));
 
+/** governance.override as the layout embeds it, or null. */
+const siteOverride = (): OverridePolicy | null => (siteConfig() as { override?: OverridePolicy }).override ?? null;
+
+/** Who may use the owner override on a suggestion (core overrideHolders, as on a branch) and its reason length. */
+function overrideGate(): { holders: string[]; min: number } | null {
+  const policy = siteOverride();
+  return policy ? { holders: overrideHolders(policy, siteApprovers()), min: overrideReasonMin(policy) } : null;
+}
+
 /** Owners and rights as the layout embeds them (bridge.config.json on the default branch), teams once read. */
 async function governance(): Promise<SuggestionGovernance> {
   const { owners, rights, soloOwnerCanApproveBoth } = siteRoles();
-  return { owners, rights, teams: await loadTeams(), soloOwnerCanApproveBoth };
+  return { owners, rights, teams: await loadTeams(), soloOwnerCanApproveBoth, override: siteOverride() };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -408,7 +422,7 @@ export async function openSuggestion(n: number, host: SuggestionHost): Promise<v
     if (mine !== seq) return;
     // The demo seat reads as a design owner ("~seat" is no GitHub login), so a closed suggestion says why, never "Connect GitHub".
     const seatOwners = seat ? { ...owners, design: [...owners.design, '~seat'] } : owners;
-    const real = suggestionGate({ status, viewer: viewer ?? (seat ? '~seat' : null), author: d.issue.author, owners: seatOwners, tier: payload.tier.tier, approvals: d.approvals, collaborator: write, names: nameMap, signInLine: ghAction('review', prefersSignIn()), soloOwner: siteSoloOwner() });
+    const real = suggestionGate({ status, viewer: viewer ?? (seat ? '~seat' : null), author: d.issue.author, owners: seatOwners, tier: payload.tier.tier, approvals: d.approvals, collaborator: write, names: nameMap, signInLine: ghAction('review', prefersSignIn()), soloOwner: siteSoloOwner(), override: seat ? null : overrideGate() });
     // The sample team, in the demo seat: the visitor reviews where Dana does. Approve can be tried (SuggestionReview
     // shows the result and writes nothing); the page never asks for GitHub, the banner's "Get started" is the way in.
     const open = status === 'needs-review' || status === 'changes-requested';
@@ -450,6 +464,7 @@ export async function openSuggestion(n: number, host: SuggestionHost): Promise<v
       onApprove: (text: string) => approve(text),
       onRequestChanges: (text: string) => review('request-changes', text),
       onDecline: () => decline(),
+      onOverride: (reason: string) => override(reason),
       sample,
     };
     paint(el, props);
@@ -470,6 +485,17 @@ export async function openSuggestion(n: number, host: SuggestionHost): Promise<v
     const line = [reviewedLine(event, title, r.status), ...r.warnings].join(' ');
     render(line);
     host.decided?.({ number: n, title, sha, role, status, canApprove: false, canRequestChanges: false }, event, line);
+    return line;
+  };
+
+  // The owner override (docs/GOVERNANCE.md): the audit comment on the suggestion, then the usual approved state.
+  const override = async (reason: string): Promise<string> => {
+    const r = await overrideSuggestionOnGitHub(gh, n, { reason, payloadSha: sha, by: viewer ?? undefined }, await governance());
+    forgetSuggestions();
+    await refresh();
+    const line = [r.counts ? OWNER_OVERRIDE_WORDS.done : 'Your reason is posted, but it does not count yet.', ...r.warnings].join(' ');
+    render(line);
+    host.decided?.({ number: n, title, sha, role: null, status, canApprove: false, canRequestChanges: false }, 'approve', line);
     return line;
   };
 

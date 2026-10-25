@@ -77,6 +77,7 @@ describe('bridge suggestions, review, apply', () => {
     await expect(runReview(args('review', String(n), '--approve'), dir, t.io)).rejects.toThrow(/Only the owners/);
     await expect(runReview(args('review', String(n)), dir, t.io)).rejects.toThrow(SuggestUsageError);
     await expect(runReview(args('review', String(n), '--decline'), dir, t.io)).rejects.toThrow(/needs --message/);
+    await expect(runReview(args('review', String(n), '--override'), dir, t.io)).rejects.toThrow(/--override needs --message/);
     gh.viewer.login = 'designer';
     expect(await runReview(args('review', String(n), '--approve'), dir, t.io)).toBe(0);
     gh.viewer.login = 'dev';

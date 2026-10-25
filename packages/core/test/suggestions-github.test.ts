@@ -9,6 +9,7 @@ import {
   linkSuggestionPrOnGitHub,
   listSuggestionsOnGitHub,
   reviewSuggestionOnGitHub,
+  overrideSuggestionOnGitHub,
   SUGGESTION_SCHEMA,
   suggestionPayloadSha,
   type FetchLike,
@@ -224,5 +225,25 @@ describe('suggestions on GitHub', () => {
     expect(d.linkedPrs).toEqual([{ number: 90, url: 'https://github.com/o/r/pull/90', state: 'closed', merged: true }]);
     expect(d.status).toBe('applied');
     expect(suggestionPayloadSha(payload())).toBe(d.parsed.ok && d.parsed.sha);
+  });
+});
+
+describe('the owner override on a suggestion, on GitHub', () => {
+  const solo = { owners: { design: ['peterbono'], tech: ['peterbono'] }, override: { allowed: ['peterbono'], requireReason: true, minReasonLength: 20 } };
+  it('lets the only owner approve their own suggestion as owner, with a reason, and records it', async () => {
+    const f = fakeGitHub({ viewer: 'peterbono' });
+    const { sha } = await createSuggestionOnGitHub(f.gh(), payload());
+    await expect(overrideSuggestionOnGitHub(f.gh(), 42, { reason: 'short', payloadSha: sha }, solo)).rejects.toThrow(/at least 20 characters/);
+    const r = await overrideSuggestionOnGitHub(f.gh(), 42, { reason: 'Solo maintainer, checked it in Figma.', payloadSha: sha }, solo);
+    expect(r).toMatchObject({ counts: true, status: 'approved' });
+    expect(labelsOf(f, 42)).toContain('suggestion: approved');
+    const d = await getSuggestionOnGitHub(f.gh(), 42, solo);
+    expect(d.approvals?.override).toMatchObject({ login: 'peterbono', reason: 'Solo maintainer, checked it in Figma' });
+  });
+  it('refuses anyone else, and a team that allows no override', async () => {
+    const f = fakeGitHub({ viewer: 'ana' });
+    await createSuggestionOnGitHub(f.gh(), payload());
+    await expect(overrideSuggestionOnGitHub(f.gh(), 42, { reason: 'I really want this one shipped now.' }, solo)).rejects.toThrow(/Only an owner/);
+    await expect(overrideSuggestionOnGitHub(f.gh(), 42, { reason: 'I really want this one shipped now.' }, { owners: solo.owners })).rejects.toThrow(/no owner override/);
   });
 });

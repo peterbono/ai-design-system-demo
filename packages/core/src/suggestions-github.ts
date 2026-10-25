@@ -9,8 +9,10 @@ import { declineRequestOnGitHub } from './requests-github';
 import { requesterOf, type Requester } from './requester';
 import {
   composeSuggestionAppliedComment,
+  composeSuggestionOverrideComment,
   composeSuggestionReviewComment,
   parseSuggestionAppliedComment,
+  suggestionOverrideProblem,
   suggestionReviewState,
   summarizeSuggestionApprovals,
   type SuggestionAppliedRecord,
@@ -35,7 +37,7 @@ import {
   type SuggestionPayloadV1,
   type SuggestionStatus,
 } from './suggestions';
-import type { ApprovalRole } from './review-gate';
+import { overrideReasonProblem, pendingApprovals, type ApprovalRole, type MissingApproval } from './review-gate';
 import { CONFIG_FILE, type BridgeConfig } from './config';
 import { selectTokenFiles } from './layered';
 import { planSuggestionApply, type SuggestionApplyOp, type SuggestionApplyPlan, type SuggestionWorkspace } from './suggestion-apply';
@@ -357,6 +359,39 @@ export async function reviewSuggestionOnGitHub(
   const labelWarning = await syncSuggestionStateLabel(gh, n, before.issue.labels, status);
   if (labelWarning) warnings.push(labelWarning);
   return { commentUrl: posted.url, payloadSha: sha, status, counts, warnings };
+}
+
+/**
+ * The owner override on a suggestion (docs/GOVERNANCE.md "Owner override"): the owner it allows, whom nobody else can
+ * review, approves their own suggestion as owner with a written reason. Checks the rule (suggestionOverrideProblem),
+ * the reason (overrideReasonProblem), the version, then posts the audit comment and re-syncs the state label. A
+ * developer then applies it as any approved suggestion; the pull request carries the approvals.
+ */
+export async function overrideSuggestionOnGitHub(
+  gh: GitHubClient,
+  n: number,
+  input: { reason: string; payloadSha?: string | undefined; by?: string | undefined },
+  gov: SuggestionGovernance,
+): Promise<SuggestionReviewResult> {
+  if (!gov.override) throw new GitHubError(422, 'The review rules allow no owner override.');
+  const before = await getSuggestionOnGitHub(gh, n, gov);
+  if (!before.parsed.ok) throw new GitHubError(422, `#${n} cannot be approved: ${before.parsed.message}`);
+  if (before.issue.state === 'closed') throw new GitHubError(422, `#${n} is closed.`);
+  const sha = before.parsed.sha;
+  if (input.payloadSha && input.payloadSha !== sha) throw new GitHubError(409, `#${n} changed since you opened it. Reload it and approve the new version.`);
+  const by = input.by ?? (await gh.getViewer().catch(() => ({ login: '' }))).login;
+  const problem = suggestionOverrideProblem({ viewer: by, author: before.issue.author, gov }) ?? overrideReasonProblem(input.reason, gov.override);
+  if (problem) throw new GitHubError(422, problem);
+  if (before.approvals?.changesRequested.length) throw new GitHubError(422, `Changes were asked for on #${n}: the owner override covers missing approvals only.`);
+  const missing = pendingApprovals(before.parsed.payload.tier.tier, before.approvals ?? { approvers: [], changesRequested: [], design: false, tech: false }).map((r): MissingApproval => (r === 'design' ? 'design approval' : r === 'tech' ? 'tech approval' : 'approval'));
+  const posted = await gh.createIssueComment(n, composeSuggestionOverrideComment({ login: by, reason: input.reason, missing, payloadSha: sha }));
+  const after = await getSuggestionOnGitHub(gh, n, gov);
+  const counts = Boolean(after.approvals?.override);
+  const warnings: string[] = [];
+  if (!counts) warnings.push('The owner override is posted but does not count: check the owners and the override in bridge.config.json.');
+  const labelWarning = await syncSuggestionStateLabel(gh, n, before.issue.labels, after.status);
+  if (labelWarning) warnings.push(labelWarning);
+  return { commentUrl: posted.url, payloadSha: sha, status: after.status, counts, warnings };
 }
 
 /**
