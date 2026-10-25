@@ -207,8 +207,6 @@ interface AssistState {
   mine?: MineState | undefined;
   /** Claude's text for fields the designer edited while waiting: offered, never written over their text. */
   offer?: { title?: string | undefined; summary?: string | undefined } | undefined;
-  /** The "Draft with Claude" disclosure: the three ways, MCP first. */
-  menuOpen?: boolean | undefined;
 }
 
 interface MineState {
@@ -1647,20 +1645,13 @@ function offerView(a: AssistState, t: AssistTarget): Child {
  * an API key it starts the designer's own Claude (MCP) directly; with one it opens a small menu of the two ways. Hidden
  * while the designer's Claude drafts or its text is offered: the status block under the field holds the actions then.
  */
+/**
+ * "Draft with Claude": one button, no choice of ways for the designer. With an API key a developer saved (Settings, For
+ * developers), Claude drafts in one click; otherwise the designer's own Claude plan does (Draft with my Claude).
+ */
 function assistAction(a: AssistState, t: AssistTarget): Child {
-  const withKey = !!state.init?.claude.hasKey;
   if (mineActive(a) || a.offer) return null;
-  const pick = (fn: () => void) => () => {
-    a.menuOpen = false;
-    fn();
-  };
-  const way = (id: string, label: string, hint: string, onClick: () => void, opts: { tag?: string; disabled?: boolean } = {}) =>
-    h(
-      'button',
-      { class: 'way-item', role: 'menuitem', 'data-focus-id': `${t.id}-${id}`, disabled: !!opts.disabled, onClick },
-      h('span', { class: 'way-label' }, label, opts.tag ? h('span', { class: 'tag' }, opts.tag) : null),
-      h('small', null, hint),
-    );
+  const withKey = !!state.init?.claude.hasKey;
   return h(
     'div',
     { class: 'assist-action' },
@@ -1670,38 +1661,12 @@ function assistAction(a: AssistState, t: AssistTarget): Child {
         type: 'button',
         class: 'btn ghost',
         'data-focus-id': `${t.id}-assist`,
-        'aria-expanded': withKey ? (a.menuOpen ? 'true' : 'false') : undefined,
-        'aria-haspopup': withKey ? 'menu' : undefined,
         disabled: !!state.busy || !!t.empty?.(),
         title: t.empty?.(),
-        onClick: () => {
-          if (!withKey) return startMine(a, t);
-          a.menuOpen = !a.menuOpen;
-          render();
-          if (a.menuOpen) focusFirstItem(document.querySelector(`[data-menu-id="${t.id}-ways"]`));
-        },
+        onClick: () => (withKey ? void runClaude(a, t) : startMine(a, t)),
       },
       'Draft with Claude',
-      withKey ? icon(a.menuOpen ? 'chevron-up' : 'chevron-down') : null,
     ),
-    withKey && a.menuOpen
-      ? h(
-          'div',
-          {
-            class: 'ways-menu',
-            role: 'menu',
-            'aria-label': 'Draft with Claude',
-            'data-menu-id': `${t.id}-ways`,
-            onKeyDown: menuKeys(() => {
-              a.menuOpen = false;
-              render();
-              (document.querySelector(`[data-focus-id="${t.id}-assist"]`) as HTMLElement | null)?.focus();
-            }),
-          },
-          way('mine', 'With your Claude plan', state.init?.hasToken ? 'In the Claude app or Claude Code. Set up once in Settings.' : 'Add a GitHub token in Settings first.', pick(() => startMine(a, t)), { tag: 'Recommended', disabled: !state.init?.hasToken }),
-          way('claude', 'With an API key', 'One click, billed to your Anthropic account.', pick(() => void runClaude(a, t))),
-        )
-      : null,
   );
 }
 
@@ -4088,6 +4053,8 @@ function claudeCard(): HTMLElement {
     state.expanded.has(key) ? state.expanded.delete(key) : state.expanded.add(key);
     render();
   };
+  // The fold stays open across re-renders while a developer works in it (a row opened, a message about the key).
+  const devOpen = state.expanded.has('claude-dev') || state.expanded.has('mcp-setup') || state.expanded.has('claude-key') || !!msg;
   const row = (key: string, title: string, hint: string, status: string, tag: string | null, body: Child) => {
     const open = state.expanded.has(key) || (key === 'claude-key' && !!msg);
     return h(
@@ -4108,6 +4075,19 @@ function claudeCard(): HTMLElement {
     { class: 'card' },
     h('div', { class: 'group-head' }, h('h2', null, 'Claude', h('span', { class: 'group-n' }, 'Optional'))),
     h('p', { class: 'lede' }, 'Writes the text of what you send from the changes it sees. You review it before anything is sent.'),
+    // What the designer needs: whether it is ready. The setup (MCP config, an API key) is a developer's job, folded.
+    h('p', { class: 'muted' }, c.hasKey ? 'Ready: "Draft with Claude" writes in one click.' : 'Works with your Claude app once it is set up on this computer. If it is not, ask a developer: it takes a minute.'),
+    h(
+      'details',
+      {
+        class: 'notes dev-details',
+        open: devOpen,
+        onToggle: (e: Event) => {
+          const open = (e.target as HTMLDetailsElement).open;
+          open ? state.expanded.add('claude-dev') : state.expanded.delete('claude-dev');
+        },
+      },
+      h('summary', { 'data-focus-id': 'claude-dev' }, 'For developers: set up Claude'),
     h(
       'ul',
       { class: 'opts' },
@@ -4176,6 +4156,7 @@ function claudeCard(): HTMLElement {
           msg ? h('p', { class: msg.kind === 'error' ? 'form-error' : 'assist-note', role: msg.kind === 'error' ? 'alert' : 'status' }, icon(msg.kind === 'error' ? 'alert' : 'check'), msg.text) : null,
         ),
       ),
+    ),
     ),
   );
 }

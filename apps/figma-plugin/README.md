@@ -83,17 +83,16 @@ Designers should not have to document every change by hand. Three levels, in thi
    stops after 10 minutes ("Check again"), and fills the fields, marked "Drafted by Claude, review before sending".
    A field you edited after clicking is never overwritten: Claude's text for it shows under the buttons with
    **Use Claude's draft**. The file and its images are deleted once you send or cancel. Setup (once) is in
-   Settings, **Claude (optional)**: the Claude Desktop config and the Claude Code command for this repository, with
+   Settings, **Claude (optional)**, under **For developers: set up Claude**: the Claude Desktop config and the Claude Code command for this repository, with
    the same GitHub token (`GITHUB_TOKEN`, Contents read and write). See [docs/AI.md](../../docs/AI.md).
 3. **Draft with Claude, API key (only with your own Anthropic API key, billed to your Anthropic account).** Settings,
-   **Claude (optional)**: paste a key from [console.anthropic.com](https://console.anthropic.com/settings/keys) and
+   **Claude (optional)**, under **For developers: set up Claude** (a developer's job, folded): paste a key from [console.anthropic.com](https://console.anthropic.com/settings/keys) and
    pick a model (Claude Sonnet 5.5 by default, or Claude Opus 5.5, Claude Haiku 5.5). The key is stored with
    `figma.clientStorage` like the GitHub token: on this computer only, never in the file, never shown again, and
-   only sent to `api.anthropic.com` ("Remove key" deletes it). With a key, a **Draft with Claude (API key)** button appears
-   next to Draft with my Claude. The UI iframe calls the Messages API directly (`anthropic-dangerous-direct-browser-access`)
+   only sent to `api.anthropic.com` ("Remove key" deletes it). The designer never picks a way: with a key, **Draft with Claude**
+   drafts in one click with it; without one, the same button starts Draft with my Claude. The UI iframe calls the Messages API directly (`anthropic-dangerous-direct-browser-access`)
    with the change table and, for a request, the component's before image (a small PNG stored in private plugin data
-   when its baseline is taken) and after image (the current export), skipping either when missing. Without a key the
-   button does not show. Claude's text is marked "Drafted by Claude, review before sending" until you edit it.
+   when its baseline is taken) and after image (the current export), skipping either when missing. Claude's text is marked "Drafted by Claude, review before sending" until you edit it.
    Errors (invalid key, rate limit, network) say what to do and keep the plugin draft.
 
 Whatever Claude writes, nothing is sent until you press Send request, Send for review or Send to exploration.
