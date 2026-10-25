@@ -251,21 +251,28 @@ export type ContributorTourAt = 'branches' | 'start';
 
 export const CONTRIBUTOR_TOUR_STEPS: readonly ContributorTourAt[] = ['branches', 'start'];
 
-/** With no branch yet the home has no branches to point at: the tour only shows where to start. */
+/** With nothing yet the home has no exploration to point at: the tour only shows where to start. */
 export const contributorTourSteps = (empty: boolean): ContributorTourAt[] => (empty ? ['start'] : [...CONTRIBUTOR_TOUR_STEPS]);
 
 const CONTRIBUTOR_TOUR: Record<ContributorTourAt, { title: string; text: string }> = {
   branches: {
-    title: `Your ${VOCAB.branches}`,
-    text: 'Your changes stay apart from the library until a reviewer approves them. When a reviewer asks for changes, the change shows up here.',
+    title: 'Your explorations',
+    text: 'Product screens you try with Claude AI. What they add stays apart from the library until a reviewer approves it. When a reviewer asks for changes, it shows up at the top.',
   },
   start: {
-    title: 'Start a change',
-    text: 'Pick what you want to change. Bridge keeps it as a change of its own, so you can try things without touching the library until a reviewer approves it.',
+    title: 'Start an exploration',
+    text: 'Pick a product and say what you want to try. Claude AI builds it with the library and tells you what the library does not have yet.',
   },
 };
 
-export const contributorTour = (at: ContributorTourAt): { title: string; text: string } => CONTRIBUTOR_TOUR[at];
+/** The home with nothing at all points at its three ways to start a change instead (tokens, a component, guidance). */
+const START_A_CHANGE = {
+  title: VOCAB.createBranch,
+  text: 'Pick what you want to change. Bridge keeps it as a change of its own, so you can try things without touching the library until a reviewer approves it.',
+};
+
+/** One step's words. `empty`: the home with nothing at all, whose start step points at the ways to start a change. */
+export const contributorTour = (at: ContributorTourAt, empty = false): { title: string; text: string } => (at === 'start' && empty ? START_A_CHANGE : CONTRIBUTOR_TOUR[at]);
 
 const RANK: Record<NeedKind, number> = { join: 0, review: 1, health: 2, own: 3, guidance: 4, setup: 5 };
 

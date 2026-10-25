@@ -2,10 +2,12 @@
 //   - The Harbor zone: the greeting, who waits on the viewer and for how long, the Needs you rows (one row component,
 //     the whole row is the link), the grouped row with the one primary action "Review all", and a tertiary hint.
 //   - One muted health line under the zone.
-//   - Your branches: open branches as cards, a status filter, "Create branch" as the first card.
-//   - Nothing at all: three ways to start, each with its drawing.
+//   - Your explorations (lib/home-explorations.ts): the product screens tried with Claude AI, each card the explored
+//     screen, "Start an exploration" as the first card. Library changes are not cards here: they wait in the review
+//     queue for reviewers, live on Changes, and their author gets one line under the section ("Your changes").
+//   - Nothing at all: three ways to start, each with its drawing, and the explorations' own empty state.
 //   - Someone without a review right (`contributor`): only what waits on them (their branches sent back with changes),
-//     never the review queue, and on the first visit a two-step tour of their branches and how to start (HomeTour.tsx).
+//     never the review queue, and on the first visit a two-step tour of their explorations and how to start (HomeTour.tsx).
 // NeedList is shared with the review queue (pages/studio/review.astro), so a row reads the same in both places.
 // Admins also get join requests (board E7b, scripts/team-home.ts): one row per person, Decline and Approve inline while
 // 3 things or fewer wait; more than that, it folds into "N more" like any row and Review all leads there.
@@ -13,7 +15,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { useState, type ReactNode } from 'react';
 import { CircleAlert, CircleCheck } from 'lucide-react';
 import { Who } from './faces';
-import { Alert, AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, SegmentedControl, Skeleton, ToastProvider } from '@bridge-ds/react';
+import { Alert, AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, Skeleton, ToastProvider } from '@bridge-ds/react';
 import { BranchThumb } from './BranchThumb';
 import { Drawing } from './Drawing';
 import StartChange from './StartChange';
@@ -25,24 +27,19 @@ import {
   moreNeedsAction,
   contributorTour,
   type ContributorTourAt,
-  BRANCH_FILTERS,
-  branchStatus,
   SEP,
   hintSnoozed,
   oldestLabel,
   onlyReviewerLine,
-  showsBranch,
-  sortBranches,
   splitNeeds,
   uniquePeople,
   waitingSentence,
   type BranchCard,
-  type BranchFilter,
   type HomeState,
   type NeedRow,
   type Person,
 } from '../../../lib/home-model';
-import { VOCAB } from '../../../lib/vocabulary';
+import { libraryChangesLine, YOUR_CHANGES_HREF, type ExplorationCard } from '../../../lib/home-explorations';
 import { studioHref } from '../../../lib/team-path';
 import { demoTour, demoWaiting, tourSteps, type TourAt } from '../../../lib/demo';
 import { useNarrow, useTour } from './HomeTour';
@@ -165,31 +162,34 @@ function Needs({ needs, now, snoozed, demo, tour, join, contributor }: { needs: 
   );
 }
 
-function BranchCardItem({ b, now }: { b: BranchCard; now: number }) {
-  const s = b.statusLine ?? branchStatus(b, now);
+function ExplorationCardItem({ c }: { c: ExplorationCard }) {
   return (
     <li className="sh-card-item">
       <Card interactive padding="none" className="sh-card">
-        <BranchThumb spec={b.thumb} size="card" />
+        <BranchThumb spec={c.preview} size="card" />
         <div className="sh-card-body">
           <span className="sh-card-head">
-            <Link href={b.href} variant="subtle" className="t-body sh-card-title" data-card-primary>
-              <span className="sh-strong">{b.title}</span>
+            <Link href={c.href} variant="subtle" className="t-body sh-card-title" data-card-primary>
+              <span className="sh-strong">{c.title}</span>
             </Link>
           </span>
           <span className="t-ui t-muted sh-card-status">
-            {/* Each part is its own wrapping item and the dot rides with the stage: a wrap never starts a line on it. */}
+            {/* Each part is its own wrapping item and the dot rides with what comes before it: a wrap never starts a
+                line on it. "Exploring · in Account · Ann". */}
             <span>
-              <span className="sh-card-stage">{s.stage}</span>
-              {s.detail && SEP.trimEnd()}
+              <span className="sh-card-stage">{c.state}</span>
+              {SEP.trimEnd()}
             </span>
-            {b.stage === 'ready' && b.reviewer && !b.status && !b.statusLine ? (
-              <>
-                <Who p={b.reviewer} size="xs" /> <span>{s.detail}</span>
-              </>
-            ) : (
-              s.detail && <span>{s.detail}</span>
+            {c.product && (
+              <span>
+                in {c.product}
+                {SEP.trimEnd()}
+              </span>
             )}
+            <span className="sh-card-who">
+              <Who p={c.author} size="xs" />
+              <span>{c.author.name}</span>
+            </span>
           </span>
         </div>
       </Card>
@@ -203,61 +203,80 @@ export interface HomeComponent {
   family?: string;
 }
 
-function Branches({
-  branches,
-  now,
+/** Exploration cards in one row on a wide screen (board D1): "Start an exploration" and three cards. */
+export const EXPLORATION_CARDS = 3;
+
+/** The one sentence of the section when there is no exploration yet. */
+export const EXPLORE_LINE = 'Try a product screen with Claude AI. Bridge spots what the library does not have, and what works goes to review.';
+
+/**
+ * "Your explorations": the product screens tried with Claude AI, the promise of the product. "Start an exploration"
+ * first, like "+ New" in Figma's file browser (the slot never moves), then the first cards and "See all N". None yet:
+ * the drawing, one sentence and the one button. Library changes are not here: they wait in the review queue for
+ * reviewers, and live on Changes (the "Your changes" line under this section, for their author).
+ */
+function Explorations({
+  explorations,
   components,
-  title = `Your ${VOCAB.branches}`,
-  sub = 'Your changes, kept apart from the library until your team approves them.',
-  create = true,
-  max,
+  title,
+  seeAll,
   tour,
+  start = true,
 }: {
-  branches: BranchCard[];
-  now: number;
+  explorations: ExplorationCard[];
   components: HomeComponent[];
-  title?: string;
-  sub?: string | null;
-  create?: boolean;
-  /** Show the first `max` only, with "See all N" by the title (the demo, board D1: one row of cards). */
-  max?: number;
+  title: string;
+  seeAll: string;
   tour?: StudioHomeProps['tour'];
+  /** The tour's "start" step points here (the busy home); the home with nothing at all points at its own ways to start. */
+  start?: boolean;
 }) {
-  const [filter, setFilter] = useState<BranchFilter>('all');
   const narrow = useNarrow();
-  const sorted = sortBranches(branches).filter((b) => showsBranch(filter, b.stage));
-  const shown = max ? sorted.slice(0, max) : sorted;
+  const shown = explorations.slice(0, EXPLORATION_CARDS);
   return (
-    <section className="sh-section" aria-labelledby="sh-branches">
+    <section className="sh-section" aria-labelledby="sh-explorations">
       <header className="sh-section-head">
-        <div className="sh-section-title">
-          <h2 id="sh-branches" className="sh-h2">
-            {title}
-          </h2>
-          {sub && <p className="t-body t-muted sh-section-sub">{sub}</p>}
-        </div>
-        {max ? (
-          branches.length > max && <Link href={studioHref('changes/')}>See all {branches.length}</Link>
-        ) : branches.length >= 4 && <SegmentedControl label={`Show ${VOCAB.branches}`} size="md" value={filter} onValueChange={(v) => setFilter(v as BranchFilter)} items={BRANCH_FILTERS} />}
+        <h2 id="sh-explorations" className="sh-h2">
+          {title}
+        </h2>
+        {explorations.length > EXPLORATION_CARDS && <Link href={seeAll}>See all {explorations.length}</Link>}
       </header>
       {/* On a phone the step is a card in the flow, before the cards; on a wide screen it floats under them, so it never
-          covers the first card ("Start a change"). */}
+          covers the first card ("Start an exploration"). */}
       {narrow && tour?.('branches')}
-      <ul className="sh-cards">
-        {/* Create first, like "+ New" in Figma's file browser: the slot never moves as branches come and go. On the demo
-            too: its button carries data-demo-write, so a visitor gets the demo's sign-in dialog (scripts/demo-gate.ts). */}
-        {create && (
+      {explorations.length ? (
+        <ul className="sh-cards">
+          {/* On the demo too: its button carries data-demo-write, so a visitor gets the demo's sign-in dialog
+              (scripts/demo-gate.ts). */}
           <li className="sh-card-item sh-create">
-            <StartChange components={components} appearance="card" />
+            <StartChange components={components} appearance="card" exploration />
           </li>
-        )}
-        {shown.map((b) => (
-          <BranchCardItem key={b.number} b={b} now={now} />
-        ))}
-      </ul>
+          {shown.map((c) => (
+            <ExplorationCardItem key={c.number} c={c} />
+          ))}
+        </ul>
+      ) : (
+        <div className="sh-explore-empty">
+          <Drawing name="paint" width={88} />
+          <p className="t-body sh-explore-empty-text">{EXPLORE_LINE}</p>
+          <StartChange components={components} appearance="button" exploration />
+        </div>
+      )}
       {!narrow && tour?.('branches')}
-      {create && tour?.('start')}
+      {start && tour?.('start')}
     </section>
+  );
+}
+
+/** "You have 2 library changes in progress. See your changes": the author's library changes, on Changes. */
+function YourChanges({ n }: { n: number }) {
+  const line = libraryChangesLine(n);
+  if (!line) return null;
+  return (
+    <p className="t-ui t-muted sh-health">
+      <span>{line}</span>
+      <Link href={YOUR_CHANGES_HREF()}>See your changes</Link>
+    </p>
   );
 }
 
@@ -311,7 +330,10 @@ export interface StudioHomeProps {
   note?: string | null;
   greeting: string;
   needs: NeedRow[];
+  /** The viewer's own library changes and suggestions: counted in one line under the explorations, listed on Changes. */
   branches: BranchCard[];
+  /** The explorations the home shows as cards (lib/home-explorations): the viewer's own, the team's on the demo. */
+  explorations: ExplorationCard[];
   health: HealthLine | null;
   /** Show the calm Being built line under the zone (BuildLine): what developers build from Figma, never a Needs you row. */
   building?: boolean;
@@ -326,11 +348,11 @@ export interface StudioHomeProps {
   setup?: ReactNode;
   /**
    * The demo for a visitor (DemoHome.tsx, boards D1 and D1b): the same home from the DS lead's seat. `lead` names
-   * them in the waiting line; each row keeps its Review button; "Review all" opens the Review page; the team's branches under their own
-   * title, without Create branch. Always the busy layout.
+   * them in the waiting line; each row keeps its Review button; "Review all" opens the Review page; the team's
+   * explorations under their own title. Always the busy layout.
    */
-  demo?: { lead: Person | null; branchesTitle: string; branchesMax: number };
-  /** The demo tour's popovers, anchored where each step points: under the rows, the grouped row, the branches. */
+  demo?: { lead: Person | null; explorationsTitle: string };
+  /** The demo tour's popovers, anchored where each step points: under the rows, the grouped row, the explorations. */
   tour?: (at: HomeTourAt) => ReactNode;
   /**
    * The viewer holds no review right (an email contributor, or a member no owner list names): the needs are only
@@ -378,14 +400,14 @@ export function StudioHome(p: StudioHomeProps) {
 
 function HomeBody(p: StudioHomeProps) {
   const snoozed = hintSnoozed(readSnooze(), p.now);
-  const own = useTour<ContributorTourAt>(CONTRIBUTOR_TOUR_KEY, contributorTourSteps(p.state === 'empty'), contributorTour, Boolean(p.contributor) && !p.demo && (p.state === 'busy' || p.state === 'empty'));
+  const own = useTour<ContributorTourAt>(CONTRIBUTOR_TOUR_KEY, contributorTourSteps(p.state === 'empty'), (at) => contributorTour(at, p.state === 'empty'), Boolean(p.contributor) && !p.demo && (p.state === 'busy' || p.state === 'empty'));
   // The lead's tour speaks of changes: rows that are only join requests (or a health note) are not what it shows. Its
   // first step points at the rows on screen, so it runs only when they hold a change; changes folded under "N more"
   // get the Review all step alone.
   const isChange = (r: NeedRow) => r.kind === 'review' || r.kind === 'guidance';
   const changeRows = p.needs.some(isChange);
   const split = splitNeeds(p.needs);
-  const leadSteps = tourSteps({ rows: split.shown.some(isChange), more: changeRows && Boolean(split.more), branches: p.branches.length > 0 });
+  const leadSteps = tourSteps({ rows: split.shown.some(isChange), more: changeRows && Boolean(split.more), branches: p.explorations.length > 0 });
   const lead = useTour<TourAt>(LEAD_TOUR_KEY, leadSteps, (at) => demoTour(at), Boolean(p.lead) && !p.contributor && !p.demo && p.state === 'busy' && leadSteps.length > 0);
   const tour: StudioHomeProps['tour'] =
     p.tour ??
@@ -394,6 +416,17 @@ function HomeBody(p: StudioHomeProps) {
       : p.lead && !p.demo
         ? (at) => (at === 'rows' || at === 'more' || at === 'branches' ? lead(at) : null)
         : undefined);
+  const explorations = (start = true) => (
+    <Explorations
+      explorations={p.explorations}
+      components={p.components}
+      title={p.demo?.explorationsTitle ?? 'Your explorations'}
+      // The demo shows the team's: all of them on Changes. A member's own: their work on Changes.
+      seeAll={p.demo ? studioHref('changes/') : YOUR_CHANGES_HREF()}
+      tour={tour}
+      start={start}
+    />
+  );
   if (p.state === 'signed-out' && !p.demo) {
     return (
       <div className="sh">
@@ -438,6 +471,7 @@ function HomeBody(p: StudioHomeProps) {
         {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}
         {p.health && <Health h={p.health} />}
         {p.building && <BuildLine />}
+        {!p.failed && explorations(false)}
       </div>
     );
   }
@@ -474,7 +508,8 @@ function HomeBody(p: StudioHomeProps) {
       {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}
       {p.health && <Health h={p.health} />}
       {p.building && <BuildLine />}
-      {(p.branches.length > 0 || !loading) && <Branches branches={p.branches} now={p.now} components={p.components} title={p.demo?.branchesTitle} sub={p.demo ? null : undefined} max={p.demo?.branchesMax} tour={tour} />}
+      {(p.explorations.length > 0 || !loading) && explorations()}
+      {!p.demo && !loading && <YourChanges n={p.branches.length} />}
     </div>
   );
 }

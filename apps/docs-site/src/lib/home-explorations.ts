@@ -1,0 +1,162 @@
+// The explorations of the Studio home (components/ds/studio/StudioHome.tsx, "Your explorations"): what the product
+// promises ("Explore with AI. Keep what works in your design system."), shown as work, not as a list of branches.
+// An exploration is a product screen tried with Claude AI: a pull request that is or was an exploration (core
+// isExplorationPull: the `exploration` label, an `explore/*` branch or the Bridge block), or a branch started for a
+// product ("product: account", any product but the library). Library changes (a token, a component, guidance) are
+// not explorations: they live on Changes, in the review queue for reviewers, and in "Your changes" for their author.
+//
+// Each card shows the explored screen (a capture, never a generic icon when one exists), the title, the product, who
+// explores it and where it stands in designer words: "Exploring", "2 new pieces found", "In review", "Kept in the
+// library". Pure: no DOM, no fetch. Unit tested in home-explorations.test.ts.
+import { defaultProduct, findProduct, isActiveExploration, isExplorationPull, parseExplorationBody, parsePiecesRecord, PRODUCT_LABEL_PREFIX, requesterOf, type ProductConfig } from '@bridge-ds/core';
+import { oneLineTitle } from './markdown';
+import { humanTitle } from './pr-title';
+import { studioHref } from './team-path';
+import type { Person } from './home-model';
+import type { ThumbSpec } from './branch-thumb';
+
+/** The fields of an open (or closed) pull request the home reads. */
+export interface ExplorationPull {
+  number: number;
+  title: string;
+  body?: string | null;
+  draft?: boolean;
+  state?: string;
+  merged_at?: string | null;
+  labels?: ({ name?: string } | string)[] | null;
+  head?: { ref: string; sha?: string };
+  user: { login: string; avatar_url?: string; type?: string } | null;
+  updated_at: string;
+}
+
+/** Where an exploration stands. */
+export type ExplorationStage = 'exploring' | 'found' | 'in-review' | 'kept';
+
+export interface ExplorationCard {
+  number: number;
+  title: string;
+  /** The exploration page (the product branch page for a product), or the change page once it is a plain change. */
+  href: string;
+  /** "Account": the product it was tried in, when it names one. */
+  product: string | null;
+  /** Who explores it: the person who asked, before the account (often Claude AI) that opened it. */
+  author: Person;
+  stage: ExplorationStage;
+  /** The stage in designer words: "Exploring", "2 new pieces found", "In review", "Kept in the library". */
+  state: string;
+  updated: string;
+  /** The explored screen ({ kind: 'screen' }), or its sketch while no capture exists. */
+  preview: ThumbSpec;
+}
+
+const labelNames = (p: Pick<ExplorationPull, 'labels'>) => (p.labels ?? []).map((l) => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean);
+const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && a.replace(/^@/, '').toLowerCase() === b.replace(/^@/, '').toLowerCase());
+
+/** The product a "product: account" label names, any product but the library: its configured name, else the key in words. */
+export function explorationProduct(p: Pick<ExplorationPull, 'labels'>, products: readonly ProductConfig[]): string | null {
+  const lib = defaultProduct(products);
+  for (const l of labelNames(p)) {
+    if (!l.toLowerCase().startsWith(PRODUCT_LABEL_PREFIX)) continue;
+    const key = l.slice(PRODUCT_LABEL_PREFIX.length).trim();
+    if (!key) continue;
+    const hit = findProduct(products, key);
+    if (hit) {
+      if (hit.key === lib.key) continue;
+      return hit.name;
+    }
+    if (key.toLowerCase() === lib.key.toLowerCase() || key.toLowerCase() === 'library') continue;
+    return key.charAt(0).toUpperCase() + key.slice(1);
+  }
+  return null;
+}
+
+/** An exploration, or a branch started for a product: what the home's section shows. Library changes are not. */
+export function isHomeExploration(p: ExplorationPull, products: readonly ProductConfig[]): boolean {
+  if (p.user?.type === 'Bot') return false;
+  return isExplorationPull({ state: p.state ?? 'open', labels: p.labels ?? [], headRef: p.head?.ref, body: p.body }) || explorationProduct(p, products) !== null;
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * Where it stands, in designer words. Merged: kept in the library. Still being tried (a draft, or the exploration label
+ * on): exploring, or "2 new pieces found" once Bridge found pieces the library does not have. Otherwise: in review.
+ */
+export function explorationStage(p: Pick<ExplorationPull, 'draft' | 'state' | 'merged_at' | 'labels' | 'body'>): { stage: ExplorationStage; state: string } {
+  if (p.merged_at || p.state === 'merged') return { stage: 'kept', state: 'Kept in the library' };
+  if (p.draft || isActiveExploration(p.labels ?? [])) {
+    const pieces = parsePiecesRecord(p.body)?.pieces.length ?? 0;
+    return pieces ? { stage: 'found', state: `${plural(pieces, 'new piece', 'new pieces')} found` } : { stage: 'exploring', state: 'Exploring' };
+  }
+  return { stage: 'in-review', state: 'In review' };
+}
+
+/** Its name: the exploration block's ("Profile page"), else the pull request title for people. */
+export function explorationTitle(p: Pick<ExplorationPull, 'title' | 'body'>): string {
+  const name = parseExplorationBody(p.body)?.name?.trim();
+  if (name) return name.charAt(0).toUpperCase() + name.slice(1);
+  return oneLineTitle(humanTitle(p.title));
+}
+
+/** Where its card opens: the exploration (or product branch) page while it is one, the change page once promoted. */
+export function explorationHref(p: ExplorationPull): string {
+  const exploration = isExplorationPull({ state: p.state ?? 'open', labels: p.labels ?? [], headRef: p.head?.ref, body: p.body });
+  return studioHref(exploration ? `changes/?exploration=${p.number}` : `changes/?pr=${p.number}`);
+}
+
+/** The viewer's own: they opened it, asked for it ("Requested by"), or started it (the exploration block's author). */
+export function isOwnExploration(p: Pick<ExplorationPull, 'user' | 'body'>, viewer: string | null | undefined): boolean {
+  if (!viewer) return false;
+  return same(p.user?.login, viewer) || same(requesterOf(p.body)?.login, viewer) || same(parseExplorationBody(p.body)?.author, viewer);
+}
+
+/** The sketch of a screen, while no capture of it exists. */
+export const SCREEN_SKETCH: ThumbSpec = { kind: 'screen', src: null };
+
+const ORDER: Record<ExplorationStage, number> = { exploring: 0, found: 0, 'in-review': 1, kept: 2 };
+
+export interface HomeExplorationsOptions<P extends ExplorationPull = ExplorationPull> {
+  products: readonly ProductConfig[];
+  /** Only the viewer's own (a team member's home). Omitted: every exploration of the team (the demo, from the lead's seat). */
+  viewer?: string | null;
+  /** Who explores it (the asker, Claude AI for agent work without one). */
+  author: (p: P) => Person;
+  /** The explored screen, once known. */
+  preview?: (p: P) => ThumbSpec | null | undefined;
+}
+
+/**
+ * The home's exploration cards: still being tried first, then in review, then kept; newest activity first inside.
+ * Library changes and automation are left out.
+ */
+export function homeExplorations<P extends ExplorationPull>(pulls: P[], opts: HomeExplorationsOptions<P>): ExplorationCard[] {
+  return pulls
+    .filter((p) => isHomeExploration(p, opts.products) && (opts.viewer === undefined || isOwnExploration(p, opts.viewer)))
+    .map((p): ExplorationCard => {
+      const { stage, state } = explorationStage(p);
+      return {
+        number: p.number,
+        title: explorationTitle(p),
+        href: explorationHref(p),
+        product: explorationProduct(p, opts.products),
+        author: opts.author(p),
+        stage,
+        state,
+        updated: p.updated_at,
+        preview: opts.preview?.(p) ?? SCREEN_SKETCH,
+      };
+    })
+    .sort((a, b) => ORDER[a.stage] - ORDER[b.stage] || b.updated.localeCompare(a.updated) || b.number - a.number);
+}
+
+/** The pull requests the home leaves to Changes: library changes, the ones that are not explorations. */
+export const libraryChangesOf = <P extends ExplorationPull>(pulls: P[], products: readonly ProductConfig[]): P[] => pulls.filter((p) => !isHomeExploration(p, products));
+
+/** "You have 2 library changes in progress." under the explorations, with the way to them on Changes. */
+export function libraryChangesLine(n: number): string | null {
+  if (n <= 0) return null;
+  return `You have ${plural(n, 'library change', 'library changes')} in progress.`;
+}
+
+/** Changes, on the viewer's own work. */
+export const YOUR_CHANGES_HREF = () => studioHref('changes/?who=mine');

@@ -136,6 +136,51 @@
   object-fit: cover;
 }
 
+/* Screen: an explored screen, one capture across the card, its top where the page starts. */
+.bt-screen {
+  object-position: top center;
+}
+
+/* Screen not captured yet: a sketch of a page (a heading, two blocks) on the subtle surface. */
+.bt--screen:not(:has(img)) {
+  align-items: stretch;
+  justify-content: center;
+  background: var(--color-bg-subtle);
+}
+
+.bt-sketch {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-6);
+}
+
+.bt--row .bt-sketch {
+  gap: var(--space-0-5);
+  padding: var(--space-1-5);
+}
+
+.bt-sketch-head {
+  display: block;
+  width: 48%;
+  height: var(--space-3);
+  border-radius: var(--radius-inset);
+  background: var(--color-border-emphasis);
+}
+
+.bt-sketch-block {
+  display: block;
+  flex: 1;
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-inset);
+  background: var(--color-surface-default);
+}
+
+.bt--row .bt-sketch-head {
+  height: var(--space-1);
+}
+
 /* Text: lines of a paragraph; the after lines in Deep Harbor, the one strong colour. */
 .bt-lines {
   display: flex;

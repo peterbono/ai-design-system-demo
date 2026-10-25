@@ -279,16 +279,17 @@ describe('contributors: what waits on someone without a review right', () => {
     for (const t of ['design', 'ship', 'guidance', 'requested', 'own-blocked', 'own-ship', null] as const) expect(waitsOnContributor(t)).toBe(false);
   });
 
-  it('tours their branches, then how to start', () => {
+  it('tours their explorations, then how to start one', () => {
     expect(CONTRIBUTOR_TOUR_STEPS).toEqual(['branches', 'start']);
-    expect(contributorTour('branches').title).toBe('Your changes');
-    expect(contributorTour('branches').text).toMatch(/until a reviewer approves them/);
-    // No branch yet: nothing to point at but where to start.
+    expect(contributorTour('branches').title).toBe('Your explorations');
+    expect(contributorTour('branches').text).toMatch(/until a reviewer approves it/);
+    expect(contributorTour('start').title).toBe('Start an exploration');
+    // Nothing yet: nothing to point at but where to start, the three ways to start a change.
     expect(contributorTourSteps(true)).toEqual(['start']);
     expect(contributorTourSteps(false)).toEqual(['branches', 'start']);
+    expect(contributorTour('start', true).title).toBe('Start a change');
     for (const at of CONTRIBUTOR_TOUR_STEPS) expect(contributorTour(at).text).not.toMatch(/merge/i);
-    expect(contributorTour('start').title).toBe('Start a change');
-    for (const at of CONTRIBUTOR_TOUR_STEPS) expect(JSON.stringify(contributorTour(at))).not.toMatch(/\u2014|lead/);
+    for (const at of CONTRIBUTOR_TOUR_STEPS) expect(JSON.stringify([contributorTour(at), contributorTour(at, true)])).not.toMatch(/\u2014|lead/);
   });
 
   it('names the row verb, the row first', () => {

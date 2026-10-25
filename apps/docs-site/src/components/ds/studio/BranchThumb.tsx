@@ -1,6 +1,6 @@
 // The before/after thumbnail of a branch (Studio home rows and cards). Draws a ThumbSpec from lib/branch-thumb.ts:
 // two halves split by a dashed line, the after half on the subtle surface, or one centred icon when there is no
-// before/after to show. Decorative: the row or card next to it says the same thing in words. Styles:
+// before/after to show, or one explored screen (an exploration card: its capture, else a sketch). Decorative: the row or card next to it says the same thing in words. Styles:
 // styles/branch-thumb.css.
 import type { ReactNode } from 'react';
 import { BookOpen, Component, Contrast, GitBranch, Palette, UserPlus } from 'lucide-react';
@@ -71,6 +71,17 @@ function Lines() {
   );
 }
 
+/** A screen not captured yet: a title bar, a heading and two blocks, drawn with the thumbnail's own lines. */
+function ScreenSketch() {
+  return (
+    <span className="bt-sketch">
+      <span className="bt-sketch-head" />
+      <span className="bt-sketch-block" />
+      <span className="bt-sketch-block" />
+    </span>
+  );
+}
+
 function body(spec: ThumbSpec, size: ThumbSize): ReactNode {
   const room = ROOM[size];
   switch (spec.kind) {
@@ -95,6 +106,9 @@ function body(spec: ThumbSpec, size: ThumbSize): ReactNode {
           after={<img className="bt-img" src={spec.after} alt="" loading="lazy" decoding="async" />}
         />
       );
+    case 'screen':
+      // One screen, not a before/after: an exploration is a new screen. Its top shows, where the page starts.
+      return spec.src ? <img className="bt-img bt-screen" src={spec.src} alt="" loading="lazy" decoding="async" /> : <ScreenSketch />;
     case 'text':
       return <Halves before={<Lines />} after={<Lines />} />;
     case 'icon':

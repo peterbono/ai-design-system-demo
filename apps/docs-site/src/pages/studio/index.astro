@@ -2,7 +2,7 @@
 // Studio home, direction D: what the viewer does now (components/ds/studio/StudioHome.tsx, rules in lib/home-model.ts).
 //   1. The Harbor zone: a time-of-day greeting, who waits on the viewer and since when, at most three Needs you rows
 //      (the whole row is the link), the rest grouped behind "Review all" (the review queue, /studio/review/).
-//   2. Your branches: open branches as cards, "Create branch" as the first one.
+//   2. Your explorations: the product screens tried with Claude AI as cards, "Start an exploration" first.
 //   3. Nothing waits and nothing is open: three ways to start.
 // Signed in, the setup steps (lib/onboarding.ts, components/ds/studio/Onboarding.tsx): the first run takes the page
 // while bridge.config.json does not say how changes reach the code; after that, "N of 8 connected" by the greeting
@@ -237,7 +237,7 @@ const onboarding = {
           {
             loading: !demoData || demoData.loading,
             needs: demoData?.needs ?? [],
-            branches: demoData?.branches ?? [],
+            explorations: demoData?.explorations ?? [],
             health: health(),
             building: true,
             failed: demoData?.failed ?? null,
@@ -325,7 +325,7 @@ const onboarding = {
               onHide: () => remember({ hidden: true }),
             })
           : undefined;
-      const state = homeState({ signedIn, loading: !d || d.loading, needs: d?.needs.length ?? 0, branches: d?.branches.length ?? 0 });
+      const state = homeState({ signedIn, loading: !d || d.loading, needs: d?.needs.length ?? 0, branches: (d?.branches.length ?? 0) + (d?.explorations.length ?? 0) });
       root = paintStudioHome(
         el,
         {
@@ -333,6 +333,7 @@ const onboarding = {
           greeting: greeting(new Date(now).getHours(), v?.name ?? null),
           needs: d?.needs ?? [],
           branches: d?.branches ?? [],
+          explorations: d?.explorations ?? [],
           health: health(),
           building: true,
           now,

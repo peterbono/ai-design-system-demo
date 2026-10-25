@@ -5,7 +5,9 @@
 // the before/after (the token diff, else the visual impact run). Paints progressively through `onUpdate`. The rules
 // are pure in lib/home-model.ts and lib/branch-thumb.ts. Admins of a real team on the hosted site also get the people
 // asking to join it (board E7b, GET /api/entry?requests=), first in the list.
-import { requesterOf } from '@bridge-ds/core';
+import { productsOf, requesterOf, type ProductConfig } from '@bridge-ds/core';
+import { siteConfig } from './repo-context';
+import { homeExplorations, isHomeExploration, isOwnExploration, type ExplorationCard } from '../lib/home-explorations';
 import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, readRepo, RateLimitError, resolveAccess } from './github-session';
 import { loadStatuses, owners, rowWho, shippers, type PullStatus } from './pr-status';
 import { loadTeams } from './teams';
@@ -18,7 +20,7 @@ import { isReviewTask, waitingOn } from '../lib/waiting-on';
 import { analyzeTokenFiles, isTokenFile } from './reviews/token-review';
 import type { ChangedFile } from '../lib/blob-batch';
 import { manifestPublished } from './reviews/visual-impact';
-import { visualBase, visualState, type VisualManifest } from '../lib/visual-impact';
+import { touchesVisuals, visualBase, visualState, type VisualManifest } from '../lib/visual-impact';
 import { branchThumb, type ThumbInput, type ThumbSpec } from '../lib/branch-thumb';
 import {
   CLAUDE,
@@ -65,7 +67,10 @@ export interface HomeData {
   /** GitHub could not be read: what to tell the viewer. */
   failed: string | null;
   needs: NeedRow[];
+  /** The viewer's own library changes and suggestions: the home counts them under the explorations (Changes lists them). */
   branches: BranchCard[];
+  /** The viewer's own explorations (lib/home-explorations): the home's cards. */
+  explorations: ExplorationCard[];
   /** Review decisions among the needs, for the Branches nav badge. */
   decisions: number;
   /**
@@ -158,6 +163,28 @@ export function thumbOf(p: Pick<HomePull, 'number' | 'head' | 'base'>, guidance:
   return t;
 }
 
+const screens = new Map<string, Promise<ThumbSpec | null>>();
+
+/**
+ * The explored screen of an exploration: the after side of the top change its visual impact run captured (the same
+ * capture its product branch page shows), read once per head commit. Null while there is none (no run, no screen).
+ */
+export function previewOf(p: Pick<HomePull, 'number' | 'head'>): Promise<ThumbSpec | null> {
+  const key = `screen:${p.number}@${p.head.sha}`;
+  let t = screens.get(key);
+  if (!t) {
+    t = (async () => {
+      const files = (await changedFilesOf(p.number, p.head.sha))?.map((x) => x.filename) ?? [];
+      if (!touchesVisuals(files)) return null;
+      const top = await visualTop(p.number, p.head.sha);
+      return top ? ({ kind: 'screen', src: top.after } as const) : null;
+    })();
+    screens.set(key, t);
+  }
+  return t;
+}
+
+
 // ---------------------------------------------------------------------------------------------------------------
 
 /** Who reviews a branch: the first reviewer asked, else the first who approved. */
@@ -221,7 +248,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     const f = facts();
     return [...joins, ...(reviewer ? [...(contrastNeed(f.contrastFail) ? [contrastNeed(f.contrastFail)!] : []), ...f.guidance.map((g) => guidanceNeed(g, now))] : [])];
   };
-  const empty: HomeData = { viewer, loading: true, settled: false, failed: null, needs: [], branches: [], decisions: 0, reviewer };
+  const empty: HomeData = { viewer, loading: true, settled: false, failed: null, needs: [], branches: [], explorations: [], decisions: 0, reviewer };
   if (!viewer || !hasWorkingToken()) {
     onUpdate({ ...empty, loading: false, settled: true });
     return;
@@ -262,6 +289,8 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     ownSuggestions = await loadOwnSuggestions(viewer, mine);
   })().catch(() => undefined);
   const queue = reviewQueue(pulls);
+  const products = homeProducts();
+  const shots = new Map<number, ThumbSpec>();
   const statuses = new Map<number, PullStatus | null>(queue.map((p) => [p.number, null]));
   const timelines = new Map<number, TimelineEvent[] | null>();
   const resolved = new Map<number, ThumbSpec>();
@@ -323,8 +352,18 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
       };
       needs.push(changeNeed(facts, now));
     }
+    // Explorations are the home's cards; the viewer's library changes are counted under them (Changes lists them).
+    const explorations = homeExplorations(pulls, {
+      products,
+      viewer,
+      author: (p) => {
+        const r = requesterOf(p.body);
+        return (r && requesterPerson(r, (l) => pick(l)!)) ?? pick(p.user.login)!;
+      },
+      preview: (p) => shots.get(p.number),
+    });
     const branches: BranchCard[] = queue
-      .filter((p) => same(p.user.login, viewer))
+      .filter((p) => same(p.user.login, viewer) && !isHomeExploration(p, products))
       .map((p) => {
         const st = statuses.get(p.number);
         const c = todoChange(p, st);
@@ -336,7 +375,7 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
     // Suggestions wait on their reviewers only.
     if (reviewer) needs.push(...suggestions);
     const sorted = sortNeeds(needs);
-    onUpdate({ viewer, loading, settled, failed: null, needs: sorted, branches: [...branches, ...ownSuggestions], decisions: sorted.filter((r) => r.kind === 'review').length, reviewer });
+    onUpdate({ viewer, loading, settled, failed: null, needs: sorted, branches: [...branches, ...ownSuggestions], explorations, decisions: sorted.filter((r) => r.kind === 'review').length, reviewer });
   };
 
   repaint = paint;
@@ -389,10 +428,27 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
       paint();
     });
   };
-  await Promise.all(
-    order.map(async (x) => {
+  const mine = pulls.filter((p) => isHomeExploration(p, products) && isOwnExploration(p, viewer));
+  await Promise.all([
+    ...order.map(async (x) => {
       resolved.set(x.pull.number, await thumbOf(x.pull, x.guidance));
       later();
     }),
-  );
+    // The explored screen of each exploration card.
+    ...mine.map(async (p) => {
+      const shot = await previewOf(p).catch(() => null);
+      if (!shot) return;
+      shots.set(p.number, shot);
+      later();
+    }),
+  ]);
+}
+
+/** The products the team names (bridge.config.json "products"), for the exploration cards. */
+function homeProducts(): ProductConfig[] {
+  try {
+    return productsOf(siteConfig() as { products?: ProductConfig[] });
+  } catch {
+    return productsOf(null);
+  }
 }

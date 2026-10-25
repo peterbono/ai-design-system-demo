@@ -3,15 +3,16 @@
 // repository's activity (scripts/demo-home.ts readDemoActivity). Nothing is made up. Pure, covered by
 // demo-home.test.ts.
 import { requesterOf } from '@bridge-ds/core';
-import { CLAUDE, changeNeed, person, requesterPerson, type BranchCard, type NeedRow, type Person } from './home-model';
+import { CLAUDE, changeNeed, person, requesterPerson, type NeedRow, type Person } from './home-model';
 import { isGuidanceChange } from './overview-todo';
 import { oneLineTitle } from './markdown';
 import { humanTitle } from './pr-title';
 import { agentMade, workNature } from './work-nature';
 import { waitsOnMe } from './waiting-on';
-import { isDraft } from './review-rules';
 import { shortTitle, suggestionNeed } from './suggestions-view';
-import { studioHref } from './team-path';
+import { homeExplorations, type ExplorationCard } from './home-explorations';
+import { sampleExplorationPreview } from './demo';
+import type { ProductConfig } from '@bridge-ds/core';
 import type { ThumbSpec } from './branch-thumb';
 
 /** The fields of a pull request the demo home reads (GET /repos/{o}/{r}/pulls, or the activity snapshot). */
@@ -51,12 +52,6 @@ const guidanceBranch = (p: DemoPull) => isGuidanceChange(p.head?.ref ?? '', unde
 const labelNames = (p: DemoPull) => (p.labels ?? []).map((l) => l.name.toLowerCase());
 /** An exploration (labelled, or on an explore/ branch): a product screen tried with Claude AI, never merged as is. */
 export const isExploration = (p: DemoPull) => labelNames(p).includes('exploration') || /^explore\//.test(p.head?.ref ?? '');
-/** The product a branch belongs to, from its "product: account" label: "Account". */
-export function productOf(p: DemoPull): string | null {
-  const l = labelNames(p).find((x) => x.startsWith('product:'));
-  const name = l?.slice('product:'.length).trim();
-  return name ? name.charAt(0).toUpperCase() + name.slice(1) : null;
-}
 
 export interface LeadOptions {
   /** Before/after of the branches read so far. */
@@ -127,28 +122,23 @@ export function leadQueue(pulls: DemoPull[], suggestions: DemoSuggestion[], now:
 }
 
 /**
- * The team's explorations and branches, as the home's branch cards (board D1 "Explorations and branches"): drafts
- * being edited and branches in review. A visitor has no branch of their own; these are the demo team's.
+ * The team's explorations, as the home's exploration cards (lib/home-explorations): the product screens the team tries
+ * with Claude AI, from the lead's seat (a visitor has none of their own). Library changes are left out: they wait in
+ * the lead's queue (leadQueue) and live on Changes. `previews` holds the explored screens read so far; the sample
+ * team's come with the site (lib/demo.ts SAMPLE_EXPLORATION_PREVIEWS).
  */
-export function teamBranches(pulls: DemoPull[], opts: LeadOptions = {}): BranchCard[] {
-  return pulls
-    .filter((p) => !isBotPull(p))
-    .map((p) => {
-      const reviewer = p.requested_reviewers?.[0];
-      return {
-        number: p.number,
-        title: title(p.title),
-        href: studioHref(`changes/?pr=${p.number}`),
-        stage: isDraft(p) ? 'draft' : 'ready',
-        updated: p.updated_at,
-        reviewer: reviewer ? who(reviewer, opts.people) : null,
-        thumb: opts.thumbs?.get(p.number) ?? { kind: 'icon', icon: guidanceBranch(p) ? 'guidance' : 'branch' },
-        // Board D1: "Exploration in Admin demo · Ann", "Library change · in review", "Library change · draft".
-        statusLine: isExploration(p)
-          ? { stage: productOf(p) ? `Exploration in ${productOf(p)}` : 'Exploration', detail: askerOf(p, opts.people).name }
-          : { stage: 'Library change', detail: isDraft(p) ? 'draft' : opts.approved?.has(p.number) ? 'approved' : 'in review' },
-      } satisfies BranchCard;
-    });
+export function teamExplorations(pulls: DemoPull[], opts: LeadOptions & { products?: readonly ProductConfig[]; previews?: Map<number, ThumbSpec>; sample?: boolean } = {}): ExplorationCard[] {
+  return homeExplorations(
+    pulls.filter((p) => !isBotPull(p)),
+    {
+      products: opts.products ?? [],
+      author: (p) => askerOf(p, opts.people),
+      preview: (p) => {
+        const seeded = opts.sample ? sampleExplorationPreview(p.head?.ref) : null;
+        return seeded ? { kind: 'screen', src: seeded } : opts.previews?.get(p.number);
+      },
+    },
+  );
 }
 
 /** The logins the home names, to read their display names once (GET /users/{login}). */

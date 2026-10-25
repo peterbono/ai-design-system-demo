@@ -151,7 +151,7 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null, dsEl
         {
           loading: !demoData || demoData.loading,
           needs: demoData?.needs ?? [],
-          branches: demoData?.branches ?? [],
+          explorations: demoData?.explorations ?? [],
           health: health(),
           building: true,
           failed: demoData?.failed ?? null,
@@ -170,7 +170,7 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null, dsEl
     const v = currentViewer();
     const signedIn = Boolean(v) || (!known && Boolean(getToken()));
     const d = data && gone.size ? { ...data, needs: data.needs.filter((r) => !gone.has(r.key)) } : data;
-    const state = homeState({ signedIn, loading: !d || d.loading, needs: d?.needs.length ?? 0, branches: d?.branches.length ?? 0 });
+    const state = homeState({ signedIn, loading: !d || d.loading, needs: d?.needs.length ?? 0, branches: (d?.branches.length ?? 0) + (d?.explorations.length ?? 0) });
     root = paintStudioHome(
       el,
       {
@@ -178,6 +178,7 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null, dsEl
         greeting: greeting(new Date(now).getHours(), v?.name ?? null),
         needs: d?.needs ?? [],
         branches: d?.branches ?? [],
+        explorations: d?.explorations ?? [],
         health: health(),
         building: true,
         now,

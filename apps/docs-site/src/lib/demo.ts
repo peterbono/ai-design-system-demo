@@ -34,6 +34,20 @@ export const OWN_TEAM = 'Bridge DS';
 /** True for the simulated team with sample data ("owner/repo", any case). */
 export const isSampleTeam = (repo: string | null | undefined): boolean => (repo ?? '').trim().toLowerCase() === SAMPLE_REPO;
 
+/**
+ * The explored screens of the sample team's explorations, by branch: a capture of each branch's own screen code
+ * (apps/account on the sample repository, rendered with the library at the branch head), shipped with the site in
+ * public/sample/explorations/. The sample team publishes no preview deploys, so the home shows these instead of a
+ * sketch. A new sample exploration adds its capture here.
+ */
+export const SAMPLE_EXPLORATION_PREVIEWS: Readonly<Record<string, string>> = {
+  'explore/profile-page': '/sample/explorations/profile-page.png',
+  'agent/billing-invoice-status': '/sample/explorations/billing-invoice-status.png',
+};
+
+/** The capture of a sample exploration's screen, by its branch, or null. */
+export const sampleExplorationPreview = (branch: string | null | undefined): string | null => (branch ? (SAMPLE_EXPLORATION_PREVIEWS[branch] ?? null) : null);
+
 /** The repository part of "owner/repo" in words: "ai-design-system-demo" reads "Ai design system demo". */
 export const humanizeRepo = (repo: string): string => {
   const part = repo.trim().split('/').pop()?.trim() ?? '';
@@ -84,8 +98,8 @@ export const DEMO_WORDS = {
   backToWorkspace: 'Back to your workspace',
   /** The same banner for someone who has no workspace yet. */
   connectOwn: 'Connect your design system',
-  /** The home's branches (board D1). */
-  branches: 'Explorations and changes',
+  /** The home's explorations, the team's from the lead's seat (board D1; library changes live on Changes). */
+  explorations: 'Explorations',
   /** A write action on the sample team (board D2). */
   dialogTitle: 'This is a sample team.',
   dialogLead: 'Nothing is sent from Acme Design. Get started to do this with your own team.',
@@ -286,8 +300,8 @@ const DEMO_TOUR: Record<TourAt, { title: string; text: string }> = {
     text: 'Review all opens every change in turn: approve, ask for changes, and move on to the next.',
   },
   branches: {
-    title: 'Work in progress stays apart',
-    text: 'Explorations try a product screen with Claude AI; changes edit the library. Nothing reaches it until it is reviewed and added.',
+    title: 'Explore with Claude AI',
+    text: 'Each card is a product screen the team tries with Claude AI. Bridge spots what the library does not have yet, and the pieces worth keeping go to review.',
   },
 };
 
