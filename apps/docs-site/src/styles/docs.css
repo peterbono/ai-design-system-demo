@@ -125,9 +125,19 @@ a.dc-section {
   margin: 0 0 var(--space-3);
 }
 
-.dc-body ol {
+.dc-body ol,
+.dc-body ul {
   margin: 0 0 var(--space-3);
   padding-left: var(--space-6);
+}
+
+/* Security and data: the "For developers" fold under a section (components/ds/DevDetail.tsx) and the tables. */
+.dc-dev {
+  margin-top: var(--space-4);
+}
+
+.dc-table {
+  margin-block: var(--space-4);
 }
 
 .dc-body li + li {

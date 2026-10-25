@@ -1,0 +1,316 @@
+---
+// /docs/security/: Security and data, for the IT and security team that decides whether a design team may use Bridge.
+// Written only from what the code does (api/**, packages/mcp, packages/cli, apps/figma-plugin/manifest.json,
+// docs/SIGN-IN.md). Each section says it in plain words first, then a "For developers" fold names the files.
+// What is not in place is said plainly, without dates. lib/security-page.test.ts checks the numbers and domains
+// below against the code, so a change there fails until this page says it too.
+import Docs from '../../layouts/Docs.astro';
+import { Link, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
+import DevDetail from '../../components/ds/DevDetail';
+import { DEFAULT_BRANCH, GITHUB_URL } from '../../lib/repo';
+import { PRIVACY_PAGE } from '../../lib/account';
+
+const src = (path: string) => `${GITHUB_URL}/blob/${DEFAULT_BRANCH}/${path}`;
+/** GitHub's private vulnerability report form for the repository. */
+const SECURITY_ADVISORY_URL = `${GITHUB_URL}/security/advisories/new`;
+
+const sections = [
+  { id: 'what', label: 'What runs where' },
+  { id: 'stored', label: 'What Bridge stores' },
+  { id: 'not-stored', label: 'What Bridge does not store' },
+  { id: 'access', label: 'Access and permissions' },
+  { id: 'network', label: 'Network and APIs' },
+  { id: 'ai', label: 'AI' },
+  { id: 'offboarding', label: 'Deletion and offboarding' },
+  { id: 'audit', label: 'Audit the code, report a problem' },
+  { id: 'not-yet', label: 'Not in place yet' },
+];
+
+const RUNS = [
+  { piece: 'Bridge Studio pages', where: 'Static pages on Vercel, run in the person’s browser', talks: 'GitHub’s API directly, with the person’s own GitHub sign-in; Bridge’s functions' },
+  { piece: 'Bridge functions (/api, /mcp, /oauth)', where: 'Vercel Functions', talks: 'Upstash Redis (records), GitHub, Resend (sign-in and invite emails), Vercel Blob (daily backup)' },
+  { piece: 'Figma plugin', where: 'Figma desktop, on the designer’s computer', talks: 'api.github.com and bridge.floriangouloubi.com only' },
+  { piece: 'Connector for your AI assistant', where: 'A Vercel Function at /mcp', talks: 'GitHub, as the person who connected it; answers your assistant' },
+  { piece: 'CLI and local MCP server', where: 'Your own machine, from npm', talks: 'GitHub with a token you pass, or files on disk. No Bridge server' },
+  { piece: 'The AI model', where: 'Your company’s own AI account (Claude or another MCP client)', talks: 'Bridge’s connector, when someone connects it' },
+];
+
+const STORED = [
+  { what: 'Account: email, name, linked GitHub login and id, creation date', kept: 'Until the person deletes it', how: 'Record in Redis' },
+  { what: 'Session cookie (in the browser): email, version, expiry', kept: '30 days', how: 'Signed with HMAC-SHA256; HttpOnly, Secure, SameSite=Lax' },
+  { what: 'Team membership: email, name, role, who added them', kept: 'Until an admin removes them', how: 'Record in Redis' },
+  { what: 'Pending invite: email, role, team, who invited, dates', kept: '7 days, then only the team name and inviter name for 30 more days', how: 'The link itself: only its SHA-256' },
+  { what: 'Request to join a team: name and email', kept: '14 days', how: 'Shown to that team’s admins only' },
+  { what: 'One-time sign-in code by email', kept: '10 minutes, 5 tries', how: 'Only its SHA-256' },
+  { what: 'Email sign-in links for Library readers and email members', kept: '15 minutes, once', how: 'Only its SHA-256' },
+  { what: 'Which branches and issues an email member made through Bridge', kept: '1 year', how: 'Record in Redis' },
+  { what: 'Short-lived copies of GitHub reads for team pages', kept: '10 minutes for most answers, 24 hours for public names and pictures and for answers that never change, 7 days at most for file contents', how: 'Cache in Redis' },
+  { what: 'AI connector connection: team repository, app name, GitHub login, display name, dates, the person’s GitHub tokens', kept: '90 days after last use', how: 'GitHub tokens encrypted (AES-256-GCM); the rest as a record' },
+  { what: 'AI connector tokens Bridge issues to the assistant', kept: '1 hour (access), 30 days (refresh, single use), 2 minutes (authorization code)', how: 'Only their SHA-256' },
+  { what: 'Figma plugin sign-in hand-off: team and GitHub access token', kept: '5 minutes at most, removed when the plugin collects it', how: 'Code and poll secret: only their SHA-256. The token: as is' },
+  { what: 'Fix session: the steps the team’s AI took on one component', kept: '7 days after the last step', how: 'Names, never emails' },
+  { what: 'Daily backup of accounts, members, invites and team records', kept: '30 backups', how: 'Private Vercel Blob store' },
+];
+---
+
+<Docs title="Security and data" description="For IT and security teams: what Bridge runs, what it stores and for how long, what it can do on GitHub, how to remove it, and what is not in place yet." sections={sections}>
+  <p>This page is for the IT and security team deciding whether a design team can use Bridge. It is written from the code. Each section starts in plain words; the fold under it names the files that do it, so a developer can check every line. Where something is not in place, it says so.</p>
+  <p>For the person-level version (what Bridge keeps about you, and how to delete it), see <Link href={PRIVACY_PAGE}>Privacy</Link>.</p>
+
+  <section aria-labelledby="what">
+    <h2 id="what">What runs where</h2>
+    <p>Your design system lives in your team’s own GitHub repository, and stays there. Bridge reads it on GitHub and sends changes back as branches and pull requests. The default branch only changes when a pull request merges on GitHub, under your repository’s own rules.</p>
+    <Table caption="The pieces of Bridge" narrowLayout="stack" className="dc-table">
+      <TableHeader>
+        <TableRow>
+          <TableHead scope="col">Piece</TableHead>
+          <TableHead scope="col">Runs on</TableHead>
+          <TableHead scope="col">Talks to</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {RUNS.map((r) => (
+          <TableRow>
+            <TableCell label=""><strong>{r.piece}</strong></TableCell>
+            <TableCell label="Runs on">{r.where}</TableCell>
+            <TableCell label="Talks to">{r.talks}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+    <DevDetail id="what-dev" client:visible>
+      <ul>
+        <li>Public addresses and the daily backup job: <Link href={src('apps/docs-site/vercel.json')}><code>apps/docs-site/vercel.json</code></Link> (rewrites of <code>/mcp</code>, <code>/oauth/*</code> and <code>/.well-known/*</code> to <code>api/mcp</code>; cron on <code>/api/account?export=1</code>).</li>
+        <li>Storage: Upstash Redis over its REST API, <Link href={src('apps/docs-site/api/_lib/redis.ts')}><code>api/_lib/redis.ts</code></Link>. Email: Resend, <Link href={src('apps/docs-site/api/_lib/email.ts')}><code>api/_lib/email.ts</code></Link>. Backup: Vercel Blob with <code>access: 'private'</code>, <Link href={src('apps/docs-site/api/account/index.ts')}><code>api/account/index.ts</code></Link>.</li>
+        <li>The hosting region is not set in the code.</li>
+        <li>CLI tokens: <Link href={src('packages/cli/src/auth.ts')}><code>packages/cli/src/auth.ts</code></Link>. A write only uses a token passed on purpose (<code>GITHUB_TOKEN</code>, <code>--token</code>, or <code>--use-gh-auth</code>).</li>
+      </ul>
+    </DevDetail>
+  </section>
+
+  <section aria-labelledby="stored">
+    <h2 id="stored">What Bridge stores</h2>
+    <p>Bridge keeps records about people and teams, not your design system. Everything below lives in one Upstash Redis database, except the session cookie (in the browser) and the backup (Vercel Blob). Bridge encrypts the GitHub tokens it keeps for the AI connector. Other records are not encrypted by Bridge itself, beyond what the storage provider does.</p>
+    <Table caption="Records Bridge keeps" narrowLayout="stack" className="dc-table">
+      <TableHeader>
+        <TableRow>
+          <TableHead scope="col">What</TableHead>
+          <TableHead scope="col">How long</TableHead>
+          <TableHead scope="col">How it is kept</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {STORED.map((r) => (
+          <TableRow>
+            <TableCell label="">{r.what}</TableCell>
+            <TableCell label="How long">{r.kept}</TableCell>
+            <TableCell label="How it is kept">{r.how}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+    <p>Backups hold accounts, members, invites and team records. They leave out sign-in codes and the AI connector’s connections and tokens. A deleted account can stay in a backup until that backup ages out.</p>
+    <DevDetail id="stored-dev" client:visible>
+      <ul>
+        <li>Accounts, sessions and codes: <Link href={src('apps/docs-site/api/_lib/account.ts')}><code>api/_lib/account.ts</code></Link>, <Link href={src('apps/docs-site/api/account/index.ts')}><code>api/account/index.ts</code></Link> (codes compared in constant time on their SHA-256, capped per email, per network and per day; backup patterns <code>EXPORT_PATTERNS</code>, 30 kept).</li>
+        <li>Cookies: <code>v1.&lt;claims&gt;.&lt;HMAC-SHA256&gt;</code> under <code>LIBRARY_SESSION_SECRET</code>, with a purpose in the MAC so one feature’s cookie never passes for another, <Link href={src('apps/docs-site/api/_lib/session.ts')}><code>api/_lib/session.ts</code></Link>. Every request reads the account again: “Sign out everywhere” bumps a version and ends every session.</li>
+        <li>Connector tokens: <Link href={src('apps/docs-site/api/_lib/oauth.ts')}><code>api/_lib/oauth.ts</code></Link>. Bridge’s own tokens are opaque random values; only their SHA-256 is stored. The person’s GitHub access and refresh tokens are sealed with AES-256-GCM under a key derived with HKDF-SHA256 from <code>LIBRARY_SESSION_SECRET</code> for that purpose only, with the connection id as additional data, <Link href={src('apps/docs-site/api/_lib/sealed.ts')}><code>api/_lib/sealed.ts</code></Link>.</li>
+        <li>Members, invites, join requests: <Link href={src('apps/docs-site/api/_lib/members.ts')}><code>api/_lib/members.ts</code></Link>, <Link href={src('apps/docs-site/api/invites/index.ts')}><code>api/invites/index.ts</code></Link>, <Link href={src('apps/docs-site/api/_lib/teams.ts')}><code>api/_lib/teams.ts</code></Link>. Emails and network addresses used for rate limits are counted under an HMAC, never in clear.</li>
+        <li>Cache: <Link href={src('apps/docs-site/api/_lib/team-read.ts')}><code>api/_lib/team-read.ts</code></Link> (<code>KEEP_S</code>, <code>BLOB_KEEP_S</code>, <code>USER_KEEP_S</code>). Plugin hand-off: <Link href={src('apps/docs-site/api/plugin-link/index.ts')}><code>api/plugin-link/index.ts</code></Link>. Fix sessions: <Link href={src('apps/docs-site/api/_lib/fix-sessions.ts')}><code>api/_lib/fix-sessions.ts</code></Link>.</li>
+      </ul>
+    </DevDetail>
+  </section>
+
+  <section aria-labelledby="not-stored">
+    <h2 id="not-stored">What Bridge does not store</h2>
+    <ul>
+      <li>Passwords. There are none: people sign in with GitHub or with a one-time code sent to their email.</li>
+      <li>A lasting copy of your design system. Tokens, components and docs stay in your repository; Bridge keeps only the short-lived copies above.</li>
+      <li>Studio’s GitHub sign-in. It stays in the person’s browser (local storage). Bridge’s token function swaps GitHub’s one-time code for a token and returns it without storing or logging it.</li>
+      <li>The Figma plugin’s GitHub sign-in. It stays on that computer, in Figma’s plugin storage, never in the Figma file.</li>
+      <li>AI keys or AI conversations. Bridge’s servers hold no AI key. The connector sees the tool calls your assistant makes, not the conversation.</li>
+      <li>Analytics or tracking. The site has no analytics script. Bridge’s functions log nothing about people; the only log lines are blocked-content reports from browsers and a warning when the backup is not set up. The hosting platform keeps its own request logs.</li>
+    </ul>
+    <DevDetail id="not-stored-dev" client:visible>
+      <ul>
+        <li>Token swap: <Link href={src('apps/docs-site/api/github/token.ts')}><code>api/github/token.ts</code></Link> (same-origin POST only, <code>Cache-Control: no-store</code>). Browser storage keys <code>bridge.github.token.suggest</code> and <code>bridge.github.token.direct</code>: <Link href={src('apps/docs-site/src/scripts/github-session.ts')}><code>src/scripts/github-session.ts</code></Link>.</li>
+        <li>Plugin storage: <code>figma.clientStorage</code> in <Link href={src('apps/figma-plugin/src/main/github-token.ts')}><code>apps/figma-plugin/src/main/github-token.ts</code></Link>.</li>
+        <li>Logs: <Link href={src('apps/docs-site/api/csp-report/index.ts')}><code>api/csp-report/index.ts</code></Link> logs Content-Security-Policy reports; <code>onExport</code> in <code>api/account/index.ts</code> warns when <code>BLOB_READ_WRITE_TOKEN</code> is missing. No other <code>console</code> call in <code>apps/docs-site/api</code>.</li>
+      </ul>
+    </DevDetail>
+  </section>
+
+  <section aria-labelledby="access">
+    <h2 id="access">Access and permissions</h2>
+    <p>GitHub decides who can do what. People with GitHub act as themselves, with their own sign-in, and never get more than their own access to the repository. People without GitHub go through Bridge, with narrower limits (below). Bridge adds review rules on top; your branch protection on GitHub still applies.</p>
+
+    <h3>The two GitHub Apps</h3>
+    <p>A repository admin installs them on the design system repository only (“Only select repositories”).</p>
+    <ul>
+      <li><strong>Bridge</strong> reads the code and writes only issues: Contents read, Issues read and write, Pull requests read, Checks read, Commit statuses read, Metadata read, Organization members read.</li>
+      <li><strong>Bridge Direct</strong> opens branches and pull requests: Contents, Pull requests and Issues read and write, Administration read and write (read only is possible if your admins turn branch protection on themselves), Checks, Commit statuses, Metadata and Organization members read.</li>
+      <li>Both ask one account permission: Email addresses, read only, so an invite reaches the person it was sent to.</li>
+    </ul>
+    <p>Bridge’s server holds Bridge Direct’s private key. With it, the server can act on every repository where Bridge Direct is installed, within the permissions above. It uses that for a few jobs only: changing collaborators when someone accepts an invite, serving a private Library to readers without GitHub, carrying out changes for email members, shipping token value changes, and removing a deleted person’s name from their requests. Each time it asks GitHub for a token limited to one repository, often to fewer permissions, and never stores it.</p>
+
+    <h3>Roles</h3>
+    <ul>
+      <li><strong>Can edit</strong>: write access on GitHub. <strong>Reviewer</strong>: write access, plus listed as a design or tech owner in <code>bridge.config.json</code>. <strong>Admin</strong>: admin on GitHub.</li>
+      <li>People without GitHub can join by email as Can edit or Admin, never Reviewer: approvals happen on GitHub. An email member’s changes go through Bridge with strict limits: design files only (tokens, docs, specs), on their own branches, never the default branch, never a merge or a review, 300 writes a day by default.</li>
+    </ul>
+
+    <h3>Reviews and merging</h3>
+    <ul>
+      <li>Every change is a pull request with a risk tier. Studio, the connector and the CLI read the same verdict: checks pass, the approvals the tier needs (one owner for low risk; a design owner and a tech owner otherwise), no changes requested, no conflict.</li>
+      <li>A person merges, with write access and the right to ship. GitHub never lets authors approve their own pull request.</li>
+      <li>Your AI assistant acts as the person who connected it. It can merge only through that same check, and its instructions say to merge only when the person asks. A pull request it opens is authored by that person, so someone else has to approve it.</li>
+      <li>One exception, by design: token value changes. Once the checks pass, Bridge approves and merges a pull request that only changes token values: a push from the Figma plugin needs nothing more, and a value change opened anywhere else needs a design owner’s approval first. Renamed or removed tokens, code and guardrail files always wait for a developer.</li>
+      <li>Owner override, for solo maintainers: off unless <code>bridge.config.json</code> turns it on, for listed owners only, only when approvals are the one thing missing. It needs a written reason (20 characters at least by default), posted on the pull request before the merge and repeated in the merge commit. If GitHub refuses the merge, the comment says “Not merged”.</li>
+    </ul>
+    <DevDetail id="access-dev" client:visible>
+      <ul>
+        <li>App permissions: <Link href={src('docs/SIGN-IN.md')}><code>docs/SIGN-IN.md</code></Link>. Installation tokens, minted per request and per repository: <Link href={src('apps/docs-site/api/_lib/github-app.ts')}><code>api/_lib/github-app.ts</code></Link> (used by <code>api/invites</code>, <code>api/library-access</code>, <code>api/contribute</code>, <code>api/ship</code>, <code>api/account</code>).</li>
+        <li>Caller checks: <Link href={src('apps/docs-site/api/_lib/team-caller.ts')}><code>api/_lib/team-caller.ts</code></Link> reads the person and their permission from GitHub on every call; nothing the browser says about itself is trusted.</li>
+        <li>Email member proxy policy (deny by default): <Link href={src('apps/docs-site/api/contribute/index.ts')}><code>api/contribute/index.ts</code></Link>.</li>
+        <li>Review verdict, merge and owner override: <code>packages/core/src/review-gate.ts</code>, <Link href={src('packages/core/src/branch-actions.ts')}><code>packages/core/src/branch-actions.ts</code></Link>, <code>bridge_merge_branch</code> in <Link href={src('packages/mcp/src/server.ts')}><code>packages/mcp/src/server.ts</code></Link>, rules in <Link href={src('docs/GOVERNANCE.md')}><code>docs/GOVERNANCE.md</code></Link>.</li>
+        <li>Token value shipping: <Link href={src('apps/docs-site/api/ship/index.ts')}><code>api/ship/index.ts</code></Link> and <Link href={src('apps/docs-site/api/_lib/figma-ship.ts')}><code>api/_lib/figma-ship.ts</code></Link>.</li>
+      </ul>
+    </DevDetail>
+  </section>
+
+  <section aria-labelledby="network">
+    <h2 id="network">Network and APIs</h2>
+    <ul>
+      <li>The Figma plugin may only reach <code>https://api.github.com</code> and <code>https://bridge.floriangouloubi.com</code>. Figma enforces that list.</li>
+      <li>Studio pages send a strict Content-Security-Policy: scripts from the site itself (and Vercel’s preview toolbar) only, no embedding of Bridge in other sites, no plugins. Pages may call GitHub’s API and, only when a person adds their own key for drafting docs, Anthropic’s API.</li>
+      <li>Every Bridge function answers with <code>Cache-Control: no-store</code>. Calls that change something must come from a page of the site itself (Origin checked), except the ones the Figma plugin and AI assistants make, which carry a token instead of a cookie.</li>
+      <li>The connector at <code>/mcp</code> only answers with a Bridge token, issued through OAuth 2.1 with PKCE (S256), for one person, one team and one app. Tokens travel in headers and bodies, never in a URL.</li>
+    </ul>
+    <Table caption="Who may call each function" narrowLayout="stack" className="dc-table">
+      <TableHeader>
+        <TableRow>
+          <TableHead scope="col">Address</TableHead>
+          <TableHead scope="col">Who may call it</TableHead>
+          <TableHead scope="col">Other sites</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow>
+          <TableCell label=""><code>/api/account</code>, <code>/api/entry</code>, <code>/api/invites</code></TableCell>
+          <TableCell label="Who may call it">A Bridge account session, or a GitHub sign-in checked with GitHub</TableCell>
+          <TableCell label="Other sites">Refused</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell label=""><code>/api/contribute</code></TableCell>
+          <TableCell label="Who may call it">An email member’s session, or a GitHub sign-in that can read the repository (reads of a public demo team: anyone)</TableCell>
+          <TableCell label="Other sites">Refused</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell label=""><code>/api/library-access</code></TableCell>
+          <TableCell label="Who may call it">Library readers, with an email link session; admins, with a GitHub sign-in checked with GitHub, to change who reads</TableCell>
+          <TableCell label="Other sites">Refused</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell label=""><code>/api/github/token</code></TableCell>
+          <TableCell label="Who may call it">Studio’s sign-in page only; stores nothing</TableCell>
+          <TableCell label="Other sites">Refused</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell label=""><code>/api/plugin-link</code></TableCell>
+          <TableCell label="Who may call it">The plugin, with a one-time code and its secret; the approval from Studio only</TableCell>
+          <TableCell label="Other sites">Allowed for the plugin’s steps</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell label=""><code>/api/ship</code></TableCell>
+          <TableCell label="Who may call it">A GitHub sign-in that can read the repository, or a team member’s session</TableCell>
+          <TableCell label="Other sites">Allowed with a GitHub token</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell label=""><code>/mcp</code>, <code>/oauth/*</code>, <code>/api/fix-sessions</code></TableCell>
+          <TableCell label="Who may call it">An AI assistant with a Bridge token; app registration capped at 30 per network per hour. Fix sessions: a GitHub sign-in that can read the repository</TableCell>
+          <TableCell label="Other sites">Allowed, token only</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell label=""><code>/api/storybook</code></TableCell>
+          <TableCell label="Who may call it">Anyone; reads a public Storybook index, guarded against requests to private networks</TableCell>
+          <TableCell label="Other sites">Not offered</TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
+    <DevDetail id="network-dev" client:visible>
+      <ul>
+        <li>Plugin domains: <code>networkAccess.allowedDomains</code> in <Link href={src('apps/figma-plugin/manifest.json')}><code>apps/figma-plugin/manifest.json</code></Link>.</li>
+        <li>Page headers: <code>Content-Security-Policy</code> (<code>frame-ancestors 'none'</code>, <code>object-src 'none'</code>, <code>base-uri 'none'</code>, hashed inline scripts), <code>X-Content-Type-Options</code>, <code>Referrer-Policy</code> in <Link href={src('apps/docs-site/vercel.json')}><code>apps/docs-site/vercel.json</code></Link>, built by <Link href={src('apps/docs-site/src/lib/csp.ts')}><code>src/lib/csp.ts</code></Link>. <code>vercel.live</code> is Vercel’s preview toolbar.</li>
+        <li>Origin checks: <code>sameOrigin</code> and <code>SECURITY_HEADERS</code> in <Link href={src('apps/docs-site/api/_lib/http.ts')}><code>api/_lib/http.ts</code></Link>. Open CORS (<code>Access-Control-Allow-Origin: *</code>) is set in <code>api/mcp</code> (with <code>api/fix-sessions</code>), <code>api/plugin-link</code> and <code>api/ship</code>, which take a bearer token or a one-time code from other sites, never a cookie.</li>
+        <li>OAuth: metadata per RFC 8414 and RFC 9728, client registration by metadata document or RFC 7591 (public clients only), exact redirect match (any port on localhost), the <code>resource</code> checked, <code>iss</code> in the redirect, the request bound to the browser that started it: <code>api/_lib/oauth.ts</code>, <Link href={src('apps/docs-site/api/mcp/index.ts')}><code>api/mcp/index.ts</code></Link>.</li>
+        <li>Storybook fetcher guards (https on 443 only, public addresses only after DNS, 3 redirects, 5 s, 5 MB): <Link href={src('apps/docs-site/api/storybook/index.ts')}><code>api/storybook/index.ts</code></Link>.</li>
+      </ul>
+    </DevDetail>
+  </section>
+
+  <section aria-labelledby="ai">
+    <h2 id="ai">AI</h2>
+    <p>Bridge runs no AI model and its servers hold no AI key. The AI is your team’s own assistant, in your company’s own account: Claude, or any assistant that can use an MCP connector. What your company has agreed with that provider is what applies.</p>
+    <ul>
+      <li><strong>Connecting.</strong> A person adds Bridge’s connector address in their assistant, signs in to Bridge, picks a team, and confirms on GitHub. Bridge checks with GitHub that this person can write to the team’s repository.</li>
+      <li><strong>What the assistant receives.</strong> What that person could read on GitHub in that one repository: tokens, components, docs and guidelines, change history, reviews and comments, requests and the state of branches.</li>
+      <li><strong>What it can do.</strong> What the person could do, under their GitHub account: start branches, open draft pull requests, comment, review, and merge through the review check above. Never a write straight to the default branch.</li>
+      <li><strong>What Bridge sees.</strong> The tool calls, not the conversation. For three component fix tools, it keeps the steps (what was read, each attempt’s result, the pull request) for 7 days so the team can follow along.</li>
+      <li><strong>The Figma plugin</strong> never calls an AI provider and has no place for an AI key. “Ask Claude to fix it” opens the team’s own Claude in the browser.</li>
+      <li><strong>Optional, per person.</strong> On a Library page, someone may paste their own Anthropic API key to draft docs. It stays in that browser and goes only to Anthropic’s API, with that page’s text.</li>
+    </ul>
+    <DevDetail id="ai-dev" client:visible>
+      <ul>
+        <li>Connector: <Link href={src('apps/docs-site/api/mcp/index.ts')}><code>api/mcp/index.ts</code></Link> runs the open-source MCP server (<Link href={src('packages/mcp/src/server.ts')}><code>packages/mcp/src/server.ts</code></Link>, every tool listed there) with the person’s GitHub App user token, renewed on the server. Push access checked at sign-in (<code>permissions.push</code> or <code>admin</code>).</li>
+        <li>No AI key in the plugin, tested: <Link href={src('apps/figma-plugin/test/push-drafts.test.ts')}><code>apps/figma-plugin/test/push-drafts.test.ts</code></Link>.</li>
+        <li>Browser-only key for docs drafting: <Link href={src('apps/docs-site/src/scripts/docs-ai.ts')}><code>src/scripts/docs-ai.ts</code></Link>.</li>
+      </ul>
+    </DevDetail>
+  </section>
+
+  <section aria-labelledby="offboarding">
+    <h2 id="offboarding">Deletion and offboarding</h2>
+    <ul>
+      <li><strong>Remove a person.</strong> GitHub people: remove them from the repository on GitHub. Email members: an admin removes them in Studio, Settings, Members, which ends their sessions at once.</li>
+      <li><strong>Remove an AI connection.</strong> In Studio, Settings, Claude: the person who connected it, or a team admin, removes it. Its tokens stop working at once. A connection unused for 90 days ends on its own.</li>
+      <li><strong>Remove Bridge from a repository.</strong> A repository admin uninstalls the Bridge apps on GitHub (repository or organization settings, GitHub Apps). Each person can also revoke their own sign-in: GitHub, Settings, Applications, Authorized GitHub Apps. GitHub then refuses every token of that sign-in, including the ones Bridge keeps for their AI connections.</li>
+      <li><strong>Delete an account.</strong> In Studio, the menu with your name, Account settings, Delete my account. It removes the account, its memberships, join requests and sessions at once. Changes the person sent stay in the team’s history, signed “A former member”. Backups age out within 30 days.</li>
+      <li><strong>Remove your design system.</strong> Nothing to delete on Bridge’s side: it lives in your repository. Short-lived copies expire on their own within 7 days.</li>
+    </ul>
+    <p>Not supported yet: deleting an account does not end that person’s AI connections, so remove them in Settings first. A team connected to a repository has no Delete team action: its email members and domain setting stay until an admin removes them, and its name stays.</p>
+    <DevDetail id="offboarding-dev" client:visible>
+      <ul>
+        <li>Account deletion: <code>onDelete</code> in <Link href={src('apps/docs-site/api/account/index.ts')}><code>api/account/index.ts</code></Link> and <Link href={src('apps/docs-site/api/_lib/former-member.ts')}><code>api/_lib/former-member.ts</code></Link>. It does not touch <code>bridge:oauth:*</code> keys.</li>
+        <li>Connection removal: <code>view=disconnect</code> in <code>api/mcp/index.ts</code>, <code>revokeGrant</code> in <code>api/_lib/oauth.ts</code>. A GitHub token that no longer renews ends the connection on its next use (<code>githubTokenOf</code>).</li>
+      </ul>
+    </DevDetail>
+  </section>
+
+  <section aria-labelledby="audit">
+    <h2 id="audit">Audit the code, report a problem</h2>
+    <p>All of Bridge is open source under the MIT license, in one public repository: the site, its functions, the connector, the Figma plugin, the CLI and the MCP server. Your team can read every line above, run the tests (<code>npm test</code>) and run its own copy.</p>
+    <p>Found a security problem? Report it privately through <Link href={SECURITY_ADVISORY_URL}>GitHub’s security advisory form</Link> for the repository. Please do not put the details in a public issue. There is no dedicated security email.</p>
+    <DevDetail id="audit-dev" client:visible>
+      <ul>
+        <li>Source: <Link href={GITHUB_URL}>{GITHUB_URL.replace('https://', '')}</Link>. License: <Link href={src('LICENSE')}><code>LICENSE</code></Link>.</li>
+        <li>Running your own copy: the GitHub Apps and environment variables are listed in <Link href={src('docs/SIGN-IN.md')}><code>docs/SIGN-IN.md</code></Link> and <Link href={src('docs/HOSTED.md')}><code>docs/HOSTED.md</code></Link>.</li>
+      </ul>
+    </DevDetail>
+  </section>
+
+  <section aria-labelledby="not-yet">
+    <h2 id="not-yet">Not in place yet</h2>
+    <p>Said plainly, so nobody has to ask. Ask on GitHub if one of these blocks you; there are no dates.</p>
+    <ul>
+      <li>No certification or outside audit: no SOC 2, no ISO 27001, no penetration test report.</li>
+      <li>No data processing agreement and no published list of subprocessors. The code uses Vercel (hosting, backup), Upstash (Redis), Resend (email) and GitHub.</li>
+      <li>No single sign-on (SAML, OIDC, Okta, Google Workspace). Sign-in is GitHub or a one-time email code.</li>
+      <li>No choice of data region, and the region is not documented.</li>
+      <li>No step-by-step self-hosting guide, though the code can run on your own Vercel project.</li>
+      <li>No encryption with your own keys. Only the AI connector’s GitHub tokens are encrypted by Bridge.</li>
+      <li>No audit log of Bridge’s own actions beyond what GitHub records (commits, reviews, comments).</li>
+      <li>No Delete team action, and account deletion does not yet end AI connections.</li>
+      <li>No uptime commitment or support agreement.</li>
+    </ul>
+  </section>
+</Docs>
