@@ -59,6 +59,7 @@ export * from './css-color';
 export * from './figma-fix-loop';
 export * from './figma-fix-run';
 export * from './measure-location';
+export * from './measure-workflow';
 export * from './review-gate';
 export * from './tier1-publish';
 export * from './library-update';

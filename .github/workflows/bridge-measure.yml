@@ -1,0 +1,121 @@
+# Bridge measure: this repository's own copy of templates/bridge-measure.yml (other teams: copy the template, or run
+# `npx @bridge-ds/cli measure setup`). Same generator (measureWorkflowYaml in @bridge-ds/core), with the local build of
+# the CLI and the production Storybook on Vercel (bridge-storybook.floriangouloubi.com): it measures after each deploy
+# of it from main that changes the components, tokens or Storybook config, on Mondays, and by hand. It publishes
+# measured-specs.json and measured-shots/ to the bridge-requests branch, where the Claude fix tools, the Figma plugin
+# and Studio read them, only when the measure changed. Token: the run's GITHUB_TOKEN (contents: write), no secret.
+# Docs: docs/MEASURE.md. Do not edit by hand: change the generator and re-render (packages/core/test/measure-workflow.test.ts).
+
+name: Bridge measure
+
+on:
+  # After each successful deploy of the Storybook from the default branch (Vercel and Netlify report it as a commit
+  # status, others as a GitHub deployment).
+  status:
+  deployment_status:
+  schedule:
+    - cron: '17 5 * * 1' # Mondays, a fallback
+  workflow_dispatch:
+
+concurrency:
+  # One measure at a time; a newer one replaces a waiting one.
+  group: bridge-measure
+  cancel-in-progress: false
+
+permissions:
+  contents: write # push to the bridge-requests branch only
+
+env:
+  MEASURE_BRANCH: bridge-requests
+  # The deployed Storybook the measure reads.
+  STORYBOOK_URL: 'https://bridge-storybook.floriangouloubi.com'
+
+jobs:
+  measure:
+    name: Measure the Storybook
+    # A manual run from another branch would measure another branch. A deploy: the Storybook's, from the default branch.
+    if: >-
+      (github.event_name == 'schedule')
+      || (github.event_name == 'workflow_dispatch' && github.ref_name == github.event.repository.default_branch)
+      || (github.event_name == 'status' && github.event.state == 'success' && contains(github.event.branches.*.name, github.event.repository.default_branch) && contains(github.event.context, 'bridge-storybook')) || (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' && contains(github.event.deployment.environment, 'bridge-storybook') && !contains(github.event.deployment.environment, 'preview'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # A deploy status names its commit; other events run on the default branch head.
+          ref: ${{ github.event.sha || github.sha }}
+          fetch-depth: 2
+
+      # A deploy runs on every change to the default branch: measure only when this one can change the Storybook.
+      - name: Did the Storybook change?
+        id: changed
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "status" ] || [ "$GITHUB_EVENT_NAME" = "deployment_status" ]; then
+            if git rev-parse -q --verify HEAD^ > /dev/null && git diff --quiet HEAD^ HEAD -- 'packages/react/src/**' 'packages/tokens/src/**' '.storybook/**'; then
+              echo "Nothing that changes the Storybook in this deploy: the measure stays as it is."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Set up Node
+        if: steps.changed.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        if: steps.changed.outputs.skip != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm ci
+
+      - name: Prepare
+        if: steps.changed.outputs.skip != 'true'
+        run: npm run tokens:build && npm run mcp:build
+
+      - name: Measure the Storybook
+        if: steps.changed.outputs.skip != 'true'
+        env:
+          # ubuntu-latest ships Google Chrome; the measure drives it headless, no browser download.
+          BRIDGE_CHROME_CHANNEL: chrome
+        run: |
+          set -o pipefail
+          node packages/cli/dist/index.js specs --measure --storybook "$STORYBOOK_URL" --variants --states rest,hover,active,disabled --tokens --shots --check --out "$RUNNER_TEMP/bridge-measure/measured-specs.json" | tail -n 40 | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish to the bridge-requests branch, if the measure changed
+        if: steps.changed.outputs.skip != 'true'
+        env:
+          OUT: ${{ runner.temp }}/bridge-measure
+        run: |
+          set -euo pipefail
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          dir="$RUNNER_TEMP/measure-branch"
+          if git ls-remote --exit-code --heads origin "$MEASURE_BRANCH" > /dev/null; then
+            git fetch -q --depth 1 origin "$MEASURE_BRANCH"
+            git worktree add -q --detach "$dir" FETCH_HEAD
+          else
+            # Like the Figma plugin: the requests branch starts from the default branch.
+            git worktree add -q --detach "$dir" HEAD
+          fi
+          # The same measure at another time is not a change: compare without the timestamps.
+          same() { node -e 'const f=require("fs");const r=(p)=>{try{const j=JSON.parse(f.readFileSync(p,"utf8"));delete j.measuredAt;delete j.createdAt;return JSON.stringify(j)}catch{return null}};const a=r(process.argv[1]);process.exit(a!==null&&a===r(process.argv[2])?0:1)' "$1" "$2"; }
+          if same "$dir/measured-specs.json" "$OUT/measured-specs.json" && { [ ! -f "$OUT/measured-shots/manifest.json" ] || same "$dir/measured-shots/manifest.json" "$OUT/measured-shots/manifest.json"; }; then
+            echo "The measure did not change: nothing to publish." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          rm -rf "$dir/measured-specs.json" "$dir/measured-shots"
+          cp "$OUT/measured-specs.json" "$dir/"
+          if [ -d "$OUT/measured-shots" ]; then cp -R "$OUT/measured-shots" "$dir/"; fi
+          cd "$dir"
+          git add -A
+          git commit -qm "bridge measure: ${GITHUB_SHA:0:7}"
+          # The Figma plugin writes to this branch too: on a race, rebase and retry.
+          for i in 1 2 3 4; do
+            if git push -q origin "HEAD:refs/heads/$MEASURE_BRANCH"; then echo "Published to $MEASURE_BRANCH." | tee -a "$GITHUB_STEP_SUMMARY"; exit 0; fi
+            sleep $((i * 3))
+            git fetch -q --depth 20 origin "$MEASURE_BRANCH" && git rebase -q FETCH_HEAD
+          done
+          exit 1

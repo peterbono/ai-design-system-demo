@@ -1,0 +1,49 @@
+---
+// /docs/automatic-measure/: what lets Claude fix what differs in Figma, in designer words first, then the developer
+// details. Facts from packages/core/src/measure-workflow.ts (the workflow), measure-location.ts (where it lives) and
+// docs/MEASURE.md.
+import Docs from '../../layouts/Docs.astro';
+import { Link } from '@bridge-ds/react';
+import { DOCS_FIGMA_PLUGIN, SETTINGS_HOME } from '../../lib/nav';
+
+const sections = [
+  { id: 'what', label: 'What it does' },
+  { id: 'turn-on', label: 'Turn it on' },
+  { id: 'developers', label: 'For developers' },
+];
+---
+
+<Docs title="Automatic measure" description="How Bridge measures your components so Claude can fix what differs in Figma, and how a developer turns it on once." sections={sections}>
+  <section aria-labelledby="what">
+    <h2 id="what">What it does</h2>
+    <p>Bridge measures what your components really look like in code: every variant at rest, on hover, pressed and disabled, with a picture of each. When <strong>Compare with code</strong> in the <Link href={DOCS_FIGMA_PLUGIN}>DS Bridge Figma plugin</Link> finds a component that differs, <strong>Ask Claude to fix it</strong> uses that measure: Claude proposes a fix, Bridge checks it brings the component closer to the code, and someone on your team approves it.</p>
+    <p>The measure keeps itself fresh. Each time your Storybook changes, Bridge measures it again, and only saves a new measure when something changed.</p>
+    <p>Without a measure, the plugin and Studio say: <em>Bridge hasn't measured your components yet. A developer turns it on once: Set up automatic measure.</em></p>
+  </section>
+
+  <section aria-labelledby="turn-on">
+    <h2 id="turn-on">Turn it on</h2>
+    <p>A developer does it once, in one of two ways:</p>
+    <ul>
+      <li>In Studio, open <Link href={`${SETTINGS_HOME}#measure`}>Settings</Link>, then under Claude open <strong>For developers</strong> and choose <strong>Set up automatic measure</strong>. Bridge opens a pull request that adds one workflow; your team reviews it like any change.</li>
+      <li>In the repository, run <code>npx @bridge-ds/cli measure setup</code> and commit the file it writes.</li>
+    </ul>
+    <p>Once it is merged, the first measure runs after the next Storybook change, or right away from GitHub: <strong>Actions, Bridge measure, Run workflow</strong>. It takes a few minutes per family of components.</p>
+  </section>
+
+  <section aria-labelledby="developers">
+    <h2 id="developers">For developers</h2>
+    <h3>The workflow</h3>
+    <p><code>.github/workflows/bridge-measure.yml</code> runs <code>bridge specs --measure --variants --states rest,hover,active,disabled --tokens --shots --check</code> in headless Chrome on <code>ubuntu-latest</code>, which ships Chrome: no browser download.</p>
+    <ul>
+      <li><strong>Deployed Storybook</strong> (<code>previews.production.storybook</code> in <code>bridge.config.json</code>, or <code>--storybook &lt;url&gt;</code>): it runs after each successful deploy of it from the default branch (a commit status such as Vercel's or Netlify's, or a GitHub deployment), skipping deploys that do not touch the paths that change the Storybook.</li>
+      <li><strong>Built in the run</strong> (<code>--build</code>, for a private Storybook or none deployed): it runs on pushes to the default branch that touch those paths, builds Storybook and serves it on <code>127.0.0.1</code>.</li>
+      <li>Every Monday as a fallback, and by hand.</li>
+    </ul>
+    <h3>Where the measure lives</h3>
+    <p><code>measured-specs.json</code> and <code>measured-shots/</code> on the <code>bridge-requests</code> branch, next to the plugin's <code>figma-fidelity.json</code>: data, not code, so it never adds review noise. A measure committed at the repository root wins. The Claude fix tools (<code>bridge_figma_gaps</code>, <code>bridge fix</code>), the plugin and Studio read it there.</p>
+    <h3>Token and secrets</h3>
+    <p>Only the run's <code>GITHUB_TOKEN</code>, with <code>contents: write</code> to push <code>bridge-requests</code>. The default branch is never written. No secret to add; if your install needs a private registry, add an optional <code>NPM_TOKEN</code> repository secret.</p>
+    <p>Studio's button needs to write a workflow file. When GitHub does not let Bridge do that (the GitHub App has no Workflows permission), Studio gives the file to commit from GitHub instead.</p>
+  </section>
+</Docs>
