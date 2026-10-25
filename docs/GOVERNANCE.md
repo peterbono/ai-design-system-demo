@@ -84,8 +84,9 @@ default branch only changes when a reviewed pull request merges.
 ## Roles: who approves and who ships
 
 `governance.owners` lists the design owners and the tech owners. `governance.rights` says which of those two
-groups holds each right. Each team changes it in Studio, Settings, Roles, which proposes the edit as a pull request
-on `bridge.config.json` (a guardrail file, so it is reviewed at Tier 3).
+groups holds each right. An admin of the team with GitHub access changes it in Studio, Settings, Review rules, which
+proposes the edit as a pull request on `bridge.config.json` (a guardrail file, so it is reviewed at Tier 3; Studio says
+"This change needs a review because it changes the rules"). Everyone else reads the rules and who can change them.
 
 ```json
 "governance": {
@@ -268,8 +269,9 @@ system. Settings, Review rules: "Leads can publish small changes without review"
 - **When a check fails.** Bridge does not merge. The change falls back to the normal path and reads as any change
   waiting for review (`branchVerdict` `autoShip` turns off); the designer never sees the failing test.
 - **The record.** The pull request (the app's review) and History say "Published by <name> without review (Tier 1)."
-- **The setting.** `governance.leadsPublishTier1`, on when absent; `false` turns it off. `bridge.config.json` is a
-  guardrail file, so turning it on or off is itself a Tier 3 change. `bridge settings` and the MCP settings tool say
+- **The setting.** `governance.leadsPublishTier1`, on when absent; `false` turns it off. An admin with GitHub access
+  turns it on or off in Studio, Settings, Review rules, saved as a reviewed Tier 3 change (`bridge.config.json` is a
+  guardrail file). `bridge settings` and the MCP settings tool say
   which way it is (`tier1PublishSentence`).
 - **GitHub.** The merge goes through the ruleset like the token value route: the app's approval is the one approval
   the `pull_request` rule asks for, and "Allow auto-merge" must be on. GitHub refuses an app approving a pull request

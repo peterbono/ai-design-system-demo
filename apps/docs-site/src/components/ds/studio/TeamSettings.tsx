@@ -1,6 +1,7 @@
 // Settings on a team shell (pages/team-shell/settings): the team's own rules, read from its repository model in the
 // browser (scripts/team-data.ts, the same read every team page shares; a signed-out visitor's reads are answered from
-// the team's published activity, no GitHub API call). Read only, in designer words (board D9): no repository, pull
+// the team's published activity, no GitHub API call). Read only (but Review rules, which an admin with GitHub access
+// edits: ReviewRulesEditor), in designer words (board D9): no repository, pull
 // request, branch or main on the screen, and people by name (the members Settings read, else their profile name).
 //   How changes reach your code  what happens once the team keeps a change (bridge.config.json `changes`)
 //   Review rules                 who checks the look, who checks the code, who adds it to the library: the team's own
@@ -20,6 +21,7 @@ import { useTeamPeople } from './members-state';
 import { roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL } from '../../../lib/roles-view';
 import { andList, ANYONE_WHO_CODES, CHANGES_DEV, CHANGES_PLAIN, leadsPublishRow, NOBODY_NAMED, overridePlain, RIGHT_PLAIN, soloPlain, teamPlain, TOKEN_VALUES_DEV, TOKEN_VALUES_PLAIN } from '../../../lib/settings-view';
 import { Who } from './faces';
+import ReviewRulesEditor, { type ReviewRulesEditorProps } from './ReviewRulesEditor';
 import { demoSettingsPeople, isSampleTeam, teamDisplayName } from '../../../lib/demo';
 import { loginKey, ownerName } from '../../../lib/people';
 import { knownNames } from '../../../scripts/people';
@@ -74,6 +76,11 @@ function Band({ id, title, intro, children }: { id: string; title: string; intro
       {children}
     </section>
   );
+}
+
+/** Review rules: editable by an admin with GitHub access (ReviewRulesEditor); never on the sample team. */
+function RulesEdit({ demo, children, ...p }: ReviewRulesEditorProps & { demo: boolean }) {
+  return demo ? <>{children}</> : <ReviewRulesEditor {...p}>{children}</ReviewRulesEditor>;
 }
 
 const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? x : `@${x.replace(/^@/, '')}`)).join(', ') : 'none');
@@ -146,6 +153,7 @@ export default function TeamSettings() {
       <Band id="roles" title="Review rules" intro="Who checks a change before it reaches the library your products use.">
         <Card>
           <CardBody>
+            <RulesEdit demo={Boolean(demo)} owners={site.owners as Owners} rights={site.rights} leadsPublishTier1={site.leadsPublishTier1 !== false} visualMode={mode} prefix={gov.branchPrefix || undefined} protectedBranches={gov.protectedBranches}>
             <div className="set-rows">
               {rows.map((x) => {
                 const plain = RIGHT_PLAIN[x.right];
@@ -194,6 +202,7 @@ export default function TeamSettings() {
               </div>
             </div>
             {!demo && <AdminOnlyNote />}
+            </RulesEdit>
             <DevFold
               facts={[
                 { term: 'Design owners', value: <Code>{demo ? andList(owners.design.map(demo.nameOf)) : entries(site.owners.design)}</Code> },
