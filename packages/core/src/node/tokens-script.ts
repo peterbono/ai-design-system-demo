@@ -1,7 +1,8 @@
 // The in-page half of the token harvest: plain JavaScript, kept as a string like MEASURE_SCRIPT. It lists every CSS
 // custom property the page's stylesheets declare (CSSOM: :root, provider and theme selectors, media, layers, nesting,
 // adopted sheets), takes for each the declaration that applies at the story (the nearest element that declares it,
-// then specificity and order), and resolves its value there: colors as rgb(), lengths in px.
+// then specificity and order), and resolves its value there: colors as rgb(), lengths in px. Channels ("212 100% 47%")
+// that every use wraps in one color function (hsl(var(--primary))) are that color.
 
 export const TOKENS_SCRIPT = String.raw`(function (arg) {
   arg = arg || {};
@@ -10,7 +11,63 @@ export const TOKENS_SCRIPT = String.raw`(function (arg) {
   var at = host.firstElementChild || host;
   var decls = {};
   var order = 0;
+  // Every var() use: the color function around it (rgb, hsl...), or a bare use; and the properties that alias it.
+  var COLOR_FN = /^(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)$/i;
+  var useFn = {}, useBare = {}, aliasUses = {};
+  function enclosing(s, pos) {
+    for (var i = pos - 1, depth = 0; i >= 0; i--) {
+      if (s[i] === ')') depth++;
+      else if (s[i] === '(') {
+        if (depth) { depth--; continue; }
+        var j = i;
+        while (j > 0 && /[\w-]/.test(s[j - 1])) j--;
+        var fn = s.slice(j, i).toLowerCase();
+        // A fallback (var(--a, var(--b))): the function around the outer var.
+        if (fn !== 'var') return fn;
+      }
+    }
+    return '';
+  }
+  function scanDecl(d) {
+    var c = d.indexOf(':');
+    if (c < 0) return;
+    var prop = d.slice(0, c).trim(), val = d.slice(c + 1).replace(/!important\s*$/, '').trim();
+    var alias = /^var\(\s*(--[\w-]+)\s*\)$/.exec(val);
+    if (alias && prop.indexOf('--') === 0) { (aliasUses[alias[1]] = aliasUses[alias[1]] || []).push(prop); return; }
+    var re = /var\(\s*(--[\w-]+)/g, m;
+    while ((m = re.exec(val))) {
+      var fn = enclosing(val, m.index);
+      if (COLOR_FN.test(fn)) (useFn[m[1]] = useFn[m[1]] || {})[fn === 'rgba' || fn === 'hsla' ? fn.slice(0, 3) : fn] = 1;
+      else useBare[m[1]] = 1;
+    }
+  }
+  function scanUses(text) {
+    for (var i = 0, depth = 0, start = 0; i <= text.length; i++) {
+      var ch = text[i];
+      if (ch === '(') depth++;
+      else if (ch === ')') depth--;
+      else if (i === text.length || (ch === ';' && depth <= 0)) { scanDecl(text.slice(start, i)); start = i + 1; depth = 0; }
+    }
+  }
+  // The one color function every use of a property wraps it in, through the properties that alias it: '' unused, null
+  // when a use is bare or two functions disagree.
+  function channelFn(name, seen) {
+    if (seen[name]) return '';
+    seen[name] = 1;
+    if (useBare[name]) return null;
+    var fns = {};
+    for (var f in useFn[name] || {}) fns[f] = 1;
+    var al = aliasUses[name] || [];
+    for (var i = 0; i < al.length; i++) {
+      var g = channelFn(al[i], seen);
+      if (g === null) return null;
+      if (g) fns[g] = 1;
+    }
+    var k = Object.keys(fns);
+    return k.length === 1 ? k[0] : k.length ? null : '';
+  }
   function add(sel, style) {
+    try { scanUses(style.cssText || ''); } catch (e) {}
     for (var k = 0; k < style.length; k++) {
       var n = style[k];
       if (n.indexOf('--') !== 0 || n.indexOf('--_') === 0 || n.indexOf('--sb-') === 0) continue;
@@ -37,6 +94,9 @@ export const TOKENS_SCRIPT = String.raw`(function (arg) {
   try { for (var a = 0; a < (document.adoptedStyleSheets || []).length; a++) walk(document.adoptedStyleSheets[a].cssRules); } catch (e) {}
   // Inline styles on the story's ancestors (a provider that sets variables in style="").
   for (var up = at; up && up.nodeType === 1; up = up.parentElement) if (up.style && up.style.length) add('[style]', up.style);
+  // Inline styles in the story use variables too.
+  var inline = host.querySelectorAll('[style]');
+  for (var q = 0; q < inline.length; q++) try { scanUses(inline[q].style.cssText || ''); } catch (e) {}
 
   function specificity(sel) {
     var x = sel.replace(/:where\([^)]*\)/g, '');
@@ -96,6 +156,12 @@ export const TOKENS_SCRIPT = String.raw`(function (arg) {
     var w = winning(name);
     var resolved = cs.getPropertyValue(name).trim() || rootCs.getPropertyValue(name).trim();
     var r = norm(resolved);
+    var fn = r.type === 'string' && resolved ? channelFn(name, {}) : '';
+    if (fn) {
+      probe.style.color = '';
+      probe.style.color = fn + '(' + resolved + ')';
+      if (probe.style.color) r = { type: 'color', value: getComputedStyle(probe).color };
+    }
     var scopes = [];
     for (var j = 0; j < decls[name].length && scopes.length < 6; j++) {
       var sel = decls[name][j].sel;

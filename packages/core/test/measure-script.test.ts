@@ -55,6 +55,17 @@ describe('MEASURE_SCRIPT', () => {
     expect(t['padding-top']?.via).not.toBe('declared');
   });
 
+  it('ties a color function around channels alone to the channels variable', () => {
+    document.head.insertAdjacentHTML('beforeend', `<style>:root { --primary: 212 100% 47%; } ._label_q1w2e { color: hsl(var(--primary)); }</style>`);
+    // What a browser computes for hsl(212 100% 47%).
+    const stub = window.getComputedStyle;
+    window.getComputedStyle = ((el: Element, pseudo?: string | null) => {
+      const cs = stub(el, pseudo);
+      return new Proxy(cs, { get: (t, k) => (k === 'getPropertyValue' ? (p: string) => (p === 'color' && el.matches('._label_q1w2e') ? 'rgb(0, 112, 240)' : t.getPropertyValue(p)) : Reflect.get(t, k)) });
+    }) as typeof window.getComputedStyle;
+    expect(run().root!.children[0]!.tokens.color).toMatchObject({ via: 'declared', chain: ['--primary'], exact: true });
+  });
+
   it('lets a more specific rule win over the token rule', () => {
     document.querySelector('button')!.classList.add('_ghost_x9y8z');
     expect(run().root!.tokens['background-color']).toBeUndefined();

@@ -267,12 +267,14 @@ export const MEASURE_SCRIPT = String.raw`(function (arg) {
           }
         }
         var chain = chainOf(el, pick);
-        var direct = piece.trim().indexOf('var(') === 0 && vars.length === 1;
+        // A color function around channels alone ("hsl(var(--primary))") gives the variable's color: tied to it too.
+        var channels = isColorProp(prop) && vars.length === 1 ? /^(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(\s*var\(\s*--[\w-]+\s*\)\s*\)$/i.exec(piece.trim()) : null;
+        var direct = (piece.trim().indexOf('var(') === 0 && vars.length === 1) || !!channels;
         // A declaration that does not give the computed value lost the cascade somewhere this script does not model:
         // the value is not tied to it (it may still match a variable by value below).
         if (direct && !/^(line-height|font-weight|opacity|font-family)$/.test(prop)) {
           var own = getComputedStyle(el, pseudo ? '::' + pseudo : null).getPropertyValue(pick).trim();
-          var got = isColorProp(prop) ? normColor(own) : /px$/.test(computed) ? normLength(own) : null;
+          var got = isColorProp(prop) ? normColor(channels ? channels[1] + '(' + own + ')' : own) : /px$/.test(computed) ? normLength(own) : null;
           if (own && got && got !== computed) d = null;
         }
         if (d) return { via: 'declared', chain: chain, exact: direct, declared: piece.trim() };
