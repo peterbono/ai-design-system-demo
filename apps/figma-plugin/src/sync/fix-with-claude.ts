@@ -33,7 +33,7 @@ export const fixCommand = (component: string) => `npx @bridge-ds/cli fix ${compo
 /** What the designer sees once the check is saved: no command, no MCP, no API key (those go to the developer). */
 export const FIX_ASKED_TEXT = 'Your developer runs Claude on it. Copy the request and send it to them: it has everything they need.';
 /** What happens next, in designer words: the fix comes back through a normal update. */
-export const FIX_NEXT_TEXT = 'Once the fix is approved, Check for updates brings it into this file. Then check fidelity again.';
+export const FIX_NEXT_TEXT = 'Once the fix is approved, Check for updates brings it into this file. Then compare with code again.';
 
 /** A set that differs where Claude cannot help yet (no measure of the stories): the designer hands it on, no dead end. */
 export const DIFFERS_HANDOFF_TEXT = 'A developer can look at why. Copy the details and send them over.';
@@ -47,7 +47,7 @@ export const NO_REFERENCES_HANDOFF_TEXT = 'Images of the code are not published 
 export function differsRequestForDeveloper(result: FidelityComponentResult, repo: string, verdict: (v: FidelityComponentResult['variants'][number]) => string): string {
   const differing = result.variants.filter((v) => v.status === 'differs');
   return [
-    `Could you look at ${result.component} in Figma? Check fidelity in the Bridge plugin found it differs from the code${repo ? ` (${repo})` : ''}.`,
+    `Could you look at ${result.component} in Figma? Compare with code in the Bridge plugin found it differs from the code${repo ? ` (${repo})` : ''}.`,
     '',
     ...differing.map((v) => `- ${v.key}: ${verdict(v)}`),
     '',
@@ -61,7 +61,7 @@ export function differsRequestForDeveloper(result: FidelityComponentResult, repo
 /** "Copy for your developer" when the code images are missing: what to run, once. */
 export function referencesRequestForDeveloper(repo: string): string {
   return [
-    `Could you publish the Figma references${repo ? ` for ${repo}` : ''}? Check fidelity in the Bridge plugin needs images of the code to compare with.`,
+    `Could you publish the Figma references${repo ? ` for ${repo}` : ''}? Compare with code in the Bridge plugin needs images of the code to compare with.`,
     '',
     'Run the "Figma references" workflow once (Actions, Figma references, Run workflow). After that it runs each time a change ships to the library.',
   ].join('\n');
@@ -74,7 +74,7 @@ export function referencesRequestForDeveloper(repo: string): string {
  */
 export function fixRequestForDeveloper(component: string, repo: string): string {
   return [
-    `Could you ask Claude to fix ${component} in Figma? Check fidelity in the Bridge plugin found differences with the code.`,
+    `Could you ask Claude to fix ${component} in Figma? Compare with code in the Bridge plugin found differences with the code.`,
     '',
     `The check is saved in ${DEFAULT_FIDELITY_RUN_FILE} on the ${REQUESTS_BRANCH} branch${repo ? ` of ${repo}` : ''}.`,
     `- With Claude Code or Claude Desktop and the Bridge MCP server, say: "${fixPhrase(component)}"`,

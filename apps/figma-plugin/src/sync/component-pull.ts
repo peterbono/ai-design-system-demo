@@ -690,7 +690,7 @@ function planValueOf(field: SpecField, value: unknown, head: TokenSet): PlannedV
 export function describeSpec(spec: ComponentSpec): string {
   const dir = spec.source[0]?.replace(/\/[^/]+$/, '') ?? spec.name;
   if (spec.drafted)
-    return `Drafted with Claude from ${dir}: DS Bridge cannot read this component on its own (it ${spec.drafted.reason}). Check it against the code with Check fidelity. Code is the source of truth: change it in code, or send a request from Push.`;
+    return `Drafted with Claude from ${dir}: DS Bridge cannot read this component on its own (it ${spec.drafted.reason}). Check it against the code with Compare with code. Code is the source of truth: change it in code, or send a request from Push.`;
   // prefers-reduced-motion has no Figma equivalent: said where designers read the set.
   const motion = componentMotion(spec);
   const prototype = motion.reactions.length ? ` In prototypes, its interactions play the code's motion.${motion.reducedMotion ? ` ${motion.reducedMotion}` : ''}` : motion.reducedMotion ? ` It animates in code. ${motion.reducedMotion}` : '';

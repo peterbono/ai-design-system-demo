@@ -9,7 +9,7 @@ test('Check fidelity from the end of a pull: progress first, then the result as 
   await p.click('Check for updates');
   await p.click('Apply to Figma');
   await p.until(() => p.headline() === 'Your design system is in Figma', 15000);
-  assert.equal(p.primary()?.textContent?.trim(), 'Check fidelity', 'the next step after building components');
+  assert.equal(p.primary()?.textContent?.trim(), 'Compare with code', 'the next step after building components');
   // Reading the sets takes a moment in Figma: hold the answer to look at the running screen.
   const read = p.main['scan-generated']!;
   let release: () => void = () => undefined;
@@ -20,7 +20,7 @@ test('Check fidelity from the end of a pull: progress first, then the result as 
     if (++n === 2) await gate;
     return read(x);
   };
-  await p.click('Check fidelity');
+  await p.click('Compare with code');
   await p.until(() => p.headline() === 'Comparing with the code');
   const buttons = () => [...p.document.querySelectorAll('button')].map((b) => b.textContent?.trim());
   assert.ok(!buttons().includes('Check again'), 'no Check again while it runs');
@@ -32,5 +32,5 @@ test('Check fidelity from the end of a pull: progress first, then the result as 
   assert.ok(buttons().includes('Check again'), 'the bar is back once it is done');
   // The comparison sits right under the headline, above the components.
   const sections = [...p.document.querySelectorAll('main > section, main > .group')].map((s) => s.textContent ?? '');
-  assert.match(sections[1] ?? '', /Fidelity to the code/);
+  assert.match(sections[1] ?? '', /Compare with code/);
 });

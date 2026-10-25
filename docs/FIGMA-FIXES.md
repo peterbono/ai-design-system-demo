@@ -7,15 +7,15 @@ check with the reason). Code: `packages/core/src/gap-case.ts` and `packages/core
 safe), `packages/cli/src/fixes.ts` (the commands).
 
 ```
-pull -> Check fidelity (story shot vs Figma render, per variant)
+pull -> Compare with code (story shot vs Figma render, per variant)
      -> gap case per differing component (bridge gap)
      -> Claude proposes a fix (figma-fixes.json, in a pull request)
-     -> pull again with the fix, Check fidelity again
+     -> pull again with the fix, Compare with code again
      -> a person approves the pull request
 ```
 
 **The shot decides.** The story's screenshot is the referee. A gap case explains a difference the shot comparison
-found; a fix is kept only when the next Check fidelity shows the variant closer to its shot. Nothing in this loop can
+found; a fix is kept only when the next Compare with code shows the variant closer to its shot. Nothing in this loop can
 mark a component as matching: a fix of kind `status` can say Differs or Can't check, never Matches.
 
 ## Gap case
@@ -23,7 +23,7 @@ mark a component as matching: a fix of kind `status` can say Differs or Can't ch
 `bridge gap <component>` (or `buildGapCase` in the plugin) builds one component's gap case from:
 
 - `measured-specs.json`: what each story renders (with `figma-fixes.json` already applied);
-- the plugin's Check fidelity result: which variants differ, by how many pixels, and both sizes;
+- the plugin's Compare with code result: which variants differ, by how many pixels, and both sizes;
 - the component spec the pull drew the set from, and optionally what the plugin reads back from the layers (values,
   hidden parts, boxes);
 - the story shots (`measured-shots/manifest.json`).
@@ -182,7 +182,7 @@ Claude to fix it" and nobody runs a command). Bridge gives the tools and is the 
 | --- | --- | --- |
 | `measured-specs.json` | repo root | `bridge specs --measure --variants --shots` |
 | `figma-fixes.json` | repo root | the fixes, through reviewed pull requests |
-| `figma-fidelity.json` | repo root, else the `bridge-requests` branch | the plugin's Check fidelity run (`FigmaFidelityRun`: the report, plus per set the layers read back and the Figma renders). The plugin's "Copy the report" output works too, passed inline or as a file. |
+| `figma-fidelity.json` | repo root, else the `bridge-requests` branch | the plugin's Compare with code run (`FigmaFidelityRun`: the report, plus per set the layers read back and the Figma renders). The plugin's "Copy the report" output works too, passed inline or as a file. |
 
 Without a fidelity run, the gaps come from the measure's own check (`bridge specs --measure --check`), and the gap
 case compares the rebuilt set with the measure only.
@@ -196,7 +196,7 @@ case compares the rebuilt set with the measure only.
   regression. A variant's height or width after the fixes is exact when the root gets a fixed size, else worked out
   from the layer boxes and the changed paddings, gaps and fixed sizes along that axis (`estimated`). The verdict is
   `closer` when more moved closer than got worse, `worse` the other way, else `same`.
-- **Pixels (later, in the plugin).** The story shot against the real Figma render, in Check fidelity, after the next
+- **Pixels (later, in the plugin).** The story shot against the real Figma render, in Compare with code, after the next
   pull of the fix branch. Only this one can say a variant matches.
 
 ### MCP flow (Claude Code, Claude Desktop)
@@ -211,7 +211,7 @@ case compares the rebuilt set with the measure only.
    local branch, never pushed. The body has the gap, each fix with its reason and the before and after deltas. It runs
    the values referee again and refuses fixes that move the component further from the code, and part or story fixes
    that move nothing. A part fix that sizes, places or lays out a part (`width`, `height`, `direction`, `align`,
-   `overlay`) opens even when the referee says same: it can't judge layout, so the body says Check fidelity decides.
+   `overlay`) opens even when the referee says same: it can't judge layout, so the body says Compare with code decides.
    When no round came closer, propose a `status` fix instead.
 
 The MCP server may use the person's `gh` sign-in as its token (as for every write from MCP); the CLI writes only with
@@ -235,7 +235,7 @@ Claude Code with the MCP server.
 
 ### What the plugin's "Ask Claude to fix it" button calls
 
-After Check fidelity, for a set whose result is Differs: write the run (`FigmaFidelityRun`: `report`, `built` per
+After Compare with code, for a set whose result is Differs: write the run (`FigmaFidelityRun`: `report`, `built` per
 set and variant from the `read-built` read-back the plugin already does for its gap cases, with `boxes` and `hidden`,
 and `figmaRenders`) to `figma-fidelity.json` on the `bridge-requests` branch (the branch "Draft with my Claude" already
 writes to), then show one sentence and **Copy for your developer**. The copied request holds both ways to run the
@@ -337,6 +337,6 @@ The plugin's loop: POST `fix`, show "Claude is on it" and `sentence`, then GET `
 
 A fix is a change like any other: it lands through a pull request on `figma-fixes.json`, drafted by Claude (`by:
 "claude"`), reviewed by a person. `bridge fixes check` can run in CI next to `bridge check`. The reviewer reads the
-reason and the next Check fidelity: the fix stays when the variant moved closer to its shot, and goes back to Claude
+reason and the next Compare with code: the fix stays when the variant moved closer to its shot, and goes back to Claude
 with the new gap case when it did not (three attempts, then a `status` fix with the honest reason). The pull
 request says which fixes Claude drafted (`drafted-by-claude`) and the values referee's before and after.

@@ -142,6 +142,8 @@ export interface SyncState {
   /** main commit the Figma file was last pulled from: the "base" of the three-way diff. */
   baseSha?: string | undefined;
   lastPullAt?: string | undefined;
+  /** The last Compare with code in this file, for the Pull screen: JSON { differs, matches, notChecked, at }. */
+  lastCompare?: string | undefined;
   lastPrBranch?: string | undefined;
   lastPrUrl?: string | undefined;
 }
@@ -153,7 +155,7 @@ export interface SyncState {
  * added). Another repository has none of it.
  */
 export function syncResetOnSettings(before: RepoSettings, after: RepoSettings): Partial<Record<keyof SyncState, ''>> {
-  if (before.repo.trim().toLowerCase() !== after.repo.trim().toLowerCase()) return { baseSha: '', lastPullAt: '', lastPrBranch: '', lastPrUrl: '' };
+  if (before.repo.trim().toLowerCase() !== after.repo.trim().toLowerCase()) return { baseSha: '', lastPullAt: '', lastCompare: '', lastPrBranch: '', lastPrUrl: '' };
   if (before.branch.trim() !== after.branch.trim()) return { lastPrBranch: '', lastPrUrl: '' };
   return {};
 }

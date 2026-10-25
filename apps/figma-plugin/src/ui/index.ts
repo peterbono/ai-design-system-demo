@@ -2054,13 +2054,9 @@ function viewPull(): View {
             ? init.sync.lastPullAt ? `Last updated in this file on ${when(init.sync.lastPullAt)}.` : undefined
             : 'First time in this file: Bridge adds its variables and components.',
         art: 'tokens',
-      }), claudeRunsGroup(), steps([
-        ['Check', "Bridge reads the design system's tokens and components."],
-        ['Review', 'Every new, edited or deleted token is listed with its value. Nothing is written yet.'],
-        ['Apply', 'Figma variables are created or updated, and components are built from the code. Your own edits stay until you send them from Push.'],
-      ]), forDevelopers([...repoRows(), ['Last pulled commit', short(init.sync.baseSha)]])],
-      // A file pulled before can be compared with the code straight away, without reviewing updates first.
-      bar: { label: 'Check for updates', onClick: checkPull, secondary: init.sync.baseSha ? { label: 'Check fidelity', onClick: () => void checkFidelityAnywhere() } : undefined },
+      }), claudeRunsGroup(), howUpdatesWork(!!init.sync.baseSha), compareBlock(), forDevelopers([...repoRows(), ['Last pulled commit', short(init.sync.baseSha)]])],
+      // Pull is getting updates: its one action. Comparing with code is its own block, with its own button.
+      bar: { label: 'Check for updates', onClick: checkPull },
     };
   }
   const a = p.analysis;
@@ -2136,7 +2132,7 @@ function viewPull(): View {
           ? { label: 'Check again', onClick: checkPull, secondary: { label: 'Send my edits', onClick: () => { state.tab = 'push'; scanPush(); } } }
           : hasBuiltSets(p) && !problems.length
             // Components were just built: the next thing to do is see whether they look like the code (no dead end).
-            ? { label: 'Check fidelity', onClick: () => void checkFidelityAnywhere(), secondary: { label: 'Check again', onClick: checkPull } }
+            ? { label: 'Compare with code', onClick: () => void checkFidelityAnywhere() }
             : { label: 'Check again', onClick: checkPull },
     };
   }
@@ -2392,7 +2388,7 @@ function componentsGroup(p: PullState): Child {
                     h('span', { class: 'comp-name' }, c.name),
                     h('span', { class: 'muted' }, plural(c.variants.length, 'variant')),
                     c.interactions?.length ? h('span', { class: 'muted' }, `Interactions: ${c.interactions.length}`) : null,
-                    c.drafted ? h('span', { class: 'kind row-end', title: 'Drafted with Claude: Bridge cannot read this component on its own. Check fidelity compares it with the code.' }, draftedSetNote(c.drafted)) : null,
+                    c.drafted ? h('span', { class: 'kind row-end', title: 'Drafted with Claude: Bridge cannot read this component on its own. Compare with code checks it against the code.' }, draftedSetNote(c.drafted)) : null,
                   ),
                 ),
               ),
@@ -2429,7 +2425,57 @@ async function checkFidelityAnywhere(): Promise<void> {
 /** The file has component sets Bridge built from code: there is something to compare. */
 const hasBuiltSets = (p: PullState | undefined) => !!p?.componentsReport?.nodeIds.length || (p?.components?.components ?? []).some((c) => c.status !== 'new');
 
-/** "Check fidelity": exports each generated set's variants and compares them with the code images. Read only. */
+/** What Compare with code does, in one sentence (no "fidelity", no Claude: Claude comes in on a difference). */
+const COMPARE_LEDE = 'Do the components in this file still look like the code? Bridge compares each one with how it renders in code.';
+
+/** Check, Review, Apply: open for a first pull, one line to unfold for someone who has pulled before. */
+function howUpdatesWork(returning: boolean): HTMLElement {
+  const card = steps([
+    ['Check', "Bridge reads the design system's tokens and components."],
+    ['Review', 'Every new, edited or deleted token is listed with its value. Nothing is written yet.'],
+    ['Apply', 'Figma variables are created or updated, and components are built from the code. Your own edits stay until you send them from Push.'],
+  ]);
+  return returning ? h('details', { class: 'notes', 'data-how': 'updates' }, h('summary', null, 'How updates work'), card) : card;
+}
+
+/** The last Compare with code of this file, as the Pull screen says it: "8 differ, 24 match · compared today at 14:50". */
+function lastCompareLine(raw: string | undefined): { line: string; differs: number } | undefined {
+  try {
+    const x = raw ? (JSON.parse(raw) as { differs: number; matches: number; notChecked: number; at: string }) : undefined;
+    if (!x) return undefined;
+    const at = new Date(x.at);
+    const today = at.toDateString() === new Date().toDateString();
+    const time = at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const counts = [x.differs ? `${x.differs} differ` : '', x.matches ? `${x.matches} match` : '', x.notChecked ? `${x.notChecked} not compared` : ''].filter(Boolean).join(', ');
+    return { line: `${counts || 'Nothing compared'} · compared ${today ? `today at ${time}` : at.toLocaleDateString([], { dateStyle: 'medium' })}`, differs: x.differs };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Compare with code, its own block on Pull, below getting updates: one sentence, the last result, one button. Only once
+ * the file was pulled (before that there is nothing in Figma to compare). It runs with the progress row of the result.
+ */
+function compareBlock(): Child {
+  const init = state.init!;
+  if (!init.sync.baseSha) return null;
+  const last = lastCompareLine(init.sync.lastCompare);
+  return h(
+    'section',
+    { class: 'group', 'data-block': 'compare' },
+    h(
+      'div',
+      { class: 'group-head' },
+      h('h2', null, 'Compare with code'),
+      h('button', { class: 'btn', 'data-focus-id': 'compare-idle', disabled: !!state.busy, onClick: () => void checkFidelityAnywhere() }, last?.differs ? 'See the differences' : last ? 'Compare again' : 'Compare with code'),
+    ),
+    h('p', { class: 'lede' }, COMPARE_LEDE),
+    last ? h('p', { class: 'muted' }, last.line) : null,
+  );
+}
+
+/** "Compare with code": exports each generated set's variants and compares them with the code images. Read only. */
 async function checkFidelity(p: PullState): Promise<void> {
   if (p.fidelity?.running) return;
   p.fidelity = { running: p.shots ? 'Reading the renders of the stories' : 'Reading the images of the code' };
@@ -2457,6 +2503,12 @@ async function checkFidelity(p: PullState): Promise<void> {
         : {}),
     });
     const built: Record<string, Record<string, GapBuiltVariant>> = {};
+    // Kept with the file: the Pull screen says the last result ("8 differ, 24 match · compared today at 14:50").
+    if (outcome.kind === 'done') {
+      const lastCompare = JSON.stringify({ ...outcome.report.summary, at: new Date().toISOString() });
+      state.init!.sync = { ...state.init!.sync, lastCompare };
+      void request('save-sync', { sync: { lastCompare } }).catch(() => undefined);
+    }
     p.fidelity = { outcome, ...(outcome.kind === 'done' && p.measure ? { gaps: await gapCases(p, outcome.items, built), built } : {}) };
   } catch (err) {
     p.fidelity = { error: inlineError(err) ?? 'Could not compare with the code.' };
@@ -2628,15 +2680,16 @@ function fidelityThumbs(name: string, images: { key: string; figma: string; code
 /** Pull, after components: does each generated set look like the code? */
 function fidelityGroup(p: PullState): Child {
   const generated = (p.components?.components ?? []).filter((c) => c.status !== 'new');
-  if (!generated.length) return null;
   const f = p.fidelity;
+  // Asked for (running or answered): it always shows, even with nothing in this file to compare yet.
+  if (!generated.length && !f?.running && !f?.outcome && !f?.error) return null;
   const outcome = f?.outcome;
   const action = h(
     'button',
     { class: 'btn ghost', 'data-focus-id': 'check-fidelity', disabled: !!f?.running || !!state.busy, onClick: () => void checkFidelity(p) },
-    outcome || f?.error ? 'Compare again' : 'Check fidelity',
+    outcome || f?.error ? 'Compare again' : 'Compare with code',
   );
-  let lede: Child = 'Compares every variant with the same variant rendered from the code. Nothing in the file changes.';
+  let lede: Child = COMPARE_LEDE;
   let content: Child = null;
   if (f?.running) {
     lede = h('span', { class: 'loading', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), f.running);
@@ -2727,7 +2780,7 @@ function fidelityGroup(p: PullState): Child {
       ),
     ];
   }
-  return group('Fidelity to the code', generated.length, action, lede, content);
+  return group('Compare with code', generated.length, action, lede, content);
 }
 
 /** The components not in Figma, each with its reason, and the layout helpers, folded under the count. */

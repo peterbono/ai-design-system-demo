@@ -192,7 +192,7 @@ read from and their hash (`codeHash`). `npm run specs` validates it like a gener
 combination, known parts and properties, every token path in the repo with a type the field takes) and fails when it
 does not match. A drafted set is never counted as generated: its coverage is `drafted`, the Pull preview marks it
 "Drafted, check it" ("the code changed since" once the files no longer match `codeHash`), its Figma description says
-so, and Check fidelity compares it with the code like any other set. When the generator learns to read the
+so, and Compare with code compares it with the code like any other set. When the generator learns to read the
 component, the generated set wins.
 
 | From code | In Figma |
@@ -290,10 +290,10 @@ says so). The Pull preview shows **Interactions: N** per set and lists, folded, 
 (looping keyframes, keyboard focus, a popup opening from its trigger). Reduced motion has no Figma equivalent: the
 set description says "In code, reduced motion turns this off."
 
-### Check fidelity (does each component look like the code?)
+### Compare with code (does each component look like the code?)
 
 The generator can build a set that has the right variants and bindings but still looks wrong (a compound part
-drawn too short, a missing transparent border, a text style not carried over). **Check fidelity**, under the
+drawn too short, a missing transparent border, a text style not carried over). **Compare with code**, under the
 Components group of the Pull preview, catches that: it exports every generated variant with `exportAsync` (PNG,
 2x) and compares it, in the plugin, with an image of the same variant rendered from code. Per component it says
 **Matches the code** or **Differs from the code: 12% of pixels, size 120x40 vs 118x40** (the variant that differs

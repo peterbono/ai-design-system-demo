@@ -42,6 +42,7 @@ export function sharedSync(store: SharedStore, userId: string | undefined): Sync
   return {
     baseSha: store.get('baseSha') || undefined,
     lastPullAt: store.get('lastPullAt') || undefined,
+    ...(store.get('lastCompare') ? { lastCompare: store.get('lastCompare') } : {}),
     lastPrBranch: userId ? store.get(userKey('lastPrBranch', userId)) || undefined : undefined,
     lastPrUrl: userId ? store.get(userKey('lastPrUrl', userId)) || undefined : undefined,
   };
@@ -51,6 +52,7 @@ export function sharedSync(store: SharedStore, userId: string | undefined): Sync
 export function writeSync(store: SharedStore, sync: SyncState, userId: string | undefined): void {
   if (sync.baseSha !== undefined) store.set('baseSha', sync.baseSha);
   if (sync.lastPullAt !== undefined) store.set('lastPullAt', sync.lastPullAt);
+  if (sync.lastCompare !== undefined) store.set('lastCompare', sync.lastCompare);
   if (!userId) return;
   for (const field of PER_USER) if (sync[field] !== undefined) store.set(userKey(field, userId), sync[field]!);
 }
