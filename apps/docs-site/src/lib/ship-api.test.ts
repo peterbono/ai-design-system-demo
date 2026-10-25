@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AppTokens } from '../../api/_lib/github-app';
 import { FIGMA_SHIP_HEADING, VALUES_SHIP_HEADING } from '../../api/_lib/figma-ship';
+import { figmaMark, figmaMarkKey } from '../../api/_lib/figma-mark';
 import { TIER1_PUBLISH_HEADING } from '../../api/_lib/tier1-publish';
 import { bearerToken, handleShip, PUBLISH_WORDS, SHIP_DEVELOPER_WORDS, SHIP_WORDS, type FetchLike, type ShipDeps } from '../../api/ship/index';
 
@@ -15,6 +16,16 @@ const TOKEN_FILE = 'design/tokens/color.tokens.json';
 const CONFIG = JSON.stringify({ tokens: { root: 'design/tokens' }, governance: { owners: { design: ['dana', '@acme/design'], tech: ['malik'] } } });
 const before = JSON.stringify({ color: { a: { $type: 'color', $value: '#000' }, b: { $type: 'color', $value: '#111' } } });
 const valuesOnly = JSON.stringify({ color: { a: { $type: 'color', $value: '#222' }, b: { $type: 'color', $value: '#111' }, c: { $type: 'color', $value: '#333' } } });
+const SECRET = 's'.repeat(48);
+const ENV = { LIBRARY_SESSION_SECRET: SECRET };
+const KEY = figmaMarkKey(SECRET)!;
+/** Bridge's mark for pull request 7 of acme/design, as /api/ship writes it. */
+const markOf = (sha = HEAD_SHA, author = 'sam', repo = 'acme/design', pr = 7) => figmaMark(KEY, { repo, pr, sha, author });
+/** sam, the author of the push, with write access; riley (the reader token) and SAM_READ can only read. */
+const AUTHOR = 'Bearer ghu_author_sam_token_0000';
+const SAM_READ = 'Bearer ghu_reader_sam_token_0000';
+/** kim has write access but is not the author. */
+const KIM = 'Bearer ghu_writer_kim_token_00000';
 const renamed = JSON.stringify({ color: { a: { $type: 'color', $value: '#000' }, bee: { $type: 'color', $value: '#111' } } });
 
 interface World {
@@ -42,13 +53,19 @@ function github(w: World): FetchLike {
     const body = init.body ? JSON.parse(init.body) : undefined;
     w.calls.push({ method: init.method, path: u.pathname + u.search, body, auth });
     const p = u.pathname;
-    if (auth === 'Bearer ghu_reader_token_000000') {
-      if (p === '/repos/acme/design') return res(200, { permissions: { pull: true } });
+    const caller = ({ 'Bearer ghu_reader_token_000000': { login: 'riley', push: false }, [AUTHOR]: { login: 'sam', push: true }, [SAM_READ]: { login: 'sam', push: false }, [KIM]: { login: 'kim', push: true } } as Record<string, { login: string; push: boolean }>)[auth];
+    if (caller) {
+      if (p === '/repos/acme/design') return res(200, { permissions: { pull: true, push: caller.push } });
+      if (p === '/user') return res(200, { login: caller.login, name: null });
       return res(404, {});
     }
     if (auth === 'Bearer ghu_stranger_token_00000') return res(404, {});
     expect(auth).toMatch(/^Bearer ghs_/);
     if (p === '/repos/acme/design') return res(200, w.repo);
+    if (p === '/repos/acme/design/pulls/7' && init.method === 'PATCH') {
+      w.pr.body = body.body;
+      return res(200, w.pr);
+    }
     if (p === '/repos/acme/design/pulls/7') return res(200, w.pr);
     if (p === '/repos/acme/design/pulls/7/files') return res(200, w.files);
     if (p === `/repos/acme/design/compare/${BASE_SHA}...${HEAD_SHA}`) return res(200, { merge_base_commit: { sha: MB } });
@@ -89,7 +106,7 @@ function github(w: World): FetchLike {
 
 function setup(over: Partial<World> = {}, pr: Record<string, any> = {}) {
   const w: World = {
-    pr: { number: 7, state: 'open', draft: true, node_id: 'PR_node', labels: [{ name: 'source: figma' }, { name: 'tier: 3' }], body: 'Values from Figma.', base: { ref: 'main', sha: BASE_SHA }, head: { sha: HEAD_SHA }, user: { login: 'sam', type: 'User' }, changed_files: 2, ...pr },
+    pr: { number: 7, state: 'open', draft: true, node_id: 'PR_node', labels: [{ name: 'source: figma' }, { name: 'tier: 3' }], body: `Values from Figma.\n\n${markOf()}`, base: { ref: 'main', sha: BASE_SHA }, head: { sha: HEAD_SHA, repo: { full_name: 'acme/design' } }, user: { login: 'sam', type: 'User' }, changed_files: 2, ...pr },
     repo: { default_branch: 'main', allow_squash_merge: true, allow_merge_commit: true, allow_rebase_merge: true, allow_auto_merge: true },
     files: [
       { filename: TOKEN_FILE, status: 'modified' },
@@ -107,8 +124,8 @@ function setup(over: Partial<World> = {}, pr: Record<string, any> = {}) {
   };
   const app: AppTokens = { installationToken: async () => 'ghs_write' };
   const deps: ShipDeps = { fetch: github(w), app, readApp: app };
-  const call = (body: unknown, headers: Record<string, string> = { authorization: 'Bearer ghu_reader_token_000000' }) =>
-    handleShip(new Request(`https://${HOST}/api/ship`, { method: 'POST', headers: { 'content-type': 'application/json', host: HOST, ...headers }, body: JSON.stringify(body) }), {}, deps);
+  const call = (body: unknown, headers: Record<string, string> = { authorization: AUTHOR }) =>
+    handleShip(new Request(`https://${HOST}/api/ship`, { method: 'POST', headers: { 'content-type': 'application/json', host: HOST, ...headers }, body: JSON.stringify(body) }), ENV, deps);
   return { w, call, deps };
 }
 
@@ -178,16 +195,10 @@ describe('POST /api/ship', () => {
     expect((await ok(await failing.call({ repo: 'acme/design', pr: 7 }))).body.code).toBe('checks_failed');
   });
 
-  it('a push the app opened (an email member): no self-approval, so a developer approves when the library requires one', async () => {
-    const { w, call } = setup({ approveStatus: 422 }, { user: { login: 'bridge-app[bot]', type: 'Bot' } });
-    const r = (await ok(await call({ repo: 'acme/design', pr: 7 }))).body;
-    expect(r).toMatchObject({ armed: false, route: 'waiting-for-developer', code: 'needs_approval' });
-    expect(w.reviews.at(-1)).toMatchObject({ state: 'COMMENTED' });
-    expect(w.reviews.at(-1).body).toContain('Pushed from Figma:');
-    // Auto-merge still goes on: the developer's approval then ships it.
-    expect(w.calls.some((c) => c.path === '/graphql' && c.body.query.includes('AutoMerge'))).toBe(true);
-    const free = setup({ approveStatus: 422, rules: [] }, { user: { login: 'bridge-app[bot]', type: 'Bot' } });
-    expect((await ok(await free.call({ repo: 'acme/design', pr: 7 }))).body).toEqual({ armed: true, route: 'shipped' });
+  it('a push the app opened is not a push from Figma by a person: it waits for the design approval, nothing written', async () => {
+    const { w, call } = setup({ approveStatus: 422 }, { user: { login: 'bridge-app[bot]', type: 'Bot' }, body: `Values.\n\n${markOf(HEAD_SHA, 'bridge-app[bot]')}` });
+    expect((await ok(await call({ repo: 'acme/design', pr: 7 }))).body).toMatchObject({ armed: false, code: 'needs_design_approval' });
+    expect(w.calls.some((c) => c.method !== 'GET')).toBe(false);
   });
 
   it('refuses callers who cannot read the repository, and bad input', async () => {
@@ -227,6 +238,113 @@ describe('POST /api/ship', () => {
   it('writes no em dash, and the designer words name no GitHub setting', () => {
     for (const s of [...Object.values(SHIP_WORDS), ...Object.values(SHIP_DEVELOPER_WORDS)]) expect(s).not.toMatch(/—/);
     for (const s of Object.values(SHIP_WORDS)) expect(s).not.toMatch(/auto-?merge|pull request|branch|merge/i);
+  });
+});
+
+// A push from Figma ships by itself only when Bridge can verify it: the caller is its author with write access, the
+// branch is in the repository, and the body holds Bridge's signed mark for this pull request at its current head.
+describe('POST /api/ship, who asks and where the change comes from', () => {
+  const nothingWritten = (w: World) => expect(w.calls.some((c) => c.method !== 'GET')).toBe(false);
+  const shipAs = async (s: ReturnType<typeof setup>, auth = AUTHOR) => (await ok(await s.call({ repo: 'acme/design', pr: 7 }, { authorization: auth }))).body;
+
+  it('never ships a branch from a fork, whoever asks and whatever it carries', async () => {
+    for (const head of [{ sha: HEAD_SHA, repo: { full_name: 'mallory/design' } }, { sha: HEAD_SHA, repo: null }]) {
+      const s = setup({}, { head });
+      expect(await shipAs(s)).toMatchObject({ armed: false, code: 'fork', reason: SHIP_WORDS.fork, developer: SHIP_DEVELOPER_WORDS.fork });
+      nothingWritten(s.w);
+    }
+    // Not even with a design approval (TV-1).
+    const approved = setup({ reviews: [{ user: { login: 'dana', type: 'User' }, state: 'APPROVED', commit_id: HEAD_SHA, submitted_at: '2026-10-24T10:00:00Z' }] }, { head: { sha: HEAD_SHA, repo: { full_name: 'mallory/design' } } });
+    expect((await shipAs(approved)).code).toBe('fork');
+  });
+
+  it('someone other than the author, even with write access, gets the design approval rule', async () => {
+    const s = setup();
+    expect(await shipAs(s, KIM)).toMatchObject({ armed: false, code: 'needs_design_approval' });
+    nothingWritten(s.w);
+  });
+
+  it('the author without write access, or a reader, gets the design approval rule', async () => {
+    for (const auth of [SAM_READ, 'Bearer ghu_reader_token_000000']) {
+      const s = setup();
+      expect(await shipAs(s, auth)).toMatchObject({ armed: false, code: 'needs_design_approval' });
+      nothingWritten(s.w);
+    }
+  });
+
+  it('a label or a block alone is not a push from Figma', async () => {
+    const block = '<!-- bridge-from-figma {"component":"Button","route":"token-change"} -->';
+    for (const pr of [{ body: 'Values from Figma.' }, { body: block }, { labels: [{ name: 'from-figma' }], body: null }]) {
+      const s = setup({}, pr);
+      expect(await shipAs(s)).toMatchObject({ armed: false, code: 'needs_design_approval' });
+      nothingWritten(s.w);
+    }
+  });
+
+  it('a mark Bridge did not sign for this pull request, its author and its head does not count', async () => {
+    const other = figmaMark(figmaMarkKey('o'.repeat(48))!, { repo: 'acme/design', pr: 7, sha: HEAD_SHA, author: 'sam' });
+    const unsigned = `<!-- bridge-figma-mark ${JSON.stringify({ v: 1, sha: HEAD_SHA, by: 'sam', sig: 'x'.repeat(43) })} -->`;
+    const bodies = [unsigned, other, markOf(HEAD_SHA, 'sam', 'acme/design', 8), markOf(HEAD_SHA, 'sam', 'acme/other'), markOf(HEAD_SHA, 'kim'), '<!-- bridge-figma-mark {"v":1} -->'];
+    for (const body of bodies) {
+      const s = setup({}, { body });
+      expect(await shipAs(s)).toMatchObject({ armed: false, code: 'needs_design_approval' });
+      nothingWritten(s.w);
+    }
+    // Without the server secret nothing verifies, even a mark that was valid.
+    const s = setup();
+    const r = await handleShip(new Request(`https://${HOST}/api/ship`, { method: 'POST', headers: { 'content-type': 'application/json', host: HOST, authorization: AUTHOR }, body: JSON.stringify({ repo: 'acme/design', pr: 7 }) }), {}, s.deps);
+    expect((await r.json()).code).toBe('needs_design_approval');
+  });
+
+  it('a new commit after the mark: the head moved, so it does not ship by itself', async () => {
+    const s = setup({}, { body: `Values from Figma.\n\n${markOf('0'.repeat(40))}` });
+    expect(await shipAs(s)).toMatchObject({ armed: false, code: 'needs_design_approval' });
+    nothingWritten(s.w);
+  });
+
+  it('a change request still holds a verified push from Figma', async () => {
+    const s = setup({ reviews: [{ user: { login: 'malik', type: 'User' }, state: 'CHANGES_REQUESTED', commit_id: HEAD_SHA, submitted_at: '2026-10-24T10:00:00Z' }] });
+    expect(await shipAs(s)).toMatchObject({ armed: false, code: 'changes_requested' });
+    nothingWritten(s.w);
+  });
+
+  it('the plugin flow: the author marks the push right after opening it, then it ships by itself', async () => {
+    const s = setup({}, { body: 'Values from Figma.' });
+    expect(await shipAs(s)).toMatchObject({ armed: false, code: 'needs_design_approval' });
+    const m = await ok(await s.call({ repo: 'acme/design', pr: 7, mark: 'figma' }));
+    expect(m).toEqual({ status: 200, body: { marked: true } });
+    const patch = s.w.calls.find((c) => c.method === 'PATCH')!;
+    expect(patch.auth).toBe('Bearer ghs_write');
+    expect(s.w.pr.body.startsWith('Values from Figma.')).toBe(true);
+    expect(s.w.pr.body).toContain('<!-- bridge-figma-mark ');
+    // Marking again replaces the mark, never stacks it.
+    await s.call({ repo: 'acme/design', pr: 7, mark: 'figma' });
+    expect(s.w.pr.body.match(/bridge-figma-mark/g)).toHaveLength(1);
+    expect(await shipAs(s)).toEqual({ armed: true, route: 'shipped' });
+  });
+
+  it('marks only for the author with write access, a branch of the repository, a push from Figma of token values', async () => {
+    const markAs = async (s: ReturnType<typeof setup>, auth = AUTHOR, env: Record<string, string> = ENV) =>
+      (await ok(await handleShip(new Request(`https://${HOST}/api/ship`, { method: 'POST', headers: { 'content-type': 'application/json', host: HOST, authorization: auth }, body: JSON.stringify({ repo: 'acme/design', pr: 7, mark: 'figma' }) }), env, s.deps))).body;
+    const cases: [ReturnType<typeof setup>, string, string?, Record<string, string>?][] = [
+      [setup({}, { body: 'x' }), 'not_author', KIM],
+      [setup({}, { body: 'x' }), 'no_write', SAM_READ],
+      [setup({}, { body: 'x', head: { sha: HEAD_SHA, repo: { full_name: 'mallory/design' } } }), 'fork'],
+      [setup({}, { body: 'x', labels: [{ name: 'source: studio' }] }), 'not_from_figma'],
+      [setup({ head: renamed }, { body: 'x' }), 'not_values'],
+      [setup({}, { body: 'x', state: 'closed' }), 'not_open'],
+      [setup({}, { body: 'x', user: { login: 'bridge-app[bot]', type: 'Bot' } }), 'not_author'],
+      [setup({}, { body: 'x' }), 'mark_unavailable', AUTHOR, {}],
+    ];
+    for (const [s, code, auth, env] of cases) {
+      expect(await markAs(s, auth, env)).toMatchObject({ marked: false, code });
+      nothingWritten(s.w);
+    }
+    const s = setup();
+    expect((await s.call({ repo: 'acme/design', pr: 7, mark: 'yes' })).status).toBe(400);
+    expect((await s.call({ repo: 'acme/design', pr: 7, mark: 'figma', publish: 'tier1' })).status).toBe(400);
+    // An email member session cannot mark: the mark names a GitHub account.
+    expect((await s.call({ repo: 'acme/design', pr: 7, mark: 'figma' }, { 'x-bridge-contribute': '1', origin: `https://${HOST}` })).status).toBe(401);
   });
 });
 

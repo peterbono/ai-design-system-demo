@@ -452,21 +452,29 @@ design owner approved its head commit (decision TV-1). Bridge arms that merge wi
   origin, CORS open, no cookie), or an email member of the team signed in to Studio (the contribute cookie or a Bridge
   account session, with `X-Bridge-Contribute: 1` from a page of this site). Asking never widens anything: Bridge
   re-reads the pull request with its own app token and arms it only when the rule says so.
-- **The rule, read from GitHub**: open, to the default branch, pushed from Figma (`source: figma` or `from-figma`
-  label, or the From Figma block), not an exploration, and token values only: the token files compared token by token
-  at the merge base and at the head (a removed or renamed token is not values; code or a guardrail file is not
-  either). The server keeps a copy of core's rules in `api/_lib/figma-ship.ts`, checked against core by
-  `figma-ship-parity.test.ts`.
+- **The rule, read from GitHub**: open, to the default branch, from a branch of the repository itself (never a fork),
+  not an exploration, and token values only: the token files compared token by token at the merge base and at the
+  head (a removed or renamed token is not values; code or a guardrail file is not either). The server keeps a copy of
+  core's rules in `api/_lib/figma-ship.ts`, checked against core by `figma-ship-parity.test.ts`.
+- **A push from Figma, verified**: the label (`source: figma`, `from-figma`) or the From Figma block only says where a
+  change claims to come from. It ships by itself only when the caller is its author with write access to the
+  repository, and its body holds the mark Bridge signed for this repository, pull request, author and current head
+  commit (`api/_lib/figma-mark.ts`, a key derived from `LIBRARY_SESSION_SECRET`). The plugin asks for that mark right
+  after it opens the push: `POST /api/ship` `{ "repo", "pr", "mark": "figma" }` answers `200 { "marked": true }`, or
+  `{ "marked": false, "code" }` (`not_author`, `no_write`, `fork`, `not_from_figma`, `not_values`, `mark_unavailable`,
+  ...). A new commit after the mark, another caller, or no valid mark: the change follows the design approval rule
+  (TV-1). A change requested by a reviewer holds it either way.
 - **Arming**: ready for review when a draft, the review `**Bridge: shipped from Figma**` (an approval, once per head
   commit), then GitHub auto-merge (squash first, as the repository allows): GitHub merges once the required checks
   pass. When GitHub says it can merge right now, Bridge merges it itself, only if every check finished and passed;
   while a check runs it answers `checks_pending` with `retryAfter`.
-- **Codes** (`armed: false`): `app_missing`, `auto_merge_off`, `not_values`, `not_from_figma`, `exploration`,
-  `not_default_branch`, `not_open`, `too_many_files` (100 files or more), `needs_approval`, `checks_failed`,
-  `checks_pending`, `not_mergeable`. `reason` is one designer sentence, never the technical blocker.
-- **An email member's push** is opened by the app itself, and GitHub never lets an app approve its own pull request:
-  the review is then a comment, auto-merge still goes on, and when the default branch requires an approval
-  (`needs_approval`) a developer's approval ships it.
+- **Codes** (`armed: false`): `app_missing`, `auto_merge_off`, `not_values`, `fork`, `exploration`,
+  `not_default_branch`, `not_open`, `too_many_files` (100 files or more), `changes_requested`,
+  `needs_design_approval`, `approval_outdated`, `needs_approval`, `checks_failed`, `checks_pending`, `not_mergeable`.
+  `reason` is one designer sentence, never the technical blocker.
+- **A change the app opened** (an email member's) is never a push from Figma by a person: it ships with a design
+  approval (TV-1). GitHub never lets an app approve its own pull request: the review is then a comment, auto-merge
+  still goes on, and when the default branch requires more approvals (`needs_approval`) a developer's approval ships it.
 
 ### Set it up (owner of the site)
 
