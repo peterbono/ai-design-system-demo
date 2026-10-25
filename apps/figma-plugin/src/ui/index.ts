@@ -47,6 +47,7 @@ import { type Child, h } from './dom';
 import { icon } from './icons';
 import { ILLUSTRATIONS, type IllustrationName } from './illustrations';
 import { focusFirstItem, menuKeys } from './menu';
+import { CLAUDE_RUN_WORDS, ClaudeRunPoller, type RunView, RunRefused, isFinal, listClaudeRuns, readClaudeRun, startClaudeFix } from '../sync/claude-runs';
 import { BridgeSignInPoller, type LinkPoll, SIGN_IN_WORDS, startBridgeSignIn } from '../sync/bridge-sign-in';
 
 type Tab = 'pull' | 'push' | 'settings';
@@ -106,7 +107,8 @@ interface PullState {
         gaps?: GapCase[] | undefined;
         gapsCopied?: boolean | undefined;
         built?: Record<string, Record<string, GapBuiltVariant>> | undefined;
-        fix?: { component: string; status: 'writing' | 'ready' | 'error'; error?: string | undefined; copied?: boolean | undefined } | undefined;
+        /** `refused`: Bridge would not start a run (Claude not connected for the team, the hourly limit): its sentence. */
+        fix?: { component: string; status: 'writing' | 'ready' | 'error' | 'refused'; error?: string | undefined; copied?: boolean | undefined } | undefined;
         /** "Copy for your developer" copied, by component (or "references"): the button says Copied. */
         handedOff?: Set<string> | undefined;
       }
@@ -298,6 +300,46 @@ interface ActionBar {
   secondary?: { label: string; onClick: () => void } | undefined;
   /** A choice that changes what the primary action does, next to it (proximity): "Include components (62)". */
   toggle?: { label: string; checked: boolean; focusId: string; onChange: (checked: boolean) => void } | undefined;
+}
+
+/**
+ * Claude's runs for this team (Bridge runs them, "Ask Claude to fix it" with a Bridge sign-in), by component, each with
+ * the poller that keeps it moving while the plugin is open. Picked up again from the team's list when the plugin opens.
+ */
+const claudeRuns = new Map<string, { run: RunView; poller?: ClaudeRunPoller | undefined }>();
+const runKey = (component: string) => component.toLowerCase();
+const runFor = (component: string) => claudeRuns.get(runKey(component))?.run;
+/** Bridge runs Claude for this person: signed in with Bridge (the token Studio gave). A pasted token keeps the copy path. */
+const bridgeRuns = () => state.init?.tokenSource === 'bridge' && !!state.init.token && !!state.init.settings.repo;
+
+function trackRun(run: RunView): void {
+  const key = runKey(run.component);
+  const was = claudeRuns.get(key);
+  if (was?.run.id !== run.id) was?.poller?.stop();
+  const entry: { run: RunView; poller?: ClaudeRunPoller | undefined } = { run, poller: was?.run.id === run.id ? was.poller : undefined };
+  claudeRuns.set(key, entry);
+  if (!isFinal(run) && !entry.poller) {
+    const { token, settings } = state.init!;
+    entry.poller = new ClaudeRunPoller(
+      () => readClaudeRun((url, init) => fetch(url, init), STUDIO_ORIGIN, token!, settings.repo, run.id),
+      (next) => {
+        if (!next) claudeRuns.delete(key);
+        else entry.run = next;
+        if (next && isFinal(next)) entry.poller = undefined;
+        render();
+      },
+    ).start(run);
+  }
+}
+
+/** On open: the team's runs still moving start moving again; the ready ones are shown. */
+async function resumeClaudeRuns(): Promise<void> {
+  if (!bridgeRuns()) return;
+  const { token, settings } = state.init!;
+  const runs = await listClaudeRuns((url, init) => fetch(url, init), STUDIO_ORIGIN, token!, settings.repo).catch(() => []);
+  // Newest first: the newest run of each component wins.
+  for (const run of [...runs].reverse()) if (!isFinal(run) || run.status === 'ready') trackRun(run);
+  if (runs.length) render();
 }
 
 const state: State = { tab: 'pull', settingsDraft: { repo: '', branch: '', tokensPath: '' }, tokenDraft: '', claudeKeyDraft: '', expanded: new Set(), selection: null };
@@ -2010,7 +2052,7 @@ function viewPull(): View {
             ? init.sync.lastPullAt ? `Last updated in this file on ${when(init.sync.lastPullAt)}.` : undefined
             : 'First time in this file: Bridge adds its variables and components.',
         art: 'tokens',
-      }), steps([
+      }), claudeRunsGroup(), steps([
         ['Check', "Bridge reads the design system's tokens and components."],
         ['Review', 'Every new, edited or deleted token is listed with its value. Nothing is written yet.'],
         ['Apply', 'Figma variables are created or updated, and components are built from the code. Your own edits stay until you send them from Push.'],
@@ -2134,7 +2176,8 @@ function viewPull(): View {
     fid && quiet
       ? h('section', { class: 'zone' }, h('h2', { class: 'headline' }, fidelityHeadline(fid)), lastPulled ? h('p', { class: 'muted' }, lastPulled) : null)
       : h('section', { class: 'zone' }, h('h2', { class: 'headline' }, headline), meta ? h('p', { class: 'muted' }, meta) : null),
-    fid ? fidelityGroup(p) : null,
+    // Claude's runs show on their rows once compared; before that, as their own group.
+    fid ? fidelityGroup(p) : claudeRunsGroup(),
   ];
 
   if (remote.length) {
@@ -2465,11 +2508,56 @@ async function fixWithClaude(p: PullState, component: string): Promise<void> {
       ...(p.measure?.measuredAt ? { measuredAt: p.measure.measuredAt } : {}),
     };
     await writeFidelityRun(getClient(), run, state.init!.settings.branch);
-    f.fix = { component, status: 'ready' };
+    if (bridgeRuns()) {
+      // Bridge runs Claude for the team: "Claude is on it" on the row, moving while the plugin is open.
+      const started = await startClaudeFix((url, init) => fetch(url, init), STUDIO_ORIGIN, state.init!.token!, state.init!.settings.repo, component);
+      trackRun(started.run);
+      f.fix = undefined;
+    } else f.fix = { component, status: 'ready' };
   } catch (err) {
-    f.fix = { component, status: 'error', error: inlineError(err) ?? 'Bridge could not save the request. Check your connection, then try again.' };
+    f.fix =
+      err instanceof RunRefused
+        ? { component, status: 'refused', error: err.message }
+        : { component, status: 'error', error: inlineError(err) ?? 'Bridge could not save the request. Check your connection, then try again.' };
   }
   render();
+}
+
+/** Where Claude's run for a component stands: its tag and sentence; ready, the change to review and what comes next. */
+function runPanel(run: RunView): HTMLElement {
+  const ready = run.status === 'ready';
+  const moving = !isFinal(run);
+  return h(
+    'div',
+    { class: 'callout', role: 'status', 'data-run': run.status },
+    h(
+      'div',
+      { class: 'callout-title' },
+      moving ? h('span', { class: 'spinner', 'aria-hidden': 'true' }) : icon(ready ? 'check' : 'alert'),
+      run.label,
+      moving ? h('span', { class: 'muted' }, ` · ${CLAUDE_RUN_WORDS.round(run)}`) : null,
+    ),
+    // The server's sentence as is; never its developer cause.
+    h('p', null, run.sentence),
+    ready && run.applied?.length ? h('ul', null, run.applied.map((x) => h('li', null, x))) : null,
+    ready && run.reviewUrl
+      ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn', 'data-focus-id': `run-${run.component}`, onClick: () => void request('open-url', { url: run.reviewUrl! }) }, icon('external'), "See Claude's fix"))
+      : null,
+    ready ? h('p', { class: 'muted' }, CLAUDE_RUN_WORDS.next) : null,
+  );
+}
+
+/** Claude's runs on the Pull screen when no comparison shows them on their rows: still moving, or ready to review. */
+function claudeRunsGroup(): Child {
+  const runs = [...claudeRuns.values()].map((x) => x.run).filter((r) => !isFinal(r) || r.status === 'ready');
+  if (!runs.length) return null;
+  return group(
+    "Claude's fixes",
+    runs.length,
+    null,
+    'Claude works on these for your team. Nothing changes in this file until a fix is approved.',
+    h('ul', { class: 'rows' }, runs.map((r) => h('li', { class: 'row review' }, h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, r.component)), runPanel(r)))),
+  );
 }
 
 /**
@@ -2482,6 +2570,15 @@ function fixPanel(p: PullState, component: string): Child {
   if (fix.status === 'writing') return h('p', { class: 'muted loading', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Getting the request ready');
   if (fix.status === 'error') return h('div', { class: 'callout warn', role: 'alert' }, h('div', { class: 'callout-title' }, icon('alert'), 'Could not ask Claude'), h('p', null, fix.error));
   const text = fixRequestForDeveloper(component, state.init?.settings.repo ?? '');
+  // Bridge would not start it (Claude not connected for the team, the hourly limit): its sentence, then the copy path.
+  if (fix.status === 'refused') {
+    return h(
+      'div',
+      { class: 'callout', role: 'status' },
+      h('p', null, fix.error),
+      h('div', { class: 'inline-actions' }, h('button', { class: 'btn', 'data-focus-id': `fix-copy-${component}`, onClick: () => void copyText(text).then((ok) => { if (p.fidelity?.fix && ok) p.fidelity.fix.copied = true; render(); }) }, icon(fix.copied ? 'check' : 'copy'), fix.copied ? 'Copied' : 'Copy for your developer')),
+    );
+  }
   return h(
     'div',
     { class: 'callout', role: 'status' },
@@ -2568,7 +2665,8 @@ function fidelityGroup(p: PullState): Child {
         // Where the difference comes from, in one sentence (the gap case's summary): it replaces the pixel figures,
         // which stay one click away under the variants.
         const gap = r.status === 'differs' ? f?.gaps?.find((g) => g.component === it.name)?.summary : undefined;
-        const asked = f?.fix?.component === it.name && f.fix.status !== 'error';
+        const run = r.status === 'differs' ? runFor(it.name) : undefined;
+        const asked = (f?.fix?.component === it.name && f.fix.status !== 'error') || (!!run && (!isFinal(run) || run.status === 'ready'));
         return h(
           'li',
           { class: 'row review' },
@@ -2582,6 +2680,7 @@ function fidelityGroup(p: PullState): Child {
             ? h('div', { class: 'handoff' }, h('p', { class: 'muted' }, DIFFERS_HANDOFF_TEXT), h('div', { class: 'inline-actions' }, handoffButton(p, it.name, differsRequestForDeveloper(r, state.init?.settings.repo ?? '', fidelityVerdict))))
             : null,
           r.status === 'differs' ? fixPanel(p, it.name) : null,
+          run ? runPanel(run) : null,
           // The three images on demand: the list stays a list to scan (FID-5).
           r.status === 'differs' && it.images
             ? h('details', { class: 'notes' }, h('summary', null, `See the most different: ${it.images.key}`), fidelityThumbs(it.name, it.images))
@@ -4647,6 +4746,7 @@ loadInit()
     if (!connected()) state.tab = 'settings';
     render();
     void checkAccessOnStart();
+    void resumeClaudeRuns();
   })
   .catch((err: unknown) => {
     state.error = { message: 'Close Bridge and open it again. If it keeps happening, report it with the details.', detail: err instanceof Error ? `${err.name}: ${err.message}` : String(err) };
