@@ -37,6 +37,8 @@ function rgbOf(v: string): { r: number; g: number; b: number; a: number } | unde
 
 /** A DTCG $type and $value for a measured value, or undefined when Bridge has no variable for it. */
 function dtcg(type: MeasuredTokenProperty['type'], v: Value, name: string): { $type: string; $value: unknown } | undefined {
+  // An empty value (a variable that resolves to nothing, or to itself) is no token: what uses it keeps its computed value.
+  if (typeof v === 'string' && !v.trim()) return undefined;
   if (type === 'color' && typeof v === 'string') {
     const c = rgbOf(v);
     if (!c) return undefined;
@@ -45,7 +47,10 @@ function dtcg(type: MeasuredTokenProperty['type'], v: Value, name: string): { $t
   }
   if (type === 'length' && typeof v === 'number') return { $type: 'dimension', $value: { value: v, unit: 'px' } };
   if (type === 'number' && typeof v === 'number') return { $type: 'number', $value: v };
-  if (type === 'string' && typeof v === 'string' && /font-?family/i.test(name)) return { $type: 'fontFamily', $value: v.split(',').map((f) => f.trim().replace(/^["']|["']$/g, '')).filter(Boolean) };
+  if (type === 'string' && typeof v === 'string' && /font-?family/i.test(name)) {
+    const families = v.split(',').map((f) => f.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+    return families.length ? { $type: 'fontFamily', $value: families } : undefined;
+  }
   return undefined;
 }
 

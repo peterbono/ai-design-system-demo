@@ -98,3 +98,23 @@ describe('tokenRepoFromMeasure on Carbon', () => {
   });
 });
 
+
+describe('tokenRepoFromMeasure: empty values', () => {
+  it('skips a variable that resolves to nothing (a font that names itself), and what aliases it', () => {
+    const p = (name: string, extra: object) => ({ name, path: name.slice(2), tier: 'primitive' as const, kind: 'literal' as const, type: 'string' as const, raw: '', value: '', used: true, ...extra });
+    const tokens: MeasuredTokens = {
+      story: 's',
+      modes: [],
+      properties: [
+        p('--font-sans', { tier: 'semantic', kind: 'alias', raw: 'var(--font-sans)', aliasOf: '--font-sans' }),
+        p('--default-font-family', { tier: 'semantic', kind: 'alias', raw: 'var(--font-sans)', aliasOf: '--font-sans' }),
+        p('--mono-font-family', { raw: 'ui-monospace, monospace', value: 'ui-monospace, monospace' }),
+      ],
+      counts: { properties: 3, primitives: 1, semantic: 2, used: 3, scoped: 0 },
+    };
+    const repo = tokenRepoFromMeasure(tokens);
+    expect(repo.report.skipped).toEqual(['--font-sans', '--default-font-family']);
+    expect(JSON.stringify(repo.files)).not.toMatch(/palette\.string|"\$value": \[\]/);
+    expect([...repo.paths.keys()]).toEqual(['--mono-font-family']);
+  });
+});

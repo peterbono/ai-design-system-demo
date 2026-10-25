@@ -203,6 +203,17 @@ const WEIGHT_STYLES: Record<number, string[]> = {
   900: ['Black', 'Heavy'],
 };
 
+/** The fonts a browser draws a system family with (macOS, Windows, Android), by the names Figma lists them under. */
+const SANS = ['SF Pro', 'SF Pro Text', '.SF NS', 'System Font', 'Segoe UI', 'Roboto'];
+const SYSTEM_FONTS: Record<string, string[]> = {
+  'system-ui': SANS,
+  '-apple-system': SANS,
+  blinkmacsystemfont: SANS,
+  'ui-sans-serif': SANS,
+  'ui-monospace': ['SF Mono', '.SF NS Mono', 'Menlo', 'Consolas', 'Roboto Mono'],
+  'ui-serif': ['New York', 'Georgia'],
+};
+
 class Fonts {
   /** Lowercased family -> its real name and styles. */
   private available = new Map<string, { family: string; styles: string[] }>();
@@ -226,9 +237,12 @@ class Fonts {
     }
   }
 
-  /** First family of the CSS stack installed in Figma, else Inter (noted once in the report). */
+  /**
+   * First family of the CSS stack installed in Figma, else Inter (noted once in the report). A system family
+   * (system-ui, ui-sans-serif, ui-monospace) is the platform's own font in the browser: its installed names are tried.
+   */
   private pick(families: string[]): { family: string; styles: string[] } {
-    for (const f of families) {
+    for (const f of families.flatMap((x) => SYSTEM_FONTS[x.toLowerCase()] ?? [x])) {
       const hit = this.available.get(f.toLowerCase());
       if (hit) return hit;
     }
