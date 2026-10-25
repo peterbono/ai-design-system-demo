@@ -270,7 +270,7 @@
       "neutral": {
         "bg": {
           "$type": "color",
-          "$value": "{palette.neutral.100}",
+          "$value": "{palette.neutral.200}",
           "$description": "Fill of a status with no tone (neutral Badge, grey status chips): one step off the page and off cards in both themes. bg.subtle is the card color in dark, so it vanished there."
         }
       },
