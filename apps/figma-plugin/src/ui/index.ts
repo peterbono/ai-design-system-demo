@@ -1886,7 +1886,10 @@ function viewPull(): View {
     const view = cr ? componentReportView(cr) : undefined;
     const text = [
       r ? `${[r.created ? `${plural(r.created, 'variable')} created` : '', r.updated ? `${plural(r.updated, 'variable')} updated` : '', r.orphaned ? `${r.orphaned} flagged as orphan` : ''].filter(Boolean).join(', ') || 'Variables already matched'}.` : '',
-      cr && view
+      // Everything new and built in one place (a first pull): one sentence, not "All 62 built. 62 created".
+      cr && view && cr.created && !cr.updated && !cr.orphaned && !cr.elsewhere && cr.created === (cr.total ?? cr.created) && !view.retry
+        ? `${cr.created === 1 ? 'The component is' : `All ${cr.created} components are`} on the ${cr.page} page.`
+        : cr && view
         ? `${view.headline} ${[cr.created ? `${cr.created} created` : '', cr.updated ? `${cr.updated} updated` : '', cr.orphaned ? `${plural(cr.orphaned, 'variant')} flagged as orphan` : ''].filter(Boolean).join(', ')}${cr.created || cr.updated || cr.orphaned ? (cr.elsewhere ? `, ${cr.elsewhere} of them where they are kept in this file.` : ` on the ${cr.page} page.`) : ''}`.trim()
         : '',
       prop.kept.length ? `${plural(prop.kept.length, 'Figma edit')} kept: send them from Push.` : '',
@@ -2350,7 +2353,7 @@ function fidelityGroup(p: PullState): Child {
       h(
         'details',
         { class: 'notes dev-details' },
-        h('summary', null, 'For developers'),
+        h('summary', null, 'Fidelity report, for developers'),
         h('p', { class: 'muted' }, 'Every component and variant as JSON: how many pixels differ, and both sizes.'),
         h('button', { class: 'btn', 'data-focus-id': 'fidelity-copy', onClick: () => void copyText(JSON.stringify(report, null, 2)).then((ok) => { f!.copied = ok; render(); }) }, icon(f?.copied ? 'check' : 'copy'), f?.copied ? 'Copied' : 'Copy the report'),
         f?.gaps?.length
