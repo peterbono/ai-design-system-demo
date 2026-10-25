@@ -2,7 +2,7 @@
 // and the token behind each value), written in the shape the Figma pull reads. Works on any React library with a
 // deployed or local Storybook, whatever its styling. The Figma pull still reads component-specs.json; this is the
 // measured side that will replace the guess from the CSS source.
-import { existsSync, readFileSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import {
@@ -150,6 +150,21 @@ interface ShotBook {
   /** Directory of measured-specs.json: shot paths are relative to it. */
   base: string;
   seen: Map<string, { file: string; width: number; height: number }>;
+  /** Cuts a PNG to a region given in CSS px of a root `rootWidth` wide; returns the new size in CSS px. */
+  crop?: ((file: string, region: { x: number; y: number; width: number; height: number }, rootWidth: number) => { width: number; height: number }) | undefined;
+}
+
+/** Cuts a shot PNG to a region (CSS px), with @bridge-ds/visual's PNG tools; undefined when they cannot load. */
+async function shotCropper(): Promise<ShotBook['crop']> {
+  const v = await import('@bridge-ds/visual').catch(() => undefined);
+  if (!v) return undefined;
+  return (file, r, rootWidth) => {
+    const png = v.decodePng(readFileSync(file));
+    const scale = png.width / rootWidth;
+    const out = v.cropPng(png, r.x * scale, r.y * scale, r.width * scale, r.height * scale);
+    writeFileSync(file, v.encodePng(out));
+    return { width: Math.round((out.width / scale) * 100) / 100, height: Math.round((out.height / scale) * 100) / 100 };
+  };
 }
 
 /** The file a measure's screenshot goes to: story id, args, state and part, file safe. */
@@ -181,6 +196,15 @@ function storyEntry(p: { id: string; title: string; name: string }, m: MeasuredS
       shot = seen;
     } else {
       shot = { file: relative(book.base, m.shot.file), width: m.shot.width, height: m.shot.height };
+      // A gallery is compared by its first instance, the one the spec draws: the shot is cut to that instance.
+      const first = parts[0];
+      if (instances && first?.at && m.root && book.crop) {
+        try {
+          shot = { ...shot, ...book.crop(m.shot.file, { ...first.at, width: first.box.width, height: first.box.height }, m.root.box.width) };
+        } catch {
+          // the whole gallery stays the referee
+        }
+      }
       book.seen.set(key, shot);
     }
   }
@@ -396,7 +420,7 @@ export async function runSpecs(a: RequestArgs, root: string, io: RequestIO = def
   };
   // --shots: a PNG of each measured root at 2x, next to the file, for the fidelity check of any library.
   const outPath = resolve(root, flag(a, 'out') ?? 'measured-specs.json');
-  const book: ShotBook | undefined = has(a, 'shots') ? { dir: join(dirname(outPath), 'measured-shots'), base: dirname(outPath), seen: new Map() } : undefined;
+  const book: ShotBook | undefined = has(a, 'shots') ? { dir: join(dirname(outPath), 'measured-shots'), base: dirname(outPath), seen: new Map(), crop: await shotCropper() } : undefined;
   const shotOpt = (id: string, tag: Record<string, unknown> = {}) => (book ? { shot: shotPath(book, id, tag) } : {});
   const browser = await open(book ? { scale: 2 } : {});
   /**
