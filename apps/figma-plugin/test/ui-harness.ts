@@ -17,7 +17,7 @@ export interface Answer {
   status: number;
   body: unknown;
 }
-export type Route = (method: string, path: string, body: any) => Answer | undefined;
+export type Route = (method: string, path: string, body: any, url: URL) => Answer | undefined;
 
 export interface Harness {
   /** The panel's visible text (tabs, body, bar), whitespace collapsed. */
@@ -67,6 +67,10 @@ export interface Open {
   connected?: boolean;
   /** The file was pulled before (sync base = head) and holds the pulled variables. */
   pulled?: boolean;
+  /** REST answers needed from the very first call (before the plugin loads). */
+  register?: (routes: Route[]) => void;
+  /** Signed in with Bridge (the token Studio gave), not a pasted token. */
+  bridge?: boolean;
   /** Edits the snapshot before the plugin reads it. */
   edit?: (s: FigmaSnapshot) => void;
 }
@@ -94,7 +98,7 @@ export async function openPlugin(o: Open = {}): Promise<Harness> {
   let token: string | undefined = o.connected === false ? undefined : 'test-token';
   let generated: unknown[] = [];
   const main: Record<string, (payload: any) => unknown> = {
-    init: () => ({ settings, sync, hasToken: !!token, token, tokenState: token ? 'ok' : undefined, fileName: 'Checkout redesign', claude: { hasKey: false, key: undefined, model: 'claude-sonnet-5-5' } }),
+    init: () => ({ settings, sync, hasToken: !!token, token, tokenState: token ? 'ok' : undefined, ...(o.bridge && token ? { tokenSource: 'bridge' } : {}), fileName: 'Checkout redesign', claude: { hasKey: false, key: undefined, model: 'claude-sonnet-5-5' } }),
     snapshot: () => snapshot,
     'scan-generated': () => generated,
     'apply-pull': () => {
@@ -125,6 +129,7 @@ export async function openPlugin(o: Open = {}): Promise<Harness> {
   };
   const json = (status: number, body: unknown) => ({ ok: status < 400, status, json: async () => body, text: async () => JSON.stringify(body), headers: { get: () => null } });
   const routes: Route[] = [];
+  o.register?.(routes);
   let n = 100;
   g.fetch = async (url: string, init?: { method?: string; body?: string }) => {
     const u = new URL(url);
@@ -133,7 +138,7 @@ export async function openPlugin(o: Open = {}): Promise<Harness> {
     const body = init?.body ? JSON.parse(init.body) : undefined;
     calls.push(`${method} ${p}`);
     for (const r of routes) {
-      const a = r(method, p, body);
+      const a = r(method, p, body, u);
       if (a) return json(a.status, a.body);
     }
     if (method !== 'GET') {
