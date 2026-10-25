@@ -178,7 +178,7 @@ export function lifecycleSentence(x: {
     case 'draft':
       if (x.exploration) return null;
       if (x.claude === 'waiting') return CLAUDE_WAITING_SENTENCE;
-      return x.isAuthor ? 'Request a review when it is ready. Until then nobody is asked to review it.' : `Waiting for @${x.author} to request a review.`;
+      return x.isAuthor ? 'Send it for review when it is ready. Until then nobody is asked to review it.' : `Waiting for @${x.author} to send it for review.`;
     case 'shipped':
       return x.mergedAt ? `Added to ${VOCAB.main} on ${day(x.mergedAt)}.` : `Added to ${VOCAB.main}.`;
     case 'closed':
@@ -334,5 +334,5 @@ export function restartLine(x: { carried: number; skipped: number; draftBusy: bo
   if (x.draftBusy) return { ok: false, text: 'You already have a draft in this browser. Request a review of it or clear it in Tokens, then start again.' };
   if (!x.carried) return { ok: false, text: `This ${VOCAB.branch} has no token value to carry over. Start a new ${VOCAB.branch} from Tokens instead.` };
   const skipped = x.skipped ? ` ${plural(x.skipped, 'other edit')} (new, removed or brand-only tokens) could not be carried over.` : '';
-  return { ok: true, text: `${plural(x.carried, 'token edit')} copied into your draft.${skipped} Opening Tokens to request a review.` };
+  return { ok: true, text: `${plural(x.carried, 'token edit')} copied into your draft.${skipped} Opening Tokens to send it for review.` };
 }

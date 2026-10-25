@@ -33,6 +33,7 @@ import {
 import ButtonLink from '../ButtonLink';
 import type { PieceActionKind, PieceRowView } from '../../../lib/product-branch';
 import { studioHref } from '../../../lib/team-path';
+import { sampleVisitor } from '../../../scripts/demo-gate';
 
 export interface ProductBranchProps {
   number: number;
@@ -96,7 +97,7 @@ function PieceRow({ row, p, busy, run }: { row: PieceRowView; p: ProductBranchPr
               </Button>
             ) : (
               <Button variant="secondary" size="md" className="pb-row-act" data-gh-open="" data-demo-write="update this feature">
-                {p.connectLabel(a.label.charAt(0).toLowerCase() + a.label.slice(1))}
+                {sampleVisitor() ? a.label : p.connectLabel(a.label.charAt(0).toLowerCase() + a.label.slice(1))}
               </Button>
             ))}
         </CardBody>
@@ -157,7 +158,7 @@ export function ProductBranch(p: ProductBranchProps) {
                 {p.onPromote && p.onClose && <MenuSeparator />}
                 {p.onClose && (
                   <MenuItem tone="danger" onClick={() => setConfirm(true)}>
-                    Close without merging
+                    Close feature
                   </MenuItem>
                 )}
               </MenuContent>

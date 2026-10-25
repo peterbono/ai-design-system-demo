@@ -153,7 +153,7 @@ export function detailSentence(s: DetailState): string {
   if (s.state === 'closed') return 'Closed without adding it to the library.';
   const needs = missingApprovals(s.gate.missing);
   const after = needs ? ` After that it needs ${needs}.` : '';
-  if (s.state === 'draft') return `Draft: request a review first.${after}`;
+  if (s.state === 'draft') return `Draft: send it for review first.${after}`;
   if (s.ci.state === 'fail') {
     const many = s.ci.failed.length > 1;
     return `Blocked: the ${names(s.ci.failed)} test${many ? 's fail' : ' fails'}.${after}`;
@@ -420,9 +420,9 @@ export function whoActs(need: Need, p: People): WhoActs {
     case 'draft':
       // Decision RT-1: the branch opened from Figma waits on a developer, never on the designer who sent it.
       if (need.claude === 'waiting') return { who: 'developer', logins: [], yourTurn: false, action: 'none', sentence: CLAUDE_WAITING_SENTENCE, short: 'A developer builds it' };
-      return authorTurn('mark-ready', 'request a review of this draft', 'request a review of this draft', 'Author to finish the draft', 'Your turn: finish the draft');
+      return authorTurn('mark-ready', 'send this draft for review', 'send this draft for review', 'Author to finish the draft', 'Your turn: finish the draft');
     case 'exploration':
-      return authorTurn('promote', 'request a review of this exploration, or close it', 'request a review of this exploration', 'Author to request a review', 'Your turn: request a review');
+      return authorTurn('promote', 'send this exploration for review, or close it', 'send this exploration for review', 'Author to send it for review', 'Your turn: send it for review');
     case 'fix-checks':
       // Developer tests failing on a design change are a developer's to fix, whoever made it (the detail says the same:
       // lib/check-explain failingSentence). A failing design rule, or failures not known yet, stay with the author.

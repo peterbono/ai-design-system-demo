@@ -72,7 +72,7 @@ const EXPLORE_STEPS: { title: string; text: string }[] = [
   },
   {
     title: 'Promote or close',
-    text: 'It never goes into the library as is: the `Exploration not merged as is` check fails while the label is on. Promote to review removes the label, adds the tier labels and marks it ready, then the usual gates apply. Otherwise, close it.',
+    text: 'It never goes into the library as is: the `Exploration not merged as is` check fails while the label is on. Send for review removes the label, adds the tier labels and marks it ready, then the usual gates apply. Otherwise, close it.',
   },
 ];
 

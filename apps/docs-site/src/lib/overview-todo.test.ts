@@ -303,7 +303,7 @@ describe('For you: the change lifecycle (lib/change-status)', () => {
   it('puts the own draft of the viewer in For you, but not in the review badge count, and never one an agent made', () => {
     const t = todo({ changes: [change(5, 'draft', 'me', 'me', { lifecycle: 'draft' })], requests: [], viewer: 'me', owners: ['me'] });
     expect(t.mine).toEqual([
-      { key: 'change-5', kind: 'change', title: 'Change 5', href: '/studio/changes/?pr=5', task: 'finish', why: 'Reviewers are not asked until you request a review.', action: 'Open draft', state: { lifecycle: 'draft', label: 'Draft', tone: 'neutral' } },
+      { key: 'change-5', kind: 'change', title: 'Change 5', href: '/studio/changes/?pr=5', task: 'finish', why: 'Reviewers are not asked until you send it for review.', action: 'Open draft', state: { lifecycle: 'draft', label: 'Draft', tone: 'neutral' } },
     ]);
     expect(reviewDecisions(t.mine)).toBe(0);
     const agent = todo({ changes: [change(5, 'draft', 'me', 'me', { lifecycle: 'draft', agent: true })], requests: [], viewer: 'me', owners: ['me'] });

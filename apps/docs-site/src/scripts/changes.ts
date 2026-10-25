@@ -21,6 +21,8 @@ import { addableChanges, defaultTarget, draftDestination, type ChangePullLike } 
 import { currentViewer, initGitHubConnect, onAccess, readRepo } from './github-session';
 import { REQUEST_TRIAGE_IN_STUDIO } from '../lib/studio-flags';
 import { studioHref } from '../lib/team-path';
+import { sendButton } from '../lib/gh-wording';
+import { changesModeOnPage } from './changes-mode';
 
 type View = 'review' | 'requests' | 'explorations' | 'history';
 
@@ -76,6 +78,10 @@ function paintDraft() {
   const docs = docsEdits(draft);
   const cta = document.querySelector<HTMLAnchorElement>('#cg-draft a');
   if (cta && docs.length && !tokenEdits(draft).length) cta.href = `/components/${docs[0]!.slug}/?edit=1`;
+  // The same verb as the editor it opens: "Send suggestion" in suggest mode, "Send for review" in direct mode.
+  const label = cta ? [...cta.querySelectorAll('*'), cta].find((el) => [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent?.trim())) : null;
+  const text = label && [...label.childNodes].find((n) => n.nodeType === 3 && n.textContent?.trim());
+  if (text) text.textContent = sendButton(docs.length && !tokenEdits(draft).length ? 'docs' : 'tokens', changesModeOnPage());
   paintDestination(tokenEdits(draft).length);
 }
 
