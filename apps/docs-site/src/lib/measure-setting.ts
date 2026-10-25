@@ -24,13 +24,15 @@ export const MEASURE_WORDS = {
   signIn: 'Sign in with GitHub to set it up.',
 } as const;
 
-export type MeasureState = { kind: 'measured'; at: string } | { kind: 'waiting' } | { kind: 'missing' } | { kind: 'unknown' };
+export type MeasureState = { kind: 'measured'; at: string; auto: boolean } | { kind: 'waiting' } | { kind: 'missing' } | { kind: 'unknown' };
 
 /** "Bridge measured your components on Oct 25, 2026. Claude uses it to fix what differs in Figma." */
 export function measureSentence(s: MeasureState): string {
   switch (s.kind) {
     case 'measured':
-      return `Bridge measured your components on ${shortDay(s.at)}. Claude uses it to fix what differs in Figma.`;
+      return s.auto
+        ? `Bridge measured your components on ${shortDay(s.at)}. Claude uses it to fix what differs in Figma.`
+        : `Bridge measured your components once, on ${shortDay(s.at)}. A developer keeps it fresh: ${MEASURE_SETUP_ACTION}.`;
     case 'waiting':
       return MEASURE_WORDS.waiting;
     case 'missing':
@@ -42,7 +44,7 @@ export function measureSentence(s: MeasureState): string {
 
 /** From what GitHub said: the last commit of the measure on its branch, and whether the workflow is on the default branch. */
 export function measureState(lastMeasure: { date: string } | undefined, workflow: boolean): MeasureState {
-  if (lastMeasure) return { kind: 'measured', at: lastMeasure.date };
+  if (lastMeasure) return { kind: 'measured', at: lastMeasure.date, auto: workflow };
   return workflow ? { kind: 'waiting' } : { kind: 'missing' };
 }
 

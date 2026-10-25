@@ -59,7 +59,8 @@ export default function MeasureSetting({ context }: { context: AccessContext }) 
   };
 
   const sentence = context === 'sample' ? W.sample : state ? measureSentence(state) : W.checking;
-  const offer = context === 'real' && state !== null && state.kind !== 'measured';
+  // Offered until the workflow is on the default branch: a measure made once by hand goes stale.
+  const offer = context === 'real' && state !== null && (state.kind === 'missing' || (state.kind === 'measured' && !state.auto));
   return (
     <Card id="measure">
       <CardBody>
