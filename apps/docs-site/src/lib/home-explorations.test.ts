@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_PRODUCTS, type ProductConfig } from '@bridge-ds/core';
 import {
   explorationProduct,
+  explorationsFor,
   explorationStage,
   explorationTitle,
   homeExplorations,
@@ -119,9 +120,42 @@ describe('the explorations of the Studio home', () => {
     expect(isOwnExploration(profile, 'peterbono')).toBe(true);
     expect(isOwnExploration(profile, 'dana')).toBe(false);
     expect(isOwnExploration(profile, null)).toBe(false);
-    expect(homeExplorations([profile, ann], { products, author: who, viewer: 'ann' }).map((c) => c.number)).toEqual([60]);
+    expect(homeExplorations([profile, ann], { products, author: who, viewer: 'ann', onlyOwn: true }).map((c) => c.number)).toEqual([60]);
     // No viewer given (the demo, from the lead's seat): the whole team's.
     expect(homeExplorations([profile, ann], { products, author: who }).length).toBe(2);
+    // A lead's home: the whole team's, each marked whether it is theirs.
+    expect(homeExplorations([profile, ann], { products, author: who, viewer: 'ann' }).map((c) => [c.number, c.own])).toEqual([
+      [60, true],
+      [36, false],
+    ]);
+  });
+
+  it('reads a merged exploration among the closed ones as kept, and leaves out one closed without merging', () => {
+    const kept = pull(48, {
+      title: 'Exploration: plan comparison',
+      state: 'closed',
+      merged_at: '2026-10-25T21:30:52Z',
+      labels: [{ name: 'product: account' }, { name: 'tier: 2' }],
+      head: { ref: 'explore/plan-comparison' },
+      body: block('Plan comparison'),
+    });
+    const closed = pull(49, { ...kept, number: 49, merged_at: null, head: { ref: 'explore/given-up' } });
+    const cards = homeExplorations([profile, billing, kept, closed, profile], { products, author: who });
+    expect(cards.map((c) => [c.number, c.state])).toEqual([
+      [36, 'Exploring'],
+      [45, 'In review'],
+      [48, 'Kept in the library'],
+    ]);
+    // Kept: it is a change of the library now, its page is the change page.
+    expect(cards[2]!.href).toMatch(/changes\/\?pr=48$/);
+  });
+
+  it('gives a contributor their own only, a lead or reviewer the team', () => {
+    const cards = homeExplorations([profile, billing], { products, author: who, viewer: 'peterbono' }).map((c, i) => ({ ...c, own: i === 0 }));
+    expect(explorationsFor(cards, true)).toMatchObject({ title: 'Your explorations', seeAll: '/studio/changes/?who=mine' });
+    expect(explorationsFor(cards, true).cards.map((c) => c.number)).toEqual([36]);
+    expect(explorationsFor(cards, false)).toMatchObject({ title: 'Explorations', seeAll: '/studio/changes/' });
+    expect(explorationsFor(cards, false).cards).toHaveLength(2);
   });
 
   it('counts the library changes left to Changes in one sentence', () => {

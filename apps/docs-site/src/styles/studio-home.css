@@ -304,7 +304,9 @@
 
 .sh-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(max(var(--size-60), calc((100% - 3 * var(--space-4)) / 4)), 1fr));
+  /* One row on a wide screen: Start an exploration and three cards, four columns from the content width down to
+     four narrow cards; a phone stacks them (below). */
+  grid-template-columns: repeat(auto-fill, minmax(max(var(--size-40), calc((100% - 3 * var(--space-4)) / 4)), 1fr));
   gap: var(--space-4);
   margin: 0;
   padding: 0;
@@ -384,9 +386,10 @@
   gap: var(--space-6);
 }
 
+/* Four ways to start: two by two on a wide screen (never three and an orphan), one column on a phone. */
 .sh-choices {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(var(--size-60), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(max(var(--size-60), calc((100% - var(--space-4)) / 2)), 1fr));
   gap: var(--space-4);
   margin: 0;
   padding: 0;
@@ -411,9 +414,22 @@
   line-height: var(--typography-h3-line-height);
 }
 
+/* "Start an exploration" as a way to start: a button that opens the start flow, set like the other choices' titles. */
+.sh-choice-btn {
+  justify-self: start;
+  height: auto;
+  padding: 0;
+  text-align: start;
+  text-decoration: none;
+}
+
 /* --- Phones ----------------------------------------------------------------------------------------------------- */
 
 @media (max-width: 640px) {
+  .sh-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .sh-zone {
     padding: var(--space-5) var(--space-4);
   }

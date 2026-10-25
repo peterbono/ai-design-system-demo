@@ -50,6 +50,8 @@ export interface HomePull extends QueuePullFull {
   requested_reviewers?: { login: string }[] | null;
   base: { ref: string; sha: string };
   head: { ref: string; sha: string };
+  /** Closed ones only: when it was merged (a kept exploration). */
+  merged_at?: string | null;
 }
 
 /** Build-time facts the page passes in (repo data, not GitHub). */
@@ -290,6 +292,11 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
   })().catch(() => undefined);
   const queue = reviewQueue(pulls);
   const products = homeProducts();
+  // The explorations kept lately: merged ones among the recently closed (the same read Changes makes), painted when read.
+  let closed: HomePull[] = [];
+  const closedRead = ghGet<HomePull[]>(`/repos/${owner}/${repo}/pulls?state=closed&sort=updated&direction=desc&per_page=30`)
+    .then((r) => (closed = r.data.filter((p) => p.merged_at)))
+    .catch(() => (closed = []));
   const shots = new Map<number, ThumbSpec>();
   const statuses = new Map<number, PullStatus | null>(queue.map((p) => [p.number, null]));
   const timelines = new Map<number, TimelineEvent[] | null>();
@@ -353,7 +360,8 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
       needs.push(changeNeed(facts, now));
     }
     // Explorations are the home's cards; the viewer's library changes are counted under them (Changes lists them).
-    const explorations = homeExplorations(pulls, {
+    // The team's: a contributor's home keeps only their own (home by role, lib/home-explorations explorationsFor).
+    const explorations = homeExplorations([...pulls, ...closed], {
       products,
       viewer,
       author: (p) => {
@@ -428,7 +436,12 @@ export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: 
       paint();
     });
   };
-  const mine = pulls.filter((p) => isHomeExploration(p, products) && isOwnExploration(p, viewer));
+  await closedRead;
+  paint();
+  // The explored screens of the first cards a lead sees, and of every one of the viewer's own: each costs reads.
+  const all = [...pulls, ...closed].filter((p) => isHomeExploration(p, products));
+  const firstShown = new Set(homeExplorations(all, { products, author: () => CLAUDE }).slice(0, 6).map((c) => c.number));
+  const mine = all.filter((p) => firstShown.has(p.number) || isOwnExploration(p, viewer));
   await Promise.all([
     ...order.map(async (x) => {
       resolved.set(x.pull.number, await thumbOf(x.pull, x.guidance));

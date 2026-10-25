@@ -287,7 +287,7 @@ describe('contributors: what waits on someone without a review right', () => {
     // Nothing yet: nothing to point at but where to start, the three ways to start a change.
     expect(contributorTourSteps(true)).toEqual(['start']);
     expect(contributorTourSteps(false)).toEqual(['branches', 'start']);
-    expect(contributorTour('start', true).title).toBe('Start a change');
+    expect(contributorTour('start', true).title).toBe('Where to start');
     for (const at of CONTRIBUTOR_TOUR_STEPS) expect(contributorTour(at).text).not.toMatch(/merge/i);
     for (const at of CONTRIBUTOR_TOUR_STEPS) expect(JSON.stringify([contributorTour(at), contributorTour(at, true)])).not.toMatch(/\u2014|lead/);
   });

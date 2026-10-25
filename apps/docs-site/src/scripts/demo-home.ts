@@ -1,8 +1,8 @@
 // The demo's Studio home for a visitor without an account (components/ds/studio/DemoHome.tsx, rules in
 // lib/demo-home.ts): the DS lead's queue and the team's explorations, read-only.
 //
-// Every fact about the demo's activity goes through one function, readDemoActivity: two GitHub reads (open branches,
-// open suggestions) that the demo's activity snapshot answers (bridge-data branch, raw host, no API quota) when its
+// Every fact about the demo's activity goes through one function, readDemoActivity: three GitHub reads (open branches,
+// the recently closed ones for the explorations kept, open suggestions) that the demo's activity snapshot answers (bridge-data branch, raw host, no API quota) when its
 // recorded reads match these URLs exactly, kept by ghGet's cache when GitHub stops answering. Display names and the
 // before/after thumbnails of what is
 // shown first are read after, and only add to the page.
@@ -22,6 +22,8 @@ import { demoApprovals } from './demo-approvals';
 export interface DemoActivity {
   /** Open branches (pull requests), drafts included. */
   open: DemoPull[];
+  /** Recently closed branches (the 30 last updated): a merged exploration is kept. */
+  closed?: DemoPull[];
   /** Open suggestions. */
   suggestions: DemoSuggestion[];
   /** Display names by lower-case login, when the source carries them (a snapshot can); read from GitHub otherwise. */
@@ -34,11 +36,13 @@ export interface DemoActivity {
  */
 export async function readDemoActivity(repo: { owner: string; repo: string } = readRepo()): Promise<DemoActivity> {
   const base = `/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.repo)}`;
-  const [open, suggestions] = await Promise.all([
+  const [open, closed, suggestions] = await Promise.all([
     ghGet<DemoPull[]>(`${base}/pulls?state=open&per_page=100`),
+    // The same read as Changes and the activity snapshot record, so the snapshot answers it.
+    ghGet<DemoPull[]>(`${base}/pulls?state=closed&sort=updated&direction=desc&per_page=30`).catch(() => ({ data: [] as DemoPull[] })),
     ghGet<DemoSuggestion[]>(`${base}/issues?state=open&labels=${encodeURIComponent(SUGGESTION_LABEL)}&per_page=50&sort=created&direction=desc`).catch(() => ({ data: [] as DemoSuggestion[] })),
   ]);
-  return { open: open.data, suggestions: suggestions.data };
+  return { open: open.data, closed: closed.data, suggestions: suggestions.data };
 }
 
 export interface DemoHomeData {
@@ -107,7 +111,7 @@ export async function loadDemoHome(stat: DemoStatic, onUpdate: (d: DemoHomeData)
   const opts = { thumbs, people, approved: sample ? demoApprovals() : new Set<number>() };
   const products = demoProducts();
   const needs = () => sortNeeds([...staticNeeds(), ...leadQueue(activity.open, activity.suggestions, now, opts)]);
-  const explorations = () => teamExplorations(activity.open, { people, products, previews, sample });
+  const explorations = () => teamExplorations([...activity.open, ...(activity.closed ?? [])], { people, products, previews, sample });
   const paint = () => onUpdate({ loading: false, needs: needs(), explorations: explorations(), lead, role, failed: null });
   paint();
 
@@ -155,7 +159,7 @@ export async function loadDemoHome(stat: DemoStatic, onUpdate: (d: DemoHomeData)
         }
         later();
       }),
-    ...activity.open
+    ...[...activity.open, ...(activity.closed ?? [])]
       .filter((p): p is Readable => screens.has(p.number) && readable(p))
       .map(async (p) => {
         const shot = await previewOf(p).catch(() => null);

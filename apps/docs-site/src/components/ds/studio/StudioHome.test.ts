@@ -28,6 +28,7 @@ const exploration = (n: number, over: Partial<ExplorationCard> = {}): Exploratio
   state: 'Exploring',
   updated: '2026-10-21T10:00:00Z',
   preview: { kind: 'screen', src: `/sample/explorations/${n}.png` },
+  own: true,
   ...over,
 });
 
@@ -92,16 +93,53 @@ describe('StudioHome, contributor', () => {
 describe('StudioHome, contributor with nothing yet', () => {
   it('tours only where to start: there are no explorations to point at', async () => {
     const { container } = render(createElement(StudioHome, props({ state: 'empty', branches: [], explorations: [] })));
-    expect((await screen.findAllByText('Start a change')).length).toBeGreaterThan(0);
+    expect(await screen.findByText('Where to start')).toBeTruthy();
     expect(screen.queryByText(/of 1$/)).toBeNull();
     expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
-    // Under the ways to start a change, the explorations say how to start one: one sentence, one button.
-    expect(screen.getByRole('heading', { level: 2, name: 'Your explorations' })).toBeTruthy();
-    expect(screen.getByText(EXPLORE_LINE)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Start an exploration' })).toBeTruthy();
+    // "Start an exploration" is the first way to start, before the library changes; no second section repeats it.
+    const choices = [...container.querySelectorAll('.sh-choices > li')].map((li) => li.querySelector('.sh-choice-title')?.textContent);
+    expect(choices).toEqual(['Start an exploration', 'Edit tokens', 'Ask for a component change', 'Write usage guidance']);
+    expect(screen.getAllByRole('button', { name: 'Start an exploration' })).toHaveLength(1);
+    expect(screen.queryByRole('heading', { level: 2, name: /explorations/i })).toBeNull();
     expect(container.querySelector('.sh-cards')).toBeNull();
     expect(screen.queryByText(/library change/)).toBeNull();
     await expectNoAxeViolations(container);
+  });
+
+  it('opens the start flow on its product step from the first way to start', async () => {
+    localStorage.setItem('bridge.home.contributor-tour', 'done');
+    const user = userEvent.setup();
+    render(createElement(StudioHome, props({ state: 'empty', branches: [], explorations: [] })));
+    await user.click(screen.getByRole('button', { name: 'Start an exploration' }));
+    expect((await screen.findByRole('dialog')).textContent).toContain('What do you want to explore?');
+  });
+});
+
+describe('StudioHome, explorations by role', () => {
+  beforeEach(() => {
+    localStorage.setItem('bridge.home.contributor-tour', 'done');
+    localStorage.setItem('bridge.home.lead-tour', 'done');
+  });
+  const team = [exploration(36, { own: true }), exploration(37, { own: false, title: 'Team seats and roles' }), exploration(38, { own: false, title: 'Plan comparison' })];
+
+  it("shows a lead or reviewer the team's explorations, See all on Changes", () => {
+    const many = [...team, exploration(39, { own: false }), exploration(40, { own: false })];
+    render(createElement(StudioHome, props({ contributor: false, lead: true, explorations: many })));
+    expect(screen.getByRole('heading', { level: 2, name: 'Explorations' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Team seats and roles' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'See all 5' }).getAttribute('href')).toBe('/studio/changes/');
+  });
+
+  it('shows a contributor only their own, under Your explorations', () => {
+    render(createElement(StudioHome, props({ contributor: true, explorations: team })));
+    expect(screen.getByRole('heading', { level: 2, name: 'Your explorations' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Profile page 36' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Team seats and roles' })).toBeNull();
+  });
+
+  it('gives a contributor with none of their own the empty state, even when the team explores', () => {
+    render(createElement(StudioHome, props({ contributor: true, explorations: team.slice(1) })));
+    expect(screen.getByText(EXPLORE_LINE)).toBeTruthy();
   });
 });
 

@@ -39,7 +39,7 @@ import {
   type NeedRow,
   type Person,
 } from '../../../lib/home-model';
-import { libraryChangesLine, YOUR_CHANGES_HREF, type ExplorationCard } from '../../../lib/home-explorations';
+import { explorationsFor, libraryChangesLine, YOUR_CHANGES_HREF, type ExplorationCard } from '../../../lib/home-explorations';
 import { studioHref } from '../../../lib/team-path';
 import { demoTour, demoWaiting, tourSteps, type TourAt } from '../../../lib/demo';
 import { useNarrow, useTour } from './HomeTour';
@@ -221,15 +221,12 @@ function Explorations({
   title,
   seeAll,
   tour,
-  start = true,
 }: {
   explorations: ExplorationCard[];
   components: HomeComponent[];
   title: string;
   seeAll: string;
   tour?: StudioHomeProps['tour'];
-  /** The tour's "start" step points here (the busy home); the home with nothing at all points at its own ways to start. */
-  start?: boolean;
 }) {
   const narrow = useNarrow();
   const shown = explorations.slice(0, EXPLORATION_CARDS);
@@ -263,7 +260,7 @@ function Explorations({
         </div>
       )}
       {!narrow && tour?.('branches')}
-      {start && tour?.('start')}
+      {tour?.('start')}
     </section>
   );
 }
@@ -304,9 +301,21 @@ const CHOICES = [
   { drawing: 'guide', title: 'Write usage guidance', line: 'When to use a component, and when not to.', key: 'guidance' },
 ] as const;
 
-function Start({ hrefs }: { hrefs: Record<(typeof CHOICES)[number]['key'], string> }) {
+/** The first way to start, before the library ones: an exploration, through the start flow (StartChange). */
+const EXPLORE_CHOICE = 'Try a product screen with Claude AI. Bridge shows what the library does not have yet.';
+
+function Start({ hrefs, components }: { hrefs: Record<(typeof CHOICES)[number]['key'], string>; components: HomeComponent[] }) {
   return (
     <ul className="sh-choices" aria-label="Ways to start">
+      <li>
+        <Card interactive className="sh-choice">
+          <CardBody className="sh-choice-body">
+            <Drawing name="paint" width={104} />
+            <StartChange components={components} appearance="choice" exploration />
+            <span className="t-ui t-muted">{EXPLORE_CHOICE}</span>
+          </CardBody>
+        </Card>
+      </li>
       {CHOICES.map((c) => (
         <li key={c.key}>
           <Card interactive className="sh-choice">
@@ -332,7 +341,10 @@ export interface StudioHomeProps {
   needs: NeedRow[];
   /** The viewer's own library changes and suggestions: counted in one line under the explorations, listed on Changes. */
   branches: BranchCard[];
-  /** The explorations the home shows as cards (lib/home-explorations): the viewer's own, the team's on the demo. */
+  /**
+   * The team's explorations (lib/home-explorations), each marked `own`: a lead or reviewer sees them all under
+   * "Explorations", a contributor only their own under "Your explorations" (home by role). The demo: the team's.
+   */
   explorations: ExplorationCard[];
   health: HealthLine | null;
   /** Show the calm Being built line under the zone (BuildLine): what developers build from Figma, never a Needs you row. */
@@ -407,7 +419,8 @@ function HomeBody(p: StudioHomeProps) {
   const isChange = (r: NeedRow) => r.kind === 'review' || r.kind === 'guidance';
   const changeRows = p.needs.some(isChange);
   const split = splitNeeds(p.needs);
-  const leadSteps = tourSteps({ rows: split.shown.some(isChange), more: changeRows && Boolean(split.more), branches: p.explorations.length > 0 });
+  const byRole = explorationsFor(p.explorations, Boolean(p.contributor) && !p.demo);
+  const leadSteps = tourSteps({ rows: split.shown.some(isChange), more: changeRows && Boolean(split.more), branches: byRole.cards.length > 0 });
   const lead = useTour<TourAt>(LEAD_TOUR_KEY, leadSteps, (at) => demoTour(at), Boolean(p.lead) && !p.contributor && !p.demo && p.state === 'busy' && leadSteps.length > 0);
   const tour: StudioHomeProps['tour'] =
     p.tour ??
@@ -416,15 +429,14 @@ function HomeBody(p: StudioHomeProps) {
       : p.lead && !p.demo
         ? (at) => (at === 'rows' || at === 'more' || at === 'branches' ? lead(at) : null)
         : undefined);
-  const explorations = (start = true) => (
+  const explorations = (
     <Explorations
-      explorations={p.explorations}
+      explorations={byRole.cards}
       components={p.components}
-      title={p.demo?.explorationsTitle ?? 'Your explorations'}
-      // The demo shows the team's: all of them on Changes. A member's own: their work on Changes.
-      seeAll={p.demo ? studioHref('changes/') : YOUR_CHANGES_HREF()}
+      title={p.demo?.explorationsTitle ?? byRole.title}
+      // The demo shows the team's: all of them on Changes.
+      seeAll={p.demo ? studioHref('changes/') : byRole.seeAll}
       tour={tour}
-      start={start}
     />
   );
   if (p.state === 'signed-out' && !p.demo) {
@@ -458,20 +470,19 @@ function HomeBody(p: StudioHomeProps) {
           <div className="sh-head-text">
             {p.setup && <div className="sh-setup">{p.setup}</div>}
             <p className="t-body">
-              {p.greeting} Nothing needs you{p.failed ? '' : ', and you have no change in progress'}.
+              {p.greeting} Nothing needs you{p.failed ? '' : ', and you have nothing in progress'}.
             </p>
             <h1 id="sh-hello" className="sh-hello">
               What do you want to change?
             </h1>
           </div>
           {tour?.('branches')}
-          <Start hrefs={p.startHrefs} />
+          <Start hrefs={p.startHrefs} components={p.components} />
           {tour?.('start')}
         </section>
         {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}
         {p.health && <Health h={p.health} />}
         {p.building && <BuildLine />}
-        {!p.failed && explorations(false)}
       </div>
     );
   }
@@ -508,7 +519,7 @@ function HomeBody(p: StudioHomeProps) {
       {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}
       {p.health && <Health h={p.health} />}
       {p.building && <BuildLine />}
-      {(p.explorations.length > 0 || !loading) && explorations()}
+      {(byRole.cards.length > 0 || !loading) && explorations}
       {!p.demo && !loading && <YourChanges n={p.branches.length} />}
     </div>
   );

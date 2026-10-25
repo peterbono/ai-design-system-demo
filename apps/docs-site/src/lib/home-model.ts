@@ -265,10 +265,10 @@ const CONTRIBUTOR_TOUR: Record<ContributorTourAt, { title: string; text: string 
   },
 };
 
-/** The home with nothing at all points at its three ways to start a change instead (tokens, a component, guidance). */
+/** The home with nothing at all points at its ways to start instead: an exploration first, then the library changes. */
 const START_A_CHANGE = {
-  title: VOCAB.createBranch,
-  text: 'Pick what you want to change. Bridge keeps it as a change of its own, so you can try things without touching the library until a reviewer approves it.',
+  title: 'Where to start',
+  text: 'Start an exploration to try a product screen with Claude AI, or pick what to change in the library. Nothing reaches the library until a reviewer approves it.',
 };
 
 /** One step's words. `empty`: the home with nothing at all, whose start step points at the ways to start a change. */

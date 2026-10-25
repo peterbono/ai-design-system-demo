@@ -106,6 +106,27 @@ describe("the DS lead's queue on the demo", () => {
     expect(cards.every((c) => !('sample' in c))).toBe(true);
   });
 
+  it("shows every state of the sample team's explorations, each with its shipped screen", () => {
+    const pieces = (n: number) => `<!-- bridge-pieces ${JSON.stringify({ checkedAt: 'x', headSha: 'y', pieces: Array.from({ length: n }, (_, i) => ({ id: `p${i}`, kind: 'token', title: `P${i}`, values: [] })), fixes: 0, links: [] })} -->`;
+    const account = [{ name: 'product: account' }];
+    const cards = teamExplorations(
+      [
+        pull(46, { draft: true, labels: [...account, { name: 'exploration' }], head: { ref: 'explore/team-seats-and-roles' }, title: 'Exploration: team seats and roles', body: pieces(3) }),
+        pull(47, { labels: [...account, { name: 'tier: 2' }], head: { ref: 'explore/notification-channels' }, title: 'Exploration: notification channels' }),
+        pull(48, { state: 'closed', merged_at: at(0), labels: [...account, { name: 'tier: 2' }], head: { ref: 'explore/plan-comparison' }, title: 'Exploration: plan comparison' }),
+      ],
+      { sample: true },
+    );
+    expect(cards.map((c) => [c.title, c.state])).toEqual([
+      ['Team seats and roles', '3 new pieces found'],
+      ['Notification channels', 'In review'],
+      ['Plan comparison', 'Kept in the library'],
+    ]);
+    expect(cards.map((c) => c.preview)).toEqual(
+      ['team-seats-and-roles', 'notification-channels', 'plan-comparison'].map((f) => ({ kind: 'screen', src: `/sample/explorations/${f}.png` })),
+    );
+  });
+
   it('reads the explored screen of another demo when the visual impact run has one, a sketch until then', () => {
     const explore = pull(7, { labels: [{ name: 'exploration' }], head: { ref: 'explore/pill-buttons' } });
     expect(teamExplorations([explore])[0]!.preview).toEqual({ kind: 'screen', src: null });

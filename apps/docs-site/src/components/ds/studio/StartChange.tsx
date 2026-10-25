@@ -38,8 +38,9 @@ export interface StartChangeProps {
   /**
    * `card`: the dashed first card of the home's explorations, always shown (the page only mounts it signed in).
    * `button`: a lone secondary button (the home's explorations when there are none yet).
+   * `choice`: the title of a way-to-start card (the home with nothing at all), the card's primary action.
    */
-  appearance?: 'menu' | 'card' | 'button';
+  appearance?: 'menu' | 'card' | 'button' | 'choice';
   /**
    * "Start an exploration" (the Studio home's explorations): the same flow on its product step, a feature in a product
    * tried with Claude AI, with no question about the library first.
@@ -378,6 +379,10 @@ export default function StartChange({ components, appearance = 'menu', explorati
           card ? (
             <Button variant="ghost" iconStart={Plus} fullWidth className="sh-create-btn" data-start-change data-demo-write={gate}>
               {label}
+            </Button>
+          ) : appearance === 'choice' ? (
+            <Button variant="link" className="sh-choice-btn" data-card-primary data-start-change data-demo-write={gate}>
+              <span className="sh-choice-title">{label}</span>
             </Button>
           ) : appearance === 'button' ? (
             <Button variant="secondary" size="lg" iconStart={Plus} data-start-change data-demo-write={gate}>
