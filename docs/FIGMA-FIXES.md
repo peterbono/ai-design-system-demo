@@ -229,13 +229,16 @@ problems or the deltas, up to 3 rounds. The closest fixes are proposed; when non
 (Differs, with the gap's summary as the reason). Without a key, the command says how to run the same loop from
 Claude Code with the MCP server.
 
-### What the plugin's "Fix with Claude" button calls
+### What the plugin's "Ask Claude to fix it" button calls
 
 After Check fidelity, for a set whose result is Differs: write the run (`FigmaFidelityRun`: `report`, `built` per
 set and variant from the `read-built` read-back the plugin already does for its gap cases, with `boxes` and `hidden`,
 and `figmaRenders`) to `figma-fidelity.json` on the `bridge-requests` branch (the branch "Draft with my Claude" already
-writes to), then show the prompt to paste into Claude: "Fix <component> in Figma with Bridge". The designer's Claude
-reads it through `bridge_figma_gaps` and `bridge_get_gap_case`. Before building, the pull already applies
+writes to), then show one sentence and **Copy for your developer**. The copied request holds both ways to run the
+fix (the MCP phrase "Fix <component> in Figma with Bridge" and `npx @bridge-ds/cli fix <component> --with-claude`);
+the plugin never displays a command, an API key or MCP to the designer. The developer's Claude reads the run through
+`bridge_figma_gaps` and `bridge_get_gap_case`. Bridge has no server that runs Claude for the team yet: a developer
+starts the run. Before building, the pull already applies
 figma-fixes.json. The plugin can import `specsFromMeasure` from core and drop its own copy (a core test keeps both
 identical until then).
 

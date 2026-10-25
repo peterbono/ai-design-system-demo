@@ -8,7 +8,7 @@ import { type Analysis, type PullProposal, type PushBrand, type PushProposal, an
 import { type ChangesMode, GitHubClient, type PullRequest, changesMode, figmaPushNextLine, loadConfig, parseRepo } from '@bridge-ds/core';
 import type { RenameSuggestion } from '@bridge-ds/core';
 import { type FigmaFidelityRun, type GapBuiltVariant, type GapCase, type MeasuredSpecsFile, affectedContrast, buildGapCase, defaultTitle } from '@bridge-ds/core';
-import { fixCommand, fixPhrase, writeFidelityRun } from '../sync/fix-with-claude';
+import { FIX_ASKED_TEXT, FIX_NEXT_TEXT, fixRequestForDeveloper, writeFidelityRun } from '../sync/fix-with-claude';
 import { type PathIndex, type ResolveContext, resolve } from '@bridge-ds/core';
 import { contextFor, modesOf } from '@bridge-ds/core';
 import { type LogicalToken, SINGLE_MODE } from '@bridge-ds/core';
@@ -102,7 +102,7 @@ interface PullState {
         gaps?: GapCase[] | undefined;
         gapsCopied?: boolean | undefined;
         built?: Record<string, Record<string, GapBuiltVariant>> | undefined;
-        fix?: { component: string; status: 'writing' | 'ready' | 'error'; error?: string | undefined; copied?: 'phrase' | 'command' | undefined } | undefined;
+        fix?: { component: string; status: 'writing' | 'ready' | 'error'; error?: string | undefined; copied?: boolean | undefined } | undefined;
       }
     | undefined;
 }
@@ -2211,9 +2211,9 @@ async function gapCases(p: PullState, items: Extract<FidelityOutcome, { kind: 'd
 }
 
 /**
- * "Fix with Claude" on a set that differs: the run goes to figma-fidelity.json on the requests branch, then the designer
- * asks their Claude (the phrase) or runs the CLI with the team's API key. The next pull of Claude's branch, then Check
- * fidelity, decide.
+ * "Ask Claude to fix it" on a set that differs: the run goes to figma-fidelity.json on the requests branch, then the
+ * designer copies the request for their developer, who runs Claude (MCP or the CLI with the team's API key). Once the
+ * fix is merged, the next pull lays it on and Check fidelity decides.
  */
 async function fixWithClaude(p: PullState, component: string): Promise<void> {
   const f = p.fidelity;
@@ -2231,29 +2231,31 @@ async function fixWithClaude(p: PullState, component: string): Promise<void> {
     await writeFidelityRun(getClient(), run, state.init!.settings.branch);
     f.fix = { component, status: 'ready' };
   } catch (err) {
-    f.fix = { component, status: 'error', error: inlineError(err) ?? 'Could not write the check for Claude.' };
+    f.fix = { component, status: 'error', error: inlineError(err) ?? 'Bridge could not save the request. Check your connection, then try again.' };
   }
   render();
 }
 
-/** After Fix with Claude: what to say to Claude, or the command with an API key. */
+/**
+ * After "Ask Claude to fix it": one sentence and "Copy for your developer". The ways to run Claude (MCP phrase, CLI with
+ * an API key) are in the copied text only: a designer never sees a command. Bridge runs nothing server side yet.
+ */
 function fixPanel(p: PullState, component: string): Child {
   const fix = p.fidelity?.fix;
   if (!fix || fix.component !== component) return null;
-  if (fix.status === 'writing') return h('p', { class: 'muted' }, 'Sending the check to the repository...');
-  if (fix.status === 'error') return h('div', { class: 'callout warn' }, h('p', null, fix.error));
-  const copy = (what: 'phrase' | 'command', text: string) =>
-    h('button', { class: 'btn', onClick: () => void copyText(text).then((ok) => { if (p.fidelity?.fix && ok) p.fidelity.fix.copied = what; render(); }) }, icon(fix.copied === what ? 'check' : 'copy'), fix.copied === what ? 'Copied' : what === 'phrase' ? 'Copy for Claude' : 'Copy the command');
+  if (fix.status === 'writing') return h('p', { class: 'muted', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Getting the request ready');
+  if (fix.status === 'error') return h('div', { class: 'callout warn', role: 'alert' }, h('div', { class: 'callout-title' }, icon('alert'), 'Could not ask Claude'), h('p', null, fix.error));
+  const text = fixRequestForDeveloper(component, state.init?.settings.repo ?? '');
   return h(
     'div',
-    { class: 'callout' },
-    h('p', null, 'Ask your Claude, with the Bridge MCP server:'),
-    h('p', null, h('code', null, fixPhrase(component))),
-    copy('phrase', fixPhrase(component)),
-    h('p', { class: 'muted' }, 'With your team\'s API key instead, in the repository:'),
-    h('p', null, h('code', null, fixCommand(component))),
-    copy('command', fixCommand(component)),
-    h('p', { class: 'muted' }, 'Claude opens its fixes for review. Pull its branch, then Check fidelity: the story renders decide.'),
+    { class: 'callout', role: 'status' },
+    h('p', null, FIX_ASKED_TEXT),
+    h(
+      'div',
+      { class: 'inline-actions' },
+      h('button', { class: 'btn', 'data-focus-id': `fix-copy-${component}`, onClick: () => void copyText(text).then((ok) => { if (p.fidelity?.fix && ok) p.fidelity.fix.copied = true; render(); }) }, icon(fix.copied ? 'check' : 'copy'), fix.copied ? 'Copied' : 'Copy for your developer'),
+    ),
+    h('p', { class: 'muted' }, FIX_NEXT_TEXT),
   );
 }
 
@@ -2299,15 +2301,17 @@ function fidelityGroup(p: PullState): Child {
         const kind =
           r.status === 'differs' ? h('span', { class: 'kind removed row-end' }, 'Differs') : r.status === 'matches' ? h('span', { class: 'kind added row-end' }, 'Matches') : h('span', { class: 'kind row-end' }, 'Not compared');
         const others = r.variants.filter((v) => v.status !== 'matches');
+        // Where the difference comes from, in one sentence (the gap case's summary): it replaces the pixel figures,
+        // which stay one click away under the variants.
+        const gap = r.status === 'differs' ? f?.gaps?.find((g) => g.component === it.name)?.summary : undefined;
+        const asked = f?.fix?.component === it.name && f.fix.status !== 'error';
         return h(
           'li',
           { class: 'row review' },
           h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, it.name), kind),
-          h('p', { class: 'muted' }, fidelityComponentLine(r)),
-          // Where the difference comes from, in one sentence (the gap case's summary).
-          r.status === 'differs' && f?.gaps?.find((g) => g.component === it.name)?.summary ? h('p', null, f.gaps.find((g) => g.component === it.name)!.summary) : null,
-          r.status === 'differs' && p.measure
-            ? h('button', { class: 'btn ghost', disabled: f?.fix?.status === 'writing' || !!state.busy, onClick: () => void fixWithClaude(p, it.name) }, 'Fix with Claude')
+          gap ? h('p', null, gap) : h('p', { class: 'muted' }, fidelityComponentLine(r)),
+          r.status === 'differs' && p.measure && !asked
+            ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn', 'data-focus-id': `fix-${it.name}`, disabled: f?.fix?.status === 'writing' || !!state.busy, onClick: () => void fixWithClaude(p, it.name) }, 'Ask Claude to fix it'))
             : null,
           r.status === 'differs' ? fixPanel(p, it.name) : null,
           // The three images on demand: the list stays a list to scan (FID-5).
