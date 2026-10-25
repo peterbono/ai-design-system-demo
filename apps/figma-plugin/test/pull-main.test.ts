@@ -76,7 +76,7 @@ test('Pull headline: commits on main since the last pull never read "Already up 
   assert.equal(pullHeadline({ ...base, behind: 1, status: ['3 components to build'] }), '1 new change in the design system, 3 components to build');
   assert.equal(pullHeadline({ ...base, behind: 0, status: ['3 components to build'] }), 'Up to date with the design system. 3 components to build.');
   assert.equal(pullHeadline({ ...base, variablesUpToDate: false, behind: 2, status: ['4 edited in the design system'] }), '4 edited in the design system');
-  assert.equal(pullHeadline({ ...base, baseSha: undefined, variablesUpToDate: false, behind: 0 }), 'First time in this file');
+  assert.equal(pullHeadline({ ...base, baseSha: undefined, variablesUpToDate: false, behind: 0 }), 'Bring your design system into this file');
   for (const behind of [0, 1, 2]) assert.ok(!pullHeadline({ ...base, behind }).includes(String.fromCharCode(0x2014)));
   for (const behind of [0, 1, 2]) assert.doesNotMatch(pullHeadline({ ...base, behind, status: ['3 components to build'] }), /\bmain\b|[0-9a-f]{7}/);
 

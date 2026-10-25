@@ -1863,13 +1863,13 @@ function viewPull(): View {
         text: 'See every change before anything is written. Your own edits are kept, nothing is deleted.',
         meta: init.sync.baseSha
           ? init.sync.lastPullAt ? `Last updated in this file on ${when(init.sync.lastPullAt)}.` : undefined
-          : 'First time in this file: one collection per tier, with its modes.',
+          : 'First time in this file: Bridge adds its variables and components.',
         art: 'tokens',
-      }), forDevelopers([...repoRows(), ['Last pulled commit', short(init.sync.baseSha)]]), steps([
+      }), steps([
         ['Check', "Bridge reads the design system's tokens and components."],
         ['Review', 'Every new, edited or deleted token is listed with its value. Nothing is written yet.'],
         ['Apply', 'Figma variables are created or updated, and components are built from the code. Your own edits stay until you send them from Push.'],
-      ])],
+      ]), forDevelopers([...repoRows(), ['Last pulled commit', short(init.sync.baseSha)]])],
       bar: { label: 'Check for updates', onClick: checkPull },
     };
   }
@@ -1887,8 +1887,11 @@ function viewPull(): View {
     const problems = [...(r?.errors ?? []), ...(cr?.problems ?? [])];
     const view = cr ? componentReportView(cr) : undefined;
     const text = [
-      r ? `${plural(r.created, 'variable')} created, ${r.updated} updated${r.orphaned ? `, ${r.orphaned} flagged as orphan` : ''}.` : '',
-      cr && view
+      r ? `${[r.created ? `${plural(r.created, 'variable')} created` : '', r.updated ? `${plural(r.updated, 'variable')} updated` : '', r.orphaned ? `${r.orphaned} flagged as orphan` : ''].filter(Boolean).join(', ') || 'Variables already matched'}.` : '',
+      // Everything new and built in one place (a first pull): one sentence, not "All 62 built. 62 created".
+      cr && view && cr.created && !cr.updated && !cr.orphaned && !cr.elsewhere && cr.created === (cr.total ?? cr.created) && !view.retry
+        ? `${cr.created === 1 ? 'The component is' : `All ${cr.created} components are`} on the ${cr.page} page.`
+        : cr && view
         ? `${view.headline} ${[cr.created ? `${cr.created} created` : '', cr.updated ? `${cr.updated} updated` : '', cr.orphaned ? `${plural(cr.orphaned, 'variant')} flagged as orphan` : ''].filter(Boolean).join(', ')}${cr.created || cr.updated || cr.orphaned ? (cr.elsewhere ? `, ${cr.elsewhere} of them where they are kept in this file.` : ` on the ${cr.page} page.`) : ''}`.trim()
         : '',
       prop.kept.length ? `${plural(prop.kept.length, 'Figma edit')} kept: send them from Push.` : '',
@@ -1896,10 +1899,13 @@ function viewPull(): View {
     const left = view?.retry ?? false;
     // Variables are written first, then the components: until they are built, the file is not up to date yet.
     const building = !cr && !!state.busy;
+    // The first pull of this file, done: the designer's next step, in one sentence (orientation, no dead end).
+    const firstDone = !p.analysis.baseSha && !problems.length && !left && !building && !view?.stopped;
+    if (firstDone) text.push('To change something, edit it in Figma, then send it from Push.');
     return {
       body: [
         intro({
-          title: view?.stopped ? 'Pull stopped' : left ? 'Some components were not built' : problems.length ? 'Pulled, with problems' : building ? 'Variables are in, building components' : 'Figma is up to date',
+          title: view?.stopped ? 'Pull stopped' : left ? 'Some components were not built' : problems.length ? 'Pulled, with problems' : building ? 'Variables are in, building components' : firstDone ? 'Your design system is in Figma' : 'Figma is up to date',
           text: text.join(' '),
           meta: r ? (r.layout === 'single-collection' ? 'Themes are modes of the Semantic collection.' : 'This file allows one mode per collection, so each theme has its own Semantic collection.') : undefined,
           art: problems.length ? 'fix' : 'tokens',
@@ -1957,14 +1963,14 @@ function viewPull(): View {
   const catchUp = upToDate && behind > 0;
   const headline = pullHeadline({ baseSha: a.baseSha, variablesUpToDate: upToDate, behind, status });
   const lastPulled = a.baseSha && init.sync.lastPullAt ? `Last updated in this file on ${when(init.sync.lastPullAt)}` : '';
+  const freshCount = (p.components?.components ?? []).filter((c) => c.status === 'new').length;
   const meta = !a.baseSha
-    ? `${plural(prop.plan.variables.length, 'variable')} from the design system, in the ${andList(pullCollections(prop.plan))} ${pullCollections(prop.plan).length === 1 ? 'collection' : 'collections'}.`
+    ? `${plural(prop.plan.variables.length, 'variable')}${freshCount ? ` and ${plural(freshCount, 'component')}` : ''} from the design system. Nothing is written until you apply.`
     : catchUp
       ? [lastPulled, 'Your variables already match the design system: update to catch up with its latest changes.'].filter(Boolean).join('. ')
       : [lastPulled, behind ? `${plural(behind, 'new change')} in the design system` : ''].filter(Boolean).join(' · ');
   const body: Child[] = [
     h('section', { class: 'zone' }, h('h2', { class: 'headline' }, headline), meta ? h('p', { class: 'muted' }, meta) : null),
-    forDevelopers([...repoRows(), ['Last pulled commit', short(a.baseSha)], ['Latest commit', short(a.headSha)], ['Spec source', p.measuredOnly ? `Measured only: ${p.measuredOnly.sets} sets, ${p.measuredOnly.variants} variants from ${p.measuredOnly.stories} stories` : measuredLine(p.measured)], ...fixesRows(p.fixes)]),
   ];
 
   if (remote.length) {
@@ -2007,6 +2013,8 @@ function viewPull(): View {
   body.push(fidelityGroup(p));
   if (prop.skipped.length) body.push(issueList('warn', 'Not written', prop.skipped.map((s) => ({ code: 'file-problem', severity: 'warning', message: `${s.path}: ${s.reason}` }))));
   body.push(notes(a));
+  // Repository, commits, spec source and collections: last, folded, for whoever needs them (never above the changes).
+  body.push(forDevelopers([...repoRows(), ['Last pulled commit', short(a.baseSha)], ['Latest commit', short(a.headSha)], ['Collections', andList(pullCollections(prop.plan))], ['Spec source', p.measuredOnly ? `Measured only: ${p.measuredOnly.sets} sets, ${p.measuredOnly.variants} variants from ${p.measuredOnly.stories} stories` : measuredLine(p.measured)], ...fixesRows(p.fixes)]));
 
   const open = prop.unresolvedConflicts.length;
   // New sets from code: the choice sits next to the action it changes (on by default on a first pull).
@@ -2124,7 +2132,7 @@ function componentsGroup(p: PullState): Child {
             )
           : null,
         fresh.length
-          ? rowList(
+          ? foldOnFirstPull(p, `See the ${plural(fresh.length, 'component')}`, rowList(
               'pull-components',
               fresh.map((c) =>
                 h(
@@ -2142,12 +2150,17 @@ function componentsGroup(p: PullState): Child {
                 ),
               ),
               10,
-            )
+            ))
           : null,
       ],
     ),
   );
   return out;
+}
+
+/** A first pull brings everything, all new: the headline says it, the list is there on demand (as for variables). */
+function foldOnFirstPull(p: PullState, summary: string, content: HTMLElement): HTMLElement {
+  return p.analysis.baseSha ? content : h('details', { class: 'notes' }, h('summary', null, summary), content);
 }
 
 /** "Check fidelity": exports each generated set's variants and compares them with the code images. Read only. */
@@ -2346,7 +2359,7 @@ function fidelityGroup(p: PullState): Child {
       h(
         'details',
         { class: 'notes dev-details' },
-        h('summary', null, 'For developers'),
+        h('summary', null, 'Fidelity report, for developers'),
         h('p', { class: 'muted' }, 'Every component and variant as JSON: how many pixels differ, and both sizes.'),
         h('button', { class: 'btn', 'data-focus-id': 'fidelity-copy', onClick: () => void copyText(JSON.stringify(report, null, 2)).then((ok) => { f!.copied = ok; render(); }) }, icon(f?.copied ? 'check' : 'copy'), f?.copied ? 'Copied' : 'Copy the report'),
         f?.gaps?.length
@@ -3962,8 +3975,10 @@ function viewSettings(): View {
             'section',
             { class: 'card' },
             h('div', { class: 'group-head' }, h('h2', null, 'GitHub token'), h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: 'https://github.com/settings/personal-access-tokens/new' }) }, 'Create one on GitHub')),
-            h('p', { class: 'lede' }, tokenHelp(state.push ? changesModeOf(state.push.analysis) : undefined)),
-            tokenInput('Fine-grained token', 'Stays on this computer, never in the file, never shown again.'),
+            h('p', { class: 'lede' }, "Bridge uses it to read your design system and send your edits. Your design system's owner can give you one."),
+            tokenInput('Token', 'Stays on this computer, never in the file, never shown again.'),
+            // The permissions are for whoever creates the token: folded.
+            h('details', { class: 'notes dev-details' }, h('summary', null, 'Creating the token yourself?'), h('p', { class: 'muted' }, tokenHelp(state.push ? changesModeOf(state.push.analysis) : undefined))),
           ),
       state.settingsMessage
         ? h(
@@ -3972,7 +3987,8 @@ function viewSettings(): View {
             h('div', { class: 'callout-title' }, icon(state.settingsMessage.kind === 'ok' ? 'check' : 'alert'), state.settingsMessage.text),
           )
         : null,
-      claudeCard(),
+      // Optional writing help: offered once the design system is connected, never on the first screen.
+      connected() ? claudeCard() : null,
     ],
     // Nothing to save while everything is connected: the bar shows when there is something to set up or change.
     bar: editingRepo || tokenField ? { label: tokenField && init.hasToken && !editingRepo ? 'Replace and check access' : 'Save and check access', onClick: saveSettings } : undefined,
