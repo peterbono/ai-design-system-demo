@@ -6,8 +6,9 @@
 // again with what the code renders. The PIXEL check (the story shot against the real Figma render) runs later, in the
 // plugin's Check fidelity after the next pull: nothing here can say a component matches.
 //
-// Pure and browser safe: the MCP server, the CLI, the plugin and Studio can all run it. Bridge holds no API key: the
-// prompt and the reply parser are here for the CLI loop runner (`bridge fix --with-claude`), which uses the team's key.
+// Pure and browser safe: the MCP server, the CLI, the plugin and Studio can all run it. The key is always the
+// team's own: the prompt and the reply parser serve the loop runners (figma-fix-run.ts: `bridge fix --with-claude`, and
+// Bridge's server with the key a team admin connected), never a key of Bridge's.
 
 import { variantKeyOf, type ComponentSpec, type SpecField, type SpecPart, type SpecValue, type SpecVariant } from './component-spec';
 import type { FidelityComponentResult, FidelityReport } from './fidelity';

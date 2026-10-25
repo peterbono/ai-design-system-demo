@@ -1,10 +1,10 @@
 // bridge gaps / bridge fix: Fix with Claude from the terminal. The same operations as the MCP tools (packages/mcp/src/
 // figma-fixes.ts): the components that differ in Figma, one gap case, the values referee on proposed fixes, and the
 // change for review. `bridge fix <component> --with-claude` runs the loop with the team's own API key
-// (ANTHROPIC_API_KEY): Bridge holds none. Without a key it says how to run the same loop from Claude Code.
+// (ANTHROPIC_API_KEY), on core's loop steps (figma-fix-run.ts). Without a key it says how to run the same loop from Claude Code.
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { anthropicReplyText, anthropicRequest, FIX_LOOP_MAX_ROUNDS, FIX_LOOP_MODEL, fixPrompt, parseFixReply, statusFixFor, type FixAttempt, type GapCase } from '@bridge-ds/core';
+import { anthropicReplyText, anthropicRequest, FIX_LOOP_MAX_ROUNDS, FIX_LOOP_MODEL, fixLoopOutcome, fixLoopRound, startFixLoop, type FixLoopRound as CoreRound, type GapCase } from '@bridge-ds/core';
 import { figmaFixes, type BridgeContext } from '@bridge-ds/mcp';
 import { cliContext, TOKEN_HELP, type Access } from './auth.js';
 import { defaultIO, RequestUsageError, type RequestArgs, type RequestIO } from './request.js';
@@ -80,67 +80,31 @@ Run the same loop from Claude Code instead, with the Bridge MCP server (bridge i
   bridge_try_figma_fix (up to ${FIX_LOOP_MAX_ROUNDS} rounds) and bridge_propose_figma_fixes, on your Claude plan.
 Or set ANTHROPIC_API_KEY and run this command again.`;
 
-export interface FixLoopRound {
-  round: number;
-  fixes: unknown[];
-  verdict?: string | undefined;
-  summary: string;
-}
+export type FixLoopRound = CoreRound;
 
 /**
  * The loop for API-key setups: Claude proposes fixes from the gap case and the schema, Bridge tries them, Claude revises
  * with the problems or the deltas, up to FIX_LOOP_MAX_ROUNDS; then the closest fixes are proposed, else a status fix.
+ * The rounds are core's (fixLoopRound), the same steps Bridge's server runs with a team's connected Claude.
  */
 export async function fixLoop(ctx: BridgeContext, a: { component: string; ask: FixModel; dryRun?: boolean | undefined; files?: Record<string, string | undefined> | undefined; onRound?: ((r: FixLoopRound) => void) | undefined }) {
   const f = a.files ?? {};
   const kase = await figmaFixes.getGapCaseOp(ctx, { component: a.component, ...f });
   const gap: GapCase = kase.gap;
   if (!gap.variants.length) return { status: 'nothing-to-fix' as const, summary: gap.summary, rounds: [] as FixLoopRound[] };
-  const attempts: FixAttempt[] = [];
+  const files = await figmaFixes.loadFixFiles(ctx, f);
+  const input = { component: a.component, measured: files.measured, fixes: files.fixes, run: files.run };
   const rounds: FixLoopRound[] = [];
-  let best: { fixes: unknown[]; score: number; summary: string } | undefined;
-  for (let round = 1; round <= FIX_LOOP_MAX_ROUNDS; round++) {
-    const reply = await a.ask(fixPrompt(gap, attempts));
-    let fixes: unknown[];
-    try {
-      fixes = parseFixReply(reply);
-    } catch (e) {
-      const r = { round, fixes: [], summary: (e as Error).message };
-      rounds.push(r);
-      a.onRound?.(r);
-      attempts.push({ fixes: [], feedback: `${(e as Error).message} Answer with a JSON array of fix objects only.` });
-      continue;
-    }
-    const tried = await figmaFixes.tryFigmaFixOp(ctx, { component: a.component, fixes, ...f });
-    const r = { round, fixes, verdict: tried.status === 'invalid' ? 'invalid' : tried.verdict, summary: tried.summary };
-    rounds.push(r);
-    a.onRound?.(r);
-    if (tried.status === 'invalid') {
-      attempts.push({ fixes, feedback: `Invalid, fix these problems:\n${tried.problems.join('\n')}` });
-      continue;
-    }
-    attempts.push({ fixes, feedback: `${tried.summary}\n${tried.detail}`, verdict: tried.verdict });
-    if (tried.verdict === 'closer') {
-      const all = tried.variants.flatMap((v) => v.differences);
-      const score = all.filter((d) => d.result === 'resolved').length * 2 + all.filter((d) => d.result === 'closer').length - tried.variants.reduce((n, v) => n + v.regressions.length, 0);
-      if (!best || score > best.score) best = { fixes, score, summary: tried.summary };
-      if (all.every((d) => d.result === 'resolved')) break;
-    }
+  let state = startFixLoop(a.component);
+  while (!state.done) {
+    const step = await fixLoopRound(input, state, a.ask, gap);
+    state = step.state;
+    rounds.push(step.round);
+    a.onRound?.(step.round);
   }
-  if (best) {
-    const proposed = await figmaFixes.proposeFigmaFixesOp(ctx, { component: a.component, fixes: best.fixes, summary: `Claude's fixes bring ${gap.component} closer to its story. ${best.summary}`, dryRun: a.dryRun, source: 'cli', ...f });
-    return { status: 'proposed' as const, rounds, proposed };
-  }
-  const status = statusFixFor(gap, kase.fixIds);
-  const proposed = await figmaFixes.proposeFigmaFixesOp(ctx, {
-    component: a.component,
-    fixes: [status],
-    summary: `No fix brought ${gap.component} closer to its story in ${FIX_LOOP_MAX_ROUNDS} rounds: it keeps an honest Differs status with the reason.`,
-    dryRun: a.dryRun,
-    source: 'cli',
-    ...f,
-  });
-  return { status: 'status-proposed' as const, rounds, proposed };
+  const outcome = fixLoopOutcome(gap, state, kase.fixIds);
+  const proposed = await figmaFixes.proposeFigmaFixesOp(ctx, { component: a.component, fixes: outcome.fixes, summary: outcome.summary, dryRun: a.dryRun, source: 'cli', ...f });
+  return outcome.kind === 'fixes' ? { status: 'proposed' as const, rounds, proposed } : { status: 'status-proposed' as const, rounds, proposed };
 }
 
 export async function runGaps(a: RequestArgs, root: string, io: RequestIO = defaultIO()): Promise<number> {

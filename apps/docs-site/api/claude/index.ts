@@ -8,31 +8,43 @@
 //     -> 200 { connected: true, addedBy, at }
 //   POST /api/claude { action: "disconnect", repo }                 team admins
 //     -> 200 { connected: false }
+//   POST /api/claude { action: "fix", repo, component }            anyone who can edit: Claude fixes one component
+//     -> 200 { run: RunView, existing }                             existing: the run already in progress for it
+//   GET  /api/claude?repo=owner/name&run=<id>                       where a run stands; moves it one step first (one
+//     -> 200 { run: RunView }                                       Claude round, up to about two minutes); &peek=1 reads
+//   GET  /api/claude?repo=owner/name&runs=1                         the team's runs of the last 7 days, newest first
+//     -> 200 { runs: RunView[] }
 //   Errors: { error, message } in Studio words (401 sign in, 403 not an admin or not on this team, 400 a key Claude did
-//   not accept, 429 too many tries, 503 not set up on this site).
+//   not accept, 409 not_connected, 429 too many tries or runs, 503 not set up on this site).
+// RunView and the run's steps: api/_lib/fix-runs.ts. Vercel limits: one Claude round per request (fluid compute, 300 s
+// per request on this project), the state in Redis between requests, so a run never needs a longer function.
 //
 // Who may ask, for one team: a GitHub token (`Authorization: Bearer`, Studio's GitHub sign-in and the Figma plugin, any
 // origin, CORS open) whose account can push to the repository (admin for connect and disconnect), read with that token;
 // or an email member of the team signed in to Studio (the contribute cookie or a Bridge account session, with
 // `X-Bridge-Contribute: 1` from a page of this site): Admin for connect and disconnect.
 //
-// Env: BRIDGE_SECRETS_KEY (base64, 32 bytes or more: the encryption key), the storage env (KV_REST_API_URL +
+// Env: BRIDGE_SECRETS_KEY (base64, 32 bytes or more: the encryption key), CLAUDE_RUNS_PER_HOUR (optional, runs a team
+// starts per hour, default 5), PUBLIC_SITE_URL (optional, the Studio links of a run), the storage env (KV_REST_API_URL +
 // KV_REST_API_TOKEN, or UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN), and the contribute env for email members
 // (LIBRARY_SESSION_SECRET, GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY). Nothing here logs.
 
 import { randomBytes } from 'node:crypto';
 import { contributorOf, type ContribEnv } from '../contribute/index.js';
 import { API_KEY, claudeKeyStore, secretsKey, type ClaudeKeyStore } from '../_lib/claude-key.js';
-import { fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody, sameOriginWhenPresent, type FetchLike } from '../_lib/http.js';
+import { advanceRun, getRun, listRuns, runView, startRun, type RunDeps, type RunView, type StoredRun } from '../_lib/fix-runs.js';
+import { githubApp } from '../_lib/github-app.js';
+import { envInt, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody, sameOriginWhenPresent, type FetchLike } from '../_lib/http.js';
 import { localAdminsOn } from '../_lib/local-admin.js';
 import type { MemberStore } from '../_lib/members.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
 import type { AppTokens } from '../_lib/github-app.js';
 
-export type { FetchLike };
+export type { FetchLike, RunView };
 
 export interface ClaudeEnv extends ContribEnv {
   BRIDGE_SECRETS_KEY?: string | undefined;
+  CLAUDE_RUNS_PER_HOUR?: string | undefined;
 }
 
 export interface ClaudeDeps {
@@ -43,6 +55,10 @@ export interface ClaudeDeps {
   redis?: Redis;
   members?: MemberStore;
   app?: AppTokens;
+  /** The Bridge app with write access for runs (contents and pull requests); defaults to `app`. */
+  writeApp?: AppTokens;
+  /** Tests: Claude for a key, instead of the Messages API. */
+  ask?: RunDeps['ask'];
 }
 
 /** The words Studio shows. Designer words: what happened and what to do. */
@@ -140,6 +156,38 @@ function services(env: ClaudeEnv, deps: ClaudeDeps): Services | null {
   return { redis, keys: claudeKeyStore(redis, key, deps.random ?? ((n) => randomBytes(n))) };
 }
 
+/** The permissions of the token a run reads and writes with, and nothing more (the same as /api/ship). */
+export const RUN_PERMISSIONS = { contents: 'write', pull_requests: 'write' } as const;
+
+function runDeps(env: ClaudeEnv, deps: ClaudeDeps, svc: Services): RunDeps {
+  const now = deps.now ?? Date.now;
+  const appId = env.GITHUB_APP_ID?.trim();
+  const pem = env.GITHUB_APP_PRIVATE_KEY?.trim();
+  const app = deps.writeApp ?? deps.app ?? (appId && pem ? githubApp(appId, pem, deps.fetch, now, { permissions: { ...RUN_PERMISSIONS }, require: { ...RUN_PERMISSIONS }, userAgent: 'bridge-claude' }) : null);
+  return {
+    redis: svc.redis,
+    fetch: deps.fetch,
+    now,
+    ...(deps.random ? { random: deps.random } : {}),
+    appToken: async (owner, repo) => (app ? app.installationToken(owner, repo) : null),
+    claudeKey: (repo) => svc.keys.reveal(repo),
+    runsPerHour: envInt(env.CLAUDE_RUNS_PER_HOUR, 5) || 5,
+    ...(deps.ask ? { ask: deps.ask } : {}),
+  };
+}
+
+/** Where Studio reviews a run's pull request, as a full address the Figma plugin can open. */
+function withLinks(v: RunView, req: Request, env: ClaudeEnv, owner: string, repo: string): RunView & { reviewUrl?: string } {
+  if (!v.review) return v;
+  let origin = new URL(req.url).origin;
+  try {
+    if (env.PUBLIC_SITE_URL?.trim()) origin = new URL(env.PUBLIC_SITE_URL.trim()).origin;
+  } catch {
+    /* the request's own origin */
+  }
+  return { ...v, reviewUrl: `${origin}/studio/${owner}/${repo}/${v.review}` };
+}
+
 /** Asks Anthropic whether the key works (the models list: free, reads nothing of the team). */
 async function keyWorks(f: FetchLike, apiKey: string): Promise<boolean> {
   let res: Response;
@@ -173,9 +221,18 @@ export async function handleClaude(req: Request, env: ClaudeEnv, deps: ClaudeDep
     if (req.method === 'OPTIONS') return cors(new Response(null, { status: 204 }));
     const now = (deps.now ?? Date.now)();
     if (req.method === 'GET') {
-      const { owner, repo, full } = parseRepo(new URL(req.url).searchParams.get('repo'));
+      const q = new URL(req.url).searchParams;
+      const { owner, repo, full } = parseRepo(q.get('repo'));
       const svc = services(env, deps);
       const who = await teamCaller(req, owner, repo, full, env, deps);
+      if (q.has('run') || q.has('runs')) {
+        if (!svc) return cors(fail(503, 'not_configured', CLAUDE_WORDS.notConfigured));
+        if (q.has('runs')) return cors(json(200, { runs: (await listRuns(svc.redis, full, now)).map((r) => withLinks(runView(r), req, env, owner, repo)) }));
+        const id = q.get('run') ?? '';
+        const run: StoredRun | null = q.get('peek') === '1' ? await getRun(svc.redis, full, id) : await advanceRun(runDeps(env, deps, svc), full, id);
+        if (!run) return cors(fail(404, 'not_found', 'This Claude run is not there anymore. Ask Claude again.'));
+        return cors(json(200, { run: withLinks(runView(run), req, env, owner, repo) }));
+      }
       if (!svc) return cors(json(200, { available: false, connected: false, canManage: who.admin }));
       const c = await svc.keys.connection(full);
       return cors(json(200, { available: true, ...c, canManage: who.admin }));
@@ -198,6 +255,12 @@ export async function handleClaude(req: Request, env: ClaudeEnv, deps: ClaudeDep
         const c = await svc.keys.connect(full, apiKey, who.name, now);
         return cors(json(200, c));
       }
+      case 'fix': {
+        const who = await teamCaller(req, owner, repo, full, env, deps);
+        if (!who.canEdit) return cors(fail(403, 'forbidden', CLAUDE_WORDS.notOnTeam));
+        const { run, existing } = await startRun(runDeps(env, deps, svc), { repo: full, component: body.component, startedBy: who.name });
+        return cors(json(200, { run: withLinks(runView(run), req, env, owner, repo), existing }));
+      }
       case 'disconnect': {
         const who = await teamCaller(req, owner, repo, full, env, deps);
         if (!who.admin) return cors(fail(403, 'forbidden', CLAUDE_WORDS.adminOnly));
@@ -205,7 +268,7 @@ export async function handleClaude(req: Request, env: ClaudeEnv, deps: ClaudeDep
         return cors(json(200, { connected: false }));
       }
       default:
-        return cors(fail(400, 'bad_request', 'Say what to do: connect or disconnect.'));
+        return cors(fail(400, 'bad_request', 'Say what to do: connect, disconnect or fix.'));
     }
   } catch (e) {
     if (e instanceof HttpError) return cors(json(e.status, { error: e.code, message: e.message, ...e.extra }, e.headers));
@@ -222,6 +285,8 @@ const envFromProcess = (): ClaudeEnv => ({
   GITHUB_APP_ID: process.env.GITHUB_APP_ID,
   GITHUB_APP_PRIVATE_KEY: process.env.GITHUB_APP_PRIVATE_KEY,
   BRIDGE_SECRETS_KEY: process.env.BRIDGE_SECRETS_KEY,
+  CLAUDE_RUNS_PER_HOUR: process.env.CLAUDE_RUNS_PER_HOUR,
+  PUBLIC_SITE_URL: process.env.PUBLIC_SITE_URL,
 });
 
 const realFetch: FetchLike = (url, init) => fetch(url, init);
