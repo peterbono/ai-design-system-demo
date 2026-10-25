@@ -32,6 +32,24 @@ describe('TOKENS_SCRIPT', () => {
   });
 });
 
+describe('TOKENS_SCRIPT: channels', () => {
+  type Typed = Raw & { type: string; value: string | number };
+  it('channels every use wraps in one color function are that color; a bare use keeps them as written', () => {
+    document.head.innerHTML = `<style>
+      :root { --primary: 212 100% 47%; --rgb: 9 105 218; --mixed: 0 0% 50%; --ring: var(--primary); --opacity: 0.5; }
+      .a { background-color: hsl(var(--primary) / var(--opacity, 1)); }
+      .b { border-color: rgb(var(--rgb)); outline-color: hsl(var(--ring)); }
+      .c { color: hsl(var(--mixed)); }
+      .d { content: var(--mixed); }
+    </style>`;
+    const byName = Object.fromEntries((run() as Typed[]).map((p) => [p.name, p]));
+    expect(byName['--primary']).toMatchObject({ type: 'color', value: 'rgb(0, 112, 240)' });
+    expect(byName['--rgb']).toMatchObject({ type: 'color', value: 'rgb(9, 105, 218)' });
+    expect(byName['--mixed']!.type).toBe('string');
+    expect(byName['--opacity']!.type).toBe('number');
+  });
+});
+
 describe('token helpers', () => {
   it('derives Figma variable paths from property names, prefix dropped', () => {
     expect(tokenVariablePath('--color-fg-default')).toBe('color/fg/default');
