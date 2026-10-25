@@ -14,13 +14,15 @@
 // Codes live in Redis like the other short-lived Studio state: 5 minutes, keyed by the code's SHA-256 (the code itself
 // is never stored), the poll secret also kept as a hash only. A code is used once: approving twice is refused, and the
 // approved answer is taken with GETDEL, so a second poll finds nothing. The token stays in Redis for the rest of those
-// 5 minutes at most. It is the GitHub App user token Studio holds and renews (api/github/token.ts); the plugin gets the
+// 5 minutes at most, sealed at rest (AES-256-GCM, api/_lib/sealed.ts, a key of its own derived from LIBRARY_SESSION_SECRET,
+// bound to the link: a sealed token moved to another link does not open). It is the GitHub App user token Studio holds and renews (api/github/token.ts); the plugin gets the
 // access token and its expiry, never the refresh token: GitHub refresh tokens rotate on use, so sharing one would sign
 // Studio out. When it expires the plugin asks to sign in with Bridge again. Nothing is logged.
 
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { b64url, fail, GITHUB_DOWN, HttpError, json, parseRepo, readBody, sameOrigin, sha256, type FetchLike } from '../_lib/http.js';
 import { redisRest, type Redis } from '../_lib/redis.js';
+import { seal, sealingKey, unseal, type Sealed } from '../_lib/sealed.js';
 
 export type { FetchLike };
 
@@ -59,7 +61,13 @@ export interface LinkEnv {
   UPSTASH_REDIS_REST_URL?: string | undefined;
   UPSTASH_REDIS_REST_TOKEN?: string | undefined;
   PUBLIC_SITE_URL?: string | undefined;
+  /** The sealing key of the token while it waits (32 characters or more). */
+  LIBRARY_SESSION_SECRET?: string | undefined;
 }
+
+/** The sealing purpose of the hand-off token: a key no other feature derives. */
+export const LINK_SEAL_PURPOSE = 'plugin-link-github-token';
+export const linkSealingKey = (secret: string | undefined) => sealingKey(secret, LINK_SEAL_PURPOSE);
 
 interface Pending {
   state: 'pending';
@@ -72,7 +80,8 @@ interface Approved {
   exp: number;
   repo: string;
   name: string | null;
-  token: string;
+  /** The GitHub token, sealed and bound to this link (linkKey). Never stored in clear. */
+  token: Sealed;
   tokenExpiresAt: number | null;
   login: string;
   defaultBranch: string | null;
@@ -134,7 +143,7 @@ async function checkAccess(f: FetchLike, token: string, owner: string, repo: str
 }
 
 /** The Studio page approves a code for one team, with the GitHub sign-in of this browser. */
-export async function approveLink(redis: Redis, f: FetchLike, body: Record<string, unknown>, now: number) {
+export async function approveLink(redis: Redis, f: FetchLike, body: Record<string, unknown>, now: number, key: Buffer, random: (n: number) => Uint8Array = randomBytes) {
   const code = typeof body.code === 'string' ? body.code.trim().toUpperCase() : '';
   if (!CODE.test(code)) throw new HttpError(400, 'bad_request', LINK_WORDS.expired);
   const { owner, repo } = parseRepo(body.repo);
@@ -145,7 +154,7 @@ export async function approveLink(redis: Redis, f: FetchLike, body: Record<strin
   const { login, defaultBranch } = await checkAccess(f, body.token, owner, repo);
   const secs = typeof body.expires_in === 'number' && Number.isFinite(body.expires_in) && body.expires_in > 0 ? body.expires_in : null;
   const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim().slice(0, 80) : null;
-  const approved: Approved = { state: 'approved', poll: link.poll, exp: link.exp, repo: `${owner}/${repo}`, name, token: body.token, tokenExpiresAt: secs ? now + secs * 1000 : null, login, defaultBranch };
+  const approved: Approved = { state: 'approved', poll: link.poll, exp: link.exp, repo: `${owner}/${repo}`, name, token: seal(body.token, key, linkKey(code), random), tokenExpiresAt: secs ? now + secs * 1000 : null, login, defaultBranch };
   // Still pending at write time (XX would not say "pending"): read again, then write; a racing approve loses.
   const again = await read(redis, code, now);
   if (!again || again.state !== 'pending') throw new HttpError(409, 'used', LINK_WORDS.used);
@@ -154,7 +163,7 @@ export async function approveLink(redis: Redis, f: FetchLike, body: Record<strin
 }
 
 /** The plugin asks whether the designer approved; the approved answer is given once. */
-export async function pollLink(redis: Redis, body: Record<string, unknown>, now: number) {
+export async function pollLink(redis: Redis, body: Record<string, unknown>, now: number, key: Buffer) {
   const code = typeof body.code === 'string' ? body.code : '';
   const secret = typeof body.secret === 'string' ? body.secret : '';
   if (!CODE.test(code) || !SECRET.test(secret)) throw new HttpError(400, 'bad_request', LINK_WORDS.expired);
@@ -166,7 +175,9 @@ export async function pollLink(redis: Redis, body: Record<string, unknown>, now:
   if (typeof taken !== 'string') throw new HttpError(410, 'expired', LINK_WORDS.used);
   const l = JSON.parse(taken) as Link;
   if (l.state !== 'approved') throw new HttpError(410, 'expired', LINK_WORDS.used);
-  return { status: 'approved' as const, repo: l.repo, name: l.name, token: l.token, expiresAt: l.tokenExpiresAt, login: l.login, defaultBranch: l.defaultBranch };
+  const token = l.token && typeof l.token === 'object' ? unseal(l.token, key, linkKey(code)) : null;
+  if (!token) throw new HttpError(410, 'expired', LINK_WORDS.expired);
+  return { status: 'approved' as const, repo: l.repo, name: l.name, token, expiresAt: l.tokenExpiresAt, login: l.login, defaultBranch: l.defaultBranch };
 }
 
 function siteFrom(req: Request, publicUrl: string | undefined): string {
@@ -196,17 +207,18 @@ export async function handleLink(req: Request, env: LinkEnv, deps: LinkDeps): Pr
     const url = (env.KV_REST_API_URL ?? env.UPSTASH_REDIS_REST_URL)?.trim();
     const token = (env.KV_REST_API_TOKEN ?? env.UPSTASH_REDIS_REST_TOKEN)?.trim();
     const redis = deps.redis ?? (url && token ? redisRest(url, token, deps.fetch, LINK_WORDS.storage) : null);
-    if (!redis) return cors(fail(503, 'not_configured', LINK_WORDS.notConfigured), true);
+    const key = linkSealingKey(env.LIBRARY_SESSION_SECRET);
+    if (!redis || !key) return cors(fail(503, 'not_configured', LINK_WORDS.notConfigured), true);
     switch (body.action) {
       case 'start':
         return cors(json(200, await startLink(redis, siteFrom(req, env.PUBLIC_SITE_URL), now, deps.random ?? randomBytes)), true);
       case 'poll':
-        return cors(json(200, await pollLink(redis, body, now)), true);
+        return cors(json(200, await pollLink(redis, body, now, key)), true);
       case 'approve':
         // Only the Studio page on this site approves: never a page of another origin, never the plugin.
         open = false;
         if (!sameOrigin(req)) return fail(403, 'origin', 'Connect Figma from Studio on this site.');
-        return json(200, await approveLink(redis, deps.fetch, body, now));
+        return json(200, await approveLink(redis, deps.fetch, body, now, key, deps.random ?? randomBytes));
       default:
         return cors(fail(400, 'bad_request', 'Unknown action.'), true);
     }
@@ -222,6 +234,7 @@ const envFromProcess = (): LinkEnv => ({
   UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
   UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
   PUBLIC_SITE_URL: process.env.PUBLIC_SITE_URL,
+  LIBRARY_SESSION_SECRET: process.env.LIBRARY_SESSION_SECRET,
 });
 
 const realFetch: FetchLike = (url, init) => fetch(url, init);

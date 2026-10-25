@@ -24,7 +24,8 @@
 //                                              person is the only admin of while others are on them, each with the email
 //                                              members who could take over ({ name, email }, the admin sees them in
 //                                              Members already); [] when deleting would go through
-//   POST { action: 'delete' }                  deletes the account, its email memberships, join requests and sessions; 409 last-admin
+//   POST { action: 'delete' }                  deletes the account, its email memberships, join requests, sessions and its
+//                                              connections in Claude (the grants and their sealed GitHub tokens); 409 last-admin
 //                                              (with the same `blocked`) when the person is the only admin of a team with
 //                                              other members (checked on GitHub when the request carries their GitHub
 //                                              token as Bearer). A team made in Bridge they were alone on goes with them.
@@ -60,6 +61,7 @@ import { githubApp, type AppTokens } from '../_lib/github-app.js';
 import { escHtml, resendSender, type EmailMessage, type EmailSender } from '../_lib/email.js';
 import { clientIp, dayOf, envInt, fail, GITHUB_DOWN, HttpError, json, readBody, sameOrigin, secondsToTomorrow, sha256, type FetchLike } from '../_lib/http.js';
 import { activeLocalAdmins, type LocalAdmins } from '../_lib/local-admin.js';
+import { revokeAccountGrants } from '../_lib/oauth.js';
 import { accountTeamsKey, memberStore, type MemberStore } from '../_lib/members.js';
 import { globEscape, redisRest, type Redis } from '../_lib/redis.js';
 import { deleteTeamRecord, forgetTeamKey, getTeamNames, getTeamRecord, removeAllRequests } from '../_lib/teams.js';
@@ -605,6 +607,8 @@ async function onDelete(ctx: Ctx, req: Request, a: Account): Promise<Response> {
   const { svc } = ctx;
   const raw = await svc.redis.cmd('SMEMBERS', accountTeamsKey(a.email));
   const repos = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [];
+  // Their connections in Claude end first, with the GitHub tokens Bridge kept sealed for them.
+  await revokeAccountGrants(svc.redis, { email: a.email, login: a.github?.login ?? null, repos });
   // Each membership goes, which also ends that team's contributor sessions.
   for (const repo of repos) await svc.members.remove(repo, a.email);
   // A team made in Bridge they were alone on goes with them: nobody is left to see it.

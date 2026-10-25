@@ -266,7 +266,9 @@ subscription for their own calls, so it goes this way round: Claude calls Bridge
   HTTP, stateless, JSON answers (`apps/docs-site/api/mcp`, `handleHttp` in `packages/mcp/src/lib.ts`). It works on the
   repository of the team picked at sign-in, with that person's GitHub App user token, so every write is theirs and
   goes through the usual paths: the fix is a draft pull request on `bridge/figma-fixes-<component>`, labelled
-  `drafted-by-claude` and `figma-fixes`, Tier 2. Never the default branch.
+  `drafted-by-claude` and `figma-fixes`, Tier 2. Never the default branch. Agents never merge here: the merge tool
+  (`bridge_merge_branch`, with its owner override) is neither listed nor run by the hosted connector; a person merges
+  from Studio or GitHub. The local CLI and MCP server keep it.
 - **Sign-in (MCP authorization, spec 2026-07-28):** the MCP endpoint answers `401` with
   `WWW-Authenticate: Bearer resource_metadata="<site>/.well-known/oauth-protected-resource/mcp", scope="bridge"`.
   Protected resource metadata (RFC 9728) names the site as the authorization server; its metadata (RFC 8414) is at
@@ -304,6 +306,7 @@ opens with "Claude's fixes": one row per session (the last step, how long, who a
 for review, Stopped, Went quiet), its steps folded under the row, and See Claude's fix opening the review in Studio. The
 page reads the sessions again every 10 seconds while one works. Settings, Claude gives the connector address, says who
 connected Bridge in Claude and when it was last used, and lets the person who connected it (or a team admin) remove it.
+Deleting a Bridge account ends its connections too, with the GitHub tokens Bridge kept sealed for them.
 
 #### Contract (for the plugin)
 

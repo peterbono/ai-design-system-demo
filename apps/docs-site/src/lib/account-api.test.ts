@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { ACCOUNT_COOKIE, ACCOUNT_SESSION_TTL_MS, getAccount, signAccountSession } from '../../api/_lib/account';
 import { memberStore, type EmailMember } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
+import { accountRef, createGrant, getGrant, listGrants } from '../../api/_lib/oauth';
+import { sealingKey } from '../../api/_lib/sealed';
 import {
   type AccountDeps,
   BACKUPS_KEPT,
@@ -404,6 +406,29 @@ describe('delete', () => {
     expect(s.redis.keys().filter((k) => k.includes('mia') || (k.startsWith('bridge:account') && !k.startsWith('bridge:account:count:')))).toEqual([]);
     expect((await (await handleAccount(me(cookie), ENV, s.deps)).json()).account).toBeNull();
     expect((await handleAccount(act({ action: 'delete' }, { cookie }), ENV, s.deps)).status).toBe(401);
+  });
+
+  it('ends their connections in Claude, with the GitHub tokens Bridge kept sealed for them, and only theirs', async () => {
+    const s = setup();
+    await s.members.put('acme/design', member('mia@acme.design'));
+    const key = sealingKey(SECRET, 'mcp-connector-github-tokens')!;
+    let n = 0;
+    const random = (k: number) => new Uint8Array(k).fill(++n);
+    const gh = { access: 'ghu_' + 'a'.repeat(36), accessExp: T0 + 3600_000, refresh: 'ghr_' + 'r'.repeat(36), refreshExp: T0 + 86400_000 };
+    const client = { clientId: 'https://claude.ai/oauth/mcp', clientName: 'Claude' };
+    const made = await createGrant(s.redis, key, { repo: 'acme/design', client, login: 'mia-gh', name: 'Mia Chen', gh, account: accountRef('Mia@Acme.design') }, random, T0);
+    const elsewhere = await createGrant(s.redis, key, { repo: 'acme/other', client, login: 'mia-gh', name: 'Mia Chen', gh, account: accountRef('mia@acme.design') }, random, T0);
+    const legacy = await createGrant(s.redis, key, { repo: 'acme/design', client, login: 'Mia-GH', name: 'Mia Chen', gh }, random, T0);
+    const lee = await createGrant(s.redis, key, { repo: 'acme/design', client, login: 'lee-gh', name: 'Lee Park', gh, account: accountRef('lee@acme.design') }, random, T0);
+    const leeLegacy = await createGrant(s.redis, key, { repo: 'acme/design', client, login: 'lee-gh', name: 'Lee Park', gh }, random, T0);
+    const cookie = cookieOf(await handleAccount(act({ action: 'github', token: GH_TOKEN }), ENV, s.deps));
+    expect((await handleAccount(act({ action: 'delete' }, { cookie }), ENV, s.deps)).status).toBe(200);
+    for (const g of [made, elsewhere, legacy]) expect(await getGrant(s.redis, g.id)).toBeNull();
+    expect((await listGrants(s.redis, 'acme/design')).map((g) => g.id).sort()).toEqual([lee.id, leeLegacy.id].sort());
+    expect(s.redis.keys().filter((k) => k.startsWith('bridge:oauth:account:') && k !== `bridge:oauth:account:${accountRef('lee@acme.design')}`)).toEqual([]);
+    // No sealed GitHub token of hers is left anywhere.
+    const sealed = [...s.redis.dump()].filter(([k]) => k.startsWith('bridge:oauth:grant:')).map(([, v]) => JSON.parse(String(v)));
+    expect(sealed.every((g) => g.login === 'lee-gh')).toBe(true);
   });
 
   it('keeps the changes they sent in the team history by "A former member", with no record of their email', async () => {

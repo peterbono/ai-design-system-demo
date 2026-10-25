@@ -10,7 +10,7 @@ import { QUIET_AFTER_MS, stepOf, STEP_WORDS } from '../../api/_lib/fix-sessions'
 import { memberStore } from '../../api/_lib/members';
 import { memoryRedis } from '../../api/_lib/redis';
 import { redirectMatches } from '../../api/_lib/oauth';
-import { handleConnector, type ConnectorEnv, type FetchLike, type McpHandler } from '../../api/mcp/index';
+import { handleConnector, HOSTED_REFUSED_TOOLS, HOSTED_REFUSED_WORDS, type ConnectorEnv, type FetchLike, type McpHandler } from '../../api/mcp/index';
 import { handleFixSessions } from '../../api/fix-sessions/index';
 
 const HOST = 'bridge.example.com';
@@ -341,6 +341,54 @@ describe('the real Bridge MCP server over Streamable HTTP (packages/mcp handleHt
     const list = await post({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
     const names = ((await list.json()).result.tools as { name: string }[]).map((t) => t.name);
     expect(names).toEqual(expect.arrayContaining(['bridge_figma_gaps', 'bridge_get_gap_case', 'bridge_try_figma_fix', 'bridge_propose_figma_fixes']));
+  });
+});
+
+describe('agents never merge through the hosted connector', () => {
+  const headers = (token: string) => ({ authorization: `Bearer ${token}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-11-25' });
+  const mergeCall = (id: number) => ({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'bridge_merge_branch', arguments: { pr: 7, overrideReason: 'Shipping it now, the owner said so.' } } });
+
+  it('the hosted server does not list the merge, and a call to it is refused before anything runs', async () => {
+    const w = world({ realMcp: true });
+    const { clientId, to } = await signIn(w);
+    const token = (await tokens(w, clientId, to.searchParams.get('code')!)).body.access_token as string;
+    const post = (body: unknown) => w.call('/api/mcp', { method: 'POST', headers: headers(token), body: JSON.stringify(body) });
+    await post({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'claude-ai', version: '0.1.0' } } });
+    const names = ((await (await post({ jsonrpc: '2.0', id: 2, method: 'tools/list' })).json()).result.tools as { name: string }[]).map((t) => t.name);
+    expect(names).toContain('bridge_branch_status');
+    expect(names).not.toContain('bridge_merge_branch');
+    const before = w.calls.length;
+    const r = await post(mergeCall(3));
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ jsonrpc: '2.0', id: 3, error: { code: -32602, message: HOSTED_REFUSED_WORDS } });
+    // Nothing reached GitHub for it.
+    expect(w.calls.slice(before)).toEqual([]);
+  });
+
+  it('a batch carrying the merge is refused whole: the MCP server never sees it', async () => {
+    const w = world();
+    const { clientId, to } = await signIn(w);
+    const token = (await tokens(w, clientId, to.searchParams.get('code')!)).body.access_token as string;
+    const r = await w.call('/api/mcp', { method: 'POST', headers: headers(token), body: JSON.stringify([{ jsonrpc: '2.0', id: 1, method: 'tools/list' }, mergeCall(2)]) });
+    expect(await r.json()).toEqual([1, 2].map((id) => ({ jsonrpc: '2.0', id, error: { code: -32602, message: HOSTED_REFUSED_WORDS } })));
+    expect(w.mcpSeen).toEqual([]);
+    expect(HOSTED_REFUSED_TOOLS).toContain('bridge_merge_branch');
+  });
+
+  it('the local MCP server keeps the merge; the hosted one leaves it out', async () => {
+    const { handleHttp } = await import('@bridge-ds/mcp');
+    const gh = (async (url: string) => (new URL(url).pathname === '/repos/acme/design' ? res(200, { full_name: 'acme/design', default_branch: 'main', private: true }) : res(404, {}))) as unknown as typeof fetch;
+    const ctx = await BridgeContext.create({ repo: 'acme/design', token: 'ghu_test_token_0000000000', surface: 'mcp', fetch: gh });
+    const post = (body: unknown, opts?: { exclude: readonly string[] }) => handleHttp(ctx, new Request(`${SITE}/mcp`, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' } }), body, opts);
+    const list = { jsonrpc: '2.0', id: 1, method: 'tools/list' };
+    const local = ((await (await post(list)).json()).result.tools as { name: string }[]).map((t) => t.name);
+    expect(local).toContain('bridge_merge_branch');
+    const hosted = ((await (await post(list, { exclude: HOSTED_REFUSED_TOOLS })).json()).result.tools as { name: string }[]).map((t) => t.name);
+    expect(hosted).not.toContain('bridge_merge_branch');
+    expect(hosted.length).toBe(local.length - 1);
+    // Called anyway on the hosted server: an error, never a merge.
+    const called = await (await post(mergeCall(2), { exclude: HOSTED_REFUSED_TOOLS })).json();
+    expect(called.error ?? called.result?.isError).toBeTruthy();
   });
 });
 

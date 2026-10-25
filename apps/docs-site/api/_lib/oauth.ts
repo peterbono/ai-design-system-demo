@@ -20,7 +20,8 @@
 //   bridge:oauth:code:<hash(code)>        an authorization code, 2 minutes, used once (GETDEL)
 //   bridge:oauth:grant:<id>               a grant { repo, client, who, sealed GitHub tokens, dates }, 90 days after last use
 //   bridge:oauth:grants:<repo>            set of the team's grant ids
-//   bridge:oauth:at:<hash>                an access token -> grant id, 1 hour
+//   bridge:oauth:account:<hash>           set of the grant ids a Bridge account made (accountRef: never the email)
+//   bridge:oauth:at:<hash>               an access token -> grant id, 1 hour
 //   bridge:oauth:rt:<hash>                a refresh token -> grant id, 30 days, used once (GETDEL)
 //   bridge:oauth:reg:<ip hash>:<hour>     registrations per network and hour
 
@@ -248,6 +249,8 @@ export interface AuthRequest {
   by?: string;
   /** The PKCE verifier of the GitHub leg. */
   ghVerifier?: string;
+  /** SHA-256 of the Bridge account's email (accountRef), so deleting the account ends the grant. */
+  account?: string;
 }
 
 const reqKey = (id: string) => `bridge:oauth:req:${id}`;
@@ -359,24 +362,61 @@ export interface Grant {
   createdAt: string;
   lastUsedAt: string;
   gh: Sealed;
+  /** accountRef of the Bridge account that connected it (grants made before it carry none). */
+  account?: string;
 }
 
 const grantKey = (id: string) => `bridge:oauth:grant:${id}`;
 const grantsKey = (repo: string) => `bridge:oauth:grants:${repo.toLowerCase()}`;
+const accountGrantsKey = (ref: string) => `bridge:oauth:account:${ref}`;
+/** How a grant names the Bridge account that made it: the SHA-256 of its email, never the email itself. */
+export const accountRef = (email: string) => hash(`account:${email.trim().toLowerCase()}`);
 const codeKey = (code: string) => `bridge:oauth:code:${hash(code)}`;
 const atKey = (t: string) => `bridge:oauth:at:${hash(t)}`;
 const rtKey = (t: string) => `bridge:oauth:rt:${hash(t)}`;
 const isGrant = (v: any) => v.v === 1 && typeof v.id === 'string' && typeof v.repo === 'string' && v.gh && typeof v.gh.ct === 'string';
 
-export async function createGrant(redis: Redis, key: Buffer, x: { repo: string; client: Pick<AuthRequest, 'clientId' | 'clientName'>; login: string; name: string; gh: GitHubTokens }, random: (n: number) => Uint8Array, at = now()): Promise<Grant> {
+export async function createGrant(redis: Redis, key: Buffer, x: { repo: string; client: Pick<AuthRequest, 'clientId' | 'clientName'>; login: string; name: string; gh: GitHubTokens; account?: string | undefined }, random: (n: number) => Uint8Array, at = now()): Promise<Grant> {
   const id = b64url(Buffer.from(random(18)));
   const iso = new Date(at).toISOString();
-  const g: Grant = { v: 1, id, repo: x.repo.toLowerCase(), clientId: x.client.clientId, clientName: x.client.clientName, login: x.login, name: x.name, createdAt: iso, lastUsedAt: iso, gh: seal(JSON.stringify(x.gh), key, id, random) };
+  const g: Grant = { v: 1, id, repo: x.repo.toLowerCase(), clientId: x.client.clientId, clientName: x.client.clientName, login: x.login, name: x.name, createdAt: iso, lastUsedAt: iso, gh: seal(JSON.stringify(x.gh), key, id, random), ...(x.account ? { account: x.account } : {}) };
   await redis.pipe([
     ['SET', grantKey(id), JSON.stringify(g), 'EX', GRANT_TTL_S],
     ['SADD', grantsKey(g.repo), id],
+    ...(x.account ? [['SADD', accountGrantsKey(x.account), id], ['EXPIRE', accountGrantsKey(x.account), GRANT_TTL_S]] : []),
   ]);
   return g;
+}
+
+/**
+ * Ends every connection a Bridge account made (its account is deleted): the grants it made, and the older grants of
+ * its GitHub login on its teams (made before grants named their account). Each grant goes with its sealed GitHub
+ * tokens, so its Bridge tokens stop working at once. Answers how many ended.
+ */
+export async function revokeAccountGrants(redis: Redis, who: { email: string; login?: string | null | undefined; repos: readonly string[] }): Promise<number> {
+  const ref = accountRef(who.email);
+  const raw = await redis.cmd('SMEMBERS', accountGrantsKey(ref));
+  const ids = new Set(Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : []);
+  let ended = 0;
+  for (const id of ids) {
+    const g = await getGrant(redis, id);
+    if (g && g.account === ref) {
+      await revokeGrant(redis, g);
+      ended++;
+    }
+  }
+  const login = who.login?.trim().toLowerCase();
+  if (login) {
+    for (const repo of who.repos) {
+      for (const g of await listGrants(redis, repo)) {
+        if (g.account || g.login.toLowerCase() !== login) continue;
+        await revokeGrant(redis, g);
+        ended++;
+      }
+    }
+  }
+  await redis.cmd('DEL', accountGrantsKey(ref));
+  return ended;
 }
 
 export async function getGrant(redis: Redis, id: string): Promise<Grant | null> {
