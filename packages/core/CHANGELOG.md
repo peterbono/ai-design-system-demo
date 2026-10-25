@@ -1,5 +1,176 @@
 # @bridge-ds/core
 
+## 0.19.0
+
+### Minor Changes
+
+- 4fb54b4: Marking a Figma change drafted (`bridge_mark_figma_change_drafted`, `bridge figma drafted <n>`) now also marks its pull request ready for review, in the same step, through GitHub's `markPullRequestReadyForReview` mutation. Ready goes first: when GitHub refuses it, the labels and the description stay as they were and the error says why, so a branch is never labelled `drafted-by-claude` while reviewers cannot see it. `markFigmaChangeDraftedOnGitHub` returns `ready: true`.
+
+  The Bridge MCP server (and `bridge mcp`) uses your gh sign-in (`gh auth token`) when `GITHUB_TOKEN` and `BRIDGE_GITHUB_TOKEN` are not set, and says once at start where its token came from, or that it runs without one (read-only, 60 requests an hour) and how to fix that. It never logs the token. The other CLI commands keep their rule: writes use your gh sign-in only with `--use-gh-auth`.
+
+- 7c52639: `remoteRenames(base, head)`: tokens the code renamed between two commits (removed and added with the same type, tier and values and a similar path, never guessed on a tie). The Figma plugin uses it so a pull renames the variable in place instead of orphaning it and adding a new one: everything bound to it keeps its binding.
+- 8403d3d: Who asked for a change: `requesterOf(body)` reads the line Bridge writes in a pull request or suggestion body ("Requested by Ann Leroy (@annleroy).", "Requested by Ann Leroy.", "Requested by @ann.", and the request footer "Requested from Figma by @ann with Bridge."), and `requesterLine()` writes it. Studio shows that person, not the account or agent that opened the branch. New optional config key `demo: { "viewer": "Dana", "role": "DS lead" }`: a public demo's persona, honoured by Bridge's own demo repositories only, for visitors without an account. It's in the schema, validated, and carried in `SiteRepo.demo`.
+- fe5fb1b: Figma plugin Settings: a token that can read the repository but not write to it is refused before it is saved, naming what is missing ("Contents", "Pull requests", "Issues"), instead of showing "Connected" and failing at Send. New GitHubClient.writeAccess(base) probes the three permissions with requests that are invalid on purpose, so nothing is written.
+- 625a692: Try it works without online previews: when nothing reported a deployment for an exploration (explorations and library branches are not deployed on Vercel any more), the Figma plugin says a developer opens it on their computer, the share message gives `git fetch origin && git switch <branch>`, polling stops, and `bridge branch try` / bridge_try_branch return the same local command (`local`). New core helpers: noOnlinePreview, localTryCommand.
+
+### Patch Changes
+
+- fbf7f55: A deleted account's changes keep a neutral author: `FORMER_MEMBER` ("A former member") and `requesterFirstName`, which
+  keeps that author whole in sentences. `requesterOf` reads "Requested by A former member through Bridge.".
+- 7eb8a27: A hosting platform that refused to run (Vercel "Deployment rate limited") no longer counts as a failed check, and a failed check no longer stops "where is my push" polling: a re-run can still ship it.
+- 401cdcc: Measured only: a frame bigger than its children plus its padding on an axis its parent does not size keeps its measured
+  size (a 48 px button around a 16 px icon, a 24 px label row around a 16 px label), read from the boxes when the measure
+  did not mark it as sized.
+- efb3281: The build request issue labels its images "In code now" and "In Figma" (BUILD_IMAGE_LABEL), like Studio.
+- 3364ee9: Build requests in the CLI and the MCP server: `bridge build list|show` and `bridge_list_build_requests` /
+  `bridge_get_build_request` (read only, status read from GitHub, the brief for Claude). Branch status, merge and
+  "what needs me" read a push from the Figma plugin with the shared gate (design approved, token values ship by
+  themselves). Core: a spec-only or Claude draft branch from Figma never ships by itself.
+- d89f7b7: Pushes from Figma and build requests: a push from the Figma plugin counts as design-approved in the shared gate
+  (`figmaPushOf`, `withFigmaPushApprovals`, `branchVerdict` `figmaPush` and `autoShip`), token values ship after the
+  checks, renames and removals wait for a developer, structure changes become build requests
+  (`composeBuildRequestIssue`, `createBuildRequestOnGitHub`) whose status is read from GitHub (`buildRequestStatus`,
+  `listBuildRequestsOnGitHub`). Publish result and `libraryArrival` for the plugin. See docs/BUILD-REQUESTS.md.
+- 57b8d89: Component specs treat a button or a select (including the Base UI part that renders one, read from Base UI's docs) as border-box: NumberField steppers are their height token wide again.
+- afd9ba2: Measure: a custom property holding color channels (`--primary: 212 100% 47%`) that every use wraps in one color function
+  (`hsl(var(--primary))`, through aliases too) is harvested as that color, so it becomes a color variable instead of being
+  skipped. A field declared as that function around the variable alone is tied to it, so it binds in Figma.
+- 4fd6e15: CLI errors say how to recover: `propose` names `--file` and `--mode` (not the MCP fields) for a token defined in several files, and explains a missing or non-array `--edits` file instead of a JavaScript error; `audit --baseline` with a file that is not an audit report no longer prints "undefined"; `snapshot --activity` without a token says how to read GitHub without a stray write hint; `request show` on another issue points to `bridge request list`; bad JSON for `docs save` and `figma push` says what to pass.
+- e52619d: The bridge CLI never writes on GitHub with a credential you did not pass: writes (suggestions, requests, reviews, comments, merges, branches) use `GITHUB_TOKEN`, `BRIDGE_GITHUB_TOKEN` or `--token`, or your gh sign-in only with `--use-gh-auth`. Reads may still use the gh sign-in, say so in one line on stderr, and cannot write. `bridge branch merge --dry-run` needs no write token. A merge the gate blocks exits 1, not 2, and `bridge --help` documents the exit codes. CLI messages name commands and flags (`bridge branch merge 12 --override "why"`), never MCP tools or JSON fields, the rate-limit message says how to pass a token in the CLI, and suggestions, pull requests and docs proposals made from the CLI say "the bridge CLI" and "source: cli". `bridge_get_config`, the server instructions and its start line say what Bridge may write in the same sentence. `bridge docs help`, `bridge brand help` and `-v`/`-h` work, `bridge tokens` says when it shows only the best matches (`--limit`), `bridge diff` explains a bad git ref, `bridge coverage` counts the 53 components once and says what the other numbers are, `bridge audit --fix` keeps what the audit keeps (ignore comments, `--allowlist`, `audit.exclude`) and takes `--json`, and a Figma change drafted by Claude no longer says so twice.
+- 48ee872: Designer words: build request images read "In code now" and "In Figma" in Studio (new `BUILD_IMAGE_LABEL`), and exploration name problems and use case hints no longer say branch or main.
+- af6e3e9: Designer screens drop git words: a component waiting for code reads "A developer builds it with Claude from its spec", without "the library branch".
+- ea27992: Designer words: screens a designer reads say "change" and "library", never branch, merge or main. The share and
+  product-branch sentences of `@bridge-ds/core` (`shareDescription`, `SHARE_EXPLAIN`, `libraryPreviewState`,
+  `productBranchSentence`) now read "This change was added to the library", "Your feature uses a preview of the library
+  change". The MCP fallback share sentence follows. ChoiceCard docs examples say "your change". Gate reasons, status
+  labels and developer texts (CLI, MCP, GitHub) keep their git words.
+- e65d3ee: A drafted summary that names a token (tag.bg) keeps its sentences: a dot inside a token path is not a sentence end.
+- e806350: Tokens from a measure: a variable that resolves to nothing (a font family that names itself) is skipped instead of
+  written as an empty `palette.string.` token, so what uses it keeps its computed value. Figma plugin: a system font
+  family (system-ui, ui-sans-serif, ui-monospace) draws with the platform font Figma lists before falling back to Inter.
+- f5cfbf0: Figma plugin, Try in an exploration: an exact token change on a component is committed on the exploration branch (same contrast gate as for review) instead of becoming a request, so the exploration shows it. The result says what is in it and what waits for code, and Try it points to the Studio screenshots when nothing is deployed.
+- 02d38ad: Fidelity: popups drawn open in Figma (dialogs, drawers, popovers, selects, comboboxes, tooltips) get a code image of the popup rendered open, instead of being skipped. A popup drawn from no code example (the menu) and the Card media placeholder stay skipped, each with why.
+- 8919183: Figma plugin: a component updated in place no longer turns black. Bound paints are written with the color they resolve to, not a black base Figma kept showing (on the canvas and in exports) until something refreshed it.
+- 7b9e2c2: The change line of a token rebinding from Figma names the variants the short way ("in primary sm", not "in Size=sm, Variant=primary"), like its value chips.
+- afa59e8: Foundation of the Claude correction loop for the Figma pull. Core: `buildGapCase` (one component's gap case: the
+  variants the story shots say differ, each with its story, args, state, shot and the differences in plain words and
+  deltas, like "Height 72 in Figma vs 84 in code: 8 px missing below the label") and `figma-fixes.json` (`parseFigmaFixes`,
+  `validateFigmaFixes`, `applyFixes`): the team's corrections of four kinds (part patch, axis mapping, story pointer,
+  honest status), laid on every fresh measure with a provenance record per fix. CLI: `bridge fixes check`,
+  `bridge fixes apply --in --out` and `bridge gap <component>`. See docs/FIGMA-FIXES.md.
+- eb4ace6: Figma plugin: a new file points at no design system, the first run asks which one; the open change a push adds to is kept per Figma user, so two designers in one file never share a branch; after a send, "See it in Studio" opens the change for the team, GitHub one step behind. One verb for sending ("Send for review", "Send suggestion"). A component that needs code now says a developer builds it with Claude, with a message to copy for them (the waiting-for-claude label stays). Draft with Claude on your plan: the setup for Claude Code and the Claude app is shown and copied with the saved token, and a token that cannot write contents is named before any wait. Designer words in Pull and Push (no commits, repository slugs or issue numbers; details under "For developers"), friendly errors with details folded, one name for Claude and for Bridge, arrow keys in menus. Core: the Figma push status and route copy say "Waiting for a developer" and "Drafted with Claude".
+- 0ed940f: Token pull requests pushed from Figma say "From Figma: design-approved, ships once the checks pass" (or "waits for a
+  developer OK" for a rename or removal) instead of the approvals line (`figmaPushTierLabel`, `fromFigma` on
+  `composePrBody`, `composeProposalBody` and `planTokenProposal`). Build requests: one item per change when the
+  library branch from Figma closes the issue; assignees on that branch count, the sender never reads as the builder.
+- 9be32eb: Figma references: one variant that fails to render no longer skips every variant after it. The reference story catches a render error and shows it as that variant's skip reason, and the capture reloads the story if Storybook still lands on its error screen. Parts of a compound component (AccordionItem, Radio, menu items, SidebarNavItem, TableEmpty) render inside their parent (`within` in the render plan) and are captured alone, at the width Figma draws them. Menu parts render the part itself instead of the Menu root, and a capture that comes out invisible is skipped with a reason instead of saved as a blank image.
+- e075f3b: Figma plugin: "Request a component change" says before sending when the request goes to the exploration picked for the push (it is built there, not sent for review), and how to send it for review instead.
+- fe906a6: Figma plugin: updating a component no longer adds its icon swap property again (Badge showed Icon2 and Icon3 after Update all). The swap Figma renamed next to its BOOLEAN (Icon -> Icon2) is found, unused duplicates from earlier updates are removed, and the property is read under the code's name so Review does not report a prop change.
+- a83618b: Figma plugin, Try it: a preview that failed before it had a link (a Vercel build rate limit) now says "This preview did not build" instead of waiting forever, and polling stops. A push to a new exploration with only component changes no longer says "The exploration already had these variable edits".
+- 7f6064b: Figma plugin Pull: on a first pull, components are included by default. The choice moves to the footer, next to Apply to Figma ("Include components (62)"), with one count on the screen ("602 variables and 62 components").
+- f7751a1: Fix with Claude: the team's own Claude fixes components whose Figma build differs from their story, Bridge is the
+  referee and a person approves; Bridge holds no API key. Core: `figmaGaps`, `gapCaseFor`, `tryFigmaFixes` (the values
+  referee: fixes validated, laid on the measure, the set rebuilt, each differing variant compared with the code before
+  and after, verdict closer, same or worse), `figmaFixesPrBody`, `fixPrompt` and `parseFixReply`, `FigmaFidelityRun`
+  (`figma-fidelity.json`), and `specsFromMeasure` (the plugin's measured-only pull, now in core). MCP:
+  `bridge_figma_gaps`, `bridge_get_gap_case`, `bridge_try_figma_fix` and `bridge_propose_figma_fixes` (a draft pull
+  request labelled drafted-by-claude). CLI: `bridge gaps` and `bridge fix <component>` (`--case`, `--try`, `--propose`,
+  and `--with-claude` with the team's ANTHROPIC_API_KEY). See docs/FIGMA-FIXES.md.
+- 60388db: Measure: a story that shows several instances (a gallery) is drawn from its first instance, and its screenshot is now
+  cut to that instance, so the fidelity check compares like with like. HeroUI Input and Select were drawn 192 px wide
+  (one field) and compared with a 400 px shot of two.
+- 4f3102a: Gap case: when the measured values agree but more than 5% of a variant's pixels differ, it says "Bridge doesn't
+  measure what differs here yet" with the share, instead of inviting a comparison by eye: neither Claude nor the designer
+  is told it matches.
+- e9fd0c7: Gap case and values referee: a wrapper the pull adds around one part (`<part>-wrapper`, for a margin Figma's gap can't
+  give) is not a difference, its part stands for it. An icon the build draws as a vector pairs with the measured icon, so
+  it is no longer counted as missing and extra at once.
+- 0b3aa07: One merge verdict everywhere: `branchVerdict` and `approvedSuggestionOnGitHub` in core compose the review rules once, and Studio, the MCP tools (`bridge_branch_status`, `bridge_merge_branch`, `bridge_what_needs_me`, `bridge_get_settings`) and the CLI (`bridge branch status|merge|list`, `bridge settings`) read them. Tier 1 needs one owner approval, the owner override is for owners only and always needs a reason (20 characters by default), and a pull request that applies an approved suggestion with `Closes #n` carries its approvals.
+- dd97e25: Measure: a grid with two or more columns and two or more rows, filled row by row, is a row that wraps at its measured
+  width, its column gap as the item spacing and its row gap between lines, each item at its track's width. A radio group
+  of radio and label columns was drawn as one column twice as tall.
+- 9d0dc16: History names who asked for a change (the requester line Bridge records), not the account that opened it.
+- a9cbbab: The team snapshot now carries releases, packages and motion, so a team's hosted Library can show its Changelog, Install and motion sections. `bridge snapshot` reads each workspace package and its CHANGELOG.md, the pending changesets and the release dates (tags, or git history on a full clone), and core adds the motion section of every component from its specs. Schema version stays 1: older snapshots still read. Core also exports the Changelog model (collectReleases, groupReleases) and motionDocs, moved from the docs site.
+
+  For you: nothing to change. Add `fetch-depth: 0` to the checkout in bridge-data.yml if you want release dates without release tags.
+
+- 1635400: A branch updated after a changes request waits on the reviewer who asked: core `lookAgainReviewers`, `Review.commitId` from `listReviews`; Studio says "Your turn: look again" to that reviewer and lists it on their home, the author no longer reads "Your turn: address changes"; `bridge_branch_status` gives `approvals.lookAgain` and the next step, `bridge_what_needs_me` says "Look again: updated after your changes".
+- 57f26bf: A branch updated after every changes request reads "Updated, look again" (core reviewStatusLabel, branchVerdict label) in Studio, the MCP server and the CLI, never a stale "Changes requested". The merge gate is unchanged. Studio's approval checklist says who looks again instead of "Failed".
+- 30e8c14: GitHubClient.hasBranch: asks whether a branch exists without a 404. Studio reads a team's snapshot only when its bridge-data branch exists, and skips join requests without a Bridge account, so neither leaves an error in the console. Edit mode's Do and Don't titles are h3, as on the read page.
+- 4c8a5dc: Measured layout shapes the Figma pull codes against: a decoration rebuilt in auto layout is aligned through its parent's layout (`MeasuredLayout.align[childId] = { primary, counter }`, Figma's terms relative to the parent's direction), with the parent's padding in `values`; the part-level `align` is gone. A full radius is 999 px in `values`, unless it is bound to a token.
+- 43b6e31: `withRepoTokenPaths` binds a measured field whose declaration is a variable alone (`var(--cds-button-primary, #0f62fe)`)
+  to the written token of its chain, so a design system measured without token files gets its colors and type bound to
+  variables. A calc() of a token, or a value that only matches one, stays a literal. Figma plugin: a measured component
+  whose root is a text (a link) is a frame that hugs that text.
+- d37207a: Measured parts carry what auto layout needs, in general CSS terms: `margins` per part, a `wrap: { padding }` for a child whose margin makes an uneven gap (uniform gaps and edge margins already become the parent's gap and padding), `overlay: true` for out-of-flow parts that overlap their siblings or leave their parent (the root's size never includes them), `align: { x, y }` for a lone out-of-flow decoration rebuilt in auto layout (the parent aligns it start, center or end and its padding carries the offset, instead of a pin), and `fullRadius` when a radius is half the shorter side or more (a percentage, or a 9999px pill).
+- db8e449: Measure what Carbon's form fields and controls really lay out. Child margins become auto layout: a first or last child's margin becomes padding, the space between children becomes the gap when uniform, else the smallest gap plus `spacers` per child. Widths and heights the CSS sets are listed in `sized` (kept fixed, not hugged). A percentage radius becomes px from the box (50% of a knob is half its side). An inline element holding blocks, and a row whose children sit stacked, take their direction from their boxes (a wrapping row stays a row). Closed or hidden content (opacity 0, hidden, inert, clipped away, an aria-hidden popover, an empty zero-size shell) is not a part. `--variants` runs once a component's stories are measured and starts each combination from the closest story; it probes an enum by rendering its default and one other value through args and comparing them with popovers and tooltips left out, so an arg that only opens, aligns or moves a popup is not an axis.
+- 4dc69ae: Measure args reach the story: when Storybook drops URL args it cannot validate (a story that declares no args, like Carbon's Button), the measure sends them the way the Controls panel does and waits for the re-render. `--variants` probes a boolean with both values, compared with each other, so a story that renders the non-default value (a toggle shown on) keeps its axis.
+- e4c34ee: Measure controls drawn in CSS and keep long runs cheap and safe. The measure reads `::before` / `::after` that draw a box as parts (box, fill, border, radius, pin or cover, with their own declarations in the cascade), gives a grid a direction (flow, tracks, or where its children sit), writes inline SVG with every shape's fill and stroke and currentColor resolved (`vectors`, with strokes), keeps BEM element classes (`cds--toggle__switch`) whole, lays out a root that fills its container at 400 px (`fillWidth`) so the measure and the shot agree, flags gallery stories and orders single-instance stories first, and waits for DOM ready plus a short settle with animations paused. `--variants` varies only the args a story declares; without a Figma set it probes each one once and leaves out args with no visual effect (`variantPlan`), with at most 48 renders per component (each value, then pairs). The CLI stays on the story (links do not navigate), opens a fresh tab per component and after any failure, reads `--tokens` first, writes after each component with `--resume`, and runs `--check` only against a Figma side that belongs to the Storybook.
+- ce6a8c7: Measure as the referee: `bridge specs --measure` now opens popups (`--open`), measures parts inside a parent or portal (`--within`), reads tokens defined on provider elements, splits stories that render many instances, records the props each story rendered with, measures every variant (`--variants`, `--states`, hover and focus forced in Chrome, disabled as an arg) and gives each component a status (`--check`: Matches, Differs, or Can't check yet with the reason). Core pairs text layers by their words, and exports the measured-specs shapes, `parseMeasuredSpecsFile`, `pairParts`, `compareSpecToMeasured`, `mapPropsToFigma`, `planVariantMeasures` and `componentStatus` from the browser-safe entry.
+- fd0191c: `bridge specs --measure --tokens` harvests the library's variables: every CSS custom property its stylesheets define (root, provider and theme selectors), the declaration that applies where the story sits, resolved (colors as rgb, lengths in px), per theme, brand or density mode (Storybook globals, or a theme attribute such as `data-carbon-theme`), in two tiers (literal: primitive, `var()`: semantic, and semantic by value when a compiled theme writes a primitive's value per mode), with Figma variable paths and the properties the measured stories use. Written as `tokens` in measured-specs.json (`MeasuredTokens` in core).
+
+  `--shots` writes a PNG of each measured root at 2x (one per distinct render) to `measured-shots/` with a manifest keyed by Figma variant, and records `shot` on each story; the measured root part carries `fill` when it spans its container. `@bridge-ds/visual`'s `openMeasurePage` takes a `scale`.
+
+- 4d61987: Measure triage on the full library. The measure: forced states apply to the component and everything in it (a field's Hover is its control's hover), logical properties (`padding-block-start`) are read in the cascade, a declaration whose variable does not give the computed value is not taken as the token, visually hidden text is not a layer, and a component that draws nothing itself is not split into instances. Pairing reads every class of a part, prefers the part's own parent, keeps classless decorations and same-word texts in another role unpaired. The status compares a variant with the closest story that renders its props, names an arg a story refuses, checks sets drawn under a folder (Progress/Linear) and names the open popup Figma draws. `--variants` measures every story as written; parts with no story of their own (MenuItem, MenuSubmenu, AccordionItem) are measured inside their component as `<title>/<Set>` entries, and every measured component, popups and parts included, carries the token values its Figma sets name (`resolved`).
+- 1c4e347: Measure: utility classes (Tailwind's `px-4`, `hover:bg-x`, `w-[42px]`, CSS-in-JS hashes like `css-1x2y3z`) never name
+  or pair a part. A part named only by utilities takes its tag, numbered in order, so the same structure gives the same
+  ids in every variant. BEM and semantic classes still name parts: Carbon's ids do not change.
+- 44f49ff: `bridge specs --measure`: the set's root class is read from the spec source correctly (it read `module`), so items inside their group are measured alone; a forced Pressed state is also a hover, as a real press is; `--check` gives one status per component name, its own stories and its "Figma variants" stories together.
+- 07380d7: `bridge specs --measure` measures the item, not its group: when a story renders a set's component inside its parent (a radio in its fieldset, a menu item in its open menu), the measure reads the element with the Figma set's root class, opening the popup if needed. A Figma `Checked=mixed` value maps to the `indeterminate` prop (`mapPropsToFigma` `also`, `variantCombosFromMapping`), so `--variants` measures it and `--check` compares it.
+- b822435: A merged or closed branch reads as done everywhere: the merge gate gives its state as the one reason and lists no missing approval; `bridge branch status` prints "Merged." and who approved, without approvals, tests or blockers.
+- c0731d6: The Figma plugin draws measured-only sets with core's `specsFromMeasure` (one copy for the plugin, the CLI and the MCP
+  server). Three general rules from the Carbon v3 run: a frame that paints nothing and holds only overlays (a popover's
+  container) is out of the flow; a frame that aligns its lone child (a switch and its knob) keeps its measured size; and
+  `flex-grow` only fills space its parent has (a growing row in a column that hugs stays one line tall).
+
+  Figma plugin: "Fix with Claude" on a set that differs writes the Check fidelity run (verdicts and the layers read back)
+  to figma-fidelity.json on the requests branch, then gives the phrase for the designer's Claude ("Fix TextInput in
+  Figma with Bridge") and the CLI line for teams with an API key.
+
+- d54ace8: Fix with Claude: a part fix that sizes, places or lays out a part (width, height, direction, align, overlay) opens for
+  review even when the values referee says same. The referee can't judge layout; the pull request body says so and that
+  Check fidelity decides. A fix that goes the wrong way is still refused.
+- d199eb5: Measured only, for any design system pulled from its Storybook: a part the measure gives as SVG (`MeasuredSpec.vectors`,
+  an icon, a check mark) is drawn as vectors instead of an empty frame, and a positioned part (a pseudo-element knob)
+  follows its offset in each variant. The first pull names the collections that get variables ("Primitives and
+  Semantic"), not a fixed list of six.
+- 96acdf2: A component change from Figma with a value set by hand says the value and the variables that hold it: `Rebind.raw` and `PushIssue.raw` (optional). In the plugin, Push shows a swatch and binds the variable in one click, and a token that cannot write reads "Read only" in Settings.
+- d157472: A component change from Figma that adds or removes whole variants, every value staying on its axis, reads as such: "Remove the info solid md variant", "New variant info lg".
+- eb4d6ce: Figma plugin: a request sent from the form goes for review by default. Sending it into an exploration is an explicit choice in the form ("Where it goes"); the destination of the last push no longer carries over.
+- f198e92: `requesterOf` reads the line Bridge's server writes for an email member ("Requested by Ann Leroy (ann@acme.com) through Bridge."), so the person, not the Bridge app, shows as who asked.
+- 2b01116: A branch opened from Figma and labelled drafted-by-claude reads as ready for review even while GitHub still calls it a draft (core isDraft, claudeStage), in Studio, the MCP server and the CLI alike; merging it marks it ready first. Studio says where Claude stands: a developer builds it before the draft, the owners review it after.
+- 27dff7f: Measure: a part's box-shadow becomes a `shadow` field (drop and inner shadows, transparent rings left out), drawn as
+  Figma effects by the plugin; and a part a transform moves or scales (a progress indicator slid left with translateX)
+  sits where and as big as it is drawn, out of the flow, instead of where the layout would put it.
+- c46846d: Figma plugin: the BOOLEAN of a swappable part is named "Show icon" ("Show icon start"), as Figma kits do, so the swap keeps the plain name "Icon" instead of the "Icon2" Figma gave it. Files built with the old names are renamed in place on the next update (same ids, instances keep their overrides). The hint for an added layer an optional part already draws reads "Icon end already does this: turn on Show icon end".
+- efa01d6: Component specs count height and width as the content box (a bordered table cell is its height plus its border), the Figma build draws an empty sized slot at its padding instead of 100px, and stories reach every Figma variant: a disabled control on IconButton, Input, Select, Combobox and Textarea, and Figma variant stories for AccordionItem, MenuItem, MenuCheckboxItem, MenuSubmenu and TableEmpty.
+- d8848ff: Component specs for Figma: a content-box min-height or min-width counts its padding and border, as CSS draws it (checkbox, radio, switch, link rows were 3px short in Figma).
+- 7f9930c: Component specs for Figma: a defaultValue list opens or checks its items, as Base UI does (an accordion draws only its open panels, a checkbox group checks the boxes it lists).
+- 9ec466a: Component specs match the code in two places the generator misread: menu parts drawn alone take the popup's snug line height, and the page header title takes its desktop (h1) size, as width media queries are now read at the 1200 px the code images use.
+- d8c7494: Component specs for Figma: inline custom properties set under a computed key or through a Base UI render element reach the CSS, a number held by a custom property and 1lh are read in calc() (a Textarea of 3 rows is 81px in Figma, as in code).
+- fb3815b: Measure: colors a page keeps in oklch(), oklab(), lab(), lch() or color() (Tailwind v4 themes, color-mix results) are
+  turned into sRGB rgb()/rgba() in the measure and the token harvest, in values, shadows and SVG markup, so they become
+  color variables and Figma paints instead of being skipped.
+- 306774c: Measured only: a variant's rest and its states come from one story where they can, the one most of its states were
+  measured on. Kbd was drawn at rest from a story that shows it in an input group and hovered from one that shows it
+  alone; a hover from another story is no longer that variant's hover. A state only another story shows (a Disabled
+  story) still comes from it.
+- 5309e2e: Component scan: Storybook story ids keep a camel-case title word whole (Forms/ChoiceCard is forms-choicecard), so Library previews of multi-word components open the right story.
+- 4aa0cd7: Storybook measure: `bridge specs --measure --storybook <url>` opens each story in Chrome and records what it really draws (layers, boxes, auto layout, fills, borders, radii, text styles, and the token behind each value), in the component specs shape. Works on any React Storybook, whatever the styling. Core adds `measureStory`, `measuredToSpec` and `compareSpecToMeasured` under `@bridge-ds/core/node`; visual exports `openMeasurePage`. The Figma pull does not read it yet.
+- 80ee954: Token value changes ship by themselves once the design approval is in (decision TV-1). `branchVerdict` takes
+  `autoMerge` (GitHub `auto_merge` set): a design-approved token value change whose merge Bridge armed reads `autoShip`,
+  "On its way to the library". `GitHubClient.getPullRequest` returns `autoMerge`, and `bridge_branch_status` says Bridge
+  merges it once the automatic checks pass.
+- df92fcf: Teams get a display name: `name` in bridge.config.json (1 to 60 characters), kept by loadConfig and siteRepoFromConfig.
+- d8e5e84: Token values follow the Figma rule wherever they are made (decision TV-1): a pull request or a suggestion that only
+  changes token values (values changed or tokens added, nothing renamed or removed, no code) needs the design approval
+  only. Once it is in, the tech approval counts as given and the change ships after the automatic checks
+  (`isTokenValueChange`, `mayBeTokenValueChange`, `withTokenValueApprovals`, `branchVerdict` `tokenValues`,
+  `suggestionIsTokenValues`, `summarizeSuggestionApprovals` `valuesOnly`, `requiredApprovals(tier, valuesOnly)`).
+  Renames and removals still need a developer OK. Studio, the MCP server and the CLI read the same verdict
+  (`bridge_branch_status` says "Design approval (token values ship after the checks)").
+- 2d89e58: A token harvest from a measure (`tokens` of measured-specs.json) becomes a two-tier DTCG repo Bridge reads (tokenRepoFromMeasure), and the measured values point at it (withRepoTokenPaths). The Figma plugin compares measured-only sets with the screenshots of the stories they were built from.
+
 ## 0.18.0
 
 ### Minor Changes

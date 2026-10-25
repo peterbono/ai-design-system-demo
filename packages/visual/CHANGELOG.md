@@ -1,5 +1,100 @@
 # @bridge-ds/visual
 
+## 0.3.13
+
+### Patch Changes
+
+- 02d38ad: Fidelity: popups drawn open in Figma (dialogs, drawers, popovers, selects, comboboxes, tooltips) get a code image of the popup rendered open, instead of being skipped. A popup drawn from no code example (the menu) and the Card media placeholder stay skipped, each with why.
+- 9be32eb: Figma references: one variant that fails to render no longer skips every variant after it. The reference story catches a render error and shows it as that variant's skip reason, and the capture reloads the story if Storybook still lands on its error screen. Parts of a compound component (AccordionItem, Radio, menu items, SidebarNavItem, TableEmpty) render inside their parent (`within` in the render plan) and are captured alone, at the width Figma draws them. Menu parts render the part itself instead of the Menu root, and a capture that comes out invisible is skipped with a reason instead of saved as a blank image.
+- 60388db: Measure: a story that shows several instances (a gallery) is drawn from its first instance, and its screenshot is now
+  cut to that instance, so the fidelity check compares like with like. HeroUI Input and Select were drawn 192 px wide
+  (one field) and compared with a 400 px shot of two.
+- fd0191c: `bridge specs --measure --tokens` harvests the library's variables: every CSS custom property its stylesheets define (root, provider and theme selectors), the declaration that applies where the story sits, resolved (colors as rgb, lengths in px), per theme, brand or density mode (Storybook globals, or a theme attribute such as `data-carbon-theme`), in two tiers (literal: primitive, `var()`: semantic, and semantic by value when a compiled theme writes a primitive's value per mode), with Figma variable paths and the properties the measured stories use. Written as `tokens` in measured-specs.json (`MeasuredTokens` in core).
+
+  `--shots` writes a PNG of each measured root at 2x (one per distinct render) to `measured-shots/` with a manifest keyed by Figma variant, and records `shot` on each story; the measured root part carries `fill` when it spans its container. `@bridge-ds/visual`'s `openMeasurePage` takes a `scale`.
+
+- 4aa0cd7: Storybook measure: `bridge specs --measure --storybook <url>` opens each story in Chrome and records what it really draws (layers, boxes, auto layout, fills, borders, radii, text styles, and the token behind each value), in the component specs shape. Works on any React Storybook, whatever the styling. Core adds `measureStory`, `measuredToSpec` and `compareSpecToMeasured` under `@bridge-ds/core/node`; visual exports `openMeasurePage`. The Figma pull does not read it yet.
+- Updated dependencies [fbf7f55]
+- Updated dependencies [7eb8a27]
+- Updated dependencies [401cdcc]
+- Updated dependencies [efb3281]
+- Updated dependencies [3364ee9]
+- Updated dependencies [d89f7b7]
+- Updated dependencies [57b8d89]
+- Updated dependencies [afd9ba2]
+- Updated dependencies [4fd6e15]
+- Updated dependencies [e52619d]
+- Updated dependencies [48ee872]
+- Updated dependencies [af6e3e9]
+- Updated dependencies [ea27992]
+- Updated dependencies [e65d3ee]
+- Updated dependencies [4fb54b4]
+- Updated dependencies [e806350]
+- Updated dependencies [f5cfbf0]
+- Updated dependencies [02d38ad]
+- Updated dependencies [8919183]
+- Updated dependencies [7b9e2c2]
+- Updated dependencies [7c52639]
+- Updated dependencies [afa59e8]
+- Updated dependencies [eb4ace6]
+- Updated dependencies [0ed940f]
+- Updated dependencies [9be32eb]
+- Updated dependencies [e075f3b]
+- Updated dependencies [fe906a6]
+- Updated dependencies [a83618b]
+- Updated dependencies [7f6064b]
+- Updated dependencies [f7751a1]
+- Updated dependencies [60388db]
+- Updated dependencies [4f3102a]
+- Updated dependencies [e9fd0c7]
+- Updated dependencies [0b3aa07]
+- Updated dependencies [dd97e25]
+- Updated dependencies [9d0dc16]
+- Updated dependencies [a9cbbab]
+- Updated dependencies [1635400]
+- Updated dependencies [57f26bf]
+- Updated dependencies [30e8c14]
+- Updated dependencies [4c8a5dc]
+- Updated dependencies [43b6e31]
+- Updated dependencies [d37207a]
+- Updated dependencies [db8e449]
+- Updated dependencies [4dc69ae]
+- Updated dependencies [e4c34ee]
+- Updated dependencies [ce6a8c7]
+- Updated dependencies [fd0191c]
+- Updated dependencies [4d61987]
+- Updated dependencies [1c4e347]
+- Updated dependencies [44f49ff]
+- Updated dependencies [07380d7]
+- Updated dependencies [b822435]
+- Updated dependencies [c0731d6]
+- Updated dependencies [d54ace8]
+- Updated dependencies [d199eb5]
+- Updated dependencies [96acdf2]
+- Updated dependencies [d157472]
+- Updated dependencies [eb4d6ce]
+- Updated dependencies [8403d3d]
+- Updated dependencies [f198e92]
+- Updated dependencies [2b01116]
+- Updated dependencies [27dff7f]
+- Updated dependencies [c46846d]
+- Updated dependencies [efa01d6]
+- Updated dependencies [d8848ff]
+- Updated dependencies [7f9930c]
+- Updated dependencies [9ec466a]
+- Updated dependencies [d8c7494]
+- Updated dependencies [fb3815b]
+- Updated dependencies [306774c]
+- Updated dependencies [5309e2e]
+- Updated dependencies [4aa0cd7]
+- Updated dependencies [80ee954]
+- Updated dependencies [df92fcf]
+- Updated dependencies [d8e5e84]
+- Updated dependencies [fe5fb1b]
+- Updated dependencies [2d89e58]
+- Updated dependencies [625a692]
+  - @bridge-ds/core@0.19.0
+
 ## 0.3.12
 
 ### Patch Changes
