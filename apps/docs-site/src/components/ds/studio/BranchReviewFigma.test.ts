@@ -93,7 +93,7 @@ describe('BranchReview: a change sent from Figma (RT-1)', () => {
   it('before the draft: a developer builds it with Claude, the designer is never asked to request a review', () => {
     render(createElement(BranchReview, page('waiting-for-claude', { isAuthor: true })));
     expect(screen.getByText('A developer builds it with Claude. You will see the code here.')).toBeTruthy();
-    expect(document.body.textContent).not.toMatch(/to request a review|Request a review when/);
+    expect(document.body.textContent).not.toMatch(/to request a review|Request a review when|to send (it|this draft) for review|Send it for review when/);
     expect(screen.queryByRole('button', { name: 'Send for review' })).toBeNull();
   });
 
@@ -102,7 +102,7 @@ describe('BranchReview: a change sent from Figma (RT-1)', () => {
     expect(props.status.lifecycle).toBe('ready');
     render(createElement(BranchReview, props));
     expect(screen.getByText('Ready for review. Claude drafted the code from your Figma change. Waiting for the design system owners.')).toBeTruthy();
-    expect(document.body.textContent).not.toMatch(/to request a review/);
+    expect(document.body.textContent).not.toMatch(/to request a review|to send (it|this draft) for review/);
     expect(screen.queryByRole('button', { name: 'Send for review' })).toBeNull();
   });
 

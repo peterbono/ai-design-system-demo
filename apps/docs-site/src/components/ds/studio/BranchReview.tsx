@@ -990,7 +990,7 @@ function DecisionBar({ p, leftLine, inputRef, tried, onTry }: { p: BranchReviewP
             {a.menu.close && <MenuSeparator />}
             {a.menu.close && (
               <MenuItem tone="danger" onClick={() => setConfirm('close')}>
-                Close branch
+                Close change
               </MenuItem>
             )}
           </MenuContent>

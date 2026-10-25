@@ -171,7 +171,7 @@ export function blockerOf(c: TodoChange, who: WhoActs, viewer: string | null): {
     case 'mark-ready':
       return { what: 'it is still a draft', fix: 'finish it' };
     case 'promote':
-      return { what: 'it is still an exploration', fix: 'request a review' };
+      return { what: 'it is still an exploration', fix: 'send it for review' };
     default:
       return null;
   }
@@ -194,7 +194,7 @@ function changeRow(c: TodoChange, input: TodoInput): { group: Group; row: TodoRo
   if (c.lifecycle === 'waiting') return open('developer', 'blocked', 'Design is approved. A developer finishes the code before it is added to the library.');
   // The viewer's own draft (not one an agent made with their account): marking it ready is theirs to do.
   if (who.action === 'mark-ready' && who.yourTurn && viewer && !c.agent)
-    return { group: 'mine', row: { ...base, task: 'finish', why: 'Reviewers are not asked until you request a review.', action: 'Open draft', ...state } };
+    return { group: 'mine', row: { ...base, task: 'finish', why: 'Reviewers are not asked until you send it for review.', action: 'Open draft', ...state } };
 
   // Technical blockers: named, delegated to the author, or to "a developer" when the author is the viewer.
   const block = blockerOf(c, who, viewer);

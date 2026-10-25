@@ -356,10 +356,10 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
     r.status !== 'active'
       ? `<a class="btn btn-primary btn-lg" href="?pr=${r.number}" data-open-pr="${r.number}">Open the change</a>`
       : opts.connected
-        ? `<button type="button" class="btn btn-primary btn-lg" data-ex-promote="${r.number}">Promote to review</button> <button type="button" class="btn btn-secondary btn-lg" data-ex-close-ask="${r.number}">Close</button>`
+        ? `<button type="button" class="btn btn-primary btn-lg" data-ex-promote="${r.number}">${VOCAB.requestReview}</button> <button type="button" class="btn btn-secondary btn-lg" data-ex-close-ask="${r.number}">Close</button>`
         : sampleVisitor()
           ? // The sample team: the button says what it does; a click opens the demo dialog (scripts/demo-gate.ts).
-            `<button type="button" class="btn btn-primary btn-lg" data-demo-write="keep an exploration">Promote to review</button>`
+            `<button type="button" class="btn btn-primary btn-lg" data-demo-write="keep an exploration">${VOCAB.requestReview}</button>`
           : `<button type="button" class="btn btn-primary btn-lg" data-gh-open data-demo-write="keep an exploration">${ghAction('promote it', prefersSignIn())}</button>`;
   // Filled again by paintTryIt with what Vercel reports: a long branch alias is shortened with a hash, never guessed.
   const resolved = explorationPreviews(r, CFG.apps);

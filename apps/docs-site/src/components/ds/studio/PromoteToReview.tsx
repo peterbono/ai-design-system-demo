@@ -62,13 +62,13 @@ export default function PromoteToReview() {
     <Dialog open={detail !== null} onOpenChange={(o) => !o && !busy && close(false)}>
       <DialogContent
         size="sm"
-        title={detail ? `Promote “${detail.name}” to review?` : 'Promote to review?'}
+        title={detail ? `Send “${detail.name}” for review?` : 'Send for review?'}
         description={ask?.next ?? 'It moves to In review, then it can be added to the library once approved.'}
         footer={
           <ButtonGroup align="end">
             <DialogClose render={<Button variant="secondary" disabled={busy} />}>Cancel</DialogClose>
             <Button variant="primary" loading={busy} disabled={busy || ask === null} onClick={() => void confirm()}>
-              {busy ? 'Promoting' : 'Promote to review'}
+              {busy ? 'Sending' : 'Send for review'}
             </Button>
           </ButtonGroup>
         }

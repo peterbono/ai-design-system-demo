@@ -151,7 +151,7 @@ describe('statusAction and lifecycleSentence', () => {
     expect(statusAction({ ...x, lifecycle: 'closed', reopen: { kind: 'gone' }, tokenEdits: false })).toBe(null);
   });
   it('says the state in plain words', () => {
-    expect(lifecycleSentence({ lifecycle: 'draft', isAuthor: false, author: 'ann' })).toBe('Waiting for @ann to request a review.');
+    expect(lifecycleSentence({ lifecycle: 'draft', isAuthor: false, author: 'ann' })).toBe('Waiting for @ann to send it for review.');
     expect(lifecycleSentence({ lifecycle: 'shipped', isAuthor: false, author: 'ann', mergedAt: '2026-10-03T12:00:00Z' })).toBe('Added to the library on Oct 3, 2026.');
     expect(lifecycleSentence({ lifecycle: 'closed', isAuthor: true, author: 'ann', reopen: { kind: 'gone' } })).toBe(GONE_SENTENCE);
     expect(lifecycleSentence({ lifecycle: 'closed', isAuthor: true, author: 'ann' })).toBe('Closed without adding it to the library.');
@@ -249,7 +249,7 @@ describe('draftFromTokenSets', () => {
   });
 
   it('says what Start again did, or why it could not', () => {
-    expect(restartLine({ carried: 2, skipped: 0, draftBusy: false })).toEqual({ ok: true, text: '2 token edits copied into your draft. Opening Tokens to request a review.' });
+    expect(restartLine({ carried: 2, skipped: 0, draftBusy: false })).toEqual({ ok: true, text: '2 token edits copied into your draft. Opening Tokens to send it for review.' });
     expect(restartLine({ carried: 1, skipped: 1, draftBusy: false }).text).toContain('1 other edit (new, removed or brand-only tokens) could not be carried over.');
     expect(restartLine({ carried: 2, skipped: 0, draftBusy: true }).ok).toBe(false);
     expect(restartLine({ carried: 0, skipped: 3, draftBusy: false }).ok).toBe(false);

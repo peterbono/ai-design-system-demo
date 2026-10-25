@@ -248,7 +248,7 @@ describe('who acts now', () => {
     expect(whoActs(detail({ ci: red }), { owners, author: 'ann', viewer: 'dana' }).sentence).toBe('Waiting for @ann to fix 2 failing checks.');
     expect(whoActs(detail({ ci: red }), { owners, author: 'ann', viewer: 'ann' })).toMatchObject({ yourTurn: false, action: 'fix-checks', sentence: 'Blocked: checks fail. A developer is on it.' });
     expect(whoActs(detail({ a: { changesRequested: ['dana'] } }), { owners, author: 'ann' }).sentence).toBe('Waiting for @ann to address the changes @dana requested.');
-    expect(whoActs(detail({ state: 'draft' }), { owners, author: 'ann' }).sentence).toBe('Waiting for @ann to request a review of this draft.');
+    expect(whoActs(detail({ state: 'draft' }), { owners, author: 'ann' }).sentence).toBe('Waiting for @ann to send this draft for review.');
     expect(whoActs(detail({ mergeable: false, a: { approvers: ['dana', 'theo'], design: true, tech: true } }), { owners, author: 'ann' }).action).toBe('resolve-conflict');
     expect(whoActs(detail({ state: 'draft', exploration: true }), { owners, author: 'ann' }).action).toBe('promote');
   });

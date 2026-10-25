@@ -229,6 +229,6 @@ export async function mountStatus(
 export async function backToDraft(n: number, reload: () => Promise<void>) {
   const { owner, repo } = readRepo();
   await studioClient(`${owner}/${repo}`).convertToDraft(n);
-  pending = 'Back to draft. Reviewers are not asked until you request a review again.';
+  pending = 'Back to draft. Reviewers are not asked until you send it for review again.';
   await reload();
 }

@@ -43,7 +43,7 @@ import { CONTRIBUTE_WORDS } from '../../../lib/contribute';
 import { sampleVisitor } from '../../../scripts/demo-gate';
 import { type ProposedBrand, proposeBrand } from '../../../scripts/new-brand';
 import { suggestionHref } from '../../../lib/suggestions-view';
-import { ghAction, SEE_SUGGESTION, sendButton, sendGoal, SUGGEST_NEXT, SUGGESTION_SENT, suggestionSentLine } from '../../../lib/gh-wording';
+import { ghAction, SEE_SUGGESTION, sendButton, sendGoal, SENT_FOR_REVIEW, SUGGEST_NEXT, SUGGESTION_SENT, suggestionSentLine } from '../../../lib/gh-wording';
 import { parseJiraKey } from '../../../lib/vocabulary';
 import { studioHref } from '../../../lib/team-path';
 
@@ -213,12 +213,12 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
       <section className="nb" aria-labelledby={headingId}>
         <div className="nb-done">
           <h2 className="nb-step-title" id={headingId} tabIndex={-1}>
-            Branch created
+            {SENT_FOR_REVIEW}
           </h2>
           <p className="nb-lead">{draft.name} stays a draft until design and tech approve it. The Library shows it once it is approved and added.</p>
           <div className="nb-actions">
-            <Button variant="primary" iconStart={GitBranch} render={<a href={studioHref(`changes/?pr=${done.number}`)} />}>
-              Open the branch
+            <Button variant="primary" iconStart={ArrowRight} render={<a href={studioHref(`changes/?pr=${done.number}`)} />}>
+              Open the change
             </Button>
           </div>
         </div>
