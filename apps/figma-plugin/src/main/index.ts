@@ -3,7 +3,7 @@
 
 import { type RequestMap, type RequestType, type ResponseEnvelope, STUDIO_ORIGIN, isRequest } from '../shared/messages';
 import { applyPullPlan } from './apply';
-import { applyComponentPlan, scanGenerated } from './build-components';
+import { applyComponentPlan, renderIncoming, scanGenerated } from './build-components';
 import { exportVariants, readBuilt } from './fidelity';
 import { clearClaudeKey, readClaudeSettings, saveClaudeSettings } from './claude-settings';
 import { baselineImage, bindRaw, exportImage, exportThumbnails, markPushed, rebaseline, renameInBaselines, saveSignatures, scanComponents, selectionInfo, setExperimental } from './components';
@@ -137,6 +137,9 @@ const handlers: Handlers = {
   },
   async 'read-built'({ nodeId, keys }) {
     return readBuilt(nodeId, keys);
+  },
+  async 'render-incoming'({ component, icons, key, scale }) {
+    return renderIncoming(component, { icons }, key, scale);
   },
   async 'apply-components'({ plan }) {
     cancelBuild = false;
