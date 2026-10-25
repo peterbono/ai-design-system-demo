@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "astro",
-  "installCommand": "cd ../.. && npm ci",
+  "installCommand": "cd ../.. && npm ci && node packages/mcp/build.mjs",
   "buildCommand": "cd ../.. && npm run docs:build",
   "outputDirectory": "dist",
   "ignoreCommand": "node ../../scripts/vercel-ignore.mjs docs",
@@ -50,7 +50,12 @@
     { "source": "/library/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/components/:slug([A-Za-z0-9][A-Za-z0-9-]*)/", "destination": "/library-shell/components/item/" },
     { "source": "/library/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/components/:slug([A-Za-z0-9][A-Za-z0-9-]*)", "destination": "/library-shell/components/item/" },
     { "source": "/library/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/:path*/", "destination": "/library-shell/:path*/" },
-    { "source": "/library/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/:path*", "destination": "/library-shell/:path*" }
+    { "source": "/library/:owner([A-Za-z0-9][A-Za-z0-9-]{0,38})/:repo([A-Za-z0-9._-]{1,100})/:path*", "destination": "/library-shell/:path*" },
+    { "source": "/mcp", "destination": "/api/mcp" },
+    { "source": "/.well-known/oauth-protected-resource", "destination": "/api/mcp?wk=resource" },
+    { "source": "/.well-known/oauth-protected-resource/mcp", "destination": "/api/mcp?wk=resource" },
+    { "source": "/.well-known/oauth-authorization-server", "destination": "/api/mcp?wk=as" },
+    { "source": "/oauth/:step(authorize|token|register|revoke|github|request|approve)", "destination": "/api/mcp?oauth=:step" }
   ],
   "headers": [
     {

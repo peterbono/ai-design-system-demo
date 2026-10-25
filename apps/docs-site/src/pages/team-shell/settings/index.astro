@@ -6,14 +6,13 @@
 // Members (who is in the team, who asks to join, invites and roles, MembersSection.tsx) reads the team from the address
 // and GitHub; the team's rules (how changes reach the code, review rules, safety) render read only, in designer words,
 // from its repository model in the browser (components/ds/studio/TeamSettings.tsx), each with a "For developers" fold.
-// Claude (ClaudeSection.tsx): an admin connects the team's own Claude so it fixes differences between Figma and the code.
 // On the demo, that is the demo's sample team. Appearance (light or dark) is this browser's own choice, there for
 // everyone whatever the team read gives (AppearanceSetting.tsx).
 import '../../../styles/settings.css';
 import TeamShell from '../../../components/TeamShell.astro';
 import MembersSection from '../../../components/ds/studio/MembersSection';
 import LibraryAccessSection from '../../../components/ds/studio/LibraryAccessSection';
-import ClaudeSection from '../../../components/ds/studio/ClaudeSection';
+import ClaudeConnector from '../../../components/ds/studio/ClaudeConnector';
 import TeamSettings from '../../../components/ds/studio/TeamSettings';
 import AppearanceSetting from '../../../components/ds/studio/AppearanceSetting';
 import TeamNameSetting from '../../../components/ds/studio/TeamNameSetting';
@@ -33,7 +32,7 @@ import { TEAM_NAME_WORDS } from '../../../lib/team-name';
     <LibraryAccessSection client:only="react" />
   </section>
   <section class="ts-band" id="team-claude" aria-labelledby="set-claude">
-    <ClaudeSection client:only="react" />
+    <ClaudeConnector client:only="react" />
   </section>
   <TeamSettings client:load />
   <section class="ts-band" id="appearance" aria-labelledby="ts-appearance">

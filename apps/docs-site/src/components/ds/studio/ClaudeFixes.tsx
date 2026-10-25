@@ -1,90 +1,82 @@
-// Studio, Being built: Claude's fixes. The fixes the team's connected Claude works on or has ready (api/claude,
-// docs/FIGMA-FIXES.md "Claude runs it for the team"), above the build requests (pages/studio/building.astro and its team
-// shell). Nothing shows when there is no run in the last 7 days, on the sample team, or when the site cannot say.
-//   - A title and one sentence, then one row per run: the shared BranchRow (compact), the component, the server's
-//     sentence and who asked, one status tag after the text ("Claude is on it", "Claude's fix is ready", "No fix
-//     found", "Not finished"). A ready row opens the review of Claude's change in Studio, never GitHub; the others
-//     open the component. With 3 ready fixes or fewer, each ready row also says "See Claude's fix" on its line.
-//   - A run in progress moves while this page shows it: the page asks the server about one run at a time (each answer
-//     is at most one Claude round), waits what the server says, and stops when the page is hidden or every run is done.
-// Words: lib/claude-runs-view.ts, statuses from the server so the plugin and Studio say the same. Never `developer`.
-import { useEffect, useRef, useState } from 'react';
+// Studio, Being built: Claude's fixes. What the team's Claude does through the Bridge connector on components that
+// differ in Figma (the fix sessions, api/mcp ?view=sessions, docs/FIGMA-FIXES.md "Work in progress"), above the build
+// requests. Nothing shows without a session in the last 7 days, on the sample team, or when the site cannot say.
+//   - A title and one sentence, then one row per component: the shared BranchRow (compact), the last step, how long,
+//     who asked, and one status tag ("Claude is working", "Ready for review", "Stopped", "Went quiet"). A ready row
+//     opens the review of Claude's change in Studio (never GitHub); the others open the component. Its steps unfold
+//     under the row (progressive disclosure): every step is a real Bridge tool call, never a percentage.
+//   - While a session works, the page reads them again every 10 seconds (paused while the tab is hidden).
+import { useEffect, useState } from 'react';
 import { Icon, Link } from '@bridge-ds/react';
 import { Wrench } from 'lucide-react';
 import { BranchRow } from './BranchRow';
-import { CLAUDE_FIXES_WORDS as W, isFinal, MAX_ROW_LINKS, MAX_ROWS, parseRun, runLine, runPill, runRoute, type ClaudeRun } from '../../../lib/claude-runs-view';
+import { FIXES_WORDS as W, parseSession, reviewOf, sessionLine, sessionTag, type Session } from '../../../lib/claude-connector';
 import { isSampleTeam } from '../../../lib/demo';
 import { studioHref } from '../../../lib/team-path';
 import { repoContext } from '../../../scripts/repo-context';
 
 const noRepoPage = () => typeof document !== 'undefined' && document.documentElement.hasAttribute('data-no-repo');
+const MAX_ROWS = 6;
+const POLL_MS = 10_000;
+const slug = (name: string) =>
+  name
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+const clock = (iso: string) => {
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+};
 
-function useRuns(): ClaudeRun[] {
-  const [runs, setRuns] = useState<ClaudeRun[]>([]);
-  const live = useRef(true);
+function useSessions(): Session[] {
+  const [list, setList] = useState<Session[]>([]);
   useEffect(() => {
-    live.current = true;
+    let live = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const ctx = repoContext();
     const repo = `${ctx.owner}/${ctx.repo}`;
     if (noRepoPage() || isSampleTeam(repo)) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const sleep = (s: number) => new Promise<void>((r) => (timer = setTimeout(r, s * 1000)));
-    void (async () => {
-      let api: typeof import('../../../scripts/claude-api');
-      let list: ClaudeRun[];
-      try {
-        api = await import('../../../scripts/claude-api');
-        list = (await api.listClaudeRuns(repo)).map(parseRun).filter((r): r is ClaudeRun => Boolean(r)).slice(0, MAX_ROWS);
-      } catch {
-        return; // Not connected, not set up, signed out: nothing to show.
-      }
-      if (!live.current) return;
-      setRuns(list);
-      // One run at a time, while the page is shown, until each one is final.
-      while (live.current) {
-        const next = list.find((r) => !isFinal(r.status));
-        if (!next) return;
-        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-          await sleep(5);
-          continue;
-        }
-        let fresh: ClaudeRun | null = null;
+    const read = async () => {
+      if (!live) return;
+      let next: Session[] | null = null;
+      if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
         try {
-          fresh = parseRun(await api.pollClaudeRun(repo, next.id));
+          const api = await import('../../../scripts/connector-api');
+          next = (await api.listFixSessions(repo)).map(parseSession).filter((s): s is Session => Boolean(s)).slice(0, MAX_ROWS);
         } catch {
-          return; // The site stopped answering: the rows keep what they said.
+          return; // No connector here, signed out: nothing to show, and no more asking.
         }
-        if (!live.current) return;
-        if (!fresh) return;
-        list = list.map((r) => (r.id === fresh!.id ? fresh! : r));
-        setRuns(list);
-        if (!isFinal(fresh.status)) await sleep(fresh.retryAfter);
+        if (!live) return;
+        setList(next);
       }
-    })();
+      if (!next || next.some((s) => s.state === 'working')) timer = setTimeout(() => void read(), POLL_MS);
+    };
+    void read();
     return () => {
-      live.current = false;
+      live = false;
       if (timer) clearTimeout(timer);
     };
   }, []);
-  return runs;
+  return list;
 }
 
 export default function ClaudeFixes() {
-  const runs = useRuns();
-  if (!runs.length) return null;
-  const readyCount = runs.filter((r) => r.status === 'ready').length;
+  const sessions = useSessions();
+  if (!sessions.length) return null;
   return (
-    <section className="bb-section bb-claude" aria-labelledby="bb-claude-title" aria-live="polite">
+    <section className="bb-section bb-claude" aria-labelledby="bb-claude-title">
       <h2 className="t-ui bb-h" id="bb-claude-title">
         {W.title}
       </h2>
       <p className="t-ui t-muted bb-measure">{W.intro}</p>
-      <ul className="sh-rows bb-rows" aria-label={W.listLabel}>
-        {runs.map((r) => {
-          const href = studioHref(runRoute(r));
+      <ul className="sh-rows bb-rows" aria-label={W.title} aria-live="polite">
+        {sessions.map((s) => {
+          const review = reviewOf(s);
+          const href = studioHref(review && s.state === 'ready' ? review : `components/?c=${encodeURIComponent(slug(s.component))}`);
           return (
             <BranchRow
-              key={r.id}
+              key={s.component}
               compact
               thumb={{ kind: 'icon', icon: 'component' }}
               who={
@@ -92,16 +84,29 @@ export default function ClaudeFixes() {
                   <Icon icon={Wrench} size="sm" />
                 </span>
               }
-              title={r.component}
+              title={s.component}
               href={href}
-              line={runLine(r)}
-              pill={runPill(r)}
+              line={sessionLine(s)}
+              pill={sessionTag(s)}
               end={
-                r.status === 'ready' && readyCount <= MAX_ROW_LINKS ? (
-                  <Link href={href} className="t-ui bb-claude-see">
-                    {W.see}
-                  </Link>
-                ) : undefined
+                <span className="bb-claude-end">
+                  {review && s.state === 'ready' && (
+                    <Link href={href} className="t-ui bb-claude-see">
+                      {W.see}
+                    </Link>
+                  )}
+                  <details className="bb-claude-steps">
+                    <summary className="t-ui" tabIndex={0}>{W.steps}</summary>
+                    <ol className="t-ui">
+                      {s.steps.map((x, i) => (
+                        <li key={`${x.at}-${i}`}>
+                          <span className="t-muted">{clock(x.at)}</span> {x.text}
+                          {x.by ? <span className="t-muted"> ({x.by})</span> : null}
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                </span>
               }
             />
           );

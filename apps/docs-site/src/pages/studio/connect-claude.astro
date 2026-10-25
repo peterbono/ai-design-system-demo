@@ -1,0 +1,82 @@
+---
+// Where Claude sends the person when they add the Bridge connector (api/mcp, docs/FIGMA-FIXES.md "Bridge inside your
+// team's Claude"). Not in the nav. The person picks the team; GitHub confirms who they are; they go back to Claude.
+import Layout from '../../layouts/Layout.astro';
+import Illustration from '../../components/Illustration.astro';
+import ConnectClaude from '../../components/ds/studio/ConnectClaude';
+import { CLAUDE_CONNECT_WORDS as W } from '../../lib/connect-claude';
+import { lastUpdated } from '../../lib/repo';
+
+const updated = lastUpdated(['apps/docs-site/src/pages/studio/connect-claude.astro', 'apps/docs-site/src/components/ds/studio/ConnectClaude.tsx', 'apps/docs-site/api/mcp/index.ts']);
+---
+
+<Layout title={W.title} description="Use Bridge inside your team's Claude." crumbs={false} updated={updated}>
+  <section class="zone cf" aria-labelledby="cf-title">
+    <div class="cf-art" aria-hidden="true"><Illustration name="components" width={132} /></div>
+    <div class="cf-text">
+      <h1 id="cf-title" class="cf-title">{W.title}</h1>
+      <ConnectClaude client:load />
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .cf {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-4) var(--space-6);
+    max-width: calc(var(--size-64) * 3);
+    margin: var(--space-10) auto;
+    padding: var(--space-6) var(--space-7);
+  }
+
+  .cf-art {
+    display: flex;
+    flex: none;
+    color: var(--color-text-default);
+  }
+
+  .cf-text {
+    display: grid;
+    flex: 1 1 var(--size-60);
+    gap: var(--space-4);
+    min-width: 0;
+  }
+
+  .cf-title {
+    margin: 0;
+    font-family: var(--typography-h2-family);
+    font-size: var(--typography-h2-size);
+    font-weight: var(--typography-h2-weight);
+    letter-spacing: var(--typography-h2-tracking);
+    line-height: var(--typography-h2-line-height);
+  }
+
+  .cf-text :global(.cf-step) {
+    display: grid;
+    gap: var(--space-4);
+    justify-items: start;
+  }
+
+  .cf-text :global(.cf-step p) {
+    margin: 0;
+  }
+
+  .cf-text :global(.cc-actions) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  @media (max-width: 640px) {
+    .cf {
+      margin: var(--space-6) 0;
+      padding: var(--space-5);
+    }
+
+    .cf-art {
+      display: none;
+    }
+  }
+</style>

@@ -4,7 +4,7 @@ One Bridge site serves any team's design system repository at `/studio/<owner>/<
 opening that link and signing in with GitHub: GitHub repository permissions decide what each person can do, and roles
 stay in the repository's `bridge.config.json`. Bridge keeps no accounts. Its one store holds pending invites by
 email (see "Invites by email" below), each team's Library access setting and short-lived Library sign-in links (see
-"Library access" below), each team's own Claude key, encrypted (see "Team Claude" below), and nothing else.
+"Library access" below), and nothing else.
 
 This page grows with the hosted mode. It covers the snapshot a team can publish for it, the team's hosted Library,
 invites by email, and who reads a team's Library without a GitHub account.
@@ -475,42 +475,30 @@ statuses: Read** (optional, used only when GitHub can merge on the spot) come wi
 repository, an admin turns on **Settings, General, Allow auto-merge**; without it, pushes wait for a developer
 (`auto_merge_off`). The Figma plugin calls the site, so its manifest lists the site's origin in `allowedDomains`.
 
-## Team Claude
+## Bridge inside Claude (the hosted MCP connector)
 
-A team admin connects the team's own Claude in Studio, Settings, Claude: they paste the team's Anthropic API key, and
-Bridge runs the Figma fix loop for that team with it ([FIGMA-FIXES.md](FIGMA-FIXES.md), "Claude runs it for the
-team"). Claude's work is billed to the team's Anthropic account, never to the site. Code: `apps/docs-site/api/claude`
-and `apps/docs-site/api/_lib/claude-key.ts`.
+Teams add `<site>/mcp` to their own Claude as a custom connector and sign in with Bridge; Claude then uses every Bridge
+MCP tool on their team's repository as them ([FIGMA-FIXES.md](FIGMA-FIXES.md), "Bridge inside your team's Claude", for
+the flow, the tokens and the fix sessions). One function, `apps/docs-site/api/mcp`; `vercel.json` rewrites `/mcp`,
+`/oauth/*` and the two `/.well-known/oauth-*` documents to it, and its install step builds `packages/mcp` (the
+function loads the MCP server's built `dist/lib.js`).
 
 | Request | Answer |
 | ------- | ------ |
-| `GET /api/claude?repo=<owner/repo>` | `200 { "available", "connected", "addedBy"?, "at"?, "canManage" }`: any member of the team, never the key |
-| `POST /api/claude` `{ "action": "connect", "repo", "key" }` | admins: `200 { "connected": true, "addedBy", "at" }`; `400 bad_key` (not a key), `400 key_rejected` (Anthropic refused it), `429 limit` (10 tries per team and hour) |
-| `POST /api/claude` `{ "action": "disconnect", "repo" }` | admins: `200 { "connected": false }` |
-| `POST /api/claude` `{ "action": "fix", "repo", "component" }` | anyone who can edit: `200 { "run", "existing" }`; `409 not_connected`, `429 limit` |
-| `GET /api/claude?repo=<owner/repo>&run=<id>` (`&peek=1`), `GET ...&runs=1` | a run, moved one step first (one Claude round); the team's runs. Contract: [FIGMA-FIXES.md](FIGMA-FIXES.md), "API contract" |
+| `GET /api/mcp?view=connections&repo=<owner/repo>` | `200 { "connections": [{ "id", "client", "by", "createdAt", "lastUsedAt", "mine" }], "canManage" }`: anyone on the team |
+| `POST /api/mcp?view=disconnect` `{ "repo", "id" }` | the person who connected it, or a team admin: `200 { "removed": true }` |
 
-- **Who**: a GitHub token whose account can push to the repository, read with that token (`Authorization: Bearer`:
-  Studio's GitHub sign-in and the Figma plugin; CORS open, no cookie), admin for connect and disconnect; or an email
-  member of the team signed in to Studio (`X-Bridge-Contribute: 1` from a page of this site), Admin for connect and
-  disconnect. Everyone else on the team reads who connected it and when, and who can connect it, by name.
-- **What is kept**: `bridge:claude:key:<owner/repo>`, the key sealed with AES-256-GCM under a key derived (HKDF-SHA256)
-  from `BRIDGE_SECRETS_KEY`, the repository as additional data (a sealed key never opens for another team), plus the
-  display name of who added it and when. No expiry; Disconnect deletes it. The key is checked once with Anthropic
-  (`GET /v1/models`, free) before it is stored, is used only on the server, is never sent back to a browser and is
-  never logged.
+Kept (Upstash Redis): registered clients (180 days), authorization requests (10 minutes), codes (2 minutes, used
+once), connections (90 days after last use, the person's GitHub tokens sealed with a key derived from
+`LIBRARY_SESSION_SECRET`), token hashes (1 hour and 30 days), fix sessions (7 days). Nothing is logged.
 
 ### Set it up (owner of the site)
 
-| Env var | What |
-| ------- | ---- |
-| `BRIDGE_SECRETS_KEY` | 32 random bytes or more, base64 (`openssl rand -base64 32`). Sensitive, server only. Without it Settings says "Connecting Claude is not available yet on this site." and nothing is stored. Changing it makes every stored key unreadable: teams connect again |
-| `CLAUDE_RUNS_PER_HOUR` | optional, Claude fix runs a team starts per hour (default 5) |
-
-It also uses the storage env (`KV_REST_API_URL` and `KV_REST_API_TOKEN`), the Bridge Direct app (runs read the measure
-and open the draft pull request with its installation token: Contents and Pull requests, Read and write, as for Ship
-from Figma), and for email admins `LIBRARY_SESSION_SECRET`. `PUBLIC_SITE_URL`, when set, is the origin of a run's
-"See Claude's fix" link. Locally (`npm run dev:full`) the local session secret stands in for `BRIDGE_SECRETS_KEY`.
+1. In the **Bridge Direct** GitHub App settings, add the callback URL `<site>/oauth/github` (GitHub Apps take several).
+   Keep "Expire user authorization tokens" on.
+2. It uses what is already set: `GITHUB_APP_CLIENT_ID` and `GITHUB_APP_CLIENT_SECRET` (Bridge Direct), the storage
+   env, `LIBRARY_SESSION_SECRET`, and `PUBLIC_SITE_URL` (the issuer; set it to the production origin). No new secret.
+3. Changing `LIBRARY_SESSION_SECRET` ends every connection: people connect again from Claude.
 
 ## Team reads through Bridge
 

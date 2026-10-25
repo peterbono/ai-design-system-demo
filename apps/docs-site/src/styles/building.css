@@ -27,14 +27,34 @@
   min-width: 0;
 }
 
-/* Claude's fixes, above the build requests (components/ds/studio/ClaudeFixes.tsx). */
+/* Claude's fixes, above the build requests (components/ds/studio/ClaudeFixes.tsx): the review link and the steps fold
+   sit at the end of the row. */
 .bb-claude {
   margin-block-end: var(--space-6);
 }
 
-/* "See Claude's fix" on a ready row's line stays one phrase. */
+.bb-claude-end {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-1);
+}
+
 .bb-claude-see {
   white-space: nowrap;
+}
+
+.bb-claude-steps > summary {
+  cursor: pointer;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.bb-claude-steps > ol {
+  display: grid;
+  gap: var(--space-1);
+  max-width: var(--size-96);
+  margin: var(--space-2) 0 0;
+  padding-inline-start: var(--space-5);
 }
 
 .bb-skel {

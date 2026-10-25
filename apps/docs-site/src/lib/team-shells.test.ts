@@ -16,7 +16,10 @@ const vercel = JSON.parse(readFileSync(new URL('../../vercel.json', import.meta.
 describe('vercel.json', () => {
   it('rewrites team addresses to the shells: two rules per form, the trailing slash first', () => {
     // Studio's rules, then the team Library's (lib/library-shells.ts): no address matches both.
-    expect(vercel.rewrites).toEqual([...vercelRewrites(), ...libraryRewrites()]);
+    // Then the Bridge connector's addresses (api/mcp: /mcp, OAuth and its /.well-known documents), which no team address matches.
+    const shells = [...vercelRewrites(), ...libraryRewrites()];
+    expect(vercel.rewrites?.slice(0, shells.length)).toEqual(shells);
+    expect(vercel.rewrites?.slice(shells.length).every((r) => r.destination.startsWith('/api/mcp'))).toBe(true);
     expect(vercel.rewrites?.[0]?.source.endsWith('/:path*/')).toBe(true);
   });
 
