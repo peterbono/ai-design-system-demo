@@ -233,6 +233,16 @@ test('fonts: a brand font missing in Figma falls back to Inter, said once', asyn
   assert.deepEqual(label.fontName, { family: 'Inter', style: 'Medium' });
 });
 
+test('fonts: a system family (ui-sans-serif, system-ui) draws with the platform font Figma lists, else Inter', async () => {
+  const fonts = ['Regular', 'Medium', 'Semi Bold', 'Bold'].flatMap((style) => [{ family: 'Inter', style }, { family: 'SF Pro', style }]);
+  const { sim, a, specs } = await pulledFile({ fonts });
+  const system: ComponentSpecsFile = structuredClone(specs);
+  for (const v of system.components.find((c) => c.name === 'Button')!.variants) for (const f of Object.values(v.values)) if (f.fontFamily) f.fontFamily = 'ui-sans-serif, system-ui, sans-serif';
+  await applyComponentPlan(writablePlan(buildComponentPlan(system, SPECS_PATH, [], a.head)));
+  const label = partOf(variantOf(sim.sets().find((s) => s.name === 'Button')!, 'Variant=primary, Size=md, State=Default'), 'text');
+  assert.equal(label.fontName.family, 'SF Pro');
+});
+
 test('variables missing in Figma: the part is reported, never bound to something else', async () => {
   const { sim, plan } = await pulledFile();
   // Someone deleted the Component collection after the pull.
