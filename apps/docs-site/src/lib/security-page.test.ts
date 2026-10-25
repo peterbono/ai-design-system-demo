@@ -12,7 +12,9 @@ import { BACKUPS_KEPT, CODE_TTL_S, MAX_TRIES } from '../../api/account/index';
 import { SIGNIN_TTL_MS as CONTRIB_SIGNIN_TTL_MS, WRITE_LIMIT_DEFAULT } from '../../api/contribute/index';
 import { INVITE_TRACE_MS, INVITE_TTL_MS } from '../../api/invites/index';
 import { SIGNIN_TTL_MS as LIBRARY_SIGNIN_TTL_MS } from '../../api/library-access/index';
-import { LINK_TTL_S } from '../../api/plugin-link/index';
+import { LINK_SEAL_PURPOSE, LINK_TTL_S } from '../../api/plugin-link/index';
+import { HOSTED_REFUSED_TOOLS } from '../../api/mcp/index';
+import { FIGMA_MARK_PURPOSE } from '../../api/_lib/figma-mark';
 import { ROOT } from './repo';
 
 const page = readFileSync(join(ROOT, 'apps/docs-site/src/pages/docs/security.astro'), 'utf8');
@@ -57,6 +59,19 @@ describe('Security and data page: the numbers come from the code', () => {
   it('lists exactly the domains the Figma plugin may reach', () => {
     for (const d of manifest.networkAccess.allowedDomains) expect(page).toContain(`<code>${d}</code>`);
     expect(manifest.networkAccess.allowedDomains).toHaveLength(2);
+  });
+
+  it('says what the hosted connector and the hand-off do', () => {
+    // The hosted connector refuses the merge tool: the page says the assistant never merges through it.
+    expect(HOSTED_REFUSED_TOOLS).toContain('bridge_merge_branch');
+    expect(page).toContain('never merges through Bridge’s connector');
+    // The plugin hand-off token is sealed with a key of its own: the page says it is encrypted.
+    expect(LINK_SEAL_PURPOSE).toBeTruthy();
+    expect(page).toContain('The token: encrypted (AES-256-GCM)');
+    // Figma pushes ship only with Bridge's signed mark for that pull request, author and commit.
+    expect(FIGMA_MARK_PURPOSE).toBeTruthy();
+    expect(page).toContain('figma-mark.ts');
+    expect(page).toContain('never a fork');
   });
 
   it('writes in the Bridge voice: no em dash', () => {
