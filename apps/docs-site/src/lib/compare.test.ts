@@ -85,12 +85,12 @@ describe('comparison (homepage and /compare/)', () => {
     }
     expect(marks(row(rows[0]))).toBe('ynnnnpp');
     expect(marks(row(rows[1]))).toBe('yypnpyp');
-    expect(marks(row(rows[2]))).toBe('yppnppp');
+    expect(marks(row(rows[2]))).toBe('ypnnppp');
     expect(row(rows[1]).cells[1].short).toBe('Pro licence');
     expect(row(rows[2]).cells.map((c) => c.short)).toEqual([
       'Claude, in your account',
       'Tokens only',
-      'Agent flags, in beta',
+      undefined,
       undefined,
       'Guideline audit only',
       'Agent skill, in beta',

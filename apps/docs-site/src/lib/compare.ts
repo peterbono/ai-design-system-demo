@@ -223,7 +223,7 @@ export const GROUPS: CompareGroup[] = [
         cells: [
           y('Your own Claude proposes fixes through the Bridge MCP server or CLI; Bridge checks them against the code and opens them for review.', 'Claude, in your account'),
           p('Tokens only', 'Push and pull with Git shows when tokens are out of sync; components are not covered.'),
-          p('Agent flags, in beta', 'Its Editor MCP, in beta, caught Figma variants drifting from code; who fixes them is not documented.'),
+          n,
           n,
           p('Guideline audit only', 'Its MCP and Figma agent connector audit designs and code against your guidelines, not a Figma component against its code.'),
           p('Agent skill, in beta', 'An agent skill diffs code and Figma and updates what drifted, in beta; it asks you when they disagree.'),
@@ -336,7 +336,6 @@ export const SOURCES: Record<(typeof TOOLS)[number], { label: string; href: stri
     { label: 'AI prototyping', href: 'https://www.supernova.io/blog/january-2026-product-updates' },
     { label: 'Figma variables import', href: 'https://learn.supernova.io/latest/design-systems/import-design-system-data/importing-figma-variables/faq-T4yERPk4' },
     { label: 'Storybook block', href: 'https://learn.supernova.io/latest/documentation/documentation-blocks/code-blocks/storybook-g484aoWs' },
-    { label: 'Editor MCP', href: 'https://www.supernova.io/blog/introducing-supernova-editor-mcp' },
   ],
   Storybook: [
     { label: 'MCP', href: 'https://storybook.js.org/docs/ai/mcp/overview' },
