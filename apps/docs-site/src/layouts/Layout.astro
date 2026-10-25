@@ -21,7 +21,7 @@ import { switchTarget } from '../lib/space-switch';
 import { loadComponents } from '../lib/components';
 import { shellMarker, studioPathOfShell } from '../lib/team-shells';
 import { COMPONENT_SHELL_ROUTE, LIBRARY_SHELL_ROOT, LIBRARY_TEAM_NAV, libraryShellMarker, routeOfShell } from '../lib/library-shells';
-import { COMPARE, LANDING, LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, workspaceNav, type NavEntry, type Space } from '../lib/nav';
+import { COMPARE, DOCS_SECURITY, LANDING, LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, workspaceNav, type NavEntry, type Space } from '../lib/nav';
 import type { IconName } from '../brand/icons';
 import { PRIVACY_PAGE } from '../lib/account';
 import { siteRepo, siteRepoJson } from '../lib/config';
@@ -389,6 +389,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
               <Link variant="subtle" href={LANDING}>About Bridge<span>What it does</span></Link>
               <Link variant="subtle" href={COMPARE}>Compare<span>Bridge and other tools</span></Link>
               <Link variant="subtle" href={PRIVACY_PAGE}>Privacy<span>What Bridge keeps</span></Link>
+              <Link variant="subtle" href={DOCS_SECURITY}>Security<span>For IT teams</span></Link>
             </nav>
           </footer>
         </div>

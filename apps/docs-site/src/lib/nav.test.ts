@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { ABOUT, allPages, COMPARE, DEMO, DOCS_AUTOMATIC_MEASURE, DOCS_FIGMA_PLUGIN, DOCS_HOME, HOW_REVIEW_WORKS, LANDING, LIBRARY_HOME, locate, navFor, SETTINGS_HOME, SETTINGS_SECTIONS, spaceOf, WORKSPACE_SETTINGS, workspaceNav } from './nav';
+import { ABOUT, allPages, COMPARE, DEMO, DOCS_AUTOMATIC_MEASURE, DOCS_FIGMA_PLUGIN, DOCS_HOME, DOCS_SECURITY, HOW_REVIEW_WORKS, LANDING, LIBRARY_HOME, locate, navFor, SETTINGS_HOME, SETTINGS_SECTIONS, spaceOf, WORKSPACE_SETTINGS, workspaceNav } from './nav';
 import { WORKSPACE_HOME } from './start';
 import { DEMO_REPOS } from './demo';
 import { REDIRECT_SCRIPT_BODY, REDIRECTS, redirectScript, redirectTarget } from './redirects';
@@ -72,15 +72,16 @@ describe('routing: the landing at /, the Library home at /library/', () => {
     expect(pageFile(DOCS_HOME)).toMatch(/pages\/docs\/index\.astro$/);
     expect(pageFile(DOCS_FIGMA_PLUGIN)).toMatch(/pages\/docs\/figma-plugin\.astro$/);
     expect(pageFile(DOCS_AUTOMATIC_MEASURE)).toMatch(/pages\/docs\/automatic-measure\.astro$/);
+    expect(pageFile(DOCS_SECURITY)).toMatch(/pages\/docs\/security\.astro$/);
     const hrefs = allPages().map((p) => p.href);
-    for (const href of [ABOUT, DOCS_HOME, DOCS_FIGMA_PLUGIN]) expect(hrefs).not.toContain(href);
+    for (const href of [ABOUT, DOCS_HOME, DOCS_FIGMA_PLUGIN, DOCS_SECURITY]) expect(hrefs).not.toContain(href);
   });
 
   it('points the header and the homepage at routes that exist', () => {
     const header = readFileSync(join(ROOT, 'apps/docs-site/src/components/site/SiteHeader.astro'), 'utf8');
     const footer = readFileSync(join(ROOT, 'apps/docs-site/src/components/site/SiteFooter.astro'), 'utf8');
     for (const name of ['ABOUT', 'DOCS_HOME', 'DOCS_FIGMA_PLUGIN', 'STUDIO_HOME']) expect(header).toContain(name);
-    for (const name of ['ABOUT', 'DOCS_HOME', 'DOCS_FIGMA_PLUGIN', 'STUDIO_HOME']) expect(footer).toContain(name);
+    for (const name of ['ABOUT', 'DOCS_HOME', 'DOCS_FIGMA_PLUGIN', 'DOCS_SECURITY', 'STUDIO_HOME']) expect(footer).toContain(name);
     // The comparison lives on the homepage: the footer does not link it again.
     expect(footer).not.toContain('COMPARE');
     // The demo is the hosted Studio of the dedicated demo repo, served by the team shell rewrite.

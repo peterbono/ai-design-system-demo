@@ -3,7 +3,7 @@
 // Product, Resources and About.
 import { Link } from '@bridge-ds/react';
 import Logo from '../Logo.astro';
-import { ABOUT, DOCS_FIGMA_PLUGIN, DOCS_HOME, LANDING, STUDIO_HOME } from '../../lib/nav';
+import { ABOUT, DOCS_FIGMA_PLUGIN, DOCS_HOME, DOCS_SECURITY, LANDING, STUDIO_HOME } from '../../lib/nav';
 import { GITHUB_URL } from '../../lib/repo';
 import { PRIVACY_PAGE } from '../../lib/account';
 
@@ -37,6 +37,7 @@ const cols = [
       { href: ABOUT, label: 'About Bridge' },
       { href: GITHUB_URL, label: 'GitHub' },
       { href: PRIVACY_PAGE, label: 'Privacy' },
+      { href: DOCS_SECURITY, label: 'Security' },
     ],
   },
 ];
