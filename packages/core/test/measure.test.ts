@@ -283,6 +283,20 @@ expect(k).toMatchObject({ kind: 'frame' });
     expect(measuredLayout({ display: 'grid' }, [box(0, 0, 40, 16), box(0, 24, 48, 24)])?.direction).toBe('VERTICAL');
   });
 
+  it('draws a grid of columns and rows as a row that wraps at its width, each item at its track width', () => {
+    const style = { display: 'grid', 'grid-template-columns': '16px 376px', 'grid-template-rows': '16px 16px', 'column-gap': '8px', 'row-gap': '8px', 'align-items': 'center' };
+    const kids = [box(0, 0, 16, 16), box(24, 0, 376, 16), box(0, 24, 16, 16), box(24, 24, 376, 16)];
+    expect(measuredLayout(style, kids)).toEqual({ direction: 'HORIZONTAL', primary: 'MIN', counter: 'CENTER', wrap: true });
+    // One row of tracks stays a plain row.
+    expect(measuredLayout({ ...style, 'grid-template-rows': '16px' }, kids.slice(0, 2))).toEqual({ direction: 'HORIZONTAL', primary: 'MIN', counter: 'CENTER' });
+    const radio = (x: number, y: number) => frame('button', box(x, y, 16, 16), { 'border-top-style': 'solid', 'border-top-width': '1px' });
+    const label = (y: number, t: string): MeasuredNode => ({ tag: 'label', kind: 'text', text: t, box: box(24, y, 376, 16), style: {}, tokens: {}, children: [] });
+    const spec = measuredToSpec({ id: 'radios', root: frame('div', box(0, 0, 400, 40), style, [radio(0, 0), label(0, 'Default'), radio(0, 24), label(24, 'Compact')]) });
+    expect(spec.parts[0]!.layout).toMatchObject({ direction: 'HORIZONTAL', wrap: true });
+    expect(spec.values.root).toMatchObject({ itemSpacing: 8, counterAxisSpacing: 8 });
+    expect(Object.values(spec.sized ?? {}).map((s) => s.width)).toEqual([400, 16, 376, 16, 376]);
+  });
+
   it('covers its parent at inset 0, and carries an SVG with its strokes', () => {
     const cover = frame('::after', box(0, 0, 20, 20), { position: 'absolute', top: '0px', right: '0px', bottom: '0px', left: '0px', 'border-top-style': 'solid', 'border-top-width': '1px', 'border-top-color': 'rgb(0, 0, 0)' }, [], { pseudo: 'after' });
     const icon: MeasuredNode = { tag: 'svg', kind: 'icon', box: box(2, 2, 16, 16), style: { fill: 'rgb(22, 22, 22)' }, tokens: {}, children: [], svg: '<svg width="16" height="16"><path fill="rgb(22, 22, 22)"/></svg>', svgStrokes: [] };
