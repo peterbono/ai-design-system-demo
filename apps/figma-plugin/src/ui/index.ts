@@ -8,7 +8,7 @@ import { type Analysis, type PullProposal, type PushBrand, type PushProposal, an
 import { type ChangesMode, GitHubClient, type PullRequest, changesMode, figmaPushNextLine, loadConfig, parseRepo } from '@bridge-ds/core';
 import type { RenameSuggestion } from '@bridge-ds/core';
 import { type FigmaFidelityRun, type GapBuiltVariant, type GapCase, type MeasuredSpecsFile, affectedContrast, buildGapCase, defaultTitle } from '@bridge-ds/core';
-import { FIX_ASKED_TEXT, FIX_NEXT_TEXT, fixRequestForDeveloper, writeFidelityRun } from '../sync/fix-with-claude';
+import { DIFFERS_HANDOFF_TEXT, FIX_ASKED_TEXT, FIX_NEXT_TEXT, NO_REFERENCES_HANDOFF_TEXT, differsRequestForDeveloper, fixRequestForDeveloper, referencesRequestForDeveloper, writeFidelityRun } from '../sync/fix-with-claude';
 import { type PathIndex, type ResolveContext, resolve } from '@bridge-ds/core';
 import { contextFor, modesOf } from '@bridge-ds/core';
 import { type LogicalToken, SINGLE_MODE } from '@bridge-ds/core';
@@ -38,7 +38,7 @@ import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
 import { type Selection, onProgress, onSelection, request } from './bridge';
 import { MEASURED_SPECS_FILE, type MeasuredOverlayReport } from '../sync/measured-specs';
 import type { MeasuredOnlyReport } from '@bridge-ds/core';
-import { type FidelityOutcome, NO_REFERENCES_TEXT, fidelitySummary, loadReferenceManifest, runFidelityCheck } from '../sync/fidelity';
+import { type FidelityOutcome, fidelitySummary, loadReferenceManifest, runFidelityCheck } from '../sync/fidelity';
 import { FIGMA_REFERENCES_BRANCH, FIGMA_REFERENCES_DIR } from '@bridge-ds/core';
 import { fidelityComponentLine, fidelityVerdict } from '@bridge-ds/core';
 import { decodePng, encodePng } from './png';
@@ -103,6 +103,8 @@ interface PullState {
         gapsCopied?: boolean | undefined;
         built?: Record<string, Record<string, GapBuiltVariant>> | undefined;
         fix?: { component: string; status: 'writing' | 'ready' | 'error'; error?: string | undefined; copied?: boolean | undefined } | undefined;
+        /** "Copy for your developer" copied, by component (or "references"): the button says Copied. */
+        handedOff?: Set<string> | undefined;
       }
     | undefined;
 }
@@ -1876,7 +1878,8 @@ function viewPull(): View {
         ['Review', 'Every new, edited or deleted token is listed with its value. Nothing is written yet.'],
         ['Apply', 'Figma variables are created or updated, and components are built from the code. Your own edits stay until you send them from Push.'],
       ]), forDevelopers([...repoRows(), ['Last pulled commit', short(init.sync.baseSha)]])],
-      bar: { label: 'Check for updates', onClick: checkPull },
+      // A file pulled before can be compared with the code straight away, without reviewing updates first.
+      bar: { label: 'Check for updates', onClick: checkPull, secondary: init.sync.baseSha ? { label: 'Check fidelity', onClick: () => void checkFidelityAnywhere() } : undefined },
     };
   }
   const a = p.analysis;
@@ -1944,7 +1947,16 @@ function viewPull(): View {
       ],
       bar: left
         ? { label: 'Try again', onClick: retryComponents, secondary: { label: 'Check again', onClick: checkPull } }
-        : { label: 'Check again', onClick: checkPull, secondary: prop.kept.length ? { label: 'Send my edits', onClick: () => { state.tab = 'push'; scanPush(); } } : undefined },
+        : {
+            label: 'Check again',
+            onClick: checkPull,
+            // After a pull that built components: does Figma look like the code? One click, as the secondary action.
+            secondary: prop.kept.length
+              ? { label: 'Send my edits', onClick: () => { state.tab = 'push'; scanPush(); } }
+              : hasBuiltSets(p) && !problems.length
+                ? { label: 'Check fidelity', onClick: () => void checkFidelityAnywhere() }
+                : undefined,
+          },
     };
   }
 
@@ -2171,6 +2183,25 @@ function foldOnFirstPull(p: PullState, summary: string, content: HTMLElement): H
   return p.analysis.baseSha ? content : h('details', { class: 'notes' }, h('summary', null, summary), content);
 }
 
+/**
+ * "Check fidelity" from anywhere on Pull (the idle screen, the end of a pull): reads the design system again, quietly,
+ * then compares. The designer lands on the comparison, scrolled into view, without reviewing updates first.
+ */
+async function checkFidelityAnywhere(): Promise<void> {
+  const prev = state.pull;
+  await run('Reading the design system', async () => {
+    state.pull = await loadPull(prev);
+  });
+  const p = state.pull;
+  if (!p || state.error || p === prev) return;
+  const shown = checkFidelity(p);
+  document.querySelector('[data-focus-id="check-fidelity"]')?.closest('section')?.scrollIntoView({ block: 'start' });
+  await shown;
+}
+
+/** The file has component sets Bridge built from code: there is something to compare. */
+const hasBuiltSets = (p: PullState | undefined) => !!p?.componentsReport?.nodeIds.length || (p?.components?.components ?? []).some((c) => c.status !== 'new');
+
 /** "Check fidelity": exports each generated set's variants and compares them with the code images. Read only. */
 async function checkFidelity(p: PullState): Promise<void> {
   if (p.fidelity?.running) return;
@@ -2282,6 +2313,25 @@ function fixPanel(p: PullState, component: string): Child {
   );
 }
 
+/** "Copy for your developer": the text is copied, never shown; the button says Copied once it is. */
+function handoffButton(p: PullState, key: string, text: string): HTMLElement {
+  const copied = !!p.fidelity?.handedOff?.has(key);
+  return h(
+    'button',
+    {
+      class: 'btn',
+      'data-focus-id': `handoff-${key}`,
+      onClick: () =>
+        void copyText(text).then((ok) => {
+          if (ok && p.fidelity) (p.fidelity.handedOff ??= new Set()).add(key);
+          render();
+        }),
+    },
+    icon(copied ? 'check' : 'copy'),
+    copied ? 'Copied' : 'Copy for your developer',
+  );
+}
+
 /** Figma, code and differences side by side for the variant that differs most. */
 function fidelityThumbs(name: string, images: { key: string; figma: string; code: string; diff: string }): HTMLElement {
   const fig = (src: string, label: string) => h('figure', { class: 'thumb' }, h('img', { src, alt: `${name} ${images.key}, ${label.toLowerCase()}` }), h('figcaption', null, label));
@@ -2309,7 +2359,10 @@ function fidelityGroup(p: PullState): Child {
   let content: Child = null;
   if (f?.running) lede = `${f.running}...`;
   else if (f?.error) content = h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Could not compare'), h('p', null, f.error));
-  else if (outcome?.kind === 'no-references') lede = NO_REFERENCES_TEXT;
+  else if (outcome?.kind === 'no-references') {
+    lede = NO_REFERENCES_HANDOFF_TEXT;
+    content = h('div', { class: 'inline-actions' }, handoffButton(p, 'references', referencesRequestForDeveloper(state.init?.settings.repo ?? '')));
+  }
   else if (outcome?.kind === 'no-sets') lede = 'No component set from code in this file yet. Pull components first.';
   else if (outcome?.kind === 'done') {
     // Every component compared matches the code: the Bridge mark lands next to the sentence, once.
@@ -2339,6 +2392,10 @@ function fidelityGroup(p: PullState): Child {
           gap ? h('p', null, gap) : h('p', { class: 'muted' }, fidelityComponentLine(r)),
           r.status === 'differs' && p.measure && !asked
             ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn', 'data-focus-id': `fix-${it.name}`, disabled: f?.fix?.status === 'writing' || !!state.busy, onClick: () => void fixWithClaude(p, it.name) }, 'Ask Claude to fix it'))
+            : null,
+          // Claude cannot help without a measure of the stories: the designer still has one thing to do (no dead end).
+          r.status === 'differs' && !p.measure
+            ? h('div', { class: 'handoff' }, h('p', { class: 'muted' }, DIFFERS_HANDOFF_TEXT), h('div', { class: 'inline-actions' }, handoffButton(p, it.name, differsRequestForDeveloper(r, state.init?.settings.repo ?? '', fidelityVerdict))))
             : null,
           r.status === 'differs' ? fixPanel(p, it.name) : null,
           // The three images on demand: the list stays a list to scan (FID-5).
