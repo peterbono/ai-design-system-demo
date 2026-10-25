@@ -394,13 +394,23 @@ export function guestEditLine(signIn: boolean): string {
 }
 
 /**
- * Publish instead of Send for review (docs/GOVERNANCE.md "Tier 1 publish by leads"): guidance is Tier 1, so a team
- * admin or a design reviewer publishes it when the team lets leads publish small changes (core canPublishTier1).
- * Direct mode only, on a new change: a suggestion has no pull request, and an open proposal is someone's to finish.
+ * Publish instead of Send for review or Send suggestion (docs/GOVERNANCE.md "Tier 1 publish by leads"): guidance is
+ * Tier 1, so a team admin or a design reviewer publishes it when the team lets leads publish small changes (core
+ * canPublishTier1), in direct and in suggest mode. A new change only: an open proposal is someone's to finish.
  */
-export function canPublishGuidance(x: { viewer: string | null | undefined; approvers: Owners; admin: boolean; enabled: boolean; suggest: boolean; continuing: boolean }): boolean {
-  if (x.suggest || x.continuing) return false;
+export function canPublishGuidance(x: { viewer: string | null | undefined; approvers: Owners; admin: boolean; enabled: boolean; continuing: boolean }): boolean {
+  if (x.continuing) return false;
   return canPublishTier1({ viewer: x.viewer, tier: 1, domain: 'design', approvers: x.approvers, admin: x.admin, enabled: x.enabled });
+}
+
+/**
+ * After a lead's Publish, what the editor does: shows it published; or, when Bridge could not publish it, leaves it in
+ * review (direct mode, or edits added to an open proposal), or takes the change back and sends the edits as a
+ * suggestion (suggest mode), so the team's way of working holds. Never names a test.
+ */
+export function afterPublish(x: { armed: boolean; suggest: boolean; continued: boolean }): 'published' | 'review' | 'suggest' {
+  if (x.armed) return 'published';
+  return x.suggest && !x.continued ? 'suggest' : 'review';
 }
 
 /** The publish step's line, before anything is sent. */
