@@ -260,13 +260,19 @@ system. Settings, Review rules: "Leads can publish small changes without review"
 - **Who.** Team admins, and the reviewers of the matching domain (`tier1Domain`): a design reviewer for docs and
   guidance, a tech reviewer for a code-only Tier 1 change (stories, tests). The rule is `canPublishTier1` in
   `@bridge-ds/core`, with the approver lists after `rights` and teams expanded.
-- **What they see.** "Publish" instead of "Send for review" in the editor.
+- **What they see.** "Publish" instead of "Send for review" (direct mode) or "Send suggestion" (suggest mode) in the
+  editor.
 - **What happens.** Bridge opens the pull request as usual, then its app (`/api/ship`, the same path as token values,
   TV-1) approves it with a review that starts with `**Bridge: published without review (Tier 1)**`, arms auto-merge,
   and GitHub merges it once the required checks pass. No person approves it. The person publishing must be the one
   who made the change.
 - **When a check fails.** Bridge does not merge. The change falls back to the normal path and reads as any change
   waiting for review (`branchVerdict` `autoShip` turns off); the designer never sees the failing test.
+- **In suggest mode.** Publishing is approve and apply in one step, so it takes the same route: Bridge opens the
+  change directly for this one publish (no suggestion waits for a person) and its app merges it as above, with the
+  same record. When Bridge cannot publish it at that moment (a check already failed, a rule refused), it closes that
+  change and the edits go out as a suggestion, the team's usual way; the designer reads the usual "Suggestion sent"
+  line. A check that fails later leaves the change in review, as in direct mode.
 - **The record.** The pull request (the app's review) and History say "Published by <name> without review (Tier 1)."
 - **The setting.** `governance.leadsPublishTier1`, on when absent; `false` turns it off. `bridge.config.json` is a
   guardrail file, so turning it on or off is itself a Tier 3 change. `bridge settings` and the MCP settings tool say

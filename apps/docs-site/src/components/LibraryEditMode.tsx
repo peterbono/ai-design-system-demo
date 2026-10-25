@@ -43,6 +43,7 @@ import {
   sendBlockedReason,
   sendReview,
   sendTitle,
+  afterPublish,
   canPublishGuidance,
   PUBLISH_LINE,
   publishedSaid,
@@ -1058,7 +1059,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
       const session = await import('../scripts/github-session');
       const access = await session.resolveAccess().catch(() => null);
       const enabled = leadsPublishTier1On(repo.siteConfig() as { leadsPublishTier1?: boolean });
-      setPublish(canPublishGuidance({ viewer: who, approvers: owners, admin: Boolean(access?.admin && !access.contributor), enabled, suggest, continuing: Boolean(branch) }));
+      setPublish(canPublishGuidance({ viewer: who, approvers: owners, admin: Boolean(access?.admin && !access.contributor), enabled, continuing: Boolean(branch) }));
       const logins = eligibleReviewers('approval', { owners, author: who ?? '' }).logins.filter((l) => !l.includes('/'));
       if (logins.length) {
         await people.lookUpNames(logins);
@@ -1093,17 +1094,26 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
         setSent({ pr: branch.pr, title: title.trim() || sendTitle(p.name) });
       } else {
         const edit: DocsEdit = { kind: 'docs', id: Math.random().toString(36).slice(2, 10), path: p.path, component: p.name, slug: p.slug, before: p.original, after: fileText };
-        const r = await docsCommit.proposeDocs([edit], changeTitle(p.slug, title || sendTitle(p.name)), message, parseJiraKey(jira), authorLine);
+        const changeName = changeTitle(p.slug, title || sendTitle(p.name));
+        let r = await docsCommit.proposeDocs([edit], changeName, message, parseJiraKey(jira), authorLine, { publish });
         continued = r.continued;
-        forgetLocal();
         // A suggestion links to its page; a branch opens in Studio.
-        // Publish: Bridge checks the lead, the tier and the setting again, then merges once the checks pass. When it
-        // cannot (a check failed, a rule refused), the change is in review like any other: the sent step says who reviews.
+        // Publish (direct and suggest mode): Bridge checks the lead, the tier and the setting again, then merges once
+        // the checks pass. When it cannot (a check failed, a rule refused), the change is in review like any other in
+        // direct mode; in suggest mode Bridge takes the change back and the edits go out as a suggestion.
         let published: { title: string; line: string } | null = null;
         if (publish && r.kind !== 'suggestion' && r.number) {
           const [{ askBridgeToShip }, session] = await Promise.all([import('../lib/values-ship'), import('../scripts/github-session')]);
-          published = publishedSaid(await askBridgeToShip(`${p.repo.owner}/${p.repo.repo}`, r.number, { bearer: session.signedInWithGitHub() ? session.getToken() : null }, undefined, 'tier1'));
+          const answer = await askBridgeToShip(`${p.repo.owner}/${p.repo.repo}`, r.number, { bearer: session.signedInWithGitHub() ? session.getToken() : null }, undefined, 'tier1');
+          const next = afterPublish({ armed: Boolean(answer?.armed), suggest, continued: r.continued });
+          if (next === 'published') published = publishedSaid(answer);
+          else if (next === 'suggest') {
+            await docsCommit.withdrawDocs(r.number);
+            r = await docsCommit.proposeDocs([edit], changeName, message, parseJiraKey(jira), authorLine);
+            continued = r.continued;
+          }
         }
+        forgetLocal();
         setSent({ pr: r.number, title: title.trim() || sendTitle(p.name), continued: r.continued, ...(r.kind === 'suggestion' ? { suggestion: r.url } : {}), ...(published ? { published } : {}) });
         if (r.kind === 'suggestion') {
           announce(`${SUGGESTION_SENT}.`);
