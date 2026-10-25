@@ -23,6 +23,26 @@ declare const __BRIDGE_MCP_VERSION__: string | undefined;
 /** The package version, injected at build time; tests and source runs fall back to "dev". */
 export const VERSION = typeof __BRIDGE_MCP_VERSION__ === 'string' ? __BRIDGE_MCP_VERSION__ : 'dev';
 
+/** The Bridge site: it serves the hosted connector (/mcp) and the official icons. */
+export const BRIDGE_SITE = 'https://bridge.floriangouloubi.com';
+
+/**
+ * How clients show this server (MCP 2025-11-25, Implementation: `title` is the display name, `icons` the images; the
+ * SDK here supports that version). `name` stays machine-safe. Icons are absolute https URLs on the same domain as the
+ * hosted connector, PNG first since every client that renders icons must support it.
+ */
+export const SERVER_INFO = {
+  name: 'bridge',
+  title: 'Bridge',
+  version: VERSION,
+  websiteUrl: `${BRIDGE_SITE}/`,
+  icons: [
+    { src: `${BRIDGE_SITE}/icon-192.png`, mimeType: 'image/png', sizes: ['192x192'] },
+    { src: `${BRIDGE_SITE}/icon-512.png`, mimeType: 'image/png', sizes: ['512x512'] },
+    { src: `${BRIDGE_SITE}/favicon.svg`, mimeType: 'image/svg+xml', sizes: ['any'] },
+  ],
+};
+
 type Json = Record<string, unknown> | unknown[];
 const ok = (data: Json | string) => ({ content: [{ type: 'text' as const, text: typeof data === 'string' ? data : JSON.stringify(data, null, 2) }] });
 const fail = (e: unknown) => ({ content: [{ type: 'text' as const, text: `Error: ${(e as Error).message ?? String(e)}` }], isError: true });
@@ -58,7 +78,7 @@ const ChangesArg = z
 
 export function createServer(ctx: BridgeContext): McpServer {
   const server = new McpServer(
-    { name: 'bridge', version: VERSION },
+    SERVER_INFO,
     {
       instructions: [
         'Bridge exposes a design system repo (DTCG tokens, components, docs) to you.',

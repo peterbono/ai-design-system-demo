@@ -36,6 +36,7 @@ import { Avatar, Breadcrumb, Button, Icon, IconButton, Kbd, Link } from '@bridge
 import { siteIcon } from '../brand/site-icons';
 import { Menu as MenuIcon, Search, X } from 'lucide-react';
 import ButtonLink from '../components/ds/ButtonLink';
+import SiteIcons from '../components/site/SiteIcons.astro';
 
 export interface Crumb {
   label: string;
@@ -149,7 +150,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
     <meta name="author" content="Florian Gouloubi" />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0b1825" media="(prefers-color-scheme: dark)" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <SiteIcons />
     {!library && <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />}
     {/* Sample-team drafts stay apart from real ones (scripts/demo-drafts.ts): first, before any page script reads a draft. */}
     <script>

@@ -8,7 +8,7 @@
 export const CONNECTOR_WORDS = {
   title: 'Claude',
   intro: "Use Bridge inside your team's Claude. Claude reads your design system and fixes components that differ in Figma; someone on your team reviews each fix.",
-  step1: 'In Claude, open Settings, Connectors, Add custom connector, and paste this address.',
+  step1: 'In Claude, open Settings, Connectors, Add custom connector, name it Bridge, and paste this address.',
   step2: 'Sign in with Bridge when Claude asks.',
   orgAdmins: 'On Claude Team or Enterprise, an Owner can add it once for everyone in the organization.',
   address: 'Connector address',

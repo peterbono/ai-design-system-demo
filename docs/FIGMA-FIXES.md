@@ -252,8 +252,8 @@ plan. Bridge runs no model and holds no Anthropic key. Anthropic does not let th
 subscription for their own calls, so it goes this way round: Claude calls Bridge.
 
 - **URL:** `https://bridge.floriangouloubi.com/mcp` (any Bridge site: `<site>/mcp`). In Claude: Settings, Connectors,
-  Add custom connector, paste the URL, then Connect and sign in with Bridge. On Team and Enterprise an Owner adds it for
-  the organization first; each person then connects with their own Bridge sign-in. Claude Code:
+  Add custom connector, name it Bridge, paste the URL, then Connect and sign in with Bridge. On Team and Enterprise an
+  Owner adds it for the organization first; each person then connects with their own Bridge sign-in. Claude Code:
   `claude mcp add --transport http bridge https://bridge.floriangouloubi.com/mcp`, then `/mcp` to sign in.
 - **What it is:** every tool of the Bridge MCP server (`packages/mcp`, the same as `npx @bridge-ds/mcp`) over Streamable
   HTTP, stateless, JSON answers (`apps/docs-site/api/mcp`, `handleHttp` in `packages/mcp/src/lib.ts`). It works on the

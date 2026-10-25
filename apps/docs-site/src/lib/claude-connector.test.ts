@@ -16,6 +16,7 @@ describe('Settings, Claude', () => {
     expect(s.claudeCode).toBe('claude mcp add --transport http bridge https://bridge.floriangouloubi.com/mcp');
     expect(JSON.parse(s.local).mcpServers.bridge.args).toEqual(['-y', '@bridge-ds/mcp', '--repo', 'acme/design']);
     expect(W.step1).toContain('Add custom connector');
+    expect(W.step1).toContain('name it Bridge');
     expect(W.orgAdmins).toContain('Team or Enterprise');
   });
 });
