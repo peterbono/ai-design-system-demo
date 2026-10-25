@@ -2114,8 +2114,10 @@ function storyForVariant(spec, props, stories, shot) {
   }
   return order(ok).find(fits);
 }
+var ICON_LIBRARY = /^(lucide|heroicons?|phosphor|tabler|feather|material-?icons?|fa|fontawesome|svg)(?:$|[-_])/i;
 function partWords(part, id = part?.id ?? "") {
   if (id === "root") return "component";
+  if (ICON_LIBRARY.test(part?.id ?? id)) return "icon";
   const base = (part?.id ?? id).replace(/^[a-z]{1,6}--/i, "").replace(/[-_]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").trim().toLowerCase();
   return base || (part?.name ?? id).toLowerCase();
 }

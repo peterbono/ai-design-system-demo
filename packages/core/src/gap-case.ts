@@ -160,8 +160,12 @@ export function storyForVariant(spec: Pick<ComponentSpec, 'axes'>, props: Record
 }
 
 /** A part in words: the measure's ids are class names ("cds--toggle__switch" -> "toggle switch"). */
+/** Icon libraries a part id may be named after ("lucide", "lucide-check"): a designer reads "icon". */
+const ICON_LIBRARY = /^(lucide|heroicons?|phosphor|tabler|feather|material-?icons?|fa|fontawesome|svg)(?:$|[-_])/i;
+
 export function partWords(part: Pick<SpecPart, 'id' | 'name'> | undefined, id = part?.id ?? ''): string {
   if (id === 'root') return 'component';
+  if (ICON_LIBRARY.test(part?.id ?? id)) return 'icon';
   const base = (part?.id ?? id).replace(/^[a-z]{1,6}--/i, '').replace(/[-_]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').trim().toLowerCase();
   return base || (part?.name ?? id).toLowerCase();
 }

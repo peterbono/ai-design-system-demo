@@ -242,7 +242,7 @@ export function validateProposal(proposed: TokenSet, head: TokenSet, pairs: Cont
   const warnings: Issue[] = [];
   for (const i of after.issues) {
     if (i.severity === 'warning') warnings.push(i);
-    else if (existing.has(issueKey(i))) warnings.push({ ...i, severity: 'warning', message: `Already on main: ${i.message}` });
+    else if (existing.has(issueKey(i))) warnings.push({ ...i, severity: 'warning', message: `Already in the design system: ${i.message}` });
     else blocking.push(i);
   }
   for (const c of typeChanges) {
