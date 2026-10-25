@@ -5,7 +5,7 @@
 // The designer sees one button ("Ask Claude to fix it") and one sentence; the commands travel in the text they copy
 // for their developer (fixRequestForDeveloper), never on screen.
 
-import { DEFAULT_FIDELITY_RUN_FILE, type FigmaFidelityRun, type GitHubClient, REQUESTS_BRANCH } from '@bridge-ds/core';
+import { DEFAULT_FIDELITY_RUN_FILE, type FidelityComponentResult, type FigmaFidelityRun, type GitHubClient, REQUESTS_BRANCH } from '@bridge-ds/core';
 import { ensureRequestsBranch } from './requests';
 
 type RunClient = Pick<GitHubClient, 'owner' | 'name' | 'getBranchSha' | 'createBranch' | 'getFile' | 'putFile'>;
@@ -34,6 +34,38 @@ export const fixCommand = (component: string) => `npx @bridge-ds/cli fix ${compo
 export const FIX_ASKED_TEXT = 'Your developer runs Claude on it. Copy the request and send it to them: it has everything they need.';
 /** What happens next, in designer words: the fix comes back through a normal update. */
 export const FIX_NEXT_TEXT = 'Once the fix is approved, Check for updates brings it into this file. Then check fidelity again.';
+
+/** A set that differs where Claude cannot help yet (no measure of the stories): the designer hands it on, no dead end. */
+export const DIFFERS_HANDOFF_TEXT = 'A developer can look at why. Copy the details and send them over.';
+/** No code images yet: the designer hands it on with the same one action. */
+export const NO_REFERENCES_HANDOFF_TEXT = 'Images of the code are not published yet. A developer turns them on once; copy the request and send it to them.';
+
+/**
+ * "Copy for your developer" on a set that differs, without a measure: the component, each variant that differs with
+ * its verdict, how to let Claude help next time, and the JSON of the result.
+ */
+export function differsRequestForDeveloper(result: FidelityComponentResult, repo: string, verdict: (v: FidelityComponentResult['variants'][number]) => string): string {
+  const differing = result.variants.filter((v) => v.status === 'differs');
+  return [
+    `Could you look at ${result.component} in Figma? Check fidelity in the Bridge plugin found it differs from the code${repo ? ` (${repo})` : ''}.`,
+    '',
+    ...differing.map((v) => `- ${v.key}: ${verdict(v)}`),
+    '',
+    'To let Claude propose the fix from the plugin, commit measured-specs.json (bridge specs --measure --variants --shots) and set Spec source to "Measured" in the plugin Settings, For developers.',
+    '',
+    'The result as JSON:',
+    JSON.stringify(result, null, 2),
+  ].join('\n');
+}
+
+/** "Copy for your developer" when the code images are missing: what to run, once. */
+export function referencesRequestForDeveloper(repo: string): string {
+  return [
+    `Could you publish the Figma references${repo ? ` for ${repo}` : ''}? Check fidelity in the Bridge plugin needs images of the code to compare with.`,
+    '',
+    'Run the "Figma references" workflow once (Actions, Figma references, Run workflow). After that it runs each time a change ships to the library.',
+  ].join('\n');
+}
 
 /**
  * "Copy for your developer": the request a designer pastes in Slack or an issue. It holds the ways to run the fix

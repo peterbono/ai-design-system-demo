@@ -2,8 +2,8 @@
 // server and the CLI read it; written again on the next check, never on the library branch.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { DEFAULT_FIDELITY_RUN_FILE, type FigmaFidelityRun, REQUESTS_BRANCH, parseFidelityRun } from '@bridge-ds/core';
-import { FIX_ASKED_TEXT, FIX_NEXT_TEXT, fixCommand, fixPhrase, fixRequestForDeveloper, writeFidelityRun } from '../src/sync/fix-with-claude';
+import { DEFAULT_FIDELITY_RUN_FILE, type FigmaFidelityRun, REQUESTS_BRANCH, fidelityVerdict, parseFidelityRun } from '@bridge-ds/core';
+import { DIFFERS_HANDOFF_TEXT, FIX_ASKED_TEXT, FIX_NEXT_TEXT, NO_REFERENCES_HANDOFF_TEXT, differsRequestForDeveloper, fixCommand, fixPhrase, fixRequestForDeveloper, referencesRequestForDeveloper, writeFidelityRun } from '../src/sync/fix-with-claude';
 import { FakeGitHub } from './fake-github';
 
 const run = (percent: number): FigmaFidelityRun => ({
@@ -41,4 +41,16 @@ test('Ask Claude to fix it: the designer sees no command, the copied request for
   assert.match(req, /npx @bridge-ds\/cli fix TextInput --with-claude/);
   assert.match(req, /figma-fidelity\.json on the bridge-requests branch of acme\/ds/);
   assert.doesNotMatch(req, /—/);
+});
+
+test('a component that differs without a measure still gets a designer action: the copied text has the real details', () => {
+  for (const text of [DIFFERS_HANDOFF_TEXT, NO_REFERENCES_HANDOFF_TEXT]) assert.doesNotMatch(text, /npx|MCP|API key|branch|CLI|json|\u2014/i);
+  const result = run(4.2).report.components[0]!;
+  const req = differsRequestForDeveloper(result, 'acme/ds', fidelityVerdict);
+  assert.match(req, /TextInput/);
+  assert.match(req, /- Size=md: Differs from the code: 4\.2% of pixels/);
+  assert.match(req, /measured-specs\.json/);
+  assert.match(req, /"component": "TextInput"/);
+  assert.match(referencesRequestForDeveloper('acme/ds'), /"Figma references" workflow once/);
+  assert.doesNotMatch(req + referencesRequestForDeveloper(''), /\u2014/);
 });
