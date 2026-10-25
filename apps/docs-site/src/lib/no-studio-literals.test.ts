@@ -49,6 +49,11 @@ const ALLOWED: { file: string; line: string; why: string }[] = [
     why: 'the sign-in link emailed to an email contributor: the team shell address, built on the server (no page)',
   },
   {
+    file: 'api/claude/index.ts',
+    line: '${origin}/studio/${owner}/${repo}/${v.review}',
+    why: "See Claude's fix in the Figma plugin: the team shell address of the review, built on the server (no page)",
+  },
+  {
     file: 'src/pages/tokens/index.astro',
     line: "location.replace('/studio/tokens/'",
     why: 'is:inline script on a Library page (cannot import modules, never on a team shell): old ?edit=1 links',

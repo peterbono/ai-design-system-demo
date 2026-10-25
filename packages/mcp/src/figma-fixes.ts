@@ -1,20 +1,20 @@
 // Fix with Claude: the team's own Claude (Claude Code or Claude Desktop here, through the MCP server; or the CLI loop
-// with the team's API key) fixes components whose Figma build differs from their story. Bridge holds no API key: it
-// gives the tools and is the referee. bridge_figma_gaps lists what differs, bridge_get_gap_case gives one component's
+// with the team's API key, or Bridge's server with the key the team connected) fixes components whose Figma build
+// differs from their story. Here Bridge holds no key: it gives the tools and is the referee. bridge_figma_gaps lists what differs, bridge_get_gap_case gives one component's
 // gap case and the fix schema, bridge_try_figma_fix runs the values referee offline (core tryFigmaFixes), and
 // bridge_propose_figma_fixes opens figma-fixes.json for review like any Bridge change. The pixel referee (the story shot
 // against the real Figma render) runs in the plugin's Check fidelity after the next pull.
 import {
   applyFixes,
   baseBranchOf,
-  classifyRisk,
   DEFAULT_FIDELITY_RUN_FILE,
   DEFAULT_GOVERNANCE,
   DEFAULT_FIGMA_FIXES_FILE,
-  DRAFTED_BY_CLAUDE_LABEL,
+  DEFAULT_MEASURED_SPECS_FILE,
+  FIGMA_FIXES_LABEL as CORE_FIGMA_FIXES_LABEL,
   FIX_LOOP_MAX_ROUNDS,
   FIX_SCHEMA_SUMMARY,
-  figmaFixesPrBody,
+  figmaFixesProposal,
   figmaGaps,
   FigmaFixesError,
   gapCaseFor,
@@ -23,11 +23,9 @@ import {
   parseMeasuredSpecsFile,
   protectedBranchesOf,
   REQUESTS_BRANCH,
-  touchesLayout,
   tryFigmaFixes,
   type BridgeConfig,
   type FigmaFidelityRun,
-  type FigmaFix,
   type FigmaFixesFile,
   type MeasuredSpecsFile,
 } from '@bridge-ds/core';
@@ -36,9 +34,9 @@ import type { BridgeContext } from './context.js';
 import { readOnlyPreview, say, sourceOf, toolName, toolTag } from './say.js';
 
 /** Where `bridge specs --measure` writes, from the repo root. */
-export const MEASURED_SPECS_FILE = 'measured-specs.json';
+export const MEASURED_SPECS_FILE = DEFAULT_MEASURED_SPECS_FILE;
 /** The label every figma-fixes.json change carries, next to drafted-by-claude. */
-export const FIGMA_FIXES_LABEL = 'figma-fixes';
+export const FIGMA_FIXES_LABEL = CORE_FIGMA_FIXES_LABEL;
 
 export interface FixFilesArgs {
   /** measured-specs.json path in the repo. */
@@ -49,7 +47,7 @@ export interface FixFilesArgs {
   fixesFile?: string | undefined;
 }
 
-interface FixFiles {
+export interface FixFiles {
   measured: MeasuredSpecsFile;
   measuredPath: string;
   fixes?: FigmaFixesFile | undefined;
@@ -60,7 +58,7 @@ interface FixFiles {
 }
 
 /** Reads the measure, the team's fixes and the fidelity run (the repo, else the requests branch the plugin writes to). */
-async function loadFixFiles(ctx: BridgeContext, a: FixFilesArgs): Promise<FixFiles> {
+export async function loadFixFiles(ctx: BridgeContext, a: FixFilesArgs): Promise<FixFiles> {
   const measuredPath = a.measured ?? MEASURED_SPECS_FILE;
   const text = await ctx.source.read(measuredPath);
   if (text === null || text === undefined)
@@ -189,8 +187,6 @@ export async function tryFigmaFixOp(ctx: BridgeContext, a: FixFilesArgs & { comp
   };
 }
 
-const slug = (s: string) => s.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'component';
-
 /**
  * bridge_propose_figma_fixes / `bridge fix <component> --propose fixes.json`: the accepted fixes in figma-fixes.json on
  * a new branch, opened for review like other Bridge changes (a draft pull request labelled drafted-by-claude and its
@@ -202,40 +198,23 @@ export async function proposeFigmaFixesOp(ctx: BridgeContext, a: FixFilesArgs & 
   // A Storybook-only design system (measured, no token files) may have no bridge.config.json: Bridge's defaults then.
   const config = await ctx.config().then((c) => c.config, () => ({ governance: DEFAULT_GOVERNANCE }) as unknown as BridgeConfig);
   const files = await loadFixFiles(ctx, a);
-  const tried = tryFigmaFixes({ component: a.component, measured: files.measured, fixes: files.fixes, run: files.run, proposed: a.fixes });
-  if (tried.status === 'invalid') throw new Error(`Not proposed: ${tried.problems.join('; ')}.`);
-  const summary = (a.summary ?? '').trim();
-  if (summary.length < 8) throw new Error('Not proposed: summary is one or two sentences a reviewer reads first (what the fixes do for the designer).');
-  if (/\u2014/.test(summary)) throw new Error('Not proposed: the summary uses an em dash: use a colon or a comma.');
-  const ids = new Set((a.fixes as { id?: string }[]).map((f) => f.id));
-  const proposed = tried.file!.fixes.filter((f) => ids.has(f.id));
-  const { gap } = gapCaseFor({ component: a.component, measured: files.measured, fixes: files.fixes, run: files.run });
-  const drawing = proposed.some((f) => f.kind === 'part' || f.kind === 'story' || (f.kind === 'axis' && f.action !== 'map'));
-  const measurable = gap.variants.some((v) => v.differences.length);
-  // Layout (sizes, overlays, auto layout) is beyond the values referee: "same" opens, the story shot decides.
-  if (tried.verdict === 'worse' || (drawing && measurable && tried.verdict === 'same' && !proposed.some(touchesLayout))) {
+  const source = sourceOf(ctx, a.source);
+  const p = figmaFixesProposal({ component: a.component, measured: files.measured, fixes: files.fixes, run: files.run, proposed: a.fixes, summary: a.summary, config, fixesPath: files.fixesPath, tool: toolTag(source), source });
+  if (p.status === 'blocked') {
     return {
       status: 'blocked',
-      verdict: tried.verdict,
-      why: `${tried.summary} Bridge does not open fixes that move ${gap.component} ${tried.verdict === 'worse' ? 'further from' : 'no closer to'} the code.`,
-      detail: tried.detail,
+      verdict: p.verdict,
+      why: p.why,
+      detail: p.detail,
       hint: say(ctx, 'Try other fixes with bridge_try_figma_fix, or propose a status fix (kind "status", status "differs" or "cant-check", the reason) instead.', 'Try other fixes with `bridge fix <component> --try`, or propose a status fix (kind "status", status "differs" or "cant-check", the reason) instead.'),
     };
   }
-  const source = sourceOf(ctx, a.source);
-  const content = `${JSON.stringify(tried.file, null, 2)}\n`;
-  const fileContents = [{ path: files.fixesPath, content }];
-  const risk = classifyRisk({ files: [{ path: files.fixesPath, status: files.fixes ? 'modified' : 'added' }], config });
-  const prBody = `${figmaFixesPrBody({ component: gap.component, summary, gap, tried, fixes: proposed, tool: toolTag(source) })}\n\nRisk: ${risk.label}.`;
-  const title = `fix(figma): ${gap.component} drawn closer to its story`;
-  const message = `${title}\n\n${summary}\n\nFixes: ${proposed.map((f) => f.id).join(', ')}. Drafted by Claude through ${toolTag(source)}.`;
-  const labels = [...new Set([...config.governance.labels, `tier: ${risk.tier}`, `source: ${source}`, FIGMA_FIXES_LABEL, DRAFTED_BY_CLAUDE_LABEL])];
-  const report = { component: gap.component, verdict: tried.verdict, summary: tried.summary, variants: tried.variants, fixes: proposed.map((f: FigmaFix) => f.id), tier: risk.tier, prTitle: title };
+  const { report, labels, prBody, fileContents, title, message, draft } = p;
   const after = 'Pull this branch in the DS Bridge Figma plugin and run Check fidelity: the story shot decides. A person approves the pull request.';
   if (a.dryRun) return { status: 'dry-run', ...report, labels, prBody, fileContents };
 
   const prefix = config.governance.branchPrefix;
-  const stem = `${prefix}figma-fixes-${slug(gap.component)}`;
+  const stem = p.branchStem;
   let branch = stem;
   if (ctx.mode === 'local') {
     if (!ctx.isGit) return { status: 'preview', message: 'Not a git repo: nothing written. Write fileContents yourself.', ...report, prBody, fileContents };
@@ -259,7 +238,6 @@ export async function proposeFigmaFixesOp(ctx: BridgeContext, a: FixFilesArgs & 
   const base = ctx.ref ?? baseBranchOf(config);
   for (let i = 2; await gh.getBranchSha(branch).then(Boolean, () => false); i++) branch = `${stem}-${i}`;
   const commit = await gh.commitToNewBranch({ base, branch, message, files: fileContents });
-  const draft = risk.tier >= 2;
   const pr = await gh.createPullRequest({ base, head: branch, title, body: prBody, draft });
   await gh.addLabels(pr.number, labels);
   return { status: 'pr-opened', ...report, branch, commit: commit.sha, pr: pr.number, url: pr.url, labels, draft, next: `${after} Opened through ${toolName(source)}.` };
