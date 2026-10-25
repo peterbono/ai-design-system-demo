@@ -11,7 +11,7 @@ test('a failed settings save keeps the fidelity result and never shows Connected
   await p.click('Check for updates');
   await p.click('Apply to Figma');
   await p.until(() => p.headline() === 'Your design system is in Figma', 15000);
-  await p.click('Check fidelity');
+  await p.click('Compare with code');
   await p.until(() => p.text().includes('Images of the code are not published yet'));
 
   await p.click('Settings');

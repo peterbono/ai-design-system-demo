@@ -71,6 +71,8 @@ export interface Open {
   register?: (routes: Route[]) => void;
   /** Signed in with Bridge (the token Studio gave), not a pasted token. */
   bridge?: boolean;
+  /** More of the file's sync state (shared plugin data), as a returning file holds it. */
+  sync?: Record<string, string>;
   /** Edits the snapshot before the plugin reads it. */
   edit?: (s: FigmaSnapshot) => void;
 }
@@ -94,7 +96,7 @@ export async function openPlugin(o: Open = {}): Promise<Harness> {
   const blobs = Object.fromEntries(Object.entries(data.files).map(([p, t]) => [p, Buffer.from(t, 'utf8').toString('base64')]));
   const paths = Object.keys(blobs);
   let settings = { repo: o.connected === false ? '' : REPO, branch: 'main', tokensPath: 'packages/tokens/src' } as InitPayload['settings'];
-  let sync: InitPayload['sync'] = o.pulled ? { baseSha: data.headSha, lastPullAt: '2026-10-24T09:12:00.000Z' } : {};
+  let sync: InitPayload['sync'] = { ...(o.pulled ? { baseSha: data.headSha, lastPullAt: '2026-10-24T09:12:00.000Z' } : {}), ...(o.sync ?? {}) };
   let token: string | undefined = o.connected === false ? undefined : 'test-token';
   // Where the token came from and who signed in (figma.clientStorage in Figma): none for a legacy pasted token.
   let tokenSource: string | undefined = o.bridge ? 'bridge' : undefined;

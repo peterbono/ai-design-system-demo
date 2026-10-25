@@ -38,7 +38,7 @@ type Fetch = (url: string, init: { method: string; headers: Record<string, strin
 export const CLAUDE_RUN_WORDS = {
   unreachable: 'Bridge did not answer. Check your connection, then ask again.',
   round: (r: Pick<RunView, 'round' | 'maxRounds'>) => (r.round ? `Round ${r.round} of ${r.maxRounds}` : 'Starting'),
-  next: 'Once the fix is approved, Check for updates brings it into this file. Then check fidelity again.',
+  next: 'Once the fix is approved, Check for updates brings it into this file. Then compare with code again.',
 } as const;
 
 /** Only what a designer may read: never `developer` or `reason`'s twin, whatever the server adds later. */
