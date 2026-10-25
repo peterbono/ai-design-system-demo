@@ -7,10 +7,10 @@ import type { PullRequestSummary } from '@bridge-ds/core';
 import { fixPhrase } from './fix-with-claude';
 
 /**
- * A claude.ai address that opens a new chat with the request already written, once Anthropic confirms one exists
- * (for example "https://claude.ai/new?q="). Until then: the request is copied and the designer pastes it.
+ * A claude.ai address that opens a new chat with the request already written, not sent (confirmed 2026-10-25: claude.ai
+ * shows a "be careful" notice and the person presses send). The request is also copied, in case the box is empty.
  */
-export const CLAUDE_PREFILL_URL: string | undefined = undefined;
+export const CLAUDE_PREFILL_URL: string | undefined = 'https://claude.ai/new?q=';
 export const CLAUDE_NEW_CHAT = 'https://claude.ai/new';
 
 /** The words the designer types (or finds written) in their Claude. */
@@ -26,7 +26,8 @@ export const CONNECTOR_WORDS = {
   howToConnect: 'How to connect',
   connected: 'Bridge is in our Claude',
   pasted: 'The request is copied. Paste it in Claude.',
-  prefilled: 'Claude opened with the request written. Send it.',
+  prefilled: 'Claude opened with the request written: send it there.',
+  emptyHint: 'If the message is empty, paste it: the request is copied.',
   openClaude: 'Open Claude',
   waiting: "Waiting for Claude's fix",
   waitingHint: 'Claude opens its fix for review. Keep working: Bridge watches for it, also after you close the plugin.',
@@ -64,7 +65,7 @@ export function parseAsked(raw: string | undefined): Asked {
   }
 }
 
-/** How often the plugin looks for Claude's fix while it is open: gently, Claude takes minutes. */
-export const WATCH_MS = 20_000;
+/** How often the plugin reads Claude's progress while it works (one request at a time): every few seconds. */
+export const WATCH_MS = 10_000;
 /** An ask older than this without a fix is dropped from the watch (the row offers asking again). */
 export const ASK_TTL_MS = 3 * 24 * 60 * 60 * 1000;

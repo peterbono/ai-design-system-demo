@@ -2596,7 +2596,8 @@ async function fixWithClaude(p: PullState, component: string, connected = !!stat
     };
     await writeFidelityRun(getClient(), run, state.init!.settings.branch);
     const open = claudeUrl(component);
-    if (!open.prefilled) await copyText(askText(component));
+    // Copied either way: the prefilled message is there, and the clipboard has it if the box comes up empty.
+    await copyText(askText(component));
     void request('open-url', { url: open.url });
     markAsked(component);
     f.fix = { component, status: 'asked', prefilled: open.prefilled };
@@ -2697,7 +2698,7 @@ function claudePanel(component: string): Child {
   const session = claudeSessions.get(component);
   const askedAt = parseAsked(state.init?.sync.claudeAsked)[component];
   if (!pr && !session && !waitingFor().includes(component)) return null;
-  const head = pr ? { kind: 'ready' as const, text: CONNECTOR_WORDS.ready } : sessionHead(session, component, Date.now());
+  const head = pr ? { kind: 'ready' as const, text: CONNECTOR_WORDS.ready } : sessionHead(session, component);
   if (!pr && !askedAt && head.kind === 'waiting') return null;
   const key = `claude-steps-${component}`;
   const steps = session?.steps ?? [];
@@ -2743,7 +2744,7 @@ function claudePanel(component: string): Child {
         ]
       : null,
     head.kind === 'waiting' || head.kind === 'quiet'
-      ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', 'data-focus-id': `reopen-claude-${component}`, onClick: () => { const o = claudeUrl(component); if (!o.prefilled) void copyText(askText(component)); void request('open-url', { url: o.url }); } }, icon('external'), 'Open Claude again'))
+      ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', 'data-focus-id': `reopen-claude-${component}`, onClick: () => { void copyText(askText(component)); void request('open-url', { url: claudeUrl(component).url }); } }, icon('external'), 'Open Claude again'))
       : null,
     head.kind === 'stopped' || head.kind === 'quiet'
       ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', 'data-focus-id': `stop-copy-${component}`, onClick: () => void copyText(developer).then((ok) => { if (ok) state.expanded.add(`copied-${component}`); render(); }) }, icon(state.expanded.has(`copied-${component}`) ? 'check' : 'copy'), state.expanded.has(`copied-${component}`) ? 'Copied' : 'Copy for your developer'))
@@ -2795,6 +2796,7 @@ function fixPanel(p: PullState, component: string): Child {
     'div',
     { class: 'callout', role: 'status', 'data-claude': 'asked' },
     h('p', null, fix.prefilled ? CONNECTOR_WORDS.prefilled : CONNECTOR_WORDS.pasted),
+    fix.prefilled ? h('small', null, CONNECTOR_WORDS.emptyHint) : null,
     h(
       'div',
       { class: 'inline-actions' },

@@ -5,9 +5,10 @@ import { test } from 'node:test';
 import { CLAUDE_NEW_CHAT, askText, claudeUrl, findFix, fixBranchStem, parseAsked } from '../src/sync/claude-connector';
 import { parseSession, sessionHead } from '../src/sync/fix-session';
 
-test('the request and where Claude opens (no prefill confirmed yet: a new chat, the request copied)', () => {
+test('the request and where Claude opens: a new chat with it written (not sent)', () => {
   assert.equal(askText('IconButton'), 'Fix IconButton in Figma with Bridge');
-  assert.deepEqual(claudeUrl('IconButton'), { url: CLAUDE_NEW_CHAT, prefilled: false });
+  assert.deepEqual(claudeUrl('IconButton'), { url: 'https://claude.ai/new?q=Fix%20IconButton%20in%20Figma%20with%20Bridge', prefilled: true });
+  void CLAUDE_NEW_CHAT;
 });
 
 test('Claude\'s fix: open, labelled figma-fixes, on the component\'s branch or a numbered one; nothing else', () => {
@@ -27,16 +28,27 @@ test('asks kept with the file parse safely', () => {
   assert.deepEqual(parseAsked(undefined), {});
 });
 
-test('a fix session: only designer words survive, and the head says the state in one line', () => {
-  const now = Date.parse('2026-10-25T10:10:00Z');
-  const s = parseSession({ component: 'IconButton', state: 'working', startedAt: '2026-10-25T10:00:00Z', updatedAt: '2026-10-25T10:09:00Z', steps: [{ label: 'Read the differences (12)', status: 'done', at: '' }, { label: 'x', status: 'weird' }], developer: 'secret', round: 1, maxRounds: 3 })!;
-  assert.equal(s.steps.length, 1);
+test('a fix session matches the contract: only designer words survive, the head says the state in one line', () => {
+  const view = {
+    component: 'IconButton', state: 'working', startedAt: '2026-10-25T10:00:00Z', updatedAt: '2026-10-25T10:09:00Z', elapsed: 600, quiet: false, round: 1, maxRounds: 3,
+    steps: [
+      { label: 'Claude read the differences (12)', status: 'done', text: 'Claude read the differences (12)', kind: 'read', at: '2026-10-25T10:00:00Z', by: 'Ana', differences: 12 },
+      { label: 'x', status: 'weird' },
+    ],
+    developer: 'secret',
+  };
+  const s = parseSession(view)!;
+  assert.deepEqual(s.steps, [{ label: 'Claude read the differences (12)', status: 'done', kind: 'read', at: '2026-10-25T10:00:00Z', by: 'Ana' }]);
   assert.ok(!('developer' in s));
-  assert.deepEqual(sessionHead(s, 'IconButton', now), { kind: 'working', text: 'Claude is working on IconButton · 10 min, round 1 of up to 3' });
-  assert.equal(sessionHead(undefined, 'IconButton', now).text, 'Waiting for Claude');
-  assert.equal(sessionHead({ ...s, steps: [] }, 'IconButton', now).kind, 'waiting');
-  assert.equal(sessionHead({ ...s, updatedAt: '2026-10-25T09:50:00Z' }, 'IconButton', now).text, 'Claude went quiet');
-  assert.equal(sessionHead({ ...s, state: 'stopped', reason: 'no closer fix' }, 'IconButton', now).text, 'Claude stopped: no closer fix');
-  assert.equal(sessionHead({ ...s, state: 'ready' }, 'IconButton', now).text, "Claude's fix is ready");
+  assert.deepEqual(sessionHead(s, 'IconButton'), { kind: 'working', text: 'Claude is working on IconButton · 10 min, round 1 of up to 3' });
+  assert.equal(sessionHead(undefined, 'IconButton').text, 'Waiting for Claude');
+  assert.equal(sessionHead(parseSession({ ...view, state: 'waiting', startedAt: null, updatedAt: null, elapsed: 0, steps: [] }), 'IconButton').text, 'Waiting for Claude');
+  // Quiet is the server's flag on a working session: never a stop, never "Claude stopped: Claude went quiet".
+  const quiet = parseSession({ ...view, quiet: true })!;
+  assert.deepEqual(sessionHead(quiet, 'IconButton'), { kind: 'quiet', text: 'Claude went quiet' });
+  assert.equal(sessionHead(parseSession({ ...view, state: 'stopped', reason: 'no closer fix' }), 'IconButton').text, 'Claude stopped: no closer fix');
+  assert.equal(sessionHead(parseSession({ ...view, state: 'stopped', reason: 'Claude stopped: no closer fix' }), 'IconButton').text, 'Claude stopped: no closer fix');
+  assert.equal(sessionHead(parseSession({ ...view, state: 'ready' }), 'IconButton').text, "Claude's fix is ready");
+  assert.equal(sessionHead(parseSession({ ...view, elapsed: 3900 }), 'IconButton').text, 'Claude is working on IconButton · 1 h 5 min, round 1 of up to 3');
   assert.equal(parseSession({ component: 'X', state: 'nope' }), undefined);
 });

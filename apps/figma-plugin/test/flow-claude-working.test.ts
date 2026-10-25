@@ -8,7 +8,7 @@ void minutesAgo;
 test('working: "Claude is working on IconButton", elapsed time, round of up to 3, steps folded with a check or a pulse', async () => {
   const p = await reopenWith({
     session: {
-      component: 'IconButton', state: 'working', startedAt: minutesAgo(4), updatedAt: minutesAgo(1), round: 2, maxRounds: 3,
+      component: 'IconButton', state: 'working', startedAt: minutesAgo(4), updatedAt: minutesAgo(1), elapsed: 240, quiet: false, round: 2, maxRounds: 3,
       steps: [
         { label: 'Read the differences (12)', status: 'done', at: minutesAgo(4) },
         { label: 'Tried a fix, round 1: closer', status: 'done', at: minutesAgo(2) },
