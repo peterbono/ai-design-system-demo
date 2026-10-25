@@ -324,7 +324,18 @@ describe('the real Bridge MCP server over Streamable HTTP (packages/mcp handleHt
     const post = (body: unknown) => handleHttp(ctx, new Request(`${SITE}/mcp`, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' } }), body);
     const init = await post({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } } });
     expect(init.status).toBe(200);
-    expect((await init.json()).result.serverInfo.name).toBe('bridge');
+    // The connector shows as Bridge with the Bridge mark (MCP 2025-11-25 Implementation title and icons), on this domain.
+    const info = (await init.json()).result.serverInfo;
+    expect(info).toMatchObject({ name: 'bridge', title: 'Bridge', websiteUrl: 'https://bridge.floriangouloubi.com/' });
+    expect(info.icons).toEqual([
+      { src: 'https://bridge.floriangouloubi.com/icon-192.png', mimeType: 'image/png', sizes: ['192x192'] },
+      { src: 'https://bridge.floriangouloubi.com/icon-512.png', mimeType: 'image/png', sizes: ['512x512'] },
+      { src: 'https://bridge.floriangouloubi.com/favicon.svg', mimeType: 'image/svg+xml', sizes: ['any'] },
+    ]);
+    const latest = await post({ jsonrpc: '2.0', id: 3, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } } });
+    const answered = (await latest.json()).result;
+    expect(answered.protocolVersion).toBe('2025-11-25');
+    expect(answered.serverInfo).toEqual(info);
     const list = await post({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
     const names = ((await list.json()).result.tools as { name: string }[]).map((t) => t.name);
     expect(names).toEqual(expect.arrayContaining(['bridge_figma_gaps', 'bridge_get_gap_case', 'bridge_try_figma_fix', 'bridge_propose_figma_fixes']));

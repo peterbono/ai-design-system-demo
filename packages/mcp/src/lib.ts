@@ -7,7 +7,7 @@ import { createServer, VERSION } from './server.js';
 
 export { BridgeContext, type ContextOptions } from './context.js';
 export { BlockedError, isBlocked, say } from './say.js';
-export { createServer, VERSION } from './server.js';
+export { createServer, SERVER_INFO, VERSION } from './server.js';
 export { CONFIG_FILE, detectConfig, parseConfig, toConfigJson, type BridgeConfig } from './config.js';
 export { core } from './core-adapter.js';
 export { LocalSource, GitRefSource, GitHubSource, type RepoSource } from './source.js';

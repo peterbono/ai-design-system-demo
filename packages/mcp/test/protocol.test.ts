@@ -104,6 +104,14 @@ const text = (r: any) => r.content[0].text as string;
 describe('MCP over stdio', () => {
   it('initializes with server info and instructions', () => {
     expect(client.getServerVersion()).toMatchObject({ name: 'bridge', version: pkg.version });
+    // MCP 2025-11-25 Implementation: a display title and the Bridge mark, absolute https URLs, PNG first.
+    const info = client.getServerVersion()!;
+    expect(info.title).toBe('Bridge');
+    expect(info.icons?.map((i) => [i.src, i.mimeType, i.sizes])).toEqual([
+      ['https://bridge.floriangouloubi.com/icon-192.png', 'image/png', ['192x192']],
+      ['https://bridge.floriangouloubi.com/icon-512.png', 'image/png', ['512x512']],
+      ['https://bridge.floriangouloubi.com/favicon.svg', 'image/svg+xml', ['any']],
+    ]);
     expect(client.getInstructions()).toMatch(/never writes to main/);
     expect(client.getInstructions()).toMatch(/Bridge never writes to the default branch/);
   });
