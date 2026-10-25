@@ -73,7 +73,7 @@
 
 /* ---------- tables (DS Table root and cells, by their className) ---------- */
 .hp-cmp .hp-cmp-table {
-  min-width: calc(var(--_feat) + 6 * var(--_col));
+  min-width: calc(var(--_feat) + 7 * var(--_col));
   font-size: var(--_t15);
   line-height: var(--_l22);
 }

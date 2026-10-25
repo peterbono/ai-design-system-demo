@@ -5,6 +5,7 @@
 // the full note; its accessible name says the state and carries the same words. Hydrated by HpCompare.astro (short
 // table) and inside the HpCompareMore island (every feature, by group). Words and data: lib/compare.ts.
 // Styles: styles/home-compare.css.
+import { Fragment } from 'react';
 import { Button, Icon, IconButton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tooltip, VisuallyHidden } from '@bridge-ds/react';
 import { Check, Minus } from 'lucide-react';
 import { STATE_LABEL, TOOLS, cellText, type Cell, type CompareGroup, type CompareRow, type MarkState } from '../../lib/compare';
@@ -46,6 +47,20 @@ function Mark({ cell, tool }: { cell: Cell; tool: string }) {
   );
 }
 
+/** A tool name with a line break allowed after each dot, so "story.to.design" fits a narrow column. */
+function ToolName({ name }: { name: string }) {
+  return (
+    <>
+      {name.split(/(?<=\.)/).map((part, i) => (
+        <Fragment key={part}>
+          {i > 0 && <wbr />}
+          {part}
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
 function Row({ row }: { row: CompareRow }) {
   return (
     <TableRow className="hp-cmp-row">
@@ -83,7 +98,7 @@ export default function HpCompareTable({ label, firstHead, rows, groups }: HpCom
           </TableHead>
           {TOOLS.map((t, i) => (
             <TableHead key={t} scope="col" className={i === 0 ? 'hp-cmp-c hp-cmp-tool hp-cmp-b hp-cmp-bh' : 'hp-cmp-c hp-cmp-tool'}>
-              {t}
+              <ToolName name={t} />
             </TableHead>
           ))}
         </TableRow>
