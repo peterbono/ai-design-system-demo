@@ -685,6 +685,12 @@ function arrangement(children: MeasuredBox[]): 'stacked' | 'row' | undefined {
   return stacked && !row ? 'stacked' : row && !stacked ? 'row' : undefined;
 }
 
+/** align-items as the counter axis alignment. */
+function alignOf(style: Record<string, string>): SpecLayout['counter'] {
+  const a = style['align-items'] ?? 'normal';
+  return /center/.test(a) ? 'CENTER' : /end/.test(a) ? 'MAX' : /^(flex-)?start|baseline/.test(a) ? 'MIN' : 'STRETCH';
+}
+
 export function measuredLayout(style: Record<string, string>, children: MeasuredBox[] = []): SpecLayout | undefined {
   const d = style.display ?? '';
   const arranged = arrangement(children);
@@ -702,11 +708,12 @@ export function measuredLayout(style: Record<string, string>, children: Measured
     const sideBySide = children.length >= 2 && children.every((c) => Math.abs(c.y + c.height / 2 - (children[0]!.y + children[0]!.height / 2)) <= Math.max(2, children[0]!.height / 2)) && new Set(children.map((c) => Math.round(c.x))).size === children.length;
     direction = /column/.test(style['grid-auto-flow'] ?? '') || (cols >= 2 && rows <= 1) || (cols < 2 && rows < 2 && sideBySide) ? 'HORIZONTAL' : 'VERTICAL';
     if (cols >= 2 && rows >= 2) direction = sideBySide ? 'HORIZONTAL' : 'VERTICAL';
+    // Tracks across and down, filled row by row (a radio group of radio and label columns): a row that wraps at its width.
+    if (cols >= 2 && rows >= 2 && !sideBySide && !/column/.test(style['grid-auto-flow'] ?? '')) return { direction: 'HORIZONTAL', primary: 'MIN', counter: alignOf(style), wrap: true };
   }
   const j = style['justify-content'] ?? 'normal';
-  const a = style['align-items'] ?? 'normal';
   const primary: SpecLayout['primary'] = !flex && !grid ? 'MIN' : /space-between/.test(j) ? 'SPACE_BETWEEN' : /center/.test(j) ? 'CENTER' : /end|right/.test(j) ? 'MAX' : 'MIN';
-  const counter: SpecLayout['counter'] = /center/.test(a) ? 'CENTER' : /end/.test(a) ? 'MAX' : /^(flex-)?start|baseline/.test(a) ? 'MIN' : 'STRETCH';
+  const counter = alignOf(style);
   // The boxes are the referee: a row that wrapped into a column at its width, or blocks that sit side by side.
   // (A wrapping row stays a row: Figma wraps it the same way at the same width.)
   if (arranged === 'stacked' && direction === 'HORIZONTAL' && !(flex && style['flex-wrap'] === 'wrap')) direction = 'VERTICAL';
@@ -889,6 +896,10 @@ export function measuredToSpec(m: Pick<MeasuredStory, 'id' | 'root'> & { rootFil
     if (Object.keys(ev).length) out.tokens[id] = ev;
     if (n.sized && (n.sized.width || n.sized.height)) (out.sized ??= {})[id] = { ...(n.sized.width ? { width: n.box.width } : {}), ...(n.sized.height ? { height: n.box.height } : {}) };
     const kids = n.children.map((c) => [c, visit(c, id, n.style, n.box)] as const);
+    // A grid that wraps does so at its measured width, each item at its track's: Figma wraps fixed widths only.
+    if (part.layout?.wrap && /grid/.test(n.style.display ?? '')) {
+      for (const [c, cid] of [[n, id] as const, ...kids]) if (c === n || !/absolute|fixed/.test(c.style.position ?? '')) (out.sized ??= {})[cid] = { ...out.sized?.[cid], width: c.box.width };
+    }
     if (part.layout) spacing(id, n, part.layout, kids);
     if (n.kind === 'frame') positioned(id, part, n, kids);
     return id;
