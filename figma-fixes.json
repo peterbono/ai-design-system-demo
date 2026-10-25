@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "fixes": [
+    {
+      "id": "alert-height-with-border",
+      "kind": "part",
+      "component": "Alert",
+      "part": "root",
+      "height": "fixed",
+      "reason": "The alert keeps its measured 68 px: the 1 px border adds to the CSS box, a Figma stroke does not.",
+      "by": "claude"
+    }
+  ]
+}
