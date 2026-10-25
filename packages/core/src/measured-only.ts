@@ -193,13 +193,33 @@ function setOf(
     }
     return props;
   };
-  const byVariant = new Map<string, { props: Record<string, string>; story: MeasuredSpecsStory }>();
+  const candidates = new Map<string, { props: Record<string, string>; stories: MeasuredSpecsStory[] }>();
   for (const s of plain) {
     const props = keyOf(s);
     if (!props) continue;
     const k = JSON.stringify(props);
-    if (!byVariant.has(k)) byVariant.set(k, { props, story: s });
+    if (!candidates.has(k)) candidates.set(k, { props, stories: [] });
+    candidates.get(k)!.stories.push(s);
   }
+  // The states of a variant come from one story where they can, the one most of them were measured on: Kbd at rest
+  // in an input group but hovered alone draws its rest from the story it was hovered in. A state only another story
+  // shows (a Disabled story) still comes from that story.
+  const storyFor = new Map<string, string>();
+  if (axes.some((a) => a.name === 'State')) {
+    const rest = (p: Record<string, string>) => JSON.stringify(Object.entries(p).filter(([k]) => k !== 'State'));
+    const groups = new Map<string, { props: Record<string, string>; stories: MeasuredSpecsStory[] }[]>();
+    for (const c of candidates.values()) groups.set(rest(c.props), [...(groups.get(rest(c.props)) ?? []), c]);
+    for (const [key, group] of groups) {
+      const ids = [...new Set(group.flatMap((c) => c.stories.map((s) => s.id)))];
+      const score = (id: string) => group.filter((c) => c.stories.some((s) => s.id === id)).length;
+      storyFor.set(key, ids.reduce((best, id) => (score(id) > score(best) ? id : best), ids[0]!));
+    }
+    for (const c of candidates.values()) {
+      const same = c.stories.filter((s) => s.id === storyFor.get(rest(c.props)));
+      if (same.length) c.stories = same;
+    }
+  }
+  const byVariant = new Map([...candidates].map(([k, c]) => [k, { props: c.props, story: c.stories[0]! }]));
   if (!byVariant.size) return undefined;
   const isDefault = (p: Record<string, string>) => axes.every((a) => p[a.name] === a.default);
   const base = [...byVariant.values()].find((v) => isDefault(v.props)) ?? [...byVariant.values()][0]!;
