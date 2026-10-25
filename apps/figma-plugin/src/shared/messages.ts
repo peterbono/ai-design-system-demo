@@ -4,7 +4,6 @@
 import { TIER_NAMES, type Tier, defineConfig } from '@bridge-ds/core';
 import type { ComponentApplyReport, ComponentPullPlan, GeneratedSet } from '../sync/component-pull';
 import type { ScannedComponent } from '../sync/components';
-import type { ClaudeModel } from '../sync/claude';
 // This repo's bridge.config.json gives the fallback tokens folder and the repository older versions defaulted to.
 import rootConfig from '../../../../bridge.config.json';
 
@@ -144,6 +143,10 @@ export interface SyncState {
   lastPullAt?: string | undefined;
   /** The last Compare with code in this file, for the Pull screen: JSON { differs, matches, notChecked, at }. */
   lastCompare?: string | undefined;
+  /** "Ask Claude to fix it": the components asked about in this file, JSON { component: ISO date }. */
+  claudeAsked?: string | undefined;
+  /** "yes" once someone said Bridge is in the team's Claude: the first-time explanation is not shown again. */
+  claudeConnector?: string | undefined;
   lastPrBranch?: string | undefined;
   lastPrUrl?: string | undefined;
 }
@@ -155,7 +158,7 @@ export interface SyncState {
  * added). Another repository has none of it.
  */
 export function syncResetOnSettings(before: RepoSettings, after: RepoSettings): Partial<Record<keyof SyncState, ''>> {
-  if (before.repo.trim().toLowerCase() !== after.repo.trim().toLowerCase()) return { baseSha: '', lastPullAt: '', lastCompare: '', lastPrBranch: '', lastPrUrl: '' };
+  if (before.repo.trim().toLowerCase() !== after.repo.trim().toLowerCase()) return { baseSha: '', lastPullAt: '', lastCompare: '', claudeAsked: '', lastPrBranch: '', lastPrUrl: '' };
   if (before.branch.trim() !== after.branch.trim()) return { lastPrBranch: '', lastPrUrl: '' };
   return {};
 }
@@ -186,8 +189,6 @@ export interface InitPayload {
   /** Signed in with Bridge as (their GitHub login). */
   tokenAccount?: string | undefined;
   fileName: string;
-  /** Optional "Draft with Claude": the designer's own Anthropic API key (client storage) and model. */
-  claude: { hasKey: boolean; key: string | undefined; model: ClaudeModel };
 }
 
 export interface VariableTag {
@@ -218,8 +219,6 @@ export interface RequestMap {
   /** Records what the last GitHub call with the saved token showed ("rejected" after a 401). */
   'token-state': { request: { state: TokenState }; response: { tokenState: TokenState | undefined } };
   /** Anthropic API key (optional, kept when empty) and model, in client storage on this computer. */
-  'save-claude': { request: { key?: string | undefined; model?: string | undefined }; response: { hasKey: boolean; model: ClaudeModel } };
-  'clear-claude-key': { request: Record<string, never>; response: { cleared: true } };
   /** PNG (base64) of a component when its baseline was taken: the "before" image of a Claude draft. */
   'baseline-image': { request: { nodeId: string }; response: string | null };
   snapshot: { request: Record<string, never>; response: FigmaSnapshot };

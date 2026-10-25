@@ -5,10 +5,10 @@
 
 import type { ConflictChoice, DiffEntry } from '@bridge-ds/core';
 import { type Analysis, type PullProposal, type PushBrand, type PushProposal, analyze, buildPull, buildPush, changesModeOf, commitsBehind, pullCollections, pullHeadline } from '../sync/flows';
-import { type ChangesMode, GitHubClient, type PullRequest, changesMode, figmaPushNextLine, loadConfig, parseRepo } from '@bridge-ds/core';
+import { type ChangesMode, GitHubClient, type PullRequest, type PullRequestSummary, changesMode, figmaPushNextLine, loadConfig, parseRepo } from '@bridge-ds/core';
 import type { RenameSuggestion } from '@bridge-ds/core';
 import { type FigmaFidelityRun, type GapBuiltVariant, type GapCase, type MeasuredSpecsFile, affectedContrast, buildGapCase, defaultTitle } from '@bridge-ds/core';
-import { DIFFERS_HANDOFF_TEXT, FIX_ASKED_TEXT, FIX_NEXT_TEXT, NO_REFERENCES_HANDOFF_TEXT, differsRequestForDeveloper, fixRequestForDeveloper, referencesRequestForDeveloper, writeFidelityRun } from '../sync/fix-with-claude';
+import { DIFFERS_HANDOFF_TEXT, NO_REFERENCES_HANDOFF_TEXT, differsRequestForDeveloper, fixRequestForDeveloper, referencesRequestForDeveloper, writeFidelityRun } from '../sync/fix-with-claude';
 import { type PathIndex, type ResolveContext, resolve } from '@bridge-ds/core';
 import { contextFor, modesOf } from '@bridge-ds/core';
 import { type LogicalToken, SINGLE_MODE } from '@bridge-ds/core';
@@ -18,7 +18,7 @@ import { type ContrastResult, contextLabel, pairKey } from '@bridge-ds/core';
 import { type ApplyReport, type FigmaSnapshot, type InitPayload, type RepoSettings, STUDIO_ORIGIN, modeDisplayName } from '../shared/messages';
 import { REQUEST_KINDS, type RequestKind, draftPushDescription, pushChangeRows, shortVariant, shortVariants } from '@bridge-ds/core';
 import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classifyComponents, pullBaselines, suggestLine, suggestSummary, suggestTitle, toRequest } from '../sync/components';
-import { CLAUDE_MODELS, type ClaudeDraft, type ClaudeDraftInput, ClaudeDraftError, DRAFTED_NOTE, draftWithClaude } from '../sync/claude';
+import { type ClaudeDraft, type ClaudeDraftInput, DRAFTED_NOTE } from '../sync/claude';
 import { componentOfSet, loadCodedComponents, sendComponentRequest } from '../sync/requests';
 import { DRAFT_PHRASE, type DraftField, DraftPoller, MY_CLAUDE_NEEDS_WRITE, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, myClaudeAccess, planFill, startMyClaudeDrafts } from '../sync/my-claude';
 import { type LoadedSpecs, type ComponentApplyReport, type ComponentPullPlan, type CoverageView, type PlannedComponent, buildComponentPlan, componentReportView, coverageView, draftedSetNote, pushedInReview, pushedNumbers, specSource } from '../sync/component-pull';
@@ -47,8 +47,9 @@ import { type Child, h } from './dom';
 import { icon } from './icons';
 import { ILLUSTRATIONS, type IllustrationName } from './illustrations';
 import { focusFirstItem, menuKeys } from './menu';
+import { ASK_TTL_MS, type Asked, CLAUDE_NEW_CHAT, CONNECTOR_WORDS, WATCH_MS, askText, claudeUrl, findFix, parseAsked } from '../sync/claude-connector';
+import { type FixSession, readFixSession, sessionHead } from '../sync/fix-session';
 import { PREVIEW_WORDS, RENDER_CAP_MS, type UpdatePreview, codeImageSource, previewKey } from '../sync/update-preview';
-import { CLAUDE_RUN_WORDS, ClaudeRunPoller, type RunView, RunRefused, isFinal, listClaudeRuns, readClaudeRun, startClaudeFix } from '../sync/claude-runs';
 import { BridgeSignInPoller, type LinkPoll, SIGN_IN_WORDS, startBridgeSignIn } from '../sync/bridge-sign-in';
 
 type Tab = 'pull' | 'push' | 'settings';
@@ -113,7 +114,8 @@ interface PullState {
         gapsCopied?: boolean | undefined;
         built?: Record<string, Record<string, GapBuiltVariant>> | undefined;
         /** `refused`: Bridge would not start a run (Claude not connected for the team, the hourly limit): its sentence. */
-        fix?: { component: string; status: 'writing' | 'ready' | 'error' | 'refused'; error?: string | undefined; copied?: boolean | undefined } | undefined;
+        /** `connect`: the first time in this file, how to add Bridge to the team's Claude. `asked`: Claude is open with it. */
+        fix?: { component: string; status: 'connect' | 'writing' | 'asked' | 'error'; error?: string | undefined; copied?: boolean | undefined; prefilled?: boolean | undefined } | undefined;
         /** "Copy for your developer" copied, by component (or "references"): the button says Copied. */
         handedOff?: Set<string> | undefined;
       }
@@ -265,8 +267,6 @@ interface State {
   /** "changes" of the repo's bridge.config.json, read once for the Push intro before the first scan. */
   mode?: ChangesMode | undefined;
   tokenDraft: string;
-  claudeKeyDraft: string;
-  claudeMessage?: { kind: 'ok' | 'error'; text: string } | undefined;
   /** Which setup snippet was just copied in Settings. */
   claudeCopied?: string | undefined;
   /** `field`: the error belongs to that field and shows under it (the cause and the fix, next to what to change). */
@@ -307,47 +307,7 @@ interface ActionBar {
   toggle?: { label: string; checked: boolean; focusId: string; onChange: (checked: boolean) => void } | undefined;
 }
 
-/**
- * Claude's runs for this team (Bridge runs them, "Ask Claude to fix it" with a Bridge sign-in), by component, each with
- * the poller that keeps it moving while the plugin is open. Picked up again from the team's list when the plugin opens.
- */
-const claudeRuns = new Map<string, { run: RunView; poller?: ClaudeRunPoller | undefined }>();
-const runKey = (component: string) => component.toLowerCase();
-const runFor = (component: string) => claudeRuns.get(runKey(component))?.run;
-/** Bridge runs Claude for this person: signed in with Bridge (the token Studio gave). A pasted token keeps the copy path. */
-const bridgeRuns = () => state.init?.tokenSource === 'bridge' && !!state.init.token && !!state.init.settings.repo;
-
-function trackRun(run: RunView): void {
-  const key = runKey(run.component);
-  const was = claudeRuns.get(key);
-  if (was?.run.id !== run.id) was?.poller?.stop();
-  const entry: { run: RunView; poller?: ClaudeRunPoller | undefined } = { run, poller: was?.run.id === run.id ? was.poller : undefined };
-  claudeRuns.set(key, entry);
-  if (!isFinal(run) && !entry.poller) {
-    const { token, settings } = state.init!;
-    entry.poller = new ClaudeRunPoller(
-      () => readClaudeRun((url, init) => fetch(url, init), STUDIO_ORIGIN, token!, settings.repo, run.id),
-      (next) => {
-        if (!next) claudeRuns.delete(key);
-        else entry.run = next;
-        if (next && isFinal(next)) entry.poller = undefined;
-        render();
-      },
-    ).start(run);
-  }
-}
-
-/** On open: the team's runs still moving start moving again; the ready ones are shown. */
-async function resumeClaudeRuns(): Promise<void> {
-  if (!bridgeRuns()) return;
-  const { token, settings } = state.init!;
-  const runs = await listClaudeRuns((url, init) => fetch(url, init), STUDIO_ORIGIN, token!, settings.repo).catch(() => []);
-  // Newest first: the newest run of each component wins.
-  for (const run of [...runs].reverse()) if (!isFinal(run) || run.status === 'ready') trackRun(run);
-  if (runs.length) render();
-}
-
-const state: State = { tab: 'pull', settingsDraft: { repo: '', branch: '', tokensPath: '' }, tokenDraft: '', claudeKeyDraft: '', expanded: new Set(), selection: null };
+const state: State = { tab: 'pull', settingsDraft: { repo: '', branch: '', tokensPath: '' }, tokenDraft: '', expanded: new Set(), selection: null };
 let client: GitHubClient | undefined;
 const app = document.getElementById('app')!;
 
@@ -1617,27 +1577,6 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 
-async function runClaude(a: AssistState, t: AssistTarget): Promise<void> {
-  const c = state.init?.claude;
-  if (!c?.key || state.busy) return;
-  state.busy = 'Drafting with Claude';
-  a.message = undefined;
-  render();
-  try {
-    const input = { ...t.input(), ...(t.images ? await t.images() : {}) };
-    const result = await draftWithClaude((url, init) => fetch(url, init), c.key, c.model, input);
-    // Fields the designer typed keep their text; Claude's version is offered beside them (ASSIST-2).
-    const { fill, offer } = planFill(result, t.typed?.() ?? {});
-    t.apply({ title: fill.title ?? '', summary: fill.summary ?? '', lines: result.lines });
-    a.offer = offer.title || offer.summary ? offer : undefined;
-    if (a.offer) a.message = { kind: 'ok', text: 'Claude drafted it. Your text stays: use Claude\'s draft below if you prefer it.' };
-  } catch (err) {
-    a.message = { kind: 'error', text: err instanceof ClaudeDraftError ? err.message : 'Claude could not draft this. Your text is unchanged.' };
-  } finally {
-    state.busy = undefined;
-    render();
-  }
-}
 
 /** What "Draft with my Claude" sends: the push's variable edits go in their own table. */
 function toMyClaudeTarget(input: ClaudeDraftInput): MyClaudeTarget {
@@ -1838,7 +1777,6 @@ function offerView(a: AssistState, t: AssistTarget): Child {
  */
 function assistAction(a: AssistState, t: AssistTarget): Child {
   if (mineActive(a) || a.offer) return null;
-  const withKey = !!state.init?.claude.hasKey;
   return h(
     'div',
     { class: 'assist-action' },
@@ -1850,7 +1788,7 @@ function assistAction(a: AssistState, t: AssistTarget): Child {
         'data-focus-id': `${t.id}-assist`,
         disabled: !!state.busy || !!t.empty?.(),
         title: t.empty?.(),
-        onClick: () => (withKey ? void runClaude(a, t) : startMine(a, t)),
+        onClick: () => startMine(a, t),
       },
       'Draft with Claude',
     ),
@@ -1912,27 +1850,6 @@ function draftedNote(id: string, source: TextSource): Child {
 
 const clearDrafted = (id: string) => document.getElementById(`${id}-drafted`)?.remove();
 
-function saveClaude(): void {
-  const key = state.claudeKeyDraft.trim();
-  void run('Saving the Claude settings', async () => {
-    try {
-      await request('save-claude', { key: key || undefined, model: state.init!.claude.model });
-      state.claudeKeyDraft = '';
-      await loadInit();
-      state.claudeMessage = { kind: 'ok', text: key ? 'Key saved on this computer only. Draft with Claude now offers it, on requests and on the message to the team.' : 'Claude settings saved.' };
-    } catch (err) {
-      state.claudeMessage = { kind: 'error', text: errorText(err) };
-    }
-  });
-}
-
-function removeClaudeKey(): void {
-  void run('Removing the key', async () => {
-    await request('clear-claude-key', {});
-    await loadInit();
-    state.claudeMessage = { kind: 'ok', text: 'Key removed. Draft with Claude now uses your own Claude app once it is connected in Settings.' };
-  });
-}
 
 // ---------------------------------------------------------------------------------------------
 // Views
@@ -2653,13 +2570,20 @@ async function gapCases(p: PullState, items: Extract<FidelityOutcome, { kind: 'd
 }
 
 /**
- * "Ask Claude to fix it" on a set that differs: the run goes to figma-fidelity.json on the requests branch, then the
- * designer copies the request for their developer, who runs Claude (MCP or the CLI with the team's API key). Once the
- * fix is merged, the next pull lays it on and Check fidelity decides.
+ * "Ask Claude to fix it" on a set that differs, with the team's own Claude (Bridge is a connector in it; no API key
+ * anywhere). The check goes to figma-fidelity.json on the requests branch (Claude reads it through Bridge), then Claude
+ * opens with the request ("Fix TextInput in Figma with Bridge"): written for the designer when claude.ai can prefill,
+ * else copied to paste. The row then waits for Claude's fix, which Bridge finds on GitHub (watchFixes). The first time
+ * in a file, one sentence says Bridge must be in the team's Claude, with How to connect.
  */
-async function fixWithClaude(p: PullState, component: string): Promise<void> {
+async function fixWithClaude(p: PullState, component: string, connected = !!state.init?.sync.claudeConnector): Promise<void> {
   const f = p.fidelity;
   if (!f || f.outcome?.kind !== 'done' || f.fix?.status === 'writing') return;
+  if (!connected) {
+    f.fix = { component, status: 'connect' };
+    render();
+    return;
+  }
   f.fix = { component, status: 'writing' };
   render();
   try {
@@ -2671,61 +2595,178 @@ async function fixWithClaude(p: PullState, component: string): Promise<void> {
       ...(p.measure?.measuredAt ? { measuredAt: p.measure.measuredAt } : {}),
     };
     await writeFidelityRun(getClient(), run, state.init!.settings.branch);
-    if (bridgeRuns()) {
-      // Bridge runs Claude for the team: "Claude is on it" on the row, moving while the plugin is open.
-      const started = await startClaudeFix((url, init) => fetch(url, init), STUDIO_ORIGIN, state.init!.token!, state.init!.settings.repo, component);
-      trackRun(started.run);
-      f.fix = undefined;
-    } else f.fix = { component, status: 'ready' };
+    const open = claudeUrl(component);
+    if (!open.prefilled) await copyText(askText(component));
+    void request('open-url', { url: open.url });
+    markAsked(component);
+    f.fix = { component, status: 'asked', prefilled: open.prefilled };
   } catch (err) {
-    f.fix =
-      err instanceof RunRefused
-        ? { component, status: 'refused', error: err.message }
-        : { component, status: 'error', error: inlineError(err) ?? 'Bridge could not save the request. Check your connection, then try again.' };
+    f.fix = { component, status: 'error', error: inlineError(err) ?? 'Bridge could not save the request. Check your connection, then try again.' };
   }
   render();
 }
 
-/** Where Claude's run for a component stands: its tag and sentence; ready, the change to review and what comes next. */
-function runPanel(run: RunView): HTMLElement {
-  const ready = run.status === 'ready';
-  const moving = !isFinal(run);
+/** Bridge is in the team's Claude (someone said so once): kept with the file, the first-time sentence goes. */
+function markConnector(): void {
+  state.init!.sync = { ...state.init!.sync, claudeConnector: 'yes' };
+  void request('save-sync', { sync: { claudeConnector: 'yes' } }).catch(() => undefined);
+}
+
+/** The components asked about, kept with the file so the watch resumes when the plugin opens again. */
+function markAsked(component: string): void {
+  const asked = { ...parseAsked(state.init!.sync.claudeAsked), [component]: new Date().toISOString() };
+  saveAsked(asked);
+  watchFixes();
+}
+
+function saveAsked(asked: Asked): void {
+  const claudeAsked = JSON.stringify(asked);
+  state.init!.sync = { ...state.init!.sync, claudeAsked };
+  void request('save-sync', { sync: { claudeAsked } }).catch(() => undefined);
+}
+
+/** Claude's fixes found on GitHub, by component: the draft pull request to review. */
+const claudeFixes = new Map<string, Pick<PullRequestSummary, 'number' | 'url' | 'draft'>>();
+/** What Claude is doing, by component: the real steps Bridge records (when the Bridge site can say; else the PR watch). */
+const claudeSessions = new Map<string, FixSession>();
+let fixWatch: ReturnType<typeof setTimeout> | undefined;
+let fixLooking = false;
+
+/** Asked, not finished (no fix found, Claude has not stopped), and not too old. */
+function waitingFor(): string[] {
+  const now = Date.now();
+  return Object.entries(parseAsked(state.init?.sync.claudeAsked))
+    .filter(([c, at]) => !claudeFixes.has(c) && claudeSessions.get(c)?.state !== 'stopped' && claudeSessions.get(c)?.state !== 'ready' && now - Date.parse(at) < ASK_TTL_MS)
+    .map(([c]) => c);
+}
+
+/**
+ * Looks for Claude's fixes, gently (one request every 20 s, one at a time), while something is asked and not found,
+ * with the Bridge sign-in. Started when the plugin opens with asks pending, and after each ask.
+ */
+function watchFixes(): void {
+  if (fixWatch || fixLooking || !connected() || !Object.keys(parseAsked(state.init?.sync.claudeAsked)).length) return;
+  const look = async () => {
+    fixWatch = undefined;
+    fixLooking = true;
+    try {
+      // The steps first, one component at a time (the Bridge site records them from Claude's calls to Bridge); then
+      // GitHub for the fix itself, which also covers a site that cannot say yet.
+      let changed = false;
+      for (const component of waitingFor()) {
+        const s = await readFixSession((url, init) => fetch(url, init), STUDIO_ORIGIN, state.init!.token ?? '', state.init!.settings.repo, component);
+        if (s && JSON.stringify(s) !== JSON.stringify(claudeSessions.get(component))) {
+          claudeSessions.set(component, s);
+          changed = true;
+        }
+      }
+      if (waitingFor().length) {
+        const prs = await getClient().listPullRequests('open');
+        const prefix = (state.pull?.analysis ?? state.push?.analysis)?.headFiles.config?.governance.branchPrefix;
+        for (const component of Object.keys(parseAsked(state.init?.sync.claudeAsked))) {
+          const pr = findFix(prs, component, prefix);
+          if (pr && claudeFixes.get(component)?.number !== pr.number) {
+            claudeFixes.set(component, pr);
+            changed = true;
+          }
+        }
+      }
+      // A working row shows its elapsed time: refreshed with each look.
+      if (changed || [...claudeSessions.values()].some((x) => x.state === 'working')) render();
+    } catch {
+      /* offline a moment: the next look tries again */
+    } finally {
+      fixLooking = false;
+    }
+    if (waitingFor().length) {
+      fixWatch = setTimeout(() => void look(), WATCH_MS);
+      // Never keeps a process alive by itself (tests run this UI in Node); a no-op in the plugin's browser window.
+      (fixWatch as unknown as { unref?: () => void }).unref?.();
+    }
+  };
+  void look();
+}
+
+/**
+ * Where Claude's fix for a component stands, on its row. The head in one line ("Waiting for Claude", "Claude is
+ * working on IconButton · 4 min, round 2 of up to 3", "Claude's fix is ready", "Claude stopped: …", "Claude went
+ * quiet"); the steps below it, newest last, folded unless the designer opens them; the end's action.
+ */
+function claudePanel(component: string): Child {
+  const pr = claudeFixes.get(component);
+  const session = claudeSessions.get(component);
+  const askedAt = parseAsked(state.init?.sync.claudeAsked)[component];
+  if (!pr && !session && !waitingFor().includes(component)) return null;
+  const head = pr ? { kind: 'ready' as const, text: CONNECTOR_WORDS.ready } : sessionHead(session, component, Date.now());
+  if (!pr && !askedAt && head.kind === 'waiting') return null;
+  const key = `claude-steps-${component}`;
+  const steps = session?.steps ?? [];
+  const reviewPr = pr ?? (session?.pr ? { number: session.pr.number, url: session.pr.url } : undefined);
+  const studio = reviewPr ? (studioChangeUrl(state.init!.settings.repo, 'pr', reviewPr.number) ?? reviewPr.url) : undefined;
+  const developer = fixRequestForDeveloper(component, state.init?.settings.repo ?? '');
   return h(
     'div',
-    { class: 'callout', role: 'status', 'data-run': run.status },
+    { class: 'callout claude-run', role: 'status', 'data-claude': head.kind },
     h(
       'div',
       { class: 'callout-title' },
-      moving ? h('span', { class: 'spinner', 'aria-hidden': 'true' }) : icon(ready ? 'check' : 'alert'),
-      run.label,
-      moving ? h('span', { class: 'muted' }, ` · ${CLAUDE_RUN_WORDS.round(run)}`) : null,
+      head.kind === 'working' || head.kind === 'waiting' ? h('span', { class: 'activity', 'aria-hidden': 'true' }) : icon(head.kind === 'ready' ? 'check' : 'alert'),
+      h('span', { 'data-head': '' }, head.text),
     ),
-    // The server's sentence as is; never its developer cause.
-    h('p', null, run.sentence),
-    ready && run.applied?.length ? h('ul', null, run.applied.map((x) => h('li', null, x))) : null,
-    ready && run.reviewUrl
-      ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn', 'data-focus-id': `run-${run.component}`, onClick: () => void request('open-url', { url: run.reviewUrl! }) }, icon('external'), "See Claude's fix"))
+    steps.length
+      ? h(
+          'details',
+          {
+            class: 'notes',
+            open: state.expanded.has(key),
+            onToggle: (e: Event) => ((e.target as HTMLDetailsElement).open ? state.expanded.add(key) : state.expanded.delete(key)),
+          },
+          h('summary', null, `What Claude did (${steps.length})`),
+          h(
+            'ol',
+            { class: 'claude-steps' },
+            steps.map((st) =>
+              h(
+                'li',
+                { 'data-step': st.status },
+                st.status === 'current' ? h('span', { class: 'activity', 'aria-hidden': 'true' }) : icon(st.status === 'done' ? 'check' : 'alert'),
+                st.label,
+              ),
+            ),
+          ),
+        )
       : null,
-    ready ? h('p', { class: 'muted' }, CLAUDE_RUN_WORDS.next) : null,
+    head.kind === 'ready' && studio
+      ? [
+          h('div', { class: 'inline-actions' }, h('button', { class: 'btn', 'data-focus-id': `see-fix-${component}`, onClick: () => void request('open-url', { url: studio }) }, icon('external'), CONNECTOR_WORDS.see)),
+          h('p', { class: 'muted' }, CONNECTOR_WORDS.next),
+        ]
+      : null,
+    head.kind === 'waiting' || head.kind === 'quiet'
+      ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', 'data-focus-id': `reopen-claude-${component}`, onClick: () => { const o = claudeUrl(component); if (!o.prefilled) void copyText(askText(component)); void request('open-url', { url: o.url }); } }, icon('external'), 'Open Claude again'))
+      : null,
+    head.kind === 'stopped' || head.kind === 'quiet'
+      ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', 'data-focus-id': `stop-copy-${component}`, onClick: () => void copyText(developer).then((ok) => { if (ok) state.expanded.add(`copied-${component}`); render(); }) }, icon(state.expanded.has(`copied-${component}`) ? 'check' : 'copy'), state.expanded.has(`copied-${component}`) ? 'Copied' : 'Copy for your developer'))
+      : null,
   );
 }
 
-/** Claude's runs on the Pull screen when no comparison shows them on their rows: still moving, or ready to review. */
+/** Claude's fixes on the Pull screen when no comparison shows them on their rows: waited for, or ready to review. */
 function claudeRunsGroup(): Child {
-  const runs = [...claudeRuns.values()].map((x) => x.run).filter((r) => !isFinal(r) || r.status === 'ready');
-  if (!runs.length) return null;
+  const names = [...new Set([...claudeFixes.keys(), ...claudeSessions.keys(), ...waitingFor()])];
+  if (!names.length) return null;
   return group(
     "Claude's fixes",
-    runs.length,
+    names.length,
     null,
-    'Claude works on these for your team. Nothing changes in this file until a fix is approved.',
-    h('ul', { class: 'rows' }, runs.map((r) => h('li', { class: 'row review' }, h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, r.component)), runPanel(r)))),
+    'Your team\'s Claude works on these. Nothing changes in this file until a fix is approved.',
+    h('ul', { class: 'rows' }, names.map((n) => h('li', { class: 'row review' }, h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, n)), claudePanel(n)))),
   );
 }
 
 /**
- * After "Ask Claude to fix it": one sentence and "Copy for your developer". The ways to run Claude (MCP phrase, CLI with
- * an API key) are in the copied text only: a designer never sees a command. Bridge runs nothing server side yet.
+ * Under a set that differs, after "Ask Claude to fix it": the first time, how to add Bridge to the team's Claude; then
+ * what to do in Claude (the request is written or copied). "Copy for your developer" stays as the fallback.
  */
 function fixPanel(p: PullState, component: string): Child {
   const fix = p.fidelity?.fix;
@@ -2733,25 +2774,33 @@ function fixPanel(p: PullState, component: string): Child {
   if (fix.status === 'writing') return h('p', { class: 'muted loading', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Getting the request ready');
   if (fix.status === 'error') return h('div', { class: 'callout warn', role: 'alert' }, h('div', { class: 'callout-title' }, icon('alert'), 'Could not ask Claude'), h('p', null, fix.error));
   const text = fixRequestForDeveloper(component, state.init?.settings.repo ?? '');
-  // Bridge would not start it (Claude not connected for the team, the hourly limit): its sentence, then the copy path.
-  if (fix.status === 'refused') {
+  const copyForDeveloper = h('button', { class: 'btn ghost', 'data-focus-id': `fix-copy-${component}`, onClick: () => void copyText(text).then((ok) => { if (p.fidelity?.fix && ok) p.fidelity.fix.copied = true; render(); }) }, icon(fix.copied ? 'check' : 'copy'), fix.copied ? 'Copied' : 'Copy for your developer');
+  if (fix.status === 'connect') {
+    const team = studioTeamUrl(state.init!.settings.repo);
     return h(
       'div',
-      { class: 'callout', role: 'status' },
-      h('p', null, fix.error),
-      h('div', { class: 'inline-actions' }, h('button', { class: 'btn', 'data-focus-id': `fix-copy-${component}`, onClick: () => void copyText(text).then((ok) => { if (p.fidelity?.fix && ok) p.fidelity.fix.copied = true; render(); }) }, icon(fix.copied ? 'check' : 'copy'), fix.copied ? 'Copied' : 'Copy for your developer')),
+      { class: 'callout', role: 'status', 'data-claude': 'connect' },
+      h('p', null, CONNECTOR_WORDS.firstTime),
+      h(
+        'div',
+        { class: 'inline-actions' },
+        team ? h('button', { class: 'btn', 'data-focus-id': `connect-${component}`, onClick: () => void request('open-url', { url: `${team}settings/#claude` }) }, icon('external'), CONNECTOR_WORDS.howToConnect) : null,
+        h('button', { class: 'btn ghost', 'data-focus-id': `connected-${component}`, onClick: () => { markConnector(); void fixWithClaude(p, component, true); } }, CONNECTOR_WORDS.connected),
+        copyForDeveloper,
+      ),
     );
   }
+  // Asked: what to do in Claude, then the row waits for the fix (claudePanel).
   return h(
     'div',
-    { class: 'callout', role: 'status' },
-    h('p', null, FIX_ASKED_TEXT),
+    { class: 'callout', role: 'status', 'data-claude': 'asked' },
+    h('p', null, fix.prefilled ? CONNECTOR_WORDS.prefilled : CONNECTOR_WORDS.pasted),
     h(
       'div',
       { class: 'inline-actions' },
-      h('button', { class: 'btn', 'data-focus-id': `fix-copy-${component}`, onClick: () => void copyText(text).then((ok) => { if (p.fidelity?.fix && ok) p.fidelity.fix.copied = true; render(); }) }, icon(fix.copied ? 'check' : 'copy'), fix.copied ? 'Copied' : 'Copy for your developer'),
+      fix.prefilled ? null : h('button', { class: 'btn', 'data-focus-id': `open-claude-${component}`, onClick: () => void request('open-url', { url: CLAUDE_NEW_CHAT }) }, icon('external'), CONNECTOR_WORDS.openClaude),
+      copyForDeveloper,
     ),
-    h('p', { class: 'muted' }, FIX_NEXT_TEXT),
   );
 }
 
@@ -2829,8 +2878,9 @@ function fidelityGroup(p: PullState): Child {
         // Where the difference comes from, in one sentence (the gap case's summary): it replaces the pixel figures,
         // which stay one click away under the variants.
         const gap = r.status === 'differs' ? f?.gaps?.find((g) => g.component === it.name)?.summary : undefined;
-        const run = r.status === 'differs' ? runFor(it.name) : undefined;
-        const asked = (f?.fix?.component === it.name && f.fix.status !== 'error') || (!!run && (!isFinal(run) || run.status === 'ready'));
+        // Asked (now or before: the watch resumes), or Claude's fix found: the row shows that, not the button again.
+        const claude = r.status === 'differs' ? claudePanel(it.name) : null;
+        const asked = (f?.fix?.component === it.name && f.fix.status !== 'error' && f.fix.status !== 'connect') || !!claude;
         return h(
           'li',
           { class: 'row review' },
@@ -2844,7 +2894,7 @@ function fidelityGroup(p: PullState): Child {
             ? h('div', { class: 'handoff' }, h('p', { class: 'muted' }, DIFFERS_HANDOFF_TEXT), h('div', { class: 'inline-actions' }, handoffButton(p, it.name, differsRequestForDeveloper(r, state.init?.settings.repo ?? '', fidelityVerdict))))
             : null,
           r.status === 'differs' ? fixPanel(p, it.name) : null,
-          run ? runPanel(run) : null,
+          claude,
           // The three images on demand: the list stays a list to scan (FID-5).
           r.status === 'differs' && it.images
             ? h('details', { class: 'notes' }, h('summary', null, `See the most different: ${it.images.key}`), fidelityThumbs(it.name, it.images))
@@ -4679,125 +4729,47 @@ function snippet(id: string, label: string, text: string, copy = text): HTMLElem
 }
 
 /**
- * Settings, Claude: two ways as rows of one region (the designer's own Claude through MCP, recommended; or an API
- * key), each with its state on the right. A row opens its setup: summary first, details on demand.
+ * Settings, Claude: your team's own Claude, with Bridge added as a connector (no API key anywhere). One sentence, and
+ * how to connect it in Studio. The designer's Claude app route for drafts ("Draft with my Claude") keeps its setup,
+ * folded for developers.
  */
 function claudeCard(): HTMLElement {
-  const c = state.init!.claude;
   const repo = state.init!.settings.repo;
+  const team = studioTeamUrl(repo);
   const hasToken = !!state.init!.hasToken;
   // On screen the token is a placeholder; Copy puts the saved one in (it is never shown, so nobody has to find it).
   const mcp = mcpSnippets(repo);
   const filled = mcpSnippets(repo, state.init!.token);
-  const msg = state.claudeMessage;
-  const toggle = (key: string) => () => {
-    state.expanded.has(key) ? state.expanded.delete(key) : state.expanded.add(key);
-    render();
-  };
-  // The fold stays open across re-renders while a developer works in it (a row opened, a message about the key).
-  const devOpen = state.expanded.has('claude-dev') || state.expanded.has('mcp-setup') || state.expanded.has('claude-key') || !!msg;
-  const row = (key: string, title: string, hint: string, status: string, tag: string | null, body: Child) => {
-    const open = state.expanded.has(key) || (key === 'claude-key' && !!msg);
-    return h(
-      'li',
-      { class: 'opt' },
-      h(
-        'button',
-        { class: 'opt-head', 'aria-expanded': open ? 'true' : 'false', 'data-focus-id': key, onClick: toggle(key) },
-        h('span', { class: 'opt-text' }, h('span', { class: 'opt-title' }, title, tag ? h('span', { class: 'tag' }, tag) : null), h('small', null, hint)),
-        h('span', { class: 'opt-status' }, status),
-        icon(open ? 'chevron-up' : 'chevron-down'),
-      ),
-      open ? h('div', { class: 'opt-body' }, body) : null,
-    );
-  };
   return h(
     'section',
-    { class: 'card' },
-    h('div', { class: 'group-head' }, h('h2', null, 'Claude', h('span', { class: 'group-n' }, 'Optional'))),
-    h('p', { class: 'lede' }, 'Writes the text of what you send from the changes it sees. You review it before anything is sent.'),
-    // What the designer needs: whether it is ready. The setup (MCP config, an API key) is a developer's job, folded.
-    h('p', { class: 'muted' }, c.hasKey ? 'Ready: "Draft with Claude" writes in one click.' : 'Works with your Claude app once it is set up on this computer. If it is not, ask a developer: it takes a minute.'),
+    { class: 'card', 'data-card': 'claude' },
+    h('div', { class: 'group-head' }, h('h2', null, 'Claude'), team ? h('button', { class: 'btn ghost', 'data-focus-id': 'claude-connect', onClick: () => void request('open-url', { url: `${team}settings/#claude` }) }, icon('external'), CONNECTOR_WORDS.howToConnect) : null),
+    h('p', { class: 'lede' }, "Your team's Claude, with Bridge added once: it drafts what you send and fixes components that differ from the code. You review everything first."),
     h(
       'details',
       {
         class: 'notes dev-details',
-        open: devOpen,
+        open: state.expanded.has('claude-dev'),
         onToggle: (e: Event) => {
           const open = (e.target as HTMLDetailsElement).open;
           open ? state.expanded.add('claude-dev') : state.expanded.delete('claude-dev');
         },
       },
-      h('summary', { 'data-focus-id': 'claude-dev' }, 'For developers: set up Claude'),
-    h(
-      'ul',
-      { class: 'opts' },
-      row(
-        'mcp-setup',
-        'Your Claude plan',
-        'In the Claude app or Claude Code. No API key.',
-        'Set up once',
-        'Recommended',
+      h('summary', { 'data-focus-id': 'claude-dev' }, 'For developers: Claude Code or the Claude app on this computer'),
+      h(
+        'ol',
+        { class: 'setup-steps' },
         h(
-          'ol',
-          { class: 'setup-steps' },
-          h(
-            'li',
-            null,
-            hasToken
-              ? 'Add Bridge to Claude, once. Copy fills in the GitHub token saved in this plugin; it stays on this computer.'
-              : 'Save a GitHub token above first: Copy then fills it in. Then add Bridge to Claude, once.',
-            snippet('code', 'Claude Code, in a terminal', mcp.code, filled.code),
-            h('details', { class: 'notes' }, h('summary', null, 'Using the Claude app instead'), snippet('desktop', 'In claude_desktop_config.json', mcp.desktop, filled.desktop)),
-            h('small', null, 'The token needs "Contents" set to "Read and write": Claude reads and writes the drafts in a file of the repository.'),
-          ),
-          h('li', null, `Then click "Draft with Claude" and say "${DRAFT_PHRASE}" to Claude.`),
+          'li',
+          null,
+          hasToken
+            ? 'Add Bridge to Claude, once. Copy fills in the GitHub token saved in this plugin; it stays on this computer.'
+            : 'Connect the design system first: Copy then fills in its token. Then add Bridge to Claude, once.',
+          snippet('code', 'Claude Code, in a terminal', mcp.code, filled.code),
+          h('details', { class: 'notes' }, h('summary', null, 'Using the Claude app instead'), snippet('desktop', 'In claude_desktop_config.json', mcp.desktop, filled.desktop)),
         ),
+        h('li', null, `Then click "Draft with Claude" and say "${DRAFT_PHRASE}" to Claude.`),
       ),
-      row(
-        'claude-key',
-        'An API key',
-        'One click, billed to your Anthropic account.',
-        c.hasKey ? 'Key saved' : 'Not set up',
-        null,
-        h(
-          'div',
-          { class: 'setup-steps' },
-          h(
-            'label',
-            { class: 'field' },
-            h('span', null, 'Anthropic API key'),
-            h('input', {
-              type: 'password',
-              value: '',
-              autocomplete: 'off',
-              spellcheck: 'false',
-              'data-focus-id': 'claude-key-input',
-              placeholder: c.hasKey ? 'Saved, hidden' : 'sk-ant-...',
-              onInput: (e: Event) => (state.claudeKeyDraft = (e.target as HTMLInputElement).value),
-            }),
-            h('small', null, 'Stays on this computer, never in the file. Each draft sends the changes and images to Anthropic.'),
-          ),
-          h(
-            'label',
-            { class: 'field' },
-            h('span', null, 'Model'),
-            h(
-              'select',
-              { 'data-focus-id': 'claude-model', onChange: (e: Event) => (c.model = (e.target as HTMLSelectElement).value as typeof c.model) },
-              CLAUDE_MODELS.map((m) => h('option', { value: m.value, selected: m.value === c.model }, m.label)),
-            ),
-          ),
-          h(
-            'div',
-            { class: 'inline-actions' },
-            h('button', { class: 'btn', 'data-focus-id': 'claude-save', onClick: saveClaude }, c.hasKey ? 'Save' : 'Save key'),
-            c.hasKey ? h('button', { class: 'btn ghost danger', onClick: removeClaudeKey }, 'Remove key') : h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: 'https://console.anthropic.com/settings/keys' }) }, icon('external'), 'Create a key'),
-          ),
-          msg ? h('p', { class: msg.kind === 'error' ? 'form-error' : 'assist-note', role: msg.kind === 'error' ? 'alert' : 'status' }, icon(msg.kind === 'error' ? 'alert' : 'check'), msg.text) : null,
-        ),
-      ),
-    ),
     ),
   );
 }
@@ -4986,7 +4958,7 @@ loadInit()
     if (!connected()) state.tab = 'settings';
     render();
     void checkAccessOnStart();
-    void resumeClaudeRuns();
+    watchFixes();
   })
   .catch((err: unknown) => {
     state.error = { message: 'Close Bridge and open it again. If it keeps happening, report it with the details.', detail: err instanceof Error ? `${err.name}: ${err.message}` : String(err) };

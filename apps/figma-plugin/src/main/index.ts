@@ -5,7 +5,6 @@ import { type RequestMap, type RequestType, type ResponseEnvelope, STUDIO_ORIGIN
 import { applyPullPlan } from './apply';
 import { applyComponentPlan, renderIncoming, scanGenerated } from './build-components';
 import { exportVariants, readBuilt } from './fidelity';
-import { clearClaudeKey, readClaudeSettings, saveClaudeSettings } from './claude-settings';
 import { baselineImage, bindRaw, exportImage, exportThumbnails, markPushed, rebaseline, renameInBaselines, saveSignatures, scanComponents, selectionInfo, setExperimental } from './components';
 import { clearGitHubToken, readGitHubToken, saveGitHubToken, setGitHubTokenState } from './github-token';
 import { type SharedStore, saveSettings, sharedSettings, sharedSync, writeSync } from './shared-state';
@@ -43,7 +42,7 @@ const handlers: Handlers = {
   async init() {
     const { settings, sync } = readShared();
     const { token, tokenState, tokenSource, tokenAccount } = await readGitHubToken();
-    return { settings, sync, hasToken: !!token, token, tokenState, ...(tokenSource ? { tokenSource } : {}), ...(tokenAccount ? { tokenAccount } : {}), fileName: figma.root.name, claude: await readClaudeSettings() };
+    return { settings, sync, hasToken: !!token, token, tokenState, ...(tokenSource ? { tokenSource } : {}), ...(tokenAccount ? { tokenAccount } : {}), fileName: figma.root.name };
   },
   async 'save-settings'({ settings }) {
     return saveSettings(store, settings);
@@ -56,12 +55,6 @@ const handlers: Handlers = {
   },
   async 'token-state'({ state }) {
     return setGitHubTokenState(state);
-  },
-  async 'save-claude'(input) {
-    return saveClaudeSettings(input);
-  },
-  async 'clear-claude-key'() {
-    return clearClaudeKey();
   },
   async 'baseline-image'({ nodeId }) {
     return (await baselineImage(nodeId)) ?? null;
@@ -91,7 +84,7 @@ const handlers: Handlers = {
     return { tagged };
   },
   async 'open-url'({ url }) {
-    if (/^https:\/\/(github\.com|console\.anthropic\.com|claude\.ai)\//.test(url) || url.startsWith(`${STUDIO_ORIGIN}/`)) figma.openExternal(url);
+    if (/^https:\/\/(github\.com|claude\.ai)\//.test(url) || url.startsWith(`${STUDIO_ORIGIN}/`)) figma.openExternal(url);
     return { opened: true };
   },
   async notify({ message, error }) {

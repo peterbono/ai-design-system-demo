@@ -43,6 +43,8 @@ export function sharedSync(store: SharedStore, userId: string | undefined): Sync
     baseSha: store.get('baseSha') || undefined,
     lastPullAt: store.get('lastPullAt') || undefined,
     ...(store.get('lastCompare') ? { lastCompare: store.get('lastCompare') } : {}),
+    ...(store.get('claudeAsked') ? { claudeAsked: store.get('claudeAsked') } : {}),
+    ...(store.get('claudeConnector') ? { claudeConnector: store.get('claudeConnector') } : {}),
     lastPrBranch: userId ? store.get(userKey('lastPrBranch', userId)) || undefined : undefined,
     lastPrUrl: userId ? store.get(userKey('lastPrUrl', userId)) || undefined : undefined,
   };
@@ -53,6 +55,8 @@ export function writeSync(store: SharedStore, sync: SyncState, userId: string | 
   if (sync.baseSha !== undefined) store.set('baseSha', sync.baseSha);
   if (sync.lastPullAt !== undefined) store.set('lastPullAt', sync.lastPullAt);
   if (sync.lastCompare !== undefined) store.set('lastCompare', sync.lastCompare);
+  if (sync.claudeAsked !== undefined) store.set('claudeAsked', sync.claudeAsked);
+  if (sync.claudeConnector !== undefined) store.set('claudeConnector', sync.claudeConnector);
   if (!userId) return;
   for (const field of PER_USER) if (sync[field] !== undefined) store.set(userKey(field, userId), sync[field]!);
 }

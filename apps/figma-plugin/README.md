@@ -64,13 +64,13 @@ this plugin; it is not stored in the Figma file and is never displayed again (th
 showing only that a token is saved). Repository, base branch (`main`) and tokens path
 (`packages/tokens/src`) are stored in the file's shared plugin data so the whole team uses the same ones.
 
-The manifest allows `https://api.github.com` and, for the optional "Draft with Claude" (below),
-`https://api.anthropic.com`. File contents are read through the git trees and blobs endpoints, never from
-`raw.githubusercontent.com`. Without an Anthropic API key, the plugin never calls Anthropic.
+The manifest allows `https://api.github.com` and the Bridge site. File contents are read through the git trees and
+blobs endpoints, never from `raw.githubusercontent.com`. The plugin never calls Anthropic and holds no API key: Claude
+runs in the team's own Claude account, with Bridge added as a connector.
 
 ## Writing help: drafts, optionally written by Claude
 
-Designers should not have to document every change by hand. Three levels, in this order on screen:
+Designers should not have to document every change by hand. Two levels, in this order on screen:
 
 1. **Plugin draft (always on, no AI, offline).** The request form prefills its title and summary, and the Push
    **Description** prefills, from the detected changes only (`draftRequestText` and `draftPushDescription` in
@@ -92,17 +92,21 @@ Designers should not have to document every change by hand. Three levels, in thi
    **Use Claude's draft**. The file and its images are deleted once you send or cancel. Setup (once) is in
    Settings, **Claude (optional)**, under **For developers: set up Claude**: the Claude Desktop config and the Claude Code command for this repository, with
    the same GitHub token (`GITHUB_TOKEN`, Contents read and write). See [docs/AI.md](../../docs/AI.md).
-3. **Draft with Claude, API key (only with your own Anthropic API key, billed to your Anthropic account).** Settings,
-   **Claude (optional)**, under **For developers: set up Claude** (a developer's job, folded): paste a key from [console.anthropic.com](https://console.anthropic.com/settings/keys) and
-   pick a model (Claude Sonnet 5.5 by default, or Claude Opus 5.5, Claude Haiku 5.5). The key is stored with
-   `figma.clientStorage` like the GitHub token: on this computer only, never in the file, never shown again, and
-   only sent to `api.anthropic.com` ("Remove key" deletes it). The designer never picks a way: with a key, **Draft with Claude**
-   drafts in one click with it; without one, the same button starts Draft with my Claude. The UI iframe calls the Messages API directly (`anthropic-dangerous-direct-browser-access`)
-   with the change table and, for a request, the component's before image (a small PNG stored in private plugin data
-   when its baseline is taken) and after image (the current export), skipping either when missing. Claude's text is marked "Drafted by Claude, review before sending" until you edit it.
-   Errors (invalid key, rate limit, network) say what to do and keep the plugin draft.
 
 Whatever Claude writes, nothing is sent until you press Send request, Send for review or Send to exploration.
+
+## Ask Claude to fix it
+
+When Compare with code finds a component that differs, **Ask Claude to fix it** hands it to the team's own Claude (Bridge
+is a connector in it; no API key anywhere). The first time in a file, one sentence says to add Bridge to the team's
+Claude once, with **How to connect** (Studio Settings, Claude). Then the plugin saves the check for Claude to read
+(`figma-fidelity.json` on `bridge-requests`), copies the request ("Fix IconButton in Figma with Bridge") and opens
+Claude to paste it in (a prefilled chat once claude.ai confirms one). The row then follows Claude: "Waiting for Claude",
+"Claude is working on IconButton" with its real steps (read from the Bridge site, which records Claude's calls to
+Bridge), and "Claude's fix is ready" with **See Claude's fix**, or "Claude stopped: …" / "Claude went quiet" with **Copy
+for your developer**. Without the steps (the Bridge site cannot say), it watches GitHub for the draft pull request on
+`bridge/figma-fixes-<component>` labelled `figma-fixes`. It looks every 20 seconds while the plugin is open, and
+resumes when it opens again.
 
 ## How it works
 
@@ -648,7 +652,7 @@ npm run plugin:build                         # same build, from the repo root
 
 ```
 apps/figma-plugin/
-  manifest.json          name, editorType, dynamic-page access, network allowlist (api.github.com, api.anthropic.com)
+  manifest.json          name, editorType, dynamic-page access, network allowlist (api.github.com, the Bridge site)
   community/             Figma Community listing (listing.md), icon, cover and gallery PNGs, and their sources
   scripts/               esbuild build and test runner (both bundle @bridge-ds/core from source)
   src/main/              main thread: figma.variables, clientStorage, plugin data (no network)

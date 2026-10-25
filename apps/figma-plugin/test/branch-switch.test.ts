@@ -14,7 +14,7 @@ test('Settings: another branch keeps the base, another repository clears it', ()
   const s = DEFAULT_SETTINGS;
   assert.deepEqual(syncResetOnSettings(s, { ...s }), {});
   assert.deepEqual(syncResetOnSettings(s, { ...s, branch: 'next' }), { lastPrBranch: '', lastPrUrl: '' });
-  assert.deepEqual(syncResetOnSettings(s, { ...s, repo: 'acme/ds' }), { baseSha: '', lastPullAt: '', lastCompare: '', lastPrBranch: '', lastPrUrl: '' });
+  assert.deepEqual(syncResetOnSettings(s, { ...s, repo: 'acme/ds' }), { baseSha: '', lastPullAt: '', lastCompare: '', claudeAsked: '', lastPrBranch: '', lastPrUrl: '' });
   assert.deepEqual(syncResetOnSettings(s, { ...s, repo: ` ${s.repo.toUpperCase()} ` }), {}, 'same repository, other case');
 });
 

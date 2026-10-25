@@ -34,6 +34,8 @@ export interface Harness {
   until(fn: () => boolean, ms?: number): Promise<void>;
   /** Lets pending work settle: messages, timers, fetches. */
   settle(ms?: number): Promise<void>;
+  /** What the plugin put on the clipboard, in order. */
+  copied: string[];
   /** Main-thread requests and REST calls made so far ("save-settings", "POST /repos/.../pulls"). */
   calls: string[];
   /** Change the stand-ins mid-test. */
@@ -73,6 +75,14 @@ export interface Open {
   bridge?: boolean;
   /** More of the file's sync state (shared plugin data), as a returning file holds it. */
   sync?: Record<string, string>;
+  /** More files in the repository (path -> text), and the spec source the file uses. */
+  files?: Record<string, string>;
+  specSource?: 'static' | 'measured' | 'measured-only';
+  /**
+   * Images as tiny text recipes ("W4H4C255": 4x4 pixels of grey 255), decoded by a stand-in for the browser's PNG
+   * decoder (jsdom has none), so Compare with code runs for real.
+   */
+  pixels?: boolean;
   /** Edits the snapshot before the plugin reads it. */
   edit?: (s: FigmaSnapshot) => void;
 }
@@ -89,13 +99,15 @@ export async function openPlugin(o: Open = {}): Promise<Harness> {
   // Layout calls jsdom does not implement.
   (w as unknown as { HTMLElement: { prototype: { scrollIntoView(): void } } }).HTMLElement.prototype.scrollIntoView = () => undefined;
   g.addEventListener = w.addEventListener.bind(w);
-  g.navigator = { clipboard: { writeText: async () => undefined }, onLine: true };
+  const copied: string[] = [];
+  g.navigator = { clipboard: { writeText: async (t: string) => void copied.push(t) }, onLine: true };
+  if (o.pixels) installPixels(w);
   const calls: string[] = [];
   let snapshot = structuredClone(o.pulled ? data.pulled : { fileName: 'Checkout redesign', collections: [], variables: [] });
   o.edit?.(snapshot);
-  const blobs = Object.fromEntries(Object.entries(data.files).map(([p, t]) => [p, Buffer.from(t, 'utf8').toString('base64')]));
+  const blobs = Object.fromEntries(Object.entries({ ...data.files, ...(o.files ?? {}) }).map(([p, t]) => [p, Buffer.from(t, 'utf8').toString('base64')]));
   const paths = Object.keys(blobs);
-  let settings = { repo: o.connected === false ? '' : REPO, branch: 'main', tokensPath: 'packages/tokens/src' } as InitPayload['settings'];
+  let settings = { repo: o.connected === false ? '' : REPO, branch: 'main', tokensPath: 'packages/tokens/src', ...(o.specSource ? { specSource: o.specSource } : {}) } as InitPayload['settings'];
   let sync: InitPayload['sync'] = { ...(o.pulled ? { baseSha: data.headSha, lastPullAt: '2026-10-24T09:12:00.000Z' } : {}), ...(o.sync ?? {}) };
   let token: string | undefined = o.connected === false ? undefined : 'test-token';
   // Where the token came from and who signed in (figma.clientStorage in Figma): none for a legacy pasted token.
@@ -149,6 +161,7 @@ export async function openPlugin(o: Open = {}): Promise<Harness> {
     if (method !== 'GET') {
       if (/\/git\/(blobs|trees|commits)$/.test(p)) return json(201, { sha: `w${String(++n).padEnd(39, '0')}` });
       if (/\/git\/refs$/.test(p)) return json(201, { ref: 'refs/heads/x', object: { sha: data.headSha } });
+      if (/\/contents\//.test(p)) return json(201, { content: { sha: `f${++n}` }, commit: { sha: `c${n}` } });
       if (/\/pulls$/.test(p)) return json(201, { number: 555, html_url: `https://github.com/${REPO}/pull/555`, title: 'Tokens from Figma', draft: true, head: { ref: 'bridge/figma-1' }, state: 'open' });
       return json(200, {});
     }
@@ -214,6 +227,7 @@ export async function openPlugin(o: Open = {}): Promise<Harness> {
     until,
     settle,
     calls,
+    copied,
     main,
     routes,
     data,
@@ -221,4 +235,38 @@ export async function openPlugin(o: Open = {}): Promise<Harness> {
   };
   await until(() => !text().includes('Loading'));
   return h;
+}
+
+/** A recipe image ("W4H4C255") as the base64 a PNG would be. */
+export const pixelsImage = (w: number, h: number, grey: number) => Buffer.from(`W${w}H${h}C${grey}`, 'utf8').toString('base64');
+
+/** createImageBitmap, a 2D canvas and ImageData for recipe images: enough for decodePng / encodePng in jsdom. */
+function installPixels(w: Window & typeof globalThis): void {
+  const g = globalThis as Record<string, unknown>;
+  g.atob = (b: string) => Buffer.from(b, 'base64').toString('latin1');
+  g.createImageBitmap = async (blob: Blob) => {
+    const text = Buffer.from(await blob.arrayBuffer()).toString('utf8');
+    const m = /^W(\d+)H(\d+)C(\d+)$/.exec(text) ?? ['', '1', '1', '0'];
+    return { width: Number(m[1]), height: Number(m[2]), grey: Number(m[3]), close: () => undefined };
+  };
+  class FakeImageData {
+    constructor(readonly data: Uint8ClampedArray, readonly width: number, readonly height: number) {}
+  }
+  g.ImageData = FakeImageData;
+  const proto = (w as unknown as { HTMLCanvasElement: { prototype: Record<string, unknown> } }).HTMLCanvasElement.prototype;
+  proto.getContext = function (this: { width: number; height: number }) {
+    const canvas = this;
+    let grey = 0;
+    return {
+      canvas,
+      drawImage: (bmp: { grey: number }) => void (grey = bmp.grey),
+      getImageData: (_x: number, _y: number, cw: number, ch: number) => {
+        const data = new Uint8ClampedArray(cw * ch * 4);
+        for (let i = 0; i < data.length; i += 4) data.set([grey, grey, grey, 255], i);
+        return { width: cw, height: ch, data };
+      },
+      putImageData: () => undefined,
+    };
+  };
+  proto.toDataURL = () => 'data:image/png;base64,ZGlmZg==';
 }
