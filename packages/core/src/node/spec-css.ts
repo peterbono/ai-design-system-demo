@@ -200,12 +200,26 @@ function specificityOf(c: Complex): [number, number, number] {
 
 const cmpSpec = (a: [number, number, number], b: [number, number, number]) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 
-/** Media queries a component in Figma is drawn under: a mouse (hover: hover), nothing else. */
+/**
+ * The viewport width a component in Figma is drawn for: the one Storybook renders the code images at
+ * (@bridge-ds/visual references, 1200 x 800). Width media queries are read against it.
+ */
+export const SPEC_VIEWPORT_WIDTH = 1200;
+
+/**
+ * Media queries a component in Figma is drawn under: a mouse (hover: hover), a screen, and a viewport
+ * SPEC_VIEWPORT_WIDTH wide (`min-width` and `max-width` in px, alone or joined with `and`). Nothing else.
+ */
 export function mediaApplies(query: string): boolean {
   const q = query.replace(/\s+/g, ' ').trim().toLowerCase();
   if (q.startsWith('@supports')) return true;
   const cond = q.replace(/^@media /, '');
-  return /^\((any-)?hover: ?hover\)$/.test(cond) || cond === 'screen' || cond === 'all';
+  return cond.split(' and ').every((c) => {
+    if (/^\((any-)?hover: ?hover\)$/.test(c) || c === 'screen' || c === 'all') return true;
+    const w = /^\((min|max)-width: ?([\d.]+)px\)$/.exec(c);
+    if (!w) return false;
+    return w[1] === 'min' ? SPEC_VIEWPORT_WIDTH >= Number(w[2]) : SPEC_VIEWPORT_WIDTH <= Number(w[2]);
+  });
 }
 
 /** Rules of one CSS module, in source order. `@media` blocks are kept only when they apply in Figma. */
@@ -490,6 +504,14 @@ export function expandDecl(d: CssDecl): CssDecl[] {
         { prop: `border-${s}-color`, value: color },
       ]);
     }
+    case 'border-inline-start':
+    case 'border-inline-end':
+    case 'border-block-start':
+    case 'border-block-end': {
+      // Logical sides, left to right and top to bottom (the components are drawn in a left-to-right file).
+      const side = { 'border-inline-start': 'left', 'border-inline-end': 'right', 'border-block-start': 'top', 'border-block-end': 'bottom' }[d.prop]!;
+      return expandDecl({ ...d, prop: `border-${side}` });
+    }
     case 'inset-block-start':
       return [{ prop: 'top', value: d.value }];
     case 'inset-block-end':
@@ -591,6 +613,9 @@ export function computeValues(own: Map<string, Declared>, parent: Map<string, st
       const pv = parent?.get(k);
       if (pv !== undefined) out.set(k, pv);
       else out.delete(k);
+    } else if (k.startsWith('--') && d.value === 'initial') {
+      // A custom property reset on purpose (`--_col-width: initial`): a var() of it leaves the property unset.
+      out.set(k, 'initial');
     } else if (d.value === 'initial' || d.value === 'unset') out.delete(k);
     else out.set(k, d.value);
   }

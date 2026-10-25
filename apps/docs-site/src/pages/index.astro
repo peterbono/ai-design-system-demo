@@ -1,94 +1,174 @@
 ---
-import '../styles/home.css';
-import Layout from '../layouts/Layout.astro';
-import Illustration from '../components/Illustration.astro';
+// The homepage, ported from the owner's validated test page (2026-10-21): the promise with its story drawn (Dana keeps
+// the new Profile header of her AI exploration in the design system, then code and the Figma kit follow), two step-tab
+// sections (start in Bridge, ship) and "One system everyone can trust", the design system lead's queue, and the Horizon
+// closing (Florian carries the kept card across the bridge). Every drawing is decorative markup with a spoken label; the
+// controls are DS components, except the step tabs (see their audit comments). Behaviour: scripts/homepage.ts, pure
+// parts in lib/homepage.ts. The Library home is at /library/ (lib/nav LIBRARY_HOME).
+import '../styles/homepage.css';
+import '../styles/home-illus.css';
+import '../styles/home-hero.css';
+import '../styles/home-compare.css';
+import Landing from '../layouts/Landing.astro';
 import ButtonLink from '../components/ds/ButtonLink';
-import { Badge, Link } from '@bridge-ds/react';
-import { releases, versionInfo } from '../lib/changelog';
-import { changeHeadline, mdTitleText } from '../lib/markdown';
-import { loadComponents } from '../lib/components';
-import { explorerTokens } from '../lib/explorer';
-import { PAGE_SOURCES, freshness } from '../lib/sources';
-import { repoStatus } from '../lib/stats';
-import type { IllustrationName } from '../brand/illustrations';
+import { ArrowRight } from 'lucide-react';
+import HpSprite from '../components/home/HpSprite.astro';
+import HpHeroScene from '../components/home/HpHeroScene.astro';
+import HpShipMerge from '../components/home/HpShipMerge.astro';
+import HpShipCode from '../components/home/HpShipCode.astro';
+import HpShipPlugin from '../components/home/HpShipPlugin.astro';
+import HpTrustLib from '../components/home/HpTrustLib.astro';
+import HpTrustTwin from '../components/home/HpTrustTwin.astro';
+import HpTrustQuality from '../components/home/HpTrustQuality.astro';
+import HpStepSection from '../components/home/HpStepSection.astro';
+import HpSieve from '../components/home/HpSieve.astro';
+import HpSignoff from '../components/home/HpSignoff.astro';
+import HpLead from '../components/home/HpLead.astro';
+import HpCompare from '../components/home/HpCompare.astro';
+import HpFaq from '../components/home/HpFaq';
+import HpFaqArt from '../components/home/HpFaqArt.astro';
+import HpPanorama from '../components/home/HpPanorama.astro';
+import HpWalkers from '../components/home/HpWalkers.astro';
+import HpConnectCard from '../components/home/HpConnectCard';
+import { signInHref } from '../lib/account';
+// Get started opens the sign-in screen with sign-up words; a new account then lands on /start/.
+const GET_STARTED = signInHref(null, true);
 
-const version = versionInfo();
-const repo = repoStatus();
-
-// What changed: the latest entries people notice (internal tooling left out), newest first.
-const recent = releases()
-  .flatMap((r) => r.entries.map((e) => ({ ...e, date: e.date ?? r.date })))
-  .filter((e) => e.kind !== 'Internal')
-  .slice(0, 3);
-// "This week" only when every entry shown is less than 7 days older than the build's last commit.
-const DAY = 86_400_000;
-const ref = repo.lastChange ? Date.parse(`${repo.lastChange}T00:00:00Z`) : Date.now();
-const thisWeek = recent.length > 0 && recent.every((e) => e.date && ref - Date.parse(`${e.date}T00:00:00Z`) < 7 * DAY);
-const shortDate = (iso?: string) =>
-  iso ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${iso.slice(0, 10)}T00:00:00Z`)) : 'Next release';
-
-// Counts on the topic cards come from the same data as the pages they open.
-const semantic = explorerTokens().filter((t) => t.layer === 'semantic').length;
-const componentCount = loadComponents().length;
-
-const topics: { art: IllustrationName; title: string; text: string; href: string }[] = [
-  { art: 'foundations', title: 'Foundations', text: 'Color, type, spacing and the accessibility rules underneath.', href: '/foundations/color/' },
-  { art: 'tokens', title: 'All tokens', text: `All ${semantic} semantic tokens with their light and dark values, ready to copy.`, href: '/tokens/' },
-  { art: 'components', title: 'Components', text: `${componentCount} React components with examples, props and guidance.`, href: '/components/' },
-];
 ---
 
-<Layout
-  title="Home"
-  description="Bridge Library: the latest release of the design system. Foundations, tokens, components and how to use them, for people and agents."
-  sources={PAGE_SOURCES.home}
-  updated={freshness(PAGE_SOURCES.home)}
-  wide
+<Landing
+  title="Bridge: explore with AI, keep what works in your design system"
+  description="Bridge finds what your exploration added. You review it, then the code and Figma kit follow."
 >
-  <section class="zone hm-hero" aria-labelledby="hero-title">
-    <div class="hm-hero-copy">
-      <h1 id="hero-title" class="t-display">Your design system, one source of truth.</h1>
-      <p class="t-body">
-        Bridge keeps your tokens, components and docs in one repository. This Library always shows the latest release, <span class="mono">{version.current}</span>.
-      </p>
-      <ButtonLink variant="primary" href="/components/">Browse components</ButtonLink>
-    </div>
-    <div class="hm-hero-art">
-      <Illustration name="hero" width={400} label="Two people finishing a plank bridge" />
-    </div>
-  </section>
+  <div class="hp">
+    <HpSprite />
 
-  <section class="hm-topics" aria-label="In the Library">
-    {
-      topics.map((t) => (
-        <Link variant="subtle" className="fg-card hm-topic" href={t.href}>
-          <h2 class="t-h3">{t.title}</h2>
-          <p class="t-body t-muted">{t.text}</p>
-          <Illustration name={t.art} width={104} class="hm-topic-art" />
-        </Link>
-      ))
-    }
-  </section>
+    <!-- Hero: the promise, then the story drawn: Dana keeps the new piece of her exploration in the design system. -->
+    <section class="hp-hero hp-wrap" aria-labelledby="hp-title">
+      <div class="hp-hero-text">
+        <h1 id="hp-title" class="hp-h1">
+          <span class="hp-hl">Explore with AI. </span><span class="hp-hl hp-hk"><span class="hp-keep">Keep<svg class="hp-ul" viewBox="0 0 150 18" preserveAspectRatio="none" aria-hidden="true"><path d="M3 12C28 6 66 3.5 104 6.5S140 11 147 7" pathLength="1"></path></svg></span> what works </span><span class="hp-hl">in your design system.</span>
+        </h1>
+        <p class="hp-lede"><span class="hp-hs">Bridge finds what your exploration added. </span><span class="hp-hs">You review it, then the code and Figma kit follow.</span></p>
+        <div class="hp-go">
+          <ButtonLink variant="primary" size="lg" iconEnd={ArrowRight} href={GET_STARTED}>Get started</ButtonLink>
+        </div>
+      </div>
+      <div class="hp-hero-vis">
+        <HpHeroScene />
+      </div>
+    </section>
 
-  <section class="hm-week" aria-labelledby="week-title">
-    <header class="hm-week-head">
-      <h2 id="week-title" class="t-h3">{thisWeek ? 'What changed this week' : 'What changed lately'}</h2>
-      <Link href="/changelog/" className="fg-link">All release notes</Link>
-    </header>
-    {
-      recent.length === 0 ? (
-        <p class="t-body t-muted">No changes recorded yet.</p>
-      ) : (
-        <ul class="hm-changes">
-          {recent.map((e) => (
-            <li>
-              <Badge size="sm" className="hm-kind">{e.kind}</Badge>
-              <span class="t-body hm-change" title={mdTitleText(e.title)}>{changeHeadline(e.title)}</span>
-              <span class="t-ui t-muted hm-date">{shortDate(e.date)}</span>
-            </li>
-          ))}
-        </ul>
-      )
-    }
-  </section>
-</Layout>
+    <div id="steps">
+      <HpStepSection
+        id="hp-b1"
+        title="Start it in Bridge. Every change is tracked."
+        lede="Explore with Claude AI as usual. Bridge tracks what it changes in your system."
+        steps={[
+          { title: 'Start your exploration from Bridge', text: 'Pick the product, link the Jira ticket, start with Claude AI. It works on its own copy, with its own preview.' },
+          { title: 'Bridge traces what changed', text: 'New pieces, changed tokens, values written by hand: everything the exploration did to your design system is listed.' },
+          { title: 'Your DS lead reviews just that', text: 'No screenshots to compare. The DS lead and a developer review exactly those changes, in the product, with contrast checked.' },
+        ]}
+        labels={[
+          'Start a change dialog: A feature in a product is selected, with a field to link a Jira ticket and a Start with Claude AI button',
+          'A sieve labelled Bridge: the pieces your library already has, an avatar, text and a Follow button, fall through; the new Profile header is caught on top. New, Bridge keeps it',
+          'Drawing: the kept Profile header is clipped onto a review easel; Dana, design, then Leo, code, tick their checklists, the swatch flips between light and dark, and it is approved',
+        ]}
+      >
+        <div slot="p0" class="hp-card hp-dlg">
+          <span class="hp-xs hp-muted">Start a change</span>
+          <strong class="hp-dt">What are you working on?</strong>
+          <div class="hp-opt hp-pick"><span class="hp-radio"></span><span><strong>A feature in a product</strong><small>A new screen or flow, built with your library.</small></span></div>
+          <div class="hp-opt"><span class="hp-radio"></span><span><strong>A change to the library</strong><small>A token, a variant or a component.</small></span></div>
+          <div class="hp-jira"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Link a Jira ticket</div>
+          <div class="hp-row hp-dlg-foot"><span class="hp-sp"></span><span class="hp-btn hp-btn-line">Cancel</span><span class="hp-btn hp-btn-deep hp-ring"><span class="hp-ai"><svg aria-hidden="true"><use href="#hp-robot" /></svg></span>Start with Claude AI</span></div>
+        </div>
+        <div slot="p1" class="hp-sc hp-sc-center"><HpSieve /></div>
+        <div slot="p2" class="hp-sc hp-sc-center"><HpSignoff /></div>
+      </HpStepSection>
+
+      <HpStepSection
+        id="hp-b3"
+        flip
+        title="Ship it everywhere at once."
+        lede="Add it to the library once. The code is published and your Figma kit follows."
+        steps={[
+          { title: 'Add to the library', text: 'Design and code approved, contrast checked, other products unchanged. One step.' },
+          { title: 'The code is published', text: 'The Profile header ships in @bridge-ds/react, ready to import.' },
+          { title: 'Your Figma kit follows', text: 'One Pull in the DS Bridge plugin brings it into the Figma kit.' },
+        ]}
+        labels={[
+          'Drawing: the approved Profile header drops once into a funnel marked Library, tagged Bridge; it flows down three pipes and lands in code, the Figma kit and the docs at once',
+          'Drawing: a parcel addressed @bridge-ds/react, to your developers, opens; the Profile header rises out of it, ready to import, and the line import ProfileHeader from @bridge-ds/react writes itself. Delivered as code, no handoff',
+          'Drawing: a Pull crank draws the Profile header along a line from the code post into the Figma kit toolbox; a tracing of the code lands exactly on it, and a check confirms it matches the code',
+        ]}
+      >
+        <div slot="p0" class="hp-sc hp-sc-center"><HpShipMerge /></div>
+        <div slot="p1" class="hp-sc hp-sc-center"><HpShipCode /></div>
+        <div slot="p2" class="hp-sc hp-sc-center"><HpShipPlugin /></div>
+      </HpStepSection>
+
+      <HpStepSection
+        id="hp-b4"
+        title="One system everyone can trust."
+        lede="The library documents itself, stays the same in Figma and in code, and shows how much of it your products really use."
+        steps={[
+          { title: 'A library everyone can read', text: 'Public docs for every component. Claude AI drafts the guidance from the code, a person reviews it before it ships.' },
+          { title: 'Same components in Figma and Storybook', text: 'Both come from the same coded components. A fidelity check confirms they match.' },
+          { title: 'Know how much your products use it', text: 'An audit per product measures how much of it runs on your components and tokens.' },
+        ]}
+        labels={[
+          'Drawing: the Profile header page of your library, an open book; a pencil ridden by the AI robot writes the usage guidance line by line, drafted by AI, then Dana, DS lead, ticks it as reviewed',
+          'Drawing: a balance standing on a post marked code, with the same Profile header on each pan, Figma kit and Storybook; it tips, then settles level, and a check says Matches',
+          'Drawing: a magnifier sweeps a page of the Docs site and flags three off-system pieces, a one-off card, a raw hex colour and an odd button; each snaps into its Harbor system version, and the components and tokens in use rise from 81.7 percent, before the audit, to 100 percent',
+        ]}
+      >
+        <div slot="p0" class="hp-sc hp-sc-center"><HpTrustLib /></div>
+        <div slot="p1" class="hp-sc hp-sc-center"><HpTrustTwin /></div>
+        <div slot="p2" class="hp-sc hp-sc-center"><HpTrustQuality /></div>
+      </HpStepSection>
+    </div>
+
+    <!-- The design system lead: decide in seconds. -->
+    <HpLead />
+
+    <!-- How Bridge compares: the short table, the full one on demand, sources as notes. -->
+    <HpCompare />
+
+    <!-- Questions teams ask: the DS Accordion, one open at a time. -->
+    <section class="hp-faq" aria-labelledby="hp-faq-t">
+      <div class="hp-wrap hp-faqgrid">
+        <div class="hp-faqside">
+          <h2 id="hp-faq-t" class="hp-faqh">Questions teams ask.</h2>
+          <HpFaqArt />
+        </div>
+        <HpFaq client:visible />
+      </div>
+    </section>
+
+    <!-- Closing: Horizon. Florian carries the kept card across the bridge; hover or focus pauses the walk. -->
+    <section class="hp-closing" aria-labelledby="hp-close-t">
+      <div class="hp-wrap hp-hz-text">
+        <p class="hp-eyebrow">Open source · MIT</p>
+        <h2 id="hp-close-t" class="hp-hz-h">Explore freely. <span class="hp-keep">Keep<svg class="hp-ul hp-ul-late" viewBox="0 0 150 18" preserveAspectRatio="none" aria-hidden="true"><path d="M3 12C28 6 66 3.5 104 6.5S140 11 147 7" pathLength="1"></path></svg></span> what works.</h2>
+        <p class="hp-hz-p">Your next exploration is one change away.</p>
+        <div class="hp-hz-cta"><ButtonLink variant="primary" size="lg" iconEnd={ArrowRight} href={GET_STARTED}>Get started</ButtonLink></div>
+      </div>
+      <div class="hp-pano" data-pano>
+        <div class="hp-hz-stage" data-pano-stage>
+          <HpPanorama />
+          <div class="hp-walk">
+            <div class="hp-bob">
+              <HpWalkers />
+              <HpConnectCard />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+    import { initHomepage } from '../scripts/homepage';
+    initHomepage();
+  </script>
+</Landing>

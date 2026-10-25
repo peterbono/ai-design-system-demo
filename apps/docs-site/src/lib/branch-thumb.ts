@@ -2,7 +2,7 @@
 // Pure: decides WHAT to draw from data already read (changed files, the token diff, the visual impact run); the
 // drawing itself is components/ds/studio/BranchThumb.tsx. Unit tested in branch-thumb.test.ts.
 
-export type ThumbIcon = 'component' | 'token' | 'guidance' | 'branch' | 'contrast';
+export type ThumbIcon = 'component' | 'token' | 'guidance' | 'branch' | 'contrast' | 'person';
 
 export type ThumbSpec =
   /** A colour token: swatch before | swatch after (resolved #rrggbb, null when added or removed). */

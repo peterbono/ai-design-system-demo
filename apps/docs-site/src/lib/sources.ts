@@ -16,6 +16,7 @@ export const PAGE_SOURCES = {
   elevation: [...primitiveFiles().filter((f) => f.includes('shadow')), semanticFile('light'), semanticFile('dark')],
   explorer: [...TOKEN_SOURCE_FILES(), 'packages/react/src/components'],
   components: ['packages/react/src/components'],
+  storybook: ['packages/core/src/storybook.ts', 'apps/docs-site/api/storybook/index.ts'],
   governance: [GOVERNANCE_FILE, AGENTS_FILE, PLAIN_RULES_FILE],
   changelog: ['.changeset'],
   adoption: ['apps/docs-site/src/data/audits', 'packages/core/src/audit'],
@@ -28,3 +29,6 @@ export const freshness = (paths: readonly string[]) => lastUpdated([...paths]);
 const usage = readJson<Record<string, string>>(USAGE_FILE);
 export const usageFor = (s: Pick<Semantic, 'group' | 'description'>) => s.description ?? usage[s.group] ?? '';
 export const groupUsage = (group: string) => usage[group] ?? '';
+
+/** Every group usage note (token-usage.json), for the Library views (components/ds/library/views/). */
+export const groupNotes = (): Record<string, string> => ({ ...usage });

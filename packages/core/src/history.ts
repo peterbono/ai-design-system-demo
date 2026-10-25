@@ -16,6 +16,7 @@ import { formatChangeset } from './changeset';
 import { slugify } from './pr-composer';
 import type { SemverBump } from './risk';
 import type { ContrastPair } from './wcag';
+import { requesterOf } from './requester';
 
 // --- model ------------------------------------------------------------------------------------------------
 
@@ -26,6 +27,12 @@ export interface HistoryPullRequest {
   author?: string;
   mergedAt?: string;
   body?: string;
+}
+
+/** The requester a pull request body names (its display name, else its login), or null. */
+function requesterName(body: string | null | undefined): string | null {
+  const r = requesterOf(body);
+  return r ? (r.name ?? r.login) : null;
 }
 
 /** A commit that touched the token files, newest first in lists. */
@@ -172,7 +179,9 @@ export function buildHistoryEntry(input: EntryInput): HistoryEntry | null {
     sha: commit.sha,
     ...(commit.parents[0] ? { baseSha: commit.parents[0] } : {}),
     date: commit.date,
-    author: commit.pr?.author ?? commit.author,
+    // Who asked, as Bridge recorded it in the pull request ("Requested by Priya Shah ... through Bridge."), before the
+    // account that opened it (the Bridge app for an email member, an agent): History names the person.
+    author: requesterName(commit.pr?.body) ?? commit.pr?.author ?? commit.author,
     title,
     why,
     ...(pr ? { pr } : {}),

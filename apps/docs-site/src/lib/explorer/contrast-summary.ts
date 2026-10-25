@@ -77,3 +77,18 @@ export function contrastCountLine(s: Pick<ContrastSummary, 'pairs' | 'failing'>)
   const n = `${s.pairs} pair${s.pairs > 1 ? 's' : ''}`;
   return s.failing ? `${s.failing} of ${n} fail${s.failing > 1 ? '' : 's'}` : s.pairs === 1 ? '1 pair, passes' : `${n}, all pass`;
 }
+
+/**
+ * Why the review sheet cannot send the draft, for its footer note and its button: "7 contrast pairs fail. Fix them to
+ * send for review." and "Fix contrast to send". Null when nothing blocks (the button may then ask to connect GitHub).
+ */
+export function sendBlocked(blocking: readonly { code: string; path?: string | undefined }[], goal = 'send for review'): { note: string; button: string; contrast: boolean } | null {
+  if (!blocking.length) return null;
+  // One issue per pair and mode: count each pair once, as the Contrast section does.
+  const contrast = blocking.filter((i) => i.code === 'contrast');
+  const pairs = new Set(contrast.map((i, n) => i.path ?? String(n))).size;
+  const other = blocking.length - contrast.length;
+  if (pairs && !other) return { note: `${pairs} contrast ${pairs === 1 ? 'pair fails' : 'pairs fail'}. Fix ${pairs === 1 ? 'it' : 'them'} to ${goal}.`, button: 'Fix contrast to send', contrast: true };
+  const n = other + pairs;
+  return { note: `${n} ${n === 1 ? 'check fails' : 'checks fail'}${pairs ? `, ${pairs} of them contrast` : ''}. Fix ${n === 1 ? 'it' : 'them'} to ${goal}.`, button: 'Fix the checks to send', contrast: pairs > 0 };
+}

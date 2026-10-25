@@ -1,8 +1,9 @@
 // Status chip of an open pull request, read live from GitHub: CI (check runs + commit statuses), reviews, the
 // changed files (for the approval rule, the same as the pull request header: lib/review-queue effectiveTier) and
-// whether it merges cleanly, then reviewStatus() from lib/review-rules. Shared by the Studio Overview and the In
+// whether it merges cleanly, then core branchVerdict (the verdict the MCP server and the CLI read too). Shared by the Studio Overview and the In
 // review list. Reads go through ghGet, so they are cached in this browser and survive a rate limit; statuses are
 // kept per head commit for 10 minutes (lib/status-budget).
+import { figmaPushFor, tokenValuesFor } from './figma-push-read';
 import { effectiveTier } from '../lib/review-queue';
 import { isGuidanceOnly } from '../lib/overview-todo';
 import { touchesVisuals } from '../lib/visual-impact';
@@ -10,16 +11,21 @@ import { fileSignals, type FileSignals } from '../lib/work-nature';
 import { badgeHtml, tooltipAttributes } from '@bridge-ds/react/dom';
 import { currentViewer, ghGet, hasWorkingToken, prefersSignIn, readRepo } from './github-session';
 import { ghAction } from '../lib/gh-wording';
-import { needFromStatus, pendingApprovals, statusTone, whoActs, type ApprovalRole, type WhoActs } from '../lib/changes';
+import { needFromStatus, pendingApprovals, statusPill, whoActs, type ApprovalRole, type WhoActs } from '../lib/changes';
 import { developerOnlyFailures } from '../lib/check-explain';
+import { guestActivity } from './guest-activity';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
-import type { TeamStates } from '@bridge-ds/core';
-import { loadTeams, siteApproverEntries, siteApprovers, siteShipPolicy, teamSnapshot } from './teams';
+import { canOverride, closingIssueNumbers, DEFAULT_OVERRIDE, lookAgainReviewers, ownerOverridePolicy, PUBLISH_ROUTE_COPY, type OverridePolicy, type TeamStates } from '@bridge-ds/core';
+import { approvedSuggestionOf } from './suggestions';
+import { prefetchChangeStatuses } from './contribute-session';
+import { siteConfig } from './repo-context';
+import { loadTeams, siteApproverEntries, siteApprovers, siteRoles, siteShipPolicy, siteSoloOwner, teamSnapshot } from './teams';
 import {
+  claudeStage,
   parseTier,
   pullState,
-  reviewStatus,
-  summarizeApprovals,
+  statusOf,
+  studioVerdict,
   summarizeCi,
   type CheckRunLike,
   type LabelLike,
@@ -28,7 +34,6 @@ import {
   type ReviewStatusKind,
   type StatusLike,
   type Tier,
-  REVIEW_STATUS,
 } from '../lib/review-rules';
 
 export interface PullForStatus {
@@ -40,6 +45,8 @@ export interface PullForStatus {
   labels?: LabelLike[];
   user: { login: string };
   head: { sha: string; ref: string };
+  /** Where it branched from, when the list read says (the Figma push reads its token files before the change there). */
+  base?: { sha?: string; ref?: string } | null;
 }
 
 /** Who may ship (governance.rights), undefined without rights: the owners ship then. GitHub teams count as their members once read. */
@@ -83,10 +90,14 @@ export async function ciFor(sha: string, opts: { lean?: boolean } = {}) {
 
 /** A status plus the review facts the who-acts line and the row need (lib/changes whoActs). */
 export interface PullStatus extends ReviewStatus {
+  /** A token push from Figma with values only: it ships after the checks, nobody reviews it (core branchVerdict). */
+  autoShip?: boolean;
   approvers?: string[];
   /** The design approval is in (summarizeApprovals design): the waiting-for-code rule reads it (lib/change-status). */
   design?: boolean;
   changesRequested?: string[];
+  /** Reviewers to look again: the branch moved on after every changes request (core lookAgainReviewers). */
+  lookAgain?: string[];
   failing?: number;
   /** Names of the failing checks ("Changeset present"), so the Overview can name the blocker. */
   failingChecks?: string[];
@@ -141,18 +152,31 @@ export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}
           .then((f) => f.data)
           .catch(() => null),
   ]);
-  const approvals = reviews ? summarizeApprovals(reviews, owners(), p.user.login) : null;
   const tier = effectiveTier(p.labels ?? [], p.body, files);
-  const before = reviewStatus({ state: p.state, draft: p.draft, merged_at: p.merged_at, ci, approvals, tier });
+  // The pull request that applies an approved suggestion carries its approvals: never gated twice for the same one.
+  // One verdict for every surface (lib/review-rules studioVerdict, core branchVerdict): the same the branch page, the
+  // MCP server and the CLI read.
+  const suggestion = reviews && closingIssueNumbers(p.body).length ? await approvedSuggestionOf(p.body) : null;
+  // Pushed from the Figma plugin: design approved by the push, token values tech approved too (docs/BUILD-REQUESTS.md).
+  // Token values only, whoever opened it: the design approval is all it needs (core isTokenValueChange, TV-1).
+  const [figmaPush, tokenValues] = await Promise.all([figmaPushFor(p, files), files ? tokenValuesFor(p, files) : Promise.resolve(false)]);
+  const verdict = (mergeable?: boolean | null) => studioVerdict({ site: siteRoles(), teams: teamSnapshot(), pull: p, tier, ci, reviews, suggestion, mergeable, figmaPush, tokenValues });
+  const first = verdict();
+  const approvals = first.approvals;
   // Only an open change that nothing else blocks needs to know whether it merges cleanly.
-  const needsMergeable = pullState(p) === 'open' && !['ci-failing', 'changes-requested', 'ci-running', 'unknown'].includes(before.kind);
-  const status = needsMergeable ? reviewStatus({ state: p.state, draft: p.draft, merged_at: p.merged_at, ci, approvals, tier, mergeable: await mergeableOf(p) }) : before;
+  const needsMergeable = pullState(p) === 'open' && !['ci-failing', 'changes-requested', 'ci-running', 'unknown'].includes(first.status);
+  const kind = needsMergeable ? verdict(await mergeableOf(p)).status : first.status;
+  const status: ReviewStatus = statusOf(kind, first.lookAgain);
   const names = files?.map((f) => f.filename) ?? null;
   return {
     ...status,
+    // Ships by itself, so it waits on nobody, until something holds it (a failing check, a conflict, changes
+    // requested): then it is a change like any other, as bridge_what_needs_me reads it.
+    ...(first.autoShip && !['ci-failing', 'conflict', 'changes-requested'].includes(kind) ? { autoShip: true } : {}),
     approvers: approvals?.approvers,
     design: approvals?.design,
     changesRequested: approvals?.changesRequested,
+    ...(reviews && approvals?.changesRequested.length ? { lookAgain: lookAgainReviewers(reviews, p.head.sha, p.user.login) } : {}),
     failing: ci?.failed.length,
     failingChecks: ci?.failed.map((f) => f.name),
     pending: pendingApprovals(tier, approvals),
@@ -182,27 +206,53 @@ export function statusChip(s: ReviewStatus | null, opts: { skipped?: boolean } =
  * who acts now ("Design owner to approve", "Your turn: approve design"), from the same whoActs as the pull request
  * header. Falls back to the plain status label when the who-acts line adds nothing (unknown, merged, closed).
  */
-type RowFacts = { author: string; approvers?: string[]; changesRequested?: string[]; failing?: number; failingChecks?: string[]; pending?: ApprovalRole[]; skipped?: boolean };
+type RowFacts = { author: string; labels?: LabelLike[] | null; approvers?: string[]; changesRequested?: string[]; lookAgain?: string[]; failing?: number; failingChecks?: string[]; pending?: ApprovalRole[]; skipped?: boolean; autoShip?: boolean };
 
-/** Who acts now on a list row (lib/changes whoActs), or null while its status is unknown. Shared by the chip and the opener. */
+/** governance.override from bridge.config.json, as the layout embeds it (none when the site has no config). */
+/** The owner override, limited to the owners it names (core overrideHolders): Settings, Home and the branch page agree. */
+function overridePolicy(): OverridePolicy {
+  let policy: OverridePolicy;
+  try {
+    policy = (siteConfig() as { override?: OverridePolicy }).override ?? DEFAULT_OVERRIDE;
+  } catch {
+    policy = DEFAULT_OVERRIDE;
+  }
+  return ownerOverridePolicy(policy, owners()) ?? DEFAULT_OVERRIDE;
+}
+
+/**
+ * Who acts now on a list row (lib/changes whoActs), or null while its status is unknown. Shared by the chip, the
+ * opener and the home, with the same people as the branch page (who may use the owner override), so a row and the
+ * page header say the same thing.
+ */
 export function rowWho(kind: ReviewStatusKind | null, o: RowFacts): WhoActs | null {
   if (o.skipped || !kind) return null;
-  return whoActs(needFromStatus(kind, { failing: o.failing, changesRequestedBy: o.changesRequested, developerOnly: developerOnlyFailures(o.failingChecks), pending: o.pending }), {
+  // A token push from Figma with values only (PullStatus autoShip): nobody acts, it ships after the checks.
+  if (o.autoShip && kind !== 'merged' && kind !== 'closed') return { ...ON_ITS_WAY };
+  const viewer = currentViewer()?.login ?? null;
+  const policy = overridePolicy();
+  return whoActs(needFromStatus(kind, { failing: o.failing, changesRequestedBy: o.changesRequested, lookAgain: o.lookAgain, developerOnly: developerOnlyFailures(o.failingChecks), pending: o.pending, claude: claudeStage(o.labels) }), {
     owners: owners(),
     shippers: shippers(),
     ...teamPeople(),
     author: o.author,
-    viewer: currentViewer()?.login ?? null,
+    viewer,
     approvers: o.approvers,
+    overrideBy: policy.allowed,
+    overridable: canOverride(viewer, policy),
+    soloOwner: siteSoloOwner(),
   });
 }
+
+/** What a row and the branch page say about a token push from Figma that ships by itself (core libraryArrival). */
+export const ON_ITS_WAY: WhoActs = { who: 'nobody', logins: [], yourTurn: false, action: 'wait', sentence: PUBLISH_ROUTE_COPY.shipped.sentence, short: PUBLISH_ROUTE_COPY.shipped.label };
 
 export function whoChip(kind: ReviewStatusKind | null, o: RowFacts): string {
   const who = rowWho(kind, o);
   if (!who || !kind) return statusChip(null, { skipped: o.skipped });
-  const label = who.short ?? REVIEW_STATUS[kind].label;
+  const { label, tone } = statusPill(kind, who);
   return badgeHtml(label, {
-    tone: statusTone(kind),
+    tone,
     size: 'sm',
     className: 'rv-status',
     attributes: { 'data-status': kind, 'data-yours': who.yourTurn, ...(who.short ? tooltipAttributes(who.sentence, { focusable: true }) : {}) },
@@ -242,16 +292,23 @@ export async function loadStatuses(
   onStatus: (p: PullForStatus, status: PullStatus | null, skipped: boolean) => void,
 ): Promise<void> {
   const connected = hasWorkingToken();
-  const plan = planStatusReads(pulls, { connected, read: readCached, now: Date.now() });
+  // A guest whose team published fresh activity reads every row from it (no API request): no budget then.
+  const recorded = !connected && (await guestActivity())?.fresh === true;
+  const plan = planStatusReads(pulls, { connected: connected || recorded, read: readCached, now: Date.now() });
   const byNumber = new Map(pulls.map((p) => [p.number, p]));
   for (const [n, st] of plan.cached) onStatus(byNumber.get(n)!, st, false);
   for (const n of plan.skipped) onStatus(byNumber.get(n)!, null, true);
+  // A member reading through Bridge: one request answers every change's status reads (shared with the team for 30 s).
+  if (connected && plan.fetch.length) {
+    const { owner, repo } = readRepo();
+    await prefetchChangeStatuses(`${owner}/${repo}`, plan.fetch.map((n) => byNumber.get(n)!));
+  }
   const read = async (n: number) => {
     const p = byNumber.get(n)!;
     const st = await pullStatus(p, { lean: !connected });
     if (!connected) writeCached(p, st);
     onStatus(p, st, false);
   };
-  if (connected) await Promise.all(plan.fetch.map(read));
+  if (connected || recorded) await Promise.all(plan.fetch.map(read));
   else for (const n of plan.fetch) await read(n);
 }

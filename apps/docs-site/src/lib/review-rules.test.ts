@@ -17,6 +17,7 @@ import {
   reviewStatus,
   shipPolicy,
   summarizeApprovals,
+  studioVerdict,
   summarizeCi,
   type OverridePolicy,
   type ReviewLike,
@@ -125,7 +126,9 @@ describe('override reason and audit comment', () => {
     expect(overrideReasonProblem('', policy)).toMatch(/Write why/);
     expect(overrideReasonProblem('too short', policy)).toMatch(/at least 20 characters \(9 so far\)/);
     expect(overrideReasonProblem('Solo maintainer, CI green, reviewed the diff myself.', policy)).toBeNull();
-    expect(overrideReasonProblem('', { ...policy, requireReason: false })).toBeNull();
+    // GOVERNANCE.md: the reason is always required. requireReason: false no longer waives it.
+    expect(overrideReasonProblem('', { ...policy, requireReason: false })).toMatch(/Write why/);
+    expect(overrideReasonProblem('short', { ...policy, minReasonLength: 0 })).toMatch(/at least 20 characters/);
   });
 
   it('writes a stable comment that reads back', () => {
@@ -169,7 +172,7 @@ describe('pullState', () => {
   it('reads a merged pull request as Merged, even though GitHub reports it closed', () => {
     const merged = { state: 'closed', draft: false, merged_at: '2026-10-10T09:00:00Z' };
     expect(pullState(merged)).toBe('merged');
-    expect(PULL_STATE_PILL[pullState(merged)].label).toBe('Merged');
+    expect(PULL_STATE_PILL[pullState(merged)].label).toBe('Added to the library');
     expect(pullState({ state: 'closed', merged: true })).toBe('merged');
   });
 
@@ -214,7 +217,7 @@ describe('reviewStatus', () => {
 
   it('reads each state from real data', () => {
     expect(st().kind).toBe('ready');
-    expect(st().label).toBe('Ready to merge');
+    expect(st().label).toBe('Ready to add to the library');
     expect(st().tone).toBe('success');
     expect(st({ state: 'closed', merged_at: '2026-10-10T09:00:00Z' }).kind).toBe('merged');
     expect(st({ state: 'closed' }).kind).toBe('closed');
@@ -244,10 +247,11 @@ describe('reviewStatus', () => {
     expect(st({ state: 'closed', merged_at: '2026-10-10T09:00:00Z', draft: true }).kind).toBe('merged');
   });
 
-  it('says Checking while GitHub has not computed whether it merges cleanly', () => {
+  it('says Checking for conflicts while GitHub has not computed whether an approved branch merges cleanly', () => {
     expect(st({ mergeable: null }).kind).toBe('checking');
-    expect(st({ mergeable: null, approvals: none }).kind).toBe('checking');
-    expect(st({ mergeable: null }).label).toBe('Checking');
+    expect(st({ mergeable: null }).label).toBe('Checking for conflicts');
+    // A missing approval is missing either way: the list never says "Checking" where the page says who approves.
+    expect(st({ mergeable: null, approvals: none }).kind).toBe('needs-design');
     expect(st({ mergeable: null, ci: red }).kind).toBe('ci-failing');
     // Not read at all (undefined): no conflict known, the approvals decide.
     expect(st({ mergeable: undefined, approvals: none }).kind).toBe('needs-design');
@@ -261,6 +265,19 @@ describe('reviewStatus', () => {
     expect(st({ tier: 1, approvals: designOnly }).kind).toBe('ready');
     expect(st({ tier: 1, approvals: none }).kind).toBe('needs-approval');
     expect(st({ tier: 2, approvals: none }).kind).toBe('needs-design');
+  });
+
+  it('Tier 1 needs one owner, as GOVERNANCE.md and Settings say: an approval from someone else does not count', () => {
+    const team = { design: ['ann'], tech: ['theo'] };
+    const stranger = summarizeApprovals([{ user: { login: 'lea' }, state: 'APPROVED' }], team, 'sam');
+    const owner = summarizeApprovals([{ user: { login: 'theo' }, state: 'APPROVED' }], team, 'sam');
+    expect(stranger.owner).toBe(false);
+    expect(st({ tier: 1, approvals: stranger }).kind).toBe('needs-approval');
+    expect(mergeGate({ tier: 1, ci: green, approvals: stranger, draft: false, state: 'open' }).reasons).toEqual(['It needs one owner approval.']);
+    expect(st({ tier: 1, approvals: owner }).kind).toBe('ready');
+    // No owner set: any approval counts.
+    const open = summarizeApprovals([{ user: { login: 'lea' }, state: 'APPROVED' }], { design: [], tech: [] }, 'sam');
+    expect(st({ tier: 1, approvals: open }).kind).toBe('ready');
   });
 
   it('without configured owners, two approvers stand in for design and tech', () => {
@@ -365,5 +382,33 @@ describe('mergeGate ship right (governance.rights)', () => {
     const a = summarizeApprovals([{ user: { login: 'theo' }, state: 'APPROVED' }], lists, 'agent');
     expect(a.design).toBe(true);
     expect(approverLists(team, null)).toEqual(team);
+  });
+});
+
+describe('studioVerdict: a push from the Figma plugin (docs/BUILD-REQUESTS.md)', () => {
+  const site = { owners: { design: ['ann'], tech: ['theo'] }, rights: undefined, soloOwnerCanApproveBoth: false } as unknown as Parameters<typeof studioVerdict>[0]['site'];
+  const pull = { state: 'open', draft: false, labels: [{ name: 'source: figma' }], user: { login: 'sam' } };
+  const ci = summarizeCi([{ name: 'CI', status: 'completed', conclusion: 'success' }]);
+  it('ships token values after the checks, with nobody reviewing', () => {
+    const v = studioVerdict({ site, pull, tier: 3, ci, reviews: [], mergeable: true, figmaPush: { scope: 'token-values' } });
+    expect(v.status).toBe('ready');
+    expect(v.autoShip).toBe(true);
+  });
+  it('waits for the tech approval on a rename or removal', () => {
+    expect(studioVerdict({ site, pull, tier: 3, ci, reviews: [], mergeable: true, figmaPush: { scope: 'token-structure' } }).status).toBe('needs-tech');
+  });});
+
+describe('studioVerdict: a token value change from Studio that Bridge armed (TV-1)', () => {
+  const site = { owners: { design: ['ann'], tech: ['theo'] }, rights: undefined, soloOwnerCanApproveBoth: false } as unknown as Parameters<typeof studioVerdict>[0]['site'];
+  const ci = summarizeCi([{ name: 'CI', status: 'pending' as never, conclusion: null }]);
+  const pull = (armed: boolean) => ({ state: 'open', draft: false, labels: [{ name: 'source: studio' }], user: { login: 'sam' }, auto_merge: armed ? { merge_method: 'squash' } : null });
+  const ann = [{ user: { login: 'ann' }, state: 'APPROVED' }];
+  it('reads as on its way once the design approval is in and the merge is armed', () => {
+    expect(studioVerdict({ site, pull: pull(true), tier: 3, ci, reviews: ann, mergeable: true, tokenValues: true }).autoShip).toBe(true);
+  });
+  it('not before: no design approval, not armed, or more than values', () => {
+    expect(studioVerdict({ site, pull: pull(true), tier: 3, ci, reviews: [], mergeable: true, tokenValues: true }).autoShip).toBe(false);
+    expect(studioVerdict({ site, pull: pull(false), tier: 3, ci, reviews: ann, mergeable: true, tokenValues: true }).autoShip).toBe(false);
+    expect(studioVerdict({ site, pull: pull(true), tier: 3, ci, reviews: ann, mergeable: true, tokenValues: false }).autoShip).toBe(false);
   });
 });

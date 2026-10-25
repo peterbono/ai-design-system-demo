@@ -2,37 +2,57 @@
 // Studio Settings: one page for designers and design system owners. Each section is a band: on wide screens its
 // title and one sentence sit in a left column, its rows in a DS Card on the right, with every value close to its
 // label; the page stops at 1200px so nothing stretches across a wide monitor. In order:
-//   Account       the GitHub connection: a compact row once connected, the page's one Harbor zone (with a Field
-//                 Guide drawing and Connect GitHub) while Studio is read only.
-//   Review rules  who the design and tech owners are (people or GitHub teams, read from GitHub), who approves design,
-//                 who approves tech and who merges (edited in place, a review is requested on a branch that edits
-//                 bridge.config.json), what each kind of branch needs (plain rules from docs/GOVERNANCE.md, no tier
-//                 numbers) and the owner override as a fold.
+// It starts with the team, never the personal account (board D9): the account (name, email, sign out, delete) is the
+// Account dialog of the account menu, the GitHub connection the block at the foot of the side nav.
+//   General       the team's name (bridge.config.json `name`): an admin edits it, a review is requested on a branch;
+//                 everyone else reads it (components/ds/studio/TeamNameSetting.tsx).
+//   Members       who is in the team and what each person can do, with Invite collaborators for an admin
+//                 (components/ds/studio/MembersSection.tsx, boards I3 and I4; anchor #team kept for old links).
+//   Library access who reads the team's Library without a GitHub account, and its link to share
+//                 (components/ds/studio/LibraryAccessSection.tsx, api/library-access).
+//   How changes reach your code  suggestions (a GitHub issue developers apply) or pull requests Bridge opens, from
+//                 `changes` in bridge.config.json; what Bridge's GitHub App may do on the repo; the switch, sent for review
+//                 as a pull request (components/ds/studio/ChangesMode.tsx, scripts/roles.ts).
+//   Review rules  who the design and tech owners are (people or GitHub teams, read from GitHub), who checks the look,
+//                 who checks the code and who adds it to the library, in designer words and names (edited in place, a review is requested on a branch that edits
+//                 bridge.config.json), what each kind of change needs (plain rules from docs/GOVERNANCE.md, no tier
+//                 numbers), and that token values ship once the look is approved and the automatic checks pass (TV-1).
 //   Safety        protection of the library and when the visual before and after runs, each with its action.
-//   Figma and Claude, then Integrations (Jira). Settings speak designer words (lib/vocabulary): no developer section;
-//   a setting with GitHub machinery behind it carries one "How it works on GitHub" link, the library itself one
-//   "Open on GitHub" link on its Account line.
+//   Figma and Claude, then Integrations (Jira), then Appearance: light or dark, a preference of this browser,
+//   not a team rule (components/ds/studio/AppearanceSetting.tsx).
+//   Settings speak designer words (lib/vocabulary): no developer section; the repository, branch, file and keys behind
+//   a section sit in its "For developers" fold (components/ds/studio/SettingsParts.tsx DevFold).
 // The old Repository, Governance and Integrations pages redirect to these anchors (lib/redirects.ts); the anchors of
 // the former developer section (#developer, #tiers-and-modes, #mcp...) land on the section that now says it.
+import { escapeHtml, jsonForScript } from '../../../lib/html';
 import '../../../styles/settings.css';
 import '../../../styles/requests.css';
+import '../../../styles/onboarding.css';
 import Layout from '../../../layouts/Layout.astro';
 import StudioHeader from '../../../components/StudioHeader.astro';
 import ProtectionRow from '../../../components/ds/studio/ProtectionRow';
 import ChangeRules from '../../../components/ds/studio/ChangeRules';
-import SettingsAccount from '../../../components/ds/studio/SettingsAccount';
+import AppearanceSetting from '../../../components/ds/studio/AppearanceSetting';
 import { signInConfig } from '../../../lib/signin-config';
-import Illustration from '../../../components/Illustration.astro';
 import { Badge, Button, Card, CardBody, CardHeader, Input, Link, SegmentedControl } from '@bridge-ds/react';
+import { DevFold } from '../../../components/ds/studio/SettingsParts';
 import { siteRepo } from '../../../lib/config';
 import { GOVERNANCE_FILE, pluginListing, tierSummaries } from '../../../lib/governance';
 import { mcpTools } from '../../../lib/mcp';
 import { HOW_REVIEW_WORKS } from '../../../lib/nav';
-import { exists, GITHUB_URL, lastUpdated, readText } from '../../../lib/repo';
+import { exists, lastUpdated, readText } from '../../../lib/repo';
 import { VOCAB } from '../../../lib/vocabulary';
 import { CHOICE_LABEL, OWNER_GROUP_HELP, OWNER_GROUP_LABEL, roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL, type RightChoice } from '../../../lib/roles-view';
 import OwnersField from '../../../components/ds/studio/OwnersField';
-import { approvalRules, overrideText } from '../../../lib/settings-view';
+import { andList, approvalRules, changesInConfig, overrideRow, ANYONE_WHO_CODES, RIGHT_PLAIN, soloOwnerRow, teamPlain, TOKEN_VALUES_DEV, TOKEN_VALUES_PLAIN } from '../../../lib/settings-view';
+import { personName } from '../../../lib/people';
+import { overrideHolders, overrideReasonMin } from '@bridge-ds/core';
+import ChangesModeSetting from '../../../components/ds/studio/ChangesMode';
+import MembersSection from '../../../components/ds/studio/MembersSection';
+import LibraryAccessSection from '../../../components/ds/studio/LibraryAccessSection';
+import TeamNameSetting from '../../../components/ds/studio/TeamNameSetting';
+import { TEAM_NAME_WORDS } from '../../../lib/team-name';
+import '../../../styles/team-access.css';
 
 const r = siteRepo();
 const repoName = `${r.owner}/${r.repo}`;
@@ -49,15 +69,25 @@ try {
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const list = (xs: string[]) => (xs.length ? xs.join(', ') : 'none');
 
-// Review rules: who approves design, who approves tech, who merges. Safety: when the visual before and after runs.
+// Review rules in designer words, the same as the hosted team Settings (lib/settings-view.ts RIGHT_PLAIN): who checks
+// the look, who checks the code, who adds a change to the library. People by name, never an @handle: a person mark the
+// page paints with the profile name (scripts/people.ts paintPeople), a GitHub team as "the design team". The keys and
+// logins stay in the "For developers" fold. Safety: when the visual before and after runs.
 const roles = roleRows(r.owners, r.rights);
+const person = (login: string) => `<span data-person="${escapeHtml(login.replace(/^@/, '').toLowerCase())}">${escapeHtml(personName(login))}</span>`;
+const who = (entry: string) => (entry.includes('/') ? escapeHtml(teamPlain(entry.split('/').pop() ?? entry)) : person(entry));
+const holders = (logins: string[]) => andList([...new Set(logins)].map(who));
+const solo = soloOwnerRow(r, person);
+const override = overrideRow(r, person);
+const overrideLogins = overrideHolders(r.override, r.owners);
+const overrideMin = overrideReasonMin(r.override);
 const mode = r.visualImpact.mode;
 const choices = (['design', 'tech', 'both'] as RightChoice[]).map((c) => ({ value: c, label: CHOICE_LABEL[c] }));
-const rolesData = JSON.stringify({
+const rolesData = jsonForScript({
   prefix: config.governance?.branchPrefix ?? '',
   protectedBranches: config.governance?.protectedBranches ?? ['main', 'master'],
   owners: r.owners,
-}).replace(/</g, '\\u003c');
+});
 
 // Figma and Claude rows.
 const plugin = pluginListing(exists(pluginReadme) ? readText(pluginReadme) : '');
@@ -65,7 +95,6 @@ const tools = mcpTools().length;
 
 // Approvals: plain rules (no tier numbers). One source: docs/GOVERNANCE.md, the tiers themselves on How review works.
 const rules = approvalRules(tierSummaries());
-const override = overrideText(r.override);
 
 // Integrations: GitHub issues always; Jira when bridge.config.json says so (the bridge-jira workflow does the sync).
 const jira = r.integrations.jira;
@@ -76,44 +105,81 @@ const workflowFile = '.github/workflows/bridge-jira.yml';
 const workflowUrl = `${ghRepo}/blob/${r.defaultBranch}/${workflowFile}`;
 // How the Jira mirror works, for whoever adds the credentials: docs/REQUESTS.md on GitHub.
 const jiraHelpUrl = `${ghRepo}/blob/${r.defaultBranch}/docs/REQUESTS.md`;
-const intData = JSON.stringify({
+const intData = jsonForScript({
   prefix: config.governance?.branchPrefix ?? '',
   protectedBranches: config.governance?.protectedBranches ?? ['main', 'master'],
   workflowUrl,
   secretsUrl,
-}).replace(/</g, '\\u003c');
-const signIn = Boolean(signInConfig());
+});
+const changes = changesInConfig(config);
+const protectedBranches: string[] = config.governance?.protectedBranches ?? ['main', 'master'];
+const branchPrefix: string = config.governance?.branchPrefix ?? '';
+const entries = (xs: string[]) => (xs.length ? xs.map((x) => (x.includes('/') ? x : `@${x.replace(/^@/, '')}`)).join(', ') : 'none');
 ---
 
-<Layout title="Settings" description="Your GitHub connection, who approves what, how the library stays safe, and the tools that work on it." sources={sources} updated={lastUpdated(sources)} wide>
+<Layout title="Settings" description="Your team: its name, its people, how changes reach your code, who checks them, and the tools that work on it." sources={sources} updated={lastUpdated(sources)} wide>
   <div class="set-page">
     <StudioHeader title="Settings" />
 
-    <section class="set-band" id="connection" aria-labelledby="set-account">
+    <section class="set-band" id="general" aria-labelledby="set-general">
       <div class="set-band-intro">
-        <h2 id="set-account" class="set-h">Account</h2>
-        <p class="set-intro">{signIn ? 'Studio acts on GitHub as you, once you sign in. Your sign-in stays in this browser.' : 'Studio acts on GitHub with your own token. It stays in this browser.'}</p>
+        <h2 id="set-general" class="set-h">{TEAM_NAME_WORDS.generalTitle}</h2>
+        <p class="set-intro">{TEAM_NAME_WORDS.generalIntro}</p>
       </div>
       <div class="set-band-body">
-        <SettingsAccount client:load repo={repoName} signIn={signIn}>
-          <Illustration name="review" width={132} />
-        </SettingsAccount>
-        <p class="set-library" id="repository">
-          <span>Library <span class="mono">{repoName}</span>, branch <span class="mono">{r.defaultBranch}</span></span>
-          <Link href={GITHUB_URL} external>{VOCAB.openOnGitHub}</Link>
-        </p>
+        <TeamNameSetting client:only="react" prefix={config.governance?.branchPrefix ?? ''} protectedBranches={config.governance?.protectedBranches ?? ['main', 'master']} />
+      </div>
+    </section>
+
+    <section class="set-band" id="team" aria-labelledby="set-members" data-full>
+      <MembersSection client:only="react" />
+    </section>
+
+    <section class="set-band" id="library-access" aria-labelledby="set-library-access">
+      <LibraryAccessSection client:only="react" />
+    </section>
+
+    <section class="set-band" id="changes" aria-labelledby="set-changes">
+      <div class="set-band-intro">
+        <h2 id="set-changes" class="set-h">How changes reach your code</h2>
+        <p class="set-intro">What happens once your team keeps a change.</p>
+      </div>
+      <div class="set-band-body">
+        <ChangesModeSetting
+          client:load
+          set={changes}
+          repo={repoName}
+          prefix={config.governance?.branchPrefix ?? ''}
+          protectedBranches={config.governance?.protectedBranches ?? ['main', 'master']}
+          suggestApp={signInConfig()?.suggestApp ?? null}
+        />
+        <Card id="repository">
+          <CardBody>
+            <DevFold
+              facts={[
+                { term: 'Repository', value: repoName, code: true },
+                { term: 'Default branch', value: r.defaultBranch, code: true },
+                { term: 'Tokens', value: r.tokensRoot, code: true },
+                { term: 'Mode', value: changes ? `"changes": "${changes}"` : 'not set: suggestions', code: true },
+                { term: 'Set in', value: file, code: true },
+              ]}
+            >
+              <p><Link href={ghRepo} external>{VOCAB.openOnGitHub}</Link></p>
+            </DevFold>
+          </CardBody>
+        </Card>
       </div>
     </section>
 
     <section class="set-band" id="roles" aria-labelledby="set-rules">
       <div class="set-band-intro">
         <h2 id="set-rules" class="set-h">Review rules</h2>
-        <p class="set-intro">Who approves a branch before it is merged into main, and what each kind of branch needs. <Link href={HOW_REVIEW_WORKS}>How review works</Link></p>
+        <p class="set-intro">Who checks a change before it reaches the library your products use, and what each kind of change needs. <Link href={HOW_REVIEW_WORKS}>How review works</Link></p>
       </div>
       <div class="set-band-body">
-        <Card aria-labelledby="set-roles-title">
+        <Card>
           <CardHeader>
-            <h3 id="set-roles-title" class="set-card-title">Who approves and merges</h3>
+            <h3 id="set-roles-title" class="set-card-title">Who checks a change</h3>
             <Button variant="secondary" data-density="compact" data-roles-edit aria-controls="set-roles-form" data-gh-gate="edit the roles">Edit</Button>
           </CardHeader>
           <CardBody>
@@ -139,17 +205,53 @@ const signIn = Boolean(signInConfig());
                     <div class="set-row">
                       <div>
                         <p class="set-row-label" id={`set-role-${x.right}`}>
-                          {x.label}
+                          {RIGHT_PLAIN[x.right].label}
                         </p>
-                        <p class="set-row-help">{x.help}</p>
+                        <p class="set-row-help">{RIGHT_PLAIN[x.right].help}</p>
                       </div>
                       <div class="set-row-value">
-                        <p class="set-who" data-view>{x.who}</p>
+                        {x.choice === null ? <p class="set-who" data-view>{ANYONE_WHO_CODES}</p> : x.logins.length ? <p class="set-who" data-view set:html={holders(x.logins)} /> : <p class="set-who" data-view>{x.who}</p>}
                         <SegmentedControl data-edit aria-labelledby={`set-role-${x.right}`} data-vanilla data-right={x.right} data-initial={x.choice ?? ''} defaultValue={x.choice ?? undefined} items={choices} />
                       </div>
                     </div>
                   ))
                 }
+                {
+                  solo && (
+                    <div class="set-row" data-view>
+                      <div>
+                        <p class="set-row-label">{solo.label}</p>
+                        <p class="set-row-help">{solo.help}</p>
+                      </div>
+                      <div class="set-row-value">
+                        <p class="set-who" set:html={solo.value} />
+                      </div>
+                    </div>
+                  )
+                }
+                {
+                  override && (
+                    <div class="set-row" data-view>
+                      <div>
+                        <p class="set-row-label">{override.label}</p>
+                        <p class="set-row-help">{override.help}</p>
+                      </div>
+                      <div class="set-row-value">
+                        <p class="set-who" set:html={override.value} />
+                      </div>
+                    </div>
+                  )
+                }
+                <div class="set-row" data-view>
+                  <div>
+                    <p class="set-row-label">{TOKEN_VALUES_PLAIN.label}</p>
+                    <p class="set-row-help">{TOKEN_VALUES_PLAIN.help}</p>
+                  </div>
+                  <div class="set-row-value">
+                    <p class="set-who">{TOKEN_VALUES_PLAIN.title}</p>
+                    <p class="set-row-help">{TOKEN_VALUES_PLAIN.text}</p>
+                  </div>
+                </div>
               </div>
               <div class="set-savebar" data-edit>
                 <div class="rq-actions">
@@ -164,15 +266,33 @@ const signIn = Boolean(signInConfig());
           </CardBody>
         </Card>
         <div id="approvals">
-          <ChangeRules client:visible rules={rules.map((x) => ({ what: x.what, who: cap(x.who) }))} override={override} />
+          <ChangeRules client:visible rules={rules.map((x) => ({ what: x.what, who: cap(x.who) }))} />
         </div>
+        <Card>
+          <CardBody>
+            <DevFold
+              facts={[
+                { term: 'Design owners', value: entries(r.owners.design), code: true },
+                { term: 'Tech owners', value: entries(r.owners.tech), code: true },
+                ...roles.map((x) => ({ term: `governance.rights.${x.right}`, value: x.choice === null ? 'not set: anyone with write access merges' : x.choice === 'both' ? 'design, tech' : x.choice, code: true })),
+                ...(overrideLogins.length ? [{ term: 'Owner override', value: `${entries(overrideLogins)}, reason of ${overrideMin}+ characters, posted on the pull request`, code: true }] : []),
+                { term: 'Token values', value: TOKEN_VALUES_DEV },
+                { term: 'Protected branches', value: protectedBranches.join(', ') || 'none', code: true },
+                { term: 'Branch prefix', value: branchPrefix || 'none', code: true },
+                { term: 'Set in', value: `${file}, governance; ${GOVERNANCE_FILE}`, code: true },
+              ]}
+            >
+              <p>Bridge counts approvals on GitHub reviews. A ruleset or branch protection on {r.defaultBranch} keeps unreviewed pull requests out.</p>
+            </DevFold>
+          </CardBody>
+        </Card>
       </div>
     </section>
 
     <section class="set-band" id="safety" aria-labelledby="set-safety">
       <div class="set-band-intro">
         <h2 id="set-safety" class="set-h">Safety</h2>
-        <p class="set-intro">What keeps unreviewed branches out of main, and when the visual before and after runs.</p>
+        <p class="set-intro">What keeps unchecked changes out of the library, and when Bridge shows a change before and after.</p>
       </div>
       <div class="set-band-body">
         <Card>
@@ -221,7 +341,7 @@ const signIn = Boolean(signInConfig());
     <section class="set-band" id="tools" aria-labelledby="set-tools">
       <div class="set-band-intro">
         <h2 id="set-tools" class="set-h">Figma and Claude</h2>
-        <p class="set-intro">Work on the library from Figma or from your own Claude. Both create a branch and request a review.</p>
+        <p class="set-intro">Work on the library from Figma or from your own Claude.</p>
       </div>
       <div class="set-band-body">
         <Card>
@@ -229,7 +349,7 @@ const signIn = Boolean(signInConfig());
             <div class="set-rows">
               <div class="set-row">
                 <p class="set-row-label">Figma plugin</p>
-                <p class="set-row-value">Brings tokens into Figma Variables, and requests a review of your variable edits.</p>
+                <p class="set-row-value">Brings tokens into Figma Variables and pushes your edits back. New token values reach the library after the automatic checks, new components go to developers to build.</p>
                 <p class="set-row-action">
                   {
                     plugin.url ? (
@@ -245,7 +365,7 @@ const signIn = Boolean(signInConfig());
               </div>
               <div class="set-row" id="claude">
                 <p class="set-row-label">Your own Claude</p>
-                <p class="set-row-value">Gives your Claude {tools} tools on this design system. It creates branches and requests reviews, it never merges on its own.</p>
+                <p class="set-row-value">Gives your Claude {tools} tools on this design system. Claude drafts a change and sends it for review: nothing reaches the library until a person approves it.</p>
                 <p class="set-row-action"><Link href="/agents/#claude-code">Set it up</Link></p>
               </div>
             </div>
@@ -304,13 +424,22 @@ const signIn = Boolean(signInConfig());
                 <p class="rq-error" role="alert" data-int-error hidden></p>
                 <div class="rq-actions">
                   <Button variant="secondary" type="submit" data-int-submit data-gh-gate="propose integrations">{VOCAB.requestReview}</Button>
-                  <span class="set-muted">Nothing changes until the branch is merged. A repository admin then adds the Jira credentials once. <Link href={jiraHelpUrl} external>{VOCAB.howOnGitHub}</Link></span>
+                  <span class="set-muted">Nothing changes until it is added to the library. A repository admin then adds the Jira credentials once. <Link href={jiraHelpUrl} external>{VOCAB.howOnGitHub}</Link></span>
                 </div>
                 <div class="rq-done" role="status" data-int-done hidden></div>
               </form>
             </details>
           </CardBody>
         </Card>
+      </div>
+    </section>
+    <section class="set-band" id="appearance" aria-labelledby="set-appearance">
+      <div class="set-band-intro">
+        <h2 id="set-appearance" class="set-h">Appearance</h2>
+        <p class="set-intro">How Bridge looks for you, only in this browser. It changes nothing for your team.</p>
+      </div>
+      <div class="set-band-body">
+        <AppearanceSetting client:load />
       </div>
     </section>
   </div>
@@ -321,6 +450,7 @@ const signIn = Boolean(signInConfig());
     // Anchors of the former developer section land on the section that now says the same thing.
     const MOVED: Record<string, string> = {
       developer: 'repository',
+      connection: 'general',
       'for-developers': 'repository',
       'tiers-and-modes': 'approvals',
       'owners-and-previews': 'safety',
@@ -337,7 +467,10 @@ const signIn = Boolean(signInConfig());
   </script>
   <script>
     import { initRoles } from '../../../scripts/roles';
+    import { paintPeople } from '../../../scripts/people';
     initRoles();
+    // The owners in Review rules go by their profile names, like the hosted team Settings.
+    void paintPeople(document.getElementById('roles') ?? document);
   </script>
   <script>
     import { initIntegrations } from '../../../scripts/integrations';

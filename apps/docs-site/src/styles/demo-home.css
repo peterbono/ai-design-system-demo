@@ -1,0 +1,95 @@
+/* The demo for a visitor (boards D1, D1b, D2): the demo banner (DemoBanner.tsx), the tour of the home
+   (DemoHome.tsx) and the write-action dialog (MakeItYours.tsx). The home itself is the signed-in home
+   (studio-home.css); only what is new lives here. */
+
+/* --- The banner: a full-width strip under the app header, on every Studio page and the team Library ------------ */
+
+.demo-strip > .demo-banner {
+  border-inline: 0;
+  border-radius: 0;
+}
+
+.demo-banner-text {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+}
+
+/* On the sample team the banner holds the one call to action: the side nav's own sign-in would be a second one. */
+:root[data-demo-visit] [data-gh-acct][data-state='readonly'] {
+  display: none;
+}
+
+/* The demo banner (boards D1, EmptyA2): the board's warm tint, from the warning tones so its
+   text pair is one the contrast gate checks (warning text on its tint). It says "this is not your work", not alarm:
+   the icon stays the neutral info mark. */
+.demo-banner.demo-banner-sample {
+  --_bg: var(--color-feedback-warning-bg);
+  --_border: var(--color-feedback-warning-border);
+}
+
+.demo-banner-sample .demo-banner-text {
+  color: var(--color-feedback-warning-text);
+}
+
+/* --- The tour: a DS Popover anchored under what each step points at, in the flow on a phone ----------------------- */
+
+/* The anchor: a line across the bottom of what the step points at, no height of its own. */
+.dh-tour-anchor {
+  display: block;
+  height: 0;
+  /* Takes no room: cancels the gap the zone puts before it. */
+  margin-block-start: calc(var(--space-5) * -1);
+  margin-inline-start: var(--space-6);
+  pointer-events: none;
+}
+
+/* Room under the last anchor of the page, so the step can float below it (HomeTour.tsx TOUR_ROOM). */
+.dh-tour-room {
+  display: block;
+  block-size: var(--size-60);
+}
+
+.dh-tour {
+  /* Never wider than the screen less the popover's collision padding on each side (no sideways scroll on a phone). */
+  max-width: min(var(--size-96), calc(100vw - var(--size-4)));
+}
+
+/* On a narrow screen the step sits in the page flow, where the anchor would be (HomeTour.tsx InlineStep): a DS Card
+   that moves what follows down instead of floating over it. */
+.dh-tour-inline-body {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.dh-tour-title {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--font-line-height-snug);
+}
+
+.dh-tour-text {
+  margin: 0;
+}
+
+.dh-tour-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-block-start: var(--space-3);
+}
+
+.dh-tour-actions {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+/* --- The write-action dialog (board D2): its title in the display face --------------------------------------- */
+
+.miy-title {
+  font-family: var(--typography-h2-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--typography-h2-weight);
+  line-height: var(--typography-h2-line-height);
+}

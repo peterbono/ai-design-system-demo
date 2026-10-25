@@ -1,26 +1,34 @@
 // What the Studio home and the review queue read from GitHub, in one place, so both show the same rows. Reads the
-// open branches once, their statuses (scripts/pr-status, the same rules as the change detail), then for the rows that
+// open branches once, the suggestions that wait on the viewer (scripts/suggestions.ts, the same list the nav badge
+// counts), their statuses (scripts/pr-status, the same rules as the change detail), then for the rows that
 // wait on the viewer who asked and since when (the timeline), the display names (GET /users), and for what is shown
 // the before/after (the token diff, else the visual impact run). Paints progressively through `onUpdate`. The rules
-// are pure in lib/home-model.ts and lib/branch-thumb.ts.
-import { currentViewer, ghGet, hasWorkingToken, readRepo, RateLimitError } from './github-session';
-import { loadStatuses, owners, type PullStatus } from './pr-status';
+// are pure in lib/home-model.ts and lib/branch-thumb.ts. Admins of a real team on the hosted site also get the people
+// asking to join it (board E7b, GET /api/entry?requests=), first in the list.
+import { requesterOf } from '@bridge-ds/core';
+import { currentAccess, currentContributor, currentViewer, ghGet, hasWorkingToken, readRepo, RateLimitError, resolveAccess } from './github-session';
+import { loadStatuses, owners, rowWho, shippers, type PullStatus } from './pr-status';
 import { loadTeams } from './teams';
-import { siteOwners, todoChange, type QueuePullFull } from './needs-you';
+import { loadOwnSuggestions, loadSuggestionNeeds } from './suggestions';
+import { todoChange, viewerRole, type QueuePullFull } from './needs-you';
 import { reviewQueue } from '../lib/review-queue';
-import { byUrgency } from '../lib/changes';
-import { blockerOf, overviewTodo } from '../lib/overview-todo';
+import { isDraft } from '../lib/review-rules';
+import { byUrgency, statusPill } from '../lib/changes';
+import { isReviewTask, waitingOn } from '../lib/waiting-on';
 import { analyzeTokenFiles, isTokenFile } from './reviews/token-review';
+import type { ChangedFile } from '../lib/blob-batch';
 import { manifestPublished } from './reviews/visual-impact';
 import { visualBase, visualState, type VisualManifest } from '../lib/visual-impact';
 import { branchThumb, type ThumbInput, type ThumbSpec } from '../lib/branch-thumb';
 import {
   CLAUDE,
   changeNeed,
+  joinNeed,
   contrastNeed,
   guidanceNeed,
   isOnlyReviewer,
   person,
+  requesterPerson,
   sortNeeds,
   waitingSince,
   type BranchCard,
@@ -29,6 +37,9 @@ import {
   type Person,
   type TimelineEvent,
 } from '../lib/home-model';
+import { isHosted, studioHref } from '../lib/team-path';
+import { busyText } from '../lib/team-load';
+import { isDemoRepo } from '../lib/demo';
 
 export interface HomePull extends QueuePullFull {
   html_url: string;
@@ -57,6 +68,11 @@ export interface HomeData {
   branches: BranchCard[];
   /** Review decisions among the needs, for the Branches nav badge. */
   decisions: number;
+  /**
+   * The viewer holds a review right (home-model holdsReviewRight). Without one, the needs are only what waits on them
+   * (their branches sent back with changes), never the review queue, and the home tells them how their work moves.
+   */
+  reviewer: boolean;
 }
 
 const theme = (): 'light' | 'dark' => (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
@@ -97,20 +113,25 @@ async function visualTop(n: number, sha: string): Promise<ThumbInput['visual']> 
   }
 }
 
-const fileLists = new Map<string, Promise<string[] | null>>();
+const fileLists = new Map<string, Promise<ChangedFile[] | null>>();
 
-/** The files a branch changes (first 100), read once per head commit; null when GitHub cannot be read. */
-export function filesOf(n: number, sha: string): Promise<string[] | null> {
+/** The files a branch changes (first 100) as GitHub lists them, with their blob shas, read once per head commit. */
+function changedFilesOf(n: number, sha: string): Promise<ChangedFile[] | null> {
   const key = `${n}@${sha}`;
   let f = fileLists.get(key);
   if (!f) {
     const { owner, repo } = readRepo();
-    f = ghGet<{ filename: string }[]>(`/repos/${owner}/${repo}/pulls/${n}/files?per_page=100`)
-      .then((r) => r.data.map((x) => x.filename))
+    f = ghGet<ChangedFile[]>(`/repos/${owner}/${repo}/pulls/${n}/files?per_page=100`)
+      .then((r) => r.data)
       .catch(() => null);
     fileLists.set(key, f);
   }
   return f;
+}
+
+/** The files a branch changes (first 100), read once per head commit; null when GitHub cannot be read. */
+export function filesOf(n: number, sha: string): Promise<string[] | null> {
+  return changedFilesOf(n, sha).then((list) => list?.map((x) => x.filename) ?? null);
 }
 
 /** The before/after of a branch, read once per head commit. */
@@ -120,11 +141,13 @@ export function thumbOf(p: Pick<HomePull, 'number' | 'head' | 'base'>, guidance:
   if (!t) {
     const { owner, repo } = readRepo();
     t = (async () => {
-      const files = await filesOf(p.number, p.head.sha);
-      if (!files) return branchThumb({ guidance });
+      const changed = await changedFilesOf(p.number, p.head.sha);
+      if (!changed) return branchThumb({ guidance });
+      const files = changed.map((x) => x.filename);
       const tokenFiles = files.filter(isTokenFile);
       if (tokenFiles.length) {
-        const review = await analyzeTokenFiles({ owner, repo, baseSha: p.base.sha, headSha: p.head.sha, files: tokenFiles.map((filename) => ({ filename })) }).catch(() => null);
+        // The change's own file list stands for its head (no head tree read), and every card's blobs share one batch.
+        const review = await analyzeTokenFiles({ owner, repo, baseSha: p.base.sha, headSha: p.head.sha, files: tokenFiles.map((filename) => ({ filename })), changed }).catch(() => null);
         return branchThumb({ files, tokens: review?.changes ?? null, guidance, theme: theme() });
       }
       const visual = files.some((f) => f.startsWith('packages/react/src/')) ? await visualTop(p.number, p.head.sha) : null;
@@ -153,33 +176,91 @@ interface Classified {
 }
 
 /**
- * Loads everything, painting as it goes. Signed out (or no working token) it reads nothing: the page asks to sign in.
+ * The people asking to join the team, for its admins only (the server checks it again): none on the demo, on a
+ * self-hosted site, or when the account cannot manage requests (no GitHub admin linked).
  */
-export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void): Promise<void> {
+export async function loadJoinNeeds(now: number): Promise<NeedRow[]> {
+  const { owner, repo } = readRepo();
+  const full = `${owner}/${repo}`;
+  if (!isHosted() || isDemoRepo(full)) return [];
+  // The access may still be on its way (an email admin's is known without GitHub): wait for it, never fail on it.
+  const a = currentAccess() ?? (await resolveAccess({ owner, repo }, { anonymous: true }).catch(() => null));
+  if (!a?.admin && !a?.repoAdmin) return [];
+  try {
+    // Join requests are Bridge's own: a GitHub admin without a Bridge account has none to read (the server would
+    // answer 401). The account is read once a page, so asking costs nothing more.
+    const { getAccount } = await import('./account-session');
+    if (!(await getAccount()).account) return [];
+    const { listJoinRequests } = await import('./entry-session');
+    const { teamNameSoon } = await import('./members');
+    const [rows, team] = await Promise.all([listJoinRequests(full), teamNameSoon(full)]);
+    return rows.map((r) => joinNeed(r, team, now));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Loads everything, painting as it goes. Signed out (or no working token) it reads nothing: the page asks to sign in.
+ * `stat` is read on every paint: a team page passes a getter, so the repo facts (contrast, guidance drafts) fill in
+ * when its design system is read, without reading GitHub again (`onRepaint` hands back the way to repaint). Join
+ * requests are Bridge's own (api/entry): they paint as soon as they are read, whatever GitHub does.
+ */
+export async function loadHome(stat: HomeStatic | (() => HomeStatic), onUpdate: (d: HomeData) => void, onRepaint?: (repaint: () => void) => void): Promise<void> {
+  const facts = typeof stat === 'function' ? stat : () => stat;
   const viewer = currentViewer()?.login ?? null;
   const now = Date.now();
-  const staticNeeds = (): NeedRow[] => [...(contrastNeed(stat.contrastFail) ? [contrastNeed(stat.contrastFail)!] : []), ...stat.guidance.map((g) => guidanceNeed(g, now))];
-  const empty: HomeData = { viewer, loading: true, settled: false, failed: null, needs: [], branches: [], decisions: 0 };
+  // An email contributor is known at once; a GitHub account once the owner teams are read (below). The same role as
+  // the nav badge and Branches (needs-you viewerRole).
+  const rightNow = () => viewerRole() === 'reviewer';
+  let reviewer = rightNow();
+  // People asking to join: admins only, read next to the branches.
+  let joins: NeedRow[] = [];
+  // Library checks and guidance drafts wait on the reviewers, not on someone who cannot approve them.
+  const staticNeeds = (): NeedRow[] => {
+    const f = facts();
+    return [...joins, ...(reviewer ? [...(contrastNeed(f.contrastFail) ? [contrastNeed(f.contrastFail)!] : []), ...f.guidance.map((g) => guidanceNeed(g, now))] : [])];
+  };
+  const empty: HomeData = { viewer, loading: true, settled: false, failed: null, needs: [], branches: [], decisions: 0, reviewer };
   if (!viewer || !hasWorkingToken()) {
     onUpdate({ ...empty, loading: false, settled: true });
     return;
   }
-  onUpdate({ ...empty, needs: sortNeeds(staticNeeds()) });
+  // What is on screen now, so a join request or the repo facts landing repaint the same state: still reading the
+  // branches, GitHub failed (the requests stay), or the full home (paint, below).
+  let failed: string | null = null;
+  let repaint = () => (failed === null ? onUpdate({ ...empty, needs: sortNeeds(staticNeeds()) }) : onUpdate({ ...empty, loading: false, settled: true, needs: sortNeeds(staticNeeds()), reviewer, failed }));
+  onRepaint?.(() => repaint());
+  repaint();
+  const joinsRead = loadJoinNeeds(now)
+    .catch(() => [] as NeedRow[])
+    .then((rows) => {
+      joins = rows;
+      if (rows.length) repaint();
+    });
   const { owner, repo } = readRepo();
   let pulls: HomePull[];
   try {
     pulls = (await ghGet<HomePull[]>(`/repos/${owner}/${repo}/pulls?state=open&per_page=100`)).data;
   } catch (err) {
-    onUpdate({
-      ...empty,
-      loading: false,
-      settled: true,
-      needs: sortNeeds(staticNeeds()),
-      failed: err instanceof RateLimitError ? 'GitHub is busy right now. Your branches come back in a few minutes.' : 'GitHub could not be reached. Reload the page to try again.',
-    });
+    failed = err instanceof RateLimitError ? busyText(err.resetAt ? (err.resetAt.getTime() - Date.now()) / 1000 : null) : 'GitHub could not be reached. Reload the page to try again.';
+    repaint();
     return;
   }
   await loadTeams();
+  reviewer = rightNow();
+  // Suggestions wait next to branches: read in parallel, painted when they land.
+  let suggestions: NeedRow[] = [];
+  const suggestionsRead = loadSuggestionNeeds(personOf)
+    .then((rows) => (suggestions = rows))
+    .catch(() => (suggestions = []));
+  // The viewer's own open suggestions sit with their branches: they wait on the reviewers, calmly. An email member's
+  // are filed by Bridge for them (the server's list says which).
+  let ownSuggestions: BranchCard[] = [];
+  const ownSuggestionsRead = (async () => {
+    const mine = currentContributor() ? await import('./contribute-session').then((m) => m.contributeMine(`${owner}/${repo}`)).catch(() => null) : null;
+    ownSuggestions = await loadOwnSuggestions(viewer, mine);
+  })().catch(() => undefined);
   const queue = reviewQueue(pulls);
   const statuses = new Map<number, PullStatus | null>(queue.map((p) => [p.number, null]));
   const timelines = new Map<number, TimelineEvent[] | null>();
@@ -195,22 +276,19 @@ export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void
       const p = byNum.get(u.number)!;
       return { pull: p, c: todoChange(p, statuses.get(p.number)) };
     });
-    const todo = overviewTodo({ changes: changes.map((x) => x.c), requests: [], viewer, owners: siteOwners(), loading });
-    const mine = new Map(todo.mine.map((r) => [r.key, r]));
-    const design = owners().design;
-    return changes.map(({ pull, c }) => {
-      const row = mine.get(`change-${pull.number}`);
-      const author = same(pull.user.login, viewer);
+    // Who acts now, by the one rule of every "waiting on me" surface (lib/waiting-on.ts).
+    const role = reviewer ? 'reviewer' : 'contributor';
+    const { design, tech } = owners();
+    return changes.map(({ pull, c }): Classified => {
       const requested = (pull.requested_reviewers ?? []).map((r) => r.login);
       const base = { pull, agent: Boolean(c.agent), guidance: Boolean(c.guidance), onlyReviewer: false, task: null as ChangeFacts['task'] | null };
-      const only = isOnlyReviewer({ eligible: design, requested, author: pull.user.login, viewer });
-      if (!c.who || c.nature === 'developer') return base;
-      if (!author && row && (row.task === 'design' || row.task === 'ship' || row.task === 'guidance')) return { ...base, task: row.task, onlyReviewer: only };
-      if (author && row?.task === 'ship') return { ...base, task: 'own-ship' };
-      if (author && c.who.action === 'address-changes') return { ...base, task: 'own-changes', changesBy: c.changesBy ?? [] };
-      if (author && (c.who.action === 'fix-checks' || c.who.action === 'resolve-conflict')) return { ...base, task: 'own-blocked', blocker: blockerOf(c, c.who, viewer)?.what };
-      if (!author && !pull.draft && requested.some((l) => same(l, viewer))) return { ...base, task: 'requested', onlyReviewer: only };
-      return base;
+      const task = waitingOn(
+        { author: pull.user.login, draft: pull.draft, labels: pull.labels, nature: c.nature, guidance: c.guidance, lifecycle: c.lifecycle, who: c.who, requested, changesRequested: c.changesBy, autoShip: c.autoShip },
+        { login: viewer, role },
+      );
+      if (!task) return base;
+      if (task === 'own-changes') return { ...base, task, changesBy: c.changesBy ?? [] };
+      return { ...base, task, onlyReviewer: isReviewTask(task) && isOnlyReviewer({ eligible: task === 'tech' ? tech : design, requested, author: pull.user.login, viewer }) };
     });
   };
 
@@ -225,7 +303,11 @@ export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void
       const tl = timelines.get(p.number);
       const w = x.task.startsWith('own') ? null : waitingSince(tl, p, viewer);
       const authorP = x.agent ? CLAUDE : pick(p.user.login)!;
-      const askerP = !w || same(w.asker, p.user.login) ? authorP : pick(w.asker)!;
+      // Who asked, as Bridge recorded it in the body ("Requested by Ann Leroy."), before the GitHub author: the
+      // account that opened it is often an agent or a lead acting for someone.
+      const requested = requesterOf(p.body);
+      const requesterP = requested ? requesterPerson(requested, (l) => pick(l)!) : null;
+      const askerP = !w || same(w.asker, p.user.login) ? (requesterP ?? authorP) : pick(w.asker)!;
       const facts: ChangeFacts = {
         number: p.number,
         title: todoChange(p, statuses.get(p.number)).title,
@@ -246,17 +328,27 @@ export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void
       .map((p) => {
         const st = statuses.get(p.number);
         const c = todoChange(p, st);
-        const stage = c.lifecycle === 'waiting' ? 'waiting' : p.draft || c.lifecycle === 'draft' ? 'draft' : 'ready';
-        return { number: p.number, title: c.title, href: `/studio/changes/?pr=${p.number}`, stage, updated: p.updated_at, reviewer: pick(reviewerLogin(p, st)), thumb: resolved.get(p.number) ?? { kind: 'icon', icon: 'branch' } };
+        const stage = c.lifecycle === 'waiting' ? 'waiting' : isDraft(p) || c.lifecycle === 'draft' ? 'draft' : 'ready';
+        // The same pill as the branch's row in Branches and its page header (lib/changes statusPill).
+        const status = st && stage === 'ready' ? statusPill(st.kind, rowWho(st.kind, { author: p.user.login, labels: p.labels, approvers: st.approvers, changesRequested: st.changesRequested, lookAgain: st.lookAgain, failing: st.failing, failingChecks: st.failingChecks, pending: st.pending, autoShip: st.autoShip })).label : null;
+        return { number: p.number, title: c.title, href: studioHref(`changes/?pr=${p.number}`), stage, updated: p.updated_at, reviewer: pick(reviewerLogin(p, st)), thumb: resolved.get(p.number) ?? { kind: 'icon', icon: 'branch' }, status };
       });
+    // Suggestions wait on their reviewers only.
+    if (reviewer) needs.push(...suggestions);
     const sorted = sortNeeds(needs);
-    onUpdate({ viewer, loading, settled, failed: null, needs: sorted, branches, decisions: sorted.filter((r) => r.kind === 'review').length });
+    onUpdate({ viewer, loading, settled, failed: null, needs: sorted, branches: [...branches, ...ownSuggestions], decisions: sorted.filter((r) => r.kind === 'review').length, reviewer });
   };
 
+  repaint = paint;
   paint();
-  await loadStatuses(queue, (p, st) => {
-    statuses.set(p.number, st);
-  });
+  await Promise.all([
+    loadStatuses(queue, (p, st) => {
+      statuses.set(p.number, st);
+    }),
+    suggestionsRead,
+    joinsRead,
+    ownSuggestionsRead,
+  ]);
   loading = false;
   paint();
 
@@ -274,6 +366,8 @@ export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void
   for (const x of cls) {
     if (!x.task && !same(x.pull.user.login, viewer)) continue;
     logins.add(x.pull.user.login);
+    const req = requesterOf(x.pull.body)?.login;
+    if (req) logins.add(req);
     for (const l of x.changesBy ?? []) logins.add(l);
     const r = reviewerLogin(x.pull, statuses.get(x.pull.number));
     if (r) logins.add(r);

@@ -2,9 +2,10 @@
 // the Figma plugin's "Add to open pull request" does. Pure rules and words, tested in continue-change.test.ts; the
 // browser side (reading changes, the 3-way check, the commit on top of the change) lives in scripts/token-editor.ts.
 // Designer words only on screen: a change, sent for review, edits. Branch, commit and pull request stay in code.
-import { changeKind, changesetBump, composeChangeset, threeWayDiff, type AcceptedChange, type ChangesetOptions, type TokenSet } from '@bridge-ds/core';
+import { addedComment as coreAddedComment, canAddTo, changeKind, changesetBump, composeChangeset, threeWayDiff, type AcceptedChange, type ChangesetOptions, type TokenSet } from '@bridge-ds/core';
 import type { Draft } from './editor-model';
 import { withoutJiraKey } from './vocabulary';
+import { studioHref } from './team-path';
 
 /** The fields of a GitHub pull request these rules read (REST shape). */
 export interface ChangePullLike {
@@ -52,13 +53,10 @@ export function isTokenChange(p: ChangePullLike, repoFullName: string): boolean 
   return !from || from.toLowerCase() === repoFullName.toLowerCase();
 }
 
-const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && a.toLowerCase() === b.toLowerCase());
+// Who may add edits to a branch: one rule with the MCP server and the CLI (@bridge-ds/core branch-actions).
+export { canAddTo };
 
-/** Only the author or someone with write access to the repository adds to a change. */
-export function canAddTo(p: ChangePullLike, viewer: string | null | undefined, write: boolean): boolean {
-  if (!viewer) return false;
-  return write || same(p.user?.login, viewer);
-}
+const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && a.toLowerCase() === b.toLowerCase());
 
 /** The changes the viewer can add token edits to: theirs first, then the most recently updated. */
 export function addableChanges(pulls: ChangePullLike[], ctx: { repo: string; viewer: string | null | undefined; write: boolean }): ChangeTarget[] {
@@ -120,9 +118,9 @@ export function targetOptions(targets: ChangeTarget[], ago: (iso: string) => str
     ...shown.map((t) => ({
       value: targetValue({ kind: 'change', number: t.number }),
       label: `Add to ${t.title}`,
-      description: [t.mine ? 'Your branch' : `Opened by ${t.author}`, t.updatedAt ? `updated ${ago(t.updatedAt)}` : ''].filter(Boolean).join(', ') + '.',
+      description: [t.mine ? 'Your change' : `Opened by ${t.author}`, t.updatedAt ? `updated ${ago(t.updatedAt)}` : ''].filter(Boolean).join(', ') + '.',
     })),
-    { value: 'new', label: 'Create a new branch', description: 'It gets its own title and its own review.' },
+    { value: 'new', label: 'Start a new change', description: 'It gets its own title and its own review.' },
   ];
 }
 
@@ -158,7 +156,7 @@ export class ChangeConflictError extends Error {
 export function conflictSentence(paths: string[], scoped = true): string {
   const n = paths.length;
   const what = n === 1 ? paths[0] : n === 2 ? `${paths[0]} and ${paths[1]}` : `${paths[0]} and ${n - 1} other tokens`;
-  const where = scoped ? `Someone also edited ${what} in this branch after you opened it.` : `This branch already edits ${what}, to another value than yours.`;
+  const where = scoped ? `Someone also edited ${what} in this change after you opened it.` : `This change already edits ${what}, to another value than yours.`;
   return `${where} Nothing was saved, so no edit is lost. Keep your value, or keep theirs and drop your edit.`;
 }
 
@@ -175,37 +173,33 @@ export function dropEdits<D extends Draft>(draft: D, paths: string[]): D {
 }
 
 /** The change page, where both values show (its token diff) and the library conflict flow lives. */
-export const conflictHref = (n: number) => `/studio/changes/?pr=${n}`;
+export const conflictHref = (n: number) => studioHref(`changes/?pr=${n}`);
 
 // ---------------------------------------------------------------------------------------------------------------
 // Words
 
 /** The persistent banner of the token editor scoped to a change. */
 export function scopeBanner(title: string): { title: string; body: string } {
-  return { title: `Editing: ${title}`, body: 'Your edits are added to this branch, on top of its values.' };
+  return { title: `Editing: ${title}`, body: 'Your edits are added to this change, on top of its values.' };
 }
 
 /** Status line once the edits are added. */
 export function addedSentence(n: number, title: string, upstream: number): string {
   const edits = `${n} edit${n === 1 ? '' : 's'}`;
-  const moved = upstream ? ` It had moved since you opened it: ${upstream === 1 ? '1 other token stays as the branch has it' : `${upstream} other tokens stay as the branch has them`}.` : '';
+  const moved = upstream ? ` It had moved since you opened it: ${upstream === 1 ? '1 other token stays as the change has it' : `${upstream} other tokens stay as the change has them`}.` : '';
   return `Added ${edits} to ${title}.${moved}`;
 }
 
 /** The change page, back from the token editor. */
-export const addedNotice = (n: number) => `Added ${n} edit${n === 1 ? '' : 's'} to this branch. Reviewers see ${n === 1 ? 'it' : 'them'} now.`;
+export const addedNotice = (n: number) => `Added ${n} edit${n === 1 ? '' : 's'} to this change. Reviewers see ${n === 1 ? 'it' : 'them'} now.`;
 
 /** The local draft strip on Changes: where the draft goes when sent. */
 export function draftDestination(target: ChangeTarget | null, edits = 2): string {
-  return target ? `${edits === 1 ? 'It goes' : 'They go'} to ${target.title}.` : 'Requesting review creates a new branch.';
+  return target ? `${edits === 1 ? 'It goes' : 'They go'} to ${target.title}.` : 'Sending it for review starts a new change.';
 }
 
-/** The comment posted on the change, so reviewers see what was added and from where. */
-export function addedComment(paths: string[], viewer: string | null | undefined): string {
-  const lines = paths.slice(0, 20).map((p) => `- \`${p}\``);
-  if (paths.length > 20) lines.push(`- and ${paths.length - 20} more`);
-  return `${viewer ? `@${viewer} added` : 'Added'} token edits from the Bridge token editor:\n\n${lines.join('\n')}`;
-}
+/** The comment posted on the change, so reviewers see what was added and from where (core addedComment). */
+export const addedComment = (paths: string[], viewer: string | null | undefined): string => coreAddedComment(paths, viewer);
 
 /** The commit message on the change. */
 export function addedCommitMessage(title: string, paths: string[]): string {

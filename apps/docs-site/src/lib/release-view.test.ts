@@ -68,7 +68,7 @@ describe('release card', () => {
   const card = releaseCard(parseReleaseBody(BODY));
 
   it('says how many changes and that they are ready to publish', () => {
-    expect(card.title).toBe('Next release: 4 merged branches, ready to publish.');
+    expect(card.title).toBe('Next release: 4 changes, ready to publish.');
   });
 
   it('puts the design system packages first, in plain words', () => {
@@ -89,8 +89,8 @@ describe('release card', () => {
   });
 
   it('says what is live when no release waits', () => {
-    expect(waitingLine('v1.0.0', 14)).toBe('v1.0.0 is live. 14 merged branches wait for the next release.');
-    expect(waitingLine('v1.0.0', 1)).toBe('v1.0.0 is live. 1 merged branch waits for the next release.');
+    expect(waitingLine('v1.0.0', 14)).toBe('v1.0.0 is live. 14 changes wait for the next release.');
+    expect(waitingLine('v1.0.0', 1)).toBe('v1.0.0 is live. 1 change waits for the next release.');
     expect(waitingLine('v1.0.0', 0)).toBe('v1.0.0 is live. Nothing waits for the next release.');
   });
 });
@@ -116,6 +116,12 @@ describe('history summary', () => {
   it('falls back to the pull request title, then the commit subject, without prefix or number', () => {
     expect(historySummary({ ...base, pr: { title: 'feat(tokens): add focus.ring.offset semantic token' } })).toBe('Add focus.ring.offset semantic token');
     expect(historySummary(base)).toBe('Skip Changeset present on the Version packages PR');
+  });
+
+  it('keeps the whole summary for the detail heading when asked', () => {
+    const long = { ...base, pr: { title: `feat: ${'word '.repeat(30).trim()}` } };
+    expect(historySummary(long).endsWith('...')).toBe(true);
+    expect(historySummary(long, { full: true })).toBe(`Word ${'word '.repeat(29).trim()}`);
   });
 
   it('reads an import as one line', () => {

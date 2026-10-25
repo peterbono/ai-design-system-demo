@@ -40,7 +40,7 @@ export const Conflict: Story = {
   render: (args) => {
     const [value, setValue] = useState('library');
     return (
-      <ChoiceCardGroup {...args} description="color.action.primary.bg changed in the library and in your branch." value={value} onValueChange={setValue}>
+      <ChoiceCardGroup {...args} description="color.action.primary.bg changed in the library and in your change." value={value} onValueChange={setValue}>
         <ConflictCards />
       </ChoiceCardGroup>
     );
@@ -69,7 +69,7 @@ export const Vertical: Story = {
 
 export const WithError: Story = {
   render: () => (
-    <ChoiceCardGroup label="Which value should this change keep?" error="Pick a value before you merge.">
+    <ChoiceCardGroup label="Which value should this change keep?" error="Pick a value before you add it to the library.">
       <ConflictCards />
     </ChoiceCardGroup>
   ),

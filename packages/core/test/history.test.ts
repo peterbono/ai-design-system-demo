@@ -161,6 +161,17 @@ test('buildHistoryEntry: no token change gives no entry', () => {
   assert.equal(buildHistoryEntry({ config: realConfig(), commit: { sha: 'a', parents: [], date: '2026-01-01T00:00:00Z', author: 'x', subject: 'chore: format' }, before: files, after: files }), null);
 });
 
+test('buildHistoryEntry: names who asked (an email member through Bridge), not the app that opened it', () => {
+  const after = applyTokenEdits(new LayeredTokenSet(realConfig(), new Map(fx.head)), [{ op: 'set', path: 'color.text.muted', file: LIGHT, value: '{palette.neutral.500}' }]).files;
+  const e = buildHistoryEntry({
+    config: realConfig(),
+    commit: { sha: 'b', parents: ['a'], date: '2026-10-24T00:00:00Z', author: 'bridge-design-studio[bot]', subject: 'Darker muted text', pr: { number: 9, title: 'Darker muted text', author: 'bridge-design-studio[bot]', body: 'Why.\n\nRequested by Priya Shah (priya@acme.com) through Bridge.' } },
+    before: new Map(fx.head),
+    after,
+  });
+  assert.equal(e?.author, 'Priya Shah');
+});
+
 // GitHub over REST, served from the fixture repo: commits API lists branch commits too, and each commit
 // finds its PR; the PR's merge commit is the entry.
 test('GitHub history: commits folded into their PR, versions from tags', async () => {

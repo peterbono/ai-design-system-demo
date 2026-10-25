@@ -1,0 +1,473 @@
+/* Studio onboarding (components/ds/studio/Onboarding.tsx) and the two modes of "How changes reach your code"
+   (ChangesMode.tsx, also on Settings). The first run: the steps on the left, the open step in one card on the right.
+   Four type sizes: the title (h1), the step title (h2), the card titles (h3 role at ui size), ui for the rest. */
+
+/* --- First run ----------------------------------------------------------------------------------------------- */
+
+.onb {
+  display: grid;
+  gap: var(--space-6);
+  max-width: var(--studio-page-max);
+}
+
+/* The open step first in the page, then the checklist; on wide screens the title and the checklist sit on the left. */
+@media (min-width: 1100px) {
+  .onb {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      'head main'
+      'side main';
+    align-items: start;
+    gap: var(--space-5) var(--space-16);
+  }
+
+  .onb-head {
+    grid-area: head;
+  }
+
+  .onb-main {
+    grid-area: main;
+  }
+
+  .onb-side {
+    grid-area: side;
+  }
+}
+
+.onb-head,
+.onb-side {
+  display: grid;
+  align-content: start;
+  gap: var(--space-5);
+}
+
+/* On a phone the open step comes right under the title: the drawing waits for a wider screen. */
+@media (max-width: 1099px) {
+  .onb-art {
+    display: none;
+  }
+}
+
+/* The team name field shows the same focus ring as every other control of the step. */
+.onb-field:focus-within {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.onb-art {
+  height: auto;
+  color: var(--color-text-default);
+}
+
+.onb-h1 {
+  margin: 0;
+  font-family: var(--typography-h1-family);
+  font-size: var(--typography-h1-size);
+  font-weight: var(--typography-h1-weight);
+  line-height: var(--typography-h1-line-height);
+  letter-spacing: var(--typography-h1-tracking);
+  text-wrap: balance;
+}
+
+.onb-progress {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.onb-progress-text {
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.onb-strong {
+  font-weight: var(--font-weight-semibold);
+}
+
+.onb-quiet {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+/* The steps: one row component, the whole row is the button. */
+.onb-steps {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onb-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--control-height-lg);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--color-text-default);
+  font: inherit;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-instant) var(--motion-easing-standard);
+}
+
+@media (hover: hover) {
+  .onb-step:hover {
+    background-color: var(--color-surface-hover);
+  }
+}
+
+.onb-step:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.onb-step[aria-current='step'] {
+  background-color: var(--color-surface-selected);
+}
+
+.onb-step[aria-current='step'] .onb-step-title {
+  color: var(--color-text-signal);
+}
+
+/* The step's mark: a number in a ring, a check once done (Deep Harbor), the current one ringed in Deep Harbor. */
+.onb-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-7);
+  height: var(--size-7);
+  border: var(--border-width-default) solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.onb-mark[data-state='done'] {
+  border-color: var(--color-control-checked-bg);
+  background-color: var(--color-control-checked-bg);
+  color: var(--color-control-checked-fg);
+}
+
+.onb-mark[data-state='current'] {
+  border-color: var(--color-text-signal);
+  color: var(--color-text-signal);
+  font-weight: var(--font-weight-semibold);
+}
+
+.onb-step-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.onb-step-title {
+  font-weight: var(--font-weight-semibold);
+}
+
+.onb-step-detail {
+  color: var(--color-text-muted);
+}
+
+.onb-step-status {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+.onb-step[aria-current='step'] .onb-step-status {
+  color: var(--color-text-signal);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* --- The open step ------------------------------------------------------------------------------------------- */
+
+.onb-panel-body {
+  display: grid;
+  gap: var(--space-6);
+  padding: var(--space-8);
+}
+
+@media (max-width: 640px) {
+  .onb-panel-body {
+    padding: var(--space-5);
+  }
+}
+
+.onb-panel-head {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.onb-panel-head p {
+  margin: 0;
+}
+
+.onb-h2 {
+  margin: 0;
+  font-family: var(--typography-h2-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--typography-h2-weight);
+  line-height: var(--typography-h2-line-height);
+  letter-spacing: var(--typography-h2-tracking);
+}
+
+.onb-lead {
+  max-width: 65ch;
+  color: var(--color-text-muted);
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
+.onb-panel-body > p {
+  margin: 0;
+}
+
+/* Back on the left; Do this later and the one primary action on the right. A hairline sets the bar apart. */
+.onb-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-5);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.onb-foot-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-inline-start: auto;
+}
+
+/* Step 2: the two ways in, side by side when they fit. */
+.onb-ways {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--size-64)), 1fr));
+  gap: var(--space-4);
+}
+
+.onb-way {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.onb-way[data-selected] {
+  border-color: var(--color-control-checked-bg);
+  box-shadow: inset 0 0 0 var(--border-width-default) var(--color-control-checked-bg);
+}
+
+.onb-way p {
+  margin: 0;
+}
+
+.onb-way-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.onb-h3 {
+  margin: 0;
+  font-family: var(--font-family-sans);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-ui-line-height);
+}
+
+.onb-name {
+  max-width: 48ch;
+}
+
+.onb-repo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}
+
+.onb-note,
+.onb-done {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.onb-done {
+  color: var(--color-text-default);
+}
+
+.onb-features,
+.onb-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onb-features li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.onb-features svg {
+  flex: none;
+  color: var(--color-text-signal);
+}
+
+.onb-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  padding-block: var(--space-3);
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+/* --- Finish connecting (the home) ---------------------------------------------------------------------------- */
+
+/* The ring and the count on one line inside the button. */
+.onb-trigger > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.onb-trigger [role='progressbar'] {
+  display: inline-flex;
+  flex: none;
+}
+
+.onb-pop {
+  width: min(var(--size-96), calc(100vw - var(--space-8)));
+}
+
+.onb-pop-list {
+  display: grid;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onb-pop-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-block: var(--space-3);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.onb-pop-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-2);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+/* --- How changes reach your code (ChangesMode.tsx) ----------------------------------------------------------- */
+
+.cm-title {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cm-choice {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.cm-strong {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+}
+
+.cm-needs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  color: var(--color-text-muted);
+}
+
+.cm-devs {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+}
+
+.cm-devs-panel:not([hidden]) {
+  display: grid;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-5);
+  border-radius: var(--radius-container);
+  background-color: var(--color-bg-subtle);
+}
+
+.cm-p {
+  max-width: 65ch;
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.cm-edit {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.cm-interim {
+  margin-top: var(--space-4);
+}
+
+.cm-edit .cm-interim {
+  margin-top: 0;
+}
+
+/* Step 2: what the quick start gives, under a hairline like the repository card's list. */
+.onb-get {
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+/* "Create your team" (board E6): the hint under the steps, and the quiet way back to the demo in the footer. */
+.onb-expecting {
+  margin: var(--space-4) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.onb-demo {
+  font-size: var(--typography-ui-size);
+}

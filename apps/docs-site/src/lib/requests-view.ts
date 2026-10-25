@@ -5,6 +5,7 @@
 // issue labeled component-change (packages/core/src/requests.ts) that a pull request closes ("Closes #n").
 // Color only says status: requested waits (violet), done is green, in progress and declined stay grey.
 import {
+  subjectTitle,
   closingIssueNumbers,
   fromPlain,
   getEntry,
@@ -286,7 +287,8 @@ export function requestDecision(r: Pick<RequestRow, 'status' | 'assignees' | 'pr
 /** The Start an exploration form, filled from a request: its title as the name (60 characters at most), its summary as the purpose. */
 export function explorationFromRequest(r: Pick<RequestRow, 'component' | 'title' | 'request'>): { name: string; purpose: string } {
   const title = r.title.trim().replace(/\.$/, '');
-  let name = title.toLowerCase().includes(r.component.toLowerCase()) ? title : `${r.component}: ${title.charAt(0).toLowerCase()}${title.slice(1)}`;
+  // core subjectTitle: never "Select: select: ...", and a component name keeps its capitals.
+  let name = title.toLowerCase().includes(r.component.toLowerCase()) && !title.toLowerCase().startsWith(r.component.toLowerCase()) ? title : subjectTitle(r.component, title);
   if (name.length > 60) name = name.slice(0, 60).replace(/\s+\S*$/, '').replace(/[\s:,.-]+$/, '');
   const purpose = r.request?.summary?.trim() || `Answer the request "${r.component}: ${title}".`;
   return { name, purpose };
@@ -311,7 +313,7 @@ export function declineAudience(requester: string): string {
 /** Where the change that builds a request stands, for its section header: "Not started", "In review", "Shipped". */
 export function buildState(r: Pick<RequestRow, 'prs'>): string {
   if (r.prs.some((p) => p.state === 'open')) return 'In review';
-  if (r.prs.some((p) => p.merged)) return 'Merged';
+  if (r.prs.some((p) => p.merged)) return 'Added to the library';
   return r.prs.length ? 'Closed' : 'Not started';
 }
 

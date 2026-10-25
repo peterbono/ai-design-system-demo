@@ -80,9 +80,26 @@ export function draftAvailability(): DraftAvailability {
 
 const contexts = new Map<string, Promise<DocsAiContext>>();
 
-/** The facts from the code and the conventions of a component (/docs-ai/<slug>.json, built with the site). */
+/** Where the drafting context comes from on a team's Library page (read from its repository), null for this site's. */
+let contextSource: ((slug: string) => Promise<DocsAiContext>) | null = null;
+
+/** A team's Library page drafts from its own code (lib/team-docs-ai.ts); null goes back to this site's built files. */
+export function setDocsContextSource(source: ((slug: string) => Promise<DocsAiContext>) | null): void {
+  contextSource = source;
+  contexts.clear();
+}
+
+/**
+ * The facts from the code and the conventions of a component: /docs-ai/<slug>.json, built with the site, or the team's
+ * own when a team's Library page set its source.
+ */
 export function docsContext(slug: string): Promise<DocsAiContext> {
   let p = contexts.get(slug);
+  if (!p && contextSource) {
+    p = contextSource(slug);
+    p.catch(() => contexts.delete(slug));
+    contexts.set(slug, p);
+  }
   if (!p) {
     p = fetch(`/docs-ai/${encodeURIComponent(slug)}.json`).then((r) => {
       if (!r.ok) throw new Error(`The drafting context of ${slug} is missing (${r.status}). Reload the page.`);
@@ -146,10 +163,10 @@ async function viaMyClaude(
   if (!hasWorkingToken()) throw new Error(`${ghVerb(prefersSignIn())} first: your own Claude answers through the repo.`);
   const { full, branch } = repoName();
   const gh = studioClient(full, getToken());
-  onStatus?.('Sending the request to your Claude');
+  onStatus?.('Sending the request to Claude Code');
   const session = await createDocsDraftSession(gh, { component: input.name, slug: input.slug, path: input.path, task: input.task, prompt: input.prompt, baseBranch: branch });
   const cleanup = () => deletePendingDrafts(gh, session.sessionId).catch(() => false);
-  onStatus?.(`Waiting for your Claude. Say "${DRAFT_PHRASE}" in Claude Code or Claude Desktop with the Bridge MCP server.`);
+  onStatus?.(`Waiting for a developer. They say "${DRAFT_PHRASE}" in Claude Code or Claude Desktop with the Bridge MCP server.`);
   return new Promise<DraftResult>((resolve, reject) => {
     const done = (fn: () => void) => {
       signal?.removeEventListener('abort', onAbort);
@@ -161,11 +178,11 @@ async function viaMyClaude(
       sessionId: session.sessionId,
       onResults: (results) => {
         const r = results.find((x) => x.id === session.items[0]!.id);
-        done(() => (r ? resolve(r) : reject(new Error('Your Claude answered without the docs. Try again.'))));
+        done(() => (r ? resolve(r) : reject(new Error('Claude answered without the docs. Try again.'))));
       },
-      onTimeout: () => done(() => reject(new Error(`No answer from your Claude after 10 minutes. Say "${DRAFT_PHRASE}" to it, then try again.`))),
-      onGone: () => done(() => reject(new Error('The request was removed before your Claude answered. Try again.'))),
-      onError: () => onStatus?.('Still waiting for your Claude (GitHub did not answer, retrying)'),
+      onTimeout: () => done(() => reject(new Error(`No answer from Claude after 10 minutes. Ask a developer to say "${DRAFT_PHRASE}" in Claude Code, then try again.`))),
+      onGone: () => done(() => reject(new Error('The request was removed before Claude answered. Try again.'))),
+      onError: () => onStatus?.('Still waiting for a developer (GitHub did not answer, retrying)'),
     });
     const onAbort = () => {
       poller.stop();

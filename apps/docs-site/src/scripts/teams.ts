@@ -2,21 +2,23 @@
 // per page with the viewer's token (core TeamDirectory: cached, typed "cannot read" states) and hands the states to
 // every place that evaluates a role: approvals, who acts, the ship gate, Settings. With only people in the config
 // (the demo repo), nothing is read and every answer is immediate.
-import { approverEntries, approverLists, shipPolicy, TeamDirectory, teamsIn, type Owners, type Rights, type ShipPolicy, type TeamStates } from '@bridge-ds/core';
+import { approverEntries, approverLists, shipPolicy, soloOwnerOf, TeamDirectory, teamsIn, type ApprovalRules, type Owners, type Rights, type ShipPolicy, type TeamStates } from '@bridge-ds/core';
 import { readRepo, studioClient } from './github-session';
+import { siteConfig } from './repo-context';
 
 interface SiteRoles {
   owners: Owners;
   rights: Rights | null;
+  soloOwnerCanApproveBoth: boolean;
 }
 
-/** governance.owners and governance.rights as the layout embeds them (#bridge-repo). */
+/** governance.owners and governance.rights from the repository settings (repo-context siteConfig). */
 export function siteRoles(): SiteRoles {
   try {
-    const site = JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: Owners; rights?: Rights | null };
-    return { owners: site.owners ?? { design: [], tech: [] }, rights: site.rights ?? null };
+    const site = siteConfig() as { owners?: Owners; rights?: Rights | null; soloOwnerCanApproveBoth?: boolean };
+    return { owners: site.owners ?? { design: [], tech: [] }, rights: site.rights ?? null, soloOwnerCanApproveBoth: site.soloOwnerCanApproveBoth === true };
   } catch {
-    return { owners: { design: [], tech: [] }, rights: null };
+    return { owners: { design: [], tech: [] }, rights: null, soloOwnerCanApproveBoth: false };
   }
 }
 
@@ -64,6 +66,14 @@ export const teamSnapshot = (): TeamStates | undefined => states ?? (hasTeams() 
 export function siteApprovers(): Owners {
   const { owners, rights } = siteRoles();
   return approverLists(owners, rights, teamSnapshot() ?? null);
+}
+
+/** governance.soloOwnerCanApproveBoth, for summarizeApprovals: the only owner's approval covers design and tech. */
+export const siteApprovalRules = (): ApprovalRules => ({ soloOwnerCanApproveBoth: siteRoles().soloOwnerCanApproveBoth });
+
+/** The only owner whose approval covers design and tech (core soloOwnerOf), or null when the rule is off or does not apply. */
+export function siteSoloOwner(): string | null {
+  return soloOwnerOf(siteRoles(), teamSnapshot() ?? null);
 }
 
 /** The approver entries as the config names them (people and teams), for sentences. */

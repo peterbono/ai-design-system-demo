@@ -1,0 +1,306 @@
+/* Team Components (components/ds/studio/TeamComponents.tsx, TokenSpecimens.tsx): the lead, search and family on one
+   row, one table per family, the drawer with one Storybook preview, and the token specimens band for a team without
+   a Storybook. Tokens only. */
+
+.tcm {
+  display: grid;
+  gap: var(--space-5);
+  max-width: var(--studio-page-max);
+}
+
+.tcm-lead {
+  margin: 0;
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
+.tcm-muted {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.tcm-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: end;
+}
+
+@media (max-width: 599px) {
+  .tcm-tools {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.tcm-family {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.tcm-family-title {
+  margin: 0;
+  font-size: var(--typography-body-size);
+  font-weight: var(--typography-h3-weight);
+  line-height: var(--typography-body-line-height);
+}
+
+.tcm-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tcm-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  max-width: 72ch;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.tcm-d {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.tcm-d-eyebrow {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+.tcm-d-missing {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.tcm-d-missing > p {
+  margin: 0;
+}
+
+.tcm-d-frame {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.tcm-d-frame iframe {
+  width: 100%;
+  height: var(--size-300);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background: var(--color-surface-default);
+}
+
+.tcm-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+/* Token specimens: swatches in a grid, then type, radius, space and shadow side by side, each value labelled. */
+.tsp {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: var(--border-width-default) solid var(--color-border-subtle);
+  border-radius: var(--radius-container);
+  background: var(--color-surface-default);
+}
+
+.tsp-title {
+  margin: 0;
+  font-size: var(--typography-body-size);
+  font-weight: var(--typography-h3-weight);
+  line-height: var(--typography-body-line-height);
+}
+
+.tsp-colors {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--size-160), 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tsp-color {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.tsp-swatch {
+  display: block;
+  height: var(--size-12);
+  border: var(--border-width-default) solid var(--color-border-subtle);
+  border-radius: var(--radius-inset);
+}
+
+.tsp-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-240), 1fr));
+  gap: var(--space-5);
+}
+
+.tsp-group {
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tsp-row,
+.tsp-type {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.tsp-sample {
+  flex: none;
+  max-width: var(--size-80);
+  overflow: hidden;
+  line-height: var(--typography-display-line-height);
+}
+
+.tsp-radius,
+.tsp-shadow {
+  flex: none;
+  width: var(--size-10);
+  height: var(--size-10);
+  border: var(--border-width-default) solid var(--color-border-strong);
+  background: var(--color-surface-raised);
+}
+
+.tsp-shadow {
+  border-color: var(--color-border-subtle);
+  border-radius: var(--radius-inset);
+}
+
+.tsp-space-track {
+  flex: none;
+  width: var(--size-120);
+  overflow: hidden;
+}
+
+.tsp-space {
+  display: block;
+  max-width: 100%;
+  height: var(--space-3);
+  border-radius: var(--radius-xs);
+  background: var(--color-text-signal);
+}
+
+.tsp-label {
+  display: grid;
+  min-width: 0;
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+.tsp-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tsp-value {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Change this component (ChangeComponent.tsx): the step under the preview, set apart by a rule like Bridge's own
+   drawer; the form follows the question; what was sent says where to follow it. */
+.tcm-chg {
+  display: grid;
+  gap: var(--space-5);
+  padding-block-start: var(--space-4);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.tcm-chg-h {
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-ui-line-height);
+}
+
+.tcm-chg-form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.tcm-chg-rows {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tcm-chg-rows legend {
+  margin-block-end: var(--space-2);
+  padding: 0;
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-medium);
+}
+
+.tcm-chg-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.tcm-chg-error {
+  margin: 0;
+  color: var(--color-feedback-danger-text);
+}
+
+.tcm-chg-done {
+  display: grid;
+  gap: var(--space-2);
+  padding-block-start: var(--space-4);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.tcm-chg-done > p {
+  margin: 0;
+}
+
+.tcm-chg-done:focus {
+  outline: none;
+}
+
+.tcm-chg-done:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (max-width: 640px) {
+  .tcm-chg-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A home's "Ask for a component change" without a component: the next step, in one calm line. */
+.tcm-pick {
+  margin: 0;
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-medium);
+}

@@ -23,18 +23,18 @@ describe('roleRows and rolesSummary', () => {
     expect(rows.map((r) => [r.label, r.who, r.logins])).toEqual([
       ['Approve design', 'Design owners', ['dana']],
       ['Approve tech', 'Tech owners', ['theo']],
-      ['Merge', 'Anyone with write access', []],
+      ['Add to the library', 'Anyone with write access', []],
     ]);
     // No segment says "anyone with write access": the form selects nothing for an unset ship right.
     expect(rows[2]!.choice).toBe(null);
-    expect(rolesSummary(owners, null)).toBe('Design owners approve design, tech owners approve tech, anyone with write access merges.');
+    expect(rolesSummary(owners, null)).toBe('Design owners approve design, tech owners approve tech, anyone with write access adds to the library.');
   });
 
   it('with rights: the groups and their logins', () => {
     const rights = { approveDesign: ['design'] as const, approveTech: ['tech'] as const, ship: ['design', 'tech'] as const };
     const r = { approveDesign: [...rights.approveDesign], approveTech: [...rights.approveTech], ship: [...rights.ship] };
     expect(roleRows(owners, r)[2]).toMatchObject({ who: 'Design and tech owners', logins: ['dana', 'theo'], choice: 'both' });
-    expect(rolesSummary(owners, r)).toBe('Design owners approve design, tech owners approve tech, design and tech owners merge.');
+    expect(rolesSummary(owners, r)).toBe('Design owners approve design, tech owners approve tech, design and tech owners add to the library.');
   });
 
   it('choices map to groups and back', () => {
@@ -65,7 +65,7 @@ describe('withRoles', () => {
   it('proposal says what changes in plain words', () => {
     const p = rolesProposal(roleRows(owners, rights), 'on-demand', { date: new Date('2026-10-18T00:00:00Z'), prefix: 'bridge/', tierLabel: 'Tier 3' });
     expect(p.branch).toBe('bridge/roles-20261018');
-    expect(p.body).toContain('- Merge: Tech owners.');
+    expect(p.body).toContain('- Add to the library: Tech owners.');
     expect(p.body).toContain('- Visual before and after: On demand.');
     expect(p.body).not.toMatch(/—/);
   });

@@ -1,7 +1,7 @@
 // Edit mode of a Library component page, as pure functions: which sections exist, what changed since the page on
 // main (or on a change's branch), the Claude drafts waiting for Keep or Discard, the To review list of the rail and
 // text replacements for a selection. The island (components/LibraryEditMode.tsx) keeps an EditState and calls these.
-import { markClaudeDraft, missingProse, sectionsNeedingReview, type ComponentDocsJson, type DocsGuidance, type ProseKey } from '@bridge-ds/core';
+import { markClaudeDraft, missingProse, PROSE_KEYS, sectionsNeedingReview, type ComponentDocsJson, type DocsAuthorship, type DocsGuidance, type ProseKey } from '@bridge-ds/core';
 import { cleanDocs } from './docs-draft-model';
 
 /** Editable sections, in page order. Do and don't is one section that holds two keys. */
@@ -19,7 +19,6 @@ export type Section = (typeof SECTIONS)[number];
 
 export const sectionOf = (key: ProseKey): Section => SECTIONS.find((s) => (s.keys as readonly ProseKey[]).includes(key))!;
 export const sectionById = (id: SectionId): Section => SECTIONS.find((s) => s.id === id)!;
-export const sectionLabel = (id: SectionId) => sectionById(id).label;
 
 type ProseValue = ComponentDocsJson[ProseKey];
 
@@ -40,6 +39,11 @@ export interface EditState {
   updated: SectionId[];
   /** Written sections Claude checked against newer code and left as they are: "Still accurate". */
   accurate: SectionId[];
+  /**
+   * The text Claude wrote, per key: drafts made here and drafts the file came with (draftedBy "claude"). Compared with
+   * what is sent, it says who wrote each section (authorship). Absent: no Claude text on the page.
+   */
+  claude?: Partial<Record<ProseKey, ProseValue>>;
 }
 
 const emptyOf = (k: ProseKey) => (k === 'summary' ? '' : []) as ProseValue;
@@ -51,7 +55,21 @@ const emptyOf = (k: ProseKey) => (k === 'summary' ? '' : []) as ProseValue;
 export function initEdit(base: ComponentDocsJson, docs: ComponentDocsJson = base): EditState {
   const drafts: EditState['drafts'] = {};
   for (const k of sectionsNeedingReview(docs)) if (!isEmptyValue(docs[k])) drafts[k] = emptyOf(k);
-  return { base, docs, drafts, outdated: [], reviewed: [], kept: [], updated: [], accurate: [] };
+  return { base, docs, drafts, outdated: [], reviewed: [], kept: [], updated: [], accurate: [], claude: claudeTextOf(base, docs) };
+}
+
+/**
+ * The Claude text a file carries: the sections waiting for review, or, once accepted, every written section of a
+ * file that says "draftedBy": "claude" (the record of who wrote it). Read from the docs being edited, else the base.
+ */
+export function claudeTextOf(base: ComponentDocsJson, docs: ComponentDocsJson = base): Partial<Record<ProseKey, ProseValue>> {
+  const out: Partial<Record<ProseKey, ProseValue>> = {};
+  for (const d of [base, docs]) {
+    if (d.draftedBy !== 'claude') continue;
+    const keys = d.needsReview === true ? sectionsNeedingReview(d) : d.draftedSections?.length ? d.draftedSections : [...PROSE_KEYS];
+    for (const k of keys) if (!isEmptyValue(d[k])) out[k] = d[k] as ProseValue;
+  }
+  return out;
 }
 
 const norm = (v: unknown) => JSON.stringify(v ?? null);
@@ -102,9 +120,6 @@ export function sectionState(s: EditState, id: SectionId): SectionState {
 /** Sections that are empty or outdated: what "Fill empty and outdated sections" works on. */
 export const sectionsToFill = (s: EditState): SectionId[] => SECTIONS.filter((x) => ['empty', 'outdated'].includes(sectionState(s, x.id))).map((x) => x.id);
 
-/** Prose keys missing on the page (core's rule), for the page-level hint. */
-export const missingKeys = (d: Partial<ComponentDocsJson>): ProseKey[] => missingProse(d);
-
 /**
  * Puts Claude's sections on the page as pending drafts. A key drafted twice keeps its first "before". `checked` lists
  * written sections Claude verified against the code: left unchanged they are "Still accurate" (reviewed, nothing to
@@ -115,16 +130,19 @@ export function applyDraft(s: EditState, sections: Partial<Record<ProseKey, Pros
   const updated = SECTIONS.filter((x) => x.keys.some((k) => k in sections && !isEmptyValue(s.docs[k]))).map((x) => x.id);
   const accurate = SECTIONS.filter((x) => x.keys.some((k) => checked.includes(k) && !(k in sections))).map((x) => x.id);
   const docs = { ...s.docs } as ComponentDocsJson & Record<string, unknown>;
+  const claude = { ...(s.claude ?? {}) };
   for (const [k, v] of Object.entries(sections) as [ProseKey, ProseValue][]) {
     if (v === undefined) continue;
     if (!(k in drafts)) drafts[k] = s.docs[k] as ProseValue;
     docs[k] = v as never;
+    claude[k] = v;
   }
   const touched = SECTIONS.filter((x) => x.keys.some((k) => k in sections)).map((x) => x.id);
   return {
     ...s,
     docs,
     drafts,
+    claude,
     reviewed: [...new Set([...s.reviewed.filter((id) => !touched.includes(id)), ...accurate])],
     kept: s.kept.filter((id) => !touched.includes(id)),
     updated: [...new Set([...s.updated.filter((id) => !touched.includes(id)), ...updated])],
@@ -145,15 +163,17 @@ export function discardDrafts(s: EditState, ids: SectionId[]): EditState {
   const drop = ids.flatMap((id) => sectionById(id).keys as readonly ProseKey[]);
   const docs = { ...s.docs } as ComponentDocsJson & Record<string, unknown>;
   const drafts = { ...s.drafts };
+  const claude = { ...(s.claude ?? {}) };
   for (const k of drop) {
     if (!(k in drafts)) continue;
+    delete claude[k];
     // A draft that came with the file has no text before it: discarding empties the section.
     const before = drafts[k];
     if (before === undefined) delete docs[k];
     else docs[k] = before as never;
     delete drafts[k];
   }
-  return { ...s, docs, drafts, updated: s.updated.filter((id) => !ids.includes(id)) };
+  return { ...s, docs, drafts, claude, updated: s.updated.filter((id) => !ids.includes(id)) };
 }
 
 /** Sections with a pending draft, in page order. */
@@ -259,19 +279,20 @@ export function changedLabel(s: Pick<EditState, 'base' | 'docs'>): string {
 /** What the edit state keeps across reloads, besides the docs text (that lives in the local draft). */
 export interface EditMeta {
   drafts: EditState['drafts'];
+  claude?: EditState['claude'];
   reviewed: SectionId[];
   kept: SectionId[];
   updated?: SectionId[];
   accurate?: SectionId[];
 }
 
-export const editMeta = (s: EditState): EditMeta => ({ drafts: s.drafts, reviewed: s.reviewed, kept: s.kept, updated: s.updated, accurate: s.accurate });
+export const editMeta = (s: EditState): EditMeta => ({ drafts: s.drafts, claude: s.claude, reviewed: s.reviewed, kept: s.kept, updated: s.updated, accurate: s.accurate });
 
 export function restoreMeta(s: EditState, m: Partial<EditMeta> | null | undefined): EditState {
   if (!m) return s;
   const valid = SECTIONS.map((x) => x.id) as SectionId[];
   const ids = (xs: SectionId[] | undefined) => (xs ?? []).filter((id) => valid.includes(id));
-  return { ...s, drafts: m.drafts ?? s.drafts, reviewed: ids(m.reviewed), kept: ids(m.kept), updated: ids(m.updated), accurate: ids(m.accurate) };
+  return { ...s, drafts: m.drafts ?? s.drafts, claude: { ...(s.claude ?? {}), ...(m.claude ?? {}) }, reviewed: ids(m.reviewed), kept: ids(m.kept), updated: ids(m.updated), accurate: ids(m.accurate) };
 }
 
 /* ------------------------------------------------------------------------------------------------------------------ */
@@ -295,7 +316,7 @@ export const EDIT_BAR_LABEL: Record<EditBarState, string> = {
   clean: 'No changes yet',
   saved: 'Draft saved in this browser',
   unsaved: 'Unsaved changes',
-  sent: 'Review requested',
+  sent: 'Sent for review',
 };
 
 /**
@@ -320,3 +341,55 @@ export function escapeIntent(o: { overlayOpen: boolean; inField: boolean }): Esc
 
 /** Cancel leaves at once when nothing would be lost, else it asks first. */
 export const cancelNeedsConfirm = (o: { dirty: boolean; pending: number }) => o.dirty || o.pending > 0;
+
+/* ------------------------------------------------------------------------------------------------------------------ */
+/* Who wrote the text, and the open proposal a send continues.                                                         */
+
+/**
+ * Who wrote each section of what is sent, by section label (core's docsAuthorLine turns it into the author line).
+ * A section with Claude text is "claude" when it goes out as Claude wrote it and was reviewed, "pending" when nobody
+ * reviewed it yet, "edited" when the person changed it; a section without Claude text that changed is "written".
+ */
+export function authorship(s: EditState): DocsAuthorship {
+  const out: DocsAuthorship = { claude: [], edited: [], written: [], pending: [] };
+  const claudeText = s.claude ?? {};
+  const now = cleaned(s.docs);
+  const was = cleaned({ ...s.base, ...claudeText } as ComponentDocsJson);
+  const changed = changedKeys(s);
+  const value = (d: ComponentDocsJson, k: ProseKey) => norm(d[k] ?? (k === 'summary' ? '' : []));
+  for (const x of SECTIONS) {
+    const keys = x.keys as readonly ProseKey[];
+    if (keys.some((k) => k in claudeText)) {
+      if (keys.some((k) => value(now, k) !== value(was, k))) out.edited.push(x.label);
+      else if (keys.some((k) => k in s.drafts)) out.pending.push(x.label);
+      else out.claude.push(x.label);
+    } else if (keys.some((k) => changed.includes(k))) out.written.push(x.label);
+  }
+  return out;
+}
+
+/** Why Send is off, or null when it is on: what would be sent is already there. */
+export function sendBlockedReason(o: { fileText: string; base: string | null; continuing: boolean }): string | null {
+  if (o.base === null || o.fileText !== o.base) return null;
+  return o.continuing ? CONTINUE_CLEAN : EDIT_BAR_LABEL.clean;
+}
+
+const CONTINUE_CLEAN = 'Nothing changed since the open proposal';
+
+/** The quiet line of an editor opened on the open proposal: who started it ("you" for the viewer), and that it waits. */
+export function continueLine(author: string, viewer: string | null | undefined): string {
+  const who = viewer && viewer.toLowerCase() === author.toLowerCase() ? 'you' : `@${author}`;
+  return `Continues the open proposal by ${who}, waiting for review.`;
+}
+
+/** The edit bar's state line: on an open proposal, "nothing changed" says since when. */
+export const editBarLabel = (state: EditBarState, continuing: boolean): string => (state === 'clean' && continuing ? CONTINUE_CLEAN : EDIT_BAR_LABEL[state]);
+
+/**
+ * Editing without a GitHub session (a guest, or signed out): a draft in this browser only. Keep and Discard work, the
+ * send asks to sign in. Never names the site "the demo": Bridge's own design system is real data.
+ */
+export function guestEditLine(signIn: boolean): string {
+  return `Draft only: your edits stay in this browser. ${signIn ? 'Sign in' : 'Connect GitHub'} to send them.`;
+}
+

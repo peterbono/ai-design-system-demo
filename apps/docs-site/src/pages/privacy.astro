@@ -1,0 +1,58 @@
+---
+// /privacy/: what Bridge keeps about a person, why, where, for how long, and how to delete it. Short, in the Bridge
+// voice. Linked from the sign-in screen, Settings > Account and every footer. Static: nothing is read here.
+import '../styles/homepage.css';
+import '../styles/account.css';
+import Landing from '../layouts/Landing.astro';
+import { Link } from '@bridge-ds/react';
+import { SIGNIN_PAGE } from '../lib/account';
+import { GITHUB_URL } from '../lib/repo';
+---
+
+<Landing title="Privacy | Bridge" description="What Bridge keeps about you, where, for how long, and how to delete it.">
+  <article class="hp pv">
+    <header class="zone pv-head">
+      <h1 class="pv-title">What Bridge keeps about you</h1>
+      <p class="pv-lead">As little as it can: enough to sign you in and know which teams you belong to. Your design system never leaves your repository.</p>
+    </header>
+
+    <section class="pv-section" aria-labelledby="pv-keeps">
+      <h2 id="pv-keeps" class="pv-h">What Bridge keeps</h2>
+      <ul>
+        <li>Your account email and the name you gave.</li>
+        <li>Your GitHub login, when you link GitHub.</li>
+        <li>The teams you belong to, and your role on each.</li>
+        <li>A team you create in Bridge: its name, the email of the person who created it, when, and later the Storybook address or the repository connected to it.</li>
+        <li>Invitations waiting for you or sent by you.</li>
+        <li>Your requests to join a team: your name and email, shown to that team's admins, for 14 days at most.</li>
+        <li>For teams an admin opened to their work domain: that domain and who opened it. Colleagues with an email at that domain who are not on the team see exactly this: the team's name, how many people are on it, the admin's name, and the first names of up to 4 members (with the initial of their last name) on small avatars. Never anyone's email, and never the team's repository. Public mailboxes like Gmail or Outlook never match.</li>
+        <li>For an invite link: after the invite is used or expires, the team's name and who invited, for 30 more days, so the link can say whom to ask for a new one. Never the invited email.</li>
+        <li>Which changes you sent through Bridge with your email (no GitHub), so your home shows your own work: for a year. On a private repository, the change also says who asked, with your name and email.</li>
+        <li>Short-lived copies of what Bridge reads from your team's repository on GitHub, so pages open fast: minutes for most answers, 7 days at most for file contents. Your browser tab keeps its own for seconds to minutes, and forgets them when you sign out.</li>
+        <li>The public GitHub name and picture of the people on your team's changes, for a day, so members without GitHub see names. Nothing else from their profile.</li>
+        <li>The one-time sign-in codes, hashed, for 10 minutes.</li>
+      </ul>
+    </section>
+
+    <section class="pv-section" aria-labelledby="pv-never">
+      <h2 id="pv-never" class="pv-h">What Bridge never keeps</h2>
+      <ul>
+        <li>Passwords: there are none. You sign in with GitHub or a code sent to your email.</li>
+        <li>GitHub tokens: they stay in your browser.</li>
+        <li>A lasting copy of your design system: it stays in your repository. Bridge reads it on GitHub when you open it, and keeps only the short-lived copies above.</li>
+      </ul>
+    </section>
+
+    <section class="pv-section" aria-labelledby="pv-where">
+      <h2 id="pv-where" class="pv-h">Where and for how long</h2>
+      <p>Your account lives in an Upstash Redis database on Vercel, with a daily backup in Vercel Blob. Bridge keeps it until you delete your account. Backups are kept 30 days, then removed.</p>
+    </section>
+
+    <section class="pv-section" aria-labelledby="pv-delete">
+      <h2 id="pv-delete" class="pv-h">How to delete it</h2>
+      <p>In Studio, open the menu with your name, choose Account settings, then Delete my account. Bridge removes your account, your email memberships, your join requests and your sessions at once. If you are the only admin of a team with other members, make someone else an admin first: Bridge tells you before you confirm, and offers to do it there. A team you created and were alone on goes with your account.</p>
+      <p>The changes you sent stay in your team's history, signed "A former member": Bridge forgets which ones were yours and removes your name and email from the line that says who asked. The commits saved for you stay in your team's repository as git recorded them (on a public repository, never with your email).</p>
+      <p><Link href={SIGNIN_PAGE}>Sign in to Bridge</Link> to get there. Questions? <Link href={GITHUB_URL}>Open an issue on GitHub</Link>.</p>
+    </section>
+  </article>
+</Landing>

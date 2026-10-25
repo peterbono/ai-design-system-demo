@@ -13,6 +13,13 @@
         "$description": "Sea 200 is too saturated for muted text and links; ocean zones use the palest sea step."
       }
     },
+    "agent": {
+      "surface": {
+        "$type": "color",
+        "$value": "{palette.primary.50}",
+        "$description": "Follows the ocean zone, so the agent mark (action.primary.bg) keeps the checked zone contrast."
+      }
+    },
     "action": {
       "primary": {
         "bg": {

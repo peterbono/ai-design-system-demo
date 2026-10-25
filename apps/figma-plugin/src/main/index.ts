@@ -1,49 +1,41 @@
 // Main thread: owns figma.* (variables, storage, plugin data). No network access here; the UI
 // iframe does GitHub calls and sends typed requests (src/shared/messages.ts).
 
-import {
-  DEFAULT_SETTINGS,
-  type RepoSettings,
-  type RequestMap,
-  type RequestType,
-  type ResponseEnvelope,
-  type SyncState,
-  isRequest,
-} from '../shared/messages';
+import { type RequestMap, type RequestType, type ResponseEnvelope, STUDIO_ORIGIN, isRequest } from '../shared/messages';
 import { applyPullPlan } from './apply';
 import { applyComponentPlan, scanGenerated } from './build-components';
-import { exportVariants } from './fidelity';
+import { exportVariants, readBuilt } from './fidelity';
 import { clearClaudeKey, readClaudeSettings, saveClaudeSettings } from './claude-settings';
-import { baselineImage, exportImage, exportThumbnails, rebaseline, saveSignatures, scanComponents, selectionInfo, setExperimental } from './components';
+import { baselineImage, bindRaw, exportImage, exportThumbnails, markPushed, rebaseline, renameInBaselines, saveSignatures, scanComponents, selectionInfo, setExperimental } from './components';
 import { clearGitHubToken, readGitHubToken, saveGitHubToken, setGitHubTokenState } from './github-token';
+import { type SharedStore, saveSettings, sharedSettings, sharedSync, writeSync } from './shared-state';
 import { takeSnapshot, writePluginData } from './snapshot';
+import { enableUiTurns, isTurnReply, turnReply } from './turns';
 
 const NS = 'dsbridge';
+/** Set by "Stop" in the plugin: the component build stops after the set in progress. */
+let cancelBuild = false;
 
-figma.showUI(__html__, { width: 480, height: 640, themeColors: true, title: 'DS Bridge' });
+figma.showUI(__html__, { width: 480, height: 640, themeColors: true, title: 'Bridge' });
+enableUiTurns();
 
-function readShared(): { settings: RepoSettings; sync: SyncState } {
-  const get = (key: string) => figma.root.getSharedPluginData(NS, key);
-  return {
-    settings: {
-      repo: get('repo') || DEFAULT_SETTINGS.repo,
-      branch: get('branch') || DEFAULT_SETTINGS.branch,
-      tokensPath: get('tokensPath') || DEFAULT_SETTINGS.tokensPath,
-    },
-    sync: {
-      baseSha: get('baseSha') || undefined,
-      lastPullAt: get('lastPullAt') || undefined,
-      lastPrBranch: get('lastPrBranch') || undefined,
-      lastPrUrl: get('lastPrUrl') || undefined,
-    },
-  };
-}
+/** The file's shared plugin data (namespace dsbridge), as the store shared-state.ts reads and writes. */
+const store: SharedStore = {
+  get: (key) => figma.root.getSharedPluginData(NS, key),
+  set: (key, value) => figma.root.setSharedPluginData(NS, key, value),
+  keys: () => figma.root.getSharedPluginDataKeys(NS),
+};
 
-function writeShared(values: Record<string, string | undefined>): void {
-  for (const [key, value] of Object.entries(values)) {
-    if (value !== undefined) figma.root.setSharedPluginData(NS, key, value);
+/** The Figma user running the plugin (manifest permission "currentuser"): keys their open change in the file. */
+function userId(): string | undefined {
+  try {
+    return figma.currentUser?.id ?? undefined;
+  } catch {
+    return undefined;
   }
 }
+
+const readShared = () => ({ settings: sharedSettings(store), sync: sharedSync(store, userId()) });
 
 type Handlers = { [K in RequestType]: (payload: RequestMap[K]['request']) => Promise<RequestMap[K]['response']> };
 
@@ -54,11 +46,7 @@ const handlers: Handlers = {
     return { settings, sync, hasToken: !!token, token, tokenState, fileName: figma.root.name, claude: await readClaudeSettings() };
   },
   async 'save-settings'({ settings }) {
-    const repoChanged = settings.repo !== readShared().settings.repo || settings.branch !== readShared().settings.branch;
-    writeShared({ repo: settings.repo.trim(), branch: settings.branch.trim(), tokensPath: settings.tokensPath.trim().replace(/^\/+|\/+$/g, '') });
-    // A different repository or branch means the stored base no longer applies.
-    if (repoChanged) writeShared({ baseSha: '', lastPullAt: '', lastPrBranch: '', lastPrUrl: '' });
-    return readShared().settings;
+    return saveSettings(store, settings);
   },
   async 'save-token'({ token }) {
     return saveGitHubToken(token);
@@ -83,11 +71,13 @@ const handlers: Handlers = {
   },
   async 'apply-pull'({ plan }) {
     const report = await applyPullPlan(plan, (message) => figma.ui.postMessage({ kind: 'progress', message }));
-    writeShared({ baseSha: plan.headSha, lastPullAt: new Date().toISOString() });
+    writeSync(store, { baseSha: plan.headSha, lastPullAt: new Date().toISOString() }, userId());
+    // Renamed in code, renamed here: component baselines follow, so a Push does not read the bindings as edits.
+    if (report.renamed?.length) await renameInBaselines(report.renamed);
     return report;
   },
   async 'save-sync'({ sync }) {
-    writeShared({ baseSha: sync.baseSha, lastPullAt: sync.lastPullAt, lastPrBranch: sync.lastPrBranch, lastPrUrl: sync.lastPrUrl });
+    writeSync(store, sync, userId());
     return readShared().sync;
   },
   async 'tag-variables'({ tags }) {
@@ -101,7 +91,7 @@ const handlers: Handlers = {
     return { tagged };
   },
   async 'open-url'({ url }) {
-    if (/^https:\/\/(github\.com|console\.anthropic\.com|claude\.ai)\//.test(url)) figma.openExternal(url);
+    if (/^https:\/\/(github\.com|console\.anthropic\.com|claude\.ai)\//.test(url) || url.startsWith(`${STUDIO_ORIGIN}/`)) figma.openExternal(url);
     return { opened: true };
   },
   async notify({ message, error }) {
@@ -112,14 +102,20 @@ const handlers: Handlers = {
     figma.ui.resize(Math.max(360, Math.min(900, width)), Math.max(400, Math.min(1000, height)));
     return { resized: true };
   },
-  async 'scan-components'() {
-    return scanComponents((message) => figma.ui.postMessage({ kind: 'progress', message }));
+  async 'scan-components'(scope) {
+    return scanComponents((message) => figma.ui.postMessage({ kind: 'progress', message }), scope);
   },
   async 'save-signatures'({ items }) {
     return { saved: await saveSignatures(items) };
   },
+  async 'mark-pushed'({ nodeId, mark }) {
+    return { saved: await markPushed(nodeId, mark) };
+  },
   async rebaseline({ nodeId }) {
     return { saved: await rebaseline(nodeId) };
+  },
+  async 'bind-raw'(req) {
+    return { bound: await bindRaw(req) };
   },
   async 'export-image'({ nodeId }) {
     return (await exportImage(nodeId)) ?? null;
@@ -139,8 +135,17 @@ const handlers: Handlers = {
   async 'fidelity-export'({ nodeId, keys, scale }) {
     return exportVariants(nodeId, keys, scale);
   },
+  async 'read-built'({ nodeId, keys }) {
+    return readBuilt(nodeId, keys);
+  },
   async 'apply-components'({ plan }) {
-    return applyComponentPlan(plan, (message) => figma.ui.postMessage({ kind: 'progress', message }));
+    cancelBuild = false;
+    return applyComponentPlan(plan, (message) => figma.ui.postMessage({ kind: 'progress', message }), { cancelled: () => cancelBuild });
+  },
+  // Answered while the build runs: the build yields between sets, so this message gets through.
+  async 'cancel-components'() {
+    cancelBuild = true;
+    return { cancelled: true };
   },
 };
 
@@ -148,6 +153,8 @@ const handlers: Handlers = {
 figma.on('selectionchange', () => figma.ui.postMessage({ kind: 'selection', selection: selectionInfo() ?? null }));
 
 figma.ui.onmessage = async (msg: unknown) => {
+  // A turn answered by the UI (a long build gives Figma turns through it when the file is not shown).
+  if (isTurnReply(msg)) return turnReply(msg);
   if (!isRequest(msg)) return;
   let response: ResponseEnvelope;
   try {

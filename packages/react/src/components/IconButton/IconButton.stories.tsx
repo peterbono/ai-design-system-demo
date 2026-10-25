@@ -6,8 +6,10 @@ import { IconButton, type IconButtonVariant } from './IconButton';
 const meta = {
   title: 'Actions/IconButton',
   component: IconButton,
-  args: { icon: Pencil, label: 'Edit token', variant: 'ghost', size: 'md' },
+  args: { icon: Pencil, label: 'Edit token', variant: 'ghost', size: 'md', disabled: false },
   argTypes: {
+    // A control, so the Storybook measure (bridge specs --measure --variants) reaches the Disabled variants.
+    disabled: { control: 'boolean' },
     icon: { control: false },
     variant: { control: 'inline-radio', options: ['primary', 'secondary', 'ghost', 'danger'] },
     size: { control: 'inline-radio', options: ['sm', 'md', 'lg'] },

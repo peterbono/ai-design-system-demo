@@ -1,0 +1,1761 @@
+/* The homepage (pages/index.astro, components/home/*), ported from the owner's validated test page (2026-10-21).
+   Tokens only. The test page's colors map to semantic tokens, so the page follows the dark theme:
+     Deep Harbor (#0b4a8b)  action.primary.bg, text on it action.primary.text, as text text.link
+     Harbor (#cfe8ff)       bg.zone            Harbor 50   surface.selected
+     ink / ink-2 / grey 400 text.default / text.muted / text.disabled
+     grey 300 / 200 / 100  border.emphasis / border.default / bg.subtle     white  surface.default (cards), bg.default (page)
+   Sizes come from the space, size, radius and type scales. The drawings (the hero stage, the step mock-ups, the
+   panorama) keep their validated geometry: inside them, coordinates use --_u, one CSS pixel of the drawing
+   (a quarter of space.1), scaled with the drawing. */
+
+.hp {
+  --_u: calc(var(--space-1) / 4);
+  --_deep: var(--color-action-primary-bg);
+  --_on-deep: var(--color-action-primary-text);
+  --_line: var(--color-border-default);
+  --_line-strong: var(--color-border-emphasis);
+  --_soft: var(--color-bg-subtle);
+  --_paper: var(--color-surface-default);
+  --_page: var(--color-bg-default);
+  /* Text sizes of the test page between two type steps, composed from tokens. */
+  --_t10: calc(var(--font-size-100) - var(--space-0-5));
+  --_t17: calc(var(--font-size-300) + var(--border-width-1));
+  --_t18: calc(var(--font-size-300) + var(--space-0-5));
+  --_t19: calc(var(--font-size-300) + var(--border-width-3));
+
+  color: var(--color-text-default);
+}
+
+/* Hidden states win over the display of DS components and panes. */
+.hp [hidden] {
+  display: none;
+}
+
+.hp-wrap {
+  width: 100%;
+  max-width: var(--site-wrap);
+  margin-inline: auto;
+  padding-inline: var(--site-gutter);
+}
+
+.hp-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.hp-muted {
+  color: var(--color-text-muted);
+}
+
+/* Drawing colors (components/home/Hp*.astro): ink strokes follow the text color. */
+.hp-draw {
+  display: block;
+  overflow: visible;
+  color: var(--color-text-default);
+}
+
+.hp-draw [data-s="muted"] {
+  stroke: var(--color-text-muted);
+}
+
+.hp-draw [data-s="faint"] {
+  stroke: var(--color-text-disabled);
+}
+
+.hp-draw [data-s="line"] {
+  stroke: var(--_line);
+}
+
+.hp-draw [data-s="deep"] {
+  stroke: var(--_deep);
+}
+
+.hp-draw [data-f="page"] {
+  fill: var(--_page);
+}
+
+.hp-draw [data-f="subtle"] {
+  fill: var(--_soft);
+}
+
+.hp-draw [data-f="line"] {
+  fill: var(--_line);
+}
+
+.hp-draw [data-f="zone"] {
+  fill: var(--color-bg-zone);
+}
+
+.hp-draw [data-f="ink"] {
+  fill: var(--color-text-default);
+}
+
+.hp-draw [data-f="deep"] {
+  fill: var(--_deep);
+}
+
+.hp-draw [data-f="ondeep"] {
+  fill: var(--_on-deep);
+}
+
+.hp-draw [data-f="muted"] {
+  fill: var(--color-text-muted);
+}
+
+.hp-draw [data-f="faint"] {
+  fill: var(--color-text-disabled);
+}
+
+.hp-draw [data-f="strong"] {
+  fill: var(--_line-strong);
+}
+
+.hp-draw [data-f="sel"] {
+  fill: var(--color-surface-selected);
+}
+
+.hp-draw [data-s="zone"] {
+  stroke: var(--color-bg-zone);
+}
+
+.hp-draw [data-s="strong"] {
+  stroke: var(--_line-strong);
+}
+
+.hp-draw [data-s="page"] {
+  stroke: var(--_page);
+}
+
+.hp-draw text {
+  font-family: var(--font-family-sans);
+}
+
+.hp-draw [data-font="display"] {
+  font-family: var(--typography-display-family);
+  font-variation-settings: "SOFT" 100;
+}
+
+.hp-draw [data-font="mono"] {
+  font-family: var(--font-family-mono);
+}
+
+/* ---------- hero ---------- */
+.hp-hero {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: center;
+  padding-top: var(--space-10);
+  padding-bottom: var(--space-16);
+}
+
+.hp-hero-text {
+  display: flex;
+  flex-direction: column;
+  align-self: center;
+  max-width: calc(var(--size-140) + var(--space-10));
+  container-type: inline-size;
+}
+
+.hp-h1 {
+  --_size: min(calc(var(--font-size-800) - var(--space-1)), 9.6cqi);
+
+  margin: 0;
+  font-family: var(--typography-display-family);
+  font-size: var(--_size);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--font-tracking-tight);
+  line-height: var(--font-line-height-none);
+  font-variation-settings: "SOFT" 100;
+  text-wrap: balance;
+}
+
+.hp-hl {
+  display: block;
+  white-space: nowrap;
+}
+
+.hp-hk {
+  padding-bottom: var(--space-1-5);
+}
+
+.hp-keep {
+  position: relative;
+  display: inline-block;
+}
+
+.hp-ul {
+  position: absolute;
+  left: calc(var(--space-1-5) * -1);
+  bottom: calc(var(--space-2) * -1);
+  width: calc(100% + var(--space-3));
+  height: calc(var(--space-4) + var(--space-0-5));
+  overflow: visible;
+}
+
+.hp-ul path {
+  fill: transparent;
+  stroke: var(--_deep);
+  stroke-width: 5;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: hp-draw-line calc(var(--motion-duration-slow) * 2) var(--motion-easing-standard) calc(var(--motion-duration-moderate) * 2) both;
+}
+
+@keyframes hp-draw-line {
+  from {
+    stroke-dashoffset: 1;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.hp-lede {
+  max-width: 34ch;
+  margin: var(--space-6) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--_t18);
+  line-height: var(--font-line-height-normal);
+  text-wrap: balance;
+}
+
+.hp-go {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-7);
+  margin-top: var(--space-10);
+}
+
+/* The drawing (components/home/HpHeroScene.astro): under the text on phones and tablets, full width up to its
+   drawn size (680, size.160 + space.10); beside the text from 900 px, centred on it. */
+.hp-hero-vis {
+  position: relative;
+  width: 100%;
+  max-width: calc(var(--size-160) + var(--space-10));
+  margin-inline: auto;
+  padding-top: var(--space-6);
+}
+
+@media (min-width: 900px) {
+  .hp-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(0, min(calc(var(--size-160) + var(--space-10)), 50%));
+    /* A protection space between the headline and the drawing. */
+    gap: var(--space-20);
+    padding-top: calc(var(--space-20) + var(--space-2));
+    padding-bottom: var(--space-24);
+  }
+
+  .hp-h1 {
+    /* The longest line ("in your design system.") is about 9.8 em at these sizes: it fills the text column. */
+    --_size: min(calc(var(--font-size-1000) - var(--space-1)), 9.9cqi);
+
+    line-height: var(--font-line-height-none);
+  }
+
+  .hp-hs {
+    display: block;
+  }
+
+  .hp-lede {
+    max-width: calc(var(--size-120) + var(--space-10));
+    font-size: var(--font-size-400);
+  }
+
+  .hp-hero-vis {
+    margin-inline: 0;
+    padding-top: 0;
+  }
+}
+
+/* Wide screens: the headline stays big beside the 680 px drawing (about 57 px at 1440). */
+@media (min-width: 1200px) {
+  .hp-h1 {
+    --_size: min(calc(var(--font-size-1000) - var(--space-1)), 10.2cqi);
+  }
+}
+
+/* ---------- section type ---------- */
+.hp-st-h {
+  --_size: clamp(var(--font-size-600), 3vw, calc(var(--font-size-700) + var(--space-1)));
+
+  margin: 0;
+  font-family: var(--typography-display-family);
+  font-size: var(--_size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--font-line-height-tight);
+  font-variation-settings: "SOFT" 100;
+  text-wrap: wrap;
+}
+
+.hp-st-p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--_t18);
+  line-height: var(--font-leading-28);
+}
+
+/* ---------- step tabs ---------- */
+.hp-tabsec {
+  padding-block: calc(var(--space-16) + var(--space-2));
+}
+
+.hp-tabsec + .hp-tabsec {
+  padding-top: var(--space-6);
+}
+
+.hp-tabgrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-8);
+  align-items: center;
+}
+
+.hp-tabtext {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.hp-tablist {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--space-3);
+}
+
+.hp-tabitem {
+  padding: calc(var(--space-3) + var(--space-0-5)) var(--space-5);
+  border-top: var(--border-width-default) solid var(--_line);
+  transition: background-color var(--motion-duration-moderate) var(--motion-easing-standard);
+}
+
+.hp-tabitem:first-child,
+.hp-tabitem.hp-on,
+.hp-tabitem.hp-on + .hp-tabitem {
+  border-top-color: transparent;
+}
+
+.hp-tabitem.hp-on {
+  padding-block: calc(var(--space-4) + var(--space-0-5));
+  border-radius: var(--radius-container);
+  background-color: var(--_soft);
+}
+
+.hp-tab {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space-3) + var(--space-0-5));
+  width: 100%;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+}
+
+.hp-tab:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--space-1);
+}
+
+.hp-n {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--size-7) + var(--space-0-5));
+  height: calc(var(--size-7) + var(--space-0-5));
+  border: var(--border-width-default) solid var(--_line-strong);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
+  transition:
+    background-color var(--motion-duration-moderate) var(--motion-easing-standard),
+    color var(--motion-duration-moderate) var(--motion-easing-standard),
+    border-color var(--motion-duration-moderate) var(--motion-easing-standard);
+}
+
+.hp-tt {
+  color: var(--color-text-muted);
+  font-size: var(--_t18);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--font-leading-26);
+  transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+}
+
+@media (hover: hover) {
+  .hp-tab:hover .hp-tt {
+    color: var(--color-text-default);
+  }
+}
+
+.hp-tab[aria-selected="true"] .hp-n {
+  border-color: var(--_deep);
+  background-color: var(--_deep);
+  color: var(--_on-deep);
+}
+
+.hp-tab[aria-selected="true"] .hp-tt {
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-semibold);
+}
+
+.hp-more {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--motion-duration-moderate) var(--motion-easing-standard);
+}
+
+.hp-more > div {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.hp-tabitem.hp-on .hp-more {
+  grid-template-rows: 1fr;
+}
+
+.hp-more p {
+  margin: calc(var(--space-2) + var(--space-0-5)) 0 0 var(--size-11);
+  font-size: var(--_t17);
+  line-height: var(--font-leading-28);
+}
+
+.hp-prog {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-3) 0 var(--space-0-5) var(--size-11);
+}
+
+.hp-bar {
+  flex: 1;
+  height: var(--space-1);
+  overflow: hidden;
+  border-radius: var(--radius-xs);
+  background-color: var(--_line);
+}
+
+.hp-bar i {
+  display: block;
+  height: 100%;
+  background-color: var(--_deep);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+}
+
+.hp-cnt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
+  white-space: nowrap;
+}
+
+.hp-panel {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  justify-items: center;
+  padding: var(--space-6) var(--space-3);
+  /* The drawing sits straight on the page: no border, no shadow (the drawings' white pieces carry an ink outline). */
+  border-radius: var(--radius-container);
+  background-color: var(--color-surface-raised);
+}
+
+.hp-ui {
+  grid-area: 1 / 1;
+  width: 100%;
+  min-width: 0;
+  max-width: calc(var(--size-140) - var(--space-5));
+  opacity: 0;
+  visibility: hidden;
+  container-type: inline-size;
+  transition:
+    opacity var(--motion-duration-moderate) var(--motion-easing-standard),
+    visibility var(--motion-duration-moderate) step-end;
+}
+
+.hp-ui.hp-on {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity var(--motion-duration-moderate) var(--motion-easing-standard),
+    visibility var(--motion-duration-moderate) step-start;
+}
+
+@media (min-width: 900px) {
+  .hp-tabsec {
+    padding-block: calc(var(--space-24) + var(--space-4));
+  }
+
+  .hp-tabgrid {
+    grid-template-columns: minmax(0, calc(var(--size-96) + var(--space-12) + var(--space-2))) minmax(0, 1fr);
+    gap: var(--space-20);
+  }
+
+  .hp-tabgrid.hp-flip {
+    grid-template-columns: minmax(0, 1fr) minmax(0, calc(var(--size-96) + var(--space-12) + var(--space-2)));
+  }
+
+  .hp-flip .hp-panel {
+    order: -1;
+  }
+
+  .hp-panel {
+    min-height: calc(var(--size-120) + var(--space-5));
+    padding: var(--size-11) var(--space-10);
+  }
+}
+
+/* ---------- mock-up atoms (the drawings in the panels) ---------- */
+.hp-card {
+  border: var(--border-width-default) solid var(--_line);
+  border-radius: var(--radius-container);
+  background-color: var(--_paper);
+  box-shadow: var(--elevation-overlay);
+}
+
+.hp-xs {
+  font-size: var(--font-size-100);
+  line-height: var(--font-leading-16);
+}
+
+.hp-row {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space-2) + var(--space-0-5));
+}
+
+.hp-sp {
+  flex: 1;
+}
+
+.hp-av {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-10);
+  height: var(--size-10);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-bg-zone);
+  color: var(--color-text-link);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
+}
+
+.hp-ai {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-5);
+  height: var(--size-5);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-zone);
+  color: var(--color-text-default);
+}
+
+.hp-ai svg {
+  width: calc(var(--_u) * 15);
+  height: calc(var(--_u) * 15);
+}
+
+.hp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--size-9);
+  padding: 0 calc(var(--space-3) + var(--space-0-5));
+  border: var(--border-width-default) solid transparent;
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+.hp-btn-deep {
+  background-color: var(--_deep);
+  color: var(--_on-deep);
+}
+
+.hp-btn-line {
+  border-color: var(--_line-strong);
+  background-color: var(--_paper);
+}
+
+/* A panel's drawing, centred in its column. */
+.hp-sc {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: calc(var(--size-140) - var(--space-5));
+  margin: 0 auto;
+}
+
+.hp-sc-center {
+  align-items: center;
+}
+
+/* Start 1: the create branch dialog. */
+.hp-dlg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: calc(var(--size-96) + var(--size-14));
+  margin: 0 auto;
+  padding: var(--space-6);
+  font-size: var(--font-size-200);
+  line-height: var(--font-leading-20);
+}
+
+.hp-dt {
+  margin-bottom: var(--space-1);
+  font-size: var(--_t18);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--font-leading-26);
+}
+
+.hp-opt {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) calc(var(--space-3) + var(--space-0-5));
+  border: var(--border-width-default) solid var(--_line);
+  border-radius: var(--radius-xl);
+}
+
+.hp-opt:not(.hp-pick) {
+  color: var(--color-text-muted);
+}
+
+.hp-opt.hp-pick {
+  border: var(--border-width-2) solid var(--_deep);
+  padding: calc(var(--space-3) - var(--border-width-1)) calc(var(--space-3) + var(--space-0-5) - var(--border-width-1));
+  background-color: var(--color-surface-selected);
+}
+
+.hp-opt strong {
+  display: block;
+  font-weight: var(--font-weight-semibold);
+}
+
+.hp-opt small {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
+}
+
+.hp-radio {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-4);
+  height: var(--size-4);
+  margin-top: var(--border-width-1);
+  border: calc(var(--_u) * 1.5) solid var(--_line-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--_paper);
+}
+
+.hp-pick .hp-radio {
+  border-color: var(--_deep);
+}
+
+.hp-pick .hp-radio::after {
+  content: "";
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background-color: var(--_deep);
+}
+
+.hp-ui.hp-on .hp-pick {
+  animation: hp-pick var(--motion-duration-slow) var(--motion-easing-enter) calc(var(--motion-duration-moderate) * 2.5) both;
+}
+
+@keyframes hp-pick {
+  from {
+    border-color: var(--_line);
+    background-color: var(--_paper);
+  }
+
+  to {
+    border-color: var(--_deep);
+    background-color: var(--color-surface-selected);
+  }
+}
+
+.hp-jira {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--size-9);
+  padding: 0 var(--space-3);
+  border: var(--border-width-default) dashed var(--_line-strong);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-muted);
+}
+
+.hp-jira svg {
+  width: calc(var(--_u) * 14);
+  height: calc(var(--_u) * 14);
+  fill: transparent;
+  stroke: currentcolor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.hp-dlg-foot {
+  margin-top: var(--space-1);
+}
+
+.hp-ui.hp-on .hp-ring {
+  animation: hp-ring var(--motion-duration-moderate) var(--motion-easing-standard) calc(var(--motion-duration-fast) * 8.6667) both;
+}
+
+@keyframes hp-ring {
+  from {
+    outline: var(--border-width-2) solid transparent;
+    outline-offset: var(--border-width-2);
+  }
+
+  to {
+    outline: var(--border-width-2) solid var(--_deep);
+    outline-offset: var(--border-width-2);
+  }
+}
+
+/* The entrance of the drawings. */
+
+/* Window dots and the small flag (Published, Public). */
+
+/* The Bridge mark next to a label. */
+
+/* Start 2 and 3 (Field Guide): the sieve, then Dana and Leo tick the kept piece off (5.2 s loop, delays in units of
+   the slow duration). */
+.hp-k4fg {
+  display: block;
+  width: min(calc(var(--size-96) + var(--size-14)), 100%);
+  height: auto;
+}
+
+.hp-k4fg text {
+  font-family: var(--font-family-sans);
+}
+
+.hp-k4fg .hp-k4-disp {
+  font-family: var(--typography-display-family);
+}
+
+.hp-draw [data-f="muted"] {
+  fill: var(--color-text-muted);
+}
+
+.hp-draw [data-s="ondeep"] {
+  stroke: var(--_on-deep);
+}
+
+/* Start 2: the sieve (hp-k4sv). Your exploration pours its pieces into Bridge; the known ones slip through to your
+   library, the new one stays. One 6 s loop while the step is shown; without motion, the drawing is its end state. */
+.hp-k4sv .hp-k4src {
+  transform-box: fill-box;
+  transform-origin: 100% 100%;
+}
+
+.hp-k4sv .hp-k4shake {
+  transform-box: fill-box;
+  transform-origin: 50% 30%;
+}
+
+.hp-k4sv .hp-k4p1,
+.hp-k4sv .hp-k4p2,
+.hp-k4sv .hp-k4p3,
+.hp-k4sv .hp-k4new,
+.hp-k4sv .hp-k4t1,
+.hp-k4sv .hp-k4t2,
+.hp-k4sv .hp-k4t3,
+.hp-k4sv .hp-k4dot {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.hp-k4sv .hp-k4pour {
+  opacity: 0;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4src {
+  animation: hp-k4src calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4pour {
+  animation: hp-k4pour calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4p1 {
+  animation: hp-k4p1 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4p2 {
+  animation: hp-k4p2 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4p3 {
+  animation: hp-k4p3 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4new {
+  animation: hp-k4new calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4shake {
+  animation: hp-k4shake calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4sift {
+  animation: hp-k4sift calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4tint {
+  animation: hp-k4tint calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4t1 {
+  animation: hp-k4t1 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4t2 {
+  animation: hp-k4t2 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4t3 {
+  animation: hp-k4t3 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4lead {
+  animation: hp-k4lead calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4dot {
+  animation: hp-k4dot calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+.hp-ui.hp-on .hp-k4sv .hp-k4lbl {
+  animation: hp-k4lbl calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite;
+}
+
+@keyframes hp-k4src {
+  0% {
+    transform: rotate(-8deg);
+  }
+
+  5.00% {
+    transform: none;
+  }
+
+  25.00% {
+    transform: none;
+    animation-timing-function: var(--motion-easing-enter);
+  }
+
+  31.67%,
+  100% {
+    transform: rotate(-8deg);
+  }
+}
+
+@keyframes hp-k4pour {
+  0%,
+  4.17% {
+    opacity: 0;
+  }
+
+  7.50%,
+  24.17% {
+    opacity: 1;
+  }
+
+  28.33%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes hp-k4p1 {
+  0%,
+  10.83% {
+    opacity: 0;
+    transform: translate(calc(var(--_u) * 58), calc(var(--_u) * -270)) scale(0.55);
+  }
+
+  12.83% {
+    opacity: 1;
+    animation-timing-function: var(--motion-easing-enter);
+  }
+
+  17.83% {
+    transform: translate(calc(var(--_u) * -22), calc(var(--_u) * -168)) scale(1);
+  }
+
+  40.83% {
+    opacity: 1;
+    transform: translate(calc(var(--_u) * -22), calc(var(--_u) * -168));
+    animation-timing-function: var(--motion-easing-exit);
+  }
+
+  45.83% {
+    transform: translate(0, calc(var(--_u) * -10));
+    animation-timing-function: var(--motion-easing-enter);
+  }
+
+  49.17%,
+  96.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-k4p2 {
+  0%,
+  14.17% {
+    opacity: 0;
+    transform: translate(calc(var(--_u) * -14), calc(var(--_u) * -272)) scale(0.55);
+  }
+
+  16.17% {
+    opacity: 1;
+    animation-timing-function: var(--motion-easing-enter);
+  }
+
+  21.17% {
+    transform: translate(calc(var(--_u) * -42), calc(var(--_u) * -172)) scale(1);
+  }
+
+  43.33% {
+    opacity: 1;
+    transform: translate(calc(var(--_u) * -42), calc(var(--_u) * -172));
+    animation-timing-function: var(--motion-easing-exit);
+  }
+
+  48.33% {
+    transform: translate(0, calc(var(--_u) * -10));
+    animation-timing-function: var(--motion-easing-enter);
+  }
+
+  51.67%,
+  96.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-k4p3 {
+  0%,
+  17.50% {
+    opacity: 0;
+    transform: translate(calc(var(--_u) * -86), calc(var(--_u) * -277)) scale(0.55);
+  }
+
+  19.50% {
+    opacity: 1;
+    animation-timing-function: var(--motion-easing-enter);
+  }
+
+  24.50% {
+    transform: translate(calc(var(--_u) * 20), calc(var(--_u) * -171)) scale(1);
+  }
+
+  45.83% {
+    opacity: 1;
+    transform: translate(calc(var(--_u) * 20), calc(var(--_u) * -171));
+    animation-timing-function: var(--motion-easing-exit);
+  }
+
+  50.83% {
+    transform: translate(0, calc(var(--_u) * -10));
+    animation-timing-function: var(--motion-easing-enter);
+  }
+
+  54.17%,
+  96.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-k4new {
+  0%,
+  4.17% {
+    opacity: 0;
+    transform: translate(calc(var(--_u) * -30), calc(var(--_u) * -90)) scale(0.55);
+  }
+
+  6.17% {
+    opacity: 1;
+    animation-timing-function: var(--motion-easing-exit);
+  }
+
+  11.67% {
+    transform: none;
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  14.17% {
+    transform: translateY(calc(var(--_u) * -7));
+    animation-timing-function: var(--motion-easing-exit);
+  }
+
+  16.67% {
+    transform: none;
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  18.33% {
+    transform: translateY(calc(var(--_u) * -2));
+    animation-timing-function: var(--motion-easing-exit);
+  }
+
+  20.00%,
+  96.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-k4shake {
+  0%,
+  30.00% {
+    transform: none;
+  }
+
+  31.67% {
+    transform: translateX(calc(var(--_u) * 6)) rotate(1.2deg);
+  }
+
+  33.33% {
+    transform: translateX(calc(var(--_u) * -5)) rotate(-1deg);
+  }
+
+  35.00% {
+    transform: translateX(calc(var(--_u) * 3.5)) rotate(0.7deg);
+  }
+
+  36.67% {
+    transform: translateX(calc(var(--_u) * -2)) rotate(-0.4deg);
+  }
+
+  38.33% {
+    transform: translateX(calc(var(--_u) * 1));
+  }
+
+  40.00%,
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes hp-k4sift {
+  0%,
+  30.83% {
+    opacity: 0;
+    transform: none;
+  }
+
+  33.33% {
+    opacity: 0.6;
+  }
+
+  40.83% {
+    opacity: 0;
+    transform: translateY(calc(var(--_u) * 14));
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(calc(var(--_u) * 14));
+  }
+}
+
+@keyframes hp-k4tint {
+  0%,
+  58.33% {
+    fill: var(--_page);
+    stroke: var(--color-text-default);
+  }
+
+  63.33%,
+  100% {
+    fill: var(--color-bg-zone);
+    stroke: var(--_deep);
+  }
+}
+
+@keyframes hp-k4t1 {
+  0%,
+  49.17% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+
+  51.67% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+
+  54.17%,
+  96.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-k4t2 {
+  0%,
+  51.67% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+
+  54.17% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+
+  56.67%,
+  96.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-k4t3 {
+  0%,
+  54.17% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+
+  56.67% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+
+  59.17%,
+  96.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-k4lead {
+  0%,
+  61.67% {
+    stroke-dashoffset: 1;
+  }
+
+  66.67%,
+  96.00% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+
+@keyframes hp-k4dot {
+  0%,
+  60.00% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+
+  63.33%,
+  96.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes hp-k4lbl {
+  0%,
+  64.17% {
+    opacity: 0;
+    transform: translateX(calc(var(--_u) * -6));
+  }
+
+  69.17%,
+  96.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+/* The pressed action (Merge, Pull). */
+.hp-obtn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: var(--size-8);
+  padding: 0 var(--space-4);
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background-color: var(--_deep);
+  color: var(--_on-deep);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-medium);
+}
+
+.hp-obtn > span {
+  display: inline-flex;
+  grid-area: 1 / 1;
+  align-items: center;
+  gap: var(--space-1-5);
+  white-space: nowrap;
+}
+
+.hp-obtn svg {
+  width: calc(var(--_u) * 13);
+  height: calc(var(--_u) * 13);
+}
+
+/* Ship 1: merge. */
+.hp-mcard,
+.hp-cpage,
+.hp-lib,
+.hp-qual {
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto;
+  font-size: var(--font-size-200);
+  line-height: var(--font-leading-20);
+}
+
+.hp-mcard {
+  gap: calc(var(--space-3) + var(--space-0-5));
+  max-width: calc(var(--size-96) + var(--space-4));
+  padding: calc(var(--space-5) + var(--space-0-5));
+}
+
+.hp-state {
+  display: grid;
+  margin-left: auto;
+}
+
+.hp-state > span {
+  display: inline-flex;
+  grid-area: 1 / 1;
+  align-items: center;
+  justify-self: end;
+  gap: var(--space-1);
+  height: calc(var(--size-5) + var(--space-0-5));
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-100);
+  font-weight: var(--font-weight-semibold);
+}
+
+.hp-state svg {
+  width: calc(var(--_u) * 11);
+  height: calc(var(--_u) * 11);
+}
+
+.hp-mcard .hp-obtn {
+  height: var(--size-10);
+  border-radius: var(--radius-lg);
+}
+
+/* Ship 2: the published component page. */
+.hp-cpage {
+  gap: calc(var(--space-3) + var(--space-0-5));
+  max-width: calc(var(--size-96) + var(--space-16) + var(--space-3));
+  padding: calc(var(--space-5) + var(--space-0-5));
+}
+
+/* Ship 3: the DS Bridge plugin. */
+.hp-plug {
+  max-width: calc(var(--size-80) + var(--space-5));
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: var(--radius-2xl);
+  font-size: var(--font-size-200);
+  line-height: var(--font-leading-20);
+}
+
+.hp-x {
+  margin-left: auto;
+  color: var(--color-text-disabled);
+  font-weight: var(--font-weight-regular);
+}
+
+/* Trust 1: the public Library page. */
+.hp-lib {
+  gap: var(--space-3);
+  max-width: calc(var(--size-96) + var(--space-8) + var(--space-1));
+  padding: calc(var(--space-5) + var(--space-0-5));
+}
+
+.hp-lib .hp-row {
+  gap: var(--space-1-5);
+}
+
+/* Trust 2: the same component in Figma and Storybook. */
+
+.hp-pair {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.hp-pair::before {
+  content: "";
+  position: absolute;
+  inset-inline: 25%;
+  bottom: 0;
+  border-top: calc(var(--_u) * 1.5) solid var(--_deep);
+}
+
+@container (min-width: 520px) {
+  .hp-pair {
+    gap: var(--space-7);
+  }
+
+  .hp-pair::before {
+    top: 50%;
+    bottom: auto;
+  }
+}
+
+/* Trust 3: adoption per product. */
+.hp-qual {
+  gap: var(--space-1-5);
+  max-width: calc(var(--size-96) + var(--space-8) + var(--space-1));
+  padding: var(--space-6);
+}
+
+/* ---------- the design system lead ---------- */
+.hp-lead {
+  padding-block: var(--space-20);
+  background-color: var(--_soft);
+}
+
+@media (min-width: 900px) {
+  .hp-lead {
+    padding-block: calc(var(--space-24) + var(--space-6));
+  }
+}
+
+/* ---------- questions teams ask ---------- */
+.hp-faq {
+  padding-top: var(--space-20);
+}
+
+.hp-faqgrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: center;
+}
+
+.hp-faqside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+}
+
+.hp-faqh {
+  --_size: clamp(calc(var(--font-size-700) - var(--space-0-5)), 3.6vw, calc(var(--font-size-900) + var(--space-0-5)));
+
+  margin: 0;
+  font-family: var(--typography-display-family);
+  font-size: var(--_size);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--font-tracking-tight);
+  line-height: var(--font-line-height-tight);
+  font-variation-settings: "SOFT" 100;
+  text-wrap: wrap;
+}
+
+/* The DS Accordion's content starts right under its trigger; the answer brings its own space above (component request:
+   a top padding on the Accordion content). */
+.hp-faq-answer {
+  max-width: 60ch;
+  margin: 0;
+  padding-top: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-300);
+  line-height: var(--font-leading-26);
+}
+
+@media (min-width: 900px) {
+  .hp-faq {
+    padding-top: calc(var(--space-24) + var(--space-4));
+  }
+
+  .hp-faqgrid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: var(--space-16);
+  }
+}
+
+/* ---------- closing: Horizon ---------- */
+.hp-closing {
+  padding-top: calc(var(--space-24) + var(--space-4));
+}
+
+.hp-hz-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.hp-eyebrow {
+  margin: 0 0 var(--space-5);
+  color: var(--color-text-link);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--font-tracking-wide);
+  line-height: var(--font-leading-20);
+}
+
+.hp-hz-h {
+  --_size: clamp(calc(var(--font-size-700) + var(--space-1)), 4.6vw, var(--font-size-1000));
+
+  margin: 0;
+  font-family: var(--typography-display-family);
+  font-size: var(--_size);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--font-tracking-tight);
+  line-height: var(--font-line-height-tight);
+  font-variation-settings: "SOFT" 100;
+}
+
+.hp-ul-late path {
+  animation-duration: var(--motion-duration-slow);
+}
+
+.hp-hz-p {
+  margin: var(--space-5) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--_t19);
+  line-height: var(--font-leading-32);
+}
+
+.hp-hz-cta {
+  display: flex;
+  margin-top: var(--space-8);
+}
+
+.hp-pano {
+  position: relative;
+  width: 100%;
+  margin-top: var(--space-6);
+  overflow: hidden;
+}
+
+.hp-hz-stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(var(--_u) * 1440);
+  height: calc(var(--_u) * 292);
+  transform-origin: 0 0;
+}
+
+.hp-pano-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.hp-wv {
+  animation: hp-sway calc(var(--motion-duration-moderate) * var(--hp-dur, 20)) var(--motion-easing-standard) calc(var(--motion-duration-moderate) * var(--hp-delay, 0)) infinite alternate;
+}
+
+@keyframes hp-sway {
+  from {
+    transform: translateX(calc(var(--space-1-5) * -1));
+  }
+
+  to {
+    transform: translateX(var(--space-1-5));
+  }
+}
+
+.hp-birds {
+  animation: hp-glide calc(var(--motion-duration-moderate) * 70) var(--motion-easing-standard) infinite;
+}
+
+@keyframes hp-glide {
+  0% {
+    transform: translate(0, 0);
+  }
+
+  50% {
+    transform: translate(calc(var(--space-8) * -1 - var(--space-1)), calc(var(--space-1-5) * -1));
+  }
+
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+.hp-flap {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: hp-flap calc(var(--motion-duration-moderate) * 2.6) var(--motion-easing-standard) calc(var(--motion-duration-moderate) * var(--hp-delay, 0)) infinite alternate;
+}
+
+@keyframes hp-flap {
+  from {
+    transform: scaleY(1);
+  }
+
+  to {
+    transform: scaleY(0.45);
+  }
+}
+
+/* The pair walks the kept card across the bridge, slowly, with a short step bob. Rest frame: mid-bridge. */
+.hp-walk {
+  position: absolute;
+  left: calc(var(--_u) * 250);
+  top: calc(var(--_u) * 42.4);
+  width: calc(var(--_u) * 111.6);
+  height: calc(var(--_u) * 55.8);
+  animation: hp-walk calc(var(--motion-duration-moderate) * 180) var(--motion-easing-linear) infinite;
+}
+
+.hp-walk:hover,
+.hp-walk:focus-within,
+.hp-walk:hover .hp-bob,
+.hp-walk:focus-within .hp-bob,
+.hp-walk:hover .hp-leg-a,
+.hp-walk:hover .hp-leg-b,
+.hp-walk:focus-within .hp-leg-a,
+.hp-walk:focus-within .hp-leg-b {
+  animation-play-state: paused;
+}
+
+@keyframes hp-walk {
+  0% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+
+  4% {
+    opacity: 1;
+  }
+
+  94% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(calc(var(--_u) * 860));
+  }
+}
+
+.hp-bob {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  animation: hp-bob calc(var(--motion-duration-moderate) * 1.2) var(--motion-easing-standard) infinite alternate;
+}
+
+@keyframes hp-bob {
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(calc(var(--_u) * -1.5));
+  }
+}
+
+/* A real walk: the legs swing from the hip in opposite phase, the body dips on each step. */
+.hp-leg-a,
+.hp-leg-b {
+  transform-box: fill-box;
+  transform-origin: 50% 0%;
+}
+
+.hp-leg-a {
+  animation: hp-stride calc(var(--motion-duration-moderate) * 2.4) var(--motion-easing-standard) infinite alternate;
+}
+
+.hp-leg-b {
+  animation: hp-stride calc(var(--motion-duration-moderate) * 2.4) var(--motion-easing-standard) infinite alternate-reverse;
+}
+
+@keyframes hp-stride {
+  from {
+    transform: rotate(-22deg);
+  }
+
+  to {
+    transform: rotate(22deg);
+  }
+}
+
+.hp-walkers {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * The profile card the pair carries (components/home/HpConnectCard.tsx): a DS Card, interactive, laid out at its real
+ * size (padding, avatar, type and control from the scales), then scaled into the drawing. It rests on the four raised
+ * hands: centred on the pair, its bottom edge a hair below the hands (the walkers' arms end at 3.7 drawing px), so
+ * the hands grip the lower edge. It is drawn at 92% (was 80% of a smaller plate): about 20% wider than before.
+ */
+.hp-walk .hp-fgcard {
+  --_scale: 0.92;
+
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% - var(--_u) * 6.4);
+  box-sizing: border-box;
+  gap: var(--space-3);
+  width: var(--size-64);
+  padding: var(--space-4);
+  border-color: var(--color-border-emphasis);
+  box-shadow: var(--elevation-raised);
+  text-align: left;
+  translate: -50% 0;
+  scale: var(--_scale);
+  transform-origin: 50% 100%;
+}
+
+/* The lift reads at the scene's size: the overlay shadow, and the edge firms up (the Card's own hover). */
+@media (hover: hover) {
+  .hp-walk .hp-fgcard:hover {
+    box-shadow: var(--elevation-overlay);
+  }
+}
+
+/* Avatar and the name it belongs to on one line; the avatar is as tall as the two lines of text. */
+.hp-fg-id {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.hp-pt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  min-width: 0;
+}
+
+.hp-pt strong {
+  color: var(--color-text-default);
+  font-size: var(--font-size-300);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--font-leading-20);
+  white-space: nowrap;
+}
+
+.hp-pt small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
+  line-height: var(--font-leading-16);
+  white-space: nowrap;
+}
+
+/*
+ * The action fills the card's width (fullWidth), below what it acts on. It is the card's one link: static so its stretched hit
+ * area (the Card's data-card-primary layer) covers the whole plate, and hovering anywhere on the card is hovering it,
+ * so its own hover fill shows. It keeps the secondary button's text color.
+ */
+.hp-walk a.hp-connect {
+  position: static;
+  color: var(--button-secondary-text);
+}
+
+/* ---------- reduced motion: everything rests ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .hp-ul path,
+  .hp-wv,
+  .hp-birds,
+  .hp-flap,
+  .hp-bob,
+  .hp-leg-a,
+  .hp-leg-b,
+  .hp-ui.hp-on .hp-pick,
+  .hp-ui.hp-on .hp-ring,
+  .hp-ui.hp-on .hp-k4an,
+  .hp-ui.hp-on .hp-k4sv .hp-k4an {
+    animation: none;
+  }
+
+  .hp-walk {
+    opacity: 1;
+    transform: translateX(calc(var(--_u) * 430));
+    animation: none;
+  }
+
+  /* The end state of each step, without the motion. */
+}

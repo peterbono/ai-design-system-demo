@@ -1,29 +1,13 @@
 ---
-// All tokens: the Library's read-only reference. Every semantic token of the latest release with its light and dark
-// value (bridge brand), a filter, type chips and one side panel. Editing lives in Studio Tokens.
+// All tokens: the shared view (components/ds/library/views/AllTokensView.tsx), rendered at build time.
 // Deep links: ?t=<token path> (and ?focus=) select a token; a primitive path pre-fills the filter instead.
 import '../../styles/all-tokens.css';
 import Layout from '../../layouts/Layout.astro';
-import { Button, Icon, IconButton, Input, Link, SegmentedControl } from '@bridge-ds/react';
-import { ClipboardCopy, Search, X } from 'lucide-react';
-import { allTokenRows, typeChips } from '../../lib/all-tokens';
-import { versionInfo } from '../../lib/changelog';
+import AllTokensView from '../../components/ds/library/views/AllTokensView';
+import { siteLibraryData } from '../../lib/library-site';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
-import { loadTokens } from '../../lib/tokens';
-import { createElement } from 'react';
 
 const updated = freshness(PAGE_SOURCES.explorer);
-const rows = allTokenRows(loadTokens().all);
-const chips = typeChips(rows);
-const version = versionInfo().current;
-const MODES = ['light', 'dark'];
-const searchIcon = createElement(Icon, { icon: Search, size: 'sm' });
-// Type filter: a static DS SegmentedControl (data-vanilla), each type with its count; scripts/all-tokens.ts follows it.
-// The filter field and the type control share one DS size (md): a small SegmentedControl is taller than a small Input
-// (its track adds an inset around small-height segments), so the bar read as two heights.
-const chipItems = chips.map((c) => ({ value: c.value, label: createElement('span', null, `${c.label} `, createElement('span', { className: 'at-chip-n num' }, c.count)) }));
-// What the panel needs, keyed by path. Everything else is in the rendered rows.
-const panelData = Object.fromEntries(rows.map((r) => [r.path, { cssVar: r.cssVar, type: r.type, description: r.description, light: r.light, dark: r.dark }]));
 ---
 
 <Layout title="All tokens" description="Every semantic token in the latest release with its light and dark value, ready to copy." sources={PAGE_SOURCES.explorer} updated={updated} wide>
@@ -34,122 +18,7 @@ const panelData = Object.fromEntries(rows.map((r) => [r.path, { cssVar: r.cssVar
       if (p.get('edit') === '1') { p.delete('edit'); var q = p.toString(); location.replace('/studio/tokens/' + (q ? '?' + q : '') + location.hash); }
     })();
   </script>
-  <div class="at" data-at>
-    <header class="at-head">
-      <h1>All tokens</h1>
-      <p class="at-lead">
-        Every semantic token in the latest release, <span class="mono">{version}</span>, with its light and dark value. Read only: copy a token's CSS variable, or open a token to see where its value comes from.
-      </p>
-    </header>
-
-    <div class="at-bar">
-      <div class="at-filter">
-        <Input
-          size="md"
-          type="search"
-          label="Filter tokens"
-          hideLabel
-          placeholder={`Filter ${rows.length} tokens`}
-          prefix={searchIcon}
-          autoComplete="off"
-          spellCheck={false}
-          data-at-q
-        />
-      </div>
-      <SegmentedControl className="at-chips" label="Type" size="md" data-vanilla data-at-chips defaultValue="all" items={chipItems} />
-    </div>
-
-    <div class="at-split">
-      <section class="at-list" aria-labelledby="at-list-title">
-        <h2 class="sr-only" id="at-list-title">Tokens</h2>
-        <div class="at-lh" aria-hidden="true">
-          <span></span>
-          <span>Name</span>
-          <span data-at-h-light>Light</span>
-          <span data-at-h-dark>Dark</span>
-          <span></span>
-        </div>
-        <ul class="at-rows" data-at-rows>
-          {
-            rows.map((r) => (
-              <li class="at-row" data-at-row={r.path} data-type={r.type} data-search={r.search} data-same={r.light.short === r.dark.short ? '' : undefined}>
-                <!-- bridge-audit-ignore-next-line: the whole token row (swatches, name, light and dark values) is one target that selects it; the DS has no row button and Button would truncate it to one label -->
-                <button type="button" class="at-row-main" aria-controls="at-panel" aria-pressed="false" data-at-open={r.path}>
-                  {r.type === 'color' ? (
-                    <span class="at-sw" aria-hidden="true">
-                      <i data-theme="light" data-brand="bridge" data-scope-fixed style={`background-color: var(${r.cssVar})`} />
-                      <i data-theme="dark" data-brand="bridge" data-scope-fixed style={`background-color: var(${r.cssVar})`} />
-                    </span>
-                  ) : r.type === 'shadow' ? (
-                    <span class="at-sw at-sw-shadow" aria-hidden="true">
-                      <i style={`box-shadow: var(${r.cssVar})`} />
-                    </span>
-                  ) : r.type === 'dimension' ? (
-                    <span class="at-sw at-sw-dim" aria-hidden="true">
-                      <i style={`width: min(var(${r.cssVar}), 100%)`} />
-                    </span>
-                  ) : (
-                    <span class="at-sw" aria-hidden="true" />
-                  )}
-                  <span class="at-name mono">
-                    {r.cssVar}
-                    {r.deprecated && <span class="at-dep">Deprecated</span>}
-                  </span>
-                  <span class="at-vals">
-                  <span class="at-val mono">
-                    <span class="sr-only">Light </span>
-                    {r.light.short}
-                  </span>
-                  <span class="at-val mono">
-                    <span class="sr-only">Dark </span>
-                    {r.dark.short}
-                  </span>
-                  </span>
-                </button>
-                <IconButton icon={ClipboardCopy} label={`Copy variable var(${r.cssVar})`} size="sm" variant="secondary" className="at-copy" data-tooltip="Copy variable" data-copy={`var(${r.cssVar})`} />
-              </li>
-            ))
-          }
-        </ul>
-        <p class="at-empty" data-at-empty hidden>
-          No token matches this filter. Try a name like <span class="mono">bg.zone</span>, a CSS variable or a hex.
-          <span data-at-elsewhere hidden> <span class="mono" data-at-elsewhere-name></span> is not a semantic token: <Link href="/studio/tokens/" data-at-elsewhere-link>see it in Studio Tokens</Link>.</span>
-        </p>
-      </section>
-
-      <aside class="at-panel" id="at-panel" aria-label="Token detail" data-at-panel data-open="false" tabindex="-1">
-        <div class="at-panel-head">
-          <h2 class="at-panel-name mono" data-at-p-name></h2>
-          <IconButton icon={X} label="Close token detail" size="sm" className="at-panel-close" data-at-close />
-        </div>
-        <p class="at-panel-desc" data-at-p-desc></p>
-        <div class="at-modes">
-          {
-            MODES.map((m) => (
-              <div class="at-mode" data-at-mode={m}>
-                <div class="at-big" data-at-p-big data-theme={m} data-brand="bridge" data-scope-fixed>
-                  <span class="mono" data-at-p-bigval></span>
-                </div>
-                <p class="at-mode-text">
-                  <strong>{m === 'light' ? 'Light' : 'Dark'}</strong>
-                  <span class="mono" data-at-p-source></span>
-                  <span class="mono" data-at-p-value></span>
-                </p>
-              </div>
-            ))
-          }
-        </div>
-        <div class="at-var">
-          <span class="mono" id="at-p-var" data-at-p-var></span>
-          <Button variant="secondary" size="sm" iconStart={ClipboardCopy} data-copy-from="at-p-var">
-            <span data-copy-label>Copy variable</span>
-          </Button>
-        </div>
-      </aside>
-    </div>
-    <div class="at-scrim" data-at-scrim hidden></div>
-  </div>
-  <script type="application/json" id="at-data" set:html={JSON.stringify(panelData)} />
+  <AllTokensView data={siteLibraryData()} />
   <script>
     import { initAllTokens } from '../../scripts/all-tokens';
     initAllTokens();

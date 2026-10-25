@@ -15,9 +15,10 @@ import type { Lifecycle, LifecycleTone } from './change-status';
 import { LIFECYCLE, lifecycleTone } from './change-status';
 import { oneLineTitle } from './markdown';
 import { humanTitle } from './pr-title';
+import { studioHref } from './team-path';
 
 /** The Studio pages that can show a change. Everything else reads the latest library and drops ?change=. */
-export const VIEW_PAGES = ['/studio/tokens/', '/studio/components/', '/studio/quality/'] as const;
+export const VIEW_PAGES = [studioHref('tokens/'), studioHref('components/'), studioHref('quality/')] as const;
 
 const norm = (path: string) => path.replace(/\/?$/, '/');
 
@@ -52,7 +53,7 @@ export function scopeOf(search: string, path: string): LibraryScope {
   const list = parseChangeList(params.get('change'));
   if (!list.length) return LATEST;
   if (list.length > 1) return { kind: 'view', change: list[0]!, changes: list, use: params.get('use') || null };
-  const edit = params.get('edit') === '1' && norm(path) === '/studio/tokens/';
+  const edit = params.get('edit') === '1' && norm(path) === studioHref('tokens/');
   return { kind: edit ? 'edit' : 'view', change: list[0]! };
 }
 
@@ -109,20 +110,20 @@ export function keepScopeHref(href: string, scope: LibraryScope, base: string): 
   return url.pathname + (q ? `?${q}` : '') + url.hash;
 }
 
-export const viewInChangeHref = (n: number, path = '/studio/tokens/') => `${norm(path)}?change=${n}`;
+export const viewInChangeHref = (n: number, path = studioHref('tokens/')) => `${norm(path)}?change=${n}`;
 /** Studio Tokens (or another view page) showing several changes together, with the picks (core encodePicks). */
-export const viewTogetherHref = (numbers: number[], use: string, path = '/studio/tokens/') =>
+export const viewTogetherHref = (numbers: number[], use: string, path = studioHref('tokens/')) =>
   scopeHref({ pathname: norm(path), search: '' }, { kind: 'view', change: numbers[0]!, changes: numbers, use: use || null });
 /** Studio Tokens scoped to a change for editing ("Edit tokens in this change"). */
-export const editInChangeHref = (n: number) => `/studio/tokens/?change=${n}&edit=1`;
+export const editInChangeHref = (n: number) => studioHref(`tokens/?change=${n}&edit=1`);
 /** The change page. */
-export const changePageHref = (n: number) => `/studio/changes/?pr=${n}`;
+export const changePageHref = (n: number) => studioHref(`changes/?pr=${n}`);
 
 // ---------------------------------------------------------------------------------------------------------------
 // The selector: "Viewing: Latest library", then the open changes with their status.
 
 export const LATEST_VALUE = 'latest';
-export const LATEST_LABEL = 'main';
+export const LATEST_LABEL = 'Library';
 
 export interface ViewPull {
   number: number;
@@ -171,7 +172,7 @@ export const togetherValue = (numbers: number[]) => `together-${numbers.join('-'
 
 /** "3 changes together", first under Open changes while they are shown; its description names them. */
 export function togetherOption(numbers: number[], titles: string[]): ViewOption {
-  return { value: togetherValue(numbers), label: `${numbers.length} branches together`, description: titles.length ? names(titles) : numbers.map((n) => `#${n}`).join(', '), group: 'Open branches' };
+  return { value: togetherValue(numbers), label: `${numbers.length} changes together`, description: titles.length ? names(titles) : numbers.map((n) => `#${n}`).join(', '), group: 'Open changes' };
 }
 
 /** Open changes only, one per change, never the default branch itself; most recently updated first. */
@@ -201,7 +202,7 @@ export function viewOptions(pulls: ViewPull[], opts: { defaultBranch: string; li
       value: optionValue(p.number),
       label: viewTitle(p.title),
       description: p.user?.login ? `by ${p.user.login}` : '',
-      group: 'Open branches',
+      group: 'Open changes',
       status: statusOf(p),
     })),
   ];
@@ -381,7 +382,7 @@ export type ViewPage = 'tokens' | 'components' | 'quality';
 
 export function pageOf(path: string): ViewPage | null {
   const p = norm(path);
-  return p === '/studio/tokens/' ? 'tokens' : p === '/studio/components/' ? 'components' : p === '/studio/quality/' ? 'quality' : null;
+  return p === studioHref('tokens/') ? 'tokens' : p === studioHref('components/') ? 'components' : p === studioHref('quality/') ? 'quality' : null;
 }
 
 /** The banner's title: the one sentence of the mode, the same on every page. */
@@ -427,25 +428,25 @@ export function bannerBody(page: ViewPage, x: { changed?: number; added?: number
   if (page === 'tokens') {
     const parts = [x.changed ? `${plural(x.changed, 'token')} changed` : '', x.added ? `${plural(x.added, 'token')} added` : '', x.removed ? `${plural(x.removed, 'token')} removed` : ''].filter(Boolean);
     const picked = x.picked ? ' Where two of them set a token differently, the value you picked is used.' : '';
-    return parts.length ? `${list(parts)}, listed first in the table${x.together ? ', each marked with its branch' : ''}.${picked}` : `${it} no token values.`;
+    return parts.length ? `${list(parts)}, listed first in the table${x.together ? ', each marked with its change' : ''}.${picked}` : `${it} no token values.`;
   }
   const n = x.components ?? 0;
   const g = x.guidance?.length ?? 0;
   if (!n && !g) return `Previews use ${its} tokens. ${it} how no component looks.`;
   const what = [n ? `${plural(n, 'component')} ${n === 1 ? 'looks' : 'look'} different` : '', g ? `${g} ${g === 1 ? 'has' : 'have'} edited guidance` : ''].filter(Boolean).join(' and ');
-  return `Previews use ${its} tokens: ${what}, marked in the list.${g ? ' Guidance text here comes from main.' : ''}`;
+  return `Previews use ${its} tokens: ${what}, marked in the list.${g ? ' Guidance text here comes from the library.' : ''}`;
 }
 
 /** Quality on a change: its numbers live in the change's checks, never main's numbers in their place. */
-export const QUALITY_IN_CHECKS = 'Quality for this branch is in its checks';
-export const QUALITY_IN_CHECKS_BODY = 'The contrast gate, token validation and docs checks run on every branch. Open the branch to see what they found.';
+export const QUALITY_IN_CHECKS = 'Quality for this change is in its checks';
+export const QUALITY_IN_CHECKS_BODY = 'The contrast gate, token validation and docs checks run on every change. Open the change to see what they found.';
 /** Quality on changes shown together: no numbers exist for a combination here, so none are shown. */
-export const QUALITY_TOGETHER = 'Quality is measured for each branch on its own';
-export const QUALITY_TOGETHER_BODY = 'Checks run on every branch, not on a combination. Before they open together, Branches runs the contrast checks on the combined tokens.';
+export const QUALITY_TOGETHER = 'Quality is measured for each change on its own';
+export const QUALITY_TOGETHER_BODY = 'Checks run on every change, not on a combination. Before they open together, Changes runs the contrast checks on the combined tokens.';
 
 /** Errors say how to fix. */
 export function readError(kind: 'rate' | 'missing' | 'other', title: string, signIn: string, resetAt?: string | null): string {
   if (kind === 'rate') return `GitHub's hourly limit for visitors is used up, so ${title} could not be read. ${signIn} to keep going${resetAt ? `, or try again after ${resetAt}` : ''}.`;
-  if (kind === 'missing') return `${title} was not found. It may have been deleted: go back to main or pick another branch.`;
-  return `${title} could not be read. Check your connection and reload the page, or go back to main.`;
+  if (kind === 'missing') return `${title} was not found. It may have been deleted: go back to the library or pick another change.`;
+  return `${title} could not be read. Check your connection and reload the page, or go back to the library.`;
 }

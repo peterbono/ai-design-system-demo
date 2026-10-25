@@ -1,0 +1,37 @@
+---
+// The Library home: the shared view (components/ds/library/views/LandingView.tsx), rendered at build time, with what
+// changed lately from the releases of this build's snapshot (lib/site-snapshot.ts).
+import '../../styles/home.css';
+import Layout from '../../layouts/Layout.astro';
+import LandingView from '../../components/ds/library/views/LandingView';
+import type { LibraryChange } from '../../components/ds/library/library-data';
+import { changeHeadline, mdTitleText } from '../../lib/markdown';
+import { siteLibraryData } from '../../lib/library-site';
+import { siteSnapshot } from '../../lib/site-snapshot';
+import { libraryNotes } from '../../lib/library/home';
+import { PAGE_SOURCES, freshness } from '../../lib/sources';
+import { repoStatus } from '../../lib/stats';
+
+const repo = repoStatus();
+
+// What changed: the latest entries a designer notices (tokens and components; the site and the tooling left out),
+// newest first.
+const latest = libraryNotes((siteSnapshot.releases ?? []).flatMap((r) => r.entries.map((e) => ({ ...e, date: e.date ?? r.date })))).slice(0, 3);
+// "This week" only when every entry shown is less than 7 days older than the build's last commit.
+const DAY = 86_400_000;
+const ref = repo.lastChange ? Date.parse(`${repo.lastChange}T00:00:00Z`) : Date.now();
+const thisWeek = latest.length > 0 && latest.every((e) => e.date && ref - Date.parse(`${e.date}T00:00:00Z`) < 7 * DAY);
+const shortDate = (iso?: string) =>
+  iso ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${iso.slice(0, 10)}T00:00:00Z`)) : 'Next release';
+const recent: LibraryChange[] = latest.map((e) => ({ kind: e.kind, headline: changeHeadline(e.title), title: mdTitleText(e.title), date: shortDate(e.date) }));
+---
+
+<Layout
+  title="Home"
+  description="Bridge Library: the latest release of the design system. Foundations, tokens, components and how to use them, for people and agents."
+  sources={PAGE_SOURCES.home}
+  updated={freshness(PAGE_SOURCES.home)}
+  wide
+>
+  <LandingView data={siteLibraryData({ changes: { recent, thisWeek } })} />
+</Layout>

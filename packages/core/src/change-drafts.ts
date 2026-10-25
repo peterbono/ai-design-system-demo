@@ -122,6 +122,15 @@ function firstChange(component: string, kind: RequestKind, c: RequestChange | un
     }
     case 'new-variant': {
       if (!c) return { title: `Update the ${component} variants`, summary: `The variants of ${component} changed in Figma.` };
+      if (c.field === 'Variants') {
+        // Whole variants added or removed, every value staying on its axis ("Size=md, Tone=info").
+        const gone = (c.before ?? '').split('; ').filter(Boolean);
+        const born = (c.after ?? '').split('; ').filter(Boolean);
+        if (gone.length === 1 && !born.length) return { title: `Remove the ${shortVariant(gone[0]!)} variant`, summary: `${component} no longer has the ${shortVariant(gone[0]!)} variant (${gone[0]}).` };
+        if (born.length === 1 && !gone.length) return { title: `Add the ${shortVariant(born[0]!)} variant`, summary: `${component} gets a new variant, ${shortVariant(born[0]!)} (${born[0]}).` };
+        const parts = [born.length ? `gets ${plural(born.length, 'new variant')}: ${andList(born.map(shortVariant))}` : '', gone.length ? `no longer has ${andList(gone.map(shortVariant))}` : ''].filter(Boolean);
+        return { title: `Update the ${component} variants`, summary: `${component} ${parts.join(', and ')}.` };
+      }
       const axis = c.field.replace(/^Variant /, '');
       const before = values(c.before);
       const after = values(c.after);
@@ -150,7 +159,7 @@ function firstChange(component: string, kind: RequestKind, c: RequestChange | un
       if (!c) return { title: 'Use another token', summary: `A part of ${component} uses another token in Figma.` };
       const m = /^(.*?)(?: \((.*)\))?$/.exec(c.field)!;
       const part = lower(m[1]!);
-      const where = m[2] ? ` in ${m[2]}` : '';
+      const where = m[2] ? ` in ${shortVariants(m[2])}` : '';
       const after = c.after && c.after !== 'none' ? c.after : '';
       const before = c.before && c.before !== 'none' ? c.before : '';
       if (!after) return { title: `Unbind the ${part}`, summary: `The ${part} of ${component}${where} no longer uses ${before || 'a token'}.` };
@@ -217,6 +226,11 @@ export function sanitizeDraftLine(raw: unknown): string {
 /** One change row as a short phrase a developer reads ("Fill uses color.x instead of color.y in Size=sm"). */
 function changePhrase(c: RequestChange): string {
   let m: RegExpExecArray | null;
+  if (c.field === 'Variants') {
+    const gone = (c.before ?? '').split('; ').filter(Boolean).map(shortVariant);
+    const born = (c.after ?? '').split('; ').filter(Boolean).map(shortVariant);
+    return [born.length ? `New variant${born.length === 1 ? '' : 's'} ${andList(born)}` : '', gone.length ? `${andList(gone)} variant${gone.length === 1 ? '' : 's'} removed` : ''].filter(Boolean).join('; ');
+  }
   if ((m = /^Variant (.+)$/.exec(c.field))) {
     const axis = m[1]!;
     const before = values(c.before);
@@ -243,7 +257,7 @@ function changePhrase(c: RequestChange): string {
   if (layer) return structurePhrase(layer);
   // A token binding: "Fill" or "Fill (Size=sm, Tone=primary)".
   m = /^(.*?)(?: \((.*)\))?$/.exec(c.field)!;
-  const where = m[2] ? ` in ${m[2]}` : '';
+  const where = m[2] ? ` in ${shortVariants(m[2])}` : '';
   const before = c.before && c.before !== 'none' ? c.before : '';
   const after = c.after && c.after !== 'none' ? c.after : '';
   if (!after) return `${m[1]} no longer uses ${before || 'a token'}${where}`;

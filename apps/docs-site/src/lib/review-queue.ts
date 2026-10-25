@@ -1,4 +1,4 @@
-// The review queue: which open pull requests wait for a review, and the words a designer reads about them. One
+// The review queue: which open pull requests and suggestions wait for a review, and the words a designer reads about them. One
 // source for every count in the Studio (Overview hero, the nav badge, the In review tab and History), so they never
 // disagree. Pure: no DOM, no fetch. Unit tested in review-queue.test.ts.
 //
@@ -6,52 +6,18 @@
 //   - running explorations (Changes > Explorations: tried, never merged as is);
 //   - GitHub automation: the changesets release pull request (branch changeset-release/*, opened by
 //     github-actions[bot]). It is the release step, shown as the "Next release" card in History.
-import { classifyRisk } from '@bridge-ds/core';
-import { isRunningExploration } from './explorations-view';
-import { openPulls, parseTier, type LabelLike, type PullStateLike, type ReviewStatusKind, type Tier } from './review-rules';
+import { effectiveTier as coreEffectiveTier, isAutomationPull, isReleasePull, releasePull, reviewQueue, type QueuePull } from '@bridge-ds/core';
+import { type LabelLike, type ReviewStatusKind, type Tier } from './review-rules';
 import { branchCount } from './vocabulary';
 
-export interface QueuePull extends PullStateLike {
-  state: string;
-  labels?: ({ name?: string } | string)[];
-  head: { ref: string };
-  user?: { login: string; type?: string } | null;
-}
-
-const BOTS = new Set(['github-actions[bot]', 'app/github-actions', 'changeset-bot[bot]']);
-
-/** The changesets release pull request ("Version packages"), on a changeset-release/* branch. */
-export const isReleasePull = (p: Pick<QueuePull, 'head'>) => p.head.ref.startsWith('changeset-release/');
-
-/** Opened by GitHub automation, not by a person: the release pull request or anything github-actions[bot] opened. */
-export function isAutomationPull(p: Pick<QueuePull, 'head' | 'user'>): boolean {
-  return isReleasePull(p) || BOTS.has((p.user?.login ?? '').toLowerCase());
-}
-
-/** The open pull requests that wait for a review, in the order given. Every count in the Studio comes from here. */
-export function reviewQueue<P extends QueuePull>(pulls: P[]): P[] {
-  return openPulls(pulls).filter((p) => !isAutomationPull(p) && !isRunningExploration({ state: p.state, labels: (p.labels ?? []) as never }));
-}
-
-/** The open release pull request, if the changesets action opened one. */
-export function releasePull<P extends QueuePull>(pulls: P[]): P | null {
-  return openPulls(pulls).find((p) => isReleasePull(p)) ?? null;
-}
+// The queue rules live in @bridge-ds/core (review-gate.ts), shared with the MCP server and the CLI.
+export { isAutomationPull, isReleasePull, releasePull, reviewQueue, type QueuePull };
 
 // ---------------------------------------------------------------------------------------------------------------
 // What approval a change needs, in words (no tier numbers on designer surfaces)
 
-/**
- * The approval a change needs, the same rule everywhere (list and detail): the tier the author set (label, PR
- * template checkbox or "Risk tier" line) or the one the shared classifier computes from the changed files, highest
- * wins. Without files (not read yet) only a label counts, and a missing label stays unknown.
- */
-export function effectiveTier(labels: LabelLike[], body: string | null | undefined, files: { filename: string; status?: string }[] | null): Tier | null {
-  const labelled = parseTier(labels, body);
-  if (!files) return labelled;
-  const computed = classifyRisk({ files: files.map((f) => ({ path: f.filename, status: f.status })) }).tier;
-  return Math.max(labelled ?? 0, computed) as Tier;
-}
+/** The approval a change needs (core effectiveTier): the tier the author set or the one the shared classifier computes, highest wins. */
+export const effectiveTier = (labels: LabelLike[], body: string | null | undefined, files: { filename: string; status?: string }[] | null): Tier | null => coreEffectiveTier(labels, body, files);
 
 /** Plain words for the approval a tier needs. Never colored: color is for status. Empty while unknown. */
 export function approvalNeedLabel(tier: Tier | null | undefined): string {
@@ -71,9 +37,15 @@ export function approvalNeedLong(tier: Tier | null | undefined): string {
 // ---------------------------------------------------------------------------------------------------------------
 // The queue in one or two sentences (Overview hero)
 
-type Bucket = 'design' | 'tech' | 'approval' | 'ready' | 'author' | 'developer' | 'draft' | 'checking';
+type Bucket = 'design' | 'tech' | 'approval' | 'ready' | 'apply' | 'applying' | 'author' | 'developer' | 'draft' | 'checking';
 
-const BUCKET: Partial<Record<ReviewStatusKind, Bucket>> = {
+/**
+ * What the queue counts: a branch by its review status, a suggestion by lib/suggestions-view suggestionQueueKind (the
+ * same approval buckets, plus "ready to apply" and "being applied", the two steps a branch does not have).
+ */
+export type QueueKind = ReviewStatusKind | 'ready-to-apply' | 'applying';
+
+const BUCKET: Partial<Record<QueueKind, Bucket>> = {
   'needs-design': 'design',
   'needs-tech': 'tech',
   'needs-approval': 'approval',
@@ -82,15 +54,19 @@ const BUCKET: Partial<Record<ReviewStatusKind, Bucket>> = {
   'ci-failing': 'developer',
   conflict: 'developer',
   draft: 'draft',
+  'ready-to-apply': 'apply',
+  applying: 'applying',
 };
 
-const ORDER: Bucket[] = ['design', 'tech', 'approval', 'ready', 'author', 'developer', 'draft', 'checking'];
+const ORDER: Bucket[] = ['design', 'tech', 'approval', 'ready', 'apply', 'applying', 'author', 'developer', 'draft', 'checking'];
 
 const VERB: Record<Bucket, [one: string, many: string]> = {
   design: ['waits for design approval', 'wait for design approval'],
   tech: ['waits for tech approval', 'wait for tech approval'],
   approval: ['waits for one approval', 'wait for one approval'],
-  ready: ['is ready to merge', 'are ready to merge'],
+  ready: ['is ready to add to the library', 'are ready to add to the library'],
+  apply: ['is approved and waits for a developer to apply it', 'are approved and wait for a developer to apply them'],
+  applying: ['is being applied by a developer', 'are being applied by a developer'],
   author: ['waits for its author to answer a review', 'wait for their authors to answer a review'],
   developer: ['is blocked on the developer side', 'are blocked on the developer side'],
   draft: ['is still a draft', 'are still drafts'],
@@ -98,7 +74,7 @@ const VERB: Record<Bucket, [one: string, many: string]> = {
 };
 
 /** How many changes sit in each state, from their status kinds (null: not read yet). */
-export function queueBuckets(kinds: (ReviewStatusKind | null | undefined)[]): { bucket: Bucket; n: number }[] {
+export function queueBuckets(kinds: (QueueKind | null | undefined)[]): { bucket: Bucket; n: number }[] {
   const counts = new Map<Bucket, number>();
   for (const k of kinds) {
     const b = (k && BUCKET[k]) || 'checking';
@@ -111,7 +87,7 @@ export function queueBuckets(kinds: (ReviewStatusKind | null | undefined)[]): { 
  * "3 branches wait for design approval. 1 is blocked on the developer side." The first sentence names the noun,
  * the next ones only the count. At most three sentences; the rest folds into the last one ("2 more are ...").
  */
-export function queueSentence(kinds: (ReviewStatusKind | null | undefined)[]): string {
+export function queueSentence(kinds: (QueueKind | null | undefined)[]): string {
   if (!kinds.length) return 'Nothing waits for a review.';
   const parts = queueBuckets(kinds);
   const shown = parts.length > 3 ? parts.slice(0, 2) : parts;

@@ -1,5 +1,177 @@
 # @bridge-ds/mcp
 
+## 0.8.5
+
+### Patch Changes
+
+- Updated dependencies [037b56b]
+  - @bridge-ds/core@0.18.0
+  - @bridge-ds/visual@0.3.12
+
+## 0.8.4
+
+### Patch Changes
+
+- 5ec4a47: One status per branch, everywhere. `reviewStatusKind` is the single derivation for the Branches list, the branch page, the home cards, `bridge_what_needs_me`, `bridge_branch_status` and `bridge branch status`. A repo with no automated checks is a calm state of its own ("No automated checks", `CI_STATE_LABEL`) and the status comes from the approvals, as for any branch. While GitHub computes whether a branch merges cleanly, a missing approval still shows; "Checking for conflicts" only holds back "Ready to merge". The words live in core (`REVIEW_STATUS_LABEL`), and the branch page header now shows the same pill as its row ("Owner override needed", "Design owner to approve") instead of a plain "In review".
+- 5ec4a47: Suggestions, visual checks and titles. A suggestion whose change no longer applies to main (main moved and the value it changes is not the one it was suggested from) reads Outdated in Studio, `bridge_list_suggestions` and `bridge_get_suggestion`, through one core rule (`suggestionStalenessOnGitHub`, over `planSuggestionApply`). An applied and closed suggestion keeps only its final label ("suggestion: applied"; "suggestion: declined" when declined): `bridge_apply_suggestion`, `bridge_link_suggestion`, `bridge apply` and a merge from Bridge (`markSuggestionsAppliedOnGitHub`) remove "needs review" and "applying". The visual-check label and "the visual comparison runs again" are offered only when the repo has the visual impact workflow (`hasVisualWorkflow`, `visualOffer`); otherwise the branch page shows a quiet "Set up visual checks" link. Request and suggestion titles are never prefixed twice ("Select: select: ...") and keep component names as written ("EmptyState"), through `subjectTitle`.
+- Updated dependencies [5ec4a47]
+- Updated dependencies [5ec4a47]
+  - @bridge-ds/core@0.17.0
+  - @bridge-ds/visual@0.3.11
+
+## 0.8.3
+
+### Patch Changes
+
+- Updated dependencies [da3e4ea]
+  - @bridge-ds/core@0.16.0
+  - @bridge-ds/visual@0.3.10
+
+## 0.8.2
+
+### Patch Changes
+
+- Updated dependencies [9b0b653]
+  - @bridge-ds/core@0.15.0
+  - @bridge-ds/visual@0.3.9
+
+## 0.8.1
+
+### Patch Changes
+
+- Updated dependencies [1a560aa]
+- Updated dependencies [440f717]
+- Updated dependencies [a797699]
+- Updated dependencies [9d40c77]
+- Updated dependencies [4fb3153]
+- Updated dependencies [662fb55]
+- Updated dependencies [0986099]
+  - @bridge-ds/core@0.14.0
+  - @bridge-ds/visual@0.3.8
+
+## 0.8.0
+
+### Minor Changes
+
+- b6f1e68: Opt-in `governance.soloOwnerCanApproveBoth` for a design system run by one person. When it is true and the owners
+  resolve to exactly one person holding both roles, that person's approval counts as the design and the tech approval,
+  so Tier 2 and Tier 3 pull requests and suggestions can reach approved. Default false: one person still never covers
+  both approvals alone. The author of a change still never approves it. Core adds `soloApprover`, `soloOwnerOf`,
+  `soloOwnerSentence` and an optional rules argument to `summarizeApprovals`; `summarizeSuggestionApprovals` reads the
+  flag from its governance. Studio Settings shows an "Only owner" line when the rule is active, the suggestion and pull
+  request reviews say "As the only owner, your approval covers design and code." with one Approve, and
+  `bridge settings`, `bridge branch status`, `bridge suggestions show` and the MCP tools say the same.
+
+### Patch Changes
+
+- Updated dependencies [b6f1e68]
+  - @bridge-ds/core@0.13.0
+  - @bridge-ds/visual@0.3.7
+
+## 0.7.2
+
+### Patch Changes
+
+- Updated dependencies [87cfb75]
+  - @bridge-ds/core@0.12.0
+  - @bridge-ds/visual@0.3.6
+
+## 0.7.1
+
+### Patch Changes
+
+- Updated dependencies [76c7938]
+  - @bridge-ds/core@0.11.0
+  - @bridge-ds/visual@0.3.5
+
+## 0.7.0
+
+### Minor Changes
+
+- d193898: Suggestions from Claude and the terminal. How a change reaches the code now follows `"changes"` in `bridge.config.json`: with `"suggest"` (the default when the key is absent) the writing tools file a suggestion, a GitHub issue with the exact change that the owners approve and a developer applies, instead of a branch and a pull request; `"direct"` keeps branches and pull requests. `bridge_propose_token_change`, `bridge_save_docs`, `bridge_propose_brand`, `bridge_propose_revert`, `bridge_open_library_branch` and `bridge_push_figma_component` take `changes` (`"suggest"` or `"direct"`) for one call and return `status: "suggested"` with the issue number in suggest mode; the CLI commands take `--suggest` or `--direct` (`bridge propose`, `bridge brand create`, `bridge revert`, `bridge docs save`, `bridge pieces open`, `bridge figma push`). Writing to an exploration or a branch in review (`branch`, `pr`) is unchanged. `bridge_get_config` says which mode the repo uses.
+
+  New MCP tools (67 in all): `bridge_list_suggestions`, `bridge_get_suggestion` (the change, its checks, its version and the approvals still missing), `bridge_create_suggestion` (any payload, paths checked first), `bridge_review_suggestion` (approve, request changes, comment or decline; counts only for owners read from the default branch, on the version reviewed), `bridge_apply_suggestion` ("Apply Bridge suggestion #42": dry run, a new local branch, the working tree or a patch on a local checkout, the files to write on a remote repo; records on the issue that it is being applied) and `bridge_link_suggestion` (the pull request that applies it). New CLI commands: `bridge suggestions [list | show <n> | link <n> --pr <m>]`, `bridge apply <n> [--write | --patch] [--dry-run] [--accept-edited] [--force-unapproved]` (exit 0 applied or already applied, 1 not approved, blocked or refused, 2 usage, 3 conflict) and `bridge review <n> --approve | --request-changes | --decline`. The token hints say what each mode needs: Issues read and write for suggestions and requests, Contents and Pull requests for direct changes.
+
+## 0.6.0
+
+### Minor Changes
+
+- 22e53c7: Components changed in Figma go back to the library as library branches. The DS Bridge plugin's Push tab reads the diff Pull reads in "Review updates" the other way round and routes each changed component (`planComponentPush`): a token swap on a component token that paints only the changed variants becomes an exact token change, no AI (the shared `planTokenProposal` and `writeTokenProposalOnGitHub`, with the contrast gate run again on the component tokens that alias a checked pair, `componentContrastPairs`, and the other components that share the token named); a new variant, property, layer, swapped instance or component, or a swap a token alone cannot say, opens a draft branch carrying the spec (`.bridge/figma/<name>.json`: variant matrix, properties, bound variables and layers per variant, screenshot) labelled `waiting-for-claude` until Claude AI writes the code there and it becomes `drafted-by-claude`; detached layers, values set by hand, styles and variables the library lacks are listed under "Fix in Figma first" with what to do, never sent. Every branch starts with "From Figma" (`parseFigmaOrigin`) and carries `from-figma`. The set remembers its branch: once it ships or closes, the next Pull rebuilds the set from the reviewed code, so Figma never diverges. MCP: `bridge_figma_changes`, `bridge_get_figma_change`, `bridge_mark_figma_change_drafted`, `bridge_push_figma_component` (61 tools). CLI: `bridge figma`, `bridge figma show <n> [--draft]`, `bridge figma drafted <n>`, `bridge figma push <diff.json>`.
+
+### Patch Changes
+
+- Updated dependencies [22e53c7]
+- Updated dependencies [e1f8f0c]
+- Updated dependencies [e59366e]
+- Updated dependencies [a99fbb9]
+  - @bridge-ds/core@0.10.0
+  - @bridge-ds/visual@0.3.4
+
+## 0.5.0
+
+### Minor Changes
+
+- 5b93962: Product branches bring what they invent back to the library. `missingPieces` (in `@bridge-ds/core/audit`) runs the adoption audit on each product file a product branch changes, at its start and at its head, and keeps what the branch added that the library lacks: a value written on a library component becomes a variant of it ("Badge: overdue tone"), a component from another UI library with no equivalent becomes a new component, any other hardcoded value becomes a token beside the closest one. Values equal to a token and components the library has are fixes, not pieces. `openLibraryBranchOnGitHub` opens the library side of a piece and links both ways: a token change (through the new shared `planTokenProposal` and `writeTokenProposalOnGitHub`, which `bridge_propose_token_change` now uses too), a library exploration for a variant, or a component request for a new component; the library side says "Needed by" the product branch (label `needed-by-product`), the product branch records the link in its description. The product branch takes the library branch's preview (Bridge merges it in, `GitHubClient.mergeIntoBranch`), and `switchToPublishedOnGitHub` brings main in once the library ships. MCP: `bridge_missing_pieces`, `bridge_open_library_branch`, `bridge_product_branch`, `bridge_use_library_preview`, `bridge_switch_to_published` (57 tools). CLI: `bridge pieces <n> [--record]`, `bridge pieces status|open|preview|switch`.
+
+### Patch Changes
+
+- Updated dependencies [5b93962]
+  - @bridge-ds/core@0.9.0
+  - @bridge-ds/visual@0.3.3
+
+## 0.4.1
+
+### Patch Changes
+
+- 77ba45a: Create branch in Studio is product first. Step 1 asks what you work on: a feature in a product, or a change to the library. A feature asks what you build and in which product (preselected when there is one, or from `?product=`), starts an exploration with the product's `product: <key>` label and gives you the sentence to say to Claude AI. The library keeps its choices (Adjust the look, Add a variant or option, New component), and "Something looks wrong? Report it" stays one click away. core: `productMarks` (the product label and body line, nothing for the default product) moves from the MCP server into `@bridge-ds/core`, and `startExplorationOnGitHub` takes extra `labels`, so Studio, the CLI and the MCP server write the same label. Studio home: "Your branches" gets a one-line subtitle, and the "Published this week" line is gone.
+- 7e9f2df: Docs proposals: one open proposal per component. Sending docs for a component that already has an open docs proposal adds a commit to it instead of opening a second pull request (`proposeDocsOnGitHub` returns `continued`, and `unchanged` when it already says the same). New core helpers `findOpenDocsProposal`, `findOpenDocsProposalOnGitHub`, `isDocsProposalBranch`, `continueDocsProposalOnGitHub` and `docsSlug`, shared by the Library editor and the MCP server (`bridge_save_docs` without `pr` continues the open one). The Library editor opens on the open proposal ("Continues the open proposal by ..., waiting for review", with a link to its review), and Send is off with "Nothing changed since the open proposal" when the text is the same.
+
+  Attribution: the pull request's author line now says who wrote the text (`docsAuthorLine`, `withAuthorLine`, `defaultDocsFooter`): "Drafted by Claude AI, reviewed and sent by @person" when Claude's draft goes out as written, "Drafted by Claude AI, edited by @person" with the edited sections, and "No AI involved" only when no Claude draft is in the text. The editor tracks the text Claude wrote per section (`authorship`).
+
+- Updated dependencies [8cdcb9a]
+- Updated dependencies [77ba45a]
+- Updated dependencies [7e9f2df]
+  - @bridge-ds/core@0.8.0
+  - @bridge-ds/visual@0.3.2
+
+## 0.4.0
+
+### Minor Changes
+
+- 51e743c: Studio parity: every action a designer takes in Bridge Studio now works with Claude (MCP) and in the terminal.
+
+  - MCP: 20 new tools for branches in review (what needs me, status, send for review, back to draft, review, ask someone else to review,
+    comment and reply, merge through Studio's gate with the owner override, close, reopen, update from main with
+    token conflicts, try it in a product and share it, try 2 to 4 branches together), docs saved for review,
+    explorations promoted or closed, products, settings and Figma coverage. `bridge_propose_token_change` takes
+    `pr` (add edits to a branch in review), `jira` and `product`; explorations and requests take `product`.
+  - CLI: `bridge branch ...`, `bridge products`, `bridge settings`, `bridge coverage`, `bridge docs save`, and
+    `--product`, `--jira`, `--pr` where work starts.
+  - Core: the review and merge rules, the branch writes, update from main, sharing, try in product, try together,
+    docs proposals and Jira keys moved from the docs site into `@bridge-ds/core`, so Studio, the MCP server and
+    the CLI run one implementation. New `products` list in `bridge.config.json` (schema included), defaulting to
+    Admin demo and Library; Studio's Branches page groups by it with the same result.
+
+### Patch Changes
+
+- Updated dependencies [22d186e]
+- Updated dependencies [51e743c]
+- Updated dependencies [7b53159]
+  - @bridge-ds/core@0.7.0
+  - @bridge-ds/visual@0.3.1
+
+## 0.3.3
+
+### Patch Changes
+
+- Updated dependencies [f655919]
+- Updated dependencies [ed4b28d]
+- Updated dependencies [bdca820]
+- Updated dependencies [6b07b05]
+- Updated dependencies [8376732]
+  - @bridge-ds/core@0.6.0
+  - @bridge-ds/visual@0.3.0
+
 ## 0.3.2
 
 ### Patch Changes

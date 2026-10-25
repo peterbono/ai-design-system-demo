@@ -34,6 +34,11 @@ export interface FidelityDeps {
   fileName?: string;
   options?: CompareOptions;
   now?: Date;
+  /**
+   * What the sets are compared with. Default: the code images the repo's Figma references workflow publishes. A
+   * measured-only pull passes the screenshots of the stories its sets were built from (any design system).
+   */
+  reference?: { manifest: FigmaReferenceManifest; image: (file: string) => Promise<string | undefined> } | undefined;
 }
 
 /** One component in the UI: its result, and the images of the variant that differs most. */
@@ -50,30 +55,31 @@ export type FidelityOutcome =
   | { kind: 'no-references' }
   | { kind: 'no-sets' };
 
-export const NO_REFERENCES_TEXT = 'Images of the code are not published yet. They are made each time a change ships to main; ask a developer to run the "Figma references" check once.';
+export const NO_REFERENCES_TEXT = 'Images of the code are not published yet. They are made each time a change ships to the library; ask a developer to run the "Figma references" check once.';
 
 /** Reads the published manifest, or undefined when the repo has none yet. */
 export async function loadReferenceManifest(client: FidelityDeps['client']): Promise<FigmaReferenceManifest | undefined> {
   const text = await client.getFileText(FIGMA_REFERENCES_MANIFEST, FIGMA_REFERENCES_BRANCH);
   if (!text) return undefined;
   const m = JSON.parse(text) as FigmaReferenceManifest;
-  if (m.version !== 1 || !m.components) throw new Error('The code images were made by a newer Bridge. Update the DS Bridge plugin.');
+  if (m.version !== 1 || !m.components) throw new Error('The code images were made by a newer Bridge. Update the Bridge plugin.');
   return m;
 }
 
 export async function runFidelityCheck(d: FidelityDeps): Promise<FidelityOutcome> {
   if (!d.sets.length) return { kind: 'no-sets' };
-  const manifest = await loadReferenceManifest(d.client);
+  const manifest = d.reference?.manifest ?? (await loadReferenceManifest(d.client));
   if (!manifest) return { kind: 'no-references' };
   const options: CompareOptions = { ...d.options, scale: manifest.scale };
   const items: FidelityItem[] = [];
-  for (const set of d.sets) {
+  for (const [i, set] of d.sets.entries()) {
     const entry = manifest.components[set.componentId];
     if (!entry) {
       items.push({ nodeId: set.nodeId, name: set.name, result: summarizeComponent(set.componentId, [], 'no image of its code yet, it is new or not drawn from code') });
       continue;
     }
-    if (entry.specHash !== set.specHash) {
+    // The code version the set was drawn from: its static spec hash, also when measured values were laid on.
+    if (entry.specHash !== (set.codeHash || set.specHash)) {
       items.push({
         nodeId: set.nodeId,
         name: set.name,
@@ -81,7 +87,8 @@ export async function runFidelityCheck(d: FidelityDeps): Promise<FidelityOutcome
       });
       continue;
     }
-    d.progress?.(`Comparing ${set.name}`);
+    // A run takes minutes on a full library: say how far it is.
+    d.progress?.(`Comparing ${set.name}, ${i + 1} of ${d.sets.length}`);
     const comparable = set.variants.filter((k) => entry.variants[k] && 'file' in entry.variants[k]!);
     const exports = comparable.length ? await d.exportVariants(set.nodeId, comparable, manifest.scale) : {};
     const variants: FidelityVariantResult[] = [];
@@ -101,7 +108,7 @@ export async function runFidelityCheck(d: FidelityDeps): Promise<FidelityOutcome
         variants.push({ key, status: 'skipped', reason: 'Figma could not export this variant' });
         continue;
       }
-      const code = (await d.client.getFileBase64(`${FIGMA_REFERENCES_DIR}/${ref.file}`, FIGMA_REFERENCES_BRANCH))?.base64;
+      const code = d.reference ? await d.reference.image(ref.file) : (await d.client.getFileBase64(`${FIGMA_REFERENCES_DIR}/${ref.file}`, FIGMA_REFERENCES_BRANCH))?.base64;
       if (!code) {
         variants.push({ key, status: 'skipped', reason: 'its code image is missing' });
         continue;

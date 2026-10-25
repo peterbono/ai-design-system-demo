@@ -1,0 +1,42 @@
+---
+// A team shell page (src/pages/team-shell/, lib/team-shells.ts): the Studio page `route` for the team in the address,
+// /studio/<owner>/<repo>/<route>. Built once, without any team data; the team name and its GitHub link are filled in
+// the browser. A page that renders from the team's repository (multi-team PR 3b) passes its island as the default
+// slot; a page that does not yet says so and offers the same page on the demo, so a team link never lands on a blank
+// screen. The "actions" slot goes to the end of the title line.
+import '../styles/team-shell.css';
+import '../styles/team-pages.css';
+import Layout from '../layouts/Layout.astro';
+import StudioHeader from './StudioHeader.astro';
+import TeamShellEmpty from './ds/studio/TeamShellEmpty';
+import { studioHref } from '../lib/team-path';
+import type { TeamShellRoute } from '../lib/team-shells';
+
+interface Props {
+  /** The Studio route this shell stands for ('' is Home). */
+  route: TeamShellRoute;
+  /** The Studio page title, as on the self-hosted page. */
+  title: string;
+  /** What the page holds, said as "your <what>": "tokens", "changes in review". */
+  what: string;
+  description: string;
+  /** One short muted line under the title, when the title alone does not say what the page does. */
+  subtitle?: string;
+  wide?: boolean;
+}
+const { route, title, what, description, subtitle, wide = true } = Astro.props;
+---
+
+<Layout title={title} description={description} hosted wide={wide}>
+  <div class="ts" data-team-shell={route || 'home'}>
+    <StudioHeader title={title} subtitle={subtitle}>
+      <p class="ts-repo"><span class="ts-repo-name" data-team-display>Your team</span></p>
+      {Astro.slots.has('actions') && <Fragment slot="actions"><slot name="actions" /></Fragment>}
+    </StudioHeader>
+    {Astro.slots.has('default') ? <slot /> : <TeamShellEmpty what={what} demoHref={studioHref(route)} />}
+  </div>
+  <script>
+    import { fillTeamShell } from '../scripts/team-links';
+    fillTeamShell();
+  </script>
+</Layout>

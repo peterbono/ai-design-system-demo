@@ -1,0 +1,39 @@
+---
+// Team shell of Studio Settings (lib/team-shells.ts): served for /studio/<owner>/<repo>/settings/ by the vercel.json rewrite.
+// It starts with the team, never the personal account (board D9): the account (name, email, sign out, delete) lives in
+// the account menu of the side nav (components/ds/account/AccountMenu.tsx, its Account dialog).
+// General: the team's name (TeamNameSetting.tsx), edited by an admin, read by everyone else.
+// Members (who is in the team, who asks to join, invites and roles, MembersSection.tsx) reads the team from the address
+// and GitHub; the team's rules (how changes reach the code, review rules, safety) render read only, in designer words,
+// from its repository model in the browser (components/ds/studio/TeamSettings.tsx), each with a "For developers" fold.
+// On the demo, that is the demo's sample team. Appearance (light or dark) is this browser's own choice, there for
+// everyone whatever the team read gives (AppearanceSetting.tsx).
+import '../../../styles/settings.css';
+import TeamShell from '../../../components/TeamShell.astro';
+import MembersSection from '../../../components/ds/studio/MembersSection';
+import LibraryAccessSection from '../../../components/ds/studio/LibraryAccessSection';
+import TeamSettings from '../../../components/ds/studio/TeamSettings';
+import AppearanceSetting from '../../../components/ds/studio/AppearanceSetting';
+import TeamNameSetting from '../../../components/ds/studio/TeamNameSetting';
+import { TEAM_NAME_WORDS } from '../../../lib/team-name';
+---
+
+<TeamShell route="settings/" title="Settings" what="settings and roles" description="Your team: its name, its people, how changes reach your code and who checks them.">
+  <section class="ts-band" id="general" aria-labelledby="ts-general">
+    <h2 id="ts-general" class="ts-h">{TEAM_NAME_WORDS.generalTitle}</h2>
+    <p class="ts-intro">{TEAM_NAME_WORDS.generalIntro}</p>
+    <TeamNameSetting client:only="react" />
+  </section>
+  <section class="ts-band" id="team" aria-labelledby="set-members">
+    <MembersSection client:only="react" />
+  </section>
+  <section class="ts-band" id="library-access" aria-labelledby="set-library-access">
+    <LibraryAccessSection client:only="react" />
+  </section>
+  <TeamSettings client:load />
+  <section class="ts-band" id="appearance" aria-labelledby="ts-appearance">
+    <h2 id="ts-appearance" class="ts-h">Appearance</h2>
+    <p class="ts-intro">How Bridge looks for you, only in this browser. It changes nothing for your team.</p>
+    <AppearanceSetting client:load />
+  </section>
+</TeamShell>

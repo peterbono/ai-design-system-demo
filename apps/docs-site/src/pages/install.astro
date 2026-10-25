@@ -1,146 +1,17 @@
 ---
+// Library > Use > Install: the shared view (components/ds/library/views/InstallView.tsx), rendered at build time.
 import Layout from '../layouts/Layout.astro';
-import { CodeBlock, Link } from '@bridge-ds/react';
-import { GITHUB_URL, PLUGIN_URL, readJson, sourceUrl } from '../lib/repo';
-import { npmUrl } from '../lib/npm';
+import InstallView from '../components/ds/library/views/InstallView';
+import { siteLibraryData } from '../lib/library-site';
+import { INSTALL_SOURCES, siteUseExtras } from '../lib/library-use';
 import { freshness } from '../lib/sources';
-import { BRANDS } from '../lib/tokens';
 import '../styles/process.css';
 import '../styles/connect.css';
 import '../styles/library.css';
 
-const pkgDirs = ['react', 'tokens', 'cli', 'mcp', 'stylelint-plugin', 'eslint-plugin', 'core', 'visual'] as const;
-type PkgDir = (typeof pkgDirs)[number];
-const sources = ['README.md', ...pkgDirs.map((d) => `packages/${d}/package.json`), 'apps/figma-plugin/README.md'];
-const updated = freshness(sources);
-
-// Name and version come from each package.json, so the list never drifts from what the release workflow publishes.
-const pkg = (dir: PkgDir) => readJson<{ name: string; version: string }>(`packages/${dir}/package.json`);
-const uses: Record<PkgDir, string> = {
-  react: 'The React components. Behavior from Base UI, styling only through tokens.',
-  tokens: 'Every token as CSS variables (tokens.css) and TypeScript, plus the self-hosted fonts (fonts.css).',
-  cli: 'The bridge command: check tokens and contrast in CI, search and diff tokens, audit adoption in product code.',
-  mcp: 'The MCP server that connects Claude to your design system. Setup on the Agents page.',
-  'stylelint-plugin': 'Flags raw colors, lengths and shadows in product CSS where a token exists, with the token to use.',
-  'eslint-plugin': 'Flags raw style values and native elements in product code where a token or a component exists.',
-  core: 'For tools, not for product UI: config, token loading, alias resolution, contrast, diffs and the GitHub client.',
-  visual: 'Visual impact: screenshots what a change touches at both versions and pixel-diffs them.',
-};
-const packages = pkgDirs.map((d) => ({ ...pkg(d), use: uses[d] }));
-const react = pkg('react');
-const tokens = pkg('tokens');
-const cliPkg = pkg('cli');
-
-const install = `npm install ${react.name} ${tokens.name}`;
-const cli = [`npx ${cliPkg.name} check`, `npx ${cliPkg.name} tokens "danger text"`, `npx ${cliPkg.name} help`].join('\n');
-
-const tgz = (name: string, version: string) => `${name.replace('@', '').replace('/', '-')}-${version}.tgz`;
-const clone = ['git clone https://github.com/peterbono/ai-design-system-demo', 'cd ai-design-system-demo', 'npm install', 'npm run pack:packages'].join('\n');
-const add = `npm install ${[tokens, react].map((p) => `/abs/path/ai-design-system-demo/.packs/${tgz(p.name, p.version)}`).join(' \\\n  ')}`;
-const app = `import '@bridge-ds/tokens/fonts.css';   // Fraunces, Instrument Sans, IBM Plex, self-hosted
-import '@bridge-ds/tokens/tokens.css';  // every token as a CSS variable
-import '@bridge-ds/react/styles.css';   // base styles
-
-import { Button, Field, Input, ThemeProvider } from '@bridge-ds/react';
-
-export function App() {
-  return (
-    <ThemeProvider asRoot theme="light" brand="bridge" density="comfortable">
-      <Field label="Repository" description="Owner and name, like acme/design-tokens.">
-        <Input placeholder="acme/design-tokens" />
-      </Field>
-      <Button>Connect repository</Button>
-    </ThemeProvider>
-  );
-}`;
-const html = `<html data-theme="light" data-brand="bridge" data-density="comfortable">`;
-const dom = `import { badgeHtml, bindCodeBlocks, bindTooltips, codeBlockHtml } from '@bridge-ds/react/dom';
-
-row.innerHTML = badgeHtml('Ready', { tone: 'success' }) + codeBlockHtml('npx @bridge-ds/cli check', { label: 'Check tokens' });
-bindTooltips();
-bindCodeBlocks();`;
-const plugin = ['npm install', 'npm run plugin:build'].join('\n');
-import LibraryHeader from '../components/LibraryHeader.astro';
+const updated = freshness(INSTALL_SOURCES);
 ---
 
-<Layout title="Install" description="Install the Bridge packages from npm in a product, or the DS Bridge Figma plugin." sources={sources} updated={updated}>
-  <LibraryHeader title="Install" art="guide" updated={updated}>
-    Two ways to use the system: the packages from npm in a product codebase, and the DS Bridge plugin in Figma. Both read the same token files, so code and Figma never drift. For AI agents, see <Link href="/agents/">Agents</Link>.
-  </LibraryHeader>
-
-  <h2 id="npm">Install from npm</h2>
-  <p>Add the components and the tokens to your product. <code>{react.name}</code> needs React 18 or later.</p>
-  <CodeBlock className="cx-block" code={install} label="Install the packages" />
-
-  <h2 id="use">Use the components</h2>
-  <p>Import the fonts, the tokens and the base styles once, then wrap the app in <code>ThemeProvider</code>:</p>
-  <CodeBlock className="cx-block" code={app} label="App.tsx" />
-
-  <h2 id="theming">Theme, brand and density</h2>
-  <p>
-    <code>ThemeProvider</code> sets <code>data-theme</code>, <code>data-brand</code> and <code>data-density</code> together and passes them to portaled
-    overlays. Without React, or for plain CSS, set the three attributes yourself and read the tokens as CSS variables:
-  </p>
-  <CodeBlock className="cx-block" code={html} label="Scope attributes" />
-  <p class="small muted">
-    Themes: light, dark. Brands: {BRANDS.join(', ')}. Densities: comfortable, compact. Every component page lets you switch brand and density in its preview toolbar.
-  </p>
-
-  <h3 id="without-react">Pages without React</h3>
-  <p>
-    Static sites and pages built in plain scripts use <code>@bridge-ds/react/dom</code>. Each renderer is named after its component,
-    <code>badgeHtml</code>, <code>codeBlockHtml</code>, <code>tokenValueHtml</code>, <code>checklistHtml</code>, and returns the exact markup of the React
-    component with the same classes. Call <code>bindTooltips()</code> and <code>bindCodeBlocks()</code> once per page so tooltips and copy buttons work.
-  </p>
-  <CodeBlock className="cx-block" code={dom} label="Render without React" />
-  <p class="small muted">
-    <code>bridge audit</code> counts this markup as DS components. Homemade look-alikes, such as pill classes or <code>data-tip</code> tooltips, count
-    against adoption.
-  </p>
-
-  <h2 id="cli">Check tokens from a terminal</h2>
-  <p>
-    In your design system repository, the <code>bridge</code> command validates tokens and runs the contrast gate, with nothing to install first. Use it in
-    CI: exit 0 ok, 1 failures, 2 setup error. To connect Claude, see <Link href="/agents/#mcp">Agents</Link>.
-  </p>
-  <CodeBlock className="cx-block" code={cli} label="bridge CLI commands" />
-
-  <h2 id="packages">Packages</h2>
-  <ul class="pkg-list">
-    {
-      packages.map((p) => (
-        <li>
-          <Link href={npmUrl(p.name)}><code>{p.name}</code></Link> <span class="muted small num">{p.version}</span>
-          <p>{p.use}</p>
-        </li>
-      ))
-    }
-  </ul>
-
-  <h2 id="figma-plugin">Figma plugin</h2>
-  <p>
-    DS Bridge connects Figma Variables to the repository. <strong>Pull</strong> brings the latest tokens from main into Figma Variables.
-    <strong>Push</strong> sends your Figma edits back as a pull request for review, with a three-way diff and the contrast gate. It works on the free
-    Figma plan and never writes to main.
-  </p>
-  <ol class="lib-steps">
-    <li>
-      <p>From the repository root, build the plugin:</p>
-      <CodeBlock className="cx-block" code={plugin} label="Build the plugin" />
-    </li>
-    <li><p>In the Figma desktop app: Plugins, Development, Import plugin from manifest, and pick <code>apps/figma-plugin/manifest.json</code>.</p></li>
-    <li><p>Run it from Plugins, Development, DS Bridge, and paste a fine-grained GitHub token in its Settings tab.</p></li>
-  </ol>
-  <p class="small muted">
-    Not in Figma Community yet: publishing needs a plugin id issued by Figma. Full guide in
-    <Link href={PLUGIN_URL}>apps/figma-plugin</Link>, source on <Link href={GITHUB_URL}>GitHub</Link>, details in <Link href={sourceUrl('apps/figma-plugin/README.md')}>the plugin README</Link>.
-  </p>
-
-  <details class="cx-details" id="from-a-clone">
-    <summary>For contributors: install from a clone</summary>
-    <p>To try changes that are not released yet, build the packages and pack them as tarballs in <code>.packs/</code>:</p>
-    <CodeBlock className="cx-block" code={clone} label="Build and pack commands" />
-    <p>Then, in your product, install the tarballs:</p>
-    <CodeBlock className="cx-block" code={add} label="Install the tarballs" />
-  </details>
+<Layout title="Install" description="Install the Bridge packages from npm in a product, or the DS Bridge Figma plugin." sources={INSTALL_SOURCES} updated={updated}>
+  <InstallView data={siteLibraryData({ use: siteUseExtras() })} />
 </Layout>

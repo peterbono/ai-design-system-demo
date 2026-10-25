@@ -4,6 +4,7 @@
 import type { ComponentType, CSSProperties, ReactNode } from 'react';
 import * as DS from '@bridge-ds/react';
 import { Copy, Ellipsis, GitPullRequest, Pencil, Trash2, type LucideIcon } from 'lucide-react';
+import { safeUrl } from '../lib/html';
 
 const layout = (style: CSSProperties) =>
   function Layout({ children }: { children?: ReactNode }) {
@@ -26,8 +27,34 @@ export const COMMON_ICONS: Record<string, LucideIcon> = { Copy, Ellipsis, MoreHo
 /** Props that take a Lucide icon component instead of a string. */
 export const ICON_PROPS = new Set(['icon', 'leadingIcon', 'trailingIcon', 'startIcon', 'endIcon']);
 
+/** Props that hold a URL: run through safeUrl (no javascript: or data:). */
+const URL_PROPS = new Set(['href', 'src', 'action', 'formAction', 'poster', 'xlinkHref', 'cite', 'data']);
+
+/**
+ * Example props come from <Name>.docs.json in the repository (any branch, any repo in the hosted Studio), and DS
+ * components spread unknown props onto DOM elements. So, at every depth: no dangerouslySetInnerHTML, no srcDoc, no
+ * on* handler (JSON has no functions anyway), and URL props limited to http, https, mailto or relative.
+ */
+function safeProp(key: string, value: unknown): unknown {
+  if (key === 'dangerouslySetInnerHTML' || key === 'srcDoc' || /^on[A-Z]/.test(key)) return undefined;
+  if (URL_PROPS.has(key) && typeof value === 'string') return safeUrl(value, '#');
+  if (Array.isArray(value)) return value.map((v) => safeProp('', v));
+  if (typeof value === 'object' && value !== null && Object.getPrototypeOf(value) === Object.prototype) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      const s = safeProp(k, v);
+      if (s !== undefined) out[k] = s;
+    }
+    return out;
+  }
+  return value;
+}
+
 export function resolveProps(props: Record<string, unknown> = {}, lookup: (name: string) => unknown = (n) => COMMON_ICONS[n]) {
   const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(props)) out[k] = ICON_PROPS.has(k) && typeof v === 'string' ? lookup(v) : v;
+  for (const [k, v] of Object.entries(props)) {
+    const s = ICON_PROPS.has(k) && typeof v === 'string' ? lookup(v) : safeProp(k, v);
+    if (s !== undefined) out[k] = s;
+  }
   return out;
 }

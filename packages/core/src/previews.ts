@@ -435,5 +435,8 @@ export function resolveBranchPreviews(apps: PreviewApps, ctx: PreviewContext, so
 export const previewLinksOf = (previews: BranchPreview[]): { app: keyof PreviewApps; label: string; url: string }[] =>
   previews.filter((p): p is BranchPreview & { url: string } => !!p.url).map((p) => ({ app: p.app, label: p.label, url: p.url }));
 
-/** True when every configured app has its URL and a finished build (ready or failed): polling can stop. */
-export const previewsSettled = (previews: BranchPreview[]): boolean => previews.every((p) => !!p.url && (p.state === 'ready' || p.state === 'failed'));
+/**
+ * True when every configured app has a finished build: ready with its URL, or failed (a build Vercel refused, such as
+ * a rate limit, never gets a URL). Polling can stop.
+ */
+export const previewsSettled = (previews: BranchPreview[]): boolean => previews.every((p) => p.state === 'failed' || (!!p.url && p.state === 'ready'));

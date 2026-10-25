@@ -1,9 +1,7 @@
-// Writing help with Claude, two ways, both optional:
-// - "Copy for Claude": a ready prompt the designer pastes into Claude.ai or Claude Desktop with their own plan (no key),
-//   then pastes the answer back ("Paste Claude's answer").
-// - "Draft with Claude": one call to the Messages API with the designer's own Anthropic API key (billed to their
-//   account), from the plugin UI iframe. The key lives in figma.clientStorage on this computer, never in the file, and
-//   is only ever sent to api.anthropic.com.
+// "Draft with Claude (API key)": one call to the Messages API with the designer's own Anthropic API key (billed to
+// their account), from the plugin UI iframe. The key lives in figma.clientStorage on this computer, never in the file,
+// and is only ever sent to api.anthropic.com. Optional: the plugin's own draft is always there, and "Draft with my
+// Claude" goes through the designer's own Claude app (sync/my-claude.ts).
 // Pure: no DOM, no figma.*. The UI wires it; tests mock fetch.
 
 import { DRAFT_LINE_MAX, type DraftLine, type DraftResultLine, type RequestChange, type RequestKind, REQUEST_KINDS, cleanDraftText, sanitizeDraftLine, sanitizeDraftTitle } from '@bridge-ds/core';
@@ -55,7 +53,7 @@ export interface ClaudeDraft {
 
 /** The Bridge voice and the output contract, shared by the API call and the copied prompt. */
 export const SYSTEM_PROMPT = [
-  'You write the text of design system change requests and pull requests for DS Bridge, a Figma plugin that sends designers\' changes to developers.',
+  'You write the text of design system change requests and pull requests for Bridge, a Figma plugin that sends designers\' changes to developers.',
   'Voice: a calm, precise colleague. Sentence case. Start with a verb. Plain words developers use: component, prop, variant, token, pull request.',
   'Say what changes for developers (props, variants, tokens, the look) and why it matters for people who use the component. Use only facts from the changes, the images and the designer\'s notes. Never invent numbers, names, usage or reasons; if the reason is unknown, say what changes and leave the reason out.',
   'Never use an em dash. Use a colon, a comma or parentheses instead. No exclamation marks, no emoji, no Markdown.',
@@ -99,18 +97,6 @@ export function claudeUserText(input: ClaudeDraftInput): string {
   if (imgs.length) lines.push('', `Images attached: ${imgs.join(', ')}.`);
   if (input.lineImages?.some((x) => x.before || x.after)) lines.push('', 'Images attached per change line, labeled with the line id.');
   return lines.join('\n');
-}
-
-/** The prompt "Copy for Claude" puts on the clipboard, for Claude.ai or Claude Desktop. */
-export function copyPrompt(input: ClaudeDraftInput): string {
-  return [
-    SYSTEM_PROMPT,
-    '',
-    claudeUserText({ ...input, before: undefined, after: undefined, lineImages: undefined }),
-    '',
-    'If I attach before and after screenshots of the component, use them to describe the visible change.',
-    'Answer with the JSON object only.',
-  ].join('\n');
 }
 
 export interface ClaudeHttpRequest {
@@ -212,20 +198,20 @@ export function sanitizeDraft(raw: unknown): ClaudeDraft {
 }
 
 /**
- * The JSON object in a pasted or returned answer: plain, inside a ```json fence, or inside surrounding text.
- * Throws a ClaudeDraftError that says what to paste when there is none.
+ * The JSON object in Claude's answer from the Messages API: plain, inside a ```json fence, or inside surrounding
+ * text. Throws a ClaudeDraftError that says what to do when there is none.
  */
 export function parseClaudeAnswer(text: string): ClaudeDraft {
   const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text);
   const body = fenced ? fenced[1]! : text;
   const start = body.indexOf('{');
   const end = body.lastIndexOf('}');
-  if (start < 0 || end <= start) throw new ClaudeDraftError('Paste the whole answer from Claude: it should hold {"title": ..., "summary": ...}.');
+  if (start < 0 || end <= start) throw new ClaudeDraftError('Claude\'s answer has no draft in it. Try again, or write the text yourself.');
   let json: unknown;
   try {
     json = JSON.parse(body.slice(start, end + 1));
   } catch {
-    throw new ClaudeDraftError('The answer is not valid JSON. Copy Claude\'s whole answer and paste it again.');
+    throw new ClaudeDraftError('Claude\'s answer is not valid JSON. Try again, or write the text yourself.');
   }
   return sanitizeDraft(json);
 }

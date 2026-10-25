@@ -3,6 +3,7 @@
 // to, merged and closed branches stay behind one muted line, and token branches can be checked to preview them
 // together (lib/combine-changes holds the combination itself). Pure: no DOM, no fetch. Unit tested in
 // branches-page.test.ts; the page is components/ds/studio/BranchesList.tsx, fed by scripts/reviews.ts.
+import { DEFAULT_PRODUCTS, productOfBranch, type ProductConfig } from '@bridge-ds/core';
 import { MAX_TOGETHER } from './combine-changes';
 import type { Lifecycle } from './change-status';
 import { VOCAB } from './vocabulary';
@@ -32,6 +33,8 @@ export interface WhoFacts {
   author: string;
   /** The status read says the next step is the viewer's (scripts/pr-status rowWho yourTurn). */
   yourTurn: boolean;
+  /** The viewer made it, when the page knows it otherwise than by the author (an email contributor's own, ownedBy). */
+  mine?: boolean;
 }
 
 const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && a.replace(/^@/, '').toLowerCase() === b.replace(/^@/, '').toLowerCase());
@@ -40,8 +43,25 @@ const same = (a: string | null | undefined, b: string | null | undefined) => Boo
 export function showsForWho(filter: WhoFilter, row: WhoFacts, viewer: string | null): boolean {
   if (filter === 'all') return true;
   if (!viewer) return false;
-  return filter === 'mine' ? same(row.author, viewer) : row.yourTurn;
+  return filter === 'mine' ? (row.mine ?? same(row.author, viewer)) : row.yourTurn;
 }
+
+/**
+ * What an email contributor made: GitHub names Bridge's app as the author, so their own branches are the ones the
+ * server lists as theirs (contribute-session contributeMine: branch names and pull request numbers), or the ones
+ * already written as theirs (author = their email).
+ */
+export function ownedBy(row: { author: string; number: number; headRef?: string | null }, viewer: string | null, mine: { branches: string[]; issues: number[] } | null): boolean {
+  if (same(row.author, viewer)) return true;
+  if (!mine) return false;
+  return mine.issues.includes(row.number) || Boolean(row.headRef && mine.branches.includes(row.headRef));
+}
+
+/**
+ * Waiting on me for an email contributor: they approve nothing, so only their own branches a reviewer sent back with
+ * changes to make wait on them.
+ */
+export const contributorTurn = (row: { own: boolean; changesRequested?: string[] | null; open: boolean }): boolean => row.own && row.open && Boolean(row.changesRequested?.length);
 
 /** The quiet line when the filter leaves nothing. */
 export function emptyWhoLine(filter: WhoFilter, signedIn: boolean): string {
@@ -54,21 +74,28 @@ export function emptyWhoLine(filter: WhoFilter, signedIn: boolean): string {
 // ---------------------------------------------------------------------------------------------------------------
 // Groups: the product a branch belongs to
 
-export type ProductKey = 'admin' | 'library';
+/** A product key from bridge.config.json `products` ("admin", "library", or any configured key). */
+export type ProductKey = string;
 
-/** Group headings, in page order: a product first, the library after. */
-export const PRODUCTS: { key: ProductKey; label: string }[] = [
-  { key: 'admin', label: 'Admin demo' },
-  { key: 'library', label: 'Library' },
-];
+/** Group headings of the default products, in page order: a product first, the library after. */
+export const PRODUCTS: { key: ProductKey; label: string }[] = headingsOf(DEFAULT_PRODUCTS);
+
+/** Group headings of a product list, in its order. */
+export function headingsOf(products: readonly ProductConfig[]): { key: ProductKey; label: string }[] {
+  return products.map((p) => ({ key: p.key, label: p.name }));
+}
 
 /**
- * The product a branch belongs to, from the files it changes. Today one product exists in the repo: a branch that
- * touches apps/admin belongs to the Admin demo; everything else changes the library (files not read yet included,
- * since every branch of this repository starts from the library). Product-first linking replaces this rule later.
+ * The product a branch belongs to (core productOfBranch): a `product: <key>` label wins, else the first product whose
+ * folder holds a changed file (apps/admin for the Admin demo), else the default product, the library (files not read
+ * yet included, since every branch of this repository starts from the library).
  */
-export function productOf(files: readonly string[] | null | undefined): ProductKey {
-  return (files ?? []).some((f) => f.startsWith('apps/admin/')) ? 'admin' : 'library';
+export function productOf(
+  files: readonly string[] | null | undefined,
+  products: readonly ProductConfig[] = DEFAULT_PRODUCTS,
+  labels?: readonly (string | { name: string })[] | null,
+): ProductKey {
+  return productOfBranch(products, { files: files ?? null, labels: labels ?? null }).key;
 }
 
 export interface Group<R> {
@@ -77,9 +104,11 @@ export interface Group<R> {
   rows: R[];
 }
 
-/** Rows into product groups, keeping their order inside each group; empty groups are left out. */
-export function groupByProduct<R extends { product: ProductKey }>(rows: R[]): Group<R>[] {
-  return PRODUCTS.map((p) => ({ key: p.key, label: p.label, rows: rows.filter((r) => r.product === p.key) })).filter((g) => g.rows.length > 0);
+/** Rows into product groups, in the products' order, keeping row order inside each group; empty groups are left out. */
+export function groupByProduct<R extends { product: ProductKey }>(rows: R[], products: readonly ProductConfig[] = DEFAULT_PRODUCTS): Group<R>[] {
+  return headingsOf(products)
+    .map((p) => ({ key: p.key, label: p.label, rows: rows.filter((r) => r.product === p.key) }))
+    .filter((g) => g.rows.length > 0);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -102,13 +131,20 @@ export function mergedThisMonth(rows: { merged_at?: string | null }[], now: Date
 }
 
 /**
- * "12 merged this month." The closed list GitHub gives is the most recent `limit` only: when every one of them merged
- * this month the count is a floor, and the line says so.
+ * "12 added to the library this month." (a merged branch, in designer words). The closed list GitHub gives is the most
+ * recent `limit` only: when every one of them merged this month the count is a floor, and the line says so.
  */
 export function mergedLine(count: number, read: number, limit: number): string {
-  if (count === 0) return `Nothing merged this month.`;
-  return `${count >= limit && read >= limit ? `${count}+` : count} merged this month.`;
+  if (count === 0) return 'Nothing added to the library this month.';
+  return `${count >= limit && read >= limit ? `${count}+` : count} added to the library this month.`;
 }
+
+/** The words around mergedLine: the link that shows them, and the line once they are shown. */
+export const FINISHED_WORDS = {
+  show: 'Show them',
+  showing: 'Showing what was added to the library or closed.',
+  hide: 'Hide them',
+} as const;
 
 /** The muted line under a one-status list ("Showing drafts only."). */
 export function onlyLine(only: FinishedView['only']): string | null {
@@ -145,4 +181,19 @@ export function barCopy(n: number): BarCopy | null {
     return { title: `1 ${VOCAB.branch} selected`, hint: `Select up to ${more} more to preview them together`, action: 'alone', label: 'Try it alone' };
   }
   return { title: `${n} ${VOCAB.branches} selected`, hint: null, action: 'together', label: 'Preview together' };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The kind and designer filters: one bar on every tab
+
+/** The designer filter shows on Waiting on me and All; Mine is the viewer's own work, so it has none. */
+export const showsDesignerFilter = (filter: WhoFilter): boolean => filter !== 'mine';
+
+/**
+ * The filters a tab applies, from the ones picked (kept across tabs): the kind always, the designer where the tab
+ * shows it and only while someone listed matches it (an address naming nobody listed keeps everyone).
+ */
+export function tabFilters<F extends { kind: string; by: string | null }>(filter: WhoFilter, picked: F, designers: readonly string[]): F {
+  const by = showsDesignerFilter(filter) && picked.by && designers.includes(picked.by) ? picked.by : null;
+  return { ...picked, by };
 }

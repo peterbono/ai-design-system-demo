@@ -15,9 +15,9 @@
 import type { Draft, DraftEdit } from './editor-model';
 import { classifyCheck, type CheckKind } from './check-explain';
 import { pullState, type PullState, type ReviewStatusKind, type Tier } from './review-rules';
-import { GROUP_TONE, openerFor, type Opener, type OpenerRow, type StatusTone } from './changes';
+import { CLAUDE_DRAFTED_SENTENCE, CLAUDE_WAITING_SENTENCE, GROUP_TONE, openerFor, type Opener, type OpenerRow, type StatusTone } from './changes';
 import type { WorkNature } from './work-nature';
-import type { TokenSet } from '@bridge-ds/core';
+import { hasOwnerApproval, reopenEligibility, type ReopenEligibility, type TokenSet } from '@bridge-ds/core';
 import { branchCount, STATUS_WORDS, VOCAB } from './vocabulary';
 
 export type Lifecycle = 'draft' | 'ready' | 'waiting' | 'shipped' | 'closed';
@@ -46,10 +46,10 @@ export function lifecycleTone(l: Lifecycle): LifecycleTone {
 // ---------------------------------------------------------------------------------------------------------------
 // Waiting for code
 
-/** The design approval the tier needs: Tier 2 and 3 a design owner approval, Tier 1 any one approval (mergeGate). */
-export function designApprovalIn(tier: Tier | null, approvals: { design: boolean; approvers: string[] } | null | undefined): boolean {
+/** The design approval the tier needs: Tier 2 and 3 a design owner approval, Tier 1 one owner approval (mergeGate). */
+export function designApprovalIn(tier: Tier | null, approvals: { design: boolean; approvers: string[]; owner?: boolean } | null | undefined): boolean {
   if (!approvals) return false;
-  return (tier ?? 3) >= 2 ? approvals.design : approvals.approvers.length > 0;
+  return (tier ?? 3) >= 2 ? approvals.design : hasOwnerApproval({ tech: false, changesRequested: [], ...approvals });
 }
 
 export interface WaitingInput {
@@ -93,7 +93,7 @@ export function changeLifecycle(x: { state: PullState; waiting: boolean }): Life
  * until its status is read and says it waits for code.
  */
 export function rowLifecycle(
-  pull: { state?: string; draft?: boolean; merged_at?: string | null },
+  pull: { state?: string; draft?: boolean; merged_at?: string | null; labels?: readonly ({ name?: string } | string)[] | null },
   st: { kind: ReviewStatusKind | null; nature: WorkNature; tier: Tier | null; design?: boolean; approvers?: string[]; changesRequested?: string[]; failingChecks?: string[]; exploration?: boolean },
 ): Lifecycle {
   const state = pullState(pull);
@@ -129,38 +129,8 @@ export function waitingSentence(x: { failing: number; oldValue?: boolean; techOw
 
 export type StatusAction = 'mark-ready' | 'reopen' | 'restart' | null;
 
-export type ReopenEligibility =
-  /** The branch is still there: the change can be reopened as it was. */
-  | { kind: 'reopen' }
-  /** The branch is gone: nothing to reopen, but its token edits can start a new change. */
-  | { kind: 'gone' }
-  /** Not closed, or not the viewer's to reopen, or not known yet. */
-  | { kind: 'none' };
-
-const norm = (x: string) => x.trim().toLowerCase().replace(/^@/, '');
-
-/**
- * Whether the viewer can reopen a closed change: only a change closed without shipping, only its author or an owner
- * (governance.owners, both roles), and only someone GitHub lets write (write access, or the author). `branch` is what
- * GitHub said about the head branch: there, removed, or not read.
- */
-export function reopenEligibility(x: {
-  state: PullState;
-  viewer: string | null;
-  author: string;
-  owners: string[];
-  canWrite: boolean;
-  branch: 'exists' | 'gone' | 'unknown';
-}): ReopenEligibility {
-  if (x.state !== 'closed' || !x.viewer) return { kind: 'none' };
-  const isAuthor = norm(x.viewer) === norm(x.author);
-  const isOwner = x.owners.some((o) => norm(o) === norm(x.viewer!));
-  if (!isAuthor && !isOwner) return { kind: 'none' };
-  if (!x.canWrite && !isAuthor) return { kind: 'none' };
-  if (x.branch === 'exists') return { kind: 'reopen' };
-  if (x.branch === 'gone') return { kind: 'gone' };
-  return { kind: 'none' };
-}
+// Who may reopen a closed branch: one rule with the MCP server and the CLI (@bridge-ds/core review-gate).
+export { reopenEligibility, type ReopenEligibility };
 
 /** The sentence a closed change shows when its branch is gone. */
 export const GONE_SENTENCE = `This ${VOCAB.branch} can't be reopened: its work was removed.`;
@@ -170,8 +140,9 @@ export const GONE_SENTENCE = `This ${VOCAB.branch} can't be reopened: its work w
  * never marked ready here). Closed: reopen, or start again when the work is gone and it changed tokens. Ready for
  * review keeps the review flow's action; waiting for code and shipped have none.
  */
-export function statusAction(x: { lifecycle: Lifecycle; isAuthor: boolean; canWrite: boolean; exploration: boolean; reopen: ReopenEligibility; tokenEdits: boolean }): StatusAction {
-  if (x.lifecycle === 'draft') return x.isAuthor && x.canWrite && !x.exploration ? 'mark-ready' : null;
+export function statusAction(x: { lifecycle: Lifecycle; isAuthor: boolean; canWrite: boolean; exploration: boolean; reopen: ReopenEligibility; tokenEdits: boolean; claude?: 'waiting' | 'drafted' | null }): StatusAction {
+  // A branch opened from Figma with the spec only: nothing to review until a developer builds it with Claude.
+  if (x.lifecycle === 'draft') return x.isAuthor && x.canWrite && !x.exploration && x.claude !== 'waiting' ? 'mark-ready' : null;
   if (x.lifecycle === 'closed') {
     if (x.reopen.kind === 'reopen') return 'reopen';
     if (x.reopen.kind === 'gone' && x.tokenEdits) return 'restart';
@@ -185,18 +156,36 @@ export const ACTION_LABEL: Record<Exclude<StatusAction, null>, string> = {
   restart: `Start again from this ${VOCAB.branch}`,
 };
 
-/** The sentence of the status line for the states the review flow does not already explain. */
-export function lifecycleSentence(x: { lifecycle: Lifecycle; isAuthor: boolean; author: string; mergedAt?: string | null; closedAt?: string | null; reopen?: ReopenEligibility; exploration?: boolean }): string | null {
+/**
+ * The sentence of the status line for the states the review flow does not already explain. A branch opened from Figma
+ * (decision RT-1, core claudeStage): before Claude drafted the code it waits on a developer, never on its designer;
+ * once drafted it is ready for review, and while no owner has acted yet (`untouched`: no review, no failing check) it
+ * says so in its own words.
+ */
+export function lifecycleSentence(x: {
+  lifecycle: Lifecycle;
+  isAuthor: boolean;
+  author: string;
+  mergedAt?: string | null;
+  closedAt?: string | null;
+  reopen?: ReopenEligibility;
+  exploration?: boolean;
+  claude?: 'waiting' | 'drafted' | null;
+  untouched?: boolean;
+}): string | null {
   const day = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '');
   switch (x.lifecycle) {
     case 'draft':
       if (x.exploration) return null;
+      if (x.claude === 'waiting') return CLAUDE_WAITING_SENTENCE;
       return x.isAuthor ? 'Request a review when it is ready. Until then nobody is asked to review it.' : `Waiting for @${x.author} to request a review.`;
     case 'shipped':
-      return x.mergedAt ? `Merged into ${VOCAB.main} on ${day(x.mergedAt)}.` : `Merged into ${VOCAB.main}.`;
+      return x.mergedAt ? `Added to ${VOCAB.main} on ${day(x.mergedAt)}.` : `Added to ${VOCAB.main}.`;
     case 'closed':
       if (x.reopen?.kind === 'gone') return GONE_SENTENCE;
-      return x.closedAt ? `Closed without merging on ${day(x.closedAt)}.` : 'Closed without merging.';
+      return x.closedAt ? `Closed without adding it to the library on ${day(x.closedAt)}.` : 'Closed without adding it to the library.';
+    case 'ready':
+      return x.claude === 'drafted' && x.untouched ? CLAUDE_DRAFTED_SENTENCE : null;
     default:
       return null;
   }
@@ -275,7 +264,7 @@ export function statusOpener(rows: (OpenerRow & { lifecycle: Lifecycle })[]): Op
   const head = `${parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0]}.`;
   if (!active.length) return { sentence: head, action: null };
   const first = openerFor(active);
-  const why = first.sentence.replace(/^\d+ branch(es)? in review\. /, '');
+  const why = first.sentence.replace(/^\d+ (?:branch(?:es)?|changes?) in review\. /, '');
   return { sentence: `${head} ${why}`, action: first.action };
 }
 
@@ -292,7 +281,7 @@ export function emptyFilterLine(filter: StatusFilter): string {
     case 'waiting':
       return `No approved ${VOCAB.branch} waits for code.`;
     case 'shipped':
-      return `No ${VOCAB.branch} was merged recently.`;
+      return `No ${VOCAB.branch} was added to the library recently.`;
     case 'closed':
       return `No ${VOCAB.branch} was closed recently.`;
     default:
@@ -343,7 +332,7 @@ export function draftFromTokenSets(base: TokenSet, head: TokenSet): { draft: Dra
 /** What "Start again" says once the draft is ready, or why it could not be. */
 export function restartLine(x: { carried: number; skipped: number; draftBusy: boolean }): { ok: boolean; text: string } {
   if (x.draftBusy) return { ok: false, text: 'You already have a draft in this browser. Request a review of it or clear it in Tokens, then start again.' };
-  if (!x.carried) return { ok: false, text: `This ${VOCAB.branch} has no token value to carry over. Create a new ${VOCAB.branch} from Tokens instead.` };
+  if (!x.carried) return { ok: false, text: `This ${VOCAB.branch} has no token value to carry over. Start a new ${VOCAB.branch} from Tokens instead.` };
   const skipped = x.skipped ? ` ${plural(x.skipped, 'other edit')} (new, removed or brand-only tokens) could not be carried over.` : '';
   return { ok: true, text: `${plural(x.carried, 'token edit')} copied into your draft.${skipped} Opening Tokens to request a review.` };
 }

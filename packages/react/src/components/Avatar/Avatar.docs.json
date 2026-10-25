@@ -1,22 +1,32 @@
 {
-  "summary": "A person or a team, shown as a photo with an initials fallback. AvatarGroup stacks several and collapses the rest into a +N counter.",
+  "summary": "A person, a team or Claude, shown as a photo with an initials or illustrated fallback. AvatarGroup stacks several and collapses the rest into a +N counter.",
   "preview": { "c": "Row", "children": [
     { "c": "Avatar", "p": { "name": "Florian Gouloubi" } },
-    { "c": "Avatar", "p": { "name": "Ana Lima", "size": "lg" } }
+    { "c": "Avatar", "p": { "name": "Ana Lima", "seed": "analima", "fallback": "illustrated", "size": "lg" } },
+    { "c": "Avatar", "p": { "kind": "agent", "brand": "claude", "size": "lg" } }
   ] },
   "whenToUse": [
-    "Owners, reviewers and authors next to tokens, components and pull requests.",
+    "Owners, reviewers and authors next to tokens, components and changes.",
+    "fallback=\"illustrated\" when most people have no photo: a drawn face from their login tells rows apart faster than two letters. Import Avatar from @bridge-ds/react/avatar-illustrated (the drawings are a separate entry, about 120 kB gzipped).",
+    "kind=\"agent\" brand=\"claude\" for work Claude did (a drafted text, a change it opened): the Bridge agent mark (the Field Guide robot: a rounded head with an antenna, dot eyes and a smile) on a rounded square tile, named \"Claude AI\", so people see at a glance it is not a person.",
+    "mark only to show a vendor logo you have the brand owner's approval to use: Bridge ships its own agent mark because company logos are trademarks that need their owner's approval.",
     "AvatarGroup for the reviewers of a change; set max so the row never wraps."
   ],
   "whenNotToUse": [
     "As the only way to identify someone in a table: write the name too.",
-    "For product or brand logos: use an image with its own alt text."
+    "For product or brand logos: use an image with its own alt text. The agent preset only attributes an agent's actions.",
+    "To make up a face for someone who has a photo: the illustration is a fallback, the photo wins."
   ],
   "dos": [
     {
       "title": "Name next to the avatar in lists",
       "text": "Faces are hard to tell apart at 24px. Mark the avatar decorative when the name is right beside it.",
-      "example": { "c": "Row", "children": [ { "c": "Avatar", "p": { "name": "Kenji Sato", "size": "sm", "decorative": true } }, "Kenji Sato" ] }
+      "example": { "c": "Row", "children": [ { "c": "Avatar", "p": { "name": "Kenji Sato", "seed": "kenjisato", "fallback": "illustrated", "size": "sm", "decorative": true } }, "Kenji Sato" ] }
+    },
+    {
+      "title": "Seed with something stable",
+      "text": "Seed the illustrated face with the login, not the display name: people rename themselves, their face should stay.",
+      "example": { "c": "Row", "children": [ { "c": "Avatar", "p": { "name": "Maya Okafor", "seed": "mayaokafor", "fallback": "illustrated", "size": "sm", "decorative": true } }, "Maya Okafor" ] }
     }
   ],
   "donts": [
@@ -24,22 +34,36 @@
       "title": "Ten avatars in a row",
       "text": "Past four or five faces nobody counts. Let the +N counter carry the rest.",
       "example": { "c": "Row", "children": [ { "c": "Avatar", "p": { "name": "A B" } }, { "c": "Avatar", "p": { "name": "C D" } }, { "c": "Avatar", "p": { "name": "E F" } }, { "c": "Avatar", "p": { "name": "G H" } }, { "c": "Avatar", "p": { "name": "I J" } } ] }
+    },
+    {
+      "title": "Claude dressed as a person",
+      "text": "Do not give Claude a drawn face or initials. Use the agent preset so nobody mistakes its work for a teammate's.",
+      "example": { "c": "Row", "children": [ { "c": "Avatar", "p": { "name": "Claude", "seed": "claude", "fallback": "illustrated", "size": "sm" } } ] }
     }
   ],
   "accessibility": [
-    "role img with the full name as its label; initials are hidden from screen readers so they do not spell letters.",
+    "role img with the full name as its label; initials and drawings are hidden from screen readers so they do not spell letters or describe a face.",
+    "The Claude preset is named \"Claude AI\"; its mark (the Bridge robot or a custom mark) is decorative inside it.",
+    "The robot is one stroke in currentColor with no fill, so it keeps the tile's checked contrast in light and dark, and still reads at the xs size (16px mark).",
     "decorative removes it from the accessibility tree when the name is already written next to it.",
-    "The image has an empty alt: the name is on the container. Broken images fall back to initials (Base UI Avatar).",
+    "The image has an empty alt: the name is on the container. Broken images fall back to initials or the drawing (Base UI Avatar).",
     "AvatarGroup is a named group; the +N counter is announced as \"3 more: names\"."
   ],
   "contentGuidelines": [
     "Pass the full display name; initials are computed from the first and last words.",
+    "Seed illustrated faces with the login so the same person always gets the same face.",
     "Name groups by role: \"Reviewers\", \"Owners\"."
   ],
   "anatomy": {
     "avatar": "Circle",
     "image": "Photo",
-    "fallback": "Initials",
+    "fallback": "Initials or drawing",
+    "illustrated": "Illustrated fallback (light Harbor background in both themes)",
+    "illustration": "Drawn face",
+    "agent": "Agent tile (Harbor, rounded square, hairline edge)",
+    "mark": "Agent mark (the Field Guide robot, one Deep Harbor line)",
+    "line": "Robot line",
+    "custom": "Custom mark (approved logo)",
     "group": "Group (overlapping)",
     "overflow": "+N counter",
     "xs": "Size xs (20px)",

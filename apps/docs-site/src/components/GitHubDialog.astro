@@ -2,23 +2,40 @@
 // The Connect GitHub dialog. Include once per page, outside any element that gets hidden.
 // The DS Dialog for scripts (ScriptDialog: dialogHtml from @bridge-ds/react/dom); scripts/github-session.ts opens it
 // from any [data-gh-open] and from gated actions. Script hooks are data attributes: DS Input drops a custom id.
-// When the site has a GitHub App (GITHUB_APP_CLIENT_ID at build, docs/SIGN-IN.md), the dialog is "Sign in with
-// GitHub" only: designers never see a token paste (developers use their own token in the CLI and MCP). Without it
-// (forks, a local server without the env var) the dialog is the token paste only, so nobody is locked out.
-// data-signin (on the popup) carries the build-time settings for the browser.
+// When the site has a GitHub App (docs/SIGN-IN.md), the dialog is "Sign in with GitHub" only: designers never see a
+// token paste (developers use their own token in the CLI and MCP). Two apps: "Bridge" (GITHUB_APP_SUGGEST_CLIENT_ID,
+// read only on code, the default) and "Bridge Direct" (GITHUB_APP_CLIENT_ID, when bridge.config.json has
+// "changes": "direct"); lib/signin-config.ts picks one at build time. Without either (forks, a local server without
+// the env vars) the dialog is the token paste only, so nobody is locked out.
+// data-signin (on the popup) carries the build-time settings for the browser, the chosen app included.
+// Team pages (`hosted`) always sign in with Bridge. When both apps are set up they also get the "Allow Bridge to save to
+// branches" dialog: a team in direct mode gives Bridge Direct its OK once, the first time it writes code
+// (scripts/github-session.ts, multi-team plan 3.2). The same dialog says when Bridge Direct is not set up on the team.
 import { Alert, Button, Input, Link } from '@bridge-ds/react';
 import ScriptDialog from './ds/ScriptDialog.astro';
+import ButtonLink from './ds/ButtonLink';
 import { siteRepo } from '../lib/config';
 import { signInConfig, signInConfigJson } from '../lib/signin-config';
-import { ghButton } from '../lib/gh-wording';
+import { DIRECT_CONSENT, DIRECT_SETUP, ghButton } from '../lib/gh-wording';
+import { installUrl } from '../lib/access-view';
 import { GitHubMark } from './ds/studio/brand-icons';
 
+interface Props {
+  /** A team page: sign in with Bridge for identity, Bridge Direct on demand. */
+  hosted?: boolean;
+}
+
+const { hosted = false } = Astro.props;
 const r = siteRepo();
 const tokenUrl = `https://github.com/settings/personal-access-tokens/new?description=Bridge%20for%20${encodeURIComponent(`${r.owner}/${r.repo}`)}`;
-const signIn = Boolean(signInConfig());
+const cfg = signInConfig(hosted);
+const signIn = Boolean(cfg);
+const direct = hosted ? cfg?.direct : undefined;
+// The read-only app cannot write code: say what signing in is for in that mode.
+const signInLead = cfg?.app === 'suggest' ? 'Sign in to comment, review and suggest changes. Reading works without it.' : 'Sign in to approve, comment and send changes. Reading works without it.';
 ---
 
-<ScriptDialog id="gh-dialog" title={ghButton(signIn)} closeLabel="Close" popup={signIn ? { 'data-signin': signInConfigJson() } : undefined}>
+<ScriptDialog id="gh-dialog" title={ghButton(signIn)} closeLabel="Close" popup={signIn ? { 'data-signin': signInConfigJson(hosted) } : undefined}>
   <div class="gh-dialog-body">
     <Alert tone="warning" className="st-hideable" data-gh-rejected-note hidden announce="off">
       <span data-gh-rejected-note-text>{signIn ? 'Your GitHub sign-in expired and could not be renewed. Sign in again to keep editing.' : 'GitHub no longer accepts the saved token: it was revoked, regenerated or has expired. Paste a new one to replace it.'}</span>
@@ -26,7 +43,7 @@ const signIn = Boolean(signInConfig());
     {
       signIn && (
         <div class="gh-view" data-gh-view="signin">
-          <p>Sign in to approve, comment and send changes. Reading works without it.</p>
+          <p>{signInLead}</p>
           <Button variant="primary" iconStart={GitHubMark} fullWidth data-gh-signin>
             Sign in with GitHub
           </Button>
@@ -66,3 +83,36 @@ const signIn = Boolean(signInConfig());
     )
   }
 </ScriptDialog>
+
+{
+  direct && (
+    <ScriptDialog id="gh-direct-dialog" title={DIRECT_CONSENT.title} closeLabel="Close" size="sm">
+      <div class="gh-dialog-body">
+        <div class="gh-view" data-gh-direct-view="consent">
+          <p>{DIRECT_CONSENT.lead}</p>
+          <div class="gh-direct-can">
+            <p class="gh-direct-can-title">{DIRECT_CONSENT.canTitle}</p>
+            <ul class="gh-steps">
+              {DIRECT_CONSENT.can.map((line) => <li>{line}</li>)}
+            </ul>
+          </div>
+          <p class="gh-direct-limit">{DIRECT_CONSENT.limit}</p>
+        </div>
+        <div class="gh-view" data-gh-direct-view="setup" hidden>
+          <p data-gh-direct-setup-text></p>
+        </div>
+        <Alert tone="warning" className="st-hideable" data-gh-direct-note hidden announce="off">
+          <span data-gh-direct-note-text />
+        </Alert>
+      </div>
+      <div class="gh-dialog-actions" slot="footer">
+        <span class="gh-spacer"></span>
+        <Button variant="secondary" data-dialog-close>{DIRECT_CONSENT.later}</Button>
+        <Button variant="primary" iconStart={GitHubMark} className="st-hideable" data-gh-direct-continue>{DIRECT_CONSENT.continueLabel}</Button>
+        <ButtonLink variant="primary" className="st-hideable" href={installUrl(direct.slug)} target="_blank" rel="noopener noreferrer" data-gh-direct-install hidden>{DIRECT_SETUP.installLabel}</ButtonLink>
+        <Button variant="primary" className="st-hideable" data-gh-direct-ask hidden>{DIRECT_SETUP.askLabel}</Button>
+      </div>
+    </ScriptDialog>
+  )
+}
+

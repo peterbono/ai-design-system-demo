@@ -79,11 +79,23 @@ export async function commitToNewLocalBranch(root: string, args: LocalCommitInpu
     throw new Error(`Refusing to write branch "${args.branch}": ${(err as Error).message}`);
   }
   if (await branchExists(root, args.branch)) throw new Error(`Branch "${args.branch}" already exists. Pick another title or delete it first.`);
-  const baseSha = (await git(root, ['rev-parse', '--verify', `${args.base}^{commit}`])).trim();
+  const { sha, parent } = await commitTree(root, args);
+  // Empty old value: create only, fail if the ref appeared meanwhile.
+  await git(root, ['update-ref', `refs/heads/${args.branch}`, sha, '']);
+  const diff = await git(root, ['diff', parent, sha]);
+  return { sha, diff };
+}
+
+/**
+ * A commit with `files` on top of `base`, built in a throwaway index and pointed to by no branch: nothing in the working
+ * tree, the index or the refs changes. commitToNewLocalBranch names it; a patch (git format-patch) can be read from it.
+ */
+export async function commitTree(root: string, args: { base: string; message: string; files: { path: string; content: string | null }[] }): Promise<{ sha: string; parent: string }> {
+  const parent = (await git(root, ['rev-parse', '--verify', `${args.base}^{commit}`])).trim();
   const dir = await mkdtemp(join(tmpdir(), 'bridge-index-'));
   const env = { GIT_INDEX_FILE: join(dir, 'index') };
   try {
-    await git(root, ['read-tree', baseSha], { env });
+    await git(root, ['read-tree', parent], { env });
     for (const f of args.files) {
       if (f.content === null) {
         await git(root, ['update-index', '--force-remove', f.path], { env });
@@ -94,11 +106,8 @@ export async function commitToNewLocalBranch(root: string, args: LocalCommitInpu
     }
     const tree = (await git(root, ['write-tree'], { env })).trim();
     const ident = await identityEnv(root);
-    const sha = (await git(root, ['commit-tree', tree, '-p', baseSha, '-F', '-'], { input: args.message, env: ident })).trim();
-    // Empty old value: create only, fail if the ref appeared meanwhile.
-    await git(root, ['update-ref', `refs/heads/${args.branch}`, sha, '']);
-    const diff = await git(root, ['diff', baseSha, sha]);
-    return { sha, diff };
+    const sha = (await git(root, ['commit-tree', tree, '-p', parent, '-F', '-'], { input: args.message, env: ident })).trim();
+    return { sha, parent };
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

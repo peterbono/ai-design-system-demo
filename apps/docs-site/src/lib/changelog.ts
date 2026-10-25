@@ -58,17 +58,10 @@ function headingDate(file: string, version: string): string | undefined {
 }
 
 let releasesCache: Release[] | null = null;
-let sourceNote = '';
 
 export function releases(): Release[] {
   releasesCache ??= readReleases();
   return releasesCache;
-}
-
-/** Where the release dates came from on this build (git tags or the CHANGELOG headings), for build diagnostics. */
-export function releaseDateSource(): string {
-  releases();
-  return sourceNote;
 }
 
 function readReleases(): Release[] {
@@ -76,23 +69,8 @@ function readReleases(): Release[] {
   const sections: ChangelogSection[] = files.flatMap((f) => parseChangelog(readText(f.file), f.pkg, f.published));
   const tags = tagDates();
   const fileOf = new Map(files.map((f) => [f.pkg, f.file]));
-  let fromTags = 0;
-  let fromLog = 0;
-  const dateOf = (pkg: string, version: string) => {
-    const tagged = tags.get(`${pkg}@${version}`);
-    if (tagged) {
-      fromTags++;
-      return tagged;
-    }
-    const logged = fileOf.has(pkg) ? headingDate(fileOf.get(pkg)!, version) : undefined;
-    if (logged) fromLog++;
-    return logged;
-  };
+  const dateOf = (pkg: string, version: string) => tags.get(`${pkg}@${version}`) ?? (fileOf.has(pkg) ? headingDate(fileOf.get(pkg)!, version) : undefined);
   const released = groupReleases(sections, dateOf);
-  sourceNote =
-    fromTags || fromLog
-      ? `Release dates come from ${[fromTags && 'the release tags', fromLog && 'the commit that added each version to CHANGELOG.md'].filter(Boolean).join(' and ')}.`
-      : 'This build had no release tags and no history for the CHANGELOG.md files, so release dates are not shown.';
 
   const pending = pendingChangesets();
   const next: Omit<Release, 'announcement'>[] = pending.length

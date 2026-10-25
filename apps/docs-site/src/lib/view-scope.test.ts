@@ -126,10 +126,10 @@ describe('the selector', () => {
 
   it('starts with the latest library, then each change with its status and author', () => {
     const opts = viewOptions([pull(1), pull(2, { draft: true })], { defaultBranch: 'main', lifecycleOf: (p) => (p.draft ? 'draft' : 'ready') });
-    expect(opts[0]).toMatchObject({ value: 'latest', label: 'main' });
+    expect(opts[0]).toMatchObject({ value: 'latest', label: 'Library' });
     expect(opts.slice(1)).toEqual([
-      { value: 'change-2', label: 'Change 2', description: 'by ana', group: 'Open branches', status: { label: 'Draft', tone: 'neutral' } },
-      { value: 'change-1', label: 'Change 1', description: 'by ana', group: 'Open branches', status: { label: 'In review', tone: 'info' } },
+      { value: 'change-2', label: 'Change 2', description: 'by ana', group: 'Open changes', status: { label: 'Draft', tone: 'neutral' } },
+      { value: 'change-1', label: 'Change 1', description: 'by ana', group: 'Open changes', status: { label: 'In review', tone: 'info' } },
     ]);
   });
 
@@ -137,7 +137,7 @@ describe('the selector', () => {
     const shipped = pull(9, { state: 'closed', merged_at: '2026-10-02' });
     const opts = viewOptions([pull(1)], { defaultBranch: 'main', lifecycleOf: () => 'shipped', current: shipped });
     expect(opts.map((o) => o.value)).toEqual(['latest', 'change-9', 'change-1']);
-    expect(opts[1]).toMatchObject({ description: 'by ana', status: { label: 'Merged', tone: 'neutral' } });
+    expect(opts[1]).toMatchObject({ description: 'by ana', status: { label: 'Added to the library', tone: 'neutral' } });
   });
 
   it('round-trips option values', () => {
@@ -249,14 +249,14 @@ describe('words', () => {
     expect(bannerBody('tokens', { changed: 3, added: 1 })).toBe('3 tokens changed and 1 token added, listed first in the table.');
     expect(bannerBody('tokens', {})).toBe('It changes no token values.');
     expect(bannerBody('components', { components: 2 })).toBe('Previews use its tokens: 2 components look different, marked in the list.');
-    expect(bannerBody('components', { components: 1, guidance: ['Button', 'Card'] })).toBe("Previews use its tokens: 1 component looks different and 2 have edited guidance, marked in the list. Guidance text here comes from main.");
+    expect(bannerBody('components', { components: 1, guidance: ['Button', 'Card'] })).toBe("Previews use its tokens: 1 component looks different and 2 have edited guidance, marked in the list. Guidance text here comes from the library.");
     expect(bannerBody('components', {})).toBe('Previews use its tokens. It changes how no component looks.');
     expect(bannerBody('quality', {})).toBe('');
   });
 
   it('says how to fix a failed read', () => {
     expect(readError('rate', 'Darker canvas', 'Sign in with GitHub', '14:05')).toBe("GitHub's hourly limit for visitors is used up, so Darker canvas could not be read. Sign in with GitHub to keep going, or try again after 14:05.");
-    expect(readError('missing', 'Change #4', 'Sign in')).toContain('go back to main');
+    expect(readError('missing', 'Change #4', 'Sign in')).toContain('go back to the library');
   });
 
   it('never uses developer words or em dashes on screen', () => {
@@ -300,7 +300,7 @@ describe('several changes together in the address', () => {
     expect(viewTogetherHref([101, 118], '118:a#b')).toBe('/studio/tokens/?change=101,118&use=118%3Aa%23b');
     expect(viewTogetherHref([101, 118], '')).toBe('/studio/tokens/?change=101,118');
     expect(togetherTitle(['Darker canvas', 'Rounder buttons', 'Deeper links'])).toBe('Viewing the library with Darker canvas, Rounder buttons and Deeper links. Nothing is saved.');
-    expect(togetherOption([101, 118], ['Darker canvas', 'Rounder buttons'])).toEqual({ value: 'together-101-118', label: '2 branches together', description: 'Darker canvas and Rounder buttons', group: 'Open branches' });
+    expect(togetherOption([101, 118], ['Darker canvas', 'Rounder buttons'])).toEqual({ value: 'together-101-118', label: '2 changes together', description: 'Darker canvas and Rounder buttons', group: 'Open changes' });
     expect(fromLabel('changed', [118])).toBe('Changed in #118');
     expect(fromLabel('added', [101, 118])).toBe('New in #101 and #118');
   });
@@ -317,7 +317,7 @@ describe('several changes together in the address', () => {
     expect(markLabel({ kind: 'added', modes: ['light', 'dark'] })).toBe(ADDED_LABEL);
     expect(markLabel({ kind: 'changed', modes: ['light'], from: [118] })).toBe('Changed in #118, light theme only');
     expect(markLabel({ kind: 'changed', modes: ['light', 'dark'], from: [118] })).toBe('Changed in #118');
-    expect(bannerBody('tokens', { changed: 3, together: true })).toBe('3 tokens changed, listed first in the table, each marked with its branch.');
+    expect(bannerBody('tokens', { changed: 3, together: true })).toBe('3 tokens changed, listed first in the table, each marked with its change.');
     expect(bannerBody('components', { components: 0, together: true })).toBe('Previews use their tokens. They change how no component looks.');
   });
 });

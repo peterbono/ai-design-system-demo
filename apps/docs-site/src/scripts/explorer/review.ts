@@ -3,18 +3,22 @@
 // components using it, a visual preview of those real components on that background), and one primary action:
 // Propose change (Connect GitHub to propose without a token). Proposing still goes through scripts/token-editor.ts.
 import type { ContrastResult } from '@bridge-ds/core';
-import { contrastCountLine, shortName, summarizePairs } from '../../lib/explorer/contrast-summary';
-import { componentsUsing, stylesUsing, transitiveDependents, usedByLine } from '../../lib/explorer/flow';
+import { contrastCountLine, sendBlocked, shortName, summarizePairs } from '../../lib/explorer/contrast-summary';
+import { componentsUsing, pairUsage, stylesUsing, transitiveDependents, usedByLine } from '../../lib/explorer/flow';
 import { cellValue, tierAxis } from '../../lib/explorer/model';
 import { swatchLabel } from '../../lib/explorer/swatch-ramp';
 import { isAlias, aliasTarget } from '@bridge-ds/core';
 import type { DraftEdit } from '../../lib/editor-model';
 import { initGitHubConnect, prefersSignIn, setButtonLabel } from '../github-session';
-import { ghAction } from '../../lib/gh-wording';
+import { ghAction, sendGoal } from '../../lib/gh-wording';
+import { sampleVisitor } from '../demo-gate';
+import { DEMO_WORDS } from '../../lib/demo';
+import { changesModeOnPage } from '../changes-mode';
 import { currentScope } from '../shell';
 import { destinationNote, discardDraft, draftOverrides, editorSnapshot, sendLabel, undoEdit } from '../token-editor';
 import type { ExplorerData } from './types';
-import { esc, icon } from './util';
+import { attrUrl } from '../../lib/html';
+import { cssValue, esc, icon } from './util';
 import { isStageToken, previewSamples } from '../../lib/preview-fit';
 import { fitFrames, sampleFrame, sampleNames } from './preview-frames';
 
@@ -42,15 +46,47 @@ export function initReview(d: ExplorerData) {
   const signedOutNote = note?.textContent ?? '';
   let signedIn = false;
   const paintFoot = () => {
+    // A failing guardrail blocks sending whoever is signed in: the note and the button say why, and the button never
+    // offers to connect GitHub for a draft that could not be sent anyway.
+    const checks = editorSnapshot()?.checks;
+    const blocked = checks && editorSnapshot()?.draft.edits.some((e) => e.kind !== 'docs') ? sendBlocked(checks.blocking, changesModeOnPage() === 'suggest' ? 'send it as a suggestion' : 'send for review') : null;
+    // On the sample team the button says what it does; a click opens the demo dialog (data-demo-write), never GitHub.
+    const sample = !signedIn && sampleVisitor();
     if (propose) {
-      setButtonLabel(propose, signedIn ? sendLabel() : ghAction('request review', prefersSignIn()));
-      propose.toggleAttribute('data-gh-open', !signedIn);
+      setButtonLabel(propose, blocked ? blocked.button : signedIn || sample ? sendLabel() : ghAction(sendGoal('tokens', changesModeOnPage()), prefersSignIn()));
+      propose.toggleAttribute('data-gh-open', !signedIn && !sample && !blocked);
     }
     if (!note) return;
+    if (blocked) {
+      note.textContent = `${blocked.note} `;
+      if (blocked.contrast) {
+        const see = document.createElement('a');
+        see.href = '#xe-contrast';
+        see.dataset.xeShowPairs = '';
+        see.textContent = 'See the pairs';
+        note.append(see);
+      }
+      note.hidden = false;
+      note.classList.add('is-fail');
+      return;
+    }
+    note.classList.remove('is-fail');
     const where = signedIn ? destinationNote() : null;
-    note.textContent = where ?? signedOutNote;
+    note.textContent = where ?? (sample ? DEMO_WORDS.bannerText : signedOutNote);
     note.hidden = signedIn && !where;
   };
+  // "See the pairs" opens the Contrast section of the sheet and brings it into view.
+  note?.addEventListener('click', (e) => {
+    const link = (e.target as HTMLElement).closest('[data-xe-show-pairs]');
+    if (!link) return;
+    e.preventDefault();
+    open.add('contrast');
+    const sec = sheet.querySelector<HTMLDetailsElement>('[data-xe-sec="contrast"]');
+    if (!sec) return;
+    sec.open = true;
+    sec.scrollIntoView({ block: 'start' });
+    sec.querySelector('summary')?.focus();
+  });
   initGitHubConnect((viewer) => {
     // Without GitHub the primary action connects first (the shared dialog), then proposes: the draft is kept.
     signedIn = Boolean(viewer);
@@ -71,7 +107,7 @@ export function initReview(d: ExplorerData) {
     if (label) label.textContent = `${n} edit${n === 1 ? '' : 's'}`;
   };
 
-  const swatch = (hex?: string) => (hex ? `<span class="xe-ms" style="background-color:${esc(hex)}" aria-hidden="true"></span>` : '');
+  const swatch = (hex?: string) => (hex ? `<span class="xe-ms" style="background-color:${cssValue(hex)}" aria-hidden="true"></span>` : '');
 
   function changeCards(edits: DraftEdit[]): string {
     const snap = editorSnapshot()!;
@@ -136,21 +172,26 @@ export function initReview(d: ExplorerData) {
     const failing = rows.filter((r) => !r.passes).length;
     const contrastMeta = contrastCountLine({ pairs: rows.length, failing });
     const pairList = results
-      .sort((a, b) => Number((a.ratio ?? 0) >= a.pair.min) - Number((b.ratio ?? 0) >= b.pair.min))
+      // Failing first, then the pairs the most components read: a pair of unused tokens never leads the list.
+      .sort(
+        (a, b) =>
+          Number((a.ratio ?? 0) >= a.pair.min) - Number((b.ratio ?? 0) >= b.pair.min) ||
+          pairUsage(b.pair.foreground, b.pair.background, d.usage) - pairUsage(a.pair.foreground, a.pair.background, d.usage),
+      )
       .slice(0, 24)
       .map((r) => {
         const fail = (r.ratio ?? 0) < r.pair.min;
         const was = before.get(`${r.brand}/${r.theme}:${r.pair.foreground}|${r.pair.background}`);
         return `<li class="${fail ? 'is-fail' : ''}"><span class="mono">${esc(shortName(r.pair.foreground))} on ${esc(shortName(r.pair.background))}</span><span class="xe-ctx">${esc(modeLabel(r.theme))}</span><span class="num">${
           was !== undefined && was !== r.ratio ? `${was.toFixed(2)} ${icon('arrowRight', 12)} ` : ''
-        }${r.ratio === undefined ? 'n/a' : `${r.ratio.toFixed(2)}:1`}</span><span class="xe-badge ${fail ? 'is-fail' : 'is-pass'}">${icon(fail ? 'x' : 'check', 12)}${fail ? `Needs ${r.pair.min}` : 'Pass'}</span></li>`;
+        }${r.ratio === undefined ? 'n/a' : `${r.ratio.toFixed(2)}:1`}</span><span class="xe-badge ${fail ? 'is-fail' : 'is-pass'}">${icon(fail ? 'x' : 'check', 12)}${fail ? `Needs ${esc(String(r.pair.min))}` : 'Pass'}</span></li>`;
       })
       .join('');
 
     const comps = [...new Map(paths.flatMap((p) => componentsUsing(p, transitiveDependents(snap.proposed, p), d.usage)).map((c) => [c.name, c])).values()];
     const styles = [...new Set(paths.flatMap((p) => stylesUsing(p, transitiveDependents(snap.proposed, p), d.usage)))].sort();
     const usedMeta = usedByLine(comps.length, styles);
-    const compBody = comps.length ? `<ul class="xe-comps">${comps.map((c) => `<li><a href="${esc(c.href)}">${esc(c.name)}</a></li>`).join('')}</ul>` : '';
+    const compBody = comps.length ? `<ul class="xe-comps">${comps.map((c) => `<li><a href="${attrUrl(c.href)}">${esc(c.name)}</a></li>`).join('')}</ul>` : '';
     const styleBody = styles.length ? `<p class="xe-sublab">Global styles</p><ul class="xe-comps">${styles.map((f) => `<li><span class="mono">${esc(f)}</span></li>`).join('')}</ul>` : '';
     const usedBody =
       compBody || styleBody
@@ -165,7 +206,7 @@ export function initReview(d: ExplorerData) {
     const previewMeta = shown.join(', ');
 
     const sec = (key: string, ic: 'contrast' | 'box' | 'eye', label: string, meta: string, content: string, tone = '') =>
-      `<details class="xe-acc" data-xe-sec="${key}" ${open.has(key) ? 'open' : ''}><summary>${icon(ic, 18)}<span class="xe-acc-label">${esc(label)}</span><span class="xe-acc-meta ${tone}">${
+      `<details class="xe-acc" id="xe-${key}" data-xe-sec="${key}" ${open.has(key) ? 'open' : ''}><summary>${icon(ic, 18)}<span class="xe-acc-label">${esc(label)}</span><span class="xe-acc-meta ${tone}">${
         tone === 'is-pass' ? icon('check', 14) : tone === 'is-fail' ? icon('alert', 14) : ''
       }${esc(meta)}</span><span class="xe-acc-chev">${icon('chevron', 16)}</span></summary><div class="xe-acc-body">${content}</div></details>`;
     return `<p class="xe-lab">Impact</p>

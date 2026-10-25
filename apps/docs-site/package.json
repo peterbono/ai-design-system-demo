@@ -1,11 +1,15 @@
 {
   "name": "@bridge-ds/docs-site",
-  "version": "0.5.2",
+  "version": "0.20.1",
   "private": true,
   "type": "module",
   "description": "Human-facing documentation site. Every page is generated at build time from the tokens, components and docs in this repo.",
   "scripts": {
     "dev": "astro dev",
+    "dev:full": "BRIDGE_LOCAL=1 astro dev",
+    "dev:reset": "node dev/cli.mjs reset",
+    "dev:seed": "node dev/cli.mjs seed",
+    "dev:scenario": "node dev/cli.mjs scenario",
     "build": "astro build",
     "preview": "astro preview",
     "typecheck": "tsc --noEmit -p ."
@@ -15,6 +19,7 @@
     "@bridge-ds/core": "*",
     "@bridge-ds/react": "*",
     "@bridge-ds/tokens": "*",
+    "@vercel/blob": "2.8.2",
     "astro": "5.18.1",
     "lucide-react": "1.58.0"
   },

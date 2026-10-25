@@ -1,39 +1,51 @@
-// DS Bridge UI: three tabs (Pull: code -> Figma, Push: Figma -> code, Settings). Plain TypeScript and DOM, no framework.
+// Bridge UI: three tabs (Pull: code -> Figma, Push: Figma -> code, Settings). Plain TypeScript and DOM, no framework.
 // The UI owns network calls and logic; figma.* access goes through request() to the main thread.
 // Layout: tabs on top, scrolling content, and an action bar pinned to the bottom that always shows
 // what the primary button will do (or why it is disabled).
 
 import type { ConflictChoice, DiffEntry } from '@bridge-ds/core';
-import { type Analysis, type PullProposal, type PushBrand, type PushProposal, analyze, buildPull, buildPush } from '../sync/flows';
-import { GitHubClient, type PullRequest, parseRepo } from '@bridge-ds/core';
+import { type Analysis, type PullProposal, type PushBrand, type PushProposal, analyze, buildPull, buildPush, changesModeOf, commitsBehind, pullCollections, pullHeadline } from '../sync/flows';
+import { type ChangesMode, GitHubClient, type PullRequest, changesMode, loadConfig, parseRepo } from '@bridge-ds/core';
 import type { RenameSuggestion } from '@bridge-ds/core';
-import { affectedContrast, defaultTitle } from '@bridge-ds/core';
+import { type FigmaFidelityRun, type GapBuiltVariant, type GapCase, type MeasuredSpecsFile, affectedContrast, buildGapCase, defaultTitle } from '@bridge-ds/core';
+import { fixCommand, fixPhrase, writeFidelityRun } from '../sync/fix-with-claude';
 import { type PathIndex, type ResolveContext, resolve } from '@bridge-ds/core';
 import { contextFor, modesOf } from '@bridge-ds/core';
 import { type LogicalToken, SINGLE_MODE } from '@bridge-ds/core';
-import type { Issue } from '@bridge-ds/core';
+import type { Issue, PushIssue } from '@bridge-ds/core';
 import { formatValue, isAlias, parseColor, rgbaToHex } from '@bridge-ds/core';
 import { type ContrastResult, contextLabel, pairKey } from '@bridge-ds/core';
 import { type ApplyReport, type FigmaSnapshot, type InitPayload, type RepoSettings, modeDisplayName } from '../shared/messages';
-import { REQUEST_KINDS, type RequestKind, draftPushDescription, pushChangeRows, shortVariants } from '@bridge-ds/core';
+import { REQUEST_KINDS, type RequestKind, draftPushDescription, pushChangeRows, shortVariant, shortVariants } from '@bridge-ds/core';
 import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classifyComponents, pullBaselines, suggestLine, suggestSummary, suggestTitle, toRequest } from '../sync/components';
 import { CLAUDE_MODELS, type ClaudeDraft, type ClaudeDraftInput, ClaudeDraftError, DRAFTED_NOTE, draftWithClaude } from '../sync/claude';
-import { loadCodedComponents, sendComponentRequest } from '../sync/requests';
-import { DRAFT_PHRASE, type DraftField, DraftPoller, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, planFill, startMyClaudeDrafts } from '../sync/my-claude';
-import { type ComponentApplyReport, type ComponentPullPlan, type CoverageView, type PlannedComponent, buildComponentPlan, coverageView, loadComponentSpecs } from '../sync/component-pull';
+import { componentOfSet, loadCodedComponents, sendComponentRequest } from '../sync/requests';
+import { DRAFT_PHRASE, type DraftField, DraftPoller, MY_CLAUDE_NEEDS_WRITE, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, myClaudeAccess, planFill, startMyClaudeDrafts } from '../sync/my-claude';
+import { type LoadedSpecs, type ComponentApplyReport, type ComponentPullPlan, type CoverageView, type PlannedComponent, buildComponentPlan, componentReportView, coverageView, draftedSetNote, pushedInReview, pushedNumbers, specSource } from '../sync/component-pull';
+import { type FigmaPushStatus, figmaPushStatusesOnGitHub } from '@bridge-ds/core';
 import { type ComponentReview, onlyComponent, reviewUpdates } from '../sync/component-review';
 import type { ComponentSignature } from '../sync/components';
-import { type Destination, type PublishItem, type PublishResult, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
-import { NEW_TOKEN_REFUSED, TOKEN_REJECTED_CALLOUT, TOKEN_REJECTED_DETAIL, TOKEN_SETTINGS_URL, type TokenProblem, checkToken, errorText, tokenProblem } from '../sync/token-health';
-import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, tryItLinks } from '../sync/explorations';
+import { type ComponentPush, ROUTE_TAG, componentPushes } from '../sync/component-push';
+import { IMAGES_NEED_WRITE, type SentComponentPush, sendLabel, sentTitle, suggestionLines, tokenHelp } from '../sync/publish';
+import { type Destination, type PublishItem, type PublishResult, sendComponentPush, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
+import { type ComponentsReadProblem, NEW_TOKEN_REFUSED, TOKEN_REJECTED_CALLOUT, TOKEN_REJECTED_DETAIL, TOKEN_SETTINGS_URL, type TokenProblem, checkToken, componentsReadProblem, errorText, friendlyError, tokenProblem } from '../sync/token-health';
+import { type BuildItem, type StudioTarget, developerMessage, sentLinks, studioChangeUrl } from '../sync/studio';
+import { type RoutedItem, type ShipPoll, type ShipStatus, ShipPoller, effectiveItems, groupRoutes, libraryHeadline, routedItems, shipStateLabel, shippedNumbers, toArm, waitingLede } from '../sync/library-routes';
+import { type ArmAnswer, armShip } from '../sync/ship';
+import { libraryArrivalOnGitHub } from '@bridge-ds/core';
+import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, triedLocally, tryItLinks } from '../sync/explorations';
 import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
 import { type Selection, onProgress, onSelection, request } from './bridge';
-import { type FidelityOutcome, NO_REFERENCES_TEXT, fidelitySummary, runFidelityCheck } from '../sync/fidelity';
+import { MEASURED_SPECS_FILE, type MeasuredOverlayReport } from '../sync/measured-specs';
+import type { MeasuredOnlyReport } from '@bridge-ds/core';
+import { type FidelityOutcome, NO_REFERENCES_TEXT, fidelitySummary, loadReferenceManifest, runFidelityCheck } from '../sync/fidelity';
+import { FIGMA_REFERENCES_BRANCH, FIGMA_REFERENCES_DIR } from '@bridge-ds/core';
 import { fidelityComponentLine, fidelityVerdict } from '@bridge-ds/core';
 import { decodePng, encodePng } from './png';
 import { type Child, h } from './dom';
 import { icon } from './icons';
 import { ILLUSTRATIONS, type IllustrationName } from './illustrations';
+import { focusFirstItem, menuKeys } from './menu';
 
 type Tab = 'pull' | 'push' | 'settings';
 const TABS: { id: Tab; label: string }[] = [
@@ -53,8 +65,19 @@ interface PullState {
   report?: ApplyReport | undefined;
   /** Component sets from component-specs.json on the branch; undefined when the repo has none. */
   components?: ComponentPullPlan | undefined;
-  componentsError?: string | undefined;
-  /** Opt-in: also build the component sets code added ("Also pull new components"). Updates are always offered. */
+  componentsError?: ComponentsReadProblem | undefined;
+  /** Spec source Measured: how many variants a measured story gave values to. */
+  measured?: MeasuredOverlayReport | undefined;
+  /** Spec source Measured only: the sets built from the stories. */
+  measuredOnly?: MeasuredOnlyReport | undefined;
+  /** Measured only with screenshots: Check fidelity compares with the stories' renders (LoadedSpecs.shots). */
+  shots?: LoadedSpecs['shots'];
+  /** Measured only: figma-fixes.json laid on the measure (LoadedSpecs.fixes), and the measure the sets came from. */
+  fixes?: LoadedSpecs['fixes'];
+  measure?: LoadedSpecs['measure'];
+  /** The specs the pull drew, for the gap cases after Check fidelity. */
+  specs?: LoadedSpecs['specs'] | undefined;
+  /** Also build the sets code added ("Include components" in the footer): on by default on a first pull. Updates are always offered. */
   includeComponents: boolean;
   componentsReport?: ComponentApplyReport | undefined;
   /** "Review updates": what an update changes in each generated set that changed in code. */
@@ -64,8 +87,24 @@ interface PullState {
   after: Record<string, string>;
   /** Component ids updated one by one (or by "Update all"), with their review, kept across re-checks. */
   done: Map<string, ComponentReview>;
+  /** Sets pushed from Figma whose library branch is still open: said under the components, never overwritten silently. */
+  inReview: { name: string; number: number; url: string; status: FigmaPushStatus }[];
   /** "Check fidelity": running (with its progress line), its outcome, or why it failed. Nothing is written. */
-  fidelity?: { running?: string | undefined; outcome?: FidelityOutcome | undefined; error?: string | undefined } | undefined;
+  /** `copied`: the report JSON was copied for a developer ("Copy the report"). */
+  /** `gaps`: per set that differs, what the code draws that Figma does not (measured only), for Claude or a developer. */
+  /** `built`: per set, what read-built gave (the gap cases' input, sent with Fix with Claude). `fix`: Fix with Claude's state. */
+  fidelity?:
+    | {
+        running?: string | undefined;
+        outcome?: FidelityOutcome | undefined;
+        error?: string | undefined;
+        copied?: boolean | undefined;
+        gaps?: GapCase[] | undefined;
+        gapsCopied?: boolean | undefined;
+        built?: Record<string, Record<string, GapBuiltVariant>> | undefined;
+        fix?: { component: string; status: 'writing' | 'ready' | 'error'; error?: string | undefined; copied?: 'phrase' | 'command' | undefined } | undefined;
+      }
+    | undefined;
 }
 
 /** Thumbnail width in the review, CSS pixels (two side by side in the 480px plugin). */
@@ -93,10 +132,16 @@ interface PushState {
   result?: PublishResult | undefined;
   /** Component changes: requests (GitHub issues), separate from the variables pull request. */
   components?: ComponentScan | undefined;
-  componentsError?: string | undefined;
+  componentsError?: ComponentsReadProblem | undefined;
   fileKey?: string | undefined;
+  /** Where each component change goes (review): an exact token change, a branch Claude AI drafts, or fix in Figma. */
+  pushes: ComponentPush[];
   form?: RequestForm | undefined;
-  sent: { component: string; number: number; url: string }[];
+  /**
+   * Sent from this screen: requests (issues), suggestions and library branches, one status line each. `target` is how
+   * Studio opens it; `build` is set when a developer builds it with Claude (the line offers the message for them).
+   */
+  sent: SentLine[];
   /** Who wrote the Description: the plugin's draft (kept in sync with the checked changes), Claude, or the designer. */
   descriptionSource: TextSource;
   /** Who wrote the pull request title (Claude fills it only when the designer has not typed one). */
@@ -110,6 +155,13 @@ interface PushState {
   loadingExplorations?: boolean | undefined;
   /** The exploration to send to: its branch, or "new" to start one. */
   exploreTarget: string;
+  /**
+   * Where each item of a push to the library went (docs/BUILD-REQUESTS.md): shipped, waiting for a developer, or a
+   * build request. Set by a send for review in direct mode (publish's outcomes).
+   */
+  routed?: RoutedItem[] | undefined;
+  /** The shipped pull requests: on their way, in the library, or a failed check; polled while the screen is open. */
+  ship?: { statuses: Map<number, ShipStatus>; poller?: ShipPoller | undefined; timedOut?: boolean | undefined } | undefined;
   newExploration: { name: string; purpose: string };
   /** The exploration the last push went to (result screen). */
   sentTo?: ExplorationChoice | undefined;
@@ -132,15 +184,24 @@ interface PushState {
   lines: Map<string, { line: string; title?: string | undefined; key: string }>;
 }
 
+/** One thing sent from the Push screen, as its status line shows it. */
+interface SentLine {
+  component: string;
+  number: number;
+  url: string;
+  /** What it became, in designer words ("request sent"). */
+  what: string;
+  target: StudioTarget;
+  build?: BuildItem | undefined;
+  /** "Copy message for a developer" copied it (the button says so). */
+  copied?: boolean | undefined;
+}
+
 /** Where the text of a field comes from. Only "draft" text is rewritten by the plugin. */
 type TextSource = 'draft' | 'claude' | 'user';
 
-/** "Draft with my Claude", "Copy for Claude", "Paste Claude's answer" and "Draft with Claude (API key)" under a field. */
+/** "Draft with my Claude" and "Draft with Claude (API key)" under a field. */
 interface AssistState {
-  pasteOpen?: boolean | undefined;
-  pasteText: string;
-  /** The prompt, shown to copy by hand when the clipboard is blocked. */
-  prompt?: string | undefined;
   message?: { kind: 'ok' | 'error'; text: string } | undefined;
   /** "Draft with my Claude": the pending drafts file on the requests branch and its polling. */
   mine?: MineState | undefined;
@@ -157,6 +218,8 @@ interface MineState {
   /** Fields the designer typed in after the request: Claude's text is offered for them, not filled. */
   edited: Partial<Record<DraftField, boolean>>;
   error?: string | undefined;
+  /** The error is the token's missing permission: the block offers "Edit token on GitHub". */
+  permission?: boolean | undefined;
   copied?: boolean | undefined;
 }
 
@@ -170,23 +233,33 @@ interface RequestForm {
   titleSource: TextSource;
   summarySource: TextSource;
   assist: AssistState;
+  /** Where the request goes: '' for review (the default), or an exploration's branch the designer picked here. */
+  target: string;
+  /** The designer chose the component: the selection no longer changes it (REQ-3). */
+  componentPicked?: boolean | undefined;
 }
 
 interface State {
   tab: Tab;
   init?: InitPayload | undefined;
   busy?: string | undefined;
+  /** While a long build runs: "Stop" in the action bar calls it. */
+  cancel?: (() => void) | undefined;
   /** `problem`: the failure was about the token (rejected, or a missing permission named with its GitHub link). */
-  error?: { message: string; retry?: (() => void) | undefined; problem?: TokenProblem | undefined } | undefined;
+  error?: { message: string; detail?: string | undefined; retry?: (() => void) | undefined; problem?: TokenProblem | undefined } | undefined;
   pull?: PullState | undefined;
   push?: PushState | undefined;
   settingsDraft: RepoSettings;
+  /** "changes" of the repo's bridge.config.json, read once for the Push intro before the first scan. */
+  mode?: ChangesMode | undefined;
   tokenDraft: string;
   claudeKeyDraft: string;
   claudeMessage?: { kind: 'ok' | 'error'; text: string } | undefined;
   /** Which setup snippet was just copied in Settings. */
   claudeCopied?: string | undefined;
   settingsMessage?: { kind: 'ok' | 'error'; text: string } | undefined;
+  /** The saved token can read but not write what this repo needs: the token card says "Read only", not "Connected". */
+  tokenReadOnly?: boolean | undefined;
   expanded: Set<string>;
   /** Current Figma selection, for "Attach the current selection". */
   selection: Selection;
@@ -198,6 +271,8 @@ interface ActionBar {
   disabled?: boolean | undefined;
   hint?: string | undefined;
   secondary?: { label: string; onClick: () => void } | undefined;
+  /** A choice that changes what the primary action does, next to it (proximity): "Include components (62)". */
+  toggle?: { label: string; checked: boolean; focusId: string; onChange: (checked: boolean) => void } | undefined;
 }
 
 const state: State = { tab: 'pull', settingsDraft: { repo: '', branch: '', tokensPath: '' }, tokenDraft: '', claudeKeyDraft: '', expanded: new Set(), selection: null };
@@ -211,6 +286,15 @@ onSelection((selection) => {
   if (el) el.textContent = attachHint();
   const box = document.getElementById('attach-box') as HTMLInputElement | null;
   if (box && state.push?.form?.key === 'manual') box.disabled = !selection;
+  // A manual request follows the selected component until the designer picks one (REQ-3).
+  const f = state.push?.form;
+  const picked = f && !f.item && !f.componentPicked ? componentOfSelection(state.push?.components?.coded ?? []) : undefined;
+  if (f && picked) {
+    f.draft.component = picked;
+    const select = document.querySelector<HTMLSelectElement>('[data-focus-id="req-component"]');
+    if (select) select.value = picked;
+  }
+  refreshRequestAssist();
 });
 
 onProgress((message) => {
@@ -223,8 +307,12 @@ onProgress((message) => {
 // ---------------------------------------------------------------------------------------------
 // Helpers
 
+/** The file is connected: a design system (repository) picked for this file, and a token on this computer. */
+const connected = () => !!state.init?.hasToken && !!state.init.settings.repo;
+
 function getClient(): GitHubClient {
   const init = state.init!;
+  if (!init.settings.repo) throw new Error('Connect a design system in Settings first.');
   if (!init.token) throw new Error('Add a GitHub token in Settings to connect.');
   client ??= new GitHubClient(init.settings.repo, init.token);
   return client;
@@ -239,7 +327,8 @@ async function run(label: string, task: () => Promise<void>, retry?: () => void)
     await task();
   } catch (err) {
     const problem = noteTokenProblem(err);
-    state.error = { message: problem?.text ?? errorText(err), retry, problem };
+    const f = friendlyError(err);
+    state.error = { message: problem?.text ?? f.text, detail: problem ? undefined : f.detail, retry, problem };
   } finally {
     state.busy = undefined;
     render();
@@ -268,6 +357,22 @@ const tokenRejected = () => state.init?.tokenState === 'rejected';
 /** An error shown inside a screen (components, explorations, previews): none when the token callout already says it. */
 function inlineError(err: unknown): string | undefined {
   return noteTokenProblem(err)?.kind === 'rejected' ? undefined : errorText(err);
+}
+
+/** A failed component read: none when the token callout already says it, else what happened and what to do. */
+function componentsErrorOf(err: unknown, flow: 'pull' | 'push'): ComponentsReadProblem | undefined {
+  return noteTokenProblem(err)?.kind === 'rejected' ? undefined : componentsReadProblem(err, flow);
+}
+
+/** The callout for a failed component read: the sentence, then the technical error folded under "Details". */
+function componentsErrorCallout(p: ComponentsReadProblem): HTMLElement {
+  return h(
+    'div',
+    { class: 'callout warn' },
+    h('div', { class: 'callout-title' }, icon('alert'), p.title),
+    h('p', null, p.text),
+    p.detail ? h('details', { class: 'notes command' }, h('summary', null, 'Details'), h('pre', { class: 'mono-area', tabindex: '0', 'aria-label': 'Error details' }, p.detail)) : null,
+  );
 }
 
 /** Settings, with the token field open and focused: "Replace token". */
@@ -299,6 +404,14 @@ const when = (iso: string) => {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
 };
 const plural = (n: number, word: string, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
+/** figma-fixes.json in the pull's For developers: what each fix did, or why the file was not used. */
+const fixesRows = (fixes: LoadedSpecs['fixes']): [string, string | undefined][] =>
+  !fixes
+    ? []
+    : fixes.problems?.length
+      ? [['figma-fixes.json', `Not used, fix it in the repo: ${fixes.problems.join('; ')}`]]
+      : [['figma-fixes.json', fixes.lines.length ? fixes.lines.join('\n') : 'No fix']];
+const andList = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : (xs[0] ?? ''));
 const modeLabel = (mode: string) => (mode === SINGLE_MODE ? 'Value' : modeDisplayName(mode));
 
 /** Context to resolve a token's value in one mode of its tier (other axes at their default). */
@@ -332,10 +445,10 @@ function valueParts(index: PathIndex, t: LogicalToken | undefined, mode: string)
   return { name: formatValue(t.type, v), resolved: r.value === undefined ? 'does not resolve' : formatValue(t.type, r.value) };
 }
 
-/** Token paths break after dots, never inside a segment. */
+/** Token paths break after a dot, a slash or a comma ("font.weight." / "semibold"), never inside a segment. */
 function breakable(text: string): Child[] {
-  const parts = text.split('.');
-  return parts.flatMap((part, i) => (i < parts.length - 1 ? [`${part}.`, h('wbr')] : [part]));
+  const parts = text.split(/(?<=[./,])/);
+  return parts.flatMap((part, i) => (i < parts.length - 1 ? [part, h('wbr')] : [part]));
 }
 
 function valueChip(index: PathIndex, t: LogicalToken | undefined, mode: string, dim = false): HTMLElement {
@@ -390,7 +503,7 @@ interface RowSides {
   afterIndex: PathIndex;
 }
 
-const KIND_LABEL: Record<string, string> = { added: 'New', changed: 'Edited', renamed: 'Renamed', removed: 'Deleted', restored: 'Recreated', replaced: 'From main' };
+const KIND_LABEL: Record<string, string> = { added: 'New', changed: 'Edited', renamed: 'Renamed', removed: 'Deleted', restored: 'Recreated', replaced: 'From code' };
 
 function diffRow(a: Analysis, kind: string, sides: RowSides, extra?: Child, edge?: { lead?: Child; tail?: Child }): HTMLElement {
   const t = (sides.after ?? sides.before)!;
@@ -505,7 +618,7 @@ function conflictBlock(a: Analysis, e: DiffEntry, choices: Map<string, ConflictC
     'li',
     { class: 'conflict' },
     h('div', { class: 'row-head' }, edge?.lead, h('span', { class: 'kind conflict' }, 'Conflict'), h('span', { class: 'path' }, e.path), edge?.tail),
-    h('div', { class: 'choices', role: 'radiogroup', 'aria-label': `Version to keep for ${e.path}` }, side('figma', 'Keep Figma', e.figma, fi), side('main', 'Use main', e.head, a.head.byPath)),
+    h('div', { class: 'choices', role: 'radiogroup', 'aria-label': `Version to keep for ${e.path}` }, side('figma', 'Keep Figma', e.figma, fi), side('main', 'Use code', e.head, a.head.byPath)),
   );
 }
 
@@ -523,7 +636,7 @@ function conflictSection(a: Analysis, choices: Map<string, ConflictChoice>, edge
           'div',
           { class: 'inline-actions' },
           h('button', { class: 'btn ghost', onClick: () => { list.forEach((e) => choices.set(e.id, 'figma')); refreshProposals(); } }, 'Keep Figma for all'),
-          h('button', { class: 'btn ghost', onClick: () => { list.forEach((e) => choices.set(e.id, 'main')); refreshProposals(); } }, 'Use main for all'),
+          h('button', { class: 'btn ghost', onClick: () => { list.forEach((e) => choices.set(e.id, 'main')); refreshProposals(); } }, 'Use code for all'),
           open ? h('span', { class: 'muted' }, `${open} left to decide`) : null,
         )
       : null,
@@ -567,22 +680,43 @@ async function loadPull(prev?: PullState): Promise<PullState> {
   const choices = new Map<string, ConflictChoice>();
   // Components are a separate step: a problem reading them never blocks the variables.
   let components: ComponentPullPlan | undefined;
-  let componentsError: string | undefined;
+  let componentsError: ComponentsReadProblem | undefined;
   let reviews: ComponentReview[] = [];
+  let inReview: PullState['inReview'] = [];
+  let measured: MeasuredOverlayReport | undefined;
+  let measuredOnly: MeasuredOnlyReport | undefined;
+  let shots: LoadedSpecs['shots'];
+  let fixes: LoadedSpecs['fixes'];
+  let measure: LoadedSpecs['measure'];
+  let specs: LoadedSpecs['specs'] | undefined;
   const before: Record<string, string> = { ...(prev?.before ?? {}) };
   try {
-    const loaded = await loadComponentSpecs(getClient(), analysis.headFiles.treeSha, analysis.headFiles.config);
-    if (loaded) components = buildComponentPlan(loaded.specs, loaded.path, await request('scan-generated', {}), analysis.head);
+    const loaded = await specSource(state.init!.settings.specSource).load(getClient(), analysis.headFiles.treeSha, analysis.headFiles.config, analysis.head);
+    measured = loaded?.measured;
+    measuredOnly = loaded?.measuredOnly;
+    shots = loaded?.shots;
+    fixes = loaded?.fixes;
+    measure = loaded?.measure;
+    specs = loaded?.specs;
+    if (loaded) {
+      const generated = await request('scan-generated', {});
+      // Sets pushed from Figma: where their library branch stands decides whether the pull rebuilds them from code.
+      const numbers = pushedNumbers(generated);
+      const statuses = numbers.length ? await figmaPushStatusesOnGitHub(getClient(), numbers) : new Map<number, FigmaPushStatus>();
+      inReview = pushedInReview(generated, statuses);
+      components = buildComponentPlan(loaded.specs, loaded.path, generated, analysis.head, { pushed: statuses });
+    }
     const updated = components?.components.filter((c) => c.status === 'updated' && c.nodeId) ?? [];
     if (components && updated.length) {
       // Review updates: the sets as they are now, compared with what the update builds, and their thumbnails.
-      const scanned = await request('scan-components', {});
+      // Only the sets to update: reading every component of a big file takes minutes.
+      const scanned = await request('scan-components', { nodeIds: updated.map((c) => c.nodeId!) });
       reviews = reviewUpdates(components, new Map<string, ComponentSignature>(scanned.components.map((c) => [c.nodeId, c.signature])));
       const missing = updated.map((c) => c.nodeId!).filter((id) => !before[id]);
       if (missing.length) Object.assign(before, await request('thumbnails', { nodeIds: missing, width: THUMB_W }).catch(() => ({})));
     }
   } catch (err) {
-    componentsError = inlineError(err);
+    componentsError = componentsErrorOf(err, 'pull');
   }
   return {
     analysis,
@@ -591,8 +725,16 @@ async function loadPull(prev?: PullState): Promise<PullState> {
     proposal: buildPull(analysis, choices),
     components,
     componentsError,
-    includeComponents: prev?.includeComponents ?? false,
+    // A first pull brings the whole library, as enabling a Figma library does; later pulls offer new sets opt-in.
+    includeComponents: prev?.includeComponents ?? (!!components?.components.length && components.components.every((c) => c.status === 'new')),
     reviews,
+    inReview,
+    ...(measured ? { measured } : {}),
+    ...(measuredOnly ? { measuredOnly } : {}),
+    ...(shots ? { shots } : {}),
+    ...(fixes ? { fixes } : {}),
+    ...(measure ? { measure } : {}),
+    ...(specs ? { specs } : {}),
     before,
     after: prev?.after ?? {},
     done: prev?.done ?? new Map(),
@@ -603,7 +745,16 @@ function checkPull(): void {
   void run(
     'Reading the design system and your variables',
     async () => {
-      state.pull = await loadPull();
+      let p = await loadPull();
+      // The design system moved on but nothing in this file would change: it is up to date. The new base is recorded
+      // quietly instead of asking for an Update that writes nothing ("66 new changes" next to "Nothing changes").
+      const updates = (p.components?.components ?? []).some((c) => c.status === 'updated');
+      if (variablesUpToDate(p) && commitsBehind(p.analysis) > 0 && !updates && !componentsToBuild(p).length) {
+        await request('apply-pull', { plan: p.proposal.plan });
+        await loadInit();
+        p = { ...p, analysis: { ...p.analysis, baseSha: p.analysis.headSha } };
+      }
+      state.pull = p;
       state.expanded.clear();
     },
     checkPull,
@@ -615,10 +766,14 @@ function componentsToBuild(p: PullState): PlannedComponent[] {
   return (p.components?.components ?? []).filter((c) => (c.status === 'updated' && !p.done.has(c.componentId)) || (c.status === 'new' && p.includeComponents));
 }
 
-/** After a pull: components now render with main's values, so refresh their baselines (pending changes are kept). */
-async function refreshBaselines(p: PullState): Promise<void> {
+/**
+ * After a pull: components now render with main's values, so refresh their baselines (pending changes are kept). The
+ * sets just built already carry theirs. Without a variable change nothing else renders differently, so only the
+ * components with no baseline yet are read: reading every component of a big file takes minutes.
+ */
+async function refreshBaselines(p: PullState, pulled: { variables: boolean; built: readonly string[] }): Promise<void> {
   try {
-    const scanned = await request('scan-components', {});
+    const scanned = await request('scan-components', { skip: [...pulled.built], withoutBaseline: !pulled.variables });
     const coded = await loadCodedComponents(getClient(), p.analysis.headFiles.treeSha, p.analysis.headFiles.config);
     const items = pullBaselines(scanned.components, coded);
     if (items.length) await request('save-signatures', { items: items.map((x) => ({ nodeId: x.nodeId, signature: JSON.stringify(x.signature) })) });
@@ -629,7 +784,19 @@ async function refreshBaselines(p: PullState): Promise<void> {
 
 /** Builds components, then takes the "after" thumbnails of the updated ones and moves their review to `done`. */
 async function buildComponents(p: PullState, list: PlannedComponent[]): Promise<ComponentApplyReport> {
-  const report = await request('apply-components', { plan: { ...p.components!, components: list } });
+  state.cancel = () => {
+    state.cancel = undefined;
+    state.busy = 'Stopping after the component in progress';
+    render();
+    void request('cancel-components', {});
+  };
+  render();
+  let report: ComponentApplyReport;
+  try {
+    report = await request('apply-components', { plan: { ...p.components!, components: list } });
+  } finally {
+    state.cancel = undefined;
+  }
   const updated = list.filter((c) => c.status === 'updated' && c.nodeId);
   if (updated.length) Object.assign(p.after, await request('thumbnails', { nodeIds: updated.map((c) => c.nodeId!), width: THUMB_W }).catch(() => ({})));
   for (const c of updated) {
@@ -657,14 +824,16 @@ function updateComponent(componentId: string): void {
         if (report.errors.length) throw new Error(`Variables were written with problems, so ${comp.name} was not updated: ${report.errors[0]}`);
       }
       const report = await buildComponents(p, onlyComponent(p.components!, componentId).components);
-      await refreshBaselines(p);
+      await refreshBaselines(p, { variables: withVariables, built: report.nodeIds });
       if (withVariables) await loadInit();
       // Re-read main and the file: the updated set is now up to date; what is left stays to review.
       const next = await loadPull(p);
       if (report.problems.length) next.componentsReport = undefined;
       state.pull = next;
-      if (report.problems.length) state.error = { message: `${comp.name} updated, with problems: ${report.problems.slice(0, 3).join('; ')}` };
-      void request('notify', { message: `${comp.name} updated${withVariables ? ', with the variables from main' : ''}` });
+      const notBuilt = report.failed?.[0] ?? report.partial?.[0];
+      if (notBuilt) state.error = { message: `${comp.name} was not fully updated: ${notBuilt.reason}. Nothing half built was left.`, retry: () => updateComponent(componentId) };
+      else if (report.problems.length) state.error = { message: `${comp.name} updated, with problems: ${report.problems.slice(0, 3).join('; ')}` };
+      void request('notify', { message: `${comp.name} updated${withVariables ? ', with the latest variables' : ''}` });
     },
     () => updateComponent(componentId),
   );
@@ -683,18 +852,42 @@ function applyPull(): void {
   void run(
     variablesUpToDate(p) && build.length ? 'Building components' : 'Writing variables',
     async () => {
-      if (!variablesUpToDate(p) || !build.length) p.report = await request('apply-pull', { plan: p.proposal.plan });
+      const variables = !variablesUpToDate(p);
+      if (variables || !build.length) p.report = await request('apply-pull', { plan: p.proposal.plan });
       // Components after the variables, so every binding finds its variable.
       if (build.length) p.componentsReport = await buildComponents(p, build);
       const report = p.report;
-      await refreshBaselines(p);
+      await refreshBaselines(p, { variables, built: p.componentsReport?.nodeIds ?? [] });
       await loadInit();
       state.push = undefined;
       const cr = p.componentsReport;
-      const parts = [report ? `${report.created} variables created, ${report.updated} updated` : '', cr ? `${plural(cr.created + cr.updated, 'component')} built` : ''].filter(Boolean);
-      void request('notify', { message: `Pulled ${state.init!.settings.branch}: ${parts.join(', ')}.` });
+      const parts = [report && report.created + report.updated ? `${report.created} variables created, ${report.updated} updated` : '', cr ? componentReportView(cr).headline.replace(/\.$/, '') : ''].filter(Boolean);
+      void request('notify', { message: `Figma updated: ${parts.join(', ') || 'nothing changed in Figma'}.` });
     },
     applyPull,
+  );
+}
+
+/**
+ * "Try again" after a pull that left components out (Figma refused some, or Stop): reads main and the file again and
+ * builds what is still missing. Sets already built are unchanged now, so it goes on from where the pull stopped.
+ */
+function retryComponents(): void {
+  const prev = state.pull;
+  if (!prev) return;
+  void run(
+    'Building the components left',
+    async () => {
+      const next = await loadPull({ ...prev, includeComponents: true });
+      const build = componentsToBuild(next);
+      if (build.length) next.componentsReport = await buildComponents(next, build);
+      next.report = prev.report;
+      await refreshBaselines(next, { variables: false, built: next.componentsReport?.nodeIds ?? [] });
+      state.pull = next;
+      const cr = next.componentsReport;
+      void request('notify', { message: cr ? componentReportView(cr).headline : 'Every component is built.' });
+    },
+    retryComponents,
   );
 }
 
@@ -702,6 +895,7 @@ function scanPush(keep?: PushState, then?: () => void): void {
   // A fresh scan starts over: the previous Push description and request form stop waiting for Claude.
   if (!keep && state.push) {
     state.push.tryItPoller?.stop();
+    state.push.ship?.poller?.stop();
     cancelMine(state.push.assist, false);
     if (state.push.form) cancelMine(state.push.form.assist, false);
   }
@@ -718,21 +912,34 @@ function scanPush(keep?: PushState, then?: () => void): void {
       const includeBrands = keep?.includeBrands ?? new Set<string>();
       const experimental = experimentalTokenIds(analysis, snapshot);
       let components: ComponentScan | undefined;
-      let componentsError: string | undefined;
+      let componentsError: ComponentsReadProblem | undefined;
       let fileKey: string | undefined;
+      let pushes: ComponentPush[] = [];
       try {
         const scanned = await request('scan-components', {});
         fileKey = scanned.fileKey;
         components = classifyComponents(scanned.components, await loadCodedComponents(c, analysis.headFiles.treeSha, analysis.headFiles.config));
+        const coded = components.coded;
+        // Where each change goes: the same signatures Pull compares, read the other way (component-push.ts).
+        pushes = componentPushes([...components.changed, ...components.candidates], {
+          head: analysis.head,
+          files: analysis.headFiles,
+          pairs: analysis.pairs,
+          scanned: scanned.components,
+          coded,
+          fileKey,
+          text: (item) => ({ title: titleOf(keep, item), summary: suggestSummary(item), line: lineOf(keep, item) }),
+        });
         // Coded components seen for the first time: take their baseline silently (nothing to send).
         if (components.adopt.length) await request('save-signatures', { items: components.adopt.map((x) => ({ nodeId: x.nodeId, signature: JSON.stringify(x.signature) })) });
       } catch (err) {
-        componentsError = inlineError(err);
+        componentsError = componentsErrorOf(err, 'push');
       }
-      const items = publishItems(analysis, experimental, components?.changed ?? []);
+      const items = publishItems(analysis, experimental, (components?.changed ?? []).filter((x) => sendable(pushes, x)));
       // A new scan starts like Figma's publish dialog: everything checked but experimental items. A re-scan from this
       // screen (a confirmed rename, a new mark) keeps what the designer unchecked.
-      const destination = keep?.destination ?? 'review';
+      // Suggest mode has no explorations (they are branches): every push goes for review as a suggestion.
+      const destination = changesModeOf(analysis) === 'suggest' ? 'review' : (keep?.destination ?? 'review');
       const unchecked = keep ? new Set([...keep.unchecked].filter((k) => items.some((i) => i.key === k))) : defaultUnchecked(items, destination);
       if (keep && destination === 'review') for (const i of items) if (i.experimental && !keep.items.some((x) => x.key === i.key && x.experimental)) unchecked.add(i.key);
       // A change that showed up with this re-scan starts like on a first scan (an optional part already covers it).
@@ -752,7 +959,7 @@ function scanPush(keep?: PushState, then?: () => void): void {
         description: keep?.description ?? '',
         descriptionSource: keep?.descriptionSource ?? 'draft',
         titleSource: keep?.titleSource ?? 'draft',
-        assist: keep?.assist ?? { pasteText: '' },
+        assist: keep?.assist ?? {},
         lines: keep?.lines ?? new Map(),
         destination,
         explorations: keep?.explorations,
@@ -763,6 +970,7 @@ function scanPush(keep?: PushState, then?: () => void): void {
         components,
         componentsError,
         fileKey,
+        pushes,
         sent: keep?.sent ?? [],
       };
       if (state.push.descriptionSource === 'draft') state.push.description = pushDraft(state.push);
@@ -780,11 +988,11 @@ const pickedExploration = (r: PushState) => r.explorations?.find((e) => e.branch
 function explorationBlocker(r: PushState): string | undefined {
   if (r.destination !== 'exploration') return undefined;
   if (r.loadingExplorations) return 'Loading explorations';
-  if (r.exploreTarget === 'new') return newExplorationProblems(r.newExploration.name, r.newExploration.purpose).length ? 'Name the exploration and say what to learn' : undefined;
+  if (r.exploreTarget === 'new') return newExplorationProblems(r.newExploration.name, r.newExploration.purpose).length ? 'Add a name and what to learn' : undefined;
   return pickedExploration(r) ? undefined : 'Pick an exploration';
 }
 
-/** "Send for review" or "Try in an exploration": experimental items follow the destination's default. */
+/** "To the library" or "Try in an exploration": experimental items follow the destination's default. */
 function setDestination(r: PushState, d: Destination): void {
   if (r.destination === d) return;
   r.destination = d;
@@ -800,7 +1008,8 @@ async function loadExplorations(r: PushState): Promise<void> {
   render();
   try {
     r.explorations = await runningExplorations(getClient(), r.analysis.headFiles.config, state.init!.settings.branch);
-    if (!r.exploreTarget || (r.exploreTarget !== 'new' && !pickedExploration(r))) r.exploreTarget = r.explorations[0]?.branch ?? 'new';
+    // A new exploration by default: picking a running one (maybe someone else's) is a choice, never one click away (EXP-2).
+    if (!r.exploreTarget || (r.exploreTarget !== 'new' && !pickedExploration(r))) r.exploreTarget = r.sentTo?.branch ?? 'new';
   } catch (err) {
     r.explorationsError = inlineError(err);
     r.exploreTarget = 'new';
@@ -816,8 +1025,9 @@ function submitPush(): void {
   if (!r) return;
   const withPr = Object.keys(r.proposal.files).length + r.proposal.brandFiles.length > 0;
   const toExploration = r.destination === 'exploration';
+  const mode = modeOf(r);
   void run(
-    toExploration ? (r.exploreTarget === 'new' ? 'Starting the exploration' : 'Sending to the exploration') : withPr ? (r.appendToOpen && r.openPr ? 'Adding to the branch' : 'Creating the branch') : 'Sending the requests',
+    toExploration ? (r.exploreTarget === 'new' ? 'Starting the exploration' : 'Sending to the exploration') : mode === 'suggest' ? 'Sending the suggestion' : withPr ? (r.appendToOpen && r.openPr ? 'Adding to your change' : 'Sending to the library') : 'Sending the requests',
     async () => {
       let exploration: ExplorationChoice | undefined;
       if (toExploration) {
@@ -835,7 +1045,8 @@ function submitPush(): void {
       const result = await publish(getClient(), {
         analysis: r.analysis,
         proposal: r.proposal,
-        components: r.components?.changed ?? [],
+        components: sendableChanged(r),
+        pushes: r.pushes,
         unchecked: r.unchecked,
         description: r.description,
         descriptionIsDraft: r.descriptionSource === 'draft',
@@ -844,13 +1055,16 @@ function submitPush(): void {
         title: r.title,
         fileName: state.init!.fileName,
         fileKey: r.fileKey,
-        appendTo: !toExploration && r.appendToOpen ? r.openPr : undefined,
+        appendTo: !toExploration && mode === 'direct' && r.appendToOpen ? r.openPr : undefined,
+        mode,
         exploration: exploration ? targetOf(exploration) : undefined,
         coded: r.components?.coded ?? [],
         image: async (nodeId) => (await request('export-image', { nodeId }).catch(() => null))?.base64,
       });
       r.result = result;
       r.sentTo = exploration;
+      r.routed = !exploration && result.outcomes.length ? routedItems(result.outcomes) : undefined;
+      if (r.routed) startShipPolling(r, (n) => libraryArrivalOnGitHub(getClient(), n), (n) => armShip(state.init!.token ?? '', state.init!.settings.repo, n));
       r.tryIt = undefined;
       r.previews = undefined;
       r.shared = false;
@@ -858,19 +1072,31 @@ function submitPush(): void {
       cancelMine(r.assist, false);
       // What was sent exists now; local bookkeeping failures must not hide that.
       try {
-        if (result.pr?.tags.length) await request('tag-variables', { tags: result.pr.tags });
+        const tags = result.pr?.tags ?? result.tags ?? [];
+        if (tags.length) await request('tag-variables', { tags });
         // "Add to open pull request" follows review pull requests only; an exploration is picked in its own select.
         if (result.pr && !exploration) await request('save-sync', { sync: { lastPrBranch: result.pr.branch, lastPrUrl: result.pr.pr.url } });
         // A request is the new reference for its component: the next scan compares against what was asked for.
         for (const x of result.requests) await request('rebaseline', { nodeId: x.nodeId }).catch(() => undefined);
-        for (const x of result.requests) r.sent.unshift({ component: x.component, number: x.number, url: x.url });
+        for (const x of result.requests) r.sent.unshift({ component: x.component, number: x.number, url: x.url, what: 'request sent', target: 'request' });
+        // An exact token change written on the exploration is the new reference too.
+        for (const x of result.explorationTokens ?? []) await request('rebaseline', { nodeId: x.nodeId }).catch(() => undefined);
+        // A library branch from Figma: the set remembers it, so a pull rebuilds it from the reviewed code once it ships.
+        for (const x of result.branches) await afterBranch(r, x);
+        // A component change sent as a suggestion: its new baseline, and the issue in the "sent" list.
+        for (const x of result.suggestions) {
+          if (x.nodeId) await request('rebaseline', { nodeId: x.nodeId }).catch(() => undefined);
+          r.sent.unshift({ component: x.component ?? x.title ?? 'Variables', number: x.number, url: x.url, what: 'suggestion sent', target: 'suggestion' });
+        }
         await loadInit();
       } catch (err) {
-        state.error = { message: `Sent, but saving the links in this file failed: ${err instanceof Error ? err.message : String(err)}` };
+        state.error = { message: 'Sent. Bridge could not save the links in this file, so the next scan may list these changes again.', detail: errorText(err) };
       }
       const parts = exploration
         ? [`Sent to ${exploration.name}`]
-        : [result.pr ? (result.pr.appended ? 'Branch updated' : 'Branch created') : '', result.requests.length ? `${plural(result.requests.length, 'request')} opened` : ''].filter(Boolean);
+        : mode === 'suggest'
+          ? [result.suggestions.length ? sentTitle(result, mode) : '', result.requests.length ? `${plural(result.requests.length, 'request')} sent` : ''].filter(Boolean)
+          : [result.pr ? (result.pr.appended ? 'Added to your change in review' : 'Sent for review') : '', result.requests.length ? `${plural(result.requests.length, 'request')} sent` : '', result.branches.length ? `${plural(result.branches.length, 'component')} sent` : ''].filter(Boolean);
       void request('notify', { message: parts.join(', ') });
     },
     submitPush,
@@ -897,12 +1123,45 @@ function markExperimental(r: PushState, item: PublishItem, value: boolean): void
   );
 }
 
+/** How the push of this scan reaches the code: bridge.config.json "changes" (default suggest). */
+const modeOf = (r: PushState): ChangesMode => changesModeOf(r.analysis);
+
+/** "changes" in the repo's bridge.config.json at `branch` (no config: direct, the plugin's behaviour without one). */
+let modeLoading = false;
+/** The repo's changes mode for screens shown before a scan: read once, then kept (Settings refreshes it). */
+function knownMode(): ChangesMode | undefined {
+  if (state.push) return modeOf(state.push);
+  if (state.mode || modeLoading || !connected()) return state.mode;
+  modeLoading = true;
+  void repoChangesMode(getClient(), state.init!.settings.branch)
+    .then((m) => {
+      state.mode = m;
+      render();
+    })
+    .catch(() => undefined)
+    .finally(() => (modeLoading = false));
+  return undefined;
+}
+
+async function repoChangesMode(gh: GitHubClient, branch: string): Promise<ChangesMode> {
+  const text = await gh.getFileText('bridge.config.json', branch).catch(() => undefined);
+  if (!text) return 'direct';
+  try {
+    return changesMode(loadConfig(text));
+  } catch {
+    return 'direct';
+  }
+}
+
 function saveSettings(): void {
   const draft = state.settingsDraft;
   state.settingsMessage = undefined;
   void run('Checking access to the repository', async () => {
     try {
-      parseRepo(draft.repo);
+      if (!draft.repo.trim()) throw new Error('Paste the GitHub repository of your design system, for example acme/design-system.');
+      // A pasted GitHub link works too: stored as owner/name.
+      const parsed = parseRepo(draft.repo);
+      draft.repo = `${parsed.owner}/${parsed.name}`;
       if (!draft.branch.trim()) throw new Error('Enter a base branch, for example main.');
       if (!draft.tokensPath.trim()) throw new Error('Enter the folder that holds the *.tokens.json files, for example packages/tokens/src.');
       const newToken = state.tokenDraft.trim();
@@ -920,13 +1179,33 @@ function saveSettings(): void {
           }
           throw err;
         });
-        if (info.permissions && info.permissions.push === false) {
-          throw new Error(`This token can read ${info.fullName} but cannot write to it. Give it "Contents", "Pull requests" and "Issues" set to "Read and write".`);
-        }
         if (!(await gh.getBranchSha(draft.branch.trim()))) throw new Error(`Branch "${draft.branch.trim()}" does not exist in ${info.fullName}.`);
+        // What the token may write, probed without writing (the user's role on the repo says nothing about a
+        // fine-grained token). Suggestions need Issues only; direct mode needs Contents and Pull requests too.
+        // Refused before saving: the token that works stays.
+        const mode = await repoChangesMode(gh, draft.branch.trim());
+        state.mode = mode;
+        const probed = await gh.writeAccess(draft.branch.trim()).catch(() => undefined);
+        const push = info.permissions?.push !== false;
+        const can = probed ?? { contents: push, pullRequests: push, issues: true };
+        const missing = [
+          mode === 'direct' && !can.contents ? '"Contents"' : '',
+          mode === 'direct' && !can.pullRequests ? '"Pull requests"' : '',
+          !can.issues ? '"Issues"' : '',
+        ].filter(Boolean);
+        // The saved token falls short: its card says so. A new token that falls short is refused and changes nothing;
+        // one that writes replaces the saved token.
+        if (!newToken) state.tokenReadOnly = missing.length > 0;
+        else if (!missing.length) state.tokenReadOnly = false;
+        if (missing.length) {
+          const list = missing.length > 1 ? `${missing.slice(0, -1).join(', ')} and ${missing[missing.length - 1]}` : missing[0];
+          throw new Error(`This token can read ${info.fullName} but cannot ${mode === 'direct' ? 'send changes to it' : 'open suggestions on it'}. Give it ${list} set to "Read and write" on GitHub, then paste it again.`);
+        }
+        // Read-only on code is enough when the repo takes suggestions (issues only).
+        const readOnly = mode === 'suggest' && !can.contents;
         if (newToken) await request('save-token', { token: newToken });
         else setTokenState('ok');
-        message = `Connected to ${info.fullName}.${newToken ? ' The token is saved on this computer only.' : ''}`;
+        message = `Connected to ${info.fullName}.${newToken ? ' The token is saved on this computer only.' : ''}${readOnly ? ' This token sends suggestions only. Screenshots and drafting with your Claude plan need "Contents: Read and write".' : ''}`;
       }
       state.tokenDraft = '';
       state.expanded.delete('repo-edit');
@@ -954,8 +1233,8 @@ function removeToken(): void {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Writing help: the plugin's own draft (always), "Copy for Claude" and "Paste Claude's answer" (any Claude plan, no
-// key), "Draft with Claude" (only with an API key in Settings, billed to the designer's Anthropic account).
+// Writing help: the plugin's own draft (always), "Draft with my Claude" (the designer's Claude app with the Bridge MCP,
+// any Claude plan, no key), "Draft with Claude" (only with an API key in Settings, billed to the designer's Anthropic account).
 
 /** Images larger than this (base64 characters) are not sent to Claude: the API refuses images over 5 MB. */
 const CLAUDE_IMAGE_MAX = 6_500_000;
@@ -968,6 +1247,10 @@ interface AssistTarget {
   /** Before and after images for "Draft with Claude"; empty when there are none. */
   images?: (() => Promise<Pick<ClaudeDraftInput, 'before' | 'after' | 'lineImages'>>) | undefined;
   apply: (d: ClaudeDraft) => void;
+  /** Fields the designer typed before asking: Claude's text for them is offered, never written over theirs. */
+  typed?: (() => Partial<Record<DraftField, boolean>>) | undefined;
+  /** Why there is nothing for Claude to draft from yet (an empty manual request); undefined when there is. */
+  empty?: (() => string | undefined) | undefined;
   /** The same target as the screen is now (a re-scan rebuilds the push state), or undefined once it is gone. */
   current: () => AssistTarget | undefined;
 }
@@ -978,8 +1261,19 @@ function checkedEntries(r: PushState): DiffEntry[] {
 }
 
 function checkedComponents(r: PushState): ComponentChangeItem[] {
-  return (r.components?.changed ?? []).filter((c) => isChecked(r.unchecked, { key: componentKey(c.nodeId) }));
+  return sendableChanged(r).filter((c) => isChecked(r.unchecked, { key: componentKey(c.nodeId) }));
 }
+
+/** The route of a component change (undefined: not routed, it goes as a request). */
+const pushOf = (r: Pick<PushState, 'pushes'>, nodeId: string) => r.pushes.find((p) => p.nodeId === nodeId);
+
+/** A change Push can send: not one to fix in Figma first, not a token change the contrast gate holds back. */
+const sendable = (pushes: ComponentPush[], item: Pick<ComponentChangeItem, 'nodeId'>) => {
+  const p = pushes.find((x) => x.nodeId === item.nodeId);
+  return !p || (p.plan.route !== 'manual' && !p.blocked);
+};
+
+const sendableChanged = (r: PushState) => (r.components?.changed ?? []).filter((c) => sendable(r.pushes, c));
 
 /** The deterministic Description: what the checked edits do, which components get a request. */
 function pushDraft(r: PushState): string {
@@ -1023,6 +1317,7 @@ const LINE_IMAGES = 4;
 function pushAssist(r: PushState): AssistTarget {
   return {
     id: 'push',
+    typed: () => ({ title: r.titleSource === 'user' && !!r.title.trim(), summary: r.descriptionSource === 'user' && !!r.description.trim() }),
     input: () => ({
       target: 'push',
       changes: pushChangeRows(checkedEntries(r)),
@@ -1064,6 +1359,9 @@ function requestAssist(f: RequestForm): AssistTarget {
   const d = f.draft;
   return {
     id: 'req',
+    typed: () => ({ title: f.titleSource === 'user' && !!d.title.trim(), summary: f.summarySource === 'user' && !!d.summary.trim() }),
+    // A request the scan did not detect, with no words and no selection: Claude would only invent (ASSIST-1).
+    empty: () => (!f.item && !d.title.trim() && !d.summary.trim() && !(f.attach && state.selection) ? 'Write a few words or attach a selection: Claude drafts from them.' : undefined),
     input: () => ({
       target: 'request',
       component: d.component,
@@ -1140,7 +1438,12 @@ async function runClaude(a: AssistState, t: AssistTarget): Promise<void> {
   render();
   try {
     const input = { ...t.input(), ...(t.images ? await t.images() : {}) };
-    t.apply(await draftWithClaude((url, init) => fetch(url, init), c.key, c.model, input));
+    const result = await draftWithClaude((url, init) => fetch(url, init), c.key, c.model, input);
+    // Fields the designer typed keep their text; Claude's version is offered beside them (ASSIST-2).
+    const { fill, offer } = planFill(result, t.typed?.() ?? {});
+    t.apply({ title: fill.title ?? '', summary: fill.summary ?? '', lines: result.lines });
+    a.offer = offer.title || offer.summary ? offer : undefined;
+    if (a.offer) a.message = { kind: 'ok', text: 'Claude drafted it. Your text stays: use Claude\'s draft below if you prefer it.' };
   } catch (err) {
     a.message = { kind: 'error', text: err instanceof ClaudeDraftError ? err.message : 'Claude could not draft this. Your text is unchanged.' };
   } finally {
@@ -1178,7 +1481,8 @@ function noteEdit(a: AssistState, field: DraftField): void {
 function startMine(a: AssistState, t: AssistTarget): void {
   if (state.busy || mineActive(a)) return;
   const previous = a.mine?.sessionId;
-  a.mine = { status: 'starting', edited: {} };
+  // What the designer typed before asking stays theirs: Claude's text for it is offered (ASSIST-2).
+  a.mine = { status: 'starting', edited: { ...(t.typed?.() ?? {}) } };
   a.offer = undefined;
   a.message = undefined;
   render();
@@ -1187,6 +1491,13 @@ function startMine(a: AssistState, t: AssistTarget): void {
     try {
       gh = getClient();
       if (previous) void finishMyClaudeDrafts(gh, previous);
+      // Claude's drafts go through a file in the repository: say what is missing before anything is written or waited for.
+      const missing = await myClaudeAccess(gh);
+      if (missing) {
+        a.mine = { status: 'error', edited: {}, error: missing, permission: true };
+        render();
+        return;
+      }
       const input = { ...t.input(), ...(t.images ? await t.images() : {}) };
       const session = await startMyClaudeDrafts(gh, { targets: [toMyClaudeTarget(input)], baseBranch: state.init!.settings.branch });
       const mine = a.mine;
@@ -1213,7 +1524,8 @@ function startMine(a: AssistState, t: AssistTarget): void {
       mine.poller.start();
     } catch (err) {
       const message = inlineError(err);
-      a.mine = message === undefined ? undefined : { status: 'error', edited: {}, error: message };
+      const permission = tokenProblem(err)?.kind === 'missing-permission';
+      a.mine = message === undefined ? undefined : { status: 'error', edited: {}, error: permission ? MY_CLAUDE_NEEDS_WRITE : message, permission };
     }
     render();
   })();
@@ -1231,7 +1543,7 @@ function receiveMine(a: AssistState, t: AssistTarget, result: Pick<ClaudeDraft, 
   if (target) target.apply({ title: fill.title ?? '', summary: fill.summary ?? '', lines: result.lines });
   a.offer = offer.title || offer.summary ? offer : undefined;
   // One status line under the field ("Drafted by Claude, review before sending") says the rest.
-  a.message = a.offer ? { kind: 'ok', text: 'Your Claude answered. You edited a field meanwhile, so your text stays: use Claude\'s draft below if you prefer it.' } : undefined;
+  a.message = a.offer ? { kind: 'ok', text: 'Claude answered. You edited a field meanwhile, so your text stays: use Claude\'s draft below if you prefer it.' } : undefined;
   render();
 }
 
@@ -1274,30 +1586,38 @@ function mineView(a: AssistState, t: AssistTarget): Child {
   const mine = a.mine;
   if (!mine || mine.status === 'drafted') return null;
   if (mine.status === 'error') {
-    return h('p', { class: 'form-error', role: 'alert' }, icon('alert'), `Could not hand the drafts to your Claude: ${mine.error ?? 'unknown error'}`);
+    if (mine.permission) {
+      return h(
+        'div',
+        { class: 'mine', role: 'alert' },
+        h('p', { class: 'form-error' }, icon('alert'), mine.error ?? MY_CLAUDE_NEEDS_WRITE),
+        h('div', { class: 'inline-actions' }, h('button', { class: 'btn', onClick: openTokenSettings }, icon('external'), 'Edit token on GitHub'), h('button', { class: 'btn ghost', onClick: () => cancelMine(a) }, 'Close')),
+      );
+    }
+    return h('p', { class: 'form-error', role: 'alert' }, icon('alert'), `Could not hand the drafts to Claude: ${mine.error ?? 'try again.'}`);
   }
   if (mine.status === 'starting') {
-    return h('div', { class: 'mine', role: 'status' }, h('div', { class: 'mine-head' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('b', null, 'Getting the drafts ready for your Claude')));
+    return h('div', { class: 'mine', role: 'status' }, h('div', { class: 'mine-head' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('b', null, 'Getting the drafts ready for Claude')));
   }
   const timeout = mine.status === 'timeout';
   return h(
     'div',
     { class: 'mine', role: 'status', 'aria-live': 'polite' },
-    h('div', { class: 'mine-head' }, timeout ? icon('info') : h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('b', null, timeout ? 'Your Claude has not answered yet' : 'Waiting for your Claude')),
-    h('p', null, timeout ? 'Stopped checking after 10 minutes. In Claude Desktop or Claude Code, say:' : 'In Claude Desktop or Claude Code, with the Bridge MCP server connected, say:'),
+    h('div', { class: 'mine-head' }, timeout ? icon('info') : h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('b', null, timeout ? 'Your Claude did not answer' : 'Waiting for Claude')),
+    h('p', null, timeout ? 'The plugin draft is still here: edit it, or say this in Claude, then check again:' : 'In Claude, with Bridge connected (Settings), say:'),
     h(
       'div',
       { class: 'phrase' },
       h('code', null, DRAFT_PHRASE),
       h('button', { class: 'btn ghost', 'data-focus-id': `${t.id}-mine-copy`, onClick: () => void copyPhrase(a) }, icon(mine.copied ? 'check' : 'copy'), mine.copied ? 'Copied' : 'Copy'),
     ),
-    h('small', null, timeout ? 'Then check again. Your fields stay as they are.' : 'Checking every 5 seconds while this plugin is open. Keep editing: Claude never writes over what you type.'),
+    h('small', null, timeout ? 'Stopped checking after 10 minutes. Your fields stay as they are.' : 'Checking every 5 seconds while this plugin is open. Keep editing: Claude never writes over what you type.'),
     h(
       'div',
       { class: 'inline-actions' },
       timeout ? h('button', { class: 'btn', 'data-focus-id': `${t.id}-mine-again`, onClick: () => checkMineAgain(a) }, icon('refresh'), 'Check again') : null,
       h('button', { class: 'btn ghost', 'data-focus-id': `${t.id}-mine-cancel`, onClick: () => cancelMine(a) }, 'Cancel'),
-      h('button', { class: 'btn ghost', onClick: () => { state.tab = 'settings'; render(); } }, 'How to connect'),
+      h('button', { class: 'btn ghost', onClick: () => { state.tab = 'settings'; state.expanded.add('mcp-setup'); render(); } }, 'How to connect'),
     ),
   );
 }
@@ -1350,11 +1670,13 @@ function assistAction(a: AssistState, t: AssistTarget): Child {
         'data-focus-id': `${t.id}-assist`,
         'aria-expanded': withKey ? (a.menuOpen ? 'true' : 'false') : undefined,
         'aria-haspopup': withKey ? 'menu' : undefined,
-        disabled: !!state.busy,
+        disabled: !!state.busy || !!t.empty?.(),
+        title: t.empty?.(),
         onClick: () => {
           if (!withKey) return startMine(a, t);
           a.menuOpen = !a.menuOpen;
           render();
+          if (a.menuOpen) focusFirstItem(document.querySelector(`[data-menu-id="${t.id}-ways"]`));
         },
       },
       'Draft with Claude',
@@ -1363,15 +1685,58 @@ function assistAction(a: AssistState, t: AssistTarget): Child {
     withKey && a.menuOpen
       ? h(
           'div',
-          { class: 'ways-menu', role: 'menu', 'aria-label': 'Draft with Claude' },
-          way('mine', 'With my Claude (MCP)', state.init?.hasToken ? 'Your plan, in Claude Desktop or Claude Code. Set up once in Settings.' : 'Add a GitHub token in Settings first.', pick(() => startMine(a, t)), { tag: 'Recommended', disabled: !state.init?.hasToken }),
-          way('claude', 'With my API key', 'One click, billed to your Anthropic account.', pick(() => void runClaude(a, t))),
+          {
+            class: 'ways-menu',
+            role: 'menu',
+            'aria-label': 'Draft with Claude',
+            'data-menu-id': `${t.id}-ways`,
+            onKeyDown: menuKeys(() => {
+              a.menuOpen = false;
+              render();
+              (document.querySelector(`[data-focus-id="${t.id}-assist"]`) as HTMLElement | null)?.focus();
+            }),
+          },
+          way('mine', 'With your Claude plan', state.init?.hasToken ? 'In the Claude app or Claude Code. Set up once in Settings.' : 'Add a GitHub token in Settings first.', pick(() => startMine(a, t)), { tag: 'Recommended', disabled: !state.init?.hasToken }),
+          way('claude', 'With an API key', 'One click, billed to your Anthropic account.', pick(() => void runClaude(a, t))),
         )
       : null,
   );
 }
 
 /** Under the field: waiting for the designer's Claude, Claude's text offered for an edited field, or an error. */
+/** Why the drafting help is unavailable (nothing to draft from), while no draft is under way or offered. */
+const emptyWhy = (a: AssistState, t: AssistTarget) => (!mineActive(a) && !a.offer && !a.message ? t.empty?.() : undefined);
+
+/**
+ * The request form updates in place while the designer types or attaches a selection: the drafting help becomes
+ * available (or not) without a render that would take the focus away.
+ */
+function refreshRequestAssist(): void {
+  const f = state.push?.form;
+  if (!f) return;
+  const t = requestAssist(f);
+  const empty = t.empty?.();
+  const button = document.querySelector<HTMLButtonElement>(`[data-focus-id="${t.id}-assist"]`);
+  if (button) {
+    button.disabled = !!state.busy || !!empty;
+    if (empty) button.title = empty;
+    else button.removeAttribute('title');
+  }
+  const why = document.getElementById(`${t.id}-why`);
+  if (why) {
+    const text = emptyWhy(f.assist, t);
+    why.textContent = text ?? '';
+    why.hidden = !text;
+  }
+}
+
+/** Under the label line of a field with "Draft with Claude": why it is unavailable. Refreshed in place as the designer types. */
+function assistWhy(a: AssistState, t: AssistTarget): Child {
+  if (!t.empty) return null;
+  const why = emptyWhy(a, t);
+  return h('small', { class: 'muted assist-why', id: `${t.id}-why`, hidden: !why }, why ?? '');
+}
+
 function assistStatus(a: AssistState, t: AssistTarget): Child {
   const parts = [
     mineView(a, t),
@@ -1400,9 +1765,9 @@ function saveClaude(): void {
       await request('save-claude', { key: key || undefined, model: state.init!.claude.model });
       state.claudeKeyDraft = '';
       await loadInit();
-      state.claudeMessage = { kind: 'ok', text: key ? 'Key saved on this computer only. "Draft with Claude (API key)" now shows on requests and on the message to the team.' : 'Claude settings saved.' };
+      state.claudeMessage = { kind: 'ok', text: key ? 'Key saved on this computer only. Draft with Claude now offers it, on requests and on the message to the team.' : 'Claude settings saved.' };
     } catch (err) {
-      state.claudeMessage = { kind: 'error', text: err instanceof Error ? err.message : String(err) };
+      state.claudeMessage = { kind: 'error', text: errorText(err) };
     }
   });
 }
@@ -1411,7 +1776,7 @@ function removeClaudeKey(): void {
   void run('Removing the key', async () => {
     await request('clear-claude-key', {});
     await loadInit();
-    state.claudeMessage = { kind: 'ok', text: 'Key removed from this computer. Copy for Claude still works with your Claude plan.' };
+    state.claudeMessage = { kind: 'ok', text: 'Key removed. Draft with Claude now uses your own Claude app once it is connected in Settings.' };
   });
 }
 
@@ -1451,30 +1816,57 @@ function steps(items: [string, string][]): HTMLElement {
   );
 }
 
-function needToken(): View {
+/**
+ * Repository, branch and commit, for whoever needs them: folded under "For developers", never in a designer's
+ * sentence. Rows without a value are left out.
+ */
+/** "Measured: 18 of 72 variants matched a story (54 use component-specs.json)", for the pull's developer rows. */
+function measuredLine(m: MeasuredOverlayReport | undefined): string | undefined {
+  if (!m) return undefined;
+  return `Measured: ${m.matched} of ${m.variants} variants matched a story${m.unmatched ? ` (${m.unmatched} use component-specs.json)` : ''}, ${m.fields} values from the measure${m.keptTokens ? `, ${m.keptTokens} tokens kept (same value measured)` : ''}${m.literals ? `, ${m.literals} values no token gives` : ''}${m.conflicts ? `, ${m.conflicts} tokens that disagree (kept, to check)` : ''}`;
+}
+
+function forDevelopers(rows: [string, string | undefined][]): Child {
+  const shown = rows.filter((r): r is [string, string] => !!r[1]);
+  if (!shown.length) return null;
+  return h(
+    'details',
+    { class: 'notes dev-details' },
+    h('summary', null, 'For developers'),
+    h('dl', { class: 'dev-list' }, shown.map(([k, v]) => [h('dt', null, k), h('dd', { class: 'mono' }, breakable(v))])),
+  );
+}
+
+/** Repository and branch of the connected design system, the first rows of every "For developers". */
+const repoRows = (): [string, string | undefined][] => [
+  ['Repository', state.init?.settings.repo],
+  ['Branch', state.init?.settings.branch],
+];
+
+function needSetup(): View {
   return {
-    body: intro({ title: 'Connect your repository', text: "DS Bridge reads your design system's tokens and sends your edits for review. It needs a GitHub token for one repository.", art: 'guide' }),
+    body: intro({ title: 'Connect your design system', text: "Bridge brings your design system's tokens and components into Figma, and sends your edits back to it. Pick the design system this file uses.", art: 'guide' }),
     bar: { label: 'Open Settings', onClick: () => { state.tab = 'settings'; render(); } },
   };
 }
 
 function viewPull(): View {
   const init = state.init!;
-  if (!init.hasToken) return needToken();
+  if (!connected()) return needSetup();
   const p = state.pull;
   if (!p) {
     return {
       body: [intro({
-        title: `Bring ${init.settings.branch} into Figma`,
+        title: 'Get the latest design system',
         text: 'See every change before anything is written. Your own edits are kept, nothing is deleted.',
         meta: init.sync.baseSha
-          ? `Last pulled ${short(init.sync.baseSha)} from ${init.settings.repo}${init.sync.lastPullAt ? ` on ${when(init.sync.lastPullAt)}` : ''}`
-          : `From ${init.settings.repo}. First pull: one collection per tier, with its modes.`,
+          ? init.sync.lastPullAt ? `Last updated in this file on ${when(init.sync.lastPullAt)}.` : undefined
+          : 'First time in this file: one collection per tier, with its modes.',
         art: 'tokens',
-      }), steps([
-        ['Check', `DS Bridge reads the token files on ${init.settings.branch}.`],
+      }), forDevelopers([...repoRows(), ['Last pulled commit', short(init.sync.baseSha)]]), steps([
+        ['Check', "Bridge reads the design system's tokens and components."],
         ['Review', 'Every new, edited or deleted token is listed with its value. Nothing is written yet.'],
-        ['Apply', 'Figma variables are created or updated. Your own edits stay until you send them from Push.'],
+        ['Apply', 'Figma variables are created or updated, and components are built from the code. Your own edits stay until you send them from Push.'],
       ])],
       bar: { label: 'Check for updates', onClick: checkPull },
     };
@@ -1491,21 +1883,37 @@ function viewPull(): View {
     const r = p.report;
     const cr = p.componentsReport;
     const problems = [...(r?.errors ?? []), ...(cr?.problems ?? [])];
+    const view = cr ? componentReportView(cr) : undefined;
     const text = [
       r ? `${plural(r.created, 'variable')} created, ${r.updated} updated${r.orphaned ? `, ${r.orphaned} flagged as orphan` : ''}.` : '',
-      cr
-        ? `${[cr.created ? `${plural(cr.created, 'component set')} created` : '', cr.updated ? `${plural(cr.updated, 'component set')} updated` : '', cr.orphaned ? `${plural(cr.orphaned, 'variant')} flagged as orphan` : ''].filter(Boolean).join(', ') || 'Component sets already matched the code'} on the ${cr.page} page.`
+      cr && view
+        ? `${view.headline} ${[cr.created ? `${cr.created} created` : '', cr.updated ? `${cr.updated} updated` : '', cr.orphaned ? `${plural(cr.orphaned, 'variant')} flagged as orphan` : ''].filter(Boolean).join(', ')}${cr.created || cr.updated || cr.orphaned ? (cr.elsewhere ? `, ${cr.elsewhere} of them where they are kept in this file.` : ` on the ${cr.page} page.`) : ''}`.trim()
         : '',
       prop.kept.length ? `${plural(prop.kept.length, 'Figma edit')} kept: send them from Push.` : '',
     ].filter(Boolean);
+    const left = view?.retry ?? false;
+    // Variables are written first, then the components: until they are built, the file is not up to date yet.
+    const building = !cr && !!state.busy;
     return {
       body: [
         intro({
-          title: problems.length ? 'Pulled, with problems' : 'Figma is up to date',
+          title: view?.stopped ? 'Pull stopped' : left ? 'Some components were not built' : problems.length ? 'Pulled, with problems' : building ? 'Variables are in, building components' : 'Figma is up to date',
           text: text.join(' '),
           meta: r ? (r.layout === 'single-collection' ? 'Themes are modes of the Semantic collection.' : 'This file allows one mode per collection, so each theme has its own Semantic collection.') : undefined,
           art: problems.length ? 'fix' : 'tokens',
         }),
+        view && left
+          ? h(
+              'div',
+              { class: 'callout warn', role: 'status' },
+              h('div', { class: 'callout-title' }, icon('alert'), view.stopped ? 'Not built yet' : 'Not built'),
+              view.stopped ? h('p', null, view.stopped) : null,
+              view.notBuilt ? h('p', null, view.notBuilt) : null,
+              view.partial.length ? h('ul', null, view.partial.map((x) => h('li', null, x))) : null,
+              h('p', null, 'Try again builds what is missing. Sets already built are kept as they are.'),
+            )
+          : null,
+        cr?.interactionsNote ? h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Interactions not added'), h('p', null, cr.interactionsNote)) : null,
         cr?.fontNote ? h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Font replaced'), h('p', null, cr.fontNote)) : null,
         p.done.size ? reviewGroup(p, [...p.done.values()], 'Updated components') : null,
         problems.length
@@ -1518,7 +1926,9 @@ function viewPull(): View {
             )
           : null,
       ],
-      bar: { label: 'Check again', onClick: checkPull, secondary: prop.kept.length ? { label: 'Push my edits', onClick: () => { state.tab = 'push'; scanPush(); } } : undefined },
+      bar: left
+        ? { label: 'Try again', onClick: retryComponents, secondary: { label: 'Check again', onClick: checkPull } }
+        : { label: 'Check again', onClick: checkPull, secondary: prop.kept.length ? { label: 'Send my edits', onClick: () => { state.tab = 'push'; scanPush(); } } : undefined },
     };
   }
 
@@ -1528,31 +1938,43 @@ function viewPull(): View {
     counts.added ? `${counts.added} new` : '',
     counts.changed ? `${counts.changed} edited` : '',
     counts.renamed ? `${counts.renamed} renamed` : '',
-    counts.removed ? `${counts.removed} deleted on main` : '',
+    // The headline names the branch once ("2 new, 1 deleted on next").
+    counts.removed ? `${counts.removed} deleted` : '',
   ].filter(Boolean);
 
   // Summary first: one sentence for the whole screen, then one line of where it comes from.
   const status = [
-    summary.length ? `${summary.join(', ')} on ${init.settings.branch}` : '',
+    summary.length ? `${summary.join(', ')} in the design system` : '',
     a.diff.conflicts.length ? plural(a.diff.conflicts.length, 'conflict') : '',
-    prop.restored.length ? (p.overwrite ? `${prop.restored.length} replaced with ${init.settings.branch}` : `${prop.restored.length} to recreate`) : '',
+    prop.restored.length ? (p.overwrite ? `${prop.restored.length} replaced with the design system's version` : `${prop.restored.length} to recreate`) : '',
     prop.kept.length ? `${plural(prop.kept.length, 'Figma edit')} kept` : '',
     pending.length ? `${plural(pending.length, 'component')} to ${pending.every((c) => c.status === 'updated') ? 'update' : 'build'}` : '',
   ].filter(Boolean);
-  const headline = upToDate && !status.length ? 'Already up to date' : !a.baseSha ? 'First pull' : status.join(', ') || 'Already up to date';
-  const meta = a.baseSha
-    ? [`Last pulled ${short(a.baseSha)}${init.sync.lastPullAt ? ` on ${when(init.sync.lastPullAt)}` : ''}`, a.compare?.aheadBy ? `${plural(a.compare.aheadBy, 'new change')} on ${init.settings.branch}` : ''].filter(Boolean).join(' · ')
-    : `${plural(prop.plan.variables.length, 'variable')} from ${init.settings.repo}, in the Primitives, Brand, Base, Semantic, Density and Component collections.`;
-  const body: Child[] = [h('section', { class: 'zone' }, h('h2', { class: 'headline' }, upToDate && status.length ? `Up to date with ${init.settings.branch}. ${status.join(', ')}.` : headline), h('p', { class: 'muted' }, meta))];
+  // Commits on main since the last pull. Even when none of them changes a variable, the file is not up to date yet.
+  const behind = commitsBehind(a);
+  const catchUp = upToDate && behind > 0;
+  const headline = pullHeadline({ baseSha: a.baseSha, variablesUpToDate: upToDate, behind, status });
+  const lastPulled = a.baseSha && init.sync.lastPullAt ? `Last updated in this file on ${when(init.sync.lastPullAt)}` : '';
+  const meta = !a.baseSha
+    ? `${plural(prop.plan.variables.length, 'variable')} from the design system, in the ${andList(pullCollections(prop.plan))} ${pullCollections(prop.plan).length === 1 ? 'collection' : 'collections'}.`
+    : catchUp
+      ? [lastPulled, 'Your variables already match the design system: update to catch up with its latest changes.'].filter(Boolean).join('. ')
+      : [lastPulled, behind ? `${plural(behind, 'new change')} in the design system` : ''].filter(Boolean).join(' · ');
+  const body: Child[] = [
+    h('section', { class: 'zone' }, h('h2', { class: 'headline' }, headline), meta ? h('p', { class: 'muted' }, meta) : null),
+    forDevelopers([...repoRows(), ['Last pulled commit', short(a.baseSha)], ['Latest commit', short(a.headSha)], ['Spec source', p.measuredOnly ? `Measured only: ${p.measuredOnly.sets} sets, ${p.measuredOnly.variants} variants from ${p.measuredOnly.stories} stories` : measuredLine(p.measured)], ...fixesRows(p.fixes)]),
+  ];
 
   if (remote.length) {
+    const rows = rowList('pull-remote', remote.map((e) => diffRow(a, e.remote!.kind, { before: e.figma ?? e.base, after: e.head, beforeIndex: fi, afterIndex: a.head.byPath })));
     body.push(
       group(
-        `Changes on ${init.settings.branch}`,
+        'Changes in the design system',
         remote.length,
         null,
         counts.removed ? 'Tokens deleted in the design system stay in Figma with an "[orphan]" note, so nothing in your designs breaks.' : 'Written to Figma when you apply.',
-        rowList('pull-remote', remote.map((e) => diffRow(a, e.remote!.kind, { before: e.figma ?? e.base, after: e.head, beforeIndex: fi, afterIndex: a.head.byPath }))),
+        // A first pull is every variable, all new: the headline says it, the list is there on demand.
+        a.baseSha ? rows : h('details', { class: 'notes' }, h('summary', null, `See the ${plural(remote.length, 'variable')}`), rows),
       ),
     );
   }
@@ -1560,7 +1982,7 @@ function viewPull(): View {
   if (prop.restored.length) {
     body.push(
       group(
-        p.overwrite ? `Replaced with ${init.settings.branch}` : 'To recreate',
+        p.overwrite ? "Replaced with the design system's version" : 'To recreate',
         prop.restored.length,
         p.overwrite ? h('button', { class: 'btn ghost', onClick: () => { p.overwrite = false; refreshProposals(); } }, 'Keep my edits') : null,
         p.overwrite ? "The design system's version wins over your Figma edits. Variables that exist only in Figma stay." : 'Deleted in Figma, but other tokens still point to them.',
@@ -1573,7 +1995,7 @@ function viewPull(): View {
       group(
         'Your Figma edits, kept',
         prop.kept.length,
-        prop.kept.some((e) => e.head) ? h('button', { class: 'btn ghost', onClick: () => { p.overwrite = true; refreshProposals(); } }, `Replace with ${init.settings.branch}`) : null,
+        prop.kept.some((e) => e.head) ? h('button', { class: 'btn ghost', onClick: () => { p.overwrite = true; refreshProposals(); } }, "Use the design system's version") : null,
         'Not in the design system yet. Send them from Push.',
         rowList('pull-kept', prop.kept.map((e) => diffRow(a, e.local!.kind, { before: e.base, after: e.figma, beforeIndex: a.base?.byPath ?? a.head.byPath, afterIndex: fi })), 5),
       ),
@@ -1585,17 +2007,28 @@ function viewPull(): View {
   body.push(notes(a));
 
   const open = prop.unresolvedConflicts.length;
+  // New sets from code: the choice sits next to the action it changes (on by default on a first pull).
+  const freshSets = (p.components?.components ?? []).filter((c) => c.status === 'new').length;
+  const toggle = freshSets
+    ? { label: `Include components (${freshSets})`, checked: p.includeComponents, focusId: 'pull-components', onChange: (v: boolean) => { p.includeComponents = v; render(); } }
+    : undefined;
   return {
     body,
-    bar: upToDate && !withComponents
-      ? { label: 'Check again', onClick: checkPull }
-      : {
+    bar: upToDate && !withComponents && !behind
+      ? { label: 'Check again', onClick: checkPull, toggle }
+      : catchUp && !withComponents
+        ? { label: 'Update', onClick: applyPull, hint: 'Nothing changes in Figma', secondary: { label: 'Check again', onClick: checkPull }, toggle }
+        : {
+          toggle,
           label: pending.some((c) => c.status === 'updated') ? 'Update all' : 'Apply to Figma',
           onClick: applyPull,
           disabled: open > 0,
+          // With the components choice in the bar, the counts stay in the list headings: the bar has no room for both.
           hint: open
             ? `Decide ${plural(open, 'conflict')} first`
-            : [upToDate ? '' : `${plural(prop.plan.variables.length, 'variable')}${prop.plan.orphans.length ? `, ${prop.plan.orphans.length} orphaned` : ''}`, withComponents ? plural(pending.length, 'component') : ''].filter(Boolean).join(', '),
+            : toggle
+              ? undefined
+              : [upToDate ? '' : `${plural(prop.plan.variables.length, 'variable')}${prop.plan.orphans.length ? `, ${prop.plan.orphans.length} orphaned` : ''}`, withComponents ? plural(pending.length, 'component') : ''].filter(Boolean).join(' and '),
           secondary: { label: 'Check again', onClick: checkPull },
         },
   };
@@ -1626,6 +2059,8 @@ function reviewGroup(p: PullState, reviews: ComponentReview[], title = 'Componen
         { class: 'row-head' },
         h('span', { class: 'comp-name' }, r.name),
         variants ? h('span', { class: 'muted' }, variants) : null,
+        interactionsLabel(p.components?.components.find((c) => c.componentId === r.componentId)),
+        p.components?.components.find((c) => c.componentId === r.componentId)?.drafted ? h('span', { class: 'muted' }, 'Drafted, check it') : null,
         done
           ? h('span', { class: 'kind added row-end' }, 'Updated')
           : h('button', { class: 'btn row-end', 'data-focus-id': `update-${r.componentId}`, disabled: !!state.busy || p.proposal.unresolvedConflicts.length > 0, onClick: () => updateComponent(r.componentId) }, 'Update'),
@@ -1645,9 +2080,7 @@ function reviewGroup(p: PullState, reviews: ComponentReview[], title = 'Componen
 
 /** Pull preview: updates to review for the generated sets, new sets opt-in, and what cannot be bound. */
 function componentsGroup(p: PullState): Child {
-  if (p.componentsError) {
-    return h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Components could not be read'), h('p', null, `${p.componentsError} Variables still pull as usual.`));
-  }
+  if (p.componentsError) return componentsErrorCallout(p.componentsError);
   const plan = p.components;
   if (!plan) return null;
   const reviews = [...p.reviews.filter((r) => !p.done.has(r.componentId)), ...p.done.values()];
@@ -1655,22 +2088,23 @@ function componentsGroup(p: PullState): Child {
   const upToDate = plan.components.filter((c) => c.status === 'unchanged' && !p.done.has(c.componentId));
   const out: Child[] = [];
   if (reviews.length) out.push(reviewGroup(p, reviews));
+  if (p.inReview.length) {
+    out.push(
+      h(
+        'p',
+        { class: 'muted' },
+        `Sent from Figma, still in review: ${p.inReview.map((x) => `${x.name} (${x.status.label.charAt(0).toLowerCase()}${x.status.label.slice(1)})`).join(', ')}. Once it ships, Update rebuilds it from the reviewed code.`,
+      ),
+    );
+  }
   // Honest coverage: how many coded components are in Figma, and why the others are not (folded under the count).
   const cov = coverageView(plan);
-  // Sets and components: a component can bring more than one set (RadioGroup and Radio), counts are per component.
-  const freshComponents = new Set(fresh.map((c) => c.component ?? c.name)).size;
   out.push(
     group(
       fresh.length ? 'New components' : 'Components',
-      fresh.length ? freshComponents : new Set(plan.components.map((c) => c.component ?? c.name)).size,
-      fresh.length
-        ? h(
-            'label',
-            { class: 'check' },
-            h('input', { type: 'checkbox', checked: p.includeComponents, 'data-focus-id': 'pull-components', onChange: (e: Event) => { p.includeComponents = (e.target as HTMLInputElement).checked; render(); } }),
-            `Also pull new components (${freshComponents})`,
-          )
-        : null,
+      // One count on the screen, the sets built (the footer's "Include components" uses it too).
+      fresh.length ? fresh.length : plan.components.length,
+      null,
       fresh.length
         ? `${cov.headline}. New ones are built on a "Components" page from the code and bound to these variables, then updated in place on the next pull.`
         : reviews.length
@@ -1678,10 +2112,33 @@ function componentsGroup(p: PullState): Child {
           : `${cov.headline}. The ones in this file match the code.`,
       [
         coverageDetails(cov),
+        motionDetails(plan),
+        plan.skipped?.length
+          ? h(
+              'details',
+              { class: 'notes' },
+              h('summary', null, `${plural(plan.skipped.length, 'component')} in component-specs.json cannot be read, the others are pulled`),
+              h('ul', null, plan.skipped.map((x) => h('li', null, `${x.name}: ${x.reason}.`))),
+            )
+          : null,
         fresh.length
           ? rowList(
               'pull-components',
-              fresh.map((c) => h('li', { class: 'row' }, h('div', { class: 'row-head' }, h('span', { class: 'kind added' }, 'New'), h('span', { class: 'comp-name' }, c.name), h('span', { class: 'muted' }, plural(c.variants.length, 'variant'))))),
+              fresh.map((c) =>
+                h(
+                  'li',
+                  { class: 'row' },
+                  h(
+                    'div',
+                    { class: 'row-head' },
+                    h('span', { class: 'kind added' }, 'New'),
+                    h('span', { class: 'comp-name' }, c.name),
+                    h('span', { class: 'muted' }, plural(c.variants.length, 'variant')),
+                    c.interactions?.length ? h('span', { class: 'muted' }, `Interactions: ${c.interactions.length}`) : null,
+                    c.drafted ? h('span', { class: 'kind row-end', title: 'Drafted with Claude: Bridge cannot read this component on its own. Check fidelity compares it with the code.' }, draftedSetNote(c.drafted)) : null,
+                  ),
+                ),
+              ),
               10,
             )
           : null,
@@ -1694,7 +2151,7 @@ function componentsGroup(p: PullState): Child {
 /** "Check fidelity": exports each generated set's variants and compares them with the code images. Read only. */
 async function checkFidelity(p: PullState): Promise<void> {
   if (p.fidelity?.running) return;
-  p.fidelity = { running: 'Reading the images of the code' };
+  p.fidelity = { running: p.shots ? 'Reading the renders of the stories' : 'Reading the images of the code' };
   render();
   try {
     const outcome = await runFidelityCheck({
@@ -1708,12 +2165,96 @@ async function checkFidelity(p: PullState): Promise<void> {
         render();
       },
       ...(state.init?.fileName ? { fileName: state.init.fileName } : {}),
+      // Measured only with screenshots: each set against the renders of the stories it was built from.
+      ...(p.shots
+        ? {
+            reference: {
+              manifest: p.shots.manifest,
+              image: async (file: string) => (await getClient().getFileBase64(p.shots!.dir ? `${p.shots!.dir}/${file}` : file, state.init!.settings.branch))?.base64,
+            },
+          }
+        : {}),
     });
-    p.fidelity = { outcome };
+    const built: Record<string, Record<string, GapBuiltVariant>> = {};
+    p.fidelity = { outcome, ...(outcome.kind === 'done' && p.measure ? { gaps: await gapCases(p, outcome.items, built), built } : {}) };
   } catch (err) {
     p.fidelity = { error: inlineError(err) ?? 'Could not compare with the code.' };
   }
   render();
+}
+
+/**
+ * The gap case of each set that differs (measured only): the variants, what the code draws that Figma does not and
+ * where, read from the built layers. A set whose layers cannot be read still gets one, from the values alone.
+ */
+async function gapCases(p: PullState, items: Extract<FidelityOutcome, { kind: 'done' }>['items'], builtBySet: Record<string, Record<string, GapBuiltVariant>> = {}): Promise<GapCase[]> {
+  const out: GapCase[] = [];
+  for (const it of items) {
+    if (it.result.status !== 'differs' || !p.measure) continue;
+    const keys = it.result.variants.filter((v) => v.status === 'differs').map((v) => v.key);
+    const built = await request('read-built', { nodeId: it.nodeId, keys }).catch(() => undefined);
+    if (built) builtBySet[it.name] = built;
+    const shots = Object.fromEntries(Object.entries(p.shots?.manifest.components[it.name]?.variants ?? {}).flatMap(([k, e]) => ('file' in e ? [[k, { file: e.file }]] : [])));
+    out.push(
+      buildGapCase({
+        component: it.name,
+        measured: p.measure as MeasuredSpecsFile,
+        spec: p.specs?.components.find((c) => c.name === it.name),
+        fidelity: it.result,
+        shots,
+        ...(built ? { built } : {}),
+        figmaRenders: Object.fromEntries(keys.map((k) => [k, it.nodeId])),
+      }),
+    );
+  }
+  return out;
+}
+
+/**
+ * "Fix with Claude" on a set that differs: the run goes to figma-fidelity.json on the requests branch, then the designer
+ * asks their Claude (the phrase) or runs the CLI with the team's API key. The next pull of Claude's branch, then Check
+ * fidelity, decide.
+ */
+async function fixWithClaude(p: PullState, component: string): Promise<void> {
+  const f = p.fidelity;
+  if (!f || f.outcome?.kind !== 'done' || f.fix?.status === 'writing') return;
+  f.fix = { component, status: 'writing' };
+  render();
+  try {
+    const run: FigmaFidelityRun = {
+      version: 1,
+      report: f.outcome.report,
+      ...(f.built ? { built: f.built } : {}),
+      figmaRenders: Object.fromEntries(f.outcome.items.filter((it) => it.result.status === 'differs').map((it) => [it.name, Object.fromEntries(it.result.variants.map((v) => [v.key, it.nodeId]))])),
+      ...(p.measure?.measuredAt ? { measuredAt: p.measure.measuredAt } : {}),
+    };
+    await writeFidelityRun(getClient(), run, state.init!.settings.branch);
+    f.fix = { component, status: 'ready' };
+  } catch (err) {
+    f.fix = { component, status: 'error', error: inlineError(err) ?? 'Could not write the check for Claude.' };
+  }
+  render();
+}
+
+/** After Fix with Claude: what to say to Claude, or the command with an API key. */
+function fixPanel(p: PullState, component: string): Child {
+  const fix = p.fidelity?.fix;
+  if (!fix || fix.component !== component) return null;
+  if (fix.status === 'writing') return h('p', { class: 'muted' }, 'Sending the check to the repository...');
+  if (fix.status === 'error') return h('div', { class: 'callout warn' }, h('p', null, fix.error));
+  const copy = (what: 'phrase' | 'command', text: string) =>
+    h('button', { class: 'btn', onClick: () => void copyText(text).then((ok) => { if (p.fidelity?.fix && ok) p.fidelity.fix.copied = what; render(); }) }, icon(fix.copied === what ? 'check' : 'copy'), fix.copied === what ? 'Copied' : what === 'phrase' ? 'Copy for Claude' : 'Copy the command');
+  return h(
+    'div',
+    { class: 'callout' },
+    h('p', null, 'Ask your Claude, with the Bridge MCP server:'),
+    h('p', null, h('code', null, fixPhrase(component))),
+    copy('phrase', fixPhrase(component)),
+    h('p', { class: 'muted' }, 'With your team\'s API key instead, in the repository:'),
+    h('p', null, h('code', null, fixCommand(component))),
+    copy('command', fixCommand(component)),
+    h('p', { class: 'muted' }, 'Claude opens its fixes for review. Pull its branch, then Check fidelity: the story renders decide.'),
+  );
 }
 
 /** Figma, code and differences side by side for the variant that differs most. */
@@ -1746,9 +2287,12 @@ function fidelityGroup(p: PullState): Child {
   else if (outcome?.kind === 'no-references') lede = NO_REFERENCES_TEXT;
   else if (outcome?.kind === 'no-sets') lede = 'No component set from code in this file yet. Pull components first.';
   else if (outcome?.kind === 'done') {
-    lede = `${fidelitySummary(outcome.report)} Code images from ${short(outcome.report.reference.sha)}.`;
+    lede = fidelitySummary(outcome.report);
     const order = { differs: 0, matches: 1, 'not-checked': 2 } as const;
+    // Not compared: one folded line with each reason, after the rows a designer can act on (FID-2).
+    const notCompared = outcome.items.filter((it) => it.result.status === 'not-checked');
     const rows = [...outcome.items]
+      .filter((it) => it.result.status !== 'not-checked')
       .sort((a, b) => order[a.result.status] - order[b.result.status])
       .map((it) => {
         const r = it.result;
@@ -1760,7 +2304,16 @@ function fidelityGroup(p: PullState): Child {
           { class: 'row review' },
           h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, it.name), kind),
           h('p', { class: 'muted' }, fidelityComponentLine(r)),
-          r.status === 'differs' && it.images ? [h('p', { class: 'muted' }, `Most different: ${it.images.key}`), fidelityThumbs(it.name, it.images)] : null,
+          // Where the difference comes from, in one sentence (the gap case's summary).
+          r.status === 'differs' && f?.gaps?.find((g) => g.component === it.name)?.summary ? h('p', null, f.gaps.find((g) => g.component === it.name)!.summary) : null,
+          r.status === 'differs' && p.measure
+            ? h('button', { class: 'btn ghost', disabled: f?.fix?.status === 'writing' || !!state.busy, onClick: () => void fixWithClaude(p, it.name) }, 'Fix with Claude')
+            : null,
+          r.status === 'differs' ? fixPanel(p, it.name) : null,
+          // The three images on demand: the list stays a list to scan (FID-5).
+          r.status === 'differs' && it.images
+            ? h('details', { class: 'notes' }, h('summary', null, `See the most different: ${it.images.key}`), fidelityThumbs(it.name, it.images))
+            : null,
           others.length && r.status !== 'not-checked'
             ? h(
                 'details',
@@ -1771,20 +2324,73 @@ function fidelityGroup(p: PullState): Child {
             : null,
         );
       });
-    content = rowList('fidelity', rows, 10);
+    // For developers triaging the differences: every component and variant as JSON, without the images.
+    const report = outcome.report;
+    content = [
+      rowList('fidelity', rows, 10),
+      notCompared.length
+        ? h(
+            'details',
+            { class: 'notes' },
+            h('summary', null, `${plural(notCompared.length, 'component')} not compared`),
+            h('p', { class: 'muted' }, 'Nothing to fix in Figma for these: code has no image to compare them with yet.'),
+            h('ul', null, notCompared.map((it) => h('li', null, `${it.name}: ${fidelityComponentLine(it.result)}`))),
+          )
+        : null,
+      h(
+        'details',
+        { class: 'notes dev-details' },
+        h('summary', null, 'For developers'),
+        h('p', { class: 'muted' }, 'Every component and variant as JSON: how many pixels differ, and both sizes.'),
+        h('button', { class: 'btn', 'data-focus-id': 'fidelity-copy', onClick: () => void copyText(JSON.stringify(report, null, 2)).then((ok) => { f!.copied = ok; render(); }) }, icon(f?.copied ? 'check' : 'copy'), f?.copied ? 'Copied' : 'Copy the report'),
+        f?.gaps?.length
+          ? h(
+              'button',
+              { class: 'btn', 'data-focus-id': 'fidelity-copy-gaps', onClick: () => void copyText(JSON.stringify(f.gaps, null, 2)).then((ok) => { f!.gapsCopied = ok; render(); }) },
+              icon(f.gapsCopied ? 'check' : 'copy'),
+              f.gapsCopied ? 'Copied' : `Copy ${f.gaps.length === 1 ? 'the gap case' : 'the gap cases'}`,
+            )
+          : null,
+      ),
+    ];
   }
   return group('Fidelity to the code', generated.length, action, lede, content);
 }
 
 /** The components not in Figma, each with its reason, and the layout helpers, folded under the count. */
-function coverageDetails(cov: CoverageView): Child {
-  if (!cov.missing.length && !cov.layout.length) return null;
+/** "Interactions: N" for a set that has prototype interactions. */
+function interactionsLabel(c: PlannedComponent | undefined): Child {
+  return c?.interactions?.length ? h('span', { class: 'muted' }, `Interactions: ${c.interactions.length}`) : null;
+}
+
+/** The motion Figma plays differently or cannot play, per set, folded: hover, press and click are wired, the rest is listed. */
+function motionDetails(plan: ComponentPullPlan): Child {
+  const sets = plan.components.filter((c) => c.motionNotes?.length);
+  if (!sets.length) return null;
+  const wired = plan.components.filter((c) => c.interactions?.length).length;
   return h(
     'details',
     { class: 'notes candidates' },
-    h('summary', { 'data-focus-id': 'coverage-missing' }, cov.missing.length ? `${plural(cov.missing.length, 'component')} not in Figma yet` : 'Layout helpers'),
-    cov.missing.length
-      ? h('ul', { class: 'rows' }, cov.missing.map((m) => h('li', { class: 'row' }, h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, m.name), h('span', { class: 'muted' }, m.reason)))))
+    h('summary', { 'data-focus-id': 'motion-notes' }, `Motion: ${plural(wired, 'set')} with prototype interactions, ${plural(sets.length, 'set')} with motion Figma cannot play`),
+    h(
+      'ul',
+      { class: 'rows' },
+      sets.map((c) => h('li', { class: 'row' }, h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, c.name), interactionsLabel(c)), h('p', { class: 'muted' }, c.motionNotes!.join('. ')))),
+    ),
+    h('p', { class: 'muted' }, 'In code, reduced motion turns these animations off. Figma has no equivalent, so each set says it in its description.'),
+  );
+}
+
+function coverageDetails(cov: CoverageView): Child {
+  if (!cov.missing.length && !cov.layout.length && !cov.drafted.length) return null;
+  const summary = cov.missing.length ? `${plural(cov.missing.length, 'component')} not in Figma yet` : cov.drafted.length ? `${plural(cov.drafted.length, 'component')} drafted with Claude, check ${cov.drafted.length === 1 ? 'it' : 'them'}` : 'Layout helpers';
+  const rows = [...cov.missing, ...cov.drafted];
+  return h(
+    'details',
+    { class: 'notes candidates' },
+    h('summary', { 'data-focus-id': 'coverage-missing' }, summary),
+    rows.length
+      ? h('ul', { class: 'rows' }, rows.map((m) => h('li', { class: 'row' }, h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, m.name), h('span', { class: 'muted' }, m.reason)))))
       : null,
     cov.layout.length ? h('p', { class: 'muted' }, `${plural(cov.layout.length, 'layout helper')} with no Figma counterpart, use auto layout: ${cov.layout.join(', ')}.`) : null,
   );
@@ -1835,7 +2441,7 @@ function newBrandCard(r: PushState, b: PushBrand): HTMLElement {
                 refreshProposals();
               },
             }),
-            'Create it in this branch',
+            'Create it in this change',
           ),
           b.included && plan ? h('p', { class: 'muted' }, `Adds ${plan.files.filter((f) => f.action === 'create' && f.path.endsWith('.tokens.json')).map((f) => f.path.split('/').slice(-2).join('/')).join(', ')} and lists ${c.slug} in bridge.config.json. Tier 3: a design owner and a tech owner approve.`) : null,
           b.included ? result : null,
@@ -1855,18 +2461,38 @@ function attachHint(): string {
   return sel ? `Attaches ${sel.name}.` : 'Select a layer in Figma to attach it.';
 }
 
+/** The coded component of the selected set Bridge built, for a manual request (REQ-3). */
+const componentOfSelection = (coded: readonly string[]) => (state.selection?.generated ? componentOfSet(state.selection.generated.componentId, coded) : undefined);
+
 function openForm(r: PushState, item: ComponentChangeItem | undefined): void {
   if (r.form) cancelMine(r.form.assist, false);
   const coded = r.components?.coded ?? [];
   const draft: RequestDraft = item
     ? { component: item.component, kind: item.kind, title: titleOf(r, item), summary: suggestSummary(item), line: lineOf(r, item), changes: item.changes, nodeId: item.nodeId, nodeName: item.figmaName }
-    : { component: coded[0] ?? '', kind: 'visual', title: '', summary: '', changes: [], nodeId: state.selection?.nodeId, nodeName: state.selection?.name };
-  r.form = { key: item?.nodeId ?? 'manual', item, draft, attach: item ? true : !!state.selection, titleSource: item && claudeTitle(r, item) ? 'claude' : 'draft', summarySource: 'draft', assist: { pasteText: '' } };
+    : { component: componentOfSelection(coded) ?? coded[0] ?? '', kind: 'visual', title: '', summary: '', changes: [], nodeId: state.selection?.nodeId, nodeName: state.selection?.name };
+  r.form = { key: item?.nodeId ?? 'manual', item, draft, attach: item ? true : !!state.selection, titleSource: item && claudeTitle(r, item) ? 'claude' : 'draft', summarySource: 'draft', assist: {}, target: '' };
+  // "Where it goes" lists the running explorations: load them even when nothing was sent to one yet.
+  if (modeOf(r) !== 'suggest' && !r.explorations && !r.loadingExplorations) void loadExplorations(r);
   void request('selection', {}).then((sel) => {
     state.selection = sel;
+    const f = r.form;
+    const picked = f && !f.item && !f.componentPicked ? componentOfSelection(coded) : undefined;
+    if (f && picked) f.draft.component = picked;
     render();
   });
   render();
+}
+
+/**
+ * What code draws for this variant now: its image from the Figma references (Check fidelity reads the same ones), as a
+ * GitHub link. Undefined when none is published for it; a request never waits on it.
+ */
+async function codeImageOf(g: { componentId: string; variant: string }): Promise<string | undefined> {
+  const manifest = await loadReferenceManifest(getClient()).catch(() => undefined);
+  const ref = manifest?.components[g.componentId]?.variants[g.variant];
+  if (!ref || !('file' in ref)) return undefined;
+  const { owner, name } = parseRepo(state.init!.settings.repo);
+  return `https://github.com/${owner}/${name}/blob/${FIGMA_REFERENCES_BRANCH}/${FIGMA_REFERENCES_DIR}/${ref.file}?raw=true`;
 }
 
 function sendRequest(r: PushState): void {
@@ -1892,16 +2518,22 @@ function sendRequest(r: PushState): void {
       const sel = !f.item && f.attach ? state.selection : null;
       const draft = sel ? { ...d, nodeId: sel.nodeId, nodeName: sel.name } : f.item ? d : { ...d, nodeId: undefined, nodeName: undefined };
       const coded = (r.components?.coded ?? []).includes(d.component.trim());
+      // A variant Bridge built from code: its code image is the "before" next to the export (REQ-2).
+      const before = images.length && sel?.generated ? await codeImageOf(sel.generated) : undefined;
       // Sent on its own while the destination is an exploration: the request is built there too.
-      const exploration = r.destination === 'exploration' ? pickedExploration(r) : undefined;
+      // Built in an exploration only when the designer picked it in the form; the push's destination never carries over.
+      const exploration = f.target ? requestTargets(r).find((e) => e.branch === f.target) : undefined;
       const res = await sendComponentRequest(getClient(), {
         request: { ...toRequest(draft, { fileKey: r.fileKey }), ...(exploration ? { exploration: exploration.branch } : {}) },
         images,
+        ...(before ? { before: [before] } : {}),
         baseBranch: state.init!.settings.branch,
         config: a.headFiles.config,
         coded,
+        imagesNeedWrite: modeOf(r) === 'suggest',
       });
-      r.sent.unshift({ component: d.component.trim(), number: res.issue.number, url: res.issue.url });
+      if (res.imagesSkipped) state.error = { message: IMAGES_NEED_WRITE };
+      r.sent.unshift({ component: d.component.trim(), number: res.issue.number, url: res.issue.url, what: 'request sent', target: 'request' });
       // Sent: the pending drafts file for the designer's Claude is done.
       cancelMine(f.assist, false);
       r.form = undefined;
@@ -1914,7 +2546,7 @@ function sendRequest(r: PushState): void {
         }
         await request('rebaseline', { nodeId: done }).catch(() => undefined);
       }
-      void request('notify', { message: `Request #${res.issue.number} opened` });
+      void request('notify', { message: `Request sent for ${d.component.trim()}` });
     },
     () => sendRequest(r),
   );
@@ -1924,14 +2556,27 @@ function sendRequest(r: PushState): void {
 const isProse = (v: string) => /^[A-Z][a-z]+ [a-z]+ /.test(v);
 
 /** The detail of a change row: one font size, token and variant values in Plex Mono at that same size. */
+/**
+ * A change row's label with its variants the short way, the full names folded: "Padding in danger solid sm, info
+ * solid sm" rather than twenty lines of "Appearance=solid, Size=sm, Tone=danger; ..." (UPD-3).
+ */
+function whatOf(field: string): Child {
+  const m = /^(.*?) \((.*=.*)\)$/.exec(field);
+  if (!m) return field;
+  const list = m[2]!.split('; ');
+  const short = shortVariants(m[2]!);
+  if (list.length <= 2) return `${m[1]} in ${short}`;
+  return h('details', { class: 'notes' }, h('summary', null, `${m[1]} in ${plural(list.length, 'variant')}`), h('p', { class: 'muted' }, short));
+}
+
 function changeTable(changes: { field: string; before?: string | undefined; after?: string | undefined }[], head: [string, string, string] = ['What', 'Now', 'Requested']): Child {
   if (!changes.length) return null;
-  const val = (v: string, cls: string) => h('td', { class: `${cls}${isProse(v) ? '' : ' mono'}` }, v);
+  const val = (v: string, cls: string) => h('td', { class: `${cls}${isProse(v) ? '' : ' mono'}` }, ...(isProse(v) ? [v] : breakable(v)));
   return h(
     'table',
     { class: 'changes' },
     h('thead', null, h('tr', null, head.map((x) => h('th', null, x)))),
-    h('tbody', null, changes.map((c) => h('tr', null, h('td', null, c.field), val(c.before || 'none', 'before'), val(c.after || 'removed', 'after')))),
+    h('tbody', null, changes.map((c) => h('tr', null, h('td', { class: 'what' }, whatOf(c.field)), val(c.before || 'none', 'before'), val(c.after || 'removed', 'after')))),
   );
 }
 
@@ -1959,6 +2604,10 @@ function chipLines(changes: { field: string; before?: string | undefined; after?
       const added = after.filter((x) => !before.includes(x)).map((x) => `+ ${x}`);
       const removed = before.filter((x) => !after.includes(x)).map((x) => `\u2212 ${x}`);
       out.push({ label: m[1]!, before: before.length ? [before.join(', ')] : [], after: before.length ? [...added, ...removed] : [after.join(', ')] });
+    } else if (c.field === 'Variants') {
+      const gone = (c.before ?? '').split('; ').filter(Boolean).map(shortVariant);
+      const born = (c.after ?? '').split('; ').filter(Boolean).map(shortVariant);
+      out.push({ label: 'Variants', before: gone, after: born.length ? born.map((x) => `+ ${x}`) : ['removed'] });
     } else if ((m = /^Prop (.+)$/.exec(c.field))) {
       out.push({ label: m[1]!, before: c.before ? [c.before] : [], after: c.after ? [c.after] : ['removed'] });
     } else if (/^(Look of |Swapped instance|New layer |Removed layer |Moved layer )/.test(c.field)) {
@@ -2001,6 +2650,31 @@ function changeSummary(line: string, changes: { field: string; before?: string |
   ];
 }
 
+/** Explorations a request can go into: the one just sent to and the one picked for the push first, then the others. */
+function requestTargets(r: PushState): ExplorationChoice[] {
+  if (modeOf(r) === 'suggest') return [];
+  const out: ExplorationChoice[] = [];
+  for (const e of [r.sentTo, pickedExploration(r), ...(r.explorations ?? [])]) if (e && !out.some((x) => x.branch === e.branch)) out.push(e);
+  return out;
+}
+
+/** "Where it goes": to developers unless the designer picks an exploration here (never inherited from the last push). */
+function requestDestination(r: PushState, f: RequestForm): Child {
+  const targets = requestTargets(r);
+  if (!targets.length) return null;
+  return h(
+    'label',
+    { class: 'field' },
+    h('span', null, 'Where it goes'),
+    h(
+      'select',
+      { 'data-focus-id': 'req-target', onChange: (e: Event) => (f.target = (e.target as HTMLSelectElement).value) },
+      h('option', { value: '', selected: !f.target }, 'To developers (a request they pick up)'),
+      targets.map((e) => h('option', { value: e.branch, selected: f.target === e.branch }, `Into ${e.name} (exploration)`)),
+    ),
+  );
+}
+
 function requestFormView(r: PushState, f: RequestForm): HTMLElement {
   const d = f.draft;
   const coded = r.components?.coded ?? [];
@@ -2016,7 +2690,13 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
           coded.length
             ? h(
                 'select',
-                { 'data-focus-id': 'req-component', onChange: (e: Event) => (d.component = (e.target as HTMLSelectElement).value) },
+                {
+                  'data-focus-id': 'req-component',
+                  onChange: (e: Event) => {
+                    d.component = (e.target as HTMLSelectElement).value;
+                    f.componentPicked = true;
+                  },
+                },
                 coded.map((c) => h('option', { value: c, selected: c === d.component }, c)),
               )
             : h('input', { type: 'text', value: d.component, placeholder: 'Button', onInput: (e: Event) => (d.component = (e.target as HTMLInputElement).value) }),
@@ -2038,6 +2718,8 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
       { class: 'field' },
       // "Draft with Claude" fills the title and the summary: it sits on the label line of the first of the two.
       fieldHead('req-title', 'Title', assistAction(f.assist, requestAssist(f))),
+      // Why the drafting help is unavailable, right under it (ASSIST-7), not under the summary.
+      assistWhy(f.assist, requestAssist(f)),
       h('input', {
         type: 'text',
         id: 'req-title',
@@ -2050,6 +2732,7 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
           f.titleSource = 'user';
           noteEdit(f.assist, 'title');
           if (f.summarySource !== 'claude') clearDrafted('req-drafted');
+          refreshRequestAssist();
         },
       }),
     ),
@@ -2071,6 +2754,7 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
             f.summarySource = 'user';
             noteEdit(f.assist, 'summary');
             if (f.titleSource !== 'claude') clearDrafted('req-drafted');
+            refreshRequestAssist();
           },
         },
         d.summary,
@@ -2082,24 +2766,34 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
     h(
       'label',
       { class: 'check' },
-      h('input', { type: 'checkbox', id: 'attach-box', checked: f.attach, disabled: manual && !state.selection, onChange: (e: Event) => (f.attach = (e.target as HTMLInputElement).checked) }),
+      h('input', {
+        type: 'checkbox',
+        id: 'attach-box',
+        checked: f.attach,
+        disabled: manual && !state.selection,
+        onChange: (e: Event) => {
+          f.attach = (e.target as HTMLInputElement).checked;
+          refreshRequestAssist();
+        },
+      }),
       manual ? 'Attach the current selection' : 'Attach the selected variant',
     ),
     h('small', { id: 'attach-hint', class: 'attach-hint' }, attachHint()),
     f.error ? h('p', { class: 'form-error', role: 'alert' }, icon('alert'), f.error) : null,
+    requestDestination(r, f),
     h(
       'div',
       { class: 'inline-actions' },
-      h('button', { class: 'btn primary', disabled: !!state.busy, onClick: () => sendRequest(r) }, 'Send request'),
+      h('button', { class: 'btn primary', disabled: !!state.busy, onClick: () => sendRequest(r) }, modeOf(r) === 'suggest' ? sendLabel('suggest') : f.target ? 'Send to the exploration' : 'Send to developers'),
       h('button', { class: 'btn ghost', onClick: () => { cancelMine(f.assist, false); r.form = undefined; render(); } }, 'Cancel'),
     ),
   );
 }
 
 /**
- * "Icon end already does this: show it with the Icon end property": an optional part of the component already draws
+^ * "Icon end already does this: turn on Show icon end": an optional part of the component already draws
  * what was added. Neutral, on the row it is about; the item starts unchecked and "Keep it as a request" checks it.
- * DS Bridge never changes the designer's file for it.
+ * Bridge never changes the designer's file for it.
  */
 function equivalentHint(r: PushState, item: ComponentChangeItem): Child {
   if (!item.equivalent) return null;
@@ -2128,11 +2822,122 @@ function componentRow(r: PushState, item: ComponentChangeItem, action: string, e
       edge?.lead,
       h('span', { class: 'comp-name' }, item.component),
       item.figmaName !== item.component ? h('span', { class: 'muted' }, item.figmaName) : null,
-      h('span', { class: `kind ${item.kind === 'new-component' ? 'added' : ''}` }, kindName(item.kind)),
-      edge ? edge.tail : open ? null : h('button', { class: 'btn ghost row-action', 'data-focus-id': `req-${item.nodeId}`, onClick: () => openForm(r, item) }, action),
+      // Once routed, the route tag (or the Fix in Figma first group) says where it goes: no second kind tag that can
+      // disagree with it, like "Token change" on a change that needs code (PUSH-1).
+      routed(r) && pushOf(r, item.nodeId) ? null : h('span', { class: `kind ${item.kind === 'new-component' ? 'added' : ''}` }, kindName(item.kind)),
+      routeTag(r, item),
+      // The row's own send is a quiet ghost button: the bar keeps the one primary action of the screen.
+      edge ? edge.tail : open ? null : h('button', { class: 'btn ghost row-action', 'data-focus-id': `req-${item.nodeId}`, 'aria-label': `${sendsToBranch(r, item) ? sendLabel(modeOf(r)) : action}: ${item.component}`, onClick: () => (sendsToBranch(r, item) ? sendCandidate(r, item) : openForm(r, item)) }, sendsToBranch(r, item) ? sendLabel(modeOf(r)) : action),
     ),
     changeSummary(lineOf(r, item), item.changes, equivalentHint(r, item)),
+    routeNote(r, item),
     open ? requestFormView(r, r.form!) : null,
+  );
+}
+
+/** For review, component changes go to a library branch (component-push.ts); to an exploration, they stay requests. */
+const routed = (r: PushState) => r.destination === 'review';
+
+/** A new component drawn in Figma, sent for review: its library branch carries the spec, a developer builds it with Claude. */
+const sendsToBranch = (r: PushState, item: ComponentChangeItem) => routed(r) && item.kind === 'new-component' && pushOf(r, item.nodeId)?.plan.route === 'claude-draft';
+
+/** "Exact token change", "A developer builds it" or "Fix in Figma": where the change goes, in a neutral tag. */
+function routeTag(r: PushState, item: ComponentChangeItem): Child {
+  const p = pushOf(r, item.nodeId);
+  // Under "Fix in Figma first" the group title says where it stands.
+  // A new component's own send action says where it goes.
+  if (!p || !routed(r) || (p.plan.route === 'manual' && !p.blocked) || sendsToBranch(r, item)) return null;
+  return h('span', { class: 'tag', title: p.plan.said }, p.blocked ? 'Held back' : ROUTE_TAG[p.plan.route]);
+}
+
+/** Under a component row: the one sentence of what sending does, and what Bridge cannot read, each with what to do. */
+function routeNote(r: PushState, item: ComponentChangeItem): Child {
+  const p = pushOf(r, item.nodeId);
+  if (!p || !routed(r)) return null;
+  const issues = p.plan.issues;
+  return [
+    p.plan.route === 'manual' && !p.blocked ? null : h('p', { class: 'muted route-note' }, p.blocked ?? librarySaid(r, p)),
+    issues.length ? h('ul', { class: 'route-issues' }, issues.map((i) => h('li', null, ...rawSwatches(i), h('span', null, i.what), ' ', h('span', { class: 'muted' }, i.todo), rawBind(r, item, i)))) : null,
+  ];
+}
+
+/** The colors set by hand, as swatches before the sentence that names them. */
+const rawSwatches = (i: PushIssue): Child[] =>
+  (i.raw?.values ?? []).filter((v) => v.value.startsWith('#')).map((v) => h('span', { class: 'swatch inline', title: v.value }, h('span', { style: { background: v.value } })));
+
+/** One click binds the variable that already holds the value set by hand (the first of each value), then scans again. */
+function rawBind(r: PushState, item: ComponentChangeItem, i: PushIssue): Child {
+  const raw = i.raw;
+  const offers = raw?.values.flatMap((v) => (v.matches?.[0] ? [{ value: v.value, variable: v.matches[0] }] : [])) ?? [];
+  if (!raw || !offers.length) return null;
+  return h(
+    'div',
+    { class: 'inline-actions' },
+    offers.map((o) =>
+      h(
+        'button',
+        {
+          class: 'btn',
+          disabled: !!state.busy,
+          onClick: () =>
+            // The scan runs once the bind is done: run() takes one task at a time.
+            void run(`Binding ${o.variable}`, async () => {
+              const { bound } = await request('bind-raw', { nodeId: item.nodeId, variants: raw.variants, kind: raw.kind, value: o.value, variable: o.variable });
+              if (!bound) throw new Error(`Nothing was bound: ${o.variable} or the ${raw.kind} of ${o.value} is gone. Scan again.`);
+            }).then(() => {
+              if (!state.error) scanPush(r);
+            }),
+        },
+        `Bind to ${o.variable}`,
+      ),
+    ),
+  );
+}
+
+/**
+ * Where a component change goes, for a push to the library (docs/BUILD-REQUESTS.md): an exact token swap ships once the
+ * checks pass, code needed becomes a build request. Suggest mode keeps core's sentence (the DS lead decides first).
+ */
+function librarySaid(r: PushState, p: ComponentPush): string {
+  if (modeOf(r) === 'suggest') return p.plan.said;
+  if (p.plan.route === 'token-change') {
+    const n = p.plan.edits.length;
+    return `Exact, no AI: ${n === 1 ? `${p.plan.edits[0]!.path} points` : `${n} tokens point`} to the new variable${n === 1 ? '' : 's'}. Checked for contrast, then it ships once the checks pass.`;
+  }
+  if (p.plan.route === 'claude-draft') return 'Developers get a build request with its spec, build it, then it ships.';
+  return p.plan.said;
+}
+
+/** After a library branch opens: the set remembers it (pull rebuilds it once it ships), its new baseline, a status line. */
+async function afterBranch(r: PushState, x: SentComponentPush): Promise<void> {
+  // Needs code: nothing builds it on its own, the line offers the message for a developer.
+  const build = x.route === 'claude-draft' ? { component: x.component, number: x.number, url: x.url, suggested: x.suggested } : undefined;
+  if (x.suggested) {
+    // A suggestion has no library branch to follow yet: only the new baseline and the "sent" line.
+    await request('rebaseline', { nodeId: x.nodeId }).catch(() => undefined);
+    r.sent.unshift({ component: x.component, number: x.number, url: x.url, what: 'suggestion sent', target: 'suggestion', build });
+    return;
+  }
+  await request('mark-pushed', { nodeId: x.nodeId, mark: JSON.stringify({ number: x.number, url: x.url, route: x.route, at: new Date().toISOString() }) }).catch(() => undefined);
+  await request('rebaseline', { nodeId: x.nodeId }).catch(() => undefined);
+  r.sent.unshift({ component: x.component, number: x.number, url: x.url, what: x.route === 'token-change' ? 'exact token change sent to the library' : 'build request sent to developers', target: 'pr', build });
+}
+
+/** The row send on a new component: its library branch with the spec and a screenshot, for a developer to build with Claude. */
+function sendCandidate(r: PushState, item: ComponentChangeItem): void {
+  const push = pushOf(r, item.nodeId);
+  if (!push) return;
+  void run(
+    `Sending ${item.component}`,
+    async () => {
+      const draft: RequestDraft = { component: item.component, kind: item.kind, title: titleOf(r, item), summary: r.descriptionSource === 'user' && r.description.trim() ? r.description : suggestSummary(item), line: lineOf(r, item), changes: item.changes, nodeId: item.nodeId, nodeName: item.figmaName };
+      const x = await sendComponentPush(getClient(), { analysis: r.analysis, fileKey: r.fileKey, mode: modeOf(r), image: async (nodeId) => (await request('export-image', { nodeId }).catch(() => null))?.base64 }, push, draft);
+      await afterBranch(r, x);
+      if (r.components) r.components.candidates = r.components.candidates.filter((c) => c.nodeId !== item.nodeId);
+      if (x.imagesSkipped) state.error = { message: IMAGES_NEED_WRITE };
+      void request('notify', { message: x.suggested ? 'Suggestion sent to your DS lead' : `${item.component} sent for review: a developer builds it with Claude` });
+    },
+    () => sendCandidate(r, item),
   );
 }
 
@@ -2169,8 +2974,23 @@ function rowTail(r: PushState, item: PublishItem | undefined, name: string, extr
     item.experimental ? h('span', { class: 'tag', title: 'Never sent for review. Goes to explorations only.' }, 'Exploration only') : null,
     h(
       'details',
-      { class: 'row-menu' },
-      h('summary', { class: 'btn ghost icon-only', 'data-focus-id': `menu-${item.key}`, 'aria-label': `More actions for ${name}`, title: 'More actions' }, icon('more')),
+      {
+        class: 'row-menu',
+        // Opening moves focus into the menu; arrows, Home and End move in it; Escape closes it back on its button.
+        onToggle: (e: Event) => {
+          const d = e.currentTarget as HTMLDetailsElement;
+          if (d.open) focusFirstItem(d.querySelector('[role="menu"]'));
+        },
+        onKeyDown: (e: KeyboardEvent) => {
+          const d = e.currentTarget as HTMLDetailsElement;
+          if (!d.open) return;
+          menuKeys(() => {
+            d.removeAttribute('open');
+            d.querySelector<HTMLElement>('summary')?.focus();
+          })(e);
+        },
+      },
+      h('summary', { class: 'btn ghost icon-only', 'data-focus-id': `menu-${item.key}`, 'aria-label': `More actions for ${name}`, 'aria-haspopup': 'menu', title: 'More actions' }, icon('more')),
       h(
         'div',
         { class: 'menu', role: 'menu' },
@@ -2227,21 +3047,44 @@ function variablesGroup(r: PushState): Child {
     });
   });
   if (!rows.length) return null;
-  const lede = r.destination === 'exploration' ? 'Checked edits go into the exploration. Unchecked ones stay in Figma.' : 'Checked edits go together for review. Unchecked ones stay in Figma for later.';
+  const lede = r.destination === 'exploration' ? 'Checked edits go into the exploration. Unchecked ones stay in Figma.' : modeOf(r) === 'suggest' ? 'Checked edits go together for review. Unchecked ones stay in Figma for later.' : 'Checked edits go to the library together. Unchecked ones stay in Figma for later.';
   return changeGroup(r, 'variable', 'Variables', lede, rows, 'push-local');
 }
 
 function componentChangesGroup(r: PushState): Child {
-  const changed = r.components?.changed ?? [];
+  const changed = sendableChanged(r);
   if (!changed.length) return null;
   const rows = changed.map((item) => {
     const pi = itemOf(r, componentKey(item.nodeId));
     return componentRow(r, item, '', {
       lead: selectBox(r, pi, item.component),
-      tail: r.form?.key === item.nodeId ? null : rowTail(r, pi, item.component, [{ label: 'Edit the request', onClick: () => openForm(r, item) }]),
+      tail: r.form?.key === item.nodeId ? null : rowTail(r, pi, item.component, [{ label: routed(r) ? 'Send as a request instead' : 'Edit the request', onClick: () => openForm(r, item) }]),
     });
   });
-  return changeGroup(r, 'component', 'Components', r.destination === 'exploration' ? 'Each becomes a request to build in the exploration.' : 'Each becomes a request for the team.', rows, 'push-components');
+  // Suggest mode: nothing ships before the DS lead approves (SUG-3).
+  const lede = !routed(r)
+    ? 'Exact token changes go into the exploration. The others wait for code: a developer builds them there with Claude.'
+    : modeOf(r) === 'suggest'
+      ? 'Each change goes to your DS lead as a suggestion. Once approved, a developer applies the token swaps and builds what needs code.'
+      : 'Token swaps ship as exact token changes once the checks pass. New variants, properties and layers go to developers as a build request with their spec.';
+  return changeGroup(r, 'component', 'Components', lede, rows, 'push-components');
+}
+
+/** Changes Bridge cannot send as they are: each says what to do in Figma. Never sent, never dropped. */
+function fixInFigmaGroup(r: PushState): Child {
+  const held = (r.components?.changed ?? []).filter((c) => !sendable(r.pushes, c));
+  if (!held.length) return null;
+  return h(
+    'section',
+    { class: 'group' },
+    h('div', { class: 'group-head' }, h('h2', null, 'Fix in Figma first', h('span', { class: 'group-n' }, String(held.length)))),
+    h('p', { class: 'lede' }, 'Bridge cannot send these as they are. Each one says what to do, then scan again.'),
+    h(
+      'ul',
+      { class: 'rows' },
+      held.map((item) => componentRow(r, item, 'Send as a request instead', { tail: r.form?.key === item.nodeId ? null : h('button', { class: 'btn ghost row-action', 'data-focus-id': `req-${item.nodeId}`, onClick: () => openForm(r, item) }, 'Send as a request instead') })),
+    ),
+  );
 }
 
 /** What the component scan says besides the changes: read errors, Figma-only changes, components not in code yet. */
@@ -2249,7 +3092,7 @@ function componentNotes(r: PushState): Child[] {
   const scan = r.components;
   const candidates = scan?.candidates ?? [];
   const out: Child[] = [];
-  if (r.componentsError) out.push(h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Components could not be read'), h('p', null, r.componentsError)));
+  if (r.componentsError) out.push(componentsErrorCallout(r.componentsError));
   if (scan?.figmaOnly.length) out.push(h('p', { class: 'muted' }, `Layers or auto layout changed in ${scan.figmaOnly.join(', ')}, with the same props, variants, tokens and look. That stays in Figma.`));
   if (scan?.explained.length) out.push(h('p', { class: 'muted' }, `${scan.explained.join(', ')} look${scan.explained.length === 1 ? 's' : ''} different because of variable edits. Those go with the variables, not in a request.`));
   if (candidates.length) {
@@ -2258,7 +3101,7 @@ function componentNotes(r: PushState): Child[] {
         'details',
         { class: 'notes candidates', open: candidates.some((c) => r.form?.key === c.nodeId) },
         h('summary', null, `Not in the design system yet (${candidates.length})`),
-        h('p', { class: 'muted' }, `Components in this file with no folder in ${scan?.coded.length ? 'the code' : 'code'}. Nothing is sent unless you ask for it.`),
+        h('p', { class: 'muted' }, `Components in this file with no folder in ${scan?.coded.length ? 'the code' : 'code'}. Nothing is sent unless you ask for it.${routed(r) ? ' Sent to the library, each becomes a build request with its spec: developers build it, then it ships.' : ''}`),
         h('ul', { class: 'rows' }, candidates.map((item) => componentRow(r, item, 'Request as new component'))),
       ),
     );
@@ -2266,15 +3109,26 @@ function componentNotes(r: PushState): Child[] {
   return out;
 }
 
-/** Requests sent from this screen, one status line each with its link. */
+/** Sent from this screen, one status line each: "See it in Studio" first, GitHub behind it, and the developer message. */
 function sentNotes(r: PushState): Child[] {
-  return r.sent.map((s) =>
-    h(
+  const repo = state.init!.settings.repo;
+  return r.sent.map((s) => {
+    const studio = studioChangeUrl(repo, s.target, s.number);
+    return h(
       'div',
       { class: 'callout ok', role: 'status' },
-      h('div', { class: 'callout-title' }, icon('check'), `Request #${s.number} opened for ${s.component}`, h('button', { class: 'btn ghost callout-action', onClick: () => void request('open-url', { url: s.url }) }, 'Open on GitHub')),
-    ),
-  );
+      h('div', { class: 'callout-title' }, icon('check'), `${s.component}: ${s.what}`),
+      h(
+        'div',
+        { class: 'inline-actions' },
+        studio ? h('button', { class: 'btn', onClick: () => void request('open-url', { url: studio }) }, icon('external'), 'See it in Studio') : null,
+        h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: s.url }) }, 'Open on GitHub'),
+        s.build
+          ? h('button', { class: 'btn ghost', onClick: () => void copyText(developerMessage(repo, [s.build!])).then((ok) => { s.copied = ok; render(); }) }, icon(s.copied ? 'check' : 'copy'), s.copied ? 'Message copied' : 'Copy message for a developer')
+          : null,
+      ),
+    );
+  });
 }
 
 /**
@@ -2318,8 +3172,8 @@ function destinationControl(r: PushState): HTMLElement {
   return h(
     'section',
     { class: 'destination' },
-    h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Where your changes go' }, option('review', 'Request review'), option('exploration', 'Try in an exploration')),
-    h('p', { class: 'muted' }, exploring ? 'Test it in a preview and a staging build. It never reaches the product as is.' : 'Owners approve it, then it reaches the product.'),
+    h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Where your changes go' }, option('review', 'To the library'), option('exploration', 'Try in an exploration')),
+    h('p', { class: 'muted' }, exploring ? 'Try it in its previews, and see before and after in Studio. It never reaches the product as is.' : 'Token values ship once the checks pass. Renames, removals and what needs code go to developers.'),
     exploring
       ? h(
           'div',
@@ -2461,9 +3315,10 @@ function refreshTryIt(r: PushState): void {
 
 /** The hint under a preview: what it shows, or where its build stands. */
 function linkHint(l: { hint: string; url: string | null; state: string }): string {
+  // A build that failed before it had a URL (a rate limit) would otherwise wait forever.
+  if (l.state === 'failed') return l.url ? 'This deploy failed, the change in Studio says why' : 'This preview did not build. The change in Studio says why';
   if (!l.url) return 'Link not ready yet';
   if (l.state === 'building') return 'Rebuilding with your edits';
-  if (l.state === 'failed') return 'This deploy failed, the branch in Studio says why';
   return l.hint;
 }
 
@@ -2476,7 +3331,8 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
   const vars = res.pr && !res.exploration?.unchanged ? plural(r.proposal.changes.length || 1, 'variable edit') : '';
   const text = [
     vars ? `${vars} added to the exploration.` : res.exploration?.unchanged ? 'The exploration already had these variable edits.' : '',
-    res.requests.length ? `${plural(res.requests.length, 'request')} for ${res.requests.map((x) => x.component).join(', ')}, to build there.` : '',
+    res.explorationTokens?.length ? `${plural(res.explorationTokens.length, 'token change')} ${res.explorationTokens.length === 1 ? 'is' : 'are'} in it.` : '',
+    res.requests.length ? `${plural(res.requests.length, 'change')} ${res.requests.length === 1 ? 'waits' : 'wait'} for code: a developer builds ${res.requests.length === 1 ? 'it' : 'them'} with Claude, then ${res.requests.length === 1 ? 'it shows' : 'they show'} in Studio.` : '',
     'It never reaches the product as is.',
   ].filter(Boolean);
   const links = tryItLinks(e, r.previews);
@@ -2493,22 +3349,37 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
             ? 'The test build is being prepared, a few minutes. Checking every 15 seconds.'
             : 'The test build is being prepared, a few minutes.'
         : t.state === 'failed'
-          ? 'The test build did not finish. The branch in Studio says why.'
+          ? 'The test build did not finish. The change in Studio says why.'
           : null;
   const status = statusText === null && r.checkingTryIt && !t
     ? h('p', { class: 'row-hint', 'data-region': 'tryit-status', 'data-sig': 'checking' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('span', null, 'Checking the test build'))
     : statusText !== null
       ? statusLine(statusText, r)
-      : h('p', { class: 'lede', 'data-region': 'tryit-status', 'data-sig': 'ready' }, 'A developer installs it in a staging branch of your product. The message has the command, the previews and the link.');
-  const linksSig = JSON.stringify(links.map((l) => [l.app, l.url, l.state]));
+      : h('p', { class: 'lede', 'data-region': 'tryit-status', 'data-sig': 'ready' }, 'A developer installs it in a staging version of your product. The message has the command, the previews and the link.');
+  // Nothing online reported: explorations are not deployed, a developer opens it on their machine (Share with a developer).
+  // Vercel reports a deploy within a minute or two, the test build takes a few: "no preview" only once that one settled.
+  const local = triedLocally(r.previews) && (!!r.tryItTimedOut || (!!t && t.state !== 'building'));
+  const linksSig = JSON.stringify([local, links.map((l) => [l.app, l.url, l.state])]);
   return [
-    intro({ title: `Sent to ${e.name}`, text: text.join(' '), meta: h('span', { class: 'url mono' }, e.branch), art: 'review' }),
+    intro({ title: `Sent to ${e.name}`, text: text.join(' '), art: 'review' }),
+    forDevelopers([...repoRows(), ['Exploration branch', e.branch], ['Pull request', e.url]]),
     h(
       'section',
       { class: 'try', 'data-region': 'tryit-links', 'data-sig': linksSig },
       h('h2', null, 'Try it'),
-      h('p', { class: 'lede' }, 'Previews rebuild from the exploration in a few minutes.'),
-      links.length
+      h(
+        'p',
+        { class: 'lede' },
+        local
+          ? // Not deployed: Studio shows the screenshots of what changes (Visual impact runs when tokens change on the branch).
+            res.explorationTokens?.length || vars
+            ? 'No preview online for this exploration. Studio shows screenshots of what changes in a few minutes; to click through it, Share with a developer: they open it on their computer.'
+            : 'Nothing to see yet: the changes wait for code. Once a developer builds them, Studio shows the screenshots.'
+          : 'Previews rebuild from the exploration in a few minutes. Studio shows before and after next to them.',
+      ),
+      local
+        ? null
+        : links.length
         ? h(
             'ul',
             { class: 'rows' },
@@ -2522,7 +3393,9 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
                   h('span', { class: 'row-label' }, h('span', null, l.label), h('small', null, linkHint(l))),
                   l.url
                     ? h('button', { class: 'btn ghost row-action', 'data-focus-id': `tryit-open-${l.app}`, 'aria-label': `Open ${l.label} preview`, title: l.url, onClick: () => void request('open-url', { url: l.url! }) }, icon('external'), 'Open')
-                    : h('span', { class: 'spinner row-wait', role: 'img', 'aria-label': `Waiting for the ${l.label} link` }),
+                    : l.state === 'failed'
+                      ? null
+                      : h('span', { class: 'spinner row-wait', role: 'img', 'aria-label': `Waiting for the ${l.label} link` }),
                 ),
               ),
             ),
@@ -2550,7 +3423,97 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
   ];
 }
 
+/**
+ * "A developer builds it with Claude": nothing acts on a component that needs code on its own yet (the
+ * waiting-for-claude label is kept for that later), so the result says who does it and hands the designer the
+ * message for them, with the links and how to build it.
+ */
+function buildMessage(r: PushState, items: BuildItem[]): HTMLElement {
+  const repo = state.init!.settings.repo;
+  const message = developerMessage(repo, items);
+  return h(
+    'section',
+    { class: 'share' },
+    h('h2', null, 'A developer builds it with Claude'),
+    h('p', { class: 'lede' }, `${items.length === 1 ? `${items[0]!.component} needs` : `${plural(items.length, 'component')} need`} code. Send this message to a developer: it has the links and how to build it.`),
+    h(
+      'button',
+      { class: 'btn share-action', 'data-focus-id': 'build-copy', onClick: () => void copyText(message).then((ok) => { r.shared = ok; render(); }) },
+      icon(r.shared ? 'check' : 'copy'),
+      r.shared ? 'Message copied' : 'Copy message for a developer',
+    ),
+    h('details', { class: 'notes command' }, h('summary', null, 'Show the message'), h('pre', { class: 'mono-area', tabindex: '0', 'aria-label': 'Message for a developer' }, message)),
+  );
+}
+
 /** A status sentence with "Check again" on the same line. */
+/**
+ * After a push to the library: token values on their way (then in the library), renames and removals waiting for a
+ * developer, build requests sent to developers. One group per route, the same row for each item, its link on the row.
+ */
+function libraryResult(r: PushState, items: RoutedItem[]): Child[] {
+  const statuses = r.ship?.statuses ?? new Map<number, ShipStatus>();
+  const g = groupRoutes(effectiveItems(items, statuses));
+  const head = libraryHeadline(g, statuses);
+  const row = (i: RoutedItem, hint: string, spin = false) =>
+    h(
+      'li',
+      { class: 'row' },
+      h(
+        'div',
+        { class: 'row-head' },
+        h('span', { class: 'row-label' }, h('span', { class: i.kind === 'token' ? 'mono' : '' }, i.label), h('small', null, hint)),
+        spin ? h('span', { class: 'spinner row-wait', role: 'img', 'aria-label': `${i.label}: on its way` }) : null,
+        h('button', { class: 'btn ghost row-action', 'aria-label': `Open #${i.number} on GitHub`, title: i.url, onClick: () => void request('open-url', { url: i.url }) }, icon('external'), `#${i.number}`),
+      ),
+    );
+  const group = (title: string, lede: string, rows: Child[]) => h('section', null, h('h2', null, title), h('p', { class: 'lede' }, lede), h('ul', { class: 'rows' }, rows));
+  return [
+    intro({ title: head.title, text: head.text, art: 'review' }),
+    g.shipped.length
+      ? group(
+          'Token values',
+          r.ship?.timedOut ? 'Still on its way after 15 minutes. Open it on GitHub to see which check is still running.' : 'Checked for contrast and tests, then added to the library on its own. No second review: it was approved in Figma.',
+          g.shipped.map((i) => {
+            const s = statuses.get(i.number);
+            return row(i, shipStateLabel(s), !s?.final);
+          }),
+        )
+      : null,
+    g.waiting.length ? group('Waiting for a developer', waitingLede(g.waiting), g.waiting.map((i) => row(i, i.waitingFor === 'rename' ? 'Renamed or removed' : (statuses.get(i.number)?.reason ?? 'Waiting for a developer')))) : null,
+    g.builds.length ? group('Build requests', 'Each one has the Figma link, before and after and what to build. Developers pick it up in GitHub or Jira.', g.builds.map((i) => row(i, 'Requested'))) : null,
+  ];
+}
+
+/**
+ * Asks Bridge to ship the token pull requests (values only), then reads where each stands (on its way, in the
+ * library) while the result screen is open.
+ */
+function startShipPolling(r: PushState, poll: ShipPoll, arm: (n: number) => Promise<ArmAnswer>): void {
+  const numbers = shippedNumbers(groupRoutes(r.routed ?? []));
+  const arming = toArm(r.routed ?? []);
+  r.ship?.poller?.stop();
+  r.ship = { statuses: new Map() };
+  if (!numbers.length && !arming.length) return;
+  const ship = r.ship;
+  ship.poller = new ShipPoller({
+    poll,
+    numbers,
+    arming,
+    arm,
+    onUpdate: (statuses) => {
+      ship.statuses = statuses;
+      if (state.push === r) render();
+    },
+    onTimeout: () => {
+      ship.timedOut = true;
+      if (state.push === r) render();
+    },
+  });
+  ship.poller.start();
+  void ship.poller.check();
+}
+
 function statusLine(text: string, r: PushState): HTMLElement {
   return h(
     'p',
@@ -2562,21 +3525,25 @@ function statusLine(text: string, r: PushState): HTMLElement {
 
 function viewPush(): View {
   const init = state.init!;
-  if (!init.hasToken) return needToken();
+  if (!connected()) return needSetup();
   const r = state.push;
   if (!r) {
     return {
       body: [
         intro({
           title: 'Send your edits',
-          text: 'Variable edits and component changes go for review, or into an exploration to try them first. Nothing reaches the product until owners approve.',
-          meta: `To ${init.settings.repo}.`,
+          // Worded for the repo's mode: a suggestion repo has no explorations to promise (SUG-2).
+          text: knownMode() === 'suggest'
+            ? 'Variable edits and component changes go to your DS lead as suggestions. Nothing reaches the product until it is approved.'
+            : 'Variable edits and component changes go to the library, or into an exploration to try them first.',
           art: 'paint',
         }),
         steps([
           ['Edit in Figma', 'Change synced variables, or change a component: a variant, a prop, a part, the token a part uses.'],
-          ['Review the changes', 'Every change is listed and checked. Uncheck what is not ready; mark work in progress as exploration only.'],
-          ['Send', 'Request review: owners approve before anything is merged. In an exploration, you try it in previews and a staging build first.'],
+          ['Review the changes', knownMode() === 'suggest' ? 'Every change is listed and checked. Uncheck what is not ready.' : 'Every change is listed and checked. Uncheck what is not ready; mark work in progress as exploration only.'],
+          knownMode() === 'suggest'
+            ? ['Send', 'Send suggestion: your DS lead approves it, then a developer applies it.']
+            : ['Send', 'Token values ship once the checks pass; what needs code goes to developers as a build request. In an exploration, you try it in its previews first.'],
         ]),
         requestLine(undefined),
       ],
@@ -2596,36 +3563,46 @@ function viewPush(): View {
     if (failed && shown.some((f) => f.problem === 'missing-permission')) {
       (failed as HTMLElement).append(h('div', { class: 'inline-actions' }, h('button', { class: 'btn', onClick: openTokenSettings }, icon('external'), 'Edit token on GitHub')));
     }
+    // After a send, one primary: the change in Studio for this team. GitHub is one step behind it; scanning again is a
+    // quiet line in the body.
+    const scanAgain = h('p', null, h('span', { class: 'muted' }, 'Edited more in Figma?'), ' ', h('button', { class: 'link', 'data-focus-id': 'scan-again', onClick: () => scanPush() }, 'Scan again'));
+    const resultBar = (links: { studio?: string | undefined; github?: string | undefined }): ActionBar => {
+      const github = links.github ? { label: 'Open on GitHub', onClick: () => void request('open-url', { url: links.github! }) } : undefined;
+      if (links.studio) return { label: 'See it in Studio', onClick: () => void request('open-url', { url: links.studio! }), secondary: github };
+      return github ? { ...github, secondary: { label: 'Scan again', onClick: () => scanPush() } } : { label: 'Scan again', onClick: () => scanPush() };
+    };
+    if (r.routed) return { body: [...libraryResult(r, r.routed), failed, requestLine(r), scanAgain], bar: r.form ? undefined : resultBar(sentLinks(init.settings.repo, res)) };
     if (r.sentTo) {
       const e = r.sentTo;
-      // One primary: the product with the edits when its preview exists, else the pull request.
-      const product = tryItLinks(e, r.previews).find((l) => l.app === 'admin' && l.url);
-      const github = { label: 'Open on GitHub', onClick: () => void request('open-url', { url: e.url }) };
       return {
-        body: [
-          ...explorationResult(r, e, res),
-          failed,
-          requestLine(r),
-          product ? h('p', null, h('span', { class: 'muted' }, 'Edited more in Figma?'), ' ', h('button', { class: 'link', onClick: () => scanPush() }, 'Scan again')) : null,
-        ],
-        bar: r.form
-          ? undefined
-          : product
-            ? { label: 'Open in the product', onClick: () => void request('open-url', { url: product.url! }), secondary: github }
-            : { ...github, secondary: { label: 'Scan again', onClick: () => scanPush() } },
+        body: [...explorationResult(r, e, res), failed, requestLine(r), scanAgain],
+        bar: r.form ? undefined : resultBar(sentLinks(init.settings.repo, res, e)),
       };
     }
+    const mode = modeOf(r);
     const text = [
-      pr ? `${pr.appended ? 'Added to your branch' : 'Branch created as a draft'}. Checks run, then a design owner and a tech owner approve before it is merged.` : '',
-      res.requests.length ? `${plural(res.requests.length, 'request')} opened for ${res.requests.map((x) => x.component).join(', ')}.` : '',
+      ...suggestionLines(res),
+      pr ? `${pr.appended ? 'Added to your change in review' : 'Variable edits sent as a draft'}. Checks run, then a design owner and a tech owner approve before it ships.` : '',
+      res.requests.length ? `${plural(res.requests.length, 'request')} sent for ${res.requests.map((x) => x.component).join(', ')}.` : '',
+      ...res.branches.filter((x) => !x.suggested).map((x) => (x.route === 'token-change' ? `${x.component}: an exact token change, checked for contrast.` : `${x.component}: a developer builds it with Claude. Send them the message below.`)),
+      res.held.length ? `Not sent, fix in Figma first: ${res.held.map((x) => x.component).join(', ')}.` : '',
       prop.held.length ? `${plural(prop.held.length, 'unchecked variable edit')} stay${prop.held.length === 1 ? 's' : ''} in Figma.` : '',
     ].filter(Boolean);
-    const first = pr?.pr.url ?? res.requests[0]?.url;
+    // Components that need code: nothing builds them on its own, so the designer hands the developer a message.
+    const builds: BuildItem[] = res.branches.filter((x) => x.route === 'claude-draft').map((x) => ({ component: x.component, number: x.number, url: x.url, suggested: x.suggested }));
+    const images = res.imagesSkipped ? h('div', { class: 'callout warn', role: 'status' }, h('div', { class: 'callout-title' }, icon('alert'), 'Screenshots not attached'), h('p', null, IMAGES_NEED_WRITE)) : null;
+    if (images && mode === 'suggest') (images as HTMLElement).append(h('div', { class: 'inline-actions' }, h('button', { class: 'btn', onClick: openTokenSettings }, icon('external'), 'Edit token on GitHub')));
     return {
-      body: [intro({ title: 'Sent for review', text: text.join(' '), meta: pr ? h('span', { class: 'url' }, pr.pr.url) : undefined, art: 'review' }), failed, requestLine(r)],
-      bar: r.form ? undefined : first
-        ? { label: 'Open on GitHub', onClick: () => void request('open-url', { url: first }), secondary: { label: 'Scan again', onClick: () => scanPush() } }
-        : { label: 'Scan again', onClick: () => scanPush() },
+      body: [
+        intro({ title: sentTitle(res, mode), text: text.join(' '), art: 'review' }),
+        forDevelopers([...repoRows(), ['Branch', pr?.branch], ['Pull request', pr?.pr.url], ['Suggestion', res.suggestions[0]?.url]]),
+        builds.length ? buildMessage(r, builds) : null,
+        images,
+        failed,
+        requestLine(r),
+        scanAgain,
+      ],
+      bar: r.form ? undefined : resultBar(sentLinks(init.settings.repo, res)),
     };
   }
 
@@ -2646,6 +3623,8 @@ function viewPush(): View {
   const checked = r.items.filter((i) => isChecked(r.unchecked, i));
   const checkedVars = checked.filter((i) => i.kind === 'variable').length;
   const checkedComps = checked.filter((i) => i.kind === 'component').length;
+  // In an exploration, exact token changes are committed there: only the others become requests.
+  const checkedTokens = checked.filter((i) => i.kind === 'component' && pushOf(r, i.id)?.plan.route === 'token-change' && !pushOf(r, i.id)?.blocked).length;
   const newBrands = prop.brands.filter((b) => b.plan).length;
   const prFiles = Object.keys(prop.files).length + prop.brandFiles.length;
 
@@ -2658,17 +3637,22 @@ function viewPush(): View {
       h(
         'section',
         { class: 'zone' },
-        h('h2', { class: 'headline' }, n ? `${plural(n, 'change')} ready to send` : 'A new brand to propose'),
+        // Nothing sendable: a new brand alone, or only changes to fix in Figma first (never "a new brand" then).
+        h('h2', { class: 'headline' }, n ? `${plural(n, 'change')} ready to send` : newBrands ? 'A new brand to propose' : 'Nothing to send yet'),
         h(
           'p',
           { class: 'muted' },
-          fails
+          !n && !newBrands
+            ? 'Fix the changes below in Figma, then scan again.'
+            : fails
             ? `${plural(fails, 'contrast pair')} fail${fails === 1 ? 's' : ''}. Fix ${fails === 1 ? 'it' : 'them'} or uncheck the edit before sending.`
             : changedContrast.length
               ? `All ${plural(changedContrast.length, 'contrast pair')} the checked edits move still pass.`
               : exploring
                 ? 'Nothing reaches the product as is.'
-                : 'Nothing reaches the product until owners approve.',
+                : modeOf(r) === 'suggest'
+                  ? 'Nothing reaches the product until owners approve.'
+                  : 'Token values ship once the checks pass; what needs code goes to developers.',
         ),
       ),
     );
@@ -2707,7 +3691,11 @@ function viewPush(): View {
   for (const b of prop.brands) body.push(newBrandCard(r, b));
   if (r.items.length) {
     body.push(h('h2', { class: 'section-title' }, 'Changes'));
-    body.push(destinationControl(r));
+    body.push(
+      modeOf(r) === 'suggest'
+        ? h('p', { class: 'muted' }, 'Sent as a suggestion: your DS lead reviews it, then a developer applies it. Nothing reaches the code before that.')
+        : destinationControl(r),
+    );
   }
   body.push(variablesGroup(r));
   body.push(
@@ -2717,6 +3705,7 @@ function viewPush(): View {
     }),
   );
   body.push(componentChangesGroup(r));
+  body.push(fixInFigmaGroup(r));
   body.push(...componentNotes(r));
   if (a.diff.remote.length) {
     body.push(h('p', { class: 'muted' }, `${plural(a.diff.remote.length, 'token')} changed in the design system since your last pull. Your edits leave them as they are; pull to see them here.`));
@@ -2766,7 +3755,7 @@ function viewPush(): View {
           'div',
           { class: 'field' },
           h('div', { class: 'field-head' }, h('h2', null, h('label', { for: 'push-description' }, 'Message to the team')), assistAction(r.assist, pushAssist(r))),
-          h('p', { class: 'lede' }, exploring ? 'Goes with the exploration and every request. Your words for the team.' : 'Opens the branch and every request. Your words for the reviewers.'),
+          h('p', { class: 'lede' }, exploring ? 'Goes with the exploration and every request. Your words for the team.' : 'Goes with everything you send. Your words for the reviewers.'),
           h('textarea', {
             id: 'push-description',
             rows: '3',
@@ -2783,12 +3772,12 @@ function viewPush(): View {
           draftedNote('push-description', r.descriptionSource),
         ),
         assistStatus(r.assist, pushAssist(r)),
-        !exploring && prFiles && r.openPr
+        !exploring && prFiles && r.openPr && modeOf(r) === 'direct'
           ? h(
               'label',
               { class: 'check' },
               h('input', { type: 'checkbox', checked: r.appendToOpen, onChange: (e: Event) => { r.appendToOpen = (e.target as HTMLInputElement).checked; render(); } }),
-              `Add to your open branch: ${r.openPr.title.replace(/^[a-z]+(\([^)]*\))?!?:\s*/i, '')}`,
+              `Add to your change in review: ${r.openPr.title.replace(/^[a-z]+(\([^)]*\))?!?:\s*/i, '')}`,
             )
           : null,
         // An exploration's title is generated (it only names the change on the exploration): nothing to fill in.
@@ -2796,10 +3785,10 @@ function viewPush(): View {
           ? h(
               'details',
               { class: 'notes', open: r.titleSource === 'claude' },
-              h('summary', null, 'Branch title'),
+              h('summary', null, modeOf(r) === 'suggest' ? 'Suggestion title' : 'Title'),
               h('input', {
                 type: 'text',
-                'aria-label': 'Branch title',
+                'aria-label': modeOf(r) === 'suggest' ? 'Suggestion title' : 'Title',
                 value: r.title,
                 placeholder: prop.changes.length ? defaultTitle(prop.changes) : prop.brands.find((b) => b.plan)?.plan?.title ?? '',
                 maxlength: '120',
@@ -2813,7 +3802,7 @@ function viewPush(): View {
           : null,
         // What the push sends is summed up once, in the bar ("2 variables, 1 request"); this only says how it goes.
         prFiles
-          ? h('p', { class: 'muted' }, exploring ? 'Owners review it only if the exploration is promoted.' : 'Token changes need two approvals: a design owner and a tech owner.')
+          ? h('p', { class: 'muted' }, exploring ? 'Owners review it only if the exploration is promoted.' : modeOf(r) === 'suggest' ? 'Token changes need two approvals on the suggestion: a design owner and a tech owner.' : 'Token changes need two approvals: a design owner and a tech owner.')
           : null,
       ),
     );
@@ -2826,26 +3815,32 @@ function viewPush(): View {
   const blocked = prFiles ? prop.validation.blocking.length : 0;
   const open = prop.unresolvedConflicts.length;
   const none = !prFiles && !checkedComps;
+  const onlyExploration = none && !exploring && modeOf(r) !== 'suggest' && r.items.length > 0 && r.items.every((i) => i.experimental);
   const waiting = explorationBlocker(r);
   const hint = open
     ? `Decide ${plural(open, 'conflict')} first`
     : blocked
       ? `Fix ${plural(blocked, 'problem')} first`
       : none
-        ? 'Nothing checked'
+        ? onlyExploration
+          ? 'Marked exploration only: try them in an exploration'
+          : 'Nothing checked'
         : waiting
           ? waiting
-          : [checkedVars ? plural(checkedVars, 'variable') : '', newBrands ? plural(newBrands, 'new brand') : '', checkedComps ? plural(checkedComps, 'request') : ''].filter(Boolean).join(', ');
+          : [checkedVars ? plural(checkedVars, 'variable') : '', newBrands ? plural(newBrands, 'new brand') : '', ...(exploring
+            ? [checkedTokens ? plural(checkedTokens, 'token change') : '', checkedComps - checkedTokens ? plural(checkedComps - checkedTokens, 'request') : '']
+            : [checkedComps ? plural(checkedComps, 'component') : ''])].filter(Boolean).join(', ');
   return {
     body,
     bar: nothing
       ? { label: 'Scan again', onClick: () => scanPush(r) }
       : {
-          label: exploring ? 'Send to exploration' : 'Request review',
+          label: exploring ? 'Send to exploration' : sendLabel(modeOf(r)),
           onClick: submitPush,
           disabled: !!open || !!blocked || none || !!waiting,
           hint,
-          secondary: { label: 'Scan again', onClick: () => scanPush(r) },
+          // Everything is marked exploration only: the way forward is one click, not a dead button (PUSH-6).
+          secondary: onlyExploration ? { label: 'Try in an exploration', onClick: () => setDestination(r, 'exploration') } : { label: 'Scan again', onClick: () => scanPush(r) },
         },
   };
 }
@@ -2853,11 +3848,12 @@ function viewPush(): View {
 function viewSettings(): View {
   const d = state.settingsDraft;
   const init = state.init!;
-  const editingRepo = !init.hasToken || state.expanded.has('repo-edit');
+  // Not connected yet (no design system for this file, or no token): the fields show; connected, one row and Edit.
+  const editingRepo = !init.hasToken || !init.settings.repo || state.expanded.has('repo-edit');
   const rejected = init.tokenState === 'rejected';
   // The token field shows without a token, or after "Replace token".
   const tokenField = !init.hasToken || state.expanded.has('token-replace');
-  const field = (label: string, key: keyof RepoSettings, hint: string, placeholder: string) =>
+  const field = (label: string, key: 'repo' | 'branch' | 'tokensPath', hint: string, placeholder: string) =>
     h(
       'label',
       { class: 'field' },
@@ -2867,17 +3863,36 @@ function viewSettings(): View {
     );
   return {
     body: [
-      init.hasToken ? null : intro({ title: 'Connect your repository', text: 'Point DS Bridge at the repository that holds your token files, then paste a token. Nothing is written until you send your edits.', art: 'guide' }),
-      // Connected: where the tokens live is a state (one row, Edit). The fields show to set it up or after Edit.
+      connected() ? null : intro({ title: 'Connect your design system', text: 'Which design system does this file use? Paste its GitHub repository, then a token. Nothing is written until you send your edits.', art: 'guide' }),
+      // Connected: the design system is a state (one row, Edit). The fields show to set it up or after Edit. Branch and
+      // tokens folder are for developers: folded, with defaults that work (the design system's config decides).
       editingRepo
         ? h(
             'section',
             { class: 'card' },
-            h('h2', null, 'Where the tokens live'),
-            field('Repository', 'repo', 'Owner and name, as in the GitHub URL.', 'owner/name'),
-            field('Base branch', 'branch', 'Pulls read from it; pull requests target it.', 'main'),
-            field('Tokens folder', 'tokensPath', 'Folder that holds the *.tokens.json files.', 'packages/tokens/src'),
-            init.hasToken
+            h('h2', null, 'Design system'),
+            field('GitHub repository', 'repo', 'The repository that holds your design system, as in its GitHub address.', 'owner/name or a GitHub link'),
+            h(
+              'details',
+              { class: 'notes dev-details' },
+              h('summary', null, 'For developers'),
+              field('Base branch', 'branch', 'Updates read from it; changes sent for review target it.', 'main'),
+              field('Tokens folder', 'tokensPath', "Used when the design system has no bridge.config.json to say where its tokens are.", 'tokens'),
+              h(
+                'label',
+                { class: 'field' },
+                h('span', null, 'Spec source'),
+                h(
+                  'select',
+                  { onChange: (e: Event) => (d.specSource = (e.target as HTMLSelectElement).value as NonNullable<RepoSettings['specSource']>) },
+                  h('option', { value: 'static', selected: !d.specSource || d.specSource === 'static' }, 'component-specs.json (static)'),
+                  h('option', { value: 'measured', selected: d.specSource === 'measured' }, 'Static, with measured values'),
+                  h('option', { value: 'measured-only', selected: d.specSource === 'measured-only' }, 'Measured in Storybook only'),
+                ),
+                h('small', null, `Measured comes from ${MEASURED_SPECS_FILE} (bridge specs --measure --variants). "Measured only" builds every set from the stories, for a design system without component-specs.json.`),
+              ),
+            ),
+            init.settings.repo
               ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', onClick: () => { state.expanded.delete('repo-edit'); state.settingsDraft = { ...init.settings }; render(); } }, 'Cancel'))
               : null,
           )
@@ -2887,9 +3902,10 @@ function viewSettings(): View {
             h(
               'div',
               { class: 'token-row' },
-              h('span', { class: 'opt-text' }, h('span', { class: 'opt-title' }, 'Repository'), h('small', { class: 'mono-line' }, `${init.settings.repo} · ${init.settings.branch} · ${init.settings.tokensPath}`)),
+              h('span', { class: 'opt-text' }, h('span', { class: 'opt-title' }, 'Design system'), h('small', { class: 'mono-line' }, init.settings.repo)),
               h('span', { class: 'opt-status ok' }, icon('check'), 'Connected'),
             ),
+            forDevelopers([['Branch', init.settings.branch], ['Tokens folder', init.settings.tokensPath], ['Spec source', init.settings.specSource === 'measured' ? 'Static, with measured values' : init.settings.specSource === 'measured-only' ? 'Measured in Storybook only' : undefined]]),
             h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', 'data-focus-id': 'repo-edit', onClick: () => { state.expanded.add('repo-edit'); render(); } }, 'Edit')),
           ),
       // A saved token is a state, not a question: one row with "Connected" (or "Stopped working") and its actions.
@@ -2907,7 +3923,11 @@ function viewSettings(): View {
                 h('span', { class: 'opt-title' }, 'GitHub token'),
                 h('small', null, rejected ? TOKEN_REJECTED_DETAIL : 'Saved on this computer, never in the file.'),
               ),
-              rejected ? h('span', { class: 'opt-status warn' }, icon('alert'), 'Stopped working') : h('span', { class: 'opt-status ok' }, icon('check'), 'Connected'),
+              rejected
+                ? h('span', { class: 'opt-status warn' }, icon('alert'), 'Stopped working')
+                : state.tokenReadOnly
+                  ? h('span', { class: 'opt-status warn', title: 'It can read the design system but not send changes. Replace it with a token that has "Read and write".' }, icon('alert'), 'Read only')
+                  : h('span', { class: 'opt-status ok' }, icon('check'), 'Connected'),
             ),
             tokenField
               ? tokenInput('New fine-grained token', 'Replaces the saved one when you save. Stays on this computer, never in the file.')
@@ -2926,7 +3946,7 @@ function viewSettings(): View {
             'section',
             { class: 'card' },
             h('div', { class: 'group-head' }, h('h2', null, 'GitHub token'), h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: 'https://github.com/settings/personal-access-tokens/new' }) }, 'Create one on GitHub')),
-            h('p', { class: 'lede' }, 'A fine-grained token for this repository only, with "Contents", "Pull requests" and "Issues" set to "Read and write".'),
+            h('p', { class: 'lede' }, tokenHelp(state.push ? changesModeOf(state.push.analysis) : undefined)),
             tokenInput('Fine-grained token', 'Stays on this computer, never in the file, never shown again.'),
           ),
       state.settingsMessage
@@ -2961,12 +3981,13 @@ function tokenInput(label: string, hint: string): HTMLElement {
   );
 }
 
-function snippet(id: string, label: string, text: string): HTMLElement {
+/** A setup snippet: `text` on screen, `copy` on the clipboard (the same text with the saved token in place). */
+function snippet(id: string, label: string, text: string, copy = text): HTMLElement {
   const copied = state.claudeCopied === id;
   return h(
     'div',
     { class: 'snippet' },
-    h('div', { class: 'snippet-head' }, h('span', null, label), h('button', { class: 'btn ghost', 'data-focus-id': `copy-${id}`, onClick: () => void copyText(text).then((ok) => { state.claudeCopied = ok ? id : undefined; render(); }) }, icon(copied ? 'check' : 'copy'), copied ? 'Copied' : 'Copy')),
+    h('div', { class: 'snippet-head' }, h('span', null, label), h('button', { class: 'btn ghost', 'data-focus-id': `copy-${id}`, onClick: () => void copyText(copy).then((ok) => { state.claudeCopied = ok ? id : undefined; render(); }) }, icon(copied ? 'check' : 'copy'), copied ? 'Copied' : 'Copy')),
     h('pre', { class: 'mono-area', tabindex: '0', 'aria-label': label }, text),
   );
 }
@@ -2978,7 +3999,10 @@ function snippet(id: string, label: string, text: string): HTMLElement {
 function claudeCard(): HTMLElement {
   const c = state.init!.claude;
   const repo = state.init!.settings.repo;
+  const hasToken = !!state.init!.hasToken;
+  // On screen the token is a placeholder; Copy puts the saved one in (it is never shown, so nobody has to find it).
   const mcp = mcpSnippets(repo);
+  const filled = mcpSnippets(repo, state.init!.token);
   const msg = state.claudeMessage;
   const toggle = (key: string) => () => {
     state.expanded.has(key) ? state.expanded.delete(key) : state.expanded.add(key);
@@ -3003,21 +4027,30 @@ function claudeCard(): HTMLElement {
     'section',
     { class: 'card' },
     h('div', { class: 'group-head' }, h('h2', null, 'Claude', h('span', { class: 'group-n' }, 'Optional'))),
-    h('p', { class: 'lede' }, 'Writes your request and branch text from the changes it sees. You review it before anything is sent.'),
+    h('p', { class: 'lede' }, 'Writes the text of what you send from the changes it sees. You review it before anything is sent.'),
     h(
       'ul',
       { class: 'opts' },
       row(
         'mcp-setup',
         'Your Claude plan',
-        'Through MCP, from your terminal. No API key.',
+        'In the Claude app or Claude Code. No API key.',
         'Set up once',
         'Recommended',
         h(
           'ol',
           { class: 'setup-steps' },
-          h('li', null, 'Add Bridge to your Claude, once, in a terminal. Put this plugin\'s GitHub token in place of your-github-token.', snippet('code', 'Terminal', mcp.code)),
-          h('li', null, `Then click "Draft with Claude" and say "${DRAFT_PHRASE}" to your Claude.`),
+          h(
+            'li',
+            null,
+            hasToken
+              ? 'Add Bridge to Claude, once. Copy fills in the GitHub token saved in this plugin; it stays on this computer.'
+              : 'Save a GitHub token above first: Copy then fills it in. Then add Bridge to Claude, once.',
+            snippet('code', 'Claude Code, in a terminal', mcp.code, filled.code),
+            h('details', { class: 'notes' }, h('summary', null, 'Using the Claude app instead'), snippet('desktop', 'In claude_desktop_config.json', mcp.desktop, filled.desktop)),
+            h('small', null, 'The token needs "Contents" set to "Read and write": Claude reads and writes the drafts in a file of the repository.'),
+          ),
+          h('li', null, `Then click "Draft with Claude" and say "${DRAFT_PHRASE}" to Claude.`),
         ),
       ),
       row(
@@ -3067,20 +4100,40 @@ function claudeCard(): HTMLElement {
   );
 }
 
+/** The design system's own name (its bridge.config.json "name", once read), else the repository's name. */
+function designSystemName(): string {
+  const config = (state.push?.analysis ?? state.pull?.analysis)?.headFiles.config;
+  if (config?.name) return config.name;
+  return state.init?.settings.repo.split('/').pop() ?? '';
+}
+
 function actionBar(bar: ActionBar | undefined): Child {
   if (!bar && !state.busy) return null;
   // Fitts: a lone action takes the whole bar; with a secondary or a status it stays on the right.
-  const lone = !!bar && !bar.secondary && !bar.hint && !state.busy;
+  const lone = !!bar && !bar.secondary && !bar.hint && !bar.toggle && !state.busy;
   return h(
     'div',
     { class: lone ? 'bar lone' : 'bar' },
     h(
       'div',
       { class: 'bar-status', 'aria-live': 'polite' },
-      state.busy ? [h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('span', { id: 'busy-text' }, state.busy)] : bar?.hint ? h('span', null, bar.hint) : null,
+      state.busy
+        ? [h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('span', { id: 'busy-text' }, state.busy)]
+        : [
+            bar?.toggle
+              ? h(
+                  'label',
+                  { class: 'check' },
+                  h('input', { type: 'checkbox', checked: bar.toggle.checked, 'data-focus-id': bar.toggle.focusId, onChange: (e: Event) => bar.toggle!.onChange((e.target as HTMLInputElement).checked) }),
+                  bar.toggle.label,
+                )
+              : null,
+            bar?.hint ? h('span', null, bar.hint) : null,
+          ],
     ),
-    bar?.secondary ? h('button', { class: 'btn', disabled: !!state.busy, onClick: bar.secondary.onClick }, bar.secondary.label) : null,
-    bar ? h('button', { class: 'btn primary', disabled: !!state.busy || !!bar.disabled, onClick: bar.onClick }, bar.label) : null,
+    state.busy && state.cancel ? h('button', { class: 'btn', 'data-focus-id': 'stop-build', onClick: state.cancel }, 'Stop') : null,
+    bar?.secondary && !state.cancel ? h('button', { class: 'btn', disabled: !!state.busy, onClick: bar.secondary.onClick }, bar.secondary.label) : null,
+    bar && !state.cancel ? h('button', { class: 'btn primary', disabled: !!state.busy || !!bar.disabled, onClick: bar.onClick }, bar.label) : null,
   );
 }
 
@@ -3098,7 +4151,13 @@ function render(): void {
         'main',
         null,
         state.error
-          ? h('div', { class: 'callout error', role: 'alert' }, h('div', { class: 'callout-title' }, icon('alert'), 'DS Bridge could not start'), h('p', null, state.error.message))
+          ? h(
+              'div',
+              { class: 'callout error', role: 'alert' },
+              h('div', { class: 'callout-title' }, icon('alert'), 'Bridge could not start'),
+              h('p', null, state.error.message),
+              state.error.detail ? h('details', { class: 'notes command' }, h('summary', null, 'Details'), h('pre', { class: 'mono-area', tabindex: '0', 'aria-label': 'Error details' }, state.error.detail)) : null,
+            )
           : h('p', { class: 'muted loading' }, h('span', { class: 'spinner' }), 'Loading'),
       ),
     );
@@ -3109,7 +4168,7 @@ function render(): void {
 
   const tabs = h(
     'nav',
-    { class: 'tabs', role: 'tablist', 'aria-label': 'DS Bridge' },
+    { class: 'tabs', role: 'tablist', 'aria-label': 'Bridge' },
     TABS.map((t) =>
       h(
         'button',
@@ -3138,7 +4197,8 @@ function render(): void {
         t.id === 'push' && pushCount ? h('span', { class: 'count', 'aria-label': `${pushCount} changes` }, String(pushCount)) : null,
       ),
     ),
-    h('span', { class: 'repo', title: `${state.init.settings.repo}, branch ${state.init.settings.branch}` }, icon('branch'), state.init.settings.branch),
+    // Which design system this file uses, by its name: never a branch or a repository slug.
+    state.init.settings.repo ? h('span', { class: 'repo', title: `Design system: ${designSystemName()}` }, designSystemName()) : null,
   );
 
   // A rejected token: one callout on Pull and Push whatever failed (Settings shows it on the token row).
@@ -3150,6 +4210,7 @@ function render(): void {
         'div',
         { class: 'callout error', role: 'alert' },
         h('div', { class: 'callout-title' }, icon('alert'), shownError.message),
+        shownError.detail ? h('details', { class: 'notes command' }, h('summary', null, 'Details'), h('pre', { class: 'mono-area', tabindex: '0', 'aria-label': 'Error details' }, shownError.detail)) : null,
         shownError.retry || permission
           ? h(
               'div',
@@ -3170,9 +4231,9 @@ function render(): void {
 
 /** One call at start (the repository) so a token GitHub stopped accepting shows before the designer tries an action. */
 async function checkAccessOnStart(): Promise<void> {
-  if (!state.init?.hasToken) return;
+  if (!connected()) return;
   const result = await checkToken(getClient());
-  if (!result || result === state.init.tokenState) return;
+  if (!result || result === state.init?.tokenState) return;
   setTokenState(result);
   render();
 }
@@ -3180,11 +4241,11 @@ async function checkAccessOnStart(): Promise<void> {
 render();
 loadInit()
   .then(() => {
-    if (!state.init!.hasToken) state.tab = 'settings';
+    if (!connected()) state.tab = 'settings';
     render();
     void checkAccessOnStart();
   })
   .catch((err: unknown) => {
-    state.error = { message: err instanceof Error ? err.message : String(err) };
+    state.error = { message: 'Close Bridge and open it again. If it keeps happening, report it with the details.', detail: err instanceof Error ? `${err.name}: ${err.message}` : String(err) };
     render();
   });

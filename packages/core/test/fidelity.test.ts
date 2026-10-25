@@ -198,8 +198,25 @@ describe('planReference: the code render of each generated variant', () => {
     });
     expect(planReference(spec('Card'), variant('Card', { Padding: 'none' }), file)).toEqual({
       ok: false,
-      reason: 'Figma shows a placeholder (Slot/Media) that code has no example of',
+      reason: 'Figma shows a media placeholder (Slot/Media); code shows the image it is given, nothing to compare',
     });
+  });
+
+  it('popups drawn open render open: the root with defaultOpen, the content part inside with its trigger, the popup found by its class', () => {
+    expect(planReference(spec('Dialog/Popup'), variant('Dialog/Popup', { Size: 'lg' }), file)).toMatchObject({
+      ok: true,
+      render: {
+        component: 'Dialog',
+        props: { defaultOpen: true },
+        children: [{ c: 'DialogTrigger', children: ['Open'] }, { c: 'DialogContent', p: { size: 'lg' } }],
+        popup: { className: 'popup' },
+      },
+    });
+    // A root that is its own example (a Select with its options) only opens.
+    expect(planReference(spec('Select/Popup'), variant('Select/Popup', {}), file)).toMatchObject({ ok: true, render: { component: 'Select', props: { defaultOpen: true }, popup: { className: 'popup' } } });
+    expect(planReference(spec('Tooltip/Popup'), variant('Tooltip/Popup', {}), file)).toMatchObject({ ok: true, render: { component: 'Tooltip', popup: { className: 'tooltip' } } });
+    // A popup drawn from no code example stays skipped, with why.
+    expect(planReference(spec('Menu/Popup'), variant('Menu/Popup', {}), file)).toEqual({ ok: false, reason: 'drawn open from no code example: nothing to open in code' });
   });
 
   it('Checkbox: the Checked axis to checked and indeterminate; hidden optional texts are not passed', () => {
@@ -220,13 +237,67 @@ describe('planReference: the code render of each generated variant', () => {
     });
   });
 
+  it('sets drawn from a code example render that example; drafted sets render from their props', () => {
+    const tabs = planReference(spec('Tabs'), variant('Tabs', { Variant: 'contained', Size: 'md', Orientation: 'vertical', State: 'Default' }), file);
+    expect(tabs.ok && tabs.render).toMatchObject({ component: 'Tabs', props: { defaultValue: 'tokens', variant: 'contained', size: 'md', orientation: 'vertical' }, width: 'size.80' });
+    expect(tabs.ok && tabs.render.children!.map((c) => (typeof c === 'string' ? c : c.c))).toEqual(['TabsList', 'TabsPanel', 'TabsPanel', 'TabsPanel']);
+    expect(tabs.ok && tabs.render.text).toBeUndefined();
+    const slider = planReference(spec('Slider'), variant('Slider', { State: 'Disabled' }), file);
+    expect(slider).toEqual({ ok: true, render: { component: 'Slider', props: { defaultValue: 4.5, min: 3, max: 7, step: 0.5, disabled: true }, width: 'size.80' } });
+    // TokenValue: the example's token name and resolved value, shown by default in Figma, are passed as written.
+    expect(planReference(spec('TokenValue'), variant('TokenValue', { Size: 'md' }), file)).toEqual({
+      ok: true,
+      render: { component: 'TokenValue', props: { value: '{color.harbor.700}', name: 'color.action.primary.bg', resolved: '#0B4A8B', size: 'md' } },
+    });
+    expect(spec('Toast').drafted).toBeDefined();
+    expect(planReference(spec('Toast'), variant('Toast', { Tone: 'danger' }), file)).toEqual({
+      ok: true,
+      render: { component: 'Toast', props: { tone: 'danger', title: 'Tokens published', description: 'Version 1.4.0 is live.' } },
+    });
+  });
+
+  it('parts of a compound component render the part, inside their parent', () => {
+    expect(planReference(spec('AccordionItem'), variant('AccordionItem', { State: 'Disabled' }), file)).toMatchObject({
+      ok: true,
+      render: { component: 'AccordionItem', within: 'Accordion', props: { value: 'color', disabled: true } },
+    });
+    expect(planReference(spec('Radio'), variant('Radio', { Checked: 'true', State: 'Default' }), file)).toMatchObject({
+      ok: true,
+      render: { component: 'Radio', within: 'RadioGroup', props: { value: 'merge', checked: true } },
+    });
+    // A menu part without a code example is the part itself, not the Menu root.
+    expect(planReference(spec('MenuItem'), variant('MenuItem', { State: 'Default', Tone: 'danger' }), file)).toMatchObject({
+      ok: true,
+      render: { component: 'MenuItem', within: 'Menu', props: { tone: 'danger' }, text: 'MenuItem' },
+    });
+    // A set named Folder/Variant renders its folder's component, and is not a part of it.
+    const full = planReference(spec('Pagination/Full'), spec('Pagination/Full').variants[0]!, file);
+    expect(full.ok && full.render.component).toBe('Pagination');
+    expect(full.ok && full.render.within).toBeUndefined();
+    const parts = planReferences(file).flatMap((j) => (j.plan.ok && j.plan.render.within ? [`${j.plan.render.within} > ${j.component}`] : []));
+    expect([...new Set(parts)]).toEqual([
+      'Accordion > AccordionItem',
+      'Menu > MenuItem',
+      'Menu > MenuCheckboxItem',
+      'Menu > MenuRadioGroup',
+      'Menu > MenuRadioItem',
+      'Menu > MenuGroup',
+      'Menu > MenuSeparator',
+      'Menu > MenuSubmenu',
+      'RadioGroup > Radio',
+      'SidebarNav > SidebarNavSection',
+      'SidebarNav > SidebarNavItem',
+      'Table > TableEmpty',
+    ]);
+  });
+
   it('plans every variant of the current specs, with stable image paths', () => {
     const all = planReferences(file);
     expect(all.length).toBe(file.components.reduce((n, c) => n + c.variants.length, 0));
     const skipped = all.filter((x) => !x.plan.ok).map((x) => `${x.component} ${x.key}`);
-    // Popups drawn open have no closed-state code image to match; the Card media placeholder has no code example.
-    expect(skipped.filter((x) => !/\/Popup /.test(x))).toEqual(['Card Padding=none']);
-    expect(all.filter((x) => /\/Popup$/.test(x.component)).every((x) => !x.plan.ok && /drawn open/.test(x.plan.reason))).toBe(true);
+    // Popups render open in code, except the menu (drawn from no example); the Card media placeholder has no code example.
+    expect(skipped).toEqual(['Card Padding=none', 'Menu/Popup Default']);
+    expect(all.filter((x) => /\/Popup$/.test(x.component) && x.component !== 'Menu/Popup').every((x) => x.plan.ok && !!x.plan.render.popup)).toBe(true);
     expect(referenceImagePath('Button', 'Size=md, State=Default, Variant=primary')).toBe('button/size-md__state-default__variant-primary.png');
   });
 });

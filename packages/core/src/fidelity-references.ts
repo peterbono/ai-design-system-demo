@@ -8,7 +8,7 @@
 // `bridge-visual` branch, the one Visual impact already publishes to, under figma-references/: manifest.json plus one
 // PNG per variant. The plugin reads them through the GitHub contents API with the token it already has.
 
-import { variantKeyOf, type ComponentSpec, type ComponentSpecsFile, type SpecPart, type SpecVariant } from './component-spec';
+import { variantKeyOf, type ComponentSpec, type ComponentSpecsFile, type SpecExample, type SpecPart, type SpecVariant } from './component-spec';
 
 export const FIGMA_REFERENCES_BRANCH = 'bridge-visual';
 export const FIGMA_REFERENCES_DIR = 'figma-references';
@@ -25,7 +25,7 @@ export interface ReferenceRender {
   /** Export name of the component ("Button", "Card"). */
   component: string;
   /** Props from the variant axes and the default property values ("variant": "primary", "disabled": true). */
-  props: Record<string, string | boolean>;
+  props: Record<string, unknown>;
   /** Text children (the Label property) of a simple component. */
   text?: string | undefined;
   /** Compound parts, in order: export name and text ("CardHeader", "Header"). */
@@ -36,6 +36,21 @@ export interface ReferenceRender {
   pseudo?: ReferencePseudo | undefined;
   /** Width token path of the frame the component sits in, for roots that fill their container. */
   width?: string | undefined;
+  /**
+   * Children from the code example the set was drawn with (a table's rows, a form's fields): texts and design system
+   * elements with their props, icons by name. Replaces `text` and `parts`.
+   */
+  children?: (string | SpecExample)[] | undefined;
+  /**
+   * Export name of the compound component this set is a part of (AccordionItem in Accordion, Radio in RadioGroup,
+   * MenuItem in Menu): the part needs its parent around it to render, and the image shows the part alone.
+   */
+  within?: string | undefined;
+  /**
+   * A popup drawn open (Dialog/Popup): the root renders open (`defaultOpen`), and the image is the popup Base UI
+   * portals, found by the class of the spec's root part ("popup", "tooltip"), not the trigger.
+   */
+  popup?: { className: string } | undefined;
 }
 
 export type ReferencePlan = { ok: true; render: ReferenceRender } | { ok: false; reason: string };
@@ -59,9 +74,8 @@ const exportName = (name: string) => name.replace(/[^A-Za-z0-9]+/g, '');
 
 /** How to render one generated variant from code, or why it cannot be compared. */
 export function planReference(spec: ComponentSpec, variant: SpecVariant, file?: Pick<ComponentSpecsFile, 'slots'>): ReferencePlan {
-  // A popup drawn open: the code image shows the component closed, so there is nothing to compare it with.
-  if (spec.view === 'popup') return { ok: false, reason: 'drawn open in Figma; the code image shows it closed' };
-  const props: Record<string, string | boolean> = { ...(spec.fixed ?? {}) };
+  if (spec.view === 'popup') return planPopup(spec, variant);
+  const props: Record<string, unknown> = { ...(spec.fixed ?? {}) };
   let pseudo: ReferencePseudo | undefined;
   for (const axis of spec.axes) {
     const value = variant.props[axis.name];
@@ -91,6 +105,7 @@ export function planReference(spec: ComponentSpec, variant: SpecVariant, file?: 
     if (part.swap && swapTo) {
       const slot = file?.slots?.find((s) => s.name === swapTo);
       if (!slot) return { reason: `${swapTo} is not in the specs` };
+      if (slot.kind === 'media') return { reason: `Figma shows a media placeholder (${swapTo}); code shows the image it is given, nothing to compare` };
       if (slot.kind !== 'text' || !slot.text) return { reason: `Figma shows a placeholder (${swapTo}) that code has no example of` };
       return slot.text.default;
     }
@@ -109,9 +124,10 @@ export function planReference(spec: ComponentSpec, variant: SpecVariant, file?: 
       else if (prop.prop) props[prop.prop] = String(prop.default);
       continue;
     }
-    // BOOLEAN: an optional icon shown by default gets its icon below; any other default-on flag is a prop.
+    // BOOLEAN: an optional icon shown by default gets its icon below; any other default-on flag is a prop, unless the
+    // content it shows is already passed (a description's text, an example's token name).
     const iconPart = spec.parts.find((p) => p.kind === 'icon' && p.visible === prop.name);
-    if (prop.default === true && !iconPart && prop.prop) props[prop.prop] = true;
+    if (prop.default === true && !iconPart && prop.prop && props[prop.prop] === undefined && spec.example?.p?.[prop.prop] === undefined) props[prop.prop] = true;
   }
 
   for (const part of spec.parts) {
@@ -149,17 +165,56 @@ export function planReference(spec: ComponentSpec, variant: SpecVariant, file?: 
     return { ok: false, reason: `the ${p.name} text has no matching option in code` };
   }
 
+  // The code example the content came from: its props (the variant's own win) and children.
+  const example = spec.example;
+  const exampleChildren = example?.children?.length ? example.children : undefined;
+  // A set named "Folder/Variant" (Pagination/Full) renders its folder's component; any other set its own name.
+  const component = exportName(example?.c ?? (spec.name.includes('/') ? (spec.component ?? spec.name) : spec.name));
+  // A part of a compound component (AccordionItem, from the Accordion folder) renders inside that component.
+  const parent = spec.component ? exportName(spec.component) : undefined;
   return {
     ok: true,
     render: {
-      component: exportName(spec.view || spec.fixed ? (spec.component ?? spec.name) : spec.name),
-      props,
-      ...(text !== undefined ? { text } : {}),
-      ...(parts ? { parts } : {}),
+      component,
+      ...(parent && parent !== component ? { within: parent } : {}),
+      props: { ...(example?.p ?? {}), ...props },
+      ...(exampleChildren ? { children: exampleChildren } : {}),
+      ...(text !== undefined && !exampleChildren ? { text } : {}),
+      ...(parts && !exampleChildren ? { parts } : {}),
       ...(Object.keys(icons).length ? { icons } : {}),
       ...(pseudo ? { pseudo } : {}),
       ...(root.fill ? { width: FIGMA_FILL_WIDTH_TOKEN } : {}),
     },
+  };
+}
+
+/**
+ * A popup drawn open in Figma (Dialog/Popup), rendered open in code: the component's root with `defaultOpen`, around
+ * its example. An example of the content part (DialogContent) goes inside the root with its trigger (a popover is
+ * placed against it); an example of the root itself (a Select with options) only gets `defaultOpen`.
+ */
+function planPopup(spec: ComponentSpec, variant: SpecVariant): ReferencePlan {
+  const root = spec.parts.find((p) => !p.parent);
+  // The variant's axes are props of the element the example draws (DialogContent's size, AlertDialogContent's tone).
+  const own: Record<string, unknown> = {};
+  for (const axis of spec.axes) {
+    const value = variant.props[axis.name];
+    if (!axis.prop || value === undefined) return { ok: false, reason: `${axis.name} has no matching option in code` };
+    own[axis.prop] = value === 'true' ? true : value === 'false' ? false : value;
+  }
+  // "Dialog.module.css .popup, Dialog.module.css .md": the first class of its module, the one the popup carries.
+  const className = /\.module\.css \.([\w-]+)/.exec(root?.source ?? '')?.[1];
+  const component = spec.component ? exportName(spec.component) : undefined;
+  const example = spec.example;
+  if (!component || !example) return { ok: false, reason: 'drawn open from no code example: nothing to open in code' };
+  if (!className) return { ok: false, reason: 'the popup has no class to find it by in code' };
+  const popup = { className };
+  if (exportName(example.c) === component) {
+    return { ok: true, render: { component, props: { ...(example.p ?? {}), ...own, defaultOpen: true }, ...(example.children?.length ? { children: example.children } : {}), popup } };
+  }
+  return {
+    ok: true,
+    render: { component, props: { defaultOpen: true }, children: [{ c: `${component}Trigger`, children: ['Open'] }, { ...example, p: { ...(example.p ?? {}), ...own } }], popup },
   };
 }
 

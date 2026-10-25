@@ -36,8 +36,13 @@ DS Bridge needs a fine-grained personal access token limited to this repository:
 
 1. GitHub **Settings > Developer settings > Personal access tokens > Fine-grained tokens > Generate new token**.
 2. **Repository access**: "Only select repositories", pick this repository.
-3. **Repository permissions**: **Contents: Read and write**, **Pull requests: Read and write**,
-   **Issues: Read and write** (component change requests). Metadata (read-only) is added automatically.
+3. **Repository permissions**, by how the repo takes changes (`"changes"` in `bridge.config.json`):
+   - **Suggestions** (`"suggest"`, the default): **Issues: Read and write**, **Contents: Read**,
+     **Pull requests: Read**. Add **Contents: Read and write** to attach screenshots (they go to the
+     `bridge-requests` branch); without it the suggestion links the Figma nodes instead.
+   - **Branches and pull requests** (`"direct"`): **Contents: Read and write**, **Pull requests: Read and write**,
+     **Issues: Read and write** (component change requests).
+   Metadata (read-only) is added automatically.
 4. Paste it in the plugin's **Settings** tab and save.
 
 Repository, branch and tokens path are prefilled from `bridge.config.json` at the root of this repo.
@@ -47,7 +52,7 @@ tokens path in Settings. Without one, the plugin uses the Settings path with the
 and writes no changeset.
 
 On save the plugin checks the token with `GET /repos/{owner}/{repo}` and refuses it if it cannot write
-to the repository. The token is stored with `figma.clientStorage`, which is local to this computer and
+to the repository, unless the repository takes suggestions (then read access to the code is enough). The token is stored with `figma.clientStorage`, which is local to this computer and
 this plugin; it is not stored in the Figma file and is never displayed again (the field stays empty,
 showing only that a token is saved). Repository, base branch (`main`) and tokens path
 (`packages/tokens/src`) are stored in the file's shared plugin data so the whole team uses the same ones.
@@ -58,7 +63,7 @@ The manifest allows `https://api.github.com` and, for the optional "Draft with C
 
 ## Writing help: drafts, optionally written by Claude
 
-Designers should not have to document every change by hand. Four levels, in this order on screen:
+Designers should not have to document every change by hand. Three levels, in this order on screen:
 
 1. **Plugin draft (always on, no AI, offline).** The request form prefills its title and summary, and the Push
    **Description** prefills, from the detected changes only (`draftRequestText` and `draftPushDescription` in
@@ -80,20 +85,12 @@ Designers should not have to document every change by hand. Four levels, in this
    **Use Claude's draft**. The file and its images are deleted once you send or cancel. Setup (once) is in
    Settings, **Claude (optional)**: the Claude Desktop config and the Claude Code command for this repository, with
    the same GitHub token (`GITHUB_TOKEN`, Contents read and write). See [docs/AI.md](../../docs/AI.md).
-3. **Copy for Claude (always on, no key).** A ghost button under the request summary and the Push Description copies
-   a ready prompt (the Bridge voice rules, the component, the kind, the change table in Markdown, the plugin draft,
-   your own notes, and "return only `{"title": ..., "summary": ...}`") to paste into Claude.ai or Claude Desktop
-   with your own Claude plan; you can attach before and after screenshots there. Third-party apps cannot use a
-   Claude.ai subscription, so this is the way to use it without API credits. **Paste Claude's answer** takes the
-   reply (plain JSON, fenced JSON or JSON inside text), removes em dashes, keeps the title to 70 characters and the
-   summary to 3 sentences, and fills the fields. When the Figma iframe blocks the clipboard, the prompt is shown
-   to copy by hand.
-4. **Draft with Claude, API key (only with your own Anthropic API key, billed to your Anthropic account).** Settings,
+3. **Draft with Claude, API key (only with your own Anthropic API key, billed to your Anthropic account).** Settings,
    **Claude (optional)**: paste a key from [console.anthropic.com](https://console.anthropic.com/settings/keys) and
    pick a model (Claude Sonnet 5.5 by default, or Claude Opus 5.5, Claude Haiku 5.5). The key is stored with
    `figma.clientStorage` like the GitHub token: on this computer only, never in the file, never shown again, and
    only sent to `api.anthropic.com` ("Remove key" deletes it). With a key, a **Draft with Claude (API key)** button appears
-   next to Copy for Claude. The UI iframe calls the Messages API directly (`anthropic-dangerous-direct-browser-access`)
+   next to Draft with my Claude. The UI iframe calls the Messages API directly (`anthropic-dangerous-direct-browser-access`)
    with the change table and, for a request, the component's before image (a small PNG stored in private plugin data
    when its baseline is taken) and after image (the current export), skipping either when missing. Without a key the
    button does not show. Claude's text is marked "Drafted by Claude, review before sending" until you edit it.
@@ -164,15 +161,33 @@ The Pull preview has a **Components** group when the repo has `packages/react/co
 `components.specs` in `bridge.config.json`). It lists each coded component as new, updated or unchanged, and
 what cannot be bound. Nothing is written unless you tick **Also pull components (N)** and apply.
 
-Coverage is said, never implied: the group opens with "40 of 47 components are in Figma" (from the `coverage` list
-in the specs file), and the components that are not in Figma are folded under the count, each with the generator's
-plain reason ("Not supported yet: opens a popup", "uses CSS grid"). Layout helpers (Stack, Inline, Grid, Container,
-ButtonGroup, VisuallyHidden) are counted apart: nothing to draw, use auto layout. The generator decides support
-itself from what it can read; there is no list to maintain.
+Coverage is said, never implied: the group opens with "47 of 47 components are in Figma, 1 drafted with Claude" (from
+the `coverage` list in the specs file). Components not in Figma are folded under the count, each with the generator's
+plain reason ("Not supported yet: opens a popup"), and so are the ones drafted with Claude. Layout helpers (Stack,
+Inline, Grid, Container, ButtonGroup, VisuallyHidden) are counted apart: nothing to draw, use auto layout. The
+generator decides support itself from what it can read; there is no list to maintain.
 
-The specs are derived from code, never written by hand: `npm run specs` (root) reads each component's TSX and CSS
-module with the generator in `@bridge-ds/core/node` (`component-specs.ts`, `spec-css.ts`), and a core test fails
-when the committed JSON is out of date.
+The specs are derived from code: `npm run specs` (root) reads each component's TSX and CSS module with the generator
+in `@bridge-ds/core/node` (`component-specs.ts`, `spec-css.ts`), and a core test fails when the committed JSON is out
+of date.
+
+**One component never stops the others.** Each set, and each variant inside it, is built on its own. When Figma
+refuses something (a font that will not load, a property, a layer), that variant or set is rolled back, so nothing half
+built stays in the file, and the others are built. The end of the pull says it in words: "Built 54 of 56 components.
+Not built: Select (a font could not be loaded), Tabs (...)". A set built without some variants keeps no spec hash, so
+**Try again** (or the next pull) builds exactly what is missing, in place, never a duplicate. **Stop** ends the build
+after the set in progress; Try again goes on from there. A set is tagged before the first await, so a file closed
+mid-pull is picked up the same way.
+
+**Drafted with Claude.** What the generator still cannot read (today Toast: it is shown from the `useToast` hook under
+`ToastProvider`, never placed as a component) can be drafted: Claude writes the spec by hand from the code, in the same
+format, in `packages/react/component-spec-overrides/<Name>.json` marked `"source": "drafted"`, with the files it was
+read from and their hash (`codeHash`). `npm run specs` validates it like a generated spec (one variant per axis
+combination, known parts and properties, every token path in the repo with a type the field takes) and fails when it
+does not match. A drafted set is never counted as generated: its coverage is `drafted`, the Pull preview marks it
+"Drafted, check it" ("the code changed since" once the files no longer match `codeHash`), its Figma description says
+so, and Check fidelity compares it with the code like any other set. When the generator learns to read the
+component, the generated set wins.
 
 | From code | In Figma |
 | --- | --- |
@@ -189,8 +204,15 @@ when the committed JSON is out of date.
 | Layers some variants do not render; a prop that moves layers elsewhere | Hidden layers in those variants; one set per value ("Progress/Linear", "Progress/Circular") |
 | A value indicator (`<Progress.Indicator>`), `position: absolute` with token offsets, `width: 100%` | Its share of the track, an absolute layer pinned to its parent's edges, Fill container |
 | React context, `useState` defaults, local render functions, `useMemo`, list methods, examples of the component sandbox | Read to draw what the code shows by default |
+| Functions as values (a default prop), string and list methods, helpers that return elements, plain modules of the package (`utils/color`) | Read too: a token name broken after its dots, a swatch shown when the value is a color |
+| CSS grid whose children span every column, rows with `grid-template-columns: subgrid` | Rows stacked; each row an auto layout row, `0` edge tracks as the gap at its ends, `1fr` tracks Fill container (columns line up per row only) |
+| `::before` / `::after` with empty content that paint (a tab list hairline) | A "Decoration" layer, pinned like the CSS places it, under its siblings when its z-index is negative |
+| A Base UI indicator sized to the selected item (`left: var(--active-tab-left)`), tab panels | Drawn in the selected tab, along its edge or filling it, per variant; only the selected panel |
+| A slider (`<Slider.Thumb>`, a value render function) | The range as a share of the track, the thumb centered at the value, the formatted value |
+| Tables (`<table>`, `<tr>`, `<td>`) | Rows of cells, each cell an equal share of its row, aligned like `vertical-align` and `text-align` |
+| A form's server `errors` | The error summary and the error under the field of the same name; an example's typed value in its field |
 | `children` (or a compound component's parts: CardHeader, CardBody, CardFooter) | A text layer with a TEXT property (`Label`, `Header`...) |
-| A `LucideIcon` prop (`icon`, `iconStart`) | An instance of an icon component (`Icon/Plus`) with an INSTANCE_SWAP property (`Icon`, `Icon start`); optional icons keep their BOOLEAN property (`Icon start`) |
+| A `LucideIcon` prop (`icon`, `iconStart`) | An instance of an icon component (`Icon/Plus`) with an INSTANCE_SWAP property (`Icon`, `Icon start`); optional icons get a BOOLEAN named "Show icon start" (as Figma kits name them), so the swap keeps the plain name; files built with the older `Icon start` / `Icon start2` names are renamed in place on the next update |
 | A compound part drawn full-bleed in some variant (Card body with `padding="none"`) | An instance of a slot component (`Slot/Card body text` or `Slot/Media`) with an INSTANCE_SWAP property (`Body`) |
 | `background-color`, `color` | Fill, text fill |
 | `border` (width and color), `border-top` | Stroke and stroke weight, or one side's weight |
@@ -241,13 +263,26 @@ the preview lists each one under **Component updates**:
   not bindings (sizes, layout, set values) read "Values set from code".
 - **Update** on a row updates that set alone; **Update all** (the primary action) updates the rest with the variables.
   Variables stay all-or-nothing: if main has variable changes, Update on one set applies them first, so the set binds
-  to the variables it expects. New sets stay opt-in ("Also pull new components").
+  to the variables it expects. On a first pull new sets are included by default; later, new sets are opt-in ("Include components" next to Apply to Figma).
 
 Idempotent: a set is found again by shared plugin data (`dsbridge` / `componentId`), a variant by `variant`, a layer by
 `part`. A re-pull updates them in place (same node ids, so instances keep their overrides), adds new variants, and
 flags variants removed in code with an `[orphan] ` description, like variables. Nothing outside generated sets is
 touched, and new sets go on a **Components** page. After building, each set's signature is stored as its baseline
 (`signature`, the one Push compares), so a Push right after a pull sends no component request.
+
+Interactions: the variants are wired for prototype mode with the code's motion. The generator reads each set's
+State and Checked axes and the CSS `transition` of the parts that change (component-specs.json `interactions`):
+hover is **While hovering** (Default to Hover), press is **While pressing** (Hover to Pressed), a Checked axis
+toggles **On click** (a radio only checks), and a set with a Checked axis uses **Mouse enter** / **Mouse leave** for
+hover so the click is not undone when the pointer leaves. Each reaction is **Change to** the other variant with
+**Smart animate**, the duration and easing of the motion tokens (`motion.duration.*`, `motion.easing.*` played as
+Figma's custom cubic bezier). When parts move at several speeds, Figma plays the longest and the preview says it was
+approximated. The reactions DS Bridge set are remembered per variant (`reactions`), replaced on the next pull and
+never written twice; reactions a designer added stay, and on the same trigger the designer's one wins (the pull
+says so). The Pull preview shows **Interactions: N** per set and lists, folded, the motion Figma cannot play
+(looping keyframes, keyboard focus, a popup opening from its trigger). Reduced motion has no Figma equivalent: the
+set description says "In code, reduced motion turns this off."
 
 ### Check fidelity (does each component look like the code?)
 
@@ -300,6 +335,22 @@ side, and the other variants that differ under a disclosure. Nothing in the file
    ("Tier 3: token change, needs design + tech approval"). If the PR from your last push is still
    open, you can add the commit to it instead of opening a new one.
 
+**Suggest mode** (`"changes": "suggest"` in `bridge.config.json`, the default when the key is absent; a repo with
+no `bridge.config.json` keeps the branch flow). The button reads **Send suggestion** and nothing is written to git:
+
+- The checked variable edits become one token suggestion: a GitHub issue (`bridge-suggestion`,
+  `bridge.suggestion/1`) holding the exact token edits (set, add, remove, rename per token file), the contrast and
+  validation checks and the tier. A new brand is a brand suggestion with its whole files. A developer applies it
+  with `bridge apply <n>` or the `bridge_apply_suggestion` MCP tool once owners approve.
+- A component change is a token suggestion (exact swap) or a component spec suggestion (`from-figma`, waiting for
+  Claude). Its payload links the Figma file key and node ids (`links.figma.nodes`, before and after when the file
+  keeps a before node): Claude Code reads the design straight from Figma through the Figma MCP server or the REST
+  API, so no image hosting is needed.
+- Screenshots still go to the `bridge-requests` branch when the token can write contents, and are linked in the
+  suggestion. With a suggest-only token the plugin says screenshots need write access and sends the node links.
+- Explorations (branches) and "add to your open branch" are not offered; the result reads
+  "Suggestion #N sent to your DS lead".
+
 Each changed value is written back to the file of its tier and mode: a palette edit in the Ocean mode
 of Brand goes to `brands/ocean.tokens.json`, a Dark edit in Semantic to `semantic/dark.tokens.json`, a
 Compact edit in Density to `density/compact.tokens.json`, a new Component variable to
@@ -347,15 +398,48 @@ screen). It opens the request form in its own region; while any request form is 
 only primary action (the bar steps aside). "Not in the design system yet" sits under the Components group. A detected
 change can also be edited and sent on its own from its row menu (**Edit the request**).
 
-### Two flows: variables become pull requests, components become requests
+### Push components: back to the library as a library branch
+
+For review, each checked component change goes to its own library branch, routed by what DS Bridge can write with
+certainty (`src/sync/component-push.ts`, rules in `planComponentPush` from `@bridge-ds/core`). It reads the diff Pull
+reads in "Review updates" (the set's baseline against Figma now), the other way round. The row says where it goes, in
+a neutral tag and one sentence:
+
+- **Exact token change** (no AI). The only change is a token swap: a property now bound to another variable, on a
+  component token (`button.primary.bg`) that paints only the variants the designer changed. That token then points
+  to the new variable: the shared token proposal write (`planTokenProposal`, `writeTokenProposalOnGitHub`), with
+  the contrast gate (the semantic pairs of `contrast.checks.json`, checked again on the component tokens that alias
+  them, so a pale fill under white text is held back before anything is sent), tier, changeset and labels, plus
+  `from-figma`. Other components that share the token (IconButton uses button tokens) are named in the sentence.
+- **Claude AI drafts** (a person reviews). A new variant, property, layer or swapped instance, a new component (from
+  "Not in the design system yet", "Send to Claude AI"), or a token swap a token alone cannot say: code paints the
+  property with a semantic token directly, or other variants still use the token. A draft branch
+  (`bridge/figma-<name>`) carries the spec, `.bridge/figma/<name>.json`: variant matrix, properties, bound
+  variables and layers of every variant, what code gave Figma before, the exact token swaps to make too, and a
+  screenshot on the `bridge-requests` branch. Labels `from-figma`, `component-change`, `waiting-for-claude`: until
+  Claude writes the code there (`bridge_get_figma_change`, then `bridge_mark_figma_change_drafted`, which marks it
+  ready for review and swaps the label to `drafted-by-claude`), the branch is honestly a request.
+- **Fix in Figma first**. What the scan cannot read with confidence is listed in its own group with what to do,
+  never sent and never dropped: a layer detached from its component, a look that changed with the same variables (a
+  value set by hand), a shared style, a property bound to nothing, a variable the library does not have yet (push
+  the variable first). "Send as a request instead" is one click away on each row.
+
+Each library branch starts with "From Figma" (a link to the component) and a hidden block tools read. The set
+remembers its branch (shared plugin data `dsbridge` / `pushed`) and takes a new baseline, so the next scan does not
+send it twice. **Never diverge:** once the branch ships (or closes), the next Pull lists the set under Component
+updates ("Your change from Figma: shipped, rebuilt from the reviewed code") even when its spec did not change, and
+Update rebuilds it from code, which clears the mark. While the branch is in review, Pull says so under Components
+and keeps the Figma version. To an exploration, component changes stay requests built on the exploration branch.
+
+### Two flows: variables become pull requests, components go to library branches
 
 The Push tab has two groups, one under the other.
 
 - **Variables**: every variable edit (value, alias, name, description), including component-tier tokens
   such as `button.radius`, goes through the pull request above. Tokens are data: people approve the PR.
   Variables never create a request.
-- **Components**: components need code, so the plugin never opens a code pull request for them. A change
-  becomes a **request**: a GitHub issue (`composeRequestIssue` in `@bridge-ds/core`, labels
+- **Components**: for review, see "Push components" above. "Send as a request instead", the manual "Request a
+  component change" and pushes to an exploration still make a **request**: a GitHub issue (`composeRequestIssue` in `@bridge-ds/core`, labels
   `component-change`, `request: <kind>`, `source: figma`, plus `integrations.requests.labels` and
   `assignees` from `bridge.config.json`) that people or Claude implement in their own pull request.
 
@@ -530,8 +614,8 @@ these defaults.
 - **Components from a library** (remote) are not scanned; only local components of the file are.
 - **Pulled components** are rebuilt from CSS, not rendered by a browser: hover, pressed and disabled are the only
   states; icons are Lucide SVGs imported by Figma (`createNodeFromSvg`), flattened; an icon's stroke width is bound
-  to `icon.stroke` at every size, as the token says; when Figma refuses an INSTANCE_SWAP property named like the
-  BOOLEAN of the same part, it is added as `<name> (swap)`; `calc()` values are set, not bound, so they do not follow a
+  to `icon.stroke` at every size, as the token says; the BOOLEAN of a swappable part is `Show <part>` so its
+  INSTANCE_SWAP keeps `<part>` (Figma renames a name another type took: `Icon` would become `Icon2`); `calc()` values are set, not bound, so they do not follow a
   density or brand switch; shadows and focus rings are not drawn.
   The generator is tested on the 6 base components; it runs on the other component folders but their output has not
   been reviewed yet.
@@ -570,7 +654,7 @@ apps/figma-plugin/
     components.ts        component signatures, diff, classification (changed, new, Figma-only)
     component-pull.ts    pull components: load component-specs.json, plan sets and bindings (main/build-components.ts builds them)
     requests.ts          send a component change request (image on bridge-requests, then the issue)
-    claude.ts            writing help: Copy for Claude prompt, answer parsing, the Messages API call (user's key)
+    claude.ts            writing help: the Messages API call (user's key), answer parsing
   test/                  end-to-end pull/edit/push flows against an in-memory GitHub and a simulated
                          Figma (single and split layouts), including the PR #4 contrast regressions
 ```

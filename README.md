@@ -118,6 +118,7 @@ Requires Node 20.19+ (see `.nvmrc`).
 git clone https://github.com/peterbono/ai-design-system-demo.git bridge && cd bridge
 npm install
 npm run docs:dev          # Bridge web platform on http://localhost:4321
+npm run dev:full          # the same, with sign-in, teams and invites working locally (docs/HOSTED.md)
 npm run storybook         # component workbench on http://localhost:6006
 npm run admin:dev         # the back-office demo built on Bridge
 ```
@@ -142,7 +143,7 @@ flowchart LR
 
   core --> docs["Bridge web platform<br/>apps/docs-site"]
   core --> plugin["DS Bridge Figma plugin<br/>Pull / Push"]
-  core --> mcp["MCP server<br/>32 tools"]
+  core --> mcp["MCP server<br/>67 tools"]
   core --> cli["bridge CLI"]
   core --> lint["Stylelint and ESLint plugins"]
   visual["@bridge-ds/visual<br/>screenshots, pixel diff"] --> cli
@@ -171,7 +172,7 @@ packages/react            46 components: Base UI, CSS Modules on tokens, stories
 packages/core             shared logic: config, token loading, contrast, diffs, edits, risk tiers, GitHub client,
                           history and revert planner, usage index, adoption audit, previews
 packages/visual           visual impact: selection, deterministic capture, pixel diff, manifest
-packages/mcp              MCP server (stdio), 32 tools, resources and prompts
+packages/mcp              MCP server (stdio), 67 tools, resources and prompts
 packages/cli              bridge CLI: init, check, tokens, diff, propose, history, revert, impact, audit, mcp
 packages/stylelint-plugin bridge/use-tokens for product CSS
 packages/eslint-plugin    bridge/no-hardcoded-style-values and bridge/prefer-ds-components

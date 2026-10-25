@@ -50,7 +50,8 @@ At <https://vercel.com/new>, import `peterbono/ai-design-system-demo` three time
 
 Leave the build and install commands empty: each root's `vercel.json` sets them (install from the repository root
 with `npm ci`, build with the monorepo script) and sets the **Ignored Build Step** to
-`node ../../scripts/vercel-ignore.mjs <app>`, so a push only rebuilds the apps whose inputs changed.
+`node ../../scripts/vercel-ignore.mjs <app>`, so a push only rebuilds the apps whose inputs changed. Branches named `agent/*` never get a preview: the GitHub
+checks validate them and they deploy once merged.
 
 Then, in each project's **Settings**:
 

@@ -1,446 +1,54 @@
 ---
+// Library > Components > one component: the shared view (components/ds/library/views/ComponentView.tsx), rendered at
+// build time. The islands it cannot hydrate itself come in as slots (the preview brand and density menu, the props
+// playground); edit mode (?edit=1, maintainers) stays on this page.
 import '../../styles/component.css';
 import '../../styles/library.css';
 import '../../styles/library-edit.css';
 import Layout from '../../layouts/Layout.astro';
 import Example from '../../components/Example.tsx';
-import UsagePanelStatic from '../../components/UsagePanelStatic';
 import PropsPlayground from '../../components/PropsPlayground.tsx';
-import ButtonLink from '../../components/ds/ButtonLink';
-import PropsTable from '../../components/ds/PropsTable';
-import { Alert, Badge, Link, SegmentedControl, PageHeader } from '@bridge-ds/react';
-import { BookOpen, Columns2, FileCode, Lock, Moon, Pencil, Sun } from 'lucide-react';
-import { loadComponents, playgroundSpec, type ComponentInfo } from '../../lib/components';
-import { lastUpdated, sourceUrl, STORYBOOK_URL } from '../../lib/repo';
-import { BRANDS, BRAND_LABEL, MODES } from '../../lib/tokens';
-import { releases } from '../../lib/changelog';
-import { mdTitleHtml } from '../../lib/markdown';
-import { humanDate } from '../../lib/stats';
-import { componentPrefill } from '../../lib/docs-prefill';
-import { siteRepo } from '../../lib/config';
-import { exists, readText } from '../../lib/repo';
+import ComponentView from '../../components/ds/library/views/ComponentView';
 import LibraryEditMode from '../../components/LibraryEditMode';
 import GitHubDialog from '../../components/GitHubDialog.astro';
+import PreviewScope from '../../components/PreviewScope.astro';
+import FigmaAheadSite from '../../components/FigmaAheadSite';
+import { loadComponents, playgroundSpec, type ComponentInfo } from '../../lib/library/components';
+import { mainStory, previewScopes } from '../../lib/library/component-page';
+import { lastUpdated, exists, readText } from '../../lib/repo';
+import { componentPrefill } from '../../lib/docs-prefill';
+import { siteRepo } from '../../lib/config';
+import { siteComponentExtras, siteLibraryData } from '../../lib/library-site';
+import { libraryModel } from '../../lib/site-snapshot';
 
 export function getStaticPaths() {
-  return loadComponents().map((c) => ({ params: { slug: c.slug }, props: { c } }));
+  return loadComponents(libraryModel).map((c) => ({ params: { slug: c.slug }, props: { c } }));
 }
 
 const { c } = Astro.props as { c: ComponentInfo };
+const data = siteLibraryData(siteComponentExtras());
 const sources = Object.values(c.files);
 const updated = lastUpdated(sources);
-const d = c.docs;
-const status = d?.status ?? 'stable';
-const statusTone = status === 'stable' ? 'success' : status === 'beta' ? 'info' : 'warning';
-const mainStory = c.stories[0];
-const storyUrl = (id: string) => `${STORYBOOK_URL}/iframe.html?id=${id}&viewMode=story`;
-const unknownTokens = c.tokensUsed.filter((t) => !t.known);
 const spec = playgroundSpec(c);
-const semanticCount = c.tokensUsed.filter((t) => t.kind === 'semantic' || t.kind === 'component').length;
-const densityCount = c.tokensUsed.filter((t) => t.kind === 'density').length;
-const primitiveCount = c.tokensUsed.filter((t) => t.kind === 'primitive' || t.kind === 'brand').length;
-const inheritedVia = c.inherited.filter((i) => i.paths.length);
-const tokenHref = (v: { path?: string; href?: string }) => (v.path ? `/tokens/?t=${encodeURIComponent(v.path)}` : v.href);
-const fileLinks = [
-  { label: `${c.name}.tsx`, href: sourceUrl(c.files.tsx) },
-  { label: `${c.name}.module.css`, href: sourceUrl(c.files.css) },
-  ...(d ? [{ label: `${c.name}.docs.json`, href: sourceUrl(c.files.docs) }] : []),
-];
-// Release notes that mention this component by name (title or package), newest first.
-const nameRe = new RegExp(`\\b${c.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-const notes = releases().flatMap((r) =>
-  r.entries.filter((e) => nameRe.test(e.title) || e.packages.some((p) => nameRe.test(p))).map((e) => ({ ...e, release: r.name, date: e.date ?? r.date })),
-);
+const story = mainStory(c);
+const scopes = previewScopes(data.model);
 // Edit mode (?edit=1, maintainers): the docs on main, or the deterministic pre-fill when there are none.
 const originalDocs = exists(c.files.docs) ? readText(c.files.docs) : null;
 const editInitial = originalDocs ? JSON.parse(originalDocs) : componentPrefill(c).draft;
 const repo = siteRepo();
-const tabs = [
-  { id: 'usage', label: 'Usage' },
-  { id: 'tokens', label: 'Tokens' },
-  { id: 'code', label: 'Code' },
-  { id: 'changelog', label: 'Changelog' },
-];
-import PreviewScope from '../../components/PreviewScope.astro';
 ---
 
-<Layout title={c.name} description={d?.summary ?? c.description} sources={sources} updated={updated} crumbs={[{ label: 'Catalog', href: '/components/' }, { label: c.name }]} toc={false}>
-  <div class="cp-page">
-  <div class="le-bar-slot" data-le-bar></div>
-  <div class="cp-main">
-  <div class="cp-head">
-    <PageHeader className="lib-page-header" title={c.name}>
-      <Fragment slot="lead"><span data-le-lead>{d?.summary}</span><span class="le-summary-slot" data-le-summary></span></Fragment>
-      <Fragment slot="meta"><span data-le-read-only><Badge tone={statusTone}>{status === 'stable' ? 'Stable' : status === 'beta' ? 'Beta' : 'Deprecated'}</Badge></span><span data-le-status></span></Fragment>
-      <Fragment slot="actions">
-        <span data-maintainer-only data-le-read-only><ButtonLink variant="secondary" size="sm" href={`/components/${c.slug}/?edit=1`} iconStart={Pencil} data-le-edit>Edit</ButtonLink></span>
-      </Fragment>
-    </PageHeader>
-    <div class="cp-meta">
-      <ul class="cp-links" aria-label="Resources">
-        {
-          mainStory && (
-            <li>
-              <ButtonLink variant="secondary" size="sm" href={`${STORYBOOK_URL}/?path=/story/${mainStory.id}`} iconStart={BookOpen}>
-                Workbench
-              </ButtonLink>
-            </li>
-          )
-        }
-      </ul>
-    </div>
-  </div>
-  <div data-le-rail-narrow></div>
-
-  {
-    d?.preview && (
-      <section class="hero-stage" data-view="split" aria-label={`${c.name} preview`}>
-        <div class="hero-stage-bar">
-          <SegmentedControl
-            label="Preview theme"
-            size="sm"
-            data-vanilla
-            data-hero-view
-            defaultValue="split"
-            items={[
-              { value: 'light', label: 'Light', icon: Sun },
-              { value: 'dark', label: 'Dark', icon: Moon },
-              { value: 'split', label: 'Side by side', icon: Columns2 },
-            ]}
-          />
-          <span class="hero-stage-note" data-le-read-only>Rendered with the real component</span>
-          <span class="le-locked" data-le-locked><Badge icon={Lock}>From the code</Badge></span>
-          <PreviewScope />
-        </div>
-        <div class="hero-stage-panes">
-          {MODES.map((m) => (
-            <div class="hero-pane stage-checker" data-theme={m} data-pane={m}>
-              <span class="pane-label">{m === 'light' ? 'Light' : 'Dark'}</span>
-              <div class="hero-pane-inner">
-                <Example node={d.preview!} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-    )
-  }
-
-  {
-    !d && (
-      <Alert tone="warning" announce="off" className="lib-block-gap" data-le-read>
-        No usage guidance yet. Add <code>{c.files.docs}</code> to fill this page. Props and tokens below are generated from the code.
-      </Alert>
-    )
-  }
-
-  <nav class="page-tabs" role="tablist" aria-label={`${c.name} documentation`} data-cp-tabs>
-    {
-      tabs.map((t, i) => (
-        <Link variant="subtle" role="tab" id={`tab-${t.id}-btn`} href={`#${t.id}`} aria-controls={`tab-${t.id}`} aria-selected={i === 0 ? 'true' : 'false'} tabIndex={i === 0 ? 0 : -1} data-tab={t.id}>
-          {t.label}
-          {t.id === 'changelog' && notes.length > 0 && <span class="muted num"> {notes.length}</span>}
-        </Link>
-      ))
-    }
-  </nav>
-
-  <div class="cp-layout">
-    <div class="cp-body">
-      <div class="cp-panel" role="tabpanel" id="tab-usage" aria-labelledby="tab-usage-btn" data-panel="usage">
-      <div data-le-read>
-      {d && <UsagePanelStatic docs={d} />}
-
-      {
-        !d && (
-          <p class="muted">
-            No usage guidance yet. Add <code>{c.files.docs}</code> to fill this tab.
-          </p>
-        )
-      }
-      </div>
-      <div data-le-usage></div>
-      </div>
-
-      <div class="cp-panel" role="tabpanel" id="tab-tokens" aria-labelledby="tab-tokens-btn" data-panel="tokens">
-      <p class="le-locked le-locked-note" data-le-locked><Badge icon={Lock}>From the code</Badge> <span>Generated from the component, not editable here.</span></p>
-      <section aria-labelledby="anatomy">
-        <h2 id="anatomy">Anatomy and tokens</h2>
-        <p>
-          Read from <Link href={sourceUrl(c.files.css)}><code>{c.files.css}</code></Link> at build time. Every value is a token: open one to see its
-          alias chain in both themes.
-        </p>
-        <div class="token-summary">
-          <Badge>{c.tokenPaths.length} {inheritedVia.length ? 'own tokens' : 'tokens'}</Badge>
-          {inheritedVia.map((i) => <Badge>{i.paths.length} from {i.from}</Badge>)}
-          <Badge tone="info">{semanticCount} semantic or component, change with theme and brand</Badge>
-          {densityCount > 0 && <Badge>{densityCount} density, change with comfortable or compact</Badge>}
-          <Badge>{primitiveCount} from the shared scales</Badge>
-        </div>
-        {
-          unknownTokens.length > 0 && (
-            <Alert tone="warning" announce="off" title="Unknown tokens" className="lib-block-gap">
-              {unknownTokens.map((t) => t.name).join(', ')}. They are not defined in the token sources and will render as nothing.
-            </Alert>
-          )
-        }
-        <ul class="anatomy">
-          {
-            c.rules.map((r) => (
-              <li class="anatomy-row">
-                <div class="anatomy-part">
-                  <strong>{r.label}</strong>
-                  <code class="anatomy-sel">{r.selector}</code>
-                </div>
-                <div class="anatomy-tokens">
-                  {r.vars.map((v) =>
-                    tokenHref(v) ? (
-                      <Link variant="subtle" className={`tchip ${v.kind === 'primitive' || v.kind === 'brand' ? 'is-primitive' : 'is-semantic'}`} href={tokenHref(v)}>
-                        {v.name}
-                      </Link>
-                    ) : (
-                      <span class="tchip is-unknown">{v.name}</span>
-                    ),
-                  )}
-                </div>
-              </li>
-            ))
-          }
-        </ul>
-        {
-          inheritedVia.map((i) => (
-            <section class="cp-inherited" aria-labelledby={`inherited-${i.slug}`}>
-              <h3 id={`inherited-${i.slug}`}>From {i.from}</h3>
-              <p class="muted">
-                {c.name} reuses the stylesheet of <Link href={`/components/${i.slug}/#tokens`}>{i.from}</Link>, so it also paints with these {i.paths.length} tokens. Changing them changes both.
-              </p>
-              <div class="anatomy-tokens">
-                {i.paths.map((p) => (
-                  <Link variant="subtle" className="tchip is-semantic" href={`/tokens/?t=${encodeURIComponent(p)}`}>
-                    --{p.replace(/\./g, '-')}
-                  </Link>
-                ))}
-              </div>
-            </section>
-          ))
-        }
-      </section>
-
-      </div>
-
-      <div class="cp-panel" role="tabpanel" id="tab-code" aria-labelledby="tab-code-btn" data-panel="code">
-      <p class="le-locked le-locked-note" data-le-locked><Badge icon={Lock}>From the code</Badge> <span>Generated from the component, not editable here.</span></p>
-      <ul class="cp-files" aria-label="Source files">
-        {
-          fileLinks.map((f) => (
-            <li>
-              <ButtonLink variant="secondary" size="sm" href={f.href} iconStart={FileCode}>
-                {f.label}
-              </ButtonLink>
-            </li>
-          ))
-        }
-      </ul>
-      <section aria-labelledby="props">
-        <h2 id="props">Props</h2>
-        <p>
-          Parsed from the TypeScript types in <Link href={sourceUrl(c.files.tsx)}><code>{c.files.tsx}</code></Link>, so this table cannot drift from the
-          code.
-          {c.inherits && <> It also accepts every native <code>{`<${c.inherits}>`}</code> attribute{c.omitted.length > 0 ? <> except <code>{c.omitted.join(', ')}</code>.</> : '.'}</>}
-        </p>
-        {
-          c.props.length > 0 ? (
-            <PropsTable component={c.name} rows={c.props} />
-          ) : (
-            <p class="muted">No props of its own.{c.description && ` ${c.description}`}</p>
-          )
-        }
-        {
-          c.subcomponents.length > 0 && (
-            <p>Comes with {c.subcomponents.map((s, i) => <>{i > 0 && ', '}<code>{s}</code></>)}, each accepting native <code>&lt;div&gt;</code> attributes.</p>
-          )
-        }
-      </section>
-
-      <section aria-labelledby="playground">
-        <h2 id="playground">Playground</h2>
-        {
-          spec ? (
-            <>
-              <p class="muted">
-                Change the props and see the real {c.name} update. Controls are generated from the TypeScript props; nothing here changes the system.
-              </p>
-              <PropsPlayground client:visible spec={spec} brands={BRANDS.map((b) => ({ value: b, label: BRAND_LABEL[b] ?? b }))} />
-            </>
-          ) : (
-            <>
-              <p class="muted">{c.name} has no typed options to play with: it is a container. Compose it with {c.subcomponents.length > 0 ? c.subcomponents.map((s, i) => <>{i > 0 && ', '}<code>{s}</code></>) : 'other components'} and any native attribute. Here it is in both themes.</p>
-              {d?.preview && (
-                <div class="pg-fallback">
-                  {MODES.map((m) => (
-                    <div class="pg-stage stage-checker" data-theme={m}>
-                      <span class="pane-label">{m === 'light' ? 'Light' : 'Dark'}</span>
-                      <div class="pg-stage-inner">
-                        <Example node={d.preview!} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )
-        }
-      </section>
-
-      <section aria-labelledby="live">
-        <h2 id="live">Workbench</h2>
-        <p>
-          For contributors: every state with the accessibility panel, in the component workbench (Storybook). The stories double as visual test
-          fixtures; the guidance on this page is the user documentation
-          {mainStory && (
-            <>
-              {' '}(<Link href={`${STORYBOOK_URL}/?path=/story/${mainStory.id}`}>open {c.name} in Storybook</Link>)
-            </>
-          )}
-          .
-        </p>
-        {
-          mainStory && (
-            <details class="stories">
-              <summary>Embed Storybook stories here ({c.stories.length})</summary>
-              <p class="small muted">
-                Loads from <code>{STORYBOOK_URL}</code> (set <code>STORYBOOK_URL</code> at build time). If Storybook is not running, the frames stay
-                empty.
-              </p>
-              {c.stories.map((s) => (
-                <>
-                  <h4>{s.name}</h4>
-                  <iframe class="story-frame" src={storyUrl(s.id)} title={`${c.name} story: ${s.name}`} loading="lazy" />
-                </>
-              ))}
-            </details>
-          )
-        }
-      </section>
-      </div>
-
-      <div class="cp-panel" role="tabpanel" id="tab-changelog" aria-labelledby="tab-changelog-btn" data-panel="changelog">
-      <p class="le-locked le-locked-note" data-le-locked><Badge icon={Lock}>From the code</Badge> <span>Generated from the component, not editable here.</span></p>
-        <section aria-labelledby="changes">
-          <h2 id="changes">Changelog</h2>
-          {
-            notes.length ? (
-              <ul class="cp-changes">
-                {notes.map((e) => (
-                  <li>
-                    <Badge>{e.kind}</Badge>
-                    <div>
-                      <p set:html={mdTitleHtml(e.title)} />
-                      <p class="small muted">
-                        {e.release}
-                        {e.date && <>, {humanDate(e.date)}</>}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p class="muted">No release note mentions {c.name} yet.</p>
-            )
-          }
-          <p class="small"><Link href="/changelog/">All release notes</Link></p>
-        </section>
-      </div>
-    </div>
-  </div>
-  </div>
-
-  <aside class="cp-toc" aria-label="On this page">
-    <p class="cp-toc-title" data-le-read>On this page</p>
-    <ul data-cp-toc data-le-read></ul>
-    <div data-le-rail></div>
-  </aside>
-  </div>
+<Layout title={c.name} description={c.docs?.summary ?? c.description} sources={sources} updated={updated} crumbs={[{ label: 'Catalog', href: '/components/' }, { label: c.name }]} toc={false}>
+  <ComponentView data={data} component={c} Example={Example}>
+    <PreviewScope slot="heroTools" />
+    <FigmaAheadSite slot="ahead" client:only="react" component={c.name} />
+    {spec && story && data.extras.storybook && <PropsPlayground slot="playground" client:visible spec={spec} storybook={data.extras.storybook} storyId={story.id} brands={scopes.brands} densities={scopes.densities} />}
+  </ComponentView>
   <LibraryEditMode client:only="react" name={c.name} slug={c.slug} path={c.files.docs} original={originalDocs} initial={editInitial} repo={{ owner: repo.owner, repo: repo.repo }} />
   <GitHubDialog />
 
   <script>
-    // Preview theme: a static DS SegmentedControl driven by shell.ts (data-vanilla), which emits bridge:segment.
-    document.querySelectorAll<HTMLElement>('.hero-stage').forEach((stage) => {
-      stage.querySelector('[data-hero-view]')?.addEventListener('bridge:segment', (e) => {
-        stage.dataset.view = (e as CustomEvent<{ value: string }>).detail.value;
-      });
-    });
-    // Page tabs: hash-driven (#usage, #tokens, #code, #changelog). Old section anchors open the tab that holds them.
-    const tablist = document.querySelector<HTMLElement>('[data-cp-tabs]');
-    const tabs = [...document.querySelectorAll<HTMLAnchorElement>('[data-cp-tabs] [role="tab"]')];
-    const panels = [...document.querySelectorAll<HTMLElement>('[data-panel]')];
-    const tocList = document.querySelector<HTMLUListElement>('[data-cp-toc]');
-    const LEGACY: Record<string, string> = { anatomy: 'tokens', props: 'code', playground: 'code', live: 'code', 'do-dont': 'usage', accessibility: 'usage', changes: 'changelog' };
-    let io: IntersectionObserver | null = null;
-    const paintToc = (panel: HTMLElement) => {
-      if (!tocList) return;
-      tocList.textContent = '';
-      io?.disconnect();
-      const heads = [...panel.querySelectorAll<HTMLElement>('h2[id]')];
-      const links = heads.map((h) => {
-        const li = document.createElement('li');
-        const a = document.createElement('a');
-        a.href = `#${h.id}`;
-        a.textContent = h.textContent?.trim() ?? '';
-        li.appendChild(a);
-        tocList.appendChild(li);
-        return a;
-      });
-      if (!('IntersectionObserver' in window) || !heads.length) return;
-      io = new IntersectionObserver(
-        (entries) => {
-          for (const e of entries) {
-            if (!e.isIntersecting) continue;
-            links.forEach((a) => (a.hash === `#${e.target.id}` ? a.setAttribute('aria-current', 'true') : a.removeAttribute('aria-current')));
-          }
-        },
-        { rootMargin: '-15% 0px -75% 0px' },
-      );
-      heads.forEach((h) => io!.observe(h));
-    };
-    const select = (id: string, focus = false) => {
-      const tab = tabs.find((t) => t.dataset.tab === id) ?? tabs[0]!;
-      tabs.forEach((t) => {
-        const on = t === tab;
-        t.setAttribute('aria-selected', String(on));
-        t.tabIndex = on ? 0 : -1;
-      });
-      panels.forEach((p) => (p.hidden = p.dataset.panel !== tab.dataset.tab));
-      const panel = panels.find((p) => p.dataset.panel === tab.dataset.tab);
-      if (panel) paintToc(panel);
-      if (focus) tab.focus();
-    };
-    const fromHash = () => {
-      const h = decodeURIComponent(location.hash.slice(1));
-      if (!h) return select('usage');
-      if (tabs.some((t) => t.dataset.tab === h)) return select(h);
-      const owner = LEGACY[h] ?? document.getElementById(h)?.closest<HTMLElement>('[data-panel]')?.dataset.panel;
-      select(owner ?? 'usage');
-      document.getElementById(h)?.scrollIntoView();
-    };
-    tabs.forEach((t) =>
-      t.addEventListener('click', (e) => {
-        e.preventDefault();
-        history.replaceState(null, '', `#${t.dataset.tab}`);
-        select(t.dataset.tab!);
-      }),
-    );
-    tablist?.addEventListener('keydown', (e) => {
-      const i = tabs.findIndex((t) => t.getAttribute('aria-selected') === 'true');
-      const next = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : null;
-      if (next === null) return;
-      e.preventDefault();
-      const t = tabs[(next + tabs.length) % tabs.length]!;
-      history.replaceState(null, '', `#${t.dataset.tab}`);
-      select(t.dataset.tab!, true);
-    });
-    window.addEventListener('hashchange', fromHash);
-    fromHash();
+    import { initComponentPage } from '../../scripts/component-page';
+    initComponentPage();
   </script>
 </Layout>

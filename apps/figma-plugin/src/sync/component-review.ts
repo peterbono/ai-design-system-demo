@@ -5,7 +5,7 @@
 // is compared with the signature the plan would produce, with the same diff Push uses.
 
 import type { RequestChange, SpecField } from '@bridge-ds/core';
-import type { ComponentPullPlan, PlannedComponent } from './component-pull';
+import { type ComponentPullPlan, type PlannedComponent, figmaPropName } from './component-pull';
 import { type ComponentSignature, type VariantSignature, bindingKind, diffSignatures, propName } from './components';
 
 /** Figma's boundVariables key for a spec field (fills, strokes, topLeftRadius...), to name its kind like a scan does. */
@@ -18,7 +18,8 @@ export function plannedSignature(c: PlannedComponent): ComponentSignature {
   const variantAxes: Record<string, string[]> = {};
   for (const a of [...c.axes].sort((x, y) => (x.name < y.name ? -1 : 1))) variantAxes[a.name] = sortedUnique(a.values);
   const swaps = c.parts.filter((p) => p.swap).map((p) => ({ name: p.swap!.property, type: 'INSTANCE_SWAP', default: p.swap!.default }));
-  const properties = [...c.properties.map((p) => ({ name: p.name, type: p.type as string, default: String(p.default) })), ...swaps].sort((a, b) =>
+  // Figma's names ("Show icon" for the BOOLEAN of a swappable part), as the scan reads them back.
+  const properties = [...c.properties.map((p) => ({ name: figmaPropName(c, p), type: p.type as string, default: String(p.default) })), ...swaps].sort((a, b) =>
     a.name < b.name ? -1 : a.name > b.name ? 1 : a.type < b.type ? -1 : a.type > b.type ? 1 : 0,
   );
   const variants: Record<string, VariantSignature> = {};
@@ -27,8 +28,10 @@ export function plannedSignature(c: PlannedComponent): ComponentSignature {
     const by: Record<string, string[]> = {};
     for (const fields of [...Object.values(v.parts), v.inner ?? []])
       for (const f of fields) {
-        if (f.value.kind !== 'variable') continue;
-        (by[bindingKind(FIGMA_FIELD[f.field] ?? f.field)] ??= []).push(f.value.name);
+        // A text's family is bound to its token's variable (the build skips it only for a font Figma lacks).
+        const name = f.value.kind === 'variable' ? f.value.name : f.value.kind === 'font' ? f.value.variable?.name : undefined;
+        if (!name) continue;
+        (by[bindingKind(FIGMA_FIELD[f.field] ?? f.field)] ??= []).push(name);
       }
     // Vector parts: each shape's stroke.
     for (const vec of Object.values(v.vectors ?? {})) for (const st of vec.strokes) if (st.kind === 'variable') (by[bindingKind('strokes')] ??= []).push(st.name);
@@ -65,6 +68,8 @@ export function reviewUpdates(plan: ComponentPullPlan, current: Map<string, Comp
     if (c.status !== 'updated' || !c.nodeId) continue;
     const now = current.get(c.nodeId);
     const changes = now ? diffSignatures(withoutVariantProps(now), withoutVariantProps(plannedSignature(c))).changes : [];
+    // Pushed from Figma: the update replaces the Figma version with the reviewed code, said first.
+    if (c.fromFigma) changes.unshift({ field: 'Your change from Figma', before: `In Figma, sent as #${c.fromFigma.number}`, after: c.fromFigma.status.key === 'shipped' ? 'Shipped: rebuilt from the reviewed code' : 'Closed: back to the code' });
     if (!changes.length) {
       changes.push({ field: 'Values set from code', before: 'As in Figma', after: 'Rebuilt from the code (sizes, layout, set values)' });
     }

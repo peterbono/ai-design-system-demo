@@ -1,6 +1,7 @@
 {
   "$schema": "./packages/core/bridge.config.schema.json",
   "version": 1,
+  "name": "Bridge DS",
   "repo": {
     "owner": "peterbono",
     "name": "ai-design-system-demo",
@@ -62,8 +63,10 @@
     ],
     "owners": { "design": ["peterbono"], "tech": ["peterbono"] },
     "rights": { "approveDesign": ["design"], "approveTech": ["tech"], "ship": ["tech"] },
+    "soloOwnerCanApproveBoth": true,
     "override": { "allowed": ["peterbono"], "requireReason": true, "minReasonLength": 20 }
   },
+  "changes": "direct",
   "previews": {
     "packages": ["@bridge-ds/tokens", "@bridge-ds/core", "@bridge-ds/react"],
     "apps": {
@@ -76,5 +79,9 @@
       "storybook": "https://bridge-storybook.floriangouloubi.com",
       "admin": "https://bridge-demo.floriangouloubi.com"
     }
-  }
+  },
+  "products": [
+    { "key": "admin", "name": "Admin demo", "path": "apps/admin", "preview": "https://bridge-admin-git-{branch}-peterbonos-projects.vercel.app", "framework": "react" },
+    { "key": "library", "name": "Library", "path": "packages", "framework": "react", "default": true }
+  ]
 }

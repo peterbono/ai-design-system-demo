@@ -1,6 +1,6 @@
 // Token editor: the draft behind Studio Tokens. Every applied edit lands in a draft (kept in localStorage), runs the
 // same guardrails as the build and the Figma plugin, and is proposed as a pull request with the user's own GitHub
-// token. The cell editor (scripts/explorer/inline-edit.ts) and the review sheet (scripts/explorer/review.ts) read and
+// token, or sent as a suggestion when the repo takes suggestions (bridge.config.json "changes"). The cell editor (scripts/explorer/inline-edit.ts) and the review sheet (scripts/explorer/review.ts) read and
 // write it through the API below; the Drafts page shows it as a tray. Nothing is written to the repo without review.
 import {
   buildTokenSet,
@@ -16,6 +16,9 @@ import {
   validateProposal,
   contrastScope,
   evaluatePairs,
+  LayeredTokenSet,
+  planTokenProposal,
+  suggestTokenProposalOnGitHub,
   type ContrastResult,
   type BridgeConfig,
   type LogicalToken,
@@ -36,13 +39,16 @@ import {
   type Guardrails,
 } from '../lib/editor-model';
 import { badgeHtml, closeDialog, isDialogOpen, openDialog, tokenValueHtml } from '@bridge-ds/react/dom';
-import { esc, getToken, hasWorkingToken, initGitHubConnect, onAccess, paintGates, prefersSignIn, readRepo, relativeTime, setButtonDisabled, setButtonLabel, showGhError, studioClient } from './github-session';
-import { ghVerb } from '../lib/gh-wording';
+import { currentViewer, esc, getToken, hasWorkingToken, initGitHubConnect, onAccess, paintGates, prefersSignIn, readRepo, relativeTime, setButtonDisabled, setButtonLabel, showGhError, studioClient } from './github-session';
+import { suggestionHref } from '../lib/suggestions-view';
+import { ghVerb, notSentLine, SEE_SUGGESTION, sendButton, sendDialogTitle, sendingLine, suggestionSentLine } from '../lib/gh-wording';
+import { assertBranchWrites, changesModeOnPage } from './changes-mode';
+import { draftTokenEdits } from '../lib/draft-token-edits';
 import { branchWithJiraKey, parseJiraKey, titleWithJiraKey, VOCAB } from '../lib/vocabulary';
 import { docsNotesForTokens } from '../lib/docs-draft-model';
 import { cellValue, tierAxis } from '../lib/explorer/model';
 import { numericValue } from '../lib/explorer/format';
-import { prTitleFrom, proposalTitle, reviewSentence, type TitleEdit } from '../lib/propose-copy';
+import { prTitleFrom, proposalTitle, reviewSentence, suggestionTitleFrom, type TitleEdit } from '../lib/propose-copy';
 import {
   addedSentence,
   ChangeConflictError,
@@ -65,6 +71,8 @@ import { addToChange, loadChangeTokens, readChange, readTargets } from './contin
 import { scopeHref, scopeOf } from '../lib/view-scope';
 import { ConflictNotice, ScopeBanner, TargetChoice as TargetChoiceView, mountInto, unmountFrom } from '../components/ds/studio/ContinueChange';
 import { createElement } from 'react';
+import { attrUrl } from '../lib/html';
+import { studioHref } from '../lib/team-path';
 
 /** Components that paint with a token (build-time usage embedded by the explorer), for the docs notes of a proposal. */
 function usedByComponents(path: string): string[] {
@@ -224,7 +232,7 @@ function paintTray() {
       (moves.length
         ? `<li class="ed-tray-contrast"><p class="small"><strong>Contrast moves</strong></p><ul>${moves
             .slice(0, 10)
-            .map((m) => `<li class="${m.after < m.min ? 'is-fail' : ''}"><span class="mono small">${esc(m.fg)} on ${esc(m.bg)}</span> <span class="small muted">${esc(m.where)}</span> <span class="num small">${m.before?.toFixed(2) ?? '?'} -> ${m.after.toFixed(2)} (min ${m.min})</span></li>`)
+            .map((m) => `<li class="${m.after < m.min ? 'is-fail' : ''}"><span class="mono small">${esc(m.fg)} on ${esc(m.bg)}</span> <span class="small muted">${esc(m.where)}</span> <span class="num small">${m.before?.toFixed(2) ?? '?'} -> ${m.after.toFixed(2)} (min ${esc(String(m.min))})</span></li>`)
             .join('')}</ul></li>`
         : '') +
       (S.checks.blocking.length
@@ -236,14 +244,17 @@ function paintTray() {
     : `<li class="ed-tray-empty">${asPage ? 'No draft yet. Open a token in Studio Tokens and change a value: it lands here.' : 'Edits you make show up here, with before and after values and their contrast impact.'}</li>`;
 }
 
-async function propose(title: string, notes: string, jira: string | null): Promise<number> {
+/** What a send made: a pull request (direct mode) or a suggestion (suggest mode). */
+type Sent = { kind: 'branch'; number: number } | { kind: 'suggestion'; number: number; url: string; warnings: string[] };
+
+async function propose(title: string, notes: string, jira: string | null): Promise<Sent> {
   if (!S) throw new Error('Editor not ready');
   const token = getToken();
   if (!token) throw new Error(`${ghVerb(prefersSignIn())} first.`);
   const { owner, name, defaultBranch } = repoOf(S.config);
   const client = studioClient(`${owner}/${name}`, token);
   const mainSha = await client.getBranchSha(defaultBranch);
-  if (!mainSha) throw new Error(`Branch ${defaultBranch} not found.`);
+  if (!mainSha) throw new Error(`The library (${defaultBranch}) was not found on GitHub.`);
   // Re-read the latest token files so the change applies on top of main as it is now.
   const latest = await loadRepoFiles(client, mainSha, S.config.tokens.root);
   const config = latest.config ?? S.config;
@@ -251,9 +262,11 @@ async function propose(title: string, notes: string, jira: string | null): Promi
   const head = buildTokenSet(latest.files, opts);
   const pairs = parseContrastChecks(latest.contrastChecks);
   const applied = applyDraft(head, latest.files, S.draft, opts);
-  if (!applied.changes.length) throw new Error('main already has these values, so there is nothing to review.');
+  if (!applied.changes.length) throw new Error('The library already has these values, so there is nothing to review.');
   const validation = validateProposal(applied.proposed, head, pairs);
-  if (validation.blocking.length) throw new Error(`Guardrails block these edits on main: ${validation.blocking[0]!.message}`);
+  if (validation.blocking.length) throw new Error(`Guardrails block these edits in the library: ${validation.blocking[0]!.message}`);
+  const docsNotes = docsNotesForTokens(applied.changes.map((c) => (c.target ?? c.current)!.path), usedByComponents);
+  if (changesModeOnPage() === 'suggest') return suggest({ config, latest, head, pairs, mainSha, defaultBranch, title, notes: [notes.trim(), docsNotes].filter(Boolean).join('\n\n'), jira });
   const branch = branchWithJiraKey(branchName(draftSlug(S.draft), new Date()), jira);
   const risk = classifyRisk({ tokenChanges: applied.changes, config });
   const baseTitle = prTitleFrom(title) || prTitleFrom(proposalSummary()?.title ?? '') || `tokens: ${applied.changes.length} token change${applied.changes.length > 1 ? 's' : ''} from Bridge`;
@@ -271,7 +284,7 @@ async function propose(title: string, notes: string, jira: string | null): Promi
       authoredBy: 'Human designer in the Bridge web editor (no AI involved in the values)',
     },
     title: baseTitle,
-    notes: [notes.trim(), docsNotesForTokens(applied.changes.map((c) => (c.target ?? c.current)!.path), usedByComponents)].filter(Boolean).join('\n\n'),
+    notes: [notes.trim(), docsNotes].filter(Boolean).join('\n\n'),
     upstreamPaths: [],
     resolvedConflicts: [],
   });
@@ -287,8 +300,45 @@ async function propose(title: string, notes: string, jira: string | null): Promi
   const commit = await client.createCommit(commitMessage(prTitle, applied.changes, 'Proposed with the Bridge token editor.'), tree, [mainSha]);
   await client.createBranch(branch, commit);
   const pr = await client.createPullRequest({ title: prTitle, head: branch, base: defaultBranch, body, draft: false });
-  await client.addLabels(pr.number, ['tokens', 'source: bridge-web', `tier-${risk.tier}`]).catch(() => false);
-  return pr.number;
+  await client.addLabels(pr.number, ['tokens', 'source: bridge-web', `tier: ${risk.tier}`]).catch(() => false);
+  return { kind: 'branch', number: pr.number };
+}
+
+/**
+ * Suggest mode: the draft as core token edits, planned on main as it is now (validation, contrast, tier, the same body
+ * as a pull request) and filed as a suggestion through core. No branch, no commit, no pull request: the DS lead
+ * reviews it, a developer applies it.
+ */
+async function suggest(a: {
+  config: BridgeConfig;
+  latest: Awaited<ReturnType<typeof loadRepoFiles>>;
+  head: TokenSet;
+  pairs: ReturnType<typeof parseContrastChecks>;
+  mainSha: string;
+  defaultBranch: string;
+  title: string;
+  notes: string;
+  jira: string | null;
+}): Promise<Sent> {
+  if (!S) throw new Error('Editor not ready');
+  const { owner, name } = repoOf(a.config);
+  const client = studioClient(`${owner}/${name}`, getToken());
+  const edits = draftTokenEdits(a.head, S.draft);
+  const n = new Set(edits.map((e) => e.path)).size;
+  const plain = suggestionTitleFrom(a.title) || proposalSummary()?.title || `${n} token change${n === 1 ? '' : 's'}`;
+  const before = new LayeredTokenSet(a.config, new Map(Object.entries(a.latest.files)));
+  const plan = planTokenProposal({ before, pairs: a.pairs, edits, title: titleWithJiraKey(plain, a.jira), summary: a.notes || undefined, config: a.config, tool: 'Bridge Studio' });
+  if (!plan) throw new Error('The library already has these values, so there is nothing to suggest.');
+  if (plan.blocked) throw new Error(`Guardrails block these edits in the library: ${plan.blocked}.`);
+  const r = await suggestTokenProposalOnGitHub(client, plan, {
+    base: a.defaultBranch,
+    baseSha: a.mainSha,
+    source: 'studio',
+    suggestedBy: currentViewer()?.login,
+    labels: a.config.integrations?.requests?.labels ?? [],
+    assignees: a.config.integrations?.requests?.assignees ?? [],
+  });
+  return { kind: 'suggestion', number: r.number, url: r.url, warnings: r.warnings };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -423,7 +473,9 @@ export function proposalSummary(): { title: string; tier: 1 | 2 | 3; sentence: s
     });
   const risk = classifyRisk({ tokenChanges: S.applied.changes, config: S.config });
   const tier = (risk.tier === 1 || risk.tier === 2 ? risk.tier : 3) as 1 | 2 | 3;
-  return { title: proposalTitle(edits), tier, sentence: reviewSentence(tier, S.config.governance.rights) };
+  // Values changed or tokens added only, no guidance edit: the design approval is all it needs (core TV-1).
+  const valuesOnly = S.applied.changes.length > 0 && S.applied.changes.every((c) => Boolean(c.target) && (!c.current || c.current.path === c.target!.path)) && !S.draft.edits.some((e) => e.kind === 'docs');
+  return { title: proposalTitle(edits), tier, sentence: reviewSentence(tier, S.config.governance.rights, changesModeOnPage(), valuesOnly) };
 }
 
 /** Removes one draft edit by its index in the draft. */
@@ -459,9 +511,13 @@ export function undoToken(path: string) {
 // ---------------------------------------------------------------------------------------------------------------
 // Continue a change
 
-/** The send button's words, one verb family: add to a branch (the one edited, or the default target), else request review. */
+/**
+ * The send button's words, one verb family: add to a branch (the one edited, or the default target), else request
+ * review; in suggest mode always "Send suggestion" (nothing is added to a branch there).
+ */
 export function sendLabel(): string {
-  return scope ? 'Add to this branch' : choice.kind === 'change' ? 'Add to branch' : VOCAB.requestReview;
+  if (changesModeOnPage() === 'suggest') return sendButton('tokens', 'suggest');
+  return scope ? 'Add to this change' : choice.kind === 'change' ? 'Add to this change' : VOCAB.requestReview;
 }
 
 /** Where the draft goes, for the review sheet's note (null: nothing to say). */
@@ -483,16 +539,18 @@ function paintScope() {
       : scope.state === 'loading'
         ? { title: `Opening ${scope.title}`, body: 'Reading its token values. Edits wait until they are in.' }
         : scopeBanner(scope.title);
-  mountInto(slot, createElement(ScopeBanner, { title: words.title, body: words.body, backHref: `/studio/changes/?pr=${scope.number}`, viewHref: scopeHref(location, { kind: 'view', change: scope.number }) }));
+  mountInto(slot, createElement(ScopeBanner, { title: words.title, body: words.body, backHref: studioHref(`changes/?pr=${scope.number}`), viewHref: scopeHref(location, { kind: 'view', change: scope.number }) }));
 }
 
 /** Reads the change and its token files, then swaps them in as the values the editor edits. */
 async function openScope(n: number) {
   if (!S) return;
-  const sc: Scope = { number: n, title: `branch #${n}`, baseSha: null, state: 'loading' };
+  const sc: Scope = { number: n, title: `change #${n}`, baseSha: null, state: 'loading' };
   scope = sc;
   paintScope();
   try {
+    // Suggest mode: a branch takes no edits from Studio. The way out is the draft outside the branch.
+    assertBranchWrites('add edits to changes', 'Open Tokens without a change and send your edits as a suggestion.');
     const pull = await readChange(S.config, n);
     sc.title = changeTitle(pull.title);
     paintScope();
@@ -500,8 +558,8 @@ async function openScope(n: number) {
     if (!isTokenChange(pull, `${owner}/${name}`)) {
       throw new Error(
         pull.state !== 'open' || pull.merged_at
-          ? 'It is no longer open, so it takes no more edits. Open Tokens to create a new branch.'
-          : 'This branch does not edit tokens. Explorations, brands and docs keep their own editors.',
+          ? 'It is no longer open, so it takes no more edits. Open Tokens to start a new change.'
+          : 'This change does not edit tokens. Explorations, brands and docs keep their own editors.',
       );
     }
     // A draft made earlier on this change keeps the version it was made on, so the 3-way check stays honest.
@@ -529,7 +587,8 @@ async function openScope(n: number) {
 async function refreshTargets(): Promise<void> {
   if (!S || scope) return;
   try {
-    targets = await readTargets(S.config);
+    // Suggest mode: every send is a new suggestion, so there is no branch to add to.
+    targets = changesModeOnPage() === 'suggest' ? [] : await readTargets(S.config);
   } catch {
     targets = [];
   }
@@ -546,13 +605,13 @@ function paintSend() {
   const t = scope ? null : targets.find((x) => choice.kind === 'change' && x.number === choice.number);
   const name = scope?.title ?? t?.title ?? '';
   const h = $('ed-propose-dialog-title');
-  if (h) h.textContent = scope ? `Add to ${name}` : VOCAB.createBranch;
+  if (h) h.textContent = scope ? `Add to ${name}` : sendDialogTitle(changesModeOnPage());
   const fields = field('propose-new');
   if (fields) fields.hidden = adding;
   const who = field('propose-who');
   if (who) who.hidden = false;
   const approvals = 'Approvals given before may need to be given again.';
-  if (who && adding) who.textContent = scope ? `Your edits go on top of ${name}, and reviewers see them there. ${approvals}` : `Reviewers see your edits in the branch you pick. ${approvals}`;
+  if (who && adding) who.textContent = scope ? `Your edits go on top of ${name}, and reviewers see them there. ${approvals}` : `Reviewers see your edits in the change you pick. ${approvals}`;
   const go = $<HTMLButtonElement>('ed-propose-go');
   if (go) setButtonLabel(go, sendLabel());
   const slot = field('propose-target');
@@ -587,19 +646,20 @@ function paintSend() {
 async function addInto(into: number, keepMine: string[] = []) {
   const out = $('ed-propose-status')!;
   if (!S?.applied) return;
-  out.textContent = 'Adding to the branch';
+  out.textContent = 'Adding to the change';
   try {
+    assertBranchWrites('add to changes', 'Send your edits as a suggestion instead.');
     const r = await addToChange({ n: into, config: S.config, base: S.head, ours: S.applied.proposed, draft: S.draft, scoped: Boolean(scope), keepMine });
     out.textContent = addedSentence(r.added.length, r.title, r.upstream);
     // Token edits are in the change now; docs edits stay in the local draft (the docs editor sends them).
     S.draft = { edits: scope ? [] : S.draft.edits.filter((e) => e.kind === 'docs') };
     saveDraft();
-    location.href = `/studio/changes/?pr=${r.number}&added=${r.added.length}`;
+    location.href = studioHref(`changes/?pr=${r.number}&added=${r.added.length}`);
   } catch (err) {
     if (err instanceof ChangeConflictError) {
       out.textContent = '';
       showConflict(err);
-    } else showGhError(out, err, `Not added: ${(err as Error).message}`, 'add to branches');
+    } else showGhError(out, err, `Not added: ${(err as Error).message}`, 'add to changes');
   }
 }
 
@@ -643,7 +703,7 @@ function showConflict(err: ChangeConflictError) {
         recompute();
         if (S.draft.edits.some((e) => e.kind !== 'docs')) void addInto(err.change);
         else {
-          $('ed-propose-status')!.textContent = 'Your edit was dropped. The branch keeps its value, so there is nothing left to add.';
+          $('ed-propose-status')!.textContent = 'Your edit was dropped. The change keeps its value, so there is nothing left to add.';
           paintSend();
         }
       },
@@ -792,6 +852,7 @@ export function initTokenEditor() {
   let autoTitle = '';
   $('ed-propose')?.addEventListener('click', () => {
     if (!S?.draft.edits.length || !hasWorkingToken() || blocked()) return;
+    resetSent();
     clearConflict();
     $('ed-propose-status')!.textContent = '';
     paintSend();
@@ -828,16 +889,61 @@ export function initTokenEditor() {
       jiraField?.focus();
       return;
     }
-    out.textContent = 'Creating the branch';
+    const mode = changesModeOnPage();
+    out.textContent = sendingLine(mode);
     try {
-      const n = await propose(field<HTMLInputElement>('propose-title')?.value ?? '', field<HTMLTextAreaElement>('propose-notes')?.value ?? '', jira);
+      const sent = await propose(field<HTMLInputElement>('propose-title')?.value ?? '', field<HTMLTextAreaElement>('propose-notes')?.value ?? '', jira);
       // Docs edits stay: they are proposed from the docs editor.
       S!.draft = { edits: S!.draft.edits.filter((e) => e.kind === 'docs') };
       saveDraft();
-      location.href = `/studio/changes/?pr=${n}`;
+      if (sent.kind === 'branch') {
+        location.href = studioHref(`changes/?pr=${sent.number}`);
+        return;
+      }
+      recompute();
+      showSent(sent);
     } catch (err) {
-      showGhError(out, err, `Not created: ${(err as Error).message}`, 'create branches');
+      showGhError(out, err, notSentLine(mode, (err as Error).message), mode === 'suggest' ? 'send suggestions' : 'start changes');
       setButtonDisabled(go, false);
     }
   });
+}
+
+/**
+ * The send dialog once a suggestion is filed: the done sentence (who reviews, who applies), one quiet link to it, and
+ * the dialog's only action becomes Done. The draft is already cleared.
+ */
+function showSent(sent: Extract<Sent, { kind: 'suggestion' }>) {
+  const h = $('ed-propose-dialog-title');
+  if (h) h.textContent = 'Suggestion sent';
+  const fields = field('propose-new');
+  if (fields) fields.hidden = true;
+  // The status line below says who reviews and who applies: the send dialog's own line would say it twice.
+  const who = field('propose-who');
+  if (who) who.hidden = true;
+  const target = field('propose-target');
+  if (target) target.hidden = true;
+  const go = field('propose-go');
+  if (go) go.hidden = true;
+  const close = $('ed-propose-dialog')?.querySelector<HTMLButtonElement>('[data-dialog-close]:not([aria-label])');
+  if (close) {
+    close.dataset.edLabel ??= close.textContent ?? '';
+    setButtonLabel(close, 'Done');
+  }
+  const out = $('ed-propose-status');
+  if (out) out.innerHTML = `${esc(suggestionSentLine(sent.number))} <a href="${attrUrl(suggestionHref(sent.number))}">${esc(SEE_SUGGESTION)}</a>${sent.warnings.length ? ` <span class="muted">${esc(sent.warnings.join(' '))}</span>` : ''}`;
+}
+
+/** Back to the send state after a suggestion was shown (the next open of the dialog). */
+function resetSent() {
+  const go = field('propose-go');
+  if (go) go.hidden = false;
+  const who = field('propose-who');
+  if (who) who.hidden = false;
+  const close = $('ed-propose-dialog')?.querySelector<HTMLButtonElement>('[data-dialog-close]:not([aria-label])');
+  if (close?.dataset.edLabel !== undefined) {
+    setButtonLabel(close, close.dataset.edLabel);
+    delete close.dataset.edLabel;
+  }
+  setButtonDisabled($<HTMLButtonElement>('ed-propose-go')!, false);
 }

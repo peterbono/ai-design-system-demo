@@ -1,8 +1,8 @@
 // End-to-end: GitHub (fake) -> pull -> Figma (simulated) -> edits -> push -> PR, without Figma.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseTokenFile, readTokenAt, removeToken, serializeTokenFile, upsertToken } from '@bridge-ds/core';
-import { analyze, buildPull, buildPush, openPullRequest } from '../src/sync/flows';
+import { gitBlobSha, loadConfig, parseSuggestionIssue, parseTokenFile, readTokenAt, removeToken, serializeTokenFile, suggestionPathProblems, upsertToken } from '@bridge-ds/core';
+import { analyze, buildPull, buildPush, openPullRequest, sendSuggestion } from '../src/sync/flows';
 import type { RenameSuggestion } from '@bridge-ds/core';
 import { DEFAULT_SETTINGS, type FigmaSnapshot } from '../src/shared/messages';
 import { FakeGitHub } from './fake-github';
@@ -160,9 +160,11 @@ test('push: edits in Figma become a minimal PR with only the changed files', asy
   const result = await openPullRequest(client, a, push, { title: '', notes: '', fileName: 'Test', now: new Date(Date.UTC(2026, 9, 16, 14, 5)) });
   assert.match(result.branch, /^tokens\/[a-z0-9-]+-20261016-1405$/);
   const pr = gh.prs[0]!;
-  assert.equal(pr.draft, true);
-  assert.deepEqual(pr.labels, ['tokens']);
-  assert.match(pr.body, /Tier 3: token change, needs design \+ tech approval/);
+  // From Figma counts as design-approved (docs/BUILD-REQUESTS.md): ready for review, labelled for the gate.
+  assert.equal(pr.draft, false);
+  assert.deepEqual(pr.labels, ['tokens', 'source: figma']);
+  // This push removes or renames a token too: design-approved from Figma, and a developer OKs it before it merges.
+  assert.match(pr.body, /Tier 3: token change\. From Figma: design-approved, waits for a developer OK/);
   const primary = row(pr.body, 'color.action.primary.bg');
   assert.equal(primary[1], 'Semantic');
   assert.match(primary[3]!, new RegExp(`^Light: \`palette\\.primary\\.\\d+ \\(#[0-9a-f]{6}\\)\` -> \`${dotted(primaryTarget)} \\(#[0-9a-f]{6}\\)\`<br>Dark: \`palette\\.primary\\.\\d+ \\(#[0-9a-f]{6}\\)\``));
@@ -303,7 +305,7 @@ test('pull keeps local edits and flags tokens removed on main as orphans', async
   assert.match(lg.description, /^\[orphan\] /);
   // After the pull the orphan is not reported as a Figma-side addition.
   const next = await analyze(client, DEFAULT_SETTINGS, { baseSha: pull.plan.headSha }, after);
-  assert.deepEqual(next.diff.local.map((e) => [e.path, e.local!.kind]).sort(), [['radius.3xl', 'added'], ['radius.sm', 'changed']]);
+  assert.deepEqual(next.diff.local.map((e) => [e.path, e.local!.kind]).sort(), [['radius.sm', 'changed']]);
 });
 
 test('a pull recreates variables deleted in Figma that other tokens still alias, and keeps other deletions', async () => {
@@ -466,7 +468,8 @@ for (const layout of ['single', 'split'] as const) {
     assert.match(pr.body, /## New brand/);
     assert.match(pr.body, /All \d+ contrast checks pass for Acme in light and dark/);
     assert.match(pr.body, /Acme launch/);
-    assert.deepEqual(pr.labels, ['tokens', 'tier: 3']);
+    assert.deepEqual(pr.labels, ['tokens', 'tier: 3', 'source: figma']);
+    assert.equal(pr.draft, true, 'a new brand stays a draft for its reviews');
     assert.equal(pr.body.includes(String.fromCharCode(0x2014)), false, 'no em dash in the PR body');
     const commit = gh.commits.get(result.commitSha)!;
     const main = gh.filesAt('main');
@@ -520,4 +523,28 @@ test('without bridge.config.json a new Brand mode cannot be created from Figma, 
   const push = buildPush(a, new Map(), new Set(['acme']));
   assert.deepEqual(push.brandFiles, []);
   assert.equal(push.brands[0]!.included, false);
+});
+
+test('suggest mode: an included new brand is a brand suggestion with its whole files, no branch (read-only token)', async () => {
+  const { gh, client, snapshot, sync } = await pulled();
+  addBrandMode(snapshot, 'Acme');
+  setBrandColor(snapshot, 'palette/primary/700', 'Acme', '#1F5F3A');
+  const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
+  const push = buildPush(a, new Map(), new Set(['acme']));
+  gh.readOnly();
+  const res = await sendSuggestion(client, a, push, { title: '', notes: 'Acme launch', fileName: 'Test', fileKey: 'FILEKEY' });
+  assert.deepEqual(gh.gitWrites, []);
+  assert.equal(gh.prs.length, 0);
+  assert.deepEqual(res.suggestions.map((s) => [s.kind, s.title]), [['brand', 'Add the Acme brand']]);
+  const issue = gh.issues[0]!;
+  assert.ok(issue.labels.includes('suggestion: brand') && issue.labels.includes('tier: 3') && issue.labels.includes('tokens'), issue.labels.join());
+  const parsed = parseSuggestionIssue(issue.body);
+  if (!parsed.ok) throw new Error(parsed.message);
+  const files = parsed.payload.files!;
+  assert.deepEqual(files.map((f) => f.path), push.brandFiles.map((f) => f.path));
+  const config = files.find((f) => f.path === 'bridge.config.json')!;
+  assert.equal(config.beforeSha, gitBlobSha(gh.filesAt('main')['bridge.config.json']!), 'the config is a change to the file on main');
+  assert.equal(files.find((f) => f.path.endsWith('brands/acme.tokens.json'))!.beforeSha, null, 'the brand file is new');
+  assert.deepEqual(suggestionPathProblems(parsed.payload, loadConfig(gh.filesAt('main')['bridge.config.json']!)), []);
+  assert.match(issue.body, /## New brand/);
 });

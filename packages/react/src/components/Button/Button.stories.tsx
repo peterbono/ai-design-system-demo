@@ -7,10 +7,12 @@ import { Button, type ButtonVariant } from './Button';
 const meta = {
   title: 'Actions/Button',
   component: Button,
-  args: { children: 'Publish tokens', variant: 'primary', size: 'md' },
+  args: { children: 'Publish tokens', variant: 'primary', size: 'md', disabled: false },
   argTypes: {
     variant: { control: 'inline-radio', options: ['primary', 'secondary', 'ghost', 'danger', 'link', 'inverse'] },
     size: { control: 'inline-radio', options: ['sm', 'md', 'lg'] },
+    // A control, so `bridge specs --measure --variants` can pass it to reach the Disabled variants.
+    disabled: { control: 'boolean' },
     iconStart: { control: false },
     iconEnd: { control: false },
     render: { control: false },

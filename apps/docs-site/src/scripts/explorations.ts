@@ -10,6 +10,7 @@ import {
   closeExplorationOnGitHub,
   promoteExplorationOnGitHub,
   requestIssueTitle,
+  subjectTitle,
   type ExplorationUseCase,
 } from '@bridge-ds/core';
 import { loadTeams, siteApproverEntries } from './teams';
@@ -38,12 +39,18 @@ import { explorationFromRequest, type PullLike, type RequestRow } from '../lib/r
 import { explorationWork } from '../lib/work-nature';
 import { devTag, markWork, natureAttr } from './work-filter';
 import { badgeHtml } from '@bridge-ds/react/dom';
+import { paintPeople, personHtml } from './people';
+import { sampleVisitor } from './demo-gate';
 import { currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError } from './github-session';
-import { ghAction, rateLimitedLine } from '../lib/gh-wording';
+import { EXPLORATION_SUGGEST_LINE, ghAction, rateLimitedLine } from '../lib/gh-wording';
+import { changesModeOnPage } from './changes-mode';
 import { explorationClient, explorationsConfig, startLinkedExploration } from './exploration-start';
 import { forgetRequests, loadRequestRows, requestRow } from './requests';
 import { setSelect } from '../lib/select-bridge';
 import { jiraKeyOf, parseJiraKey, VOCAB } from '../lib/vocabulary';
+import { isProductBranch } from '../lib/product-branch';
+import { attrUrl } from '../lib/html';
+import { studioHref } from '../lib/team-path';
 
 // The use case menu of Start an exploration (BridgedSelect id).
 const USE_CASE = 'ex-use-case';
@@ -88,7 +95,7 @@ function workOf(r: ExplorationRow) {
   return explorationWork({ name: r.name, author: r.author, body: pull?.body ?? null, labels: pull?.labels ?? null, source: r.source, agent: r.agent, requests }, currentViewer()?.login ?? null);
 }
 
-function rowHtml(r: ExplorationRow) {
+export function rowHtml(r: ExplorationRow) {
   const preview = r.previews[0];
   const w = workOf(r);
   const nature = w.nature.nature;
@@ -98,7 +105,7 @@ function rowHtml(r: ExplorationRow) {
     <div class="ex-row-main">
       <p class="ex-row-title">${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}<a class="ex-name" href="?exploration=${r.number}" data-open-exploration="${r.number}">${esc(r.name)}</a> <span class="cg-num">#${r.number}</span> ${badgeHtml(r.statusLabel, { tone: r.tone, size: 'sm', className: 'rv-status' })} ${devTag(nature)}</p>
       ${purposeLine(r.name, r.purpose) ? `<p class="ex-purpose">${esc(r.purpose)}</p>` : ''}
-      <p class="ex-meta">@${esc(r.author)}${w.maker.kind === 'claude' ? ' with Claude' : ''}, updated <time datetime="${esc(r.updatedAt)}">${esc(shortDate(r.updatedAt))}</time>${esc(reqs)}${preview ? `, <a href="${esc(preview.url)}" target="_blank" rel="noopener">${esc(preview.label)} preview</a>` : ''}</p>
+      <p class="ex-meta">${personHtml(r.author, { agent: w.maker.kind === 'claude' })}, updated <time datetime="${esc(r.updatedAt)}">${esc(shortDate(r.updatedAt))}</time>${esc(reqs)}${preview ? `, <a href="${attrUrl(preview.url)}" target="_blank" rel="noopener">${esc(preview.label)} preview</a>` : ''}</p>
     </div>
   </li>`;
 }
@@ -109,6 +116,7 @@ function paint() {
   $('ex-empty').hidden = !empty;
   $('ex-table').hidden = empty;
   $('ex-list').innerHTML = rows.map(rowHtml).join('');
+  void paintPeople($('ex-list'));
   markWork($('ex-list'));
   paintExplorationCount([...pullsBy.values()]);
 }
@@ -153,10 +161,31 @@ function readStart(form: HTMLFormElement) {
   return { name: v('name'), purpose: v('purpose'), useCase: v('useCase'), jira: v('jira') };
 }
 
+/** Signed in: Start exploration; signed out: the sign-in button. */
 function paintStartAuth() {
   const on = connected();
   document.querySelectorAll<HTMLElement>('#ex-start [data-gh-only]').forEach((el) => (el.hidden = !on));
   document.querySelectorAll<HTMLElement>('#ex-start [data-no-gh]').forEach((el) => (el.hidden = on));
+}
+
+/**
+ * Suggest mode: an exploration is a branch, so the opener says why Bridge does not start one, in place of the
+ * "Start an exploration" button, and the form never opens. True when it did.
+ */
+function paintSuggestMode(): boolean {
+  const suggest = changesModeOnPage() === 'suggest';
+  const opener = document.getElementById('ex-start-open');
+  const note = document.getElementById('ex-suggest');
+  if (opener) opener.hidden = suggest;
+  if (note) {
+    note.textContent = suggest ? EXPLORATION_SUGGEST_LINE : '';
+    note.hidden = !suggest;
+  }
+  if (suggest) {
+    const form = document.getElementById('ex-start');
+    if (form) form.hidden = true;
+  }
+  return suggest;
 }
 
 function paintStartPreview(form: HTMLFormElement) {
@@ -181,6 +210,7 @@ export async function startForRequest(n: number) {
   const form = $<HTMLFormElement>('ex-start');
   const opener = $<HTMLButtonElement>('ex-start-open');
   if (!form || !opener) return;
+  if (paintSuggestMode()) return;
   const r = await requestRow(n);
   if (Number(new URLSearchParams(location.search).get('for')) !== n) return;
   forRequest = r;
@@ -219,7 +249,9 @@ function wireStart() {
   const error = $('ex-start-error');
   const submit = $<HTMLButtonElement>('ex-start-submit');
   if (!form || !opener) return;
+  paintSuggestMode();
   opener.addEventListener('click', () => {
+    if (paintSuggestMode()) return;
     const open = form.hidden;
     if (!open) return closeStart();
     form.hidden = false;
@@ -309,28 +341,31 @@ function section(id: string, title: string, meta: string, body: string, open = f
   return `<details class="cg-sec" id="${id}"${open ? ' open' : ''}><summary class="cg-sec-head"><span class="cg-sec-title">${title}</span><span class="cg-sec-meta">${meta}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary><div class="cg-sec-body">${body}</div></details>`;
 }
 
-const crumbs = (n: number) => `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="/studio/changes/" data-back>Branches</a><span aria-hidden="true">/</span><span class="mono">#${n}</span></nav>`;
+const crumbs = (n: number) => `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${studioHref('changes/')}" data-back>Changes</a><span aria-hidden="true">/</span><span class="mono">#${n}</span></nav>`;
 
 /** The preview rows: one per app, a link with its designer name, or what is missing on the same line. */
 export function previewList(previews: BranchPreview[]): string {
   return `<ul class="ex-previews">${previews
     .map(previewRowCopy)
-    .map((p) => `<li>${p.url ? `<a class="btn btn-secondary btn-lg" href="${esc(p.url)}" target="_blank" rel="noopener">Open ${esc(p.label)}</a>` : `<span class="ex-preview-name">${esc(p.label)}</span>`}${p.note ? ` <span class="cg-muted">${esc(p.note)}</span>` : ''}</li>`)
+    .map((p) => `<li>${p.url ? `<a class="btn btn-secondary btn-lg" href="${attrUrl(p.url)}" target="_blank" rel="noopener">Open ${esc(p.label)}</a>` : `<span class="ex-preview-name">${esc(p.label)}</span>`}${p.note ? ` <span class="cg-muted">${esc(p.note)}</span>` : ''}</li>`)
     .join('')}</ul>`;
 }
 
 export function renderExplorationDetail(r: ExplorationRow, opts: { connected: boolean }): string {
   const actions =
     r.status !== 'active'
-      ? `<a class="btn btn-primary btn-lg" href="?pr=${r.number}" data-open-pr="${r.number}">Open the branch</a>`
+      ? `<a class="btn btn-primary btn-lg" href="?pr=${r.number}" data-open-pr="${r.number}">Open the change</a>`
       : opts.connected
         ? `<button type="button" class="btn btn-primary btn-lg" data-ex-promote="${r.number}">Promote to review</button> <button type="button" class="btn btn-secondary btn-lg" data-ex-close-ask="${r.number}">Close</button>`
-        : `<button type="button" class="btn btn-primary btn-lg" data-gh-open>${ghAction('promote it', prefersSignIn())}</button>`;
+        : sampleVisitor()
+          ? // The sample team: the button says what it does; a click opens the demo dialog (scripts/demo-gate.ts).
+            `<button type="button" class="btn btn-primary btn-lg" data-demo-write="keep an exploration">Promote to review</button>`
+          : `<button type="button" class="btn btn-primary btn-lg" data-gh-open data-demo-write="keep an exploration">${ghAction('promote it', prefersSignIn())}</button>`;
   // Filled again by paintTryIt with what Vercel reports: a long branch alias is shortened with a hash, never guessed.
   const resolved = explorationPreviews(r, CFG.apps);
   const previews = resolved.length ? `<div id="ex-previews" aria-live="polite">${previewList(resolved)}</div>` : '<p class="cg-muted">Previews are not set up for this library yet.</p>';
   const reqs = r.requests.length
-    ? `<ul class="rq-prs">${r.requests.map((q) => `<li><a href="?request=${q.number}" data-open-request="${q.number}">${esc(q.component)}: ${esc(q.title)}</a> <span class="cg-muted">#${q.number}, ${esc(q.statusLabel)}</span></li>`).join('')}</ul>`
+    ? `<ul class="rq-prs">${r.requests.map((q) => `<li><a href="?request=${q.number}" data-open-request="${q.number}">${esc(subjectTitle(q.component, q.title))}</a> <span class="cg-muted">#${q.number}, ${esc(q.statusLabel)}</span></li>`).join('')}</ul>`
     : '<p class="cg-muted">No request is built on this exploration yet.</p>';
   const purpose = purposeLine(r.name, r.purpose);
   const key = jiraKeyOf(pullsBy.get(r.number)?.title ?? '');
@@ -338,7 +373,7 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
   <header class="zone cg-pr-open">
     <h1 class="cg-pr-title">${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}${esc(r.name)} <span class="cg-num">#${r.number}</span></h1>
     ${purpose ? `<p class="ex-purpose-line">${esc(purpose)}</p>` : ''}
-    <p class="cg-pr-meta">${badgeHtml(r.statusLabel, { tone: r.tone, className: 'rv-status' })}${badgeHtml('Exploration', { className: 'cg-tier' })}${r.useCaseLabel ? `<span>${esc(r.useCaseLabel)}</span>` : ''}<span>@${esc(r.author)}</span><span>Updated ${esc(relativeTime(r.updatedAt))}</span><a class="cg-gh" href="${esc(r.url)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}<span class="sr-only"> (opens in a new tab)</span></a></p>
+    <p class="cg-pr-meta">${badgeHtml(r.statusLabel, { tone: r.tone, className: 'rv-status' })}${badgeHtml('Exploration', { className: 'cg-tier' })}${r.useCaseLabel ? `<span>${esc(r.useCaseLabel)}</span>` : ''}<span>@${esc(r.author)}</span><span>Updated ${esc(relativeTime(r.updatedAt))}</span><a class="cg-gh" href="${attrUrl(r.url)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}<span class="sr-only"> (opens in a new tab)</span></a></p>
     <p class="cg-pr-state">${esc(explorationStateLine(r.status))}</p>
     <div class="cg-pr-cta ex-actions" id="ex-actions">${actions}</div>
     <div class="ex-confirm" id="ex-confirm" hidden>
@@ -433,6 +468,14 @@ export async function openExploration(n: number, push = true) {
   const r = await rowFor(n);
   if (Number(new URLSearchParams(location.search).get('exploration')) !== n) return;
   current = r;
+  // A branch started for a product: the product branch page (its missing pieces and their library branches).
+  const pull = r ? pullsBy.get(r.number) : undefined;
+  if (r && pull) {
+    const pb = await import('./product-branch');
+    const products = pb.siteProducts();
+    const product = isProductBranch(pull.labels, products);
+    if (product) return pb.openProductBranch(d, r, pull, product, products, () => void openExploration(n, false));
+  }
   d.innerHTML = r
     ? renderExplorationDetail(r, { connected: connected() })
     : `${crumbs(n)}<p class="cg-muted">#${n} is not an exploration in ${esc(`${CFG.owner}/${CFG.repo}`)}, or GitHub cannot be read right now. <a href="https://github.com/${esc(`${CFG.owner}/${CFG.repo}`)}/pull/${n}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}</a>.</p>`;
@@ -475,7 +518,7 @@ function promote(btn: HTMLButtonElement) {
         document.querySelector('#rv-detail .cg-pr-meta .rv-status')?.replaceChildren('Promoted to review');
         document.querySelector('#rv-detail .cg-pr-meta .cg-tier')?.remove();
         document.querySelector('#rv-detail .cg-pr-state')?.remove();
-        $('ex-actions').outerHTML = `<p class="cg-pr-state ex-done" id="ex-actions" role="status">${esc(promotedLine(r.number))} <a href="?pr=${r.number}" data-open-pr="${r.number}">Open the branch</a></p>${warn}`;
+        $('ex-actions').outerHTML = `<p class="cg-pr-state ex-done" id="ex-actions" role="status">${esc(promotedLine(r.number))} <a href="?pr=${r.number}" data-open-pr="${r.number}">Open the change</a></p>${warn}`;
         void loadExplorations(undefined, true);
       } catch (err) {
         throw new Error(`${(err as Error).message} You can also mark it ready for review on GitHub.`);
@@ -499,10 +542,10 @@ async function close(btn: HTMLButtonElement) {
     $('ex-confirm').hidden = true;
     document.querySelector('#rv-detail .cg-pr-meta .rv-status')?.replaceChildren('Closed');
     document.querySelector('#rv-detail .cg-pr-state')?.remove();
-    $('ex-actions').outerHTML = '<p class="cg-pr-state ex-done" id="ex-actions" role="status">Closed without merging. Its previews stay for reference.</p>';
+    $('ex-actions').outerHTML = '<p class="cg-pr-state ex-done" id="ex-actions" role="status">Closed without adding it to the library. Its previews stay for reference.</p>';
     void loadExplorations(undefined, true);
   } catch (err) {
-    actionError((err as Error).message, err, 'close branches');
+    actionError((err as Error).message, err, 'close changes');
     setButtonBusy(btn, false, 'Close exploration');
   }
 }

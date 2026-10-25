@@ -1,7 +1,7 @@
 // Top bar menu for the design system preview scope (brand x density). A hydrated island (client:idle): DS Popover
 // with two DS SegmentedControls. State lives in scripts/shell.ts; this island asks for changes with
 // `bridge:set-scope` and follows `bridge:scope` (components/ds/scope.ts).
-import { Button, Popover, PopoverContent, PopoverTrigger, SegmentedControl } from '@bridge-ds/react';
+import { Button, Popover, PopoverContent, PopoverTrigger, SegmentedControl, VisuallyHidden } from '@bridge-ds/react';
 import { ChevronDown } from 'lucide-react';
 import { requestScope, useScope } from './scope';
 
@@ -22,13 +22,17 @@ export default function ScopeMenu({ brands, densities }: ScopeMenuProps) {
     <Popover>
       <PopoverTrigger
         render={
-          <Button variant="secondary" size="sm" iconEnd={ChevronDown} aria-label="Design system preview: brand and density" title="Brand and density of the design system previews" />
+          <Button variant="secondary" size="sm" iconEnd={ChevronDown} title="Brand and density of the design system previews" />
         }
       >
+        {/* Named by what it shows (WCAG 2.5.3): "Preview brand and density: Bridge, Comfortable". On a phone the
+            brand and density hide and the hidden words alone name it. */}
         <span className="shell-scope-trigger">
+          <VisuallyHidden>Preview brand and density:</VisuallyHidden>{' '}
           <span className="scope-swatch" aria-hidden="true"></span>
           <span className="scope-label">
             <span>{label(brands, scope.brand)}</span>
+            <VisuallyHidden>,</VisuallyHidden>{' '}
             <span className="scope-dot" aria-hidden="true"></span>
             <span>{label(densities, scope.density)}</span>
           </span>

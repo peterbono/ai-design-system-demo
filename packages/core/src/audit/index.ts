@@ -13,3 +13,4 @@ export * from './report';
 export * from './style';
 export * from './ignore';
 export * from './markup';
+export * from './missing-pieces';

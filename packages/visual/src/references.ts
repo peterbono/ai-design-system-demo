@@ -12,6 +12,7 @@ import {
   referenceImagePath,
   type FigmaReferenceManifest,
 } from '@bridge-ds/core';
+import type { Page } from 'playwright-core';
 import { launch, newContext, newPage, settle } from './capture.js';
 import { serveDir } from './serve.js';
 import { storyUrl } from './routes.js';
@@ -68,9 +69,12 @@ export async function captureFigmaReferences(o: ReferencesOptions): Promise<Refe
   try {
     const ctx = await newContext(browser, { width: 1200, height: 800 }, scale);
     const page = await newPage(ctx);
-    await page.goto(storyUrl(served.url, FIGMA_REFERENCE_STORY, brand, theme), { waitUntil: 'load', timeout: 30000 });
-    await page.waitForSelector('[data-fidelity-root], [data-fidelity-error]', { state: 'attached', timeout: 20000 });
-    await settle(page, { busy: false });
+    const openStory = async () => {
+      await page.goto(storyUrl(served.url, FIGMA_REFERENCE_STORY, brand, theme), { waitUntil: 'load', timeout: 30000 });
+      await page.waitForSelector('[data-fidelity-root], [data-fidelity-error]', { state: 'attached', timeout: 20000 });
+      await settle(page, { busy: false });
+    };
+    await openStory();
     log(`Capturing ${jobs.length} variants at ${scale}x (${brand} ${theme})`);
     for (const j of jobs) {
       const variants = manifest.components[j.component]!.variants;
@@ -79,27 +83,38 @@ export async function captureFigmaReferences(o: ReferencesOptions): Promise<Refe
         skipped++;
         continue;
       }
-      const plan = JSON.stringify(j.plan.render);
-      await page.evaluate(
-        ({ id, plan }) =>
-          new Promise<void>((resolve) => {
-            const ch = (window as unknown as { __STORYBOOK_ADDONS_CHANNEL__: { on: (e: string, f: () => void) => void; off: (e: string, f: () => void) => void; emit: (e: string, p: unknown) => void } }).__STORYBOOK_ADDONS_CHANNEL__;
-            const done = () => {
-              clearTimeout(timer);
-              ch.off('storyRendered', done);
-              resolve();
-            };
-            const timer = setTimeout(done, 10000);
-            ch.on('storyRendered', done);
-            ch.emit('updateStoryArgs', { storyId: id, updatedArgs: { plan } });
-          }),
-        { id: FIGMA_REFERENCE_STORY, plan },
-      );
+      const shown = await renderPlan(page, JSON.stringify(j.plan.render));
+      // An error that escaped the story leaves Storybook on its error screen, where later args never render: reload,
+      // so one failing variant does not skip every variant after it.
+      if (shown.broken) {
+        variants[j.key] = { skipped: `the code example threw: ${shown.error ?? 'the story did not finish rendering'}` };
+        skipped++;
+        await openStory();
+        continue;
+      }
       await settle(page, { network: false, quiet: 2, interval: 40, busy: false });
       const error = await page.locator('[data-fidelity-error]').first().textContent({ timeout: 200 }).catch(() => null);
-      const target = page.locator('[data-fidelity-root] > *').first();
+      // A part of a compound component renders inside its parent, and a component shown from a hook (a toast) or a popup
+      // rendered open renders outside the root, where Base UI portals it: the story marks it as `data-fidelity-target`.
+      let target = page.locator('[data-fidelity-root] > *').first();
+      if (!error && (j.plan.render.within || j.plan.render.popup || !(await target.count()))) {
+        const marked = page.locator('[data-fidelity-target]').first();
+        await marked.waitFor({ state: 'visible', timeout: 3000 }).catch(() => undefined);
+        await settle(page, { network: false, quiet: 2, interval: 40, busy: false });
+        target = marked;
+      }
       if (error || !(await target.count())) {
         variants[j.key] = { skipped: error ?? 'the code example did not render' };
+        skipped++;
+        continue;
+      }
+      // Rendered but see-through (a popup not placed yet): a blank image would read as a mismatch, not a skip.
+      const transparent = await target.evaluate((el) => {
+        for (let e: Element | null = el; e; e = e.parentElement) if (getComputedStyle(e).opacity === '0') return true;
+        return false;
+      });
+      if (transparent) {
+        variants[j.key] = { skipped: 'the code example rendered invisible (opacity 0)' };
         skipped++;
         continue;
       }
@@ -121,4 +136,41 @@ export async function captureFigmaReferences(o: ReferencesOptions): Promise<Refe
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   log(`${captured} images, ${skipped} variants skipped. ${manifestPath}`);
   return { manifest, manifestPath, captured, skipped };
+}
+
+/**
+ * Renders one plan in the reference story over the Storybook channel. `broken`: the story threw past its error
+ * boundary or never finished, so Storybook shows its error screen instead of the story.
+ */
+async function renderPlan(page: Page, plan: string): Promise<{ broken: boolean; error?: string }> {
+  const r = await page.evaluate(
+    ({ id, plan }) =>
+      new Promise<{ rendered: boolean; error?: string }>((resolve) => {
+        type Channel = { on: (e: string, f: (p: unknown) => void) => void; off: (e: string, f: (p: unknown) => void) => void; emit: (e: string, p: unknown) => void };
+        const ch = (window as unknown as { __STORYBOOK_ADDONS_CHANNEL__: Channel }).__STORYBOOK_ADDONS_CHANNEL__;
+        let error: string | undefined;
+        const failed = (p: unknown) => {
+          const e = p as { message?: string; title?: string; description?: string } | undefined;
+          error ??= e?.message ?? e?.title ?? e?.description;
+        };
+        const finish = (rendered: boolean) => {
+          clearTimeout(timer);
+          ch.off('storyRendered', done);
+          ch.off('storyThrewException', failed);
+          ch.off('storyErrored', failed);
+          resolve({ rendered, ...(error ? { error } : {}) });
+        };
+        const done = () => finish(true);
+        // The previous variant's marked target may outlive it for a frame (a portal): only this variant's counts.
+        document.querySelectorAll('[data-fidelity-target]').forEach((el) => el.removeAttribute('data-fidelity-target'));
+        const timer = setTimeout(() => finish(false), 10000);
+        ch.on('storyThrewException', failed);
+        ch.on('storyErrored', failed);
+        ch.on('storyRendered', done);
+        ch.emit('updateStoryArgs', { storyId: id, updatedArgs: { plan } });
+      }),
+    { id: FIGMA_REFERENCE_STORY, plan },
+  );
+  const errorScreen = await page.evaluate(() => document.body.classList.contains('sb-show-errordisplay'));
+  return { broken: !r.rendered || !!r.error || errorScreen, ...(r.error ? { error: r.error } : {}) };
 }

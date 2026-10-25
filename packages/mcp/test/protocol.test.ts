@@ -1,50 +1,97 @@
 // MCP protocol smoke test: spawn the built server over stdio like Claude Code does, list, call, read.
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { MCP_DIST, REPO } from './helpers.js';
 import pkg from '../package.json' with { type: 'json' };
 
 const TOOLS = [
+  'bridge_apply_suggestion',
+  'bridge_ask_someone_else',
   'bridge_audit',
+  'bridge_back_to_draft',
+  'bridge_branch_status',
   'bridge_check_contrast',
+  'bridge_close_branch',
+  'bridge_close_exploration',
+  'bridge_combine_branches',
+  'bridge_comment',
   'bridge_create_request',
+  'bridge_create_suggestion',
   'bridge_draft_docs',
+  'bridge_figma_changes',
+  'bridge_figma_coverage',
+  'bridge_figma_gaps',
+  'bridge_get_build_request',
   'bridge_get_component',
   'bridge_get_config',
   'bridge_get_design_language',
+  'bridge_get_figma_change',
+  'bridge_get_gap_case',
   'bridge_get_guidelines',
   'bridge_get_history',
   'bridge_get_request',
   'bridge_get_review',
+  'bridge_get_settings',
+  'bridge_get_suggestion',
   'bridge_get_token',
   'bridge_get_token_history',
+  'bridge_link_suggestion',
   'bridge_list_brands',
+  'bridge_list_build_requests',
+  'bridge_list_comments',
   'bridge_list_components',
   'bridge_list_explorations',
+  'bridge_list_products',
   'bridge_list_requests',
   'bridge_list_reviews',
+  'bridge_list_suggestions',
   'bridge_list_tokens',
+  'bridge_mark_figma_change_drafted',
+  'bridge_merge_branch',
+  'bridge_missing_pieces',
+  'bridge_open_library_branch',
   'bridge_pending_drafts',
   'bridge_plan_brand',
   'bridge_plan_revert',
+  'bridge_product_branch',
+  'bridge_promote_exploration',
   'bridge_propose_brand',
+  'bridge_propose_figma_fixes',
   'bridge_propose_revert',
   'bridge_propose_token_change',
+  'bridge_push_figma_component',
+  'bridge_reopen_branch',
+  'bridge_review_branch',
   'bridge_review_pr',
+  'bridge_review_suggestion',
+  'bridge_save_docs',
   'bridge_scaffold_component',
   'bridge_search_tokens',
+  'bridge_send_for_review',
   'bridge_start_exploration',
+  'bridge_switch_to_published',
+  'bridge_try_branch',
+  'bridge_try_figma_fix',
+  'bridge_update_from_main',
+  'bridge_use_library_preview',
   'bridge_validate_tokens',
   'bridge_visual_impact',
+  'bridge_what_needs_me',
   'bridge_write_drafts',
 ];
 
 let client: Client;
 beforeAll(async () => {
   const env = Object.fromEntries(Object.entries(process.env).filter(([k, v]) => v !== undefined && !/TOKEN/.test(k))) as Record<string, string>;
+  // No token at all: the server falls back to the gh sign-in (RT-3), so it runs with git on its PATH and no gh.
+  const bin = mkdtempSync(join(tmpdir(), 'bridge-no-gh-'));
+  symlinkSync(execFileSync('which', ['git'], { encoding: 'utf8' }).trim(), join(bin, 'git'));
+  env.PATH = bin;
   client = new Client({ name: 'bridge-smoke', version: '0.0.0' });
   await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(MCP_DIST, 'index.js'), '--root', REPO], env, stderr: 'ignore' }));
 });
@@ -58,10 +105,17 @@ describe('MCP over stdio', () => {
   it('initializes with server info and instructions', () => {
     expect(client.getServerVersion()).toMatchObject({ name: 'bridge', version: pkg.version });
     expect(client.getInstructions()).toMatch(/never writes to main/);
-    expect(client.getInstructions()).toMatch(/Every write goes through a branch and a pull request, never straight to the default branch/);
+    expect(client.getInstructions()).toMatch(/Bridge never writes to the default branch/);
   });
 
-  it('lists the 32 tools with JSON schemas and read-only hints', async () => {
+  it('says what it may write in the same words in its instructions and bridge_get_config (no token: read-only on GitHub)', async () => {
+    const config = JSON.parse(text(await client.callTool({ name: 'bridge_get_config', arguments: {} })));
+    expect(config.write).toMatch(/^Read-only on GitHub: suggestions, requests, reviews, merges and pull requests need GITHUB_TOKEN \(or a gh sign-in when the server starts\)\. Direct changes become local bridge\/\* branches, never pushed\.$/);
+    expect(client.getInstructions()).toContain(`Access now: ${config.write}`);
+    expect(config.source).toContain(config.write);
+  });
+
+  it('lists the 73 tools with JSON schemas and read-only hints', async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(TOOLS);
     const getToken = tools.find((t) => t.name === 'bridge_get_token')!;
@@ -77,6 +131,20 @@ describe('MCP over stdio', () => {
     expect(tools.find((t) => t.name === 'bridge_pending_drafts')!.description).toMatch(/before and after images.*no em dash, no invented numbers/);
     expect(Object.keys((tools.find((t) => t.name === 'bridge_propose_token_change')!.inputSchema.properties ?? {}) as object)).toContain('branch');
     for (const t of tools) expect(t.description, t.name).not.toMatch(/\u2014/);
+    // Studio parity: reads are read-only, every write is an explicit tool (never a side effect of a read).
+    const reads = ['bridge_figma_changes', 'bridge_get_figma_change', 'bridge_product_branch', 'bridge_list_products', 'bridge_what_needs_me', 'bridge_branch_status', 'bridge_list_comments', 'bridge_try_branch', 'bridge_combine_branches', 'bridge_get_settings', 'bridge_figma_coverage'];
+    const writes = ['bridge_ask_someone_else', 'bridge_send_for_review', 'bridge_back_to_draft', 'bridge_review_branch', 'bridge_comment', 'bridge_merge_branch', 'bridge_close_branch', 'bridge_reopen_branch', 'bridge_update_from_main', 'bridge_save_docs', 'bridge_promote_exploration', 'bridge_close_exploration', 'bridge_missing_pieces', 'bridge_open_library_branch', 'bridge_use_library_preview', 'bridge_switch_to_published', 'bridge_mark_figma_change_drafted', 'bridge_push_figma_component'];
+    for (const n of reads) expect(tools.find((t) => t.name === n)!.annotations?.readOnlyHint, n).toBe(true);
+    for (const n of writes) expect(tools.find((t) => t.name === n)!.annotations?.readOnlyHint, n).toBe(false);
+    for (const n of ['bridge_propose_token_change', 'bridge_start_exploration', 'bridge_create_request', 'bridge_save_docs']) expect(Object.keys((tools.find((t) => t.name === n)!.inputSchema.properties ?? {}) as object), n).toContain('product');
+    expect(tools.find((t) => t.name === 'bridge_merge_branch')!.description).toMatch(/explicitly asked to merge/);
+    // Suggestions: reads are read-only, the rest are writes; every tool that changes the code takes "changes".
+    for (const n of ['bridge_list_suggestions', 'bridge_get_suggestion']) expect(tools.find((t) => t.name === n)!.annotations?.readOnlyHint, n).toBe(true);
+    for (const n of ['bridge_create_suggestion', 'bridge_review_suggestion', 'bridge_apply_suggestion', 'bridge_link_suggestion']) expect(tools.find((t) => t.name === n)!.annotations?.readOnlyHint, n).toBe(false);
+    for (const n of ['bridge_propose_token_change', 'bridge_propose_brand', 'bridge_propose_revert', 'bridge_open_library_branch', 'bridge_push_figma_component', 'bridge_save_docs'])
+      expect(Object.keys((tools.find((t) => t.name === n)!.inputSchema.properties ?? {}) as object), n).toContain('changes');
+    // The issue's "How to apply" names this tool and this phrase.
+    expect(tools.find((t) => t.name === 'bridge_apply_suggestion')!.description).toMatch(/Apply Bridge suggestion #42/);
   });
 
   it('calls bridge_get_token', async () => {

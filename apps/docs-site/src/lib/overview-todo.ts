@@ -22,6 +22,7 @@ import { todoBadge, type Lifecycle, type LifecycleTone } from './change-status';
 import { VOCAB } from './vocabulary';
 
 import { REQUEST_TRIAGE_IN_STUDIO } from './studio-flags';
+import { studioHref } from './team-path';
 
 /**
  * Request triage (decide, assign, decline component change requests) is off in Studio: teams triage in Jira. The
@@ -53,6 +54,8 @@ export interface TodoRow {
 
 export interface TodoChange {
   number: number;
+  /** A token push from Figma that ships after the checks: never waits on anyone (lib/waiting-on). */
+  autoShip?: boolean;
   /** Already in plain words (humanTitle, one line). */
   title: string;
   /** Null while the status is not read yet. */
@@ -142,8 +145,8 @@ const norm = (x: string) => x.trim().toLowerCase().replace(/^@/, '');
 const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && norm(a) === norm(b));
 const handle = (x: string) => `@${x.replace(/^@/, '')}`;
 const at = (xs: string[]) => (xs.length <= 2 ? xs.map(handle).join(' or ') : `${handle(xs[0]!)} or ${xs.length - 1} more`);
-const changeHref = (n: number) => `/studio/changes/?pr=${n}`;
-const requestHref = (n: number) => `/studio/changes/?request=${n}`;
+const changeHref = (n: number) => studioHref(`changes/?pr=${n}`);
+const requestHref = (n: number) => studioHref(`changes/?request=${n}`);
 
 /** The changeset check, the only failing check a designer can read in plain words: "the release note is missing". */
 const isReleaseNoteCheck = (name: string) => /changeset/i.test(name);
@@ -182,13 +185,13 @@ function changeRow(c: TodoChange, input: TodoInput): { group: Group; row: TodoRo
   const base = { key: `change-${c.number}`, kind: 'change' as const, title: c.title, href: changeHref(c.number) };
   // The lifecycle badge of the row, in the same words and tone as the status line (lib/change-status todoBadge). Only when the state is known.
   const state = c.lifecycle ? { state: { lifecycle: c.lifecycle, ...todoBadge(c.lifecycle) } } : {};
-  const open = (group: Group, task: TodoTask, why: string) => ({ group, row: { ...base, task, why, action: 'Open branch', ...state } });
+  const open = (group: Group, task: TodoTask, why: string) => ({ group, row: { ...base, task, why, action: `Open ${VOCAB.branch}`, ...state } });
   // Code only: no design decision waits on anyone in the Studio.
   if (c.nature === 'developer') return open('devWork', 'waiting', 'Developer work.');
   const who = c.who;
   if (!who) return open('others', input.loading ? 'checking' : 'waiting', input.loading ? 'Checking what it needs.' : 'Open it to see what it needs.');
   // Approved, waiting for code: the design side is done, a developer finishes it. No designer action.
-  if (c.lifecycle === 'waiting') return open('developer', 'blocked', 'Design is approved. A developer finishes the code before it is merged.');
+  if (c.lifecycle === 'waiting') return open('developer', 'blocked', 'Design is approved. A developer finishes the code before it is added to the library.');
   // The viewer's own draft (not one an agent made with their account): marking it ready is theirs to do.
   if (who.action === 'mark-ready' && who.yourTurn && viewer && !c.agent)
     return { group: 'mine', row: { ...base, task: 'finish', why: 'Reviewers are not asked until you request a review.', action: 'Open draft', ...state } };
@@ -215,16 +218,16 @@ function changeRow(c: TodoChange, input: TodoInput): { group: Group; row: TodoRo
 
 /** The exact task of a change that waits for the viewer, and what happens once it is done. */
 function yourTask(c: TodoChange, who: WhoActs, task: TodoTask): { why: string; action: string } {
-  if (task === 'ship') return { why: 'Approved and tested. Merging puts it in the next release.', action: VOCAB.merge };
+  if (task === 'ship') return { why: 'Approved and tested. Adding it to the library puts it in the next release.', action: VOCAB.merge };
   const override = who.action === 'override';
   if (task === 'guidance') {
-    if (override) return { why: 'Usage guidance changed and no other owner can approve it. Read it, then merge it with the owner override.', action: 'Review guidance' };
+    if (override) return { why: 'Usage guidance changed and no other owner can approve it. Read it, then add it to the library with the owner override.', action: 'Review guidance' };
     return { why: 'Usage guidance changed. Read it, then approve it or edit it.', action: 'Review guidance' };
   }
   const seen = c.visual === 'ready' ? 'Before and after are ready. ' : c.visual === 'none' ? 'Nothing changes on screen. ' : '';
-  if (override) return { why: `${seen}No other owner can approve it. Check the design, then merge it with the owner override.`, action: 'Review design' };
+  if (override) return { why: `${seen}No other owner can approve it. Check the design, then add it to the library with the owner override.`, action: 'Review design' };
   // One approval ships it; a design approval is one of two (the tech review comes after).
-  if (who.action === 'approve') return { why: `${seen}Your approval lets it merge.`, action: 'Review design' };
+  if (who.action === 'approve') return { why: `${seen}Your approval lets it go into the library.`, action: 'Review design' };
   return { why: `${seen}Your design approval is the next step.`, action: 'Review design' };
 }
 
@@ -305,7 +308,7 @@ export function overviewTodo(input: TodoInput): Todo {
     groups[group].push(row);
   }
 
-  if (input.unprotected && owner) groups.mine.push({ key: 'protect', kind: 'setup', task: 'setup', title: 'Protect your library', why: 'Anyone can change it without a review. Protecting it asks for one first.', action: 'Protect it', href: '/studio/settings/#protection' });
+  if (input.unprotected && owner) groups.mine.push({ key: 'protect', kind: 'setup', task: 'setup', title: 'Protect your library', why: 'Anyone can change it without a review. Protecting it asks for one first.', action: 'Protect it', href: studioHref('settings/#protection') });
 
   for (const r of (input.requestTriage ?? REQUEST_TRIAGE_IN_STUDIO) ? input.requests : []) {
     // In progress: its change is in the list above. Done and declined wait for nobody.

@@ -34,6 +34,20 @@
   margin: 0;
 }
 
+/* The greeting and, while setup steps are left, "N of 6 connected" on its line (the checklist opens from it). */
+.sh-hello-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+}
+
+.sh-setup {
+  display: flex;
+  flex: none;
+}
+
 .sh-hello {
   margin: 0;
   font-family: var(--typography-h1-family);
@@ -59,6 +73,16 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
+}
+
+/* The sentence sits beside the avatars and wraps on its own lines, never under them. */
+.sh-waiting > span:not(.sh-stack, .sh-oldest) {
+  flex: 1 1 var(--size-60);
+  min-width: 0;
+}
+
+.sh-waiting > .sh-stack {
+  flex: none;
 }
 
 /* Signed out: the side nav foot already holds the button where the side nav shows. */
@@ -106,11 +130,91 @@
   color: var(--color-text-muted);
 }
 
+/* A row without a person (health, setup): its icon sits in the avatar's box and tile (the initials avatar colors),
+   so the column aligns. */
+.sh-row-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-8);
+  height: var(--size-8);
+  border-radius: var(--radius-pill);
+  background-color: var(--avatar-bg);
+  color: var(--avatar-text);
+}
+
+/* Two fixed lines on every row: the title alone (one line, ellipsis), then the sentence with the status after it. */
 .sh-row-text {
-  flex: 0 1 auto;
+  display: grid;
+  flex: 1 1 auto;
+  gap: var(--space-0-5);
   min-width: 0;
 }
 
+.sh-row-text > .sh-row-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sh-row-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* One line (the home's Needs you, BranchRow compact): "Title · who asks" ellipsed, its one status right after it (read
+   as a label, not a button), the row button alone at the end. */
+.sh-row-compact .sh-row-text {
+  display: block;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sh-row-compact .sh-row-title {
+  display: inline;
+}
+
+/* A join request's email and role (board E7b), under its one line. */
+.sh-row-detail {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Decline and Approve on a join request: the row's own decision, at the far end like a row button. */
+.sh-row-body > .sh-join {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+
+.sh-row-chips {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+
+.sh-row-compact .sh-row-chips {
+  margin-inline-start: 0;
+}
+
+.sh-row-line {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sh-row-jira,
 .sh-row-pill,
 .sh-row-action {
   flex: none;
@@ -180,6 +284,15 @@
   gap: var(--space-3) var(--space-4);
 }
 
+.sh-section-title {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.sh-section-sub {
+  margin: 0;
+}
+
 .sh-h2 {
   margin: 0;
   font-family: var(--typography-h2-family);
@@ -187,10 +300,6 @@
   font-weight: var(--typography-h2-weight);
   line-height: var(--typography-h2-line-height);
   letter-spacing: var(--typography-h2-tracking);
-}
-
-.sh-pick[hidden] {
-  display: none;
 }
 
 .sh-cards {
@@ -217,6 +326,14 @@
   padding: var(--space-3) var(--space-4) var(--space-4);
 }
 
+/* The card's title. No "Sample" on the demo: its banner already says the data is sample data. */
+.sh-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
 .sh-card-status {
   display: inline-flex;
   flex-wrap: wrap;
@@ -229,20 +346,12 @@
   font-weight: var(--font-weight-medium);
 }
 
-/* The last card opens Create branch: a dashed placeholder the size of a card. */
+/* The first card opens Create branch: a dashed placeholder the size of a card. */
 .sh-cards .sh-create-btn {
   height: 100%;
   min-height: var(--size-40);
   border: var(--border-width-default) dashed var(--color-border-emphasis);
   border-radius: var(--radius-container);
-}
-
-.sh-published {
-  margin: var(--space-2) 0 0;
-}
-
-.sh-mono {
-  font-family: var(--font-family-mono);
 }
 
 /* --- Nothing at all: three ways to start ---------------------------------------------------------------------- */
@@ -307,12 +416,10 @@
     flex-basis: calc(100% - var(--size-16) - var(--space-3));
   }
 
-  .sh-row-pill {
-    margin-inline-start: calc(var(--size-16) + var(--space-3));
-  }
-
-  .sh-row-sep {
-    display: none;
+  /* Phones: the sentence may wrap and the pill may go under it, still inside the text block (never the button). */
+  .sh-row-sub {
+    flex-wrap: wrap;
+    row-gap: var(--space-1);
   }
 
   .sh-more .sh-more-btn,
@@ -320,8 +427,14 @@
     flex: 1 1 100%;
   }
 
-  .sh-row-line {
-    display: block;
+  .sh-row-line,
+  .sh-row-compact .sh-row-text,
+  .sh-row-compact .sh-row-text > .sh-row-title {
+    white-space: normal;
+  }
+
+  .sh-row-chips {
+    margin-inline-start: 0;
   }
 
   .sh-choice-body {
@@ -337,54 +450,51 @@
   }
 }
 
-/* --- Create branch (components/ds/studio/StartChange.tsx): the menu items, and the component picker in place. --- */
+/* --- Create branch (components/ds/studio/StartChange.tsx): a DS Dialog, product first. The step line sits above
+   the question, the fields stack, the footer puts the quiet way out on the left and the one primary on the right. */
 
-.ov-mi {
+.sc-step {
+  display: block;
+  margin-block-end: var(--space-2);
+  color: var(--color-text-muted);
+  font-family: var(--typography-ui-family);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--typography-ui-weight);
+  line-height: var(--typography-ui-line-height);
+}
+
+.sc-form {
   display: grid;
-  gap: var(--space-0-5);
-  padding-block: var(--space-1);
+  gap: var(--space-4);
 }
 
-.ov-mi-title {
-  font-weight: var(--font-weight-medium);
-}
-
-/* The component picker, in place under the greeting: one plate, the question, the field and its two buttons
-   (8px apart) on one line. */
-.ov-pick-slot[hidden] {
-  display: none;
-}
-
-.ov-pick {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-container);
-  background-color: var(--color-surface-default);
-}
-
-.ov-pick-line {
+.sc-line {
   margin: 0;
 }
 
-.ov-pick-row {
+.sc-foot {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--space-3);
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
 }
 
-.ov-pick-field {
-  flex: 1 1 var(--size-72);
-  max-width: var(--size-120);
+.sc-foot-left {
+  flex: 1 1 auto;
 }
 
-.ov-pick-actions {
-  display: inline-flex;
-  gap: var(--space-2);
-}
+/* Narrow screens: the one primary fills the bar, the quiet way out goes under it. */
+@media (max-width: 640px) {
+  .sc-foot {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
 
+  .sc-foot-main {
+    display: grid;
+  }
+}
 
 /* The site's list rhythm (li + li) does not apply to these grids: the gap spaces them. */
 .sh-rows > li,

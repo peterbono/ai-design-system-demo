@@ -1,11 +1,11 @@
 // UI side of the typed message protocol: request() resolves with the main thread's response.
 
-import { type RequestMap, type RequestType, isProgress, isResponse } from '../shared/messages';
+import { type RequestMap, type RequestType, type SelectionInfo, isProgress, isResponse } from '../shared/messages';
 
 let progressListener: ((message: string) => void) | undefined;
 export const onProgress = (fn: (message: string) => void) => (progressListener = fn);
 
-export type Selection = { nodeId: string; name: string } | null;
+export type Selection = SelectionInfo | null;
 let selectionListener: ((s: Selection) => void) | undefined;
 export const onSelection = (fn: (s: Selection) => void) => (selectionListener = fn);
 
@@ -16,6 +16,12 @@ window.addEventListener('message', (event: MessageEvent) => {
   const msg = (event.data as { pluginMessage?: unknown } | undefined)?.pluginMessage;
   if (isProgress(msg)) {
     progressListener?.(msg.message);
+    return;
+  }
+  // A turn the main thread gives Figma through this window during a long build: answered at once, with whether the
+  // page is hidden (then Figma throttles the main thread's timers, not messages).
+  if (msg && typeof msg === 'object' && (msg as { kind?: unknown }).kind === 'turn') {
+    parent.postMessage({ pluginMessage: { kind: 'turn', id: (msg as { id: number }).id, hidden: document.visibilityState === 'hidden' } }, '*');
     return;
   }
   if (msg && typeof msg === 'object' && (msg as { kind?: unknown }).kind === 'selection') {

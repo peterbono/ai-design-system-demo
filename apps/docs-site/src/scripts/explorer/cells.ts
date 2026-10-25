@@ -6,7 +6,7 @@ import { aliasLabel, bezierPath, colorAlpha, cssText, isForeground, numericValue
 import { cellValue, pairedBackground, type CellValue, type Column } from '../../lib/explorer/model';
 import type { ExplorerData } from './types';
 import { swatchLabel } from '../../lib/explorer/swatch-ramp';
-import { copyButton, esc, icon, inkOn } from './util';
+import { copyButton, cssValue, esc, icon, inkOn } from './util';
 
 const CANVAS = 'color.bg.default';
 const SURFACE = 'color.surface.default';
@@ -29,8 +29,8 @@ function stageBg(d: ExplorerData, col: Column, path?: string): string {
 export function preview(d: ExplorerData, type: string, path: string, v: CellValue, col: Column, size: 'sm' | 'lg' = 'sm'): string {
   const cls = `xp-stage is-${size}`;
   if (v.resolved === undefined) return `<span class="${cls} is-broken" aria-hidden="true"></span>`;
-  const bg = stageBg(d, col, type === 'color' && isForeground(path) ? path : undefined);
-  const css = esc(v.css);
+  const bg = cssValue(stageBg(d, col, type === 'color' && isForeground(path) ? path : undefined));
+  const css = cssValue(v.css);
   switch (type) {
     case 'color': {
       if (isForeground(path)) return `<span class="${cls} is-aa" style="background-color:${bg};color:${css}" aria-hidden="true">Aa</span>`;
@@ -105,19 +105,27 @@ export function studioCellHtml(d: ExplorerData, path: string, col: Column, edite
   const v = cellValue(d.set, path, col.ctx);
   const lead =
     type === 'color'
-      ? `<span class="xp-ms${v.hex ? '' : ' is-broken'}${colorAlpha(v.resolved) < 0.9995 ? ' has-alpha' : ''}" aria-hidden="true"><i style="background-color:${esc(v.css)}"></i></span>`
+      ? `<span class="xp-ms${v.hex ? '' : ' is-broken'}${colorAlpha(v.resolved) < 0.9995 ? ' has-alpha' : ''}" aria-hidden="true"><i style="background-color:${cssValue(v.css)}"></i></span>`
       : preview(d, type, path, v, col);
   const main = v.alias ? swatchLabel(v.alias) : v.line || cssText(type, v.raw);
   const end = v.error ? 'Unresolved' : type === 'color' ? (v.hex ?? v.css) : v.alias ? v.line : '';
   const dot = edited ? '<span class="xp-edot" aria-hidden="true"></span><span class="sr-only">, edited in your draft</span>' : '';
-  return `<span class="xp-field${v.error ? ' is-error' : ''}"${v.override ? ' data-override=""' : ''}>${lead}<span class="xp-field-main mono">${esc(main)}</span>${dot}<span class="xp-field-end mono">${esc(end)}</span><span class="xp-field-chev" aria-hidden="true">${icon('chevronDown', 16)}</span></span>`;
+  // A space between the two values (a flex row does not draw it): the cell's visible text reads "width.2 2px" like its
+  // label, not "width.22px" (WCAG 2.5.3).
+  return `<span class="xp-field${v.error ? ' is-error' : ''}"${v.override ? ' data-override=""' : ''}>${lead}<span class="xp-field-main mono">${esc(main)}</span>${dot} <span class="xp-field-end mono">${esc(end)}</span><span class="xp-field-chev" aria-hidden="true">${icon('chevronDown', 16)}</span></span>`;
 }
 
 /** Accessible text of a cell for screen readers (the visual chip and line are aria-hidden duplicates otherwise). */
-export function cellLabel(d: ExplorerData, path: string, col: Column): string {
+export function cellLabel(d: ExplorerData, path: string, col: Column, studio = false): string {
   const v = cellValue(d.set, path, col.ctx);
-  if (v.error) return `${col.label}: unresolved`;
-  return `${col.label}: ${v.alias ? `points to ${v.alias}, ` : ''}${v.line}`;
+  const type = d.set.byPath.get(path)?.type ?? '';
+  // The visible text first, in the order the cell shows it (voice control finds the cell by what it shows), then the
+  // column and the full alias path.
+  const shown = studio
+    ? [v.alias ? swatchLabel(v.alias) : v.line || cssText(type, v.raw), v.error ? 'Unresolved' : type === 'color' ? (v.hex ?? v.css) : v.alias ? v.line : '']
+    : [v.alias ? aliasLabel(v.alias) : v.line || cssText(type, v.raw), v.alias || v.error ? v.line : ''];
+  const visible = shown.filter(Boolean).join(' ');
+  return `${visible || (v.error ? 'Unresolved' : '')}, ${col.label}${v.alias ? `, points to ${v.alias}` : ''}`;
 }
 
 export const inkClass = (hex?: string) => `ink-${inkOn(hex)}`;

@@ -1,0 +1,181 @@
+/* The product documentation (layouts/Docs.astro): a left nav of guides and sections, one reading column. Tokens only. */
+
+.dc-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-8);
+  width: 100%;
+  max-width: var(--site-wrap);
+  margin-inline: auto;
+  padding: var(--space-8) var(--site-gutter) var(--space-20);
+}
+
+.dc-nav ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dc-nav li {
+  margin: 0;
+}
+
+.dc-nav-h {
+  margin: 0 0 var(--space-2);
+  padding-inline: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
+}
+
+a.dc-guide,
+a.dc-section {
+  display: flex;
+  align-items: center;
+  min-height: var(--size-9);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-default);
+  text-decoration-line: none;
+}
+
+a.dc-guide {
+  font-weight: var(--font-weight-medium);
+}
+
+a.dc-guide[aria-current="page"] {
+  background-color: var(--color-surface-selected);
+  color: var(--color-text-link);
+}
+
+a.dc-section {
+  min-height: var(--size-8);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
+}
+
+@media (hover: hover) {
+  a.dc-guide:hover,
+  a.dc-section:hover {
+    background-color: var(--color-surface-hover);
+    color: var(--color-text-default);
+  }
+}
+
+.dc-sections {
+  margin: var(--space-1) 0 var(--space-2) var(--space-3);
+  padding-left: var(--space-2);
+  border-left: var(--border-width-default) solid var(--color-border-default);
+}
+
+.dc-body {
+  max-width: 68ch;
+  min-width: 0;
+}
+
+.dc-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-8);
+}
+
+.dc-title {
+  margin: 0;
+  font-family: var(--typography-h1-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--typography-h1-weight);
+  letter-spacing: var(--typography-h1-tracking);
+  line-height: var(--typography-h2-line-height);
+  font-variation-settings: "SOFT" 100;
+}
+
+.dc-body section {
+  scroll-margin-top: var(--space-6);
+}
+
+.dc-body section + section {
+  margin-top: var(--space-10);
+}
+
+.dc-body h2 {
+  margin: 0 0 var(--space-3);
+  font-family: var(--typography-h2-family);
+  font-size: var(--typography-h3-size);
+  font-weight: var(--typography-h2-weight);
+  line-height: var(--typography-h3-line-height);
+}
+
+.dc-body h3 {
+  margin: var(--space-6) 0 var(--space-2);
+  font-size: var(--typography-body-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-body-line-height);
+}
+
+.dc-body p,
+.dc-body li,
+.dc-body dd {
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
+.dc-body p {
+  margin: 0 0 var(--space-3);
+}
+
+.dc-body ol {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-6);
+}
+
+.dc-body li + li {
+  margin-top: var(--space-2);
+}
+
+.dc-body code {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg-subtle);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-200);
+}
+
+.dc-todo {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.dc-terms {
+  margin: 0;
+}
+
+.dc-terms dt {
+  margin-top: var(--space-4);
+  font-weight: var(--font-weight-semibold);
+}
+
+.dc-terms dd {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+}
+
+@media (min-width: 900px) {
+  .dc-wrap {
+    grid-template-columns: calc(var(--size-60) + var(--space-4)) minmax(0, 1fr);
+    gap: var(--space-16);
+    padding-top: var(--space-12);
+  }
+
+  .dc-nav {
+    position: sticky;
+    top: var(--space-6);
+    align-self: start;
+  }
+
+  .dc-title {
+    font-size: var(--typography-h1-size);
+    line-height: var(--typography-h1-line-height);
+  }
+}

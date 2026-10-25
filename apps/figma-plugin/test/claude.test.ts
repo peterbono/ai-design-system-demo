@@ -1,5 +1,5 @@
 // Writing help: the Messages API call built from the detected changes, answers parsed and cleaned, friendly errors,
-// the "Copy for Claude" prompt, and where the API key may go (client storage and api.anthropic.com, nowhere else).
+// and where the API key may go (client storage and api.anthropic.com, nowhere else).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
@@ -12,7 +12,6 @@ import {
   buildClaudeRequest,
   claudeErrorMessage,
   claudeUserText,
-  copyPrompt,
   draftWithClaude,
   parseClaudeAnswer,
   sanitizeDraft,
@@ -140,17 +139,14 @@ test('maps errors to messages that say what to do', async () => {
   for (const s of [401, 403, 429, 500, 'network'] as const) assert.ok(!claudeErrorMessage(s).includes(EM));
 });
 
-test('Copy for Claude: one prompt with the voice rules, the change table and what to return, no images, no key', () => {
-  const p = copyPrompt(input);
-  assert.ok(p.startsWith(SYSTEM_PROMPT));
+test('the request text: the change table, the starting draft and the target, no key, no em dash', () => {
+  const p = claudeUserText(input);
   assert.match(p, /\| What \| Now \| In Figma \|/);
   assert.match(p, /\| Variant Tone \| info, neutral \| danger, info, neutral \|/);
   assert.match(p, /Starting draft/);
-  assert.match(p, /attach before and after screenshots/);
-  assert.match(p, /Answer with the JSON object only\./);
-  assert.ok(!p.includes('QkVGT1JF') && !p.includes('Images attached'));
+  assert.ok(!p.includes(KEY));
   assert.ok(!p.includes(EM));
-  const push = copyPrompt({ target: 'push', changes: [{ field: 'color.action.primary.bg', before: '#0b4a8b', after: '#043e70' }], components: ['Button'] });
+  const push = claudeUserText({ target: 'push', changes: [{ field: 'color.action.primary.bg', before: '#0b4a8b', after: '#043e70' }], components: ['Button'] });
   assert.match(push, /pull request with these design token/);
   assert.match(push, /Components with a change request: Button/);
 });
@@ -227,7 +223,6 @@ test('change lines: listed by id in the prompt, images per line attached, answer
   assert.deepEqual(d.lines, [{ id: '12:34', line: 'Icon added, primary sm: Pencil, 16px' }]);
   assert.equal(parseClaudeAnswer('{"title": "Add an icon", "summary": "Shows an icon."}').lines, undefined);
   assert.deepEqual(sanitizeDraft({ lines: [{ id: 'a', line: 'Only a line' }] }), { title: '', summary: '', lines: [{ id: 'a', line: 'Only a line' }] });
-  assert.doesNotMatch(copyPrompt(withLines), /QkVGT1JF/);
 });
 
 test('change lines carry the request title per component: asked in the prompt, sanitized, optional', () => {

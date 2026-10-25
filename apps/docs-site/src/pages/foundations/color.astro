@@ -1,87 +1,15 @@
 ---
+// Library > Foundations > Color: the shared view (components/ds/library/views/ColorView.tsx), rendered at build time.
 import Layout from '../../layouts/Layout.astro';
-import { Button, Link } from '@bridge-ds/react';
 import LibraryKit from '../../components/foundations/LibraryKit.astro';
-import TokenGroup from '../../components/foundations/TokenGroup.astro';
-import type { SpecimenGroup } from '../../components/foundations/Specimens.tsx';
-import { groupRows } from '../../lib/foundations';
+import ColorView from '../../components/ds/library/views/ColorView';
+import { siteLibraryData } from '../../lib/library-site';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
-import { luminance } from '../../lib/contrast';
-import { anchorOf, colorRamps, loadTokens, MODES } from '../../lib/tokens';
 
-const { semantic } = loadTokens();
-const colors = semantic.filter((s) => s.type === 'color');
-const groups = [...new Set(colors.map((s) => s.group))];
-const ramps = colorRamps();
 const updated = freshness(PAGE_SOURCES.color);
-
-const SPECIMEN: Record<string, SpecimenGroup> = {
-  'color.bg': 'color.bg',
-  'color.surface': 'color.surface',
-  'color.text': 'color.text',
-  'color.border': 'color.border',
-  'color.action': 'color.action',
-  'color.control': 'color.control',
-  'color.signal': 'color.signal',
-  'color.overlay': 'color.overlay',
-  'color.feedback': 'color.feedback',
-  'color.selection': 'color.selection',
-  focus: 'focus',
-};
-const sections = groups.map((g) => ({ group: g, rows: groupRows(g).filter((r) => r.type === 'color') })).filter((s) => s.rows.length);
-
-// Step label color: whichever of the system's own extremes reads better on the swatch.
-const labelOn = (hex?: string) => (hex && luminance(hex) > 0.36 ? 'var(--color-neutral-950)' : 'var(--color-neutral-0)');
-const semanticUsing = (primitivePath: string) =>
-  colors.filter((s) => MODES.some((m) => s.modes[m].chain.includes(primitivePath))).map((s) => s.path);
-import LibraryHeader from '../../components/LibraryHeader.astro';
 ---
 
 <Layout title="Color" description="Semantic color tokens shown in context in light and dark, and the primitive palette behind them." sources={PAGE_SOURCES.color} updated={updated}>
-  <div data-fd-page>
-    <LibraryHeader title="Color" art="paint" updated={updated} studio="/studio/tokens/?focus=color">
-      Every color has a job. Each group shows its tokens at work in both themes, then lists them. Design and build with these semantic tokens.
-    </LibraryHeader>
-
-    {sections.map((s) => <TokenGroup group={s.group} rows={s.rows} preview="color" specimen={SPECIMEN[s.group]} scope="brand" />)}
-
-    <section class="fd-group" aria-labelledby="primitives">
-      <header class="fd-group-head">
-        <h2 id="primitives">Primitive palette</h2>
-      </header>
-      <p class="fd-group-note">
-        Raw values. Components never use these directly; semantic tokens point to them. Use them when you propose a new semantic token, not when you
-        design a screen.
-      </p>
-      {
-        ramps.map(({ hue, steps }) => (
-          <section aria-labelledby={`ramp-${hue}`} class="fd-ramp">
-            <h3 id={`ramp-${hue}`}>{hue}</h3>
-            <div class="ramp-strip" role="list">
-              {steps.map((p) => {
-                const n = semanticUsing(p.path).length;
-                return (
-                  <div class="ramp-step" id={anchorOf(p.cssVar)} role="listitem">
-                    <span class="ramp-color" style={`background-color: var(${p.cssVar}); color: ${labelOn(p.hex)}`}>
-                      <strong>{p.segments.slice(2).join('.') || p.segments.slice(1).join('.')}</strong>
-                    </span>
-                    <span class="ramp-meta">
-                      <Button variant="link" size="sm" className="ramp-copy" data-copy={`var(${p.cssVar})`} aria-label={`Copy CSS variable var(${p.cssVar})`} title={`Copy var(${p.cssVar})`}>
-                        {p.hex}
-                      </Button>
-                      <span class={n ? 'ramp-n' : 'ramp-n is-unused'}>{n > 0 ? `${n} semantic` : 'Unused'}</span>
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        ))
-      }
-      <p>
-        Want to know exactly who uses a value? Paste a hex in search, or filter <Link href="/tokens/">All tokens</Link>.
-      </p>
-    </section>
-  </div>
+  <ColorView data={siteLibraryData()} />
   <LibraryKit />
 </Layout>

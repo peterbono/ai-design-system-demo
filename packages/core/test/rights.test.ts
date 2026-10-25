@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { loadConfig, toConfigJson } from '../src/config';
-import { approverLists, canShip, DEFAULT_RIGHTS, groupsPhrase, holdersOf, normalizeRights, shipPolicy, whoCanShipSentence } from '../src/rights';
+import { summarizeApprovals } from '../src/review-gate';
+import { approverLists, canShip, DEFAULT_RIGHTS, groupsPhrase, holdersOf, normalizeRights, shipPolicy, soloApprover, soloOwnerOf, soloOwnerSentence, whoCanShipSentence } from '../src/rights';
 
 const owners = { design: ['dana'], tech: ['theo', 'tara'] };
 
@@ -54,4 +55,36 @@ test('ship policy: tech owners by default, design owners when the team says so',
 test('ship policy with empty owner lists singles nobody out', () => {
   assert.equal(shipPolicy({ design: [], tech: [] }, DEFAULT_RIGHTS), null);
   assert.equal(canShip('anyone', null), true);
+});
+
+test('soloOwnerCanApproveBoth: off by default, validated, kept by toConfigJson', () => {
+  const solo = { design: ['peterbono'], tech: ['peterbono'] };
+  assert.equal(loadConfig({ repo: 'acme/ds', governance: { owners: solo } }).governance.soloOwnerCanApproveBoth, undefined);
+  const c = loadConfig({ repo: 'acme/ds', governance: { owners: solo, soloOwnerCanApproveBoth: true } });
+  assert.equal(c.governance.soloOwnerCanApproveBoth, true);
+  assert.equal(toConfigJson(c).governance && (toConfigJson(c).governance as { soloOwnerCanApproveBoth?: boolean }).soloOwnerCanApproveBoth, true);
+  assert.throws(() => loadConfig({ governance: { soloOwnerCanApproveBoth: 'yes' } } as never), /governance\.soloOwnerCanApproveBoth/);
+});
+
+test('the only owner: one person in both approver lists, never a team, only when the rule is on', () => {
+  const solo = { design: ['peterbono'], tech: ['@PeterBono'] };
+  assert.equal(soloApprover(solo), 'peterbono');
+  assert.equal(soloApprover({ design: ['dana'], tech: ['theo'] }), null);
+  assert.equal(soloApprover({ design: ['dana'], tech: ['dana', 'theo'] }), null);
+  assert.equal(soloApprover({ design: ['@acme/ds'], tech: ['@acme/ds'] }), null);
+  assert.equal(soloApprover({ design: [], tech: [] }), null);
+  assert.equal(soloOwnerOf({ owners: solo }), null);
+  assert.equal(soloOwnerOf({ owners: solo, soloOwnerCanApproveBoth: true }), 'peterbono');
+  assert.equal(soloOwnerOf({ owners: owners, soloOwnerCanApproveBoth: true }), null);
+  assert.equal(soloOwnerSentence('peterbono'), 'As the only owner, @peterbono approves design and code in one review.');
+  assert.equal(soloOwnerSentence('peterbono', true), 'As the only owner, your approval covers design and code.');
+});
+
+test('pull request approvals: the only owner covers design and tech once opted in, never on their own change', () => {
+  const solo = { design: ['peterbono'], tech: ['peterbono'] };
+  const reviews = [{ user: { login: 'peterbono' }, state: 'APPROVED', submitted_at: '1' }];
+  assert.deepEqual(summarizeApprovals(reviews, solo, 'claude'), { approvers: ['peterbono'], changesRequested: [], design: true, tech: false, owner: true });
+  assert.deepEqual(summarizeApprovals(reviews, solo, 'claude', { soloOwnerCanApproveBoth: true }), { approvers: ['peterbono'], changesRequested: [], design: true, tech: true, owner: true });
+  assert.deepEqual(summarizeApprovals(reviews, solo, 'peterbono', { soloOwnerCanApproveBoth: true }), { approvers: [], changesRequested: [], design: false, tech: false, owner: false });
+  assert.deepEqual(summarizeApprovals(reviews, { design: ['peterbono'], tech: ['peterbono', 'theo'] }, 'claude', { soloOwnerCanApproveBoth: true }).tech, false);
 });

@@ -36,6 +36,7 @@
     "Base UI Drawer: modal dialog semantics, named by the title, focus trapped, Escape closes, focus returns to the trigger.",
     "Swipe to dismiss is an extra for touch, never the only way: the close button and Escape always work.",
     "The page behind is inert while the drawer is open.",
+    "When the body is taller than the sheet it becomes a focusable region named by the title, so keyboard users can Tab to it and scroll with the arrow keys. A body that fits adds no tab stop.",
     "Slides in 300ms with an exponential ease-out; reduced motion shows it instantly.",
     "start and end follow the physical left and right in v1; RTL layouts should pass the mirrored side."
   ],

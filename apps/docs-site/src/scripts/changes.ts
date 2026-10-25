@@ -1,13 +1,16 @@
 // Studio Branches page controller: the list (every branch, explorations included), the views the header and old
 // addresses reach (History ?view=history, the exploration start form ?view=explorations&start=new or &for=N, Requests
 // ?view=requests when request triage is on in Studio, lib/studio-flags), a branch opened in place (?pr=N), a component
-// change request opened in place (?request=N), the local draft strip, and the routes old pages redirect to
+// change request opened in place (?request=N), a suggestion opened in place (?suggestion=N, scripts/suggestions.ts),
+// the local draft strip, and the routes old pages redirect to
 // (#other-branches, ?branch=). The header names the view: "Branches" with a History link, or the view's own name with
 // a link back to all branches.
 import { initWorkFilter } from './work-filter';
-import { closePr, initReviewAuth, loadList, openPr } from './reviews';
+import { closePr, initReviewAuth, loadList, openPr, setWaitingExtras } from './reviews';
+import { readWaitingExtras } from './waiting-extras';
 import { initHistory } from './history/page';
 import { initRequests, loadRequests, openRequest } from './requests';
+import { closeSuggestion, onViewerChange, openSuggestion } from './suggestions';
 import { initExplorations, loadExplorations, openExploration, paintExplorationCount, startForRequest } from './explorations';
 import type { ExplorationPullLike } from '../lib/explorations-view';
 import type { PullLike } from '../lib/requests-view';
@@ -17,11 +20,13 @@ import type { Draft } from '../lib/editor-model';
 import { addableChanges, defaultTarget, draftDestination, type ChangePullLike } from '../lib/continue-change';
 import { currentViewer, initGitHubConnect, onAccess, readRepo } from './github-session';
 import { REQUEST_TRIAGE_IN_STUDIO } from '../lib/studio-flags';
+import { studioHref } from '../lib/team-path';
 
 type View = 'review' | 'requests' | 'explorations' | 'history';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 let listLoaded: Promise<{ number: number; head: { ref: string } }[]> | null = null;
+let extrasLoaded: Promise<void> | null = null;
 const VIEW_QUERY: Record<View, string> = { review: '', requests: '?view=requests', explorations: '?view=explorations', history: '?view=history' };
 
 /** The open pull requests In review already read (with their bodies), so Requests links them at no request. */
@@ -34,7 +39,7 @@ const openPullsForExplorations = () => {
   return listLoaded.then((pulls) => (pulls.every((p) => 'body' in p) ? (pulls as unknown as ExplorationPullLike[]) : null));
 };
 
-const VIEW_TITLE: Record<View, string> = { review: 'Branches', requests: 'Requests', explorations: 'Explorations', history: 'History' };
+const VIEW_TITLE: Record<View, string> = { review: 'Changes', requests: 'Requests', explorations: 'Explorations', history: 'History' };
 
 function selectTab(view: View) {
   const title = document.querySelector<HTMLElement>('#cg-main .st-title');
@@ -92,19 +97,43 @@ function paintDestination(edits: number) {
   });
 }
 
+/** The suggestion review host (pages/studio/changes.astro), beside #rv-detail. */
+const sgHost = () => document.getElementById('sg-detail');
+
+/** Opens suggestion `n` in place, with the way back to all branches. */
+function showSuggestion(n: number, push: boolean) {
+  closePr();
+  $('cg-main').hidden = true;
+  if (push) history.pushState({ suggestion: n }, '', `?suggestion=${n}`);
+  window.scrollTo({ top: 0 });
+  const el = sgHost();
+  if (el) void openSuggestion(n, { el, crumbs: [{ label: 'Changes', href: studioHref('changes/') }, { label: 'Suggestion' }] });
+}
+
 function showView(view: View) {
   closePr();
+  closeSuggestion(sgHost());
   $('cg-main').hidden = false;
   selectTab(view);
   if (view === 'history') initHistory();
   else if (view === 'requests') void loadRequests(openPullsForRequests());
   else if (view === 'explorations') void loadExplorations(openPullsForExplorations);
-  else listLoaded ??= loadList();
+  else {
+    listLoaded ??= loadList();
+    // Waiting on me also lists the suggestions that wait on the viewer (no guidance drafts here: Home has them).
+    extrasLoaded ??= listLoaded.then(() => readWaitingExtras({ ...readRepo(), guidance: [] })).then(setWaitingExtras, () => undefined);
+  }
   void listLoaded?.then((pulls) => paintExplorationCount(pulls as unknown as ExplorationPullLike[]));
 }
 
 function route() {
   const params = new URLSearchParams(location.search);
+  const sg = Number(params.get('suggestion'));
+  if (sg) {
+    showSuggestion(sg, false);
+    return;
+  }
+  closeSuggestion(sgHost());
   const n = Number(params.get('pr'));
   if (n) {
     $('cg-main').hidden = true;
@@ -174,13 +203,21 @@ export function initChanges() {
     const pr = t.closest<HTMLAnchorElement>('[data-open-pr]');
     if (pr) {
       e.preventDefault();
+      closeSuggestion(sgHost());
       $('cg-main').hidden = true;
       void openPr(Number(pr.dataset.openPr));
+      return;
+    }
+    const sg = t.closest<HTMLAnchorElement>('[data-open-suggestion]');
+    if (sg) {
+      e.preventDefault();
+      showSuggestion(Number(sg.dataset.openSuggestion), true);
       return;
     }
     const rq = t.closest<HTMLAnchorElement>('[data-open-request]');
     if (rq) {
       e.preventDefault();
+      closeSuggestion(sgHost());
       $('cg-main').hidden = true;
       void openRequest(Number(rq.dataset.openRequest), true, openPullsForRequests());
       return;
@@ -196,6 +233,7 @@ export function initChanges() {
     const ex = t.closest<HTMLAnchorElement>('[data-open-exploration]');
     if (ex) {
       e.preventDefault();
+      closeSuggestion(sgHost());
       $('cg-main').hidden = true;
       void openExploration(Number(ex.dataset.openExploration));
       return;
@@ -222,6 +260,11 @@ export function initChanges() {
   });
 
   window.addEventListener('popstate', route);
+  // What the viewer may do on a suggestion depends on who is connected.
+  onViewerChange(() => {
+    const sg = Number(new URLSearchParams(location.search).get('suggestion'));
+    if (sg) showSuggestion(sg, false);
+  });
   route();
   paintDraft();
 }

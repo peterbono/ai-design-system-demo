@@ -1,0 +1,12 @@
+---
+// Team shell of Studio Tokens (lib/team-shells.ts): served for /studio/<owner>/<repo>/tokens/ by the vercel.json rewrite.
+// The same token explorer in edit mode as /studio/tokens/, started from the team's repo model in the browser
+// (TokenExplorer hosted, scripts/explorer/team-bootstrap.ts) instead of build-time data.
+import '../../styles/team-pages.css';
+import Layout from '../../layouts/Layout.astro';
+import TokenExplorerSlot from '../../components/TokenExplorerSlot.astro';
+---
+
+<Layout title="Tokens" description="Edit this team's tokens into a draft, with live preview and guardrails." hosted wide>
+  <TokenExplorerSlot mode="edit" hosted />
+</Layout>

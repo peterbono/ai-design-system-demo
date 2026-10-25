@@ -293,6 +293,12 @@ describe('explorations on GitHub', () => {
     expect(gh.pulls[0].title).toBe('DS-42 Exploration: pill buttons');
   });
 
+  it('start for a product: its label goes on the draft pull request with the exploration one', async () => {
+    const gh = fakeGitHub();
+    await startExplorationOnGitHub(gh.client(), { name: 'Billing screen', purpose: 'Overdue invoices.' }, { ...settings, labels: ['product: admin'] });
+    expect(gh.pulls[0].labels.map((l: any) => l.name)).toEqual(['exploration', 'product: admin']);
+  });
+
   it('start for a request: the draft pull request lists the request it answers', async () => {
     const gh = fakeGitHub();
     await startExplorationOnGitHub(gh.client(), { name: 'Native select', purpose: 'Pages without React need one.' }, { ...settings, requests: [{ number: 81, title: 'Select: add a native Select' }] });

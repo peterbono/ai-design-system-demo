@@ -61,7 +61,7 @@ describe('approvals and who acts, with teams', () => {
 
   it('ready to ship names the team that ships', () => {
     const ready = whoActs({ kind: 'ready' }, people(teams));
-    expect(ready.sentence).toBe('Ready to merge: @acme/web (1 person) or @tara can merge it.');
+    expect(ready.sentence).toBe('Ready to add to the library: @acme/web (1 person) or @tara can add it.');
   });
 });
 

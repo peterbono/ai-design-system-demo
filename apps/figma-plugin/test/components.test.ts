@@ -2,7 +2,7 @@
 // (Figma-only restructures, variable value edits) triggers nothing.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { REQUESTS_BRANCH, parseRequestIssue } from '@bridge-ds/core';
+import { BUILD_REQUEST_LABEL, REQUESTS_BRANCH, parseBuildRequestIssue, parseRequestIssue } from '@bridge-ds/core';
 import {
   type RawComponent,
   type RawLayer,
@@ -13,11 +13,13 @@ import {
   diffSignatures,
   fnv1a,
   pullBaselines,
+  rawKey,
   suggestLine,
   suggestTitle,
   toRequest,
 } from '../src/sync/components';
-import { loadCodedComponents, sendComponentRequest } from '../src/sync/requests';
+import { componentOfSet, loadCodedComponents, sendComponentRequest } from '../src/sync/requests';
+import { rebindsOf } from '../src/sync/component-push';
 import { FakeGitHub } from './fake-github';
 
 function variant(size: string, tone: string, patch: Partial<RawVariant> = {}): RawVariant {
@@ -132,8 +134,22 @@ test('fill rebound to another variable: token-binding', () => {
   const d = diffSignatures(sig(button()), sig(next));
   assert.equal(d.kind, 'token-binding');
   assert.deepEqual(d.changes, [
-    { field: 'Fill (Size=md, Tone=primary)', before: 'button.primary.bg, button.primary.fg', after: 'button.primary.fg, color.action.danger.bg' },
+    // Only what moved: the label keeps button.primary.fg.
+    { field: 'Fill (Size=md, Tone=primary)', before: 'button.primary.bg', after: 'color.action.danger.bg' },
   ]);
+});
+
+test('one variant removed while its values stay on their axes: a variants change, not nothing', () => {
+  const next = button((c) => (c.variants = c.variants.filter((v) => !(v.props?.Size === 'md' && v.props?.Tone === 'secondary'))));
+  const d = diffSignatures(sig(button()), sig(next));
+  assert.equal(d.kind, 'new-variant');
+  assert.deepEqual(d.changes, [{ field: 'Variants', before: 'Size=md, Tone=secondary', after: undefined }]);
+  // A whole axis value gone is the axis row's: no Variants row on top of it.
+  const noMd = button((c) => {
+    c.variants = c.variants.filter((v) => v.props?.Size !== 'md');
+    c.definitions[0] = { ...c.definitions[0]!, options: ['sm'] };
+  });
+  assert.deepEqual(diffSignatures(sig(button()), sig(noMd)).changes.map((x) => x.field), ['Variant Size']);
 });
 
 test('render changed with the same bindings and values: visual', () => {
@@ -259,6 +275,32 @@ test('send: Figma link when the file key is known; no images means no branch; su
   await assert.rejects(sendComponentRequest(client, { request: { ...req, summary: '  ' }, baseBranch: 'main' }), /summary/);
 });
 
+test('send with what code draws now: a build request with the code image before and the Figma export after (REQ-2)', async () => {
+  const gh = new FakeGitHub({ 'README.md': '#' });
+  const client = gh.client();
+  const code = 'https://github.com/o/r/blob/bridge-visual/figma-references/button/size-md.png?raw=true';
+  const req = toRequest({ component: 'Button', kind: 'visual', title: 'Rounder corners', summary: 'Buttons read softer.', changes: [], nodeId: '1:5', nodeName: 'Size=md' }, { fileKey: 'ABC' });
+  const res = await sendComponentRequest(client, { request: req, images: ['iVBORw0KGgo='], before: [code], baseBranch: 'main', now: new Date('2026-10-24T10:00:00Z') });
+  const issue = gh.issues[0]!;
+  assert.ok(issue.labels.includes(BUILD_REQUEST_LABEL), 'a build request: Being built shows it with its images');
+  assert.match(issue.body, /\| In code now \| In Figma \|/);
+  const parsed = parseBuildRequestIssue(issue.body)!;
+  assert.deepEqual(parsed.build, { v: 1, before: [code], after: res.images });
+  // No export attached: nothing to put it next to, a plain request.
+  await sendComponentRequest(client, { request: req, before: [code], baseBranch: 'main' });
+  assert.equal(gh.issues[1]!.labels.includes(BUILD_REQUEST_LABEL), false);
+});
+
+test('a manual request takes the component of the selected set (REQ-3)', () => {
+  const coded = ['Button', 'Menu', 'Progress', 'RadioGroup', 'Tag'];
+  assert.equal(componentOfSet('Tag', coded), 'Tag');
+  assert.equal(componentOfSet('Menu/Popup', coded), 'Menu');
+  assert.equal(componentOfSet('MenuItem', coded), 'Menu');
+  assert.equal(componentOfSet('Progress/Circular', coded), 'Progress');
+  assert.equal(componentOfSet('Radio', coded), 'RadioGroup');
+  assert.equal(componentOfSet('Sparkline', coded), undefined);
+});
+
 // ---------------------------------------------------------------------------------------------
 // Structure: layers added, removed or moved
 
@@ -328,7 +370,7 @@ test('structure: a text where an optional text exists gets the hint; other chang
   const base = withLayers((ls) => [...ls, L('Helper', 'TEXT', { visible: false, visibleProp: 'Show helper', textProp: 'Helper' })]);
   const cur = withLayers((ls, s, t) => [L('Note', 'TEXT'), ...ls, L('Helper', 'TEXT', { visible: false, visibleProp: 'Show helper', textProp: 'Helper' })].slice(smPrimary(s, t) ? 0 : 1), (s, t) => (smPrimary(s, t) ? 'r' : undefined));
   const d = diffSignatures(sig(base), sig(cur));
-  assert.deepEqual(d.equivalents, ['Helper already does this: show it with the Show helper property']);
+  assert.deepEqual(d.equivalents, ['Helper already does this: turn on Show helper']);
   const scan = classifyComponents(
     [{ nodeId: '1:2', name: 'Button', signature: sig(cur), baseline: sig(base) }],
     ['Button'],
@@ -346,4 +388,34 @@ test('structure: a text where an optional text exists gets the hint; other chang
   assert.equal(scan2.changed[0]!.kind, 'prop-change');
   assert.ok(scan2.changed[0]!.equivalent);
   assert.equal(scan2.changed[0]!.suggestSkip, undefined);
+});
+
+test('rebound to a variable another layer already uses: still bound, never "none"', () => {
+  // The label already paints with button.primary.fg; the fill moves onto it too.
+  const next = button((c) => {
+    const v = find(c, 'md', 'primary');
+    v.bindings = v.bindings.map((b) => (b.variable === 'button/primary/bg' ? { ...b, variable: 'button/primary/fg' } : b));
+    v.render = fnv1a('fill like the label');
+  });
+  const d = diffSignatures(sig(button()), sig(next));
+  assert.deepEqual(d.changes, [{ field: 'Fill (Size=md, Tone=primary)', before: 'button.primary.bg', after: 'button.primary.fg' }]);
+});
+
+test('a value set by hand where a variable went: unbound, with the value and the variables that hold it', () => {
+  // Same bindings as the rebind above, but the fill now reads #FF00AA by hand: not rebound to the label's variable.
+  const next = button((c) => {
+    const v = find(c, 'md', 'primary');
+    v.bindings = v.bindings.filter((b) => b.variable !== 'button/primary/bg');
+    v.raw = [{ kind: 'fill', value: '#FF00AA' }];
+    v.render = fnv1a('pink by hand');
+  });
+  const d = diffSignatures(sig(button()), sig(next));
+  assert.deepEqual(d.changes, [{ field: 'Fill (Size=md, Tone=primary)', before: 'button.primary.bg', after: 'none' }]);
+  const r = rebindsOf(sig(button()), sig(next), { [rawKey('fill', '#FF00AA')]: ['color/accent'] });
+  assert.deepEqual(r, [{ kind: 'fill', variants: ['Size=md, Tone=primary'], allVariants: false, before: ['button.primary.bg'], after: [], raw: [{ value: '#FF00AA', matches: ['color/accent'] }] }]);
+  // A value set by hand already at the baseline is not new: still read as the rebind onto the label's variable.
+  const base = button((c) => {
+    find(c, 'md', 'primary').raw = [{ kind: 'fill', value: '#FF00AA' }];
+  });
+  assert.equal(rebindsOf(sig(base), sig(next))[0]!.raw, undefined);
 });

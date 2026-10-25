@@ -1,0 +1,87 @@
+---
+// "How do you want to start?" (board EmptyC), where both "Get started" buttons of the landing lead. Rules and words in
+// lib/start.ts. Two cards side by side (stacked on a phone), one primary action:
+//   - Connect your design system: signs in with GitHub first when signed out (straight to GitHub, back on the browser
+//     workspace), then the setup step that picks a Storybook or a repository (pages/studio/workspace.astro).
+//   - Look around first: Acme Design, the sample team, read only.
+// It shows only while this browser remembers no workspace: otherwise the page forwards to the workspace (the most
+// recent team of the visitor's own, else the browser workspace). Nothing is read from GitHub for a guest.
+import '../styles/start.css';
+import Layout from '../layouts/Layout.astro';
+import { Card, Icon } from '@bridge-ds/react';
+import { Check } from 'lucide-react';
+import ButtonLink from '../components/ds/ButtonLink';
+import { CONNECT_HREF, START_WORDS as W, startTitle } from '../lib/start';
+import { DEMO } from '../lib/nav';
+---
+
+<Layout title="Get started" description="Connect your design system to Bridge, or look around the demo first." bare>
+  <div class="gs" data-start data-start-pending>
+    <noscript><style is:inline>[data-start-pending] { visibility: visible; }</style></noscript>
+    <div class="gs-head">
+      <h1 class="gs-title" data-start-title>{startTitle(null)}</h1>
+      <p class="gs-sub">{W.sub}</p>
+    </div>
+    <div class="gs-cards">
+      <Card className="gs-card" aria-labelledby="gs-connect">
+        <span class="gs-art" aria-hidden="true">
+          {[0, 1, 2, 3].map(() => <span class="gs-shape" />)}
+        </span>
+        <h2 id="gs-connect" class="gs-h2">{W.connectTitle}</h2>
+        <p class="gs-text">{W.connectText}</p>
+        <ul class="gs-checks">
+          {W.connectChecks.map((c) => (
+            <li><Icon icon={Check} size="sm" /><span>{c}</span></li>
+          ))}
+        </ul>
+        <ButtonLink variant="primary" size="lg" href={CONNECT_HREF} className="gs-action" data-start-connect>{W.connectButton}</ButtonLink>
+      </Card>
+      <Card className="gs-card" aria-labelledby="gs-demo">
+        <span class="gs-art" aria-hidden="true">
+          <span class="gs-shape gs-shape-solid" />
+          <span class="gs-shape gs-shape-zone" />
+          <span class="gs-shape gs-shape-button">Button</span>
+          <span class="gs-shape gs-shape-field" />
+        </span>
+        <h2 id="gs-demo" class="gs-h2">{W.demoTitle}</h2>
+        <p class="gs-text">{W.demoText}</p>
+        <ul class="gs-checks">
+          {W.demoChecks.map((c) => (
+            <li><Icon icon={Check} size="sm" /><span>{c}</span></li>
+          ))}
+        </ul>
+        <ButtonLink variant="secondary" size="lg" href={DEMO} className="gs-action" data-start-demo>{W.demoButton}</ButtonLink>
+      </Card>
+    </div>
+  </div>
+
+  <script>
+    import { rememberStart, startFacts } from '../scripts/start';
+    import { getStartedHref, hasWorkspace, startTitle } from '../lib/start';
+    import { loadReserved } from '../lib/team-open';
+    import { shortName } from '../lib/home-model';
+    import { currentViewer, initGitHubConnect } from '../scripts/github-session';
+    import { connectDesignSystem } from '../scripts/start-connect';
+
+    const root = document.querySelector<HTMLElement>('[data-start]')!;
+
+    void (async () => {
+      // A workspace is remembered: "Get started" goes straight to it (lib/start.ts).
+      const facts = startFacts();
+      if (hasWorkspace(facts)) {
+        location.replace(getStartedHref(facts, await loadReserved()));
+        return;
+      }
+      root.removeAttribute('data-start-pending');
+      // The first name once signed in; none signed out.
+      const title = root.querySelector<HTMLElement>('[data-start-title]');
+      initGitHubConnect((v) => {
+        if (title) title.textContent = startTitle(v ? (shortName(v.name) ?? v.login) : null);
+      });
+    })();
+
+    root.querySelector<HTMLAnchorElement>('[data-start-connect]')?.addEventListener('click', (e) => connectDesignSystem(e, (e.currentTarget as HTMLAnchorElement).getAttribute('href')!));
+    // "Open the demo": the demo's banner then leads back here, or to the workspace once there is one.
+    root.querySelector('[data-start-demo]')?.addEventListener('click', () => rememberStart({ demo: true }));
+  </script>
+</Layout>

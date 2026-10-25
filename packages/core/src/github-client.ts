@@ -27,6 +27,8 @@ export interface GitHubErrorInfo {
   auth?: GitHubAuthState | undefined;
   /** The permission the call needed, when GitHub or the endpoint tells (only with auth "missing-permission"). */
   permission?: GitHubPermission | undefined;
+  /** For a rate limit (status 429): when the limit resets, when GitHub or Bridge said. */
+  resetsAt?: Date | undefined;
 }
 
 export class GitHubError extends Error {
@@ -34,6 +36,8 @@ export class GitHubError extends Error {
   readonly auth: GitHubAuthState | undefined;
   /** With auth "missing-permission": the permission the call needed, when known. */
   readonly permission: GitHubPermission | undefined;
+  /** For a rate limit (status 429): when the limit resets, when known. */
+  readonly resetsAt: Date | undefined;
 
   constructor(
     readonly status: number,
@@ -45,6 +49,7 @@ export class GitHubError extends Error {
     this.name = 'GitHubError';
     this.auth = info.auth;
     this.permission = info.permission;
+    this.resetsAt = info.resetsAt;
   }
 }
 
@@ -132,7 +137,7 @@ export interface RepoInfo {
   fullName: string;
   defaultBranch: string;
   private: boolean;
-  permissions: { admin?: boolean; push?: boolean; pull?: boolean } | undefined;
+  permissions: { admin?: boolean; maintain?: boolean; push?: boolean; triage?: boolean; pull?: boolean } | undefined;
 }
 
 export interface TreeEntry {
@@ -140,6 +145,8 @@ export interface TreeEntry {
   type: 'blob' | 'tree' | 'commit';
   sha: string;
   mode: string;
+  /** Bytes, for blobs (GitHub sends it in tree listings). */
+  size?: number | undefined;
 }
 
 export interface CompareResult {
@@ -163,6 +170,8 @@ export interface Review {
   state: string;
   body: string;
   submittedAt?: string | undefined;
+  /** The commit the review was given on (GitHub `commit_id`). */
+  commitId?: string | undefined;
 }
 
 export interface PullRequestSummary {
@@ -180,6 +189,11 @@ export interface PullRequestSummary {
   updatedAt: string;
   /** Description, when the list endpoint returns it (component change requests read "Closes #n" from it). */
   body?: string | undefined;
+  /** ISO dates, when GitHub returns them (build requests: in progress since, shipped on). */
+  createdAt?: string | undefined;
+  mergedAt?: string | undefined;
+  /** Who is assigned (logins), when any. */
+  assignees?: string[] | undefined;
 }
 
 export interface ClientOptions {
@@ -196,7 +210,192 @@ export interface ClientOptions {
    * the MCP server config"). Default: "add a GitHub token".
    */
   tokenHint?: string;
+  /**
+   * Where conditional GET responses are kept (ETag + body). Default: one in-memory store shared by every client in
+   * this process or page, keyed by the token's fingerprint, so two accounts never share an entry. `false` turns
+   * conditional requests off. A 304 answer does not count against GitHub's primary rate limit.
+   */
+  etags?: EtagStore | false;
+  /**
+   * Who the cached responses belong to, when a stable name is known (the signed-in login). Default: a fingerprint of
+   * the token, which changes when the token is refreshed.
+   */
+  etagScope?: string;
+  /**
+   * When GitHub's hourly limit is used up and a cached response exists for that request, return it instead of
+   * throwing. Off by default: the caller then knows the data may be stale only from `rateLimit`.
+   */
+  serveStaleOnRateLimit?: boolean;
 }
+
+/** One cached conditional response: what GitHub sent with this ETag. */
+export interface EtagEntry {
+  etag: string;
+  body: unknown;
+  /** When it was stored or last confirmed by a 304 (ms since epoch). */
+  at: number;
+}
+
+/** Storage for conditional requests. Keys never contain the token. */
+export interface EtagStore {
+  get(key: string): EtagEntry | undefined;
+  set(key: string, entry: EtagEntry): void;
+  /** Forgets every entry (sign-out). */
+  clear(): void;
+}
+
+/** An in-memory ETag store that keeps the `max` most recently used entries. */
+export function memoryEtagStore(max = 500): EtagStore {
+  const map = new Map<string, EtagEntry>();
+  return {
+    get(key) {
+      const e = map.get(key);
+      if (e) {
+        map.delete(key);
+        map.set(key, e);
+      }
+      return e;
+    },
+    set(key, entry) {
+      map.delete(key);
+      map.set(key, entry);
+      while (map.size > max) map.delete(map.keys().next().value!);
+    },
+    clear: () => map.clear(),
+  };
+}
+
+/** The subset of the Web Storage API (localStorage, sessionStorage) an ETag store needs. */
+export interface StorageLike {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+  key(index: number): string | null;
+  readonly length: number;
+}
+
+/**
+ * An ETag store over Web Storage, so conditional requests survive a page load. Every access is guarded: private
+ * windows, quota errors and blocked storage turn into cache misses, never into failures. Entries live under
+ * `prefix` (default "bridge.gh.etag:"); `clear()` removes only those. Bodies of private repositories land here
+ * too, so a sign-out must call `clear()`.
+ */
+export function webStorageEtagStore(storage: StorageLike, opts: { prefix?: string; maxEntryBytes?: number } = {}): EtagStore {
+  const prefix = opts.prefix ?? 'bridge.gh.etag:';
+  const maxBytes = opts.maxEntryBytes ?? 512_000;
+  return {
+    get(key) {
+      try {
+        const raw = storage.getItem(prefix + key);
+        if (!raw) return undefined;
+        const e = JSON.parse(raw) as EtagEntry;
+        return typeof e?.etag === 'string' ? e : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    set(key, entry) {
+      try {
+        const raw = JSON.stringify(entry);
+        if (raw.length > maxBytes) return;
+        storage.setItem(prefix + key, raw);
+      } catch {
+        // Quota or blocked storage: the next request is simply unconditional.
+      }
+    },
+    clear() {
+      try {
+        const keys: string[] = [];
+        for (let i = 0; i < storage.length; i++) {
+          const k = storage.key(i);
+          if (k?.startsWith(prefix)) keys.push(k);
+        }
+        for (const k of keys) storage.removeItem(k);
+      } catch {
+        // Nothing to clear when storage is unavailable.
+      }
+    },
+  };
+}
+
+const sharedEtags = memoryEtagStore();
+
+/** Clears the default in-memory ETag store every client shares (sign-out, account switch). */
+export function clearSharedEtags(): void {
+  sharedEtags.clear();
+}
+
+/** A short, non-reversible name for a token, used in cache keys instead of the token itself (two FNV-1a passes). */
+export function tokenFingerprint(token: string): string {
+  if (!token) return 'anon';
+  let a = 0x811c9dc5;
+  let b = 0x01000193 ^ token.length;
+  for (let i = 0; i < token.length; i++) {
+    const c = token.charCodeAt(i);
+    a = Math.imul(a ^ c, 0x01000193) >>> 0;
+    b = Math.imul(b ^ c ^ (i & 0xff), 0x5bd1e995) >>> 0;
+  }
+  return a.toString(16).padStart(8, '0') + b.toString(16).padStart(8, '0');
+}
+
+/** GitHub's rate-limit headers from the last API response. */
+export interface RateLimitInfo {
+  limit: number | undefined;
+  remaining: number | undefined;
+  resetsAt: Date | undefined;
+  /** "core", "search", "graphql"... */
+  resource: string | undefined;
+}
+
+/** What the conditional request cache did, for tests and diagnostics. */
+export interface EtagStats {
+  /** Requests sent with If-None-Match. */
+  conditional: number;
+  /** 304 answers served from the cache (free for the primary rate limit). */
+  notModified: number;
+  /** Cached bodies returned because the hourly limit was used up (serveStaleOnRateLimit). */
+  stale: number;
+}
+
+/** An installation of a GitHub App the signed-in user can reach (GET /user/installations). */
+export interface Installation {
+  id: number;
+  account: { login: string; type: string } | null;
+  /** "all" repositories of the account, or "selected" ones. */
+  repositorySelection: 'all' | 'selected' | string;
+  appSlug: string | undefined;
+}
+
+/** One repository of an installation (GET /user/installations/{id}/repositories). */
+export interface InstallationRepo {
+  owner: string;
+  name: string;
+  fullName: string;
+  private: boolean;
+}
+
+/** One installation of the GitHub App, as GET /user/installations lists it (raw or mapped). */
+export interface InstallationLike {
+  id: number;
+  account?: { login?: string } | null;
+  repository_selection?: 'all' | 'selected' | string;
+  repositorySelection?: 'all' | 'selected' | string;
+}
+
+/**
+ * Whether the signed-in account reaches a repository of `owner` through the app: 'yes' when an installation on the
+ * owner covers all its repositories, 'check' (with its id) when it covers selected ones (list them to know), 'no'
+ * when there is none. Same contract as the site's `installationFor` (lib/github-signin.ts).
+ */
+export function installationFor(list: InstallationLike[], owner: string): { reach: 'yes'; id: number } | { reach: 'check'; id: number } | { reach: 'no' } {
+  const inst = list.find((i) => i.account?.login?.toLowerCase() === owner.toLowerCase());
+  if (!inst) return { reach: 'no' };
+  const selection = inst.repositorySelection ?? inst.repository_selection;
+  return selection === 'all' ? { reach: 'yes', id: inst.id } : { reach: 'check', id: inst.id };
+}
+
+/** Pages read at most by the paged listings (100 items each). */
+const MAX_PAGES = 10;
 
 /**
  * The sentence for GitHub's exhausted hourly limit. With a token, the token's own limit is used up: wait. Without one,
@@ -261,9 +460,24 @@ export interface RetryPolicy {
 const DEFAULT_RETRY: RetryPolicy = { attempts: 3, baseDelayMs: 600, sleep: (ms) => new Promise((r) => setTimeout(r, ms)) };
 
 /** Transient failures worth retrying: network errors, 5xx, and secondary rate limits. */
+/** Errors for an exhausted hourly limit: waiting seconds will not help, so they are never retried. */
+const hourlyLimitErrors = new WeakSet<GitHubError>();
+
 const isTransient = (status: number, detail: string) => status === 0 || status >= 500 || status === 429 || (status === 403 && /secondary rate limit/i.test(detail));
 
 const API = 'https://api.github.com';
+const ACCEPT_JSON = 'application/vnd.github+json';
+/** Contents and blobs APIs: the file's bytes as the body, no base64 and no 1 MB JSON limit. */
+const ACCEPT_RAW = 'application/vnd.github.raw';
+
+interface RequestOptions {
+  /** Accept header (default the JSON media type). */
+  accept?: string;
+  /** Read the body as text instead of JSON. */
+  text?: boolean;
+  /** False: never conditional and never cached (immutable resources the caller caches by sha). */
+  etag?: boolean;
+}
 const RAW = 'https://raw.githubusercontent.com';
 
 /** "owner/name", a github.com URL or an SSH remote. */
@@ -287,6 +501,9 @@ export function base64ToUtf8(b64: string): string {
   return new TextDecoder('utf-8').decode(bytes);
 }
 
+/** A deep copy, so a caller that edits a response never edits the cached one. */
+const copy = <T>(value: T): T => (value === null || typeof value !== 'object' ? value : typeof structuredClone === 'function' ? structuredClone(value) : (JSON.parse(JSON.stringify(value)) as T));
+
 const encodeRef = (ref: string) => ref.split('/').map(encodeURIComponent).join('/');
 
 export class GitHubClient {
@@ -295,6 +512,11 @@ export class GitHubClient {
   private readonly blobCache = new Map<string, string>();
   private readonly api: string;
   private readonly protectedBranches: string[];
+  private readonly etags: EtagStore | undefined;
+  private readonly etagScope: string;
+  private rate: RateLimitInfo | undefined;
+  /** What the conditional request cache did for this client. */
+  readonly etagStats: EtagStats = { conditional: 0, notModified: 0, stale: 0 };
 
   constructor(
     repo: string,
@@ -308,6 +530,13 @@ export class GitHubClient {
     this.name = r.name;
     this.api = (options.apiUrl ?? API).replace(/\/$/, '');
     this.protectedBranches = options.protectedBranches ?? DEFAULT_PROTECTED_BRANCHES;
+    this.etags = options.etags === false ? undefined : (options.etags ?? sharedEtags);
+    this.etagScope = options.etagScope ?? tokenFingerprint(token);
+  }
+
+  /** GitHub's rate-limit headers from the last API response, or undefined before any response carried them. */
+  get rateLimit(): RateLimitInfo | undefined {
+    return this.rate;
   }
 
   /** "owner/name". */
@@ -338,31 +567,62 @@ export class GitHubClient {
     return `/repos/${this.owner}/${this.name}`;
   }
 
-  private async request<T>(method: string, path: string, body?: unknown, retryable = method === 'GET'): Promise<T> {
+  private async request<T>(method: string, path: string, body?: unknown, retryable = method === 'GET', opts: RequestOptions = {}): Promise<T> {
     const attempts = retryable ? Math.max(1, this.retry.attempts) : 1;
     for (let attempt = 1; ; attempt++) {
       try {
-        return await this.once<T>(method, path, body);
+        return await this.once<T>(method, path, body, opts);
       } catch (err) {
         const e = err as GitHubError;
-        if (attempt >= attempts || !(e instanceof GitHubError) || !isTransient(e.status, e.detail ?? '')) throw err;
+        if (attempt >= attempts || !(e instanceof GitHubError) || hourlyLimitErrors.has(e) || !isTransient(e.status, e.detail ?? '')) throw err;
         await this.retry.sleep(this.retry.baseDelayMs * 2 ** (attempt - 1));
       }
     }
   }
 
-  private async once<T>(method: string, path: string, body?: unknown): Promise<T> {
+  private noteRateLimit(headers: { get(name: string): string | null } | undefined): void {
+    const remaining = headers?.get('x-ratelimit-remaining');
+    if (remaining == null) return;
+    const limit = headers?.get('x-ratelimit-limit');
+    const reset = headers?.get('x-ratelimit-reset');
+    this.rate = {
+      limit: limit != null ? Number(limit) : undefined,
+      remaining: Number(remaining),
+      resetsAt: reset ? new Date(Number(reset) * 1000) : undefined,
+      resource: headers?.get('x-ratelimit-resource') ?? undefined,
+    };
+  }
+
+  private async once<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
+    const accept = opts.accept ?? ACCEPT_JSON;
     const headers: Record<string, string> = {
-      Accept: 'application/vnd.github+json',
+      Accept: accept,
       'X-GitHub-Api-Version': '2022-11-28',
     };
     if (this.token) headers.Authorization = `Bearer ${this.token}`;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
+    // Conditional GET: the key names the account (fingerprint or scope), the media type and the URL, never the token.
+    // If-None-Match is sent only with a token: GitHub does not count a 304 against the primary limit only when the
+    // request is authorized. Anonymous responses are still kept, for serveStaleOnRateLimit.
+    const key = method === 'GET' && this.etags && opts.etag !== false ? `${this.etagScope} ${accept} ${this.api}${path}` : undefined;
+    const cached = key ? this.etags!.get(key) : undefined;
+    if (cached && this.token) {
+      headers['If-None-Match'] = cached.etag;
+      this.etagStats.conditional++;
+    }
     let res: Awaited<ReturnType<FetchLike>>;
     try {
       res = await this.fetchImpl(`${this.api}${path}`, { method, headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
     } catch (err) {
+      // A fetch that answers for GitHub with its own GitHubError (the Studio waiting for an app's OK) keeps it.
+      if (err instanceof GitHubError) throw err;
       throw new GitHubError(0, 'Could not reach GitHub. Check your connection, then try again.', (err as Error).message);
+    }
+    this.noteRateLimit(res.headers);
+    if (res.status === 304 && cached && key && this.token) {
+      this.etagStats.notModified++;
+      this.etags!.set(key, { ...cached, at: Date.now() });
+      return copy(cached.body) as T;
     }
     if (res.status === 204) return undefined as T;
     if (!res.ok) {
@@ -376,8 +636,14 @@ export class GitHubClient {
       const remaining = res.headers?.get('x-ratelimit-remaining');
       const reset = res.headers?.get('x-ratelimit-reset');
       if ((res.status === 403 || res.status === 429) && remaining === '0') {
+        if (cached && this.options.serveStaleOnRateLimit) {
+          this.etagStats.stale++;
+          return copy(cached.body) as T;
+        }
         const resetsAt = reset ? new Date(Number(reset) * 1000) : undefined;
-        throw new GitHubError(429, rateLimitMessage({ withToken: Boolean(this.token), resetsAt, tokenHint: this.options.tokenHint }), detail);
+        const limited = new GitHubError(429, rateLimitMessage({ withToken: Boolean(this.token), resetsAt, tokenHint: this.options.tokenHint }), detail, { resetsAt });
+        hourlyLimitErrors.add(limited);
+        throw limited;
       }
       const info = classifyAuth(res.status, detail, {
         path,
@@ -386,7 +652,25 @@ export class GitHubClient {
       });
       throw new GitHubError(res.status, friendlyMessage(res.status, detail, info), detail, info);
     }
-    return (await res.json()) as T;
+    const data = opts.text ? await res.text() : await res.json();
+    const etag = key ? res.headers?.get('etag') : null;
+    if (key && etag) this.etags!.set(key, { etag, body: copy(data), at: Date.now() });
+    return data as T;
+  }
+
+  /**
+   * Every item of a paged listing (`per_page=100`), at most 10 pages. `pick` takes the items out of one page (the
+   * installation endpoints wrap them in an object with `total_count`).
+   */
+  private async paged<R, I>(path: string, pick: (page: R) => { items: I[]; total?: number | undefined }): Promise<I[]> {
+    const out: I[] = [];
+    const sep = path.includes('?') ? '&' : '?';
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const { items, total } = pick(await this.request<R>('GET', `${path}${sep}per_page=100&page=${page}`));
+      out.push(...items);
+      if (items.length < 100 || (total !== undefined && out.length >= total)) break;
+    }
+    return out;
   }
 
   async getRepo(): Promise<RepoInfo> {
@@ -395,6 +679,33 @@ export class GitHubClient {
       this.repoPath,
     );
     return { fullName: r.full_name, defaultBranch: r.default_branch, private: r.private, permissions: r.permissions };
+  }
+
+  /**
+   * What the token may write here, found without writing anything: each probe is invalid on purpose (a zero sha, a
+   * missing head branch, an empty title), so GitHub answers 422 when the token has the permission and 403 or 404 when
+   * it does not. repo.permissions.push says what the user may do, not what a fine-grained token may do.
+   */
+  async writeAccess(base: string): Promise<{ contents: boolean; pullRequests: boolean; issues: boolean }> {
+    this.assertToken('Checking the token');
+    const probe = async (path: string, body: unknown): Promise<boolean> => {
+      try {
+        await this.request('POST', `${this.repoPath}${path}`, body);
+        return true; // never expected: every probe is invalid
+      } catch (err) {
+        if (!(err instanceof GitHubError)) throw err;
+        if (err.status === 422) return true;
+        // A rate limit is a 403 too: only a refused permission (or a feature turned off) means no.
+        if (err.auth === 'missing-permission' || err.status === 404 || err.status === 410) return false;
+        throw err;
+      }
+    };
+    const [contents, pullRequests, issues] = await Promise.all([
+      probe('/git/refs', { ref: 'refs/heads/bridge-permission-probe', sha: '0'.repeat(40) }),
+      probe('/pulls', { title: 'Bridge permission probe', head: 'bridge-permission-probe-missing-branch', base }),
+      probe('/issues', { title: '' }),
+    ]);
+    return { contents, pullRequests, issues };
   }
 
   /** Commit sha a branch points to, or undefined when the branch does not exist. */
@@ -406,6 +717,15 @@ export class GitHubClient {
       if (err instanceof GitHubError && err.status === 404) return undefined;
       throw err;
     }
+  }
+
+  /**
+   * Whether a branch exists, through the matching-refs list: it answers 200 with an empty list when the branch is
+   * missing, so asking never leaves a 404 in the browser console (an optional branch like bridge-data).
+   */
+  async hasBranch(branch: string): Promise<boolean> {
+    const refs = await this.request<{ ref: string }[]>('GET', `${this.repoPath}/git/matching-refs/heads/${encodeRef(branch)}`);
+    return Array.isArray(refs) && refs.some((r) => r.ref === `refs/heads/${branch}`);
   }
 
   async getCommitTree(commitSha: string): Promise<string> {
@@ -611,10 +931,16 @@ export class GitHubClient {
     await this.request('POST', `${this.repoPath}/issues/${issueNumber}/comments`, { body });
   }
 
-  /** Comments on an issue or pull request, oldest first (first 100: the sticky preview comment is posted early). */
-  async listIssueComments(issueNumber: number): Promise<{ id: number; body: string; author: string; updatedAt: string }[]> {
-    const r = await this.request<{ id: number; body?: string | null; user?: { login: string } | null; updated_at: string }[]>('GET', `${this.repoPath}/issues/${issueNumber}/comments?per_page=100`);
-    return r.map((c) => ({ id: c.id, body: c.body ?? '', author: c.user?.login ?? 'unknown', updatedAt: c.updated_at }));
+  /**
+   * Comments on an issue or pull request, oldest first (first 100: the sticky preview comment is posted early).
+   * `authorAssociation` is GitHub's OWNER, MEMBER, COLLABORATOR, CONTRIBUTOR, NONE... (suggestion approvals read it).
+   */
+  async listIssueComments(issueNumber: number): Promise<{ id: number; body: string; author: string; updatedAt: string; createdAt: string; authorAssociation: string }[]> {
+    const r = await this.request<{ id: number; body?: string | null; user?: { login: string } | null; updated_at: string; created_at?: string; author_association?: string }[]>(
+      'GET',
+      `${this.repoPath}/issues/${issueNumber}/comments?per_page=100`,
+    );
+    return r.map((c) => ({ id: c.id, body: c.body ?? '', author: c.user?.login ?? 'unknown', updatedAt: c.updated_at, createdAt: c.created_at ?? c.updated_at, authorAssociation: c.author_association ?? 'NONE' }));
   }
 
   // --- Issues (component change requests) ---------------------------------------------------
@@ -814,6 +1140,15 @@ export class GitHubClient {
    */
   async readFile(path: string, ref: string): Promise<string | undefined> {
     if (this.token) return this.getFileText(path, ref);
+    return this.readRawFile(path, ref);
+  }
+
+  /**
+   * Text of a file from the raw host (raw.githubusercontent.com), sent without any header so the browser makes a
+   * simple CORS request (no preflight) and nothing counts against the API limit. Works for public repositories only:
+   * a private file answers 404 there, like a missing one. Undefined on 404.
+   */
+  async readRawFile(path: string, ref: string): Promise<string | undefined> {
     const url = `${(this.options.rawUrl ?? RAW).replace(/\/$/, '')}/${this.owner}/${this.name}/${encodeRef(ref)}/${encodeRef(path)}`;
     let res: Awaited<ReturnType<FetchLike>>;
     try {
@@ -824,6 +1159,84 @@ export class GitHubClient {
     if (res.status === 404) return undefined;
     if (!res.ok) throw new GitHubError(res.status, friendlyMessage(res.status, ''), `raw ${path}@${ref}`);
     return res.text();
+  }
+
+  /**
+   * Text of a file at a ref through the contents API with the raw media type: the way to read a private file (the raw
+   * host cannot take the token without a preflight). Counts against the API limit; conditional when cached.
+   * Undefined when the file does not exist.
+   */
+  async getRawText(path: string, ref: string): Promise<string | undefined> {
+    try {
+      return await this.request<string>('GET', `${this.repoPath}/contents/${encodeRef(path)}?ref=${encodeURIComponent(ref)}`, undefined, true, { accept: ACCEPT_RAW, text: true });
+    } catch (err) {
+      if (err instanceof GitHubError && err.status === 404) return undefined;
+      throw err;
+    }
+  }
+
+  /**
+   * Text of a blob by its sha through the git blobs API with the raw media type: how a signed-in reader loads a file
+   * listed by a tree (the raw host refuses any request that carries a token). A blob sha names its content, so the
+   * answer is cached for the client's life and never revalidated. Undefined on 404.
+   */
+  async getBlobRaw(sha: string): Promise<string | undefined> {
+    const cached = this.blobCache.get(sha);
+    if (cached !== undefined) return cached;
+    try {
+      const text = await this.request<string>('GET', `${this.repoPath}/git/blobs/${encodeURIComponent(sha)}`, undefined, true, { accept: ACCEPT_RAW, text: true, etag: false });
+      this.blobCache.set(sha, text);
+      return text;
+    } catch (err) {
+      if (err instanceof GitHubError && err.status === 404) return undefined;
+      throw err;
+    }
+  }
+
+  // --- GitHub App installations (user-to-server tokens) ---------------------------------------
+
+  /**
+   * Installations of the signing-in GitHub App that the signed-in user can reach (GET /user/installations, every
+   * page). Needs a user-to-server token of that same App: a personal or OAuth token is refused (403), and each App
+   * sees only its own installations. GitHub lists only installations on accounts and repositories the user has
+   * explicit permission on: a public repository where the user is not a collaborator is never listed, installed or
+   * not. (GET /repos/{o}/{r}/installation would say, but it needs the App's private key, which Bridge never holds.)
+   */
+  async listUserInstallations(): Promise<Installation[]> {
+    this.assertToken('Reading where Bridge is installed');
+    type Raw = { id: number; account?: { login?: string; type?: string } | null; repository_selection?: string; app_slug?: string };
+    const list = await this.paged<{ total_count?: number; installations?: Raw[] }, Raw>('/user/installations', (p) => ({ items: p.installations ?? [], total: p.total_count }));
+    return list.map((i) => ({
+      id: i.id,
+      account: i.account?.login ? { login: i.account.login, type: i.account.type ?? 'User' } : null,
+      repositorySelection: i.repository_selection ?? 'selected',
+      appSlug: i.app_slug,
+    }));
+  }
+
+  /** Repositories of one installation the signed-in user can reach (GET /user/installations/{id}/repositories, every page). */
+  async listInstallationRepos(installationId: number): Promise<InstallationRepo[]> {
+    this.assertToken('Reading where Bridge is installed');
+    type Raw = { name: string; full_name: string; private?: boolean; owner?: { login?: string } };
+    const list = await this.paged<{ total_count?: number; repositories?: Raw[] }, Raw>(`/user/installations/${encodeURIComponent(String(installationId))}/repositories`, (p) => ({
+      items: p.repositories ?? [],
+      total: p.total_count,
+    }));
+    return list.map((r) => ({ owner: r.owner?.login ?? r.full_name.split('/')[0]!, name: r.name, fullName: r.full_name, private: Boolean(r.private) }));
+  }
+
+  /**
+   * The App installation that gives the signed-in user this repository (this client's by default): its id, or null
+   * when the App is not installed there or the user cannot reach it. One call when the installation covers all of
+   * the owner's repositories, two (paged) when it covers selected ones.
+   */
+  async findInstallation(owner: string = this.owner, repo: string = this.name): Promise<{ id: number; selection: 'all' | 'selected' } | null> {
+    const found = installationFor(await this.listUserInstallations(), owner);
+    if (found.reach === 'no') return null;
+    if (found.reach === 'yes') return { id: found.id, selection: 'all' };
+    const repos = await this.listInstallationRepos(found.id);
+    const hit = repos.some((r) => r.owner.toLowerCase() === owner.toLowerCase() && r.name.toLowerCase() === repo.toLowerCase());
+    return hit ? { id: found.id, selection: 'selected' } : null;
   }
 
   /** The repository's default branch. */
@@ -883,9 +1296,10 @@ export class GitHubClient {
     );
   }
 
-  async getPullRequest(n: number): Promise<PullRequest & PullRequestSummary & { body: string; mergeable: boolean | null }> {
+  async getPullRequest(n: number): Promise<PullRequest & PullRequestSummary & { body: string; mergeable: boolean | null; requestedReviewers: string[]; autoMerge: boolean }> {
     const r = await this.request<Record<string, any>>('GET', `${this.repoPath}/pulls/${n}`);
-    return { ...toSummary(r), body: r.body ?? '', mergeable: r.mergeable ?? null };
+    // autoMerge: GitHub merges it by itself once its checks pass (`auto_merge` set; Bridge arms it for token values, TV-1).
+    return { ...toSummary(r), body: r.body ?? '', mergeable: r.mergeable ?? null, requestedReviewers: ((r.requested_reviewers ?? []) as { login: string }[]).map((x) => x.login), autoMerge: Boolean(r.auto_merge) };
   }
 
   async listPullRequestFiles(n: number): Promise<PullRequestFile[]> {
@@ -898,8 +1312,8 @@ export class GitHubClient {
   }
 
   async listReviews(n: number): Promise<Review[]> {
-    const r = await this.request<{ id: number; user?: { login: string }; state: string; body: string | null; submitted_at?: string }[]>('GET', `${this.repoPath}/pulls/${n}/reviews`);
-    return r.map((x) => ({ id: x.id, user: x.user?.login, state: x.state, body: x.body ?? '', ...(x.submitted_at ? { submittedAt: x.submitted_at } : {}) }));
+    const r = await this.request<{ id: number; user?: { login: string }; state: string; body: string | null; submitted_at?: string; commit_id?: string }[]>('GET', `${this.repoPath}/pulls/${n}/reviews`);
+    return r.map((x) => ({ id: x.id, user: x.user?.login, state: x.state, body: x.body ?? '', ...(x.submitted_at ? { submittedAt: x.submitted_at } : {}), ...(x.commit_id ? { commitId: x.commit_id } : {}) }));
   }
 
   /** Submit a review. `COMMENT` works for any collaborator; approving your own PR is refused by GitHub. */
@@ -980,6 +1394,139 @@ export class GitHubClient {
   async removeLabel(issueNumber: number, label: string): Promise<void> {
     await this.request('DELETE', `${this.repoPath}/issues/${issueNumber}/labels/${encodeURIComponent(label)}`);
   }
+
+  // --- branch actions shared by Studio, the MCP server and the CLI (branch-actions.ts) ---
+
+  /** The account the token belongs to (GET /user). Needs a token. */
+  async getViewer(): Promise<{ login: string }> {
+    this.assertToken('Reading who you are on GitHub');
+    const r = await this.request<{ login: string }>('GET', '/user');
+    return { login: r.login };
+  }
+
+  /** The repository's merge settings and the viewer's permissions (unknown settings count as allowed). */
+  async getMergeSettings(): Promise<{ allow_squash_merge?: boolean; allow_merge_commit?: boolean; allow_rebase_merge?: boolean; permissions?: { admin?: boolean; maintain?: boolean; push?: boolean } }> {
+    return this.request('GET', this.repoPath);
+  }
+
+  /**
+   * Merges a pull request, only at `sha` (GitHub refuses when the branch moved meanwhile). The repository's branch
+   * rules still apply: GitHub refuses a merge they block, whatever Bridge says.
+   */
+  async mergePullRequest(n: number, input: { method: 'squash' | 'merge' | 'rebase'; sha: string; commitMessage?: string | undefined }): Promise<{ sha: string; merged: boolean }> {
+    this.assertToken('Merging a branch');
+    const r = await this.request<{ sha: string; merged: boolean }>('PUT', `${this.repoPath}/pulls/${n}/merge`, {
+      merge_method: input.method,
+      sha: input.sha,
+      ...(input.commitMessage !== undefined && input.method !== 'rebase' ? { commit_message: input.commitMessage } : {}),
+    });
+    return { sha: r?.sha ?? '', merged: r?.merged ?? true };
+  }
+
+  /** GitHub's "Update branch": merges the base into the pull request, only when its head is still `expectedHeadSha`. */
+  async updatePullRequestBranch(n: number, expectedHeadSha: string): Promise<void> {
+    this.assertToken('Updating a branch from main');
+    await this.request('PUT', `${this.repoPath}/pulls/${n}/update-branch`, { expected_head_sha: expectedHeadSha });
+  }
+
+  /**
+   * Merges the branch `head` into the branch `base` (GitHub's merges API): a merge commit on `base`, or nothing when
+   * `base` already has every commit of `head`. A conflict throws a GitHubError with status 409. Refuses protected
+   * branches and, with a branch prefix, a `base` without it.
+   */
+  async mergeIntoBranch(base: string, head: string, message: string): Promise<{ status: 'merged' | 'up-to-date'; sha: string | null }> {
+    this.assertToken('Merging a branch into another');
+    this.assertWritableBranch(base);
+    const r = await this.request<{ sha?: string } | undefined>('POST', `${this.repoPath}/merges`, { base, head, commit_message: message });
+    return r?.sha ? { status: 'merged', sha: r.sha } : { status: 'up-to-date', sha: null };
+  }
+
+  /** Posts a comment on an issue or pull request and returns its id and link. */
+  async createIssueComment(n: number, body: string): Promise<{ id: number; url: string }> {
+    this.assertToken('Commenting');
+    const r = await this.request<{ id: number; html_url: string }>('POST', `${this.repoPath}/issues/${n}/comments`, { body });
+    return { id: r.id, url: r.html_url };
+  }
+
+  /** Replaces the text of a comment. */
+  async updateIssueComment(id: number, body: string): Promise<void> {
+    this.assertToken('Editing a comment');
+    await this.request('PATCH', `${this.repoPath}/issues/comments/${id}`, { body });
+  }
+
+  /** Submits a review on a given commit (the head the reviewer saw); the body may be empty for an approval. */
+  async submitReview(n: number, input: { event: 'COMMENT' | 'APPROVE' | 'REQUEST_CHANGES'; body?: string | undefined; commitId?: string | undefined }): Promise<Review> {
+    this.assertToken('Reviewing a branch');
+    const r = await this.request<{ id: number; user?: { login: string }; state: string; body: string | null }>('POST', `${this.repoPath}/pulls/${n}/reviews`, {
+      event: input.event,
+      ...(input.body ? { body: input.body } : {}),
+      ...(input.commitId ? { commit_id: input.commitId } : {}),
+    });
+    return { id: r.id, user: r.user?.login, state: r.state, body: r.body ?? '' };
+  }
+
+  /** Line comments of a pull request (review threads), oldest first. */
+  async listReviewComments(n: number): Promise<{ id: number; body: string; author: string; path: string; line: number | null; inReplyTo: number | null; url: string; createdAt: string }[]> {
+    const r = await this.request<{ id: number; body?: string | null; user?: { login: string } | null; path: string; line?: number | null; in_reply_to_id?: number; html_url: string; created_at: string }[]>(
+      'GET',
+      `${this.repoPath}/pulls/${n}/comments?per_page=100`,
+    );
+    return r.map((c) => ({ id: c.id, body: c.body ?? '', author: c.user?.login ?? 'unknown', path: c.path, line: c.line ?? null, inReplyTo: c.in_reply_to_id ?? null, url: c.html_url, createdAt: c.created_at }));
+  }
+
+  /** Asks these people to review a pull request. */
+  async requestReviewers(n: number, logins: string[]): Promise<void> {
+    this.assertToken('Asking for a review');
+    await this.request('POST', `${this.repoPath}/pulls/${n}/requested_reviewers`, { reviewers: logins });
+  }
+
+  /** Takes these people off the requested reviewers. */
+  async removeRequestedReviewers(n: number, logins: string[]): Promise<void> {
+    this.assertToken('Changing the requested reviewers');
+    await this.request('DELETE', `${this.repoPath}/pulls/${n}/requested_reviewers`, { reviewers: logins });
+  }
+
+  /** Replies in the thread of a line comment. */
+  async replyToReviewComment(n: number, commentId: number, body: string): Promise<{ id: number; url: string }> {
+    this.assertToken('Replying to a comment');
+    const r = await this.request<{ id: number; html_url: string }>('POST', `${this.repoPath}/pulls/${n}/comments/${commentId}/replies`, { body });
+    return { id: r.id, url: r.html_url };
+  }
+
+  /**
+   * What `head` adds on top of `base`, with what library sync needs: the shared start (merge base), the base
+   * commit and its tree, how far behind, and the files with their previous names.
+   */
+  async compareDetailed(base: string, head: string): Promise<{
+    behindBy: number;
+    aheadBy: number;
+    mergeBase: string | null;
+    baseSha: string | null;
+    baseTree: string | null;
+    files: { filename: string; status: string; previous_filename?: string | undefined }[];
+  }> {
+    const r = await this.request<{
+      ahead_by: number;
+      behind_by: number;
+      merge_base_commit?: { sha?: string };
+      base_commit?: { sha?: string; commit?: { tree?: { sha?: string } } };
+      files?: { filename: string; status: string; previous_filename?: string }[];
+    }>('GET', `${this.repoPath}/compare/${encodeRef(base)}...${encodeRef(head)}`);
+    return {
+      behindBy: r.behind_by,
+      aheadBy: r.ahead_by,
+      mergeBase: r.merge_base_commit?.sha ?? null,
+      baseSha: r.base_commit?.sha ?? null,
+      baseTree: r.base_commit?.commit?.tree?.sha ?? null,
+      files: (r.files ?? []).map((f) => ({ filename: f.filename, status: f.status, ...(f.previous_filename ? { previous_filename: f.previous_filename } : {}) })),
+    };
+  }
+
+  /** A tree on top of `baseTree` from entries with their own file mode (blob sha, inline content, or sha null to delete). */
+  async createTreeEntries(baseTree: string, entries: ({ path: string; mode: string; sha: string | null } | { path: string; mode: string; content: string })[]): Promise<string> {
+    const r = await this.request<{ sha: string }>('POST', `${this.repoPath}/git/trees`, { base_tree: baseTree, tree: entries.map((e) => ({ ...e, type: 'blob' })) }, true);
+    return r.sha;
+  }
 }
 
 function toCommitSummary(c: Record<string, any>): CommitSummary {
@@ -1006,6 +1553,9 @@ function toSummary(r: Record<string, any>): PullRequestSummary & PullRequest {
     url: r.html_url,
     updatedAt: r.updated_at,
     ...(typeof r.body === 'string' ? { body: r.body } : {}),
+    ...(r.created_at ? { createdAt: r.created_at } : {}),
+    ...(r.merged_at ? { mergedAt: r.merged_at } : {}),
+    ...(r.assignees?.length ? { assignees: (r.assignees as { login?: string }[]).map((a) => a.login ?? '').filter(Boolean) } : {}),
   };
 }
 
@@ -1110,6 +1660,10 @@ export interface IssueSummary {
   author: string;
   createdAt: string;
   updatedAt: string;
+  /** Who is assigned (logins), when any (build requests: "Ana is on it"). */
+  assignees?: string[] | undefined;
+  /** ISO date it was closed, when closed. */
+  closedAt?: string | undefined;
 }
 
 interface RawIssue {
@@ -1123,6 +1677,8 @@ interface RawIssue {
   user?: { login?: string } | null;
   created_at: string;
   updated_at: string;
+  closed_at?: string | null;
+  assignees?: { login?: string }[] | null;
   pull_request?: unknown;
 }
 
@@ -1138,5 +1694,7 @@ function toIssue(r: RawIssue): IssueSummary {
     author: r.user?.login ?? '',
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    ...(r.assignees?.length ? { assignees: r.assignees.map((a) => a.login ?? '').filter(Boolean) } : {}),
+    ...(r.closed_at ? { closedAt: r.closed_at } : {}),
   };
 }

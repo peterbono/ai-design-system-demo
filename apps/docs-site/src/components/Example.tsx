@@ -3,7 +3,11 @@
 import type { ReactNode } from 'react';
 import type { ExampleNode } from '../lib/components';
 import * as Lucide from 'lucide-react';
-import { REGISTRY, resolveProps } from './registry';
+import { Avatar as IllustratedAvatar } from '@bridge-ds/react/avatar-illustrated';
+import { REGISTRY as BASE_REGISTRY, resolveProps } from './registry';
+
+// Static examples draw illustrated avatars at build time (fallback="illustrated"); the client registry keeps the light Avatar.
+const REGISTRY: typeof BASE_REGISTRY = { ...BASE_REGISTRY, Avatar: IllustratedAvatar };
 
 /** Docs examples name icons by their Lucide name ("Trash2", "git-pull-request"). Build time only. */
 function lucideIcon(name: string) {

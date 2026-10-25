@@ -1,5 +1,217 @@
 # @bridge-ds/core
 
+## 0.18.0
+
+### Minor Changes
+
+- 037b56b: Repo activity (`activity.json`): `collectActivity` reads a team's open branches and their pages, open suggestions with their parsed payload, component requests, recent merges and token history from GitHub, and records the GitHub reads a signed-out Studio visitor makes, trimmed (`trimGitHub`, `activityShaper`). `activityAnswer` serves them back by path, `parseActivity` validates the file, `fitActivity` keeps it under 3 MB. While the default branch has not moved, the token history and every untouched branch page are kept from the last activity. History read without a token now takes file bodies from the raw host, which costs no API request.
+
+## 0.17.0
+
+### Minor Changes
+
+- 5ec4a47: One status per branch, everywhere. `reviewStatusKind` is the single derivation for the Branches list, the branch page, the home cards, `bridge_what_needs_me`, `bridge_branch_status` and `bridge branch status`. A repo with no automated checks is a calm state of its own ("No automated checks", `CI_STATE_LABEL`) and the status comes from the approvals, as for any branch. While GitHub computes whether a branch merges cleanly, a missing approval still shows; "Checking for conflicts" only holds back "Ready to merge". The words live in core (`REVIEW_STATUS_LABEL`), and the branch page header now shows the same pill as its row ("Owner override needed", "Design owner to approve") instead of a plain "In review".
+- 5ec4a47: Suggestions, visual checks and titles. A suggestion whose change no longer applies to main (main moved and the value it changes is not the one it was suggested from) reads Outdated in Studio, `bridge_list_suggestions` and `bridge_get_suggestion`, through one core rule (`suggestionStalenessOnGitHub`, over `planSuggestionApply`). An applied and closed suggestion keeps only its final label ("suggestion: applied"; "suggestion: declined" when declined): `bridge_apply_suggestion`, `bridge_link_suggestion`, `bridge apply` and a merge from Bridge (`markSuggestionsAppliedOnGitHub`) remove "needs review" and "applying". The visual-check label and "the visual comparison runs again" are offered only when the repo has the visual impact workflow (`hasVisualWorkflow`, `visualOffer`); otherwise the branch page shows a quiet "Set up visual checks" link. Request and suggestion titles are never prefixed twice ("Select: select: ...") and keep component names as written ("EmptyState"), through `subjectTitle`.
+
+## 0.16.0
+
+### Minor Changes
+
+- da3e4ea: Team pages: History, component change requests and "Start an exploration" now work for the team in the address
+  instead of the demo. History reads the team's merged token changes from GitHub (signed in, the 20 latest, with each
+  change's token diff read when it opens), and the token drawer's "See the whole history" lands there. A request opens in
+  place from the team's request issues. An exploration starts against the team's repository: in direct mode the first
+  write asks for Bridge Direct's OK; in suggest mode Studio says why it does not start one, since an exploration is a
+  branch.
+
+  Core: the repo model reads the global stylesheets a library ships (new optional `components.styles` globs in
+  `bridge.config.json`, default every .css file under `styles/` and `theme/` next to the components folder) and counts
+  their `var(--token)` reads as usage, so team Quality and the team token explorer no longer flag tokens only base styles
+  read as unused. Snapshots record the globs they read; a snapshot from before reads those files from the repository.
+
+## 0.15.0
+
+### Minor Changes
+
+- 9b0b653: Hosted Library per team (multi-team PR 4a). `/library/<owner>/<repo>/` serves a team's published design system:
+  Home, Foundations (generic token specimens), Components (cards by family; one component with a live Storybook story
+  and its `docs.json` guidance) and Tokens (every token with its value per theme). Each page is built once at
+  `/library-shell/...` and reached through two new `vercel.json` rewrites; the build fails on a missing shell or on any
+  file that would take a team's Library address. Signed out, a Library reads the team's `bridge-data` snapshot from the
+  raw host with no GitHub API call; signed in, it reads like Studio. Pages are `noindex` unless `bridge.config.json` sets
+  the new `library.public: true` (core `libraryIsPublic`, schema). `bridge snapshot` now also writes `llms.txt` (core
+  `snapshotLlmsTxt`), which the Library links for AI agents. On a team's Studio, the header's Library button opens the
+  team's Library. `scripts/hosted-smoke.mjs` covers the Library routes.
+
+## 0.14.0
+
+### Minor Changes
+
+- 1a560aa: New `bridge snapshot`: writes the repo model of a checkout for hosted Bridge (`snapshot.json`: the token, contrast and
+  component files the model reads, Figma coverage without the 1 MB specs, contrast results, counts) plus
+  `audits/<id>.json` (`--audit <folder>[=label]` runs `bridge audit`, `--audit-report` carries existing reports). Core
+  gets the snapshot schema: `parseSnapshot`, `buildSnapshot`, `snapshotSource` (a `RepoSource`, so `loadRepoModel`
+  reads a snapshot like a repository), `recordingSource`, `snapshotIsFresh`. The `bridge-data` workflow publishes it
+  to the orphan `bridge-data` branch; `templates/bridge-data.yml` is the copy for other teams (docs/HOSTED.md).
+- a797699: GitHub client: conditional requests (ETag and If-None-Match, sent only with a token since only then is a 304 free) with
+  a shared in-memory store or a Web Storage store, `rateLimit` from the response headers, optional stale answers when the
+  hourly limit is used up, and no more retries of an exhausted hourly limit. New `getBlobRaw`, `getRawText`,
+  `readRawFile`, the App installation endpoints (`listUserInstallations`, `listInstallationRepos`, `findInstallation`,
+  `installationFor`), `gitHubSource` (one tree call, bodies by blob sha) and the repo access states
+  (`accessState`, `resolveRepoAccess`).
+- 4fb3153: Add the repo model: `RepoSource` (`list`, `text`) with `memorySource` and, in `@bridge-ds/core/node`, `fsSource` over a
+  local checkout, and `loadRepoModel(source)`, which parses `bridge.config.json` once and computes the token rows,
+  contrast results, component scan (props, CSS tokens, stories, docs.json) and Figma coverage from it. The parsers move
+  from the docs site into core (`buildTokenRows`, `evaluateContrastPairs`, `scanComponents` and friends), browser-safe,
+  with every path taken from the config (defaults: the paths this repo used before). New optional config key
+  `tokens.usage` (token group notes, relative to `tokens.root`). `gitHubSource` now implements
+  the shared `RepoSource` interface and lists paths sorted; `repo-source-github` and `repo-access` are exported from
+  the main entry.
+- 0986099: Show how far Bridge has gone reading a design system, and open Branches for teams.
+
+  - Core: `loadRepoModel` takes `onProgress` and reads in three phases (tokens, components, docs) with an exact file
+    total from the first report; `readRepoTexts` takes an `onProgress(done, total)` callback; `gitHubSource` takes
+    `onProgress` (the tree once read, then each body and whether it came from the blob cache).
+  - Team pages (Home, Components, Quality, Tokens) replace the loading skeleton with a calm progress view: "Finding your
+    design system", then "Using the saved snapshot" or "Reading N files" with a bar filled from real file counts
+    ("Reading tokens 12 of 48", then components, then docs), then "Ready". Unknown totals stay indeterminate, a cache
+    hit shows nothing. The Storybook quick start shows "Reading your Storybook" and the component count it found.
+  - Team Branches lists the team's open branches (the same list as the demo) and its open suggestions, each reviewed
+    in place. Review and New brand keep one calm line and "See it on the demo"; "View on GitHub" is gone.
+
+### Patch Changes
+
+- 440f717: Team pages always sign in with the read-only Bridge app. When a team in direct mode saves code for the first time
+  (start a branch, save to it, ship, review), Studio explains why in "Allow Bridge to save to branches" and asks for
+  Bridge Direct's OK once, then lands back on the same page. Its token lives in its own slot next to Bridge's;
+  suggestions and comments keep going out with Bridge. When Bridge Direct is not on the team's repository, admins get
+  "Install Bridge Direct" and everyone else "Ask your lead". New optional `GITHUB_APP_DIRECT_SLUG`. The self-hosted
+  Studio is unchanged. Core: a `fetch` that throws its own `GitHubError` keeps it instead of turning into "Could not
+  reach GitHub".
+- 9d40c77: Harden every HTML sink against repo and GitHub content, and ship a report-only Content-Security-Policy. Markdown links allow only http, https, mailto and relative targets, JSON embedded in pages can no longer close its script element, PR, preview, Figma, Jira and image URLs go through one URL allow-list, token values in inline styles drop `url()` and declaration breakouts, and docs.json example props lose raw HTML, handlers and unsafe URLs. A test lists every file that writes HTML with what makes it safe. `tryInProductUrl` returns an empty string for a preview that is not http or https. The docs site sends `Content-Security-Policy-Report-Only` (inline scripts allowed by hash, checked at build time), `X-Content-Type-Options` and `Referrer-Policy`, and collects violations on `/api/csp-report`.
+- 662fb55: The docs site builds from the repo model: `loadRepoModel(fsSource(root))` runs once per build (`lib/model.ts`) and
+  the token, component, contrast, explorer, history, Figma coverage, config and sign-in libs read it instead of their
+  own parsers and hardcoded paths. `bridge.config.json` is parsed once; the site's settings come from core
+  `siteRepoFromConfig`. A model problem (invalid config, unresolved alias, contrast pair on a missing token, docs.json
+  that does not parse) fails the build, as before. Core fix: a component's description is the JSDoc right before the
+  component, no longer everything from the first JSDoc of the file (a documented props interface leaked into it). The
+  `href` option of `loadRepoModel` also receives the token path.
+
+## 0.13.0
+
+### Minor Changes
+
+- b6f1e68: Opt-in `governance.soloOwnerCanApproveBoth` for a design system run by one person. When it is true and the owners
+  resolve to exactly one person holding both roles, that person's approval counts as the design and the tech approval,
+  so Tier 2 and Tier 3 pull requests and suggestions can reach approved. Default false: one person still never covers
+  both approvals alone. The author of a change still never approves it. Core adds `soloApprover`, `soloOwnerOf`,
+  `soloOwnerSentence` and an optional rules argument to `summarizeApprovals`; `summarizeSuggestionApprovals` reads the
+  flag from its governance. Studio Settings shows an "Only owner" line when the rule is active, the suggestion and pull
+  request reviews say "As the only owner, your approval covers design and code." with one Approve, and
+  `bridge settings`, `bridge branch status`, `bridge suggestions show` and the MCP tools say the same.
+
+## 0.12.0
+
+### Minor Changes
+
+- 87cfb75: Core reads a Storybook without the repo. `fetchStorybookIndex` tries `index.json` (Storybook 7 and later, v4 and v5)
+  then `stories.json` (v3), skips HTML fallbacks, and reports why it failed (`not-found`, `not-json`, `private`, `empty`,
+  `http`, `network`). `parseStorybookIndex` groups entries into components by title and keeps test entries out of the
+  story list. `normalizeStorybookUrl`, `storybookIframeUrl` and `storybookManagerUrl` build the addresses. The visual
+  impact tool now parses `storybook-static/index.json` and builds story URLs through core; its output is unchanged.
+
+## 0.11.0
+
+### Minor Changes
+
+- 76c7938: Suggestions can link Figma nodes: `links.figma.nodes` (optional `{ nodeId, url?, name?, state?: "before" | "after" }[]`, payloads without it are unchanged). The issue lists the node links and says Claude Code reads the design straight from Figma (Figma MCP `get_design_context` or the REST API), so no image hosting is needed. A component spec suggestion from Figma fills it from the pushed component (and `figma.before` when known), turns stored screenshots into previews, and its brief names the Figma MCP call. New helper `figmaNodeUrl`.
+
+## 0.10.0
+
+### Minor Changes
+
+- 22e53c7: Components changed in Figma go back to the library as library branches. The DS Bridge plugin's Push tab reads the diff Pull reads in "Review updates" the other way round and routes each changed component (`planComponentPush`): a token swap on a component token that paints only the changed variants becomes an exact token change, no AI (the shared `planTokenProposal` and `writeTokenProposalOnGitHub`, with the contrast gate run again on the component tokens that alias a checked pair, `componentContrastPairs`, and the other components that share the token named); a new variant, property, layer, swapped instance or component, or a swap a token alone cannot say, opens a draft branch carrying the spec (`.bridge/figma/<name>.json`: variant matrix, properties, bound variables and layers per variant, screenshot) labelled `waiting-for-claude` until Claude AI writes the code there and it becomes `drafted-by-claude`; detached layers, values set by hand, styles and variables the library lacks are listed under "Fix in Figma first" with what to do, never sent. Every branch starts with "From Figma" (`parseFigmaOrigin`) and carries `from-figma`. The set remembers its branch: once it ships or closes, the next Pull rebuilds the set from the reviewed code, so Figma never diverges. MCP: `bridge_figma_changes`, `bridge_get_figma_change`, `bridge_mark_figma_change_drafted`, `bridge_push_figma_component` (61 tools). CLI: `bridge figma`, `bridge figma show <n> [--draft]`, `bridge figma drafted <n>`, `bridge figma push <diff.json>`.
+- e59366e: Suggestions, the core model: a change Bridge files as a GitHub issue instead of a branch, so a design system owner needs only Issues write and a developer applies it with their own access. `composeSuggestionIssue` / `parseSuggestionIssue` write and read the issue: readable Markdown, then a collapsed JSON payload (schema `bridge.suggestion/1`) whose canonical sha256 sits in a marker, so an edit by hand is detected. Token changes are stored as edits (paths and values), other files as whole contents with git blob shas before and after; contents too large for GitHub's 65,536-character body move to up to 8 continuation comments and are reassembled (a missing part is refused). Labels (`bridge-suggestion`, `suggestion: <kind>`, `source:`, `tier:`, one state label), the status machine (`suggestionStatus`: needs review, changes requested, approved, applying, applied, declined, outdated) and path safety rules per kind (`suggestionPathProblems`: repo-relative only, inside the kind's folders, never a governance guardrail). Reviews are comments (`suggestion-review.ts`): `summarizeSuggestionApprovals` counts only the configured owners (collaborators when no owner is set) and only on the current payload sha, so an edit makes earlier approvals stale. GitHub calls in `suggestions-github.ts`: create (with parts), list, get, review, link the applying pull request, decline. Config: `changes` (`"suggest"`, the default, or `"direct"`, with `changesMode()`) and `storybook.url` (`storybookUrl()` falls back to `previews.production.storybook`). `listIssueComments` now also returns `createdAt` and `authorAssociation`.
+- a99fbb9: Suggestions, mode-aware writes: the four places core writes code take a `mode` (`"suggest"` or `"direct"`, from `changesMode(config)`). Without it they behave exactly as before (direct). In suggest mode they file a suggestion issue (`bridge.suggestion/1`) through `createSuggestionOnGitHub` and never create a branch, a commit or a pull request. `suggestTokenProposalOnGitHub` (next to `writeTokenProposalOnGitHub`) files a planned token change: the exact edits, the changeset, the checks and the same tier labels; `tokenSuggestionPayload` builds its payload, and `TokenProposalPlan` now carries its `edits`. `openLibraryBranchOnGitHub({ mode })`: a token piece becomes a suggestion (its `writeTokens` callback gets `{ mode }` and may return `suggestTokenProposalOnGitHub`'s result), a variant a component request (`libraryBranchPlan(..., { mode })`), the result status is `"suggested"`, and a refused product branch record is a warning instead of an error. `LibraryLink.kind` gains `"suggestion"`, `linkStatus` maps every suggestion status (new `"outdated"` link status), `libraryPreviewState` and `linkedLibraryBranchOnGitHub` read suggestion links. `openComponentPushOnGitHub({ mode })`: an exact token swap goes through `writeTokens` (which now gets `mode` and the Figma link), a code change becomes a component spec suggestion (`componentSpecSuggestionPayload`, spec inline, labelled from Figma and waiting for Claude); the result has status `"suggested"` and `suggestion: { route, number, url }`. `figmaDraftBrief` has a suggestion form. `proposeDocsOnGitHub({ mode })` files a docs suggestion with the cleaned docs and the patch changeset (`docsSuggestionPayload`); its results now carry `status` (`"opened"`, `"continued"` or `"suggested"`).
+
+  The pure suggestion apply planner (`planSuggestionApply`, `suggestionApplyTable`, `suggestionAppliedComment`) is now exported from `@bridge-ds/core`; `@bridge-ds/core/node` keeps `applySuggestionLocally` and the local workspace.
+
+### Patch Changes
+
+- e1f8f0c: Applying a suggestion on the code a developer has now. `planSuggestionApply` (in `@bridge-ds/core/node` for now, pure logic over a small workspace adapter) refuses unsafe paths, guardrails, symlinks and a payload edited by hand before reading anything, checks the approvals of the owners on the current payload sha, then classifies every change against the current tree: token edits re-applied with `applyTokenEdits` on the current tokens (already applied, apply, or a conflict when the value moved since), files by git blob sha with a 3-way merge when both sides moved, docs field by field, component specs with their brief. It re-runs validation, contrast and the tier on the result and stops when the tier went up or a contrast pair that passes today would fail. Re-running on a tree that has the change is a no-op. `applySuggestionLocally` writes the result as one commit on a new local branch (default, nothing pushed, the branch reused when it already has the change), into the working tree (refused over uncommitted changes), or as a `git format-patch` text, 3-way merges with `git merge-file`, and returns the applied record comment for the caller to post. The suggestion issue's "How to apply" now names Claude Code with the Bridge MCP server and its one-time install command (`bridgeMcpInstallCommand`).
+
+## 0.9.0
+
+### Minor Changes
+
+- 5b93962: Product branches bring what they invent back to the library. `missingPieces` (in `@bridge-ds/core/audit`) runs the adoption audit on each product file a product branch changes, at its start and at its head, and keeps what the branch added that the library lacks: a value written on a library component becomes a variant of it ("Badge: overdue tone"), a component from another UI library with no equivalent becomes a new component, any other hardcoded value becomes a token beside the closest one. Values equal to a token and components the library has are fixes, not pieces. `openLibraryBranchOnGitHub` opens the library side of a piece and links both ways: a token change (through the new shared `planTokenProposal` and `writeTokenProposalOnGitHub`, which `bridge_propose_token_change` now uses too), a library exploration for a variant, or a component request for a new component; the library side says "Needed by" the product branch (label `needed-by-product`), the product branch records the link in its description. The product branch takes the library branch's preview (Bridge merges it in, `GitHubClient.mergeIntoBranch`), and `switchToPublishedOnGitHub` brings main in once the library ships. MCP: `bridge_missing_pieces`, `bridge_open_library_branch`, `bridge_product_branch`, `bridge_use_library_preview`, `bridge_switch_to_published` (57 tools). CLI: `bridge pieces <n> [--record]`, `bridge pieces status|open|preview|switch`.
+
+## 0.8.0
+
+### Minor Changes
+
+- 77ba45a: Create branch in Studio is product first. Step 1 asks what you work on: a feature in a product, or a change to the library. A feature asks what you build and in which product (preselected when there is one, or from `?product=`), starts an exploration with the product's `product: <key>` label and gives you the sentence to say to Claude AI. The library keeps its choices (Adjust the look, Add a variant or option, New component), and "Something looks wrong? Report it" stays one click away. core: `productMarks` (the product label and body line, nothing for the default product) moves from the MCP server into `@bridge-ds/core`, and `startExplorationOnGitHub` takes extra `labels`, so Studio, the CLI and the MCP server write the same label. Studio home: "Your branches" gets a one-line subtitle, and the "Published this week" line is gone.
+- 7e9f2df: Docs proposals: one open proposal per component. Sending docs for a component that already has an open docs proposal adds a commit to it instead of opening a second pull request (`proposeDocsOnGitHub` returns `continued`, and `unchanged` when it already says the same). New core helpers `findOpenDocsProposal`, `findOpenDocsProposalOnGitHub`, `isDocsProposalBranch`, `continueDocsProposalOnGitHub` and `docsSlug`, shared by the Library editor and the MCP server (`bridge_save_docs` without `pr` continues the open one). The Library editor opens on the open proposal ("Continues the open proposal by ..., waiting for review", with a link to its review), and Send is off with "Nothing changed since the open proposal" when the text is the same.
+
+  Attribution: the pull request's author line now says who wrote the text (`docsAuthorLine`, `withAuthorLine`, `defaultDocsFooter`): "Drafted by Claude AI, reviewed and sent by @person" when Claude's draft goes out as written, "Drafted by Claude AI, edited by @person" with the edited sections, and "No AI involved" only when no Claude draft is in the text. The editor tracks the text Claude wrote per section (`authorship`).
+
+### Patch Changes
+
+- 8cdcb9a: Avatar agent: Bridge now draws its own agent mark (a prompt chevron and cursor line, Deep Harbor on a Harbor rounded square tile) instead of shipping the Claude logo, which is an Anthropic trademark. `brand="claude"` still works and keeps the name "Claude AI". New `AGENT_MARK` export; `CLAUDE_MARK` stays as a deprecated alias of it. New optional `mark` prop for a vendor logo you have the brand owner's approval to use. The agent tile token `color.agent.surface` now follows the Harbor zone in every theme and brand. The Figma UI kit gets a Kind axis (person, agent) drawing the new mark, and the spec generator keeps an SVG line join.
+
+## 0.7.0
+
+### Minor Changes
+
+- 22d186e: Figma components are testable in prototype mode, with the design system's motion. The spec generator reads each set's interaction states (State and Checked axes) and the CSS `transition` of the parts that change, resolves durations and easings from the motion tokens (`motion.duration.*`, `motion.easing.*`), and records them in component-specs.json as `interactions` (trigger, axis, from and to values, transition) plus `motion`, the motion Figma cannot play (looping keyframes, keyboard focus, popups opening). Cubic bezier easings play exactly as Figma's custom bezier; when parts move at several speeds Figma plays the longest and the transition says it was approximated.
+
+  New pure helpers in `@bridge-ds/core`: `componentMotion(spec)` (reactions per variant, triggers with Figma's names, motion tokens, animated properties, approximations, what Figma cannot play, the reduced motion note) and `componentsUsingMotionToken(specs, tokenPath, chainOf?)` (sets whose interactions use a motion token, through aliases). `@bridge-ds/core/node` exports the CSS side (`parseTransitions`, `resolveDuration`, `resolveEasing`, `transitionBetween`, `motionNotes`).
+
+  The Figma plugin wires the variants with prototype reactions: While hovering, While pressing, On click (Mouse enter and Mouse leave on sets with a Checked axis), Change to with Smart animate. Idempotent: a second pull writes no reaction; reactions designers added are kept, and on the same trigger theirs wins. The Pull preview shows "Interactions: N" per set and lists the motion it could not map; set descriptions say "In code, reduced motion turns this off."
+
+- 51e743c: Studio parity: every action a designer takes in Bridge Studio now works with Claude (MCP) and in the terminal.
+
+  - MCP: 20 new tools for branches in review (what needs me, status, send for review, back to draft, review, ask someone else to review,
+    comment and reply, merge through Studio's gate with the owner override, close, reopen, update from main with
+    token conflicts, try it in a product and share it, try 2 to 4 branches together), docs saved for review,
+    explorations promoted or closed, products, settings and Figma coverage. `bridge_propose_token_change` takes
+    `pr` (add edits to a branch in review), `jira` and `product`; explorations and requests take `product`.
+  - CLI: `bridge branch ...`, `bridge products`, `bridge settings`, `bridge coverage`, `bridge docs save`, and
+    `--product`, `--jira`, `--pr` where work starts.
+  - Core: the review and merge rules, the branch writes, update from main, sharing, try in product, try together,
+    docs proposals and Jira keys moved from the docs site into `@bridge-ds/core`, so Studio, the MCP server and
+    the CLI run one implementation. New `products` list in `bridge.config.json` (schema included), defaulting to
+    Admin demo and Library; Studio's Branches page groups by it with the same result.
+
+- 7b53159: Motion is documented and reviewed from the code. The spec generator now records how a part opens and closes: the "Opening and closing" motion note carries the code's `enter` and `exit` transitions (duration, easing and their motion tokens, read per element so a drawer's side class and its popup class count together), and looping animations carry their `durationToken`. `componentMotion` returns them as `opening` and lists their tokens, so `componentsUsingMotionToken(specs, "motion.duration.moderate")` finds Dialog and AlertDialog. component-specs.json is regenerated (popup sets gain their open and close motion).
+
+  Every Library component page has a generated "Motion and interaction" section in its Tokens tab: when it moves (hover, press, check, open, close, loops), what changes, the duration token with its value and the easing token in words, and what reduced motion does, in one sentence. Components without motion say so in one line; motion the specs cannot place is said, never denied.
+
+  For branch reviews, `MotionChanges` (components/ds/studio/MotionChanges.tsx) shows a plain sentence per motion change, two looping previews of the same component at the old and new motion with Replay, and the other components it touches; still frames under reduced motion. `motionChanges` (lib/motion-changes.ts) computes the changes from the token sets and specs at both commits; `mountMotionChanges` (scripts/reviews/motion-changes.ts) mounts the block from a review page.
+
+## 0.6.0
+
+### Minor Changes
+
+- f655919: Figma coverage goes from 26 to 40 of 47 components. Popups are drawn open as their own sets, the way a Figma UI kit draws them ("Select/Popup", "Dialog/Popup", "Menu/Popup", "Tooltip/Popup"...), next to the trigger set when the component styles one. Inline SVG (Spinner, the Progress ring) is drawn as one vector layer with each stroke bound to its token. Layers that only some variants render are hidden in the others, and a prop that moves layers elsewhere splits the component into one set per value ("Progress/Linear", "Progress/Circular", "Pagination/Full", "Pagination/Compact"). New generator capabilities: React context, `useState` defaults, local render functions and list callbacks, `useMemo`, `createElement`, Base UI render props and value indicators, `position: absolute` with token offsets, `width: 100%` as Fill container, single-cell grids, examples of the component sandbox as content. Still not in Figma, with the generator's reason: Checklist (CSS grid columns), Form and Slider and TokenValue (content computed while the page runs), Table, Tabs (decorations drawn with ::after) and Toast (shown from a hook). The fidelity check marks popups drawn open as not compared, since the code image shows them closed.
+- ed4b28d: Every visual component is in Figma: 47 of 47, 46 generated from code and 1 drafted with Claude. The generator now draws Checklist, Form, Slider, Table (and TableEmpty), Tabs and TokenValue from their code examples. New generator capabilities: CSS grid rows and subgrid rows as auto layout, `::before` / `::after` decorations as layers, Base UI indicators sized to the selected item (a tab underline) drawn in that item, unselected tab panels hidden, `data-orientation`, sliders (thumb at the value, value render functions), tables as rows of cells, form errors reaching their field, typed values in fields, functions as values, string and list methods, helpers that return elements, plain modules of the package, React's JSX text spacing, screen reader text left out of sentences, example texts shown by default, and absolute layers placed per variant. Side effects on sets already in Figma: Field and Dialog lose an empty error layer, NumberField steppers get their dividers, ChoiceCard text wraps, CodeBlock reads its wrap style.
+
+  Toast, shown from the `useToast` hook and never placed, is drafted with Claude: a spec written from the code in `packages/react/component-spec-overrides/Toast.json` (`"source": "drafted"`), validated against the format and the repo's tokens by `npm run specs`, counted as drafted (never as generated), marked "Drafted, check it" in the Pull preview and in its Figma description, and stale once its code changes. Specs record the code example they were drawn from, so the fidelity check renders the same content (rows, fields, tabs), and the Figma references capture renders hook-shown components (a toast) through their hook.
+
+- bdca820: Honest Figma coverage. `npm run specs` now reads every component folder and records each one in a `coverage` list of component-specs.json: generated, unsupported with the generator's plain reason ("opens a popup", "uses CSS grid", "shows content computed while the page runs"), or a layout helper with nothing to draw. Support is decided by the generator from what it can read, no list to maintain. The plugin Pull tab says "26 of 47 components are in Figma" with the others folded under the count, each with its reason, and the Studio Components page shows a quiet "In Figma" column from the same data.
+
+  Coverage goes from 6 to 26 of 47 visual components. The generator draws 19 more (Accordion, Alert, Avatar, Banner, Breadcrumb, Checkbox, CheckboxGroup, ChoiceCard, CodeBlock, Divider, Field, Kbd, Link, NumberField, RadioGroup and Radio, SegmentedControl, Skeleton, Switch, Textarea), and Icon counts as covered by the icon components of the Icons page. New general capabilities: content props as TEXT and BOOLEAN properties, Base UI checked states as a Checked axis, layers hidden per variant, translateX and row-reverse read as auto layout, flex grow and wrap, lists and selections from the docs preview, the page base stylesheet, em sizes, underlines, opacity, fixed and per-variant icons, images as the media slot, useRender links. Fixes from the fidelity check: a transparent border keeps its room (a transparent stroke counted in layout), link buttons are underlined, inherited typography reaches every text.
+
+- 6b07b05: Check fidelity: the Pull tab compares every generated Figma variant with the same variant rendered from code and says, per component, "Matches the code" or "Differs from the code: 12% of pixels, size 120x40 vs 118x40", with Figma, code and differences side by side. Nothing in the file changes. Core adds the pure comparison (`compareImages`, tolerant of font rasterization and antialiasing), the storable `FidelityReport` and the variant to code mapping (`planReference`); `bridge figma-references` (visual) captures the code images from Storybook, published on main by the Figma references workflow to the `bridge-visual` branch. React adds a hidden Storybook fixture, "Internal/Figma reference", not part of the package.
+- 8376732: Studio speaks Figma branching.
+
+  - One vocabulary module (lib/vocabulary.ts) for every Studio screen: Create branch, Request review, Update from main, Review and merge, Merge, Publish for the release; statuses Draft, In review, Approved waiting for code, Merged, Closed. The Changes page is now Branches (same address).
+  - No "For developers" fold left in Studio or the Library changelog. Where a design system lead may want the GitHub view, one quiet "Open on GitHub" link sits on the line of the thing it concerns; Settings explains integrations and protection in plain words with a "How it works on GitHub" link.
+  - Request triage left the Studio home and the Branches tabs (teams triage in Jira). The code stays behind REQUEST_TRIAGE_IN_STUDIO; "Ask for a component change" still creates a request, and a request link still opens.
+  - Create branch takes an optional Jira ticket key (DS-42) in the token editor, the Library edit mode, the new brand flow and Start an exploration. The key goes first in the GitHub title (and in the branch name outside explorations) so the Jira GitHub integration links it, and shows in mono on branch rows.
+  - Core: `Exploration` takes an optional `jira` key; the merge-right sentence says "can merge this".
+  - Figma plugin: the review flow strings say Request review and branch.
+
 ## 0.5.1
 
 ### Patch Changes

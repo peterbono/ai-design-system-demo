@@ -16,7 +16,7 @@
 // - Structure: each variant keeps a normalized layer outline (the root's children, wrappers one level deep flattened,
 //   so a regroup is not a change). A layer added, removed or moved is a "structure" request when the variant's render
 //   moved with it or the layer is part of the API (its visibility or text is bound to a property). Renames, and hidden
-//   layers bound to nothing, are not. Parts DS Bridge generated are known by their part id (a swap or rename of one is
+//   layers bound to nothing, are not. Parts Bridge generated are known by their part id (a swap or rename of one is
 //   not a structure change: swaps are compared above). An added part that an optional part of the component already
 //   draws in that place (an icon after the label while "Icon end" exists) gets a hint, and starts unchecked.
 
@@ -30,7 +30,7 @@ export interface RawLayer {
   /** Main component name of an instance ("Icon/Pencil"). */
   main?: string | undefined;
   visible: boolean;
-  /** Part id when DS Bridge generated the layer (shared plugin data dsbridge / part). */
+  /** Part id when Bridge generated the layer (shared plugin data dsbridge / part). */
   part?: string | undefined;
   /** BOOLEAN property its visibility is bound to ("Icon end"), without Figma's "#id". */
   visibleProp?: string | undefined;
@@ -53,10 +53,20 @@ export interface RawBinding {
 }
 
 /** One variant (a COMPONENT), as the main thread reads it. */
+/** A value set by hand where a variable could be bound: a fill of #FF00AA, a radius of 12. */
+export interface RawValue {
+  /** Property family, as bindings name it: fill, stroke, stroke width, radius, padding, gap. */
+  kind: string;
+  /** "#FF00AA" (with alpha, "#FF00AA80", when not opaque) or a number ("12"). */
+  value: string;
+}
+
 export interface RawVariant {
   /** variantProperties of the variant ({ Size: "md", Tone: "primary" }), null for a single component. */
   props: Record<string, string> | null;
   bindings: RawBinding[];
+  /** Values set by hand (see RawValue). */
+  raw?: RawValue[] | undefined;
   /** FNV-1a of a small PNG export. Undefined when the export failed. */
   render?: string | undefined;
   /** FNV-1a of the layer tree (types, names, auto layout): only used to say "Figma-only changes". */
@@ -93,6 +103,8 @@ export interface VariantSignature {
   bindings: Record<string, string[]>;
   /** Hash of the resolved values of those bindings. */
   values: string;
+  /** Values set by hand per property kind, sorted and unique. Missing in baselines taken by older plugins. */
+  raw?: Record<string, string[]> | undefined;
   render?: string | undefined;
   structure?: string | undefined;
   /** Swappable part -> component its instance shows, and the one code gives the variant. */
@@ -116,6 +128,13 @@ export interface ComponentSignature {
 }
 
 /** FNV-1a, 32 bits, as 8 hex digits. Fast enough for small PNGs in the main thread. */
+/**
+ * Prefix of the render hash read from layer properties. Renders without it are image hashes from an older Bridge:
+ * the two never compare (an old baseline reads as one without a render until the next pull or send stores a new one).
+ */
+export const RENDER_VERSION = 'v2:';
+const comparable = (a: string | undefined, b: string | undefined) => !!a && !!b && a.startsWith(RENDER_VERSION) === b.startsWith(RENDER_VERSION);
+
 export function fnv1a(data: Uint8Array | string): string {
   let h = 0x811c9dc5;
   if (typeof data === 'string') {
@@ -322,6 +341,12 @@ const touchesApi = (s: StructureChange) => !!(s.item.visibleProp || s.item.textP
 /** "instance Icon/Pencil": the kind of layer in words, for a change row. */
 const layerShape = (i: OutlineItem) => `${i.type.toLowerCase().replace(/_/g, ' ')}${i.type === 'INSTANCE' && i.main ? ` ${i.main}` : ''}`;
 
+function groupRaw(values: RawValue[]): Record<string, string[]> {
+  const by: Record<string, string[]> = {};
+  for (const r of values) (by[r.kind] ??= []).push(r.value);
+  return Object.fromEntries(Object.keys(by).sort().map((k) => [k, sortedUnique(by[k]!)]));
+}
+
 export function buildSignature(raw: RawComponent): ComponentSignature {
   const variantAxes: Record<string, string[]> = {};
   const properties: ComponentSignature['properties'] = [];
@@ -347,6 +372,7 @@ export function buildSignature(raw: RawComponent): ComponentSignature {
     variants[variantKey(v.props)] = {
       bindings: groupBindings(v.bindings),
       values: fnv1a(sortedUnique(values.split('\n')).join('\n')),
+      ...(v.raw?.length ? { raw: groupRaw(v.raw) } : {}),
       ...(v.render ? { render: v.render } : {}),
       ...(v.structure ? { structure: v.structure } : {}),
       ...(v.slots && Object.keys(v.slots).length ? { slots: sortedRecord(v.slots) } : {}),
@@ -406,6 +432,18 @@ export function diffSignatures(base: ComponentSignature, cur: ComponentSignature
     kinds.add('new-variant');
     changes.push({ field: `Variant ${axis}`, before: b ? list(b) : undefined, after: c ? list(c) : undefined });
   }
+  // A variant added or removed whose values all stay on their axes (Tone=info, Size=md removed while info and md stay
+  // for the others): the axes above cannot see it. Combinations an axis change explains are left to that row.
+  const onAxes = (key: string, s: ComponentSignature) => key.split(', ').every((pair) => {
+    const at = pair.indexOf('=');
+    return at > 0 && (s.variantAxes[pair.slice(0, at)] ?? []).includes(pair.slice(at + 1));
+  });
+  const gone = Object.keys(base.variants).filter((k) => k && !cur.variants[k] && onAxes(k, cur)).sort();
+  const born = Object.keys(cur.variants).filter((k) => k && !base.variants[k] && onAxes(k, base)).sort();
+  if (gone.length || born.length) {
+    kinds.add('new-variant');
+    changes.push({ field: 'Variants', before: gone.length ? gone.join('; ') : undefined, after: born.length ? born.join('; ') : undefined });
+  }
 
   // Component properties (variant axes are reported above, their default here).
   // An instance swap may share its name with the BOOLEAN that shows the same part ("Icon start"): keyed apart.
@@ -448,7 +486,7 @@ export function diffSignatures(base: ComponentSignature, cur: ComponentSignature
       continue;
     }
     // Layers added, removed or moved: a change when the render moved with them or they belong to the API.
-    const renderMoved = !b.render || !c.render || b.render !== c.render;
+    const renderMoved = !comparable(b.render, c.render) || b.render !== c.render;
     const layers = b.outline && c.outline ? diffOutlines(b.outline, c.outline).filter((x) => renderMoved || touchesApi(x)) : [];
     for (const x of layers) {
       const id = [x.op, x.item.id, x.item.name, x.at, x.from ?? ''].join('\u0000');
@@ -458,9 +496,17 @@ export function diffSignatures(base: ComponentSignature, cur: ComponentSignature
     }
     let rebound = false;
     for (const kind of sortedUnique([...Object.keys(b.bindings), ...Object.keys(c.bindings)])) {
-      const before = list(b.bindings[kind]?.map(tokenName));
-      const after = list(c.bindings[kind]?.map(tokenName));
-      if (before === after) continue;
+      if (list(b.bindings[kind]?.map(tokenName)) === list(c.bindings[kind]?.map(tokenName))) continue;
+      // Only what moved: a variable kept on another layer of the same kind (the text color of a fill) is not part of it.
+      const was = (b.bindings[kind] ?? []).map(tokenName);
+      const now = (c.bindings[kind] ?? []).map(tokenName);
+      const goneNames = was.filter((v) => !now.includes(v));
+      const bornNames = now.filter((v) => !was.includes(v));
+      const before = list(goneNames);
+      // A value set by hand came where a variable went: unbound, not rebound to what another layer uses.
+      const unbound = goneNames.length > 0 && newRawValues(b, c, kind).length > 0;
+      // Rebound to a variable another layer already uses: still bound, so list what it may use now (not "none").
+      const after = list(!unbound && goneNames.length && !bornNames.length && now.length ? now : bornNames);
       // Variables an added layer brings (or a removed one takes away) move with that layer: not a rebinding.
       const bs = b.bindings[kind] ?? [];
       const cs = c.bindings[kind] ?? [];
@@ -474,7 +520,7 @@ export function diffSignatures(base: ComponentSignature, cur: ComponentSignature
     }
     // A layer change explains the new render of its variant, like a rebinding does.
     if (rebound || layers.length) continue;
-    if (b.render && c.render && b.render !== c.render) {
+    if (comparable(b.render, c.render) && b.render !== c.render) {
       if (b.values !== c.values) explained = true;
       else visual.push(key);
     }
@@ -494,7 +540,10 @@ export function diffSignatures(base: ComponentSignature, cur: ComponentSignature
     else changes.push({ field, before: `${layerShape(x.item)}, ${x.at}` });
     if (x.equivalent) {
       equivalentChanges++;
-      const text = `${x.equivalent.name} already does this: show it with the ${x.equivalent.property} property`;
+      // The property as Figma names it: "Show icon end" reads as an instruction, "the Icon end property" did not.
+      const text = /^Show /.test(x.equivalent.property)
+        ? `${x.equivalent.name} already does this: turn on ${x.equivalent.property}`
+        : `${x.equivalent.name} already does this: show it with the ${x.equivalent.property} property`;
       if (!equivalents.includes(text)) equivalents.push(text);
     }
   }
@@ -538,6 +587,20 @@ export interface ScannedComponent {
   baseline?: ComponentSignature | undefined;
   /** Marked "Experimental" on the set (shared plugin data dsbridge / experimental). */
   experimental?: boolean | undefined;
+  /** Variables whose value equals a value set by hand, keyed "kind|value" (see rawKey). */
+  matches?: Record<string, string[]> | undefined;
+}
+
+/** Key of a value set by hand in `matches`: "radius|12". */
+export const rawKey = (kind: string, value: string) => `${kind}|${value}`;
+
+/**
+ * Values of a kind set by hand in Figma now and not at the baseline: where a variable went and one of these came, the
+ * property was unbound, not rebound. Without raw values in the baseline (older plugins), every one counts.
+ */
+export function newRawValues(b: VariantSignature, c: VariantSignature, kind: string): string[] {
+  const before = b.raw?.[kind] ?? [];
+  return (c.raw?.[kind] ?? []).filter((v) => !before.includes(v));
 }
 
 export interface ComponentChangeItem {
@@ -549,9 +612,13 @@ export interface ComponentChangeItem {
   kind: RequestKind;
   changes: RequestChange[];
   signature: ComponentSignature;
+  /** What code gave Figma at the last pull (or the last push): the "before" of a push from Figma. */
+  baseline?: ComponentSignature | undefined;
   experimental?: boolean | undefined;
   /** An optional part already draws what was added: shown on the row as a hint (never applied to the file). */
   equivalent?: string | undefined;
+  /** Variables whose value equals a value set by hand (ScannedComponent.matches). */
+  matches?: Record<string, string[]> | undefined;
   /** Every change is such an addition: the item starts unchecked, checking it sends the request anyway. */
   suggestSkip?: boolean | undefined;
 }
@@ -614,7 +681,9 @@ export function classifyComponents(found: ScannedComponent[], coded: string[]): 
         kind: d.kind,
         changes: d.changes,
         signature: f.signature,
+        baseline: f.baseline,
         ...(f.experimental ? { experimental: true } : {}),
+        ...(f.matches ? { matches: f.matches } : {}),
         ...(d.equivalents.length ? { equivalent: d.equivalents.join('. ') } : {}),
         ...(d.onlyEquivalents ? { suggestSkip: true } : {}),
       });

@@ -1,0 +1,27 @@
+---
+// Studio Being built: the build requests sent from the Figma plugin (a change that needs code: a new variant, option or
+// layout) and where each one stands, read from GitHub only. Developers pick them up in GitHub or Jira; Bridge never
+// writes to them. The list, its filters and the detail in place (?request=N, ?pull=N) are one island
+// (components/ds/studio/BeingBuilt), reading through scripts/building-data.ts. Rules: lib/building-view.ts and
+// docs/BUILD-REQUESTS.md. Team shell: pages/team-shell/building.astro.
+import '../../styles/studio-home.css';
+import '../../styles/branch-thumb.css';
+import '../../styles/building.css';
+import Layout from '../../layouts/Layout.astro';
+import StudioHeader from '../../components/StudioHeader.astro';
+import BeingBuilt from '../../components/ds/studio/BeingBuilt';
+import { lastUpdated } from '../../lib/repo';
+
+const sources = ['docs/BUILD-REQUESTS.md', 'docs/REQUESTS.md'];
+---
+
+<Layout
+  title="Being built"
+  description="The changes sent from Figma or from Components that developers are building, and where each one stands, until it is in the library."
+  sources={sources}
+  updated={lastUpdated(sources)}
+  wide
+>
+  <StudioHeader title="Being built" />
+  <BeingBuilt client:only="react" />
+</Layout>

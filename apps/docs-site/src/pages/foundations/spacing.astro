@@ -1,52 +1,16 @@
 ---
+// Library > Foundations > Spacing: the shared view (components/ds/library/views/SpacingView.tsx), rendered at build
+// time.
 import Layout from '../../layouts/Layout.astro';
-import ScopeSwitch from '../../components/foundations/ScopeSwitch.astro';
 import LibraryKit from '../../components/foundations/LibraryKit.astro';
-import TokenList from '../../components/foundations/TokenList.astro';
-import { LayoutSpecimen } from '../../components/foundations/Specimens.tsx';
-import { foundationRow, primitiveRows } from '../../lib/foundations';
+import SpacingView from '../../components/ds/library/views/SpacingView';
+import { siteLibraryData } from '../../lib/library-site';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 
 const updated = freshness(PAGE_SOURCES.spacing);
-const num = (css: string) => parseFloat(css) || 0;
-const steps = primitiveRows('space').sort((a, b) => num(a.values.light) - num(b.values.light));
-const DENSITY = ['layout.inset', 'layout.gap', 'control.gap', 'control.padding-x.sm', 'control.padding-x.md', 'control.padding-x.lg', 'table.cell-padding-x'];
-const density = DENSITY.map((p) => foundationRow(p));
-import LibraryHeader from '../../components/LibraryHeader.astro';
 ---
 
 <Layout title="Spacing" description="The 4 px spacing scale and the density tokens built on it, shown in a real layout." sources={PAGE_SOURCES.spacing} updated={updated}>
-  <div data-fd-page>
-    <LibraryHeader title="Spacing" art="foundations" updated={updated} studio="/studio/tokens/?focus=space">
-      A 4 px base scale: step n is n &times; 4 px, with half steps where controls need them. Tight inside groups, generous between them. Fewer choices means more consistent screens.
-    </LibraryHeader>
-
-    <section class="fd-group" aria-labelledby="in-layout">
-      <header class="fd-group-head">
-        <h2 id="in-layout">In a layout</h2>
-      </header>
-      <p class="fd-group-note">
-        A review card built from the real components. Tinted areas are spacing: card padding, the gap between blocks and the gap inside a row of
-        controls. They come from density tokens: switch to Compact to tighten them.
-      </p>
-      <div class="fd-spec-bar"><ScopeSwitch axis="density" /></div>
-      <div class="fd-stage" data-scope-stage inert>
-        <LayoutSpecimen />
-      </div>
-      <TokenList rows={density} preview="space" label="Density spacing tokens" />
-    </section>
-
-    <section class="fd-group" aria-labelledby="scale">
-      <header class="fd-group-head">
-        <h2 id="scale">Scale</h2>
-        <code class="fd-group-path">space</code>
-        <span class="fd-group-n">{steps.length} tokens</span>
-      </header>
-      <p class="fd-group-note">
-        Inside a control: space 2 to 4. Between related items: space 1 to 3. Inside a card or panel: space 4 to 5. Between sections: space 8 and up.
-      </p>
-      <TokenList rows={steps} preview="space" label="Space tokens" />
-    </section>
-  </div>
+  <SpacingView data={siteLibraryData()} />
   <LibraryKit />
 </Layout>

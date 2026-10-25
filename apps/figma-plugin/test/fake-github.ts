@@ -7,7 +7,7 @@ export class FakeGitHub {
   branches = new Map<string, string>();
   blobs = new Map<string, string>();
   trees = new Map<string, Record<string, string>>();
-  prs: (PullRequest & { body: string; base: string; labels: string[] })[] = [];
+  prs: (PullRequest & { body: string; base: string; labels: string[]; state?: 'open' | 'closed' | 'merged' })[] = [];
   issues: (IssueSummary & { assignees: string[] })[] = [];
   /** Binary files written through the contents API (putBase64File): branch -> path -> base64. */
   binaries = new Map<string, Map<string, string>>();
@@ -26,6 +26,20 @@ export class FakeGitHub {
   failAll: GitHubError | undefined;
   /** Calls by method name that fail with an error (a token missing one permission). */
   failures = new Map<string, GitHubError>();
+  /** Calls that write git data, refs, files or pull requests, in order (method names), including refused ones. */
+  gitWrites: string[] = [];
+
+  /** Calls that need Contents or Pull requests write: what suggest mode must never make (or only tries, for images). */
+  static readonly GIT_WRITES = ['createBlob', 'createTree', 'createCommit', 'createBranch', 'updateBranch', 'commitToNewBranch', 'commitToBranch', 'putFile', 'putBase64File', 'deleteFile', 'createPullRequest', 'updatePullRequest', 'markReadyForReview', 'convertToDraft'];
+
+  /**
+   * A suggest-only fine-grained token: Contents Read, Issues Read and write, Pull requests Read. Every git or pull
+   * request write fails like GitHub answers it (403, missing permission); issues still work.
+   */
+  readOnly(): this {
+    for (const m of FakeGitHub.GIT_WRITES) this.failures.set(m, FakeGitHub.httpError(403, 'Resource not accessible by personal access token', m === 'createPullRequest' ? '/repos/o/r/pulls' : '/repos/o/r/git/refs'));
+    return this;
+  }
 
   /** The GitHubError the real client throws for this answer (status, GitHub's message, the endpoint). */
   static httpError(status: number, message: string, path: string): GitHubError {
@@ -174,8 +188,14 @@ export class FakeGitHub {
         return self.prs.find((p) => p.headRef === branch);
       },
       async addLabels(n: number, labels: string[]) {
-        self.prs[n - 1]!.labels.push(...labels);
+        const target = self.prs.find((p) => p.number === n) ?? self.issues.find((i) => i.number === n);
+        if (!target) throw Object.assign(new Error('not found'), { status: 404 });
+        target.labels.push(...labels);
         return true;
+      },
+      async createIssueComment(n: number, body: string) {
+        self.comments.push({ number: n, body });
+        return { id: self.comments.length };
       },
       async addComment(n: number, body: string) {
         self.comments.push({ number: n, body });
@@ -188,16 +208,33 @@ export class FakeGitHub {
         return this;
       },
       async listPullRequests() {
-        return self.prs.map((p) => ({ number: p.number, title: p.title, state: 'open', draft: p.draft, author: 'designer', headRef: p.headRef, headSha: self.branches.get(p.headRef) ?? '', baseRef: p.base, labels: p.labels, url: p.url, updatedAt: '', body: p.body }));
+        return self.prs.map((p) => ({ number: p.number, title: p.title, state: p.state ?? 'open', draft: p.draft, author: 'designer', headRef: p.headRef, headSha: self.branches.get(p.headRef) ?? '', baseRef: p.base, labels: p.labels, url: p.url, updatedAt: '', body: p.body }));
       },
       async getPullRequest(n: number) {
         const p = self.prs[n - 1]!;
-        return { ...p, state: 'open', author: 'designer', headSha: self.branches.get(p.headRef) ?? '', baseRef: p.base, updatedAt: '', mergeable: null };
+        return { ...p, state: p.state ?? 'open', author: 'designer', headSha: self.branches.get(p.headRef) ?? '', baseRef: p.base, updatedAt: '', mergeable: null };
       },
       async updatePullRequest(n: number, patch: { title?: string; body?: string }) {
         const p = self.prs[n - 1]!;
         if (patch.title) p.title = patch.title;
         if (patch.body) p.body = patch.body;
+      },
+      async markReadyForReview(n: number) {
+        self.prs[n - 1]!.draft = false;
+      },
+      async removeLabel(n: number, label: string) {
+        const p = self.prs[n - 1]!;
+        p.labels = p.labels.filter((l) => l !== label);
+      },
+      async listPullRequestFiles(n: number) {
+        const p = self.prs[n - 1]!;
+        const head = self.filesAt(p.headRef);
+        const base = self.filesAt(p.base);
+        return [...new Set([...Object.keys(head), ...Object.keys(base)])].filter((f) => head[f] !== base[f]).map((filename) => ({ filename, status: base[filename] === undefined ? 'added' : head[filename] === undefined ? 'removed' : 'modified', additions: 1, deletions: 0 }));
+      },
+      async getFileText(path: string, ref = 'main') {
+        const c = self.commits.get(ref) ?? self.commits.get(self.branches.get(ref) ?? '');
+        return c?.files[path];
       },
       async commitToNewBranch(input: { base: string; branch: string; message: string; files: { path: string; content: string | null }[] }) {
         const files = { ...self.filesAt(input.base) };
@@ -211,6 +248,16 @@ export class FakeGitHub {
       get(target, prop, receiver) {
         const value = Reflect.get(target, prop, receiver) as unknown;
         if (typeof value !== 'function' || typeof prop !== 'string') return value;
+        if (FakeGitHub.GIT_WRITES.includes(prop)) {
+          // Logged when called, so a refused write still counts as an attempt.
+          const fn = value as (...args: unknown[]) => unknown;
+          const err = self.failAll ?? self.failures.get(prop);
+          return async (...args: unknown[]) => {
+            self.gitWrites.push(prop);
+            if (err) throw err;
+            return fn.apply(receiver, args);
+          };
+        }
         const err = self.failAll ?? self.failures.get(prop);
         return err ? async () => Promise.reject(err) : value;
       },

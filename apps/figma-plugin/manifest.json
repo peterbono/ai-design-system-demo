@@ -1,13 +1,14 @@
 {
-  "name": "DS Bridge",
+  "name": "Bridge",
   "id": "1693034743850648023",
   "api": "1.0.0",
   "main": "dist/code.js",
   "ui": "dist/ui.html",
   "editorType": ["figma"],
   "documentAccess": "dynamic-page",
+  "permissions": ["currentuser"],
   "networkAccess": {
-    "allowedDomains": ["https://api.github.com", "https://api.anthropic.com"],
-    "reasoning": "DS Bridge reads design token files from the team's GitHub repository and opens pull requests with the designer's variable changes, or issues for component change requests. It talks to the GitHub REST API (git trees, blobs, refs, commits, contents, pull requests and issues); file contents are read through the API, never from raw.githubusercontent.com. Optionally, when a designer adds their own Anthropic API key in Settings, the plugin calls the Anthropic Messages API (api.anthropic.com) to draft the text of a request or pull request from the detected changes and before and after images of the component. The key stays in figma.clientStorage on that computer and is only sent to api.anthropic.com; without a key, no request is made to Anthropic."
+    "allowedDomains": ["https://api.github.com", "https://api.anthropic.com", "https://bridge.floriangouloubi.com"],
+    "reasoning": "Bridge reads design token files from the team's GitHub repository and opens pull requests with the designer's variable changes, or issues for component change requests. It talks to the GitHub REST API (git trees, blobs, refs, commits, contents, pull requests and issues); file contents are read through the API, never from raw.githubusercontent.com. After a push of token values, it asks the Bridge site (bridge.floriangouloubi.com, POST /api/ship with the same GitHub token) to ship that pull request once its checks pass; Bridge re-checks it with its own app. Optionally, when a designer adds their own Anthropic API key in Settings, the plugin calls the Anthropic Messages API (api.anthropic.com) to draft the text of a request or pull request from the detected changes and before and after images of the component. The key stays in figma.clientStorage on that computer and is only sent to api.anthropic.com; without a key, no request is made to Anthropic."
   }
 }

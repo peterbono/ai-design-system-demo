@@ -5,7 +5,7 @@ import type { FigmaSnapshot, PullPlan, RepoSettings, SyncState, VariableTag } fr
 import { type AcceptedChange, composeFiles } from '@bridge-ds/core';
 import { type ConflictChoice, type DiffEntry, type ThreeWayResult, threeWayDiff, toMap } from '@bridge-ds/core';
 import { type CompareResult, GitHubClient, GitHubError, type PullRequest, type RepoFiles, loadRepoFiles } from '@bridge-ds/core';
-import { type RenameSuggestion, applyConfirmedRenames, reconcileIds } from '@bridge-ds/core';
+import { type RenameSuggestion, applyConfirmedRenames, reconcileIds, remoteRenames } from '@bridge-ds/core';
 import { type FigmaReadResult, type Unmappable, buildPullPlan, isUnmappable, snapshotToTokens, tokenToPlanned } from './mapping';
 import { branchName, changedModes, commitMessage, composeChangeset, composePrBody, defaultTitle } from '@bridge-ds/core';
 import { type TokenSet, buildTokenSet, layoutOptions, loadConfig } from '@bridge-ds/core';
@@ -14,6 +14,8 @@ import { type ProposalValidation, type TypeChange, shadowedEdits, validatePropos
 import { CONTRAST_CHECKS_FILE, type ContrastPair, parseContrastChecks } from '@bridge-ds/core';
 import { aliasTarget, isAlias } from '@bridge-ds/core';
 import { type Issue, type NewBrandPlan, composeNewBrandBody, newBrandSection, planNewBrand, slugify } from '@bridge-ds/core';
+import { type ChangesMode, type SuggestionPayloadV1, type TokenEdit, SUGGESTION_SCHEMA, changesMode, createSuggestionOnGitHub, gitBlobSha, planTokenProposal, suggestTokenProposalOnGitHub } from '@bridge-ds/core';
+import { libraryTokens } from './component-push';
 
 export interface Analysis {
   settings: RepoSettings;
@@ -95,7 +97,7 @@ export async function analyze(
       compare = await client.compare(baseSha, headSha).catch(() => undefined);
     } catch (err) {
       if (!(err instanceof GitHubError && (err.status === 404 || err.status === 422))) throw err;
-      warnings.push(`The commit this file was last pulled from (${baseSha.slice(0, 7)}) is gone from GitHub. Every difference is treated as a conflict until the next pull.`);
+      warnings.push(`The library version this file was last pulled from (${baseSha.slice(0, 7)}) is gone from GitHub. Every difference is treated as a conflict until the next pull.`);
     }
   }
 
@@ -120,7 +122,25 @@ export async function analyze(
   const confirmedIds = new Set(confirmedRenames.map((s) => s.figmaId));
   const suggestions = reconciled.suggestions.filter((s) => !confirmedIds.has(s.figmaId));
 
-  const diff = threeWayDiff(baseMappable?.map, toMap(figmaTokens), headMappable.map);
+  // Tokens the code renamed since the last pull: their Figma variable is the renamed token, so the pull renames it in
+  // place and everything bound to it keeps its binding (instead of an orphan and a new variable).
+  let baseForDiff = baseMappable?.map;
+  if (baseForDiff) {
+    for (const { from, to } of remoteRenames(baseForDiff, headMappable.map)) {
+      const i = figmaTokens.findIndex((t) => t.id === from.id);
+      if (i < 0) continue;
+      figmaTokens[i] = { ...figmaTokens[i]!, id: to.id };
+      baseForDiff = new Map(baseForDiff);
+      baseForDiff.delete(from.id);
+      baseForDiff.set(to.id, { ...from, id: to.id });
+      const ids = figma.variableIds.get(from.id);
+      if (ids) {
+        figma.variableIds.delete(from.id);
+        figma.variableIds.set(to.id, ids);
+      }
+    }
+  }
+  const diff = threeWayDiff(baseForDiff, toMap(figmaTokens), headMappable.map);
   const pairs = parseContrastChecks(headFiles.contrastChecks);
   if (!pairs.length) {
     const checks = headFiles.config?.tokens.contrastChecks ?? CONTRAST_CHECKS_FILE;
@@ -137,7 +157,7 @@ export async function analyze(
     slug: slugify(m.name, 24),
     modeKey: m.modeKey,
     values: m.values,
-    blocked: headFiles.config ? undefined : `This repo has no bridge.config.json, so DS Bridge cannot list a new brand in it. Add the config (bridge init), or create brands/${slugify(m.name, 24)}.tokens.json in code.`,
+    blocked: headFiles.config ? undefined : `This repo has no bridge.config.json, so Bridge cannot list a new brand in it. Add the config (bridge init), or create brands/${slugify(m.name, 24)}.tokens.json in code.`,
   }));
   return {
     settings,
@@ -281,7 +301,7 @@ export interface PushResult {
 export async function openPullRequest(client: GitHubClient, a: Analysis, p: PushProposal, opts: PushOptions): Promise<PushResult> {
   if (p.unresolvedConflicts.length) throw new Error('Resolve every conflict before you request review.');
   if (p.validation.blocking.length) throw new Error('Fix the blocking problems before you request review.');
-  if (!Object.keys(p.files).length && !p.brandFiles.length) throw new Error('Nothing to send: the Figma variables match main.');
+  if (!Object.keys(p.files).length && !p.brandFiles.length) throw new Error('Nothing to send: the Figma variables match the library.');
   const plans = p.brands.flatMap((b) => (b.plan ? [b.plan] : []));
   const title = opts.title.trim() || (p.changes.length ? defaultTitle(p.changes) : plans.map((x) => x.title).join(', '));
   const prefix = a.headFiles.tokensPath;
@@ -290,16 +310,16 @@ export async function openPullRequest(client: GitHubClient, a: Analysis, p: Push
   // A changeset only when the repo's bridge.config.json names the package to bump.
   const pkg = a.headFiles.config?.changeset?.package;
   // Token edits get their changeset; each new brand brings its own (minor) one, under another name.
-  const changeset = pkg && p.changes.length ? composeChangeset(p.changes, { title, branch, packageName: pkg, source: 'from Figma via DS Bridge' }) : undefined;
+  const changeset = pkg && p.changes.length ? composeChangeset(p.changes, { title, branch, packageName: pkg, source: 'from Figma via Bridge' }) : undefined;
   const repoFiles = [...Object.entries(p.files).map(([rel, content]) => ({ path: `${prefix}/${rel}`, content })), ...(changeset ? [changeset] : []), ...p.brandFiles];
 
   const parent = appended ? await client.getBranchSha(branch) : a.headSha;
-  if (!parent) throw new Error(`Branch ${branch} no longer exists.`);
+  if (!parent) throw new Error(`The change ${branch} no longer exists.`);
   const baseTree = await client.getCommitTree(parent);
   const blobs = [];
   for (const f of repoFiles) blobs.push({ path: f.path, sha: await client.createBlob(f.content) });
   const tree = await client.createTree(baseTree, blobs);
-  const message = p.changes.length ? commitMessage(title, p.changes, 'Exported from Figma with DS Bridge.') : `${title}\n\n${plans.map((x) => `New brand ${x.name} (${x.slug}) from a Figma Brand mode.`).join('\n')}\n\nExported from Figma with DS Bridge.`;
+  const message = p.changes.length ? commitMessage(title, p.changes, 'Exported from Figma with Bridge.') : `${title}\n\n${plans.map((x) => `New brand ${x.name} (${x.slug}) from a Figma Brand mode.`).join('\n')}\n\nExported from Figma with Bridge.`;
   const commitSha = await client.createCommit(message, tree, [parent]);
 
   let pr: PullRequest;
@@ -307,14 +327,14 @@ export async function openPullRequest(client: GitHubClient, a: Analysis, p: Push
     await client.updateBranch(branch, commitSha);
     pr = opts.appendTo!;
     const lines = [...p.changes.map((c) => `- ${(c.target ?? c.current)!.path}`), ...plans.map((x) => `- New brand ${x.name} (\`${x.slug}\`)`)];
-    await client.addComment(pr.number, `DS Bridge added a commit from Figma:\n\n${lines.join('\n')}`).catch(() => undefined);
+    await client.addComment(pr.number, `Bridge added a commit from Figma:\n\n${lines.join('\n')}`).catch(() => undefined);
   } else {
     await client.createBranch(branch, commitSha);
     const origin = {
-      tool: 'the DS Bridge Figma plugin',
+      tool: 'the Bridge Figma plugin',
       surface: 'Figma',
       location: opts.fileName,
-      authoredBy: 'Human designer in Figma, via the DS Bridge plugin (no AI involved in the values)',
+      authoredBy: 'Human designer in Figma, via the Bridge plugin (no AI involved in the values)',
     };
     const tokenBody = () => composePrBody({
       changes: p.changes,
@@ -329,20 +349,24 @@ export async function openPullRequest(client: GitHubClient, a: Analysis, p: Push
       notes: opts.notes,
       upstreamPaths: a.diff.remote.map((e) => e.path),
       resolvedConflicts: p.resolvedConflicts,
+      // Token values from Figma ship once the checks pass (docs/BUILD-REQUESTS.md); a new brand keeps its reviews.
+      fromFigma: !plans.length,
     });
     // A push that only adds brands gets the brand body; token edits plus brands get one New brand section each.
     const body = p.changes.length
       ? [tokenBody(), ...plans.map(newBrandSection)].join('\n\n')
       : plans.map((x, i) => (i === 0 ? composeNewBrandBody(x, { tool: `${origin.tool} (${origin.location})`, notes: opts.notes }) : newBrandSection(x))).join('\n\n');
+    // Token values from Figma count as design-approved (docs/BUILD-REQUESTS.md): ready for review, so they ship once the
+    // checks pass. A new brand (Tier 3) still opens as a draft for its reviews.
     try {
-      pr = await client.createPullRequest({ title, head: branch, base: a.settings.branch, body, draft: true });
+      pr = await client.createPullRequest({ title, head: branch, base: a.settings.branch, body, draft: plans.length > 0 });
     } catch (err) {
       // Draft PRs are not available on every plan; fall back to a regular PR.
       if (err instanceof GitHubError && err.status === 422 && /draft/i.test(err.detail ?? '')) {
         pr = await client.createPullRequest({ title, head: branch, base: a.settings.branch, body, draft: false });
       } else throw err;
     }
-    await client.addLabels(pr.number, plans.length ? ['tokens', 'tier: 3'] : ['tokens']);
+    await client.addLabels(pr.number, plans.length ? ['tokens', 'tier: 3', 'source: figma'] : ['tokens', 'source: figma']);
   }
 
   const tags: VariableTag[] = [];
@@ -396,7 +420,7 @@ export async function commitToExploration(client: GitHubClient, a: Analysis, p: 
     .filter(([rel, content]) => there.files[rel] !== content)
     .map(([rel, content]) => ({ path: `${prefix}/${rel}`, content }));
   const pkg = config?.changeset?.package;
-  const changeset = pkg && tokenFiles.length && p.changes.length ? composeChangeset(p.changes, { title, branch, packageName: pkg, source: 'from Figma via DS Bridge' }) : undefined;
+  const changeset = pkg && tokenFiles.length && p.changes.length ? composeChangeset(p.changes, { title, branch, packageName: pkg, source: 'from Figma via Bridge' }) : undefined;
   const repoFiles = [...tokenFiles, ...(changeset ? [changeset] : []), ...p.brandFiles];
   const tags: VariableTag[] = [];
   for (const c of p.changes) {
@@ -410,12 +434,12 @@ export async function commitToExploration(client: GitHubClient, a: Analysis, p: 
   const blobs = [];
   for (const f of repoFiles) blobs.push({ path: f.path, sha: await client.createBlob(f.content) });
   const tree = await client.createTree(baseTree, blobs);
-  const message = `${p.changes.length ? commitMessage(title, p.changes, 'Exported from Figma with DS Bridge.') : title}\n\nExploration ${branch}: not merged as is.`;
+  const message = `${p.changes.length ? commitMessage(title, p.changes, 'Exported from Figma with Bridge.') : title}\n\nExploration ${branch}: not merged as is.`;
   const commitSha = await client.createCommit(message, tree, [tip]);
   await client.updateBranch(branch, commitSha);
   const lines = [...p.changes.map((c) => `- ${(c.target ?? c.current)!.path}`), ...plans.map((x) => `- New brand ${x.name} (\`${x.slug}\`)`)];
   const why = opts.notes.trim();
-  await client.addComment(pr.number, `DS Bridge added a commit from Figma to this exploration:\n\n${lines.join('\n')}${why ? `\n\n${why}` : ''}`).catch(() => undefined);
+  await client.addComment(pr.number, `Bridge added a commit from Figma to this exploration:\n\n${lines.join('\n')}${why ? `\n\n${why}` : ''}`).catch(() => undefined);
   return { pr, branch, commitSha, appended: true, tags, unchanged: false };
 }
 
@@ -442,6 +466,33 @@ function aliasTargetIds(set: TokenSet): Set<string> {
       if (target) out.add(target.id);
     }
   return out;
+}
+
+/**
+ * Commits on the branch since the file's last pull: 0 when the file is at the branch head (or was never pulled). When
+ * GitHub could not compare the two, at least 1, since the head moved.
+ */
+export function commitsBehind(a: Pick<Analysis, 'baseSha' | 'headSha' | 'compare'>): number {
+  if (!a.baseSha || a.baseSha === a.headSha) return 0;
+  return Math.max(1, a.compare?.aheadBy ?? 0);
+}
+
+/**
+ * The Pull headline. "Already up to date" only when the file was pulled from the branch head: commits on main that
+ * change nothing in Figma still say how many there are, and the screen offers the pull so the file catches up.
+ */
+/** The collections a pull writes variables to, in tier order: a design system with two tiers names two. */
+export function pullCollections(plan: Pick<PullPlan, 'collections' | 'variables'>): string[] {
+  return plan.collections.filter((c) => plan.variables.some((v) => v.tier === c.tier)).map((c) => c.name);
+}
+
+export function pullHeadline(o: { baseSha: string | undefined; variablesUpToDate: boolean; behind: number; status: string[] }): string {
+  // Designer words: "the design system", never the branch name or a commit.
+  const changes = o.behind ? `${o.behind} new ${o.behind === 1 ? 'change' : 'changes'} in the design system` : '';
+  if (!o.baseSha) return 'First time in this file';
+  if (!o.variablesUpToDate) return o.status.join(', ') || changes || 'Already up to date';
+  if (o.behind) return [changes, ...o.status].join(', ');
+  return o.status.length ? `Up to date with the design system. ${o.status.join(', ')}.` : 'Already up to date';
 }
 
 /** `overwrite`: main wins over every Figma edit to a token that exists on main (Figma-only variables stay). */
@@ -481,3 +532,152 @@ export function buildPull(a: Analysis, choices: Map<string, ConflictChoice>, opt
   });
   return { plan, skipped, kept, restored, unresolvedConflicts };
 }
+
+// ---------------------------------------------------------------------------------------------
+// Push as a suggestion ("changes": "suggest" in bridge.config.json, the default): the checked variable edits become a
+// token suggestion (an issue holding the exact edits, owners approve, a developer applies), new brands a brand
+// suggestion. Issues write only: no branch, no commit, no pull request.
+
+/**
+ * How this repo takes changes: bridge.config.json "changes" (absent: "suggest"). A repo with no bridge.config.json
+ * stays "direct": a suggestion is applied against the config, so there would be nothing to apply it with.
+ */
+export function changesModeOf(a: Pick<Analysis, 'headFiles'>): ChangesMode {
+  return a.headFiles.config ? changesMode(a.headFiles.config) : 'direct';
+}
+
+const same = (x: unknown, y: unknown) => JSON.stringify(x) === JSON.stringify(y);
+
+/**
+ * The checked variable edits as semantic token edits (set, add, remove, rename per token file), what a suggestion
+ * stores and a developer re-applies on the current tokens. Pure.
+ */
+export function tokenEditsOf(changes: AcceptedChange[]): TokenEdit[] {
+  const out: TokenEdit[] = [];
+  for (const { target, current } of changes) {
+    if (!target && current) {
+      for (const file of new Set(Object.values(current.files))) out.push({ op: 'remove', path: current.path, file });
+      continue;
+    }
+    if (!target) continue;
+    if (!current) {
+      const byFile = new Map<string, string>();
+      for (const m of Object.keys(target.values)) byFile.set(target.files[m] ?? '', m);
+      for (const [file, m] of byFile) out.push({ op: 'add', path: target.path, value: target.values[m], type: target.type, ...(target.description ? { description: target.description } : {}), ...(file ? { file } : {}) });
+      continue;
+    }
+    if (current.path !== target.path) out.push({ op: 'rename', path: current.path, newPath: target.path });
+    const described = (target.description ?? '') !== (current.description ?? '');
+    const typed = target.type !== current.type;
+    const done = new Set<string>();
+    for (const m of Object.keys(target.values)) {
+      const file = current.files[m] ?? target.files[m];
+      if (!file || done.has(file)) continue;
+      const known = Object.values(current.files).includes(file);
+      if (!known) {
+        done.add(file);
+        out.push({ op: 'add', path: target.path, value: target.values[m], type: target.type, ...(target.description ? { description: target.description } : {}), file });
+        continue;
+      }
+      if (!same(target.values[m], current.values[m]) || described || typed) {
+        done.add(file);
+        out.push({ op: 'set', path: target.path, value: target.values[m], ...(typed ? { type: target.type } : {}), ...(described ? { description: target.description ?? '' } : {}), file });
+      }
+    }
+    for (const [m, file] of Object.entries(current.files)) if (!(m in target.values) && !done.has(file)) out.push({ op: 'remove', path: target.path, file });
+  }
+  return out;
+}
+
+export interface SuggestOptions {
+  title: string;
+  notes: string;
+  fileName: string;
+  fileKey?: string | undefined;
+  /** GitHub login of the designer. */
+  suggestedBy?: string | undefined;
+  now?: Date | undefined;
+}
+
+export interface SentSuggestion {
+  kind: 'token-change' | 'brand';
+  number: number;
+  url: string;
+  title: string;
+}
+
+export interface SuggestResult {
+  suggestions: SentSuggestion[];
+  /** Plugin data to store on variables so the next diff matches them by id. */
+  tags: VariableTag[];
+}
+
+function variableTags(a: Analysis, p: PushProposal): VariableTag[] {
+  const tags: VariableTag[] = [];
+  for (const c of p.changes) {
+    if (!c.target) continue;
+    for (const variableId of a.figma.variableIds.get(c.target.id) ?? []) {
+      tags.push({ variableId, pluginData: { id: c.target.id, dtcgType: c.target.type, file: isMultiMode(c.target.tier) ? undefined : c.target.files[SINGLE_MODE] } });
+    }
+  }
+  return tags;
+}
+
+/** The Figma file, for a suggestion's links (no node: variables live in the file, not on a node). */
+const fileLink = (opts: Pick<SuggestOptions, 'fileKey'>) => (opts.fileKey ? { figma: { fileKey: opts.fileKey, url: `https://www.figma.com/design/${opts.fileKey}/` } } : undefined);
+
+/** The checked variable edits as a token suggestion, and each included new brand as a brand suggestion. */
+export async function sendSuggestion(client: GitHubClient, a: Analysis, p: PushProposal, opts: SuggestOptions): Promise<SuggestResult> {
+  if (p.unresolvedConflicts.length) throw new Error('Resolve every conflict before you send a suggestion.');
+  if (p.validation.blocking.length) throw new Error('Fix the blocking problems before you send a suggestion.');
+  if (!Object.keys(p.files).length && !p.brandFiles.length) throw new Error('Nothing to send: the Figma variables match the library.');
+  const lib = libraryTokens(a.headFiles);
+  if (!lib) throw new Error('This repo has no bridge.config.json, so Bridge cannot send a suggestion. Add the config (bridge init).');
+  const plans = p.brands.flatMap((b) => (b.plan ? [b.plan] : []));
+  const title = opts.title.trim() || (p.changes.length ? defaultTitle(p.changes) : plans.map((x) => x.title).join(', '));
+  const origin = `Sent from Figma (${opts.fileName || 'a Figma file'}) with the Bridge plugin. A human designer set these values; no AI involved.`;
+  const out: SentSuggestion[] = [];
+  if (p.changes.length) {
+    const plan = planTokenProposal({ before: lib.before, pairs: a.pairs, edits: tokenEditsOf(p.changes), title, summary: opts.notes, config: lib.config, tool: 'the Bridge Figma plugin', bodyExtra: [origin] });
+    if (plan) {
+      const links = fileLink(opts);
+      const r = await suggestTokenProposalOnGitHub(client, plan, { base: a.settings.branch, baseSha: a.headSha, source: 'figma', suggestedBy: opts.suggestedBy, labelsAfter: ['source: figma'], ...(links ? { links } : {}) });
+      out.push({ kind: 'token-change', number: r.number, url: r.url, title });
+    }
+  }
+  for (const plan of plans) {
+    const files = brandFilesOf(a, p, plan);
+    const links = fileLink(opts);
+    const payload: SuggestionPayloadV1 = {
+      schema: SUGGESTION_SCHEMA,
+      kind: 'brand',
+      title: plan.title,
+      summary: opts.notes.trim() || `New brand ${plan.name} (${plan.slug}) from a Figma Brand mode.`,
+      source: 'figma',
+      ...(opts.suggestedBy ? { suggestedBy: opts.suggestedBy.replace(/^@/, '') } : {}),
+      createdAt: (opts.now ?? new Date()).toISOString(),
+      base: { ref: a.settings.branch, sha: a.headSha },
+      tier: { tier: 3, bump: 'minor' },
+      files,
+      checks: { newErrors: plan.issues.filter((i) => i.level === 'error').length, contrast: [], blocked: null, impact: 0 },
+      ...(links ? { links } : {}),
+    };
+    const r = await createSuggestionOnGitHub(client, payload, { labels: ['tokens'], details: newBrandSection(plan) });
+    out.push({ kind: 'brand', number: r.number, url: r.url, title: plan.title });
+  }
+  if (!out.length) throw new Error('Nothing to send: the Figma variables match the library.');
+  return { suggestions: out, tags: variableTags(a, p) };
+}
+
+/** The whole files of one new brand, with the git blob sha of each file on main (null: a new file). */
+function brandFilesOf(a: Analysis, p: PushProposal, plan: NewBrandPlan): SuggestionPayloadV1['files'] {
+  const prefix = `${a.headFiles.tokensPath}/`;
+  const mine = new Set(plan.files.map((f) => f.path));
+  return p.brandFiles
+    .filter((f) => mine.has(f.path))
+    .map((f) => {
+      const before = f.path === 'bridge.config.json' ? a.headFiles.configText : f.path.startsWith(prefix) ? a.headFiles.files[f.path.slice(prefix.length)] : undefined;
+      return { path: f.path, beforeSha: before === undefined ? null : gitBlobSha(before), afterSha: gitBlobSha(f.content), content: f.content };
+    });
+}
+

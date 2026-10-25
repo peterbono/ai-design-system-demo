@@ -8,22 +8,34 @@ import '../styles/studio-app.css';
 import '../styles/ds-library.css';
 import '../styles/ds-studio.css';
 import '../styles/brand.css';
+import '../styles/team-access.css';
+import '../styles/space-switch.css';
 import GitHubAccount from '../components/GitHubAccount.astro';
 import GitHubDialog from '../components/GitHubDialog.astro';
 import ScriptDialog from '../components/ds/ScriptDialog.astro';
 import PaletteField from '../components/ds/PaletteField';
 import Logo from '../components/Logo.astro';
 import ViewAsChange from '../components/ViewAsChange.astro';
-import { LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, type Space } from '../lib/nav';
-import { siteRepoJson } from '../lib/config';
+import SpaceSwitch from '../components/SpaceSwitch';
+import { switchTarget } from '../lib/space-switch';
+import { loadComponents } from '../lib/components';
+import { shellMarker, studioPathOfShell } from '../lib/team-shells';
+import { COMPONENT_SHELL_ROUTE, LIBRARY_SHELL_ROOT, LIBRARY_TEAM_NAV, libraryShellMarker, routeOfShell } from '../lib/library-shells';
+import { COMPARE, LANDING, LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, workspaceNav, type NavEntry, type Space } from '../lib/nav';
+import type { IconName } from '../brand/icons';
+import { PRIVACY_PAGE } from '../lib/account';
+import { siteRepo, siteRepoJson } from '../lib/config';
+import TeamChip from '../components/ds/studio/TeamChip';
+import AccountMenu from '../components/ds/account/AccountMenu';
+import { TeamAccessGate } from '../components/ds/studio/NoAccess';
+import { signInConfig } from '../lib/signin-config';
 import { GITHUB_URL, STORYBOOK_URL, sourceUrl } from '../lib/repo';
 import { humanDate } from '../lib/stats';
 import { BRANDS, DEFAULT_BRAND } from '../lib/tokens';
 import { Avatar, Breadcrumb, Button, Icon, IconButton, Kbd, Link } from '@bridge-ds/react';
 import { siteIcon } from '../brand/site-icons';
-import { BookOpen, Menu as MenuIcon, Moon, Search, X } from 'lucide-react';
+import { Menu as MenuIcon, Search, X } from 'lucide-react';
 import ButtonLink from '../components/ds/ButtonLink';
-import { GitHubMark } from '../components/ds/studio/brand-icons';
 
 export interface Crumb {
   label: string;
@@ -42,21 +54,61 @@ interface Props {
   crumbs?: Crumb[] | false;
   /** Right "On this page" rail, built from the page's h2 headings. Default: on for Library reading pages. */
   toc?: boolean;
+  /**
+   * A team shell (src/pages/team-shell/, lib/team-shells.ts): the Studio page it stands for, without build-time team
+   * data. Sets <html data-hosted data-shell>, noindex, and points the page's Studio links at the team in the browser.
+   */
+  hosted?: boolean;
+  /**
+   * A team's Library shell (src/pages/library-shell/, lib/library-shells.ts): the team's published design system,
+   * read in the browser. Sets <html data-library-shell>, the team Library nav, and leaves indexing to the page
+   * (noindex unless the team's bridge.config.json says library.public; scripts/library-team.ts).
+   */
+  library?: boolean;
+  /**
+   * The start screen (pages/start.astro, board EmptyC): the Studio's top bar only, no side nav, no search. It reads no
+   * repository (<html data-no-repo>) and signs in like a team page, so the sign-in carries over to the team picked.
+   */
+  bare?: boolean;
+  /**
+   * The browser workspace (pages/studio/workspace.astro, board EmptyB): the Studio with nothing connected. Reads no
+   * repository either (<html data-no-repo data-workspace>): no demo banner, no review count, the chip names the workspace.
+   */
+  workspace?: boolean;
 }
 
-const { title, description, sources = [], updated, wide = false, crumbs, toc } = Astro.props;
-const path = Astro.url.pathname.replace(/\/?$/, '/');
+const { title, description, sources = [], updated, wide = false, crumbs, toc, hosted = false, library = false, bare = false, workspace = false } = Astro.props;
+// Pages that read no repository: the start screen and the browser workspace.
+const noRepo = bare || workspace;
+// A shell at /team-shell/tokens/ is the Tokens page of Studio: same nav, same current entry.
+const path = studioPathOfShell(Astro.url.pathname.replace(/\/?$/, '/'));
+const shell = hosted ? shellMarker(Astro.url.pathname.replace(/^\/team-shell\/?/, '').replace(/\/?$/, '/').replace(/^\/$/, '')) : undefined;
 const here = locate(path);
-const space: Space = here.space;
-const nav = navFor(space);
+const space: Space = bare ? 'studio' : here.space;
+// A team's Library: the same nav as Bridge's own Library, at the shell paths (scripts/library-team.ts points them at
+// the team).
+const libraryRoute = library ? routeOfShell(Astro.url.pathname.replace(/\/?$/, '/')) : undefined;
+const shellHref = (route: string) => `${LIBRARY_SHELL_ROOT}${route}`;
+const nav: NavEntry[] = library
+  ? LIBRARY_TEAM_NAV.map((e) =>
+      e.children
+        ? { label: e.label, icon: e.icon as IconName, children: e.children.map((c) => ({ href: shellHref(c.route), label: c.label, icon: c.icon as IconName, apart: c.apart, meta: c.meta })) }
+        : { href: shellHref(e.route), label: e.label, icon: e.icon as IconName, meta: e.meta },
+    )
+  : workspace
+    ? workspaceNav()
+    : navFor(space);
 const isStudio = space === 'studio';
 const isHome = path === LIBRARY_HOME || path === STUDIO_HOME;
 // Tokens, Components and Quality can show the library as an open change (lib/view-scope): the selector and the banner.
-const viewAware = isStudio && Boolean(here.item?.branchAware) && here.item?.href === path;
+// Not on a team shell yet: the open changes it lists are the demo's (multi-team PR 3b reads the team's).
+const viewAware = !hosted && isStudio && Boolean(here.item?.branchAware) && here.item?.href === path;
 // Library reading pages get the right "On this page" rail: it only shows from 1320px, where the column beside the
 // 960px reading width is otherwise empty, and only with two sections or more. Studio and wide pages opt in.
 const showToc = toc ?? (!isStudio && !wide && !isHome);
-const isCurrent = (href: string) => path === href;
+// A team's component page (shell components/item/) sits under Components in the nav, as Bridge's own pages do.
+const navRoute = libraryRoute === COMPONENT_SHELL_ROUTE ? 'components/' : libraryRoute;
+const isCurrent = (href: string) => (library ? href === `${LIBRARY_SHELL_ROOT}${navRoute}` : path === href);
 
 // Breadcrumb only below the side nav's depth (a component page): the Harbor header and the nav say the rest.
 const nested = !!here.item && here.item.href !== path;
@@ -66,22 +118,44 @@ const crumbItems = trail.map((c, i) => (c.href && i < trail.length - 1 ? { label
 // Page sources for "View source": real files only; "git log" is said in the popover title instead.
 const files = sources.filter((s) => s !== 'git log');
 const logged = sources.includes('git log');
-const searchLabel = isStudio ? 'Search tokens, components, branches' : 'Search tokens, components, pages';
-const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of truth' : `${title} | ${SPACE_LABEL[space] === 'Library' ? 'Bridge' : `Bridge ${SPACE_LABEL[space]}`}`;
+const searchLabel = isStudio ? 'Search tokens, components, changes' : 'Search tokens, components, pages';
+// The team chip names the repository: from the build on the self-hosted Studio, from the address on a team shell.
+const builtRepo = hosted ? null : `${siteRepo().owner}/${siteRepo().repo}`;
+// A team's Library signs in with the same GitHub App as the team's Studio, so a Studio sign-in reads private repos here.
+// The start screen and the browser workspace sign in like a team page too: the team picked there keeps the sign-in.
+const ghApp = signInConfig(hosted || library || noRepo)?.app ?? '';
+// The hosted deployment (BRIDGE_HOSTED, multi-team plan 4.3) opens other teams: the chip menu offers it.
+const hostedSite = process.env.BRIDGE_HOSTED === '1' || process.env.BRIDGE_HOSTED === 'true';
+// The header switch's build-time target: the same page in the other space (lib/space-switch.ts). The browser resolves
+// it again where the query or the team decides it (scripts/space-switch.ts).
+const componentNames = new Map(loadComponents().map((c) => [c.slug, c.name]));
+const switchTo = switchTarget({
+  space,
+  pathname: library ? Astro.url.pathname : path,
+  libraryRoute: library ? libraryRoute ?? '' : undefined,
+  nameOf: (slug) => componentNames.get(slug),
+});
+const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Bridge') : `${title} | ${SPACE_LABEL[space] === 'Library' ? 'Bridge' : `Bridge ${SPACE_LABEL[space]}`}`;
 ---
 
 <!doctype html>
-<html lang="en" data-theme="light" data-brand="bridge" data-density="comfortable" data-space={space} data-brands={[DEFAULT_BRAND, ...BRANDS.filter((b) => b !== DEFAULT_BRAND)].join(' ')}>
+<html lang="en" data-hosted={hosted ? '' : undefined} data-no-repo={noRepo ? '' : undefined} data-workspace={workspace ? '' : undefined} data-bare={bare ? '' : undefined} data-shell={shell} data-library-shell={library ? libraryShellMarker(libraryRoute ?? '') : undefined} data-theme="light" data-brand="bridge" data-density="comfortable" data-space={space} data-own-library={`${siteRepo().owner}/${siteRepo().repo}`} data-gh-app={ghApp} data-brands={[DEFAULT_BRAND, ...BRANDS.filter((b) => b !== DEFAULT_BRAND)].join(' ')}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{pageTitle}</title>
     {description && <meta name="description" content={description} />}
+    {hosted && <meta name="robots" content="noindex" />}
     <meta name="author" content="Florian Gouloubi" />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0b1825" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
+    {!library && <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />}
+    {/* Sample-team drafts stay apart from real ones (scripts/demo-drafts.ts): first, before any page script reads a draft. */}
+    <script>
+      import '../scripts/demo-drafts';
+    </script>
+    {/* Theme before first paint: this browser's choice in Settings, Appearance (lib/theme-pref.ts); no value takes the OS setting. */}
     <script is:inline>
       (function () {
         var t = null;
@@ -98,7 +172,9 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
         // Maintainer tools (Edit in Studio, View source, the avatar next to Open Studio) paint before first render
         // from the last check of this browser's GitHub token; scripts/maintainer.ts checks it again.
         try {
-          var tk = localStorage.getItem('bridge.github.token');
+          // The token key carries the GitHub App this site signs in with (scripts/github-session.ts, slotKey).
+          var ga = document.documentElement.getAttribute('data-gh-app');
+          var tk = localStorage.getItem('bridge.github.token' + (ga ? '.' + ga : ''));
           var m = JSON.parse(localStorage.getItem('bridge.gh.maintainer') || 'null');
           if (tk && m && m.key === tk.slice(-6)) {
             document.documentElement.setAttribute('data-signed-in', '');
@@ -111,48 +187,54 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
   <body>
     <Link variant="subtle" className="skip" href="#main">Skip to content</Link>
     <header class="topbar">
-      <Link variant="subtle" className="topbar-brand" href={isStudio ? STUDIO_HOME : LIBRARY_HOME} aria-label={isStudio ? 'Bridge Studio, overview' : 'Bridge, home'}>
+      <Link variant="subtle" className="topbar-brand" href={isStudio ? STUDIO_HOME : library ? LIBRARY_SHELL_ROOT : LIBRARY_HOME} aria-label={isStudio ? 'Bridge Studio, overview' : 'Bridge Library, home'}>
         <Logo />
         {isStudio && <span class="topbar-space" aria-hidden="true">Studio</span>}
       </Link>
-      <Button variant="ghost" size="sm" iconStart={Search} className="shell-search" id="search-open" aria-haspopup="dialog" aria-controls="palette" aria-label={searchLabel}>
+      {/* The workspace reads no design system: nothing to search, and Bridge's own would be another context. */}
+      {!noRepo && <Button variant="ghost" size="sm" iconStart={Search} className="shell-search" id="search-open" aria-haspopup="dialog" aria-controls="palette" aria-label={searchLabel}>
         <span class="shell-search-text">
           <span class="shell-search-label">{searchLabel}</span>
         </span>
-      </Button>
+      </Button>}
       <div class="topbar-actions">
         {viewAware && <ViewAsChange />}
-        {/* Same place in the Library and in Studio, so people find it in both. */}
-        <IconButton icon={Moon} size="sm" label="Dark theme" id="theme-toggle" data-theme-toggle aria-pressed="false" title="Dark theme" className="shell-wide" />
-        {
-          isStudio ? (
-            <>
-              <ButtonLink variant="secondary" size="sm" className="team-open lib-open" href={LIBRARY_HOME} iconStart={BookOpen} aria-label="View published library" title="View published library">
-                <span class="hd-label">Library</span>
-              </ButtonLink>
-            </>
-          ) : (
-            <>
-              <div class="team shell-wide" data-team>
-                <ButtonLink variant="secondary" size="sm" className="team-open" href={STUDIO_HOME}>Open Studio</ButtonLink>
-                <Link variant="subtle" className="team-avatar" href={STUDIO_HOME} data-team-avatar hidden>
-                  <Avatar name="Studio" size="sm" decorative data-team-avatar-img />
-                  <span class="sr-only" data-team-avatar-label>Your Studio</span>
-                </Link>
-              </div>
-            </>
-          )
-        }
-        <span class="rail-toggle-slot"><IconButton icon={MenuIcon} size="sm" label="Open navigation" id="rail-toggle" aria-controls="rail" aria-expanded="false" /></span>
+        {/* Library <-> Studio: one link that names the space you are in and carries the page's item across. */}
+        {!noRepo && <SpaceSwitch space={space} href={switchTo.href} item={switchTo.item} />}
+        {bare ? (
+          // Who is signed in, painted by scripts/github-session.ts ([data-gh-acct] [data-gh-avatar]); hidden signed out.
+          <>
+            <span class="topbar-who" data-gh-acct><Avatar name="GitHub" size="sm" decorative data-gh-avatar hidden /></span>
+            {/* Signed in with a Bridge account: its face and menu instead (components/ds/account/AccountMenu.tsx). */}
+            <AccountMenu client:only="react" compact />
+          </>
+        ) : (
+          <span class="rail-toggle-slot"><IconButton icon={MenuIcon} size="sm" label="Open navigation" id="rail-toggle" aria-controls="rail" aria-expanded="false" /></span>
+        )}
       </div>
     </header>
+    {/* The demo, for a visitor who cannot change it: the demo banner (scripts/demo-gate.ts mounts
+        components/ds/studio/DemoBanner.tsx here once the session knows who is visiting), Studio and a team Library. */}
+    {((isStudio && !noRepo) || library) && <div class="demo-strip" data-demo-strip hidden />}
 
+    {bare ? (
+      <main id="main" tabindex="-1" class="bare-main">
+        <slot />
+      </main>
+    ) : (
     <div class="shell">
       <nav class="rail" id="rail" aria-label={isStudio ? 'Studio navigation' : 'Library navigation'}>
         <div class="rail-head">
           <Logo />
           <IconButton icon={X} label="Close navigation" id="rail-close" />
         </div>
+        {
+          isStudio && (
+            <div class="rail-chip">
+              <TeamChip client:load repo={builtRepo} launcher={hostedSite} workspace={workspace} />
+            </div>
+          )
+        }
         <ul class="nav">
           {
             nav.map((entry, n) => {
@@ -175,12 +257,14 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
                   </li>
                 );
               }
-              const open = here.entry?.label === entry.label;
+              // Every group renders open, the same for every visitor; scripts/shell.ts applies this tab's toggles
+              // to the other groups (lib/nav-groups.ts) and never closes the one holding the current page.
+              const current = library ? entry.children!.some((c) => isCurrent(c.href)) : here.entry?.label === entry.label;
               const id = `nav-group-${n}`;
               return (
                 <li class="nav-group">
                   <!-- bridge-audit-ignore-next-line: a side nav group opener styled as its sibling nav links (with the review count badge and chevron); the DS SidebarNav is a React island and would rebuild the whole rail -->
-                  <button type="button" class="nav-link nav-toggle" aria-expanded={open ? 'true' : 'false'} aria-controls={id} data-nav-group data-active={open || undefined}>
+                  <button type="button" class="nav-link nav-toggle" aria-expanded="true" aria-controls={id} data-nav-group={entry.label} data-nav-current={current || undefined} data-active={current || undefined}>
                     <Icon icon={siteIcon(entry.icon)} size="md" className="icon" />
                     <span>{entry.label}</span>
                     {entry.badge && (
@@ -192,7 +276,7 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
                     )}
                     <span class="nav-chev" aria-hidden="true"><Icon icon={siteIcon('chevron')} size="sm" className="icon" /></span>
                   </button>
-                  <ul class="nav-sub" id={id} hidden={!open}>
+                  <ul class="nav-sub" id={id}>
                     {entry.children!.map((item) => (
                       <li class:list={[{ 'nav-apart': item.apart }]}>
                         <Link variant="subtle" href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined} data-keep-branch={isStudio ? '' : undefined}>
@@ -207,16 +291,17 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
           }
         </ul>
         <div class="rail-foot">
-          <div class="rail-tools">
-            <Button variant="ghost" iconStart={Moon} data-theme-toggle aria-pressed="false" aria-label="Dark theme">Theme</Button>
-            {!isStudio && <ButtonLink variant="ghost" iconStart={GitHubMark} href={GITHUB_URL}>GitHub</ButtonLink>}
-          </div>
+          {/* Light, dark or System lives in Studio Settings (Appearance); the Library follows the same choice. No
+              GitHub link here: readers do not need it; developers find the repository from Use, Install. */}
           {
             isStudio ? (
-              <GitHubAccount />
+              <>
+                <AccountMenu client:only="react" />
+                <GitHubAccount workspace={workspace} />
+              </>
             ) : (
               <div class="rail-team">
-                <p>Maintaining Bridge? Edit tokens and review changes.</p>
+                <p>{library ? 'Maintaining this design system? Edit its tokens and review changes.' : 'Maintaining Bridge? Edit tokens and review changes.'}</p>
                 <ButtonLink variant="secondary" href={STUDIO_HOME}>Open Studio</ButtonLink>
               </div>
             )
@@ -226,6 +311,14 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
       <div class="scrim" id="scrim" hidden></div>
 
       <main id="main" tabindex="-1" class:list={[{ wide, 'has-toc': showToc }]}>
+        {
+          // A team's Bridge: what GitHub lets this visitor do (components/ds/studio/NoAccess.tsx), over the page.
+          hosted && (
+            <div class="team-gate" data-team-gate>
+              <TeamAccessGate client:only="react" />
+            </div>
+          )
+        }
         {
           showCrumbs && (
             <Breadcrumb items={crumbItems} className="shell-crumbs" />
@@ -246,13 +339,16 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
             <slot />
           )
         }
+        {
+          // Library pages end with when they changed, their sources and the footer; Studio screens show live data.
+          !isStudio && (
         <div class="page-end">
-          <div class="page-meta">
+          {!library && <div class="page-meta">
             <Icon icon={siteIcon('clock')} size="sm" className="icon" />
             <span title="From the git history of this page's source files">Updated {humanDate(updated ?? null)}</span>
             {
               files.length > 0 && (
-                <details class="menu page-source" data-menu data-maintainer-only={!isStudio || undefined}>
+                <details class="menu page-source" data-menu data-maintainer-only>
                   <summary class="page-source-trigger">
                     <Icon icon={siteIcon('code')} size="sm" className="icon" />
                     <span>View source</span>
@@ -273,25 +369,33 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
                 </details>
               )
             }
-          </div>
-          {
-            !isStudio && (
-              <footer class="site-footer">
-                <div class="site-footer-brand">
-                  <Logo />
-                  <p>Free and open source design system, MIT</p>
-                </div>
-                <nav class="site-footer-links" aria-label="Footer">
+          </div>}
+          <footer class="site-footer">
+            <div class="site-footer-brand">
+              <Logo />
+              <p>{library ? 'Published with Bridge' : 'Free and open source design system, MIT'}</p>
+            </div>
+            <nav class="site-footer-links" aria-label="Footer">
+              {library ? (
+                <Link variant="subtle" href={GITHUB_URL} data-team-github>GitHub<span>Source and issues</span></Link>
+              ) : (
+                <>
                   <Link variant="subtle" href={GITHUB_URL}>GitHub<span>Source and issues</span></Link>
                   <Link variant="subtle" href="/llms.txt">For AI agents<span class="mono">llms.txt</span></Link>
                   <Link variant="subtle" href={STORYBOOK_URL}>Contribute<span>Storybook workbench</span></Link>
-                </nav>
-              </footer>
-            )
-          }
+                </>
+              )}
+              <Link variant="subtle" href={LANDING}>About Bridge<span>What it does</span></Link>
+              <Link variant="subtle" href={COMPARE}>Compare<span>Bridge and other tools</span></Link>
+              <Link variant="subtle" href={PRIVACY_PAGE}>Privacy<span>What Bridge keeps</span></Link>
+            </nav>
+          </footer>
         </div>
+          )
+        }
       </main>
     </div>
+    )}
 
     <ScriptDialog id="palette" title="Search" size="lg" closeLabel="Close search">
       <div class="palette-box" role="search">
@@ -311,12 +415,23 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
       </p>
     </ScriptDialog>
 
-    {isStudio && <GitHubDialog />}
+    {isStudio && <GitHubDialog hosted={hosted || noRepo} />}
     <p class="sr-only" role="status" aria-live="polite" id="live"></p>
-    <script type="application/json" id="bridge-repo" set:html={siteRepoJson()} />
+    {/* A team shell carries no repository of its own: scripts/repo-context.ts reads the team from the address. */}
+    <script type="application/json" id="bridge-repo" set:html={hosted ? '{}' : siteRepoJson()} />
     <script>
       import { initShell } from '../scripts/shell';
+      import { fillTeamShell } from '../scripts/team-links';
+      import { initLibraryTeam } from '../scripts/library-team';
+      import { initSpaceSwitch } from '../scripts/space-switch';
+      import { initSignInLinks } from '../scripts/signin-links';
+      // A team's Library: noindex first, then its links, name and data (a no-op elsewhere).
+      if (document.documentElement.hasAttribute('data-library-shell')) initLibraryTeam();
       initShell();
+      initSpaceSwitch();
+      initSignInLinks();
+      // The account block names the team in the address on a team shell (a no-op elsewhere).
+      if (document.documentElement.hasAttribute('data-hosted')) fillTeamShell();
     </script>
   </body>
 </html>

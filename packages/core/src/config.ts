@@ -19,9 +19,42 @@ import type { IntegrationsConfig } from './requests';
 import { PREVIEW_APP_LABELS, type PreviewApps, type PreviewsConfig } from './previews';
 import { normalizeRights, rightsProblems, visualImpactProblems, type Rights, type VisualImpactConfig } from './rights';
 import { ownerEntryProblems } from './teams';
+import { DEFAULT_PRODUCTS, productProblems, sameProducts, type ProductConfig } from './products';
 
 /** File name Bridge looks for at the repository root. */
 export const CONFIG_FILE = 'bridge.config.json';
+
+/**
+ * How Bridge sends a change to the code. "suggest": a GitHub issue that holds the exact change (suggestions.ts);
+ * owners approve it and a developer applies it with their own access. "direct": Bridge opens branches and pull
+ * requests itself. Absent from the file: "suggest".
+ */
+export type ChangesMode = 'suggest' | 'direct';
+export const CHANGES_MODES: readonly ChangesMode[] = ['suggest', 'direct'];
+export const DEFAULT_CHANGES_MODE: ChangesMode = 'suggest';
+
+/** The deployed Storybook Bridge reads the component list and previews from. */
+export interface StorybookConfig {
+  /** Root URL (where index.json and iframe.html are served), https only, no trailing slash. */
+  url: string;
+}
+
+/**
+ * A public demo's persona (Bridge's own demo repositories only): who a visitor without an account stands in for,
+ * so the demo home greets them as that person ("Good morning, Dana.") and names their role. Ignored elsewhere.
+ */
+export interface DemoConfig {
+  /** The persona's first name: "Dana". */
+  viewer: string;
+  /** What they do: "DS lead". */
+  role?: string;
+}
+
+/** The team's hosted Library (/library/<owner>/<repo>/). */
+export interface LibraryConfig {
+  /** True lets search engines index the hosted Library of a public repository. Default false: noindex. */
+  public?: boolean;
+}
 
 export interface RepoRef {
   owner: string;
@@ -57,6 +90,8 @@ export interface TokenConfig extends TokenPaths {
   /** Tier name -> directories or files relative to root. First match wins. */
   tiers: Record<string, string[]>;
   layers: TokenLayer[];
+  /** Optional notes per token group ({ "color.action": "Buttons and links" }), relative to root. Default usage.json when present. */
+  usage?: string | undefined;
 }
 
 export interface ModeAxis {
@@ -85,6 +120,11 @@ export interface ComponentsConfig {
   index?: string | undefined;
   /** Generated component specs the Figma plugin pulls (default packages/react/component-specs.json). */
   specs?: string | undefined;
+  /**
+   * Global stylesheets that ship with the library (base styles, theme), as repo-relative globs. Their `var(--token)`
+   * reads count as token usage. Default: every .css file under the styles/ and theme/ folders next to `dir`.
+   */
+  styles?: string[] | undefined;
 }
 
 /**
@@ -126,6 +166,11 @@ export interface GovernanceConfig {
    * and anyone with write access may ship, as before the field existed.
    */
   rights?: Rights | undefined;
+  /**
+   * A design system run by one person: when the owners resolve to exactly one person holding both roles, that
+   * person's approval counts for design and tech. Default false: one person never covers both approvals alone.
+   */
+  soloOwnerCanApproveBoth?: boolean | undefined;
 }
 
 /** `bridge audit` settings: how product code that consumes the design system is measured. */
@@ -141,6 +186,8 @@ export interface AuditConfig {
 }
 
 export interface BridgeConfig {
+  /** The team's display name ("Bridge", "Acme Design"), 1 to 60 characters. Undefined: Bridge names the team after its repository. */
+  name?: string | undefined;
   /** GitHub repository. Undefined only for a detected config of a repo with no known remote. */
   repo: RepoRef | undefined;
   tokens: TokenConfig;
@@ -164,6 +211,16 @@ export interface BridgeConfig {
   integrations?: IntegrationsConfig | undefined;
   /** Visual before and after on pull requests: automatic (default) or on demand (label `visual-check`). */
   visualImpact?: VisualImpactConfig | undefined;
+  /** Apps that consume the design system, the default one being the library (see products.ts). Default DEFAULT_PRODUCTS. */
+  products: ProductConfig[];
+  /** How changes reach the code: suggestions (default) or branches and pull requests. See changesMode(). */
+  changes: ChangesMode;
+  /** The Storybook set in the file. Read it through storybookUrl(), which falls back to previews.production.storybook. */
+  storybook?: StorybookConfig | undefined;
+  /** The hosted Library. Read it through libraryIsPublic(). */
+  library?: LibraryConfig | undefined;
+  /** A public demo's persona (see DemoConfig). */
+  demo?: DemoConfig | undefined;
 }
 
 type Partialish<T> = { [K in keyof T]?: T[K] | undefined };
@@ -172,6 +229,8 @@ type Partialish<T> = { [K in keyof T]?: T[K] | undefined };
 export interface BridgeConfigInput {
   $schema?: string;
   version?: number;
+  /** The team's display name, shown on invites instead of owner/repo. */
+  name?: string;
   repo?: (Partial<RepoRef> & { owner: string; name: string }) | string;
   /** Flat form: base branch. */
   branch?: string;
@@ -180,6 +239,7 @@ export interface BridgeConfigInput {
     exclude?: string[];
     tiers?: Record<string, string | string[]>;
     layers?: (string | { files: string; optional?: boolean })[];
+    usage?: string;
   };
   modes?:
     | (Partial<Omit<ModeConfig, 'defaults'>> & { defaults?: ModeConfig['defaults'] })
@@ -195,6 +255,21 @@ export interface BridgeConfigInput {
   previews?: { packages?: string[]; apps?: PreviewApps; production?: PreviewApps };
   integrations?: IntegrationsConfig;
   visualImpact?: Partial<VisualImpactConfig>;
+  products?: ProductConfig[];
+  changes?: ChangesMode;
+  storybook?: { url: string };
+  library?: LibraryConfig;
+  demo?: DemoConfig;
+}
+
+/** Longest team display name bridge.config.json accepts. */
+export const TEAM_NAME_MAX = 60;
+
+/** The team's display name from a config value: trimmed, 1 to 60 characters; undefined for anything else. */
+export function teamName(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const v = value.trim().replace(/\s+/g, ' ');
+  return v && v.length <= TEAM_NAME_MAX ? v : undefined;
 }
 
 export const DEFAULT_TOKEN_PATHS: TokenPaths = {
@@ -217,7 +292,7 @@ export const DEFAULT_GOVERNANCE: GovernanceConfig = {
 };
 
 const FLAT_TOKEN_KEYS = ['primitives', 'brands', 'semantic', 'base', 'density', 'components', 'contrastChecks'] as const;
-const CANONICAL_TOKEN_KEYS = ['root', 'include', 'exclude', 'tiers', 'layers'];
+const CANONICAL_TOKEN_KEYS = ['root', 'include', 'exclude', 'tiers', 'layers', 'usage'];
 const FLAT_MODE_KEYS = ['brands', 'themes', 'densities', 'defaults'];
 const AXIS_OF: Record<string, 'brand' | 'theme' | 'density'> = { brands: 'brand', themes: 'theme', densities: 'density' };
 
@@ -315,8 +390,9 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
   const g = input.governance ?? {};
   const contrastFile = contrastPath ?? [root === '.' ? '' : root, paths.contrastChecks].filter(Boolean).join('/');
   return {
+    ...(teamName(input.name) ? { name: teamName(input.name) } : {}),
     repo: parseRepoInput(input.repo, input.branch),
-    tokens: { ...paths, include: input.tokens?.include ?? ['**/*.tokens.json'], exclude: input.tokens?.exclude ?? [], tiers, layers },
+    tokens: { ...paths, include: input.tokens?.include ?? ['**/*.tokens.json'], exclude: input.tokens?.exclude ?? [], tiers, layers, ...(t.usage ? { usage: trimSlashes(t.usage) } : {}) },
     axes,
     modes,
     contrast: { path: contrastFile, modes: input.contrast?.modes },
@@ -328,6 +404,7 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
           reference: input.components.reference,
           index: input.components.index,
           specs: input.components.specs,
+          ...(input.components.styles ? { styles: input.components.styles.map(trimSlashes) } : {}),
         }
       : undefined,
     docs: { ...input.docs },
@@ -350,7 +427,13 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
           }
         : {}),
       ...(g.rights ? { rights: normalizeRights(g.rights) } : {}),
+      ...(g.soloOwnerCanApproveBoth === true ? { soloOwnerCanApproveBoth: true } : {}),
     },
+    products: input.products?.length ? input.products.map((p) => ({ ...p })) : DEFAULT_PRODUCTS.map((p) => ({ ...p })),
+    changes: input.changes === 'direct' ? 'direct' : DEFAULT_CHANGES_MODE,
+    ...(input.storybook?.url ? { storybook: { url: input.storybook.url.trim().replace(/\/+$/, '') } } : {}),
+    ...(input.library?.public === true ? { library: { public: true } } : {}),
+    ...(input.demo?.viewer?.trim() ? { demo: { viewer: input.demo.viewer.trim(), ...(input.demo.role?.trim() ? { role: input.demo.role.trim() } : {}) } } : {}),
     ...(input.audit ? { audit: { ...input.audit } } : {}),
     ...(input.visualImpact ? { visualImpact: { mode: input.visualImpact.mode === 'on-demand' ? 'on-demand' : 'auto' } } : {}),
     ...(input.integrations ? { integrations: { ...input.integrations } } : {}),
@@ -402,7 +485,7 @@ export function loadConfig(source: string | unknown): BridgeConfig {
     if (!isObj(tokens)) problems.push('"tokens" must be an object');
     else
       for (const [k, v] of Object.entries(tokens)) {
-        if ((FLAT_TOKEN_KEYS as readonly string[]).includes(k) || k === 'root') {
+        if ((FLAT_TOKEN_KEYS as readonly string[]).includes(k) || k === 'root' || k === 'usage') {
           if (!isStr(v)) problems.push(`"tokens.${k}" must be a non-empty string`);
         } else if (k === 'include' || k === 'exclude') {
           if (!isStrList(v)) problems.push(`"tokens.${k}" must be a list of globs`);
@@ -458,6 +541,7 @@ export function loadConfig(source: string | unknown): BridgeConfig {
     problems.push('"contrast" must be { "path", "modes"? }');
   const comps = d.components;
   if (comps !== undefined && (!isObj(comps) || !isStr(comps.dir))) problems.push('"components.dir" must be a non-empty string');
+  if (isObj(comps) && comps.styles !== undefined && !isStrList(comps.styles)) problems.push('"components.styles" must be a list of globs');
   const cs = d.changeset;
   if (cs !== undefined && (!isObj(cs) || !isStr(cs.package))) problems.push('"changeset.package" must be a non-empty string');
   const css = d.changesets;
@@ -479,9 +563,35 @@ export function loadConfig(source: string | unknown): BridgeConfig {
         }
       }
       problems.push(...rightsProblems(gov.rights));
+      if (gov.soloOwnerCanApproveBoth !== undefined && typeof gov.soloOwnerCanApproveBoth !== 'boolean') problems.push('"governance.soloOwnerCanApproveBoth" must be true or false');
     }
   }
   problems.push(...visualImpactProblems(d.visualImpact));
+  if (d.name !== undefined && teamName(d.name) === undefined) problems.push(`"name" must be the team's name, 1 to ${TEAM_NAME_MAX} characters`);
+  if (d.changes !== undefined && !(CHANGES_MODES as readonly unknown[]).includes(d.changes)) problems.push(`"changes" must be "suggest" or "direct" (got ${JSON.stringify(d.changes)})`);
+  const sb = d.storybook;
+  if (sb !== undefined) {
+    if (!isObj(sb) || !isStr(sb.url)) problems.push('"storybook" must be { "url" } with the deployed Storybook address');
+    else if (!/^https:\/\/[^\s/]+/.test(sb.url.trim())) problems.push('"storybook.url" must start with https://, for example https://storybook.example.com');
+    else for (const k of Object.keys(sb)) if (k !== 'url') problems.push(`"storybook.${k}" is not a known key`);
+  }
+  const lib = d.library;
+  if (lib !== undefined) {
+    if (!isObj(lib)) problems.push('"library" must be an object, for example { "public": true }');
+    else {
+      if (lib.public !== undefined && typeof lib.public !== 'boolean') problems.push('"library.public" must be true or false');
+      for (const k of Object.keys(lib)) if (k !== 'public') problems.push(`"library.${k}" is not a known key`);
+    }
+  }
+  const demo = d.demo;
+  if (demo !== undefined) {
+    if (!isObj(demo) || !isStr(demo.viewer) || !demo.viewer.trim()) problems.push('"demo" must be { "viewer" }, for example { "viewer": "Dana", "role": "DS lead" }');
+    else {
+      if (demo.role !== undefined && !isStr(demo.role)) problems.push('"demo.role" must be a string, for example "DS lead"');
+      for (const k of Object.keys(demo)) if (k !== 'viewer' && k !== 'role') problems.push(`"demo.${k}" is not a known key`);
+    }
+  }
+  problems.push(...productProblems(d.products));
   const audit = d.audit;
   if (audit !== undefined) {
     if (!isObj(audit)) problems.push('"audit" must be an object');
@@ -520,13 +630,35 @@ export const protectedBranchesOf = (config: BridgeConfig): string[] => [...new S
 /** The base branch proposals target. */
 export const baseBranchOf = (config: BridgeConfig): string => config.repo?.defaultBranch ?? 'main';
 
+/** How changes reach the code for this repo: the config's mode ("suggest" when the file does not say). */
+export const changesMode = (config: Pick<BridgeConfig, 'changes'> | null | undefined): ChangesMode => (config?.changes === 'direct' ? 'direct' : DEFAULT_CHANGES_MODE);
+
+/**
+ * The Storybook to read: `storybook.url`, else the production Storybook of `previews` when it is https. Undefined
+ * when neither is set. No trailing slash.
+ */
+export function storybookUrl(config: Pick<BridgeConfig, 'storybook' | 'previews'> | null | undefined): string | undefined {
+  const explicit = config?.storybook?.url?.trim();
+  if (explicit) return explicit.replace(/\/+$/, '');
+  const prod = config?.previews?.production?.storybook?.trim();
+  return prod && /^https:\/\//.test(prod) && !/\{\w+\}/.test(prod) ? prod.replace(/\/+$/, '') : undefined;
+}
+
+/**
+ * True when the team opted in to search engines for its hosted Library (`"library": { "public": true }`). Off by
+ * default: a Library page under the Bridge domain shows content Bridge does not control, so it is noindex unless the
+ * team asks.
+ */
+export const libraryIsPublic = (config: Pick<BridgeConfig, 'library'> | null | undefined): boolean => config?.library?.public === true;
+
 /** Plain-JSON form of a config, in the canonical shape (what `bridge init` writes). */
 export function toConfigJson(config: BridgeConfig, schema = './packages/core/bridge.config.schema.json'): Record<string, unknown> {
   return {
     $schema: schema,
     version: 1,
+    ...(config.name ? { name: config.name } : {}),
     ...(config.repo ? { repo: config.repo } : {}),
-    tokens: { root: config.tokens.root, include: config.tokens.include, ...(config.tokens.exclude.length ? { exclude: config.tokens.exclude } : {}), tiers: config.tokens.tiers, layers: config.tokens.layers.map((l) => (l.optional ? l : { files: l.files })) },
+    tokens: { root: config.tokens.root, include: config.tokens.include, ...(config.tokens.exclude.length ? { exclude: config.tokens.exclude } : {}), tiers: config.tokens.tiers, layers: config.tokens.layers.map((l) => (l.optional ? l : { files: l.files })), ...(config.tokens.usage ? { usage: config.tokens.usage } : {}) },
     modes: Object.fromEntries(Object.entries(config.axes).map(([k, a]) => [k, a.parity ? a : { values: a.values, default: a.default }])),
     ...(config.contrast ? { contrast: config.contrast.modes ? config.contrast : { path: config.contrast.path } } : {}),
     ...(config.components ? { components: Object.fromEntries(Object.entries(config.components).filter(([, v]) => v !== undefined)) } : {}),
@@ -537,5 +669,10 @@ export function toConfigJson(config: BridgeConfig, schema = './packages/core/bri
     ...(config.audit ? { audit: config.audit } : {}),
     ...(config.previews ? { previews: config.previews } : {}),
     ...(config.visualImpact ? { visualImpact: config.visualImpact } : {}),
+    changes: changesMode(config),
+    ...(config.storybook ? { storybook: config.storybook } : {}),
+    ...(config.library ? { library: config.library } : {}),
+    ...(config.demo ? { demo: config.demo } : {}),
+    ...(config.products && !sameProducts(config.products, DEFAULT_PRODUCTS) ? { products: config.products } : {}),
   };
 }

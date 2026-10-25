@@ -1,0 +1,13 @@
+---
+// Library shell, Typography (lib/library-shells.ts): served for
+// /library/<owner>/<repo>/foundations/typography/. The same view as Bridge's own page, with the team's model
+// (components/ds/library/LibraryTeamPage.tsx).
+import LibraryShell from '../../../../components/LibraryShell.astro';
+import LibraryShellKit from '../../../../components/foundations/LibraryShellKit.astro';
+import LibraryTeamPage from '../../../../components/ds/library/LibraryTeamPage';
+---
+
+<LibraryShell title="Typography" description="A team's type scale at every step, weights, line heights, tracking and font families." reading>
+  <LibraryTeamPage page="typography" client:load />
+  <LibraryShellKit />
+</LibraryShell>

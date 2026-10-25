@@ -1,10 +1,12 @@
 // New brands for the MCP server and the CLI: list, plan (dry run) and propose (local branch or draft PR).
 // The planner is @bridge-ds/core planNewBrand, the same one the Studio and the Figma plugin use.
-import { baseBranchOf, composeNewBrandBody, listBrands as coreListBrands, planNewBrand, protectedBranchesOf, RADIUS_PRESETS, type BrandRadiusInput, type BrandSource, type NewBrandInput, type NewBrandPlan } from '@bridge-ds/core';
+import { baseBranchOf, composeNewBrandBody, type ChangesMode, listBrands as coreListBrands, planNewBrand, protectedBranchesOf, RADIUS_PRESETS, type BrandRadiusInput, type BrandSource, type NewBrandInput, type NewBrandPlan } from '@bridge-ds/core';
 import { branchExists, commitToNewLocalBranch, currentBranch } from '@bridge-ds/core/node';
 import type { BridgeContext } from './context.js';
 import { CONFIG_FILE } from './config.js';
 import { readTokenFiles } from './core-adapter.js';
+import { changesFor, fileSuggestion, filesSuggestionPayload } from './suggestions.js';
+import { readOnlyPreview, say, sourceOf, toolName, toolTag } from './say.js';
 
 export interface BrandArgs {
   slug: string;
@@ -62,10 +64,10 @@ function toInput(a: BrandArgs): NewBrandInput {
 
 export async function listBrands(ctx: BridgeContext) {
   const brands = coreListBrands(await brandSource(ctx));
-  return { brands, hint: 'Add one with bridge_plan_brand (dry run), then bridge_propose_brand. A new brand is Tier 3.' };
+  return { brands, hint: say(ctx, 'Add one with bridge_plan_brand (dry run), then bridge_propose_brand. A new brand is Tier 3.', 'Add one with `bridge brand create <slug> --dry-run`, then without --dry-run. A new brand is Tier 3.') };
 }
 
-function summary(plan: NewBrandPlan, notes?: string) {
+function summary(plan: NewBrandPlan, notes: string | undefined, source: 'mcp' | 'cli') {
   return {
     ok: plan.ok,
     slug: plan.slug,
@@ -87,20 +89,20 @@ function summary(plan: NewBrandPlan, notes?: string) {
       failing: plan.contrast.failing.slice(0, 20).map((r) => ({ pair: `${r.fg} on ${r.bg}`, modes: r.modes, ratio: r.ratio, min: r.min })),
     },
     issues: plan.issues,
-    prBody: composeNewBrandBody(plan, { tool: 'Bridge MCP', agent: true, ...(notes ? { notes } : {}) }),
+    prBody: composeNewBrandBody(plan, { tool: toolName(source), agent: source === 'mcp', ...(notes ? { notes } : {}) }),
   };
 }
 
 /** Dry run: the brand file, ramps, contrast for every theme, tier and PR body. Writes nothing. */
 export async function planBrand(ctx: BridgeContext, a: BrandArgs) {
   const plan = planNewBrand(await brandSource(ctx), toInput(a));
-  return { status: 'plan', ...summary(plan, a.notes) };
+  return { status: 'plan', ...summary(plan, a.notes, ctx.surface) };
 }
 
-export async function proposeBrand(ctx: BridgeContext, a: BrandArgs & { dryRun?: boolean }) {
+export async function proposeBrand(ctx: BridgeContext, a: BrandArgs & { dryRun?: boolean; changes?: ChangesMode | undefined; source?: 'mcp' | 'cli' | undefined }) {
   const { config } = await ctx.config();
   const plan = planNewBrand(await brandSource(ctx), toInput(a));
-  const report = summary(plan, a.notes);
+  const report = summary(plan, a.notes, sourceOf(ctx, a.source));
   if (!plan.ok) {
     const errors = plan.issues.filter((i) => i.level === 'error').length;
     const why = [errors ? `${errors} problem(s) with the input or the tokens` : '', plan.contrast.failing.length ? `${plan.contrast.failing.length} contrast pair(s) fail` : ''].filter(Boolean).join(' and ');
@@ -110,8 +112,20 @@ export async function proposeBrand(ctx: BridgeContext, a: BrandArgs & { dryRun?:
   const prefix = config.governance.branchPrefix;
   const stem = `${prefix}brand-${plan.slug}`;
   let branch = stem;
+  // Suggest mode: one suggestion issue with the brand files, applied by a developer after design and tech approval.
+  if ((await changesFor(ctx, a.changes)) === 'suggest') {
+    const summary = a.notes?.trim() || `New brand "${plan.slug}", started from ${plan.from}. ${report.contrast.line} (${plan.contrast.themes.join(' and ')}).`;
+    const r = await fileSuggestion(
+      ctx,
+      (base, by) => filesSuggestionPayload(ctx, { kind: 'brand', title: plan.title, summary, files, tier: { tier: plan.risk.tier, bump: plan.risk.bump }, base, source: a.source ?? 'mcp', suggestedBy: by }),
+      { labels: ['tokens'], details: report.prBody, dryRun: a.dryRun },
+    );
+    if (r.status === 'dry-run') return { status: 'dry-run', ...report, changesMode: 'suggest', suggestion: r.suggestion, fileContents: files };
+    if (r.status === 'preview') return { status: 'preview', message: r.message, ...report, changesMode: 'suggest', fileContents: files };
+    return { status: 'suggested', ...report, changesMode: 'suggest', number: r.number, url: r.url, version: r.sha.slice(0, 7), labels: r.labels, ...(r.warnings.length ? { warnings: r.warnings } : {}), next: r.next };
+  }
   if (a.dryRun) return { status: 'dry-run', ...report, branch, fileContents: files };
-  const message = `feat(tokens): add the ${plan.name} brand\n\nNew brand "${plan.slug}", started from ${plan.from}. ${report.contrast.line} (${plan.contrast.themes.join(' and ')}).\n\nTier 3. Proposed through Bridge MCP (source: mcp).`;
+  const message = `feat(tokens): add the ${plan.name} brand\n\nNew brand "${plan.slug}", started from ${plan.from}. ${report.contrast.line} (${plan.contrast.themes.join(' and ')}).\n\nTier 3. Proposed through ${toolTag(sourceOf(ctx, a.source))}.`;
 
   if (ctx.mode === 'local') {
     if (!ctx.isGit) return { status: 'preview', message: 'Not a git repo: nothing written. Apply fileContents yourself.', ...report, branch, fileContents: files };
@@ -128,7 +142,7 @@ export async function proposeBrand(ctx: BridgeContext, a: BrandArgs & { dryRun?:
       next: `Your working tree is untouched. Review with \`git diff ${base}...${branch}\`; push and open a pull request when the design owner agrees. A new brand needs design and tech approval (Tier 3).`,
     };
   }
-  if (!ctx.canWriteRemote) return { status: 'preview', message: 'Read-only: set GITHUB_TOKEN to open this as a pull request.', ...report, branch, fileContents: files };
+  if (!ctx.canWriteRemote) return { status: 'preview', message: readOnlyPreview(ctx), ...report, branch, fileContents: files };
   const gh = (await ctx.github())!;
   const base = ctx.ref ?? baseBranchOf(config);
   for (let i = 2; await gh.getBranchSha(branch).then(Boolean, () => false); i++) branch = `${stem}-${i}`;

@@ -1,0 +1,12 @@
+---
+// Library shell, Agents (lib/library-shells.ts LIBRARY_USE_PAGES): served for /library/<owner>/<repo>/agents/. The
+// same view as Bridge's own page, with what the team publishes (components/ds/library/LibraryTeamUse.tsx) and the
+// Bridge tools of this build.
+import LibraryShell from '../../../components/LibraryShell.astro';
+import LibraryTeamUse from '../../../components/ds/library/LibraryTeamUse';
+import { bridgeTools } from '../../../lib/library-use';
+---
+
+<LibraryShell title="Agents" description="How AI agents read and change a team's design system: its llms.txt, the Bridge MCP server and the bridge CLI." reading>
+  <LibraryTeamUse page="agents" bridge={bridgeTools()} client:load />
+</LibraryShell>

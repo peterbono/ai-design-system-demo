@@ -1,0 +1,68 @@
+---
+// The product site footer (layouts/Landing.astro). It mirrors the header: the mark and the licence on the left, then
+// Product, Resources and About.
+import { Link } from '@bridge-ds/react';
+import Logo from '../Logo.astro';
+import { ABOUT, DOCS_FIGMA_PLUGIN, DOCS_HOME, LANDING, STUDIO_HOME } from '../../lib/nav';
+import { GITHUB_URL } from '../../lib/repo';
+import { PRIVACY_PAGE } from '../../lib/account';
+
+interface Props {
+  path: string;
+}
+const { path } = Astro.props;
+const here = (href: string) => (path === href ? 'page' : undefined);
+const cols = [
+  {
+    id: 'product',
+    label: 'Product',
+    links: [
+      { href: STUDIO_HOME, label: 'Bridge' },
+      { href: DOCS_FIGMA_PLUGIN, label: 'Figma plugin' },
+    ],
+  },
+  {
+    id: 'resources',
+    label: 'Resources',
+    links: [
+      { href: DOCS_HOME, label: 'Bridge docs' },
+      { href: DOCS_FIGMA_PLUGIN, label: 'Plugin docs' },
+      { href: '/changelog/', label: 'Changelog' },
+    ],
+  },
+  {
+    id: 'about',
+    label: 'About',
+    links: [
+      { href: ABOUT, label: 'About Bridge' },
+      { href: GITHUB_URL, label: 'GitHub' },
+      { href: PRIVACY_PAGE, label: 'Privacy' },
+    ],
+  },
+];
+---
+
+<footer class="ft">
+  <div class="ft-row">
+    <div class="ft-brand">
+      <Link variant="subtle" className="ft-logo" href={LANDING} aria-label="Bridge home"><Logo /></Link>
+      <span class="ft-muted">Open source, MIT</span>
+    </div>
+    <nav class="ft-cols" aria-label="Footer">
+      {
+        cols.map((c) => (
+          <div class="ft-col">
+            <p class="ft-h" id={`ft-${c.id}`}>{c.label}</p>
+            <ul aria-labelledby={`ft-${c.id}`}>
+              {c.links.map((l) => (
+                <li>
+                  <Link variant="subtle" href={l.href} aria-current={here(l.href)}>{l.label}</Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
+    </nav>
+  </div>
+</footer>

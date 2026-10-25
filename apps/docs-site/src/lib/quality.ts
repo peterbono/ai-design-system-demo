@@ -7,6 +7,7 @@
 import type { StatusGroup } from './changes';
 import type { GuidanceState } from './components';
 import type { Issue } from './stats';
+import { studioHref } from './team-path';
 
 export type Severity = 'fail' | 'warn' | 'note' | 'pass';
 
@@ -163,7 +164,7 @@ export interface AdoptionRow {
 
 export const APP_SHORT: Record<string, string> = { admin: 'Admin demo', 'bridge-site': 'Bridge itself' };
 
-export const auditHref = (id: string) => `/studio/quality/audits/${id}/`;
+export const auditHref = (id: string) => studioHref(`quality/audits/${id}/`);
 
 interface Metrics {
   tokenAdoption: number | null;
@@ -211,9 +212,9 @@ export function tokenSentence(m: { tokenAdoption: number | null; tokenUsages: nu
   return `${pct(m.tokenAdoption)} of styling values ${past ? 'came' : 'come'} from tokens (${plural(m.tokenUsages, 'use')}, ${left}).`;
 }
 
-/** Component metric in one sentence: "90.2% of components come from Bridge (239 of 265)." */
+/** Component metric in one sentence: "90.2% of components come from the design system (239 of 265)." */
 export function componentSentence(m: { componentAdoption: number | null; dsComponentInstances: number; uiComponentInstances: number }, past = false): string {
-  return `${pct(m.componentAdoption)} of components ${past ? 'came' : 'come'} from Bridge (${m.dsComponentInstances} of ${m.uiComponentInstances}).`;
+  return `${pct(m.componentAdoption)} of components ${past ? 'came' : 'come'} from the design system (${m.dsComponentInstances} of ${m.uiComponentInstances}).`;
 }
 
 /**
@@ -233,11 +234,11 @@ export function deltaPhrase(delta: number | null | undefined, since: string): st
 }
 
 /**
- * The one summary sentence of an adoption report: "100% of styling values and 90.2% of components come from Bridge,
+ * The one summary sentence of an adoption report: "100% of styling values and 90.2% of components come from the design system,
  * up from 0% before the move." Without a baseline the tail is left out; `past` describes the run before the move.
  */
 export function adoptionSummary(now: Metrics, before: Metrics | null, past = false): string {
-  const head = `${pct(now.tokenAdoption)} of styling values and ${pct(now.componentAdoption)} of components ${past ? 'came' : 'come'} from Bridge`;
+  const head = `${pct(now.tokenAdoption)} of styling values and ${pct(now.componentAdoption)} of components ${past ? 'came' : 'come'} from the design system`;
   if (past) return `${head} before the move.`;
   if (!before) return `${head}.`;
   const a = pct(before.tokenAdoption);

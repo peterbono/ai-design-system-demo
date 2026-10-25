@@ -383,9 +383,9 @@ a.skip:focus {
   border-radius: var(--radius-control);
 }
 
-/* Top bar, three zones: logo on the start side, search on the true center axis, reader controls then the team
-   entry on the end side. Library: theme, GitHub, a hairline, "Open Studio" (with the avatar in one pill for a
-   signed-in reader). Studio: "Bridge Studio" on a soft ground, theme, then the account in the same far-right slot. */
+/* Top bar, three zones: logo on the start side, search on the true center axis, reader controls then the
+   Library <-> Studio switch on the end side (styles/space-switch.css), in the same far-right slot in both spaces.
+   Studio: "Bridge Studio" on a soft ground. */
 
 .topbar {
   position: sticky;
@@ -405,20 +405,20 @@ a.topbar-brand {
   display: inline-flex;
   align-items: center;
   min-height: var(--control-height-md);
-  gap: var(--space-3);
+  gap: var(--space-1);
   justify-self: start;
   color: var(--color-text-default);
   text-decoration: none;
 }
 
-/* "Studio" in the display face, like the wordmark, so "Bridge Studio" reads as one name. Deep Harbor marks the space. */
+/* Studio reads as one wordmark, "Bridge Studio": the same display face, size, weight and baseline as "Bridge", one
+   space-1 apart, no divider. Both words share one line box (same family, size and line height), so centring them puts
+   them on one baseline. Deep Harbor marks the space. */
 .topbar-space {
-  padding-left: var(--space-3);
-  border-left: var(--border-width-default) solid var(--color-border-default);
   color: var(--color-text-signal);
   font-family: var(--typography-h2-family);
   font-size: var(--typography-h3-size);
-  font-weight: var(--font-weight-regular);
+  font-weight: var(--typography-h2-weight);
   letter-spacing: var(--font-tracking-snug);
   line-height: var(--typography-h3-line-height);
 }
@@ -427,47 +427,13 @@ a.topbar-brand {
   display: none;
 }
 
+/* Always the end column, so the actions stay at the far right even on a page whose header has no search. */
 .topbar-actions {
   display: flex;
+  grid-column: 3;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-1);
-}
-
-/* A hairline and some air fence the team entry off the reader controls. */
-.topbar-rule {
-  width: var(--border-width-default);
-  height: var(--size-6);
-  margin: 0 var(--space-3);
-  background-color: var(--color-border-default);
-}
-
-.team {
-  display: inline-flex;
-  align-items: center;
-}
-
-/* Signed in: "Open Studio" and the avatar share one pill. */
-:root[data-signed-in] .team {
-  gap: var(--space-1);
-  padding-right: var(--space-0-5);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-control);
-  background-color: var(--color-surface-default);
-}
-
-:root[data-signed-in] .team-open {
-  border-color: transparent;
-}
-
-a.team-avatar {
-  display: inline-flex;
-  padding-left: var(--space-1);
-  border-left: var(--border-width-default) solid var(--color-border-default);
-}
-
-.team-avatar[hidden] {
-  display: none;
 }
 
 /* The photo scripts/avatar.ts lays over a static DS Avatar's initials once the viewer is known. */
@@ -479,6 +445,18 @@ a.team-avatar {
   object-fit: cover;
 }
 
+/* A person (or Claude) in plain-script rows: the DS Avatar, then the display name (scripts/people.ts). */
+.person {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  min-width: 0;
+}
+
+.person-avatar {
+  flex: none;
+}
+
 /* Team tools (Edit in Studio, View source) exist for maintainers only: a GitHub token with write access. */
 :root:not([data-maintainer]) [data-maintainer-only] {
   display: none;
@@ -488,6 +466,17 @@ a.team-avatar {
 :root[data-space="studio"] .topbar,
 :root[data-space="studio"] .rail {
   background-color: var(--color-bg-subtle);
+}
+
+/* The rail is sticky and one screen tall: on a long page the shell paints its column (ground and edge) down to the
+   foot, so the soft ground never stops under it. Wide screens only; narrower, the rail is a sheet over the page. */
+@media (min-width: 961px) {
+  :root[data-space="studio"] .shell {
+    background-image: linear-gradient(var(--color-border-default), var(--color-border-default)), linear-gradient(var(--color-bg-subtle), var(--color-bg-subtle));
+    background-repeat: no-repeat;
+    background-position: calc(var(--layout-sidebar-width) - var(--border-width-default)) 0, 0 0;
+    background-size: var(--border-width-default) 100%, var(--layout-sidebar-width) 100%;
+  }
 }
 
 :root[data-space="studio"] .topbar .shell-search {
@@ -510,7 +499,9 @@ a.team-avatar {
   align-self: start;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - var(--layout-header-height));
+  /* One screen under the header, less what still shows of a strip above the shell (the demo banner), so the foot
+     (Sign in) never falls below the screen. scripts/shell.ts keeps --shell-offset on the shell. */
+  height: calc(100dvh - var(--layout-header-height) - var(--shell-offset, var(--space-0)));
   overflow-y: auto;
   padding: var(--space-6) var(--space-4);
   border-right: var(--border-width-default) solid var(--color-border-default);
@@ -663,36 +654,14 @@ a.team-avatar {
   margin: 0;
 }
 
-/* Theme and GitHub, with their names, for the phone sheet (the top bar holds them on wide screens). */
-.rail-tools {
-  display: none;
-  gap: var(--space-2);
-  padding-top: var(--space-4);
-  border-top: var(--border-width-default) solid var(--color-border-default);
-}
-
-/* Studio and the Library share one theme control: the moon in the top bar on wide screens, the rail tool on phones. */
-:root[data-space="studio"] .rail-tools {
-  padding-top: 0;
-  border-top: 0;
-}
-
-/* GitHub sits at the foot of the side nav in both spaces: the account in Studio, the repository in the Library. */
-:root:not([data-space="studio"]) .rail-tools {
-  display: flex;
-  padding-top: 0;
-  border-top: 0;
-}
-
-@media (min-width: 961px) {
-  :root:not([data-space="studio"]) .rail-tools [data-theme-toggle] {
-    display: none;
-  }
-}
-
 .rail-foot {
   border-top: var(--border-width-default) solid var(--color-border-default);
   padding-top: var(--space-4);
+}
+
+/* The Library's foot holds only the team entry (phone sheet): no divider above an empty foot. */
+:root:not([data-space="studio"]) .rail-foot {
+  border-top: 0;
 }
 
 /* Library phone sheet: the team entry, for the few readers who maintain Bridge. */
@@ -1301,10 +1270,6 @@ tr:target {
     align-items: center;
     justify-content: space-between;
     margin: 0 0 var(--space-4) var(--space-3);
-  }
-
-  .rail-tools {
-    display: flex;
   }
 
   .rail-team {

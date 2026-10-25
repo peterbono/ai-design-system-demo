@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { prTitleFrom, proposalTitle, reviewSentence, tokenNoun } from './propose-copy';
+import { prTitleFrom, proposalTitle, reviewSentence, suggestionTitleFrom, tokenNoun } from './propose-copy';
 
 describe('tokenNoun', () => {
   it('names what a color token paints', () => {
@@ -63,22 +63,41 @@ describe('prTitleFrom', () => {
 
 describe('reviewSentence', () => {
   it('names both approvers for a token change', () => {
-    expect(reviewSentence(3)).toBe('A design owner and a tech owner approve it before it is merged into main.');
+    expect(reviewSentence(3)).toBe('A design owner and a tech owner approve it before it reaches the library.');
     expect(reviewSentence(3, { approveDesign: ['design'], approveTech: ['tech'], ship: ['tech'] })).toBe(
-      'A design owner and a tech owner approve it before it is merged into main.',
+      'A design owner and a tech owner approve it before it reaches the library.',
     );
+  });
+
+  it('a token value change needs the design owner only (decision TV-1)', () => {
+    expect(reviewSentence(3, null, 'direct', true)).toBe('A design owner approves it, then it reaches the library once the automatic checks pass.');
+    expect(reviewSentence(3, null, 'suggest', true)).toBe('A design owner approves it, then a developer applies it to the code.');
   });
 
   it('follows the configured rights', () => {
     expect(reviewSentence(3, { approveDesign: ['design', 'tech'], approveTech: ['tech'], ship: ['tech'] })).toBe(
-      'A design owner or a tech owner approves the design and a tech owner the code before it is merged into main.',
+      'A design owner or a tech owner approves the design and a tech owner the code before it reaches the library.',
     );
     expect(reviewSentence(3, { approveDesign: ['design'], approveTech: ['design'], ship: ['design'] })).toBe(
-      'A design owner approves the design and the code before it is merged into main.',
+      'A design owner approves the design and the code before it reaches the library.',
     );
   });
 
   it('asks one approval for a description change', () => {
-    expect(reviewSentence(1)).toBe('One reviewer approves it before it is merged into main.');
+    expect(reviewSentence(1)).toBe('One reviewer approves it before it reaches the library.');
+  });
+});
+
+describe('suggest mode words', () => {
+  it('says a developer applies it instead of the merge', () => {
+    expect(reviewSentence(3, null, 'suggest')).toBe('A design owner and a tech owner approve it, then a developer applies it to the code.');
+    expect(reviewSentence(1, null, 'suggest')).toBe('One reviewer approves it, then a developer applies it to the code.');
+    expect(reviewSentence(3, null, 'direct')).toBe(reviewSentence(3));
+  });
+
+  it('titles a suggestion in plain words, without the tokens: prefix', () => {
+    expect(suggestionTitleFrom('tokens: darker primary action fill')).toBe('Darker primary action fill');
+    expect(suggestionTitleFrom('  Darker primary action fill ')).toBe('Darker primary action fill');
+    expect(suggestionTitleFrom('')).toBe('');
   });
 });

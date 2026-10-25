@@ -1,0 +1,201 @@
+/* Storybook quick start: the field (components/ds/studio/StorybookField.tsx, on onboarding step 2 and the empty
+   page) and the Storybook components page (StorybookComponents.tsx). Tokens only. Four type sizes on the page: the
+   title (h2 role), the start heading (h3 role), body for the lead, ui for the rest. */
+
+/* --- The field --------------------------------------------------------------------------------------------- */
+
+.sbq-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.sbq-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sbq-note,
+.sbq-added-line,
+.sbq-locked {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.sbq-note,
+.sbq-locked {
+  color: var(--color-text-muted);
+}
+
+.sbq-note svg,
+.sbq-added-line svg,
+.sbq-locked svg {
+  flex: none;
+  margin-top: var(--space-0-5);
+}
+
+.sbq-added {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* Long Storybook hosts wrap instead of pushing the card wider. */
+.sbq-added-line span,
+.sbq-source .mono {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sbq-added-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin: 0;
+  font-size: var(--typography-ui-size);
+}
+
+.sbq-strong {
+  font-weight: var(--font-weight-semibold);
+}
+
+.sbq-quiet {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+/* --- The page ---------------------------------------------------------------------------------------------- */
+
+.sbq {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+}
+
+.sbq .cm-tools,
+.sbq .cm-count {
+  margin-bottom: 0;
+}
+
+.sbq .cm-count:empty {
+  min-height: 0;
+}
+
+.sbq-source {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+}
+
+.sbq-locked-page {
+  margin-block: var(--space-2);
+}
+
+.sbq-start {
+  display: grid;
+  gap: var(--space-6);
+  max-width: calc(var(--size-160) + var(--size-64));
+  padding: var(--space-8);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-surface-default);
+}
+
+@media (min-width: 720px) {
+  .sbq-start {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.sbq-art {
+  height: auto;
+  color: var(--color-text-default);
+}
+
+.sbq-start-body {
+  display: grid;
+  gap: var(--space-3);
+  max-width: var(--size-120);
+}
+
+.sbq-h2 {
+  margin: 0;
+  font-size: var(--typography-h3-size);
+  font-weight: var(--typography-h3-weight);
+  line-height: var(--typography-h3-line-height);
+}
+
+.sbq-table .cm-name .sbq-open {
+  font-weight: var(--font-weight-semibold);
+  text-align: start;
+}
+
+.sbq-change {
+  max-width: var(--size-120);
+  margin-top: var(--space-3);
+}
+
+/* --- The drawer -------------------------------------------------------------------------------------------- */
+
+.sbq-drawer {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.sbq-preview {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.sbq-frame {
+  display: block;
+  inline-size: 100%;
+  block-size: var(--size-120);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-bg-default);
+}
+
+.sbq-frame-blocked {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+  block-size: auto;
+  min-block-size: var(--size-60);
+  padding: var(--space-6);
+  background-color: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  text-align: center;
+}
+
+.sbq-frame-blocked p {
+  max-width: var(--size-80);
+  margin: 0;
+}
+
+.sbq-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+/* The line on the repository's Components page that leads to the Storybook added in this browser. */
+.cm-sb-line {
+  margin-bottom: var(--space-3);
+}
+
+.cm-sb-line[hidden] {
+  display: none;
+}

@@ -1,0 +1,110 @@
+---
+// /compare/: Bridge next to the tools teams already use, as of October 2026, from their public pages. Same rows and
+// cells as the homepage table (lib/compare.ts), with every note written out and the sources listed per tool. A check
+// or a dash reads its mark and state; a partial cell reads its short label ("Tokens only"), with no mark.
+// Linked from the homepage table, the landing footer and the Library footer.
+import Landing from '../layouts/Landing.astro';
+import { Icon, Link, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, VisuallyHidden } from '@bridge-ds/react';
+import { Check, Minus } from 'lucide-react';
+import { AS_OF, GROUPS, KEY, SHORT, SOURCES, STATE_LABEL, TOOLS, type CompareRow, type MarkState } from '../lib/compare';
+import { GITHUB_URL } from '../lib/repo';
+import { LIBRARY_HOME, STUDIO_HOME } from '../lib/nav';
+import ButtonLink from '../components/ds/ButtonLink';
+
+const ICON: Record<MarkState, typeof Check> = { yes: Check, no: Minus };
+const SECTIONS: { name: string; rows: CompareRow[] }[] = [{ name: 'The differences that matter most', rows: SHORT }, ...GROUPS];
+const STATES: MarkState[] = ['yes', 'no'];
+---
+
+<Landing
+  title="Compare | Bridge"
+  description={`Bridge next to Tokens Studio, Supernova, Storybook, zeroheight and Figma, as of ${AS_OF}, from public pages.`}
+>
+  <section class="lp-wrap lp-compare" aria-labelledby="cmp-title">
+    <header class="lp-compare-head">
+      <h1 id="cmp-title" class="lp-h">Works with Figma and Storybook. Adds the way back to the library.</h1>
+      <p class="lp-p">
+        Bridge sits next to the tools you already use. What it adds is the way back: from an exploration to the design system, reviewed in the product, with the code and the Figma kit in step.
+      </p>
+      <ul class="lp-compare-key">
+        {
+          STATES.map((s) => (
+            <li class="lp-cell" data-state={s}>
+              <Icon icon={ICON[s]} size="sm" className="lp-cell-icon" />
+              {KEY[s]}
+            </li>
+          ))
+        }
+      </ul>
+    </header>
+
+    {
+      SECTIONS.map((sec) => (
+        <Table caption={sec.name} narrowLayout="scroll" className="lp-compare-table">
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col" minWidth="13rem">Feature</TableHead>
+              {TOOLS.map((t) => <TableHead scope="col" minWidth="10rem">{t}</TableHead>)}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sec.rows.map((r) => (
+              <TableRow>
+                <TableCell>
+                  <strong>{r.feature}</strong>
+                  {r.detail && <span class="lp-cell-detail">{r.detail}</span>}
+                </TableCell>
+                {r.cells.map((c) => (
+                  <TableCell>
+                    {c.state === 'partial' ? (
+                      <span class="lp-cell" data-state="partial">
+                        <span>
+                          <VisuallyHidden>{STATE_LABEL.partial}: </VisuallyHidden>
+                          {c.short}
+                          {c.note !== `${c.short}.` && <span class="lp-cell-note">{c.note}</span>}
+                        </span>
+                      </span>
+                    ) : (
+                      <span class="lp-cell" data-state={c.state}>
+                        <Icon icon={ICON[c.state as MarkState]} size="sm" className="lp-cell-icon" />
+                        <span>
+                          {STATE_LABEL[c.state]}
+                          {c.note && <span class="lp-cell-note">{c.note}</span>}
+                        </span>
+                      </span>
+                    )}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      ))
+    }
+
+    <div class="lp-compare-notes">
+      <p class="lp-caption lp-muted">
+        As of {AS_OF}, from public pages. Sources:
+        {
+          TOOLS.map((t, ti) => (
+            <>
+              {' '}{t}:{' '}
+              {SOURCES[t].map((s, i, all) => (
+                <>
+                  <Link href={s.href}>{s.label}</Link>
+                  {i < all.length - 1 ? ', ' : ti < TOOLS.length - 1 ? ';' : '.'}
+                </>
+              ))}
+            </>
+          ))
+        }
+        {' '}Something out of date? <Link href={`${GITHUB_URL}/issues`}>Tell us on GitHub</Link>.
+      </p>
+    </div>
+
+    <div class="lp-cta">
+      <ButtonLink variant="primary" size="lg" href={STUDIO_HOME}>Get started</ButtonLink>
+      <Link href={LIBRARY_HOME} className="lp-cta-link">Read the docs</Link>
+    </div>
+  </section>
+</Landing>

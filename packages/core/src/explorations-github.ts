@@ -26,6 +26,7 @@ import {
 import { GitHubError, type GitHubClient, type PullRequestSummary } from './github-client';
 import { findPreviewComment, previewLinks, previewsSettled, type BranchPreview, type PreviewApps } from './previews';
 import { branchPreviewUrls } from './previews-github';
+import { noOnlinePreview } from './try-in-product';
 
 export interface ExplorationSettings {
   /** Branch explorations start from and pull requests target (the default branch). */
@@ -36,6 +37,8 @@ export interface ExplorationSettings {
   apps: PreviewApps;
   /** Requests the exploration answers, listed in its draft pull request body. */
   requests?: { number: number; title: string }[] | undefined;
+  /** More labels for the draft pull request, such as the product ones (productMarks). */
+  labels?: string[] | undefined;
 }
 
 export interface ExplorationSummary {
@@ -125,7 +128,7 @@ export async function startExplorationOnGitHub(gh: GitHubClient, e: Exploration,
   const ctx = { owner: gh.owner, repo: gh.name, packages: s.packages, apps: s.apps, ...(s.requests?.length ? { requests: s.requests } : {}) };
   const title = full.jira ? `${full.jira.trim().toUpperCase()} ${explorationPrTitle(full)}` : explorationPrTitle(full);
   const pr = await x.createPullRequest({ title, head: branch, base: s.base, body: explorationPrBody(full, ctx), draft: true });
-  await x.addLabels(pr.number, [EXPLORATION_LABEL]);
+  await x.addLabels(pr.number, [EXPLORATION_LABEL, ...(s.labels ?? [])]);
   // The number exists now: the body gets the install command.
   await x.updatePullRequest(pr.number, { body: explorationPrBody(full, { ...ctx, pr: pr.number }) }).catch(() => undefined);
   return {
@@ -165,7 +168,8 @@ export async function explorationTestBuildOnGitHub(gh: GitHubClient, e: { number
   const [comments, head] = await Promise.all([gh.listIssueComments(e.number), gh.getBranchSha(e.branch).catch(() => undefined)]);
   const tryIt = explorationTryIt({ comment: findPreviewComment(comments)?.body, headSha: head });
   const previews = await branchPreviewUrls(gh, e.number, config, { branch: e.branch, sha: head, comments }).catch(() => [] as BranchPreview[]);
-  return { tryIt, previews, settled: tryIt.state !== 'building' && previewsSettled(previews) };
+  // Not deployed (nothing reported once the test build is done): nothing more will come, polling can stop.
+  return { tryIt, previews, settled: tryIt.state !== 'building' && (previewsSettled(previews) || noOnlinePreview(previews)) };
 }
 
 /** The open exploration pull request of a branch, slug or number. */

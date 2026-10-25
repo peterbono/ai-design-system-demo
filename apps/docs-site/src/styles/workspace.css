@@ -1,0 +1,124 @@
+/* The browser workspace's home (components/ds/studio/WorkspaceHome.tsx, board EmptyB). It sits in the Studio home's
+   grid (studio-home.css .sh, .sh-zone, .sh-section): one Harbor zone, then the library and the branches. What is not
+   connected yet is drawn dashed, so the empty parts read as places waiting to be filled, not as broken cards. Four
+   type sizes: the greeting (h1), the section heading (h2), body, ui. */
+
+.ws-connect {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+  margin-block-start: var(--space-2);
+}
+
+.ws-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.ws-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Cards of one row line up: no list spacing between them (site.css li + li). */
+.ws-card {
+  display: flex;
+  margin: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: var(--border-width-default) dashed var(--color-border-strong);
+  border-radius: var(--radius-container);
+}
+
+/* A part that is connected (the Storybook's components) is a plain plate, like any card. */
+.ws-card[data-filled] {
+  border-style: solid;
+  border-color: var(--color-border-default);
+}
+
+.ws-card-text {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4);
+}
+
+.ws-card-title {
+  font-size: var(--typography-body-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-body-line-height);
+}
+
+/* The placeholder shapes: dashed outlines on the subtle fill, in the shape of what will show there. */
+.ws-shapes {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: calc(var(--size-20) + var(--size-6));
+  background: var(--color-bg-subtle);
+}
+
+.ws-shape {
+  box-sizing: border-box;
+  inline-size: var(--size-8);
+  block-size: var(--size-8);
+  border: var(--border-width-default) dashed var(--color-border-strong);
+  border-radius: var(--radius-inset);
+}
+
+.ws-shape-wide {
+  inline-size: var(--size-16);
+}
+
+.ws-shape-small {
+  inline-size: var(--size-5);
+  block-size: var(--size-5);
+}
+
+.ws-shape-tall {
+  inline-size: var(--size-16);
+  block-size: var(--size-11);
+}
+
+/* Your branches: one dashed row, its title and the line on the same line (proximity). */
+.ws-branches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: var(--border-width-default) dashed var(--color-border-strong);
+  border-radius: var(--radius-control);
+}
+
+.ws-branches-title {
+  margin: 0;
+  font-size: var(--typography-body-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-body-line-height);
+}
+
+.ws-branches p {
+  flex: 1 1 var(--size-60);
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .ws-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A lone action fills its bar on a phone. */
+@media (max-width: 640px) {
+  .ws-connect > button {
+    flex: 1 1 100%;
+  }
+}

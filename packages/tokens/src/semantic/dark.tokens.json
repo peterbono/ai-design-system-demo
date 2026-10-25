@@ -411,6 +411,20 @@
         "$value": "{palette.accent.800}",
         "$description": "Text selection highlight (::selection)."
       }
+    },
+    "agent": {
+      "surface": {
+        "$type": "color",
+        "$value": "{palette.primary.900}",
+        "$description": "Tile behind the AI agent mark (Avatar kind agent): the dark Harbor zone color, with the mark in action.primary.bg, the zone pair the build already checks. Unlike the illustrated faces (light in both themes), so an agent never reads as a person."
+      }
+    },
+    "illustration": {
+      "surface": {
+        "$type": "color",
+        "$value": "{palette.primary.300}",
+        "$description": "Behind line drawings (the Avatar illustrated faces): the Harbor zone color, kept light in dark so the black lines stay readable."
+      }
     }
   },
   "focus": {

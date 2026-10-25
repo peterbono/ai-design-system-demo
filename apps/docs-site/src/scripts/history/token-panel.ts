@@ -1,13 +1,16 @@
 // "History" panel in the token explorer drawer: every recorded change of the open token (renames followed), each
 // with "Restore this value". Real history by default; demo only with the toggle, under the same banner.
-import { tokenHistory, type TokenHistoryItem } from '@bridge-ds/core';
+import { formatValue, tokenHistory, type TokenHistoryItem } from '@bridge-ds/core';
 import { shortDate } from '../../lib/history-view';
 import { badgeHtml, tokenValueHtml } from '@bridge-ds/react/dom';
 import { esc } from '../github-session';
+import { displayName } from '../people';
 import { openRestorePlanner } from './planner';
 import { activeReport, DEMO_AVAILABLE, DEMO_BANNER, DEMO_EVENT, demoOn, loadHistory, setDemo } from './state';
+import { studioHref } from '../../lib/team-path';
 
-const val = (v: unknown) => (v === undefined ? '' : typeof v === 'string' ? v : JSON.stringify(v));
+// Values as designers read them (300ms, #1f6feb), never the DTCG object; aliases keep their {braces} for the chip.
+const val = (v: unknown) => (v === undefined ? '' : typeof v === 'string' ? v : formatValue('', v));
 const chip = (raw: unknown, css?: string, previous = false) =>
   raw === undefined ? '<span class="muted">none</span>' : tokenValueHtml(val(raw), { swatch: css && /^#[0-9a-f]{6,8}$/i.test(css) ? css : false, previous });
 
@@ -26,12 +29,12 @@ function itemHtml(it: TokenHistoryItem, i: number, demo: boolean): string {
           : it.fields.includes('value')
             ? `${chip(it.before, it.beforeCss, true)} <span class="rv-arrow"><span aria-hidden="true">→</span><span class="sr-only">became</span></span> ${chip(it.after, it.afterCss)}`
             : 'Description changed';
-  const title = demo ? esc(it.title) : `<a href="/studio/changes/?view=history&entry=${encodeURIComponent(it.entryId)}">${esc(it.title)}</a>`;
+  const title = demo ? esc(it.title) : `<a href="${studioHref(`changes/?view=history&entry=${encodeURIComponent(it.entryId)}`)}">${esc(it.title)}</a>`;
   // Restoring a value starts a change: Studio only. The Library drawer reads.
   const editable = document.querySelector('[data-explorer-mode="edit"]') !== null;
   const canRestore = editable && it.after !== undefined && it.kind !== 'removed' && (it.kind !== 'changed' || it.fields.includes('value'));
   return `<li class="hs-ti">
-    <p class="hs-ti-head">${badgeHtml(it.modeLabel, { size: 'sm' })} <span class="small muted">${esc(shortDate(it.date))}, ${esc(it.author)}${it.pr ? `, #${it.pr.number}` : ''}</span></p>
+    <p class="hs-ti-head">${badgeHtml(it.modeLabel, { size: 'sm' })} <span class="small muted">${esc(shortDate(it.date))}, ${esc(displayName(it.author))}</span></p>
     <p class="hs-ti-what">${what}</p>
     <p class="small">${title}</p>
     ${canRestore ? `<button type="button" class="btn btn-secondary btn-sm" data-hs-restore="${i}">Restore this value</button>` : ''}
@@ -50,8 +53,8 @@ async function fill(path: string, section: HTMLElement) {
   const banner = demo ? `<p class="hs-banner"><strong>${esc(DEMO_BANNER)}</strong></p>` : '';
   const body = n
     ? `<ol class="hs-token-list">${items.map((it, i) => itemHtml(it, i, demo)).join('')}</ol>`
-    : `<p class="tx-empty-line">${demo ? 'No demo change touches this token. The demo history changes color.text.muted, button.radius and alert.radius.' : report ? 'No recorded change to this token in the history Bridge can read. Changes merged from now on show up here.' : 'History is not available in this build.'}</p>`;
-  section.innerHTML = `<h3>History <span class="tx-d-n">${n}</span></h3>${banner}${body}<div class="hs-panel-foot">${toggle}<a class="small" href="/studio/changes/?view=history">See the whole history</a></div>`;
+    : `<p class="tx-empty-line">${demo ? 'No demo change touches this token. The demo history changes color.text.muted, button.radius and alert.radius.' : report ? 'No recorded change to this token in the history Bridge can read. Changes merged from now on show up here.' : esc(L.data.realNote ?? 'History is not available in this build.')}</p>`;
+  section.innerHTML = `<h3>History <span class="tx-d-n">${n}</span></h3>${banner}${body}<div class="hs-panel-foot">${toggle}<a class="small" href="${studioHref('changes/?view=history')}">See the whole history</a></div>`;
 }
 
 export function initTokenHistoryPanel() {

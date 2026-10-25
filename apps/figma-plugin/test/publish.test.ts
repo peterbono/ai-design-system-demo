@@ -12,6 +12,7 @@ import {
   experimentalTokenIds,
   groupState,
   heldTokenIds,
+  libraryOutcomes,
   publish,
   publishItems,
   publishPlan,
@@ -19,8 +20,8 @@ import {
   variableKey,
 } from '../src/sync/publish';
 import { setExperimental, scanComponents } from '../src/main/components';
-import { explorationTestBuild, explorationTryIt, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, tryItLinks } from '../src/sync/explorations';
-import { type BridgeConfig, type ExplorationTestBuild, previewComment } from '@bridge-ds/core';
+import { explorationTestBuild, explorationTryIt, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, triedLocally, tryItLinks } from '../src/sync/explorations';
+import { type BranchPreview, type BridgeConfig, type ExplorationTestBuild, previewComment } from '@bridge-ds/core';
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
 import { applyPullPlan } from '../src/main/apply';
@@ -135,7 +136,7 @@ test('checked component changes become one request each, with the description as
   const proposal = buildPush(a, new Map(), new Set(), heldTokenIds(items, unchecked));
   assert.deepEqual(publishPlan({ proposal, components: scan.changed, unchecked, description: '', fileName: 'Test' }).prFiles, 0);
   const drafts = componentDrafts(scan.changed, unchecked, '', 'Library.fig');
-  assert.deepEqual(drafts.map((d) => [d.component, d.summary]), [['Button', 'Changed in Figma ("Library.fig") and sent for review with DS Bridge.']]);
+  assert.deepEqual(drafts.map((d) => [d.component, d.summary]), [['Button', 'Changed in Figma ("Library.fig") and sent for review with Bridge.']]);
   const res = await publish(client, {
     analysis: a,
     proposal,
@@ -289,6 +290,9 @@ test('push to an exploration: variable edits commit to explore/<slug>, no pull r
   // Sending the same edits again commits nothing.
   const again = await publish(client, { analysis: a, proposal, components: [], unchecked, description: '', title: '', fileName: 'Test', coded: [], exploration: targetOf(exploration) });
   assert.equal(again.exploration?.unchanged, true);
+  // Only component requests: no variable edit was sent, so the result never says the exploration "already had" them.
+  const onlyComponents = await publish(client, { analysis: a, proposal: { ...proposal, files: {}, brandFiles: [] }, components: scan.changed, unchecked: new Set(), description: '', title: '', fileName: 'Test', coded: ['Button', 'Card'], exploration: targetOf(exploration) });
+  assert.equal(onlyComponents.exploration?.unchanged, false);
 });
 
 // The result screen's "Try it": previews in a designer's order, the test build from the preview comment, the share message.
@@ -348,6 +352,13 @@ test('try it: the product first, then Library and Workbench; one share message f
   assert.match(building, /being prepared/);
   assert.doesNotMatch(building, /npm i|pkg\.pr\.new/);
   assert.doesNotMatch(ready + building, /\u2014/);
+  // Read from GitHub and nothing online (explorations are not deployed): no template links, the local way instead.
+  const notDeployed = ['docs', 'storybook', 'admin'].map((app) => ({ app, label: app, url: `https://${app}.example/`, state: 'unknown', source: 'template' })) as BranchPreview[];
+  assert.equal(triedLocally(notDeployed), true);
+  assert.equal(triedLocally(undefined), false, 'before the first read, the configured previews stay');
+  const local = shareMessage(e, { state: 'building' }, notDeployed);
+  assert.match(local, /Try it locally: git fetch origin && git switch explore\/pill-buttons, then start Storybook/);
+  assert.doesNotMatch(local, /Previews:|example\//);
 });
 
 // PR #64's real shape: Vercel shortened the admin and storybook aliases of explore/button-normal-again with a hash.
@@ -471,4 +482,33 @@ test('destination: experimental items start checked for an exploration and unche
   assert.deepEqual([...unchecked], [], 'only experimental items follow the destination; the designer\'s own choice stays');
   applyDestination(items, unchecked, 'review');
   assert.deepEqual([...unchecked], ['v:a']);
+});
+
+test('libraryOutcomes: token values wait for a developer until Bridge can arm the merge, a rename always waits, code is a build request', () => {
+  const tok = (path: string) => ({ path }) as never;
+  const proposal = {
+    changes: [
+      { target: tok('color.bg.subtle'), current: tok('color.bg.subtle') },
+      { target: tok('space.huge'), current: tok('space.xl') },
+      { target: tok('radius.4xl'), current: undefined },
+    ],
+  } as never;
+  const out = {
+    pr: { pr: { number: 7, url: 'u7' }, appended: false },
+    branches: [
+      { component: 'Badge', route: 'token-change', number: 8, url: 'u8' },
+      { component: 'Avatar', route: 'claude-draft', number: 9, url: 'u9' },
+    ],
+    requests: [{ component: 'Tabs', nodeId: '1:2', number: 10, url: 'u10' }],
+  } as never;
+  const routes = (armed: boolean) => libraryOutcomes(out, proposal, armed).map((o) => [o.subject.name, o.route, o.ref.kind, o.waitingFor ?? '']);
+  assert.deepEqual(routes(false), [
+    ['color.bg.subtle', 'waiting-for-developer', 'pull', 'not-armed'],
+    ['space.huge', 'waiting-for-developer', 'pull', 'rename'],
+    ['radius.4xl', 'waiting-for-developer', 'pull', 'not-armed'],
+    ['Badge', 'waiting-for-developer', 'pull', 'not-armed'],
+    ['Avatar', 'build-request', 'pull', ''],
+    ['Tabs', 'build-request', 'issue', ''],
+  ]);
+  assert.deepEqual(routes(true).map((r) => r[1]), ['shipped', 'waiting-for-developer', 'shipped', 'shipped', 'build-request', 'build-request']);
 });

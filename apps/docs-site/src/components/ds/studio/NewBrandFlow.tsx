@@ -1,6 +1,6 @@
 // Studio new brand flow: four focused steps on one page (Start from, Colors, Shape and type, Review), one primary
 // action per step. A hydrated island (client:load) because it renders real Bridge components in the preview,
-// scoped to the draft brand with CSS variable overrides. The draft stays in this browser until "Propose brand".
+// scoped to the draft brand with CSS variable overrides. The draft stays in this browser until "Send for review" (or "Send suggestion").
 // Planning, ramps and the contrast gate come from @bridge-ds/core (planNewBrand), the same code the CLI, the MCP
 // server and the Figma plugin run.
 import { type CSSProperties, useDeferredValue, useEffect, useId, useMemo, useState } from 'react';
@@ -20,8 +20,8 @@ import {
   Switch,
   TokenValue,
 } from '@bridge-ds/react';
-import { ArrowLeft, ArrowRight, CircleAlert, CircleCheck, GitBranch } from 'lucide-react';
-import { BRAND_FONTS, RADIUS_PRESETS, type BrandSource, brandPreviewVariables, checkBrandSlug, listBrands, loadConfig } from '@bridge-ds/core';
+import { ArrowLeft, ArrowRight, CircleAlert, CircleCheck, GitBranch, Send } from 'lucide-react';
+import { BRAND_FONTS, RADIUS_PRESETS, type BrandSource, brandPreviewVariables, changesMode, checkBrandSlug, listBrands, loadConfig } from '@bridge-ds/core';
 import {
   type BrandDraft,
   STEPS,
@@ -38,10 +38,14 @@ import {
   saveDraft,
   withHue,
 } from '../../../lib/new-brand';
-import { ghAuthFailure, hasWorkingToken, tokenRejected } from '../../../scripts/github-session';
+import { currentContributor, ghAuthFailure, hasWorkingToken, isDirectWait, tokenRejected } from '../../../scripts/github-session';
+import { CONTRIBUTE_WORDS } from '../../../lib/contribute';
+import { sampleVisitor } from '../../../scripts/demo-gate';
 import { type ProposedBrand, proposeBrand } from '../../../scripts/new-brand';
-import { ghAction } from '../../../lib/gh-wording';
-import { parseJiraKey, VOCAB } from '../../../lib/vocabulary';
+import { suggestionHref } from '../../../lib/suggestions-view';
+import { ghAction, SEE_SUGGESTION, sendButton, sendGoal, SUGGEST_NEXT, SUGGESTION_SENT, suggestionSentLine } from '../../../lib/gh-wording';
+import { parseJiraKey } from '../../../lib/vocabulary';
+import { studioHref } from '../../../lib/team-path';
 
 export interface NewBrandFlowProps {
   files: Record<string, string>;
@@ -49,20 +53,32 @@ export interface NewBrandFlowProps {
   contrastText: string;
   /** The site has Sign in with GitHub (a GitHub App): the connect action says "Sign in". */
   signIn?: boolean;
+  /**
+   * The repository the brand goes to. A team page passes the team in its address; the self-hosted Studio leaves it
+   * out and uses bridge.config.json "repo" (else the demo).
+   */
+  repo?: { owner: string; name: string; defaultBranch: string };
+  /** Keeps the draft per team ("owner/repo") on team pages, so a draft never follows you to another team. */
+  draftScope?: string;
 }
 
 const RADIUS_SCALE = [0, 2, 4, 6, 10, 12, 16, 20];
 const RADIUS_STEP: Record<number, string> = { 0: 'none', 2: 'xs', 4: 'sm', 6: 'md', 10: 'lg', 12: 'xl', 16: '2xl', 20: '3xl' };
 const ROLE_LABEL = { inset: 'Inset (checkboxes, tags)', control: 'Controls (buttons, inputs)', container: 'Containers (cards, menus)', overlay: 'Overlays (dialogs, toasts)' } as const;
 
-export default function NewBrandFlow({ files, configText, contrastText, signIn = false }: NewBrandFlowProps) {
+export default function NewBrandFlow({ files, configText, contrastText, signIn = false, repo: target, draftScope }: NewBrandFlowProps) {
   const source = useMemo<BrandSource>(() => ({ config: loadConfig(configText), configText, files, contrastText }), [files, configText, contrastText]);
   const brands = useMemo(() => listBrands(source), [source]);
+  // How changes reach the code (bridge.config.json "changes"): a suggestion, or a draft branch in review.
+  const mode = changesMode(source.config);
+  const suggest = mode === 'suggest';
   const facts = useMemo(() => Object.fromEntries(brands.map((b) => [b.slug, brandFacts(source, b.slug)])), [brands, source]);
   const defaultBrand = brands.find((b) => b.default)?.slug ?? brands[0]?.slug ?? 'bridge';
   const [draft, setDraft] = useState<BrandDraft>(() => emptyDraft(defaultBrand, facts[defaultBrand]));
   const [restored, setRestored] = useState(false);
   const [connected, setConnected] = useState(false);
+  // An email contributor drafts but never creates a brand: it changes bridge.config.json (lib/contribute.ts).
+  const [contributor, setContributor] = useState(false);
   const [rejected, setRejected] = useState(false);
   const [slugOpen, setSlugOpen] = useState(false);
   const [pairsOpen, setPairsOpen] = useState(false);
@@ -74,7 +90,10 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
   const headingId = useId();
 
   useEffect(() => {
-    const d = loadDraft(brands.map((b) => b.slug));
+    const d = loadDraft(
+      brands.map((b) => b.slug),
+      draftScope,
+    );
     if (d) {
       setDraft(d);
       if (d.slug !== undefined) setSlugOpen(true);
@@ -82,15 +101,16 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
     setRestored(true);
     const sync = () => {
       setConnected(hasWorkingToken());
+      setContributor(Boolean(currentContributor()));
       setRejected(tokenRejected());
     };
     sync();
     document.addEventListener('bridge:auth', sync);
     return () => document.removeEventListener('bridge:auth', sync);
-  }, [brands]);
+  }, [brands, draftScope]);
   useEffect(() => {
-    if (restored && !done) saveDraft(draft);
-  }, [draft, restored, done]);
+    if (restored && !done) saveDraft(draft, draftScope);
+  }, [draft, restored, done, draftScope]);
 
   const deferred = useDeferredValue(draft);
   const plan = useMemo(() => planDraft(source, deferred), [source, deferred]);
@@ -116,12 +136,18 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
     setBusy(true);
     setError(null);
     try {
-      const repo = source.config.repo ?? { owner: 'peterbono', name: 'ai-design-system-demo', defaultBranch: 'main' };
-      const pr = await proposeBrand(draft, repo, source.config.tokens.root, parseJiraKey(jira));
+      const repo = target ?? source.config.repo ?? { owner: 'peterbono', name: 'ai-design-system-demo', defaultBranch: 'main' };
+      const pr = await proposeBrand(draft, repo, source.config.tokens.root, parseJiraKey(jira), mode);
       setDone(pr);
-      saveDraft(null);
+      saveDraft(null, draftScope);
     } catch (e) {
-      const auth = ghAuthFailure(e, 'create branches');
+      // Waiting for Bridge Direct's OK (a team in direct mode): its dialog is open, nothing was sent.
+      if (isDirectWait(e)) {
+        setError((e as Error).message);
+        setErrorHref(null);
+        return;
+      }
+      const auth = ghAuthFailure(e, suggest ? 'send suggestions' : 'start changes');
       setError(auth?.text ?? (e as Error).message);
       setErrorHref(auth?.href ?? null);
     } finally {
@@ -162,6 +188,26 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
     </div>
   );
 
+  if (done?.suggestion) {
+    return (
+      <section className="nb" aria-labelledby={headingId}>
+        <div className="nb-done">
+          <h2 className="nb-step-title" id={headingId} tabIndex={-1}>
+            {SUGGESTION_SENT}
+          </h2>
+          <p className="nb-lead">
+            {suggestionSentLine(done.number)} The Library shows {draft.name} once it is applied.
+          </p>
+          <div className="nb-actions">
+            <Button variant="primary" iconStart={Send} render={<a href={suggestionHref(done.number)} />}>
+              {SEE_SUGGESTION}
+            </Button>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   if (done) {
     return (
       <section className="nb" aria-labelledby={headingId}>
@@ -169,9 +215,9 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
           <h2 className="nb-step-title" id={headingId} tabIndex={-1}>
             Branch created
           </h2>
-          <p className="nb-lead">{draft.name} stays a draft on its own branch until design and tech approve it. The Library shows it once it is merged into main.</p>
+          <p className="nb-lead">{draft.name} stays a draft until design and tech approve it. The Library shows it once it is approved and added.</p>
           <div className="nb-actions">
-            <Button variant="primary" iconStart={GitBranch} render={<a href={`/studio/changes/?pr=${done.number}`} />}>
+            <Button variant="primary" iconStart={GitBranch} render={<a href={studioHref(`changes/?pr=${done.number}`)} />}>
               Open the branch
             </Button>
           </div>
@@ -350,7 +396,14 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
             <div>
               <dt>Brand</dt>
               <dd>
-                {draft.name.trim() || <span className="muted">No name yet</span>} <span className="mono muted">{slug}</span>
+                {draft.name.trim() || <span className="muted">No name yet</span>}
+                {/* The slug only when it reads differently from the name: never "Forest forest". */}
+                {slug && slug !== draft.name.trim().toLowerCase() && (
+                  <>
+                    {' '}
+                    <span className="mono muted">{slug}</span>
+                  </>
+                )}
               </dd>
             </div>
             <div>
@@ -377,13 +430,12 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
             <div>
               <dt>Review</dt>
               <dd className="nb-tier">
-                <Badge tone="neutral">Tier 3</Badge>
-                <span>Needs design and tech approval. Starts as a draft branch.</span>
+                <span>{suggest ? `Needs design and tech approval. ${SUGGEST_NEXT}` : 'Needs design and tech approval. Starts as a draft change.'}</span>
               </dd>
             </div>
           </dl>
           <div className="nb-jira">
-            <Input label="Jira ticket" value={jira} onChange={(e) => setJira(e.currentTarget.value)} placeholder="DS-42" hint="Optional. Links this branch to the ticket in Jira." spellCheck={false} autoComplete="off" />
+            <Input label="Jira ticket" value={jira} onChange={(e) => setJira(e.currentTarget.value)} placeholder="DS-42" hint={`Optional. Links this ${suggest ? 'suggestion' : 'change'} to the ticket in Jira.`} spellCheck={false} autoComplete="off" />
           </div>
           {(errors.length > 0 || slugIssues.length > 0) && (
             <Alert tone="danger" title="Fix these first">
@@ -395,7 +447,7 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
             </Alert>
           )}
           {error && (
-            <Alert tone="danger" title="The branch was not created">
+            <Alert tone="danger" title={suggest ? 'The suggestion was not sent' : 'The change was not started'}>
               {error}
               {errorHref && (
                 <>
@@ -412,7 +464,7 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
 
       <div className="nb-actions">
         {draft.step === 0 ? (
-          <Button variant="secondary" render={<a href="/studio/tokens/" />}>
+          <Button variant="secondary" render={<a href={studioHref('tokens/')} />}>
             Cancel
           </Button>
         ) : (
@@ -425,17 +477,31 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
           <Button key="continue" variant="primary" iconEnd={ArrowRight} disabled={!canContinue} onClick={() => go(draft.step + 1)}>
             Continue
           </Button>
+        ) : connected && contributor ? (
+          <Button key="propose" variant="primary" iconStart={suggest ? Send : GitBranch} disabled aria-describedby="nb-email-off">
+            {sendButton('brand', mode)}
+          </Button>
         ) : connected ? (
-          <Button key="propose" variant="primary" iconStart={GitBranch} loading={busy} disabled={!ready} onClick={propose}>
-            {VOCAB.createBranch}
+          <Button key="propose" variant="primary" iconStart={suggest ? Send : GitBranch} loading={busy} disabled={!ready} onClick={propose}>
+            {sendButton('brand', mode)}
+          </Button>
+        ) : sampleVisitor() ? (
+          // The sample team: the button says what it does, and a click opens the demo dialog (scripts/demo-gate.ts).
+          <Button key="sample" variant="primary" iconStart={suggest ? Send : GitBranch} disabled={!ready} data-demo-write="send a new brand">
+            {sendButton('brand', mode)}
           </Button>
         ) : (
           <Button key="connect" variant="primary" data-gh-open="">
-            {ghAction('create the branch', signIn, rejected)}
+            {ghAction(sendGoal('brand', mode), signIn, rejected)}
           </Button>
         )}
-        {draft.step === 3 && !ready && <span className="nb-actions-note">{plan.contrast.failing.length ? 'Creating the branch needs every contrast pair to pass.' : 'Fix the problems above to create the branch.'}</span>}
-        {draft.step === 3 && ready && !connected && <span className="nb-actions-note">The draft stays in this browser until you create the branch.</span>}
+        {draft.step === 3 && !ready && <span className="nb-actions-note">{plan.contrast.failing.length ? `${suggest ? 'Sending it' : 'Sending it for review'} needs every contrast pair to pass.` : `Fix the problems above to ${suggest ? 'send it' : 'send it for review'}.`}</span>}
+        {draft.step === 3 && connected && contributor && (
+          <span className="nb-actions-note" id="nb-email-off">
+            {CONTRIBUTE_WORDS.newBrandOff}
+          </span>
+        )}
+        {draft.step === 3 && ready && !connected && <span className="nb-actions-note">The draft stays in this browser until you {suggest ? 'send it' : 'start the change'}.</span>}
       </div>
     </section>
   );
@@ -518,7 +584,7 @@ function BrandPreview({ theme, vars, name }: { theme: 'light' | 'dark'; vars: Re
         </div>
         <div className="nb-pv-row">
           <Badge tone="success">Passing</Badge>
-          <Badge tone="info">Tier 3</Badge>
+          <Badge tone="info">New</Badge>
           <Badge tone="neutral">Draft</Badge>
         </div>
       </div>

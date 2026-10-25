@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { baseBranchOf, protectedBranchesOf, type FetchLike } from '@bridge-ds/core';
 import { isGitRepo, originRepo } from '@bridge-ds/core/node';
 import { CONFIG_FILE, detectConfig, parseConfig, type BridgeConfig } from './config.js';
-import { core, GitHubClient, type TokenSet } from './core-adapter.js';
+import { core, GitHubClient, GitHubError, type TokenSet } from './core-adapter.js';
 import { GitHubSource, LocalSource, type RepoSource } from './source.js';
 
 export interface ContextOptions {
@@ -18,20 +18,53 @@ export interface ContextOptions {
   fetch?: typeof fetch;
   apiUrl?: string;
   rawUrl?: string;
+  /**
+   * Read only: every request that would change something on GitHub (anything but GET and HEAD, and GraphQL
+   * mutations) is refused before it leaves, with this sentence. The CLI sets it when the token is one the person did
+   * not pass for this command (their gh sign-in, used to read).
+   */
+  readOnly?: string;
+  /** Who reads the messages: the MCP server's client (tool names and arguments) or the bridge CLI (commands and flags). */
+  surface?: 'mcp' | 'cli';
+  /** How a person adds a token where Bridge runs, for the rate-limit message. Default: the MCP server's environment. */
+  tokenHint?: string;
 }
+
+/** Whether a request only reads: GET and HEAD, and GraphQL queries (POST /graphql without a mutation). */
+export function isReadRequest(url: string, init?: { method?: string; body?: unknown }): boolean {
+  const method = (init?.method ?? 'GET').toUpperCase();
+  if (method === 'GET' || method === 'HEAD') return true;
+  if (method !== 'POST' || !/\/graphql$/.test(url.split('?')[0]!)) return false;
+  try {
+    const query = String((JSON.parse(String(init?.body ?? '{}')) as { query?: unknown }).query ?? '');
+    return !/^\s*mutation\b/.test(query);
+  } catch {
+    return false;
+  }
+}
+
+const MCP_TOKEN_HINT =
+  'set GITHUB_TOKEN (or BRIDGE_GITHUB_TOKEN) in the environment of the Bridge MCP server, or run gh auth login and restart it: read access to this repository is enough to read, suggestions and requests need Issues: read and write, and direct changes (branches and pull requests) need Contents and Pull requests: read and write';
 
 const DEFAULT_PROTECTED = ['main', 'master'];
 
 /** A core GitHub client for owner/name with this context's token, fetch and hosts. */
 function client(repo: string, o: ContextOptions, rules: { protectedBranches: string[]; branchPrefix: string }): GitHubClient {
   const { owner, name } = core.parseRepo(repo);
-  const f: FetchLike | undefined = o.fetch ? ((url, init) => o.fetch!(url, init as RequestInit) as ReturnType<FetchLike>) : undefined;
+  const base: FetchLike | undefined = o.fetch ? ((url, init) => o.fetch!(url, init as RequestInit) as ReturnType<FetchLike>) : undefined;
+  const readOnly = o.readOnly;
+  const f: FetchLike | undefined = readOnly
+    ? (url, init) => {
+        if (!isReadRequest(url, init)) throw new GitHubError(403, readOnly, 'read-only');
+        return base ? base(url, init) : fetch(url, init);
+      }
+    : base;
   return new GitHubClient(`${owner}/${name}`, o.token ?? '', f, undefined, {
     ...(o.apiUrl ? { apiUrl: o.apiUrl } : {}),
     ...(o.rawUrl ? { rawUrl: o.rawUrl } : {}),
     protectedBranches: rules.protectedBranches,
     branchPrefix: rules.branchPrefix,
-    tokenHint: 'set GITHUB_TOKEN (or BRIDGE_GITHUB_TOKEN) in the environment of the Bridge MCP server, read access to this repository is enough',
+    tokenHint: o.tokenHint ?? MCP_TOKEN_HINT,
   });
 }
 
@@ -110,10 +143,28 @@ export class BridgeContext {
   }
 
   get canWriteRemote(): boolean {
-    return Boolean(this.opts.token);
+    return Boolean(this.opts.token) && !this.opts.readOnly;
+  }
+
+  /** Who reads the messages: 'mcp' (tool names and arguments, the default) or 'cli' (commands and flags). */
+  get surface(): 'mcp' | 'cli' {
+    return this.opts.surface ?? 'mcp';
   }
 
   describe(): string {
-    return this.mode === 'local' ? `local repo ${this.root}${this.isGit ? '' : ' (not a git repo)'}` : `GitHub ${this.source.label}${this.opts.token ? ' (token: can open PRs)' : ' (no token: read-only)'}`;
+    return `${this.mode === 'local' ? `local repo ${this.root}${this.isGit ? '' : ' (not a git repo)'}` : `GitHub ${this.source.label}`}. ${this.access()}`;
+  }
+
+  /**
+   * What Bridge may write here, in one sentence: the same words in bridge_get_config, the server instructions, the
+   * server's start line and (for the CLI) `bridge --help`. Bridge never writes to the default branch.
+   */
+  access(): string {
+    const cli = this.surface === 'cli';
+    const how = cli ? 'GITHUB_TOKEN or --token (or --use-gh-auth)' : 'GITHUB_TOKEN (or a gh sign-in when the server starts)';
+    const local = this.mode === 'local' ? (this.isGit ? 'Direct changes become local bridge/* branches, never pushed.' : 'Not a git repo: no local branches.') : '';
+    if (this.opts.readOnly) return `Read-only on GitHub: the token only reads (your gh sign-in, borrowed to read). ${local}`.trim();
+    if (this.opts.token) return `Writes on GitHub with the token: suggestions and requests (issues), reviews, comments, branches and pull requests, never the default branch. ${local}`.trim();
+    return `Read-only on GitHub: suggestions, requests, reviews, merges and pull requests need ${how}. ${local}`.trim();
   }
 }

@@ -6,7 +6,8 @@ import type { ComponentInfo } from './components';
 import { contrastPairs } from './contrast';
 import type { DocsAiContext } from './docs-ai-model';
 import { section } from './markdown';
-import { exists, readJson, readText } from './repo';
+import { repoModel } from './model';
+import { exists, readText } from './repo';
 import { BRANDS, MODES } from './tokens';
 
 /** Contrast pairs of the contrast gate that involve a token the component paints with, worst ratio first. */
@@ -51,11 +52,6 @@ function voiceSection(md: string | undefined): string | undefined {
   return section(md, head.replace(/^#+\s*/, '').trim()).join('\n').trim() || undefined;
 }
 
-interface DocsConfig {
-  docs?: { designLanguage?: string; guidelines?: string };
-  components?: { reference?: string };
-}
-
 /**
  * Everything Claude needs to draft a component's docs from its Library page, computed at build time and served as
  * /docs-ai/<slug>.json: the pre-fill input from the code (props, JSDoc, tokens, CSS module classes, contrast), the
@@ -64,7 +60,7 @@ interface DocsConfig {
  * the CLI and the docs-draft Action.
  */
 export function docsAiContext(c: ComponentInfo): DocsAiContext {
-  const cfg = exists('bridge.config.json') ? readJson<DocsConfig>('bridge.config.json') : {};
+  const cfg = repoModel.config;
   const ref = cfg.components?.reference;
   const refDocs = ref && ref !== c.name ? readOpt(c.files.docs.split(`/${c.name}/`).join(`/${ref}/`).replace(`${c.name}.docs.json`, `${ref}.docs.json`)) : undefined;
   const conventions: DocsAiContext['conventions'] = {};

@@ -8,11 +8,11 @@
 //   neutral  grey    draft, unknown, checks running or checking, shipped, closed
 // What a change needs is plain words, never colored ("Design + tech", lib/review-queue), so a token change that
 // is ready reads green, not red.
-import { CONFLICT_REASON, mergeGate, type ApprovalSummary, type CiSummary, type MergeGate, type MissingApproval, type PullState, type ReviewStatusKind, type Tier } from './review-rules';
+import { CONFLICT_REASON, mergeGate, REVIEW_STATUS, type ApprovalSummary, type CiSummary, type MergeGate, type MissingApproval, type PullState, type ReviewStatusKind, type Tier } from './review-rules';
 import type { TokenReview } from './token-review';
 import { ghAction } from './gh-wording';
 import { branchCount, VOCAB } from './vocabulary';
-import { entriesFor, type TeamStates } from '@bridge-ds/core';
+import { eligibleReviewers, entriesFor, hasOwnerApproval, LOOK_AGAIN_STATUS_LABEL, pendingApprovals, requiredApprovals, soloOwnerSentence, type ApprovalRole, type TeamStates } from '@bridge-ds/core';
 
 export type StatusGroup = 'blocked' | 'waiting' | 'ready' | 'neutral';
 
@@ -100,7 +100,7 @@ const WHY: Partial<Record<ReviewStatusKind, string>> = {
   'needs-design': 'waits for a design approval',
   'needs-tech': 'waits for a tech approval',
   'needs-approval': 'waits for an approval',
-  ready: 'is ready to merge',
+  ready: 'is ready to add to the library',
   'ci-running': 'is waiting for its tests',
   checking: 'is still being checked',
   draft: 'is still a draft',
@@ -149,8 +149,8 @@ export interface DetailState {
 
 /** One sentence for the pull request opener: what blocks it, then what it needs after that. */
 export function detailSentence(s: DetailState): string {
-  if (s.state === 'merged') return 'Merged.';
-  if (s.state === 'closed') return 'Closed without merging.';
+  if (s.state === 'merged') return 'Added to the library.';
+  if (s.state === 'closed') return 'Closed without adding it to the library.';
   const needs = missingApprovals(s.gate.missing);
   const after = needs ? ` After that it needs ${needs}.` : '';
   if (s.state === 'draft') return `Draft: request a review first.${after}`;
@@ -162,7 +162,7 @@ export function detailSentence(s: DetailState): string {
   if (s.gate.reasons.includes(CONFLICT_REASON)) return `Blocked: it conflicts with ${VOCAB.main}.${after}`;
   if (s.ci.state === 'pending') return `Tests are still running.${after}`;
   if (needs) return `Waiting for ${needs}. Tests pass.`;
-  if (s.gate.allowed) return 'Ready to merge: tests pass and the approvals are in.';
+  if (s.gate.allowed) return 'Ready to add to the library: tests pass and the approvals are in.';
   return s.ci.state === 'none' ? `No tests reported for this version yet.${after}` : 'Open the tests and the conversation to see what it needs.';
 }
 
@@ -198,34 +198,29 @@ export function primaryAction(input: {
 // Overview "Waiting for you" block. Built from GitHub data already read (CI, reviews, lifecycle) and the owners in
 // bridge.config.json (governance.owners). Never guesses a login: when nobody is named in the config, it names a role.
 
-export type ApprovalRole = 'design' | 'tech' | 'approval';
-
-const EMPTY_CI: CiSummary = { state: 'pass', total: 0, passed: 0, failed: [], pending: [] };
-
-/** The approvals a tier needs, as mergeGate counts them (Tier 2 and 3: design and tech; Tier 1: one approval). */
-export function requiredApprovals(tier: Tier | null): ApprovalRole[] {
-  const gate = mergeGate({ tier, ci: EMPTY_CI, approvals: { approvers: [], changesRequested: [], design: false, tech: false }, draft: false, state: 'open' });
-  return gate.missing.map((m) => (m === 'design approval' ? 'design' : m === 'tech approval' ? 'tech' : 'approval'));
-}
-
-/** The approvals still missing on a change, from its tier and the reviews read (empty when either is unknown). */
-export function pendingApprovals(tier: Tier | null | undefined, approvals: ApprovalSummary | null | undefined): ApprovalRole[] {
-  if (tier == null || !approvals) return [];
-  const gate = mergeGate({ tier, ci: EMPTY_CI, approvals, draft: false, state: 'open' });
-  return gate.missing.map((m) => (m === 'design approval' ? 'design' : m === 'tech approval' ? 'tech' : 'approval'));
-}
+// Which approvals a branch still needs, and who can give them: one rule with the MCP server and the CLI
+// (@bridge-ds/core review-gate).
+export { pendingApprovals, requiredApprovals, type ApprovalRole };
 
 const ROLE_OF: Record<MissingApproval, ApprovalRole> = { 'design approval': 'design', 'tech approval': 'tech', approval: 'approval' };
+
+/** A branch opened from Figma that carries the spec only (`waiting-for-claude`), on every surface. */
+export const CLAUDE_WAITING_SENTENCE = 'A developer builds it with Claude. You will see the code here.';
+/** The same branch once Claude drafted the code (`drafted-by-claude`): ready for review, the owners decide. */
+export const CLAUDE_DRAFTED_SENTENCE = 'Ready for review. Claude drafted the code from your Figma change. Waiting for the design system owners.';
 
 /** What the pull request needs next, before deciding who does it. */
 export type Need =
   | { kind: 'merged' }
   | { kind: 'closed' }
-  | { kind: 'draft' }
+  /** `claude`: a branch opened from Figma that carries the spec only (waiting-for-claude): a developer builds it. */
+  | { kind: 'draft'; claude?: 'waiting' }
   | { kind: 'exploration' }
   /** `developerOnly`: every failing check is a developer check, so a developer fixes them, not the author. */
   | { kind: 'fix-checks'; failing: number; developerOnly?: boolean; then?: ApprovalRole[] }
   | { kind: 'address-changes'; by: string[] }
+  /** The author updated the branch after every changes request (core lookAgainReviewers): the reviewers look again. */
+  | { kind: 'look-again'; by: string[] }
   | { kind: 'resolve-conflict' }
   | { kind: 'checks-running'; then: ApprovalRole[] }
   /** GitHub has not said yet whether the change fits the latest library (mergeable null). */
@@ -236,27 +231,35 @@ export type Need =
 
 /**
  * The need of an opened pull request, in the order mergeGate blocks: lifecycle, draft, CI, changes, conflict, then
- * approvals. Same order as the list chip (review-rules reviewStatus). `mergeable` null: GitHub is still computing
- * whether it fits the latest library, so nothing promises an approval or a ship yet.
+ * approvals. Same order as the list chip (core reviewStatusKind). `mergeable` null: GitHub is still computing
+ * whether it fits the latest library, so an approved change does not promise a merge yet; a missing approval still shows.
  */
-export function needFromDetail(s: { state: PullState; ci: CiSummary; gate: MergeGate; changesRequestedBy: string[]; exploration?: boolean; mergeable?: boolean | null }): Need {
+export function needFromDetail(s: { state: PullState; ci: CiSummary; gate: MergeGate; changesRequestedBy: string[]; lookAgain?: string[]; exploration?: boolean; mergeable?: boolean | null; claude?: 'waiting' | 'drafted' | null }): Need {
   if (s.state === 'merged') return { kind: 'merged' };
   if (s.state === 'closed') return { kind: 'closed' };
   if (s.exploration) return { kind: 'exploration' };
+  // Spec only from Figma: no review, no tests to read yet, a developer builds it with Claude.
+  if (s.claude === 'waiting') return { kind: 'draft', claude: 'waiting' };
   if (s.state === 'draft') return { kind: 'draft' };
   if (s.ci.state === 'fail') return { kind: 'fix-checks', failing: s.ci.failed.length };
-  if (s.changesRequestedBy.length) return { kind: 'address-changes', by: s.changesRequestedBy };
+  if (s.changesRequestedBy.length) return s.lookAgain?.length ? { kind: 'look-again', by: s.lookAgain } : { kind: 'address-changes', by: s.changesRequestedBy };
   if (s.gate.reasons.includes(CONFLICT_REASON)) return { kind: 'resolve-conflict' };
   const roles = s.gate.missing.map((m) => ROLE_OF[m]);
   if (s.ci.state === 'pending') return { kind: 'checks-running', then: roles };
-  if (s.mergeable === null && s.state === 'open') return { kind: 'checking-merge', then: roles };
+  // A missing approval is missing whether or not GitHub has worked out the merge yet (core reviewStatusKind).
   if (roles.length) return { kind: 'approve', roles };
-  if (s.gate.allowed) return { kind: 'ready' };
+  if (s.mergeable === null && s.state === 'open') return { kind: 'checking-merge', then: roles };
+  // Approved and clean, but the viewer does not hold the right to ship: still ready, who acts names who may merge.
+  if (s.gate.allowed || s.gate.canShip === false) return { kind: 'ready' };
   return { kind: 'unknown' };
 }
 
+/** The missing approvals of a status: the pending ones when known (they include the status's own role), else that role. */
+const withRole = (role: ApprovalRole, pending: ApprovalRole[] | undefined): ApprovalRole[] => (pending?.includes(role) ? pending : [role]);
+
 /** The need behind a list status chip (reviewStatus), when only the status is known. */
-export function needFromStatus(kind: ReviewStatusKind | null | undefined, extra: { failing?: number; changesRequestedBy?: string[]; developerOnly?: boolean; pending?: ApprovalRole[] } = {}): Need {
+export function needFromStatus(kind: ReviewStatusKind | null | undefined, extra: { failing?: number; changesRequestedBy?: string[]; lookAgain?: string[]; developerOnly?: boolean; pending?: ApprovalRole[]; claude?: 'waiting' | 'drafted' | null } = {}): Need {
+  if (extra.claude === 'waiting' && kind !== 'merged' && kind !== 'closed') return { kind: 'draft', claude: 'waiting' };
   switch (kind) {
     case 'merged':
     case 'closed':
@@ -266,19 +269,21 @@ export function needFromStatus(kind: ReviewStatusKind | null | undefined, extra:
     case 'ci-failing':
       return { kind: 'fix-checks', failing: extra.failing ?? 0, ...(extra.developerOnly ? { developerOnly: true } : {}), ...(extra.pending?.length ? { then: extra.pending } : {}) };
     case 'changes-requested':
-      return { kind: 'address-changes', by: extra.changesRequestedBy ?? [] };
+      return extra.lookAgain?.length ? { kind: 'look-again', by: extra.lookAgain } : { kind: 'address-changes', by: extra.changesRequestedBy ?? [] };
     case 'conflict':
       return { kind: 'resolve-conflict' };
     case 'ci-running':
       return { kind: 'checks-running', then: [] };
     case 'checking':
       return { kind: 'checking-merge', then: [] };
+    // Every approval still missing, as the branch page reads them (needFromDetail, gate.missing): the design and the
+    // tech approval run side by side, so the tech owner's turn shows on the list and the home as on the page.
     case 'needs-design':
-      return { kind: 'approve', roles: ['design'] };
+      return { kind: 'approve', roles: withRole('design', extra.pending) };
     case 'needs-tech':
-      return { kind: 'approve', roles: ['tech'] };
+      return { kind: 'approve', roles: withRole('tech', extra.pending) };
     case 'needs-approval':
-      return { kind: 'approve', roles: ['approval'] };
+      return { kind: 'approve', roles: withRole('approval', extra.pending) };
     default:
       return { kind: 'unknown' };
   }
@@ -307,6 +312,8 @@ export interface People {
   overrideBy?: string[];
   /** mergeGate says the viewer may merge past the missing approvals. */
   overridable?: boolean;
+  /** The only owner whose approval covers design and tech (governance.soloOwnerCanApproveBoth, core soloOwnerOf). */
+  soloOwner?: string | null;
 }
 
 export type WhoAction =
@@ -315,6 +322,7 @@ export type WhoAction =
   | 'approve'
   | 'fix-checks'
   | 'address-changes'
+  | 'look-again'
   | 'resolve-conflict'
   | 'mark-ready'
   | 'promote'
@@ -345,18 +353,20 @@ const checks = (n: number) => (n === 1 ? 'the failing check' : n > 1 ? `${n} fai
 
 /** Owners listed for a role in the config (both lists for a plain approval), before removing anyone. */
 function listedFor(role: ApprovalRole, owners: People['owners']): string[] {
-  return role === 'design' ? owners.design : role === 'tech' ? owners.tech : uniq([...owners.design, ...owners.tech]);
+  return eligibleReviewers(role, { owners, author: '' }).listed;
 }
 
 /**
- * Who can still give this approval: the listed owners minus the author and anyone who already approved. `open`
- * means the config lists nobody for the role, so any reviewer other than the author counts (summarizeApprovals).
+ * Who can still give this approval (core eligibleReviewers): the listed owners minus the author and anyone who
+ * already approved. `open` means the config lists nobody for the role, so any reviewer other than the author counts.
  */
 export function eligibleFor(role: ApprovalRole, p: People): { open: boolean; logins: string[]; listed: string[] } {
-  const listed = listedFor(role, p.owners).map((x) => x.replace(/^@/, ''));
-  const approvers = p.approvers ?? [];
-  const logins = listed.filter((l) => !same(l, p.author) && !approvers.some((a) => same(a, l)));
-  return { open: listed.length === 0, logins, listed };
+  return eligibleReviewers(role, { owners: p.owners, author: p.author, approvers: p.approvers });
+}
+
+/** The viewer is the only owner and the team opted in: one approval covers the design and the tech parts still missing. */
+function soloCovers(roles: readonly ApprovalRole[], p: People): boolean {
+  return Boolean(p.soloOwner && same(p.viewer, p.soloOwner) && roles.includes('design') && roles.includes('tech'));
 }
 
 /** Whether the viewer can give this approval now. */
@@ -402,12 +412,14 @@ export function whoActs(need: Need, p: People): WhoActs {
 
   switch (need.kind) {
     case 'merged':
-      return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Merged.', short: null };
+      return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Added to the library.', short: null };
     case 'closed':
-      return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Closed without merging.', short: null };
+      return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Closed without adding it to the library.', short: null };
     case 'unknown':
       return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Open the checks and the conversation to see what it needs.', short: null };
     case 'draft':
+      // Decision RT-1: the branch opened from Figma waits on a developer, never on the designer who sent it.
+      if (need.claude === 'waiting') return { who: 'developer', logins: [], yourTurn: false, action: 'none', sentence: CLAUDE_WAITING_SENTENCE, short: 'A developer builds it' };
       return authorTurn('mark-ready', 'request a review of this draft', 'request a review of this draft', 'Author to finish the draft', 'Your turn: finish the draft');
     case 'exploration':
       return authorTurn('promote', 'request a review of this exploration, or close it', 'request a review of this exploration', 'Author to request a review', 'Your turn: request a review');
@@ -421,16 +433,29 @@ export function whoActs(need: Need, p: People): WhoActs {
         if (mine) return { who: 'you', logins: p.viewer ? [p.viewer] : [], yourTurn: true, action: APPROVE_ACTION[mine], sentence: `Your turn: ${YOUR_APPROVAL[mine]}. A developer fixes ${checks(need.failing)} meanwhile.`, short: YOUR_SHORT[mine] };
       }
       if (need.developerOnly) return { who: 'developer', logins: [], yourTurn: false, action: 'fix-checks', sentence: `Waiting for a developer to fix ${checks(need.failing)}.`, short: 'Blocked by tests' };
-      return authorTurn('fix-checks', `fix ${checks(need.failing)}`, `fix ${checks(need.failing)}`, 'Blocked by tests', 'Your turn: fix tests');
+      // The author's own change: never "Your turn: fix tests" (the Home says the same, lib/overview-todo blockerOf). A
+      // design rule that fails is named on the branch page (lib/check-explain failingSentence), with the fix.
+      if (isAuthor) return { who: 'developer', logins: [], yourTurn: false, action: 'fix-checks', sentence: `Blocked: ${need.failing === 1 ? 'a check fails' : 'checks fail'}. A developer is on it.`, short: 'Blocked by tests' };
+      return authorTurn('fix-checks', `fix ${checks(need.failing)}`, `fix ${checks(need.failing)}`, 'Blocked by tests', 'Blocked by tests');
     case 'address-changes': {
       const by = need.by.length ? ` @${need.by.join(', @')} requested` : ' a reviewer requested';
       return authorTurn('address-changes', `address the changes${by}`, `address the changes${by}`, 'Author to address changes', 'Your turn: address changes');
     }
+    case 'look-again': {
+      // The author updated it after the changes request: the reviewers who asked look again (their approval is what
+      // the merge still waits for).
+      const mine = need.by.some((l) => same(l, p.viewer));
+      if (mine) return { who: 'you', logins: need.by, yourTurn: true, action: 'look-again', sentence: `@${author} updated it after your changes: look again.`, short: 'Your turn: look again' };
+      return { who: 'reviewer', logins: need.by, yourTurn: false, action: 'look-again', sentence: `Waiting for ${at(need.by)} to look again.`, short: LOOK_AGAIN_STATUS_LABEL };
+    }
     case 'resolve-conflict':
-      return authorTurn('resolve-conflict', `resolve a conflict with ${VOCAB.main}`, `resolve a conflict with ${VOCAB.main}`, 'Author to resolve a conflict', 'Your turn: resolve a conflict');
+      // A conflict is a developer's to resolve (token conflicts get their own resolver on the branch page): never
+      // "Your turn: resolve a conflict", the same as the Home.
+      if (isAuthor) return { who: 'developer', logins: [], yourTurn: false, action: 'resolve-conflict', sentence: `Blocked: it clashes with ${VOCAB.main}. A developer is on it.`, short: 'Blocked by a conflict' };
+      return authorTurn('resolve-conflict', `resolve a conflict with ${VOCAB.main}`, `resolve a conflict with ${VOCAB.main}`, 'Blocked by a conflict', 'Blocked by a conflict');
     case 'checks-running': {
       const next = need.then[0];
-      const then = next ? ` Then ${namedRole(next, eligibleFor(next, p).logins, p)} approves.` : ' Then it is ready to merge.';
+      const then = next ? ` Then ${namedRole(next, eligibleFor(next, p).logins, p)} approves.` : ' Then it is ready to add to the library.';
       return { who: 'nobody', logins: [], yourTurn: false, action: 'wait', sentence: `Tests are still running.${then}`, short: 'Tests running' };
     }
     case 'checking-merge': {
@@ -441,14 +466,15 @@ export function whoActs(need: Need, p: People): WhoActs {
     case 'approve': {
       // The viewer first: the first role they can give.
       const mine = need.roles.find((r) => viewerCanApprove(r, p));
+      if (mine && soloCovers(need.roles, p)) return { who: 'you', logins: [p.viewer!], yourTurn: true, action: 'approve', sentence: `Your turn: approve. ${soloOwnerSentence(p.viewer!, true)}`, short: YOUR_SHORT.approval };
       if (mine) return { who: 'you', logins: p.viewer ? [p.viewer] : [], yourTurn: true, action: APPROVE_ACTION[mine], sentence: `Your turn: ${YOUR_APPROVAL[mine]}.`, short: YOUR_SHORT[mine] };
       const role = need.roles[0]!;
       const e = eligibleFor(role, p);
       // Every listed owner wrote the change or already approved: only the owner override can merge it.
       if (!e.open && e.logins.length === 0) {
         const by = (p.overrideBy ?? []).map((x) => x.replace(/^@/, ''));
-        if (p.overridable) return { who: 'you', logins: p.viewer ? [p.viewer] : [], yourTurn: true, action: 'override', sentence: `Your turn: no other ${ROLE_NAME[role]} can approve, so merge it with the owner override, under More.`, short: 'Your turn: owner override' };
-        const via = by.length ? ` @${by.join(' or @')} can merge it with the owner override.` : ' Add an owner in Settings.';
+        if (p.overridable) return { who: 'you', logins: p.viewer ? [p.viewer] : [], yourTurn: true, action: 'override', sentence: `Your turn: no other ${ROLE_NAME[role]} can approve, so add it to the library with the owner override, under More.`, short: 'Your turn: owner override' };
+        const via = by.length ? ` @${by.join(' or @')} can add it to the library with the owner override.` : ' Add an owner in Settings.';
         return { who: 'owner', logins: by, yourTurn: false, action: 'override', sentence: `No other ${ROLE_NAME[role]} can approve.${via}`, short: 'Owner override needed' };
       }
       const both = need.roles.length > 1 && need.roles.includes('design') && need.roles.includes('tech');
@@ -465,12 +491,23 @@ export function whoActs(need: Need, p: People): WhoActs {
     case 'ready': {
       const owners = (p.shippers?.length ? uniq(p.shippers) : uniq([...p.owners.design, ...p.owners.tech])).map((x) => x.replace(/^@/, ''));
       const mine = p.canMerge ?? owners.some((o) => same(o, p.viewer));
-      if (p.viewer && mine) return { who: 'you', logins: [p.viewer], yourTurn: true, action: 'merge', sentence: 'Your turn: ready to merge.', short: 'Your turn: merge it' };
+      if (p.viewer && mine) return { who: 'you', logins: [p.viewer], yourTurn: true, action: 'merge', sentence: 'Your turn: ready to add to the library.', short: 'Your turn: add it to the library' };
       const named = p.teams && (p.shipEntries ?? p.entries) ? entriesFor(p.shipEntries ?? [...p.entries!.design, ...p.entries!.tech], owners, p.teams) : [];
       const who = named.length ? or(named) : owners.length ? at(owners) : 'an owner';
-      return { who: 'owner', logins: owners, yourTurn: false, action: 'merge', sentence: `Ready to merge: ${who} can merge it.`, short: 'Ready to merge' };
+      return { who: 'owner', logins: owners, yourTurn: false, action: 'merge', sentence: `Ready to add to the library: ${who} can add it.`, short: VOCAB.readyToMerge };
     }
   }
+}
+
+/**
+ * The status pill of an open branch, the same on every surface: the Branches list, the branch page header and the
+ * home cards. The kind comes from core reviewStatusKind, the words from who acts now (whoActs short: "Design owner to
+ * approve", "Owner override needed"), else the status itself ("Needs design approval"). Tone follows the kind.
+ */
+export function statusPill(kind: ReviewStatusKind, who: (Pick<WhoActs, 'short'> & Partial<Pick<WhoActs, 'action'>>) | null | undefined): { label: string; tone: StatusTone } {
+  // Updated after the changes request: it waits for the reviewers' approval now, not on a blocker (core reviewStatusLabel).
+  if (who?.action === 'look-again') return { label: who.short ?? LOOK_AGAIN_STATUS_LABEL, tone: GROUP_TONE.waiting };
+  return { label: who?.short ?? REVIEW_STATUS[kind].label, tone: statusTone(kind) };
 }
 
 export interface ApprovalRow {
@@ -494,24 +531,36 @@ const ROW_ACTION: Record<ApprovalRole, string> = { design: 'Approve design', tec
  * tier needs (requiredApprovals), each with who approved, who requested changes, or who it waits for. Only the first
  * row the viewer can give carries the action (one review covers one role).
  */
-export function approvalRows(input: { tier: Tier | null; approvals: ApprovalSummary; people: People; open: boolean }): ApprovalRow[] {
+export function approvalRows(input: { tier: Tier | null; approvals: ApprovalSummary; people: People; open: boolean; lookAgain?: readonly string[] | null }): ApprovalRow[] {
   const { approvals: a, people: p } = input;
-  const covered: Record<ApprovalRole, boolean> = { design: a.design, tech: a.tech, approval: a.approvers.length > 0 };
+  const covered: Record<ApprovalRole, boolean> = { design: a.design, tech: a.tech, approval: hasOwnerApproval(a) };
+  // The only owner covers both parts with one review: the first row carries "Approve", the other says so.
+  const solo = input.open && soloCovers((['design', 'tech'] as const).filter((r) => !covered[r]), { ...p, approvers: a.approvers }) && viewerCanApprove('design', { ...p, approvers: a.approvers });
   let acted = false;
-  return requiredApprovals(input.tier).map((role) => {
+  // A token value change needs the design approval only (core withTokenValueApprovals, decision TV-1): no code row.
+  return requiredApprovals(input.tier, a.valuesOnly).map((role) => {
     const listed = listedFor(role, p.owners);
-    // A plain approval counts from anyone (mergeGate); a design or tech approval only from that role's owners.
-    const inRole = (l: string) => role === 'approval' || listed.length === 0 || listed.some((x) => same(x, l));
+    // Every approval counts from that role's owners (mergeGate): a plain approval (Tier 1) from any owner, either list.
+    const inRole = (l: string) => listed.length === 0 || listed.some((x) => same(x, l));
     const by = a.approvers.filter(inRole);
     const asked = a.changesRequested.filter(inRole);
     const canAct = input.open && !covered[role] && !acted && viewerCanApprove(role, { ...p, approvers: a.approvers });
     if (canAct) acted = true;
     const e = eligibleFor(role, { ...p, approvers: a.approvers });
-    const base = { role, label: ROW_LABEL[role], canAct, actionLabel: ROW_ACTION[role] };
+    const base = { role, label: ROW_LABEL[role], canAct, actionLabel: solo ? ROW_ACTION.approval : ROW_ACTION[role] };
     if (covered[role]) return { ...base, state: 'approved' as const, text: by.length ? `Approved by @${by.join(', @')}` : 'Approved' };
+    // Updated after every changes request of this role (core lookAgainReviewers): the reviewers look again, never a
+    // stale "Changes requested" (core reviewStatusLabel says "Updated, look again" for the whole branch).
+    const again = asked.filter((l) => (input.lookAgain ?? []).some((x) => same(x, l)));
+    if (asked.length && again.length === asked.length) {
+      const you = again.some((l) => same(l, p.viewer));
+      return { ...base, state: 'waiting' as const, text: you ? 'Updated after your changes: look again' : `Updated, waiting for ${namesFor(role, again, p)} to look again` };
+    }
     if (asked.length) return { ...base, state: 'changes' as const, text: `Changes requested by @${asked.join(', @')}` };
     const text = canAct
       ? 'Waiting for you'
+      : solo && role !== 'approval'
+        ? 'Covered by your approval'
       : e.logins.length
         ? `Waiting for ${namesFor(role, e.logins, p)}`
         : e.open
@@ -542,6 +591,8 @@ export interface CachedPull {
   head: { ref: string; sha: string };
   user: { login: string };
   draft?: boolean;
+  /** Claude made it (lib/work-nature agentMade), kept so a cached list still shows Claude's identity. */
+  agent?: boolean;
 }
 
 export interface ListSnapshot {
@@ -618,7 +669,7 @@ const modeWord = (m: string) => MODE_WORD[m] ?? (m ? m.charAt(0).toUpperCase() +
 export function undoSentence(review: Pick<TokenReview, 'changes' | 'contrast'>): string {
   const c = review.changes;
   let first: string;
-  if (!c.length) first = 'Restores nothing: main already has these values.';
+  if (!c.length) first = 'Restores nothing: the library already has these values.';
   else if (c.length === 1) {
     const x = c[0]!;
     const to = x.after ? (x.after.alias ? `{${x.after.alias}}` : (x.after.css ?? 'its old value')) : 'nothing';

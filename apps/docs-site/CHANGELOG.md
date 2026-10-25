@@ -1,5 +1,391 @@
 # @bridge-ds/docs-site
 
+## 0.20.1
+
+### Patch Changes
+
+- 037b56b: Hosted Studio for guests: signed out, a team's pages read its published `activity.json` (no GitHub API request), with "Updated 5 min ago" in the guest banner. History works for guests. What the activity did not record is read live, and a read GitHub refuses for the hourly limit falls back to it. Without it, identical anonymous reads go out once and are reused for two minutes in the tab. Every Branches row gets its status when the activity covers it, and the list never ends on an older paint.
+- Updated dependencies [037b56b]
+  - @bridge-ds/core@0.18.0
+
+## 0.20.0
+
+### Minor Changes
+
+- 782dc75: Library and Studio headers: one switch replaces the "Open Studio" and "Library" buttons. A white pill names the space you are in, on a Deep Harbor track, with the other space as a drawn icon (pen and notes, open book). It carries the page's item across (Button in the Library opens Button in Studio, and back), keeps the team on team shells and team Libraries, and stays in the header on phones.
+
+### Patch Changes
+
+- 9dc3421: Homepage closing: the profile card the walkers carry is now a DS Card with a DS Avatar and a full-width "Connect on LinkedIn" button. Real padding and rhythm, about 20% larger, and the whole card is one link with the Card's hover lift and focus ring.
+- be7d93d: Homepage, design system lead section: Dana's avatar stroke is Deep Harbor.
+- 8bc361a: Homepage, design system lead section: Dana's avatar has a white stroke instead of a drop shadow.
+- 9f111af: Studio team chip: it now describes the design system you are looking at, never your account. On the demo it shows the Bridge mark and "Bridge demo" (the repository in the tooltip) with "Explore freely" for visitors without an account, and its menu offers "Create a new team" and "Sign in with GitHub". On a team page a visitor without an account reads "Guest". Signed in, the chip keeps Admin, Can edit, Can suggest and Read only. Being signed out is said once, in the account block at the bottom of the nav.
+- 3cf7e57: Homepage hero: back to Explore with AI. / Keep what works / in your design system., with an 80px protection space between the headline and the drawing.
+- 4774fa4: Homepage hero: "design system." sits on its own line (Explore with AI. / Keep what works in your / design system.).
+- 4b86d9e: Homepage: the step illustration panels lose their border and shadow, so the drawings sit straight on the page.
+- 12e363f: Homepage: the step sections' drawing panels sit on a white card (the raised surface, neutral 800 in dark) with the emphasis hairline and the card elevation, instead of a grey fill.
+- 5ec4a47: One status per branch, everywhere. `reviewStatusKind` is the single derivation for the Branches list, the branch page, the home cards, `bridge_what_needs_me`, `bridge_branch_status` and `bridge branch status`. A repo with no automated checks is a calm state of its own ("No automated checks", `CI_STATE_LABEL`) and the status comes from the approvals, as for any branch. While GitHub computes whether a branch merges cleanly, a missing approval still shows; "Checking for conflicts" only holds back "Ready to merge". The words live in core (`REVIEW_STATUS_LABEL`), and the branch page header now shows the same pill as its row ("Owner override needed", "Design owner to approve") instead of a plain "In review".
+- e849e5c: Studio team chip, Recent teams: a team joins the list only after its page read the repository (public, read, write, admin or outside contributor), never because someone typed it in the launcher or the Create a new team dialog, and a team GitHub answers 404 for leaves it. Placeholders such as owner/repo or owner/design and invalid names are cleaned out of the stored list when it is read. Each entry now has a "Remove from recent teams" action, a sibling menu item on the same row, reachable with the arrow keys, that updates the list in place.
+- 5ec4a47: Suggestions, visual checks and titles. A suggestion whose change no longer applies to main (main moved and the value it changes is not the one it was suggested from) reads Outdated in Studio, `bridge_list_suggestions` and `bridge_get_suggestion`, through one core rule (`suggestionStalenessOnGitHub`, over `planSuggestionApply`). An applied and closed suggestion keeps only its final label ("suggestion: applied"; "suggestion: declined" when declined): `bridge_apply_suggestion`, `bridge_link_suggestion`, `bridge apply` and a merge from Bridge (`markSuggestionsAppliedOnGitHub`) remove "needs review" and "applying". The visual-check label and "the visual comparison runs again" are offered only when the repo has the visual impact workflow (`hasVisualWorkflow`, `visualOffer`); otherwise the branch page shows a quiet "Set up visual checks" link. Request and suggestion titles are never prefixed twice ("Select: select: ...") and keep component names as written ("EmptyState"), through `subjectTitle`.
+- Updated dependencies [5ec4a47]
+- Updated dependencies [5ec4a47]
+  - @bridge-ds/core@0.17.0
+
+## 0.19.0
+
+### Minor Changes
+
+- 66374cd: Studio: "Create a new team" in the team chip menu now opens a dialog over the page instead of leaving for the launcher on Studio home, so you keep your place. Paste owner/repo or a GitHub address; after a short pause a calm line says what you will find there (Ready, Read only, Bridge is not installed yet with "Install Bridge" for admins, Not found or private, or Sign in to check). The dialog and the Studio home launcher share one parser, the same error words and the same team address (lib/team-open.ts).
+
+### Patch Changes
+
+- a1825f7: Homepage hero: one call to action. Get started stands alone, with "Or explore the demo, no account needed." under it.
+- 09f9912: Homepage hero: the drag slider is replaced by the approved illustration. Dana unpins the Profile header sketch from her AI exploration board and drops it in the Bridge machine; the known pieces go back to their twins in the design system, the new one is clipped into it, then code and the Figma kit follow (a 9.6 s loop, the final frame under reduced motion). The drawing column is wider (up to 680 px) and the headline stays about 57 px at 1440.
+
+## 0.18.0
+
+### Minor Changes
+
+- da3e4ea: Team pages: History, component change requests and "Start an exploration" now work for the team in the address
+  instead of the demo. History reads the team's merged token changes from GitHub (signed in, the 20 latest, with each
+  change's token diff read when it opens), and the token drawer's "See the whole history" lands there. A request opens in
+  place from the team's request issues. An exploration starts against the team's repository: in direct mode the first
+  write asks for Bridge Direct's OK; in suggest mode Studio says why it does not start one, since an exploration is a
+  branch.
+
+  Core: the repo model reads the global stylesheets a library ships (new optional `components.styles` globs in
+  `bridge.config.json`, default every .css file under `styles/` and `theme/` next to the components folder) and counts
+  their `var(--token)` reads as usage, so team Quality and the team token explorer no longer flag tokens only base styles
+  read as unused. Snapshots record the globs they read; a snapshot from before reads those files from the repository.
+
+### Patch Changes
+
+- Updated dependencies [da3e4ea]
+  - @bridge-ds/core@0.16.0
+
+## 0.17.0
+
+### Minor Changes
+
+- a448574: Review and New brand are real on team pages. Review lists what waits on you in the team's repository (its branches, suggestions, guidance drafts and contrast failures) and opens each one in place, with the same queue as the self-hosted Studio. New brand runs the four-step flow on the team's own tokens, brands and contrast pairs, and sends the brand the way the team's `changes` mode says: a suggestion, or a draft branch. In direct mode the first branch asks for Bridge Direct's OK before anything is sent. Drafts are kept per team in the browser.
+
+## 0.16.1
+
+### Patch Changes
+
+- 6ca43c0: The Content-Security-Policy is enforced (`Content-Security-Policy` instead of `Content-Security-Policy-Report-Only`). Violations are still reported to `/api/csp-report`. The site has its own not-found page, replacing Vercel's platform 404 page, whose inline scripts the policy blocks.
+- 4c76db7: Team Libraries are noindex on the server: every `/library/<owner>/<repo>/` address answers `X-Robots-Tag: noindex`, except the teams in the committed allow-list `hosted/public-libraries.json`. The build fails when `vercel.json` falls behind the list and prints the rules to paste.
+- ff21200: The bridge-data workflow template pins @bridge-ds/cli ^0.11.0, the first published version with bridge snapshot.
+
+## 0.16.0
+
+### Minor Changes
+
+- 9b0b653: Hosted Library per team (multi-team PR 4a). `/library/<owner>/<repo>/` serves a team's published design system:
+  Home, Foundations (generic token specimens), Components (cards by family; one component with a live Storybook story
+  and its `docs.json` guidance) and Tokens (every token with its value per theme). Each page is built once at
+  `/library-shell/...` and reached through two new `vercel.json` rewrites; the build fails on a missing shell or on any
+  file that would take a team's Library address. Signed out, a Library reads the team's `bridge-data` snapshot from the
+  raw host with no GitHub API call; signed in, it reads like Studio. Pages are `noindex` unless `bridge.config.json` sets
+  the new `library.public: true` (core `libraryIsPublic`, schema). `bridge snapshot` now also writes `llms.txt` (core
+  `snapshotLlmsTxt`), which the Library links for AI agents. On a team's Studio, the header's Library button opens the
+  team's Library. `scripts/hosted-smoke.mjs` covers the Library routes.
+
+### Patch Changes
+
+- Updated dependencies [9b0b653]
+  - @bridge-ds/core@0.15.0
+
+## 0.15.0
+
+### Minor Changes
+
+- 440f717: Team pages always sign in with the read-only Bridge app. When a team in direct mode saves code for the first time
+  (start a branch, save to it, ship, review), Studio explains why in "Allow Bridge to save to branches" and asks for
+  Bridge Direct's OK once, then lands back on the same page. Its token lives in its own slot next to Bridge's;
+  suggestions and comments keep going out with Bridge. When Bridge Direct is not on the team's repository, admins get
+  "Install Bridge Direct" and everyone else "Ask your lead". New optional `GITHUB_APP_DIRECT_SLUG`. The self-hosted
+  Studio is unchanged. Core: a `fetch` that throws its own `GitHubError` keeps it instead of turning into "Could not
+  reach GitHub".
+- 79650d3: A team's Bridge says who gets in: one screen per GitHub access state (sign in first, no access with "Ask your lead for access", Bridge not set up with the install link for admins only, read only outside the team), a team chip at the top of the Studio side nav with your access, and "Invite your team" (the team link, "Who can do what", Manage access on GitHub for admins) as an onboarding step and in Settings. Onboarding is remembered per repository, and step 2 shows the hosted states.
+- bad4f0a: Studio team context in the browser (multi-team PR 2b). `scripts/repo-context.ts` names the repository a page works on
+  (the team address `/studio/<owner>/<repo>/` on a team shell, else `#bridge-repo` as before) and its settings
+  (`siteConfig`), and loads a team's repo model from GitHub with core `loadRepoModel` and `gitHubSource`, cached in
+  IndexedDB by repository and head sha (`scripts/repo-cache.ts`). Access is now read per repository with core
+  `resolveRepoAccess` and its eight states (`resolveAccess`, `lib/access.ts`); a read-only outside contributor is no
+  longer told that Bridge is not installed. Sign-out removes cached private repositories. Signing in with one GitHub App
+  no longer removes the other App's sign-in, and `pickSignInApp` signs in for identity with the read-only app first,
+  with Bridge Direct only to write in direct mode. The self-hosted site behaves as before.
+- 0986099: Show how far Bridge has gone reading a design system, and open Branches for teams.
+
+  - Core: `loadRepoModel` takes `onProgress` and reads in three phases (tokens, components, docs) with an exact file
+    total from the first report; `readRepoTexts` takes an `onProgress(done, total)` callback; `gitHubSource` takes
+    `onProgress` (the tree once read, then each body and whether it came from the blob cache).
+  - Team pages (Home, Components, Quality, Tokens) replace the loading skeleton with a calm progress view: "Finding your
+    design system", then "Using the saved snapshot" or "Reading N files" with a bar filled from real file counts
+    ("Reading tokens 12 of 48", then components, then docs), then "Ready". Unknown totals stay indeterminate, a cache
+    hit shows nothing. The Storybook quick start shows "Reading your Storybook" and the component count it found.
+  - Team Branches lists the team's open branches (the same list as the demo) and its open suggestions, each reviewed
+    in place. Review and New brand keep one calm line and "See it on the demo"; "View on GitHub" is gone.
+
+- 55a0992: Team pages for the hosted Studio (multi-team PR 3b). Home, Components, Quality and Tokens on
+  /studio/<owner>/<repo>/ now render in the browser from the team's repository: this browser's cache for the default
+  branch head first, then the team's Bridge snapshot when it was computed from that head, else a live read from GitHub.
+  Components lists the team's components with one Storybook preview in the drawer, or token specimens without a
+  Storybook. Quality shows the contrast gate, token findings, docs completeness and adoption audits from the snapshot
+  (or how to publish them). Tokens starts the same explorer and token editor from the team's files, with history read
+  through GitHub when signed in. Loading skeletons, calm empty states and errors with Try again (rate limit, repository
+  not found, too large to read).
+- 6b95bfb: Team addresses for the hosted Studio (multi-team PR 3a). Every Studio page is also built as an empty team shell at
+  `/team-shell/...` (`<html data-hosted data-shell>`, `noindex`), and `vercel.json` rewrites `/studio/<owner>/<repo>/...`
+  and the escape form `/studio/~/<owner>/<repo>/...` to it, two rules per form with the trailing slash one first. Static
+  files still win, so every existing `/studio/` page and deep link is unchanged. On a shell, the build-time Studio links
+  follow the team (`scripts/team-links.ts`), and the page says team pages open there soon, with the same page on the
+  demo. The build writes the paths a team can never take, read from the built Studio folder, to
+  `/team-shell/reserved.json`, and fails on a missing or malformed shell or on a link to a Studio path no file serves.
+  Team addresses and shells answer `X-Robots-Tag: noindex`. With `BRIDGE_HOSTED=1`, Studio home shows "Open your team's
+  Bridge": a field that takes `owner/repo` or a GitHub address. `scripts/hosted-smoke.mjs` checks a deployment.
+
+### Patch Changes
+
+- 1c7c87d: The Install Bridge Direct link on team pages points to the real app, bridge-design-studio, by default.
+- 9d40c77: Harden every HTML sink against repo and GitHub content, and ship a report-only Content-Security-Policy. Markdown links allow only http, https, mailto and relative targets, JSON embedded in pages can no longer close its script element, PR, preview, Figma, Jira and image URLs go through one URL allow-list, token values in inline styles drop `url()` and declaration breakouts, and docs.json example props lose raw HTML, handlers and unsafe URLs. A test lists every file that writes HTML with what makes it safe. `tryInProductUrl` returns an empty string for a preview that is not http or https. The docs site sends `Content-Security-Policy-Report-Only` (inline scripts allowed by hash, checked at build time), `X-Content-Type-Options` and `Referrer-Policy`, and collects violations on `/api/csp-report`.
+- 662fb55: The docs site builds from the repo model: `loadRepoModel(fsSource(root))` runs once per build (`lib/model.ts`) and
+  the token, component, contrast, explorer, history, Figma coverage, config and sign-in libs read it instead of their
+  own parsers and hardcoded paths. `bridge.config.json` is parsed once; the site's settings come from core
+  `siteRepoFromConfig`. A model problem (invalid config, unresolved alias, contrast pair on a missing token, docs.json
+  that does not parse) fails the build, as before. Core fix: a component's description is the JSDoc right before the
+  component, no longer everything from the first JSDoc of the file (a documented props interface leaked into it). The
+  `href` option of `loadRepoModel` also receives the token path.
+- 24b0db5: Every Studio link, redirect and Studio file fetch goes through `studioHref(path)` (`lib/team-path.ts`, also exported
+  from `lib/nav.ts`), multi-team PR 2d. In self-hosted mode and at build time it returns `/studio/<path>` unchanged; on a
+  team shell (`<html data-hosted>`) it keeps the team, `/studio/<owner>/<repo>/<path>` (or the `/studio/~/` escape form).
+  The address parsing (`repoFromPath`, `isHosted`) moved there from `scripts/repo-context.ts`, which re-exports it. The
+  explorer's token link helper is now `tokenFocusHref`. A new test, `no-studio-literals`, fails on any new literal
+  `/studio/` path outside `team-path.ts`, `nav.ts` and `redirects.ts`; the three fixed exceptions (the OAuth callback in
+  the sign-in lib and the token API, and an inline script on the Library tokens page) are listed with their reason. The
+  built site is unchanged apart from chunk hashes and one new shared chunk.
+- Updated dependencies [1a560aa]
+- Updated dependencies [440f717]
+- Updated dependencies [a797699]
+- Updated dependencies [9d40c77]
+- Updated dependencies [4fb3153]
+- Updated dependencies [662fb55]
+- Updated dependencies [0986099]
+  - @bridge-ds/core@0.14.0
+
+## 0.14.0
+
+### Minor Changes
+
+- b6f1e68: Opt-in `governance.soloOwnerCanApproveBoth` for a design system run by one person. When it is true and the owners
+  resolve to exactly one person holding both roles, that person's approval counts as the design and the tech approval,
+  so Tier 2 and Tier 3 pull requests and suggestions can reach approved. Default false: one person still never covers
+  both approvals alone. The author of a change still never approves it. Core adds `soloApprover`, `soloOwnerOf`,
+  `soloOwnerSentence` and an optional rules argument to `summarizeApprovals`; `summarizeSuggestionApprovals` reads the
+  flag from its governance. Studio Settings shows an "Only owner" line when the rule is active, the suggestion and pull
+  request reviews say "As the only owner, your approval covers design and code." with one Approve, and
+  `bridge settings`, `bridge branch status`, `bridge suggestions show` and the MCP tools say the same.
+
+### Patch Changes
+
+- Updated dependencies [b6f1e68]
+  - @bridge-ds/core@0.13.0
+
+## 0.13.0
+
+### Minor Changes
+
+- 832ef94: Studio reads a published Storybook without the repository. Onboarding step 2 takes a Storybook URL: "Add Storybook"
+  reads its index, keeps the address in this browser and says how many components it found. Studio > Components from
+  Storybook (`/studio/components/storybook/`) lists them by family, with search, and opens a drawer per component with a
+  live preview of each story or docs page, or a link to Storybook when the host does not allow embedding. Tokens,
+  contrast checks and suggestions say in one line that they need the repository connected. A new `/api/storybook`
+  function reads the index server side when the host sends no CORS header and reports whether previews may be framed,
+  behind SSRF guards: https only, public addresses only after DNS, fixed paths, 3 redirects, 5 s, 5 MB.
+
+### Patch Changes
+
+- Updated dependencies [87cfb75]
+  - @bridge-ds/core@0.12.0
+
+## 0.12.0
+
+### Minor Changes
+
+- 7d5c34c: Studio reviews suggestions. A suggestion that waits on you shows on Home and in the review queue next to branches, and counts in the Branches badge (one list for all three). It opens on its own card, in the queue or from Branches (`?suggestion=N`, and from a product branch's missing pieces): who suggests it, Before and After, three proof chips (design system checks, contrast in light and dark, where it is used, re-run on today's main), a big Approve with Suggest changes next to it, Decline in More actions, and the next items stacked behind. A suggestion approved for an older version, or one main moved under, says so first. Approve and Suggest changes show only to owners; everyone else reads why. Once approved, the card shows how a developer applies it. How review works has a Suggestions section.
+
+## 0.11.0
+
+### Minor Changes
+
+- d278a6c: A new homepage at "/", ported from the validated test page: drag the bridge to keep what your exploration added; "Start it in Bridge", "Ship it everywhere at once" and "One system everyone can trust", each step drawn as an animated Field Guide illustration; "Decide in seconds" for the design system lead; "How Bridge compares" (a short table, every feature on demand); the questions teams ask; and the Horizon closing. A new site header (Product, Resources, About, Sign in; one sheet on phones) and footer on every product page, an About page, and first versions of the docs at /docs/ (Getting started with Bridge) and /docs/figma-plugin/ (DS Bridge Figma plugin). Light and dark themes; under reduced motion the drawings rest.
+- 5f370ba: Studio: how changes reach your code, and the setup steps. Settings has a new band, How changes reach your code: the mode in force (suggestions your developers apply, or pull requests Bridge opens, from `changes` in `bridge.config.json`, suggestions when the key is absent), what Bridge's GitHub App may do on the repo when you signed in with it, and Change, which sends the switch for review as a pull request on `bridge.config.json` like the other settings. In suggest mode it says plainly that Bridge's GitHub App can still write code on the repo: suggest mode is a Bridge rule until the read-only app ships. "See what your developers get" shows how a developer applies a suggestion: `bridge apply <issue number>`, or "Apply Bridge suggestion" in Claude Code with the Bridge MCP, with the one-time install command for this repo.
+
+  The Studio home has the setup steps: sign in, your design system, products, how changes reach your code, the Figma plugin and Claude AI. While `bridge.config.json` does not say how changes reach the code, a signed-in viewer lands on that step first, with every other step a click away and "Do this later" back to the home. After that, "4 of 6 connected" by the greeting opens what is left (Finish connecting), until the viewer hides it. The Storybook quick start shows as coming soon: this Studio reads the repository it is built for.
+
+- 77710b5: Studio sends follow how changes reach the code (`"changes"` in bridge.config.json). In suggest mode (the default when the key is absent) the token editor, the docs editor, the new brand flow, the undo and restore planner and a product branch's missing pieces send a suggestion through @bridge-ds/core: "Send suggestion", "Suggest docs change", "Suggest to the library", then "Suggestion #42 sent to your DS lead. A developer applies it once it is approved." with one link to it. The token editor turns its draft into core token edits, so a developer re-applies the exact edits on the tokens of the day. Until the read-only GitHub App ships, suggest mode is enforced in Studio: adding to an open branch, saving docs to a branch, switching a product branch or using a preview, sending it for review and closing it refuse with a plain sentence before any GitHub call. Direct mode keeps today's branches and pull requests (this repo sets `"changes": "direct"`), and Studio's token, brand and revert pull requests now use the `tier: N` label like the rest of Bridge.
+- 877b928: Studio signs in through two GitHub Apps: "Bridge" (read only on code, Issues write) by default, and "Bridge Direct"
+  when bridge.config.json has `"changes": "direct"`. The token function picks the app from an allow-list of the two
+  configured client IDs, tokens are stored per app, and a sign-in made with the other app is removed with a prompt to
+  sign in again. Sites with one app keep signing in as before.
+
+### Patch Changes
+
+- c96cdc2: Page filter bars use one control size, md, like the Library tokens page. Studio Components (search and family
+  Select), the Show filter of change requests and explorations, the History filters and the branch filter on Studio
+  home moved from sm to md, so the search, Select and SegmentedControl in a bar share one height. The Input, Select and
+  SegmentedControl guidance now says md for a page's filter bar and keeps sm for dense toolbars, menus and panels.
+- 8b2ff82: Homepage, "One system everyone can trust", third tab: a new drawing for adoption quality. A magnifier sweeps a page of the Docs site and flags three off-system pieces (a one-off card, a raw hex colour, an odd button); each snaps into its Harbor system version and the components and tokens in use go from 81.7%, before the audit, to 100%. It replaces the jar drawing. Light and dark from tokens; under reduced motion it rests on the audited page.
+- a265dbd: Settings, How changes reach your code: the interim sentence "Bridge's GitHub App can still write code on this repo..."
+  now shows only when suggest mode runs on the Direct app (the only one configured). With both apps, suggest mode says
+  Studio signs in with Bridge's read-only GitHub App instead. The mode switch pull request body follows the same rule.
+- 9e6c14e: Homepage: "Decide in seconds." shows Ann and Dana with the design system's own illustrated avatars again (Notionists faces, seeds `ann` and `dana`, drawn at build time on the Harbor circle), and the Before and After panes stay still while the stack and the Approve pulse keep moving. "How Bridge compares." reads "What each tool covers, from their public pages." on one line, and its table matches the validated test page: one card holding the short table, the legend and "Compare every feature" centred, with the test page's type sizes, row heights and column widths. Copy for designers: "Your DS lead approves just the change" (tokens, components and docs, before they reach the library), "A change that breaks contrast cannot go in", "Tokens in the W3C standard format", "Two-way sync between Figma variables and code", "Works with AI agents, through MCP", and the FAQ setup answer no longer says DTCG or repo.
+- Updated dependencies [d1e0bc5]
+- Updated dependencies [c96cdc2]
+  - @bridge-ds/react@1.7.0
+
+## 0.10.0
+
+### Minor Changes
+
+- e89cf36: A product landing at "/": explore with AI, keep what works in your design system. The trip of one change down a line, from an exploration to the library branch you open in one click, the review in the product, and the design system, all built with real Bridge components. A comparison page at /compare/ (as of October 2026, from public pages, with what Figma Code Connect does and does not do). The Library home moves to /library/; every other link keeps working. The Bridge agent account (bridge-agent) is named Claude AI on reviews, like everywhere else.
+
+### Patch Changes
+
+- Updated dependencies [22e53c7]
+- Updated dependencies [e1f8f0c]
+- Updated dependencies [e59366e]
+- Updated dependencies [a99fbb9]
+  - @bridge-ds/core@0.10.0
+
+## 0.9.0
+
+### Minor Changes
+
+- adf195b: Studio shows product branches with the library pieces they need. A branch started for a product opens its product branch page: "Try it in the product", one sentence ("Built with the library. 1 piece was missing, and Claude AI opened a library branch for it."), the screen (the before and after, when the visual impact ran) next to the Harbor zone "Missing from the library", one row per piece with its library branch, status and reviewer, and the row's one action (Open a library branch, Use its preview in my branch, Get the latest preview, Switch to the published version). "Why it already shows in your screen" and "For developers" are folded. The review of a library branch a product branch needs starts with "Why it exists" (who needs it, for which product branch, the product preview) and, when the library has a close value, "Suggest danger". Branches lists the library branch under the product branch that needs it. Titles named after a component ("Badge: overdue tone") keep it.
+
+### Patch Changes
+
+- Updated dependencies [5b93962]
+  - @bridge-ds/core@0.9.0
+
+## 0.8.0
+
+### Minor Changes
+
+- 77ba45a: Create branch in Studio is product first. Step 1 asks what you work on: a feature in a product, or a change to the library. A feature asks what you build and in which product (preselected when there is one, or from `?product=`), starts an exploration with the product's `product: <key>` label and gives you the sentence to say to Claude AI. The library keeps its choices (Adjust the look, Add a variant or option, New component), and "Something looks wrong? Report it" stays one click away. core: `productMarks` (the product label and body line, nothing for the default product) moves from the MCP server into `@bridge-ds/core`, and `startExplorationOnGitHub` takes extra `labels`, so Studio, the CLI and the MCP server write the same label. Studio home: "Your branches" gets a one-line subtitle, and the "Published this week" line is gone.
+
+### Patch Changes
+
+- 7e9f2df: Docs proposals: one open proposal per component. Sending docs for a component that already has an open docs proposal adds a commit to it instead of opening a second pull request (`proposeDocsOnGitHub` returns `continued`, and `unchanged` when it already says the same). New core helpers `findOpenDocsProposal`, `findOpenDocsProposalOnGitHub`, `isDocsProposalBranch`, `continueDocsProposalOnGitHub` and `docsSlug`, shared by the Library editor and the MCP server (`bridge_save_docs` without `pr` continues the open one). The Library editor opens on the open proposal ("Continues the open proposal by ..., waiting for review", with a link to its review), and Send is off with "Nothing changed since the open proposal" when the text is the same.
+
+  Attribution: the pull request's author line now says who wrote the text (`docsAuthorLine`, `withAuthorLine`, `defaultDocsFooter`): "Drafted by Claude AI, reviewed and sent by @person" when Claude's draft goes out as written, "Drafted by Claude AI, edited by @person" with the edited sections, and "No AI involved" only when no Claude draft is in the text. The editor tracks the text Claude wrote per section (`authorship`).
+
+- 2da5cfd: Studio Components: the Open requests column leaves the table (teams triage requests in Jira); the component drawer still counts them with a link to GitHub.
+- 74fe95a: Studio: screens no longer end with the "Updated" date and "View source" line (they show live data; Library pages keep it), and the Components table drops its note under the table.
+- Updated dependencies [8cdcb9a]
+- Updated dependencies [77ba45a]
+- Updated dependencies [7e9f2df]
+  - @bridge-ds/react@1.6.0
+  - @bridge-ds/tokens@1.6.0
+  - @bridge-ds/core@0.8.0
+
+## 0.7.0
+
+### Minor Changes
+
+- b4edf85: Avatar: illustrated faces and Claude's identity.
+
+  - `Avatar fallback="illustrated"`: without a photo (or when it fails), a drawn face that is always the same for the same `seed` (a login), on the Harbor zone color. The drawings are the DiceBear "Notionists" style (design CC0 1.0 by Zoish, code MIT), generated locally with no network. They weigh about 120 kB gzipped, so they live in a separate entry: import `Avatar` from `@bridge-ds/react/avatar-illustrated`. The main entry keeps initials as the default and stays light; `illustration` takes a ready image if you draw faces yourself.
+  - `Avatar kind="agent" brand="claude"`: the Claude mark on a cream tile, same round shape as people, named "Claude AI", to attribute work Claude did. The Claude mark is an Anthropic trademark: check the Anthropic brand guidelines before shipping it in a product.
+  - `avatarHtml()` in `@bridge-ds/react/dom`, the same markup for rows built in plain scripts.
+  - Tokens: `color.illustration.surface` (the Harbor zone color, a lighter step in dark so line drawings stay readable) and `avatar.illustrated-bg`; `color.agent.surface` (cream, the same in both themes), `avatar.agent-bg` and `avatar.agent-border`.
+  - Studio: change rows, the change and history details and explorations show a face and the person's display name instead of "@login"; work Claude made, and Claude's guidance drafts, show Claude's identity.
+  - Studio Quality: the library health cards (contrast checks, adoption, guidance) open the page, with their detail below, and Share copies a short summary for Slack or a slide or downloads the header as an image.
+
+- 7b53159: Motion is documented and reviewed from the code. The spec generator now records how a part opens and closes: the "Opening and closing" motion note carries the code's `enter` and `exit` transitions (duration, easing and their motion tokens, read per element so a drawer's side class and its popup class count together), and looping animations carry their `durationToken`. `componentMotion` returns them as `opening` and lists their tokens, so `componentsUsingMotionToken(specs, "motion.duration.moderate")` finds Dialog and AlertDialog. component-specs.json is regenerated (popup sets gain their open and close motion).
+
+  Every Library component page has a generated "Motion and interaction" section in its Tokens tab: when it moves (hover, press, check, open, close, loops), what changes, the duration token with its value and the easing token in words, and what reduced motion does, in one sentence. Components without motion say so in one line; motion the specs cannot place is said, never denied.
+
+  For branch reviews, `MotionChanges` (components/ds/studio/MotionChanges.tsx) shows a plain sentence per motion change, two looping previews of the same component at the old and new motion with Replay, and the other components it touches; still frames under reduced motion. `motionChanges` (lib/motion-changes.ts) computes the changes from the token sets and specs at both commits; `mountMotionChanges` (scripts/reviews/motion-changes.ts) mounts the block from a review page.
+
+- eb66bd7: Studio branch review, redesigned: a breadcrumb (Branches, its product group, the title), the title with its status, and one line saying who asks and why. The change itself comes first, by type: guidance reads as it will in the Library with new text highlighted and click-to-edit (Save goes to the branch), tokens show before and after with the themes they change in, components show before and after screens with "Try it in the product". Below: the conversation (people only, latest comment inline, earlier ones on demand) and one line about checks with its details. One sticky decision bar: comment, "Suggest changes", "Approve" or "Approve and merge", and "More actions" (owner override only when it is the only way, share with a product team, copy a link to the review or for a developer, back to draft, close branch). Approving accepts a Claude guidance draft. A branch with several changes gets an outline with a "looked at" reading aid. The review queue uses the same view with its own bar (comment, Suggest changes, Approve, More actions with "Ask someone else to review"), outcome marks in its list, a toast with Undo after Approve, and A, S, J, K keys. "Open on GitHub" links leave this view.
+
+### Patch Changes
+
+- 51e743c: Studio parity: every action a designer takes in Bridge Studio now works with Claude (MCP) and in the terminal.
+
+  - MCP: 20 new tools for branches in review (what needs me, status, send for review, back to draft, review, ask someone else to review,
+    comment and reply, merge through Studio's gate with the owner override, close, reopen, update from main with
+    token conflicts, try it in a product and share it, try 2 to 4 branches together), docs saved for review,
+    explorations promoted or closed, products, settings and Figma coverage. `bridge_propose_token_change` takes
+    `pr` (add edits to a branch in review), `jira` and `product`; explorations and requests take `product`.
+  - CLI: `bridge branch ...`, `bridge products`, `bridge settings`, `bridge coverage`, `bridge docs save`, and
+    `--product`, `--jira`, `--pr` where work starts.
+  - Core: the review and merge rules, the branch writes, update from main, sharing, try in product, try together,
+    docs proposals and Jira keys moved from the docs site into `@bridge-ds/core`, so Studio, the MCP server and
+    the CLI run one implementation. New `products` list in `bridge.config.json` (schema included), defaulting to
+    Admin demo and Library; Studio's Branches page groups by it with the same result.
+
+- Updated dependencies [b4edf85]
+- Updated dependencies [22d186e]
+- Updated dependencies [51e743c]
+- Updated dependencies [7b53159]
+  - @bridge-ds/react@1.5.0
+  - @bridge-ds/tokens@1.5.0
+  - @bridge-ds/core@0.7.0
+
+## 0.6.0
+
+### Minor Changes
+
+- a58ba2c: Studio Branches is all the work: the summary banner, the tabs and the status menu are gone. The header holds "History" (now a link, same view at ?view=history) and "Create branch" (the Home menu). One segmented control picks Mine, Waiting on me or All; rows are the Home row (before/after, who, title, Jira key, status pill, "N updates on main · Update from main" when behind), grouped by product (Admin demo, Library); explorations are rows with an Exploration status; merged and closed branches sit behind "N merged this month. Show merged". Token branches carry a checkbox to preview up to 4 together from a floating bar: one checked offers "Try it alone", two to four "Preview together" (a dialog asks for picks when they set a token differently). Old ?status=, ?tier=, ?view= and ?pr= links keep working. Also fixes the History token filter, whose field lost its id inside the DS Field.
+- 022d79b: The Studio home answers "what do I do now". A time-of-day greeting says who waits on you and since when, at most
+  three Needs you rows show a before and after of each branch, and the rest wait behind "Review all", a new review
+  queue with "Approve and next". Your branches are cards with their status, and an empty library offers three ways to
+  start.
+- 8376732: Studio speaks Figma branching.
+
+  - One vocabulary module (lib/vocabulary.ts) for every Studio screen: Create branch, Request review, Update from main, Review and merge, Merge, Publish for the release; statuses Draft, In review, Approved waiting for code, Merged, Closed. The Changes page is now Branches (same address).
+  - No "For developers" fold left in Studio or the Library changelog. Where a design system lead may want the GitHub view, one quiet "Open on GitHub" link sits on the line of the thing it concerns; Settings explains integrations and protection in plain words with a "How it works on GitHub" link.
+  - Request triage left the Studio home and the Branches tabs (teams triage in Jira). The code stays behind REQUEST_TRIAGE_IN_STUDIO; "Ask for a component change" still creates a request, and a request link still opens.
+  - Create branch takes an optional Jira ticket key (DS-42) in the token editor, the Library edit mode, the new brand flow and Start an exploration. The key goes first in the GitHub title (and in the branch name outside explorations) so the Jira GitHub integration links it, and shows in mono on branch rows.
+  - Core: `Exploration` takes an optional `jira` key; the merge-right sentence says "can merge this".
+  - Figma plugin: the review flow strings say Request review and branch.
+
+### Patch Changes
+
+- ed4b28d: Every visual component is in Figma: 47 of 47, 46 generated from code and 1 drafted with Claude. The generator now draws Checklist, Form, Slider, Table (and TableEmpty), Tabs and TokenValue from their code examples. New generator capabilities: CSS grid rows and subgrid rows as auto layout, `::before` / `::after` decorations as layers, Base UI indicators sized to the selected item (a tab underline) drawn in that item, unselected tab panels hidden, `data-orientation`, sliders (thumb at the value, value render functions), tables as rows of cells, form errors reaching their field, typed values in fields, functions as values, string and list methods, helpers that return elements, plain modules of the package, React's JSX text spacing, screen reader text left out of sentences, example texts shown by default, and absolute layers placed per variant. Side effects on sets already in Figma: Field and Dialog lose an empty error layer, NumberField steppers get their dividers, ChoiceCard text wraps, CodeBlock reads its wrap style.
+
+  Toast, shown from the `useToast` hook and never placed, is drafted with Claude: a spec written from the code in `packages/react/component-spec-overrides/Toast.json` (`"source": "drafted"`), validated against the format and the repo's tokens by `npm run specs`, counted as drafted (never as generated), marked "Drafted, check it" in the Pull preview and in its Figma description, and stale once its code changes. Specs record the code example they were drawn from, so the fidelity check renders the same content (rows, fields, tabs), and the Figma references capture renders hook-shown components (a toast) through their hook.
+
+- bdca820: Honest Figma coverage. `npm run specs` now reads every component folder and records each one in a `coverage` list of component-specs.json: generated, unsupported with the generator's plain reason ("opens a popup", "uses CSS grid", "shows content computed while the page runs"), or a layout helper with nothing to draw. Support is decided by the generator from what it can read, no list to maintain. The plugin Pull tab says "26 of 47 components are in Figma" with the others folded under the count, each with its reason, and the Studio Components page shows a quiet "In Figma" column from the same data.
+
+  Coverage goes from 6 to 26 of 47 visual components. The generator draws 19 more (Accordion, Alert, Avatar, Banner, Breadcrumb, Checkbox, CheckboxGroup, ChoiceCard, CodeBlock, Divider, Field, Kbd, Link, NumberField, RadioGroup and Radio, SegmentedControl, Skeleton, Switch, Textarea), and Icon counts as covered by the icon components of the Icons page. New general capabilities: content props as TEXT and BOOLEAN properties, Base UI checked states as a Checked axis, layers hidden per variant, translateX and row-reverse read as auto layout, flex grow and wrap, lists and selections from the docs preview, the page base stylesheet, em sizes, underlines, opacity, fixed and per-variant icons, images as the media slot, useRender links. Fixes from the fidelity check: a transparent border keeps its room (a transparent stroke counted in layout), link buttons are underlined, inherited typography reaches every text.
+
+- 439dbad: Studio home: the greeting drawing is cropped to its scene (no empty sky), so it no longer makes the greeting taller than its text; its ground line rests on the task list.
+- f301f84: Studio home: the greeting drawing keeps a gap above the task list instead of touching it, and the row button sits at the far right (the DS Button margin reset was overriding it).
+- 429314c: Studio home: the Create branch card comes first in Your branches.
+- fadf8ce: Studio home: the status pill on a Needs you row sits right after the row's text; the button keeps the far edge.
+- 0502ea2: Studio home: Needs you rows get a verb button by count. One item: its button is the primary ("Review", "Fix", "Open"). Two or three: secondary buttons. More than three: no row buttons, the grouped "Review all" acts. "Waiting since today" now reads "New today".
+- d4240cd: Studio nav: Branches comes right after the home, which is now called Home (was Overview), and Components comes before Tokens.
+- 84a9143: Studio status polish.
+
+  - Changes: the summary line and its button point at the most urgent change where it is your turn. With none, they name the most urgent change; when only a developer can move it, the line says it waits on a developer and shows no button.
+  - A change: "Ready for review" keeps one tone whatever its checks say (status colour for the status only); failing checks show in the checklist and the "Blocked by tests" chip. The Overview and the change selector use the same tone.
+  - Quality audits: share bars, legend keys and trend lines use the Harbor data hue and neutrals, never the success, warning or info hues.
+  - Tokens: the type chips, the filter field, Options and New token sit at the DS control height (44px), up from 32px.
+
+- 03a76fa: Studio: when only developer tests fail and the viewer can still approve the design or tech side, the list, the Overview and the opener say "Your turn: approve design" with "A developer fixes the failing checks meanwhile", instead of "Blocked by tests". Both go on in parallel.
+- Updated dependencies [f655919]
+- Updated dependencies [ed4b28d]
+- Updated dependencies [bdca820]
+- Updated dependencies [6b07b05]
+- Updated dependencies [8376732]
+  - @bridge-ds/core@0.6.0
+  - @bridge-ds/react@1.4.1
+
 ## 0.5.2
 
 ### Patch Changes

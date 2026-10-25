@@ -4,49 +4,27 @@
 // docs save path (lib/docs-draft-model.ts, scripts/docs-commit.ts); drafting goes through scripts/docs-ai.ts.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  Alert,
-  AlertDialog,
-  AlertDialogContent,
-  Badge,
-  Button,
-  CodeBlock,
-  Dialog,
-  DialogContent,
-  IconButton,
-  Input,
-  Link,
-  Menu,
-  MenuContent,
-  MenuGroup,
-  MenuItem,
-  MenuRadioGroup,
-  MenuRadioItem,
-  MenuSeparator,
-  MenuTrigger,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  SegmentedControl,
-  Spinner,
-  Textarea,
-} from '@bridge-ds/react';
+import { Avatar, Alert, AlertDialog, AlertDialogContent, Badge, Button, Dialog, DialogContent, IconButton, Input, Link, Menu, MenuContent, MenuGroup, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, Popover, PopoverContent, PopoverTrigger, Spinner, Textarea } from '@bridge-ds/react';
 import { Check, ChevronDown, Circle, CircleX, Copy, Ellipsis, PenLine, Plus, Sparkles, X } from 'lucide-react';
-import { DRAFT_PHRASE, type ComponentDocsJson, type DocsGuidance, type ProseKey } from '@bridge-ds/core';
+import { docsAuthorLine, DRAFT_PHRASE, type ComponentDocsJson, type DocsGuidance, type ProseKey } from '@bridge-ds/core';
 import { REGISTRY, resolveProps } from './registry';
 import type { ExampleNode } from '../lib/components';
 import { cleanDocs, docsEdits, docsFileText, setDocsEdit, validateDocs, type DocsEdit } from '../lib/docs-draft-model';
 import type { Draft } from '../lib/editor-model';
 import { parseJiraKey, VOCAB } from '../lib/vocabulary';
+import { SEE_SUGGESTION, sendButton as sendWords, SUGGESTION_SENT, suggestionSentLine } from '../lib/gh-wording';
+import { changesModeOnPage } from '../scripts/changes-mode';
 import {
-  EDIT_BAR_LABEL,
   SECTIONS,
   applyDraft,
+  authorship,
+  continueLine,
   cancelNeedsConfirm,
   changeTitle,
   changedLabel,
   discardDrafts,
   docsToSend,
+  editBarLabel,
   editBarState,
   editMeta,
   escapeIntent,
@@ -62,15 +40,19 @@ import {
   sectionById,
   sectionOf,
   sectionState,
+  sendBlockedReason,
   sendTitle,
   setField,
   setValue,
   toReview,
+  guestEditLine,
   type EditState,
   type FieldRef,
   type SectionId,
 } from '../lib/library-edit-model';
 import type { DraftScope, DraftWay } from '../scripts/docs-ai';
+import { studioHref } from '../lib/team-path';
+import { COPY_SETUP, developerSetupMessage } from '../lib/docs-ai-model';
 
 export interface LibraryEditModeProps {
   name: string;
@@ -82,6 +64,12 @@ export interface LibraryEditModeProps {
   /** Where editing starts: the docs on main, or the deterministic pre-fill when there are none. */
   initial: ComponentDocsJson;
   repo: { owner: string; repo: string };
+  /**
+   * A team's Library page (components/ds/library/LibraryTeamComponents.tsx): its Studio address for a path, and how a
+   * branch's docs.json is read (through the member's session: private repositories and email members). Absent on this
+   * site's own pages: this site's Studio, and the raw host.
+   */
+  team?: { studio: (path: string) => string; readFile: (path: string, ref: string) => Promise<string | undefined> };
 }
 
 type DocsAi = typeof import('../scripts/docs-ai');
@@ -130,6 +118,8 @@ function openConnect() {
   b.type = 'button';
   b.hidden = true;
   b.setAttribute('data-gh-open', '');
+  // On the demo, a visitor who cannot write sees "Make it yours" instead (scripts/demo-gate.ts).
+  b.setAttribute('data-demo-write', 'save usage guidance');
   document.body.appendChild(b);
   b.click();
   b.remove();
@@ -152,6 +142,7 @@ function renderNode(node: ExampleNode, key?: number): ReactNode {
 }
 
 function VerdictExample({ node, inert }: { node: ExampleNode; inert?: boolean }) {
+  // The read page's own example markup (React-rendered at build time, props sanitised by registry resolveProps).
   const html = useContext(ExampleHtml).get(JSON.stringify(node));
   const extra = inert ? ({ inert: '' } as object) : {};
   return html !== undefined ? (
@@ -255,7 +246,13 @@ function SectionControls({ id }: { id: SectionId }) {
 function SectionFlag({ id }: { id: SectionId }) {
   const e = useEdit();
   const st = sectionState(e.state, id);
-  if (st === 'drafted') return <Badge tone="info" icon={Sparkles}>{e.state.updated.includes(id) ? 'Updated' : 'Drafted'} by Claude · review it</Badge>;
+  if (st === 'drafted')
+    return (
+      <span className="le-flag">
+        <Avatar kind="agent" brand="claude" size="xs" decorative />
+        <Badge tone="info">{e.state.updated.includes(id) ? 'Updated' : 'Drafted'} by Claude · review it</Badge>
+      </span>
+    );
   if (st === 'outdated') return <Badge tone="warning">Outdated: the code changed since</Badge>;
   if (e.state.accurate.includes(id))
     return (
@@ -323,7 +320,11 @@ function ProposalBox({ keys }: { keys: readonly ProseKey[] }) {
   return (
     <div className="le-proposal" role="group" aria-label="Claude's proposal for the selected text">
       <p className="le-proposal-text">
-        <Badge tone="info" icon={Sparkles}>Claude proposes</Badge> {p.replacement}
+        <span className="le-flag">
+          <Avatar kind="agent" brand="claude" size="xs" decorative />
+          <Badge tone="info">Claude proposes</Badge>
+        </span>{' '}
+        {p.replacement}
       </p>
       <div className="le-actions">
         <Button size="sm" variant="secondary" iconStart={Check} onClick={e.keepProposal}>
@@ -353,12 +354,14 @@ function GuideCards({ k }: { k: 'dos' | 'donts' }) {
               </Badge>
               <IconButton className="le-remove" icon={X} size="sm" label={`Remove ${word} ${i + 1}`} onClick={() => e.setList(k, items.filter((_, j) => j !== i) as DocsGuidance[])} />
             </div>
-            <h4>
+            {/* h3 under the section's h2, as on the read page (components/UsagePanel.tsx): no skipped level. */}
+            <h3 className="verdict-title">
               <InlineText field={{ key: k, index: i, part: 'title' }} label={`${word} ${i + 1}, title`} placeholder="Title" />
-            </h4>
-            <p>
+            </h3>
+            {/* A div, not a p: the field is a block (Textarea), and a p cannot hold one. */}
+            <div className="verdict-text">
               <InlineText field={{ key: k, index: i, part: 'text' }} label={`${word} ${i + 1}, why`} placeholder="Why, in one sentence" />
-            </p>
+            </div>
           </figcaption>
         </figure>
       ))}
@@ -546,11 +549,10 @@ function StatusPill({ value, onChange }: { value: NonNullable<ComponentDocsJson[
 /* ------------------------------------------------------------------------------------------------------------------ */
 /* Claude setup panel (no way to draft yet), like the Figma plugin's Claude card.                                     */
 
-function ClaudeSetup({ repo, onSaved, ai }: { repo: string; onSaved: () => void; ai: DocsAi | null }) {
-  const [way, setWay] = useState<'plan' | 'key'>('plan');
+function ClaudeSetup({ repo, component, onSaved, ai }: { repo: string; component: string; onSaved: () => void; ai: DocsAi | null }) {
   const [key, setKey] = useState('');
+  const [copied, setCopied] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'danger' | 'success'; text: string } | null>(null);
-  const command = `claude mcp add bridge -s user -e GITHUB_TOKEN=your-github-token -- npx -y @bridge-ds/mcp --repo ${repo}`;
   const save = () => {
     try {
       ai?.saveApiKey(key.trim() || null);
@@ -560,36 +562,26 @@ function ClaudeSetup({ repo, onSaved, ai }: { repo: string; onSaved: () => void;
       setMsg({ tone: 'danger', text: 'Drafting with Claude is not available on this site yet.' });
     }
   };
+  // The my-Claude way belongs to a developer: the designer copies the setup for them, she never sees the terminal steps.
+  const copySetup = () => {
+    const page = `${location.origin}${location.pathname}?edit=1`;
+    const text = developerSetupMessage({ repo, component, page, phrase: DRAFT_PHRASE });
+    void navigator.clipboard?.writeText(text).then(() => {
+      setCopied(true);
+      announce(COPY_SETUP.done);
+    });
+  };
   return (
     <div className="le-setup">
       <p>Claude drafts the sections from the code. You review each one before anything is sent.</p>
-      <SegmentedControl
-        label="How Bridge reaches Claude"
-        size="sm"
-        fullWidth
-        value={way}
-        onValueChange={(v) => {
-          setWay(v as 'plan' | 'key');
-          setMsg(null);
-        }}
-        items={[
-          { value: 'plan', label: 'Your Claude plan' },
-          { value: 'key', label: 'An API key' },
-        ]}
-      />
-      {way === 'plan' ? (
-        <>
-          <p className="le-setup-note">Add Bridge to your Claude once, in a terminal. Put your GitHub token in place of your-github-token.</p>
-          <CodeBlock className="le-setup-code" code={command} label="Command for Claude Code" />
-        </>
-      ) : (
-        <>
-          <Input label="Anthropic API key" type="password" autoComplete="off" spellCheck={false} placeholder="sk-ant-..." value={key} onChange={(ev) => setKey(ev.target.value)} hint="Saved in this browser only. Each draft sends this page's text to Anthropic." />
-          <Button variant="secondary" size="sm" disabled={!key.trim()} onClick={save}>
-            Save key
-          </Button>
-        </>
-      )}
+      <Input label="Anthropic API key" type="password" autoComplete="off" spellCheck={false} placeholder="sk-ant-..." value={key} onChange={(ev) => setKey(ev.target.value)} hint="Saved in this browser only. Each draft sends this page's text to Anthropic." />
+      <Button variant="secondary" size="sm" disabled={!key.trim()} onClick={save}>
+        Save key
+      </Button>
+      <p className="le-setup-note">No API key? A developer can draft it with their own Claude.</p>
+      <Button variant="ghost" size="sm" iconStart={copied ? Check : Copy} onClick={copySetup}>
+        {copied ? COPY_SETUP.done : COPY_SETUP.label}
+      </Button>
       {msg && (
         <p className={`le-setup-msg is-${msg.tone}`} role={msg.tone === 'danger' ? 'alert' : 'status'}>
           {msg.text}
@@ -627,10 +619,16 @@ const useCompact = () => useMedia('(max-width: 767px)');
 const overlayOpen = () => Boolean(document.querySelector('[role="menu"], [role="dialog"], [role="alertdialog"], dialog[open]'));
 
 export default function LibraryEditMode(p: LibraryEditModeProps) {
+  // Where "See the review" goes: the team's Studio on a team's Library page, else this site's.
+  const studio = p.team?.studio ?? studioHref;
   const [editing, setEditing] = useState(false);
+  /** Editing without a GitHub session: the line that says it is a draft in this browser only; null when signed in. */
+  const [guest, setGuest] = useState<string | null>(null);
   const [state, setState] = useState<EditState>(() => initEdit(p.initial));
   const [base, setBase] = useState<string | null>(p.original);
-  const [branch, setBranch] = useState<{ pr: number | null; ref: string } | null>(null);
+  /** Where Send goes instead of a new proposal: a change opened from Studio (?pr&ref), or the component's open proposal. */
+  const [branch, setBranch] = useState<{ pr: number | null; ref: string; author?: string; continues?: boolean } | null>(null);
+  const [viewer, setViewer] = useState<string | null>(null);
   const [writing, setWriting] = useState<Set<SectionId>>(new Set());
   const [focusRequest, setFocusRequest] = useState<string | null>(null);
   const [lastSection, setLastSection] = useState<SectionId | null>(null);
@@ -643,7 +641,10 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   const [setupOpen, setSetupOpen] = useState(false);
   const [confirm, setConfirm] = useState<'cancel' | 'rewrite' | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
-  const [sent, setSent] = useState<{ pr: number | null; title: string } | null>(null);
+  const [sent, setSent] = useState<{ pr: number | null; title: string; continued?: boolean; suggestion?: string } | null>(null);
+  // How changes reach the code (bridge.config.json "changes"): a suggestion, or a branch in review.
+  const mode = useMemo(() => changesModeOnPage(), []);
+  const suggest = mode === 'suggest';
   const [title, setTitle] = useState(sendTitle(p.name));
   const [message, setMessage] = useState('');
   const [jira, setJira] = useState('');
@@ -655,6 +656,8 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   const [jump, setJump] = useState<SectionId | null>(null);
   const exampleHtml = useRef(new Map<string, string>());
   const loaded = useRef(false);
+  const viewerWired = useRef(false);
+  const guestWired = useRef(false);
   const wide = useWide();
   const compact = useCompact();
 
@@ -756,19 +759,60 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
       const q = new URLSearchParams(location.search);
       const ref = q.get('ref');
       let next = initEdit(p.initial);
-      if (ref) {
+      setBranch(null);
+      setBase(p.original);
+      const session = await import('../scripts/github-session').catch(() => null);
+      setViewer(session?.currentViewer()?.login ?? null);
+      // The viewer is known after the session's first token check: "by you" on their own proposal.
+      if (session && !viewerWired.current) {
+        viewerWired.current = true;
+        session.initGitHubConnect((v) => setViewer(v?.login ?? null));
+      }
+      // One open proposal per component: without a change to edit (?ref), the editor opens on the open one, if any.
+      const open = ref ? null : await import('../scripts/docs-commit').then((m) => m.findOpenDocs(p.name, p.slug)).catch(() => null);
+      const readBranch = async (branchRef: string) => {
+        if (p.team) {
+          const text = await p.team.readFile(p.path, branchRef);
+          if (text === undefined) throw new Error('404');
+          return text;
+        }
+        const r = await fetch(`https://raw.githubusercontent.com/${p.repo.owner}/${p.repo.repo}/${encodeURIComponent(branchRef)}/${p.path}`);
+        if (!r.ok) throw new Error(String(r.status));
+        return r.text();
+      };
+      const mine = docsEdits(readDraft()).find((e) => e.path === p.path);
+      let onOpen = false;
+      if (open) {
         try {
-          const r = await fetch(`https://raw.githubusercontent.com/${p.repo.owner}/${p.repo.repo}/${encodeURIComponent(ref)}/${p.path}`);
-          if (!r.ok) throw new Error(String(r.status));
-          const text = await r.text();
+          const text = await readBranch(open.branch);
+          const docs = JSON.parse(text) as ComponentDocsJson;
+          let edited = docs;
+          try {
+            // Edits kept in this browser go on top of the open proposal's text.
+            if (mine) edited = JSON.parse(mine.after) as ComponentDocsJson;
+          } catch {
+            /* a broken draft entry: start from the proposal */
+          }
+          next = initEdit(docs, edited);
+          setBase(text);
+          setBranch({ pr: open.number, ref: open.branch, author: open.author, continues: true });
+          onOpen = true;
+        } catch {
+          /* the proposal could not be read: start from main; Send still joins it (core looks again) */
+        }
+      }
+      if (onOpen) {
+        /* started on the open proposal */
+      } else if (ref) {
+        try {
+          const text = await readBranch(ref);
           next = initEdit(JSON.parse(text) as ComponentDocsJson);
           setBase(text);
           setBranch({ pr: Number(q.get('pr')) || null, ref });
         } catch {
-          setNotice({ tone: 'info', text: `Could not read the ${p.name} docs of that branch. You are editing the published page.` });
+          setNotice({ tone: 'info', text: `Could not read the ${p.name} docs of that change. You are editing the published page.` });
         }
       } else {
-        const mine = docsEdits(readDraft()).find((e) => e.path === p.path);
         if (mine) {
           try {
             next = initEdit(p.initial, JSON.parse(mine.after) as ComponentDocsJson);
@@ -789,29 +833,16 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
     announce(`Editing ${p.name}. Each section of the usage guidance is editable.`);
   }, []);
 
-  // Edit asks for GitHub first when nobody is connected.
+  // Edit never asks for GitHub first: without a session (a guest, or signed out) it is a draft in this browser, Keep
+  // and Discard work, and only the send asks to sign in (openSend).
   const requestEdit = useCallback(async () => {
     const session = await import('../scripts/github-session');
-    session.initGitHubConnect();
-    if (session.hasWorkingToken()) return void start();
-    openConnect();
-    const dialog = document.getElementById('gh-dialog');
-    const onAuth = () => {
-      if (!session.hasWorkingToken()) return;
-      cleanup();
-      void start();
-    };
-    const onClose = () => window.setTimeout(() => {
-      if (session.hasWorkingToken()) return;
-      cleanup();
-      setEditUrl(false);
-    }, 0);
-    const cleanup = () => {
-      document.removeEventListener('bridge:auth', onAuth);
-      dialog?.removeEventListener('close', onClose);
-    };
-    document.addEventListener('bridge:auth', onAuth);
-    dialog?.addEventListener('close', onClose);
+    const paintGuest = () => setGuest(session.hasWorkingToken() ? null : guestEditLine(session.prefersSignIn()));
+    if (guestWired.current) session.initGitHubConnect();
+    else session.initGitHubConnect(paintGuest);
+    guestWired.current = true;
+    paintGuest();
+    void start();
   }, [start]);
 
   useEffect(() => {
@@ -992,6 +1023,11 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   /* Request review (a new branch) or save to the branch being edited */
   const toSend = useMemo(() => docsToSend(state), [state]);
   const issues = useMemo(() => validateDocs(cleanDocs(toSend)), [toSend]);
+  const sendBlock = useMemo(() => sendBlockedReason({ fileText: docsFileText(toSend, base), base, continuing: Boolean(branch) }), [toSend, base, branch]);
+  const forgetLocal = () => {
+    writeDraft({ ...readDraft(), edits: readDraft().edits.filter((e) => !(e.kind === 'docs' && e.path === p.path)) });
+    writeJson(metaKey(p.path), null);
+  };
   const openSend = async () => {
     const session = await import('../scripts/github-session');
     session.initGitHubConnect();
@@ -1006,22 +1042,35 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
     try {
       const fileText = docsFileText(toSend, base);
       const docsCommit = await import('../scripts/docs-commit');
-      if (branch) {
+      // Who wrote the text: Claude's drafts kept as is, edited by the person, or written by the person.
+      const authorLine = docsAuthorLine(authorship(state), viewer);
+      let continued = Boolean(branch?.continues);
+      if (branch?.continues && branch.pr) {
+        await docsCommit.continueDocs({ number: branch.pr, branch: branch.ref }, p.path, p.name, fileText, authorLine);
+        setBase(fileText);
+        forgetLocal();
+        setSent({ pr: branch.pr, title: title.trim() || sendTitle(p.name), continued: true });
+      } else if (branch) {
         await docsCommit.commitDocsToBranch(p.path, branch.ref, p.name, fileText);
         setBase(fileText);
         setSent({ pr: branch.pr, title: title.trim() || sendTitle(p.name) });
       } else {
         const edit: DocsEdit = { kind: 'docs', id: Math.random().toString(36).slice(2, 10), path: p.path, component: p.name, slug: p.slug, before: p.original, after: fileText };
-        const n = await docsCommit.proposeDocs([edit], changeTitle(p.slug, title || sendTitle(p.name)), message, parseJiraKey(jira));
-        writeDraft({ ...readDraft(), edits: readDraft().edits.filter((e) => !(e.kind === 'docs' && e.path === p.path)) });
-        writeJson(metaKey(p.path), null);
-        setSent({ pr: n, title: title.trim() || sendTitle(p.name) });
+        const r = await docsCommit.proposeDocs([edit], changeTitle(p.slug, title || sendTitle(p.name)), message, parseJiraKey(jira), authorLine);
+        continued = r.continued;
+        forgetLocal();
+        // A suggestion links to its page; a branch opens in Studio.
+        setSent({ pr: r.number, title: title.trim() || sendTitle(p.name), continued: r.continued, ...(r.kind === 'suggestion' ? { suggestion: r.url } : {}) });
+        if (r.kind === 'suggestion') {
+          announce(`${SUGGESTION_SENT}.`);
+          return;
+        }
       }
-      announce(branch ? 'Saved to the branch.' : 'Review requested.');
+      announce(branch || continued ? 'Update sent.' : 'Sent for review.');
     } catch (err) {
       // The session's words: sign-in or token, and the site's way in.
       const { ghAuthFailure } = await import('../scripts/github-session');
-      setSendError(ghAuthFailure(err, branch ? 'save to this branch' : 'create branches')?.text ?? `${branch ? 'Not saved' : 'Not created'}: ${(err as Error).message}`);
+      setSendError(ghAuthFailure(err, branch ? 'send this update' : suggest ? 'send suggestions' : 'request review')?.text ?? `Not sent: ${(err as Error).message}`);
     } finally {
       setBusy(false);
     }
@@ -1029,6 +1078,8 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   const doneSent = () => {
     setSendOpen(false);
     setSent(null);
+    setBranch(null);
+    setBase(p.original);
     setState(initEdit(p.initial));
     loaded.current = false;
     setEditing(false);
@@ -1056,9 +1107,10 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   );
   const keepAll = keepAllLabel(pending.length);
   const barState = editBarState({ dirty, sent: Boolean(sent), savesLocally: !branch });
-  const sendLabel = branch ? 'Save to branch' : VOCAB.requestReview;
+  const sendLabel = branch ? 'Send update' : sendWords('docs', mode);
+  const stateText = barState !== 'sent' && sendBlock ? sendBlock : editBarLabel(barState, Boolean(branch?.continues));
   const sendButton = (
-    <Button variant="primary" disabled={!dirty && !pending.length} onClick={() => void openSend()}>
+    <Button variant="primary" disabled={Boolean(sendBlock)} aria-describedby="le-bar-state" onClick={() => void openSend()}>
       {sendLabel}
     </Button>
   );
@@ -1100,6 +1152,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   const claudeSetup = (onDone: () => void) => (
     <ClaudeSetup
       repo={repoName}
+      component={p.name}
       ai={ai}
       onSaved={() => {
         if (ai) setWays(ai.draftAvailability());
@@ -1119,8 +1172,8 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
           <p className="le-bar-title">
             Editing <strong>{p.name}</strong>
           </p>
-          <p className="le-bar-state" role="status">
-            {EDIT_BAR_LABEL[barState]}
+          <p className="le-bar-state" id="le-bar-state" role="status">
+            {stateText}
           </p>
         </div>
         {compact ? (
@@ -1182,13 +1235,24 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
           </div>
         )}
       </div>
+      {guest && !sent && (
+        <p className="le-bar-note" data-le-guest="">
+          {guest}
+        </p>
+      )}
+      {branch?.continues && branch.author && branch.pr && (
+        <p className="le-bar-note">
+          {continueLine(branch.author, viewer)}{' '}
+          <Link href={studio(`changes/?pr=${branch.pr}`)}>See the review</Link>
+        </p>
+      )}
       {drafting && (
         <div className="le-status" role="status">
           <Spinner size="sm" label="Drafting" />
           <span>{drafting.status}</span>
           {drafting.way === 'my-claude' && (
             <span className="le-status-hint">
-              Ask your Claude: <q className="le-phrase">{DRAFT_PHRASE}</q>
+              A developer says: <q className="le-phrase">{DRAFT_PHRASE}</q>
               <Button
                 variant="ghost"
                 size="sm"
@@ -1281,8 +1345,16 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
         <Dialog open={sendOpen} onOpenChange={(o) => (o ? setSendOpen(true) : sent ? doneSent() : setSendOpen(false))}>
           <DialogContent
             size="md"
-            title={sent ? (branch ? 'Saved to the branch' : 'Review requested') : branch ? 'Save to this branch' : VOCAB.createBranch}
-            description={sent ? undefined : 'Your team reviews the new guidance in Studio before it reaches the Library.'}
+            title={sent ? (sent.suggestion ? SUGGESTION_SENT : sent.continued || branch ? 'Update sent' : 'Sent for review') : branch ? 'Send your update' : suggest ? sendWords('docs', mode) : 'Send for review'}
+            description={
+              sent
+                ? undefined
+                : branch?.continues && branch.author
+                  ? `Your update joins ${branch.author === viewer ? 'your open proposal' : `the open proposal by @${branch.author}`}. Your team reviews it in Studio before it reaches the Library.`
+                  : suggest
+                    ? 'Your DS lead reviews the new guidance. Once approved, a developer applies it to the Library.'
+                    : 'Your team reviews the new guidance in Studio before it reaches the Library.'
+            }
             footer={
               sent ? (
                 <div className="le-dialog-foot">
@@ -1296,15 +1368,20 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
                     Cancel
                   </Button>
                   <Button variant="primary" loading={busy} disabled={busy || issues.length > 0} onClick={() => void send()}>
-                    {branch ? 'Save to this branch' : VOCAB.requestReview}
+                    {sendLabel}
                   </Button>
                 </div>
               )
             }
           >
-            {sent ? (
+            {sent?.suggestion ? (
               <p className="le-sent">
-                Your team can review it in Studio: <Link href={sent.pr ? `/studio/changes/?pr=${sent.pr}` : '/studio/changes/'}>{sent.title}</Link>.
+                {suggestionSentLine(sent.pr ?? 0)}{' '}
+                <Link href={sent.pr ? studio(`changes/?suggestion=${sent.pr}`) : sent.suggestion}>{SEE_SUGGESTION}</Link>
+              </p>
+            ) : sent ? (
+              <p className="le-sent">
+                {sent.continued ? 'Added to the open proposal. ' : ''}Your team can review it in Studio: <Link href={sent.pr ? studio(`changes/?pr=${sent.pr}`) : studio('changes/')}>{sent.title}</Link>.
               </p>
             ) : (
               <div className="le-send">
@@ -1320,7 +1397,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
                 )}
                 {!branch && <Input label="Title" value={title} onChange={(ev) => setTitle(ev.target.value)} />}
                 {!branch && <Textarea label="Message to the team" hint="Optional. What changed and why, in a sentence or two." rows={3} value={message} onChange={(ev) => setMessage(ev.target.value)} />}
-                {!branch && <Input label="Jira ticket" placeholder="DS-42" hint="Optional. Links this branch to the ticket in Jira." spellCheck={false} autoComplete="off" value={jira} onChange={(ev) => setJira(ev.target.value)} />}
+                {!branch && <Input label="Jira ticket" placeholder="DS-42" hint="Optional. Links this change to the ticket in Jira." spellCheck={false} autoComplete="off" value={jira} onChange={(ev) => setJira(ev.target.value)} />}
                 {sendError && (
                   <Alert tone="danger" announce="auto">
                     {sendError}

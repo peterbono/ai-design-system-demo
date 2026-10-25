@@ -1,5 +1,114 @@
 # @bridge-ds/stylelint-plugin
 
+## 0.2.16
+
+### Patch Changes
+
+- Updated dependencies [037b56b]
+  - @bridge-ds/core@0.18.0
+
+## 0.2.15
+
+### Patch Changes
+
+- Updated dependencies [5ec4a47]
+- Updated dependencies [5ec4a47]
+  - @bridge-ds/core@0.17.0
+
+## 0.2.14
+
+### Patch Changes
+
+- Updated dependencies [da3e4ea]
+  - @bridge-ds/core@0.16.0
+
+## 0.2.13
+
+### Patch Changes
+
+- Updated dependencies [9b0b653]
+  - @bridge-ds/core@0.15.0
+
+## 0.2.12
+
+### Patch Changes
+
+- Updated dependencies [1a560aa]
+- Updated dependencies [440f717]
+- Updated dependencies [a797699]
+- Updated dependencies [9d40c77]
+- Updated dependencies [4fb3153]
+- Updated dependencies [662fb55]
+- Updated dependencies [0986099]
+  - @bridge-ds/core@0.14.0
+
+## 0.2.11
+
+### Patch Changes
+
+- Updated dependencies [b6f1e68]
+  - @bridge-ds/core@0.13.0
+
+## 0.2.10
+
+### Patch Changes
+
+- Updated dependencies [87cfb75]
+  - @bridge-ds/core@0.12.0
+
+## 0.2.9
+
+### Patch Changes
+
+- Updated dependencies [76c7938]
+  - @bridge-ds/core@0.11.0
+
+## 0.2.8
+
+### Patch Changes
+
+- Updated dependencies [22e53c7]
+- Updated dependencies [e1f8f0c]
+- Updated dependencies [e59366e]
+- Updated dependencies [a99fbb9]
+  - @bridge-ds/core@0.10.0
+
+## 0.2.7
+
+### Patch Changes
+
+- Updated dependencies [5b93962]
+  - @bridge-ds/core@0.9.0
+
+## 0.2.6
+
+### Patch Changes
+
+- Updated dependencies [8cdcb9a]
+- Updated dependencies [77ba45a]
+- Updated dependencies [7e9f2df]
+  - @bridge-ds/core@0.8.0
+
+## 0.2.5
+
+### Patch Changes
+
+- Updated dependencies [22d186e]
+- Updated dependencies [51e743c]
+- Updated dependencies [7b53159]
+  - @bridge-ds/core@0.7.0
+
+## 0.2.4
+
+### Patch Changes
+
+- Updated dependencies [f655919]
+- Updated dependencies [ed4b28d]
+- Updated dependencies [bdca820]
+- Updated dependencies [6b07b05]
+- Updated dependencies [8376732]
+  - @bridge-ds/core@0.6.0
+
 ## 0.2.3
 
 ### Patch Changes

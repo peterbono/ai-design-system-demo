@@ -1,12 +1,15 @@
 // App shell behaviour, shipped on every page (small, no framework):
-// theme toggle, copy buttons, the mobile navigation sheet, the Cmd+K command palette, header menus, the "On this
+// the theme (light, dark or System, picked in Settings), copy buttons, the mobile navigation sheet, the Cmd+K command palette, header menus, the "On this
 // page" rail and, in the Studio, the view of a change (scripts/view-change), the nav counts and the GitHub connection.
 import { bindCodeBlocks, bindDialogs, bindTooltips, closeDialog, isDialogOpen, openDialog } from '@bridge-ds/react/dom';
 import { getToken, initGitHubConnect } from './github-session';
 import { loadReviewNeedsYou, rememberedMine, type QueuePullFull } from './needs-you';
 import { initMaintainer } from './maintainer';
+import { pointLinksAtTeam } from './team-links';
 import { initVanillaControls } from './vanilla-controls';
 import { initViewChange, readOpenPulls } from './view-change';
+import { followThemePref } from '../lib/theme-pref';
+import { navGroupOpen, readNavGroup, writeNavGroup } from '../lib/nav-groups';
 
 interface SearchItem {
   kind: 'page' | 'component' | 'token';
@@ -28,26 +31,9 @@ export function announce(text: string) {
   }, 1500);
 }
 
+/** The theme follows this browser's choice (Settings, Appearance): the OS until a pick, and other tabs. */
 function initTheme() {
-  const root = document.documentElement;
-  // One toggle in the top bar, one in the mobile navigation sheet: both stay in step.
-  const btns = [...document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]')];
-  if (!btns.length) return;
-  const sync = () => btns.forEach((b) => b.setAttribute('aria-pressed', String(root.getAttribute('data-theme') === 'dark')));
-  sync();
-  btns.forEach((btn) =>
-    btn.addEventListener('click', () => {
-      const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-      root.setAttribute('data-theme', next);
-      try {
-        localStorage.setItem('ds-theme', next);
-      } catch {
-        /* private mode: theme still applies for this page */
-      }
-      sync();
-      document.dispatchEvent(new CustomEvent('bridge:theme', { detail: next }));
-    }),
-  );
+  followThemePref();
 }
 
 /**
@@ -82,7 +68,7 @@ function applyScope(scope: Scope, within: ParentNode = document) {
     if (el.dataset.brand !== scope.brand) el.dataset.brand = scope.brand;
     if (el.dataset.density !== scope.density) el.dataset.density = scope.density;
   });
-  // Specimen brand and density switches (components/foundations/ScopeSwitch.astro, static SegmentedControls).
+  // Specimen brand and density switches (components/ds/library/FoundationParts.tsx ScopeSwitch, static SegmentedControls).
   document.querySelectorAll<HTMLElement>('[data-scope-switch]').forEach((s) => paintSegments(s, s.dataset.scopeSwitch === 'density' ? scope.density : scope.brand));
   document.querySelectorAll<HTMLElement>('[data-scope-label]').forEach((l) => {
     const key = l.dataset.scopeLabel as keyof Scope;
@@ -189,11 +175,16 @@ export function selectSegment(root: Element, value: string, emit = false) {
   if (emit) root.dispatchEvent(new CustomEvent('bridge:segment', { detail: { value }, bubbles: true }));
 }
 
-function initSegmented() {
-  document.querySelectorAll(SEG_ROOT).forEach((root) => {
-    const checked = root.querySelector<HTMLElement>('[data-segment][aria-checked="true"]');
-    paintSegments(root, checked?.dataset.value ?? null);
+/** Restores the roving tab stop of the static SegmentedControls under `root` (a view rendered after load). */
+export function paintStaticSegments(root: ParentNode = document) {
+  root.querySelectorAll(SEG_ROOT).forEach((el) => {
+    const checked = el.querySelector<HTMLElement>('[data-segment][aria-checked="true"]');
+    paintSegments(el, checked?.dataset.value ?? null);
   });
+}
+
+function initSegmented() {
+  paintStaticSegments();
   // Scrolling tracks (phones): fade the edges that hide segments, on scroll and on resize.
   document.addEventListener(
     'scroll',
@@ -291,17 +282,75 @@ function initRail() {
   rail.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest' });
 }
 
-/** Side nav groups: a button with aria-expanded shows or hides its list of pages. Only the current group starts open. */
+/**
+ * The side nav is sticky and one screen tall. A strip above the shell (the demo banner) pushes it down while it is in
+ * view: --shell-offset is how much of it still shows under the header, so the rail fits the screen and its foot stays
+ * visible. Zero once scrolled past, and on pages with no strip.
+ */
+function initRailFit() {
+  const shell = document.querySelector<HTMLElement>('.shell');
+  const header = document.querySelector<HTMLElement>('.topbar');
+  if (!shell || !header) return;
+  let frame = 0;
+  let last = -1;
+  const fit = () => {
+    frame = 0;
+    const offset = Math.max(0, Math.round(shell.getBoundingClientRect().top - header.getBoundingClientRect().bottom));
+    if (offset === last) return;
+    last = offset;
+    shell.style.setProperty('--shell-offset', `${offset}px`);
+  };
+  const queue = () => {
+    if (!frame) frame = requestAnimationFrame(fit);
+  };
+  addEventListener('scroll', queue, { passive: true });
+  addEventListener('resize', queue);
+  // The demo banner mounts (and wraps) after first paint.
+  const strip = document.querySelector<HTMLElement>('[data-demo-strip]');
+  if (strip && typeof ResizeObserver === 'function') new ResizeObserver(queue).observe(strip);
+  fit();
+}
+
+/**
+ * Side nav groups: a button with aria-expanded shows or hides its list of pages. The same for every visitor: the group
+ * holding the current page is always open, the others start open and follow this tab's toggles (lib/nav-groups.ts).
+ * Applied again when the page comes back from the back-forward cache, and nothing takes focus on load.
+ */
 function initNavGroups() {
-  document.querySelectorAll<HTMLButtonElement>('[data-nav-group]').forEach((btn) => {
-    const list = document.getElementById(btn.getAttribute('aria-controls') ?? '');
-    if (!list) return;
-    btn.addEventListener('click', () => {
-      const open = btn.getAttribute('aria-expanded') !== 'true';
-      btn.setAttribute('aria-expanded', String(open));
-      list.hidden = !open;
-    });
+  const session = (() => {
+    try {
+      return window.sessionStorage;
+    } catch {
+      return null;
+    }
+  })();
+  const groups = [...document.querySelectorAll<HTMLButtonElement>('[data-nav-group]')]
+    .map((btn) => ({ btn, list: document.getElementById(btn.getAttribute('aria-controls') ?? '') }))
+    .filter((g): g is { btn: HTMLButtonElement; list: HTMLElement } => Boolean(g.list));
+  const set = (g: { btn: HTMLButtonElement; list: HTMLElement }, open: boolean) => {
+    g.btn.setAttribute('aria-expanded', String(open));
+    g.list.hidden = !open;
+  };
+  const apply = () => {
+    for (const g of groups) {
+      const label = g.btn.dataset.navGroup ?? '';
+      set(g, navGroupOpen({ current: g.btn.hasAttribute('data-nav-current'), stored: readNavGroup(label, session) }));
+    }
+  };
+  apply();
+  window.addEventListener('pageshow', (e) => {
+    if (!e.persisted) return;
+    apply();
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active.matches('[data-nav-group]')) active.blur();
   });
+  for (const g of groups) {
+    g.btn.addEventListener('click', () => {
+      const open = g.btn.getAttribute('aria-expanded') !== 'true';
+      set(g, open);
+      writeNavGroup(g.btn.dataset.navGroup ?? '', open, session);
+    });
+  }
 }
 
 /** Subsequence fuzzy score: consecutive and word-start hits score higher. -1 when not all characters match. */
@@ -341,6 +390,14 @@ function initPalette() {
   const load = async () => {
     if (data) return data;
     try {
+      if (document.documentElement.hasAttribute('data-library-shell')) {
+        // A team's Library searches the team, from the model its page already read (no extra request, none to
+        // the GitHub API for a reader who is signed out: scripts/team-data.ts reads the published snapshot).
+        const [{ loadTeamData }, { librarySearchIndex }] = await Promise.all([import('./team-data'), import('../lib/library/search-index')]);
+        const team = await loadTeamData();
+        data = librarySearchIndex(team.model, team.owner, team.repo);
+        return data;
+      }
       const r = await fetch('/search-index.json');
       data = (await r.json()) as SearchItem[];
     } catch {
@@ -472,31 +529,49 @@ function initPalette() {
   });
 }
 
-/** Header menus (<details data-menu>): close on outside click and on Escape, one open at a time. */
+/**
+ * Header menus (<details data-menu>): close on outside click and on Escape, one open at a time. Delegated, so menus a
+ * page renders after load (a team's Library view) behave the same.
+ */
 function initMenus() {
-  const menus = [...document.querySelectorAll<HTMLDetailsElement>('details[data-menu]')];
-  if (!menus.length) return;
+  const menus = () => [...document.querySelectorAll<HTMLDetailsElement>('details[data-menu]')];
   document.addEventListener('click', (e) => {
-    for (const m of menus) if (m.open && !m.contains(e.target as Node)) m.open = false;
+    for (const m of menus()) if (m.open && !m.contains(e.target as Node)) m.open = false;
   });
-  for (const m of menus) {
-    m.addEventListener('toggle', () => {
-      if (m.open) for (const o of menus) if (o !== m) o.open = false;
-    });
-    m.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && m.open) {
-        m.open = false;
-        m.querySelector('summary')?.focus();
-      }
-    });
-  }
+  // 'toggle' does not bubble: listen in the capture phase.
+  document.addEventListener(
+    'toggle',
+    (e) => {
+      const m = e.target;
+      if (!(m instanceof HTMLDetailsElement) || !m.matches('details[data-menu]') || !m.open) return;
+      for (const o of menus()) if (o !== m) o.open = false;
+    },
+    true,
+  );
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const m = (e.target as Element | null)?.closest?.<HTMLDetailsElement>('details[data-menu]');
+    if (m?.open) {
+      m.open = false;
+      m.querySelector('summary')?.focus();
+    }
+  });
 }
 
-/** Right rail of reading pages: one link per h2, the current section marked while scrolling. */
-function initToc() {
+let tocObserver: IntersectionObserver | null = null;
+
+/**
+ * Right rail of reading pages: one link per h2, the current section marked while scrolling. Run again by a page that
+ * renders its sections after load (a team's Library view): it starts over from the headings there now.
+ */
+export function initToc() {
   const aside = document.querySelector<HTMLElement>('[data-auto-toc]');
   const list = aside?.querySelector('ul');
   if (!aside || !list) return;
+  tocObserver?.disconnect();
+  tocObserver = null;
+  list.replaceChildren();
+  aside.hidden = true;
   const heads = [...document.querySelectorAll<HTMLElement>('.page-body h2')].filter((h) => !h.closest('[hidden], dialog, .sr-only') && !h.classList.contains('sr-only'));
   if (heads.length < 2) return;
   const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -512,7 +587,7 @@ function initToc() {
   aside.hidden = false;
   const links = [...list.querySelectorAll('a')];
   if (!('IntersectionObserver' in window)) return;
-  const io = new IntersectionObserver(
+  const io = (tocObserver = new IntersectionObserver(
     (entries) => {
       for (const e of entries) {
         if (!e.isIntersecting) continue;
@@ -520,7 +595,7 @@ function initToc() {
       }
     },
     { rootMargin: '-10% 0px -75% 0px' },
-  );
+  ));
   heads.forEach((h) => io.observe(h));
 }
 
@@ -579,6 +654,8 @@ function openReviewFromHash() {
 function initStudio() {
   if (document.documentElement.dataset.space === 'library') return;
   initGitHubConnect();
+  // The start screen and the browser workspace read no repository: no drafts, no review count, no view selector.
+  if (document.documentElement.hasAttribute('data-no-repo')) return;
 
   setCount('drafts', draftCount());
   // Paint the last known count at once, so the nav does not jump while GitHub answers (or when it cannot).
@@ -613,6 +690,8 @@ function initStudio() {
 }
 
 export function initShell() {
+  // First, so every handler below sees the team's addresses on a team shell.
+  pointLinksAtTeam();
   initTheme();
   initMaintainer();
   initSegmented();
@@ -627,6 +706,7 @@ export function initShell() {
   bindCodeBlocks();
   bindDialogs();
   initRail();
+  initRailFit();
   initNavGroups();
   initPalette();
 }

@@ -32,7 +32,7 @@ export default function PromoteToReview() {
       setAsk(null);
       setError(null);
       setBusy(false);
-      d.ask().then(setAsk, () => setAsk({ who: 'The owners set in Settings will be asked to approve.', next: 'It moves to In review. Design and tech approve, then it can be merged.' }));
+      d.ask().then(setAsk, () => setAsk({ who: 'The owners set in Settings will be asked to approve.', next: 'It moves to In review. Design and tech approve, then it can be added to the library.' }));
     };
     document.addEventListener(PROMOTE_EVENT, on);
     return () => document.removeEventListener(PROMOTE_EVENT, on);
@@ -63,7 +63,7 @@ export default function PromoteToReview() {
       <DialogContent
         size="sm"
         title={detail ? `Promote “${detail.name}” to review?` : 'Promote to review?'}
-        description={ask?.next ?? 'It moves to In review, then it can be merged once approved.'}
+        description={ask?.next ?? 'It moves to In review, then it can be added to the library once approved.'}
         footer={
           <ButtonGroup align="end">
             <DialogClose render={<Button variant="secondary" disabled={busy} />}>Cancel</DialogClose>

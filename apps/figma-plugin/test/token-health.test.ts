@@ -7,7 +7,7 @@ import { analyze, buildPull, buildPush } from '../src/sync/flows';
 import { defaultUnchecked, heldTokenIds, publish, publishItems, setGroup } from '../src/sync/publish';
 import { buildSignature, classifyComponents, fnv1a, type RawComponent } from '../src/sync/components';
 import { TestBuildPoller } from '../src/sync/explorations';
-import { checkToken, errorText, TOKEN_REJECTED_CALLOUT, TOKEN_SETTINGS_URL, tokenProblem } from '../src/sync/token-health';
+import { checkToken, componentsReadProblem, errorText, TOKEN_REJECTED_CALLOUT, TOKEN_SETTINGS_URL, tokenProblem } from '../src/sync/token-health';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
 import { FakeGitHub } from './fake-github';
 import { applyPlanToSnapshot, findIn } from './figma-sim';
@@ -125,4 +125,19 @@ test('try it polling hands the error to the screen, so a rejected token shows as
   assert.equal(await poller.check(), false);
   assert.equal(seen.length, 1);
   assert.equal(tokenProblem(seen[0]!.err)?.kind, 'rejected');
+});
+
+test('components that cannot be read: what happened and what to do, the raw error only as a detail', () => {
+  const crash = componentsReadProblem(new TypeError('t.startsWith is not a function'), 'pull');
+  assert.equal(crash.title, 'Components could not be read');
+  assert.equal(
+    crash.text,
+    'Bridge could not compare your Figma components with the design system. Variables still update as usual. Check again, and if it keeps failing, update Bridge and report it with the details below.',
+  );
+  assert.equal(crash.detail, 't.startsWith is not a function');
+  assert.doesNotMatch(crash.text, /startsWith|—/);
+  assert.match(componentsReadProblem('boom', 'push').text, /^Bridge could not read your Figma components\. Variables still send as usual\. Scan again/);
+  // A token problem keeps its own sentence, with nothing to report.
+  const rejected = componentsReadProblem(new GitHubError(401, 'Bad credentials', undefined, { auth: 'rejected' }), 'pull');
+  assert.deepEqual(rejected, { title: 'Components could not be read', text: TOKEN_REJECTED_CALLOUT });
 });

@@ -1,80 +1,61 @@
 // Docs changes that go to GitHub from the browser, with the reader's own token: propose the docs edits of the draft
-// as a pull request (Tier 1, patch changeset), commit an edited docs.json to an open pull request's branch, and
-// accept a Claude draft there (needsReview false). Pure parts live in lib/docs-draft-model.ts and @bridge-ds/core.
-import { acceptDocsText, classifyAuth, friendlyMessage, GitHubError } from '@bridge-ds/core';
-import { docsProposal, type DocsEdit } from '../lib/docs-draft-model';
-import { getToken, prefersSignIn, readRepo, studioClient, studioFetch } from './github-session';
+// as a pull request (Tier 1, patch changeset), or add them to the component's open proposal (one open proposal per
+// component), commit an edited docs.json to an open pull request's branch, and accept a Claude draft there
+// (needsReview false). In suggest mode (bridge.config.json "changes") the edits go out as one suggestion instead, and
+// the branch writes refuse (scripts/changes-mode.ts). The rules and the writes live in @bridge-ds/core
+// (docs-proposal.ts), shared with the MCP server and the CLI; this file only brings the page's GitHub session.
+import { acceptDocsText, commitFileOnGitHub, continueDocsProposalOnGitHub, findOpenDocsProposalOnGitHub, proposeDocsOnGitHub, type OpenDocsProposal } from '@bridge-ds/core';
+import type { DocsEdit } from '../lib/docs-draft-model';
+import { currentViewer, getToken, prefersSignIn, readRepo, studioClient } from './github-session';
+import { assertBranchWrites, changesModeOnPage } from './changes-mode';
 import { ghVerb } from '../lib/gh-wording';
-import { branchWithJiraKey, titleWithJiraKey } from '../lib/vocabulary';
-
-const API = 'https://api.github.com';
 
 function client() {
   const token = getToken();
   if (!token) throw new Error(`${ghVerb(prefersSignIn())} first.`);
   const r = readRepo();
-  return { token, repo: r, gh: studioClient(`${r.owner}/${r.repo}`, token) };
+  return { repo: r, gh: studioClient(`${r.owner}/${r.repo}`, token) };
 }
 
-async function api<T>(token: string, method: string, path: string, body?: unknown): Promise<T> {
-  const res = await studioFetch(`${API}${path}`, {
-    method,
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  if (!res.ok) {
-    const msg = ((await res.json().catch(() => ({}))) as { message?: string }).message ?? `GitHub answered ${res.status}`;
-    const info = classifyAuth(res.status, msg, { path, acceptedPermissions: res.headers?.get('x-accepted-github-permissions') });
-    if (info.auth) throw new GitHubError(res.status, friendlyMessage(res.status, msg, info), msg, info);
-    throw new Error(res.status === 403 || res.status === 404 ? `GitHub refused it (${res.status}): your token needs write access to this repository.` : msg);
-  }
-  return (await res.json()) as T;
+/** The component's open docs proposal, or null (also when GitHub cannot be read: the editor then starts from main). */
+export async function findOpenDocs(component: string, slug: string): Promise<OpenDocsProposal | null> {
+  const r = readRepo();
+  return findOpenDocsProposalOnGitHub(studioClient(`${r.owner}/${r.repo}`, getToken()), { name: component, slug }, r.defaultBranch).catch(() => null);
 }
 
-const b64 = (s: string) => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
-const unb64 = (s: string) => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\n/g, '')), (c) => c.charCodeAt(0)));
+/** What a docs send made: a pull request (direct mode), or a suggestion and its link (suggest mode). */
+export type SentDocs = { kind: 'branch'; number: number; continued: boolean; unchanged: boolean } | { kind: 'suggestion'; number: number; url: string; continued: false; unchanged: false };
 
-/** Opens one pull request with the docs edits. Returns its number. */
-export async function proposeDocs(edits: DocsEdit[], title = '', notes = '', jira: string | null = null): Promise<number> {
+/**
+ * Direct mode: opens one pull request with the docs edits, or adds them to the component's open one. Suggest mode:
+ * files them as one suggestion (no branch), with the mode passed to core explicitly (core defaults to direct).
+ */
+export async function proposeDocs(edits: DocsEdit[], title = '', notes = '', jira: string | null = null, authorLine?: string): Promise<SentDocs> {
   const { gh, repo } = client();
-  const p = docsProposal(edits, { title, notes, date: new Date() });
-  // The Jira key goes first in the title and the branch name, so Jira's GitHub integration links them.
-  const prTitle = titleWithJiraKey(p.title, jira);
-  const branch = branchWithJiraKey(p.branch, jira);
-  const mainSha = await gh.getBranchSha(repo.defaultBranch);
-  if (!mainSha) throw new Error(`Branch ${repo.defaultBranch} not found.`);
-  const tree = await gh.createTree(await gh.getCommitTree(mainSha), p.files.map((f) => ({ path: f.path, content: f.content })));
-  const commit = await gh.createCommit(`${prTitle}\n\nProposed with the Bridge docs editor.`, tree, [mainSha]);
-  await gh.createBranch(branch, commit);
-  const pr = await gh.createPullRequest({ title: prTitle, head: branch, base: repo.defaultBranch, body: p.body, draft: false });
-  await gh.addLabels(pr.number, p.labels).catch(() => false);
-  return pr.number;
+  const mode = changesModeOnPage();
+  if (mode === 'suggest') {
+    const r = await proposeDocsOnGitHub(gh, edits, { base: repo.defaultBranch, title, notes, jira, authorLine, mode, source: 'studio', suggestedBy: currentViewer()?.login });
+    if (r.status === 'suggested') return { kind: 'suggestion', number: r.number, url: r.url, continued: false, unchanged: false };
+    throw new Error('Bridge started a change in suggest mode. Tell your DS lead.');
+  }
+  const r = await proposeDocsOnGitHub(gh, edits, { base: repo.defaultBranch, title, notes, jira, authorLine, mode });
+  return { kind: 'branch', number: r.number, continued: r.continued, unchanged: r.unchanged };
 }
 
-/** Reads a file on a branch with its blob sha (needed to update it). */
-async function readOnBranch(token: string, owner: string, name: string, path: string, branch: string) {
-  const r = await api<{ sha: string; content: string }>(token, 'GET', `/repos/${owner}/${name}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(branch)}`);
-  return { sha: r.sha, text: unb64(r.content) };
-}
-
-async function writeOnBranch(path: string, branch: string, message: string, next: (text: string) => string): Promise<string> {
-  const { token, repo } = client();
-  const cur = await readOnBranch(token, repo.owner, repo.repo, path, branch);
-  const content = next(cur.text);
-  if (content === cur.text) return '';
-  const r = await api<{ commit: { sha: string } }>(token, 'PUT', `/repos/${repo.owner}/${repo.repo}/contents/${path.split('/').map(encodeURIComponent).join('/')}`, {
-    message,
-    content: b64(content),
-    branch,
-    sha: cur.sha,
-  });
-  return r.commit.sha;
-}
+/** Adds the edited docs.json to the open proposal (one commit) and brings its author line up to date. */
+export const continueDocs = (open: { number: number; branch: string }, path: string, component: string, text: string, authorLine: string) => {
+  assertBranchWrites('add to open proposals', 'Send your edits as a suggestion instead.');
+  return continueDocsProposalOnGitHub(client().gh, open, { path, component, after: text }, { authorLine });
+};
 
 /** Commits an edited docs.json to an open pull request's branch. */
-export const commitDocsToBranch = (path: string, branch: string, component: string, text: string) =>
-  writeOnBranch(path, branch, `docs(${component.toLowerCase()}): edit usage guidance in the Bridge docs editor`, () => text);
+export const commitDocsToBranch = (path: string, branch: string, component: string, text: string) => {
+  assertBranchWrites('save changes', 'Send your edits as a suggestion instead.');
+  return commitFileOnGitHub(client().gh, { path, branch, message: `docs(${component.toLowerCase()}): edit usage guidance in the Bridge docs editor`, next: () => text });
+};
 
 /** Accepts the Claude draft of a docs.json on a pull request's branch: needsReview becomes false, in one commit. */
-export const acceptDocsOnBranch = (path: string, branch: string, component: string) =>
-  writeOnBranch(path, branch, `docs(${component.toLowerCase()}): accept the Claude draft after review`, acceptDocsText);
+export const acceptDocsOnBranch = (path: string, branch: string, component: string) => {
+  assertBranchWrites('save changes', 'Accept the draft in the editor, then send it as a suggestion.');
+  return commitFileOnGitHub(client().gh, { path, branch, message: `docs(${component.toLowerCase()}): accept the Claude draft after review`, next: acceptDocsText });
+};

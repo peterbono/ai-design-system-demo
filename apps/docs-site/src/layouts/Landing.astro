@@ -1,0 +1,71 @@
+---
+// The product pages outside the Library and the Studio: the homepage ("/"), About, the docs ("/docs/*", through
+// layouts/Docs.astro) and the comparison ("/compare/"). One light header (components/site/SiteHeader.astro: Product,
+// Resources, About, Sign in) and footer; no side nav, no search. Same tokens, fonts and theme memory as the app
+// (localStorage ds-theme, else the system setting), so a visitor keeps their theme when they move on to the app.
+import '@bridge-ds/tokens/fonts.css';
+import '@bridge-ds/tokens/tokens.css';
+import '../styles/site.css';
+import '../styles/brand.css';
+import '../styles/site-nav.css';
+import '../styles/landing.css';
+import { Link } from '@bridge-ds/react';
+import SiteHeader from '../components/site/SiteHeader.astro';
+import SiteFooter from '../components/site/SiteFooter.astro';
+
+interface Props {
+  /** The full document title. */
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : undefined;
+const path = Astro.url.pathname.replace(/\/?$/, '/');
+---
+
+<!doctype html>
+<html lang="en" data-theme="light" data-brand="bridge" data-density="comfortable" data-space="landing">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="author" content="Florian Gouloubi" />
+    {canonical && <link rel="canonical" href={canonical} />}
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Bridge" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    {canonical && <meta property="og:url" content={canonical} />}
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b1825" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
+    <script is:inline>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('ds-theme'); } catch (e) {}
+        if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', t);
+      })();
+    </script>
+  </head>
+  <body class="lp-body">
+    <Link variant="subtle" className="skip" href="#main">Skip to content</Link>
+    <SiteHeader path={path} />
+
+    <main id="main" tabindex="-1" class="lp-main">
+      <slot />
+    </main>
+
+    <SiteFooter path={path} />
+    <script>
+      import { initSiteNav } from '../scripts/site-nav';
+      initSiteNav();
+    </script>
+  </body>
+</html>

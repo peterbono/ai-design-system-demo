@@ -1,0 +1,80 @@
+/* Team pages (components/ds/studio/TeamState.tsx and the team islands): the source line under the title and
+   the error state (the progress of a read: load-progress.css). Everything else reuses the self-hosted page's own styles. */
+
+.tp-source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  overflow-wrap: anywhere;
+}
+
+.tp-error {
+  max-width: var(--studio-page-max);
+}
+
+/* A team page: the title, then the source line close under it (the shell's own gap is for the empty state). */
+.ts:has(.tp-source) {
+  gap: var(--space-5);
+}
+
+/* A section that has nothing to show yet and says how to fill it: calm, start-aligned, inside the page width. */
+.tp-locked {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border: var(--border-width-default) dashed var(--color-border-default);
+  border-radius: var(--radius-container);
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.tp-locked p {
+  margin: 0;
+}
+
+.tp-locked strong {
+  color: var(--color-text-default);
+  font-weight: var(--typography-body-weight);
+}
+
+/* Team Home: the source line sits above the greeting zone, in the page width. */
+.sh-team-source {
+  max-width: var(--studio-page-max);
+  margin-block-end: var(--space-3);
+}
+
+.sh-team-source:empty {
+  display: none;
+}
+
+/* Team Home: the design system read (progress, or why it failed) under the home, in the page width. */
+.sh-team-ds {
+  max-width: var(--studio-page-max);
+  margin-block-start: var(--space-6);
+}
+
+.sh-team-ds:empty {
+  display: none;
+}
+
+/* Team Tokens: the explorer stays out of the page until the team's tokens are in (its grid display would show it). */
+[data-hosted-explorer][hidden] {
+  display: none;
+}
+
+.xp-team-wrap {
+  display: grid;
+  gap: var(--space-5);
+  max-width: var(--studio-page-max);
+}
+
+/* Team Branches: a branch or a suggestion opened in place has its own title and way back (scripts/team-branches.ts). */
+.ts > .st-head[hidden] {
+  display: none;
+}

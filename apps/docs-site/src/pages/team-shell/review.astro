@@ -1,0 +1,52 @@
+---
+// Team shell of Studio Review (lib/team-shells.ts): served for /studio/<owner>/<repo>/review/ by the vercel.json
+// rewrite. The self-hosted review queue (pages/studio/review.astro, scripts/review-queue-page.ts) for the team: its
+// branches and suggestions that wait on you, each reviewed in place. The repo facts the self-hosted page embeds at build
+// time (contrast failures, guidance drafts, the branches config) come from the team's repo model, read in the browser
+// by scripts/team-review.ts before the queue starts.
+import '../../styles/reviews.css';
+import '../../styles/branch-review.css';
+import '../../styles/product-branch.css';
+import '../../styles/motion-changes.css';
+import '../../styles/history.css';
+import '../../styles/changes.css';
+import '../../styles/studio-home.css';
+import '../../styles/branch-thumb.css';
+import '../../styles/review-queue.css';
+import '../../styles/suggestion-review.css';
+import '../../styles/load-progress.css';
+import TeamShell from '../../components/TeamShell.astro';
+import PromoteToReview from '../../components/ds/studio/PromoteToReview';
+import RequestDecide from '../../components/ds/studio/RequestDecide';
+import { Skeleton } from '@bridge-ds/react';
+import OverrideDialog from '../../components/OverrideDialog.astro';
+---
+
+<TeamShell route="review/" title="Review" what="reviews waiting on you" description="The reviews waiting on you, for this team's design system.">
+  <div class="lp-wait" data-tr-state aria-busy="true" aria-label="Reading this team's reviews"></div>
+  <div class="rv rq" data-review-queue hidden>
+    <p class="rv-notice" id="rv-notice" role="status" hidden></p>
+    <div class="rq-layout" data-rq-layout>
+      <div class="rq-side" data-rq-side>
+        <Skeleton variant="rect" className="sh-skel" />
+      </div>
+      <div class="rq-pick" data-rq-pick></div>
+      <section class="rq-main" aria-label="Selected item">
+        <div class="rq-card" data-rq-card></div>
+        <div class="rq-sg" data-rq-sg hidden></div>
+        <div id="rv-detail" class="rv-detail rq-detail" hidden></div>
+        <div class="rq-foot" data-rq-foot hidden></div>
+      </section>
+    </div>
+    <div class="rq-empty" data-rq-empty hidden></div>
+    <div data-rq-toasts></div>
+  </div>
+
+  <OverrideDialog />
+  <PromoteToReview client:only="react" />
+  <RequestDecide client:only="react" />
+  <script>
+    import { initTeamReview } from '../../scripts/team-review';
+    void initTeamReview();
+  </script>
+</TeamShell>

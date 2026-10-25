@@ -147,7 +147,7 @@ export function checkStory(input: {
     designLine = {
       state: 'fail',
       text: visual
-        ? 'The before and after could not be captured. Run the visual check again on GitHub.'
+        ? 'The before and after could not be captured. A developer can run it again.'
         : `${designChecks.map((c) => c.name).join(' and ')} ${designChecks.length === 1 ? 'fails' : 'fail'} on a design rule. Open it on GitHub to see what it found.`,
     };
   } else if (design) {
@@ -190,17 +190,25 @@ export function failingSentence(input: {
   viewerApprovesDesign: boolean;
   /** Approvals are still missing. */
   approvalsMissing: boolean;
+  /** A designer reads who acts on failing developer checks, never which tests fail. */
+  forDesigner?: boolean;
 }): { sentence: string; yourTurn: boolean } {
   const { story } = input;
   if (story.designFails) {
     return input.viewerIsAuthor
-      ? { sentence: 'Your turn: a design rule fails. Fix it before this can merge.', yourTurn: true }
+      ? { sentence: 'Your turn: a design rule fails. Fix it before this can go into the library.', yourTurn: true }
       : { sentence: `Waiting for @${input.author} to fix a design rule.`, yourTurn: false };
   }
   const tests = plural(story.developerFailing, 'test');
   const fix = story.oldValue ? 'update' : 'fix';
   const designPasses = story.design?.state === 'pass';
-  if (input.viewerApprovesDesign) return { sentence: `Your turn: approve the design. Merging waits for a developer to ${fix} ${tests}.`, yourTurn: true };
+  if (input.forDesigner) {
+    if (input.viewerApprovesDesign) return { sentence: 'Your turn: approve the design. A developer is on the code checks meanwhile.', yourTurn: true };
+    const after = input.viewerIsAuthor && input.approvalsMissing ? ' Approvals come next.' : '';
+    const mine = designPasses ? (input.viewerIsAuthor ? ' Your design is not the problem.' : ' The design checks pass.') : '';
+    return { sentence: `A developer is on the code checks.${mine}${after}`, yourTurn: false };
+  }
+  if (input.viewerApprovesDesign) return { sentence: `Your turn: approve the design. Adding it to the library waits for a developer to ${fix} ${tests}.`, yourTurn: true };
   if (input.viewerIsAuthor)
     return {
       sentence: `Waiting for a developer to ${fix} ${tests}${input.approvalsMissing ? ', and for approvals' : ''}.${designPasses ? ' Your design is not the problem.' : ''}`,
@@ -245,7 +253,7 @@ export function approvalHelp(input: {
   }
   const roles = input.waiting.length > 1 ? 'owner' : ROLE[input.waiting[0]!];
   const ask = others.length ? `Ask another ${roles}` : `No one else is ${/^[aeiou]/.test(roles) ? 'an' : 'a'} ${roles} yet: add one in Settings and ask them`;
-  const override = input.viewerHoldsOverride ? (input.testsPass ? ', or merge it yourself with the owner override' : ', or merge it yourself with the owner override once tests pass') : '';
+  const override = input.viewerHoldsOverride ? (input.testsPass ? ', or add it to the library yourself with the owner override' : ', or add it to the library yourself with the owner override once tests pass') : '';
   return { rowText, why: `You made this ${VOCAB.branch}, and GitHub does not let authors approve their own. ${ask}${override}.`, others };
 }
 
@@ -267,5 +275,5 @@ export function shipWhen(s: { draft?: boolean; ciFail?: boolean; ciPending?: boo
   ].filter(Boolean);
   if (!parts.length) return null;
   const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
-  return `Merge unlocks once ${list}.`;
+  return `Adding to the library unlocks once ${list}.`;
 }

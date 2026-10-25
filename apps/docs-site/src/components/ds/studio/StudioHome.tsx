@@ -2,29 +2,36 @@
 //   - The Harbor zone: the greeting, who waits on the viewer and for how long, the Needs you rows (one row component,
 //     the whole row is the link), the grouped row with the one primary action "Review all", and a tertiary hint.
 //   - One muted health line under the zone.
-//   - Your branches: open branches as cards, a status filter, "Create branch" as the last card, and one muted line
-//     for what was published this week.
+//   - Your branches: open branches as cards, a status filter, "Create branch" as the first card.
 //   - Nothing at all: three ways to start, each with its drawing.
+//   - Someone without a review right (`contributor`): only what waits on them (their branches sent back with changes),
+//     never the review queue, and on the first visit a two-step tour of their branches and how to start (HomeTour.tsx).
 // NeedList is shared with the review queue (pages/studio/review.astro), so a row reads the same in both places.
+// Admins also get join requests (board E7b, scripts/team-home.ts): one row per person, Decline and Approve inline while
+// 3 things or fewer wait; more than that, it folds into "N more" like any row and Review all leads there.
 import { createRoot, type Root } from 'react-dom/client';
-import { useState, type MouseEvent } from 'react';
+import { useState, type ReactNode } from 'react';
 import { CircleAlert, CircleCheck } from 'lucide-react';
-import { Avatar, AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, SegmentedControl, Skeleton } from '@bridge-ds/react';
+import { Who } from './faces';
+import { Alert, AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, SegmentedControl, Skeleton, ToastProvider } from '@bridge-ds/react';
 import { BranchThumb } from './BranchThumb';
-import { BranchRow } from './BranchRow';
 import { Drawing } from './Drawing';
 import StartChange from './StartChange';
+import { BuildLine } from './BuildLine';
 import ButtonLink from '../ButtonLink';
 import {
   AVATARS_SHOWN,
+  contributorTourSteps,
+  contributorTour,
+  type ContributorTourAt,
   BRANCH_FILTERS,
   branchStatus,
+  SEP,
   hintSnoozed,
   oldestLabel,
   onlyReviewerLine,
   showsBranch,
   sortBranches,
-  rowAction,
   splitNeeds,
   uniquePeople,
   waitingSentence,
@@ -33,77 +40,56 @@ import {
   type HomeState,
   type NeedRow,
   type Person,
-  type Published,
 } from '../../../lib/home-model';
 import { VOCAB } from '../../../lib/vocabulary';
+import { studioHref } from '../../../lib/team-path';
+import { demoTour, demoWaiting, tourSteps, type TourAt } from '../../../lib/demo';
+import { useNarrow, useTour } from './HomeTour';
 
-function Who({ p, size = 'md' }: { p: Person; size?: 'xs' | 'sm' | 'md' }) {
-  return <Avatar name={p.name} src={p.avatar ?? undefined} size={size} decorative />;
-}
+// The rows of the queue (NeedList) and Approve and Decline on a join request live in NeedRows.tsx, shared with
+// Settings > Members and the home of a team with no design system yet (JoinRequests.tsx).
+export { NeedList, NeedRowItem, type JoinHandlers, type JoinOutcome } from './NeedRows';
+import { NeedList, type JoinHandlers } from './NeedRows';
 
-/** One Needs you row: before/after, who, what and why, the status on the right (the shared BranchRow). */
-export function NeedRowItem({ row, selected, onSelect, action }: { row: NeedRow; selected?: boolean; onSelect?: (row: NeedRow) => void; action?: 'primary' | 'secondary' }) {
-  const click = onSelect
-    ? (e: MouseEvent<HTMLAnchorElement>) => {
-        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-        e.preventDefault();
-        onSelect(row);
-      }
-    : undefined;
-  return (
-    <BranchRow
-      thumb={row.thumb}
-      who={row.person ? <Who p={row.person} /> : <Icon icon={row.pill?.tone === 'danger' ? CircleAlert : CircleCheck} size="md" />}
-      title={row.title}
-      href={row.href}
-      onClick={click}
-      selected={selected}
-      line={row.line}
-      pill={row.pill}
-      end={
-        action && (
-          <ButtonLink variant={action} href={row.href} className="sh-row-action" tabIndex={-1} aria-hidden="true">
-            {rowAction(row.kind)}
-          </ButtonLink>
-        )
-      }
-    />
-  );
-}
 
-export function NeedList({ rows, selectedKey, onSelect, label = 'Needs you', action }: { rows: NeedRow[]; selectedKey?: string | null; onSelect?: (row: NeedRow) => void; label?: string; action?: 'primary' | 'secondary' }) {
-  return (
-    <ul className="sh-rows" aria-label={label}>
-      {rows.map((r) => (
-        <NeedRowItem key={r.key} row={r} selected={selectedKey === r.key} onSelect={onSelect} action={action} />
-      ))}
-    </ul>
-  );
-}
-
-/** "Ann, Dana, Claude AI and 6 others are waiting on you." with their avatars and the oldest wait. */
-function Waiting({ needs, now }: { needs: NeedRow[]; now: number }) {
-  const people = uniquePeople(needs.filter((r) => r.waitsOnYou).map((r) => r.person));
+/**
+ * "Ann, Dana, Claude AI and 6 others are waiting on you." with their avatars and the oldest wait. On the demo (`lead`),
+ * the visitor sits in the lead's seat: "8 changes need your review. Ann and Claude AI are waiting on Dana, who leads
+ * this design system." (lib/demo.ts demoWaiting), the lead left out of the people.
+ */
+function Waiting({ needs, now, lead }: { needs: NeedRow[]; now: number; lead?: Person | null }) {
+  const people = uniquePeople(needs.filter((r) => r.waitsOnYou).map((r) => r.person)).filter((p) => !lead || p.agent || p.login.toLowerCase() !== lead.login.toLowerCase());
   const s = waitingSentence(people);
   const oldest = oldestLabel(needs, now);
-  if (!s) return null;
+  const demo = lead !== undefined ? demoWaiting(needs.filter((r) => r.kind === 'review').length, s, lead?.name ?? null, needs.filter((r) => r.kind === 'guidance').length) : null;
+  if (!s && !demo) return null;
+  // A div, not a p: the avatar group is a block (a div inside a p is invalid HTML).
   return (
-    <p className="t-body sh-waiting">
-      <AvatarGroup aria-label="Waiting on you" max={AVATARS_SHOWN} size="md" className="sh-stack">
-        {people.map((p) => (
-          <Avatar key={p.agent ? '#agent' : p.login} name={p.name} src={p.avatar ?? undefined} />
-        ))}
-      </AvatarGroup>
-      <span>
-        <b className="sh-strong">{s.names}</b>
-        {s.rest}
-      </span>
+    <div className="t-body sh-waiting">
+      {people.length > 0 && (
+        <AvatarGroup aria-label={lead === null ? 'Waiting for review' : 'Waiting on you'} max={AVATARS_SHOWN} size="md" className="sh-stack">
+          {people.map((p) => (
+            <Who key={p.agent ? '#agent' : p.login} p={p} name={p.name} decorative={false} />
+          ))}
+        </AvatarGroup>
+      )}
+      {demo ? (
+        <span>
+          <b className="sh-strong">{demo.count}</b>
+          {demo.rest}
+        </span>
+      ) : (
+        <span>
+          <b className="sh-strong">{s!.names}</b>
+          {s!.rest}
+        </span>
+      )}
       {oldest && (
-        <Badge tone="warning" size="md">
+        <Badge tone="warning" size="md" className="sh-oldest">
           {oldest}
         </Badge>
       )}
-    </p>
+    </div>
   );
 }
 
@@ -133,7 +119,7 @@ function OnlyReviewerHint({ needs, snoozed }: { needs: NeedRow[]; snoozed: boole
   return (
     <p className="t-ui t-muted sh-hint">
       <span>{line.text}</span>
-      <Link href="/studio/settings/#roles">Add a reviewer</Link>
+      <Link href={studioHref('settings/#roles')}>Add a reviewer</Link>
       <Button variant="ghost" size="sm" onClick={notNow}>
         Not now
       </Button>
@@ -141,46 +127,65 @@ function OnlyReviewerHint({ needs, snoozed }: { needs: NeedRow[]; snoozed: boole
   );
 }
 
-function Needs({ needs, now, snoozed }: { needs: NeedRow[]; now: number; snoozed: boolean }) {
+function Needs({ needs, now, snoozed, demo, tour, join }: { needs: NeedRow[]; now: number; snoozed: boolean; demo?: boolean; tour?: StudioHomeProps['tour']; join?: JoinHandlers }) {
   const { shown, more } = splitNeeds(needs);
+  // On a phone the rows can fill the first screen: the first step sits above them, in view where the page opens (a
+  // card in the flow, HomeTour.tsx). On a wide screen it floats under the rows it talks about.
+  const narrow = useNarrow();
   return (
     <>
-      {/* One item: its button is the page's primary. Two or three: secondary buttons. More: no row buttons, "Review all" acts. */}
-      <NeedList rows={shown} action={more ? undefined : shown.length === 1 ? 'primary' : 'secondary'} />
+      {narrow && tour?.('rows')}
+      {/* One item: its button is the page's primary. Two or three: secondary buttons. More: no row buttons, each row is
+          its own link and "Review all" acts, the demo included. */}
+      <NeedList rows={shown} compact action={more ? undefined : shown.length === 1 ? 'primary' : 'secondary'} join={join} />
+      {!narrow && tour?.('rows')}
       {more && (
         <div className="sh-more">
           <p className="t-body sh-more-text">
             <b className="sh-strong">{more.label}</b>
-            {more.parts && <span className="t-muted"> · {more.parts}</span>}
+            {more.parts && (
+              <span className="t-muted">
+                {SEP}
+                {more.parts}
+              </span>
+            )}
           </p>
-          <ButtonLink variant="primary" href="/studio/review/" className="sh-more-btn">
+          {/* Always the Review page: the one queue, the same rows as this list (the demo lead's included). */}
+          <ButtonLink variant="primary" href={studioHref('review/')} className="sh-more-btn">
             Review all
           </ButtonLink>
         </div>
       )}
-      <OnlyReviewerHint needs={needs} snoozed={snoozed} />
+      {more && tour?.('more')}
+      {!demo && <OnlyReviewerHint needs={needs} snoozed={snoozed} />}
     </>
   );
 }
 
 function BranchCardItem({ b, now }: { b: BranchCard; now: number }) {
-  const s = branchStatus(b, now);
+  const s = b.statusLine ?? branchStatus(b, now);
   return (
     <li className="sh-card-item">
       <Card interactive padding="none" className="sh-card">
         <BranchThumb spec={b.thumb} size="card" />
         <div className="sh-card-body">
-          <Link href={b.href} variant="subtle" className="t-body sh-card-title" data-card-primary>
-            <span className="sh-strong">{b.title}</span>
-          </Link>
+          <span className="sh-card-head">
+            <Link href={b.href} variant="subtle" className="t-body sh-card-title" data-card-primary>
+              <span className="sh-strong">{b.title}</span>
+            </Link>
+          </span>
           <span className="t-ui t-muted sh-card-status">
-            <span className="sh-card-stage">{s.stage}</span> ·{' '}
-            {b.stage === 'ready' && b.reviewer ? (
+            {/* Each part is its own wrapping item and the dot rides with the stage: a wrap never starts a line on it. */}
+            <span>
+              <span className="sh-card-stage">{s.stage}</span>
+              {s.detail && SEP.trimEnd()}
+            </span>
+            {b.stage === 'ready' && b.reviewer && !b.status && !b.statusLine ? (
               <>
-                <Who p={b.reviewer} size="xs" /> {s.detail}
+                <Who p={b.reviewer} size="xs" /> <span>{s.detail}</span>
               </>
             ) : (
-              s.detail
+              s.detail && <span>{s.detail}</span>
             )}
           </span>
         </div>
@@ -195,34 +200,60 @@ export interface HomeComponent {
   family?: string;
 }
 
-function Branches({ branches, published, now, components }: { branches: BranchCard[]; published: Published[]; now: number; components: HomeComponent[] }) {
+function Branches({
+  branches,
+  now,
+  components,
+  title = `Your ${VOCAB.branches}`,
+  sub = 'Your changes, kept apart from the library until your team approves them.',
+  create = true,
+  max,
+  tour,
+}: {
+  branches: BranchCard[];
+  now: number;
+  components: HomeComponent[];
+  title?: string;
+  sub?: string | null;
+  create?: boolean;
+  /** Show the first `max` only, with "See all N" by the title (the demo, board D1: one row of cards). */
+  max?: number;
+  tour?: StudioHomeProps['tour'];
+}) {
   const [filter, setFilter] = useState<BranchFilter>('all');
-  const shown = sortBranches(branches).filter((b) => showsBranch(filter, b.stage));
-  const latest = published[0];
+  const narrow = useNarrow();
+  const sorted = sortBranches(branches).filter((b) => showsBranch(filter, b.stage));
+  const shown = max ? sorted.slice(0, max) : sorted;
   return (
     <section className="sh-section" aria-labelledby="sh-branches">
       <header className="sh-section-head">
-        <h2 id="sh-branches" className="sh-h2">
-          Your {VOCAB.branches}
-        </h2>
-        {branches.length >= 4 && <SegmentedControl label={`Show ${VOCAB.branches}`} size="sm" value={filter} onValueChange={(v) => setFilter(v as BranchFilter)} items={BRANCH_FILTERS} />}
+        <div className="sh-section-title">
+          <h2 id="sh-branches" className="sh-h2">
+            {title}
+          </h2>
+          {sub && <p className="t-body t-muted sh-section-sub">{sub}</p>}
+        </div>
+        {max ? (
+          branches.length > max && <Link href={studioHref('changes/')}>See all {branches.length}</Link>
+        ) : branches.length >= 4 && <SegmentedControl label={`Show ${VOCAB.branches}`} size="md" value={filter} onValueChange={(v) => setFilter(v as BranchFilter)} items={BRANCH_FILTERS} />}
       </header>
-      <div className="sh-pick" data-pick-slot hidden />
+      {/* On a phone the step is a card in the flow, before the cards; on a wide screen it floats under them, so it never
+          covers the first card ("Start a change"). */}
+      {narrow && tour?.('branches')}
       <ul className="sh-cards">
-        {/* Create first, like "+ New" in Figma's file browser: the slot never moves as branches come and go. */}
-        <li className="sh-card-item sh-create">
-          <StartChange components={components} appearance="card" />
-        </li>
+        {/* Create first, like "+ New" in Figma's file browser: the slot never moves as branches come and go. On the demo
+            too: its button carries data-demo-write, so a visitor gets the demo's sign-in dialog (scripts/demo-gate.ts). */}
+        {create && (
+          <li className="sh-card-item sh-create">
+            <StartChange components={components} appearance="card" />
+          </li>
+        )}
         {shown.map((b) => (
           <BranchCardItem key={b.number} b={b} now={now} />
         ))}
       </ul>
-      {latest && (
-        <p className="t-ui t-muted sh-published">
-          Published this week: <b className="sh-strong">{latest.title}</b> in <code className="sh-mono">{latest.release}</code>.{' '}
-          <Link href="/changelog/">See what shipped</Link>
-        </p>
-      )}
+      {!narrow && tour?.('branches')}
+      {create && tour?.('start')}
     </section>
   );
 }
@@ -246,8 +277,8 @@ function Health({ h }: { h: HealthLine }) {
 }
 
 const CHOICES = [
-  { drawing: 'tokens', title: 'Edit tokens', line: 'A colour, a spacing, a radius. See every place it shows before you send it.', key: 'tokens' },
-  { drawing: 'components', title: 'Ask for a component change', line: 'Describe what is missing or wrong. Claude builds it, the owner decides.', key: 'component' },
+  { drawing: 'tokens', title: 'Edit tokens', line: 'A color, a spacing, a radius. See every place it shows before you send it.', key: 'tokens' },
+  { drawing: 'components', title: 'Ask for a component change', line: 'Describe what is missing or wrong. A developer builds it with Claude, the owner decides.', key: 'component' },
   { drawing: 'guide', title: 'Write usage guidance', line: 'When to use a component, and when not to.', key: 'guidance' },
 ] as const;
 
@@ -273,11 +304,14 @@ function Start({ hrefs }: { hrefs: Record<(typeof CHOICES)[number]['key'], strin
 
 export interface StudioHomeProps {
   state: HomeState;
+  /** Once, right after Entry opened a team the person just joined: "You joined Acme Design." */
+  note?: string | null;
   greeting: string;
   needs: NeedRow[];
   branches: BranchCard[];
-  published: Published[];
   health: HealthLine | null;
+  /** Show the calm Being built line under the zone (BuildLine): what developers build from Figma, never a Needs you row. */
+  building?: boolean;
   now: number;
   components: HomeComponent[];
   /** Signed out: the line and the button label (Sign in with GitHub, or Connect GitHub). */
@@ -285,14 +319,79 @@ export interface StudioHomeProps {
   /** GitHub could not be read. */
   failed: string | null;
   startHrefs: Record<'tokens' | 'component' | 'guidance', string>;
+  /** Signed in with setup steps left: "4 of 6 connected" and its checklist (Onboarding.tsx), by the greeting. */
+  setup?: ReactNode;
+  /**
+   * The demo for a visitor (DemoHome.tsx, boards D1 and D1b): the same home from the DS lead's seat. `lead` names
+   * them in the waiting line; each row keeps its Review button; "Review all" opens the Review page; the team's branches under their own
+   * title, without Create branch. Always the busy layout.
+   */
+  demo?: { lead: Person | null; branchesTitle: string; branchesMax: number };
+  /** The demo tour's popovers, anchored where each step points: under the rows, the grouped row, the branches. */
+  tour?: (at: HomeTourAt) => ReactNode;
+  /**
+   * The viewer holds no review right (an email contributor, or a member no owner list names): the needs are only
+   * their branches sent back with changes, and the contributor tour runs on the first visit.
+   */
+  contributor?: boolean;
+  /**
+   * A lead of the team: a reviewer, or an admin (an email admin included, who manages without GitHub). They get the
+   * lead tour on the first visit (the rows that wait on the lead, the whole queue, the branches), never the
+   * contributor's.
+   */
+  lead?: boolean;
+  /** Admins: Approve and Decline on join requests (board E7b). */
+  join?: JoinHandlers;
 }
+
+/** Where a tour step can point: the demo's (lib/demo TourAt) and the contributor's ("start", the ways to start). */
+export type HomeTourAt = TourAt | ContributorTourAt;
+
+const CONTRIBUTOR_TOUR_KEY = 'bridge.home.contributor-tour';
+const LEAD_TOUR_KEY = 'bridge.home.lead-tour';
 
 /** The review drawing without its empty sky: the scene only, so it never makes the greeting taller than its text. */
 const REVIEW_CROP = '0 98 232 86';
 
+/** "You joined Acme Design.": said once, dismissible. */
+function JoinedNote({ text }: { text: string }) {
+  const [open, setOpen] = useState(true);
+  if (!open) return null;
+  return (
+    <Alert tone="success" className="sh-note" onDismiss={() => setOpen(false)}>
+      {text}
+    </Alert>
+  );
+}
+
 export function StudioHome(p: StudioHomeProps) {
+  // The toasts of the home: a join request approved or declined, with Undo.
+  return (
+    <ToastProvider limit={2}>
+      <HomeBody {...p} />
+    </ToastProvider>
+  );
+}
+
+function HomeBody(p: StudioHomeProps) {
   const snoozed = hintSnoozed(readSnooze(), p.now);
-  if (p.state === 'signed-out') {
+  const own = useTour<ContributorTourAt>(CONTRIBUTOR_TOUR_KEY, contributorTourSteps(p.state === 'empty'), contributorTour, Boolean(p.contributor) && !p.demo && (p.state === 'busy' || p.state === 'empty'));
+  // The lead's tour speaks of changes: rows that are only join requests (or a health note) are not what it shows. Its
+  // first step points at the rows on screen, so it runs only when they hold a change; changes folded under "N more"
+  // get the Review all step alone.
+  const isChange = (r: NeedRow) => r.kind === 'review' || r.kind === 'guidance';
+  const changeRows = p.needs.some(isChange);
+  const split = splitNeeds(p.needs);
+  const leadSteps = tourSteps({ rows: split.shown.some(isChange), more: changeRows && Boolean(split.more), branches: p.branches.length > 0 });
+  const lead = useTour<TourAt>(LEAD_TOUR_KEY, leadSteps, (at) => demoTour(at), Boolean(p.lead) && !p.contributor && !p.demo && p.state === 'busy' && leadSteps.length > 0);
+  const tour: StudioHomeProps['tour'] =
+    p.tour ??
+    (p.contributor
+      ? (at) => (at === 'branches' || at === 'start' ? own(at) : null)
+      : p.lead && !p.demo
+        ? (at) => (at === 'rows' || at === 'more' || at === 'branches' ? lead(at) : null)
+        : undefined);
+  if (p.state === 'signed-out' && !p.demo) {
     return (
       <div className="sh">
         <section className="zone sh-zone" aria-labelledby="sh-hello">
@@ -314,51 +413,65 @@ export function StudioHome(p: StudioHomeProps) {
       </div>
     );
   }
-  if (p.state === 'empty') {
+  const note = p.note ? <JoinedNote text={p.note} /> : null;
+  if (p.state === 'empty' && !p.demo) {
     return (
       <div className="sh">
+        {note}
         <section className="zone sh-zone sh-zone-empty" aria-labelledby="sh-hello">
           <div className="sh-head-text">
+            {p.setup && <div className="sh-setup">{p.setup}</div>}
             <p className="t-body">
-              {p.greeting} Nothing needs you{p.failed ? '' : ', and you have no branch in progress'}.
+              {p.greeting} Nothing needs you{p.failed ? '' : ', and you have no change in progress'}.
             </p>
             <h1 id="sh-hello" className="sh-hello">
               What do you want to change?
             </h1>
           </div>
+          {tour?.('branches')}
           <Start hrefs={p.startHrefs} />
+          {tour?.('start')}
         </section>
         {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}
         {p.health && <Health h={p.health} />}
+        {p.building && <BuildLine />}
       </div>
     );
   }
   const loading = p.state === 'loading';
   return (
     <div className="sh">
+      {note}
       <section className="zone sh-zone" aria-labelledby="sh-hello" aria-busy={loading || undefined}>
         <div className="sh-head">
           <div className="sh-head-text">
-            <h1 id="sh-hello" className="sh-hello">
-              {p.greeting}
-            </h1>
-            {loading ? <p className="t-body">Checking what needs you.</p> : p.needs.some((r) => r.waitsOnYou) ? <Waiting needs={p.needs} now={p.now} /> : <p className="t-body">{p.needs.length ? 'Your branches need you.' : 'Nothing needs you.'}</p>}
+            <div className="sh-hello-row">
+              <h1 id="sh-hello" className="sh-hello">
+                {p.greeting}
+              </h1>
+              {p.setup && <div className="sh-setup">{p.setup}</div>}
+            </div>
+            {loading ? <p className="t-body">Checking what needs you.</p> : p.needs.some((r) => r.waitsOnYou) ? <Waiting needs={p.needs} now={p.now} lead={p.demo ? p.demo.lead : undefined} /> : <p className="t-body">{p.needs.length ? 'Your changes need you.' : 'Nothing needs you.'}</p>}
           </div>
-          <Drawing name="review" width={220} crop={REVIEW_CROP} className="sh-art" />
         </div>
         {loading ? (
-          <ul className="sh-rows" aria-hidden="true">
-            <li className="sh-row-item">
-              <Skeleton variant="rect" className="sh-skel" />
-            </li>
-          </ul>
+          <>
+            {/* Join requests come from Bridge, not GitHub: they show while the rest still loads. */}
+            {p.needs.some((r) => r.kind === 'join') && <Needs needs={p.needs.filter((r) => r.kind === 'join')} now={p.now} snoozed={snoozed} join={p.join} />}
+            <ul className="sh-rows" aria-hidden="true">
+              <li className="sh-row-item">
+                <Skeleton variant="rect" className="sh-skel" />
+              </li>
+            </ul>
+          </>
         ) : (
-          p.needs.length > 0 && <Needs needs={p.needs} now={p.now} snoozed={snoozed} />
+          p.needs.length > 0 && <Needs needs={p.needs} now={p.now} snoozed={snoozed} demo={Boolean(p.demo)} tour={tour} join={p.join} />
         )}
       </section>
       {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}
       {p.health && <Health h={p.health} />}
-      {(p.branches.length > 0 || !loading) && <Branches branches={p.branches} published={p.published} now={p.now} components={p.components} />}
+      {p.building && <BuildLine />}
+      {(p.branches.length > 0 || !loading) && <Branches branches={p.branches} now={p.now} components={p.components} title={p.demo?.branchesTitle} sub={p.demo ? null : undefined} max={p.demo?.branchesMax} tour={tour} />}
     </div>
   );
 }

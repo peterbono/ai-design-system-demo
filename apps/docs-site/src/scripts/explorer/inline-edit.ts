@@ -13,7 +13,7 @@ import { cellValue, modeKeyFor, tierAxis, type Column } from '../../lib/explorer
 import { familyTabs, locateSwatch, rampFamilies, rampTicks, swatchLabel, type RampFamily, type Swatch } from '../../lib/explorer/swatch-ramp';
 import { aliasOptions, applyValues, draftDescription, draftValue, editDescription, pendingOverrides, previewContrast } from '../token-editor';
 import type { ExplorerData } from './types';
-import { esc, icon } from './util';
+import { cssValue, esc, icon } from './util';
 
 interface Open {
   pop: HTMLElement;
@@ -150,7 +150,7 @@ export function openInlineEditor(opts: { container: HTMLElement; cell: HTMLEleme
 
   const swatchBtn = (s: Swatch, i: number, selected: boolean, was: boolean, tab: boolean) =>
     isColor
-      ? `<button type="button" role="radio" class="xe-sw${was ? ' is-was' : ''}" aria-checked="${selected}" tabindex="${tab ? 0 : -1}" data-xe-pick="${esc(s.path)}" data-i="${i}" aria-label="${esc(s.label)}, ${esc(s.hex ?? '')}"><i style="background-color:${esc(s.hex ?? 'transparent')}"></i><span class="xe-tip" aria-hidden="true">${esc(s.label)} · ${esc(s.hex ?? '')}</span></button>`
+      ? `<button type="button" role="radio" class="xe-sw${was ? ' is-was' : ''}" aria-checked="${selected}" tabindex="${tab ? 0 : -1}" data-xe-pick="${esc(s.path)}" data-i="${i}" aria-label="${esc(s.label)}, ${esc(s.hex ?? '')}"><i style="background-color:${cssValue(s.hex ?? 'transparent')}"></i><span class="xe-tip" aria-hidden="true">${esc(s.label)} · ${esc(s.hex ?? '')}</span></button>`
       : `<button type="button" role="radio" class="xe-step${was ? ' is-was' : ''}" aria-checked="${selected}" tabindex="${tab ? 0 : -1}" data-xe-pick="${esc(s.path)}" data-i="${i}"><span class="mono">${esc(s.step)}</span><span class="xe-step-v">${esc(s.value ?? '')}</span></button>`;
 
   const draw = () => {
@@ -166,9 +166,10 @@ export function openInlineEditor(opts: { container: HTMLElement; cell: HTMLEleme
     const changed = JSON.stringify(state.value) !== JSON.stringify(start);
     const sub = isColor ? `${esc(hex ?? '')}${changed ? ` <span class="xe-was">· was ${esc(valueText(t.type, start))}</span>` : ''}` : changed ? `<span class="xe-was">was ${esc(valueText(t.type, start))}</span>` : '';
     const picker = fam
-      ? `<div class="xe-tabs" role="tablist" aria-label="Families">${tabs.tabs
+      ? // The tabs sit in their own tablist: "More" opens a menu, it is not a tab, so it stays beside the list.
+        `<div class="xe-tabs"><div class="xe-tablist" role="tablist" aria-label="Families" style="--xe-tabs:${tabs.tabs.length}">${tabs.tabs
           .map((f) => `<button type="button" role="tab" aria-selected="${f === state.family}" tabindex="${f === state.family ? 0 : -1}" data-xe-family="${f}">${esc(families[f]!.label)}</button>`)
-          .join('')}${
+          .join('')}</div>${
           tabs.more.length
             ? `<div class="xe-more-fam"><button type="button" class="xe-tab-more" aria-haspopup="true" aria-expanded="${state.familyMenu}" data-xe-family-menu>More ${icon('chevronDown', 14)}</button>${
                 state.familyMenu ? `<div class="xe-fam-menu" role="menu">${tabs.more.map((f) => `<button type="button" role="menuitem" data-xe-family="${f}">${esc(families[f]!.label)}</button>`).join('')}</div>` : ''
@@ -188,7 +189,7 @@ export function openInlineEditor(opts: { container: HTMLElement; cell: HTMLEleme
           ? `<div class="xe-status is-warn" role="status">${icon('alert', 16)}<span>${esc(summary.text)}</span><button type="button" class="xe-link" aria-expanded="${state.showPairs}" data-xe-pairs>${state.showPairs ? 'Hide pairs' : 'See pairs'}</button></div>${
               state.showPairs
                 ? `<ul class="xe-pairs">${failing
-                    .map((p) => `<li><span class="mono">${esc(shortName(p.fg))} on ${esc(shortName(p.bg))}</span><span class="num">${p.ratio === undefined ? 'n/a' : `${p.ratio.toFixed(2)}:1`}, needs ${p.min}</span></li>`)
+                    .map((p) => `<li><span class="mono">${esc(shortName(p.fg))} on ${esc(shortName(p.bg))}</span><span class="num">${p.ratio === undefined ? 'n/a' : `${p.ratio.toFixed(2)}:1`}, needs ${esc(String(p.min))}</span></li>`)
                     .join('')}</ul>`
                 : ''
             }`
@@ -212,7 +213,7 @@ export function openInlineEditor(opts: { container: HTMLElement; cell: HTMLEleme
       </div>`;
     pop.innerHTML = `
       <p class="xe-title" id="${id}-title"><span class="mono">${esc(path)}</span> <span class="xe-mode">· ${esc(col.label)}</span></p>
-      <div class="xe-pick">${isColor ? `<span class="xe-big" style="background-color:${esc(hex ?? 'transparent')}" aria-hidden="true"></span>` : ''}<span><span class="xe-pick-name mono">${esc(valueText(t.type, state.value))}</span><span class="xe-pick-sub mono">${sub}</span></span></div>
+      <div class="xe-pick">${isColor ? `<span class="xe-big" style="background-color:${cssValue(hex ?? 'transparent')}" aria-hidden="true"></span>` : ''}<span><span class="xe-pick-name mono">${esc(valueText(t.type, state.value))}</span><span class="xe-pick-sub mono">${sub}</span></span></div>
       ${picker}
       ${status}
       ${shown.usesToken ? `<div class="xe-pop-pv" data-xe-pop-pv><p class="xe-pop-pv-label">${esc(shown.names.join(', '))}, as they will look</p><div class="xe-pop-pv-grid" data-xe-pop-pv-grid></div></div>` : ''}

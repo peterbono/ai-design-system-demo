@@ -22,7 +22,13 @@ export function buildLlmsTxt(): string {
     `> component tiers) and ${components.length} React components that read CSS variables only. The repo is the source of truth, not Figma.`,
     '',
     `Generated from the repository on ${today()}. Source: ${GITHUB_URL}`,
-    'Human version of the same content: the docs site pages /foundations/, /tokens/, /components/, /agents/ and /how-review-works/ (Library).',
+    'Human version of the same content: the docs site pages /foundations/color/ (and the other foundation pages listed below), /tokens/, /components/, /agents/ and /how-review-works/ (Library, home at /library/).',
+    'What Bridge does, for people: / (overview) and /compare/ (Bridge next to other design system tools).',
+    '',
+    '## Machine-readable files',
+    '',
+    '- [/tokens.css](/tokens.css): every token as a CSS variable, built from this checkout (the file components read)',
+    `- /docs-ai/<component>.json: the facts from the code a component's docs are drafted from (props, tokens, anatomy, contrast), for example [/docs-ai/${components[0]?.slug ?? 'button'}.json](/docs-ai/${components[0]?.slug ?? 'button'}.json)`,
     '',
   );
   // Where the human pages are: the Library reads the latest release, the Studio changes it (drafts, reviews).
@@ -94,7 +100,8 @@ export function buildLlmsTxt(): string {
       push("Don't:", ...c.docs.donts.map((x) => `- ${x.title}. ${x.text}`));
       push('Accessibility:', ...c.docs.accessibility.map((x) => `- ${x}`));
     }
-    push(`Tokens used: ${c.tokensUsed.map((t) => t.name).join(', ')}`, '');
+    push(`Tokens used: ${c.tokensUsed.map((t) => t.name).join(', ')}`);
+    push(`Docs facts: [/docs-ai/${c.slug}.json](/docs-ai/${c.slug}.json)`, '');
   }
 
   push(

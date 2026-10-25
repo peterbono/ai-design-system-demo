@@ -9,6 +9,15 @@
     },
     "ring": {
       "$value": "{color.surface.default}"
+    },
+    "illustrated-bg": {
+      "$value": "{color.illustration.surface}"
+    },
+    "agent-bg": {
+      "$value": "{color.agent.surface}"
+    },
+    "agent-border": {
+      "$value": "{color.border.default}"
     }
   },
   "tag": {

@@ -93,6 +93,21 @@ html:has(.cp-page[data-editing]) {
   line-height: var(--typography-ui-line-height);
 }
 
+/* On a phone the state line wraps: it carries why Send is off ("Nothing changed since the open proposal"). */
+@media (max-width: 767px) {
+  .le-bar-state {
+    white-space: normal;
+  }
+}
+
+/* On the component's open proposal: one quiet line under the bar row, who started it and a link to its review. */
+.le-bar-note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
 /* Not editable: generated from the code. Shown only while editing. */
 .cp-page:not([data-editing]) [data-le-locked] {
   display: none;
@@ -379,6 +394,13 @@ html:has(.cp-page[data-editing]) {
   font-size: var(--typography-ui-size);
 }
 
+.le-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  vertical-align: middle;
+}
+
 .le-quiet > svg {
   color: var(--color-feedback-success-text);
 }
@@ -491,6 +513,7 @@ html:has(.cp-page[data-editing]) {
 }
 
 .le-verdict h4,
+.le-verdict .verdict-title,
 .le-verdict p {
   width: 100%;
 }

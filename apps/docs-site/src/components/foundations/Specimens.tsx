@@ -1,6 +1,6 @@
 // Specimens of the Library foundation pages: each token group shown in context, with the real Bridge components where
-// one exists and token-only CSS otherwise (styles/foundations.css, .sp-*). Rendered to static HTML at build time; the
-// Astro wrapper (SpecimenPair.astro) renders one panel per theme inside data-theme, so real tokens resolve and the
+// one exists and token-only CSS otherwise (styles/foundations.css, .sp-*). The Library views render one panel per
+// theme inside data-theme (components/ds/library/FoundationParts.tsx SpecimenPair), so real tokens resolve and the
 // brand follows the preview switch in the specimen header. Hover and pressed states reuse each component's own state
 // variables (--_bg-hover, --_bg-active), so a static state shows exactly what the pointer would.
 import type { CSSProperties, ReactNode } from 'react';
@@ -204,7 +204,7 @@ function Controls({ mode }: { mode: Mode }) {
       <Checkbox label="Include dark theme" defaultChecked id={`sp-cb-on-${mode}`} />
       <Checkbox label="Include compact density" id={`sp-cb-off-${mode}`} />
       <Switch label="Sync from Figma" defaultChecked id={`sp-sw-on-${mode}`} />
-      <Switch label="Auto-merge" id={`sp-sw-off-${mode}`} />
+      <Switch label="Auto-save" id={`sp-sw-off-${mode}`} />
       <TokenCaption>control.checked · control.track · control.thumb</TokenCaption>
     </div>
   );

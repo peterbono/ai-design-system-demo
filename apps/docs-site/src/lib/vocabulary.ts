@@ -1,28 +1,37 @@
-// The words Studio speaks, in one place. Studio mirrors Figma branching (help.figma.com, "Guide to branching"):
-// a designer creates a branch off main, requests a review, the reviewer reviews and merges it, and the library is
-// published as a package release. Saving is invisible: there is no push, pull or commit on a Studio screen.
+// The words Studio speaks, in one place. Designers work in changes to the library: they start a change, send it for
+// review, and a reviewer adds it to the library, which is published as a package release. Saving is invisible: there
+// is no push, pull or commit on a Studio screen, and no branch, merge or main either (decision 2026-10-24: designers
+// read "change" and "library"; git words stay in the "For developers" folds, the CLI, the MCP server and GitHub).
 //
 // Every Studio screen, status and sentence reads its words from here, so one rename is one edit. Developer words
-// (pull request, commit, SHA, changeset, CI, workflow) never show on a Studio screen: a quiet "Open on GitHub" link
-// on the line of the thing it concerns is the way to them. Pure: no DOM. Unit tested in vocabulary.test.ts.
+// (branch, merge, main, pull request, commit, SHA, changeset, CI, workflow) never show on a Studio screen: a quiet
+// "Open on GitHub" link on the line of the thing it concerns is the way to them. Pure: no DOM. Unit tested in
+// vocabulary.test.ts.
 
 export const VOCAB = {
-  /** The unit of work: a branch of the library, a pull request on GitHub. */
-  branch: 'branch',
-  branches: 'branches',
-  Branch: 'Branch',
-  Branches: 'Branches',
-  /** The library everyone uses, the branch every branch starts from. */
-  main: 'main',
-  /** Start a branch (Figma: "Create branch"). */
-  createBranch: 'Create branch',
-  /** Ask reviewers to look (Figma: "Request review"). */
-  requestReview: 'Request review',
-  /** The reviewer's step that ends in a merge (Figma: "Review and merge"). */
-  reviewAndMerge: 'Review and merge',
-  merge: 'Merge',
-  /** Bring what main gained since the branch started (Figma: "Update from main"). */
-  updateFromMain: 'Update from main',
+  /** The unit of work: a change to the library (a branch and its pull request on GitHub). */
+  branch: 'change',
+  branches: 'changes',
+  Branch: 'Change',
+  Branches: 'Changes',
+  /** The library everyone uses (main on GitHub), mid-sentence. */
+  main: 'the library',
+  /** The same, at the start of a sentence. */
+  Main: 'The library',
+  /** Start a change (a branch on GitHub). */
+  createBranch: 'Start a change',
+  /** Ask reviewers to look: the one send verb of the site (lib/gh-wording.ts sendButton), in direct mode. */
+  requestReview: 'Send for review',
+  /** The reviewer's step that ends with the change in the library (a merge on GitHub). */
+  reviewAndMerge: 'Review and add to the library',
+  /** The action that puts an approved change in the library (Merge on GitHub). */
+  merge: 'Add to the library',
+  /** The approved state: nothing left but adding it (ready to merge on GitHub). */
+  readyToMerge: 'Ready to add to the library',
+  /** Done: the change is in the library (merged into main on GitHub). */
+  merged: 'Added to the library',
+  /** Bring what the library gained since the change started (update from main on GitHub). */
+  updateFromMain: 'Update from the library',
   /** The package release, the only "publish" (Figma: publish a library). */
   publish: 'Publish',
   save: 'Save',
@@ -38,15 +47,15 @@ export const STATUS_WORDS = {
   inReview: 'In review',
   waiting: 'Approved, waiting for code',
   waitingShort: 'Waiting for code',
-  merged: 'Merged',
+  merged: 'Added to the library',
   closed: 'Closed',
 } as const;
 
 /**
- * Developer words that never show on a Studio screen. "branch", "merge" and "main" are Figma words and allowed.
- * Matched as whole words, case-insensitive (jargonIn).
+ * Developer words that never show on a Studio screen, git's branch, merge and main included (designers read change and
+ * library). Matched as whole words, case-insensitive (jargonIn).
  */
-export const DEV_WORDS = ['push', 'pull', 'commit', 'pull request', 'PR', 'SHA', 'changeset', 'CI', 'workflow'] as const;
+export const DEV_WORDS = ['push', 'pull', 'commit', 'pull request', 'PR', 'SHA', 'changeset', 'CI', 'workflow', 'branch', 'merge', 'main'] as const;
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -54,53 +63,18 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 export function jargonIn(text: string): string[] {
   return DEV_WORDS.filter((w) => {
     const caps = w === 'PR' || w === 'CI' || w === 'SHA';
-    const re = new RegExp(`(^|[^A-Za-z0-9_-])${escape(w)}(e?s)?(?![A-Za-z0-9_-])`, caps ? '' : 'i');
+    const word = w === 'merge' ? 'merg(?:e|es|ed|ing)' : `${escape(w)}(?:e?s|ed|ing)?`;
+    const re = new RegExp(`(^|[^A-Za-z0-9_-])${word}(?![A-Za-z0-9_-])`, caps ? '' : 'i');
     return re.test(text);
   });
 }
 
-/** "1 branch", "3 branches". */
+/** "1 change", "3 changes". */
 export const branchCount = (n: number) => `${n} ${n === 1 ? VOCAB.branch : VOCAB.branches}`;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Jira ticket keys: an optional "DS-42" given when a branch is created. Jira's GitHub integration links a pull
 // request whose title (or branch name) starts with the key, so the key goes first in both.
 
-const JIRA_KEY = /^[A-Z][A-Z0-9_]{0,9}-[1-9]\d{0,6}$/;
-
-/**
- * The Jira key typed in the Create branch form, normalised ("ds-42 " is "DS-42"), or null when empty. Throws a
- * sentence that says how to fix it when the text is not a key.
- */
-export function parseJiraKey(input: string | null | undefined): string | null {
-  const t = (input ?? '').trim().toUpperCase();
-  if (!t) return null;
-  if (!JIRA_KEY.test(t)) throw new Error('Write the Jira ticket as its key, like DS-42, or leave it empty.');
-  return t;
-}
-
-/** Whether a text is a Jira key, without throwing (for live field validation). */
-export const isJiraKey = (input: string) => JIRA_KEY.test(input.trim().toUpperCase());
-
-const LEADING_KEY = /^\[?([A-Z][A-Z0-9_]{0,9}-[1-9]\d{0,6})\]?[:\s]\s*/;
-
-/** The Jira key a title starts with ("DS-42 tokens: darker primary" gives "DS-42"), else null. */
-export function jiraKeyOf(title: string): string | null {
-  return LEADING_KEY.exec(title.trim())?.[1] ?? null;
-}
-
-/** The title without its leading Jira key. */
-export const withoutJiraKey = (title: string) => title.trim().replace(LEADING_KEY, '');
-
-/** The pull request title with the key first: "DS-42 tokens: darker primary". Idempotent; no key, no change. */
-export function titleWithJiraKey(title: string, key: string | null): string {
-  if (!key) return title;
-  return `${key} ${withoutJiraKey(title)}`;
-}
-
-/** The branch name with the key first in its last part: "tokens/DS-42-darker-primary-20261019-1200". */
-export function branchWithJiraKey(branch: string, key: string | null): string {
-  if (!key || branch.includes(key)) return branch;
-  const i = branch.lastIndexOf('/');
-  return i < 0 ? `${key}-${branch}` : `${branch.slice(0, i + 1)}${key}-${branch.slice(i + 1)}`;
-}
+// The rules live in @bridge-ds/core (jira.ts), shared with the MCP server and the CLI.
+export { branchWithJiraKey, isJiraKey, jiraKeyOf, parseJiraKey, titleWithJiraKey, withoutJiraKey } from '@bridge-ds/core';

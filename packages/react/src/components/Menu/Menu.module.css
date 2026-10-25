@@ -44,7 +44,8 @@
   gap: var(--space-2);
   min-height: var(--menu-item-height);
   padding: 0 var(--space-2);
-  border-radius: var(--radius-inset);
+  /* Concentric with the popup: its radius minus the popup padding, so the highlight follows the menu's corners. */
+  border-radius: calc(var(--popup-radius) - var(--space-1));
   color: var(--menu-item-text);
   cursor: default;
   outline: none;

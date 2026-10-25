@@ -1,6 +1,6 @@
 {
   "name": "@bridge-ds/react",
-  "version": "1.4.0",
+  "version": "1.7.0",
   "type": "module",
   "description": "Bridge design system React components: Base UI behavior, token-only styling through CSS Modules.",
   "license": "MIT",
@@ -37,6 +37,11 @@
       "types": "./dist/dom/index.d.ts",
       "default": "./dist/dom.js"
     },
+    "./avatar-illustrated": {
+      "source": "./src/avatar-illustrated/index.tsx",
+      "types": "./dist/avatar-illustrated/index.d.ts",
+      "default": "./dist/avatar-illustrated.js"
+    },
     "./styles.css": {
       "source": "./src/styles/base.css",
       "default": "./dist/styles.css"
@@ -56,7 +61,9 @@
   },
   "dependencies": {
     "@base-ui/react": "1.9.0",
-    "@bridge-ds/tokens": "^1.4.0",
+    "@bridge-ds/tokens": "^1.6.0",
+    "@dicebear/collection": "9.4.3",
+    "@dicebear/core": "9.4.3",
     "lucide-react": "1.58.0"
   },
   "peerDependencies": {

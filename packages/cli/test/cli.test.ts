@@ -1,6 +1,6 @@
 // The bridge CLI, run as a real process.
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -12,6 +12,12 @@ const bridge = (cwd: string, ...args: string[]) => {
   const r = spawnSync(process.execPath, [CLI, ...args], { cwd, encoding: 'utf8', env: { ...process.env, BRIDGE_OFFLINE: '1' } });
   return { code: r.status, out: r.stdout, err: r.stderr };
 };
+// A PATH whose gh is signed out, so a test never borrows the gh sign-in of the machine.
+const GH_FAILS = (() => {
+  const d = mkdtempSync(join(tmpdir(), 'bridge-test-gh-'));
+  writeFileSync(join(d, 'gh'), '#!/bin/sh\necho "gh: authentication required" >&2\nexit 1\n', { mode: 0o755 });
+  return `${d}:${process.env.PATH ?? ''}`;
+})();
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 describe('bridge CLI', () => {
@@ -45,8 +51,49 @@ describe('bridge CLI', () => {
     expect(bridge(REPO).code).toBe(2);
   });
 
+  it('--version prints the CLI package version, not @bridge-ds/mcp\'s', () => {
+    const { version } = JSON.parse(readFileSync(join(REPO, 'packages/cli/package.json'), 'utf8')) as { version: string };
+    for (const args of [['--version'], ['version'], ['-v']]) {
+      const r = bridge(REPO, ...args);
+      expect(r.code).toBe(0);
+      expect(r.out.trim()).toBe(version);
+    }
+    expect(bridge(REPO, '--help').out).toContain(`bridge ${version}:`);
+  });
+
+  it('docs and brand: help exits 0, no subcommand exits 2 with the usage', { timeout: 120_000 }, () => {
+    for (const cmd of ['docs', 'brand']) {
+      for (const args of [[cmd, 'help'], [cmd, '--help']]) {
+        const r = bridge(REPO, ...args);
+        expect(r.code).toBe(0);
+        expect(r.out).toContain(`bridge ${cmd}:`);
+      }
+      const none = bridge(REPO, cmd);
+      expect(none.code).toBe(2);
+      expect(none.out).toContain('Usage:');
+    }
+    expect(bridge(REPO, 'docs', 'save', '--help').out).toContain('bridge docs save <Component>');
+    // Exit codes are documented once, in --help.
+    expect(bridge(REPO, '--help').out).toMatch(/Exit codes \(every command\):\n  0 .*\n  1 .*blocked.*\n  2  usage or setup error/);
+  });
+
+  it('diff <bad ref>: says what a git ref is (exit 2), not a git error', () => {
+    const r = bridge(REPO, 'diff', 'no-such-ref-anywhere');
+    expect(r.code).toBe(2);
+    expect(r.err).toMatch(/"no-such-ref-anywhere" is not a branch, tag or commit/);
+    expect(r.err).not.toMatch(/fatal|ls-tree/);
+  });
+
+  it('tokens <query>: says when it shows only the best matches, --limit for more', () => {
+    const r = bridge(REPO, 'tokens', 'color', '--limit', '3');
+    expect(r.code).toBe(0);
+    expect(r.out).toMatch(/Showing the best 3 of \d+ matches\. --limit <n> shows more/);
+    expect(r.out).not.toMatch(/bridge_|limit:/);
+    expect(bridge(REPO, 'tokens', 'color', '--limit', 'x').code).toBe(2);
+  });
+
   it('--help and help print the usage and exit 0', () => {
-    for (const args of [['--help'], ['help']]) {
+    for (const args of [['--help'], ['help'], ['-h']]) {
       const r = bridge(REPO, ...args);
       expect(r.code).toBe(0);
       expect(r.out).toContain('Usage:');
@@ -102,6 +149,33 @@ describe('bridge CLI', () => {
     expect(bad.out).toMatch(/status: blocked/);
   });
 
+  it('propose: errors name the CLI flags and say how to fix, never a JavaScript error', () => {
+    const dir = tempGitRepo(REPO, REAL_PATHS);
+    const ambiguous = bridge(dir, 'propose', '--title', 'Darker action', '--set', 'color.action.primary.bg=#000000', '--direct');
+    expect(ambiguous.code).toBe(2);
+    expect(ambiguous.err).toMatch(/Pass --file <file> or --mode theme=dark/);
+    expect(ambiguous.err).not.toMatch(/"mode"|\{ "theme"/);
+    const missing = bridge(dir, 'propose', '--title', 'Darker action', '--edits', 'no-such-edits.json', '--direct');
+    expect(missing.code).toBe(2);
+    expect(missing.err).toMatch(/no-such-edits\.json does not exist\. Pass --edits with a JSON array of edits/);
+    expect(missing.err).not.toMatch(/ENOENT/);
+    writeFileSync(join(dir, 'edits.json'), '{ "op": "set" }');
+    const notArray = bridge(dir, 'propose', '--title', 'Darker action', '--edits', 'edits.json', '--direct');
+    expect(notArray.code).toBe(2);
+    expect(notArray.err).toMatch(/edits\.json must hold a JSON array of edits/);
+    expect(notArray.err).not.toMatch(/Spread syntax|iterable/);
+  });
+
+  it('snapshot --activity without a token says how to read GitHub, not how to write', () => {
+    const out = mkdtempSync(join(tmpdir(), 'bridge-test-snapshot-'));
+    const env: Record<string, string | undefined> = { ...process.env, BRIDGE_OFFLINE: '1', PATH: GH_FAILS };
+    for (const k of ['GITHUB_TOKEN', 'GH_TOKEN', 'BRIDGE_GITHUB_TOKEN']) delete env[k];
+    const r = spawnSync(process.execPath, [CLI, 'snapshot', '--out', out, '--activity'], { cwd: REPO, encoding: 'utf8', env });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/--activity reads GitHub: set GITHUB_TOKEN, pass --token <token>, or run gh auth login/);
+    expect(r.stderr).not.toMatch(/To write on GitHub/);
+  });
+
   it('init writes bridge.config.json and .mcp.json, prints the Claude Desktop snippet', () => {
     const dir = tempGitRepo(FIXTURE, ['.']);
     const r = bridge(dir, 'init');
@@ -149,6 +223,19 @@ describe('bridge CLI', () => {
       expect(bridge(REPO, 'audit', join(APPS, 'clean-app'), '--baseline', join(dir, 'clean.json'), '--no-regress').code).toBe(0);
     });
 
+    it('--baseline that is not an audit report says how to write one, never "undefined"', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'bridge-test-audit-'));
+      writeFileSync(join(dir, 'other.json'), '{ "name": "x" }');
+      const other = bridge(REPO, 'audit', join(APPS, 'clean-app'), '--baseline', join(dir, 'other.json'));
+      expect(other.code).toBe(2);
+      expect(other.err).toMatch(/not a bridge audit report.*bridge audit <path> --json <file>/);
+      expect(other.err).not.toMatch(/undefined/);
+      writeFileSync(join(dir, 'broken.json'), '{');
+      const broken = bridge(REPO, 'audit', join(APPS, 'clean-app'), '--baseline', join(dir, 'broken.json'));
+      expect(broken.code).toBe(2);
+      expect(broken.err).toMatch(/broken\.json is not valid JSON .*bridge audit <path> --json <file>/);
+    });
+
     it('--fix is a dry run unless --write; exit 2 without a path or a design system', () => {
       const dir = tempGitRepo(join(APPS, 'mui-app'), ['src']);
       const css = readFileSync(join(dir, 'src/styles.css'), 'utf8');
@@ -164,6 +251,35 @@ describe('bridge CLI', () => {
       expect(readFileSync(join(dir, 'src/styles.css'), 'utf8')).toBe(plan.output);
       expect(bridge(REPO, 'audit').code).toBe(2);
       expect(bridge(tmpdir(), 'audit', dir).code).toBe(2);
+    });
+
+    it('--fix keeps what the audit keeps: ignore comments and --allowlist entries, listed; --json', () => {
+      const dir = tempGitRepo(join(APPS, 'mui-app'), ['src']);
+      const file = join(dir, 'src/styles.css');
+      const css = readFileSync(file, 'utf8');
+      const plan = planCssFixes(css, 'css', loadDesignSystem(REPO).index);
+      expect(plan.edits.length).toBeGreaterThan(1);
+      const first = plan.edits[0]!;
+      const second = plan.edits.find((e) => e.line !== first.line)!;
+      expect(second).toBeDefined();
+      // An ignore comment above the first fixable line; the second line on an allowlist.
+      const lines = css.split('\n');
+      lines.splice(first.line - 1, 0, '/* bridge-audit-ignore-next-line: brand red from the partner logo */');
+      writeFileSync(file, lines.join('\n'));
+      const allow = join(dir, 'known.json');
+      const secondLine = second.line + (second.line >= first.line ? 1 : 0);
+      writeFileSync(allow, JSON.stringify({ entries: [{ file: 'src/styles.css', line: secondLine, reason: 'legacy print sheet' }] }));
+      const r = bridge(REPO, 'audit', dir, '--fix', '--allowlist', allow, '--json');
+      expect(r.code).toBe(0);
+      const j = JSON.parse(r.out);
+      const kept = j.files.flatMap((f: { kept: { line: number; via: string }[] }) => f.kept);
+      expect(kept).toEqual(expect.arrayContaining([expect.objectContaining({ line: first.line + 1, via: 'comment' }), expect.objectContaining({ line: secondLine, via: 'allowlist' })]));
+      expect(j.wouldReplace).toBe(plan.edits.length - kept.length);
+      const text = bridge(REPO, 'audit', dir, '--fix', '--allowlist', allow, '--write');
+      expect(text.out).toMatch(/Left as is on purpose: \d+ value\(s\), by an ignore comment or the allowlist/);
+      const after = readFileSync(file, 'utf8').split('\n');
+      expect(after[first.line]).toContain(first.from);
+      expect(after[secondLine - 1]).toContain(second.from);
     });
   });
 
@@ -189,5 +305,57 @@ describe('bridge CLI', () => {
     expect(git(dir, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe('main');
     expect(git(dir, 'show', 'bridge/brand-acme:packages/tokens/src/brands/acme.tokens.json')).toContain('"name": "Acme"');
     expect(bridge(dir, 'brand', 'nope').code).toBe(2);
+  });
+});
+
+describe('bridge snapshot', () => {
+  const APPS = 'packages/core/test/fixtures/audit';
+  it('writes snapshot.json and the audits for the bridge-data branch', () => {
+    const out = mkdtempSync(join(tmpdir(), 'bridge-test-snapshot-'));
+    const r = bridge(REPO, 'snapshot', '--out', out, '--audit', `${APPS}/clean-app=Clean app`, '--audit-report', 'apps/docs-site/src/data/audits/admin-after.json', '--json');
+    expect(r.code, r.err).toBe(0);
+    const res = JSON.parse(r.out) as { written: string[]; bytes: number; sourceSha: string; summary: { tokens: number; components: number; contrast: { failing: number }; figma: { inFigma: number } | null } };
+    expect(res.written).toEqual(['snapshot.json', 'llms.txt', 'audits/admin-after.json', 'audits/clean-app.json']);
+    // llms.txt for agents, linked from the hosted Library.
+    const llms = readFileSync(join(out, 'llms.txt'), 'utf8');
+    expect(llms).toMatch(/^# peterbono\/ai-design-system-demo design system\n/);
+    expect(llms).toContain('`--color-bg-default`');
+    expect(llms).toContain('### Button');
+    expect(llms).not.toContain('\u2014');
+    // component-specs.json is over 1 MB; the snapshot carries its coverage only.
+    // About 0.9 MB of files the model reads, plus 0.15 MB of releases, packages and motion (2026-10).
+    expect(res.bytes).toBeLessThan(1_250_000);
+    expect(res.summary.contrast.failing).toBe(0);
+    expect(res.summary.components).toBeGreaterThan(20);
+    expect(res.summary.figma?.inFigma).toBeGreaterThan(20);
+    const snap = JSON.parse(readFileSync(join(out, 'snapshot.json'), 'utf8')) as { kind: string; sourceSha: string; repo: { owner: string; name: string }; files: Record<string, string>; audits: { id: string; label?: string; path: string }[] };
+    expect(snap.kind).toBe('bridge-snapshot');
+    expect(snap.sourceSha).toBe(res.sourceSha);
+    expect(snap.repo.name).toBe('ai-design-system-demo');
+    expect(Object.keys(snap.files)).toContain('bridge.config.json');
+    expect(Object.keys(snap.files)).not.toContain('packages/react/component-specs.json');
+    expect(snap.packages.map((p: { name: string }) => p.name)).toContain('@bridge-ds/react');
+    expect(snap.releases.some((r: { name: string; pending: boolean }) => !r.pending && /^v\d+\.\d+\.\d+$/.test(r.name))).toBe(true);
+    expect(snap.motion.Button.rows.length).toBeGreaterThan(0);
+    expect(snap.audits.map((a) => [a.id, a.label])).toEqual([
+      ['admin-after', 'Bridge admin, after migration'],
+      ['clean-app', 'Clean app'],
+    ]);
+    const report = JSON.parse(readFileSync(join(out, 'audits/clean-app.json'), 'utf8')) as { schemaVersion: number; label: string };
+    expect(report).toMatchObject({ schemaVersion: 1, label: 'Clean app' });
+
+    // Text mode, and a second run leaves no stale audit behind.
+    const t = bridge(REPO, 'snapshot', '--out', out);
+    expect(t.code, t.err).toBe(0);
+    expect(t.out).toMatch(/^Wrote .*snapshot\.json \(\d+ KB\) for peterbono\/ai-design-system-demo at [0-9a-f]{7}/);
+    expect(t.out).toMatch(/contrast\s+\d+ checks over \d+ pairs, 0 failing/);
+    expect(existsSync(join(out, 'audits'))).toBe(false);
+  });
+
+  it('exit 2 when a folder to audit does not exist', () => {
+    const out = mkdtempSync(join(tmpdir(), 'bridge-test-snapshot-'));
+    const r = bridge(REPO, 'snapshot', '--out', out, '--audit', 'no/such/app');
+    expect(r.code).toBe(2);
+    expect(r.err).toMatch(/No such file or folder to audit: no\/such\/app/);
   });
 });

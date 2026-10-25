@@ -1,0 +1,12 @@
+---
+// Library shell, Foundations (lib/library-shells.ts): served for /library/<owner>/<repo>/foundations/. Foundations
+// opens on Color, as on Bridge's own Library; this address stays for links made before each topic had its page.
+import LibraryShell from '../../../components/LibraryShell.astro';
+---
+
+<LibraryShell title="Foundations" description="Color, type, spacing, radius, elevation and accessibility of a team's design system.">
+</LibraryShell>
+
+<script>
+  location.replace(location.pathname.replace(/\/?$/, '/') + 'color/' + location.search + location.hash);
+</script>

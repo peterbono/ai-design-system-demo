@@ -1,10 +1,12 @@
 // Starting an exploration from Studio, shared by Changes > Explorations ("Start an exploration", also from a request)
 // and the Components drawer ("Change this component", Add a variant or option): the core helpers the MCP server and
 // the CLI run (startExplorationOnGitHub, linkRequestToExplorationOnGitHub), with the viewer's own token. The page
-// embeds its preview settings as #bridge-branches.
+// embeds its preview settings as #bridge-branches. In suggest mode nothing starts: an exploration is a branch.
 import { EXPLORATION_PREFIX, linkRequestToExplorationOnGitHub, startExplorationOnGitHub, type ExplorationUseCase, type StartedExploration } from '@bridge-ds/core';
 import type { ExplorationsConfig } from '../lib/explorations-view';
 import { getToken, readRepo, studioClient } from './github-session';
+import { SuggestOnlyError, changesModeOnPage } from './changes-mode';
+import { EXPLORATION_SUGGEST_INSTEAD } from '../lib/gh-wording';
 
 /** The repository and preview settings the page embeds (#bridge-branches), else the site repository alone. */
 export function explorationsConfig(): ExplorationsConfig {
@@ -35,12 +37,16 @@ export async function startLinkedExploration(
   cfg: ExplorationsConfig,
   e: { name: string; purpose: string; useCase?: ExplorationUseCase; author?: string; jira?: string },
   request?: { number: number; title: string } | null,
+  /** More labels for it: the product ones (productMarks from @bridge-ds/core), as the CLI and MCP server write. */
+  labels: string[] = [],
 ): Promise<LinkedStart> {
+  // An exploration is a branch: a repository in suggest mode gets none from Bridge, before any GitHub call.
+  if (changesModeOnPage() === 'suggest') throw new SuggestOnlyError('start explorations', EXPLORATION_SUGGEST_INSTEAD);
   const gh = explorationClient(cfg);
   const started = await startExplorationOnGitHub(
     gh,
     { name: e.name, purpose: e.purpose, source: 'studio', ...(e.useCase ? { useCase: e.useCase } : {}), ...(e.author ? { author: e.author } : {}), ...(e.jira ? { jira: e.jira } : {}) },
-    { base: cfg.defaultBranch, packages: cfg.packages, apps: cfg.apps, ...(request ? { requests: [request] } : {}) },
+    { base: cfg.defaultBranch, packages: cfg.packages, apps: cfg.apps, ...(request ? { requests: [request] } : {}), ...(labels.length ? { labels } : {}) },
   );
   if (!request) return { started };
   try {

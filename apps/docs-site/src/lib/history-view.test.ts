@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { LayeredTokenSet, applyTokenEdits, composeProposalBody, demoHistory, planRevert } from '@bridge-ds/core';
-import { authorsOf, countsLabel, demoBeforeFiles, humanAuthored, laterThan, realSummary, viewTimeline } from './history-view';
+import { authorsOf, countsLabel, demoBeforeFiles, humanAuthored, laterThan, overrideLine, realSummary, viewTimeline } from './history-view';
+import { overrideComment, parseOverrideComment } from './review-rules';
 import { currentTokenFiles, siteConfig } from './history';
 
 const config = siteConfig();
 // The demo is built backwards from the current files, and a step whose "before" equals today's value drops out.
 // Pin the three values the demo steps touch, so a designer editing them in Studio never breaks these tests.
 const files = Object.fromEntries(
-  applyTokenEdits(new LayeredTokenSet(config, new Map(Object.entries(currentTokenFiles(config)))), [
+  applyTokenEdits(new LayeredTokenSet(config, new Map(Object.entries(currentTokenFiles()))), [
     { op: 'set', path: 'color.text.muted', file: 'semantic/light.tokens.json', value: '{palette.neutral.600}' },
     { op: 'set', path: 'button.radius', file: 'components/button.tokens.json', value: '{radius.control}' },
     { op: 'set', path: 'alert.radius', file: 'components/feedback.tokens.json', description: 'Inline alerts are containers.' },
@@ -62,5 +63,16 @@ describe('history view', () => {
     expect(out).toContain('- [ ] AI agent');
     expect(out).not.toContain('Agent-authored');
     expect(out).not.toMatch(/\u2014/);
+  });
+});
+
+describe('overrideLine', () => {
+  it('says who merged with the owner override, without which approvals, and why', () => {
+    const ov = parseOverrideComment(overrideComment('dana', 'Solo maintainer, <b>tests</b> pass', ['design approval']))!;
+    const html = overrideLine(ov, (x) => x.replace(/</g, '&lt;'), (l) => `[${l}]`);
+    expect(html).toBe('Merged with the owner override by [dana] without design approval. Reason: Solo maintainer, &lt;b>tests&lt;/b> pass.');
+  });
+  it('says so when no reason was given', () => {
+    expect(overrideLine({ login: 'dana', reason: 'no reason given', missing: [] }, (x) => x, (l) => l)).toBe('Merged with the owner override by dana. No reason was given.');
   });
 });

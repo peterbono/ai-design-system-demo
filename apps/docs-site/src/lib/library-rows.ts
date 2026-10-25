@@ -1,6 +1,6 @@
 // Library foundation pages (Color, Typography, Spacing, Radius, Elevation): the words one token row shows, as pure
 // functions. Alias summary ("neutral 50 · 950"), one-line role, usage chip and the "Copy as" formats. No file system,
-// no DOM: unit tested in library-rows.test.ts. lib/foundations.ts feeds them from the token files at build time.
+// no DOM: unit tested in library-rows.test.ts. lib/library/foundations.ts feeds them from a repo model.
 import { codeSyntax } from './explorer/format';
 import type { ComponentLink } from './explorer/model';
 import type { Tier } from '@bridge-ds/core';
@@ -114,7 +114,6 @@ export function usageChip(u: UsageInput): UsageChip {
 
 export type CopyFormat = 'css' | 'js' | 'figma';
 export const COPY_FORMATS: CopyFormat[] = ['css', 'js', 'figma'];
-export const COPY_LABEL: Record<CopyFormat, string> = { css: 'CSS', js: 'JS', figma: 'Figma' };
 
 /** What clicking a token name copies, per format: the CSS variable, the @bridge-ds/tokens reference, the Figma variable. */
 export function copyValue(path: string, tier: Tier, format: CopyFormat): string {

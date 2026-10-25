@@ -2,16 +2,20 @@
 // Studio home, direction D: what the viewer does now (components/ds/studio/StudioHome.tsx, rules in lib/home-model.ts).
 //   1. The Harbor zone: a time-of-day greeting, who waits on the viewer and since when, at most three Needs you rows
 //      (the whole row is the link), the rest grouped behind "Review all" (the review queue, /studio/review/).
-//   2. Your branches: open branches as cards, "Create branch" as the last one, what was published this week in one line.
+//   2. Your branches: open branches as cards, "Create branch" as the first one.
 //   3. Nothing waits and nothing is open: three ways to start.
+// Signed in, the setup steps (lib/onboarding.ts, components/ds/studio/Onboarding.tsx): the first run takes the page
+// while bridge.config.json does not say how changes reach the code; after that, "N of 8 connected" by the greeting
+// opens what is left.
 // Repo facts are read here at build time (usage guidance Claude drafted, contrast on main, adoption, the changelog);
 // GitHub facts in the browser (scripts/home-data.ts).
+import { jsonForScript } from '../../lib/html';
 import '../../styles/studio-home.css';
 import '../../styles/branch-thumb.css';
+import '../../styles/onboarding.css';
+import '../../styles/storybook-quick.css';
 import Layout from '../../layouts/Layout.astro';
 import { Skeleton } from '@bridge-ds/react';
-import { releases } from '../../lib/changelog';
-import { shortPackage } from '../../lib/changelog-model';
 import { docsEditHref, guidanceState, loadComponents } from '../../lib/components';
 import { git } from '../../lib/repo';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
@@ -20,14 +24,26 @@ import { groupByApp, loadAudits } from '../../lib/audits';
 import { combinedAdoption, startChangeHref } from '../../lib/overview-board';
 import { adoptionDrop } from '../../lib/home-model';
 import { signInConfig } from '../../lib/signin-config';
+import { siteRepo } from '../../lib/config';
+import { exists, GITHUB_URL, PREVIEW_APPS, PREVIEW_PACKAGES, PRODUCTION_APPS, readJson } from '../../lib/repo';
+import { bridgeMcpInstallCommand, teamName } from '@bridge-ds/core';
+import { changesInConfig } from '../../lib/settings-view';
+import type { BranchesConfig } from '../../lib/branches';
+import { studioHref } from '../../lib/team-path';
+import TeamLauncher from '../../components/ds/studio/TeamLauncher';
+import '../../styles/team-launcher.css';
+import '../../styles/demo-home.css';
+import { isDemoRepo } from '../../lib/demo';
+
+// The hosted deployment (one site for every team, multi-team plan 4.3) opens other teams from here. A self-hosted
+// build leaves it out: its Studio is its own repository.
+const hostedSite = process.env.BRIDGE_HOSTED === '1' || process.env.BRIDGE_HOSTED === 'true';
 
 const s = dashboard();
 const comps = loadComponents();
 
 /** When a file last changed on main (ISO), null when git has no answer (a shallow clone). */
 const changedAt = (path: string): string | null => git(['log', '-1', '--format=%cI', '--', path]) || null;
-/** The GitHub login of a commit, only when its email names one. */
-const loginOfCommit = (ref: string): string | null => git(['log', '-1', '--format=%ae', ref]).match(/^\d+\+([\w-]+)@users\.noreply\.github\.com$/)?.[1] ?? null;
 
 // Usage guidance Claude drafted and nobody reviewed yet: one Needs you row each, waiting since the draft landed.
 const guidance = comps.filter((c) => guidanceState(c) === 'review').map((c) => ({ name: c.name, href: docsEditHref(c.slug), since: changedAt(c.files.docs) }));
@@ -41,34 +57,55 @@ const adoption = combinedAdoption(
 );
 const drop = adoptionDrop(adoption?.now, adoption?.before);
 
-// Published: the released entries with their date, release and author, filtered to the viewer's week in the browser.
-const published = releases()
-  .filter((r) => !r.pending && r.date)
-  .slice(0, 6)
-  .flatMap((r) => {
-    const pkg = r.packages.find((p) => p.name === '@bridge-ds/react') ?? r.packages[0];
-    const release = pkg ? `${shortPackage(pkg.name)} ${pkg.version}` : r.name;
-    return r.entries.filter((e) => e.source === 'release').map((e) => ({ title: e.title, release, date: r.date!, author: e.ref ? loginOfCommit(e.ref) : null }));
-  });
-
 const homeStatic = {
   contrastFail: s.contrast.fail,
   adoptionDrop: drop,
-  published,
   components: comps.map((c) => ({ name: c.name, slug: c.slug, family: c.category })).sort((a, b) => a.name.localeCompare(b.name)),
-  startHrefs: { tokens: startChangeHref('look'), component: startChangeHref('variant'), guidance: firstMissing ? docsEditHref(firstMissing.slug) : '/studio/components/' },
+  startHrefs: { tokens: startChangeHref('look'), component: startChangeHref('variant'), guidance: firstMissing ? docsEditHref(firstMissing.slug) : studioHref('components/') },
   signIn: Boolean(signInConfig()),
+  // The launcher on the hosted site, hidden while a visitor explores the demo (components/ds/studio/DemoHome.tsx).
+  launcher: hostedSite,
 };
-const json = JSON.stringify(homeStatic).replace(/</g, '\\u003c');
+// Create branch > A feature in a product starts an exploration: its preview settings, as the Branches page embeds them.
+const repo = siteRepo();
+const branchesCfg: BranchesConfig = { owner: repo.owner, repo: repo.repo, defaultBranch: repo.defaultBranch, apps: PREVIEW_APPS, packages: PREVIEW_PACKAGES };
+const json = jsonForScript(homeStatic);
+
+// Setup steps: facts from bridge.config.json as it is on this build (the repository stays the source of truth).
+let rawCfg: Record<string, any> = {};
+try {
+  rawCfg = exists('bridge.config.json') ? readJson<Record<string, any>>('bridge.config.json') : {};
+} catch {
+  rawCfg = {};
+}
+const repoName = `${repo.owner}/${repo.repo}`;
+// The demo opens on its own home for visitors (lib/demo.ts): the launcher waits behind its banner.
+const demo = isDemoRepo(repoName);
+const onboarding = {
+  changes: changesInConfig(rawCfg),
+  name: teamName(rawCfg.name) ?? null,
+  prefix: rawCfg.governance?.branchPrefix ?? '',
+  protectedBranches: rawCfg.governance?.protectedBranches ?? ['main', 'master'],
+  ctx: {
+    repo: repoName,
+    repoUrl: GITHUB_URL,
+    storybook: rawCfg.storybook?.url ?? PRODUCTION_APPS.storybook ?? null,
+    products: (Array.isArray(rawCfg.products) ? rawCfg.products : []).filter((p: any) => p && typeof p.name === 'string').map((p: any) => ({ name: p.name, path: typeof p.path === 'string' ? p.path : undefined })),
+    mcpCommand: bridgeMcpInstallCommand(repoName),
+    figmaHref: '/install/#figma-plugin',
+    claudeHref: '/agents/#claude-code',
+  },
+};
 ---
 
 <Layout
   title="Home"
-  description="What needs you now, your branches, and how the library is doing: the Studio's starting point."
+  description="What needs you now, your changes, and how the library is doing: the Studio's starting point."
   sources={PAGE_SOURCES.home}
   updated={freshness(PAGE_SOURCES.home)}
   wide
 >
+  {hostedSite && <div data-team-launcher hidden={demo}><TeamLauncher client:load /></div>}
   <div class="sh-root" data-studio-home>
     <div class="sh">
       <section class="zone sh-zone" aria-busy="true" aria-label="Loading what needs you">
@@ -78,25 +115,41 @@ const json = JSON.stringify(homeStatic).replace(/</g, '\\u003c');
     </div>
   </div>
   <script type="application/json" id="home-static" set:html={json} />
-  <script type="application/json" id="home-guidance" set:html={JSON.stringify({ drafted: guidance }).replace(/</g, '\\u003c')} />
+  <script type="application/json" id="bridge-branches" set:html={jsonForScript(branchesCfg)} />
+  <script type="application/json" id="home-onboarding" set:html={jsonForScript(onboarding)} />
+  <script type="application/json" id="home-guidance" set:html={jsonForScript({ drafted: guidance })} />
 
   <script>
-    import type { Root } from 'react-dom/client';
-    import { currentViewer, getToken, initGitHubConnect, prefersSignIn } from '../../scripts/github-session';
+    import { studioHref } from '../../lib/team-path';
+    import { createRoot, type Root } from 'react-dom/client';
+    import { currentAccess, currentContributor, currentViewer, getToken, initGitHubConnect, onAccess, prefersSignIn } from '../../scripts/github-session';
+    import { siteConfig } from '../../scripts/repo-context';
+    import { teamLink } from '../../lib/access-view';
+    import { STUDIO_ROOT } from '../../lib/team-path';
     import { setReviewCount } from '../../scripts/shell';
     import { rememberMine } from '../../scripts/needs-you';
     import { loadHome, type HomeData, type HomeStatic } from '../../scripts/home-data';
     import { paintStudioHome, type HealthLine, type HomeComponent, type StudioHomeProps } from '../../components/ds/studio/StudioHome';
-    import { adoptionDropLine, greeting, homeState, publishedThisWeek, type Published } from '../../lib/home-model';
+    import { adoptionDropLine, greeting, homeState } from '../../lib/home-model';
     import { signedOutLine } from '../../lib/overview-todo';
     import { ghButton } from '../../lib/gh-wording';
+    import { createElement } from 'react';
+    import type { ChangesMode } from '@bridge-ds/core';
+    import { FinishConnecting, Onboarding, type OnboardingContext } from '../../components/ds/studio/Onboarding';
+    import { onboardingKey, onboardingSteps, parseMemory, readMemoryText, STEP_IDS, showsChecklist, showsFirstRun, type OnboardingMemory, type StepId } from '../../lib/onboarding';
+    import { shortName } from '../../lib/home-model';
+    import { proposeChangesMode, proposeTeamName } from '../../scripts/roles';
+    import { onWorkspaceChange, readWorkspace } from '../../scripts/workspace';
+    import { exploresDemo } from '../../lib/demo';
+    import { loadDemoHome, type DemoHomeData } from '../../scripts/demo-home';
+    import { paintDemoHome } from '../../components/ds/studio/DemoHome';
 
     interface Static extends HomeStatic {
       adoptionDrop: number | null;
-      published: Published[];
       components: HomeComponent[];
       startHrefs: StudioHomeProps['startHrefs'];
       signIn: boolean;
+      launcher: boolean;
     }
     const read = <T,>(id: string): T | null => {
       try {
@@ -111,20 +164,167 @@ const json = JSON.stringify(homeStatic).replace(/</g, '\\u003c');
     const el = document.querySelector<HTMLElement>('[data-studio-home]')!;
     let root: Root | null = null;
     let data: HomeData | null = null;
+    let demoData: DemoHomeData | null = null;
     let known = false;
     let run = 0;
 
+    // Setup steps: the facts of this build, and what this browser remembers (Do this later, Hide, marked steps).
+    const onb = read<{ changes: ChangesMode | null; name: string | null; prefix: string; protectedBranches: string[]; ctx: OnboardingContext }>('home-onboarding')!;
+    // Kept per repository (bridge.onboarding.<owner>/<repo>); the old shared key belonged to this build's repository.
+    const memoryKey = onboardingKey(onb.ctx.repo);
+    const loadMemory = (): OnboardingMemory => {
+      try {
+        return parseMemory(readMemoryText(localStorage, onb.ctx.repo, onb.ctx.repo));
+      } catch {
+        return parseMemory(null);
+      }
+    };
+    let memory = loadMemory();
+    const remember = (next: Partial<OnboardingMemory>) => {
+      memory = { ...memory, ...next };
+      try {
+        localStorage.setItem(memoryKey, JSON.stringify(memory));
+      } catch {
+        /* private mode: kept for this visit only */
+      }
+      paint();
+    };
+    // The steps open over the home: on the first run, from "N of 8 connected" at the step picked there, or from a
+    // link elsewhere in Studio (?setup=library, "Connect the repository" on the Storybook components page).
+    const asked = new URLSearchParams(location.search).get('setup');
+    let stepsAt: StepId | null = asked && (STEP_IDS as readonly string[]).includes(asked) ? (asked as StepId) : null;
+    // The Storybook quick start lives in this browser; repaint when it is added or changed (here or in another tab).
+    let workspace = readWorkspace();
+    onWorkspaceChange((w) => {
+      workspace = w;
+      paint();
+    });
+    // Once open, the steps stay until the viewer leaves them (a proposal sent on step 4 must not close them).
+    let stepsOpen = false;
+
+    // Step "Invite your team": this Studio's own address is the team link.
+    const team = () => {
+      const [owner = '', name = ''] = onb.ctx.repo.split('/');
+      return { owner, repo: name, link: teamLink(location.origin, STUDIO_ROOT), access: currentAccess()?.state ?? null, changes: onb.changes, owners: siteConfig().owners };
+    };
+
     function health(): HealthLine | null {
-      if (stat.adoptionDrop) return { text: adoptionDropLine(stat.adoptionDrop), tone: 'drop', href: '/studio/quality/#ql-adoption', link: 'Open Quality' };
+      if (stat.adoptionDrop) return { text: adoptionDropLine(stat.adoptionDrop), tone: 'drop', href: studioHref('quality/#ql-adoption'), link: 'Open Quality' };
       // A failing contrast check is a Needs you row; otherwise one quiet line.
-      return stat.contrastFail ? null : { text: 'Library healthy.', tone: 'ok', href: '/studio/quality/', link: 'Open Quality' };
+      return stat.contrastFail ? null : { text: 'Library healthy.', tone: 'ok', href: studioHref('quality/'), link: 'Open Quality' };
     }
+
+    // The demo, for a visitor who cannot change it: its own home, read-only (lib/demo.ts).
+    const exploring = () => {
+      const v = currentViewer();
+      if (!known && getToken()) return false;
+      // An email contributor is a member of the team: never a demo visitor.
+      if (!v && currentContributor()) return false;
+      return exploresDemo({ repo: onb.ctx.repo, signedIn: Boolean(v), write: v ? (currentAccess()?.write ?? null) : false });
+    };
+    const launcherSlot = document.querySelector<HTMLElement>('[data-team-launcher]');
 
     function paint() {
       const now = Date.now();
       const v = currentViewer();
       const signedIn = Boolean(v) || (!known && Boolean(getToken()));
       const d = data;
+      const demo = exploring();
+      if (launcherSlot) launcherSlot.hidden = demo || !stat.launcher;
+      if (demo) {
+        root = paintDemoHome(
+          el,
+          {
+            loading: !demoData || demoData.loading,
+            needs: demoData?.needs ?? [],
+            branches: demoData?.branches ?? [],
+            health: health(),
+            building: true,
+            failed: demoData?.failed ?? null,
+            lead: demoData?.lead ?? null,
+            role: demoData?.role ?? null,
+            now,
+            components: stat.components,
+            startHrefs: stat.startHrefs,
+          },
+          root,
+        );
+        return;
+      }
+      const steps = onboardingSteps({
+        login: v?.login ?? null,
+        repo: onb.ctx.repo,
+        storybook: onb.ctx.storybook,
+        quickStart: workspace.storybook,
+        products: onb.ctx.products.map((p) => p.name),
+        changes: onb.changes,
+        // A proposal stays waiting until the file says it.
+        proposed: onb.changes ? null : memory.proposed,
+        teamName: onb.name,
+        named: onb.name ? null : memory.named,
+        marked: memory.marked,
+      });
+      if (v && (stepsOpen || stepsAt || showsFirstRun(steps, { later: memory.later }))) {
+        stepsOpen = true;
+        root = root ?? createRoot(el);
+        root.render(
+          createElement(Onboarding, {
+            key: stepsAt ?? 'first-run',
+            steps,
+            name: shortName(v.name) ?? v.login,
+            initial: stepsAt ?? undefined,
+            ctx: { ...onb.ctx, quickStart: workspace.storybook, team: team() },
+            actions: {
+              propose: async (mode: ChangesMode) => {
+                const pr = await proposeChangesMode(mode, { prefix: onb.prefix, protectedBranches: onb.protectedBranches });
+                memory = { ...memory, proposed: { pr: pr.number, mode } };
+                try {
+                  localStorage.setItem(memoryKey, JSON.stringify(memory));
+                } catch {
+                  /* kept for this visit only */
+                }
+                return pr;
+              },
+              name: async (name: string) => {
+                const pr = await proposeTeamName(name, { prefix: onb.prefix, protectedBranches: onb.protectedBranches });
+                memory = { ...memory, named: { pr: pr.number, name: name.trim() } };
+                try {
+                  localStorage.setItem(memoryKey, JSON.stringify(memory));
+                } catch {
+                  /* kept for this visit only */
+                }
+                return pr;
+              },
+              mark: (id: StepId) => {
+                memory = { ...memory, marked: [...new Set([...memory.marked, id])] };
+                try {
+                  localStorage.setItem(memoryKey, JSON.stringify(memory));
+                } catch {
+                  /* kept for this visit only */
+                }
+              },
+              later: () => {
+                stepsAt = null;
+                stepsOpen = false;
+                remember({ later: true });
+                window.scrollTo({ top: 0 });
+              },
+            },
+          }),
+        );
+        return;
+      }
+      const setup =
+        v && showsChecklist(steps, { hidden: memory.hidden })
+          ? createElement(FinishConnecting, {
+              steps,
+              onOpen: (id: StepId) => {
+                stepsAt = id;
+                paint();
+              },
+              onHide: () => remember({ hidden: true }),
+            })
+          : undefined;
       const state = homeState({ signedIn, loading: !d || d.loading, needs: d?.needs.length ?? 0, branches: d?.branches.length ?? 0 });
       root = paintStudioHome(
         el,
@@ -133,23 +333,46 @@ const json = JSON.stringify(homeStatic).replace(/</g, '\\u003c');
           greeting: greeting(new Date(now).getHours(), v?.name ?? null),
           needs: d?.needs ?? [],
           branches: d?.branches ?? [],
-          published: publishedThisWeek(stat.published, v?.login ?? null, now),
           health: health(),
+          building: true,
           now,
           components: stat.components,
           signedOut: { line: signedOutLine(prefersSignIn()), button: ghButton(stat.signIn), signIn: stat.signIn },
           failed: d?.failed ?? null,
           startHrefs: stat.startHrefs,
+          setup,
+          // No review right: only what waits on them, and their tour (once the owner teams are read).
+          contributor: Boolean(d && !d.loading && !d.reviewer),
         },
         root,
       );
     }
 
     paint();
+    let demoRead = false;
+    const readDemo = () => {
+      if (demoRead) return;
+      demoRead = true;
+      void loadDemoHome(stat, (d) => {
+        demoData = d;
+        paint();
+      });
+    };
+    onAccess(() => {
+      if (stepsOpen || exploring()) {
+        if (exploring()) readDemo();
+        paint();
+      }
+    });
     initGitHubConnect(() => {
       known = true;
       data = null;
       const mine = ++run;
+      if (exploring()) {
+        readDemo();
+        paint();
+        return;
+      }
       paint();
       void loadHome(stat, (d) => {
         if (mine !== run) return;

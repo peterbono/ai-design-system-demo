@@ -55,7 +55,12 @@ describe('fixture repo (detected config)', () => {
   it('proposes in hex-string format and keeps the repo style', async () => {
     const dir = tempGitRepo(FIXTURE, ['.']);
     const local = await BridgeContext.create({ root: dir });
-    const p = (await ops.proposeTokenChange(local, { title: 'Deeper accent', edits: [{ op: 'set', path: 'color.green.700', value: '#166534' }] })) as any;
+    // No "changes" in the detected config: suggestions by default, and with no GitHub repo nothing is sent.
+    const s = (await ops.proposeTokenChange(local, { title: 'Deeper accent', edits: [{ op: 'set', path: 'color.green.700', value: '#166534' }] })) as any;
+    expect(s.status).toBe('preview');
+    expect(s.changesMode).toBe('suggest');
+    expect(s.message).toMatch(/a suggestion is a GitHub issue.*changes "direct"/);
+    const p = (await ops.proposeTokenChange(local, { title: 'Deeper accent', edits: [{ op: 'set', path: 'color.green.700', value: '#166534' }], changes: 'direct' })) as any;
     expect(p.status).toBe('branch-created');
     const text = git(dir, 'show', 'bridge/deeper-accent:design/tokens/core.json');
     expect(text).toContain('"700": { "$value": "#166534" }');

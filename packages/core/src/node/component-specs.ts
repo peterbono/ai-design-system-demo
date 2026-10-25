@@ -16,11 +16,14 @@ import {
   type ComponentSpecsFile,
   type SpecAxis,
   type SpecCoverage,
+  type SpecExample,
   type SpecField,
   type SpecLayout,
   type SpecPart,
   type SpecIcon,
   type SpecIconStyle,
+  type SpecInteraction,
+  type SpecTrigger,
   type SpecProperty,
   type SpecSlot,
   type SpecUnmapped,
@@ -29,16 +32,22 @@ import {
   type SpecVector,
   hashSpec,
   iconComponentName,
+  specHash,
+  validateComponentSpec,
   tokenCssVar,
   variantKeyOf,
 } from '../component-spec';
 import { CONFIG_FILE, loadConfig } from '../config';
-import { buildTokenSet, layoutOptions } from '../token-set';
+import { resolve } from '../resolver';
+import { buildTokenSet, defaultContext, layoutOptions } from '../token-set';
 import { type CssElement, type CssRule, type CssState, DEFAULT_STATE, computeValues, declaredFor, parseCssModule, splitTop } from './spec-css';
+import { motionNotes, transitionBetween } from './spec-motion';
 
 export interface TokenInfo {
   path: string;
   type: string;
+  /** Durations and easings: the value in the default modes (`{ value: 150, unit: 'ms' }`, `[0.2, 0, 0, 1]`), for motion. */
+  value?: unknown;
 }
 
 export interface SpecGeneratorOptions {
@@ -55,6 +64,8 @@ export interface SpecGeneratorOptions {
   components?: string[] | undefined;
   /** Repo-relative global stylesheet apps load before the components (inherited text styles, tag rules). */
   baseCss?: string | undefined;
+  /** Repo-relative folder of specs drafted with Claude; default `component-spec-overrides` next to the specs file. */
+  overridesDir?: string | undefined;
 }
 
 /** States drawn as the State axis when the CSS styles them, with the selector state they stand for. */
@@ -118,6 +129,13 @@ interface ComponentSource {
   consts: Map<string, ts.Expression>;
   /** Base UI modules the file imports ("checkbox", "switch", "progress"). */
   baseUiModules: Set<string>;
+  /** Top-level consts holding a function (`const defaultTitle = (n) => ...`): callable values. */
+  fnConsts: Map<string, ts.ArrowFunction | ts.FunctionExpression>;
+  /**
+   * Functions imported from the package's own plain modules (`swatchColor` from ../../utils/color): modules with no
+   * imports and no JSX, run as they are, called with data.
+   */
+  imported: Map<string, (...args: unknown[]) => unknown>;
 }
 
 const NATIVE_ATTRS: Record<string, string> = {
@@ -135,7 +153,28 @@ function unquote(s: string): string {
 class Reader {
   private cache = new Map<string, ComponentSource | null>();
   private aliasCache = new Map<string, Map<string, string>>();
+  private elements = new Map<string, Map<string, string>>();
   constructor(private opts: SpecGeneratorOptions) {}
+
+  /**
+   * The element a Base UI part renders ("Increment" -> "button"), as Base UI's own docs say it
+   * (node_modules/@base-ui/react/docs/react/components/<module>.md: "### Increment ... Renders a `<button>` element").
+   */
+  baseUiElement(modules: Iterable<string>, part: string): string | undefined {
+    for (const m of modules) {
+      let parts = this.elements.get(m);
+      if (!parts) {
+        parts = new Map();
+        const text = this.opts.read(`node_modules/@base-ui/react/docs/react/components/${m}.md`) ?? '';
+        // "### Increment", a line or two about it, then "Renders a `<button>` element." (before the next heading).
+        for (const hit of text.matchAll(/^### ([\w.]+)\n(?:(?!#)[^\n]*\n){0,6}?Renders an? `<([a-z0-9-]+)>` element/gm)) parts.set(hit[1]!, hit[2]!);
+        this.elements.set(m, parts);
+      }
+      const el = parts.get(part);
+      if (el) return el;
+    }
+    return undefined;
+  }
 
   private dirOf(name: string) {
     return `${this.opts.componentsDir}/${name}`;
@@ -201,12 +240,29 @@ class Reader {
     const lucide = new Map<string, string>();
     const consts = new Map<string, ts.Expression>();
     const baseUiModules = new Set<string>();
+    const fnConsts = new Map<string, ts.ArrowFunction | ts.FunctionExpression>();
+    const imported = new Map<string, (...args: unknown[]) => unknown>();
     for (const st of sf.statements) {
       if (ts.isVariableStatement(st))
-        for (const d of st.declarationList.declarations) if (ts.isIdentifier(d.name) && d.initializer && !/forwardRef|^\(/.test(d.initializer.getText(sf).slice(0, 12))) consts.set(d.name.text, d.initializer);
+        for (const d of st.declarationList.declarations) {
+          if (!ts.isIdentifier(d.name) || !d.initializer) continue;
+          const init = skipCasts(d.initializer);
+          if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) fnConsts.set(d.name.text, init);
+          else if (!/forwardRef|^\(/.test(d.initializer.getText(sf).slice(0, 12))) consts.set(d.name.text, d.initializer);
+        }
       if (ts.isFunctionDeclaration(st) && st.name && /^[a-z]/.test(st.name.text) && st.body) helpers.set(st.name.text, st);
       if (!ts.isImportDeclaration(st) || !st.importClause) continue;
       const spec = unquote(st.moduleSpecifier.getText(sf));
+      // A plain module of the package (utils): its functions run as they are.
+      if (spec.startsWith('.') && !/\.css$/.test(spec) && !/^\.\.\/\w+$/.test(spec)) {
+        const b = st.importClause.namedBindings;
+        const mod = b && ts.isNamedImports(b) ? this.plainModule(posix.normalize(posix.join(this.dirOf(folder!), spec))) : undefined;
+        if (mod && b && ts.isNamedImports(b))
+          for (const e of b.elements) {
+            const f = mod[(e.propertyName ?? e.name).text];
+            if (typeof f === 'function') imported.set(e.name.text, f as (...args: unknown[]) => unknown);
+          }
+      }
       if (spec === 'lucide-react') {
         const b = st.importClause.namedBindings;
         if (b && ts.isNamedImports(b)) for (const e of b.elements) lucide.set(e.name.text, (e.propertyName ?? e.name).text);
@@ -240,10 +296,46 @@ class Reader {
     const fns = componentFunctions(sf);
     const fn = fns.get(name);
     const subcomponents = [...fns].filter(([n]) => n !== name && n.startsWith(name)).map(([n, f]) => ({ name: n, fn: f }));
-    const src: ComponentSource = { name, folder: folder!, file, sf, styles, props, native, fn, subcomponents, exported: fns, baseUi, helpers, lucide, consts, baseUiModules };
+    const src: ComponentSource = { name, folder: folder!, file, sf, styles, props, native, fn, subcomponents, exported: fns, baseUi, helpers, lucide, consts, baseUiModules, fnConsts, imported };
     this.cache.set(name, src);
     return src;
   }
+
+  private modules = new Map<string, Record<string, unknown> | undefined>();
+
+  /**
+   * Exports of a plain module of the package (`utils/color.ts`): no imports, no JSX, so it runs on its own. Undefined
+   * for anything else (a module that imports React or another file).
+   */
+  plainModule(path: string): Record<string, unknown> | undefined {
+    if (this.modules.has(path)) return this.modules.get(path);
+    let out: Record<string, unknown> | undefined;
+    const text = this.opts.read(`${path}.ts`) ?? this.opts.read(`${path}/index.ts`);
+    if (text !== undefined) {
+      const sf = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+      // A .ts file has no JSX; it must not import anything (React, other files) to run on its own.
+      const plain = !sf.statements.some((s) => ts.isImportDeclaration(s) || (ts.isExportDeclaration(s) && !!s.moduleSpecifier));
+      if (plain) {
+        try {
+          const js = ts.transpileModule(text, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS } }).outputText;
+          const exports: Record<string, unknown> = {};
+          // eslint-disable-next-line @typescript-eslint/no-implied-eval
+          new Function('exports', 'module', js)(exports, { exports });
+          out = exports;
+        } catch {
+          out = undefined;
+        }
+      }
+    }
+    this.modules.set(path, out);
+    return out;
+  }
+}
+
+/** The expression under casts and parentheses (`(x as T)`, `x satisfies T`). */
+function skipCasts(e: ts.Expression): ts.Expression {
+  while (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isSatisfiesExpression(e) || ts.isNonNullExpression(e)) e = e.expression;
+  return e;
 }
 
 function classifyType(text: string, aliases: Map<string, string>, depth = 0): { kind: PropKind; values?: string[] } {
@@ -297,7 +389,15 @@ interface TextRef {
   text: string;
 }
 
-type Value = undefined | null | boolean | number | string | symbol | ClassRef | StylesRef | JsxRef | TextRef | LucideRef | Value[] | { [k: string]: Value };
+/** A function as a value (a default prop `errorSummaryTitle = defaultTitle`, an arrow passed as a prop): callable. */
+interface FnRef {
+  fnRef: ts.ArrowFunction | ts.FunctionExpression | ts.FunctionDeclaration;
+  scope: Scope;
+}
+
+type Value = undefined | null | boolean | number | string | symbol | ClassRef | StylesRef | JsxRef | TextRef | LucideRef | FnRef | Value[] | { [k: string]: Value };
+
+const isFnRef = (v: Value): v is FnRef => !!v && typeof v === 'object' && 'fnRef' in (v as object);
 
 const isClass = (v: Value): v is ClassRef => !!v && typeof v === 'object' && 'cls' in (v as object);
 const isTextRef = (v: Value): v is TextRef => !!v && typeof v === 'object' && 'textProp' in (v as object);
@@ -324,6 +424,8 @@ interface Scope {
   preview?: DocChild[] | undefined;
   /** A nested component's checked state, from its props (`defaultChecked`, `indeterminate`). */
   checked?: 'true' | 'false' | 'mixed' | undefined;
+  /** Optional props shown by default because the example gives them. */
+  toggleOn?: Set<string> | undefined;
   /** React context values provided above (`<TabsContext.Provider value={...}>`), by context name. */
   contexts?: Map<string, Value> | undefined;
   /** Component being specified (true) or a nested DS component (false). */
@@ -345,6 +447,8 @@ function lookup(scope: Scope, name: string): Value {
   if (icon) return { lucide: icon };
   const top = scope.src.consts.get(name);
   if (top) return evaluate(top, { ...scope, vars: new Map(), locals: new Map() });
+  const fnConst = scope.src.fnConsts.get(name);
+  if (fnConst) return { fnRef: fnConst, scope: { ...scope, vars: new Map(), locals: new Map(), toggles: new Map() } };
   return undefined;
 }
 
@@ -474,9 +578,30 @@ function evaluate(e: ts.Expression, scope: Scope): Value {
     }
     // useMemo(() => value, deps): the value.
     if ((callee === 'useMemo' || callee === 'React.useMemo') && e.arguments[0]) return callArrow(e.arguments[0], [], scope);
+    // Array.isArray(x) and Array.from({ length: n }, fn) on known values.
+    if (callee === 'Array.isArray' && e.arguments[0]) {
+      const v = evaluate(e.arguments[0], scope);
+      return v === OPAQUE || isFnRef(v) ? OPAQUE : Array.isArray(v);
+    }
+    if (callee === 'Array.from' && e.arguments[0]) {
+      const v = evaluate(e.arguments[0], scope);
+      const length = v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, Value>).length : undefined;
+      const list: Value[] | undefined = Array.isArray(v) ? v : typeof length === 'number' && length >= 0 && length < 1000 ? Array.from({ length }, () => undefined) : undefined;
+      if (!list) return OPAQUE;
+      const fn = e.arguments[1];
+      if (!fn) return list;
+      const results = list.map((x, i) => callArrow(fn, [x, i], scope));
+      return results.some((r) => r === OPAQUE) ? OPAQUE : results;
+    }
     if (ts.isPropertyAccessExpression(e.expression) && /^(map|flatMap|filter|some|every|find)$/.test(e.expression.name.text)) {
       const list = evaluate(e.expression.expression, scope);
       if (Array.isArray(list)) return listMethod(list, e.expression.name.text, e.arguments, scope);
+    }
+    // String and list methods on known values (`text.split('.')`, `formatted.join(' to ')`).
+    if (ts.isPropertyAccessExpression(e.expression)) {
+      const obj = evaluate(e.expression.expression, scope);
+      const r = valueMethod(obj, e.expression.name.text, e.arguments.map((a) => evaluate(a, scope)));
+      if (r !== undefined) return r;
     }
     // A local arrow function (`const renderItem = (o) => <Item ... />`), called with values.
     if (ts.isIdentifier(e.expression)) {
@@ -489,14 +614,32 @@ function evaluate(e: ts.Expression, scope: Scope): Value {
         );
     }
     const helper = ts.isIdentifier(e.expression) ? scope.src.helpers.get(e.expression.text) : undefined;
-    if (helper) return callHelper(helper, e.arguments.map((a) => evaluate(a, scope)), scope.src);
+    if (helper) {
+      const args = e.arguments.map((a) => evaluate(a, scope));
+      // A helper that returns elements (`breakAfterDots(text)`): read like the component, not run.
+      if (containsJsx(helper)) return callArrow(helper, args, { ...scope, vars: new Map(), locals: new Map(), toggles: new Map(), inits: new Map() });
+      return callHelper(helper, args, scope.src);
+    }
+    const imported = ts.isIdentifier(e.expression) ? scope.src.imported.get(e.expression.text) : undefined;
+    if (imported) return callData(imported, e.arguments.map((a) => evaluate(a, scope)));
+    // A function held by a value (a default prop, a top-level const): called with values.
+    if (ts.isIdentifier(e.expression)) {
+      const v = evaluate(e.expression, scope);
+      if (isFnRef(v)) return callArrow(v.fnRef, e.arguments.map((a) => evaluate(a, scope)), v.scope);
+    }
     return OPAQUE;
   }
+  if (ts.isArrowFunction(e) || ts.isFunctionExpression(e)) return { fnRef: e, scope };
   if (ts.isJsxElement(e) || ts.isJsxSelfClosingElement(e) || ts.isJsxFragment(e)) return { jsx: e, scope };
   if (ts.isObjectLiteralExpression(e)) {
     const out: Record<string, Value> = {};
     for (const p of e.properties) {
-      if (ts.isPropertyAssignment(p)) out[unquote(p.name.getText(sf))] = evaluate(p.initializer, scope);
+      if (ts.isPropertyAssignment(p) && ts.isComputedPropertyName(p.name)) {
+        // `{ ['--_min-rows' as string]: rows }`: the key evaluated, kept when it is a string or a number.
+        const key = evaluate(p.name.expression, scope);
+        if (typeof key !== 'string' && typeof key !== 'number') return OPAQUE;
+        out[String(key)] = evaluate(p.initializer, scope);
+      } else if (ts.isPropertyAssignment(p)) out[unquote(p.name.getText(sf))] = evaluate(p.initializer, scope);
       else if (ts.isShorthandPropertyAssignment(p)) out[p.name.text] = lookup(scope, p.name.text);
       else if (ts.isSpreadAssignment(p)) {
         const v = evaluate(p.expression, scope);
@@ -509,22 +652,30 @@ function evaluate(e: ts.Expression, scope: Scope): Value {
   return OPAQUE;
 }
 
+/** The custom properties of an inline style object (`{ '--_pct': 64 }`), as CSS text; undefined when there are none. */
+function styleVarsOf(style: Value): Map<string, string> | undefined {
+  if (!style || typeof style !== 'object' || Array.isArray(style) || isJsx(style)) return undefined;
+  const vars = new Map<string, string>();
+  for (const [k, v] of Object.entries(style as Record<string, Value>)) if (k.startsWith('--') && (typeof v === 'number' || typeof v === 'string')) vars.set(k, String(v));
+  return vars.size ? vars : undefined;
+}
+
 /**
  * A plain helper of the component file (`initials(name)`) called with literal arguments: transpiled and run, so the
  * drawn text is what code renders. Only strings, numbers and booleans go in and come out; anything else is opaque.
  */
-function callHelper(fn: ts.FunctionDeclaration, args: Value[], src: ComponentSource): Value {
-  // Data only: strings, numbers, booleans, and lists or objects of them (a select's options).
-  const isData = (v: Value): boolean =>
-    typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' || v === null || v === undefined ||
-    (Array.isArray(v) && v.every(isData)) ||
-    (!!v && typeof v === 'object' && !isJsx(v) && !isClass(v) && !isStyles(v) && !isTextRef(v) && Object.values(v as Record<string, Value>).every(isData));
+/** Data only: strings, numbers, booleans, and lists or objects of them (a select's options). */
+const isData = (v: Value): boolean =>
+  typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' || v === null || v === undefined ||
+  (Array.isArray(v) && v.every(isData)) ||
+  (!!v && typeof v === 'object' && !isJsx(v) && !isClass(v) && !isStyles(v) && !isTextRef(v) && !isFnRef(v) && Object.values(v as Record<string, Value>).every(isData));
+
+/** A function run on data (texts are passed as their text): its result when it is data, else opaque. */
+function callData(fn: (...args: unknown[]) => unknown, args: Value[]): Value {
   const data = args.map((a) => (isTextRef(a) ? a.text : a));
   if (!data.every(isData)) return OPAQUE;
   try {
-    const js = ts.transpileModule(fn.getText(src.sf).replace(/^export\s+(default\s+)?/, ''), { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None } }).outputText;
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval
-    const out: unknown = new Function(`${js}; return ${fn.name!.text}.apply(null, arguments);`)(...structuredClone(data));
+    const out: unknown = fn(...structuredClone(data));
     const v = jsonValue(JSON.parse(JSON.stringify(out ?? null)));
     return isData(v) ? v : OPAQUE;
   } catch {
@@ -532,9 +683,74 @@ function callHelper(fn: ts.FunctionDeclaration, args: Value[], src: ComponentSou
   }
 }
 
+function callHelper(fn: ts.FunctionDeclaration, args: Value[], src: ComponentSource): Value {
+  try {
+    const js = ts.transpileModule(fn.getText(src.sf).replace(/^export\s+(default\s+)?/, ''), { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None } }).outputText;
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval
+    const run = new Function(`${js}; return ${fn.name!.text}.apply(null, arguments);`) as (...a: unknown[]) => unknown;
+    return callData(run, args);
+  } catch {
+    return OPAQUE;
+  }
+}
+
+/** Whether a function's body writes JSX (it returns elements, not data). */
+function containsJsx(fn: ts.Node): boolean {
+  let found = false;
+  const visit = (n: ts.Node) => {
+    if (found) return;
+    if (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n) || ts.isJsxFragment(n)) found = true;
+    else ts.forEachChild(n, visit);
+  };
+  visit(fn);
+  return found;
+}
+
+/** String and list methods on known values: split, join, trim, slice, includes, startsWith, endsWith, case changes. */
+function valueMethod(obj: Value, method: string, args: Value[]): Value | undefined {
+  const str = (i: number) => (typeof args[i] === 'string' ? (args[i] as string) : undefined);
+  const int = (i: number) => (typeof args[i] === 'number' ? (args[i] as number) : args[i] === undefined ? undefined : NaN);
+  if (typeof obj === 'string') {
+    switch (method) {
+      case 'split':
+        return str(0) !== undefined ? obj.split(str(0)!) : undefined;
+      case 'trim':
+        return obj.trim();
+      case 'toLowerCase':
+        return obj.toLowerCase();
+      case 'toUpperCase':
+        return obj.toUpperCase();
+      case 'startsWith':
+        return str(0) !== undefined ? obj.startsWith(str(0)!) : undefined;
+      case 'endsWith':
+        return str(0) !== undefined ? obj.endsWith(str(0)!) : undefined;
+      case 'includes':
+        return str(0) !== undefined ? obj.includes(str(0)!) : undefined;
+      case 'slice':
+        return Number.isNaN(int(0)) || Number.isNaN(int(1)) ? undefined : obj.slice(int(0), int(1));
+      default:
+        return undefined;
+    }
+  }
+  if (Array.isArray(obj)) {
+    switch (method) {
+      case 'join':
+        return obj.every((x) => typeof x === 'string' || typeof x === 'number') ? obj.join(str(0) ?? ',') : undefined;
+      case 'slice':
+        return Number.isNaN(int(0)) || Number.isNaN(int(1)) ? undefined : obj.slice(int(0), int(1));
+      case 'includes':
+        return obj.includes(args[0]);
+      default:
+        return undefined;
+    }
+  }
+  return undefined;
+}
+
 /** An arrow or function expression called with values (`(o) => ({ value: o.value })`), when its body is readable. */
-function callArrow(fn: ts.Expression, args: Value[], scope: Scope): Value {
-  if (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) return OPAQUE;
+function callArrow(fn: ts.Expression | ts.FunctionDeclaration, args: Value[], scope: Scope): Value {
+  if (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn) && !ts.isFunctionDeclaration(fn)) return OPAQUE;
+  if (!fn.body) return OPAQUE;
   const vars = new Map(scope.vars);
   fn.parameters.forEach((p, i) => {
     const v = args[i];
@@ -647,7 +863,9 @@ function bindProps(fn: ts.FunctionLikeDeclaration, scope: Scope, given: Record<s
   }
   // `...rest`: the props given that are not named (children passed through a spread, data attributes).
   const rest = param.name.elements.find((el) => el.dotDotDotToken && ts.isIdentifier(el.name));
-  if (rest && ts.isIdentifier(rest.name)) scope.vars.set(rest.name.text, Object.fromEntries(Object.entries(given).filter(([k, v]) => !taken.has(k) && v !== undefined && v !== CHILDREN)) as Value);
+  // Children an example gives a nested component (a table header's rows) go through the spread too.
+  const keepChildren = !scope.main && !!scope.preview?.some((c) => typeof c !== 'string');
+  if (rest && ts.isIdentifier(rest.name)) scope.vars.set(rest.name.text, Object.fromEntries(Object.entries(given).filter(([k, v]) => !taken.has(k) && v !== undefined && (v !== CHILDREN || keepChildren))) as Value);
   return names;
 }
 
@@ -718,10 +936,21 @@ interface Node {
   text?: { property: string; default: string; prop?: string | undefined } | undefined;
   /** Text written in code (a group's option label, a literal "*"): drawn as is, no TEXT property. */
   chars?: string | undefined;
+  /** The text as React renders it, spaces at its ends kept (`Page ` before `{page}`): joins inline runs exactly. */
+  raw?: string | undefined;
+  /** Whitespace only: joins inline runs, dropped otherwise. */
+  space?: boolean | undefined;
+  /** A compound root drawn with the parts its file exports (CardHeader...), not with an example's children. */
+  fromExports?: boolean | undefined;
   placeholder?: boolean | undefined;
   inputLike?: boolean | undefined;
+  /**
+   * The element sizes its border box by default (a `<button>` or a `<select>`, browsers' own stylesheet): its height
+   * and width already count its padding and border.
+   */
+  borderBox?: boolean | undefined;
   /** BOOLEAN property that shows this optional part. */
-  visible?: { property: string; prop: string } | undefined;
+  visible?: { property: string; prop: string; /** Shown by default: the example gives it. */ on?: boolean } | undefined;
   /** Spreads `...rest` with no children of its own: children come through props. */
   takesChildren?: boolean | undefined;
   /** Name for the layer, when it is not the class. */
@@ -747,6 +976,16 @@ interface Node {
   styleVars?: Map<string, string> | undefined;
   /** A Base UI value indicator (a progress fill): its share of the track, from the root's value, min and max. */
   fraction?: number | undefined;
+  /** A Base UI thumb (a slider's): its center sits at this share of its track. */
+  at?: number | undefined;
+  /** A Base UI panel whose value is not the selected one: hidden. */
+  inactive?: boolean | undefined;
+  /** An inline background color (a swatch): content, not a token. */
+  inlineFill?: string | undefined;
+  /** A Base UI indicator Base UI sizes to the selected item (a tab underline): drawn inside that item, filling it. */
+  follows?: boolean | undefined;
+  /** A decoration drawn by `::before` or `::after` of its parent. */
+  pseudo?: 'before' | 'after' | undefined;
 }
 
 const INPUT_TAGS = new Set(['input', 'textarea', 'BaseInput']);
@@ -770,13 +1009,24 @@ interface RenderContext {
   /** What the render met and cannot draw faithfully (content computed while the page runs), in plain language. */
   blockers?: string[] | undefined;
   /** The option a group selects (`defaultValue` of a radio group): Base UI parts with that `value` are checked. */
-  selected?: string | undefined;
+  /** The selected value (a tab), or the open ones (an accordion's defaultValue list). */
+  selected?: string | string[] | undefined;
   /** The `items` of the nearest Base UI root (a combobox's options), for render functions of its lists. */
   items?: Value[] | undefined;
   /** React context values provided above, by context name. */
   contexts?: Map<string, Value> | undefined;
   /** The value share of the nearest Base UI root with a numeric value (a progress at 64 of 100: 0.64). */
   fraction?: number | undefined;
+  /** The nearest Base UI root with a numeric value: its value and module ("slider", "progress"). */
+  numeric?: { value: number; module: string } | undefined;
+  /** Arguments Base UI passes to the render function of a value display (the formatted value). */
+  valueArgs?: Value[] | undefined;
+  /** `orientation` of the nearest Base UI root: its parts carry it as data-orientation. */
+  orientation?: string | undefined;
+  /** Errors of the nearest Base UI form, by field name: the Field of that name shows its error. */
+  formErrors?: Record<string, Value> | undefined;
+  /** Optional text props the example gives the main component: their parts show that text, on by default. */
+  examples?: Record<string, Value> | undefined;
 }
 
 /** A data-* or aria-* attribute value as the DOM gets it, or undefined when React leaves it out. */
@@ -794,6 +1044,8 @@ function renderJsx(ref: JsxRef, ctx: RenderContext, visible?: Node['visible']): 
   if (!ts.isJsxElement(jsx) && !ts.isJsxSelfClosingElement(jsx)) return [];
   const open = ts.isJsxElement(jsx) ? jsx.openingElement : jsx;
   const tag = open.tagName.getText(sf);
+  // A line break opportunity (`<wbr />` in a token path): nothing drawn.
+  if (tag === 'wbr') return [];
   // <Fragment key={...}> and context providers draw their children only, like <>...</>; a provider's value reaches
   // the components below it (useContext).
   if (/\.Provider$/.test(tag) && ts.isJsxElement(jsx)) {
@@ -811,12 +1063,13 @@ function renderJsx(ref: JsxRef, ctx: RenderContext, visible?: Node['visible']): 
   for (const a of open.attributes.properties) {
     if (ts.isJsxSpreadAttribute(a)) {
       spreads = true;
-      // A spread of known props (`{...rest}`): their data and aria attributes apply, their children are drawn.
+      // A spread of known props (`{...rest}`): their data and aria attributes, class names and the values a Base UI
+      // root reads (value, min, max, orientation, form errors) apply; their children are drawn.
       const v = evaluate(a.expression, scope);
-      if (v && typeof v === 'object' && !Array.isArray(v) && !isJsx(v) && !isClass(v) && !isElementValue(v)) {
+      if (v && typeof v === 'object' && !Array.isArray(v) && !isJsx(v) && !isClass(v) && !isElementValue(v) && !isFnRef(v)) {
         for (const [k, x] of Object.entries(v as Record<string, Value>)) {
           if (k === 'children') spreadChildren = x;
-          else if (/^(data|aria)-/.test(k)) attrs[k] = x;
+          else if (/^(data|aria)-/.test(k) || SPREAD_PROPS.has(k)) attrs[k] = x;
         }
       }
       continue;
@@ -832,7 +1085,9 @@ function renderJsx(ref: JsxRef, ctx: RenderContext, visible?: Node['visible']): 
   // element, with the part's class names added. `render={children}`: what the consumer passes (a trigger).
   // Base UI parts that only exist in some situations: the empty message of a list that has items, the clear button
   // of a field with no value, the arrow of a popup (placed by Base UI next to its trigger, not drawn).
-  if (scope.src.baseUi.has(tag.split('.')[0]!) && ((/\.Empty$/.test(tag) && ctx.items?.length) || (/\.Clear$/.test(tag) && ctx.selected === undefined) || /\.Arrow$/.test(tag))) return [];
+  // An error message without `match` is shown by Base UI only once the field is invalid (a failed check while the page
+  // runs): not drawn.
+  if (scope.src.baseUi.has(tag.split('.')[0]!) && ((/\.Empty$/.test(tag) && ctx.items?.length) || (/\.Clear$/.test(tag) && ctx.selected === undefined) || /\.Arrow$/.test(tag) || (/\.Error$/.test(tag) && attrs.match === undefined))) return [];
 
   // With children of its own (`<Header render={<h3 />}>...`), the part keeps them: drawn as the part.
   if (scope.src.baseUi.has(tag.split('.')[0]!) && attrs.render !== undefined && !children?.some((c) => !ts.isJsxText(c) || c.text.trim())) {
@@ -840,7 +1095,13 @@ function renderJsx(ref: JsxRef, ctx: RenderContext, visible?: Node['visible']): 
     const extra = classList(attrs.className);
     if (isJsx(r)) {
       const nodes = renderJsx(r, ctx, visible);
-      if (nodes[0]) nodes[0].classes = [...nodes[0].classes, ...extra];
+      if (nodes[0]) {
+        nodes[0].classes = [...nodes[0].classes, ...extra];
+        // The part's inline custom properties go with it (`style={{ '--_min-rows': rows }}` on an Input that renders a
+        // textarea): they feed the element's CSS.
+        const vars = styleVarsOf(attrs.style);
+        if (vars) nodes[0].styleVars = new Map([...(nodes[0].styleVars ?? []), ...vars]);
+      }
       return nodes;
     }
     const init = open.attributes.properties.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText(sf) === 'render')?.initializer;
@@ -849,7 +1110,7 @@ function renderJsx(ref: JsxRef, ctx: RenderContext, visible?: Node['visible']): 
 
   // A design system component (Icon, Spinner...): rendered through its own TSX and CSS module.
   if (/^[A-Z]/.test(tag) && tag !== ctx.component && ctx.depth < 4 && ctx.reader.exists(tag)) {
-    const nested = renderComponent(ctx.reader, tag, children?.length ? { ...attrs, children: childrenValue(children, scope) } : attrs, { ...ctx, depth: ctx.depth + 1 });
+    const nested = renderComponent(ctx.reader, tag, withFormError(tag, children?.length ? { ...attrs, children: childrenValue(children, scope) } : attrs, ctx), { ...ctx, depth: ctx.depth + 1 });
     if (nested) {
       if (tag === ICON_COMPONENT) {
         nested.kind = 'icon';
@@ -871,6 +1132,10 @@ function renderJsx(ref: JsxRef, ctx: RenderContext, visible?: Node['visible']): 
     const str = attrString(v);
     if (str !== undefined) dataAttrs.set(k, str);
   }
+  const isBaseUi = scope.src.baseUi.has(tag.split('.')[0]!);
+  // Base UI parts carry their root's orientation (`data-orientation`).
+  const orientation = isBaseUi && typeof attrs.orientation === 'string' ? attrs.orientation : ctx.orientation;
+  if (isBaseUi && orientation && !dataAttrs.has('data-orientation')) dataAttrs.set('data-orientation', orientation);
   const node: Node = {
     key: '',
     tag,
@@ -880,7 +1145,7 @@ function renderJsx(ref: JsxRef, ctx: RenderContext, visible?: Node['visible']): 
     ...(visible ? { visible } : {}),
     ...(scope.src.baseUi.has(tag.split('.')[0]!)
       ? ctx.selected !== undefined && typeof attrs.value === 'string'
-        ? { baseUi: true, checked: attrs.value === ctx.selected ? 'true' : 'false', selectedBy: true }
+        ? { baseUi: true, checked: (Array.isArray(ctx.selected) ? ctx.selected.includes(attrs.value) : attrs.value === ctx.selected) ? 'true' : 'false', selectedBy: true }
         : { baseUi: true, checked: scope.main ? 'state' : (scope.checked ?? 'false') }
       : {}),
     ...(dataAttrs.size ? { attrs: dataAttrs } : {}),
@@ -888,13 +1153,19 @@ function renderJsx(ref: JsxRef, ctx: RenderContext, visible?: Node['visible']): 
     // Base UI indicators are only mounted while their item is checked, unless keepMounted.
     ...(/\.(Item)?Indicator$/.test(tag) && scope.src.baseUi.has(tag.split('.')[0]!) && attrs.keepMounted !== true && ctx.fraction === undefined ? { whenChecked: true } : {}),
   };
+  // A `<button>` or a `<select>` (itself, or the Base UI part that renders one) counts its border box (UA stylesheet).
+  const element = isBaseUi ? ctx.reader.baseUiElement(scope.src.baseUiModules, tag.split('.').slice(1).join('.')) : tag;
+  if (element === 'button' || element === 'select') node.borderBox = true;
+  // A panel of a selection (a tab's panel) is hidden by Base UI unless its value is the selected one.
+  if (isBaseUi && /\.Panel$/.test(tag) && node.selectedBy && node.checked === 'false') node.inactive = true;
+  // A thumb of a numeric root (a slider): Base UI places its center at the value.
+  if (isBaseUi && /\.Thumb$/.test(tag) && ctx.fraction !== undefined) node.at = ctx.fraction;
+  // An inline background color (a swatch of the token's own color): content, not a token.
+  const bg = attrs.style && typeof attrs.style === 'object' && !Array.isArray(attrs.style) ? (attrs.style as Record<string, Value>).backgroundColor : undefined;
+  if (typeof bg === 'string') node.inlineFill = bg;
   // Inline style custom properties: they feed the CSS (`style={{ '--_pct': pct }}`).
-  const style = attrs.style;
-  if (style && typeof style === 'object' && !Array.isArray(style) && !isJsx(style)) {
-    const vars = new Map<string, string>();
-    for (const [k, v] of Object.entries(style as Record<string, Value>)) if (k.startsWith('--') && (typeof v === 'number' || typeof v === 'string')) vars.set(k, String(v));
-    if (vars.size) node.styleVars = vars;
-  }
+  const vars = styleVarsOf(attrs.style);
+  if (vars) node.styleVars = vars;
   // Inline SVG: drawn as one vector layer, its shapes styled by the CSS (stroke, width, opacity, dashes).
   if (tag === 'svg') {
     const lit: Record<string, string> = {};
@@ -913,6 +1184,12 @@ function renderJsx(ref: JsxRef, ctx: RenderContext, visible?: Node['visible']): 
     // A text field: its box (a textarea's border and padding) and the placeholder text inside. The box is merged away
     // when it draws nothing of its own (an input inside a styled wrapper).
     node.inputLike = true;
+    // A field the example fills (`defaultValue="acme/design-tokens"`): its value, in the field's text color.
+    const typed = typeof attrs.value === 'string' && attrs.value ? attrs.value : typeof attrs.defaultValue === 'string' && attrs.defaultValue ? attrs.defaultValue : undefined;
+    if (typed !== undefined && !scope.main) {
+      node.children = [textNode(typed)];
+      return [node];
+    }
     const value = typeof attrs.placeholder === 'string' ? attrs.placeholder : 'Placeholder';
     node.children = [{ key: '', tag: '#placeholder', classes: [], children: [], kind: 'text', placeholder: true, text: { property: 'Placeholder', default: value } }];
     return [node];
@@ -920,21 +1197,44 @@ function renderJsx(ref: JsxRef, ctx: RenderContext, visible?: Node['visible']): 
   // A Base UI root with a numeric value (a progress, a meter): its indicator fills that share of the track.
   if (node.baseUi && /\.Indicator$/.test(tag) && ctx.fraction !== undefined) node.fraction = ctx.fraction;
   let childCtx: RenderContext = Array.isArray(attrs.items) && node.baseUi ? { ...ctx, items: attrs.items } : ctx;
-  if (node.baseUi && /\.Root$/.test(tag) && typeof attrs.value === 'number') {
+  if (isBaseUi && orientation) childCtx = { ...childCtx, orientation };
+  // A Base UI form with errors: each Field of that name shows its error.
+  if (isBaseUi && attrs.errors && typeof attrs.errors === 'object' && !Array.isArray(attrs.errors) && !isFnRef(attrs.errors)) childCtx = { ...childCtx, formErrors: attrs.errors as Record<string, Value> };
+  const numeric = typeof attrs.value === 'number' ? attrs.value : attrs.value === undefined && typeof attrs.defaultValue === 'number' ? attrs.defaultValue : undefined;
+  if (node.baseUi && /\.Root$/.test(tag) && numeric !== undefined) {
     const min = typeof attrs.min === 'number' ? attrs.min : 0;
     const max = typeof attrs.max === 'number' ? attrs.max : 100;
-    childCtx = { ...childCtx, fraction: Math.min(1, Math.max(0, (attrs.value - min) / (max - min || 1))) };
+    const local = tag.split('.')[0]!.toLowerCase();
+    const module = [...scope.src.baseUiModules].find((m) => m && local.includes(m.split('/')[0]!)) ?? '';
+    childCtx = { ...childCtx, fraction: Math.min(1, Math.max(0, (numeric - min) / (max - min || 1))), numeric: { value: numeric, module } };
   }
+  // A Base UI value display under a numeric root: Base UI formats the value (a slider's number, a progress's percentage)
+  // and passes it to a render function child.
+  const formatted = ctx.fraction !== undefined && ctx.numeric ? (ctx.numeric.module === 'slider' ? new Intl.NumberFormat('en-US').format(ctx.numeric.value) : `${Math.round(ctx.fraction * 100)}%`) : undefined;
+  if (node.baseUi && /\.Value$/.test(tag) && formatted !== undefined && ctx.numeric) childCtx = { ...childCtx, valueArgs: ctx.numeric.module === 'slider' ? [[formatted], [ctx.numeric.value]] : [formatted, ctx.numeric.value] };
   if (children) node.children = renderChildren(children, scope, childCtx);
-  else if (spreadChildren !== undefined) node.children = renderValues([spreadChildren], ctx);
+  else if (spreadChildren === CHILDREN && scope.preview?.some((c) => typeof c !== 'string')) node.children = renderPreview(scope.preview, childCtx);
+  else if (spreadChildren !== undefined && spreadChildren !== CHILDREN) node.children = renderValues([spreadChildren], ctx);
   else if (spreads) node.takesChildren = true;
   // A Base UI value display (`<BaseSelect.Value placeholder=... />`): Base UI writes the text; drawn as its placeholder.
   if (!node.children.length && node.baseUi && /\.Value$/.test(tag)) {
-    // A value display under a numeric root (a progress at 64): Base UI writes the formatted percentage.
-    const placeholder = ctx.fraction !== undefined ? `${Math.round(ctx.fraction * 100)}%` : typeof attrs.placeholder === 'string' ? attrs.placeholder : 'Value';
+    // A value display under a numeric root (a progress at 64): Base UI writes the formatted value.
+    const placeholder = formatted ?? (ctx.fraction !== undefined ? `${Math.round(ctx.fraction * 100)}%` : typeof attrs.placeholder === 'string' ? attrs.placeholder : 'Value');
     node.children = [{ key: '', tag: '#text', classes: [], children: [], kind: 'text', text: { property: 'Value', default: placeholder } }];
   }
   return [node];
+}
+
+/** Props a spread passes on to the element it lands on, besides data and aria attributes. */
+const SPREAD_PROPS = new Set(['className', 'value', 'defaultValue', 'min', 'max', 'orientation', 'errors']);
+
+/** A Base UI form's error for a nested component of the same `name` (a Field): passed as its `error`. */
+function withFormError(tag: string, props: Record<string, Value>, ctx: RenderContext): Record<string, Value> {
+  const name = props.name;
+  if (!ctx.formErrors || typeof name !== 'string' || props.error !== undefined || !ctx.reader.load(tag)?.props.has('error')) return props;
+  const message = ctx.formErrors[name];
+  const text = Array.isArray(message) ? message[0] : message;
+  return typeof text === 'string' ? { ...props, error: text } : props;
 }
 
 /** JSX children passed to a nested design system component (`<Field><Input /></Field>`), as its `children` prop. */
@@ -955,8 +1255,9 @@ function renderChildren(children: ts.NodeArray<ts.JsxChild>, scope: Scope, ctx: 
   const out: Node[] = [];
   for (const c of children) {
     if (ts.isJsxText(c)) {
-      const t = c.text.replace(/\s+/g, ' ').trim();
-      if (t) out.push(textNode(t));
+      const raw = jsxText(c.text);
+      if (raw.trim()) out.push(textNode(raw.replace(/\s+/g, ' ').trim(), raw));
+      else if (raw) out.push(spaceNode(raw));
       continue;
     }
     if (ts.isJsxExpression(c)) {
@@ -968,7 +1269,28 @@ function renderChildren(children: ts.NodeArray<ts.JsxChild>, scope: Scope, ctx: 
   return out;
 }
 
-const textNode = (chars: string): Node => ({ key: '', tag: '#text', classes: [], children: [], kind: 'text', chars });
+/** Whitespace between inline runs (`{' '}`, a space between words): joins runs, never a layer of its own. */
+const spaceNode = (raw: string): Node => ({ key: '', tag: '#text', classes: [], children: [], kind: 'text', chars: '', raw, space: true });
+
+const textNode = (chars: string, raw?: string): Node => ({ key: '', tag: '#text', classes: [], children: [], kind: 'text', chars, ...(raw !== undefined && raw !== chars ? { raw } : {}) });
+
+/**
+ * JSX text as React renders it (Babel's rule): lines trimmed where they meet a line break, empty lines dropped, the
+ * others joined with one space; spaces inside a line, and at the ends of a single line, are kept.
+ */
+export function jsxText(text: string): string {
+  const lines = text.split(/\r\n|\n|\r/);
+  let out = '';
+  lines.forEach((line, i) => {
+    let l = line.replace(/\t/g, ' ');
+    if (i !== 0) l = l.replace(/^ +/, '');
+    if (i !== lines.length - 1) l = l.replace(/ +$/, '');
+    if (!l) return;
+    if (out && i !== 0) out += ' ';
+    out += l;
+  });
+  return out;
+}
 
 /** Identifiers an expression reads, following local consts (`const invalid = error != null`). */
 function identifiersIn(e: ts.Node, scope: Scope, seen = new Set<string>()): Set<string> {
@@ -1012,7 +1334,7 @@ function toggleFor(cond: ts.Expression, scope: Scope): { visible: NonNullable<No
   if (truthy(evaluate(cond, off))) return undefined;
   const kind = scope.src.props.get(prop)?.kind;
   const property = kind === 'icon' ? sentenceCase(prop) : `Show ${sentenceCase(prop).toLowerCase()}`;
-  return { visible: { property, prop }, scope: inner };
+  return { visible: { property, prop, ...(scope.toggleOn?.has(prop) ? { on: true } : {}) }, scope: inner };
 }
 
 /** A toggle on a string prop (an avatar's `src`) is named after the part it shows ("Show image"), not the prop. */
@@ -1046,17 +1368,24 @@ function renderExpression(e: ts.Expression, scope: Scope, ctx: RenderContext, vi
     return [{ key: '', tag: '#text', classes: [], children: [], kind: 'text', text: { property, default: v.text, prop: v.textProp }, ...(visible ? { visible } : {}) }];
   }
   if (isChildrenRef(v)) return renderChildren(v.children, v.scope, ctx);
-  if (typeof v === 'string' && v.trim()) return [{ ...textNode(v.trim()), ...(visible ? { visible } : {}) }];
+  if (typeof v === 'string' && v.trim()) return [{ ...textNode(v.trim(), v), ...(visible ? { visible } : {}) }];
+  if (typeof v === 'string' && v) return [spaceNode(v)];
   if (typeof v === 'number') return [textNode(String(v))];
   if (isJsx(v)) return renderJsx(v, ctx, visible);
   if (Array.isArray(v) || isElementValue(v)) return renderValues([v], ctx);
-  if (v === OPAQUE) {
+  if (v === OPAQUE || isFnRef(v)) {
     const mapped = renderMap(e, scope, ctx);
     if (mapped) return mapped;
     // A render function child of a Base UI list (`<Combobox.List>{renderItem}</Combobox.List>`): called for each item of
     // the root's `items`.
     const fn = functionOf(e, scope);
     if (fn && ctx.items) return renderValues(ctx.items.map((item) => callArrow(fn, [item], scope)), ctx);
+    // A render function child of a Base UI value display (`<Slider.Value>{(formatted) => ...}</Slider.Value>`): called
+    // with the value Base UI formats.
+    if (fn && ctx.valueArgs) {
+      const out = callArrow(fn, ctx.valueArgs, scope);
+      if (out !== OPAQUE) return renderValues([out], ctx);
+    }
     ctx.blockers?.push('shows content computed while the page runs');
   }
   return [];
@@ -1105,7 +1434,8 @@ function renderValues(list: Value[], ctx: RenderContext): Node[] {
     else if (isTextRef(v)) out.push({ key: '', tag: '#text', classes: [], children: [], kind: 'text', text: { property: v.textProp === 'children' ? 'Label' : sentenceCase(v.textProp), default: v.text, prop: v.textProp } });
     else if (isJsx(v)) out.push(...renderJsx(v, ctx));
     else if (Array.isArray(v)) out.push(...renderValues(v, ctx));
-    else if ((typeof v === 'string' && v.trim()) || typeof v === 'number') out.push(textNode(String(v).trim()));
+    else if ((typeof v === 'string' && v.trim()) || typeof v === 'number') out.push(textNode(String(v).trim(), String(v)));
+    else if (typeof v === 'string' && v) out.push(spaceNode(v));
     else if (v === OPAQUE) ctx.blockers?.push('shows content computed while the page runs');
   }
   return out;
@@ -1248,9 +1578,10 @@ function renderPreview(children: DocChild[], ctx: RenderContext): Node[] {
     }
     if (!ctx.reader.exists(c.c) || ctx.depth >= 4) continue;
     const kids = c.children ?? [];
-    const props: Record<string, Value> = previewProps(c);
+    let props: Record<string, Value> = previewProps(c);
     if (kids.length && kids.every((k) => typeof k === 'string')) props.children = (kids as string[]).join(' ');
     else if (kids.length) props.children = CHILDREN;
+    props = withFormError(c.c, props, ctx);
     const n = renderComponent(ctx.reader, c.c, props, { ...ctx, depth: ctx.depth + 1 }, undefined, kids.some((k) => typeof k !== 'string') ? kids : undefined);
     if (n) out.push(n);
     else ctx.blockers?.push(`cannot draw its ${c.c} parts yet`);
@@ -1305,7 +1636,10 @@ function renderComponent(reader: Reader, name: string, props: Record<string, Val
         scope.toggleValues.set(local, { textProp: prop, text: sentenceCase(prop) });
       } else if (info.kind === 'string') {
         scope.toggles.set(local, prop);
-        scope.toggleValues.set(local, sentenceCase(prop));
+        // Text the example gives (a token name): drawn with it, shown by default, like the example.
+        const example = ctx.examples?.[prop];
+        scope.toggleValues.set(local, typeof example === 'string' ? example : sentenceCase(prop));
+        if (typeof example === 'string') (scope.toggleOn ??= new Set()).add(prop);
       }
     }
   }
@@ -1316,16 +1650,31 @@ function renderComponent(reader: Reader, name: string, props: Record<string, Val
 }
 
 /** A wrapper whose only child is the text becomes the text part itself (Button's `<span class="label">`). */
-function collapseText(n: Node, root = true, boxed: (n: Node) => boolean = () => false): Node {
-  n.children = n.children.map((c) => collapseText(c, false, boxed));
+function collapseText(n: Node, root = true, boxed: (n: Node) => boolean = () => false, unseen: (n: Node) => boolean = () => false): Node {
+  n.children = n.children.map((c) => collapseText(c, false, boxed, unseen));
+  // Screen reader text inside a run (a status word before a detail): never drawn, so not part of the drawn sentence.
+  const seen = n.children.filter((c) => !unseen(c));
+  if (seen.length < n.children.length && seen.length && /^(span|p|label|small|strong|em|code)$/.test(n.tag)) n.children = seen;
   // Inline text runs ("Page <span>6</span> of <span>12</span>"): one text layer with the whole sentence, styled like
   // its first run (Figma would need mixed styles for the rest). Only texts written in code, never a TEXT property.
   const run = (c: Node): string | undefined =>
-    c.kind === 'text' && c.chars !== undefined && !c.visible ? c.chars : c.tag === 'span' && c.kind === 'frame' && !c.visible && c.children.length === 1 ? run(c.children[0]!) : undefined;
-  if (n.kind === 'frame' && n.children.length > 1 && /^(span|p|label|small|strong|em)$/.test(n.tag) && n.children.every((c) => run(c) !== undefined)) {
-    const chars = n.children.map((c) => run(c)!).join(' ');
-    n.children = [{ ...textNode(chars) }];
+    c.kind === 'text' && c.chars !== undefined && !c.visible ? (c.raw ?? c.chars) : c.tag === 'span' && c.kind === 'frame' && !c.visible && c.children.length === 1 ? run(c.children[0]!) : undefined;
+  if (n.kind === 'frame' && n.children.filter((c) => !c.space).length > 1 && /^(span|p|label|small|strong|em|code)$/.test(n.tag) && n.children.every((c) => run(c) !== undefined)) {
+    // Joined as React renders them: the spaces the texts have (`Page ` before `{page}`, a space between words), none
+    // between two texts of one expression (`color` `.` `action`); elements with nothing between them keep one space.
+    let chars = '';
+    n.children.forEach((c, i) => {
+      const text = run(c)!;
+      const prev = n.children[i - 1];
+      if (prev) {
+        const before = run(prev)!;
+        chars += /\s$/.test(before) || /^\s/.test(text) || (prev.tag === '#text' && c.tag === '#text') ? '' : ' ';
+      }
+      chars += text;
+    });
+    n.children = [{ ...textNode(chars.replace(/\s+/g, ' ').trim()) }];
   }
+  n.children = n.children.filter((c) => !c.space);
   // Only inline wrappers (span): a block (Card header) keeps its frame for its padding.
   // Not when the span paints a box (a pill, a count badge): the box stays a frame around its text.
   if (!root && n.tag === 'span' && !n.name && n.kind === 'frame' && n.children.length === 1 && n.children[0]!.kind === 'text' && !n.children[0]!.classes.length && !n.children[0]!.inputLike && !boxed(n)) {
@@ -1345,6 +1694,29 @@ interface Built {
   /** Part id -> node, in tree order. */
   parts: Map<string, Node>;
   parents: Map<string, string | undefined>;
+}
+
+/**
+ * The values an element with `classes` inherits where `root` draws it: computed down the path from `root` to its
+ * parent, from `page`. Undefined when no element of the tree has those classes.
+ */
+function inheritedInside(root: Node, classes: string[], rules: CssRule[], page: Map<string, string> | undefined): Map<string, string> | undefined {
+  const path: Node[] = [];
+  const find = (n: Node): boolean => {
+    if (n !== root && classes.every((c) => n.classes.includes(c))) return true;
+    path.push(n);
+    for (const c of n.children) if (find(c)) return true;
+    path.pop();
+    return false;
+  };
+  if (!find(root)) return undefined;
+  let ctx = page;
+  for (const n of path) {
+    if (n.kind !== 'frame') continue;
+    const el: CssElement = { tag: n.tag, classes: new Set(n.classes), children: [], present: true, isRoot: false, inputLike: false };
+    ctx = computeValues(declaredFor(rules, el, DEFAULT_STATE), ctx);
+  }
+  return ctx;
 }
 
 /** Renders the main component for one set of axis values, with stable part ids. */
@@ -1374,10 +1746,11 @@ function applyView(root: Node, view: SpecView | undefined): Node | undefined {
   return found ? strip({ ...found, visible: undefined }) : undefined;
 }
 
-function build(reader: Reader, src: ComponentSource, props: Record<string, Value>, preview?: DocChild[], view?: SpecView, rules: CssRule[] = []): Built | undefined {
+function build(reader: Reader, src: ComponentSource, props: Record<string, Value>, preview?: DocChild[], view?: SpecView, rules: CssRule[] = [], tokens?: Map<string, TokenInfo>, examples?: Record<string, Value>): Built | undefined {
   const blockers: string[] = [];
-  const selected = typeof props.defaultValue === 'string' ? props.defaultValue : undefined;
-  const rendered = renderComponent(reader, src.name, { ...props, children: CHILDREN }, { reader, depth: 0, component: src.name, blockers, ...(selected !== undefined ? { selected } : {}) }, undefined, preview);
+  const dv = props.defaultValue;
+  const selected = typeof dv === 'string' ? dv : Array.isArray(dv) && dv.every((x) => typeof x === 'string') ? (dv as string[]) : undefined;
+  const rendered = renderComponent(reader, src.name, { ...props, children: CHILDREN }, { reader, depth: 0, component: src.name, blockers, ...(selected !== undefined ? { selected } : {}), ...(examples ? { examples } : {}) }, undefined, preview);
   let root = rendered && applyView(rendered, view);
   if (!root) return undefined;
   // An unstyled outer element around one child (a select's Base UI root around its trigger): the child is the set.
@@ -1386,6 +1759,7 @@ function build(reader: Reader, src: ComponentSource, props: Record<string, Value
     root = root.children[0]!;
   // Compound components (Card): children come through props, so draw the parts the file exports (CardHeader...).
   if (root.takesChildren && !root.children.length && src.subcomponents.length) {
+    root.fromExports = true;
     for (const sub of src.subcomponents) {
       const label = sub.name.slice(src.name.length);
       const n = renderComponent(reader, src.name, {}, { reader, depth: 1, component: src.name, blockers }, sub.fn);
@@ -1395,13 +1769,17 @@ function build(reader: Reader, src: ComponentSource, props: Record<string, Value
       root.children.push(n);
     }
   }
-  // Parts inside a selected option (a radio's dot) carry its checked state, as Base UI sets it on them.
-  const follow = (n: Node, inherited: Node['checked']) => {
+  // Parts inside a selected option (a radio's dot) carry its checked state, as Base UI sets it on them. A panel of an
+  // item that is not open (an accordion item outside its defaultValue, or alone) is not mounted: not drawn.
+  const follow = (n: Node, inherited: Node['checked'], item?: Node) => {
     if (n.baseUi && n.selectedBy) inherited = n.checked;
     else if (n.baseUi && inherited) n.checked = inherited;
-    for (const c of n.children) follow(c, inherited);
+    if (n.baseUi && /\.Item$/.test(n.tag)) item = n;
+    if (n.baseUi && /\.Panel$/.test(n.tag) && item && item.checked !== 'true' && item.checked !== 'state') n.inactive = true;
+    for (const c of n.children) follow(c, inherited, item);
   };
   follow(root, undefined);
+  decorate(root, rules, tokens);
   // A span that paints a box in its default look (background, border or padding): kept as a frame.
   const boxed = (n: Node) => {
     const el: CssElement = { tag: n.tag, classes: new Set(n.classes), children: [], present: true, isRoot: false, inputLike: false };
@@ -1409,7 +1787,13 @@ function build(reader: Reader, src: ComponentSource, props: Record<string, Value
     const set = (k: string) => d.has(k) && !/^(0|0px|none|transparent)$/.test(d.get(k)!.value.trim());
     return ['background-color', 'border-top-width', 'padding-left', 'padding-top'].some(set);
   };
-  const tree = collapseText(root, true, boxed);
+  // Visually hidden (the screen reader text pattern): left out of the text runs it sits in.
+  const unseen = (n: Node) => {
+    if (n.kind !== 'frame' && n.kind !== 'text') return false;
+    const el: CssElement = { tag: n.tag, classes: new Set(n.classes), children: [], present: true, isRoot: false, inputLike: false };
+    return visuallyHidden(new Map([...declaredFor(rules, el, DEFAULT_STATE)].map(([k, d]) => [k, d.value])));
+  };
+  const tree = collapseText(root, true, boxed, unseen);
   const parts = new Map<string, Node>();
   const parents = new Map<string, string | undefined>();
   const used = new Set<string>();
@@ -1434,6 +1818,87 @@ function build(reader: Reader, src: ComponentSource, props: Record<string, Value
   return { root: tree, parts, parents, blockers };
 }
 
+/** CSS elements of a node tree (no part ids yet), for the cascade before the parts are named. */
+function cssElements(root: Node): Map<Node, CssElement> {
+  const out = new Map<Node, CssElement>();
+  const make = (n: Node, parent: CssElement | undefined): CssElement => {
+    const el: CssElement = {
+      tag: n.tag,
+      classes: new Set(n.classes),
+      parent,
+      children: [],
+      present: (!n.visible || !!n.visible.on) && !n.pseudo,
+      isRoot: !parent,
+      inputLike: !!n.inputLike,
+      ...(n.baseUi ? { baseUi: true, checked: n.checked } : {}),
+      ...(n.attrs ? { attrs: n.attrs } : {}),
+    };
+    out.set(n, el);
+    el.children = n.children.map((c) => make(c, el));
+    return el;
+  };
+  make(root, undefined);
+  return out;
+}
+
+const declaredVarCache = new WeakMap<CssRule[], Set<string>>();
+/** Custom properties the stylesheets declare (`--_height`): a var() of any other one that is not a token is set at run time. */
+function declaredVars(rules: CssRule[]): Set<string> {
+  let s = declaredVarCache.get(rules);
+  if (!s) {
+    s = new Set(rules.flatMap((r) => r.decls.filter((d) => d.prop.startsWith('--')).map((d) => d.prop)));
+    declaredVarCache.set(rules, s);
+  }
+  return s;
+}
+
+/** `var(--active-tab-left)`: a custom property Base UI sets while the page runs (no rule declares it, not a token). */
+function runtimeVar(raw: string | undefined, rules: CssRule[], tokens: Map<string, TokenInfo> | undefined): boolean {
+  const m = raw ? /^var\(\s*(--[\w-]+)\s*\)$/.exec(raw.trim()) : null;
+  return !!m && !declaredVars(rules).has(m[1]!) && !tokens?.has(m[1]!);
+}
+
+/** Paints of a `::before` / `::after` that make it a visible decoration. */
+const PSEUDO_PAINTS = ['background-color', 'border-top-width', 'border-bottom-width', 'border-left-width', 'border-right-width'];
+
+/**
+ * Layers the CSS draws without an element of their own, made into nodes so Figma gets a layer for them:
+ * - `::before` / `::after` with empty content that paint (a hairline under a tab list): a "Decoration" frame, first
+ *   when it sits under its siblings (negative z-index or ::before), else last. Styled from its host's pseudo rules.
+ * - A Base UI indicator sized at run time to the selected item (`left: var(--active-tab-left)`): moved into that item,
+ *   first (under its content), to fill it where code reads the item's size.
+ */
+function decorate(root: Node, rules: CssRule[], tokens: Map<string, TokenInfo> | undefined): void {
+  if (!rules.length) return;
+  const els = cssElements(root);
+  const visit = (n: Node, parent: Node | undefined) => {
+    for (const c of [...n.children]) visit(c, n);
+    if (n.kind !== 'frame' || n.svgAttrs || n.pseudo) return;
+    const el = els.get(n)!;
+    if (n.baseUi && n.whenChecked && /\.Indicator$/.test(n.tag) && parent) {
+      const d = declaredFor(rules, el, DEFAULT_STATE);
+      if (['left', 'top', 'width', 'height'].some((k) => runtimeVar(d.get(k)?.value, rules, tokens))) {
+        const item = parent.children.find((s) => s !== n && s.baseUi && s.selectedBy && s.checked === 'true');
+        if (item) {
+          parent.children.splice(parent.children.indexOf(n), 1);
+          item.children.unshift(n);
+          n.follows = true;
+          delete n.whenChecked;
+        }
+      }
+    }
+    for (const pseudo of ['before', 'after'] as const) {
+      const d = declaredFor(rules, el, DEFAULT_STATE, pseudo);
+      if (!/^(""|'')$/.test(d.get('content')?.value.trim() ?? '')) continue;
+      if (!PSEUDO_PAINTS.some((k) => d.has(k) && !/^(0|none|transparent)$/.test(d.get(k)!.value.trim()))) continue;
+      const deco: Node = { key: '', tag: `::${pseudo}`, classes: [], children: [], kind: 'frame', pseudo, name: 'Decoration' };
+      if (pseudo === 'before' || /^-/.test(d.get('z-index')?.value.trim() ?? '')) n.children.unshift(deco);
+      else n.children.push(deco);
+    }
+  };
+  visit(root, undefined);
+}
+
 function toCssTree(b: Built): Map<string, CssElement> {
   const els = new Map<string, CssElement>();
   const make = (n: Node, parent: CssElement | undefined): CssElement => {
@@ -1442,7 +1907,7 @@ function toCssTree(b: Built): Map<string, CssElement> {
       classes: new Set(n.classes),
       parent,
       children: [],
-      present: !n.visible,
+      present: (!n.visible || !!n.visible.on) && !n.pseudo,
       isRoot: !parent,
       inputLike: !!n.inputLike,
       ...(n.baseUi ? { baseUi: true, checked: n.checked } : {}),
@@ -1508,9 +1973,25 @@ function resolveValue(raw: string | undefined, values: Map<string, string>, toke
  * A calc() of a single token is that token (bound in Figma). Literals other than plain numbers and px are not mapped.
  */
 function calcValue(v: string, values: Map<string, string>, tokens: Map<string, TokenInfo>, depth: number, parent?: Map<string, string>): Resolved {
-  const inner = v.slice(v.indexOf('(') + 1, v.lastIndexOf(')'));
+  let inner = v.slice(v.indexOf('(') + 1, v.lastIndexOf(')'));
   let failed: string | undefined;
+  // 1lh is the element's line height: its font size times its line-height factor, both tokens (a textarea of 3 rows).
+  if (/\d*\.?\d+lh\b/.test(inner)) {
+    const fs = resolveValue(values.get('font-size'), values, tokens, depth + 1, parent);
+    const lh = resolveValue(values.get('line-height'), values, tokens, depth + 1, parent);
+    if (typeof fs?.value === 'string' && typeof lh?.value === 'string' && !fs.value.startsWith('calc(') && !lh.value.startsWith('calc(')) {
+      inner = inner.replace(/(\d*\.?\d+)lh\b/g, (_m, n: string) => (Number(n) === 1 ? `(${fs.value} * ${lh.value})` : `${n} * (${fs.value} * ${lh.value})`));
+    }
+  }
   const substituted = inner.replace(/var\(\s*--[\w-]+\s*(?:,[^()]*)?\)/g, (m) => {
+    // A custom property holding a plain number (`--_min-rows: 3`, set inline from a prop): that number.
+    let raw: string | undefined = m;
+    for (let hops = 0; hops < 12 && raw; hops++) {
+      const name = /^var\(\s*(--[\w-]+)/.exec(raw.trim())?.[1];
+      if (!name || tokens.has(name)) break;
+      raw = values.get(name);
+    }
+    if (raw !== undefined && /^-?\d*\.?\d+$/.test(raw.trim())) return raw.trim();
     const r = resolveValue(m, values, tokens, depth + 1, parent);
     if (!r || r.unmapped !== undefined || r.value === null || r.value === undefined) {
       failed ??= r?.unmapped ?? `${m} has no value`;
@@ -1666,14 +2147,57 @@ function partValues(node: Node, computed: Map<string, string>, own: Map<string, 
     const v = own.get(prop);
     if (v !== undefined && /var\(/.test(v)) out.unmapped.push({ property: prop, value: v, reason });
   }
+  contentBoxMinimums(out.values, computed, node.borderBox);
   return out;
+}
+
+/**
+ * CSS min-height, min-width, height and width count the content box (box-sizing: content-box, the default): the padding
+ * and the border come on top. Figma's include them. A checkbox row with `min-height: size.6` and `padding-block: space.0-5` is
+ * 28px in code; drawn as minHeight size.6 it was 25. The minimum becomes the sum, as a calc() of the same tokens.
+ */
+function contentBoxMinimums(values: PartValues['values'], computed: Map<string, string>, borderBoxByDefault = false): void {
+  if ((computed.get('box-sizing') ?? (borderBoxByDefault ? 'border-box' : 'content-box')).trim() === 'border-box') return;
+  const term = (v: SpecValue | undefined): string | undefined => {
+    if (v === undefined || v === null || v === 0) return undefined;
+    if (typeof v === 'number') return String(v);
+    if (typeof v !== 'string') return undefined;
+    return v.startsWith('calc(') ? `(${v.slice(5, -1)})` : v;
+  };
+  const sum = (base: SpecValue, extra: (SpecValue | undefined)[]): SpecValue => {
+    const add = extra.map(term).filter((t): t is string => !!t);
+    const head = term(base);
+    if (!add.length || !head) return base;
+    return `calc(${[head, ...add].join(' + ')})`;
+  };
+  const border = (side: 'Top' | 'Right' | 'Bottom' | 'Left') => values[`stroke${side}Weight` as SpecField] ?? values.strokeWeight;
+  if (values.minHeight !== undefined) values.minHeight = sum(values.minHeight, [values.paddingTop, values.paddingBottom, border('Top'), border('Bottom')]);
+  if (values.minWidth !== undefined) values.minWidth = sum(values.minWidth, [values.paddingLeft, values.paddingRight, border('Left'), border('Right')]);
+  // height and width count the content box the same way: a table cell of height control.height.md with a 1px bottom
+  // border is 45px in code (Table was 142px in Figma for 144).
+  if (values.height !== undefined) values.height = sum(values.height, [values.paddingTop, values.paddingBottom, border('Top'), border('Bottom')]);
+  if (values.width !== undefined) values.width = sum(values.width, [values.paddingLeft, values.paddingRight, border('Left'), border('Right')]);
 }
 
 /** A grid with no tracks of its own (`display: grid; place-items: center`): one cell, drawn as a centering auto layout. */
 const singleCellGrid = (c: Map<string, string>) =>
   /grid/.test(c.get('display') ?? '') && ['grid-template-columns', 'grid-template-rows', 'grid-template-areas', 'grid-template', 'grid-auto-flow', 'grid-auto-columns'].every((k) => !c.get(k) || c.get(k) === 'none');
 
+/** The browser's display of table elements, when the CSS does not set one. */
+const TABLE_DISPLAY: Record<string, string> = { table: 'table', thead: 'table-row-group', tbody: 'table-row-group', tfoot: 'table-row-group', tr: 'table-row', td: 'table-cell', th: 'table-cell', caption: 'table-caption' };
+
+/** Cross-axis alignment of grid items (align-items). */
+const gridCounter = (v: string | undefined): SpecLayout['counter'] => (/center/.test(v ?? '') ? 'CENTER' : /end/.test(v ?? '') ? 'MAX' : /start/.test(v ?? '') ? 'MIN' : 'STRETCH');
+
 function layoutOf(computed: Map<string, string>): SpecLayout {
+  const shown = computed.get('display');
+  // A table row: its cells side by side, as tall as the row. A cell: its content placed by vertical-align and text-align.
+  if (shown === 'table-row') return { direction: 'HORIZONTAL', primary: 'MIN', counter: 'STRETCH' };
+  if (shown === 'table-cell') {
+    const va = computed.get('vertical-align') ?? 'middle';
+    const ta = computed.get('text-align') ?? 'start';
+    return { direction: 'VERTICAL', primary: /middle/.test(va) ? 'CENTER' : /bottom/.test(va) ? 'MAX' : 'MIN', counter: /center/.test(ta) ? 'CENTER' : /(end|right)/.test(ta) ? 'MAX' : 'MIN' };
+  }
   if (singleCellGrid(computed)) {
     const align = computed.get('align-items') ?? 'stretch';
     const justify = computed.get('justify-items') ?? 'stretch';
@@ -1701,6 +2225,14 @@ function grows(c: Map<string, string> | undefined): boolean {
   const flex = c?.get('flex')?.trim();
   const grow = c?.get('flex-grow') ?? (flex && /^\d/.test(flex) ? flex.split(/\s+/)[0] : flex === 'auto' ? '1' : undefined);
   return grow !== undefined && Number(grow) >= 1;
+}
+
+/**
+ * A block of text beside a fixed item in a row (`min-width: 0`, an alert's body next to its icon): in code it shrinks
+ * so its text wraps at the row's width. Figma wraps text only in a layer of known width: Fill container.
+ */
+function shrinksToFit(n: Node, c: Map<string, string> | undefined, parent: SpecLayout | undefined): boolean {
+  return n.kind === 'frame' && parent?.direction === 'HORIZONTAL' && !parent.wrap && /^0(px)?$/.test(c?.get('min-width')?.trim() ?? '') && c?.get('flex-shrink')?.trim() !== '0' && !/^(none|0 0)/.test(c?.get('flex')?.trim() ?? '');
 }
 
 /** `overflow: hidden | clip`: the frame clips its content (a card's footer fill inside its rounded corners). */
@@ -1797,6 +2329,8 @@ function svgVector(node: Node, id: string, els: Map<string, CssElement>, rules: 
     if (opacity !== undefined && opacity !== 1) out.opacity = String(opacity);
     const cap = own.get('stroke-linecap');
     if (cap) out['stroke-linecap'] = cap;
+    const join = own.get('stroke-linejoin');
+    if (join) out['stroke-linejoin'] = join;
     // Dashes against pathLength (a progress ring, a spinner arc): lengths on the real circumference.
     const pathLength = num(attrs.pathLength, c);
     const r = num(attrs.r, c);
@@ -1849,10 +2383,15 @@ function evaluateVariant(
   preview?: DocChild[],
   page?: Map<string, string>,
   view?: SpecView,
+  examples?: Record<string, Value>,
 ): Evaluated | undefined {
-  const built = build(reader, src, props, preview, view, rules);
+  const built = build(reader, src, props, preview, view, rules, tokens, examples);
   if (!built) return undefined;
   const els = toCssTree(built);
+  /** Grids drawn as rows (every child spans all columns): their tracks and column gap, for subgrid rows. */
+  const gridRows = new Map<string, { tracks: string[]; gap: string | undefined }>();
+  /** Items in a flexible track of a subgrid row (`minmax(0, 1fr)`): they take the free space. */
+  const gridGrow = new Set<string>();
   const computedById = new Map<string, Map<string, string>>();
   const ownById = new Map<string, Map<string, string>>();
   const values: SpecVariant['values'] = {};
@@ -1867,9 +2406,25 @@ function evaluateVariant(
   for (const [id, node] of built.parts) {
     const el = els.get(id)!;
     const parentId = built.parents.get(id);
-    const own = declaredFor(rules, el, state);
+    // A decoration takes its host's ::before or ::after rules.
+    const own = node.pseudo && el.parent ? declaredFor(rules, el.parent, state, node.pseudo) : declaredFor(rules, el, state);
+    // An indicator that follows the selected item: offsets Base UI sets at run time are 0, sizes fill the item.
+    if (node.follows) {
+      for (const [k, far] of [['left', ''], ['top', ''], ['width', 'right'], ['height', 'bottom']] as const) {
+        const d = own.get(k);
+        if (!d || !runtimeVar(d.value, rules, tokens)) continue;
+        if (far) {
+          own.delete(k);
+          own.set(far, { ...d, prop: far, value: '0' });
+        } else own.set(k, { ...d, value: '0' });
+      }
+    }
     let computed = computeValues(own, parentId ? computedById.get(parentId) : page);
     for (const [k, v] of node.styleVars ?? []) computed.set(k, v);
+    // Table elements lay out as the browser's own stylesheet says (a row of cells).
+    if (!computed.has('display') && TABLE_DISPLAY[node.tag]) computed.set('display', TABLE_DISPLAY[node.tag]!);
+    // A table cell with no width of its own takes an equal share of its row; an item in a flexible grid track grows.
+    if ((computed.get('display') === 'table-cell' && resolveValue(computed.get('width'), computed, tokens) === undefined) || gridGrow.has(id)) computed.set('flex-grow', '1');
     const ownValues = new Map([...own].map(([k, d]) => [k, d.value]));
     if (node.placeholder && el.parent) {
       // The placeholder text: the field's values (inherited), then its ::placeholder rules.
@@ -1889,6 +2444,7 @@ function evaluateVariant(
       /^0(\.0+)?$/.test(ownValues.get('opacity')?.trim() ?? '') ||
       /scale\(0\)/.test(transform ?? '') ||
       visuallyHidden(ownValues) ||
+      node.inactive ||
       (node.whenChecked && !/^(true|mixed)$/.test((node.checked === 'state' ? state.checked : node.checked) ?? ''))
     )
       hidden.add(id);
@@ -1901,18 +2457,51 @@ function evaluateVariant(
     }
     // A single-line field centers its text vertically, as browsers draw it; a textarea starts at the top.
     if (node.kind === 'frame') layouts.set(id, node.inputLike && node.tag !== 'textarea' ? { direction: 'HORIZONTAL', primary: 'MIN', counter: 'CENTER' } : layoutOf(computed));
+    // CSS grid drawn as auto layout: a grid whose children each span every column stacks them (rows); a row that
+    // shares its parent's columns (`subgrid`) lines its items up in a row, edge tracks of 0 becoming the gap at its ends.
+    let gridDrawn = false;
+    if (node.kind === 'frame' && /grid/.test(computed.get('display') ?? '') && !singleCellGrid(computed)) {
+      const kids = [...built.parts].filter(([cid]) => built.parents.get(cid) === id);
+      const tracks = computed.get('grid-template-columns')?.trim();
+      const parentGrid = parentId ? gridRows.get(parentId) : undefined;
+      if (tracks === 'subgrid' && parentGrid) {
+        gridDrawn = true;
+        layouts.set(id, { direction: 'HORIZONTAL', primary: 'MIN', counter: gridCounter(computed.get('align-items')) });
+        const gap = parentGrid.gap === undefined ? undefined : resolveValue(parentGrid.gap, computedById.get(parentId!) ?? new Map(), tokens);
+        const g = gap && gap.unmapped === undefined && gap.value !== null ? gap.value : undefined;
+        if (g !== undefined) {
+          pv.values.itemSpacing = g;
+          if (/^0(px)?$/.test(parentGrid.tracks[0] ?? '')) pv.values.paddingLeft = g;
+          if (/^0(px)?$/.test(parentGrid.tracks[parentGrid.tracks.length - 1] ?? '')) pv.values.paddingRight = g;
+        }
+        for (const [cid] of kids) {
+          const start = Number(/^\s*(\d+)/.exec(declaredFor(rules, els.get(cid)!, state).get('grid-column-start')?.value ?? declaredFor(rules, els.get(cid)!, state).get('grid-column')?.value ?? '')?.[1]);
+          if (start && /fr\)?$/.test(parentGrid.tracks[start - 1] ?? '')) gridGrow.add(cid);
+        }
+        unmapped.push({ part: id, property: 'grid-template-columns', value: 'subgrid', reason: 'columns line up across rows in code; in Figma each row sizes its own' });
+      } else if (tracks && tracks !== 'none' && tracks !== 'subgrid' && kids.length && kids.every(([cid]) => /^1\s*\/\s*-1$/.test(declaredFor(rules, els.get(cid)!, state).get('grid-column')?.value.trim() ?? ''))) {
+        gridDrawn = true;
+        gridRows.set(id, { tracks: splitTop(tracks, /\s/).filter(Boolean), gap: computed.get('column-gap') });
+        layouts.set(id, { direction: 'VERTICAL', primary: 'MIN', counter: 'STRETCH' });
+      }
+    }
     // A hidden part keeps its values (shown again, it looks right), but what it cannot draw does not matter here.
     if (hidden.has(id)) continue;
-    // Decorations drawn by ::before or ::after (a hairline under a tab list): no layer to draw them on.
-    for (const pseudo of ['before', 'after']) {
+    // Decorations drawn by ::before or ::after that are not a layer (text content, or no paint we can draw).
+    for (const pseudo of ['before', 'after'] as const) {
+      if (node.children.some((c) => c.pseudo === pseudo)) continue;
       const d = declaredFor(rules, el, state, pseudo);
-      const paints = ['background-color', 'border-top-width', 'border-bottom-width', 'border-left-width', 'border-right-width', 'box-shadow'].some((k) => d.has(k) && !/^(0|none|transparent)$/.test(d.get(k)!.value));
+      const paints = [...PSEUDO_PAINTS, 'box-shadow'].some((k) => d.has(k) && !/^(0|none|transparent)$/.test(d.get(k)!.value));
       if (d.has('content') && paints) blockers.push('draws with ::before or ::after');
     }
     // A visible frame with nothing in it and nothing to paint: content the code puts there was not read.
     if (node.kind === 'frame' && !node.children.length && !node.inputLike && !node.media && !node.svgAttrs && Object.values(pv.values).every((x) => x === 0 || x === null || x === undefined))
       blockers.push('has parts whose content the generator cannot read yet');
-    if (/grid/.test(computed.get('display') ?? '') && !singleCellGrid(computed)) blockers.push('uses CSS grid');
+    if (/grid/.test(computed.get('display') ?? '') && !singleCellGrid(computed) && !gridDrawn) blockers.push('uses CSS grid');
+    // A value indicator with no height of its own (a slider's range): as tall as its track, like Base UI draws it.
+    if (node.fraction !== undefined && ownValues.get('height') === undefined) stretch.set(id, { ...stretch.get(id), height: true });
+    // A swatch of the token's own color: not a token, so not bound; set per instance.
+    if (node.inlineFill) unmapped.push({ part: id, property: 'background-color', value: node.inlineFill, reason: "the token's own color, from the content: not bound, set it on each instance" });
     // Over its parent: absolute and filling it, or as wide and tall as a parent of fixed size (an avatar photo).
     const position = ownValues.get('position');
     const full = ownValues.get('width') === '100%' && ownValues.get('height') === '100%';
@@ -2141,7 +2730,26 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions, 
   }
 
   // Axes: string-literal union props that change the rendered classes.
-  const evalAt = (props: Record<string, Value>, state: CssState) => evaluateVariant(reader, src, rules, { ...baseProps, ...props, ...fixed }, state, opts.tokens, previewKids, page, view);
+  // Optional texts the example gives (a token name next to its value): drawn with that text, shown by default.
+  const examples: Record<string, Value> = {};
+  for (const p of src.props.values()) {
+    const v = previewEl?.p?.[p.name];
+    if (p.kind === 'string' && p.optional && typeof v === 'string' && baseProps[p.name] === undefined) examples[p.name] = v;
+  }
+  // A part drawn alone that code only renders inside its folder's popup (a menu item): it inherits what the popup gives
+  // its content (font, line height, color), as in the page. Read by drawing the folder's popup with its example
+  // content and finding the element with this part's classes in it.
+  if (view === 'without-popup' && name !== src.folder) {
+    const own = build(reader, src, { ...baseProps, ...fixed }, previewKids, view, rules, opts.tokens)?.root.classes ?? [];
+    const folderSrc = reader.load(src.folder);
+    const folderPreview = previewElement(docs?.preview, src.folder) ?? storyElement(readStories(src.folder, opts), src.folder);
+    const folderKids = folderPreview?.children?.some((c) => typeof c !== 'string') ? folderPreview.children : undefined;
+    const popup = own.length && folderSrc && folderKids ? build(reader, folderSrc, {}, folderKids, 'popup', rules, opts.tokens) : undefined;
+    // A part the example does not show (a menu group) is content of the popup all the same: what the popup gives.
+    if (popup) page = inheritedInside(popup.root, own, rules, page) ?? inheritedInside({ ...popup.root, children: [{ ...popup.root, classes: own, children: [] }] }, own, rules, page) ?? page;
+  }
+  const evalAt = (props: Record<string, Value>, state: CssState) =>
+    evaluateVariant(reader, src, rules, { ...baseProps, ...props, ...fixed }, state, opts.tokens, previewKids, page, view, Object.keys(examples).length ? examples : undefined);
   const base = evalAt({}, DEFAULT_STATE);
   if (!base) throw new UnsupportedComponentError(name, 'renders in a way the generator cannot read yet');
   const unmappedProps: SpecUnmapped[] = [];
@@ -2251,6 +2859,18 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions, 
     }
   }
 
+  // Prototype interactions between the variants (hover, press, click to check) with the code's motion, and the motion
+  // a Figma prototype cannot play (keyframes, keyboard focus, opening).
+  const interactions = deriveInteractions(axes, evaluated, opts.tokens, /radio/i.test(setName));
+  const drawnClasses = new Set<string>();
+  const drawnElements = new Map<string, string[]>();
+  for (const { ev } of evaluated)
+    for (const n of ev.built.parts.values()) {
+      for (const c of n.classes) drawnClasses.add(c);
+      if (n.classes.length) drawnElements.set([...n.classes].sort().join(' '), [...n.classes]);
+    }
+  const motion = motionNotes(rules, drawnClasses, opts.tokens, view, [...drawnElements.values()]);
+
   const variants: SpecVariant[] = [];
   const unmapped: SpecUnmapped[] = [];
   // Parts no variant shows (a visually hidden legend, a glyph for a state the set does not draw): left out.
@@ -2266,6 +2886,14 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions, 
     const icons: Record<string, string> = {};
     for (const [id, n] of ev.built.parts) if (n.kind === 'icon' && n.icon && !neverShown.has(id)) icons[id] = iconComponentName(n.icon);
     const vectors = Object.fromEntries([...ev.vectors].filter(([id]) => !neverShown.has(id)));
+    // Absolute layers placed differently in this variant (an indicator under a vertical tab, or filling a contained one).
+    const pinOf = (x: Evaluated, id: string) => (x.cover.has(id) ? { top: 0, right: 0, bottom: 0, left: 0 } : x.pins.get(id));
+    const pins: NonNullable<SpecVariant['pins']> = {};
+    for (const id of order) {
+      const own = pinOf(ev, id);
+      const base = owner.get(id) && pinOf(owner.get(id)!, id);
+      if (own && base && JSON.stringify(own) !== JSON.stringify(base) && !neverShown.has(id)) pins[id] = own;
+    }
     variants.push({
       props: e.props,
       values,
@@ -2273,6 +2901,7 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions, 
       ...(hidden.length ? { hidden } : {}),
       ...(Object.keys(layout).length ? { layout } : {}),
       ...(Object.keys(vectors).length ? { vectors } : {}),
+      ...(Object.keys(pins).length ? { pins } : {}),
     });
     unmapped.push(...ev.unmapped.filter((u) => !neverShown.has(u.part)));
   }
@@ -2307,7 +2936,8 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions, 
       ...(at.pins.has(id) ? { pin: at.pins.get(id) } : {}),
       ...(at.stretch.has(id) ? { stretch: at.stretch.get(id) } : {}),
       ...(n.fraction !== undefined ? { fraction: n.fraction } : {}),
-      ...(parent && grows(at.computed.get(id)) ? { grow: true } : {}),
+      ...(n.at !== undefined ? { at: n.at } : {}),
+      ...(parent && (grows(at.computed.get(id)) || shrinksToFit(n, at.computed.get(id), at.layouts.get(parent))) ? { grow: true } : {}),
       ...(n.kind === 'icon' && n.icon ? { icon: iconComponentName(n.icon) } : {}),
     };
     parts.push(part);
@@ -2315,7 +2945,7 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions, 
   }
   for (const id of order) {
     const n = owner.get(id)!.built.parts.get(id)!;
-    if (!dropped.has(id) && n.visible && !properties.some((p) => p.name === n.visible!.property)) properties.push({ name: n.visible.property, type: 'BOOLEAN', default: false, prop: n.visible.prop });
+    if (!dropped.has(id) && n.visible && !properties.some((p) => p.name === n.visible!.property)) properties.push({ name: n.visible.property, type: 'BOOLEAN', default: !!n.visible.on, prop: n.visible.prop });
   }
 
   // Props the spec does not draw (loading, slots...), so readers know what is missing.
@@ -2348,13 +2978,72 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions, 
   });
   // Every variant lists all of its fields (even when equal across variants): the plugin binds per variant.
   const source = [src.file, ...[...modules.keys()].sort()];
+  // The code example the content comes from, for the fidelity check: the props the set used and the example's children.
+  // Example texts count only where they are drawn (behind a BOOLEAN shown by default), not where code ignores them.
+  const shownExamples = Object.fromEntries(Object.entries(examples).filter(([k]) => properties.some((p) => p.type === 'BOOLEAN' && p.prop === k && p.default === true)));
+  const exampleProps = Object.fromEntries(Object.entries({ ...baseProps, ...shownExamples }).filter(([, v]) => isData(v)));
+  const example: SpecExample | undefined =
+    (previewKids && !base.built.root.fromExports) || Object.keys(exampleProps).length
+      ? { c: src.name, ...(Object.keys(exampleProps).length ? { p: exampleProps } : {}), ...(previewKids && !base.built.root.fromExports ? { children: previewKids as SpecExample['children'] } : {}) }
+      : undefined;
   const component = {
     ...(src.folder !== setName ? { component: src.folder } : {}),
     ...(Object.keys(fixed).length ? { fixed: { ...fixed } } : {}),
     ...(view ? { view } : {}),
+    ...(example ? { example } : {}),
   };
-  const spec: Omit<ComponentSpec, 'hash'> = { name: setName, ...component, source, axes, properties, parts, variants, unmapped: dedup };
-  return { name: setName, ...component, hash: hashSpec(spec), source, axes, properties, parts, variants, unmapped: dedup };
+  const motionFields = { ...(interactions.length ? { interactions } : {}), ...(motion.length ? { motion } : {}) };
+  const spec: Omit<ComponentSpec, 'hash'> = { name: setName, ...component, source, axes, properties, parts, variants, unmapped: dedup, ...motionFields };
+  return { name: setName, ...component, hash: hashSpec(spec), source, axes, properties, parts, variants, unmapped: dedup, ...motionFields };
+}
+
+/**
+ * Interactions between the variants of a set, from its State and Checked axes: hover (While hovering, Default to Hover),
+ * press (While pressing, Hover or Default to Pressed) and click (On click, Checked toggles; a radio only checks). With a
+ * Checked axis, hover uses Mouse enter and Mouse leave, so a click is not undone when the pointer leaves. Only between
+ * variants that look different; the transition is the code's for that change, grouped when variants differ.
+ */
+function deriveInteractions(axes: SpecAxis[], evaluated: { props: Record<string, string>; ev: Evaluated }[], tokens: Map<string, TokenInfo>, radio: boolean): SpecInteraction[] {
+  const byKey = new Map(evaluated.map((e) => [variantKeyOf(e.props), e]));
+  const state = axes.find((a) => a.name === 'State');
+  const checked = axes.find((a) => a.name === 'Checked');
+  const rules: { trigger: SpecTrigger; axis: string; from: string; to: string; only?: (p: Record<string, string>) => boolean }[] = [];
+  if (state) {
+    const has = (v: string) => state.values.includes(v);
+    if (has('Hover')) {
+      if (checked) rules.push({ trigger: 'MOUSE_ENTER', axis: 'State', from: 'Default', to: 'Hover' }, { trigger: 'MOUSE_LEAVE', axis: 'State', from: 'Hover', to: 'Default' });
+      else rules.push({ trigger: 'ON_HOVER', axis: 'State', from: 'Default', to: 'Hover' });
+    }
+    if (has('Pressed')) rules.push({ trigger: 'ON_PRESS', axis: 'State', from: has('Hover') ? 'Hover' : 'Default', to: 'Pressed' });
+  }
+  if (checked) {
+    const pairs: [string, string][] = [['false', 'true']];
+    if (!radio) pairs.push(['true', 'false']);
+    if (checked.values.includes('mixed')) pairs.push(['mixed', 'true']);
+    // Clicked where the pointer is: at rest or hovered, never while disabled.
+    const only = (p: Record<string, string>) => p.State === undefined || p.State === 'Default' || p.State === 'Hover';
+    for (const [from, to] of pairs) rules.push({ trigger: 'ON_CLICK', axis: 'Checked', from, to, only });
+  }
+  const out: SpecInteraction[] = [];
+  for (const r of rules) {
+    const groups = new Map<string, { transition: SpecInteraction['transition']; keys: string[] }>();
+    let candidates = 0;
+    for (const e of evaluated) {
+      if (e.props[r.axis] !== r.from) continue;
+      candidates++;
+      if (r.only && !r.only(e.props)) continue;
+      const target = byKey.get(variantKeyOf({ ...e.props, [r.axis]: r.to }));
+      if (!target || drawn(target.ev) === drawn(e.ev)) continue;
+      const transition = transitionBetween(e.ev.computed, target.ev.computed, tokens);
+      const k = JSON.stringify(transition);
+      const g = groups.get(k) ?? { transition, keys: [] };
+      g.keys.push(variantKeyOf(e.props));
+      groups.set(k, g);
+    }
+    const total = [...groups.values()].reduce((n, g) => n + g.keys.length, 0);
+    for (const g of groups.values()) out.push({ trigger: r.trigger, axis: r.axis, from: r.from, to: r.to, ...(groups.size > 1 || total < candidates ? { variants: g.keys } : {}), transition: g.transition });
+  }
+  return out;
 }
 
 /** Whether a spec draws anything: a fill, a border, an icon or a text of its own. Layout helpers draw nothing. */
@@ -2723,10 +3412,18 @@ export function generateAllComponentSpecs(folders: string[], opts: SpecGenerator
     if (main && !sets.length) {
       sets.push(main);
       const compound = new Set(main.parts.map((p) => p.name));
+      const drawnIn = new Set(main.parts.map((p) => p.source).filter(Boolean));
       for (const other of exports.slice(1)) {
         if (other.startsWith(folder) && compound.has(other.slice(folder.length))) continue;
         const spec = attempt(other);
-        if (spec) sets.push(spec);
+        if (!spec) continue;
+        // Not drawn alone when it is not faithful alone or adds nothing: a part that reads private custom properties
+        // its parent sets (a tab's height from its list), or one the main set already draws with nothing to set
+        // (a tab list).
+        const readsParent = spec.unmapped.some((u) => /^--_[\w-]+ is not a token$/.test(u.reason));
+        const duplicate = drawnIn.has(spec.parts[0]?.source) && !spec.properties.length && spec.axes.every((a) => a.name === 'State');
+        if (readsParent || duplicate) continue;
+        sets.push(spec);
       }
     }
     // Popups (a select's list, a dialog, a tooltip): drawn open, as their own set, next to what opens them, the way a
@@ -2758,6 +3455,13 @@ export function generateAllComponentSpecs(folders: string[], opts: SpecGenerator
       const fileText = opts.read(`${opts.componentsDir}/${folder}/${folder}.tsx`) ?? '';
       // A component made of Base UI popup parts (a dialog, a menu, a toast) opens a popup, whatever it draws first.
       const reason = /\.(Portal|Popup|Positioner)\b/.test(fileText) && !reasons.length ? 'opens a popup' : reasons.length ? mainReason(reasons) : undefined;
+      // What the generator cannot read but Claude drafted from the code (component-spec-overrides/<Name>.json).
+      const drafted = draftedSpec(folder, withList);
+      if (drafted) {
+        components.push(drafted);
+        coverage.push({ name: folder, status: 'drafted', reason: drafted.drafted!.reason, ...(drafted.name !== folder ? { sets: [drafted.name] } : {}) });
+        continue;
+      }
       if (!paints(folder)) coverage.push({ name: folder, status: 'layout', reason: /inset\(50%\)/.test(cssOf(folder)) ? 'screen reader text only, nothing to draw' : 'layout only, use auto layout' });
       else coverage.push({ name: folder, status: 'unsupported', reason: reason ?? 'draws nothing the generator can read yet' });
       continue;
@@ -2769,15 +3473,60 @@ export function generateAllComponentSpecs(folders: string[], opts: SpecGenerator
 }
 
 // ---------------------------------------------------------------------------------------------
+// Drafted with Claude
+
+/** Where drafted specs live: next to component-specs.json (packages/react/component-spec-overrides). */
+export const overridesDirOf = (componentsDir: string) => posix.join(posix.dirname(posix.dirname(componentsDir)), 'component-spec-overrides');
+
+/** FNV-1a of the code a drafted spec was read from, to tell when the code changed since. */
+export function draftedCodeHash(files: string[], read: (path: string) => string | undefined): string {
+  return specHash(files.map((f) => `${f}\n${read(f) ?? ''}`).join('\n'));
+}
+
+/**
+ * A spec Claude drafted for a component the generator cannot read: `component-spec-overrides/<Folder>.json`, a
+ * ComponentSpec marked `"source": "drafted"` with the files it was read from (`files`), the generator's reason and the
+ * code's hash when drafted (`codeHash`). Validated like a generated spec, against the repo's tokens: an invalid one
+ * fails `npm run specs`. Never counted as generated: its coverage is `drafted`, and it is `stale` once the code changed.
+ */
+export function draftedSpec(folder: string, opts: SpecGeneratorOptions): ComponentSpec | undefined {
+  const path = `${opts.overridesDir ?? overridesDirOf(opts.componentsDir)}/${folder}.json`;
+  const text = opts.read(path);
+  if (text === undefined) return undefined;
+  let raw: Record<string, unknown>;
+  try {
+    raw = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    throw new Error(`${path} is not valid JSON.`);
+  }
+  if (raw.source !== 'drafted') throw new Error(`${path}: a drafted spec says "source": "drafted".`);
+  const files = Array.isArray(raw.files) ? (raw.files as unknown[]).filter((f): f is string => typeof f === 'string') : [];
+  if (!files.length) throw new Error(`${path}: list the code it was drafted from in "files".`);
+  const reason = typeof raw.reason === 'string' && raw.reason ? raw.reason : 'the generator cannot read it yet';
+  const { $comment: _c, source: _s, files: _f, reason: _r, codeHash, hash: _h, drafted: _d, ...fields } = raw;
+  const stale = typeof codeHash === 'string' && codeHash !== draftedCodeHash(files, opts.read);
+  const body = { ...(fields as unknown as Omit<ComponentSpec, 'hash' | 'source' | 'drafted'>), drafted: { reason, ...(stale ? { stale: true } : {}) } };
+  const problems = validateComponentSpec({ ...body, source: files }, new Map([...typesOf(opts.tokens)].map(([k, v]) => [k, v.type])));
+  if (problems.length) throw new Error(`${path} does not match the component spec format:\n- ${problems.join('\n- ')}`);
+  const { name, axes, properties, parts, variants, unmapped, ...rest } = body;
+  const spec: Omit<ComponentSpec, 'hash'> = { name, ...rest, source: files, axes, properties, parts, variants, unmapped };
+  return { name, ...rest, hash: hashSpec(spec), source: files, axes, properties, parts, variants, unmapped };
+}
+
+// ---------------------------------------------------------------------------------------------
 // Repo helpers (Node)
 
 /** CSS custom property -> token, for every token of the repo (all tiers), with the repo's cssVar convention. */
 export function tokenCssIndex(files: Record<string, string>, opts: { prefix?: string; separator?: string; layout?: Parameters<typeof buildTokenSet>[1] } = {}): Map<string, TokenInfo> {
   const set = buildTokenSet(files, opts.layout ?? {});
   const out = new Map<string, TokenInfo>();
+  const ctx = defaultContext(set);
   for (const t of set.tokens.values()) {
     const v = tokenCssVar(t.path, opts.prefix, opts.separator);
-    if (!out.has(v)) out.set(v, { path: t.path, type: t.type });
+    if (out.has(v)) continue;
+    // Motion tokens carry their value: interactions play the code's duration and easing.
+    const value = t.type === 'duration' || t.type === 'cubicBezier' ? resolve(set.byPath, t.path, ctx).value : undefined;
+    out.set(v, { path: t.path, type: t.type, ...(value !== undefined ? { value } : {}) });
   }
   return out;
 }

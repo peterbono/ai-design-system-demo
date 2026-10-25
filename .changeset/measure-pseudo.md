@@ -1,0 +1,6 @@
+---
+'@bridge-ds/core': patch
+'@bridge-ds/cli': patch
+---
+
+Measure controls drawn in CSS and keep long runs cheap and safe. The measure reads `::before` / `::after` that draw a box as parts (box, fill, border, radius, pin or cover, with their own declarations in the cascade), gives a grid a direction (flow, tracks, or where its children sit), writes inline SVG with every shape's fill and stroke and currentColor resolved (`vectors`, with strokes), keeps BEM element classes (`cds--toggle__switch`) whole, lays out a root that fills its container at 400 px (`fillWidth`) so the measure and the shot agree, flags gallery stories and orders single-instance stories first, and waits for DOM ready plus a short settle with animations paused. `--variants` varies only the args a story declares; without a Figma set it probes each one once and leaves out args with no visual effect (`variantPlan`), with at most 48 renders per component (each value, then pairs). The CLI stays on the story (links do not navigate), opens a fresh tab per component and after any failure, reads `--tokens` first, writes after each component with `--resume`, and runs `--check` only against a Figma side that belongs to the Storybook.

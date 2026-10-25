@@ -13,6 +13,12 @@
       "const": 1,
       "description": "Config format version."
     },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60,
+      "description": "The team's display name, shown in Studio, the Library and invitations (\"Acme Design\"). Absent: Bridge names the team after its repository."
+    },
     "repo": {
       "description": "GitHub repository. Pull requests target defaultBranch; Bridge never writes to it.",
       "oneOf": [
@@ -128,6 +134,11 @@
               }
             ]
           }
+        },
+        "usage": {
+          "type": "string",
+          "description": "Optional notes per token group ({ \"color.action\": \"Buttons and links\" }), relative to root. Bridge reads usage.json under root when this is not set.",
+          "minLength": 1
         },
         "primitives": {
           "type": "string",
@@ -281,6 +292,11 @@
           "type": "string",
           "description": "Generated component specs (npm run specs) the Figma plugin pulls as component sets, repo-relative.",
           "default": "packages/react/component-specs.json"
+        },
+        "styles": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Global stylesheets that ship with the library (base styles, theme), as repo-relative globs. Their var(--token) reads count as token usage. Default: every .css file under the styles/ and theme/ folders next to dir."
         }
       }
     },
@@ -436,6 +452,11 @@
               "default": 20
             }
           }
+        },
+        "soloOwnerCanApproveBoth": {
+          "type": "boolean",
+          "description": "For a design system run by one person. When true and the owners resolve to exactly one person who holds both roles, that person's approval counts as the design and the tech approval, so Tier 2 and Tier 3 changes can be approved. The author of a change still never approves it. Default false: one person never covers both approvals alone.",
+          "default": false
         },
         "rights": {
           "type": "object",
@@ -650,6 +671,51 @@
         }
       }
     },
+    "changes": {
+      "enum": [
+        "suggest",
+        "direct"
+      ],
+      "default": "suggest",
+      "description": "How Bridge sends a change to the code. suggest (default): Bridge files a GitHub issue that holds the exact change (a suggestion); owners approve it and a developer applies it with their own access. direct: Bridge opens branches and pull requests itself, which needs Contents and Pull requests write. This file is a guardrail, so switching modes is a Tier 3 change."
+    },
+    "storybook": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url"
+      ],
+      "description": "The deployed Storybook Bridge reads the component list and previews from. Absent: previews.production.storybook when it is set.",
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^https://",
+          "description": "Root URL of the deployed Storybook (where index.json and iframe.html are served), https only."
+        }
+      }
+    },
+    "library": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The team's hosted Bridge Library (/library/<owner>/<repo>/), read from the bridge-data snapshot.",
+      "properties": {
+        "public": {
+          "type": "boolean",
+          "default": false,
+          "description": "true lets search engines index the hosted Library of a public repository. Default false: every Library page says noindex."
+        }
+      }
+    },
+    "demo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["viewer"],
+      "description": "A public demo's persona, read by Bridge's own demo repositories only: who a visitor without an account stands in for on the demo home (\"Good morning, Dana.\"). Ignored on any other repository.",
+      "properties": {
+        "viewer": { "type": "string", "minLength": 1, "description": "The persona's first name, for example \"Dana\"." },
+        "role": { "type": "string", "description": "What they do, for example \"DS lead\"." }
+      }
+    },
     "visualImpact": {
       "type": "object",
       "additionalProperties": false,
@@ -664,6 +730,75 @@
           "description": "auto or on-demand."
         }
       }
+    },
+    "products": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The apps that consume the design system. Bridge Studio groups branches by product, and the CLI and MCP server tell which product a folder or a repository is. A branch belongs to the product its pull request label names (product: <key>), else to the first product whose folder holds one of its changed files, else to the default product. Leave it out to keep the Admin demo and the Library.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "name"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "description": "Stable id made of lowercase letters, digits and dashes. The pull request label product: <key> names it."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The name people read, such as Admin demo."
+          },
+          "repo": {
+            "type": "string",
+            "pattern": "^[\\w.-]+/[\\w.-]+$",
+            "description": "owner/name when the product lives in another GitHub repository."
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^(?!/)(?!(.*/)?\\.\\.(/|$)).+$",
+            "description": "Folder of this repository that holds the product, relative to the root, such as apps/admin. No leading slash and no '..'."
+          },
+          "preview": {
+            "type": "string",
+            "pattern": "^https?://",
+            "description": "Preview URL pattern, with the same placeholders as previews.apps: {branch}, {rawBranch}, {pr}, {sha} and {sha7}."
+          },
+          "framework": {
+            "type": "string",
+            "description": "The framework the product is built with: react, vue, angular, svelte, astro or other.",
+            "examples": [
+              "react",
+              "vue",
+              "angular",
+              "svelte",
+              "astro",
+              "other"
+            ]
+          },
+          "default": {
+            "type": "boolean",
+            "description": "The product a branch belongs to when nothing else matches: the library. At most one. Without one, the last product is the default."
+          }
+        }
+      },
+      "default": [
+        {
+          "key": "admin",
+          "name": "Admin demo",
+          "path": "apps/admin",
+          "framework": "react"
+        },
+        {
+          "key": "library",
+          "name": "Library",
+          "default": true
+        }
+      ]
     }
   }
 }

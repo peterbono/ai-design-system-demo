@@ -1,0 +1,13 @@
+---
+// Where an invitation email leads: /studio/invite/#t=<token> (api/invites/index.ts writes the link). Not in the nav.
+// One identity: the link opens the one sign-in screen of Bridge (components/ds/account/SignIn.tsx, `invite`), which
+// signs in the invited email with a code, then shows the invite (Entry E3). Signed in as someone else, it says where
+// the invite went and offers to sign in as that email. Reads no repository (bare: the Studio top bar only).
+import '../../styles/start.css';
+import Layout from '../../layouts/Layout.astro';
+import SignIn from '../../components/ds/account/SignIn';
+---
+
+<Layout title="Join your team" description="Accept an invitation to a design system on Bridge." crumbs={false} bare>
+  <SignIn client:only="react" invite />
+</Layout>

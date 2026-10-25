@@ -234,3 +234,77 @@ test('token-less reads use the raw host; commitToNewBranch creates a branch, nev
   assert.ok(!calls.some((x) => x.method === 'PATCH'));
   assert.deepEqual(parseRepo('https://github.com/acme/ds.git'), { owner: 'acme', name: 'ds' });
 });
+
+test('a fetch that answers with its own GitHubError keeps it; any other throw is a network error', async () => {
+  const own: FetchLike = async () => {
+    throw new GitHubError(403, 'Allow the app first, then try again.', 'app-consent');
+  };
+  const c = new GitHubClient('o/r', 'tok', own);
+  await assert.rejects(c.createBranch('feature/x', 'abc'), (e: unknown) => e instanceof GitHubError && e.status === 403 && e.detail === 'app-consent' && e.message === 'Allow the app first, then try again.');
+  const offline: FetchLike = async () => {
+    throw new TypeError('Failed to fetch');
+  };
+  await assert.rejects(new GitHubClient('o/r', 'tok', offline).createBranch('feature/x', 'abc'), (e: unknown) => e instanceof GitHubError && e.status === 0 && /Could not reach GitHub/.test(e.message));
+});
+
+test('writeAccess: what a token may write, from probes that write nothing (422 yes, 403 permission no)', async () => {
+  const refused = { status: 403, body: { message: 'Resource not accessible by personal access token' } };
+  const invalid = { status: 422, body: { message: 'Validation Failed' } };
+  const { calls, fetchImpl } = stub({ 'POST /repos/o/r/git/refs': invalid, 'POST /repos/o/r/pulls': refused, 'POST /repos/o/r/issues': invalid });
+  const client = new GitHubClient('o/r', 'tok', fetchImpl);
+  assert.deepEqual(await client.writeAccess('main'), { contents: true, pullRequests: false, issues: true });
+  // Every probe is invalid on purpose: a zero sha, a head branch that does not exist, an empty title.
+  assert.deepEqual(calls.map((c) => [c.method, c.url.replace('https://api.github.com', '')]).sort(), [
+    ['POST', '/repos/o/r/git/refs'],
+    ['POST', '/repos/o/r/issues'],
+    ['POST', '/repos/o/r/pulls'],
+  ]);
+  assert.equal((calls.find((c) => c.url.endsWith('/git/refs'))!.body as { sha: string }).sha, '0'.repeat(40));
+  assert.equal((calls.find((c) => c.url.endsWith('/issues'))!.body as { title: string }).title, '');
+  // A rate limit is a 403 too: it is not read as a missing permission.
+  const limited = stub({
+    'POST /repos/o/r/git/refs': { status: 403, body: { message: 'API rate limit exceeded for user' } },
+    'POST /repos/o/r/pulls': invalid,
+    'POST /repos/o/r/issues': invalid,
+  });
+  await assert.rejects(new GitHubClient('o/r', 'tok', limited.fetchImpl).writeAccess('main'));
+});
+
+test('markReadyForReview: the GraphQL mutation with the node id REST gives, a no-op when not a draft', async () => {
+  const { calls, fetchImpl } = stub({
+    'GET /repos/o/r/pulls/7': { body: { number: 7, node_id: 'PR_kwDO7', draft: true } },
+    'POST /graphql': { body: { data: { markPullRequestReadyForReview: { pullRequest: { number: 7, isDraft: false } } } } },
+  });
+  await new GitHubClient('o/r', 'tok', fetchImpl).markReadyForReview(7);
+  const mutation = calls.find((c) => c.method === 'POST' && c.url === 'https://api.github.com/graphql');
+  assert.ok(mutation, 'REST cannot unset draft: the call goes to GraphQL');
+  assert.equal(mutation.headers.Authorization, 'Bearer tok');
+  const body = mutation.body as { query: string; variables: { id: string } };
+  assert.match(body.query, /markPullRequestReadyForReview\(input: \{ pullRequestId: \$id \}\)/);
+  assert.deepEqual(body.variables, { id: 'PR_kwDO7' });
+
+  const ready = stub({ 'GET /repos/o/r/pulls/7': { body: { number: 7, node_id: 'PR_kwDO7', draft: false } } });
+  await new GitHubClient('o/r', 'tok', ready.fetchImpl).markReadyForReview(7);
+  assert.equal(ready.calls.some((c) => c.url.endsWith('/graphql')), false, 'already ready: no mutation');
+
+  const refused = stub({
+    'GET /repos/o/r/pulls/7': { body: { number: 7, node_id: 'PR_kwDO7', draft: true } },
+    'POST /graphql': { body: { errors: [{ message: 'Resource not accessible by personal access token' }] } },
+  });
+  await assert.rejects(
+    new GitHubClient('o/r', 'tok', refused.fetchImpl).markReadyForReview(7),
+    (e: unknown) => e instanceof GitHubError && /refused to mark #7 ready for review: Resource not accessible/.test(e.message),
+  );
+  await assert.rejects(new GitHubClient('o/r', '', fetchImpl).markReadyForReview(7), /needs a GitHub token/);
+});
+
+test('hasBranch asks the matching refs: a missing branch is an empty list, never a 404', async () => {
+  const { calls, fetchImpl } = stub({
+    'GET /repos/o/r/git/matching-refs/heads/bridge-data': { body: [{ ref: 'refs/heads/bridge-data-old' }] },
+    'GET /repos/o/r/git/matching-refs/heads/main': { body: [{ ref: 'refs/heads/main' }, { ref: 'refs/heads/main-2' }] },
+  });
+  const client = new GitHubClient('o/r', 'tok', fetchImpl);
+  assert.equal(await client.hasBranch('bridge-data'), false);
+  assert.equal(await client.hasBranch('main'), true);
+  assert.ok(calls.every((c) => c.url.includes('/git/matching-refs/heads/')));
+});

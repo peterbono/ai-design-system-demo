@@ -1,6 +1,7 @@
-/* Studio Settings: one page in bands (Account, Review rules, Safety, Figma and Claude, Integrations).
+/* Studio Settings: one page in bands (General, Members, Library access, How changes reach your code, Review rules,
+   Safety, Figma and Claude, Integrations, Appearance).
    Four sizes on the screen: the page title (Fraunces), section titles (h3 role), ui (everything else) and the caption
-   of badges and table headers. Color: one Harbor zone at most (Account while read only), Deep Harbor for the one
+   of badges and table headers. Color: no Harbor zone, Deep Harbor for the one
    primary action, status color only on badges. */
 
 /* The page stops at 1200px and sits centred: rows never stretch across a wide monitor. */
@@ -27,6 +28,13 @@
   .set-band {
     grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
     gap: var(--space-12);
+  }
+}
+
+/* Members (boards I3, I4): its title, sentence and Invite action sit on one line above the table, the full band wide. */
+@media (min-width: 1280px) {
+  .set-band[data-full] {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -145,76 +153,6 @@
   grid-column: 1 / -1;
 }
 
-/* Account: avatar, who, access badge, and the quiet action on one line. */
-.set-account {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3) var(--space-4);
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
-}
-
-.set-account-text {
-  display: grid;
-  flex: 1 1 var(--size-60);
-  gap: var(--space-0-5);
-  min-width: 0;
-}
-
-.set-account-text p {
-  margin: 0;
-}
-
-.set-account-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  font-weight: var(--font-weight-semibold);
-}
-
-.set-account-sub {
-  color: var(--color-text-muted);
-}
-
-/* Read only: the page's one Harbor zone, with the drawing and Connect GitHub. */
-.set-account-zone {
-  gap: var(--space-4) var(--space-6);
-  padding: var(--space-6) var(--space-7);
-}
-
-.set-account-zone .set-account-sub {
-  color: var(--color-text-default);
-}
-
-.set-account-art {
-  display: flex;
-  flex: none;
-  color: var(--color-text-default);
-}
-
-/* The one way in: Sign in with GitHub, or Connect GitHub with a token on a site without a GitHub App. */
-.set-account-actions {
-  display: grid;
-  flex: none;
-  justify-items: center;
-  gap: var(--space-1);
-}
-
-/* Account: the library this workspace reads, and the one way to it on GitHub, on one quiet line. */
-.set-library {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-1) var(--space-4);
-  margin: var(--space-3) 0 0;
-  color: var(--color-text-muted);
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
-}
-
 /* Who holds a right: the owner group. */
 .set-who {
   display: flex;
@@ -271,7 +209,7 @@
   margin: 0;
 }
 
-/* Review rules: the table of what each change needs, then the owner override fold. */
+/* Review rules: the table of what each change needs. */
 .set-change-rules {
   display: grid;
   gap: var(--space-2);
@@ -363,6 +301,62 @@
   margin-bottom: var(--space-4);
 }
 
+/* "For developers": the technical side of a section, closed, at the foot of its card (board D9). Facts as a list of
+   term and value, values in mono where they are code. */
+.set-dev {
+  margin-top: var(--space-4);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  border-bottom: 0;
+}
+
+.set-dev > summary {
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+
+.set-dev-facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.set-dev-fact {
+  display: grid;
+  grid-template-columns: minmax(var(--size-40), 30%) minmax(0, 1fr);
+  gap: var(--space-1) var(--space-6);
+}
+
+.set-dev-fact dt {
+  color: var(--color-text-muted);
+}
+
+.set-dev-fact dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.set-dev > p {
+  margin: 0 0 var(--space-3);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+/* Who can change a section, under its rows (Review rules). */
+.set-rows + .set-admin-only {
+  margin-top: var(--space-4);
+}
+
+/* A sample team's settings: the one line that says they are sample rules, above the bands. */
+.set-sample-note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
 /* Phones: rows stack (label, value, action), a lone action fills its bar, the drawing steps aside. */
 @media (max-width: 640px) {
   .set-band {
@@ -377,31 +371,23 @@
     grid-column: auto;
   }
 
+  .set-dev-fact {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .set-row-action {
     justify-content: flex-start;
   }
 
   .set-row-action [data-protect-action],
   .set-row-action [data-visual-edit],
-  .set-account-action,
   .set-row-value [data-segmented-control] {
     width: 100%;
   }
 
-  .set-account-zone {
-    padding: var(--space-5);
-  }
-
-  .set-account-actions {
-    width: 100%;
-  }
-
-  .set-account-art {
-    display: none;
-  }
-
-  .set-library {
-    align-items: flex-start;
-    flex-direction: column;
+  /* A control stretched to the row shares its width between its segments, so no empty end of track. */
+  .set-row-value [data-segmented-control] [data-segment] {
+    flex: 1 1 0;
+    min-width: max-content;
   }
 }

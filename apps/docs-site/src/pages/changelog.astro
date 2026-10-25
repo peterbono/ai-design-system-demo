@@ -1,142 +1,21 @@
 ---
-// Library Changelog. One release per card, newest first: what is coming in the next release (pending entries), then
-// each published release with its date and package versions (from the CHANGELOG.md files and the release tags).
-// Each row: kind badge, the title at full width, one line on what it means, a small meta line (bump, packages).
-// The rest of a long release and the internal changes are folded; the releases themselves are one quiet link to GitHub.
+// Library > Use > Changelog: the shared view (components/ds/library/views/ChangelogView.tsx), rendered at build time
+// from the releases of this build's snapshot (lib/site-snapshot.ts: the CHANGELOG.md files and the pending
+// changesets, as a team's snapshot carries them), and hydrated for its folds, package lists and version picker.
 import Layout from '../layouts/Layout.astro';
-import { siteIcon } from '../brand/site-icons';
-import { Badge, Button, EmptyState, Icon, Link, Tag } from '@bridge-ds/react';
-import { Clock, Copy } from 'lucide-react';
-import { releases, versionInfo } from '../lib/changelog';
-import { shortPackage, type Entry } from '../lib/changelog-model';
-import { mdTitleHtml } from '../lib/markdown';
-import { GITHUB_URL } from '../lib/repo';
-import { VOCAB } from '../lib/vocabulary';
+import ChangelogView from '../components/ds/library/views/ChangelogView';
+import { bridgeTools, siteUseExtras } from '../lib/library-use';
 import { PAGE_SOURCES, freshness } from '../lib/sources';
-import { humanDate, repoStatus } from '../lib/stats';
-import LibraryHeader from '../components/LibraryHeader.astro';
-import VersionMenu from '../components/ds/VersionMenu';
-import ReleaseEntries, { KINDS, type EntryRow } from '../components/ds/ReleaseEntries';
+import { siteSnapshot } from '../lib/site-snapshot';
 import '../styles/process.css';
 
-const all = releases();
+const all = siteSnapshot.releases ?? [];
 const updated = all.find((r) => r.date)?.date ?? freshness(PAGE_SOURCES.changelog);
-const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-const counts = (entries: { kind: string }[]) =>
-  KINDS.map((k) => ({ ...k, n: entries.filter((e) => e.kind === k.kind).length })).filter((k) => k.n > 0);
-const visibleKinds = KINDS.filter((k) => all.some((r) => r.entries.some((e) => e.kind === k.kind)));
-
-// One line under the title: the author's "For you" line, else the note's second sentence, else what a breaking change asks.
-const row = (e: Entry): EntryRow => {
-  const authored = e.forYouAuthored ? e.forYou : '';
-  const description = authored || e.detail || (e.kind === 'Breaking' ? e.forYou : '');
-  return { kind: e.kind, titleHtml: mdTitleHtml(e.title), descriptionHtml: mdTitleHtml(description), bump: e.bump, packages: e.packages.map(shortPackage) };
-};
-
-// The version picker lives here: section headers stay title, lead and drawing.
-const version = versionInfo();
-const repo = repoStatus();
-const latest = all.find((r) => !r.pending);
+const { versionMenu } = siteUseExtras();
+// Only what the view reads: the releases, the version picker and Bridge's repository (the island's props).
+const data = { team: null, extras: { releases: all, use: { bridge: bridgeTools(), versionMenu } } };
 ---
 
 <Layout title="Changelog" description="What changed in the design system, what it means for you, and a message ready to post." sources={['CHANGELOG.md', '.changeset']} updated={updated}>
-  <LibraryHeader title="Changelog" art="guide" updated={updated}>
-    What changed in each release of the design system and what it means for you, with an announcement ready to paste
-    into Slack or an email. For the token-by-token history, open <Link href="/studio/changes/?view=history">History in the Studio</Link>.
-    <Fragment slot="actions">
-      <VersionMenu
-        client:idle
-        current={version.current}
-        past={version.past.map((r) => r.name)}
-        branch={repo.branch}
-        sha={repo.sha}
-        pending={version.pending}
-        builtFrom={`Built from ${repo.branch} at ${repo.sha}, ${humanDate(repo.lastChange)}`}
-      />
-    </Fragment>
-  </LibraryHeader>
-
-  <ul class="kind-legend" aria-label="Labels used in this changelog">
-    {
-      (visibleKinds.length ? visibleKinds : KINDS).map((k) => (
-        <li>
-          <Badge tone={k.tone} icon={k.icon}>{k.kind}</Badge>
-          <span class="muted">{k.meaning}</span>
-        </li>
-      ))
-    }
-  </ul>
-
-  {
-    all.length === 0 ? (
-      <EmptyState icon={Clock} title="No changes recorded yet" headingLevel={2}>
-        <Fragment slot="description">The first change shows up here once it is sent for review with a release note.</Fragment>
-      </EmptyState>
-    ) : (
-      <ol class="timeline">
-        {all.map((r) => (
-          <li class="tl-item" data-pending={r.pending || undefined}>
-            <span class="tl-node" aria-hidden="true" />
-            <section class="release-card" aria-labelledby={`r-${slug(r.name)}`}>
-              <header class="release-head">
-                <div class="release-title">
-                  <h2 id={`r-${slug(r.name)}`}>{r.name}</h2>
-                  <p class="release-meta">
-                    {r.pending ? (
-                      <Badge tone="warning">Not released yet</Badge>
-                    ) : (
-                      <>
-                        <Badge tone="success">Released</Badge>
-                        {r.date && (
-                          <span class="muted small">
-                            <time datetime={r.date}>{humanDate(r.date)}</time>
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </p>
-                  {!r.pending && r.packages.some((p) => p.published) && (
-                    <p class="release-pkgs" aria-label="Packages published in this release">
-                      {r.packages
-                        .filter((p) => p.published)
-                        .map((p) => (
-                          <Tag size="sm">{`${shortPackage(p.name)} ${p.version}`}</Tag>
-                        ))}
-                    </p>
-                  )}
-                </div>
-                <ul class="release-counts" aria-label="Changes by kind">
-                  {counts(r.entries).map((k) => (
-                    <li>
-                      <strong class="num">{k.n}</strong> <span class="muted">{k.kind}</span>
-                    </li>
-                  ))}
-                </ul>
-              </header>
-
-              <ReleaseEntries client:visible entries={r.entries.map(row)} visible={r.pending || r === latest ? 6 : 3} />
-
-              <div class="announce">
-                <div class="announce-head">
-                  <span class="announce-avatar" aria-hidden="true">
-                    <Icon icon={siteIcon('agent')} size="md" className="icon" />
-                  </span>
-                  <div>
-                    <h3 id={`a-${slug(r.name)}`}>Announcement</h3>
-                    <p class="muted small">Ready to paste into Slack, Teams or an email.</p>
-                  </div>
-                  <Button variant="secondary" size="sm" iconStart={Copy} className="announce-copy" data-copy="" data-copy-from={`s-${slug(r.name)}`} aria-describedby={`a-${slug(r.name)}`}>
-                    <span data-copy-label>Copy for Slack or email</span>
-                  </Button>
-                </div>
-                <pre class="announce-body" id={`s-${slug(r.name)}`}>{r.announcement}</pre>
-              </div>
-            </section>
-          </li>
-        ))}
-      </ol>
-    )
-  }
-
-  <p class="cl-gh muted small">Every release, with its package versions, is also on GitHub. <Link href={`${GITHUB_URL}/releases`} external>{VOCAB.openOnGitHub}</Link></p>
+  <ChangelogView client:load data={data} />
 </Layout>

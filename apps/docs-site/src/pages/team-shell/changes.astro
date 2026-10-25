@@ -1,0 +1,72 @@
+---
+// Team shell of Studio Branches (lib/team-shells.ts): served for /studio/<owner>/<repo>/changes/ by the vercel.json
+// rewrite. The team's open branches (the self-hosted list, components/ds/studio/BranchesList) and its suggestions
+// (components/ds/studio/TeamSuggestions), each opened in place, read in the browser by scripts/team-branches.ts. The
+// same views as the self-hosted page reach by address, for the team: History (?view=history, read from GitHub when
+// signed in), a component change request in place (?request=N) and the exploration start form
+// (?view=explorations&start=new or &for=N), which follows the team's "changes" mode.
+import '../../styles/reviews.css';
+import '../../styles/branch-review.css';
+import '../../styles/motion-changes.css';
+import '../../styles/history.css';
+import '../../styles/changes.css';
+import '../../styles/requests.css';
+import '../../styles/explorations.css';
+import '../../styles/product-branch.css';
+import '../../styles/studio-home.css';
+import '../../styles/branch-thumb.css';
+import '../../styles/suggestion-review.css';
+import '../../styles/load-progress.css';
+import { Link } from '@bridge-ds/react';
+import TeamShell from '../../components/TeamShell.astro';
+import Illustration from '../../components/Illustration.astro';
+import HistoryPlanner from '../../components/HistoryPlanner.astro';
+import ChangesRequests from '../../components/ChangesRequests.astro';
+import ChangesExplorations from '../../components/ChangesExplorations.astro';
+import ChangesHistory from '../../components/ChangesHistory.astro';
+import OverrideDialog from '../../components/OverrideDialog.astro';
+import PromoteToReview from '../../components/ds/studio/PromoteToReview';
+import RequestDecide from '../../components/ds/studio/RequestDecide';
+import { signInConfig } from '../../lib/signin-config';
+import { TEAM_HISTORY_LINE } from '../../lib/team-branches';
+import { studioHref } from '../../lib/team-path';
+import { VOCAB } from '../../lib/vocabulary';
+
+const signIn = Boolean(signInConfig(true));
+---
+
+<TeamShell route="changes/" title="Changes" what="changes" description="The open changes and suggestions of this team's design system, each reviewed in place.">
+  <Fragment slot="actions">
+    <Link href={studioHref('changes/?view=history')} id="cg-history-link" data-cg-view="history">History</Link>
+    <Link href={studioHref('changes/')} id="cg-back-link" data-back hidden>All {VOCAB.branches}</Link>
+  </Fragment>
+  <div class="rv cg tb">
+    <div class="lp-wait" data-tb-state aria-busy="true" aria-label="Reading this team's changes"></div>
+    <p class="rv-notice" id="rv-notice" role="status" hidden></p>
+    <div id="cg-main" hidden>
+      <section class="cg-panel" id="cg-review" aria-label={VOCAB.Branches}>
+        <p class="cg-muted" id="cg-asof" role="status" hidden></p>
+        <div class="cg-list-mount" id="cg-list"></div>
+        <div class="cg-empty" id="cg-empty" hidden>
+          <Illustration name="review" width={200} />
+          <p class="cg-empty-title">No open {VOCAB.branch}.</p>
+          <p class="cg-muted">Every {VOCAB.branch} in progress lands here, ready for review.</p>
+        </div>
+        <div id="tb-suggestions" hidden></div>
+      </section>
+      <ChangesRequests />
+      <ChangesExplorations signIn={signIn} />
+      <ChangesHistory historyLine={TEAM_HISTORY_LINE} />
+    </div>
+    <div id="rv-detail" class="rv-detail" hidden></div>
+    <div id="sg-detail" class="rv-detail" hidden></div>
+  </div>
+  <HistoryPlanner />
+  <OverrideDialog />
+  <PromoteToReview client:only="react" />
+  <RequestDecide client:only="react" />
+  <script>
+    import { initTeamBranches } from '../../scripts/team-branches';
+    void initTeamBranches();
+  </script>
+</TeamShell>

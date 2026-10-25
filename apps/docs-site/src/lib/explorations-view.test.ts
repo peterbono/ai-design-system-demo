@@ -159,7 +159,7 @@ describe('promoteAsk', () => {
   it('names the design and tech approvers for a token or component change', () => {
     expect(promoteAsk(3, { design: ['ana'], tech: ['@ben', 'cy'] })).toEqual({
       who: '@ana (design) and @ben and @cy (tech) will be asked to approve.',
-      next: 'It moves to In review. Design and tech approve, then it can be merged.',
+      next: 'It moves to In review. Design and tech approve, then it can be added to the library.',
     });
     expect(promoteAsk(3, { design: ['ana'], tech: ['ana'] }).who).toBe('@ana will be asked to approve, for design and for tech.');
     expect(promoteAsk(null, { design: [], tech: [] }).who).toBe('A design owner and a tech owner will be asked to approve.');
@@ -167,7 +167,7 @@ describe('promoteAsk', () => {
 
   it('asks one approval for Tier 1, design and tech from Tier 2 up', () => {
     expect(promoteAsk(2, { design: ['ana'], tech: ['ben'] }).who).toMatch(/@ana \(design\).*@ben \(tech\)/);
-    expect(promoteAsk(1, { design: ['ana'], tech: ['ben'] })).toEqual({ who: 'One teammate will be asked to approve: any reviewer can.', next: 'It moves to In review. One approval, then it can be merged.' });
+    expect(promoteAsk(1, { design: ['ana'], tech: ['ben'] })).toEqual({ who: 'One teammate will be asked to approve: any reviewer can.', next: 'It moves to In review. One approval, then it can be added to the library.' });
     expect(promotedLine(64)).toBe('Promoted. #64 is in review now, waiting for its approvals.');
   });
 });

@@ -33,6 +33,7 @@ import { sourceUrl } from '../../../../lib/repo';
 import { VOCAB } from '../../../../lib/vocabulary';
 import '../../../../styles/adoption.css';
 import '../../../../styles/quality.css';
+import { studioHref } from '../../../../lib/team-path';
 
 export function getStaticPaths() {
   return loadAudits().map((entry) => ({ params: { id: entry.id }, props: { entry } }));
@@ -89,7 +90,7 @@ const exactTotal = cats.reduce((a, c) => a + c.exact, 0);
   description={`Adoption of the design system in ${appLabel}: tokens and components, now and before the move to Bridge.`}
   sources={PAGE_SOURCES.adoption}
   updated={updated}
-  crumbs={[{ label: 'Quality', href: '/studio/quality/' }, { label: title }]}
+  crumbs={[{ label: 'Quality', href: studioHref('quality/') }, { label: title }]}
 >
   <div class="ad-page">
     <StudioHeader title={title} subtitle={summary} />

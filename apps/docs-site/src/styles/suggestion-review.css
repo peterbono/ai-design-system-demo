@@ -1,0 +1,401 @@
+/* The suggestion review (components/ds/studio/SuggestionReview.tsx), "Decide in seconds": one card on the Harbor zone
+   of the screen, the next items stacked behind it, who suggests it, Before and After side by side, the proof chips on
+   one line with Details at its end, and the decision at the bottom of the card with the big Approve last (Fitts: the
+   widest target, where the eye ends). Phones: Before and After stack, the buttons fill the row. */
+
+.sg {
+  display: grid;
+  gap: var(--space-4);
+  max-width: var(--studio-page-max);
+}
+
+/* The one Harbor zone of the screen: the stage the card sits on. */
+.sg-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  padding: var(--space-8) var(--space-8) var(--space-10);
+  border-radius: var(--radius-container);
+  background-color: var(--color-bg-zone);
+}
+
+/* The next items: the tops of the cards waiting behind this one, the nearest one widest. */
+.sg-peeks {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sg-peek {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-6);
+  padding: 0 var(--space-6);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-bottom: 0;
+  border-radius: var(--radius-container) var(--radius-container) 0 0;
+  background-color: var(--color-surface-default);
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+  opacity: 0.8;
+}
+
+.sg-peek-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sg-card {
+  overflow: hidden;
+  box-shadow: var(--elevation-overlay);
+}
+
+.sg-card.is-loading {
+  padding: var(--space-6);
+}
+
+.sg-skel {
+  height: var(--size-80);
+}
+
+.sg-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+}
+
+.sg-head-text {
+  display: grid;
+  flex: 1;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.sg-who,
+.sg-meta,
+.sg-keys,
+.sg-when,
+.sg-why,
+.sg-said,
+.sg-summary,
+.sg-side-label,
+.sg-apply-title,
+.sg-brief {
+  margin: 0;
+}
+
+.sg-who strong {
+  font-weight: var(--font-weight-semibold);
+}
+
+.sg-title {
+  margin: 0;
+  font-family: var(--typography-h2-family);
+  font-size: var(--typography-h3-size);
+  font-weight: var(--typography-h3-weight);
+  line-height: var(--typography-h3-line-height);
+}
+
+.sg-title:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.sg-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sg-muted {
+  color: var(--color-text-muted);
+}
+
+.sg-keys {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--typography-caption-size);
+}
+
+.sg-key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.sg-body {
+  display: grid;
+  /* One column that may shrink below its content (long chips, the before and after plates) on a phone. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  padding: var(--space-6);
+}
+
+.sg-summary {
+  max-width: 70ch;
+}
+
+/* Before and After, side by side, the same plate twice so the eye compares one thing. */
+.sg-ba {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.sg-ba.is-one {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sg-ba-more {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.sg-side {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sg-side-label {
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+}
+
+.sg-pane {
+  padding: var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-bg-subtle);
+}
+
+.sg-pane-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sg-pane-list > .sg-pane-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.sg-pane-list > .sg-pane-row.is-text {
+  align-items: start;
+}
+
+.sg-pane-text {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.sg-pane-name {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-family: var(--font-family-mono);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sg-swatch {
+  flex: none;
+  width: var(--size-10);
+  height: var(--size-10);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-control);
+}
+
+.sg-swatch.is-none {
+  border-style: dashed;
+  background-color: var(--color-surface-default);
+}
+
+.sg-brief {
+  white-space: pre-wrap;
+}
+
+/* The proof: chips on one line, Details at its end (proximity), the rest folded. */
+.sg-proof {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.sg-proof-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.sg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sg-chips > li,
+.sg-pane-list > li {
+  display: flex;
+  margin: 0;
+}
+
+.sg-chip:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.sg-when {
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+.sg-details {
+  display: grid;
+  gap: var(--space-4);
+  padding-top: var(--space-2);
+}
+
+.sg-details[hidden] {
+  display: none;
+}
+
+.sg-detail-lines {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  color: var(--color-text-muted);
+}
+
+.sg-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.sg-apply {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: var(--border-width-default) solid var(--color-feedback-success-border);
+  border-radius: var(--radius-container);
+}
+
+.sg-apply-title {
+  font-weight: var(--font-weight-semibold);
+}
+
+/* The decision: the reason or the buttons on one row, the big Approve last. */
+.sg-foot {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0 var(--space-6) var(--space-6);
+}
+
+.sg-foot-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.sg-why {
+  flex: 1;
+  min-width: min(100%, var(--size-60));
+  color: var(--color-text-muted);
+}
+
+/* The widest target of the card (Fitts), as on the board. */
+.sg-foot .sg-approve {
+  min-width: var(--size-60);
+}
+
+.sg-ask {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.sg-said {
+  min-height: var(--typography-ui-line-height);
+  color: var(--color-text-muted);
+  text-align: end;
+}
+
+.sg-said:empty {
+  min-height: 0;
+}
+
+@media (max-width: 720px) {
+  .sg-stage {
+    padding: var(--space-4) var(--space-3) var(--space-6);
+  }
+
+  .sg-ba {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sg-head {
+    flex-wrap: wrap;
+    padding: var(--space-4);
+  }
+
+  .sg-keys {
+    display: none;
+  }
+
+  .sg-body {
+    padding: var(--space-4);
+  }
+
+  .sg-foot {
+    padding: 0 var(--space-4) var(--space-4);
+  }
+
+  /* Suggest changes and More actions share a row; Approve fills the last one, under the thumb. */
+  .sg-foot-row > [data-sg-suggest] {
+    flex: 1;
+  }
+
+  .sg-foot .sg-approve {
+    flex: 1 1 100%;
+    order: 1;
+    min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sg-card {
+    animation: sg-in var(--motion-duration-moderate) var(--motion-easing-enter) both;
+  }
+}
+
+@keyframes sg-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+}

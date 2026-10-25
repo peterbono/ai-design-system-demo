@@ -1,0 +1,44 @@
+---
+// "How Bridge compares." on the homepage: one card holding the seven differences that matter most (DS Table, hydrated
+// for the Tooltips that hold each note), the legend of the two marks and the date, then "Compare every feature" (HpCompareMore, the DS
+// Accordion); under it the link to /compare/, where every note and source is written out. Data and words:
+// lib/compare.ts, shared with /compare/. Styles: styles/home-compare.css.
+import { Icon, Link } from '@bridge-ds/react';
+import HpCompareTable, { MARK_ICON } from './HpCompareTable';
+import HpCompareMore from './HpCompareMore';
+import { AS_OF_LINE, DETAIL_LINK, HEADING, HEAD_LINE, KEY, SHORT, SHORT_CAPTION, SHORT_FIRST_HEAD, SWIPE_HINT, type MarkState } from '../../lib/compare';
+import { COMPARE } from '../../lib/nav';
+
+// A partial cell is worded ("Tokens only"), so only the check and the dash need a key.
+const STATES: MarkState[] = ['yes', 'no'];
+---
+
+<section class="hp-cmp" aria-labelledby="hp-cmp-t">
+  <div class="hp-wrap">
+    <div class="hp-cmp-head">
+      <h2 id="hp-cmp-t" class="hp-cmp-h">{HEADING}</h2>
+      <p class="hp-cmp-p">{HEAD_LINE}</p>
+    </div>
+    <div class="hp-cmp-card">
+      <p class="hp-cmp-swipe" aria-hidden="true">{SWIPE_HINT}</p>
+      <HpCompareTable client:visible label={SHORT_CAPTION} firstHead={SHORT_FIRST_HEAD} rows={SHORT} />
+      <div class="hp-cmp-foot">
+        <ul class="hp-cmp-key" aria-hidden="true">
+          {
+            STATES.map((s) => (
+              <li class="hp-cmp-mark" data-state={s}>
+                <Icon icon={MARK_ICON[s]} size="sm" className="hp-cmp-icon" />
+                <span class="hp-cmp-keyl">{KEY[s]}</span>
+              </li>
+            ))
+          }
+        </ul>
+        <span>{AS_OF_LINE}</span>
+      </div>
+      <HpCompareMore client:visible />
+    </div>
+    <p class="hp-cmp-after">
+      <Link href={COMPARE} variant="standalone" className="hp-cmp-link">{DETAIL_LINK}</Link>
+    </p>
+  </div>
+</section>

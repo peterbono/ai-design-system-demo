@@ -11,7 +11,7 @@ export const TOKEN_REJECTED_DETAIL = 'GitHub no longer accepts it: it was revoke
 export const NEW_TOKEN_REFUSED = 'GitHub did not accept this token. Copy it again from GitHub, all of it, and check that it has not expired.';
 export { TOKEN_SETTINGS_URL };
 
-/** What DS Bridge was doing when a permission was missing, by permission: the verb phrase of the message. */
+/** What Bridge was doing when a permission was missing, by permission: the verb phrase of the message. */
 const ACTION_BY_PERMISSION: Record<string, string> = {
   issues: 'create requests',
   pull_requests: 'open pull requests',
@@ -36,11 +36,50 @@ export function tokenProblem(err: unknown): TokenProblem | undefined {
   return undefined;
 }
 
-/** The message for a failure shown inline: the permission sentence, or the error's own message. */
-export function errorText(err: unknown): string {
+/** Said for a failure that is not a sentence for a designer (a crash, a parse error): what to do, the error as detail. */
+export const UNEXPECTED_ERROR = 'Something went wrong in Bridge. Try again, and if it keeps happening, report it with the details.';
+
+/**
+ * A failure as a designer reads it, and the raw error for a "Details" fold. A token or permission problem keeps its
+ * sentence; GitHub errors already say what happened and what to do; a plain Error is one of Bridge's own sentences.
+ * Anything else (a TypeError, a JSON parse error, a string) is not written for people: one sentence, the rest as detail.
+ */
+export function friendlyError(err: unknown): { text: string; detail?: string | undefined } {
   const p = tokenProblem(err);
-  if (p) return p.text;
-  return err instanceof Error ? err.message : String(err);
+  if (p) return { text: p.text };
+  if (err instanceof GitHubError) return { text: err.message, ...(err.detail && /\s/.test(err.detail) && err.detail !== err.message ? { detail: err.detail } : {}) };
+  if (err instanceof Error && err.constructor === Error && err.message) return { text: err.message };
+  const raw = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  return { text: UNEXPECTED_ERROR, ...(raw ? { detail: raw } : {}) };
+}
+
+/** The message for a failure shown inline: the permission sentence, a GitHub sentence, or Bridge's own. */
+export function errorText(err: unknown): string {
+  return friendlyError(err).text;
+}
+
+/** A component read that failed, for a callout: what happened and what to do, the technical error folded away. */
+export interface ComponentsReadProblem {
+  title: string;
+  text: string;
+  /** The error itself, for a report: shown in a closed disclosure, never as the message. */
+  detail?: string | undefined;
+}
+
+/**
+ * Pull compares the Figma components with main, Push reads them for requests. A token or permission problem keeps its
+ * own sentence; anything else says what still works and what to do, with the raw error as a detail to report.
+ */
+export function componentsReadProblem(err: unknown, flow: 'pull' | 'push'): ComponentsReadProblem {
+  const title = 'Components could not be read';
+  const token = tokenProblem(err);
+  if (token) return { title, text: token.text };
+  const raw = err instanceof Error ? err.message : String(err);
+  const text =
+    flow === 'pull'
+      ? 'Bridge could not compare your Figma components with the design system. Variables still update as usual. Check again, and if it keeps failing, update Bridge and report it with the details below.'
+      : 'Bridge could not read your Figma components. Variables still send as usual. Scan again, and if it keeps failing, update Bridge and report it with the details below.';
+  return { title, text, ...(raw ? { detail: raw } : {}) };
 }
 
 /**

@@ -1,0 +1,60 @@
+---
+// Branches > Requests (?view=requests) and its rows: component change requests, the GitHub issues labeled
+// component-change, painted by scripts/requests.ts. Shared by the self-hosted Branches page and its team shell.
+// `previews`: the docs.json preview of each component (rendered with the real components) a request row without an
+// image of its own shows as its thumbnail. A team page has none: its components are not rendered here.
+import { Link, SegmentedControl } from '@bridge-ds/react';
+import Illustration from './Illustration.astro';
+import Example from './Example';
+import { WORK_FILTERS } from '../lib/work-nature';
+import { studioHref } from '../lib/team-path';
+import type { ExampleNode } from '../lib/components';
+
+interface Props {
+  previews?: { name: string; preview: ExampleNode }[];
+}
+const { previews = [] } = Astro.props;
+const workItems = WORK_FILTERS.map((f) => ({ value: f.value, label: f.label }));
+---
+
+<section class="cg-panel" id="cg-requests" aria-label="Component change requests" hidden>
+  <section class="zone cg-open" id="rq-opener" aria-live="polite">
+    <p class="cg-open-sentence" id="rq-sentence">Component change requests load from GitHub.</p>
+    <p class="cg-asof rq-rule">Each request is someone who wants to change a component. Start an exploration that a developer builds with Claude, or assign someone.</p>
+  </section>
+
+  <div class="cg-work" data-work-bar hidden>
+    <span class="t-ui t-muted" aria-hidden="true">Show</span>
+    <SegmentedControl label="Show" data-vanilla data-work-filter size="md" defaultValue="all" items={workItems} />
+  </div>
+  <div class="fg-card cg-card" id="rq-table">
+    <ul class="cg-list" id="rq-list" aria-label="Component change requests" aria-busy="true">
+      <li class="cg-row cg-skel" aria-hidden="true"></li>
+      <li class="cg-row cg-skel" aria-hidden="true"></li>
+    </ul>
+  </div>
+
+  <p class="cg-muted cg-work-none" data-work-none hidden></p>
+
+  <details class="cg-other" id="rq-closed" hidden>
+    <summary class="cg-sec-head"><span class="cg-sec-title">Done and declined</span><span class="cg-sec-meta" id="rq-closed-n"></span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
+    <ul class="fg-card cg-list" id="rq-closed-list" aria-label="Closed component change requests"></ul>
+  </details>
+
+  {
+    previews.length > 0 && (
+      <div hidden id="rq-previews">
+        {previews.map((c) => <template data-component={c.name}><Example node={c.preview} /></template>)}
+      </div>
+    )
+  }
+
+  <div class="cg-empty" id="rq-empty" hidden>
+    <Illustration name="guide" width={200} />
+    <p class="cg-empty-title">No component change request yet.</p>
+    <p class="cg-muted rq-empty-text">
+      Designers ask for a new component or a change from the Push tab of the DS Bridge Figma plugin, or from a component in <Link href={studioHref('components/')}>Components</Link>.
+      Developers see each request where they work, on GitHub.
+    </p>
+  </div>
+</section>

@@ -102,7 +102,7 @@ export default function EditorPreview({ previews = [] }: { previews?: { name: st
         <Switch label="Compact rows" defaultChecked />
       </div>
       <div data-sample="Tag">
-        <Tag>tokens</Tag> <Tag>tier-3</Tag>
+        <Tag>tokens</Tag> <Tag>tier: 3</Tag>
       </div>
       <div data-sample="Link">
         <Link href="#preview">Read the release notes</Link>

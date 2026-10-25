@@ -1,5 +1,6 @@
 .avatar {
   --_size: var(--size-8);
+  --_mark: var(--size-6);
 
   position: relative;
   box-sizing: border-box;
@@ -23,20 +24,24 @@
 
 .xs {
   --_size: var(--size-5);
+  --_mark: var(--size-4);
 
   font-size: 0.75em;
 }
 
 .sm {
   --_size: var(--size-6);
+  --_mark: var(--size-5);
 }
 
 .md {
   --_size: var(--size-8);
+  --_mark: var(--size-6);
 }
 
 .lg {
   --_size: var(--size-10);
+  --_mark: var(--size-7);
 
   font-size: var(--font-size-200);
 }
@@ -55,7 +60,10 @@
   height: 100%;
 }
 
-/* Group: avatars overlap by a quarter, each ringed with the surface color so edges stay readable. */
+/*
+ * Group: avatars overlap by a sixth, each ringed with the surface color so edges stay readable. A quarter covered the
+ * last letter of two initials ("LM" read "LV"); a sixth stays clear of them from sm up.
+ */
 .group {
   display: inline-flex;
   align-items: center;
@@ -66,10 +74,60 @@
 }
 
 .group > * + * {
-  margin-inline-start: calc(var(--_size) / -4);
+  margin-inline-start: calc(var(--_size) / -6);
 }
 
 .overflow {
   background-color: var(--color-bg-subtle);
   color: var(--color-text-muted);
+}
+
+/* Illustrated fallback: a drawn face on the Harbor zone color (kept light in dark so the lines read). */
+.illustrated {
+  background-color: var(--avatar-illustrated-bg);
+}
+
+.illustration {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * Agent: the Bridge agent mark (the Field Guide robot), a Deep Harbor line on a Harbor tile. A rounded square, not a circle, so an agent
+ * never reads as a person at a glance (GitHub draws apps and bots the same way).
+ */
+.agent {
+  border-radius: var(--radius-inset);
+  background-color: var(--avatar-agent-bg);
+  border: var(--border-width-default) solid var(--avatar-agent-border);
+  color: var(--color-action-primary-bg);
+}
+
+/* The mark box per size: 16, 20, 24 and 28px, so the robot line stays between 1.2 and 2.1px. */
+.mark {
+  flex: none;
+  width: var(--_mark);
+  height: var(--_mark);
+}
+
+/* The Field Guide line: ink stroke, round ends (AGENT_MARK.strokeWidth). */
+.line {
+  stroke: currentcolor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* A custom mark (a logo the team may use) fills the same box as the drawn one. */
+.custom {
+  display: inline-flex;
+  flex: none;
+  width: var(--_mark);
+  height: var(--_mark);
+}
+
+.custom > * {
+  width: 100%;
+  height: 100%;
 }

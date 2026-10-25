@@ -7,7 +7,7 @@ import { workNature } from '../lib/work-nature';
 import { devTag, markWork, natureAttr } from './work-filter';
 import { badgeHtml } from '@bridge-ds/react/dom';
 import { REQUEST_TRIAGE_IN_STUDIO } from '../lib/studio-flags';
-import { assignRequestOnGitHub, closingIssueNumbers, declineReasonProblems, declineRequestOnGitHub, REQUEST_LABEL, REQUEST_STATUS_LABEL, requestIssueTitle, type IntegrationsConfig } from '@bridge-ds/core';
+import { assignRequestOnGitHub, BUILD_IMAGE_LABEL, closingIssueNumbers, subjectTitle, declineReasonProblems, declineRequestOnGitHub, REQUEST_LABEL, REQUEST_STATUS_LABEL, requestIssueTitle, type IntegrationsConfig } from '@bridge-ds/core';
 import {
   assigneeOptions,
   buildState,
@@ -28,8 +28,10 @@ import {
 } from '../lib/requests-view';
 import { currentViewer, esc, getToken, ghGet, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, studioClient } from './github-session';
 import { rateLimitedLine } from '../lib/gh-wording';
+import { attrUrl, safeUrl } from '../lib/html';
 import { owners } from './pr-status';
 import { ASSIGN_EVENT, DECLINE_EVENT, type AssignAskDetail, type DeclineAskDetail } from '../components/ds/studio/RequestDecide';
+import { siteConfig } from './repo-context';
 
 const repo = readRepo();
 const REPO_KEY = `${repo.owner}/${repo.repo}`;
@@ -37,7 +39,7 @@ const R = `/repos/${repo.owner}/${repo.repo}`;
 
 export const integrations = (): IntegrationsConfig => {
   try {
-    return (JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { integrations?: IntegrationsConfig }).integrations ?? {};
+    return (siteConfig() as { integrations?: IntegrationsConfig }).integrations ?? {};
   } catch {
     return {};
   }
@@ -71,7 +73,7 @@ export function forgetRequests() {
 
 // Only what the view reads is kept: the cache stays small and a pull request body shrinks to its closing refs.
 const slimIssue = (i: IssueLike): IssueLike => ({
-  number: i.number,
+  number: Number(i.number),
   title: i.title,
   body: i.body ?? '',
   html_url: i.html_url,
@@ -83,7 +85,7 @@ const slimIssue = (i: IssueLike): IssueLike => ({
   created_at: i.created_at,
 });
 const slimPull = (p: PullLike): PullLike => ({
-  number: p.number,
+  number: Number(p.number),
   body: closingIssueNumbers(p.body)
     .map((n) => `Closes #${n}`)
     .join(' '),
@@ -96,7 +98,8 @@ const slimPull = (p: PullLike): PullLike => ({
 
 async function cachedList<T>(what: 'issues' | 'closed-pulls', path: string, slim: (x: T) => T): Promise<T[]> {
   const hit = readCache<T>(what);
-  if (freshList(hit, Date.now())) return hit.data;
+  // The cache is browser storage, not GitHub: slimmed again so its numbers are numbers before they reach HTML.
+  if (freshList(hit, Date.now())) return hit.data.map(slim);
   const f = await ghGet<T[]>(path);
   const data = f.data.map(slim);
   if (!f.stale) writeCache(what, data);
@@ -131,13 +134,13 @@ function jiraUrl(key: string): string | null {
 
 /** The row thumbnail: the request's first image, else the component's preview (filled from #rq-previews). */
 function thumbHtml(r: RequestRow) {
-  const img = requestImages(r).thumb;
+  const img = safeUrl(requestImages(r).thumb);
   return img
-    ? `<span class="rq-thumb" aria-hidden="true"><img src="${esc(img)}" alt="" loading="lazy" /></span>`
+    ? `<span class="rq-thumb" aria-hidden="true"><img src="${attrUrl(img)}" alt="" loading="lazy" /></span>`
     : `<span class="rq-thumb" aria-hidden="true" data-preview="${esc(r.component)}"></span>`;
 }
 
-function rowHtml(r: RequestRow) {
+export function rowHtml(r: RequestRow) {
   const nature = workNature({ title: r.title, requestKind: r.kind }).nature;
   return `<li class="cg-row" data-request="${r.number}" ${natureAttr(nature)}><a class="cg-row-link rq-row-link" href="?request=${r.number}" data-open-request="${r.number}">
     ${thumbHtml(r)}
@@ -212,15 +215,15 @@ function section(id: string, title: string, meta: string, body: string, open = f
   return `<details class="cg-sec" id="${id}"${open ? ' open' : ''}><summary class="cg-sec-head"><span class="cg-sec-title">${title}</span><span class="cg-sec-meta">${meta}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary><div class="cg-sec-body">${body}</div></details>`;
 }
 
-/** Before and after side by side, each with its label, or the single image the request carries. */
+/** In code now and in Figma side by side, each with its label, or the single image the request carries. */
 function picturesHtml(r: RequestRow): { title: string; body: string } | null {
   const { pair, single } = requestImages(r);
   const figure = (src: string, label: string, alt: string) =>
-    `<figure class="rq-fig">${label ? `<figcaption class="rq-fig-cap">${esc(label)}</figcaption>` : ''}<a href="${esc(src)}" target="_blank" rel="noopener"><img class="rq-img" src="${esc(src)}" alt="${esc(alt)}" loading="lazy" /></a></figure>`;
+    `<figure class="rq-fig">${label ? `<figcaption class="rq-fig-cap">${esc(label)}</figcaption>` : ''}<a href="${attrUrl(src)}" target="_blank" rel="noopener"><img class="rq-img" src="${attrUrl(src, '')}" alt="${esc(alt)}" loading="lazy" /></a></figure>`;
   if (pair) {
     return {
-      title: 'Before and after',
-      body: `<div class="rq-pair-imgs">${figure(pair.before, 'Before: the baseline', `${r.component} before`)}${figure(pair.after, 'After: in Figma', `${r.component} after, in Figma`)}</div>`,
+      title: `${BUILD_IMAGE_LABEL.before} and in Figma`,
+      body: `<div class="rq-pair-imgs">${figure(pair.before, BUILD_IMAGE_LABEL.before, `${r.component}, in code now`)}${figure(pair.after, BUILD_IMAGE_LABEL.after, `${r.component}, in Figma`)}</div>`,
     };
   }
   if (!single.length) return null;
@@ -251,19 +254,19 @@ export function detailContext(): DetailContext {
  */
 function primaryAction(r: RequestRow, decide: boolean): string {
   if (decide)
-    return `<a class="btn btn-primary btn-lg" href="?view=explorations&amp;for=${r.number}" data-start-for="${r.number}">Start an exploration</a><button type="button" class="btn btn-secondary btn-lg" data-rq-assign="${r.number}">Assign someone</button><button type="button" class="btn btn-secondary btn-lg" data-rq-decline="${r.number}">Decline</button>`;
+    return `<a class="btn btn-primary btn-lg" href="?view=explorations&amp;for=${r.number}" data-start-for="${r.number}" data-demo-write="start an exploration">Start an exploration</a><button type="button" class="btn btn-secondary btn-lg" data-rq-assign="${r.number}" data-demo-write="assign requests">Assign someone</button><button type="button" class="btn btn-secondary btn-lg" data-rq-decline="${r.number}" data-demo-write="decline requests">Decline</button>`;
   const open = r.prs.find((p) => p.state === 'open');
   const pr = open ?? r.prs.find((p) => p.merged);
   if (!pr) return '';
   if (pr.exploration) return `<a class="btn btn-primary btn-lg" href="?exploration=${pr.number}" data-open-exploration="${pr.number}">Open the exploration</a>`;
-  return `<a class="btn btn-primary btn-lg" href="?pr=${pr.number}" data-open-pr="${pr.number}">${open ? 'Review the branch' : 'Open the branch'}</a>`;
+  return `<a class="btn btn-primary btn-lg" href="?pr=${pr.number}" data-open-pr="${pr.number}">${open ? 'Review the change' : 'Open the change'}</a>`;
 }
 
 export function renderRequestDetail(r: RequestRow, ctx: DetailContext = { viewer: null, owners: [] }): string {
   const req = r.request;
   const decision = requestDecision(r, ctx);
   const primary = primaryAction(r, decision.kind === 'decide');
-  const jira = r.jiraKey ? (jiraUrl(r.jiraKey) ? `<a href="${esc(jiraUrl(r.jiraKey)!)}" target="_blank" rel="noopener">${esc(r.jiraKey)}</a>` : `<span class="mono">${esc(r.jiraKey)}</span>`) : '';
+  const jira = r.jiraKey ? (jiraUrl(r.jiraKey) ? `<a href="${attrUrl(jiraUrl(r.jiraKey))}" target="_blank" rel="noopener">${esc(r.jiraKey)}</a>` : `<span class="mono">${esc(r.jiraKey)}</span>`) : '';
   const changes = req?.changes ?? [];
   const table = changes.length
     ? `<div class="table-wrap"><table class="rv-table"><thead><tr><th scope="col">What</th><th scope="col">Now</th><th scope="col">Requested</th></tr></thead><tbody>${changes
@@ -271,22 +274,22 @@ export function renderRequestDetail(r: RequestRow, ctx: DetailContext = { viewer
         .join('')}</tbody></table></div>`
     : '<p class="cg-muted">No field-by-field change listed. The summary says what to do.</p>';
   const pictures = picturesHtml(r);
-  const design = req?.figma?.url ? `<p><a href="${esc(req.figma.url)}" target="_blank" rel="noopener">Open the design in Figma${req.figma.nodeName ? `: ${esc(req.figma.nodeName)}` : ''}</a></p>` : '';
+  const design = req?.figma?.url ? `<p><a href="${attrUrl(req.figma.url)}" target="_blank" rel="noopener">Open the design in Figma${req.figma.nodeName ? `: ${esc(req.figma.nodeName)}` : ''}</a></p>` : '';
   const build = buildState(r);
   const buildBody = r.prs.length
     ? `<ul class="rq-prs">${r.prs
         .map((p) =>
           p.exploration
-            ? `<li><a href="?exploration=${p.number}" data-open-exploration="${p.number}">Exploration #${p.number}</a> <span class="cg-muted">${p.state === 'open' ? 'running' : p.merged ? 'merged' : 'closed'}${p.author ? `, by @${esc(p.author)}` : ''}</span></li>`
-            : `<li><a href="?pr=${p.number}" data-open-pr="${p.number}">Branch #${p.number}</a> <span class="cg-muted">${p.merged ? 'merged' : p.state === 'open' ? 'in review' : 'closed'}${p.author ? `, by @${esc(p.author)}` : ''}</span></li>`,
+            ? `<li><a href="?exploration=${p.number}" data-open-exploration="${p.number}">Exploration #${p.number}</a> <span class="cg-muted">${p.state === 'open' ? 'running' : p.merged ? 'added to the library' : 'closed'}${p.author ? `, by @${esc(p.author)}` : ''}</span></li>`
+            : `<li><a href="?pr=${p.number}" data-open-pr="${p.number}">Change #${p.number}</a> <span class="cg-muted">${p.merged ? 'added to the library' : p.state === 'open' ? 'in review' : 'closed'}${p.author ? `, by @${esc(p.author)}` : ''}</span></li>`,
         )
         .join('')}</ul>`
     : '';
   return `
   ${crumbs(r.number)}
   <header class="zone cg-pr-open">
-    <h1 class="cg-pr-title">${esc(r.component)}: ${esc(r.title.charAt(0).toLowerCase() + r.title.slice(1))} <span class="cg-num">#${r.number}</span></h1>
-    <p class="cg-pr-meta">${badgeHtml(r.kindLabel)}${badgeHtml(r.statusLabel, { tone: r.tone, className: 'rv-status' })}<span>${esc(wantsToChange(r.requester, r.component))}</span><time datetime="${esc(r.createdAt)}">${esc(shortDate(r.createdAt))}</time>${jira}<a class="cg-gh" href="${esc(r.url)}" target="_blank" rel="noopener">Open on GitHub<span class="sr-only"> (opens in a new tab)</span></a></p>
+    <h1 class="cg-pr-title">${esc(subjectTitle(r.component, r.title))} <span class="cg-num">#${r.number}</span></h1>
+    <p class="cg-pr-meta">${badgeHtml(r.kindLabel)}${badgeHtml(r.statusLabel, { tone: r.tone, className: 'rv-status' })}<span>${esc(wantsToChange(r.requester, r.component))}</span><time datetime="${esc(r.createdAt)}">${esc(shortDate(r.createdAt))}</time>${jira}<a class="cg-gh" href="${attrUrl(r.url)}" target="_blank" rel="noopener">Open on GitHub<span class="sr-only"> (opens in a new tab)</span></a></p>
     <p class="cg-pr-state" id="rq-state" role="status" tabindex="-1">${esc(decision.sentence)}</p>
     ${primary ? `<p class="cg-pr-cta rq-decide" id="rq-actions">${primary}</p>` : ''}
     <div id="rq-assign-slot" hidden></div>
@@ -301,7 +304,7 @@ export function renderRequestDetail(r: RequestRow, ctx: DetailContext = { viewer
 
 /** The breadcrumb of a request: back to Requests, or to All branches while request triage is off in Studio. */
 const crumbs = (n: number) =>
-  `<nav class="cg-crumbs" aria-label="Breadcrumb">${REQUEST_TRIAGE_IN_STUDIO ? '<a href="?view=requests" data-back-requests>Requests</a>' : '<a href="./" data-back>Branches</a>'}<span aria-hidden="true">/</span><span class="mono">#${n}</span></nav>`;
+  `<nav class="cg-crumbs" aria-label="Breadcrumb">${REQUEST_TRIAGE_IN_STUDIO ? '<a href="?view=requests" data-back-requests>Requests</a>' : '<a href="./" data-back>Changes</a>'}<span aria-hidden="true">/</span><span class="mono">#${n}</span></nav>`;
 
 /** Opens a request in place (?request=N), from the loaded list. */
 export async function openRequest(n: number, push = true, openPulls?: Promise<PullLike[] | null>) {

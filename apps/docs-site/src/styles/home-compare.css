@@ -1,0 +1,369 @@
+/* "How Bridge compares." on the homepage (components/home/HpCompare.astro). Mobile first; wide from 900px like the rest
+   of the page. One card holds the short table, the legend row and "Compare every feature"; the DS Tables scroll
+   sideways inside it and the feature column stays put. Sizes match the owner-validated test page (hp-run/parts/compare.css).
+   Our own elements and the className roots of DS components are styled here; inside the card, the DS Table scroll
+   region and the Accordion trigger are reached by role and element, since they have no className of their own. */
+
+.hp-cmp {
+  /* Column widths: the feature column, then one per tool. The table never gets narrower than their sum. */
+  --_feat: calc(var(--size-40) - var(--space-1));
+  --_col: calc(var(--size-20) + var(--space-2));
+  --_t13: calc(var(--font-size-200) - var(--border-width-1));
+  --_t15: calc(var(--font-size-300) - var(--border-width-1));
+  --_t18: calc(var(--font-size-300) + var(--space-0-5));
+  --_l18: calc(var(--font-leading-16) + var(--space-0-5));
+  --_l22: calc(var(--font-leading-20) + var(--space-0-5));
+  --_inset: var(--space-4);
+  --_rule: var(--border-width-default) solid var(--color-border-default);
+
+  padding-top: calc(var(--space-16) + var(--space-2));
+}
+
+/* ---------- heading ---------- */
+.hp-cmp-head {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-3) + var(--space-0-5));
+  max-width: var(--size-160);
+  margin: 0 0 var(--space-7);
+}
+
+.hp-cmp-h {
+  --_size: clamp(calc(var(--font-size-700) - var(--space-0-5)), 3.6vw, calc(var(--font-size-900) + var(--space-0-5)));
+
+  margin: 0;
+  color: var(--color-text-default);
+  font-family: var(--typography-display-family);
+  font-size: var(--_size);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--font-tracking-tight);
+  line-height: var(--font-line-height-tight);
+  font-variation-settings: "SOFT" 100;
+  text-wrap: wrap;
+}
+
+.hp-cmp-p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--_t18);
+  line-height: var(--font-leading-28);
+}
+
+/* ---------- the card ---------- */
+.hp-cmp-card {
+  overflow: hidden;
+  border: var(--_rule);
+  border-radius: var(--radius-3xl);
+  background-color: var(--color-surface-default);
+}
+
+/* The DS Table draws its own card; inside ours it is a plain scroll region. */
+.hp-cmp-card [role="region"] {
+  border: 0;
+  border-radius: 0;
+}
+
+.hp-cmp-swipe {
+  margin: 0;
+  padding: var(--space-3) var(--space-4) 0;
+  color: var(--color-text-muted);
+  font-size: var(--_t13);
+  line-height: var(--_l18);
+}
+
+/* ---------- tables (DS Table root and cells, by their className) ---------- */
+.hp-cmp .hp-cmp-table {
+  min-width: calc(var(--_feat) + 6 * var(--_col));
+  font-size: var(--_t15);
+  line-height: var(--_l22);
+}
+
+.hp-cmp .hp-cmp-c {
+  height: auto;
+  padding: var(--space-3) var(--space-2);
+  border-top: var(--_rule);
+  border-bottom: 0;
+  background-color: var(--color-surface-default);
+  color: var(--color-text-default);
+  font-size: var(--_t15);
+  font-weight: var(--font-weight-regular);
+  letter-spacing: normal;
+  line-height: var(--_l22);
+  text-align: center;
+  vertical-align: middle;
+  white-space: normal;
+}
+
+.hp-cmp .hp-cmp-tool,
+.hp-cmp .hp-cmp-h0 {
+  padding-block: calc(var(--space-4) + var(--space-0-5)) calc(var(--space-3) + var(--space-0-5));
+  border-top: 0;
+  padding-inline: var(--space-3);
+  font-size: var(--_t13);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--_l18);
+  vertical-align: bottom;
+}
+
+/* The feature column: sticky while the tools scroll under it, with a hairline on its edge. */
+.hp-cmp .hp-cmp-feat {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  padding-inline-start: var(--_inset);
+  border-inline-end: var(--_rule);
+  font-weight: var(--font-weight-medium);
+  text-align: start;
+}
+
+.hp-cmp .hp-cmp-h0 {
+  width: var(--_feat);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-semibold);
+}
+
+.hp-cmp-detail {
+  display: none;
+  margin-top: var(--space-0-5);
+  color: var(--color-text-muted);
+  font-size: var(--_t13);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--_l18);
+}
+
+/* Bridge's column, tinted top to bottom. */
+.hp-cmp .hp-cmp-b {
+  background-color: var(--color-surface-selected);
+}
+
+.hp-cmp .hp-cmp-bh {
+  background-color: var(--color-bg-zone);
+  color: var(--color-text-link);
+}
+
+/* Group headings in the full table, and no rule right under them. */
+.hp-cmp .hp-cmp-gh {
+  padding-block: calc(var(--space-5) + var(--space-0-5)) var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--_t13);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--_l18);
+}
+
+.hp-cmp .hp-cmp-group + .hp-cmp-row > .hp-cmp-c {
+  border-top: 0;
+}
+
+/* ---------- marks ---------- */
+/* In a cell the mark sits on the middle, not the text baseline, so a row is its padding plus the mark. */
+.hp-cmp .hp-cmp-c > .hp-cmp-mark {
+  vertical-align: middle;
+}
+
+.hp-cmp-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: var(--size-6);
+  color: var(--color-text-link);
+}
+
+.hp-cmp-mark[data-state="no"] {
+  color: var(--color-text-disabled);
+}
+
+/* A partial cell: no mark, its short label in body text (a DS link Button, the trigger of the Tooltip that holds the
+   note). It reads as text, not a link: default colour, a dotted muted underline that says there is more on hover or
+   focus. Words wrap inside the column; no label holds a word wider than a column. */
+.hp-cmp .hp-cmp-c .hp-cmp-label {
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  padding: var(--space-0-5) 0;
+  white-space: normal;
+  color: var(--color-text-default);
+  font-size: var(--_t13);
+  line-height: var(--_l18);
+  text-decoration-style: dotted;
+  text-decoration-color: var(--color-text-muted);
+  overflow-wrap: break-word;
+  vertical-align: middle;
+}
+
+@media (hover: hover) {
+  .hp-cmp .hp-cmp-c .hp-cmp-label:hover {
+    color: var(--color-text-default);
+    text-decoration-color: currentcolor;
+  }
+}
+
+/* A check with a qualifier: the mark, then the qualifier in small grey text under it. */
+.hp-cmp-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.hp-cmp-sub {
+  color: var(--color-text-muted);
+  font-size: var(--_t13);
+  line-height: var(--_l18);
+  overflow-wrap: break-word;
+}
+
+/* A mark with a note is a ghost DS IconButton (the Tooltip trigger): it keeps the mark's colour and glyph size, and
+   takes no more height than a plain mark. */
+.hp-cmp .hp-cmp-tip {
+  min-height: 0;
+  height: var(--size-6);
+  width: var(--size-6);
+  vertical-align: middle;
+}
+
+.hp-cmp .hp-cmp-tip[data-state="yes"] {
+  color: var(--color-text-link);
+}
+
+.hp-cmp .hp-cmp-tip svg {
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+}
+
+/* ---------- legend and date: a row of the card ---------- */
+.hp-cmp-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+  padding: var(--space-3) var(--space-4);
+  border-top: var(--_rule);
+  color: var(--color-text-muted);
+  font-size: var(--_t13);
+  line-height: var(--_l18);
+}
+
+.hp-cmp-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hp-cmp .hp-cmp-key .hp-cmp-mark {
+  gap: var(--space-1-5);
+  min-height: 0;
+  margin: 0;
+  line-height: var(--_l18);
+}
+
+.hp-cmp-keyl {
+  color: var(--color-text-muted);
+}
+
+/* ---------- every feature (DS Accordion root): the last row of the card, its trigger centred ---------- */
+/* The trigger is the button in the item heading; the Tooltip triggers in the table below are buttons too. */
+.hp-cmp-more {
+  border-top: var(--_rule);
+}
+
+.hp-cmp .hp-cmp-more h3 > button {
+  justify-content: center;
+  gap: calc(var(--space-2) + var(--space-0-5));
+  min-height: var(--size-14);
+  padding: 0 var(--space-4);
+  color: var(--color-text-link);
+  font-size: var(--font-size-300);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--font-leading-20);
+}
+
+.hp-cmp .hp-cmp-more h3 > button > span {
+  flex: none;
+}
+
+.hp-cmp .hp-cmp-more h3 > button svg {
+  color: currentcolor;
+}
+
+@media (hover: hover) {
+  .hp-cmp .hp-cmp-more h3 > button:hover {
+    background-color: var(--color-bg-subtle);
+  }
+}
+
+/* The panel's own padding goes; the full table starts on a rule and ends on the card's edge. */
+.hp-cmp-more div:has(> .hp-cmp-full) {
+  padding: 0;
+}
+
+.hp-cmp-full [role="region"] {
+  border-top: var(--_rule);
+}
+
+/* ---------- link to /compare/ ---------- */
+.hp-cmp-after {
+  margin: var(--space-5) 0 0;
+  font-size: var(--_t15);
+  line-height: var(--_l22);
+}
+
+a.hp-cmp-link {
+  color: var(--color-text-link);
+  font-weight: var(--font-weight-medium);
+}
+
+@media (min-width: 900px) {
+  .hp-cmp {
+    --_feat: calc(var(--size-80) + var(--space-4));
+    --_col: calc(var(--size-20) + var(--space-8));
+    --_inset: var(--space-6);
+
+    padding-top: calc(var(--space-24) + var(--space-4));
+  }
+
+  .hp-cmp-head {
+    margin-bottom: var(--space-10);
+  }
+
+  .hp-cmp-swipe {
+    display: none;
+  }
+
+  .hp-cmp .hp-cmp-c {
+    padding: calc(var(--space-3) + var(--space-0-5)) var(--space-3);
+  }
+
+  .hp-cmp .hp-cmp-tool,
+  .hp-cmp .hp-cmp-h0 {
+    padding-block: calc(var(--space-4) + var(--space-0-5)) calc(var(--space-3) + var(--space-0-5));
+    font-size: var(--font-size-200);
+    line-height: var(--font-leading-20);
+  }
+
+  .hp-cmp .hp-cmp-feat {
+    padding-inline-start: var(--_inset);
+  }
+
+  .hp-cmp .hp-cmp-gh {
+    padding-block: calc(var(--space-5) + var(--space-0-5)) var(--space-2);
+  }
+
+  .hp-cmp-detail {
+    display: block;
+  }
+
+  .hp-cmp-foot {
+    padding: calc(var(--space-3) + var(--space-0-5)) var(--space-6);
+  }
+
+  .hp-cmp .hp-cmp-more h3 > button {
+    padding: 0 var(--space-6);
+  }
+}

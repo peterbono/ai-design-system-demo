@@ -1,0 +1,840 @@
+{
+  "v": 1,
+  "component": "Badge",
+  "figmaName": "Badge",
+  "coded": true,
+  "kind": "token-binding",
+  "title": "Use space.2 for the padding",
+  "summary": "[Audit test, do not merge] Small badges feel cramped: give the sm size 8px side padding (space/2) instead of 6px.",
+  "line": "Padding uses space.2 instead of space.1-5 in Appearance=subtle, Size=sm, Tone=neutral",
+  "changes": [
+    {
+      "field": "Padding (Appearance=subtle, Size=sm, Tone=neutral)",
+      "before": "space.1-5",
+      "after": "space.2"
+    }
+  ],
+  "rebinds": [
+    {
+      "kind": "padding",
+      "variants": [
+        "Appearance=subtle, Size=sm, Tone=neutral"
+      ],
+      "allVariants": false,
+      "before": [
+        "space.1-5"
+      ],
+      "after": [
+        "space.2"
+      ]
+    }
+  ],
+  "needsCode": false,
+  "unknown": [],
+  "figma": {
+    "nodeId": "1:1299",
+    "nodeName": "Badge"
+  },
+  "variantAxes": {
+    "Appearance": [
+      "solid",
+      "subtle"
+    ],
+    "Size": [
+      "md",
+      "sm"
+    ],
+    "Tone": [
+      "danger",
+      "info",
+      "neutral",
+      "success",
+      "warning"
+    ]
+  },
+  "properties": [
+    {
+      "name": "Appearance",
+      "type": "VARIANT",
+      "default": "subtle"
+    },
+    {
+      "name": "Icon",
+      "type": "BOOLEAN",
+      "default": "false"
+    },
+    {
+      "name": "Icon2",
+      "type": "INSTANCE_SWAP",
+      "default": "Icon/CircleCheck"
+    },
+    {
+      "name": "Label",
+      "type": "TEXT",
+      "default": "Badge"
+    },
+    {
+      "name": "Size",
+      "type": "VARIANT",
+      "default": "sm"
+    },
+    {
+      "name": "Tone",
+      "type": "VARIANT",
+      "default": "neutral"
+    }
+  ],
+  "bindings": {
+    "Appearance=subtle, Size=sm, Tone=neutral": {
+      "fill": [
+        "color.feedback.neutral.bg",
+        "color.text.muted"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "padding": [
+        "space.2"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs",
+        "size.5"
+      ],
+      "stroke": [
+        "color.border.default",
+        "color.text.muted"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.caption.line-height",
+        "typography.caption.size"
+      ]
+    },
+    "Appearance=subtle, Size=md, Tone=neutral": {
+      "fill": [
+        "color.feedback.neutral.bg",
+        "color.text.muted"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs"
+      ],
+      "stroke": [
+        "color.border.default",
+        "color.text.muted"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.ui.line-height",
+        "typography.ui.size"
+      ]
+    },
+    "Appearance=solid, Size=sm, Tone=neutral": {
+      "fill": [
+        "color.surface.inverse",
+        "color.text.inverse"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "padding": [
+        "space.1-5"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs",
+        "size.5"
+      ],
+      "stroke": [
+        "color.text.inverse"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.caption.line-height",
+        "typography.caption.size"
+      ]
+    },
+    "Appearance=solid, Size=md, Tone=neutral": {
+      "fill": [
+        "color.surface.inverse",
+        "color.text.inverse"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs"
+      ],
+      "stroke": [
+        "color.text.inverse"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.ui.line-height",
+        "typography.ui.size"
+      ]
+    },
+    "Appearance=subtle, Size=sm, Tone=success": {
+      "fill": [
+        "color.feedback.success.bg",
+        "color.feedback.success.text"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "padding": [
+        "space.1-5"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs",
+        "size.5"
+      ],
+      "stroke": [
+        "color.feedback.success.border",
+        "color.feedback.success.icon"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.caption.line-height",
+        "typography.caption.size"
+      ]
+    },
+    "Appearance=subtle, Size=md, Tone=success": {
+      "fill": [
+        "color.feedback.success.bg",
+        "color.feedback.success.text"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs"
+      ],
+      "stroke": [
+        "color.feedback.success.border",
+        "color.feedback.success.icon"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.ui.line-height",
+        "typography.ui.size"
+      ]
+    },
+    "Appearance=solid, Size=sm, Tone=success": {
+      "fill": [
+        "color.feedback.success.solid",
+        "color.text.on-solid"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "padding": [
+        "space.1-5"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs",
+        "size.5"
+      ],
+      "stroke": [
+        "color.text.on-solid"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.caption.line-height",
+        "typography.caption.size"
+      ]
+    },
+    "Appearance=solid, Size=md, Tone=success": {
+      "fill": [
+        "color.feedback.success.solid",
+        "color.text.on-solid"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs"
+      ],
+      "stroke": [
+        "color.text.on-solid"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.ui.line-height",
+        "typography.ui.size"
+      ]
+    },
+    "Appearance=subtle, Size=sm, Tone=warning": {
+      "fill": [
+        "color.feedback.warning.bg",
+        "color.feedback.warning.text"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "padding": [
+        "space.1-5"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs",
+        "size.5"
+      ],
+      "stroke": [
+        "color.feedback.warning.border",
+        "color.feedback.warning.icon"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.caption.line-height",
+        "typography.caption.size"
+      ]
+    },
+    "Appearance=subtle, Size=md, Tone=warning": {
+      "fill": [
+        "color.feedback.warning.bg",
+        "color.feedback.warning.text"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs"
+      ],
+      "stroke": [
+        "color.feedback.warning.border",
+        "color.feedback.warning.icon"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.ui.line-height",
+        "typography.ui.size"
+      ]
+    },
+    "Appearance=solid, Size=sm, Tone=warning": {
+      "fill": [
+        "color.feedback.warning.solid",
+        "color.text.on-solid"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "padding": [
+        "space.1-5"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs",
+        "size.5"
+      ],
+      "stroke": [
+        "color.text.on-solid"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.caption.line-height",
+        "typography.caption.size"
+      ]
+    },
+    "Appearance=solid, Size=md, Tone=warning": {
+      "fill": [
+        "color.feedback.warning.solid",
+        "color.text.on-solid"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs"
+      ],
+      "stroke": [
+        "color.text.on-solid"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.ui.line-height",
+        "typography.ui.size"
+      ]
+    },
+    "Appearance=subtle, Size=sm, Tone=danger": {
+      "fill": [
+        "color.feedback.danger.bg",
+        "color.feedback.danger.text"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "padding": [
+        "space.1-5"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs",
+        "size.5"
+      ],
+      "stroke": [
+        "color.feedback.danger.border",
+        "color.feedback.danger.icon"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.caption.line-height",
+        "typography.caption.size"
+      ]
+    },
+    "Appearance=subtle, Size=md, Tone=danger": {
+      "fill": [
+        "color.feedback.danger.bg",
+        "color.feedback.danger.text"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs"
+      ],
+      "stroke": [
+        "color.feedback.danger.border",
+        "color.feedback.danger.icon"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.ui.line-height",
+        "typography.ui.size"
+      ]
+    },
+    "Appearance=solid, Size=sm, Tone=danger": {
+      "fill": [
+        "color.feedback.danger.solid",
+        "color.text.on-solid"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "padding": [
+        "space.1-5"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs",
+        "size.5"
+      ],
+      "stroke": [
+        "color.text.on-solid"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.caption.line-height",
+        "typography.caption.size"
+      ]
+    },
+    "Appearance=solid, Size=md, Tone=danger": {
+      "fill": [
+        "color.feedback.danger.solid",
+        "color.text.on-solid"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs"
+      ],
+      "stroke": [
+        "color.text.on-solid"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.ui.line-height",
+        "typography.ui.size"
+      ]
+    },
+    "Appearance=subtle, Size=sm, Tone=info": {
+      "fill": [
+        "color.feedback.info.bg",
+        "color.feedback.info.text"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "padding": [
+        "space.1-5"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs",
+        "size.5"
+      ],
+      "stroke": [
+        "color.feedback.info.border",
+        "color.feedback.info.icon"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.caption.line-height",
+        "typography.caption.size"
+      ]
+    },
+    "Appearance=subtle, Size=md, Tone=info": {
+      "fill": [
+        "color.feedback.info.bg",
+        "color.feedback.info.text"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs"
+      ],
+      "stroke": [
+        "color.feedback.info.border",
+        "color.feedback.info.icon"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.ui.line-height",
+        "typography.ui.size"
+      ]
+    },
+    "Appearance=solid, Size=sm, Tone=info": {
+      "fill": [
+        "color.feedback.info.solid",
+        "color.text.on-solid"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "padding": [
+        "space.1-5"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs",
+        "size.5"
+      ],
+      "stroke": [
+        "color.text.on-solid"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.caption.line-height",
+        "typography.caption.size"
+      ]
+    },
+    "Appearance=solid, Size=md, Tone=info": {
+      "fill": [
+        "color.feedback.info.solid",
+        "color.text.on-solid"
+      ],
+      "gap": [
+        "space.1"
+      ],
+      "radius": [
+        "radius.pill"
+      ],
+      "size": [
+        "icon.size.xs"
+      ],
+      "stroke": [
+        "color.text.on-solid"
+      ],
+      "stroke width": [
+        "border-width.default",
+        "icon.stroke"
+      ],
+      "typography": [
+        "font.family.sans",
+        "font.weight.medium",
+        "typography.ui.line-height",
+        "typography.ui.size"
+      ]
+    }
+  },
+  "anatomy": {
+    "Appearance=subtle, Size=sm, Tone=neutral": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ],
+    "Appearance=subtle, Size=md, Tone=neutral": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ],
+    "Appearance=solid, Size=sm, Tone=neutral": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ],
+    "Appearance=solid, Size=md, Tone=neutral": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ],
+    "Appearance=subtle, Size=sm, Tone=success": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ],
+    "Appearance=subtle, Size=md, Tone=success": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ],
+    "Appearance=solid, Size=sm, Tone=success": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ],
+    "Appearance=solid, Size=md, Tone=success": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ],
+    "Appearance=subtle, Size=sm, Tone=warning": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ],
+    "Appearance=subtle, Size=md, Tone=warning": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ],
+    "Appearance=solid, Size=sm, Tone=warning": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ],
+    "Appearance=solid, Size=md, Tone=warning": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ],
+    "Appearance=subtle, Size=sm, Tone=danger": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ],
+    "Appearance=subtle, Size=md, Tone=danger": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ],
+    "Appearance=solid, Size=sm, Tone=danger": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ],
+    "Appearance=solid, Size=md, Tone=danger": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ],
+    "Appearance=subtle, Size=sm, Tone=info": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ],
+    "Appearance=subtle, Size=md, Tone=info": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ],
+    "Appearance=solid, Size=sm, Tone=info": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ],
+    "Appearance=solid, Size=md, Tone=info": [
+      "instance Icon/CircleCheck \"Icon\" (shown by Icon)",
+      "text \"Label\""
+    ]
+  },
+  "before": {
+    "variantAxes": {
+      "Appearance": [
+        "solid",
+        "subtle"
+      ],
+      "Size": [
+        "md",
+        "sm"
+      ],
+      "Tone": [
+        "danger",
+        "info",
+        "neutral",
+        "success",
+        "warning"
+      ]
+    },
+    "properties": [
+      {
+        "name": "Appearance",
+        "type": "VARIANT",
+        "default": "subtle"
+      },
+      {
+        "name": "Icon",
+        "type": "BOOLEAN",
+        "default": "false"
+      },
+      {
+        "name": "Icon2",
+        "type": "INSTANCE_SWAP",
+        "default": "Icon/CircleCheck"
+      },
+      {
+        "name": "Label",
+        "type": "TEXT",
+        "default": "Badge"
+      },
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "default": "sm"
+      },
+      {
+        "name": "Tone",
+        "type": "VARIANT",
+        "default": "neutral"
+      }
+    ]
+  },
+  "source": "figma",
+  "images": [
+    "https://github.com/peterbono/ai-design-system-demo/blob/bridge-requests/.bridge/requests/badge-20261023T193238.png?raw=true"
+  ],
+  "tokenEdits": [],
+  "reasons": [
+    "Code paints padding with space.1-5 directly, not through a Badge token: Claude AI changes the CSS to space.2."
+  ]
+}

@@ -6,13 +6,15 @@
 //      branches that need them (changes requested, merge blocked, approved and ready to merge), then usage guidance
 //      Claude drafted. A tertiary hint when the viewer is the only reviewer for many of them.
 //   2. Your branches: open branches only, as cards (Draft, In review, Approved waiting for code), filtered by status.
-//      Finished work is one muted line: what was published this week.
+//      What shipped lives in the Library changelog, not here.
 //   3. Nothing waits and no branch is open: three ways to start.
 //
 // Every value comes from GitHub (pull requests, their timeline and reviews) or from the repo at build time (usage
 // guidance, contrast, adoption, the changelog). Nothing here is guessed.
 import type { ThumbSpec } from './branch-thumb';
 import { VOCAB } from './vocabulary';
+import { isClaudeLogin } from './people';
+import { studioHref } from './team-path';
 
 /** Rows of the Needs you list before the grouped row. */
 export const NEEDS_SHOWN = 3;
@@ -38,15 +40,37 @@ export interface Person {
   agent?: boolean;
 }
 
+/**
+ * The separator between two parts of a status line (" · "), glued to what comes before it by a no-break space: when
+ * the line wraps, the dot ends the first line and never starts the next.
+ */
+export const SEP = '\u00a0· ';
+
 export const CLAUDE: Person = { login: 'claude', name: 'Claude AI', avatar: null, agent: true };
 
-/** The display name of a GitHub account: the first word of its profile name, else the login without "@". */
+/** Articles a profile name may start with ("The Octocat", "La Poste"): never a first name on their own. */
+const ARTICLES = new Set(['the', 'a', 'an', 'le', 'la', 'les']);
+
+/**
+ * What to call someone from their profile name: the first word when it reads as a first name ("Florian Gouloubi" gives
+ * "Florian"), else the whole name when the first word is an article or shorter than 2 letters ("The Octocat",
+ * "J. Doe"), else null (no profile name).
+ */
+export function shortName(profileName?: string | null): string | null {
+  const full = profileName?.trim().replace(/\s+/g, ' ');
+  if (!full) return null;
+  const first = full.split(' ')[0]!;
+  const letters = first.replace(/[^\p{L}]/gu, '');
+  return letters.length < 2 || ARTICLES.has(first.toLowerCase()) ? full : first;
+}
+
+/** The display name of a GitHub account: its short name (shortName), else the login without "@". */
 export function displayName(login: string, profileName?: string | null): string {
-  const first = profileName?.trim().split(/\s+/)[0];
-  return first || login.replace(/^@/, '');
+  return shortName(profileName) ?? login.replace(/^@/, '');
 }
 
 export function person(login: string, profileName?: string | null, avatar?: string | null): Person {
+  if (isClaudeLogin(login)) return { ...CLAUDE, login };
   return { login, name: displayName(login, profileName), avatar: avatar ?? null };
 }
 
@@ -88,9 +112,9 @@ export function partOfDay(hour: number): 'morning' | 'afternoon' | 'evening' {
   return 'evening';
 }
 
-/** "Good morning, Florian." from the first word of the profile name; "Good morning." without one. */
+/** "Good morning, Florian." from the short name (shortName); "Good morning." without a profile name. */
 export function greeting(hour: number, profileName?: string | null): string {
-  const first = profileName?.trim().split(/\s+/)[0];
+  const first = shortName(profileName);
   return `Good ${partOfDay(hour)}${first ? `, ${first}` : ''}.`;
 }
 
@@ -149,10 +173,10 @@ export function oldestLabel(rows: Pick<NeedRow, 'since' | 'waitsOnYou'>[], now: 
 // Needs you
 
 /**
- * What the row is: a review someone waits for, the library health on main, the viewer's own branch, usage guidance
- * Claude drafted, or a setup step for owners.
+ * What the row is: someone asking to join the team (admins only, board E7b), a review someone waits for, the library
+ * health on main, the viewer's own branch, usage guidance Claude drafted, or a setup step for owners.
  */
-export type NeedKind = 'review' | 'health' | 'own' | 'guidance' | 'setup';
+export type NeedKind = 'join' | 'review' | 'health' | 'own' | 'guidance' | 'setup';
 
 export type PillTone = 'warning' | 'danger' | 'success' | 'neutral';
 
@@ -176,16 +200,71 @@ export interface NeedRow {
   number?: number;
   /** The viewer is the only person who can review it. */
   onlyReviewer?: boolean;
+  /** Sample data of the demo: the row says so ("Sample"), so a visitor never takes it for real work. */
+  sample?: boolean;
+  /** The verb on its button when it is not the kind's (rowAction): "Update" on a branch a reviewer sent back. */
+  action?: string;
+  /** A second muted line ("jordan.lee@acme.com · joins as Can edit"). */
+  detail?: string;
+  /** A join request: its id, for Approve and Decline in the row. */
+  request?: { id: string; name: string };
 }
 
-/** The verb on a Needs you row's button. */
-export function rowAction(kind: NeedKind): string {
-  return { review: 'Review', health: 'Fix', own: 'Open', guidance: 'Review', setup: 'Set up' }[kind];
+/** The verb on a Needs you row's button: the row's own, else the kind's. */
+export function rowAction(kind: NeedKind, action?: string): string {
+  return action ?? { join: 'Review', review: 'Review', health: 'Fix', own: 'Open', guidance: 'Review', setup: 'Set up' }[kind];
 }
 
-const RANK: Record<NeedKind, number> = { review: 0, health: 1, own: 2, guidance: 3, setup: 4 };
+// ---------------------------------------------------------------------------------------------------------------
+// Reviewers and contributors
 
-/** Blocked by you first (oldest first), then health, your own branches, guidance drafts (oldest first), setup. */
+/**
+ * Whether the viewer holds a review right (core rights.ts: approve design, approve tech or ship), so the home shows
+ * them the review queue. An email contributor never does. A GitHub account does when the approver or ship lists
+ * (owners through governance.rights, teams expanded) name them; when the team names nobody yet, anyone who can write
+ * reviews, as the review rules allow then (`write` null: not read yet, counted as able).
+ */
+export function holdsReviewRight(x: { viewer: string | null; contributor: boolean; approvers: string[]; shippers?: string[]; write: boolean | null }): boolean {
+  if (!x.viewer || x.contributor) return false;
+  const named = [...x.approvers, ...(x.shippers ?? [])].map((l) => l.trim().toLowerCase().replace(/^@/, '')).filter(Boolean);
+  if (!named.length) return x.write !== false;
+  return named.includes(x.viewer.trim().toLowerCase());
+}
+
+/**
+ * What lands in the home of someone without a review right: only the work that waits on them, their own branches a
+ * reviewer sent back with changes to make. Reviews, usage guidance drafts, suggestions and library checks belong to
+ * the reviewers' queue.
+ */
+export const waitsOnContributor = (task: ChangeFacts['task'] | null): boolean => task === 'own-changes';
+
+/** The contributor's tour (components/ds/studio/HomeTour.tsx): where their work lives, then how to start some. */
+export type ContributorTourAt = 'branches' | 'start';
+
+export const CONTRIBUTOR_TOUR_STEPS: readonly ContributorTourAt[] = ['branches', 'start'];
+
+/** With no branch yet the home has no branches to point at: the tour only shows where to start. */
+export const contributorTourSteps = (empty: boolean): ContributorTourAt[] => (empty ? ['start'] : [...CONTRIBUTOR_TOUR_STEPS]);
+
+const CONTRIBUTOR_TOUR: Record<ContributorTourAt, { title: string; text: string }> = {
+  branches: {
+    title: `Your ${VOCAB.branches}`,
+    text: 'Your changes stay apart from the library until a reviewer approves them. When a reviewer asks for changes, the change shows up here.',
+  },
+  start: {
+    title: 'Start a change',
+    text: 'Pick what you want to change. Bridge keeps it as a change of its own, so you can try things without touching the library until a reviewer approves it.',
+  },
+};
+
+export const contributorTour = (at: ContributorTourAt): { title: string; text: string } => CONTRIBUTOR_TOUR[at];
+
+const RANK: Record<NeedKind, number> = { join: 0, review: 1, health: 2, own: 3, guidance: 4, setup: 5 };
+
+/**
+ * Someone at the door first (join requests, oldest first), then blocked by you (oldest first), health, your own
+ * branches, guidance drafts (oldest first), setup.
+ */
 export function sortNeeds<R extends Pick<NeedRow, 'kind' | 'since' | 'key'>>(rows: R[]): R[] {
   const t = (r: R) => (r.since ? new Date(r.since).getTime() : Number.POSITIVE_INFINITY);
   return rows
@@ -202,6 +281,7 @@ export function splitNeeds<R extends Pick<NeedRow, 'kind'>>(rows: R[], max = NEE
   const rest = rows.slice(max);
   const n = (k: NeedKind[]) => rest.filter((r) => k.includes(r.kind)).length;
   const parts = [
+    n(['join']) ? plural(n(['join']), 'join request', 'join requests') : '',
     n(['review']) ? plural(n(['review']), 'review', 'reviews') : '',
     n(['own']) ? plural(n(['own']), `of your ${VOCAB.branches}`, `of your ${VOCAB.branches}`) : '',
     n(['guidance']) ? plural(n(['guidance']), 'documentation draft', 'documentation drafts') : '',
@@ -240,7 +320,7 @@ export interface ChangeFacts {
   asker: Person;
   since: string | null;
   /** lib/overview-todo task of the row (design, ship, guidance, finish...). Null when it is not the viewer's. */
-  task: 'design' | 'ship' | 'guidance' | 'own-changes' | 'own-blocked' | 'own-ship' | 'requested';
+  task: 'design' | 'tech' | 'ship' | 'guidance' | 'look-again' | 'own-changes' | 'own-blocked' | 'own-ship' | 'requested';
   /** For own-blocked: what blocks it, in plain words ("2 checks fail", "it clashes with main"). */
   blocker?: string;
   /** For own-changes: who asked for changes. */
@@ -249,7 +329,7 @@ export interface ChangeFacts {
   onlyReviewer?: boolean;
 }
 
-const changeHref = (n: number) => `/studio/changes/?pr=${n}`;
+const changeHref = (n: number) => studioHref(`changes/?pr=${n}`);
 
 /** One Needs you row for a change. */
 export function changeNeed(c: ChangeFacts, now: number): NeedRow {
@@ -257,20 +337,26 @@ export function changeNeed(c: ChangeFacts, now: number): NeedRow {
   const waiting = c.since ? { label: waitingLabel(c.since, now), tone: 'warning' as const } : null;
   switch (c.task) {
     case 'ship':
-      return { ...base, kind: 'review', person: c.author, line: `${c.author.name} waits for you to merge it`, waitsOnYou: true, pill: waiting };
+      return { ...base, kind: 'review', person: c.asker, line: `${c.asker.name} waits for you to add it to the library`, waitsOnYou: true, pill: waiting };
     case 'guidance':
       return { ...base, kind: 'review', person: c.asker, line: `${c.asker.name} asks you to check the usage guidance`, waitsOnYou: true, pill: waiting };
+    case 'look-again':
+      // The author updated it after the viewer's changes request: the viewer's approval is what it waits for.
+      return { ...base, kind: 'review', person: c.asker, line: `${c.asker.name} updated it after your changes: look again`, waitsOnYou: true, pill: waiting };
+    case 'tech':
+      // The tech owner's OK (lib/waiting-on): the same review row, in the words of their turn on the branch page.
+      return { ...base, kind: 'review', person: c.asker, line: `${c.asker.name} asks for your tech review`, waitsOnYou: true, pill: waiting };
     case 'design':
     case 'requested':
       return { ...base, kind: 'review', person: c.asker, line: `${c.asker.name} asks for your review`, waitsOnYou: true, pill: waiting };
     case 'own-changes': {
       const by = c.changesBy?.length ? c.changesBy.map((p) => p.name).join(' and ') : 'A reviewer';
-      return { ...base, kind: 'own', person: c.changesBy?.[0] ?? null, line: `${by} asked for changes`, waitsOnYou: false, pill: { label: 'Changes requested', tone: 'warning' } };
+      return { ...base, kind: 'own', person: c.changesBy?.[0] ?? null, line: `${by} asked for changes`, waitsOnYou: false, pill: { label: 'Changes requested', tone: 'warning' }, action: 'Update' };
     }
     case 'own-blocked':
-      return { ...base, kind: 'own', person: null, line: `Your ${VOCAB.branch} cannot be merged yet`, waitsOnYou: false, pill: { label: c.blocker ? capitalize(c.blocker) : 'Blocked', tone: 'danger' } };
+      return { ...base, kind: 'own', person: null, line: `Your ${VOCAB.branch} cannot be added to the library yet`, waitsOnYou: false, pill: { label: c.blocker ? capitalize(c.blocker) : 'Blocked', tone: 'danger' } };
     case 'own-ship':
-      return { ...base, kind: 'own', person: null, line: 'Approved. Merge it to ship it with the next release', waitsOnYou: false, pill: { label: 'Ready to merge', tone: 'success' } };
+      return { ...base, kind: 'own', person: null, line: 'Approved. Add it to the library to ship it with the next release', waitsOnYou: false, pill: { label: VOCAB.readyToMerge, tone: 'success' } };
   }
 }
 
@@ -298,8 +384,8 @@ export function contrastNeed(fail: number): NeedRow | null {
   return {
     key: 'health-contrast',
     kind: 'health',
-    title: `${plural(fail, 'contrast check fails', 'contrast checks fail')} on ${VOCAB.main}`,
-    href: '/studio/quality/',
+    title: `${plural(fail, 'contrast check fails', 'contrast checks fail')} in ${VOCAB.main}`,
+    href: studioHref('quality/'),
     person: null,
     line: 'The token build waits until every pair passes',
     since: null,
@@ -309,13 +395,45 @@ export function contrastNeed(fail: number): NeedRow | null {
   };
 }
 
+/**
+ * Someone asks to join the team with their work email (board E7b, admins only): their name, "asks to join Acme
+ * Design", their email and the role they get. Approve and Decline sit in the row while 3 things or fewer wait; past
+ * that it folds into "N more" like any row and opens Settings, Members (E7c).
+ */
+export function joinNeed(r: { id: string; name: string; email: string; createdAt: string }, team: string, now: number): NeedRow {
+  const since = r.createdAt && Number.isFinite(Date.parse(r.createdAt)) ? r.createdAt : null;
+  return {
+    key: `join-${r.id}`,
+    kind: 'join',
+    title: r.name,
+    href: studioHref('settings/#members'),
+    person: { login: r.email, name: shortName(r.name) ?? r.name, avatar: null },
+    line: `asks to join ${team}`,
+    detail: `${r.email} · joins as Can edit`,
+    since,
+    waitsOnYou: true,
+    pill: since ? { label: askedPill(since, now), tone: 'warning' } : null,
+    thumb: { kind: 'icon', icon: 'person' },
+    request: { id: r.id, name: r.name },
+  };
+}
+
+/** "Waiting 1 h", "Waiting 2 days", "New" under an hour: a join request is a matter of hours, not days. */
+function askedPill(iso: string, now: number): string {
+  const h = Math.floor((now - Date.parse(iso)) / 3_600_000);
+  if (h < 1) return 'New';
+  if (h < 24) return `Waiting ${h} h`;
+  const d = Math.floor(h / 24);
+  return `Waiting ${d} ${d === 1 ? 'day' : 'days'}`;
+}
+
 /** Owners only, nothing protects the library: one setup row. */
 export function protectNeed(): NeedRow {
   return {
     key: 'setup-protect',
     kind: 'setup',
     title: 'Protect your library',
-    href: '/studio/settings/#safety',
+    href: studioHref('settings/#safety'),
     person: null,
     line: 'Anyone can change it without a review',
     since: null,
@@ -353,6 +471,10 @@ export interface BranchCard {
   /** The first reviewer asked (requested reviewers, else who approved). */
   reviewer: Person | null;
   thumb: ThumbSpec;
+  /** In review: the status pill its row shows in Branches (lib/changes statusPill), once read. */
+  status?: string | null;
+  /** The status line in other words than branchStatus (the demo's team branches: "Exploration in Account · Ann"). */
+  statusLine?: { stage: string; detail: string };
 }
 
 export type BranchFilter = 'all' | 'draft' | 'ready';
@@ -382,31 +504,17 @@ export function ago(iso: string, now: number): string {
   return `${d} ${d === 1 ? 'day' : 'days'} ago`;
 }
 
-/** The status line of a card: "Draft · edited 2 h ago", "In review · Dana reviews", "Approved, waiting for code". */
-export function branchStatus(b: Pick<BranchCard, 'stage' | 'updated' | 'reviewer'>, now: number): { stage: string; detail: string } {
+/**
+ * The status line of a card: "Draft · edited 2 h ago", "Needs design approval", "Approved, waiting for code". In
+ * review, once read, the branch's status pill alone (the same as its row in Branches and its page header, `detail`
+ * empty); until then "In review" and who reviews it.
+ */
+export function branchStatus(b: Pick<BranchCard, 'stage' | 'updated' | 'reviewer' | 'status'>, now: number): { stage: string; detail: string } {
   if (b.stage === 'draft') return { stage: 'Draft', detail: `edited ${ago(b.updated, now)}` };
   if (b.stage === 'waiting') return { stage: 'Approved', detail: 'waiting for code' };
+  // One status, never two: the pill already says where the review stands for this viewer ("Ready to add to the library").
+  if (b.status) return { stage: b.status, detail: '' };
   return { stage: 'In review', detail: b.reviewer ? `${b.reviewer.name} reviews` : 'waiting for a reviewer' };
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Published this week
-
-export interface Published {
-  title: string;
-  /** "react 1.4.0". */
-  release: string;
-  date: string;
-  author: string | null;
-}
-
-/** What the viewer published in the last 7 days, newest first. Empty without a viewer. */
-export function publishedThisWeek(entries: Published[], viewer: string | null, now: number): Published[] {
-  if (!viewer) return [];
-  const v = viewer.toLowerCase();
-  return entries
-    .filter((e) => e.author?.toLowerCase() === v && now - new Date(e.date).getTime() <= 7 * DAY && new Date(e.date).getTime() <= now + DAY)
-    .sort((a, b) => b.date.localeCompare(a.date));
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -419,4 +527,22 @@ export function homeState(x: { signedIn: boolean; loading: boolean; needs: numbe
   if (!x.signedIn) return 'signed-out';
   if (x.loading && !x.needs && !x.branches) return 'loading';
   return x.needs || x.branches ? 'busy' : 'empty';
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Who asked: the requester Bridge records in a body (core requesterOf), shown instead of the GitHub author
+
+/**
+ * The person a requester is, for the rows and avatars. A login reads through `pick` (display names, avatars already
+ * read), a name keeps its first word ("Ann Leroy" gives "Ann"); without a login the avatar is the illustrated
+ * fallback, seeded by the name.
+ */
+export function requesterPerson(r: { name: string | null; login: string | null }, pick: (login: string) => Person = (l) => person(l, null, `https://github.com/${l}.png?size=64`)): Person | null {
+  if (r.login) {
+    const p = pick(r.login);
+    return r.name ? { ...p, name: displayName(r.login, r.name) } : p;
+  }
+  if (!r.name) return null;
+  const slug = r.name.toLowerCase().normalize('NFD').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
+  return { login: `~${slug}`, name: displayName(slug, r.name), avatar: null };
 }

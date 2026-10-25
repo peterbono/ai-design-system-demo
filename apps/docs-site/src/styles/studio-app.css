@@ -16,10 +16,6 @@
   padding: var(--space-8) var(--space-10) var(--space-16);
 }
 
-:root:is([data-space="studio"], [data-space="settings"]) .page-end {
-  margin-top: var(--space-12);
-}
-
 /* Page header (components/StudioHeader.astro): Fraunces title in the h2 role, the branch chip beside it. */
 .st-head {
   display: flex;
@@ -278,15 +274,22 @@
   opacity: 0.55;
 }
 
-@media (max-width: 960px) {
-  .hd-label {
-    display: none;
-  }
-}
-
 @media (max-width: 640px) {
   :root:is([data-space="studio"], [data-space="settings"]) main {
     padding: var(--space-4) var(--space-4) var(--space-8);
   }
 
+}
+
+/* An email contributor's account menu: their name as the title, the full email on its own line (wrapped, never cut),
+   and no GitHub or repository rows. */
+.gh-acct-menu-email {
+  margin: 0 var(--space-2) var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  overflow-wrap: anywhere;
+}
+
+.gh-acct[data-contributor] [data-gh-github-only] {
+  display: none;
 }

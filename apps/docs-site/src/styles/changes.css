@@ -339,6 +339,11 @@ details[open] > summary .cg-sec-chev {
   font-size: var(--typography-ui-size);
 }
 
+.cg-who {
+  display: inline-flex;
+  align-items: center;
+}
+
 .cg-pr-meta .rv-avatar {
   margin-right: calc(var(--space-2) * -1);
 }
@@ -348,51 +353,6 @@ details[open] > summary .cg-sec-chev {
   font-size: var(--typography-body-size);
   font-weight: var(--font-weight-semibold);
   line-height: var(--typography-body-line-height);
-}
-
-/* Footer action bar: the review form, close and merge, always at the end of the page. */
-.cg-actbar {
-  position: sticky;
-  bottom: 0;
-  z-index: var(--layer-sticky);
-  display: grid;
-  gap: var(--space-2);
-  margin-top: var(--space-6);
-  padding: var(--space-3) 0 var(--space-4);
-  border-top: var(--border-width-default) solid var(--color-border-default);
-  background-color: var(--color-bg-default);
-  font-size: var(--typography-ui-size);
-}
-
-.cg-actbar > * {
-  margin: 0;
-}
-
-.cg-actbar-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.cg-act-review {
-  flex: 1 1 calc(var(--size-64) + var(--size-16));
-}
-
-.cg-act-review textarea {
-  width: 100%;
-  margin: var(--space-2) 0;
-}
-
-.cg-act-end {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.cg-actbar [hidden] {
-  display: none;
 }
 
 /* History */
@@ -468,12 +428,7 @@ details[open] > summary .cg-sec-chev {
   font-size: var(--typography-ui-size);
 }
 
-@media (max-width: 760px) {
-  .cg-actbar {
-    position: static;
-  }
-
-  .cg-open,
+@media (max-width: 760px) {.cg-open,
   .cg-pr-open {
     padding: var(--space-5);
   }
@@ -532,56 +487,12 @@ details[open] > summary .cg-sec-chev {
   list-style: none;
 }
 
-.cg-doc {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
-  padding: var(--space-3) 0;
-  border-top: var(--border-width-default) solid var(--color-border-default);
-}
-
-.cg-doc:first-child {
-  border-top: 0;
-}
-
-.cg-doc-main {
-  display: grid;
-  flex: 1 1 calc(var(--size-60) + var(--size-10));
-  gap: var(--space-0-5);
-  min-width: 0;
-}
-
-.cg-doc-main .mono {
-  overflow-wrap: anywhere;
-}
-
-.cg-doc-acts {
-  display: inline-flex;
-  gap: var(--space-2);
-}
-
 /* Pull request header, designer first: who acts now, then the title, then the approval checklist. */
 .cg-pr-who {
   max-width: 65ch;
   font-size: var(--typography-body-size);
   font-weight: var(--font-weight-semibold);
   line-height: var(--typography-body-line-height);
-}
-
-/* What it needs to ship: the DS Checklist, with app content in its footer (why an approval waits, the acts). */
-ul.rv-needs {
-  margin-top: var(--space-1);
-}
-
-.rv-ap-acts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-3);
-}
-
-.rv-ap-said:empty {
-  display: none;
 }
 
 /* Main actions at the DS control height (44px comfortable): the Studio shrinks plain .btn to 32px. */
@@ -605,36 +516,6 @@ ul.rv-needs {
   margin: 0;
 }
 
-.rv-what-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-4);
-  margin-bottom: var(--space-3);
-}
-
-.rv-what-head a {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--size-6);
-}
-
-/* Try it in the product and Share with a product team: in the header, above the checklist, one row of secondary
-   actions, with what Try it opens as its sub-label. */
-.rv-try-block {
-  display: grid;
-  /* The flexible last track takes the hint's width, so the two actions sit side by side. */
-  grid-template-columns: max-content max-content minmax(0, 1fr);
-  justify-items: start;
-  gap: var(--space-1) var(--space-2);
-  margin: var(--space-4) 0;
-}
-
-.rv-try-block .rv-try {
-  min-height: var(--control-height-md);
-}
-
 /* Share with a product team (components/ds/studio/ShareChange.tsx): the dialog body. */
 .sh-state {
   margin: 0 0 var(--space-3);
@@ -651,13 +532,6 @@ ul.rv-needs {
   display: none;
 }
 
-.rv-try-hint {
-  grid-column: 1 / -1;
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--typography-ui-size);
-}
-
 @media (max-width: 760px) {
   /* One column: Try it, what it opens, then Share. */
   .rv-try-block {
@@ -666,42 +540,8 @@ ul.rv-needs {
     row-gap: var(--space-2);
   }
 
-  .rv-try-hint {
-    order: 1;
-    margin-top: calc(-1 * var(--space-1));
-  }
-
-  .rv-share {
-    display: grid;
-    order: 2;
-  }
-
-  /* No keyboard shortcut on phones. */
-  .rv-try-key {
-    display: none;
-  }
-}
-
-.rv-what-quiet {
-  color: var(--color-text-muted);
-}
-
-.rv-what-sub {
-  margin: 0 0 var(--space-2);
-  font-family: var(--typography-ui-family);
-  font-size: var(--typography-ui-size);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--typography-ui-line-height);
-}
-
-.rv-what .table-wrap {
+  }.rv-what .table-wrap {
   margin-bottom: var(--space-3);
-}
-
-@media (max-width: 760px) {
-  .rv-ap-acts .btn-lg {
-    flex: 1 1 100%;
-  }
 }
 
 /* The Jira ticket key a branch title starts with, apart and in mono before the title (lib/vocabulary jiraKeyOf). */
@@ -722,50 +562,6 @@ ul.rv-needs {
   color: var(--color-text-muted);
   font-size: var(--typography-ui-size);
   white-space: nowrap;
-}
-
-/* Conversation: the count, the last word, and GitHub for the thread. */
-.rv-conv-last {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-1) var(--space-4);
-  padding: var(--space-3) var(--space-5);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-container);
-  background-color: var(--color-surface-default);
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
-}
-
-.rv-conv-h {
-  grid-column: 1;
-  margin: 0;
-  font-family: var(--typography-ui-family);
-  font-size: var(--typography-ui-size);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--typography-ui-line-height);
-}
-
-.rv-conv-line {
-  display: flex;
-  grid-column: 1;
-  align-items: flex-start;
-  gap: var(--space-2);
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.rv-conv-line .rv-avatar {
-  flex: none;
-}
-
-.rv-conv-quote {
-  color: var(--color-text-muted);
-}
-
-.rv-more {
-  display: contents;
 }
 
 /* History rows have three cells (summary, what it needed, date): no empty fourth column. */
@@ -798,11 +594,7 @@ ul.rv-needs {
     display: none;
   }
 
-  .rv-conv-last {
-    grid-template-columns: minmax(0, 1fr);
-    padding-inline: var(--space-4);
   }
-}
 
 /* --- Developer work: a quiet tag on the row, and a filter that shows only when a list holds some ----------------- */
 
@@ -940,13 +732,6 @@ ul.rv-needs {
   font-weight: var(--font-weight-semibold);
 }
 
-/* Status line of a change (scripts/change-status, DS Badge and Button): the lifecycle state, one sentence and at most
-   one action, on one line at the top of the header. The result of the action sits under it. */
-.cg-pr-status {
-  display: flex;
-  flex-direction: column;
-}
-
 .cs-line {
   display: flex;
   flex-wrap: wrap;
@@ -981,29 +766,6 @@ ul.rv-needs {
 
 .cs-said:not(:empty) {
   margin-top: var(--space-2);
-}
-
-/* Token changes heading with "Edit tokens in this change" on the same line (the action next to its object). */
-.rv-tokens-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-4);
-  margin-bottom: var(--space-2);
-}
-
-.rv-tokens-head .rv-what-sub {
-  margin: 0;
-}
-
-/* Back from the token editor: the DS success Alert under the breadcrumb, at the content width. */
-.cg-added {
-  margin-bottom: var(--space-4);
-}
-
-.cg-added[hidden] {
-  display: none;
 }
 
 .cg-together:empty {
@@ -1063,8 +825,40 @@ ul.rv-needs {
 
 .bl-note,
 .bl-none,
-.bl-merged {
+.bl-merged,
+.bl-summary,
+.bl-reach {
   margin: 0;
+}
+
+/* Waiting on me: the kind and designer filters sit on the same line as the whose-work control, at its height, wide
+   enough for the longest kind and its count. */
+.bl-narrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  max-inline-size: 100%;
+}
+
+.bl-narrow > :first-child {
+  inline-size: var(--size-72);
+  max-inline-size: 100%;
+}
+
+.bl-narrow > :last-child {
+  inline-size: var(--size-60);
+  max-inline-size: 100%;
+}
+
+/* A kind heading with its muted line ("Can reach Account app.") right under it. */
+.bl-head {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* Waiting on me lists the suggestions that wait under their kind: the full Suggestions section steps aside. */
+.cg-panel:has(.bl.is-waiting) #tb-suggestions {
+  display: none;
 }
 
 .bl-group {
@@ -1091,6 +885,13 @@ ul.rv-needs {
   justify-content: center;
   min-width: var(--size-6);
   min-height: var(--size-6);
+}
+
+/* The checkbox column on rows without a checkbox, in a group where some rows have one: the same width, so the
+   thumbnails and avatars line up. */
+.bl-pick-slot {
+  flex: none;
+  min-width: var(--size-6);
 }
 
 /* Update from main: a link at the end of the row, a 24px target like every control. */
@@ -1206,12 +1007,11 @@ body:has(.cg-bar) {
   }
 
   /* A row with a checkbox: the text starts after the box and the thumbnail, like a row without one. */
-  .sh-row-body:has(> .bl-pick) > .sh-row-text {
+  .sh-row-body:has(> :is(.bl-pick, .bl-pick-slot)) > .sh-row-text {
     flex-basis: calc(100% - var(--size-16) - var(--size-6) - var(--space-3) * 2);
   }
 
-  .sh-row-body:has(> .bl-pick) > .sh-row-pill,
-  .sh-row-body:has(> .bl-pick) > .bl-behind {
+  .sh-row-body:has(> :is(.bl-pick, .bl-pick-slot)) > .bl-behind {
     margin-inline-start: calc(var(--size-16) + var(--size-6) + var(--space-3) * 2);
   }
 
@@ -1226,4 +1026,9 @@ body:has(.cg-bar) {
 /* One primary per view: while the start form is open, its submit is the action, so the opener button steps aside. */
 .cg-open [aria-controls="ex-start"][aria-expanded="true"] {
   display: none;
+}
+
+/* A quiet line in a change view (explorations). */
+.rv-what-quiet {
+  color: var(--color-text-muted);
 }

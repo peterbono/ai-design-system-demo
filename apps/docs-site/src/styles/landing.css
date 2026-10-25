@@ -1,0 +1,166 @@
+/* The product pages' shared type and column (layouts/Landing.astro): the comparison and the docs use these; the
+   homepage and About have their own sheets (homepage.css, about.css). Header and footer: site-nav.css. Tokens only. */
+
+.lp-body {
+  overflow-x: clip;
+}
+
+/* The landing manages its own width (lp-wrap): none of the reading column of the app pages. */
+.lp-body .lp-main {
+  max-width: none;
+  padding: 0;
+}
+
+.lp-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.lp-wrap {
+  width: 100%;
+  max-width: calc(var(--size-300) + 2 * var(--space-6));
+  margin-inline: auto;
+  padding-inline: max(var(--space-4), env(safe-area-inset-left, 0)) max(var(--space-4), env(safe-area-inset-right, 0));
+}
+
+@media (min-width: 600px) {
+  .lp-wrap {
+    padding-inline: var(--space-6);
+  }
+}
+
+.lp-muted {
+  color: var(--color-text-muted);
+}
+
+.lp-deep {
+  color: var(--color-text-link);
+}
+
+.lp-caption {
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+/* Type: Fraunces for the promise and the section heads, Instrument Sans for the rest. */
+.lp-display {
+  margin: 0;
+  font-family: var(--typography-display-family);
+  font-size: var(--font-size-700);
+  font-weight: var(--typography-display-weight);
+  letter-spacing: var(--typography-display-tracking);
+  line-height: var(--font-leading-38);
+  font-variation-settings: "SOFT" 100;
+  text-wrap: balance;
+}
+
+.lp-h {
+  margin: 0;
+  font-family: var(--typography-h1-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--typography-h1-weight);
+  letter-spacing: var(--typography-h1-tracking);
+  line-height: var(--typography-h2-line-height);
+  font-variation-settings: "SOFT" 100;
+  text-wrap: balance;
+}
+
+@media (min-width: 900px) {
+  .lp-display {
+    font-size: var(--typography-display-size);
+    line-height: var(--typography-display-line-height);
+  }
+
+  .lp-h {
+    font-size: var(--typography-h1-size);
+    line-height: var(--typography-h1-line-height);
+  }
+}
+
+.lp-p {
+  max-width: 52ch;
+  margin: 0;
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
+.lp-lede {
+  max-width: 56ch;
+  margin: 0;
+  font-size: var(--typography-h3-size);
+  line-height: var(--font-leading-32);
+}
+
+.lp-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.lp-cta-link {
+  font-weight: var(--typography-h3-weight);
+}
+
+
+/* Compare: the honest table. */
+.lp-compare {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  padding-block: var(--space-16) var(--space-24);
+}
+
+.lp-compare-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 60ch;
+}
+
+.lp-cell {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--space-1-5);
+}
+
+.lp-cell[data-state="yes"] .lp-cell-icon {
+  color: var(--color-feedback-success-icon);
+}
+
+.lp-cell[data-state="no"] {
+  color: var(--color-text-muted);
+}
+
+.lp-cell-note,
+.lp-cell-detail {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--font-leading-20);
+}
+
+.lp-compare-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: 0;
+  color: var(--color-text-muted);
+  list-style: none;
+}
+
+.lp-compare-key .lp-cell {
+  align-items: center;
+}
+
+.lp-compare-notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 72ch;
+}
+

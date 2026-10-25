@@ -66,14 +66,16 @@ export const PopoverContent = forwardRef<HTMLDivElement, PopoverContentProps>(fu
       <BasePopover.Positioner className={styles.positioner} side={side} align={align} sideOffset={8} collisionPadding={8} {...scope}>
         <BasePopover.Popup ref={ref} className={cx(styles.popup, className)} {...rest}>
           {arrow && <BasePopover.Arrow className={styles.arrow} />}
-          {(title || showClose) && (
-            <div className={styles.header}>
-              {title && <BasePopover.Title className={styles.title}>{title}</BasePopover.Title>}
-              {showClose && <BasePopover.Close render={<IconButton icon={X} label={closeLabel} size="sm" className={styles.close} />} />}
-            </div>
-          )}
-          {description && <BasePopover.Description className={styles.description}>{description}</BasePopover.Description>}
-          {children}
+          <div className={styles.body}>
+            {(title || showClose) && (
+              <div className={styles.header}>
+                {title && <BasePopover.Title className={styles.title}>{title}</BasePopover.Title>}
+                {showClose && <BasePopover.Close render={<IconButton icon={X} label={closeLabel} size="sm" className={styles.close} />} />}
+              </div>
+            )}
+            {description && <BasePopover.Description className={styles.description}>{description}</BasePopover.Description>}
+            {children}
+          </div>
         </BasePopover.Popup>
       </BasePopover.Positioner>
     </BasePopover.Portal>

@@ -1,25 +1,47 @@
 import { describe, expect, it } from 'vitest';
+import { BUILD_IMAGE_LABEL, EXPLORATION_USE_CASES, explorationProblems } from '@bridge-ds/core';
 import { branchCount, branchWithJiraKey, isJiraKey, jargonIn, jiraKeyOf, parseJiraKey, STATUS_WORDS, titleWithJiraKey, VOCAB, withoutJiraKey } from './vocabulary';
 
 describe('vocabulary', () => {
-  it('speaks Figma branching', () => {
-    expect(VOCAB.createBranch).toBe('Create branch');
-    expect(VOCAB.requestReview).toBe('Request review');
-    expect(VOCAB.updateFromMain).toBe('Update from main');
-    expect(VOCAB.reviewAndMerge).toBe('Review and merge');
+  it('speaks changes and the library, never git', () => {
+    expect(VOCAB.createBranch).toBe('Start a change');
+    expect(VOCAB.requestReview).toBe('Send for review');
+    expect(VOCAB.updateFromMain).toBe('Update from the library');
+    expect(VOCAB.reviewAndMerge).toBe('Review and add to the library');
+    expect(VOCAB.merge).toBe('Add to the library');
+    expect(VOCAB.readyToMerge).toBe('Ready to add to the library');
+    expect(VOCAB.Branches).toBe('Changes');
     expect(STATUS_WORDS.inReview).toBe('In review');
-    expect(STATUS_WORDS.merged).toBe('Merged');
-    expect(branchCount(1)).toBe('1 branch');
-    expect(branchCount(3)).toBe('3 branches');
+    expect(STATUS_WORDS.merged).toBe('Added to the library');
+    expect(branchCount(1)).toBe('1 change');
+    expect(branchCount(3)).toBe('3 changes');
+    for (const w of Object.values(VOCAB)) expect(jargonIn(w)).toEqual([]);
   });
 
-  it('finds developer words, never the Figma ones', () => {
+  it('finds developer words, git ones included', () => {
     expect(jargonIn('Open the pull request')).toEqual(['pull', 'pull request']);
     expect(jargonIn('3 commits behind, PR #12, CI failed')).toEqual(['commit', 'PR', 'CI']);
     expect(jargonIn('Add a changeset')).toEqual(['changeset']);
-    expect(jargonIn('Review and merge this branch into main')).toEqual([]);
+    expect(jargonIn('Review and merge this branch into main')).toEqual(['branch', 'merge', 'main']);
+    expect(jargonIn('Merged branches, merging')).toEqual(['branch', 'merge']);
+    expect(jargonIn('Review and add this change to the library')).toEqual([]);
     expect(jargonIn('Precise prices, pushy copy, social')).toEqual([]);
-    expect(jargonIn('Shape and size')).toEqual([]);
+    expect(jargonIn('Shape and size, the main domain')).toEqual(['main']);
+    expect(jargonIn('Remains, domains, emerge')).toEqual([]);
+  });
+});
+
+describe('core words a designer reads', () => {
+  it('names build request images, exploration use cases and name problems without git words', () => {
+    expect(BUILD_IMAGE_LABEL).toEqual({ before: 'In code now', after: 'In Figma' });
+    const problems = [
+      ...explorationProblems({ name: '', purpose: '' }),
+      ...explorationProblems({ name: 'x'.repeat(61), purpose: 'x' }),
+      ...explorationProblems({ name: '!!!', purpose: 'x' }),
+    ];
+    expect(problems.length).toBeGreaterThanOrEqual(4);
+    const words = [...Object.values(BUILD_IMAGE_LABEL), ...EXPLORATION_USE_CASES.flatMap((u) => [u.label, u.hint]), ...problems];
+    for (const w of words) expect(jargonIn(w), w).toEqual([]);
   });
 });
 

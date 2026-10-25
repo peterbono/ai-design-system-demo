@@ -9,12 +9,22 @@
 // - After building, the set's signature is stored as its baseline, so a fresh pull never shows a request in Push.
 
 import {
+  type FigmaReferenceManifest,
+  type FigmaHints,
+  type FixedMeasuredSpecsFile,
+  type MeasuredSpecsFile,
+  DEFAULT_FIGMA_FIXES_FILE,
+  FigmaFixesError,
+  appliedFixLines,
+  applyFixes,
+  parseFigmaFixes,
   type BridgeConfig,
   COLOR_FIELDS,
   type ComponentSpec,
   type ComponentSpecsFile,
   DEFAULT_COMPONENT_SPECS_FILE,
   type GitHubClient,
+  type MotionReaction,
   type SpecAxis,
   type SpecCoverage,
   type SpecField,
@@ -24,28 +34,62 @@ import {
   type SpecSlot,
   type SpecValue,
   type TokenSet,
+  type FigmaPushStatus,
+  componentMotion,
   defaultContext,
   parseColor,
   parseComponentSpecs,
   iconComponentName,
   parseDimension,
   resolve,
+  hashSpec,
   specHash,
   variantKeyOf,
   variantName,
 } from '@bridge-ds/core';
 import { COLLECTIONS, type FigmaResolvedType } from '../shared/messages';
 import { isUnmappable, pathToName, tokenToPlanned } from './mapping';
+import { checkComponentSpecs } from './spec-check';
+import { MEASURED_SPECS_FILE, type MeasuredOverlayReport, overlayMeasured, parseMeasuredSpecs } from './measured-specs';
+import { type MeasuredOnlyReport, specsFromMeasure } from '@bridge-ds/core';
 
-/** A component set DS Bridge generated, as the main thread finds it (shared plugin data). */
+/** A component set Bridge generated, as the main thread finds it (shared plugin data). */
 export interface GeneratedSet {
   componentId: string;
   nodeId: string;
   name: string;
   page?: string | undefined;
   specHash: string;
+  /**
+   * The version of the code the set was drawn from (the static spec's `hash`, as the code images record it). Equal to
+   * specHash unless measured values were laid on; empty for sets built before it was stored.
+   */
+  codeHash?: string | undefined;
   /** Variant keys (variantKeyOf) of the generated variants, orphans excluded. */
   variants: string[];
+  /** The library branch this set was pushed to from Figma (shared plugin data dsbridge / pushed), until a pull rebuilds it. */
+  pushed?: PushedMark | undefined;
+  /** Figma holds the set in error (left by an older Bridge): the pull rebuilds it even when its spec did not change. */
+  inError?: boolean | undefined;
+}
+
+/** Where a set's change from Figma went: its library branch (a token change or a branch a developer builds with Claude). */
+export interface PushedMark {
+  number: number;
+  url: string;
+  route: 'token-change' | 'claude-draft';
+  at?: string | undefined;
+}
+
+/** Reads the pushed mark stored on a set; undefined when it is not one. */
+export function parsePushedMark(text: string | null | undefined): PushedMark | undefined {
+  if (!text) return undefined;
+  try {
+    const m = JSON.parse(text) as PushedMark;
+    return typeof m.number === 'number' && typeof m.url === 'string' ? m : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** What a Figma field gets: a variable binding, a literal, a percent (unitless line height, em tracking), no paint, or a font. */
@@ -65,12 +109,96 @@ export type PlannedValue =
   | { kind: 'number'; value: number; /** A calc() of tokens, resolved: set, not bound. */ expr?: string | undefined }
   | { kind: 'percent'; value: number; path: string }
   | { kind: 'none' }
-  | { kind: 'font'; families: string[]; path: string }
-  | { kind: 'keyword'; value: string };
+  | {
+      kind: 'font';
+      families: string[];
+      path: string;
+      /** The token's Figma variable: the text's family is bound to it, so it follows the Brand mode like colors do. */
+      variable?: { tokenId: string; name: string; collection: string } | undefined;
+    }
+  | { kind: 'keyword'; value: string }
+  /** A color written as is (no token in the library): a measured `rgb()` of a design system Bridge has no tokens for. */
+  | { kind: 'color'; r: number; g: number; b: number; a: number };
 
 export interface PlannedField {
   field: SpecField;
   value: PlannedValue;
+}
+
+/**
+ * Figma name of the one variant of a spec with no axes. A set needs a variant property on every variant (an unnamed
+ * one leaves the set in error and every read of it throws), so it gets this one; reading the set drops it again.
+ */
+export const LONE_VARIANT = 'Variant=Default';
+
+/** Props of a variant key ("Size=md, State=Hover", "Default" for none). */
+export function propsOfKey(key: string): Record<string, string> {
+  if (!key || key === variantKeyOf({})) return {};
+  const out: Record<string, string> = {};
+  for (const pair of key.split(', ')) {
+    const i = pair.indexOf('=');
+    if (i > 0) out[pair.slice(0, i)] = pair.slice(i + 1);
+  }
+  return out;
+}
+
+/** Marks an orphan's value when its name would be taken ("md (removed)", "md (removed 2)"). */
+const REMOVED_MARK = '(removed)';
+/** A value only an orphan has because of its "(removed)" mark: not one of the set's values for a review or a Push. */
+export const isRemovedValue = (value: string) => / \(removed( \d+)?\)$/.test(value);
+
+export interface VariantMatch {
+  /** Planned variant key -> id of the Figma variant that becomes it (same node: its instances and overrides follow). */
+  reuse: Map<string, string>;
+  /** Variants the code no longer has, with a name that fits the set's axes now (a set refuses mixed shapes). */
+  orphans: { id: string; name: string }[];
+}
+
+/**
+ * Which Figma variant becomes which planned one when a set is updated. The same key first. Then, when the code adds or
+ * removes an axis, a variant whose values match once the new axis takes its default (and the removed one is dropped)
+ * becomes that variant: "State=Hover" is "Size=md, State=Hover" after Size is added with md as default. What is left is
+ * removed in code: kept as an orphan, renamed to the set's axes (a new axis at its default, a removed one dropped),
+ * with "(removed)" on its first value when that name is taken. Figma refuses a set whose variants do not all have
+ * the same properties, or two variants with the same values.
+ */
+export function matchVariants(existing: readonly { id: string; key: string }[], planned: readonly { key: string; props: Record<string, string> }[], axes: readonly SpecAxis[]): VariantMatch {
+  const reuse = new Map<string, string>();
+  const claimed = new Set<string>();
+  const byKey = new Map<string, string>();
+  for (const e of existing) if (!byKey.has(e.key)) byKey.set(e.key, e.id);
+  for (const pv of planned) {
+    const id = byKey.get(pv.key);
+    if (id && !claimed.has(id)) {
+      reuse.set(pv.key, id);
+      claimed.add(id);
+    }
+  }
+  const project = (props: Record<string, string>) => Object.fromEntries(axes.map((a) => [a.name, props[a.name] ?? a.default ?? a.values[0] ?? '']));
+  for (const pv of planned) {
+    if (reuse.has(pv.key)) continue;
+    const from = existing.find((e) => !claimed.has(e.id) && variantKeyOf(project(propsOfKey(e.key))) === pv.key);
+    if (from) {
+      reuse.set(pv.key, from.id);
+      claimed.add(from.id);
+    }
+  }
+  const lone = !axes.length;
+  const nameOf = (props: Record<string, string>) => (lone ? LONE_VARIANT : axes.map((a) => `${a.name}=${props[a.name]}`).join(', '));
+  const taken = new Set(planned.map((pv) => nameOf(pv.props)));
+  const orphans: VariantMatch['orphans'] = [];
+  for (const e of existing) {
+    if (claimed.has(e.id)) continue;
+    const props = project(propsOfKey(e.key));
+    let name = nameOf(props);
+    for (let n = 1; taken.has(name); n++) {
+      const mark = n === 1 ? ` ${REMOVED_MARK}` : ` (removed ${n})`;
+      name = lone ? `${LONE_VARIANT}${mark}` : nameOf({ ...props, [axes[0]!.name]: `${props[axes[0]!.name]}${mark}` });
+    }
+    taken.add(name);
+    orphans.push({ id: e.id, name });
+  }
+  return { reuse, orphans };
 }
 
 export interface PlannedVariant {
@@ -91,6 +219,8 @@ export interface PlannedVariant {
   layout?: Record<string, SpecLayout> | undefined;
   /** Vector parts: the SVG drawn and the stroke of each shape (a spinner arc, a progress ring). */
   vectors?: Record<string, { svg: string; hash: string; strokes: PlannedValue[] }> | undefined;
+  /** Absolute parts placed differently in this variant, in pixels (an indicator under a vertical tab). */
+  pins?: Record<string, Partial<Record<'top' | 'right' | 'bottom' | 'left', number>>> | undefined;
 }
 
 /** An icon component to build on the Icons page ("Icon/Plus"). */
@@ -123,9 +253,13 @@ export interface PlannedComponent {
   /** Component folder it comes from, when not its own name (the Radio set comes from RadioGroup). */
   component?: string | undefined;
   hash: string;
+  /** The static spec's hash: the code version Check fidelity compares with (GeneratedSet.codeHash). */
+  codeHash: string;
   status: ComponentStatus;
   nodeId?: string | undefined;
   description: string;
+  /** Where a designer reads the component in code: its Storybook story and docs page, when the spec comes from one. */
+  links?: { stories: string; docs?: string | undefined } | undefined;
   axes: SpecAxis[];
   properties: SpecProperty[];
   parts: SpecPart[];
@@ -136,6 +270,17 @@ export interface PlannedComponent {
   addedVariants: string[];
   /** Absolute parts (a dialog's close button): their offsets from the parent's edges, in pixels. */
   pins?: Record<string, Partial<Record<'top' | 'right' | 'bottom' | 'left', number>>> | undefined;
+  /** Drafted with Claude, not generated (the generator cannot read it): shown as "Drafted, check it". */
+  drafted?: { reason: string; stale?: boolean | undefined } | undefined;
+  /** Prototype reactions between the variants (hover, press, click), Smart animate with the code's motion. */
+  interactions?: MotionReaction[] | undefined;
+  /** What Figma plays differently from the code, or cannot play, in plain words ("Keyboard focus: ..."). */
+  motionNotes?: string[] | undefined;
+  /**
+   * The set was changed in Figma and pushed to a library branch that has now shipped (or closed): the update rebuilds it
+   * from the reviewed code, so Figma never diverges from it.
+   */
+  fromFigma?: { number: number; url: string; status: FigmaPushStatus } | undefined;
 }
 
 export interface ComponentProblem {
@@ -158,6 +303,8 @@ export interface ComponentPullPlan {
   slots?: PlannedSlot[] | undefined;
   /** Every component of the design system and whether it is in Figma (component-specs.json coverage). */
   coverage?: SpecCoverage[] | undefined;
+  /** Entries of component-specs.json left out because Bridge cannot read them, with the reason. Never built. */
+  skipped?: { name: string; reason: string }[] | undefined;
 }
 
 export interface ComponentApplyReport {
@@ -167,26 +314,185 @@ export interface ComponentApplyReport {
   /** Variants flagged "[orphan]". */
   orphaned: number;
   page: string;
+  /** Of the sets created or updated, those on another page than `page` (where the designer keeps them). */
+  elsewhere?: number | undefined;
   /** Bindings or fonts that failed in Figma. */
   problems: string[];
   /** Set once when a brand font is missing in this Figma and Inter replaced it. */
   fontNote?: string | undefined;
+  /** Set when Figma refused the prototype interactions of some sets: those sets are built without them. */
+  interactionsNote?: string | undefined;
   /** Component set ids, created or updated. */
   nodeIds: string[];
   /** Icon and slot components created or redrawn (Icons and Slots pages). */
   parts?: { created: number; updated: number } | undefined;
+  /** Sets this pull was asked to build or update (unchanged ones included). */
+  total?: number | undefined;
+  /** Sets not built, each with the reason in plain words. Nothing of them was left in the file. */
+  failed?: { name: string; reason: string }[] | undefined;
+  /** Sets built without some variants (the next pull builds them): how many were built, the first reason. */
+  partial?: { name: string; built: number; total: number; reason: string; variants: string[] }[] | undefined;
+  /** The pull was stopped: the sets it did not reach. The next pull goes on from there. */
+  cancelled?: string[] | undefined;
+}
+
+/** What the end of a component pull says, in designer words. */
+export interface ComponentReportView {
+  /** "Built 54 of 56 components." or "All 56 components are built." */
+  headline: string;
+  /** "Not built: Select (a font could not be loaded), Tabs (...)." */
+  notBuilt?: string | undefined;
+  /** "Button: 70 of 72 variants (...)". */
+  partial: string[];
+  /** "Stopped after 120 of 300. Pull again to build the other 180." */
+  stopped?: string | undefined;
+  /** A pull again would build more: offer "Try again". */
+  retry: boolean;
+}
+
+const listNames = (names: string[], max = 5) => (names.length > max ? `${names.slice(0, max).join(', ')} and ${names.length - max} more` : names.join(', '));
+
+export function componentReportView(r: ComponentApplyReport): ComponentReportView {
+  const built = r.created + r.updated + r.unchanged;
+  const failed = r.failed ?? [];
+  const cancelled = r.cancelled ?? [];
+  const total = r.total ?? built + failed.length + cancelled.length;
+  const noun = (n: number) => (n === 1 ? 'component' : 'components');
+  const headline = built === total ? (total === 1 ? 'The component is built.' : `All ${total} components are built.`) : `Built ${built} of ${total} ${noun(total)}.`;
+  const shown = failed.slice(0, 5).map((f) => `${f.name} (${f.reason})`);
+  const notBuilt = failed.length ? `Not built: ${shown.join(', ')}${failed.length > 5 ? ` and ${failed.length - 5} more` : ''}. Nothing of them was left in the file.` : undefined;
+  const partial = (r.partial ?? []).map((p) => `${p.name}: ${p.built} of ${p.total} variants (${listNames(p.variants, 3)} not built: ${p.reason})`);
+  const stopped = cancelled.length ? `Stopped after ${built + failed.length} of ${total}. Pull again to build the other ${cancelled.length}: ${listNames(cancelled)}.` : undefined;
+  return { headline, ...(notBuilt ? { notBuilt } : {}), partial, ...(stopped ? { stopped } : {}), retry: failed.length + cancelled.length + (r.partial?.length ?? 0) > 0 };
 }
 
 // ---------------------------------------------------------------------------------------------
 // Loading
 
 /** component-specs.json at a tree (read through the git API like the token files), or undefined when the repo has none. */
+/** Component specs as the pull reads them, and the file they came from. */
+export interface LoadedSpecs {
+  path: string;
+  specs: ComponentSpecsFile;
+  /** Measured source: what the measured values changed, and how many variants no story matched. */
+  measured?: MeasuredOverlayReport | undefined;
+  /** Measured-only source: the sets and variants built from the stories alone. */
+  measuredOnly?: MeasuredOnlyReport | undefined;
+  /**
+   * Measured-only source with screenshots (`--shots`): each variant's story render, in the code images' manifest shape,
+   * and the repo folder its files are in. Check fidelity compares with these instead of the code images.
+   */
+  shots?: { manifest: FigmaReferenceManifest; dir: string } | undefined;
+  /**
+   * Measured-only source: figma-fixes.json laid on the measure before the sets are drawn. `lines`: what each fix did
+   * (appliedFixLines); `problems`: why the file was not used (invalid); `hints`: per set, its status and notes.
+   */
+  fixes?: { lines: string[]; problems?: string[] | undefined; hints: Record<string, FigmaHints> } | undefined;
+  /** Measured-only source: the measure the sets were drawn from (fixes applied), for the gap cases after Check fidelity. */
+  measure?: FixedMeasuredSpecsFile | undefined;
+}
+
+/**
+ * Sources of component specs. `static`: component-specs.json, generated from the CSS source (npm run specs).
+ * `measured`: the same, with the values `bridge specs --measure` read in Storybook laid on (measured-specs.ts).
+ */
+export type SpecSourceKind = 'static' | 'measured' | 'measured-only';
+
+/**
+ * Where the pull reads what code draws. Every source returns the same shape (ComponentSpecsFile), so planning and
+ * building never depend on where a spec came from: a spec measured from Storybook can replace the static one.
+ */
+export interface SpecSource {
+  readonly kind: SpecSourceKind;
+  /** `head`: the library's tokens, for a source that must tell its tokens from literals (measured only). */
+  load(client: Pick<GitHubClient, 'getTree' | 'getBlobText'>, treeSha: string, config: BridgeConfig | undefined, head?: Pick<TokenSet, 'byPath'>): Promise<LoadedSpecs | undefined>;
+}
+
+/** The source the pull uses: static unless asked otherwise. */
+export function specSource(kind: SpecSourceKind = 'static'): SpecSource {
+  switch (kind) {
+    case 'static':
+      return { kind, load: loadComponentSpecs };
+    case 'measured':
+      return { kind, load: loadMeasuredSpecs };
+    case 'measured-only':
+      return { kind, load: loadMeasuredOnlySpecs };
+  }
+}
+
+/**
+ * The specs built from measured-specs.json alone (measured-only.ts): what any design system with a Storybook gives,
+ * without a static spec. When the repo also has component-specs.json, each set keeps the static set's hash as its code
+ * version, so Check fidelity compares it with the code images of that version.
+ */
+async function loadMeasuredOnlySpecs(client: Pick<GitHubClient, 'getTree' | 'getBlobText'>, treeSha: string, config: BridgeConfig | undefined, head?: Pick<TokenSet, 'byPath'>): Promise<LoadedSpecs | undefined> {
+  const { entries } = await client.getTree(treeSha, true);
+  const entry = entries.find((e) => e.type === 'blob' && e.path === MEASURED_SPECS_FILE);
+  if (!entry) throw new Error(`Spec source is set to Measured only, but the repo has no ${MEASURED_SPECS_FILE}. Run bridge specs --measure --variants and commit it, or set Spec source back to Static in Settings.`);
+  const measured = parseMeasuredSpecs(await client.getBlobText(entry.sha));
+  // figma-fixes.json (optional, next to the measure): reviewed corrections of what the measure gives. An invalid file is
+  // not used, and says why.
+  const fixesEntry = entries.find((e) => e.type === 'blob' && e.path === DEFAULT_FIGMA_FIXES_FILE);
+  let file: MeasuredSpecsFile | FixedMeasuredSpecsFile = measured;
+  let fixLines: string[] = [];
+  let fixProblems: string[] | undefined;
+  if (fixesEntry) {
+    try {
+      const fixed = applyFixes(measured, parseFigmaFixes(await client.getBlobText(fixesEntry.sha)));
+      file = fixed.file;
+      fixLines = appliedFixLines(fixed.applied);
+    } catch (err) {
+      fixProblems = err instanceof FigmaFixesError ? err.problems : [err instanceof Error ? err.message : String(err)];
+    }
+  }
+  const { specs, report, shots, hints } = specsFromMeasure(file, head ? { known: (path) => head.byPath.has(path) } : {});
+  const code = await loadComponentSpecs(client, treeSha, config).catch(() => undefined);
+  const codeHash = new Map(code?.specs.components.map((c) => [c.name, c.hash]) ?? []);
+  // With the stories' own screenshots, a set is compared with what it was built from: its own hash is its version.
+  const withShots = Object.keys(shots).length > 0;
+  const components = specs.components.map((c) => (!withShots && codeHash.has(c.name) ? { ...c, hash: codeHash.get(c.name)! } : c));
+  const manifest: FigmaReferenceManifest | undefined = withShots
+    ? {
+        version: 1,
+        tool: '@bridge-ds/visual',
+        createdAt: file.measuredAt,
+        sha: treeSha,
+        scale: 2,
+        mode: { brand: '', theme: '', density: '' },
+        storyId: '',
+        components: Object.fromEntries(components.filter((c) => shots[c.name]).map((c) => [c.name, { specHash: c.hash, variants: shots[c.name]! }])),
+      }
+    : undefined;
+  return {
+    path: MEASURED_SPECS_FILE,
+    specs: { ...specs, components },
+    measuredOnly: report,
+    measure: file,
+    ...(fixesEntry ? { fixes: { lines: fixLines, ...(fixProblems ? { problems: fixProblems } : {}), hints } } : {}),
+    ...(manifest ? { shots: { manifest, dir: MEASURED_SPECS_FILE.includes('/') ? MEASURED_SPECS_FILE.replace(/\/[^/]*$/, '') : '' } } : {}),
+  };
+}
+
+/** The static specs with measured-specs.json laid on. A missing measure fails: the developer asked for it. */
+async function loadMeasuredSpecs(client: Pick<GitHubClient, 'getTree' | 'getBlobText'>, treeSha: string, config: BridgeConfig | undefined): Promise<LoadedSpecs | undefined> {
+  const loaded = await loadComponentSpecs(client, treeSha, config);
+  if (!loaded) return undefined;
+  const { entries } = await client.getTree(treeSha, true);
+  const entry = entries.find((e) => e.type === 'blob' && e.path === MEASURED_SPECS_FILE);
+  if (!entry) throw new Error(`Spec source is set to Measured, but the repo has no ${MEASURED_SPECS_FILE}. Run bridge specs --measure and commit it, or set Spec source back to Static in Settings.`);
+  const { specs, report } = overlayMeasured(loaded.specs, parseMeasuredSpecs(await client.getBlobText(entry.sha)));
+  return { path: loaded.path, specs, measured: report };
+}
+
 export async function loadComponentSpecs(
   client: Pick<GitHubClient, 'getTree' | 'getBlobText'>,
   treeSha: string,
   config: BridgeConfig | undefined,
-): Promise<{ path: string; specs: ComponentSpecsFile } | undefined> {
-  const path = config?.components?.specs ?? DEFAULT_COMPONENT_SPECS_FILE;
+): Promise<LoadedSpecs | undefined> {
+  const configured = config?.components?.specs;
+  if (configured !== undefined && (typeof configured !== 'string' || !configured.trim()))
+    throw new Error(`bridge.config.json: components.specs is ${configured === null ? 'empty' : `a ${Array.isArray(configured) ? 'list' : typeof configured}`}, it should be the path of component-specs.json. Fix it in the repo.`);
+  const path = (configured ?? DEFAULT_COMPONENT_SPECS_FILE).trim().replace(/^\/+/, '');
   const { entries } = await client.getTree(treeSha, true);
   const entry = entries.find((e) => e.type === 'blob' && e.path === path);
   if (!entry) return undefined;
@@ -195,6 +501,14 @@ export async function loadComponentSpecs(
 
 // ---------------------------------------------------------------------------------------------
 // Planning
+
+/** A Storybook story URL among a spec's sources, and the docs page of its component (`?path=/docs/<title>--docs`). */
+export function storyLinks(sources: readonly string[]): PlannedComponent['links'] {
+  const story = sources.find((x) => /^https?:\/\/.+[?&]path=\/story\/[\w-]+--[\w-]+/.test(x));
+  if (!story) return undefined;
+  const docs = story.replace(/path=\/story\/([\w-]+?)--[\w-]+/, 'path=/docs/$1--docs');
+  return { stories: story, ...(docs !== story ? { docs } : {}) };
+}
 
 /**
  * Width of a root that fills its container in code (Card, Input): a component in Figma needs a width of its own. A size
@@ -243,7 +557,7 @@ export function evaluateCalc(expr: string, head: TokenSet): number | { problem: 
     }
     const num = /^(-?\d+(?:\.\d+)?)(px)?$/.exec(t);
     if (num) return Number(num[1]);
-    if (!head.byPath.has(t)) return fail(`${t} is not a token on this branch`);
+    if (!head.byPath.has(t)) return fail(`${t} is not a token in the library`);
     const n = numberValue(head, t);
     return n === undefined ? fail(`${t} does not resolve to a number`) : n;
   };
@@ -274,21 +588,68 @@ export function evaluateCalc(expr: string, head: TokenSet): number | { problem: 
   }
 }
 
-/** How one spec value is written in Figma, or the reason it cannot be. */
-export function planValue(field: SpecField, value: SpecValue, head: TokenSet): PlannedValue | { problem: string } {
+/** A spec value of an unexpected shape, short enough for a problem row. */
+function unknownShape(value: unknown): string {
+  if (value === undefined) return 'An empty value';
+  let text: string;
+  try {
+    text = JSON.stringify(value) ?? String(value);
+  } catch {
+    text = String(value);
+  }
+  return text.length > 40 ? `${text.slice(0, 39)}…` : text;
+}
+
+/**
+ * How one spec value is written in Figma, or the reason it cannot be. `value` comes from component-specs.json on the
+ * branch, parsed but not validated, and written by a generator that may be newer than this plugin: any shape other than
+ * a token path, a calc(), a number or null is a problem for that field, never a throw that hides every component.
+ */
+export function planValue(field: SpecField, value: unknown, head: TokenSet): PlannedValue | { problem: string } {
+  return planValueOf(field, value, head);
+}
+
+/** `rgb(31, 41, 55)`, `rgba(31,41,55,0.5)` or `rgb(31 41 55 / 50%)`, as a browser computes colors, in 0..1. */
+function rgbOf(text: string): { r: number; g: number; b: number; a: number } | undefined {
+  const m = /^rgba?\(([^)]*)\)$/i.exec(text);
+  if (!m) return undefined;
+  const parts = m[1]!.split(/[\s,/]+/).filter(Boolean);
+  const [r, g, b] = parts.slice(0, 3).map(Number);
+  const alpha = parts[3] === undefined ? 1 : parts[3].endsWith('%') ? Number(parts[3].slice(0, -1)) / 100 : Number(parts[3]);
+  if ([r, g, b, alpha].some((x) => x === undefined || !Number.isFinite(x))) return undefined;
+  return { r: r! / 255, g: g! / 255, b: b! / 255, a: alpha };
+}
+
+function planValueOf(field: SpecField, value: unknown, head: TokenSet): PlannedValue | { problem: string } {
   if (value === null) return COLOR_FIELDS.has(field) ? { kind: 'none' } : { problem: 'no value' };
   if (field === 'textDecoration') return typeof value === 'string' && /^(UNDERLINE|STRIKETHROUGH|NONE)$/.test(value) ? { kind: 'keyword', value } : { problem: `${String(value)} is not a text decoration` };
-  if (typeof value === 'number') return COLOR_FIELDS.has(field) ? { problem: `${value}: a color cannot be a number` } : { kind: 'number', value };
+  if (typeof value === 'number') {
+    if (COLOR_FIELDS.has(field)) return { problem: `${value}: a color cannot be a number` };
+    return Number.isFinite(value) ? { kind: 'number', value } : { problem: `${value} is not a finite number` };
+  }
+  if (typeof value !== 'string') return { problem: `${unknownShape(value)} is not a value this version of Bridge reads: update Bridge` };
   if (value.startsWith('calc(')) {
     if (COLOR_FIELDS.has(field)) return { problem: `${value}: a color cannot be a calc()` };
     const n = evaluateCalc(value, head);
     return typeof n === 'number' ? { kind: 'number', value: n, expr: value } : n;
   }
+  // Literals a measure reads where no token is (a design system Bridge has no tokens for): a color, a font family list.
+  if (COLOR_FIELDS.has(field) && /^(#|rgba?\()/i.test(value.trim())) {
+    const c = rgbOf(value.trim()) ?? parseColor(value.trim());
+    return c ? { kind: 'color', r: c.r, g: c.g, b: c.b, a: c.a } : { problem: `${value} is not a color` };
+  }
+  if (field === 'fontFamily' && !head.byPath.has(value) && /[,"']|^[A-Z]/.test(value)) {
+    const families = value.split(',').map((f) => f.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+    return families.length ? { kind: 'font', families, path: value } : { problem: `${value} is not a font family` };
+  }
   const t = head.byPath.get(value);
-  if (!t) return { problem: `${value} is not a token on this branch` };
+  if (!t) return { problem: `${value} is not a token in the library` };
   if (field === 'fontFamily') {
     const families = familiesOf(head, value);
-    return families?.length ? { kind: 'font', families, path: value } : { problem: `${value} does not resolve to a font family` };
+    if (!families?.length) return { problem: `${value} does not resolve to a font family` };
+    const planned = tokenToPlanned(t, head);
+    const variable = !isUnmappable(planned) && planned.resolvedType === 'STRING' ? { tokenId: t.id, name: pathToName(value), collection: COLLECTIONS[t.tier] } : undefined;
+    return { kind: 'font', families, path: value, ...(variable ? { variable } : {}) };
   }
   // Unitless line heights and em letter spacing: Figma variables for these are pixels, so set a percent, unbound.
   if ((field === 'lineHeight' || field === 'letterSpacing') && t.type === 'number') {
@@ -319,18 +680,53 @@ export function planValue(field: SpecField, value: SpecValue, head: TokenSet): P
 
 export function describeSpec(spec: ComponentSpec): string {
   const dir = spec.source[0]?.replace(/\/[^/]+$/, '') ?? spec.name;
-  return `Generated by DS Bridge from ${dir}. Code is the source of truth: change it in code, or send a request from Push.`;
+  if (spec.drafted)
+    return `Drafted with Claude from ${dir}: DS Bridge cannot read this component on its own (it ${spec.drafted.reason}). Check it against the code with Check fidelity. Code is the source of truth: change it in code, or send a request from Push.`;
+  // prefers-reduced-motion has no Figma equivalent: said where designers read the set.
+  const motion = componentMotion(spec);
+  const prototype = motion.reactions.length ? ` In prototypes, its interactions play the code's motion.${motion.reducedMotion ? ` ${motion.reducedMotion}` : ''}` : motion.reducedMotion ? ` It animates in code. ${motion.reducedMotion}` : '';
+  return `Generated by DS Bridge from ${dir}.${prototype} Code is the source of truth: change it in code, or send a request from Push.`;
 }
 
+/** The motion notes a set carries in the Pull preview: approximations, then what Figma cannot play. */
+export function motionNotesOf(spec: ComponentSpec): string[] {
+  const m = componentMotion(spec);
+  return [...m.approximations.map((a) => `Approximated: ${a}`), ...m.cannotPlay.map((n) => `${n.what}: ${n.reason}`)];
+}
+
+/** The note a drafted set carries in the Pull preview. */
+export const draftedSetNote = (d: NonNullable<PlannedComponent['drafted']>) => (d.stale ? 'Drafted, the code changed since: check it' : 'Drafted, check it');
+
 /** The pull plan for components: status per spec, every field resolved to a variable (or a reason it is not). */
-export function buildComponentPlan(specs: ComponentSpecsFile, source: string, generated: GeneratedSet[], head: TokenSet): ComponentPullPlan {
+export function buildComponentPlan(
+  rawSpecs: ComponentSpecsFile,
+  source: string,
+  generated: GeneratedSet[],
+  head: TokenSet,
+  opts: { pushed?: ReadonlyMap<number, FigmaPushStatus> | undefined } = {},
+): ComponentPullPlan {
   const problems: ComponentProblem[] = [];
+  // Entries of the wrong shape are left out (or trimmed) with their reason before anything is planned.
+  const { specs, issues } = checkComponentSpecs(rawSpecs);
+  const skipped: { name: string; reason: string }[] = issues.filter((i) => i.skipped).map((i) => ({ name: i.component, reason: i.reason }));
+  for (const i of issues) if (!i.skipped) problems.push({ component: i.component, part: 'spec', property: 'shape', reason: i.reason });
   const seen = new Set<string>();
   const problem = (p: ComponentProblem) => {
     const k = `${p.component}|${p.part}|${p.property}|${p.reason}`;
     if (seen.has(k)) return;
     seen.add(k);
     problems.push(p);
+  };
+  // The same token in the same field resolves the same way everywhere: planned once (a big system repeats them a lot).
+  const memo = new Map<string, PlannedValue | { problem: string }>();
+  const planValue = (field: SpecField, value: unknown, set: TokenSet): PlannedValue | { problem: string } => {
+    const key = `${field}\u0000${typeof value}\u0000${typeof value === 'object' ? JSON.stringify(value) : String(value)}`;
+    let hit = memo.get(key);
+    if (!hit) {
+      hit = planValueOf(field, value, set);
+      memo.set(key, hit);
+    }
+    return hit;
   };
   const plannedFields = (owner: string, part: string, values: Partial<Record<SpecField, SpecValue>>, text: boolean): PlannedField[] => {
     const fields: PlannedField[] = [];
@@ -369,12 +765,39 @@ export function buildComponentPlan(specs: ComponentSpecsFile, source: string, ge
     };
   });
   const slotByName = new Map(slots.map((sl) => [sl.name, sl]));
+  const generatedById = new Map<string, GeneratedSet>();
+  for (const g of generated) if (!generatedById.has(g.componentId)) generatedById.set(g.componentId, g);
   const components: PlannedComponent[] = [];
   for (const spec of specs.components) {
+    // Last net: a spec this version cannot plan for a reason the check did not foresee is left out, never the others.
+    const mark = problems.length;
+    try {
+      planOne(spec);
+    } catch (err) {
+      problems.splice(mark);
+      skipped.push({ name: spec.name, reason: `could not be read (${err instanceof Error ? err.message : String(err)}): update Bridge` });
+    }
+  }
+  function planOne(spec: ComponentSpec): void {
+    // From the spec as read, not its "hash" field: a file edited by hand or by another tool keeps a stale one, and
+    // the sets it changed would never be updated. The generator writes this same hash, so a current file reads equal.
+    const hash = hashSpec(spec);
     for (const u of spec.unmapped) problem({ component: spec.name, part: u.part, property: u.property, reason: u.reason });
     const kinds = new Map(spec.parts.map((p) => [p.id, p.kind]));
+    // Offsets of an absolute part from its parent's edges, in pixels.
+    const pinPixels = (part: string, pin: NonNullable<SpecPart['pin']>) => {
+      const out: Partial<Record<'top' | 'right' | 'bottom' | 'left', number>> = {};
+      for (const [side, value] of Object.entries(pin) as ['top' | 'right' | 'bottom' | 'left', SpecValue][]) {
+        const pv = planValue('paddingTop', value, head);
+        const n = 'problem' in pv ? undefined : pv.kind === 'number' ? pv.value : pv.kind === 'variable' && typeof pv.value === 'number' ? pv.value : undefined;
+        if (n === undefined) problem({ component: spec.name, part, property: side, reason: 'problem' in pv ? pv.problem : `${String(value)} is not a size` });
+        else out[side] = n;
+      }
+      return out;
+    };
     let rootFill: PlannedValue | undefined;
-    if (spec.parts.find((p) => !p.parent)?.fill) {
+    // A spec that gives the root its width (a measure lays fill roots out at a set width) needs no token for it.
+    if (spec.parts.find((p) => !p.parent)?.fill && spec.variants.some((v) => v.values.root?.width === undefined)) {
       const w = planValue('width', FILL_WIDTH_TOKEN, head);
       if ('problem' in w) problem({ component: spec.name, part: 'root', property: 'width', reason: `fills its container in code, and ${w.problem}: the Figma set hugs its content` });
       else rootFill = w;
@@ -406,9 +829,10 @@ export function buildComponentPlan(specs: ComponentSpecsFile, source: string, ge
       }
       return {
         key: variantKeyOf(v.props),
-        name: variantName(v.props),
+        name: variantName(v.props) || LONE_VARIANT,
         props: v.props,
         parts,
+        ...(v.pins ? { pins: Object.fromEntries(Object.entries(v.pins).map(([part, pin]) => [part, pinPixels(part, pin)])) } : {}),
         ...(v.slots ? { slots: { ...v.slots } } : {}),
         ...(inner ? { inner } : {}),
         ...(v.hidden?.length ? { hidden: [...v.hidden] } : {}),
@@ -436,31 +860,38 @@ export function buildComponentPlan(specs: ComponentSpecsFile, source: string, ge
           : {}),
       };
     });
-    const existing = generated.find((g) => g.componentId === spec.name);
+    const existing = generatedById.get(spec.name);
     const keys = new Set(variants.map((v) => v.key));
     const have = new Set(existing?.variants ?? []);
     const addedVariants = existing ? variants.map((v) => v.key).filter((k) => !have.has(k)) : [];
     const removedVariants = existing ? existing.variants.filter((k) => !keys.has(k)) : [];
-    const status: ComponentStatus = !existing ? 'new' : existing.specHash === spec.hash && !addedVariants.length && !removedVariants.length ? 'unchanged' : 'updated';
+    // Pushed from Figma and shipped (or closed): rebuilt from the reviewed code even when the spec did not change.
+    const shipped = existing?.pushed ? opts.pushed?.get(existing.pushed.number) : undefined;
+    const fromFigma = existing?.pushed && shipped?.rebuild ? { number: existing.pushed.number, url: existing.pushed.url, status: shipped } : undefined;
+    const status: ComponentStatus = !existing ? 'new' : existing.specHash === hash && !addedVariants.length && !removedVariants.length && !fromFigma && !existing.inError ? 'unchanged' : 'updated';
     const pins: NonNullable<PlannedComponent['pins']> = {};
-    for (const part of spec.parts) {
-      if (!part.pin) continue;
-      for (const [side, value] of Object.entries(part.pin) as ['top' | 'right' | 'bottom' | 'left', SpecValue][]) {
-        const pv = planValue('paddingTop', value, head);
-        const n = 'problem' in pv ? undefined : pv.kind === 'number' ? pv.value : pv.kind === 'variable' && typeof pv.value === 'number' ? pv.value : undefined;
-        if (n === undefined) problem({ component: spec.name, part: part.id, property: side, reason: 'problem' in pv ? pv.problem : `${String(value)} is not a size` });
-        else (pins[part.id] ??= {})[side] = n;
-      }
-    }
+    for (const part of spec.parts) if (part.pin) pins[part.id] = pinPixels(part.id, part.pin);
     components.push({
       ...(Object.keys(pins).length ? { pins } : {}),
       componentId: spec.name,
       name: spec.name,
       ...(spec.component ? { component: spec.component } : {}),
-      hash: spec.hash,
+      ...(spec.drafted ? { drafted: spec.drafted } : {}),
+      ...(fromFigma ? { fromFigma } : {}),
+      hash,
+      codeHash: spec.hash || hash,
       status,
       ...(existing ? { nodeId: existing.nodeId } : {}),
       description: describeSpec(spec),
+      ...(() => {
+        const links = storyLinks(spec.source);
+        return links ? { links } : {};
+      })(),
+      ...(() => {
+        const reactions = componentMotion(spec).reactions;
+        const notes = motionNotesOf(spec);
+        return { ...(reactions.length ? { interactions: reactions } : {}), ...(notes.length ? { motionNotes: notes } : {}) };
+      })(),
       axes: spec.axes,
       properties: spec.properties,
       parts: spec.parts,
@@ -473,6 +904,7 @@ export function buildComponentPlan(specs: ComponentSpecsFile, source: string, ge
     source,
     components,
     problems,
+    ...(skipped.length ? { skipped } : {}),
     ...(icons.length ? { icons } : {}),
     ...(iconFields ? { iconFields } : {}),
     ...(slots.length ? { slots } : {}),
@@ -482,8 +914,14 @@ export function buildComponentPlan(specs: ComponentSpecsFile, source: string, ge
 
 /** What the Pull screen says about coverage: the count, then the components not in Figma with a plain reason each. */
 export interface CoverageView {
-  /** "26 of 47 components are in Figma", or "6 components are in Figma" when the file does not list the others. */
+  /**
+   * What the code brings to Figma (not what this file holds yet): "26 of 47 components can be pulled into Figma", or
+   * "6 components can be pulled into Figma. The code does not list the others yet" without a coverage list. No final
+   * period: the Pull screen goes on after it.
+   */
   headline: string;
+  /** Components in Figma that Claude drafted (the generator cannot read them): check them against the code. */
+  drafted: { name: string; reason: string }[];
   /** Visual components not in Figma yet, each with its reason ("Not supported yet: opens a popup"). */
   missing: { name: string; reason: string }[];
   /** Layout helpers (Stack, Grid...): nothing to draw, auto layout does their job. */
@@ -497,13 +935,19 @@ export function coverageView(plan: Pick<ComponentPullPlan, 'coverage' | 'compone
   if (!list) {
     // An older specs file: it names the sets it has, not the components it leaves out. Never claim it is complete.
     const n = new Set(plan.components.map((c) => c.name)).size;
-    return { headline: `${n} ${n === 1 ? 'component is' : 'components are'} in Figma. The code does not list the others yet.`, missing: [], layout: [], complete: false };
+    return { headline: `${n} ${n === 1 ? 'component' : 'components'} can be pulled into Figma. The code does not list the others yet`, missing: [], drafted: [], layout: [], complete: false };
   }
   const visual = list.filter((c) => c.status !== 'layout');
-  const inFigma = visual.filter((c) => c.status === 'generated').length;
-  const missing = visual.filter((c) => c.status !== 'generated').map((c) => ({ name: c.name, reason: c.reason ? `Not supported yet: ${c.reason}` : 'Not added yet' }));
+  // Drafted with Claude: in Figma, never counted as generated, named so designers check them.
+  const drafted = visual.filter((c) => c.status === 'drafted').map((c) => ({ name: c.name, reason: c.reason ? `Drafted with Claude, the generator cannot read it: it ${c.reason}` : 'Drafted with Claude' }));
+  const inFigma = visual.filter((c) => c.status === 'generated').length + drafted.length;
+  const missing = visual.filter((c) => c.status !== 'generated' && c.status !== 'drafted').map((c) => ({ name: c.name, reason: c.reason ? `Not supported yet: ${c.reason}` : 'Not added yet' }));
   const layout = list.filter((c) => c.status === 'layout').map((c) => c.name);
-  return { headline: `${inFigma} of ${visual.length} components are in Figma`, missing, layout, complete: missing.length === 0 };
+  // The count next to "Components" is the sets built, parts and popups included (AccordionItem, Dialog/Popup): say it.
+  const sets = plan.components.length;
+  const asSets = sets > inFigma ? ` (${sets} sets with their parts)` : '';
+  const headline = `${inFigma} of ${visual.length} components can be pulled into Figma${asSets}${drafted.length ? `, ${drafted.length} drafted with Claude` : ''}`;
+  return { headline, missing, drafted, layout, complete: missing.length === 0 };
 }
 
 /** Components a pull would write (new or updated). */
@@ -512,4 +956,25 @@ export const pendingComponents = (plan: ComponentPullPlan | undefined) => plan?.
 /** The plan with only the components to write: unchanged ones are not sent to the main thread. */
 export function writablePlan(plan: ComponentPullPlan): ComponentPullPlan {
   return { ...plan, components: pendingComponents(plan) };
+}
+
+/** Library branch numbers of the generated sets pushed from Figma, to read where each stands before planning a pull. */
+export const pushedNumbers = (generated: readonly GeneratedSet[]) => [...new Set(generated.flatMap((g) => (g.pushed ? [g.pushed.number] : [])))];
+
+/** Sets pushed from Figma whose library branch is still open: "Button (Waiting for a developer)". */
+export function pushedInReview(generated: readonly GeneratedSet[], statuses: ReadonlyMap<number, FigmaPushStatus>): { name: string; number: number; url: string; status: FigmaPushStatus }[] {
+  return generated.flatMap((g) => {
+    const st = g.pushed ? statuses.get(g.pushed.number) : undefined;
+    return g.pushed && st && !st.rebuild ? [{ name: g.name, number: g.pushed.number, url: g.pushed.url, status: st }] : [];
+  });
+}
+
+/**
+ * The name a spec property gets in Figma. A BOOLEAN that shows a swappable part is "Show <part>" ("Show icon",
+ * "Show icon start"), as Figma's own kits name them, so the swap keeps the plain name ("Icon") instead of the
+ * "Icon2" Figma gives a name another type took.
+ */
+export function figmaPropName(comp: { parts: readonly { swap?: { property: string } | undefined }[] }, p: { name: string; type: string }): string {
+  if (p.type !== 'BOOLEAN' || !comp.parts.some((x) => x.swap?.property === p.name)) return p.name;
+  return `Show ${p.name.charAt(0).toLowerCase()}${p.name.slice(1)}`;
 }

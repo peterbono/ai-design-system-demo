@@ -5,11 +5,13 @@ import { TIER_NAMES, type Tier, defineConfig } from '@bridge-ds/core';
 import type { ComponentApplyReport, ComponentPullPlan, GeneratedSet } from '../sync/component-pull';
 import type { ScannedComponent } from '../sync/components';
 import type { ClaudeModel } from '../sync/claude';
-// The repo's own bridge.config.json prefills the settings; every file can point elsewhere in Settings.
+// This repo's bridge.config.json gives the fallback tokens folder and the repository older versions defaulted to.
 import rootConfig from '../../../../bridge.config.json';
 
 /** Shared plugin data key (namespace dsbridge) of the "Experimental" mark, on a variable or a component set. */
 export const EXPERIMENTAL_KEY = 'experimental';
+/** Shared plugin data key on a component set pushed from Figma: its library branch (JSON PushedMark), until a pull rebuilds it. */
+export const PUSHED_KEY = 'pushed';
 
 export type FigmaResolvedType = 'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN';
 
@@ -21,7 +23,7 @@ export type FigmaValue =
   /** Alias to another variable. `name` is filled for targets outside the local collections. */
   | { kind: 'alias'; id: string; name?: string | undefined };
 
-/** Plugin data DS Bridge stores on each variable it manages (string values in Figma). */
+/** Plugin data Bridge stores on each variable it manages (string values in Figma). */
 export interface VariablePluginData {
   /** Stable token id, same as `$extensions["com.dsbridge.id"]` or "path:<path at first sync>". */
   id?: string | undefined;
@@ -33,6 +35,11 @@ export interface VariablePluginData {
   unit?: string | undefined;
   /** "array" when a fontFamily value is a list joined with ", " in Figma. */
   shape?: string | undefined;
+  /**
+   * fontFamily: the CSS stacks the token holds ("IBM Plex Sans Variable, IBM Plex Sans, system-ui"), when the variable
+   * shows the family of it Figma has ("IBM Plex Sans") so text can be bound to it. Read back as the stack.
+   */
+  stacks?: string[] | undefined;
   /** Set when the token was removed on main: kept in Figma, never deleted silently. */
   orphan?: boolean | undefined;
   /** Modes in which the token does not exist in Git (single-collection layout only). */
@@ -41,7 +48,7 @@ export interface VariablePluginData {
   unlinkedModes?: string[] | undefined;
 }
 
-export const PLUGIN_DATA_KEYS = ['id', 'dtcgType', 'file', 'unit', 'shape', 'orphan', 'absentModes', 'unlinkedModes'] as const;
+export const PLUGIN_DATA_KEYS = ['id', 'dtcgType', 'file', 'unit', 'shape', 'stacks', 'orphan', 'absentModes', 'unlinkedModes'] as const;
 
 export interface SnapshotVariable {
   id: string;
@@ -114,12 +121,16 @@ export interface ApplyReport {
   orphaned: number;
   layout: 'single-collection' | 'split-collections';
   errors: string[];
+  /** Variables the pull renamed (a token renamed in code): stored component baselines follow the new names. */
+  renamed?: { from: string; to: string }[] | undefined;
 }
 
 export interface RepoSettings {
   repo: string;
   branch: string;
   tokensPath: string;
+  /** Where the pull reads component values (sync/component-pull.ts specSource). Static unless a developer turns it on. */
+  specSource?: 'static' | 'measured' | 'measured-only' | undefined;
 }
 
 export interface SyncState {
@@ -128,6 +139,28 @@ export interface SyncState {
   lastPullAt?: string | undefined;
   lastPrBranch?: string | undefined;
   lastPrUrl?: string | undefined;
+}
+
+/**
+ * Sync state to clear when Settings change. The base is the commit the file was last pulled from, so it still holds
+ * on another branch of the same repository: the diff against the new branch stays three-way, and the file's own edits
+ * stay edits (clearing it made every token the branch changes a conflict, such as each brand token when a brand is
+ * added). Another repository has none of it.
+ */
+export function syncResetOnSettings(before: RepoSettings, after: RepoSettings): Partial<Record<keyof SyncState, ''>> {
+  if (before.repo.trim().toLowerCase() !== after.repo.trim().toLowerCase()) return { baseSha: '', lastPullAt: '', lastPrBranch: '', lastPrUrl: '' };
+  if (before.branch.trim() !== after.branch.trim()) return { lastPrBranch: '', lastPrUrl: '' };
+  return {};
+}
+
+/**
+ * Which components a scan reads (each read exports a small image per variant, so a big file takes minutes): all by
+ * default, only `nodeIds`, all but `skip`, or only the ones with no baseline yet.
+ */
+export interface ScanComponentsRequest {
+  nodeIds?: string[] | undefined;
+  skip?: string[] | undefined;
+  withoutBaseline?: boolean | undefined;
 }
 
 /** What GitHub last said about the saved token: "rejected" after a 401 (revoked, regenerated or expired). */
@@ -152,6 +185,13 @@ export interface VariableTag {
 }
 
 /** Local components with their current signature and stored baseline. */
+/** The selected node; `generated` when it is a variant of a set Bridge built from code (componentId, variant key). */
+export interface SelectionInfo {
+  nodeId: string;
+  name: string;
+  generated?: { componentId: string; variant: string } | undefined;
+}
+
 export interface ScannedComponentsPayload {
   components: ScannedComponent[];
   /** Often undefined in published plugins: requests then name the node without a link. */
@@ -178,15 +218,19 @@ export interface RequestMap {
   'open-url': { request: { url: string }; response: { opened: true } };
   notify: { request: { message: string; error?: boolean }; response: { shown: true } };
   resize: { request: { width: number; height: number }; response: { resized: true } };
-  'scan-components': { request: Record<string, never>; response: ScannedComponentsPayload };
+  'scan-components': { request: ScanComponentsRequest; response: ScannedComponentsPayload };
   /** Store signatures (JSON) as baselines on component nodes. */
   'save-signatures': { request: { items: { nodeId: string; signature: string }[] }; response: { saved: number } };
+  /** Store where a component's change from Figma went (its library branch), as shared plugin data on the set. */
+  'mark-pushed': { request: { nodeId: string; mark: string }; response: { saved: boolean } };
   /** Re-read one component and store it as the baseline (after its request is sent). */
   rebaseline: { request: { nodeId: string }; response: { saved: boolean } };
+  /** Bind a variable where a value was set by hand (the layers of `variants` whose `kind` reads `value`). */
+  'bind-raw': { request: { nodeId: string; variants: string[]; kind: string; value: string; variable: string }; response: { bound: number } };
   /** PNG 2x as base64: the selected variant of `nodeId`, the component itself, or the selection without `nodeId`. */
   'export-image': { request: { nodeId?: string | undefined }; response: { base64: string; name: string } | null };
-  selection: { request: Record<string, never>; response: { nodeId: string; name: string } | null };
-  /** Component sets DS Bridge generated (shared plugin data dsbridge / componentId). */
+  selection: { request: Record<string, never>; response: SelectionInfo | null };
+  /** Component sets Bridge generated (shared plugin data dsbridge / componentId). */
   'scan-generated': { request: Record<string, never>; response: GeneratedSet[] };
   /** Marks variables or component sets "Experimental" (or clears the mark): unchecked by default on every push. */
   'set-experimental': { request: { targets: { kind: 'variable' | 'component'; id: string }[]; value: boolean }; response: { updated: number } };
@@ -194,8 +238,12 @@ export interface RequestMap {
   thumbnails: { request: { nodeIds: string[]; width: number }; response: Record<string, string> };
   /** Fidelity check: PNG (base64) of variants of a generated set at `scale`, keyed by variant key. Read only. */
   'fidelity-export': { request: { nodeId: string; keys: string[]; scale: number }; response: Record<string, string> };
+  /** Gap case: each part's box (relative to its variant) and the hidden parts, per variant key. Read only. */
+  'read-built': { request: { nodeId: string; keys: string[] }; response: Record<string, { boxes: Record<string, { x: number; y: number; width: number; height: number }>; hidden: string[] }> };
   /** Build or update the component sets of a plan on the Components page, bound to the variables. */
   'apply-components': { request: { plan: ComponentPullPlan }; response: ComponentApplyReport };
+  /** Stop the component build in progress after the set it is on: its report lists the sets it did not reach. */
+  'cancel-components': { request: Record<string, never>; response: { cancelled: boolean } };
 }
 
 export type RequestType = keyof RequestMap;
@@ -222,16 +270,25 @@ export function isProgress(msg: unknown): msg is ProgressEnvelope {
 }
 
 const defaults = defineConfig(rootConfig as Parameters<typeof defineConfig>[0]);
-const defaultRepo = defaults.repo ?? { owner: '', name: '', defaultBranch: 'main' };
 /**
- * Prefilled settings, from bridge.config.json at the root of this repo. At scan time the plugin also
- * reads bridge.config.json from the configured repository, which decides the token paths there.
+ * Settings of a file nobody connected yet. No repository: a new file never points at a design system it was not
+ * connected to, the first run asks which one. The branch and tokens folder are fallbacks only: bridge.config.json in
+ * the connected repository decides the token paths there.
  */
 export const DEFAULT_SETTINGS: RepoSettings = {
-  repo: defaultRepo.owner ? `${defaultRepo.owner}/${defaultRepo.name}` : '',
-  branch: defaultRepo.defaultBranch,
+  repo: '',
+  branch: 'main',
   tokensPath: defaults.tokens.root,
 };
+
+/**
+ * The repository older plugin versions filled in for every file (from this repo's bridge.config.json). A file that
+ * pulled from it before this version stored no repository of its own: it keeps pointing there (see sharedSettings).
+ */
+export const LEGACY_DEFAULT_REPO = defaults.repo?.owner ? `${defaults.repo.owner}/${defaults.repo.name}` : '';
+
+/** Hosted Bridge Studio, where a team reviews what designers send (each repository is a team: /studio/~/<owner>/<repo>/). */
+export const STUDIO_ORIGIN = 'https://bridge.floriangouloubi.com';
 
 /** Figma collection of each tier. */
 /** Figma collection of each tier (same names as the tiers in @bridge-ds/core). */

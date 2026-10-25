@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  joinNeed,
   rowAction,
+  holdsReviewRight,
+  waitsOnContributor,
+  CONTRIBUTOR_TOUR_STEPS,
+  contributorTourSteps,
+  contributorTour,
   CLAUDE,
   adoptionDrop,
   ago,
@@ -18,7 +24,6 @@ import {
   onlyReviewerLine,
   partOfDay,
   person,
-  publishedThisWeek,
   showsBranch,
   sortBranches,
   sortNeeds,
@@ -58,7 +63,19 @@ describe('people', () => {
   it('shows display names, never @handles', () => {
     expect(displayName('ann-lee', 'Ann Lee')).toBe('Ann');
     expect(displayName('@dana-k', null)).toBe('dana-k');
+    // An article or a one-letter first word is not a first name: the whole name reads better.
+    expect(displayName('octocat', 'The Octocat')).toBe('The Octocat');
+    expect(displayName('laposte', '  La   Poste ')).toBe('La Poste');
+    expect(displayName('an-team', 'An Team')).toBe('An Team');
+    expect(displayName('jdoe', 'J. Doe')).toBe('J. Doe');
+    expect(displayName('lea', 'Léa Martin')).toBe('Léa');
+    expect(greeting(9, 'The Octocat')).toBe('Good morning, The Octocat.');
     expect(CLAUDE.name).toBe('Claude AI');
+  });
+  it('names the Bridge agent account Claude AI, with its own face', () => {
+    expect(person('bridge-agent', 'bridge-agent')).toMatchObject({ name: 'Claude AI', agent: true, avatar: null });
+    expect(person('bridge-agent[bot]').name).toBe('Claude AI');
+    expect(person('claude').agent).toBe(true);
   });
   it('keeps each person once, Claude once', () => {
     expect(uniquePeople([ann, null, person('ANN-LEE', 'Ann'), CLAUDE, { ...CLAUDE }, dana]).map((p) => p.name)).toEqual(['Ann', 'Claude AI', 'Dana']);
@@ -117,15 +134,20 @@ describe('rows', () => {
   it('a review: who asks, how long it waits', () => {
     const r = changeNeed(facts({}), NOW);
     expect(r).toMatchObject({ kind: 'review', line: 'Ann asks for your review', waitsOnYou: true, pill: { label: 'Waiting 4 days', tone: 'warning' }, href: '/studio/changes/?pr=1' });
-    expect(changeNeed(facts({ task: 'ship' }), NOW).line).toBe('Ann waits for you to merge it');
+    expect(changeNeed(facts({ task: 'ship' }), NOW).line).toBe('Ann waits for you to add it to the library');
+    // Who asked, not the account that opened it (the Bridge app for an email member).
+    expect(changeNeed(facts({ task: 'ship', asker: { ...facts({}).asker, name: 'Priya' } }), NOW).line).toBe('Priya waits for you to add it to the library');
     expect(changeNeed(facts({ task: 'guidance', asker: CLAUDE }), NOW).line).toBe('Claude AI asks you to check the usage guidance');
+    const tech = changeNeed(facts({ task: 'tech' }), NOW);
+    expect(tech).toMatchObject({ kind: 'review', waitsOnYou: true, line: 'Ann asks for your tech review' });
     expect(changeNeed(facts({ since: null }), NOW).pill).toBeNull();
   });
   it('own branches: changes requested, blocked with what failed, ready to merge', () => {
     expect(changeNeed(facts({ task: 'own-changes', changesBy: [dana] }), NOW)).toMatchObject({ kind: 'own', line: 'Dana asked for changes', waitsOnYou: false, pill: { tone: 'warning' } });
     expect(changeNeed(facts({ task: 'own-changes' }), NOW).line).toBe('A reviewer asked for changes');
+    expect(changeNeed(facts({ task: 'own-changes', changesBy: [dana] }), NOW).action).toBe('Update');
     expect(changeNeed(facts({ task: 'own-blocked', blocker: '2 tests fail' }), NOW).pill).toEqual({ label: '2 tests fail', tone: 'danger' });
-    expect(changeNeed(facts({ task: 'own-ship' }), NOW).pill).toEqual({ label: 'Ready to merge', tone: 'success' });
+    expect(changeNeed(facts({ task: 'own-ship' }), NOW).pill).toEqual({ label: 'Ready to add to the library', tone: 'success' });
   });
   it('guidance drafts are Claude waiting', () => {
     const g = guidanceNeed({ name: 'Tooltip', href: '/components/tooltip/?edit=1', since: daysAgo(2) }, NOW);
@@ -134,8 +156,8 @@ describe('rows', () => {
   });
   it('contrast failing on main is a danger row', () => {
     expect(contrastNeed(0)).toBeNull();
-    expect(contrastNeed(2)).toMatchObject({ kind: 'health', title: '2 contrast checks fail on main', pill: { label: '2 checks fail', tone: 'danger' } });
-    expect(contrastNeed(1)?.title).toBe('1 contrast check fails on main');
+    expect(contrastNeed(2)).toMatchObject({ kind: 'health', title: '2 contrast checks fail in the library', pill: { label: '2 checks fail', tone: 'danger' } });
+    expect(contrastNeed(1)?.title).toBe('1 contrast check fails in the library');
   });
 });
 
@@ -149,7 +171,7 @@ describe('order and grouping', () => {
     const rows = [...Array.from({ length: 12 }, (_, i) => row(`r${i}`, 'review', null)), ...Array.from({ length: 5 }, (_, i) => row(`g${i}`, 'guidance', null)), row('o', 'own', null), row('h', 'health', null)];
     const s = splitNeeds(sortNeeds(rows));
     expect(s.shown).toHaveLength(3);
-    expect(s.more).toEqual({ count: 16, label: '16 more', parts: '9 reviews · 1 of your branches · 5 documentation drafts · 1 library check' });
+    expect(s.more).toEqual({ count: 16, label: '16 more', parts: '9 reviews · 1 of your changes · 5 documentation drafts · 1 library check' });
     expect(splitNeeds(rows.slice(0, 3)).more).toBeNull();
     expect(splitNeeds([...rows.slice(0, 3), row('g', 'guidance', null)]).more?.parts).toBe('1 documentation draft');
   });
@@ -188,6 +210,8 @@ describe('your branches', () => {
     expect(branchStatus({ stage: 'draft', updated: daysAgo(0, 2), reviewer: null }, NOW)).toEqual({ stage: 'Draft', detail: 'edited 2 h ago' });
     expect(branchStatus({ stage: 'ready', updated: daysAgo(1), reviewer: dana }, NOW)).toEqual({ stage: 'In review', detail: 'Dana reviews' });
     expect(branchStatus({ stage: 'ready', updated: daysAgo(1), reviewer: null }, NOW).detail).toBe('waiting for a reviewer');
+    // One status only: the pill alone, never "In review · Ready to add to the library".
+    expect(branchStatus({ stage: 'ready', updated: daysAgo(1), reviewer: dana, status: 'Ready to add to the library' }, NOW)).toEqual({ stage: 'Ready to add to the library', detail: '' });
     expect(branchStatus({ stage: 'waiting', updated: daysAgo(1), reviewer: null }, NOW)).toEqual({ stage: 'Approved', detail: 'waiting for code' });
   });
   it('ages', () => {
@@ -208,16 +232,6 @@ describe('your branches', () => {
     ];
     expect(sortBranches(xs).map((x) => x.n)).toEqual([3, 2, 1, 4]);
   });
-  it('published this week: the viewer only, last seven days', () => {
-    const e = [
-      { title: 'Old', release: 'react 1.2.0', date: daysAgo(10), author: 'peterbono' },
-      { title: 'Theirs', release: 'react 1.4.0', date: daysAgo(1), author: 'ann' },
-      { title: 'Button matches Figma', release: 'react 1.4.0', date: daysAgo(2), author: 'PeterBono' },
-      { title: 'Newest', release: 'react 1.4.1', date: daysAgo(0, 3), author: 'peterbono' },
-    ];
-    expect(publishedThisWeek(e, 'peterbono', NOW).map((x) => x.title)).toEqual(['Newest', 'Button matches Figma']);
-    expect(publishedThisWeek(e, null, NOW)).toEqual([]);
-  });
 });
 
 describe('page state', () => {
@@ -235,5 +249,81 @@ describe('rowAction', () => {
     expect(rowAction('review')).toBe('Review');
     expect(rowAction('guidance')).toBe('Review');
     expect(rowAction('health')).toBe('Fix');
+  });
+});
+
+describe('contributors: what waits on someone without a review right', () => {
+  it('never gives an email contributor the review queue', () => {
+    expect(holdsReviewRight({ viewer: 'leo@acme.design', contributor: true, approvers: ['leo@acme.design'], write: true })).toBe(false);
+    expect(holdsReviewRight({ viewer: 'leo@acme.design', contributor: true, approvers: [], write: true })).toBe(false);
+  });
+
+  it('gives it to the people the approver or ship lists name, nobody else', () => {
+    expect(holdsReviewRight({ viewer: 'Dana', contributor: false, approvers: ['dana'], write: true })).toBe(true);
+    expect(holdsReviewRight({ viewer: 'ops', contributor: false, approvers: ['dana'], shippers: ['@ops'], write: true })).toBe(true);
+    expect(holdsReviewRight({ viewer: 'ann', contributor: false, approvers: ['dana'], shippers: ['ops'], write: true })).toBe(false);
+    // A team not read yet matches nobody.
+    expect(holdsReviewRight({ viewer: 'ann', contributor: false, approvers: ['@acme/design'], write: true })).toBe(false);
+    expect(holdsReviewRight({ viewer: null, contributor: false, approvers: [], write: true })).toBe(false);
+  });
+
+  it('lets anyone who writes review while the team names no owner', () => {
+    expect(holdsReviewRight({ viewer: 'ann', contributor: false, approvers: [], write: true })).toBe(true);
+    expect(holdsReviewRight({ viewer: 'ann', contributor: false, approvers: [], write: null })).toBe(true);
+    expect(holdsReviewRight({ viewer: 'ann', contributor: false, approvers: [], write: false })).toBe(false);
+  });
+
+  it('keeps only their branches sent back with changes', () => {
+    expect(waitsOnContributor('own-changes')).toBe(true);
+    for (const t of ['design', 'ship', 'guidance', 'requested', 'own-blocked', 'own-ship', null] as const) expect(waitsOnContributor(t)).toBe(false);
+  });
+
+  it('tours their branches, then how to start', () => {
+    expect(CONTRIBUTOR_TOUR_STEPS).toEqual(['branches', 'start']);
+    expect(contributorTour('branches').title).toBe('Your changes');
+    expect(contributorTour('branches').text).toMatch(/until a reviewer approves them/);
+    // No branch yet: nothing to point at but where to start.
+    expect(contributorTourSteps(true)).toEqual(['start']);
+    expect(contributorTourSteps(false)).toEqual(['branches', 'start']);
+    for (const at of CONTRIBUTOR_TOUR_STEPS) expect(contributorTour(at).text).not.toMatch(/merge/i);
+    expect(contributorTour('start').title).toBe('Start a change');
+    for (const at of CONTRIBUTOR_TOUR_STEPS) expect(JSON.stringify(contributorTour(at))).not.toMatch(/\u2014|lead/);
+  });
+
+  it('names the row verb, the row first', () => {
+    expect(rowAction('own', 'Update')).toBe('Update');
+    expect(rowAction('own')).toBe('Open');
+  });
+});
+
+describe('join requests on the home (board E7b)', () => {
+  const now = Date.parse('2026-10-23T12:00:00Z');
+  const row = joinNeed({ id: 'r1', name: 'Jordan Lee', email: 'jordan.lee@acme.com', createdAt: '2026-10-23T11:00:00Z' }, 'Acme Design', now);
+
+  it('reads as a person at the door: name, what they ask, email and role, how long they wait', () => {
+    expect(row).toMatchObject({
+      key: 'join-r1',
+      kind: 'join',
+      title: 'Jordan Lee',
+      line: 'asks to join Acme Design',
+      detail: 'jordan.lee@acme.com · joins as Can edit',
+      waitsOnYou: true,
+      pill: { label: 'Waiting 1 h', tone: 'warning' },
+      request: { id: 'r1', name: 'Jordan Lee' },
+    });
+    expect(row.person?.name).toBe('Jordan');
+    expect(row.href).toMatch(/settings\/#members$/);
+    expect(joinNeed({ id: 'r2', name: 'A', email: 'a@b.co', createdAt: '2026-10-21T11:00:00Z' }, 'T', now).pill?.label).toBe('Waiting 2 days');
+    expect(joinNeed({ id: 'r3', name: 'A', email: 'a@b.co', createdAt: '2026-10-23T11:45:00Z' }, 'T', now).pill?.label).toBe('New');
+  });
+
+  it('comes first, and folds into N more past three like any row', () => {
+    const review = { ...row, key: 'change-1', kind: 'review' as const, since: '2026-10-20T00:00:00Z' };
+    expect(sortNeeds([review, row]).map((r) => r.key)).toEqual(['join-r1', 'change-1']);
+    const rows = [review, { ...review, key: 'c2' }, { ...review, key: 'c3' }, row];
+    const { shown, more } = splitNeeds(sortNeeds(rows));
+    expect(shown[0]!.key).toBe('join-r1');
+    expect(more).toMatchObject({ count: 1, parts: '1 review' });
+    expect(splitNeeds([review, review, review, row, { ...row, key: 'j2' }]).more?.parts).toBe('2 join requests');
   });
 });

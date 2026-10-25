@@ -4,6 +4,7 @@
 // bridge_propose_token_change: a new local bridge/* branch, or a PR on a new bridge/* branch. Never main.
 import {
   type ChangePlan,
+  type ChangesMode,
   type HistoryEntry,
   type HistoryReport,
   type RevertResolution,
@@ -20,6 +21,8 @@ import type { BridgeContext } from './context.js';
 import { core, type TokenSet } from './core-adapter.js';
 import { normalizeTokenPath } from './ops.js';
 import { GitRefSource } from './source.js';
+import { changesFor, fileSuggestion, filesSuggestionPayload } from './suggestions.js';
+import { readOnlyPreview, say, sourceOf, toolName } from './say.js';
 
 const cache = new WeakMap<BridgeContext, { at: number; limit: number; report: HistoryReport }>();
 
@@ -97,7 +100,7 @@ export async function getHistory(ctx: BridgeContext, a: HistoryArgs = {}) {
     total: entries.length,
     entries: shown.map((e) => summarizeEntry(e, Boolean(a.includeChanges || token), token ? 50 : 25)),
     ...(report.entries.length ? {} : { note: 'No commit in the history Bridge can read changed a token yet.' }),
-    hint: 'bridge_get_token_history for one token; bridge_plan_revert { target: "<id, #PR or sha>" } to see what undoing a change takes.',
+    hint: say(ctx, 'bridge_get_token_history for one token; bridge_plan_revert { target: "<id, #PR or sha>" } to see what undoing a change takes.', '`bridge history <token>` for one token; `bridge revert <id, #PR or sha> --dry-run` to see what undoing a change takes.'),
   };
 }
 
@@ -128,18 +131,18 @@ export async function getTokenHistory(ctx: BridgeContext, a: { path: string; lim
       ...(i.after !== undefined ? { after: i.after, afterCss: i.afterCss } : {}),
       ...(i.fields.includes('description') ? { descriptionBefore: i.descriptionBefore, descriptionAfter: i.descriptionAfter } : {}),
     })),
-    ...(items.length ? { hint: 'Restore an older value with bridge_plan_revert { restore: { path, entry, mode } }.' } : { note: `No recorded change of ${path} in the history Bridge can read.` }),
+    ...(items.length ? { hint: say(ctx, 'Restore an older value with bridge_plan_revert { restore: { path, entry, mode } }.', `Restore an older value: \`bridge revert <id> --dry-run\` with the id of the change above (\`bridge history\` lists them).`) } : { note: `No recorded change of ${path} in the history Bridge can read.` }),
   };
 }
 
 /** Finds an entry by id ("pr-12"), PR number ("#12", "12"), or sha (7 characters or more). */
-export function findEntry(entries: HistoryEntry[], target: string): HistoryEntry {
+export function findEntry(entries: HistoryEntry[], target: string, ctx: { surface: 'mcp' | 'cli' } = { surface: 'mcp' }): HistoryEntry {
   const t = target.trim().replace(/^#/, '');
   const hit =
     entries.find((e) => e.id === t) ??
     (/^\d+$/.test(t) ? entries.find((e) => e.pr?.number === Number(t)) : undefined) ??
     (/^[0-9a-f]{7,40}$/i.test(t) ? entries.find((e) => e.sha.startsWith(t.toLowerCase())) : undefined);
-  if (!hit) throw new Error(`No token change "${target}" in the history Bridge can read. Use bridge_get_history to list entries (ids, PR numbers, shas).`);
+  if (!hit) throw new Error(`No token change "${target}" in the history Bridge can read. ${say(ctx, 'Use bridge_get_history to list entries (ids, PR numbers, shas).', '`bridge history` lists entries (ids, PR numbers, shas).')}`);
   return hit;
 }
 
@@ -183,9 +186,9 @@ async function buildPlan(ctx: BridgeContext, a: PlanArgs, tool: string): Promise
     let item;
     if (value === undefined) {
       if (!r.entry) throw new Error('restore needs value, or entry (the history entry whose value to put back).');
-      const e = findEntry(report.entries, r.entry);
+      const e = findEntry(report.entries, r.entry, ctx);
       const items = tokenHistory([e], path, config).filter((i) => !file || i.file === file);
-      if (!items.length) throw new Error(`${e.id} did not change ${path}${file ? ` in ${file}` : ''}. bridge_get_token_history lists the changes of a token.`);
+      if (!items.length) throw new Error(`${e.id} did not change ${path}${file ? ` in ${file}` : ''}. ${say(ctx, 'bridge_get_token_history lists', '`bridge history <token>` lists')} the changes of a token.`);
       if (items.length > 1 && !file) throw new Error(`${e.id} changed ${path} in ${items.map((i) => i.file).join(', ')}. Pass mode (for example {"theme":"dark"}) or file.`);
       item = items[0]!;
       file ??= item.file;
@@ -194,7 +197,7 @@ async function buildPlan(ctx: BridgeContext, a: PlanArgs, tool: string): Promise
     }
     return planRestore({ current, path, ...(file ? { file } : {}), value, ...(item ? { item, label: item.pr ? `#${item.pr.number}` : item.entryId } : {}), pairs, tool });
   }
-  const entry = findEntry(report.entries, a.target!);
+  const entry = findEntry(report.entries, a.target!, ctx);
   const later = report.entries.filter((e) => e.id !== entry.id && Date.parse(e.date) >= Date.parse(entry.date));
   const draft = planRevert({ current, entry, later, pairs, tool });
   const resolutions: Record<string, RevertResolution> = { ...(a.restoreConflicts ? Object.fromEntries(draft.conflicts.map((c) => [c.key, 'use-before' as const])) : {}), ...(a.resolutions ?? {}) };
@@ -221,17 +224,50 @@ const planReport = (plan: ChangePlan) => ({
   notes: plan.notes,
 });
 
-/** Dry run: what undoing a change (or restoring a token) takes, conflicts included. Writes nothing. */
-export async function planRevertOp(ctx: BridgeContext, a: PlanArgs & { includeBody?: boolean }) {
-  const plan = await buildPlan(ctx, a, 'Bridge MCP');
+/** Items per list in a bridge_plan_revert answer, and the longest PR body it returns, so a bulk revert stays readable. */
+export const PLAN_PAGE = 50;
+export const PLAN_BODY_MAX = 20_000;
+
+/**
+ * One page of each list of a plan report (edits, conflicts, skipped, changes), with the totals and how to read the
+ * rest. The whole plan is still what bridge_propose_revert opens.
+ */
+export function pagePlanReport<R extends { edits: unknown[]; conflicts: unknown[]; skipped: unknown[]; changes: unknown[] }>(report: R, limit = PLAN_PAGE, offset = 0) {
+  const counts = { edits: report.edits.length, conflicts: report.conflicts.length, skipped: report.skipped.length, changes: report.changes.length };
+  const longest = Math.max(...Object.values(counts));
+  const end = offset + limit;
+  const page = <T,>(list: T[]) => list.slice(offset, end);
   return {
-    ...planReport(plan),
-    ...(a.includeBody !== false && plan.status !== 'nothing-to-do' ? { prBody: plan.prBody } : {}),
+    ...report,
+    edits: page(report.edits),
+    conflicts: page(report.conflicts),
+    skipped: page(report.skipped),
+    changes: page(report.changes),
+    counts,
+    ...(offset > 0 || end < longest
+      ? { truncated: `Lists show items ${Math.min(offset + 1, longest)} to ${Math.min(end, longest)} of up to ${longest} (counts has each total).${end < longest ? ` Pass offset ${end} for the next ones.` : ''}` }
+      : {}),
+  };
+}
+
+const capBody = (body: string) =>
+  body.length > PLAN_BODY_MAX ? { prBody: `${body.slice(0, PLAN_BODY_MAX)}\n... (cut)`, prBodyNote: `The PR body has ${body.length} characters; the first ${PLAN_BODY_MAX} are shown. It is written in full when the revert is proposed.` } : { prBody: body };
+
+/** Dry run: what undoing a change (or restoring a token) takes, conflicts included. Writes nothing. */
+export async function planRevertOp(ctx: BridgeContext, a: PlanArgs & { includeBody?: boolean; limit?: number; offset?: number }) {
+  const plan = await buildPlan(ctx, a, toolName(ctx.surface));
+  return {
+    ...pagePlanReport(planReport(plan), a.limit, a.offset),
+    ...(a.includeBody !== false && plan.status !== 'nothing-to-do' ? capBody(plan.prBody) : {}),
     next:
       plan.status === 'ready'
         ? plan.conflicts.length
-          ? 'Conflicts are kept at their current value. To restore one anyway pass resolutions { "<key>": "use-before" } (or restoreConflicts: true), then bridge_propose_revert with the same arguments.'
-          : 'bridge_propose_revert with the same arguments opens it as a branch or PR (never main).'
+          ? say(
+              ctx,
+              'Conflicts are kept at their current value. To restore one anyway pass resolutions { "<key>": "use-before" } (or restoreConflicts: true), then bridge_propose_revert with the same arguments.',
+              'Conflicts are kept at their current value. To restore one anyway add --use-before <key> (or --restore-conflicts), then run it again without --dry-run.',
+            )
+          : say(ctx, 'bridge_propose_revert with the same arguments opens it as a branch or PR (never main).', 'Run it again without --dry-run to open it as a suggestion or a branch (never main).')
         : plan.status === 'blocked'
           ? 'Blocked: it would add validation errors or break a contrast pair. Bridge does not open it.'
           : 'Nothing to propose.',
@@ -239,11 +275,23 @@ export async function planRevertOp(ctx: BridgeContext, a: PlanArgs & { includeBo
 }
 
 /** Plans, then commits to a new local bridge/* branch or opens a PR on a new bridge/* branch. Never main. */
-export async function proposeRevert(ctx: BridgeContext, a: PlanArgs & { dryRun?: boolean }) {
+export async function proposeRevert(ctx: BridgeContext, a: PlanArgs & { dryRun?: boolean; changes?: ChangesMode | undefined; source?: 'mcp' | 'cli' | undefined }) {
   const { config } = await ctx.config();
-  const plan = await buildPlan(ctx, a, ctx.mode === 'local' ? 'the bridge CLI' : 'Bridge MCP');
+  const plan = await buildPlan(ctx, a, toolName(sourceOf(ctx, a.source)));
   const report = planReport(plan);
   if (plan.status !== 'ready') return { ...report, hint: plan.status === 'blocked' ? 'Bridge never opens a change that breaks the gate.' : 'Nothing to propose.' };
+  // Suggest mode: the revert's files in one suggestion issue, applied by a developer once approved.
+  if ((await changesFor(ctx, a.changes)) === 'suggest') {
+    const summary = plan.commitMessage.split('\n').slice(1).join('\n').trim() || plan.prTitle;
+    const r = await fileSuggestion(
+      ctx,
+      (base, by) => filesSuggestionPayload(ctx, { kind: 'revert', title: plan.prTitle, summary, files: plan.files, tier: { tier: plan.tier.tier, bump: plan.tier.bump }, base, source: a.source ?? 'mcp', suggestedBy: by, checks: { newErrors: plan.newErrors.length } }),
+      { labels: [plan.kind === 'revert' ? 'revert' : 'restore', ...(plan.tier.tier === 3 ? ['tokens'] : []), ...(plan.tier.bump === 'major' ? ['breaking'] : [])], details: plan.prBody, dryRun: a.dryRun },
+    );
+    if (r.status === 'dry-run') return { ...report, status: 'dry-run', changesMode: 'suggest', suggestion: r.suggestion, fileContents: plan.files };
+    if (r.status === 'preview') return { ...report, status: 'preview', message: r.message, changesMode: 'suggest', fileContents: plan.files };
+    return { ...report, status: 'suggested', changesMode: 'suggest', number: r.number, url: r.url, version: r.sha.slice(0, 7), labels: r.labels, ...(r.warnings.length ? { warnings: r.warnings } : {}), next: r.next };
+  }
   if (a.dryRun) return { ...report, status: 'dry-run', prBody: plan.prBody, fileContents: plan.files };
   const prefix = config.governance.branchPrefix;
   let branch = plan.branch;
@@ -264,7 +312,7 @@ export async function proposeRevert(ctx: BridgeContext, a: PlanArgs & { dryRun?:
     };
   }
   const gh = (await ctx.github())!;
-  if (!ctx.canWriteRemote) return { ...report, status: 'preview', message: 'Read-only: set GITHUB_TOKEN to open this as a pull request.', prBody: plan.prBody, fileContents: plan.files };
+  if (!ctx.canWriteRemote) return { ...report, status: 'preview', message: readOnlyPreview(ctx), prBody: plan.prBody, fileContents: plan.files };
   const base = ctx.ref ?? baseBranchOf(config);
   for (let i = 2; await gh.getBranchSha(branch).then(Boolean, () => false); i++) branch = `${plan.branch}-${i}`;
   const commit = await gh.commitToNewBranch({ base, branch, message: plan.commitMessage, files: plan.files });

@@ -1,5 +1,6 @@
 // The app screens captured for every DS change: the admin back office, per tenant (each tenant is a brand)
 // and theme. Ids are stable record ids of the seeded demo data.
+import { storybookIframeUrl } from '@bridge-ds/core';
 import type { AppRoute, Tenant } from './types.js';
 
 export const DEFAULT_ROUTES: AppRoute[] = [
@@ -34,7 +35,7 @@ export function routeUrl(base: string, route: AppRoute, tenant: string, theme: s
 
 /** URL of one story in the built Storybook, with brand and theme set as Storybook globals. */
 export function storyUrl(base: string, id: string, brand: string, theme: string): string {
-  return `${base.replace(/\/$/, '')}/iframe.html?id=${encodeURIComponent(id)}&viewMode=story&globals=brand:${brand};theme:${theme};density:comfortable`;
+  return storybookIframeUrl(base, id, { globals: { brand, theme, density: 'comfortable' } });
 }
 
 /** File-safe shot key. */

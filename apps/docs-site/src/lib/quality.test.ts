@@ -126,7 +126,7 @@ describe('adoption in plain words', () => {
   });
 
   it('says the component metric in one sentence', () => {
-    expect(componentSentence({ componentAdoption: 90.2, dsComponentInstances: 239, uiComponentInstances: 265 })).toBe('90.2% of components come from Bridge (239 of 265).');
+    expect(componentSentence({ componentAdoption: 90.2, dsComponentInstances: 239, uiComponentInstances: 265 })).toBe('90.2% of components come from the design system (239 of 265).');
   });
 
   it('names the baseline in plain words and says the change in points', () => {
@@ -142,13 +142,13 @@ describe('adoption in plain words', () => {
 
   it('sums a report up in one sentence', () => {
     expect(adoptionSummary({ tokenAdoption: 100, componentAdoption: 90.2 }, { tokenAdoption: 0, componentAdoption: 0 })).toBe(
-      '100% of styling values and 90.2% of components come from Bridge, up from 0% before the move.',
+      '100% of styling values and 90.2% of components come from the design system, up from 0% before the move.',
     );
     expect(adoptionSummary({ tokenAdoption: 100, componentAdoption: 100 }, { tokenAdoption: 9.7, componentAdoption: 52.8 })).toBe(
-      '100% of styling values and 100% of components come from Bridge, up from 9.7% and 52.8% before the move.',
+      '100% of styling values and 100% of components come from the design system, up from 9.7% and 52.8% before the move.',
     );
-    expect(adoptionSummary({ tokenAdoption: 40, componentAdoption: 50 }, null)).toBe('40% of styling values and 50% of components come from Bridge.');
-    expect(adoptionSummary({ tokenAdoption: 0, componentAdoption: 0 }, null, true)).toBe('0% of styling values and 0% of components came from Bridge before the move.');
+    expect(adoptionSummary({ tokenAdoption: 40, componentAdoption: 50 }, null)).toBe('40% of styling values and 50% of components come from the design system.');
+    expect(adoptionSummary({ tokenAdoption: 0, componentAdoption: 0 }, null, true)).toBe('0% of styling values and 0% of components came from the design system before the move.');
   });
 
   it('lists the component sources with counts, empty ones left out', () => {

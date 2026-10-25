@@ -1,5 +1,5 @@
 // Changes > Requests > detail: Assign someone and Decline, from the decision zone. The detail is painted by
-// scripts/requests.ts; its buttons send a `bridge:request-assign` or `bridge:request-decline` event with what to say
+// scripts/requests.ts (Decline serves suggestions too, scripts/suggestions.ts); its buttons send a `bridge:request-assign` or `bridge:request-decline` event with what to say
 // and what to do (the GitHub calls stay in the script, with the viewer's own token). Assign shows a DS Combobox of the
 // people who can push, in place; Decline a DS Dialog with a required reason that says who reads it. Errors stay next
 // to the action, with how to fix them.
@@ -29,6 +29,8 @@ export interface DeclineAskDetail {
   /** Posts the reason and closes the request. Throws with a sentence that says how to fix it. */
   confirm: (reason: string) => Promise<void>;
   closed: (done: boolean) => void;
+  /** What is declined, in the title and on the button: "request" (default) or "suggestion" (scripts/suggestions.ts). */
+  noun?: 'request' | 'suggestion';
 }
 
 export const ASSIGN_EVENT = 'bridge:request-assign';
@@ -168,14 +170,14 @@ function DeclineDialog() {
     <Dialog open={detail !== null} onOpenChange={(o) => !o && !busy && close(false)}>
       <DialogContent
         size="sm"
-        title="Decline this request?"
+        title={`Decline this ${detail?.noun ?? 'request'}?`}
         description={detail?.audience}
         initialFocus={field}
         footer={
           <ButtonGroup align="end">
             <DialogClose render={<Button variant="secondary" disabled={busy} />}>Keep it</DialogClose>
             <Button variant="danger" loading={busy} disabled={busy} onClick={() => void confirm()}>
-              {busy ? 'Declining' : 'Decline request'}
+              {busy ? 'Declining' : `Decline ${detail?.noun ?? 'request'}`}
             </Button>
           </ButtonGroup>
         }

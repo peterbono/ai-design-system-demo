@@ -2,8 +2,10 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { allPages, HOW_REVIEW_WORKS, locate, navFor, SETTINGS_HOME, SETTINGS_SECTIONS, spaceOf } from './nav';
-import { REDIRECTS, redirectScript, redirectTarget } from './redirects';
+import { ABOUT, allPages, COMPARE, DEMO, DOCS_FIGMA_PLUGIN, DOCS_HOME, HOW_REVIEW_WORKS, LANDING, LIBRARY_HOME, locate, navFor, SETTINGS_HOME, SETTINGS_SECTIONS, spaceOf, WORKSPACE_SETTINGS, workspaceNav } from './nav';
+import { WORKSPACE_HOME } from './start';
+import { DEMO_REPOS } from './demo';
+import { REDIRECT_SCRIPT_BODY, REDIRECTS, redirectScript, redirectTarget } from './redirects';
 import { ROOT } from './repo';
 
 const PAGES = join(ROOT, 'apps/docs-site/src/pages');
@@ -48,11 +50,54 @@ describe('navigation data', () => {
   it('finds the group and entry for breadcrumbs, nested pages included', () => {
     expect(locate('/foundations/accessibility/')).toMatchObject({ space: 'library', group: 'Foundations', item: { label: 'Accessibility' } });
     expect(locate('/tokens/')).toMatchObject({ space: 'library', group: 'Foundations', item: { label: 'All tokens' } });
-    expect(locate('/studio/changes/')).toMatchObject({ space: 'studio', item: { label: 'Branches' } });
+    expect(locate('/studio/changes/')).toMatchObject({ space: 'studio', item: { label: 'Changes' } });
     expect(locate('/studio/review/')).toMatchObject({ space: 'studio', item: { label: 'Home' } });
     expect(locate('/components/button/').entry?.label).toBe('Components');
     expect(locate('/studio/settings/')).toMatchObject({ space: 'studio', item: { label: 'Settings' } });
     expect(locate(HOW_REVIEW_WORKS)).toMatchObject({ space: 'library', group: 'Use', item: { label: 'How review works' } });
+  });
+});
+
+describe('routing: the landing at /, the Library home at /library/', () => {
+  it('serves the landing and the comparison outside the side nav', () => {
+    expect(LANDING).toBe('/');
+    expect(COMPARE).toBe('/compare/');
+    expect(pageFile(LANDING)).toMatch(/pages\/index\.astro$/);
+    expect(pageFile(COMPARE)).toMatch(/pages\/compare\.astro$/);
+    expect(allPages().map((p) => p.href)).not.toContain(LANDING);
+  });
+
+  it('serves About and the docs pages the header and footer link to, outside the side nav', () => {
+    expect(pageFile(ABOUT)).toMatch(/pages\/about\.astro$/);
+    expect(pageFile(DOCS_HOME)).toMatch(/pages\/docs\/index\.astro$/);
+    expect(pageFile(DOCS_FIGMA_PLUGIN)).toMatch(/pages\/docs\/figma-plugin\.astro$/);
+    const hrefs = allPages().map((p) => p.href);
+    for (const href of [ABOUT, DOCS_HOME, DOCS_FIGMA_PLUGIN]) expect(hrefs).not.toContain(href);
+  });
+
+  it('points the header and the homepage at routes that exist', () => {
+    const header = readFileSync(join(ROOT, 'apps/docs-site/src/components/site/SiteHeader.astro'), 'utf8');
+    const footer = readFileSync(join(ROOT, 'apps/docs-site/src/components/site/SiteFooter.astro'), 'utf8');
+    for (const name of ['ABOUT', 'DOCS_HOME', 'DOCS_FIGMA_PLUGIN', 'STUDIO_HOME']) expect(header).toContain(name);
+    for (const name of ['ABOUT', 'DOCS_HOME', 'DOCS_FIGMA_PLUGIN', 'STUDIO_HOME']) expect(footer).toContain(name);
+    // The comparison lives on the homepage: the footer does not link it again.
+    expect(footer).not.toContain('COMPARE');
+    // The demo is the hosted Studio of the dedicated demo repo, served by the team shell rewrite.
+    expect(DEMO).toBe(`/studio/${DEMO_REPOS[1]}/`);
+    expect(pageFile('/team-shell/')).not.toBeNull();
+  });
+
+  it('moves only the Library home: its entry, breadcrumbs and deep links stay', () => {
+    expect(LIBRARY_HOME).toBe('/library/');
+    expect(pageFile(LIBRARY_HOME)).toMatch(/pages\/library\/index\.astro$/);
+    expect(navFor('library')[0]).toMatchObject({ href: '/library/', label: 'Home' });
+    expect(locate('/library/')).toMatchObject({ space: 'library', item: { label: 'Home' } });
+    expect(locate('/components/button/').entry?.label).toBe('Components');
+    expect(pageFile('/foundations/color/')).not.toBeNull();
+  });
+
+  it('sends the old playground to the Library home', () => {
+    expect(REDIRECTS['/playground']).toBe(LIBRARY_HOME);
   });
 });
 
@@ -65,17 +110,17 @@ describe('navigation shape', () => {
 
   it('shows one count in the Studio nav: reviews, on Changes', () => {
     const counted = navFor('studio').filter((e) => e.badge);
-    expect(counted.map((e) => [e.label, e.badge])).toEqual([['Branches', 'reviews']]);
+    expect(counted.map((e) => [e.label, e.badge])).toEqual([['Changes', 'reviews']]);
   });
 });
 
 describe('studio nav', () => {
-  it('lists Overview, Tokens, Components, Branches, Quality, Settings', () => {
-    expect(navFor('studio').map((e) => e.label)).toEqual(['Home', 'Branches', 'Components', 'Tokens', 'Quality', 'Settings']);
+  it('lists Home, Branches, Being built, Components, Tokens, Quality, Settings', () => {
+    expect(navFor('studio').map((e) => e.label)).toEqual(['Home', 'Changes', 'Being built', 'Components', 'Tokens', 'Quality', 'Settings']);
   });
 
   it('makes Changes one page with the review count, and drops the pages it replaced', () => {
-    const changes = navFor('studio').find((e) => e.label === 'Branches')!;
+    const changes = navFor('studio').find((e) => e.label === 'Changes')!;
     expect(changes).toMatchObject({ href: '/studio/changes/', badge: 'reviews' });
     expect(changes.children).toBeUndefined();
     const hrefs = allPages().map((p) => p.href);
@@ -103,18 +148,18 @@ describe('settings', () => {
     for (const gone of ['/studio/settings/governance/', '/studio/settings/integrations/']) expect(hrefs).not.toContain(gone);
   });
 
-  it('has its sections in order, the Repository line in the Account band, no developer section', () => {
+  it('has its sections in order, the team first, the Repository facts in a For developers fold', () => {
     const at = SETTINGS_SECTIONS.map((id) => page.indexOf(`id="${id}"`));
     expect(at.every((i) => i > 0)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
-    expect(SETTINGS_SECTIONS).toEqual(['connection', 'repository', 'roles', 'approvals', 'tools', 'integrations']);
-    expect(page).not.toContain('For developers');
-    expect(page).not.toContain('data-dev-fold');
+    expect(SETTINGS_SECTIONS).toEqual(['general', 'repository', 'roles', 'approvals', 'tools', 'integrations']);
+    // The account is the account menu's dialog (board D9): no Account band, no GitHub connection here.
+    expect(page).not.toContain('SettingsAccount');
+    expect(page).not.toContain('AccountSettings');
+    expect(page.match(/<DevFold/g)).toHaveLength(2);
   });
 
-  it('opens on the Account band, keeps one primary per edit mode and a GitHub link instead of developer details', () => {
-    // The connection states (and Connect GitHub, the one primary at rest) live in the Account island.
-    expect(page).toMatch(/<SettingsAccount client:load[^>]*>\s*<Illustration name="review"/);
+  it('keeps one primary per edit mode and a GitHub link in the developer facts', () => {
     // Review rules and Safety each request a review from a save bar that shows only after Edit or Change.
     expect(page.match(/variant="primary"/g)).toHaveLength(2);
     expect(page.match(/<div class="set-savebar[^"]*" data-edit>\s*<div class="rq-actions">\s*<Button variant="primary" type="submit" data-roles-submit/g)).toHaveLength(2);
@@ -126,11 +171,11 @@ describe('settings', () => {
     expect(page.match(/<Badge/g)).toHaveLength(2);
   });
 
-  it('puts every band in the 1200px page, Account first and Integrations last', () => {
-    const order = ['id="connection"', 'id="roles"', 'id="safety"', 'id="tools"', 'id="integrations"'].map((x) => page.indexOf(x));
+  it('puts every band in the 1200px page, General (the team name) first, then the team rules, and Appearance (this browser) last', () => {
+    const order = ['id="general"', 'id="team"', 'id="library-access"', 'id="changes"', 'id="roles"', 'id="safety"', 'id="tools"', 'id="integrations"', 'id="appearance"'].map((x) => page.indexOf(x));
     expect(order.every((i) => i > 0)).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
-    expect(page.match(/<section class="set-band"/g)).toHaveLength(5);
+    expect(page.match(/<section class="set-band"/g)).toHaveLength(9);
     expect(page.indexOf('<div class="set-page">')).toBeLessThan(order[0]!);
   });
 
@@ -174,15 +219,30 @@ describe('redirects', () => {
 
   it('inlines the same rules in the redirect page script', () => {
     const script = redirectScript('/studio/changes/?view=history');
-    const body = script.replace(/^<script>|<\/script>$/g, '');
+    const m = script.match(/^<script data-to="([^"]*)">(.*)<\/script>$/)!;
+    expect(m[2]).toBe(REDIRECT_SCRIPT_BODY);
+    const to = m[1]!.replace(/&amp;/g, '&');
     let landed = '';
     const fakeLocation = { search: '?entry=abc', hash: '', replace: (u: string) => (landed = u) };
-    new Function('location', body)(fakeLocation);
+    const fakeDocument = { currentScript: { getAttribute: () => to } };
+    new Function('location', 'document', m[2]!)(fakeLocation, fakeDocument);
     expect(landed).toBe(redirectTarget('/studio/changes/?view=history', '?entry=abc', ''));
   });
 
   it('never shadows a real page', () => {
     const shadowed = Object.keys(REDIRECTS).filter((from) => pageFile(from));
     expect(shadowed).toEqual([]);
+  });
+});
+
+describe('the browser workspace rail', () => {
+  it('links only to the workspace home and its team Settings, never to the pages of Bridge\'s own design system', () => {
+    const hrefs = workspaceNav().map((e) => e.href);
+    expect(hrefs).toEqual([WORKSPACE_HOME, WORKSPACE_SETTINGS]);
+    for (const own of navFor('studio').slice(1)) expect(hrefs).not.toContain(own.href);
+  });
+
+  it('marks the workspace home as the current page of Studio', () => {
+    expect(locate(WORKSPACE_HOME).space).toBe('studio');
   });
 });

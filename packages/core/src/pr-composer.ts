@@ -4,7 +4,7 @@ import type { AcceptedChange } from './compose';
 import { resolve } from './resolver';
 import { type TokenSet, contextFor, modesOf } from './token-set';
 import { type LogicalToken, SINGLE_MODE, TIER_AXIS, TIER_NAMES, isMultiMode, modeDisplayName } from './types';
-import { RISK_LABELS, classifyRisk } from './risk';
+import { RISK_LABELS, classifyRisk, figmaPushNextLine, figmaPushTierLabel, summarizeTokenChange } from './risk';
 import type { ProposalValidation } from './validators';
 import { formatValue, isAlias, valuesEqual } from './values';
 import { type ContrastResult, contextLabel, pairKey } from './wcag';
@@ -153,6 +153,11 @@ export interface PrInput {
   upstreamPaths: string[];
   /** Conflicts resolved before opening the PR: "edit" kept the edited side, "main" kept the base branch. */
   resolvedConflicts: { path: string; choice: 'figma' | 'edit' | 'main' }[];
+  /**
+   * Pushed from the Figma plugin: design-approved (docs/BUILD-REQUESTS.md), so the tier line says what happens next
+   * instead of the approvals. Off unless set (the plugin passes it for a push).
+   */
+  fromFigma?: boolean | undefined;
 }
 
 /** Where a token change comes from. The plugin, the CLI and the MCP server each pass their own. */
@@ -173,10 +178,12 @@ export function composePrBody(input: PrInput): string {
   lines.push('## What changed and why', '');
   const o = input.origin;
   lines.push(input.notes.trim() || `Token edits made in ${o.surface}${o.location ? ` ("${o.location}")` : ''}, exported with ${o.tool}.`);
-  lines.push('', `Opened from ${o.tool}. ${o.surface} is the editing surface; this PR is the change. Nothing is merged until it is reviewed.`);
-  lines.push('');
   const risk = classifyRisk({ tokenChanges: changes });
-  lines.push('## Risk tier', '', `- [x] ${risk.label}`, '');
+  const fromFigma = input.fromFigma === true;
+  const kinds = changes.map(summarizeTokenChange);
+  lines.push('', `Opened from ${o.tool}. ${o.surface} is the editing surface; this PR is the change. ${fromFigma ? figmaPushNextLine(kinds) : 'Nothing is merged until it is reviewed.'}`);
+  lines.push('');
+  lines.push('## Risk tier', '', `- [x] ${fromFigma ? figmaPushTierLabel(risk.tier, kinds) : risk.label}`, '');
   lines.push('## Changes', '');
   const header = ['Token', 'Tier', 'Change', 'Value (old -> new)', 'Contrast (before -> after)'];
   lines.push(`| ${header.join(' | ')} |`, `| ${header.map(() => '---').join(' | ')} |`);

@@ -1,0 +1,72 @@
+/* How far Bridge has gone reading a design system (components/ds/studio/LoadProgress): one calm region in the page
+   width, the steps as a short list, the bar under the step it measures. */
+
+.lp {
+  max-width: var(--size-120);
+  padding: var(--space-5);
+  border: var(--border-width-default) solid var(--color-border-subtle);
+  border-radius: var(--radius-container);
+  background-color: var(--color-bg-default);
+}
+
+.lp-steps {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lp-step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.lp-step[data-state='done'] {
+  color: var(--color-text-muted);
+}
+
+.lp-step[data-state='current'] .lp-label {
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-medium);
+}
+
+/* The icon sits on the first line of its label. */
+.lp-icon {
+  margin-block-start: calc((var(--typography-ui-line-height) * var(--typography-ui-size) - var(--size-4)) / 2);
+  color: var(--color-text-muted);
+}
+
+.lp-step[data-state='current'] .lp-icon {
+  color: var(--color-signal-default);
+}
+
+.lp[data-done] .lp-step[data-state='current'] .lp-icon {
+  color: var(--color-feedback-success-icon);
+}
+
+.lp-body {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.lp-bar {
+  margin-block-start: var(--space-1);
+}
+
+.lp-detail {
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Before the read shows (a cache hit settles first): hold the place, show nothing. */
+.lp-wait {
+  min-height: var(--size-20);
+}

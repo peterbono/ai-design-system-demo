@@ -2,9 +2,11 @@
 // commit, then shows each changed story or screen with a before/after slider and a diff toggle. Returns what the
 // collapsed section header shows: the number of changed screens and a small before/after thumbnail.
 import { badgeHtml } from '@bridge-ds/react/dom';
-import { VISUAL_CHECK_LABEL } from '@bridge-ds/core';
+import { hasVisualWorkflow, VISUAL_CHECK_LABEL, VISUAL_CHECKS_DOCS } from '@bridge-ds/core';
 import { changeLabel, facet, filterShots, modeLabel, VISUAL_BRANCH, visualAsk, visualBase, visualState, type VisualFilter, type VisualManifest, type VisualShot } from '../../lib/visual-impact';
+import { attrUrl } from '../../lib/html';
 import { esc, GitHubError, ghGet, ghWrite, hasWorkingToken, onAccess, showGhError } from '../github-session';
+import { siteConfig } from '../repo-context';
 
 const PAGE = 8;
 
@@ -45,6 +47,27 @@ export async function impactOf(owner: string, repo: string, pr: number, sha: str
   }
 }
 
+const workflowReads = new Map<string, Promise<boolean | null>>();
+
+/**
+ * Whether the repo has the visual impact workflow (core hasVisualWorkflow over .github/workflows), read once per page.
+ * False when the folder or the file is not there; null when GitHub could not say (the ask then shows as before).
+ */
+export function visualWorkflowPresent(owner: string, repo: string): Promise<boolean | null> {
+  const key = `${owner}/${repo}`;
+  let p = workflowReads.get(key);
+  if (!p) {
+    p = ghGet<{ name: string; path: string }[]>(`/repos/${owner}/${repo}/contents/.github/workflows`)
+      .then((f) => (Array.isArray(f.data) ? hasVisualWorkflow(f.data.map((x) => x.path)) : null))
+      .catch((err) => (err instanceof GitHubError && err.status === 404 ? false : null));
+    workflowReads.set(key, p);
+  }
+  return p;
+}
+
+/** The quiet line where the before and after would be, on a repo without visual checks: a link to set them up. */
+const SET_UP_LINE = `<p class="cg-line rv-what-quiet">This repo has no visual checks yet. <a href="${attrUrl(VISUAL_CHECKS_DOCS)}" target="_blank" rel="noopener">Set up visual checks</a></p>`;
+
 export interface VisualSummary {
   /** Changed screens and stories; null when the workflow has not run for this commit (or could not be read). */
   changed: number | null;
@@ -65,7 +88,8 @@ export interface VisualSummary {
 
 export async function loadVisualImpact(
   slot: HTMLElement,
-  o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string },
+  /** `designer`: say who starts a run, never GitHub steps (a label to add, a run to follow). */
+  o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string; designer?: boolean },
   /** The before/after slot on top of the pull request: on demand, the ask lives there, not in the collapsed list. */
   topSlot?: HTMLElement,
 ): Promise<VisualSummary> {
@@ -84,12 +108,17 @@ export async function loadVisualImpact(
   }
   const state = visualState(manifest);
   if (state.kind === 'not-computed') {
+    // No workflow: no label to add and nothing that runs again, only how to set it up.
+    if ((await visualWorkflowPresent(o.owner, o.repo)) === false) {
+      (topSlot ?? slot).innerHTML = SET_UP_LINE;
+      return { changed: null, thumb: '', paintedTop: Boolean(topSlot) };
+    }
     const onTop = Boolean(topSlot) && visualMode() === 'on-demand';
     const asked = await notRun(onTop ? topSlot! : slot, o);
     return { changed: null, thumb: '', asked, paintedTop: onTop };
   }
   const m = state.manifest;
-  const head = `<p class="small muted">${m.summary.shots} screenshot${m.summary.shots === 1 ? '' : 's'} compared with main, threshold ${m.options.threshold}.${
+  const head = `<p class="small muted">${esc(String(m.summary.shots))} screenshot${m.summary.shots === 1 ? '' : 's'} compared with main, threshold ${esc(String(m.options.threshold))}.${
     m.selection.components.length ? ` Components in scope: ${m.selection.components.map((c) => esc(c.id)).join(', ')}.` : ''
   }${m.selection.fallback ? ` ${esc(m.selection.fallback)}` : ''}</p>`;
   if (state.kind === 'no-change') {
@@ -166,7 +195,7 @@ export function renderTopChange(slot: HTMLElement, v: VisualSummary, allHref: st
   const t = v.top;
   // "Order edit, light": the screen and the theme; the shop is the same for every screen of a change.
   slot.innerHTML = `<div class="rv-what-head"><p class="cg-line">Drag the handle to compare before and after.</p>${
-    n > 1 ? `<a href="${esc(allHref)}" data-open-visual>See all ${n} screens</a>` : ''
+    n > 1 ? `<a href="${attrUrl(allHref)}" data-open-visual>See all ${n} screens</a>` : ''
   }</div>${shotCard(t, v.base, t.theme)}<p class="small muted rv-what-caption">${esc(t.kind === 'route' ? 'App screen' : 'Component examples')}: ${esc(t.label)}${t.theme ? `, ${esc(t.theme)}` : ''}. ${n > 1 ? `The screen that changes most of the ${n} that change.` : 'The only screen that changes.'}</p>`;
   wire(slot);
 }
@@ -174,7 +203,7 @@ export function renderTopChange(slot: HTMLElement, v: VisualSummary, allHref: st
 /** visualImpact.mode from bridge.config.json, embedded by the layout. */
 function visualMode(): 'auto' | 'on-demand' {
   try {
-    const site = JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { visualImpact?: { mode?: string } };
+    const site = siteConfig() as { visualImpact?: { mode?: string } };
     return site.visualImpact?.mode === 'on-demand' ? 'on-demand' : 'auto';
   } catch {
     return 'auto';
@@ -185,16 +214,21 @@ function visualMode(): 'auto' | 'on-demand' {
  * No manifest for this commit. Automatic mode: the run is on its way, link to it. On demand: one button that adds
  * the visual-check label (the workflow runs on that label), or the way to do it on GitHub without a write token.
  */
-async function notRun(slot: HTMLElement, o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string }): Promise<boolean> {
+async function notRun(slot: HTMLElement, o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string; designer?: boolean }): Promise<boolean> {
   const mode = visualMode();
-  const run = `<a href="${esc(o.actionsUrl)}" target="_blank" rel="noopener">Follow the run</a>`;
+  const run = `<a href="${attrUrl(o.actionsUrl)}" target="_blank" rel="noopener">Follow the run</a>`;
   let labels = mode === 'on-demand' ? await ghGet<{ name: string }[]>(`/repos/${o.owner}/${o.repo}/issues/${o.pr}/labels`).then((f) => f.data, () => null) : null;
   const paint = (canWrite: boolean) => {
     const ask = visualAsk({ mode, labels, canWrite, label: VISUAL_CHECK_LABEL });
     const lead = '<p class="cg-line">Your team shows the before and after on demand.</p>';
-    slot.innerHTML =
-      ask === 'auto'
-        ? `<p class="cg-line">Not run yet for the latest edits. <a href="${esc(o.actionsUrl)}" target="_blank" rel="noopener">Run it on GitHub</a></p>`
+    slot.innerHTML = o.designer && ask !== 'ask'
+      ? ask === 'auto'
+        ? '<p class="cg-line">Not run yet for the latest edits. The before and after shows here once it runs.</p>'
+        : ask === 'asked'
+          ? '<p class="cg-line">The before and after shows here once the run finishes.</p>'
+          : `<div class="vi-ask">${lead}<p class="cg-line">A developer can start it for this branch.</p></div>`
+      : ask === 'auto'
+        ? `<p class="cg-line">Not run yet for the latest edits. <a href="${attrUrl(o.actionsUrl)}" target="_blank" rel="noopener">Run it on GitHub</a></p>`
         : ask === 'asked'
           ? `<p class="cg-line">The before and after shows here once the run on GitHub finishes. ${run}</p>`
           : ask === 'ask'
@@ -235,17 +269,20 @@ const START = 25;
 /** One before/after card. `meta` replaces the mode line (the change view on top says the theme only). */
 function shotCard(s: VisualShot, base: string, meta: string = modeLabel(s)): string {
   const size = s.size.after ?? s.size.before ?? { width: 4, height: 3 };
+  // The manifest is a repo file: its sizes reach a style and width/height attributes, so they are numbers.
+  const w = Number(size.width);
+  const h = Number(size.height);
   const url = (p?: string) => (p ? `${base}/${p}` : '');
   const alt = `${s.label}, ${modeLabel(s)}`;
   const boxes = s.boxes
-    .map((b) => `<i style="left:${(b.x / size.width) * 100}%;top:${(b.y / size.height) * 100}%;width:${(b.width / size.width) * 100}%;height:${(b.height / size.height) * 100}%"></i>`)
+    .map((b) => `<i style="left:${(b.x / w) * 100}%;top:${(b.y / h) * 100}%;width:${(b.width / w) * 100}%;height:${(b.height / h) * 100}%"></i>`)
     .join('');
   const tone = s.status === 'error' ? 'danger' : 'neutral';
   const compare =
     s.images.before && s.images.after
-      ? `<div class="vi-compare" style="--pos:${START}%;aspect-ratio:${size.width} / ${size.height}">
-          <img class="vi-img" src="${esc(url(s.images.after))}" alt="After: ${esc(alt)}" loading="lazy" width="${size.width}" height="${size.height}" />
-          <div class="vi-before"><img class="vi-img" src="${esc(url(s.images.before))}" alt="Before: ${esc(alt)}" loading="lazy" width="${size.width}" height="${size.height}" /></div>
+      ? `<div class="vi-compare" style="--pos:${START}%;aspect-ratio:${w} / ${h}">
+          <img class="vi-img" src="${esc(url(s.images.after))}" alt="After: ${esc(alt)}" loading="lazy" width="${w}" height="${h}" />
+          <div class="vi-before"><img class="vi-img" src="${esc(url(s.images.before))}" alt="Before: ${esc(alt)}" loading="lazy" width="${w}" height="${h}" /></div>
           ${s.images.diff ? `<img class="vi-img vi-diffimg" src="${esc(url(s.images.diff))}" alt="Changed pixels: ${esc(alt)}" loading="lazy" hidden />` : ''}
           <div class="vi-boxes" aria-hidden="true">${boxes}</div>
           <span class="vi-handle" aria-hidden="true"></span>

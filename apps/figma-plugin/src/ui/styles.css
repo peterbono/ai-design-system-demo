@@ -1,4 +1,4 @@
-/* DS Bridge UI.
+/* Bridge UI.
    Operate surface inside Figma: it borrows Figma's own theme (themeColors: true exposes
    var(--figma-color-*), switching with the editor's light/dark theme) and Figma's compact
    rhythm, so it feels native. Bridge brand on top (Field Guide, docs/DESIGN-LANGUAGE.md): Deep Harbor for
@@ -154,7 +154,7 @@ small { color: var(--text-3); font-size: 11px; }
 .change > .icon { width: 12px; height: 12px; color: var(--text-3); flex: none; }
 .value { display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 2px 6px 2px 2px; border-radius: var(--r-sm); background: var(--bg-sunken); }
 .value.before { opacity: 0.6; }
-.value-name { font-family: var(--mono); }
+.value-name { font-family: var(--mono); min-width: 0; overflow-wrap: anywhere; }
 .value-resolved { color: var(--text-3); font-variant-numeric: tabular-nums; }
 .note { color: var(--text-2); font-style: italic; }
 .swatch {
@@ -209,6 +209,9 @@ label.field > span, .field-head > label { font-weight: 500; }
 /* A field label and the action that fills the field share one line (proximity): label left, action right. */
 .field-head { position: relative; display: flex; align-items: center; justify-content: space-between; gap: var(--s2); min-height: 28px; }
 .field-head > label { cursor: default; }
+/* Why "Draft with Claude" is unavailable: under the action it explains, aligned with it. */
+.assist-why { display: block; text-align: right; margin-top: calc(-1 * var(--s1)); }
+.assist-why[hidden] { display: none; }
 .assist-action { position: relative; margin-right: calc(-1 * var(--s2)); }
 input[type="text"], input[type="password"], textarea, select {
   border: 1px solid var(--border); border-radius: var(--r-md); padding: 6px var(--s2); background: var(--bg); width: 100%; min-height: 28px;
@@ -229,7 +232,8 @@ details.notes ul { margin: 0; padding-left: var(--s4); color: var(--text-2); }
 .bar .btn { height: 36px; padding: 0 var(--s4); font-size: 13px; }
 .bar.lone .bar-status { display: none; }
 .bar.lone .btn.primary { flex: 1; }
-.bar-status { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--s2); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A hint wraps to a second line rather than being cut under the buttons. */
+.bar-status { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--s2); color: var(--text-2); line-height: 1.3; }
 
 .spinner { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--brand); flex: none; animation: spin 700ms linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -259,6 +263,9 @@ table.changes { border-collapse: collapse; width: 100%; }
 table.changes th { text-align: left; font-weight: 500; color: var(--text-3); padding: 0 var(--s2) 2px 0; }
 table.changes td { padding: 4px var(--s2) 4px 0; border-top: 1px solid var(--border); vertical-align: top; overflow-wrap: anywhere; }
 table.changes td.mono { font-family: var(--mono); }
+/* The label column never breaks inside a word ("Typography"); values break where breakable() allows, else anywhere. */
+table.changes td.what { overflow-wrap: normal; word-break: normal; }
+table.changes td.mono { overflow-wrap: break-word; }
 table.changes td.before { color: var(--text-3); }
 /* Component change row: one sentence of what changed, the table behind "Details" (one font size). */
 .row-line { color: var(--text); }
@@ -284,7 +291,11 @@ input.select, .group-check input { flex: none; width: 14px; height: 14px; margin
 .row-head .tag { margin-left: auto; }
 .tag { flex: none; font-size: 10px; line-height: 16px; font-weight: 600; padding: 0 6px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); color: var(--text-2); }
 .row-menu { position: relative; flex: none; margin-left: auto; margin-right: calc(-1 * var(--s2)); }
-.row-head .tag + .row-menu { margin-left: 0; }
+.row-head .tag + .row-menu, .row-head .tag + .tag { margin-left: 0; }
+/* Push components: where a change goes (one sentence), and what Bridge cannot read, each with what to do. */
+.route-issues { margin: 0; padding-left: var(--s4); display: flex; flex-direction: column; gap: var(--s1); }
+.route-issues .swatch.inline { display: inline-block; vertical-align: -3px; margin-right: var(--s1); }
+.route-issues .inline-actions { margin-top: var(--s1); }
 .row-menu > summary { list-style: none; }
 .row-menu > summary::-webkit-details-marker { display: none; }
 .btn.icon-only { width: 28px; padding: 0; color: var(--text-2); }
@@ -312,7 +323,7 @@ input.select, .group-check input { flex: none; width: 14px; height: 14px; margin
 /* Fidelity check: Figma, code and differences side by side. */
 .thumbs.three { grid-template-columns: 1fr 1fr 1fr; }
 
-/* Writing help under a field: Copy for Claude, Paste Claude's answer, Draft with Claude (with an API key). */
+/* Writing help under a field: Draft with my Claude, Draft with Claude (with an API key). */
 .assist { display: flex; flex-direction: column; gap: var(--s2); }
 .assist > .inline-actions { gap: var(--s1); margin-left: calc(-1 * var(--s2)); }
 .assist > .inline-actions .btn.assist-claude { margin-left: var(--s1); }
@@ -387,7 +398,8 @@ div.setup-steps { padding-left: 0; }
 
 /* Component row: the concrete changes as before -> after value chips, like variable rows. */
 .chip-lines { display: flex; flex-direction: column; gap: var(--s1); }
-.chip-line { display: grid; grid-template-columns: minmax(56px, max-content) 1fr; gap: var(--s2); align-items: center; }
+/* The label never takes the chips' room: a long list of variants wraps within 40% of the row. */
+.chip-line { display: grid; grid-template-columns: fit-content(40%) minmax(0, 1fr); gap: var(--s2); align-items: center; }
 .chip-line .mode-name small { font-size: inherit; }
 
 /* Message to the team: its own section after a divider, at the level of Changes. */
@@ -416,3 +428,9 @@ button.link:hover { text-decoration-thickness: 2px; }
 details.command pre { margin: var(--s1) 0 0; padding: var(--s2); border-radius: var(--r-sm); background: var(--bg-sunken); border: 1px solid var(--border); font-family: var(--mono); font-size: 11px; line-height: 16px; white-space: pre-wrap; word-break: break-all; color: var(--text); }
 .command-slot:empty { display: none; }
 .row-head .row-wait { margin-left: auto; flex: none; }
+
+/* "For developers": repository, branch and commits, folded away from the designer's sentences. */
+.dev-list { display: grid; grid-template-columns: auto 1fr; gap: var(--s1) var(--s3); margin: var(--s2) 0 0; }
+.dev-list dt { color: var(--text-3); }
+.dev-list dd { margin: 0; font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; min-width: 0; }
+.dev-details .field { margin-top: var(--s2); }

@@ -9,7 +9,7 @@ through the same gates; agent PRs are additionally labelled and never self-merge
 | ---- | -------- | -------- | ------------------ | --------- |
 | 1, low | Docs, story fixes, a11y fixes with no visual change, lint fixes, a token description edit (no value change) | Ready for review | 1 code owner | `patch` or none (docs only) |
 | 2, medium | New component, new variant or prop, visual tweak using existing tokens | Draft until design review | Design owner + tech owner | `minor` |
-| 3, high | Token added, changed, renamed or removed; breaking prop change; guardrail or `AGENTS.md` change | Draft, labelled `tokens` or `breaking` | Design owner **and** tech owner, mandatory | `minor` (added or changed token) or `major` (renamed or removed token) |
+| 3, high | Token added, changed, renamed or removed; breaking prop change; guardrail or `AGENTS.md` change | Draft, labelled `tokens` or `breaking` | Design owner **and** tech owner, mandatory. A token value change (values changed or tokens added only): design owner only, see [BUILD-REQUESTS.md](BUILD-REQUESTS.md) (TV-1) | `minor` (added or changed token) or `major` (renamed or removed token) |
 
 If a PR spans tiers, the highest tier applies. The DS Bridge plugin, the docs site editor and Reviews, the CLI
 and the MCP server compute the tier with the same classifier (`classifyRisk` in `@bridge-ds/core`).
@@ -25,6 +25,27 @@ and the MCP server compute the tier with the same classifier (`classifyRisk` in 
    write access to the repo. Agents do not merge. A listed owner may merge past missing approvals only, with a
    written reason (see [Owner override](#owner-override-solo-maintainers-and-small-teams)).
 5. **Release**: Changesets turns merged changesets into a version bump and `CHANGELOG.md`.
+
+### One verdict everywhere
+
+Studio (the branch page, the status chips, the Home), the MCP server (`bridge_branch_status`, `bridge_merge_branch`,
+`bridge_what_needs_me`) and the CLI (`bridge branch status`, `bridge branch merge`, `bridge branch list`) read the
+same verdict on a pull request: `branchVerdict` in `@bridge-ds/core` (`review-gate.ts`), over the same reads. It
+combines, in one place:
+
+- **Tier 1 needs one owner approval** (`hasOwnerApproval`): an approval from someone in the design or tech list,
+  teams expanded. Only when no owner is configured does any approval count.
+- **Tier 2 and 3 need a design owner and a tech owner** (`summarizeApprovals`).
+- **A token value change needs the design owner only** (`isTokenValueChange`, `withTokenValueApprovals`), whoever
+  opened it: once the design approval is in, the tech approval counts as given and it ships after the checks. A
+  rename, a removal or code still needs the tech owner (decision TV-1, [BUILD-REQUESTS.md](BUILD-REQUESTS.md)).
+- **The pull request that applies an approved suggestion** (its body says `Closes #<n>`) carries the suggestion's
+  approvals (`approvedSuggestionOnGitHub`, `withSuggestionApprovals`), see [Suggestions](#suggestions-approved-on-the-issue-applied-by-a-developer).
+- **The owner override is for owners only** (`ownerOverridePolicy`) and needs a written reason every time
+  (`overrideReasonProblem`).
+
+A parity test (`packages/mcp/test/gate-parity.test.ts`) runs the same fixture pull requests through Studio's
+reading and through the MCP tools and the CLI, and expects the same verdict.
 
 ## Protection: Bridge is the only way in
 
@@ -90,6 +111,35 @@ on `bridge.config.json` (a guardrail file, so it is reviewed at Tier 3).
 - The same rules live in `@bridge-ds/core` (`rights.ts`: `approverLists`, `shipPolicy`, `canShip`) for Studio, the
   CLI and the MCP server.
 
+### One person holding both roles
+
+By default one person never covers both approvals alone: an owner listed as design and tech owner counts for the
+design approval only, so Tier 2 and Tier 3 changes still need a second owner. A design system run by one person
+turns this off explicitly:
+
+```json
+"governance": {
+  "owners": { "design": ["peterbono"], "tech": ["peterbono"] },
+  "soloOwnerCanApproveBoth": true
+}
+```
+
+- **When it applies.** `soloOwnerCanApproveBoth` is `true` (default `false`) **and** the approver lists, after
+  `rights` and with GitHub teams expanded, name exactly one person, in both places. A team never counts as one
+  person, even with one member not yet read. Add a second owner and the rule stops applying on its own.
+- **What it does.** That person's approval counts as the design approval and the tech approval, on pull requests
+  (`summarizeApprovals`) and on suggestions (`summarizeSuggestionApprovals`), so a Tier 2 or Tier 3 change can reach
+  approved with one review.
+- **What it does not do.** The author of a change still never approves it: GitHub refuses self-approval on a pull
+  request, and Bridge ignores a suggestion author's own review. CI, changes requested, drafts and the ship right
+  gate the merge as before. For the owner's own pull requests, the [owner override](#owner-override-solo-maintainers-and-small-teams)
+  stays the audited way through.
+- **Where it shows.** Studio Settings, Review rules, shows "Only owner: As the only owner, @login approves design and
+  code in one review." The owner reads "As the only owner, your approval covers design and code." on a suggestion
+  and "Your turn: approve." on a pull request, where one Approve covers both rows. `bridge settings`,
+  `bridge branch status`, `bridge suggestions show` and the matching MCP tools say the same.
+- `bridge.config.json` is a guardrail file: turning the rule on is itself a Tier 3 change.
+
 ### Roles by team
 
 An owner entry is a person or a GitHub team. A company assigns roles by team and manages who is in each team in
@@ -152,7 +202,10 @@ audited way through. It is off unless `bridge.config.json` turns it on:
 }
 ```
 
-**Who.** Only the GitHub logins in `governance.override.allowed`, and only when their token has write access to
+**Who.** Only the GitHub logins in `governance.override.allowed` that are also owners (in the design or tech list,
+teams expanded; `overrideHolders`). A login listed in `allowed` but in neither owner list cannot use it, in Studio,
+the CLI or the MCP server. When an owner entry is a team whose members are not known, the `allowed` list stands as
+it is. And only when their token has write access to
 the repo (push, maintain or admin). Bridge reads the login from the token (`GET /user`) and the access from
 `GET /repos/{owner}/{repo}`. Agents never use it: agents do not merge.
 
@@ -172,7 +225,8 @@ the Ready to merge panel of Reviews, behind a confirmation dialog that names the
 Owner override by @login: <reason>. Missing: design approval, tech approval. Merged from Bridge.
 ```
 
-The reason is required (at least `minReasonLength` characters, 20 by default). The squash or merge commit
+The reason is always required (at least `minReasonLength` characters, 20 by default; `"requireReason": false`
+no longer waives it, so the audit trail is never empty). The squash or merge commit
 message repeats it. If GitHub refuses the merge, for example because branch protection requires an approving
 review, Bridge shows GitHub's message and rewrites the comment to end with `Merge refused by GitHub: <message>.
 Not merged.`, so the record never claims a merge that did not happen. History and the PR timeline find
@@ -187,13 +241,38 @@ override away.
 
 **Token permissions.** A fine-grained token limited to the repo, with Contents read and write (merge), Pull
 requests read and write (reviews, PR comments, close), Commit statuses read and Checks read (CI), and
-Metadata read (always on).
+Metadata read (always on). Suggestions need less: Contents read and Issues read and write (file, review and
+decline them); the developer who applies one pushes and opens the pull request with their own access.
+
+## Suggestions: approved on the issue, applied by a developer
+
+With `"changes": "suggest"` in `bridge.config.json` (the default when the key is absent), Bridge files token, docs,
+brand, revert, missing piece and Figma changes as suggestions: GitHub issues labeled `bridge-suggestion` with the
+exact change, never a branch (see [REQUESTS.md](REQUESTS.md#suggestions)). `"direct"` keeps branches and pull
+requests. Every writing tool and command can pick the other mode for one call (`changes` in the MCP tools,
+`--suggest` or `--direct` in the CLI). Switching the setting is a change to `bridge.config.json`, a guardrail file:
+Tier 3.
+
+- **Who approves.** The same tiers and owners as pull requests. A review is a comment with a hidden record; it
+  counts only when its author is in `governance.owners` (or holds the approve rights), read from the default branch,
+  never from the suggestion. With no owner set, repository owners, members and collaborators count. The person who
+  suggested it never approves it.
+- **Bound to the version.** Each review names the version (the sha256 of the change) it saw. When the change is
+  edited, earlier approvals stop counting, like stale pull request reviews.
+- **Applying.** `bridge apply <n>` and `bridge_apply_suggestion` check the paths (inside the folders the kind may
+  change, never a guardrail file except `bridge.config.json` for settings and brands), the approvals, then re-apply
+  the change on today's code and re-run validation, contrast and the tier. A tier that went up needs a new approval.
+- **The pull request** that applies it says `Closes #<n>` and goes through the usual gates above, except the approvals:
+  it carries the suggestion's approvals (`withSuggestionApprovals`), so the same change is not reviewed twice. That
+  holds only while the suggestion is approved and the pull request's tier is not higher than the tier it was approved
+  at. Changes requested on the pull request, CI, conflicts and the ship right still gate the merge.
 
 ## Who approves what
 
 | Area | Design owner | Tech owner |
 | ---- | ------------ | ---------- |
-| Token values and names | Approves | Approves |
+| Token values (changed or added) | Approves | Not needed (TV-1) |
+| Token names (renamed or removed) | Approves | Approves |
 | Component visuals, states, a11y | Approves | Reviews |
 | Component API, types, build | Reviews | Approves |
 | CI, lint rules, `AGENTS.md` | Approves | Approves |
@@ -208,8 +287,9 @@ DS Bridge (`apps/figma-plugin`) turns Figma variable edits into pull requests:
 - Branches are named `tokens/<slug>-<yyyymmdd-hhmm>`, with a single commit that only touches the
   changed token files plus a changeset (`minor`, or `major` when a token is renamed or removed).
 - Value, type, rename and removal changes are **Tier 3** (token change); a change that only edits
-  descriptions is Tier 1 (`patch`). Tier 3 PRs are opened as draft, labelled `tokens`, and they need
-  **design owner and tech owner** approval, like any other token change.
+  descriptions is Tier 1 (`patch`). Tier 3 PRs are opened as draft, labelled `tokens`. A push from
+  Figma counts as design-approved and token values ship after the checks; a rename or removal needs the tech owner
+  ([BUILD-REQUESTS.md](BUILD-REQUESTS.md)).
 - The plugin refuses to open the PR while its guardrails fail (aliases, cycles, scopes, type changes,
   WCAG contrast on `packages/tokens/src/contrast.checks.json`). That is a convenience, not a gate:
   CI and CODEOWNERS remain the authority.

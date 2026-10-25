@@ -1,10 +1,11 @@
-// "Change this component" in the Studio Components drawer. The designer drives the change, Claude builds it, a
-// developer checks the code. The drawer first asks what she wants to change (components/ds/studio/ChangeIntent, a DS
+// "Change this component" in the Studio Components drawer. The designer drives the change, a developer builds it
+// with Claude and checks the code. The drawer first asks what she wants to change (components/ds/studio/ChangeIntent, a DS
 // RadioGroup in place), then shows the flow under the choice:
 // - Adjust the look: a link to the Studio token editor filtered to this component's tokens (the "Edit tokens" door).
-// - Add a variant or option: one form (what to add, what it is for, the Figma frame link and an image) that sends the
-//   request (kind new-variant) and starts an exploration linked to it, the same core calls as "Start an exploration"
-//   from a request (scripts/exploration-start.ts). "Ask a developer instead" sends the same form as a plain request.
+// - Add a variant or option: one form (what to add, what it is for, and the Figma frame link or an image, one of them
+//   required) that sends the request (kind new-variant) and starts an exploration linked to it, the same core calls as
+//   "Start an exploration" from a request (scripts/exploration-start.ts). Once started, the drawer hands her a message
+//   to copy for the developer who builds it with Claude. "Send a plain request instead" sends the same form as a request.
 // - Something looks wrong: the same form as "Report a mismatch" (kind bug), with the what, now and in Figma rows.
 // Requests are GitHub issues labeled component-change, written with the viewer's own token (composeRequestIssue from
 // @bridge-ds/core, source "studio"), with the labels and assignees of bridge.config.json integrations.requests; the
@@ -12,13 +13,14 @@
 // the final action opens the GitHub connect dialog. Words and rules: lib/change-intent.ts.
 import { REQUESTS_BRANCH, composeRequestIssue, ensureRequestsBranch, requestImagePath, type GitHubClient } from '@bridge-ds/core';
 import { explorationFromRequest } from '../lib/requests-view';
-import { changeFormCopy, changeFormProblems, changeRequest, formModeFor, sentLine, startedLines, type ChangeFormMode, type ChangeIntent } from '../lib/change-intent';
+import { changeFormCopy, changeFormProblems, changeRequest, COPY_MESSAGE, developerMessage, formModeFor, sentLine, startedLines, type ChangeFormMode, type ChangeIntent } from '../lib/change-intent';
 import { ghAction } from '../lib/gh-wording';
 import { base64Of, figmaFromLink, figmaLinkProblem, imageProblem, MAX_IMAGE_BYTES, requestImageUrl } from '../lib/request-attachments';
 import { INTENT_EVENT, INTENT_SET_EVENT, type IntentSetDetail } from '../components/ds/studio/ChangeIntent';
 import { currentViewer, esc, getToken, hasWorkingToken, initGitHubConnect, prefersSignIn, readRepo, setButtonBusy, setButtonLabel, showGhError, studioClient } from './github-session';
 import { explorationsConfig, startLinkedExploration } from './exploration-start';
 import { forgetRequests, integrations } from './requests';
+import { studioHref } from '../lib/team-path';
 
 const q = <T extends HTMLElement>(root: ParentNode, sel: string) => root.querySelector<T>(sel);
 
@@ -108,6 +110,14 @@ function paintMode(drawer: HTMLElement, form: HTMLFormElement, mode: ChangeFormM
   const summary = form.elements.namedItem('summary') as HTMLTextAreaElement | null;
   setLabel(title, copy.title.label);
   setLabel(summary, copy.summary.label);
+  // The design: one of the Figma link or the image is required for an exploration, both optional otherwise.
+  const figma = form.elements.namedItem('figma') as HTMLInputElement | null;
+  setLabel(figma, copy.frame.link);
+  figma?.setAttribute('aria-describedby', [figma.getAttribute('aria-describedby') ?? '', 'cm-req-frame-rule'].join(' ').trim());
+  const imgLabel = q<HTMLElement>(form, '#cm-req-img-label');
+  if (imgLabel) imgLabel.textContent = copy.frame.image;
+  const rule = q<HTMLElement>(form, '[data-rq-frame-rule]');
+  if (rule) rule.hidden = !copy.frame.required;
   title?.setAttribute('placeholder', copy.title.placeholder);
   summary?.setAttribute('placeholder', copy.summary.placeholder);
   const rows = q<HTMLElement>(form, '[data-rq-changes]');
@@ -161,7 +171,7 @@ function showIntent(drawer: HTMLElement, intent: ChangeIntent | null) {
   if (foot) foot.hidden = Boolean(mode);
   if (look) {
     look.hidden = intent !== 'look';
-    look.href = drawer.dataset.tokensHref || '/studio/tokens/';
+    look.href = drawer.dataset.tokensHref || studioHref('tokens/');
     setButtonLabel(look, `Edit ${drawer.dataset.component ?? 'its'} tokens`);
   }
   if (mode) paintMode(drawer, form, mode);
@@ -201,6 +211,17 @@ export function pickChangeIntent(drawer: HTMLElement, intent: ChangeIntent) {
 export function clearChangeDone(drawer: HTMLElement) {
   const done = q<HTMLElement>(drawer, '[data-rq-done]');
   if (done) done.hidden = true;
+  const msg = q<HTMLElement>(drawer, '[data-rq-devmsg]');
+  if (msg) msg.hidden = true;
+}
+
+/** Shows the message for the developer under the done line, with its Copy message button. */
+function showDeveloperMessage(drawer: HTMLElement, text: string) {
+  const box = q<HTMLElement>(drawer, '[data-rq-devmsg]');
+  const field = box?.querySelector<HTMLTextAreaElement>('textarea');
+  if (!box || !field) return;
+  field.value = text;
+  box.hidden = false;
 }
 
 function openChange(drawer: HTMLElement, opener: HTMLButtonElement) {
@@ -242,7 +263,7 @@ async function sendRequest(gh: GitHubClient, drawer: HTMLElement, form: HTMLForm
   });
   const created = await gh.createIssue(issue);
   forgetRequests();
-  return { created, request };
+  return { created, request, image: urls[0] ?? null };
 }
 
 export function initChangeFlow(drawer: HTMLElement) {
@@ -256,6 +277,20 @@ export function initChangeFlow(drawer: HTMLElement) {
   initGitHubConnect(() => paintAuth(drawer));
   paintAuth(drawer);
 
+  // Copy message: the developer's message on the clipboard, said on the button and to screen readers.
+  const copyBtn = q<HTMLButtonElement>(drawer, '[data-rq-devmsg-copy]');
+  copyBtn?.addEventListener('click', () => {
+    const text = q<HTMLTextAreaElement>(drawer, '[data-rq-devmsg] textarea')?.value ?? '';
+    const said = () => {
+      setButtonLabel(copyBtn, COPY_MESSAGE.done);
+      const live = document.getElementById('live');
+      if (live) live.textContent = COPY_MESSAGE.done;
+      window.setTimeout(() => setButtonLabel(copyBtn, COPY_MESSAGE.label), 2000);
+    };
+    if (navigator.clipboard) void navigator.clipboard.writeText(text).then(said, () => q<HTMLTextAreaElement>(drawer, '[data-rq-devmsg] textarea')?.select());
+    else q<HTMLTextAreaElement>(drawer, '[data-rq-devmsg] textarea')?.select();
+  });
+
   drawer.addEventListener('click', (e) => {
     const opener = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-cm-change-open]');
     if (opener) openChange(drawer, opener);
@@ -265,7 +300,7 @@ export function initChangeFlow(drawer: HTMLElement) {
     showIntent(drawer, (e as CustomEvent<{ value: ChangeIntent }>).detail.value);
   });
   box.querySelectorAll('[data-cm-chg-cancel]').forEach((b) => b.addEventListener('click', () => resetChangeFlow(drawer, true)));
-  // "Ask a developer instead" and back ("Let Claude build it instead"): the same need; what she typed stays.
+  // "Send a plain request instead" and back ("Start an exploration instead"): the same need; what she typed stays.
   q<HTMLElement>(form, '[data-cm-ask]')?.addEventListener('click', (e) => {
     const to = (e.currentTarget as HTMLElement).dataset.to;
     if (to !== 'ask' && to !== 'explore') return;
@@ -309,11 +344,13 @@ export function initChangeFlow(drawer: HTMLElement) {
     const values = readForm(form);
     const figmaRaw = ((form.elements.namedItem('figma') as HTMLInputElement | null)?.value ?? '').trim();
     const figmaProblem = figmaLinkProblem(figmaRaw);
-    const problems = [...changeFormProblems(mode, values), ...(figmaProblem ? [figmaProblem] : [])];
+    const formProblems = changeFormProblems(mode, { ...values, figma: figmaRaw, image: images.has(form) });
+    const noFrame = formProblems.includes(changeFormCopy(mode, '').missing.frame);
+    const problems = [...formProblems, ...(figmaProblem ? [figmaProblem] : [])];
     if (problems.length) {
       if (!values.title.trim()) form.querySelector('[name="title"]')?.setAttribute('aria-invalid', 'true');
       if (!values.summary.trim()) form.querySelector('[name="summary"]')?.setAttribute('aria-invalid', 'true');
-      if (figmaProblem) form.querySelector('[name="figma"]')?.setAttribute('aria-invalid', 'true');
+      if (figmaProblem || noFrame) form.querySelector('[name="figma"]')?.setAttribute('aria-invalid', 'true');
       error.textContent = problems.join(' ');
       error.hidden = false;
       form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
@@ -331,31 +368,44 @@ export function initChangeFlow(drawer: HTMLElement) {
     let sent: number | null = null;
     try {
       const gh = studioClient(`${repo.owner}/${repo.repo}`, token);
-      const { created, request } = await sendRequest(gh, drawer, form, mode, values, figmaRaw);
+      const { created, request, image } = await sendRequest(gh, drawer, form, mode, values, figmaRaw);
       sent = created.number;
       if (mode !== 'explore') {
         resetChangeFlow(drawer);
         done.innerHTML = `<p><strong>${esc(sentLine(mode, created.number))}</strong></p>
-          <p><a href="/studio/changes/?request=${created.number}">See the request</a></p>`;
+          <p><a href="${studioHref(`changes/?request=${created.number}`)}">See the request</a></p>`;
         done.hidden = false;
         return;
       }
-      // Add a variant or option: the exploration Claude builds in, linked to the request, the designer on it.
+      // Add a variant or option: the exploration a developer builds in with Claude, linked to the request, the designer on it.
       const ex = explorationFromRequest({ component: request.component, title: request.title, request });
       const author = currentViewer()?.login;
       const { started, link } = await startLinkedExploration(explorationsConfig(), { ...ex, ...(author ? { author } : {}) }, { number: created.number, title: created.title });
       const s = startedLines(ex.name, created.number);
       const warn = link && 'error' in link ? ` <span class="cg-muted">The request could not be linked to it: ${esc(link.error)}</span>` : '';
+      const exploration = studioHref(`changes/?exploration=${started.pr}`);
       resetChangeFlow(drawer);
       done.innerHTML = `<p><strong>${esc(s.lead)}</strong> ${esc(s.next)}${warn}</p>
-        <p><a href="/studio/changes/?exploration=${started.pr}">Open the exploration</a></p>`;
+        <p><a href="${exploration}">Open the exploration</a></p>`;
       done.hidden = false;
+      showDeveloperMessage(
+        drawer,
+        developerMessage({
+          component: request.component,
+          title: request.title,
+          request: created.number,
+          figma: request.figma?.url ?? null,
+          image,
+          exploration: new URL(exploration, location.origin).href,
+          requestUrl: new URL(studioHref(`changes/?request=${created.number}`), location.origin).href,
+        }),
+      );
     } catch (err) {
       if (sent !== null) {
         // The request exists: sending again would ask twice. Say so, and lead to the start from the request.
         resetChangeFlow(drawer);
         done.innerHTML = `<p><strong>Request #${sent} sent, but the exploration did not start.</strong> ${esc((err as Error).message)}</p>
-          <p><a href="/studio/changes/?view=explorations&amp;for=${sent}">Start the exploration from the request</a></p>`;
+          <p><a href="${studioHref(`changes/?view=explorations&amp;for=${sent}`)}">Start the exploration from the request</a></p>`;
         done.hidden = false;
         return;
       }

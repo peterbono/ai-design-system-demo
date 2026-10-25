@@ -1,8 +1,12 @@
 // Small DOM helpers shared by the token explorer modules.
 import { iconSvg, type IconName } from '../../brand/icons';
 import { announce } from '../shell';
+import { escapeHtml } from '../../lib/html';
 
-export const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+export const esc = (s: string) => escapeHtml(s);
+
+// Token values in inline style="..." declarations (swatches, specimens): see lib/html.ts.
+export { cssValue } from '../../lib/html';
 
 export const icon = (name: IconName, size = 16) => iconSvg(name, size);
 

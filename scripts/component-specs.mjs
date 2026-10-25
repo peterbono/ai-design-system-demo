@@ -61,7 +61,9 @@ try {
       writeFileSync(OUT, text);
       const cov = file.coverage ?? [];
       const visual = cov.filter((c) => c.status !== 'layout');
-      console.log(`Wrote packages/react/component-specs.json: ${visual.filter((c) => c.status === 'generated').length} of ${visual.length} components in Figma (${file.components.length} sets), ${cov.length - visual.length} layout helpers.`);
+      const drafted = cov.filter((c) => c.status === 'drafted');
+      console.log(`Wrote packages/react/component-specs.json: ${visual.filter((c) => c.status === 'generated' || c.status === 'drafted').length} of ${visual.length} components in Figma (${file.components.length} sets, ${drafted.length} drafted with Claude), ${cov.length - visual.length} layout helpers.`);
+      for (const c of drafted) console.log(`  drafted with Claude, check it: ${c.name} (${c.reason})`);
       for (const c of cov) if (c.status === 'unsupported') console.log(`  not in Figma: ${c.name}, ${c.reason}`);
     }
   }

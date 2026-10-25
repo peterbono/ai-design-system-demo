@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { ComponentDocsJson } from '@bridge-ds/core';
+import { formatDocsJson, type ComponentDocsJson } from '@bridge-ds/core';
+import { docsFileText } from './docs-draft-model';
 import {
+  SECTIONS,
+  authorship,
+  claudeTextOf,
+  continueLine,
+  editBarLabel,
+  sendBlockedReason,
   applyDraft,
   changedLabel,
   changedSections,
@@ -193,7 +200,7 @@ describe('edit bar', () => {
     expect(editBarState({ dirty: true, sent: true, savesLocally: true })).toBe('sent');
     expect(EDIT_BAR_LABEL.saved).toBe('Draft saved in this browser');
     expect(EDIT_BAR_LABEL.unsaved).toBe('Unsaved changes');
-    expect(EDIT_BAR_LABEL.sent).toBe('Review requested');
+    expect(EDIT_BAR_LABEL.sent).toBe('Sent for review');
   });
 
   it('offers Keep all only from two drafts, and names it', () => {
@@ -209,5 +216,74 @@ describe('edit bar', () => {
     expect(cancelNeedsConfirm({ dirty: false, pending: 0 })).toBe(false);
     expect(cancelNeedsConfirm({ dirty: false, pending: 1 })).toBe(true);
     expect(cancelNeedsConfirm({ dirty: true, pending: 0 })).toBe(true);
+  });
+});
+
+describe('who wrote the text, and the open proposal', () => {
+  // The VisuallyHidden case (#148, #161): the open proposal holds Claude's whole-page draft, waiting for review.
+  const drafted: ComponentDocsJson = {
+    ...base,
+    whenNotToUse: ['For visible text.'],
+    donts: [{ title: 'Hide focus', text: 'Never.' }],
+    contentGuidelines: ['Short.'],
+    anatomy: { root: 'The clipped span' },
+    draftedBy: 'claude',
+    needsReview: true,
+    draftedSections: ['summary', 'whenToUse', 'whenNotToUse', 'dos', 'donts', 'accessibility', 'contentGuidelines'],
+  };
+  const text = formatDocsJson(drafted);
+
+  it('has nothing to send when the text is the open proposal as it is', () => {
+    const s = initEdit(drafted);
+    expect(pendingSections(s)).toHaveLength(6);
+    const fileText = docsFileText(docsToSend(s), text);
+    expect(fileText).toBe(text);
+    expect(sendBlockedReason({ fileText, base: text, continuing: true })).toBe('Nothing changed since the open proposal');
+    expect(sendBlockedReason({ fileText, base: text, continuing: false })).toBe('No changes yet');
+    expect(sendBlockedReason({ fileText: docsFileText(docsToSend(keepDrafts(s)), text), base: text, continuing: true })).toBeNull();
+    expect(sendBlockedReason({ fileText: '{}', base: null, continuing: false })).toBeNull();
+  });
+
+  it("keeps Claude's credit when nobody edited the draft, and names the edited sections", () => {
+    const s = initEdit(drafted);
+    expect(authorship(s)).toEqual({ claude: [], edited: [], written: [], pending: SECTIONS.map((x) => x.label) });
+    const kept = keepDrafts(s);
+    expect(authorship(kept)).toEqual({ claude: SECTIONS.map((x) => x.label), edited: [], written: [], pending: [] });
+    const edited = setValue(kept, 'summary', 'Hides text from sight, not from screen readers.');
+    expect(authorship(edited).edited).toEqual(['Summary']);
+    expect(authorship(edited).claude).not.toContain('Summary');
+  });
+
+  it('credits a person alone when no Claude draft is in the text, and tracks drafts made here', () => {
+    const s = initEdit(base);
+    expect(authorship(setValue(s, 'summary', 'Shows a glyph next to text.'))).toEqual({ claude: [], edited: [], written: ['Summary'], pending: [] });
+    const d = applyDraft(s, { contentGuidelines: ['Name the icon.'] });
+    expect(authorship(d).pending).toEqual(['Content guidelines']);
+    expect(authorship(keepDrafts(d)).claude).toEqual(['Content guidelines']);
+    expect(authorship(discardDrafts(d, ['contentGuidelines']))).toEqual({ claude: [], edited: [], written: [], pending: [] });
+    // Accepted earlier: the file still says Claude wrote it.
+    expect(claudeTextOf({ ...base, draftedBy: 'claude', needsReview: false }).summary).toBe('Shows a glyph.');
+    expect(claudeTextOf(base)).toEqual({});
+    // Kept across reloads.
+    expect(restoreMeta(initEdit(base), editMeta(d)).claude).toEqual({ contentGuidelines: ['Name the icon.'] });
+  });
+
+  it('says whose proposal the editor continues, in designer words', () => {
+    expect(continueLine('peterbono', 'peterbono')).toBe('Continues the open proposal by you, waiting for review.');
+    expect(continueLine('peterbono', 'ana')).toBe('Continues the open proposal by @peterbono, waiting for review.');
+    expect(continueLine('peterbono', null)).toMatch(/by @peterbono/);
+    expect(editBarLabel('clean', true)).toBe('Nothing changed since the open proposal');
+    expect(editBarLabel('clean', false)).toBe(EDIT_BAR_LABEL.clean);
+    expect(editBarLabel('unsaved', true)).toBe(EDIT_BAR_LABEL.unsaved);
+    for (const t of [continueLine('a', 'b'), editBarLabel('clean', true)]) expect(t).not.toMatch(/\b(PR|pull request|branch|commit)\b/i);
+  });
+});
+
+describe('editing as a guest', () => {
+  it('says the draft stays in this browser and only the send asks to sign in, never "the demo"', async () => {
+    const { guestEditLine } = await import('./library-edit-model');
+    expect(guestEditLine(true)).toBe('Draft only: your edits stay in this browser. Sign in to send them.');
+    expect(guestEditLine(false)).toBe('Draft only: your edits stay in this browser. Connect GitHub to send them.');
+    expect(/demo/i.test(guestEditLine(true))).toBe(false);
   });
 });

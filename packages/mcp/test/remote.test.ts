@@ -13,7 +13,7 @@ describe('remote mode (GitHub API)', () => {
     const gh = fakeGitHub('acme', 'ds', files());
     const ctx = await BridgeContext.create({ repo: 'acme/ds', fetch: gh.fetch });
     const cfg = await ops.getConfig(ctx);
-    expect(cfg.write).toMatch(/read-only/);
+    expect(cfg.write).toMatch(/^Read-only on GitHub: .* need GITHUB_TOKEN/);
     const t = await ops.getToken(ctx, { path: 'color.text.muted' });
     // Values collapse where modes agree: check every combination is covered, not a live group count.
     expect(new Set(t.values.flatMap((v) => v.modes)).size).toBe(8);

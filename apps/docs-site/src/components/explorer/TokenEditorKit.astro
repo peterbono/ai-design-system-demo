@@ -10,16 +10,28 @@ import HistoryPlanner from '../HistoryPlanner.astro';
 import EditorPreview from '../EditorPreview.tsx';
 import { explorerTokens } from '../../lib/explorer';
 import { loadComponents } from '../../lib/components';
-import { ghAction, ghVerb } from '../../lib/gh-wording';
+import { ghAction, ghVerb, sendButton, sendDialogTitle, sendGoal, SUGGEST_NEXT } from '../../lib/gh-wording';
+import { siteRepo } from '../../lib/config';
 import { signInConfig } from '../../lib/signin-config';
 
+interface Props {
+  /** A team shell (multi-team PR 3b): no build-time palette or component previews (the demo's components are not the
+   *  team's); the palette list is filled in the browser from the team's tokens. */
+  hosted?: boolean;
+}
+const { hosted = false } = Astro.props;
 const signIn = Boolean(signInConfig());
+// How changes reach the code (bridge.config.json "changes"): the send words follow it. The script repaints them live.
+const mode = siteRepo().changes;
+const suggest = mode === 'suggest';
 
-const palette = explorerTokens()
-  .filter((t) => t.layer === 'brand' && t.type === 'color')
-  .map((t) => t.path);
+const palette = hosted
+  ? []
+  : explorerTokens()
+      .filter((t) => t.layer === 'brand' && t.type === 'color')
+      .map((t) => t.path);
 // Library previews of every component, so the popover and the review can show any component that uses a token.
-const previews = loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.name, node: c.docs.preview }] : []));
+const previews = hosted ? [] : loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.name, node: c.docs.preview }] : []));
 ---
 
 <div class="xp-kit" data-xp-kit>
@@ -41,16 +53,16 @@ const previews = loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.n
       <div data-xe-sheet-body></div>
     </div>
     <footer class="xe-sheet-foot">
-      <p class="xe-sheet-note" data-xe-note>Your draft is kept in this browser. {ghVerb(signIn)} once, then request review.</p>
+      <p class="xe-sheet-note" data-xe-note>Your draft is kept in this browser. {ghVerb(signIn)} once, then {suggest ? 'send it as a suggestion' : 'request review'}.</p>
       <Button variant="secondary" data-xe-discard>Discard</Button>
       <span class="xe-grow"></span>
-      <Button variant="primary" iconStart={Send} id="ed-propose" data-gh-open disabled>{ghAction('request review', signIn)}</Button>
+      <Button variant="primary" iconStart={Send} id="ed-propose" data-gh-open data-demo-write="send changes for review" disabled>{ghAction(sendGoal('tokens', mode), signIn)}</Button>
     </footer>
   </aside>
 
   <ScriptDialog id="ed-add-dialog" title="New semantic color" closeLabel="Close">
     <div class="gh-dialog-body">
-      <p>A semantic token names a job, like <code>color.bg.canvas</code>. Point each theme at a palette role so brands can re-theme it. It stays a draft in this browser until you request review; a new token needs a design and a tech approval.</p>
+      <p>A semantic token names a job, like <code>color.bg.canvas</code>. Point each theme at a palette role so brands can re-theme it. It stays a draft in this browser until you {suggest ? 'send it as a suggestion' : 'request review'}; a new token needs a design approval.</p>
       <Input label="Name" data-ed-field="add-path" placeholder="color.bg.canvas" spellCheck={false} autoComplete="off" />
       <Input label="Light points to" data-ed-field="add-light" list="ed-palette" placeholder="palette.neutral.50" spellCheck={false} autoComplete="off" />
       <Input label="Dark points to" data-ed-field="add-dark" list="ed-palette" placeholder="palette.neutral.950" spellCheck={false} autoComplete="off" />
@@ -65,14 +77,14 @@ const previews = loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.n
     </Fragment>
   </ScriptDialog>
 
-  <ScriptDialog id="ed-propose-dialog" title="Create branch" closeLabel="Close" popup={{ 'aria-describedby': 'ed-propose-who' }}>
+  <ScriptDialog id="ed-propose-dialog" title={sendDialogTitle(mode)} closeLabel="Close" popup={{ 'aria-describedby': 'ed-propose-who' }}>
     <div class="gh-dialog-body">
-      <p id="ed-propose-who" data-ed-field="propose-who">A design owner and a tech owner approve it before it is merged into main.</p>
+      <p id="ed-propose-who" data-ed-field="propose-who">{suggest ? SUGGEST_NEXT : 'A design owner approves it, then it reaches the library once the automatic checks pass.'}</p>
       <div class="xe-propose-target" data-ed-field="propose-target" hidden></div>
       <div class="xe-propose-new" data-ed-field="propose-new">
         <Input label="Title" data-ed-field="propose-title" placeholder="Darker primary action fill" />
         <Textarea label="Why" data-ed-field="propose-notes" rows={3} placeholder="What problem this solves, and where reviewers should look." />
-        <Input label="Jira ticket" data-ed-field="propose-jira" placeholder="DS-42" hint="Optional. Links this branch to the ticket in Jira." spellCheck={false} autoComplete="off" />
+        <Input label="Jira ticket" data-ed-field="propose-jira" placeholder="DS-42" hint={`Optional. Links this ${suggest ? 'suggestion' : 'change'} to the ticket in Jira.`} spellCheck={false} autoComplete="off" />
       </div>
       <div class="xe-propose-conflict" data-ed-field="propose-conflict" hidden></div>
       <p class="small xe-propose-status" id="ed-propose-status" role="status" aria-live="polite"></p>
@@ -80,11 +92,11 @@ const previews = loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.n
     <Fragment slot="footer">
       <ButtonGroup align="end">
         <Button variant="secondary" data-dialog-close>Cancel</Button>
-        <span class="xe-go" data-ed-field="propose-go"><Button variant="primary" id="ed-propose-go">Request review</Button></span>
+        <span class="xe-go" data-ed-field="propose-go"><Button variant="primary" id="ed-propose-go">{sendButton('tokens', mode)}</Button></span>
       </ButtonGroup>
     </Fragment>
   </ScriptDialog>
 
-  <GitHubDialog />
+  <GitHubDialog hosted={hosted} />
   <HistoryPlanner />
 </div>

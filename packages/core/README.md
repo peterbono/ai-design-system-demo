@@ -36,7 +36,8 @@ also exported as `@bridge-ds/core/bridge.config.schema.json`) for the plugin, th
 server. Canonical form: `repo`, `tokens` (`root`, `include`, `exclude`, `tiers`, ordered `layers` with `{mode}`
 placeholders and `optional`), `modes` (name -> `{ values, default, parity }`), `contrast` (`path`, `modes`),
 `components`, `docs`, `changesets`, `cssVar`, `governance` (`protectedBranches`, `branchPrefix`, `labels`,
-`guardrails`, `owners: { design, tech }`). The older flat form (`tokens.primitives`, `modes.brands`...) still loads.
+`guardrails`, `owners: { design, tech }`), `changes` (`"suggest"`, the default, or `"direct"`) and `storybook`
+(`{ url }`, https). The older flat form (`tokens.primitives`, `modes.brands`...) still loads.
 
 ```ts
 const CONFIG_FILE = 'bridge.config.json';
@@ -50,10 +51,13 @@ interface BridgeConfig {
   docs; changesets: { dir; package } | undefined; changeset?: { package };
   cssVar: { prefix; separator };
   governance: { protectedBranches; branchPrefix; labels; guardrails; owners: { design: string[]; tech: string[] } };
+  changes: 'suggest' | 'direct';                          // how changes reach the code (default 'suggest')
+  storybook?: { url: string };
 }
 function defineConfig(input): BridgeConfig;   function loadConfig(source): BridgeConfig;   // ConfigError { problems }
 function toConfigJson(config): object;        // canonical JSON (what `bridge init` writes)
 function protectedBranchesOf(config); function baseBranchOf(config); function tokensPath(config, rel?);
+function changesMode(config): 'suggest' | 'direct';   function storybookUrl(config): string | undefined; // storybook.url, else previews.production.storybook
 ```
 
 ## governance
@@ -79,7 +83,8 @@ function composeProposalBody(input); function changeTable(changes); function con
 ```
 
 `@bridge-ds/core/node` (Node only): `git`, `isGitRepo`, `currentBranch`, `branchExists`, `showFile`, `listFilesAt`,
-`originRepo`, `commitToNewLocalBranch` (plumbing commit on a new branch; working tree, index and checkout untouched).
+`originRepo`, `commitToNewLocalBranch` (plumbing commit on a new branch; working tree, index and checkout untouched),
+`fsSource(root, ref?)` and `localRepoRef(root)` (a `RepoSource` over a checkout, see repo model).
 
 ## types
 
@@ -256,6 +261,67 @@ loadRepoFiles(client, commitSha, fallbackTokensPath): Promise<{ files; contrastC
 
 Reads and content-addressed writes retry on network errors, 5xx and secondary rate limits; errors
 become `GitHubError { status, message, detail }` with plain-language messages.
+
+## suggestions (suggestions.ts, suggestion-review.ts, suggestions-github.ts)
+
+A change filed as a GitHub issue instead of a branch, so an owner needs only Issues write. Readable Markdown, then a
+collapsed JSON payload (`bridge.suggestion/1`) with the sha256 of its canonical form in a marker; token changes are
+edits (paths and values), other files whole contents with git blob shas before and after. Contents that do not fit
+the body (65,536 characters) go to continuation comments, 8 at most. Reviews are comments bound to the payload sha
+and counted only from the configured owners.
+
+```ts
+composeSuggestionIssue(payload, { labels?, assignees?, state?, details? }): { title; body; labels; assignees; parts: string[]; sha };
+parseSuggestionIssue(body, { comments?, author? }): { ok: true; payload; sha; markedSha; edited; parts } | { ok: false; reason; message };
+suggestionPayloadSha(payload); canonicalJson(value); sha256Hex(text); gitBlobSha(text);
+suggestionLabels(payload, { state?, labels? }); suggestionIssueTitle(payload); suggestionStatus({ state, stateReason?, linkedPrs?, review?, applied?, outdated? });
+suggestionPathProblems(payload, config): string[];    unsafePathProblem(path): string | null;
+summarizeSuggestionApprovals(comments, { owners, rights?, teams?, soloOwnerCanApproveBoth? }, { payloadSha, author? }); suggestionReviewState(tier, approvals);
+composeSuggestionReviewComment(record); parseSuggestionReviewComment(body); composeSuggestionAppliedComment(record); parseSuggestionAppliedComment(body);
+// GitHub (Issues read and write only)
+createSuggestionOnGitHub(gh, payload, opts); listSuggestionsOnGitHub(gh, { state? }); getSuggestionOnGitHub(gh, n, gov, { outdated? });
+reviewSuggestionOnGitHub(gh, n, { event, role?, message?, payloadSha? }, gov); linkSuggestionPrOnGitHub(gh, n, { pr?, branch?, commit?, payloadSha });
+declineSuggestionOnGitHub(gh, n, reason, by?); syncSuggestionStateLabel(gh, n, labels, status);
+```
+
+## storybook (storybook.ts)
+
+Reads a deployed or built Storybook without the repo: `index.json` (v4 for Storybook 7, v5 for 8 and later), else
+`stories.json` (v3). Entries are grouped by title into components (name = last title segment); test entries stay out
+of `stories`. A 404, an HTML answer from a host that falls back to `index.html`, or a body with no entries moves on to
+the next file. Errors carry a code: `invalid-url`, `not-found`, `not-json`, `private` (sign-in wall, Chromatic login
+answer, 401/403), `empty`, `http`, `network`. Pure, with an injected `fetch`; `@bridge-ds/visual` uses the parser for
+`storybook-static/index.json` and the iframe URL builder for its captures.
+
+```ts
+fetchStorybookIndex(base, { fetch?, signal? }): Promise<{ version; source: 'index.json' | 'stories.json'; entries; components }>;
+parseStorybookIndex(json, source?); groupStorybookComponents(entries): { title; name; group; stories; docs; tags }[];
+normalizeStorybookUrl(pasted): string;   // https only (http on localhost), drops ?path=, /index.html, /iframe.html
+storybookIframeUrl(base, id, { viewMode?, globals?, args? }); storybookManagerUrl(base, id, viewMode?); storybookIndexUrls(base);
+```
+
+## repo model (repo-source.ts, repo-model.ts, token-rows.ts, contrast-model.ts, component-scan.ts)
+
+Everything the docs site and Studio read from a design system repo, from one `RepoSource`, so the build (a local
+checkout) and the browser (any team's repo on GitHub) run the same code. `bridge.config.json` is parsed once; every
+folder comes from it (`tokens.root` and tier folders, `contrast.path`, `components.dir|index|specs`,
+`tokens.usage`), with this repo's former paths as defaults (`REPO_MODEL_DEFAULTS`). Repo content never throws: a bad
+config, docs.json or alias, or a file the source refuses as too large (413), lands in `problems`; a rate limit or
+network error still throws so the caller can retry.
+
+```ts
+interface RepoSource { ref: { owner; repo; sha }; list(prefix?): Promise<string[]>; text(path): Promise<string | null> }
+memorySource(files, ref?); readRepoTexts(source, paths, concurrency?, onError?);   // fsSource(root, ref?) in @bridge-ds/core/node
+// gitHubSource(client, sha, opts?) (repo-source-github.ts) is the same RepoSource over GitHub; every list() is sorted.
+loadRepoModel(source, { components?, href?, concurrency? }): Promise<RepoModel>;
+// RepoModel: { ref, configText, config, site: SiteRepo, problems, tokens: { root, files, rows, usage },
+//              contrast: { path, specs, pairs }, components: { dir, index, families, list } | null, specs: { path, file, coverage } }
+siteRepoFromConfig(config, raw?, fallback?); parseModelConfig(text);
+buildTokenRows(config, readText, listFiles); tokenRowIndex(rows); tokenRowAxes(config, readText?); tokenRowFiles(config);
+parseContrastSpecs(text); evaluateContrastPairs(specs, rows); hexContrastRatio(a, b);
+scanComponents(input); parseComponentTsx(name, src); parseComponentCss(src, labels, describeVar);
+parseComponentStories(src); parseComponentFamilies(indexSrc, componentsRel?); resolveInheritedTokens(list);
+```
 
 ## history (history.ts, history-github.ts, history-demo.ts)
 

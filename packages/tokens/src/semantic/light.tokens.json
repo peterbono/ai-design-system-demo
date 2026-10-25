@@ -411,6 +411,20 @@
         "$value": "{palette.accent.100}",
         "$description": "Text selection highlight (::selection)."
       }
+    },
+    "agent": {
+      "surface": {
+        "$type": "color",
+        "$value": "{palette.primary.200}",
+        "$description": "Tile behind the AI agent mark (Avatar kind agent): the Harbor zone color, with the mark in action.primary.bg (Deep Harbor), the zone pair the build already checks."
+      }
+    },
+    "illustration": {
+      "surface": {
+        "$type": "color",
+        "$value": "{palette.primary.200}",
+        "$description": "Behind line drawings (the Avatar illustrated faces): the Harbor zone color, kept light in dark so the black lines stay readable."
+      }
     }
   },
   "focus": {

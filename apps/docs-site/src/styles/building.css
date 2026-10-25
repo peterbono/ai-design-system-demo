@@ -1,0 +1,294 @@
+/* Studio Being built (components/ds/studio/BeingBuilt.tsx): the opener, the filters, the rows (studio-home.css sh-row),
+   the detail and the empty state. Four sizes: the page title (StudioHeader), the detail title (h2), body and ui. */
+
+.bb {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.bb-open {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-7);
+}
+
+.bb-open p,
+.bb-detail p {
+  margin: 0;
+}
+
+.bb-sentence {
+  font-weight: var(--font-weight-semibold);
+}
+
+.bb-bar {
+  display: flex;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.bb-skel {
+  height: var(--size-16);
+}
+
+.bb-none {
+  margin: var(--space-3) 0;
+}
+
+/* A request nobody picked up for a week: its tag carries the warning; the row edge says it too (not by colour alone). */
+.bb-stale .sh-row {
+  border-inline-start: var(--border-width-indicator) solid var(--color-feedback-warning-border);
+}
+
+.bb-nobody {
+  display: inline-grid;
+  place-items: center;
+  width: var(--size-8);
+  height: var(--size-8);
+  border: var(--border-width-default) dashed var(--color-border-default);
+  border-radius: var(--radius-full);
+  color: var(--color-text-muted);
+}
+
+.bb-measure {
+  max-width: var(--size-160);
+}
+
+/* --- Empty state ------------------------------------------------------------------------------------------- */
+
+.bb-empty {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  padding: var(--space-8) 0;
+}
+
+.bb-empty p {
+  margin: 0;
+}
+
+.bb-empty-title,
+.bb-title {
+  margin: 0;
+  font-family: var(--typography-h2-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--typography-h2-weight);
+  line-height: var(--typography-h2-line-height);
+}
+
+/* --- Detail ------------------------------------------------------------------------------------------------ */
+
+.bb-detail {
+  display: grid;
+  gap: var(--space-6);
+  max-width: var(--size-180);
+}
+
+.bb-back {
+  justify-self: start;
+}
+
+.bb-head {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.bb-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.bb-section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.bb-h,
+.bb-h4 {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+}
+
+.bb-steps {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bb-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.bb-dot {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--size-6);
+  height: var(--size-6);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-default);
+}
+
+.bb-step.is-reached .bb-dot {
+  border-color: var(--color-action-primary-bg);
+  background: var(--color-action-primary-bg);
+  color: var(--color-action-primary-text);
+}
+
+/* A step not reached yet reads quieter, still at text contrast: it is information, not a disabled control. */
+.bb-step:not(.is-reached) .bb-step-label {
+  color: var(--color-text-muted);
+}
+
+.bb-step.is-current .bb-step-label {
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Build request images: "In code now" beside "In Figma", each at its natural size on a soft checker (never upscaled,
+   so a small code capture stays sharp); the frame opens the full size image. Stacked at phone width. */
+.bb-images {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.bb-figure {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+}
+
+/* Scoped under the figure so it wins over the DS Link's own text link styles. */
+.bb-figure .bb-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--size-24);
+  padding: var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-bg-default);
+  background-image: conic-gradient(var(--color-bg-subtle) 25%, transparent 0 50%, var(--color-bg-subtle) 0 75%, transparent 0);
+  background-size: var(--size-6) var(--size-6);
+  cursor: zoom-in;
+}
+
+.bb-figure .bb-frame:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (hover: hover) {
+  .bb-figure .bb-frame:hover {
+    border-color: var(--color-border-strong);
+  }
+}
+
+.bb-figure .bb-frame img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+}
+
+@media (max-width: 640px) {
+  .bb-images {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.bb-list,
+.bb-links {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+
+.bb-links {
+  margin-block-end: var(--space-4);
+}
+
+.bb-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.bb-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-block-start: var(--space-3);
+}
+
+/* --- Home line and Library line ----------------------------------------------------------------------------- */
+
+.bb-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .bb-open {
+    padding: var(--space-5);
+  }
+}
+
+/* The detail: what was sent and the developer fold, then where it stands beside them on wide screens. */
+.bb-body {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.bb-main {
+  display: grid;
+  align-content: start;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .bb-detail {
+    max-width: var(--size-300);
+  }
+
+  .bb-body {
+    grid-template-columns: minmax(0, 1fr) var(--size-72);
+  }
+
+  .bb-aside {
+    order: 2;
+  }
+}
+
+/* The home line: the wrench and its sentence wrap together, the wrench beside the first line; the link wraps after. */
+.bb-home-text {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.bb-home-text > .bb-home-icon {
+  flex: none;
+  height: 1lh;
+}
+
+/* The home line sits under the health line when both show. */
+.sh-health + .bb-home {
+  margin-block-start: calc(var(--space-6) * -1);
+}

@@ -62,7 +62,9 @@ export class SimVariable {
     private api: SimFigma,
   ) {}
   setValueForMode(modeId: string, value: unknown) {
-    this.valuesByMode[modeId] = value && typeof value === 'object' && 'r' in (value as Dict) ? { ...(value as Dict) } : value;
+    this.api.valueWrites++;
+    // Like Figma, numbers are kept as 32-bit floats (0.1 reads back as 0.10000000149011612).
+    this.valuesByMode[modeId] = value && typeof value === 'object' && 'r' in (value as Dict) ? { ...(value as Dict) } : typeof value === 'number' ? Math.fround(value) : value;
   }
   getPluginData(k: string) {
     return this.pd.get(k) ?? '';
@@ -84,7 +86,14 @@ export class SimVariable {
   }
 }
 
-const CONTAINERS = new Set(['DOCUMENT', 'PAGE', 'FRAME', 'COMPONENT', 'COMPONENT_SET']);
+const CONTAINERS = new Set(['DOCUMENT', 'PAGE', 'FRAME', 'COMPONENT', 'COMPONENT_SET', 'SECTION']);
+/** VariableBindableNodeField (plus text fields), as @figma/plugin-typings lists them. */
+const FRAME_BINDABLE = new Set([
+  'height', 'width', 'characters', 'itemSpacing', 'paddingLeft', 'paddingRight', 'paddingTop', 'paddingBottom', 'visible', 'topLeftRadius', 'topRightRadius',
+  'bottomLeftRadius', 'bottomRightRadius', 'minWidth', 'maxWidth', 'minHeight', 'maxHeight', 'counterAxisSpacing', 'strokeWeight', 'strokeTopWeight',
+  'strokeRightWeight', 'strokeBottomWeight', 'strokeLeftWeight', 'opacity', 'gridRowGap', 'gridColumnGap',
+]);
+const TEXT_BINDABLE = new Set([...FRAME_BINDABLE, 'fontFamily', 'fontSize', 'fontStyle', 'fontWeight', 'letterSpacing', 'lineHeight', 'paragraphSpacing', 'paragraphIndent']);
 /** Fields a copy never shares with its source. */
 const OWN = new Set(['id', 'parent', 'children', 'api', 'mainId']);
 
@@ -95,8 +104,26 @@ export class SimNode {
   children: SimNode[] = [];
   x = 0;
   y = 0;
-  width = 100;
-  height = 40;
+  /** Position in the page: the offsets of this node and its frames (no rotation in the simulator). */
+  get absoluteTransform(): [[number, number, number], [number, number, number]] {
+    let [x, y] = [0, 0];
+    for (let n: SimNode | null = this; n && n.type !== 'PAGE' && n.type !== 'DOCUMENT'; n = n.parent) {
+      x += n.x;
+      y += n.y;
+    }
+    return [
+      [1, 0, x],
+      [0, 1, y],
+    ];
+  }
+  // Like Figma: read only, changed with resize().
+  private size = { width: 100, height: 40 };
+  get width(): number {
+    return this.size.width;
+  }
+  get height(): number {
+    return this.size.height;
+  }
   description = '';
   fills: Dict[] = [];
   strokes: Dict[] = [];
@@ -115,11 +142,12 @@ export class SimNode {
     public type: string,
     private api: SimFigma,
   ) {
+    if (api.nodeLimit && api.nodes.size >= api.nodeLimit) throw new Error('Out of memory: this file has too many layers');
     this.id = nextId(type === 'PAGE' ? '0' : '1');
     api.nodes.set(this.id, this);
     if (type === 'TEXT') {
       this.fills = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }];
-      this.textAutoResize = 'WIDTH_AND_HEIGHT';
+      this._text.textAutoResize = 'WIDTH_AND_HEIGHT';
     }
     // Figma frames and components clip their content by default.
     if (type === 'FRAME' || type === 'COMPONENT') this.clipsContent = true;
@@ -130,6 +158,10 @@ export class SimNode {
   // parent's cross axis, layoutGrow on its main axis). Hugging an axis drops a fill on it, as in Figma.
   layoutAlign = 'INHERIT';
   layoutGrow = 0;
+  /** ABSOLUTE: out of its parent's auto layout, so it cannot fill it (Figma refuses). */
+  layoutPositioning = 'AUTO';
+  /** How a layer follows its parent's resizing (absolute layers: pinned edges, stretched, centered). */
+  constraints: { horizontal: string; vertical: string } = { horizontal: 'MIN', vertical: 'MIN' };
   private axisSizing = { primary: 'FIXED', counter: 'FIXED' };
   private autoLayout(n: SimNode | null): boolean {
     return !!n && (n.layoutMode === 'HORIZONTAL' || n.layoutMode === 'VERTICAL');
@@ -153,16 +185,16 @@ export class SimNode {
   get primaryAxisSizingMode() {
     return this.axisSizing.primary;
   }
+  // As in Figma, a frame's own sizing mode does not undo Fill container in its parent (layoutGrow, layoutAlign
+  // STRETCH): a layer an earlier pull made fill keeps filling until layoutSizing says otherwise.
   set primaryAxisSizingMode(v: string) {
     this.axisSizing.primary = v;
-    if (v === 'AUTO' && this.autoLayout(this)) this.clearFill(this.layoutMode === 'HORIZONTAL');
   }
   get counterAxisSizingMode() {
     return this.axisSizing.counter;
   }
   set counterAxisSizingMode(v: string) {
     this.axisSizing.counter = v;
-    if (v === 'AUTO' && this.autoLayout(this)) this.clearFill(this.layoutMode !== 'HORIZONTAL');
   }
   private sizing(horizontal: boolean): string {
     if (this.fills_(horizontal)) return 'FILL';
@@ -174,6 +206,7 @@ export class SimNode {
     if (v === 'FILL') {
       const p = this.parent;
       if (!p || !this.autoLayout(p)) throw new Error('FILL can only be set on children of auto-layout frames');
+      if (this.layoutPositioning === 'ABSOLUTE') throw new Error('FILL cannot be set on absolute positioned auto-layout children');
       if ((p.layoutMode === 'HORIZONTAL') === horizontal) this.layoutGrow = 1;
       else this.layoutAlign = 'STRETCH';
       if (this.type === 'TEXT' && horizontal && this.textAutoResize === 'WIDTH_AND_HEIGHT') this.textAutoResize = 'HEIGHT';
@@ -197,6 +230,16 @@ export class SimNode {
   }
   set layoutSizingVertical(v: string) {
     this.setSizing(false, v);
+  }
+
+  // Private plugin data (this plugin only)
+  private own = new Map<string, string>();
+  getPluginData(key: string) {
+    return this.own.get(key) ?? '';
+  }
+  setPluginData(key: string, value: string) {
+    if (value === '') this.own.delete(key);
+    else this.own.set(key, value);
   }
 
   // Shared plugin data
@@ -234,6 +277,7 @@ export class SimNode {
   // Instances
   createInstance(): SimNode {
     if (this.type !== 'COMPONENT') throw new Error('createInstance needs a COMPONENT');
+    this.api.fault('createInstance');
     const inst = this.copy();
     inst.type = 'INSTANCE';
     inst.mainId = this.id;
@@ -244,6 +288,7 @@ export class SimNode {
     return inst;
   }
   async getMainComponentAsync(): Promise<SimNode | null> {
+    await this.api.gate();
     if (this.type !== 'INSTANCE') throw new Error('Not an instance');
     return this.api.nodes.get(this.mainId) ?? null;
   }
@@ -260,6 +305,7 @@ export class SimNode {
       c.parent = this;
       this.children.push(c);
     }
+    fresh.children = [];
     fresh.remove();
     for (const c of this.findAll()) {
       const old = overrides.get(c.name);
@@ -273,6 +319,8 @@ export class SimNode {
   // Tree
   appendChild(child: SimNode) {
     if (!CONTAINERS.has(this.type)) throw new Error(`${this.type} cannot have children`);
+    if (child.removed || this.removed) throw new Error('The node has been removed');
+    this.api.fault('appendChild');
     child.detach();
     child.parent = this;
     this.children.push(child);
@@ -283,13 +331,25 @@ export class SimNode {
     child.parent = this;
     this.children.splice(index, 0, child);
   }
+  /** appendChild without fault injection: for the inside of calls Figma does in one go (combineAsVariants, an SVG import). */
+  attach(child: SimNode) {
+    child.detach();
+    child.parent = this;
+    this.children.push(child);
+  }
   private detach() {
     if (this.parent) this.parent.children = this.parent.children.filter((c) => c !== this);
     this.parent = null;
   }
   remove() {
+    if (this.removed) throw new Error('The node has been removed');
+    this.api.ops++;
     this.detach();
-    this.api.nodes.delete(this.id);
+    const drop = (n: SimNode) => {
+      this.api.nodes.delete(n.id);
+      for (const c of n.children) drop(c);
+    };
+    drop(this);
   }
   findAll(cb: (n: SimNode) => boolean = () => true): SimNode[] {
     const out: SimNode[] = [];
@@ -309,8 +369,7 @@ export class SimNode {
     return this.findAll((n) => c.types.includes(n.type));
   }
   resize(w: number, h: number) {
-    this.width = w;
-    this.height = h;
+    this.size = { width: w, height: h };
   }
   resizeWithoutConstraints(w: number, h: number) {
     this.resize(w, h);
@@ -319,6 +378,11 @@ export class SimNode {
 
   // Variables
   setBoundVariable(field: string, variable: SimVariable | null) {
+    // As Figma: a field the node does not have is refused, bound or unbound.
+    const bindable = this.type === 'TEXT' ? TEXT_BINDABLE : FRAME_BINDABLE;
+    if (!bindable.has(field)) throw new Error(`in setBoundVariable: Invalid field "${field}" for ${this.type}`);
+    if (variable) this.api.fault('setBoundVariable');
+    if (variable && !this.api.variables.includes(variable)) throw new Error('in setBoundVariable: variable not found');
     if (!variable) this.bound.delete(field);
     else {
       if (variable.resolvedType !== (field === 'fontFamily' || field === 'fontStyle' || field === 'characters' ? 'STRING' : field === 'visible' ? 'BOOLEAN' : 'FLOAT'))
@@ -335,7 +399,50 @@ export class SimNode {
     return out;
   }
 
-  // Text
+  // Text. As in Figma: changing what lays text out needs the text's font loaded first.
+  private _text: Record<string, unknown> = {};
+  private needsFont(field: string) {
+    if (this.type === 'TEXT' && !this.api.loadedFonts.has(`${this._fontName.family}|${this._fontName.style}`))
+      throw new Error(`in set_${field}: Cannot write to node with unloaded font "${this._fontName.family} ${this._fontName.style}". Please call figma.loadFontAsync`);
+  }
+  get textAutoResize() {
+    return this._text.textAutoResize;
+  }
+  set textAutoResize(v: unknown) {
+    this.needsFont('textAutoResize');
+    this._text.textAutoResize = v;
+  }
+  get fontSize() {
+    return this._text.fontSize;
+  }
+  set fontSize(v: unknown) {
+    this.needsFont('fontSize');
+    this._text.fontSize = v;
+  }
+  get lineHeight() {
+    return this._text.lineHeight;
+  }
+  set lineHeight(v: unknown) {
+    this.needsFont('lineHeight');
+    this._text.lineHeight = v;
+  }
+  get letterSpacing() {
+    return this._text.letterSpacing;
+  }
+  set letterSpacing(v: unknown) {
+    this.needsFont('letterSpacing');
+    this._text.letterSpacing = v;
+  }
+  get textDecoration() {
+    return this._text.textDecoration;
+  }
+  set textDecoration(v: unknown) {
+    this.needsFont('textDecoration');
+    this._text.textDecoration = v;
+  }
+  get removed() {
+    return !this.api.nodes.has(this.id);
+  }
   get characters() {
     return this._characters;
   }
@@ -354,12 +461,18 @@ export class SimNode {
   // Components
   get variantProperties(): Record<string, string> | null {
     if (this.type !== 'COMPONENT' || this.parent?.type !== 'COMPONENT_SET') return null;
-    return Object.fromEntries(
-      this.name
-        .split(',')
-        .map((p) => p.split('=').map((x) => x.trim()))
-        .filter((p) => p.length === 2) as [string, string][],
-    );
+    // Like Figma: every variant of a set is named "Prop=value, ...", with the same properties and no two alike, or
+    // the set is in error and reading any of its variants throws.
+    const parse = (name: string) => {
+      const pairs = name.split(',').map((p) => p.split('=').map((x) => x.trim()));
+      return pairs.every((p) => p.length === 2 && p[0] && p[1]) ? (Object.fromEntries(pairs) as Record<string, string>) : null;
+    };
+    const siblings = this.parent.children.filter((c) => c.type === 'COMPONENT').map((c) => parse(c.name));
+    const shape = (p: Record<string, string>) => Object.keys(p).sort().join('|');
+    const combos = siblings.map((p) => (p ? JSON.stringify(Object.entries(p).sort()) : ''));
+    const broken = siblings.some((p) => !p || shape(p) !== shape(siblings[0]!)) || new Set(combos).size !== combos.length;
+    if (broken) throw new Error('in get_variantProperties: Component set for node has existing errors');
+    return parse(this.name);
   }
   get componentPropertyDefinitions(): Record<string, { type: string; defaultValue: string | boolean; variantOptions?: string[]; preferredValues?: { type: string; key: string }[] }> {
     if (this.type !== 'COMPONENT_SET' && this.type !== 'COMPONENT') throw new Error('Not a component');
@@ -378,21 +491,46 @@ export class SimNode {
       return;
     }
     if (this.api.nodes.get(String(defaultValue))?.type !== 'COMPONENT') throw new Error('The default of an INSTANCE_SWAP property must be a component id');
-    for (const p of preferred ?? []) if (![...this.api.nodes.values()].some((n) => n.type === 'COMPONENT' && n.key === p.key)) throw new Error(`No component with key ${p.key}`);
+    for (const p of preferred ?? []) {
+      const n = this.api.nodes.get(p.key.replace(/^key-/, ''));
+      if (n?.type !== 'COMPONENT') throw new Error(`No component with key ${p.key}`);
+    }
   }
   addComponentProperty(name: string, type: string, defaultValue: string | boolean, options?: { preferredValues?: { type: string; key: string }[] }) {
+    this.api.fault('addComponentProperty');
+    if (this.type !== 'COMPONENT_SET' && !(this.type === 'COMPONENT' && this.parent?.type !== 'COMPONENT_SET')) throw new Error('Can only add component properties to a component set or a lone component');
+    if (typeof name !== 'string' || !name.trim()) throw new Error('A component property needs a name');
+    if (type === 'BOOLEAN' && typeof defaultValue !== 'boolean') throw new Error('in addComponentProperty: BOOLEAN default must be a boolean');
+    if (type === 'TEXT' && typeof defaultValue !== 'string') throw new Error('in addComponentProperty: TEXT default must be a string');
+    if ([...this.props.keys()].some((k) => k.replace(/#[^#]*$/, '') === name && this.props.get(k)!.type === type)) throw new Error(`in addComponentProperty: a ${type} property "${name}" already exists`);
     this.checkSwap(type, defaultValue, options?.preferredValues);
-    const key = `${name}#${++seq}:0`;
+    // Figma keeps names unique across types: a taken name gets the next free number (Icon -> Icon2 -> Icon3).
+    const taken = new Set([...this.props.keys()].map((k) => k.replace(/#[^#]*$/, '')));
+    let unique = name;
+    for (let i = 2; taken.has(unique); i++) unique = `${name}${i}`;
+    const key = `${unique}#${++seq}:0`;
     this.props.set(key, { type, defaultValue, ...(options?.preferredValues ? { preferredValues: structuredClone(options.preferredValues) } : {}) });
     return key;
   }
-  editComponentProperty(key: string, patch: { defaultValue?: string | boolean; preferredValues?: { type: string; key: string }[] }) {
+  editComponentProperty(key: string, patch: { name?: string; defaultValue?: string | boolean; preferredValues?: { type: string; key: string }[] }) {
     const d = this.props.get(key);
     if (!d) throw new Error(`No property ${key}`);
     this.checkSwap(d.type, patch.defaultValue ?? d.defaultValue, patch.preferredValues);
     if (patch.defaultValue !== undefined) d.defaultValue = patch.defaultValue;
     if (patch.preferredValues) d.preferredValues = structuredClone(patch.preferredValues);
-    return key;
+    if (patch.name === undefined || patch.name === key.replace(/#[^#]*$/, '')) return key;
+    // A rename keeps the property id (the part after #), so layers and instance overrides follow it, as in Figma.
+    const taken = new Set([...this.props.keys()].filter((k) => k !== key).map((k) => k.replace(/#[^#]*$/, '')));
+    let unique = patch.name;
+    for (let i = 2; taken.has(unique); i++) unique = `${patch.name}${i}`;
+    const next = `${unique}${key.slice(key.replace(/#[^#]*$/, '').length)}`;
+    this.props.delete(key);
+    this.props.set(next, d);
+    for (const n of this.findAll()) {
+      const refs = n.componentPropertyReferences;
+      if (refs && Object.values(refs).includes(key)) n.componentPropertyReferences = Object.fromEntries(Object.entries(refs).map(([f, v]) => [f, v === key ? next : v]));
+    }
+    return next;
   }
   deleteComponentProperty(key: string) {
     if (!this.props.delete(key)) throw new Error(`No property ${key}`);
@@ -405,14 +543,68 @@ export class SimNode {
     }
   }
 
+  // Prototype reactions. With documentAccess dynamic-page, `reactions` is read only: setReactionsAsync writes them.
+  private _reactions: Dict[] = [];
+  get reactions(): Dict[] {
+    // As Figma reads them: mouse enter and leave triggers carry deprecatedVersion, which setReactionsAsync refuses.
+    return structuredClone(this._reactions).map((r) => {
+      const t = r.trigger as Dict | null;
+      return t && (t.type === 'MOUSE_ENTER' || t.type === 'MOUSE_LEAVE') ? { ...r, trigger: { ...t, deprecatedVersion: false } } : r;
+    });
+  }
+  set reactions(_v: unknown) {
+    throw new Error('reactions is read only with documentAccess dynamic-page: use setReactionsAsync');
+  }
+  async setReactionsAsync(reactions: Dict[]): Promise<void> {
+    await this.api.gate();
+    const out: Dict[] = [];
+    for (const r of reactions) {
+      const trigger = r.trigger as Dict | null;
+      const type = trigger?.type as string;
+      if (!['ON_CLICK', 'ON_HOVER', 'ON_PRESS', 'ON_DRAG', 'MOUSE_ENTER', 'MOUSE_LEAVE', 'MOUSE_UP', 'MOUSE_DOWN', 'AFTER_TIMEOUT'].includes(type)) throw new Error(`Invalid trigger ${String(type)}`);
+      if (['MOUSE_ENTER', 'MOUSE_LEAVE', 'MOUSE_UP', 'MOUSE_DOWN'].includes(type) && typeof trigger!.delay !== 'number') throw new Error(`${type} needs delay`);
+      // As Figma: any key outside the documented shape fails the whole call (deprecatedVersion included).
+      const allowed = ['type', ...(['MOUSE_ENTER', 'MOUSE_LEAVE', 'MOUSE_UP', 'MOUSE_DOWN'].includes(type) ? ['delay'] : type === 'AFTER_TIMEOUT' ? ['timeout'] : [])];
+      const stray = Object.keys(trigger!).find((k) => !allowed.includes(k));
+      if (stray) throw new Error(`in setReactionsAsync: Property "reactions" failed validation: Unrecognized key: "${stray}" at [${reactions.indexOf(r)}].trigger`);
+      if (this.api.rejectReactions?.(this)) throw new Error('in setReactionsAsync: Property "reactions" failed validation');
+      const actions = (r.actions ?? (r.action ? [r.action] : [])) as Dict[];
+      for (const a of actions) {
+        if (a.type !== 'NODE') continue;
+        const dest = this.api.nodes.get(a.destinationId as string);
+        if (!dest) throw new Error(`No node ${String(a.destinationId)}`);
+        if (a.navigation === 'CHANGE_TO' && (this.type !== 'COMPONENT' || dest.type !== 'COMPONENT' || dest.parent !== this.parent || this.parent?.type !== 'COMPONENT_SET')) throw new Error('CHANGE_TO goes to another variant of the same component set');
+        const t = a.transition as Dict | null;
+        if (t) {
+          if (t.type !== 'SMART_ANIMATE' && t.type !== 'DISSOLVE') throw new Error(`Unexpected transition ${String(t.type)}`);
+          if (!(typeof t.duration === 'number' && t.duration > 0)) throw new Error('A transition needs a duration in seconds');
+          const easing = t.easing as Dict;
+          if (easing.type === 'CUSTOM_CUBIC_BEZIER' && !easing.easingFunctionCubicBezier) throw new Error('CUSTOM_CUBIC_BEZIER needs easingFunctionCubicBezier');
+          // Figma stores durations as float32.
+          t.duration = Math.fround(t.duration as number);
+        }
+      }
+      // Figma returns the first action as `action` too.
+      out.push({ trigger: structuredClone(trigger), action: structuredClone(actions[0] ?? null), actions: structuredClone(actions) });
+    }
+    this._reactions = out;
+    this.api.reactionWrites++;
+  }
+
   // Export: a description of what Figma would draw, bound values resolved.
   async exportAsync(): Promise<Uint8Array> {
+    this.api.exports++;
+    await this.api.gate();
     return new TextEncoder().encode(JSON.stringify(this.api.render(this)));
   }
 }
 
 export class SimFigma {
   nodes = new Map<string, SimNode>();
+  /** exportAsync calls (images), on every node. */
+  exports = 0;
+  /** setValueForMode calls, on every variable. */
+  valueWrites = 0;
   collections: SimCollection[] = [];
   variables: SimVariable[] = [];
   loadedFonts = new Set<string>();
@@ -423,6 +615,39 @@ export class SimFigma {
   currentPage: SimNode;
   fileKey: string | undefined = undefined;
   notices: string[] = [];
+  /** setReactionsAsync calls, to check a second pull writes nothing. */
+  reactionWrites = 0;
+  /** When set and true for a node, setReactionsAsync fails there, as Figma does on a reaction it cannot validate. */
+  rejectReactions: ((node: SimNode) => boolean) | undefined = undefined;
+  /** Max nodes in the file (0 = no limit): creating more throws, as Figma does when a file runs out of memory. */
+  nodeLimit = 0;
+  /** Fault injection: the share of Figma calls that fail (0 to 1), from a seeded random sequence, so a run replays. */
+  faultRate = 0;
+  private faultSeed = 1;
+  /** Fonts Figma lists but refuses to load (a broken font file, a missing local font). */
+  brokenFonts = new Set<string>();
+  /** Calls to the API that write, counted for the budget of a big pull. */
+  ops = 0;
+  faults = 0;
+  seedFaults(seed: number, rate: number) {
+    this.faultSeed = seed || 1;
+    this.faultRate = rate;
+  }
+  /** Called by every write: counts it and, with fault injection on, fails some of them like Figma refusing a call. */
+  fault(op: string) {
+    this.ops++;
+    if (!this.faultRate) return;
+    // xorshift32: deterministic for a seed.
+    let x = this.faultSeed;
+    x ^= x << 13;
+    x ^= x >>> 17;
+    x ^= x << 5;
+    this.faultSeed = x >>> 0;
+    if (this.faultSeed / 0xffffffff < this.faultRate) {
+      this.faults++;
+      throw new Error(`in ${op}: injected failure`);
+    }
+  }
 
   constructor(opts: { fonts?: { family: string; style: string }[] } = {}) {
     this.fonts = opts.fonts ?? ['Regular', 'Medium', 'Semi Bold', 'Bold'].flatMap((style) => [{ family: 'Inter', style }, { family: 'Instrument Sans', style }, { family: 'Fraunces', style }, { family: 'IBM Plex Mono', style }]);
@@ -445,22 +670,25 @@ export class SimFigma {
       },
       loadAllPagesAsync: async () => {},
       createPage: () => self.createPage(),
-      createFrame: () => new SimNode('FRAME', self),
-      createComponent: () => new SimNode('COMPONENT', self),
-      createText: () => new SimNode('TEXT', self),
+      // As in Figma: a new node starts on the current page until it is moved into place.
+      createFrame: () => self.onPage(new SimNode('FRAME', self), 'createFrame'),
+      createSection: () => self.onPage(new SimNode('SECTION', self), 'createSection'),
+      createComponent: () => self.onPage(new SimNode('COMPONENT', self), 'createComponent'),
+      createText: () => self.onPage(new SimNode('TEXT', self), 'createText'),
       createNodeFromSvg: (svg: string) => {
+        self.fault('createNodeFromSvg');
         const shapes = svg.match(/<(path|circle|rect|line|polyline|polygon|ellipse)\b[^>]*>/g);
         if (!/^<svg[\s>]/.test(svg) || !shapes) throw new Error('Invalid SVG');
         const frame = new SimNode('FRAME', self);
         frame.resize(24, 24);
-        self.currentPage.appendChild(frame);
+        self.currentPage.attach(frame);
         for (const shape of shapes) {
           const v = new SimNode('VECTOR', self);
           v.name = 'Vector';
           v.strokes = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }];
           v.strokeWeight = 2;
           v.svgShape = shape;
-          frame.appendChild(v);
+          frame.attach(v);
         }
         return frame;
       },
@@ -473,25 +701,28 @@ export class SimFigma {
         v.strokeWeight = nodes[0]!.strokeWeight;
         v.paths = nodes.map((n) => n.svgShape ?? n.paths).join('');
         v.resize(24, 24);
-        (parent ?? self.currentPage).appendChild(v);
+        (parent ?? self.currentPage).attach(v);
         for (const n of nodes) n.remove();
         return v;
       },
       combineAsVariants: (nodes: SimNode[], parent: SimNode) => {
         if (!nodes.length) throw new Error('combineAsVariants needs at least one component');
+        self.fault('combineAsVariants');
+        if (nodes.some((n) => n.type !== 'COMPONENT')) throw new Error('Only components can be combined');
         const set = new SimNode('COMPONENT_SET', self);
-        parent.appendChild(set);
-        for (const n of nodes) {
-          if (n.type !== 'COMPONENT') throw new Error('Only components can be combined');
-          set.appendChild(n);
-        }
+        parent.attach(set);
+        for (const n of nodes) set.attach(n);
         return set;
       },
       getNodeByIdAsync: async (id: string) => self.nodes.get(id) ?? null,
       getStyleByIdAsync: async () => null,
       listAvailableFontsAsync: async () => self.fonts.map((fontName) => ({ fontName })),
       loadFontAsync: async (f: { family: string; style: string }) => {
+        await self.gate();
+        self.fontLoads++;
         if (!self.fonts.some((x) => x.family === f.family && x.style === f.style)) throw new Error(`Font ${f.family} ${f.style} is not available`);
+        if (self.brokenFonts.has(`${f.family}|${f.style}`)) throw new Error(`in loadFontAsync: could not load font ${f.family} ${f.style}`);
+        self.fault('loadFontAsync');
         self.loadedFonts.add(`${f.family}|${f.style}`);
       },
       notify: (m: string) => self.notices.push(m),
@@ -520,6 +751,44 @@ export class SimFigma {
         },
       },
     };
+  }
+
+  /** From this op count on, async calls never answer (0 = off): the plugin stops where it is, as when the file closes. */
+  hangAfter = 0;
+  hung = false;
+  async gate(): Promise<void> {
+    if (this.hangAfter && this.ops >= this.hangAfter) {
+      this.hung = true;
+      await new Promise(() => undefined);
+    }
+  }
+
+  /** loadFontAsync calls: each font is loaded once per pull. */
+  fontLoads = 0;
+
+  onPage(n: SimNode, op: string): SimNode {
+    this.currentPage.attach(n);
+    try {
+      this.fault(op);
+    } catch (err) {
+      // Figma refused the call: nothing was created.
+      n.remove();
+      throw err;
+    }
+    return n;
+  }
+
+  /** Layers left loose on a page by a build: anything on a page that is not a generated set, icon or slot. */
+  loose(): SimNode[] {
+    return this.root.children.flatMap((page) =>
+      page.children.filter(
+        (n) =>
+          !(n.type === 'COMPONENT_SET' && n.getSharedPluginData('dsbridge', 'componentId')) &&
+          !(n.type === 'COMPONENT' && (n.getSharedPluginData('dsbridge', 'iconId') || n.getSharedPluginData('dsbridge', 'slotId'))) &&
+          // A set's doc section holding its set is not loose; an empty one is.
+          !(n.type === 'SECTION' && n.getSharedPluginData('dsbridge', 'docFor') && n.children.some((c) => c.type === 'COMPONENT_SET')),
+      ),
+    );
   }
 
   createPage(): SimNode {

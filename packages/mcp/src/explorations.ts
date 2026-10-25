@@ -7,6 +7,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
   baseBranchOf,
+  productsOf,
   closeExplorationOnGitHub,
   EXPLORATION_LABEL,
   EXPLORATION_PREFIX,
@@ -36,10 +37,12 @@ import {
 } from '@bridge-ds/core';
 import { branchExists, commitToNewLocalBranch, currentBranch, git } from '@bridge-ds/core/node';
 import { BridgeContext } from './context.js';
+import { productMarks, resolveProduct } from './branches.js';
+import { addToken, readOnlyPreview, say } from './say.js';
 
 const USE_CASES = new Set<string>(EXPLORATION_USE_CASES.map((u) => u.value));
 
-const settingsOf = (config: BridgeConfig) => ({ base: baseBranchOf(config), packages: config.previews?.packages ?? [], apps: config.previews?.apps ?? {} });
+export const settingsOf = (config: BridgeConfig) => ({ base: baseBranchOf(config), packages: config.previews?.packages ?? [], apps: config.previews?.apps ?? {} });
 
 async function requireGitHub(ctx: BridgeContext): Promise<GitHubClient> {
   const gh = await ctx.github();
@@ -65,6 +68,8 @@ export interface StartExplorationInput {
   /** Where it is started from (the MCP tool says mcp, the CLI says cli), and the AI agent behind it when known. */
   source?: ExplorationSource | undefined;
   agent?: string | undefined;
+  /** The product it is tried in (key or name, bridge.config.json "products"). Default: the product of the current folder or repo. */
+  product?: string | undefined;
   dryRun?: boolean | undefined;
 }
 
@@ -93,8 +98,11 @@ export async function startExploration(ctx: BridgeContext, a: StartExplorationIn
     startedAt: new Date().toISOString(),
   };
   const gh = await ctx.github().catch(() => null);
+  const product = await resolveProduct(ctx, a.product);
+  const marks = productMarks(productsOf(config), product);
   const preview = {
     branch,
+    product: product.name,
     slug,
     base: s.base,
     title: explorationPrTitle(e),
@@ -103,9 +111,13 @@ export async function startExploration(ctx: BridgeContext, a: StartExplorationIn
     prBody: explorationPrBody(e, { owner: gh?.owner ?? config.repo?.owner ?? 'owner', repo: gh?.name ?? config.repo?.name ?? 'repo', packages: s.packages, apps: s.apps }),
   };
   if (a.dryRun) return { status: 'dry-run' as const, ...preview };
-  const work = `Work on it: \`git fetch origin && git switch ${branch}\`. Token edits: bridge_propose_token_change with "branch": "${branch}". Requests: bridge_create_request with "exploration": "${branch}", then bridge_get_request with "branch": "${branch}". It is never merged as is: promote it (\`bridge explore promote ${slug}\`) or close it.`;
+  const work = `Work on it: \`git fetch origin && git switch ${branch}\`. ${say(
+    ctx,
+    `Token edits: bridge_propose_token_change with "branch": "${branch}". Requests: bridge_create_request with "exploration": "${branch}", then bridge_get_request with "branch": "${branch}".`,
+    `Token edits: \`bridge propose --branch ${branch} ...\`. Requests: \`bridge request create --exploration ${branch} ...\`, then \`bridge request implement <n> --branch ${branch}\`.`,
+  )} It is never merged as is: promote it (\`bridge explore promote ${slug}\`) or close it.`;
   if (gh && ctx.canWriteRemote) {
-    const r = await startExplorationOnGitHub(gh, e, s);
+    const r = await startExplorationOnGitHub(gh, e, { ...s, labels: marks.labels });
     return {
       status: 'started' as const,
       ...preview,
@@ -133,10 +145,10 @@ export async function startExploration(ctx: BridgeContext, a: StartExplorationIn
       status: 'branch-created' as const,
       ...preview,
       commit: res.sha,
-      next: `Local branch only, nothing pushed, your working tree is untouched. To share it: \`git push -u origin ${branch}\`, then \`gh pr create --draft --base ${s.base} --head ${branch} --label ${EXPLORATION_LABEL} --title "${preview.title}"\` with prBody as the body (or set GITHUB_TOKEN and start it again under another name). ${work}`,
+      next: `Local branch only, nothing pushed, your working tree is untouched. To share it: \`git push -u origin ${branch}\`, then \`gh pr create --draft --base ${s.base} --head ${branch} --label ${EXPLORATION_LABEL} --title "${preview.title}"\` with ${say(ctx, 'prBody', 'the pull request text from --dry-run')} as the body (or ${addToken(ctx)} and start it again under another name). ${work}`,
     };
   }
-  throw new Error('Starting an exploration needs GITHUB_TOKEN (contents and pull requests: write), or a local git repo. Without them Bridge is read-only. Use dryRun to preview it.');
+  throw new Error(`Starting an exploration needs a GitHub token (contents and pull requests: write), or a local git repo: ${addToken(ctx)}. Without them Bridge is read-only. ${say(ctx, 'Use dryRun', 'Add --dry-run')} to preview it.`);
 }
 
 /**
@@ -200,7 +212,7 @@ export async function listExplorations(ctx: BridgeContext, a: { state?: 'open' |
 export async function promoteExploration(ctx: BridgeContext, a: { ref: string; dryRun?: boolean | undefined }) {
   const { config } = await ctx.config();
   const gh = await requireGitHub(ctx);
-  if (!a.dryRun && !ctx.canWriteRemote) throw new Error('Promoting an exploration needs GITHUB_TOKEN (contents and pull requests: write). Or use "Ready for review" on GitHub and remove the exploration label.');
+  if (!a.dryRun && !ctx.canWriteRemote) throw new Error(`Promoting an exploration needs a GitHub token (contents and pull requests: write): ${addToken(ctx)}. Or use "Ready for review" on GitHub and remove the exploration label.`);
   const ref = /^#?\d+$/.test(a.ref.trim()) ? Number(a.ref.trim().replace(/^#/, '')) : toExplorationBranch(a.ref);
   const p = await findExplorationOnGitHub(gh, ref);
   const requests = ((await requestsByExploration(gh)).get(p.headRef) ?? []).filter((r) => r.state === 'open').map((r) => r.number);
@@ -210,7 +222,7 @@ export async function promoteExploration(ctx: BridgeContext, a: { ref: string; d
 
 export async function closeExploration(ctx: BridgeContext, a: { ref: string }) {
   const gh = await requireGitHub(ctx);
-  if (!ctx.canWriteRemote) throw new Error('Closing an exploration needs GITHUB_TOKEN (pull requests: write). Or close the pull request on GitHub.');
+  if (!ctx.canWriteRemote) throw new Error(`Closing an exploration needs a GitHub token (pull requests: write): ${addToken(ctx)}. Or close the pull request on GitHub.`);
   const ref = /^#?\d+$/.test(a.ref.trim()) ? Number(a.ref.trim().replace(/^#/, '')) : toExplorationBranch(a.ref);
   return { status: 'closed' as const, ...(await closeExplorationOnGitHub(gh, ref)) };
 }
@@ -225,7 +237,7 @@ export async function explorationContext(ctx: BridgeContext, ref: string, opts: 
   const branch = toExplorationBranch(ref);
   if (ctx.mode === 'remote') {
     const gh = await requireGitHub(ctx);
-    if (!(await gh.getBranchSha(branch))) throw new Error(`Branch ${branch} not found on ${gh.fullName}. Start it first with bridge_start_exploration.`);
+    if (!(await gh.getBranchSha(branch))) throw new Error(`Branch ${branch} not found on ${gh.fullName}. Start it first with ${say(ctx, 'bridge_start_exploration', '`bridge explore start`')}.`);
     return { ctx: await BridgeContext.create({ ...ctx.opts, ref: branch }), branch };
   }
   if (opts.requireCheckout !== false) {
@@ -240,7 +252,7 @@ export async function explorationContext(ctx: BridgeContext, ref: string, opts: 
 export async function writeToExploration(ctx: BridgeContext, branch: string, input: { message: string; files: { path: string; content: string | null }[] }) {
   if (ctx.mode === 'remote') {
     const gh = await requireGitHub(ctx);
-    if (!ctx.canWriteRemote) return { status: 'preview' as const, message: `Read-only: set GITHUB_TOKEN to commit this to ${branch}.` };
+    if (!ctx.canWriteRemote) return { status: 'preview' as const, message: readOnlyPreview(ctx, `commit this to ${branch}`) };
     const res = await gh.withBranchPrefix(EXPLORATION_PREFIX).commitToBranch({ branch, message: input.message, files: input.files });
     const pr = await gh.findOpenPullRequest(branch).catch(() => undefined);
     return {

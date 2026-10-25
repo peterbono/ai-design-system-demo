@@ -1,0 +1,5 @@
+---
+"@bridge-ds/docs-site": minor
+---
+
+The demo for visitors, as the approved boards show it (D1, D1b, D2). A "Demo workspace" banner over every Studio page says the data is read-only sample data, with "See it on GitHub" and "Use your own repo" (it opens "Create a new team"). Studio home is the signed-in home from the DS lead's seat: "Good evening, Dana.", "8 changes need your review. Ann and Claude AI are waiting on Dana, who leads this design system.", the Needs you rows with their Review buttons, the grouped row with "Review all (N)", the library health line and "Explorations and branches". A three-step tour runs on the first visit. Every action that would change the demo (Create branch, New brand, Send suggestion, Approve, Start an exploration...) opens "Sign in with GitHub to do this for real." The demo is one list (lib/demo.ts DEMO_REPOS), and its activity is read through one function (scripts/demo-home.ts readDemoActivity) so a published activity snapshot can replace the GitHub reads. Owners with write access keep the normal Studio. The Studio side nav's ground now runs the full height of long pages.

@@ -8,9 +8,11 @@ interface Props {
   mode: 'read' | 'edit';
   /** Token path (or group, like "color.text") to open on load. ?focus= or ?t= in the URL wins. */
   focus?: string;
+  /** A team shell: the team's tokens are read in the browser (TokenExplorer hosted). */
+  hosted?: boolean;
 }
 
-const { mode, focus } = Astro.props;
+const { mode, focus, hosted } = Astro.props;
 ---
 
-<TokenExplorer mode={mode} focus={focus} />
+<TokenExplorer mode={mode} focus={focus} hosted={hosted} />

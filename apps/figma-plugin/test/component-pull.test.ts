@@ -8,12 +8,13 @@ import { test } from 'node:test';
 import { type ComponentSpecsFile, hashSpec, parseComponentSpecs } from '@bridge-ds/core';
 import { generateRepoComponentSpecs } from '@bridge-ds/core/node';
 import { applyPullPlan } from '../src/main/apply';
-import { applyComponentPlan, layoutVariants, scanGenerated } from '../src/main/build-components';
+import { applyComponentPlan, interactionsNote, layoutVariants, scanGenerated } from '../src/main/build-components';
+import { cleanReaction, cleanReactions } from '../src/main/reactions';
 import { exportThumbnails, scanComponents } from '../src/main/components';
 import { onlyComponent, plannedSignature, reviewUpdates, withoutComponents } from '../src/sync/component-review';
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
-import { buildComponentPlan, coverageView, evaluateCalc, loadComponentSpecs, pendingComponents, writablePlan } from '../src/sync/component-pull';
+import { buildComponentPlan, coverageView, draftedSetNote, evaluateCalc, loadComponentSpecs, pendingComponents, planValue, storyLinks, writablePlan } from '../src/sync/component-pull';
 import { classifyComponents, pullBaselines, suggestLine, suggestTitle } from '../src/sync/components';
 import { analyze, buildPull } from '../src/sync/flows';
 import { FakeGitHub } from './fake-github';
@@ -121,13 +122,19 @@ test('apply: every generated set on a Components page, bound to the variables, w
   assert.deepEqual(report.problems, []);
   assert.equal(report.fontNote, undefined);
   const page = sim.root.children.find((p) => p.name === 'Components')!;
-  assert.deepEqual(page.children.map((s) => `${s.type}:${s.name}`), SPEC_COMPONENTS.map((n) => `COMPONENT_SET:${n}`));
-  const button = page.children.find((s) => s.name === 'Button')!;
+  // Each set in its doc section: its name, the sync status, the values of the grid's columns and rows.
+  assert.deepEqual(page.children.map((s) => `${s.type}:${s.name}`), SPEC_COMPONENTS.map((n) => `SECTION:${n}`));
+  assert.deepEqual(page.children.map((s) => s.children.filter((c) => c.type === 'COMPONENT_SET').map((c) => c.name)), SPEC_COMPONENTS.map((n) => [n]));
+  const button = sim.sets().find((s) => s.name === 'Button')!;
+  const doc = button.parent!.children.filter((c) => c.type === 'TEXT').map((t) => t.characters);
+  assert.ok(doc.includes('Button') && doc.includes('In sync with the code.'), doc.join(' / '));
+  assert.ok(doc.includes('State: Default') && doc.some((t) => t.startsWith('Variant: primary')), doc.join(' / '));
   assert.equal(button.children.length, 72);
   const defs = button.componentPropertyDefinitions;
   assert.deepEqual(
     Object.entries(defs).map(([k, d]) => `${k.replace(/#.*$/, '')}:${d.type}`).sort(),
-    ['Icon end:BOOLEAN', 'Icon end:INSTANCE_SWAP', 'Icon start:BOOLEAN', 'Icon start:INSTANCE_SWAP', 'Label:TEXT', 'Size:VARIANT', 'State:VARIANT', 'Variant:VARIANT'],
+    // As Figma kits name them: "Show icon start" turns the part on, "Icon start" picks which icon.
+    ['Icon end:INSTANCE_SWAP', 'Icon start:INSTANCE_SWAP', 'Label:TEXT', 'Show icon end:BOOLEAN', 'Show icon start:BOOLEAN', 'Size:VARIANT', 'State:VARIANT', 'Variant:VARIANT'],
   );
   const v = variantOf(button, 'Variant=secondary, Size=lg, State=Hover');
   assert.equal(boundName(sim, v, 'fills'), 'Component:button/secondary/bg-hover');
@@ -145,15 +152,14 @@ test('apply: every generated set on a Components page, bound to the variables, w
   assert.match(String(Object.keys(defs).find((k) => k.startsWith('Label#'))), /^Label#/);
   assert.deepEqual(label.componentPropertyReferences, { characters: Object.keys(defs).find((k) => k.startsWith('Label#')) });
   const icon = partOf(v, 'icon-start');
-  const key = (name: string, type: string) => Object.keys(defs).find((k) => k.replace(/#.*$/, '') === name && defs[k]!.type === type);
-  assert.deepEqual(icon.componentPropertyReferences, { mainComponent: key('Icon start', 'INSTANCE_SWAP'), visible: key('Icon start', 'BOOLEAN') });
+  assert.deepEqual(icon.componentPropertyReferences, { mainComponent: propKey(button, 'Icon start', 'INSTANCE_SWAP'), visible: propKey(button, 'Show icon start', 'BOOLEAN') });
   assert.equal(boundName(sim, icon, 'width'), 'Base:icon/size/sm');
   // Disabled ghost: no fill at all, disabled text color.
   const ghost = variantOf(button, 'Variant=ghost, Size=md, State=Disabled');
   assert.deepEqual(ghost.fills, []);
   assert.equal(boundName(sim, partOf(ghost, 'text'), 'fills'), 'Semantic:color/action/disabled/text');
   // Card: compound parts with their own text properties.
-  const card = page.children.find((s) => s.name === 'Card')!;
+  const card = sim.sets().find((s) => s.name === 'Card')!;
   assert.deepEqual(
     partOf(variantOf(card, 'Padding=default'), 'root').children.map((c) => c.name),
     ['Header', 'Body', 'Footer'],
@@ -239,11 +245,30 @@ test('variables missing in Figma: the part is reported, never bound to something
 // ---------------------------------------------------------------------------------------------
 // Fixes seen in real Figma on the Components page (Badge md padding, Card layout, Tag wrapper, grid spacing).
 
+test('bound paints carry the color they resolve to: Figma shows that color until something refreshes it', async () => {
+  const { sim, plan } = await pulledFile();
+  await applyComponentPlan(writablePlan(plan));
+  const set = sim.sets().find((s) => s.name === 'Badge')!;
+  let checked = 0;
+  for (const v of set.children) {
+    for (const node of [v, ...v.findAll(() => true)]) {
+      for (const paint of [...((node.fills as Record<string, unknown>[] | undefined) ?? []), ...((node.strokes as Record<string, unknown>[] | undefined) ?? [])]) {
+        const id = (paint.boundVariables as { color?: { id: string } } | undefined)?.color?.id;
+        if (!id) continue;
+        const want = sim.resolveVariable(sim.variables.find((x) => x.id === id)!) as { r: number; g: number; b: number };
+        assert.deepEqual(paint.color, { r: want.r, g: want.g, b: want.b }, `${v.name} / ${node.name}: not the black base`);
+        checked++;
+      }
+    }
+  }
+  assert.ok(checked > 20, `bound paints checked: ${checked}`);
+});
+
 test('calc(): Badge md padding and min height are resolved from the tokens and set, not bound', async () => {
   const { sim, plan, a } = await pulledFile();
   assert.equal(evaluateCalc('calc(space.2 + space.0-5)', a.head), 10);
   assert.equal(evaluateCalc('calc((size.6 - space.1) * 2)', a.head), 40);
-  assert.deepEqual(evaluateCalc('calc(space.2 + nope.1)', a.head), { problem: 'nope.1 is not a token on this branch' });
+  assert.deepEqual(evaluateCalc('calc(space.2 + nope.1)', a.head), { problem: 'nope.1 is not a token in the library' });
   const badge = plan.components.find((c) => c.name === 'Badge')!;
   const md = badge.variants.find((v) => v.props.Size === 'md')!;
   assert.deepEqual(md.parts.root!.find((f) => f.field === 'paddingLeft')!.value, { kind: 'number', value: 10, expr: 'calc(space.2 + space.0-5)' });
@@ -253,8 +278,9 @@ test('calc(): Badge md padding and min height are resolved from the tokens and s
   const v = variantOf(set, 'Tone=neutral, Appearance=subtle, Size=md');
   assert.deepEqual([v.paddingLeft, v.paddingRight, v.minHeight], [10, 10, 26], 'the label no longer touches the edges');
   assert.equal(boundName(sim, v, 'paddingLeft'), undefined, 'a calc() is set, not bound');
-  // sm stays bound: a single token.
-  assert.equal(boundName(sim, variantOf(set, 'Tone=neutral, Appearance=subtle, Size=sm'), 'paddingLeft'), 'Primitives:space/1-5');
+  // sm stays bound: a single token. Which space token is the library's choice (a Figma change may move it), not this test's.
+  const sm = variantOf(set, 'Tone=neutral, Appearance=subtle, Size=sm');
+  assert.match(boundName(sim, sm, 'paddingLeft') ?? '', /^Primitives:space\/[\w-]+$/);
 });
 
 test('Card: fixed width from the size scale, parts fill the card, body text wraps, content clipped, h3 header', async () => {
@@ -323,8 +349,7 @@ test('grid: rows of different heights are evenly spaced, columns as wide as thei
   const comp = plan.components.find((c) => c.name === 'Button')!;
   // What Figma measures after auto layout: sm 32, md 44, lg 48 tall; Hover a bit wider.
   for (const c of set.children) {
-    c.height = /Size=sm/.test(c.name) ? 32 : /Size=md/.test(c.name) ? 44 : 48;
-    c.width = /State=Hover/.test(c.name) ? 120 : 100;
+    c.resize(/State=Hover/.test(c.name) ? 120 : 100, /Size=sm/.test(c.name) ? 32 : /Size=md/.test(c.name) ? 44 : 48);
   }
   layoutVariants(set as unknown as ComponentSetNode, comp);
   const rows = [...new Set(set.children.map((c) => c.y))].sort((x, y) => x - y);
@@ -377,10 +402,11 @@ test('review: per set, the variants, props and bound variables an update changes
   assert.deepEqual(badge.changes[0], { field: 'Variant Tone', before: 'danger, info, neutral, success, warning', after: 'info, neutral, success, warning' });
   assert.equal(badge.removedVariants.length, 4);
   const card = reviews[1]!;
-  // Padding none shows the Media slot: its plate (color.bg.muted) is one more fill there.
+  // card.bg gone, onto a variable another layer already uses: still bound, so what the fill may use now, never "none"
+  // (Padding none also shows the Media plate).
   assert.deepEqual(card.changes, [
-    { field: 'Fill (Padding=compact; Padding=default)', before: 'card.bg, color.bg.subtle, color.text.default', after: 'color.bg.subtle, color.text.default' },
-    { field: 'Fill (Padding=none)', before: 'card.bg, color.bg.muted, color.bg.subtle, color.text.default', after: 'color.bg.muted, color.bg.subtle, color.text.default' },
+    { field: 'Fill (Padding=compact; Padding=default)', before: 'card.bg', after: 'color.bg.subtle, color.text.default' },
+    { field: 'Fill (Padding=none)', before: 'card.bg', after: 'color.bg.muted, color.bg.subtle, color.text.default' },
   ]);
 });
 
@@ -419,7 +445,12 @@ test('thumbnails: a PNG per set for the before and after previews', async () => 
 const mainOf = async (n: SimNode) => (await n.getMainComponentAsync())!.name;
 const pageNamed = (sim: SimFigma, name: string) => sim.root.children.filter((p) => p.name === name);
 const defsOf = (set: SimNode) => set.componentPropertyDefinitions;
-const propKey = (set: SimNode, name: string, type: string) => Object.keys(defsOf(set)).find((k) => k.replace(/#.*$/, '') === name && defsOf(set)[k]!.type === type);
+/** A property by the code's name; a swap also under the name Figma gave it when a BOOLEAN took it ("Icon2"). */
+const propKey = (set: SimNode, name: string, type: string) =>
+  Object.keys(defsOf(set)).find((k) => {
+    const b = k.replace(/#.*$/, '');
+    return defsOf(set)[k]!.type === type && (b === name || (type === 'INSTANCE_SWAP' && b.startsWith(name) && /^\d+$/.test(b.slice(name.length))));
+  });
 
 /** The spec as it was before swaps: icon placeholders, Card body as a TEXT property, no icons or slots. */
 function specsBeforeSwaps(specs: ComponentSpecsFile): ComponentSpecsFile {
@@ -471,6 +502,28 @@ test('icons: one component per icon on an Icons page, drawn from the SVG, bound 
   assert.equal(sim.root.findAll((n) => n.type === 'COMPONENT' && !!n.getSharedPluginData('dsbridge', 'iconId')).length, specs.icons!.length);
 });
 
+test('swap properties: Show icon turns the part on, Icon picks it; old files are renamed in place, never duplicated', async () => {
+  const { sim, plan } = await pulledFile();
+  await applyComponentPlan(writablePlan(plan));
+  const badge = sim.sets().find((s) => s.name === 'Badge')!;
+  const named = (type: string) => Object.keys(defsOf(badge)).filter((k) => defsOf(badge)[k]!.type === type).map((k) => k.replace(/#.*$/, ''));
+  assert.deepEqual([named('BOOLEAN'), named('INSTANCE_SWAP')], [['Show icon'], ['Icon']]);
+  // An update (the same plan again, as Update all does) adds nothing.
+  await applyComponentPlan(writablePlan(plan));
+  assert.deepEqual([named('BOOLEAN'), named('INSTANCE_SWAP')], [['Show icon'], ['Icon']]);
+  // A file built before this naming: BOOLEAN "Icon", the swap Figma renamed "Icon2", and an unused "Icon3" an earlier
+  // update added. The next update renames them in place (same ids, instances keep their overrides) and drops Icon3.
+  const swapKey = propKey(badge, 'Icon', 'INSTANCE_SWAP')!;
+  const boolKey = propKey(badge, 'Show icon', 'BOOLEAN')!;
+  const oldSwap = badge.editComponentProperty(swapKey, { name: 'Icon2' });
+  badge.editComponentProperty(boolKey, { name: 'Icon' });
+  badge.addComponentProperty('Icon', 'INSTANCE_SWAP', String(defsOf(badge)[oldSwap]!.defaultValue));
+  assert.deepEqual([named('BOOLEAN'), named('INSTANCE_SWAP').sort()], [['Icon'], ['Icon2', 'Icon3']]);
+  await applyComponentPlan(writablePlan(plan));
+  assert.deepEqual([named('BOOLEAN'), named('INSTANCE_SWAP')], [['Show icon'], ['Icon']]);
+  assert.equal(propKey(badge, 'Icon', 'INSTANCE_SWAP')!.replace(/^[^#]*/, ''), oldSwap.replace(/^[^#]*/, ''), 'the swap the layers used kept its id');
+});
+
 test('IconButton: every variant holds an instance of the default icon, sized and colored by the variant, swappable', async () => {
   const { sim, plan, specs } = await pulledFile();
   await applyComponentPlan(writablePlan(plan));
@@ -503,7 +556,7 @@ test('IconButton: every variant holds an instance of the default icon, sized and
   const button = sim.sets().find((s) => s.name === 'Button')!;
   const bv = variantOf(button, 'Variant=primary, Size=md, State=Default');
   assert.deepEqual([await mainOf(partOf(bv, 'icon-start')), await mainOf(partOf(bv, 'icon-end'))], ['Icon/Plus', 'Icon/ChevronDown']);
-  assert.ok(propKey(button, 'Icon start', 'BOOLEAN') && propKey(button, 'Icon start', 'INSTANCE_SWAP') && propKey(button, 'Icon end', 'INSTANCE_SWAP'));
+  assert.ok(propKey(button, 'Show icon start', 'BOOLEAN') && propKey(button, 'Icon start', 'INSTANCE_SWAP') && propKey(button, 'Icon end', 'INSTANCE_SWAP'));
   const badge = sim.sets().find((s) => s.name === 'Badge')!;
   assert.equal(await mainOf(partOf(badge.children[0]!, 'icon')), 'Icon/CircleCheck');
 });
@@ -619,7 +672,7 @@ test('real case: a third icon layer after Label in Button primary sm is a struct
   assert.deepEqual(item.changes, [{ field: 'New layer "Icon" (Size=sm, State=Default, Variant=primary)', after: 'instance Icon/Pencil, after "Label"' }]);
   assert.equal(suggestLine(item), 'New instance layer "Icon" (Icon/Pencil) after "Label" in primary sm');
   assert.equal(suggestTitle(item), 'Add a layer after Label');
-  assert.equal(item.equivalent, 'Icon end already does this: show it with the Icon end property');
+  assert.equal(item.equivalent, 'Icon end already does this: turn on Show icon end');
   assert.equal(item.suggestSkip, true, 'starts unchecked: the designer may only need the Icon end property');
 });
 
@@ -654,7 +707,14 @@ test('coverage sets: every generated set binds variables in every variant; state
   assert.equal(track('false').primaryAxisAlignItems, 'MIN');
   assert.equal(track('true').primaryAxisAlignItems, 'MAX');
   // Avatar: the initials cover the circle (and the photo, when shown).
-  assert.equal(partOf(variantOf(set('Avatar'), 'Size=md'), 'fallback').layoutPositioning, 'ABSOLUTE');
+  assert.equal(partOf(variantOf(set('Avatar'), 'Size=md, Fallback=initials, Kind=person'), 'fallback').layoutPositioning, 'ABSOLUTE');
+  // Avatar agent: the Bridge agent mark (the Field Guide robot, a drawn line, no vendor logo) in Deep Harbor on the agent tile.
+  const agent = variantOf(set('Avatar'), 'Size=xs, Fallback=initials, Kind=agent');
+  assert.equal(boundName(sim, agent, 'fills'), 'Component:avatar/agent-bg');
+  const mark = partOf(agent, 'mark');
+  assert.equal(mark.visible, true);
+  assert.equal(boundName(sim, mark, 'width'), 'Primitives:size/4');
+  assert.equal(boundName(sim, mark.type === 'VECTOR' ? mark : mark.children[0]!, 'strokes'), 'Semantic:color/action/primary/bg');
   // Link: underlined text. RadioGroup: the preview's option is the checked one.
   assert.equal(partOf(variantOf(set('Link'), 'Variant=inline, State=Default'), 'text').textDecoration, 'UNDERLINE');
   const group = variantOf(set('RadioGroup'), 'Orientation=vertical, State=Default');
@@ -662,6 +722,28 @@ test('coverage sets: every generated set binds variables in every variant; state
     ['radio', 'radio-2', 'radio-3'].map((id) => boundName(sim, partOf(group, id), 'fills')),
     ['Component:checkbox/bg', 'Component:checkbox/bg-checked', 'Component:checkbox/bg'],
   );
+  // Tabs: the list hairline (::after) is a layer pinned to the bottom across the list; the indicator sits in the
+  // selected tab, along its bottom, or filling it in the contained variant.
+  const tabs = (props: string) => variantOf(set('Tabs'), `${props}, State=Default`);
+  const underline = tabs('Variant=underline, Size=md, Orientation=horizontal');
+  const hairline = partOf(underline, 'decoration');
+  assert.deepEqual([hairline.layoutPositioning, (hairline.constraints as { horizontal: string }).horizontal, (hairline.constraints as { vertical: string }).vertical], ['ABSOLUTE', 'STRETCH', 'MAX']);
+  assert.equal(hairline.parent!.children[0], hairline, 'drawn under the tabs (z-index -1)');
+  const indicator = partOf(underline, 'indicator');
+  assert.equal(indicator.parent, partOf(underline, 'tab'));
+  assert.equal(boundName(sim, indicator, 'fills'), 'Component:tabs/indicator');
+  assert.deepEqual(indicator.constraints, { horizontal: 'STRETCH', vertical: 'MAX' });
+  assert.deepEqual(partOf(tabs('Variant=contained, Size=md, Orientation=horizontal'), 'indicator').constraints, { horizontal: 'STRETCH', vertical: 'STRETCH' });
+  assert.deepEqual(partOf(tabs('Variant=underline, Size=md, Orientation=vertical'), 'indicator').constraints, { horizontal: 'MIN', vertical: 'STRETCH' });
+  // Slider: the thumb is placed at the value over its track; Table: rows of cells sharing the row; Checklist: rows.
+  assert.equal(partOf(variantOf(set('Slider'), 'State=Default'), 'thumb').layoutPositioning, 'ABSOLUTE');
+  const table = variantOf(set('Table'), 'State=Default');
+  assert.equal(partOf(table, 'row-2').layoutMode, 'HORIZONTAL');
+  assert.deepEqual(['cell', 'cell-2'].map((id) => partOf(table, id).layoutSizingHorizontal), ['FILL', 'FILL']);
+  assert.equal(partOf(set('Checklist').children[0]!, 'row').layoutMode, 'HORIZONTAL');
+  // Toast: drafted with Claude, said in its description; a variant per tone.
+  assert.ok(set('Toast').description.startsWith('Drafted with Claude'));
+  assert.equal(set('Toast').children.length, 6);
   // A filled button's transparent 1px border still takes its room, like CSS border-box (fidelity check, PR 137).
   const primary = variantOf(set('Button'), 'Variant=primary, Size=md, State=Default');
   assert.deepEqual([primary.strokes.length, primary.strokes[0]!.opacity, primary.strokesIncludedInLayout, primary.strokeAlign], [1, 0, true, 'INSIDE']);
@@ -673,20 +755,285 @@ test('coverage sets: every generated set binds variables in every variant; state
   assert.deepEqual(sim.sets().map((s) => s.id), ids);
 });
 
-test('coverage: the count of components in Figma, the others with a plain reason, layout helpers apart; never complete without the list', async () => {
+test('coverage: the count of components in Figma, drafted ones named, the others with a plain reason, layout helpers apart; never complete without the list', async () => {
   const { plan, specs } = await pulledFile();
   const view = coverageView(plan);
   const cov = specs.coverage!;
   const visual = cov.filter((c) => c.status !== 'layout');
-  assert.equal(view.headline, `${visual.filter((c) => c.status === 'generated').length} of ${visual.length} components are in Figma`);
-  assert.equal(view.missing.length, visual.filter((c) => c.status === 'unsupported').length);
-  assert.ok(view.missing.every((m) => m.reason.startsWith('Not supported yet: ')));
-  assert.ok(view.missing.some((m) => m.name === 'Tabs' && m.reason === 'Not supported yet: draws with ::before or ::after'));
+  const drafted = visual.filter((c) => c.status === 'drafted');
+  // Every visual component is in Figma: generated, or drafted with Claude (counted in Figma, never as generated).
+  // The count on screen is the sets (parts and popups included): the headline says how they relate.
+  assert.equal(view.headline, `${visual.filter((c) => c.status === 'generated').length + drafted.length} of ${visual.length} components can be pulled into Figma (${plan.components.length} sets with their parts), ${drafted.length} drafted with Claude`);
+  assert.equal(view.headline, '47 of 47 components can be pulled into Figma (62 sets with their parts), 1 drafted with Claude');
+  assert.deepEqual(view.drafted.map((d) => d.name), ['Toast']);
+  assert.ok(view.drafted[0]!.reason.startsWith('Drafted with Claude, the generator cannot read it: it is shown from a hook'));
+  assert.equal(view.missing.length, 0);
+  assert.equal(view.complete, true);
   assert.deepEqual(view.layout, cov.filter((c) => c.status === 'layout').map((c) => c.name));
-  assert.equal(view.complete, false);
+  // A drafted set carries its note into the plan and the Figma description.
+  const toast = plan.components.find((c) => c.name === 'Toast')!;
+  assert.deepEqual(toast.drafted, { reason: 'is shown from a hook or a provider, not placed as a component' });
+  assert.equal(draftedSetNote(toast.drafted!), 'Drafted, check it');
+  assert.equal(draftedSetNote({ reason: 'x', stale: true }), 'Drafted, the code changed since: check it');
+  assert.ok(toast.description.startsWith('Drafted with Claude from packages/react/src/components/Toast'));
+  // Not supported yet: listed with the generator's reason, and the file is not complete.
+  const partial = coverageView({ components: plan.components, coverage: [{ name: 'Button', status: 'generated' }, { name: 'Tabs', status: 'unsupported', reason: 'draws with ::before or ::after' }, { name: 'Stack', status: 'layout' }] });
+  assert.equal(partial.headline, '1 of 2 components can be pulled into Figma (62 sets with their parts)');
+  assert.deepEqual(partial.missing, [{ name: 'Tabs', reason: 'Not supported yet: draws with ::before or ::after' }]);
+  assert.equal(partial.complete, false);
   // An older file with no coverage list: the count of what it has, and no claim that nothing is missing.
   const old = coverageView({ components: plan.components.slice(0, 6) });
-  assert.equal(old.headline, '6 components are in Figma. The code does not list the others yet.');
+  assert.equal(old.headline, '6 components can be pulled into Figma. The code does not list the others yet');
   assert.equal(old.complete, false);
   assert.equal(coverageView({ components: plan.components, coverage: [{ name: 'Button', status: 'generated' }, { name: 'Box', status: 'unsupported' }] }).missing[0]!.reason, 'Not added yet');
+});
+
+type SimReaction = { trigger: { type: string }; actions: { destinationId: string; navigation: string; transition: { type: string; duration: number; easing: { type: string; easingFunctionCubicBezier?: Record<string, number> } } | null }[] };
+const reactionsOf = (n: SimNode) => n.reactions as SimReaction[];
+const ms = (r: SimReaction | undefined) => Math.round((r?.actions[0]?.transition?.duration ?? 0) * 1000);
+
+test('interactions: variants change on hover, press and click with Smart animate and the code motion; reduced motion said in the description', async () => {
+  const { sim, plan } = await pulledFile();
+  const report = await applyComponentPlan(writablePlan(plan));
+  const button = sim.sets().find((s) => s.name === 'Button')!;
+  const def = variantOf(button, 'Variant=primary, Size=md, State=Default');
+  const hover = variantOf(button, 'Variant=primary, Size=md, State=Hover');
+  const pressed = variantOf(button, 'Variant=primary, Size=md, State=Pressed');
+  // While hovering: Default to Hover, Smart animate, motion.duration.instant (75 ms), motion.easing.standard.
+  assert.equal(reactionsOf(def).length, 1);
+  const h = reactionsOf(def)[0]!;
+  assert.equal(h.trigger.type, 'ON_HOVER');
+  assert.equal(h.actions[0]!.destinationId, hover.id);
+  assert.equal(h.actions[0]!.navigation, 'CHANGE_TO');
+  assert.equal(h.actions[0]!.transition!.type, 'SMART_ANIMATE');
+  assert.equal(ms(h), 75);
+  assert.deepEqual(h.actions[0]!.transition!.easing, { type: 'CUSTOM_CUBIC_BEZIER', easingFunctionCubicBezier: { x1: 0.2, y1: 0, x2: 0, y2: 1 } });
+  // While pressing: Hover to Pressed. Pressed and Disabled variants start nothing.
+  assert.deepEqual(reactionsOf(hover).map((r) => [r.trigger.type, r.actions[0]!.destinationId]), [['ON_PRESS', pressed.id]]);
+  assert.equal(reactionsOf(pressed).length, 0);
+  assert.equal(reactionsOf(variantOf(button, 'Variant=primary, Size=md, State=Disabled')).length, 0);
+  // Switch: Mouse enter and leave for hover, On click toggles Checked and keeps the state.
+  const sw = sim.sets().find((s) => s.name === 'Switch')!;
+  const off = variantOf(sw, 'Label placement=end, Size=md, Checked=false, State=Hover');
+  const on = variantOf(sw, 'Label placement=end, Size=md, Checked=true, State=Hover');
+  const click = reactionsOf(off).find((r) => r.trigger.type === 'ON_CLICK')!;
+  assert.equal(click.actions[0]!.destinationId, on.id);
+  assert.equal(ms(click), 150);
+  assert.deepEqual(reactionsOf(off).map((r) => r.trigger.type).sort(), ['MOUSE_LEAVE', 'ON_CLICK']);
+  // The plan counts them and says what Figma approximates or cannot play.
+  const planned = plan.components.find((c) => c.name === 'Button')!;
+  assert.equal(planned.interactions!.length, 15 + 3 + 15);
+  assert.ok(planned.motionNotes!.some((n) => n.startsWith('Keyboard focus')));
+  assert.ok(plan.components.find((c) => c.name === 'Spinner')!.motionNotes!.some((n) => /^Looping animation spin, 700 ms/.test(n)));
+  assert.ok(plan.components.find((c) => c.name === 'Checkbox')!.motionNotes!.some((n) => /^Approximated: parts move at 150 ms and 75 ms/.test(n)));
+  // prefers-reduced-motion has no Figma equivalent: said in the set description.
+  assert.match(button.description, /In code, reduced motion turns this off\./);
+  assert.match(sim.sets().find((s) => s.name === 'Spinner')!.description, /It animates in code\. In code, reduced motion turns this off\./);
+  assert.doesNotMatch(sim.sets().find((s) => s.name === 'Badge')!.description, /reduced motion/);
+  assert.equal(report.problems.filter((p) => /interaction/.test(p)).length, 0);
+});
+
+test('interactions: idempotent, reactions designers add are kept, a motion change in code replaces only DS Bridge ones', async () => {
+  const first = await pulledFile();
+  await applyComponentPlan(writablePlan(first.plan));
+  const button = () => first.sim.sets().find((s) => s.name === 'Button')!;
+  const def = () => variantOf(button(), 'Variant=primary, Size=md, State=Default');
+  const hover = () => variantOf(button(), 'Variant=primary, Size=md, State=Hover');
+  // A designer adds their own On click on a generated variant, and a hover on a frame outside the sets.
+  const figmaApi = first.sim.api() as { createFrame: () => SimNode };
+  const own = figmaApi.createFrame();
+  const target = figmaApi.createFrame();
+  await own.setReactionsAsync([{ trigger: { type: 'ON_HOVER' }, actions: [{ type: 'NODE', destinationId: target.id, navigation: 'NAVIGATE', transition: null }] }]);
+  await def().setReactionsAsync([...(def().reactions as never[]), { trigger: { type: 'ON_CLICK' }, actions: [{ type: 'NODE', destinationId: hover().id, navigation: 'CHANGE_TO', transition: null }] }]);
+  const writes = first.sim.reactionWrites;
+  // A second pull, forced to rebuild every set: no reaction is written again, the designer's ones stay.
+  const again = await pulledFile({ sim: first.sim, gh: first.gh });
+  const forced = { ...again.plan, components: again.plan.components.map((c) => ({ ...c, status: 'updated' as const })) };
+  const report = await applyComponentPlan(forced);
+  assert.equal(first.sim.reactionWrites, writes);
+  assert.deepEqual(reactionsOf(def()).map((r) => r.trigger.type), ['ON_HOVER', 'ON_CLICK']);
+  assert.deepEqual(reactionsOf(own).map((r) => r.trigger.type), ['ON_HOVER']);
+  assert.equal(report.problems.filter((p) => /interaction/.test(p)).length, 0);
+  // Code changes the motion (a slower hover): DS Bridge replaces its own reaction and keeps the designer's.
+  const specs = parseComponentSpecs(specsText());
+  const b = specs.components.find((c) => c.name === 'Button')!;
+  for (const x of b.interactions!) if (x.transition) x.transition = { ...x.transition, duration: 150 };
+  b.hash = hashSpec(b);
+  const slower = await pulledFile({ sim: first.sim, specs: JSON.stringify(specs) });
+  await applyComponentPlan(writablePlan(slower.plan));
+  assert.deepEqual(reactionsOf(def()).map((r) => r.trigger.type), ['ON_CLICK', 'ON_HOVER']);
+  assert.equal(ms(reactionsOf(def())[1]), 150);
+  assert.deepEqual(reactionsOf(own).map((r) => r.trigger.type), ['ON_HOVER']);
+});
+
+test('interactions: a designer reaction on the same trigger wins, and the pull says so', async () => {
+  const { sim, plan } = await pulledFile();
+  await applyComponentPlan(writablePlan(plan));
+  const button = sim.sets().find((s) => s.name === 'Button')!;
+  const def = variantOf(button, 'Variant=primary, Size=md, State=Default');
+  const pressed = variantOf(button, 'Variant=primary, Size=md, State=Pressed');
+  // The designer replaces DS Bridge's hover with their own (straight to Pressed).
+  await def.setReactionsAsync([{ trigger: { type: 'ON_HOVER' }, actions: [{ type: 'NODE', destinationId: pressed.id, navigation: 'CHANGE_TO', transition: null }] }]);
+  const again = await pulledFile({ sim });
+  const forced = { ...again.plan, components: again.plan.components.filter((c) => c.name === 'Button').map((c) => ({ ...c, status: 'updated' as const })) };
+  const report = await applyComponentPlan(forced);
+  assert.deepEqual(reactionsOf(def).map((r) => r.actions[0]!.destinationId), [pressed.id]);
+  assert.deepEqual(report.problems.filter((p) => /interaction/.test(p)), ['Button Variant=primary, Size=md, State=Default: kept your own "While hovering" interaction, so Bridge did not add its own']);
+});
+
+test('interactions: reactions are cleaned to the documented shape before setReactionsAsync', () => {
+  const read = {
+    trigger: { type: 'MOUSE_ENTER', delay: 0, deprecatedVersion: false, extra: 1 },
+    action: { type: 'NODE', destinationId: '1:2', navigation: 'CHANGE_TO', transition: null },
+    actions: [
+      {
+        type: 'NODE',
+        destinationId: '1:2',
+        navigation: 'CHANGE_TO',
+        resetScrollPosition: true,
+        internalId: 'x',
+        transition: { type: 'SMART_ANIMATE', duration: 0.15, extra: true, easing: { type: 'CUSTOM_CUBIC_BEZIER', easingFunctionCubicBezier: { x1: 0.2, y1: 0, x2: 0, y2: 1, z: 9 }, junk: 1 } },
+      },
+      { type: 'URL', url: 'https://example.com', openInNewTab: true, weird: 2 },
+      { type: 'CONDITIONAL', conditionalBlocks: [{ actions: [{ type: 'BACK', deprecatedVersion: true }] }] },
+    ],
+    unknown: 'drop',
+  };
+  assert.deepEqual(cleanReaction(read), {
+    trigger: { type: 'MOUSE_ENTER', delay: 0 },
+    actions: [
+      {
+        type: 'NODE',
+        destinationId: '1:2',
+        navigation: 'CHANGE_TO',
+        resetScrollPosition: true,
+        transition: { type: 'SMART_ANIMATE', easing: { type: 'CUSTOM_CUBIC_BEZIER', easingFunctionCubicBezier: { x1: 0.2, y1: 0, x2: 0, y2: 1 } }, duration: 0.15 },
+      },
+      { type: 'URL', url: 'https://example.com', openInNewTab: true },
+      { type: 'CONDITIONAL', conditionalBlocks: [{ actions: [{ type: 'BACK' }] }] },
+    ],
+  });
+  // Trigger shapes per type; the deprecated single action becomes the list; no trigger means no reaction.
+  assert.deepEqual(cleanReaction({ trigger: { type: 'AFTER_TIMEOUT', timeout: 2, delay: 1 }, action: { type: 'CLOSE', x: 1 } }), { trigger: { type: 'AFTER_TIMEOUT', timeout: 2 }, actions: [{ type: 'CLOSE' }] });
+  assert.deepEqual(cleanReaction({ trigger: { type: 'ON_KEY_DOWN', device: 'KEYBOARD', keyCodes: [13], deprecatedVersion: false } })!.trigger, { type: 'ON_KEY_DOWN', device: 'KEYBOARD', keyCodes: [13] });
+  assert.deepEqual(cleanReaction({ trigger: { type: 'MOUSE_LEAVE', deprecatedVersion: true } })!.trigger, { type: 'MOUSE_LEAVE', delay: 0 });
+  assert.deepEqual(cleanReaction({ trigger: { type: 'ON_CLICK', delay: 3 }, actions: [] }), { trigger: { type: 'ON_CLICK' }, actions: [] });
+  assert.equal(cleanReactions([{ trigger: null, actions: [] }, null, { trigger: { type: 'ON_HOVER' }, actions: [] }]).length, 1);
+});
+
+test('interactions: a designer mouse enter read back from Figma (with deprecatedVersion) does not break the next pull', async () => {
+  const { sim, plan } = await pulledFile();
+  await applyComponentPlan(writablePlan(plan));
+  const button = sim.sets().find((s) => s.name === 'Button')!;
+  const def = variantOf(button, 'Variant=primary, Size=md, State=Default');
+  const pressed = variantOf(button, 'Variant=primary, Size=md, State=Pressed');
+  await def.setReactionsAsync([...(def.reactions as never[]).map((r: { trigger: Record<string, unknown> }) => r), { trigger: { type: 'MOUSE_DOWN', delay: 0 }, actions: [{ type: 'NODE', destinationId: pressed.id, navigation: 'CHANGE_TO', transition: null }] }]);
+  // Switch keeps MOUSE_LEAVE reactions: Figma reads them back with deprecatedVersion.
+  const sw = sim.sets().find((s) => s.name === 'Switch')!;
+  assert.ok((sw.children as SimNode[]).some((v) => (v.reactions as { trigger: { deprecatedVersion?: boolean } }[]).some((r) => r.trigger.deprecatedVersion === false)));
+  const again = await pulledFile({ sim });
+  const forced = { ...again.plan, components: again.plan.components.map((c) => ({ ...c, status: 'updated' as const })) };
+  const report = await applyComponentPlan(forced);
+  assert.equal(report.interactionsNote, undefined);
+  assert.ok(reactionsOf(def).some((r) => r.trigger.type === 'MOUSE_DOWN'));
+});
+
+test('interactions: when Figma refuses one set\'s interactions, every other set is still built and the pull says so in designer words', async () => {
+  const { sim, plan } = await pulledFile();
+  sim.rejectReactions = (n) => n.parent?.name === 'Button';
+  const writable = writablePlan(plan);
+  const report = await applyComponentPlan(writable);
+  const built = writable.components.filter((c) => c.status !== 'unchanged').length;
+  assert.equal(report.created + report.updated, built);
+  assert.ok(sim.sets().some((s) => s.name === 'Switch'));
+  const sw = sim.sets().find((s) => s.name === 'Switch')!;
+  assert.ok((sw.children as SimNode[]).some((v) => (v.reactions as unknown[]).length > 0));
+  assert.equal(report.interactionsNote, 'Interactions could not be added to 1 set (Button). The components are built.');
+  assert.equal(interactionsNote(['A', 'B']), 'Interactions could not be added to 2 sets (A, B). The components are built.');
+  assert.doesNotMatch(report.interactionsNote!, /\u2014/);
+});
+
+// ---------------------------------------------------------------------------------------------
+// A file that already holds a kit from an older DS Bridge, pulled with main's specs (the owner's file, 2026-10-20)
+
+test('spec values: numbers, tokens and calc() plan; any other shape is a problem for that field, never a throw', async () => {
+  const { a, specs } = await pulledFile();
+  const head = a.head;
+  // Checkbox draws its check with strokeWeight 3: a DS Bridge build that only read 0 as a number threw
+  // "t.startsWith is not a function" here and hid every component.
+  const check = specs.components.find((c) => c.name === 'Checkbox')!;
+  assert.ok(check.variants.some((v) => Object.values(v.values).some((f) => f.strokeWeight === 3)), 'the real specs hold a non-zero number');
+  assert.deepEqual(planValue('strokeWeight', 3, head), { kind: 'number', value: 3 });
+  assert.deepEqual(planValue('fill', 3, head), { problem: '3: a color cannot be a number' });
+  for (const odd of [true, { value: 4, unit: 'px' }, ['size.4'], undefined, Number.NaN]) {
+    const pv = planValue('paddingTop', odd, head);
+    assert.ok('problem' in pv, `${String(odd)} is a problem`);
+  }
+  assert.deepEqual(planValue('paddingTop', { value: 4, unit: 'px' }, head), { problem: '{"value":4,"unit":"px"} is not a value this version of Bridge reads: update Bridge' });
+  // In a plan: the field is listed with the others that cannot be bound, the rest of the components still plan.
+  const odd: ComponentSpecsFile = structuredClone(specs);
+  const button = odd.components.find((c) => c.name === 'Button')!;
+  (button.variants[0]!.values.root as Record<string, unknown>).paddingTop = { value: 4, unit: 'px' };
+  const plan = buildComponentPlan(odd, SPECS_PATH, [], head);
+  assert.equal(plan.components.length, SPEC_COMPONENTS.length);
+  assert.ok(plan.problems.some((p) => p.component === 'Button' && p.property === 'paddingTop' && /update Bridge$/.test(p.reason)));
+});
+
+test('older kit: a file generated before swaps and interactions reviews main like Pull does, with thumbnails', async () => {
+  // The kit an older DS Bridge generated: icon placeholders, no slots, no prototype interactions.
+  const old = specsBeforeSwaps(parseComponentSpecs(specsText()));
+  for (const c of old.components) {
+    delete c.interactions;
+    delete c.motion;
+    c.hash = hashSpec(c);
+  }
+  const first = await pulledFile({ specs: JSON.stringify(old) });
+  await applyComponentPlan(writablePlan(first.plan));
+  // What older builds left in shared plugin data: an unreadable baseline and reactions that are not a list of keys.
+  const button = first.sim.sets().find((s) => s.name === 'Button')!;
+  button.setSharedPluginData('dsbridge', 'signature', '{"v":0}');
+  for (const v of button.children) v.setSharedPluginData('dsbridge', 'reactions', '{"hover":true}');
+  // loadPull, step by step: plan, scan, review, planned signatures, thumbnails.
+  const next = await pulledFile({ sim: first.sim });
+  const updated = next.plan.components.filter((c) => c.status === 'updated' && c.nodeId);
+  assert.ok(updated.some((c) => c.name === 'Button') && updated.some((c) => c.name === 'Card'), 'sets changed by swaps and interactions are updates');
+  const scanned = await scanComponents(() => {});
+  const reviews = reviewUpdates(next.plan, new Map(scanned.components.map((c) => [c.nodeId, c.signature])));
+  assert.deepEqual(reviews.map((r) => r.name), updated.map((c) => c.name));
+  for (const c of updated) assert.equal(plannedSignature(c).name, c.name);
+  const thumbs = await exportThumbnails(updated.map((c) => c.nodeId!), 196);
+  assert.equal(Object.keys(thumbs).length, updated.length);
+  // Update all on that file: the old plugin data is read as "none of ours", the interactions are added.
+  const report = await applyComponentPlan(writablePlan(next.plan));
+  assert.equal(report.updated, updated.length);
+  const def = variantOf(button, 'Variant=primary, Size=md, State=Default');
+  assert.ok((def.reactions as { trigger: { type: string } }[]).some((r) => r.trigger.type === 'ON_HOVER'));
+});
+
+test('fidelity: a Textarea of 3 rows plans its minimum at the code height, from the font size and line height tokens', async () => {
+  const { plan } = await pulledFile();
+  const textarea = plan.components.find((c) => c.name === 'Textarea')!;
+  const field = textarea.variants.find((v) => v.name.includes('Appearance=field'))!;
+  const min = field.parts.textarea!.find((f) => f.field === 'minHeight')!.value;
+  // 3 rows of 14px at 1.5, 8px padding twice, 1px border twice: 81px, the code image's height.
+  assert.equal(min.kind === 'number' ? min.value : undefined, 81);
+});
+
+test('an empty slot sized on one axis takes its padding on the other, as CSS draws it: MenuRadioGroup is not 236px tall', async () => {
+  // In real Figma the unchecked items' leading slots (16px wide, nothing inside) stayed at a new frame's 100px, so the
+  // set drew 236px for 108 in code. Painted bars (a progress fill) and picture holders keep their size.
+  const { sim, plan } = await pulledFile();
+  await applyComponentPlan(writablePlan(onlyComponent(plan, 'MenuRadioGroup')));
+  const set = sim.sets().find((s) => s.name === 'MenuRadioGroup')!;
+  const v = set.children[0]!;
+  for (const id of ['leading-2', 'leading-3']) assert.ok(partOf(v, id).height < 1, `${id} is ${partOf(v, id).height}px tall`);
+  assert.ok(partOf(v, 'leading').height >= 8, 'the slot that holds the dot keeps the dot\'s size');
+});
+
+test('doc section links: a Storybook story gives its story and its docs page; a source file gives none', () => {
+  assert.deepEqual(storyLinks(['https://react.carbondesignsystem.com/?path=/story/components-toggle--default']), {
+    stories: 'https://react.carbondesignsystem.com/?path=/story/components-toggle--default',
+    docs: 'https://react.carbondesignsystem.com/?path=/docs/components-toggle--docs',
+  });
+  assert.equal(storyLinks(['packages/react/src/components/Button/Button.tsx']), undefined);
 });

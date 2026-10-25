@@ -1,11 +1,11 @@
 // Component specs are derived from code: the committed packages/react/component-specs.json must match what the
 // generator reads from the component TSX and CSS modules today. Run `npm run specs` after changing a component.
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseComponentSpecs } from '../src/component-spec';
-import { generateComponentSpec, generateRepoComponentSpecs, serializeComponentSpecs } from '../src/node/component-specs';
-import { DEFAULT_STATE, declaredFor, parseCssModule, parseSelector } from '../src/node/spec-css';
+import { parseComponentSpecs, validateComponentSpec } from '../src/component-spec';
+import { generateComponentSpec, generateRepoComponentSpecs, repoSpecOptions, serializeComponentSpecs } from '../src/node/component-specs';
+import { DEFAULT_STATE, SPEC_VIEWPORT_WIDTH, declaredFor, mediaApplies, parseCssModule, parseSelector } from '../src/node/spec-css';
 
 const ROOT = join(__dirname, '../../..');
 
@@ -17,7 +17,24 @@ describe('component specs', () => {
     // Every component folder is in the coverage list; every generated folder has its sets in the file.
     const parsed = parseComponentSpecs(committed);
     const names = new Set(parsed.components.map((c) => c.component ?? c.name));
-    for (const c of parsed.coverage!) expect(names.has(c.name) || c.status !== 'generated' || c.name === 'Icon').toBe(true);
+    for (const c of parsed.coverage!) expect(names.has(c.name) || (c.status !== 'generated' && c.status !== 'drafted') || c.name === 'Icon').toBe(true);
+  });
+
+  it('every set, generated or drafted, matches the format and names tokens of the repo; drafts only where the generator cannot read', () => {
+    const parsed = parseComponentSpecs(readFileSync(join(ROOT, 'packages/react/component-specs.json'), 'utf8'));
+    const { opts } = repoSpecOptions(ROOT);
+    const types = new Map([...opts.tokens.values()].map((t) => [t.path, t.type]));
+    for (const spec of parsed.components) expect(validateComponentSpec(spec, types)).toEqual([]);
+    const drafts = readdirSync(join(ROOT, 'packages/react/component-spec-overrides')).filter((f) => f.endsWith('.json')).map((f) => f.replace(/\.json$/, ''));
+    expect(parsed.coverage!.filter((c) => c.status === 'drafted').map((c) => c.name)).toEqual(drafts);
+    for (const name of drafts) {
+      const spec = parsed.components.find((c) => (c.component ?? c.name) === name)!;
+      expect(spec.drafted).toBeDefined();
+      // Drafted from the code as it is: when the code changes, redraft and update codeHash (see the file's $comment).
+      expect(spec.drafted!.stale).toBeUndefined();
+    }
+    // Every visual component is in Figma (generated or drafted with Claude); drafted ones are never counted as generated.
+    expect(parsed.coverage!.filter((c) => c.status === 'unsupported')).toEqual([]);
   });
 
   it('Button: axes from union props, State from the CSS, a text and two icon properties', () => {
@@ -86,6 +103,50 @@ describe('component specs', () => {
     expect(parseSelector('.p:has(> .c) .c').parts.length).toBe(2);
   });
 
+  it('a content-box minimum counts its padding and border, as CSS draws it (Figma includes them)', () => {
+    const row = (name: string, extra: string): Record<string, string> => ({
+      [`c/${name}/${name}.tsx`]: `import styles from './${name}.module.css';
+export interface ${name}Props { children?: ReactNode }
+export const ${name} = forwardRef(function ${name}({ children }, ref) {
+  return <label className={styles.row}>{children}</label>;
+});`,
+      [`c/${name}/${name}.module.css`]: `.row { display: inline-flex; min-height: var(--size-6); padding-block: var(--space-0-5); border: var(--size-1) solid;${extra} }`,
+    });
+    const files = { ...row('Row', ''), ...row('Tight', ' box-sizing: border-box;') };
+    const tokens = new Map(['size-6', 'space-0-5', 'size-1'].map((n) => [`--${n}`, { path: n.replace('-', '.'), type: 'dimension' }]));
+    const root = (name: string) => generateComponentSpec(name, { componentsDir: 'c', read: (p) => files[p], tokens }).variants[0]!.values.root;
+    expect(root('Row')).toMatchObject({ minHeight: 'calc(size.6 + space.0-5 + space.0-5 + size.1 + size.1)' });
+    expect(root('Tight')).toMatchObject({ minHeight: 'size.6' });
+  });
+
+  it('rows set inline under a computed key, and 1lh, become a calc() of the font size and line height tokens', () => {
+    const files: Record<string, string> = {
+      'c/Area/Area.tsx': `import styles from './Area.module.css';
+export interface AreaProps { rows?: number }
+export const Area = forwardRef(function Area({ rows = 3 }, ref) {
+  return <div className={styles.area} style={{ ['--_rows' as string]: rows }} />;
+});`,
+      'c/Area/Area.module.css': `.area { box-sizing: border-box; display: flex; font-size: var(--font-size-200); line-height: var(--font-line-height-normal); min-height: calc(var(--_rows) * 1lh + var(--space-2) * 2); }`,
+    };
+    const tokens = new Map([
+      ['--font-size-200', { path: 'font.size.200', type: 'dimension' }],
+      ['--font-line-height-normal', { path: 'font.line-height.normal', type: 'number' }],
+      ['--space-2', { path: 'space.2', type: 'dimension' }],
+    ]);
+    const spec = generateComponentSpec('Area', { componentsDir: 'c', read: (p) => files[p], tokens });
+    expect(spec.variants[0]!.values.root).toMatchObject({ minHeight: 'calc(3 * (font.size.200 * font.line-height.normal) + space.2 * 2)' });
+    expect(spec.unmapped.filter((u) => u.property === 'min-height')).toEqual([]);
+  });
+
+  it('a defaultValue list opens or checks its items: closed accordion panels are not drawn, listed checkboxes are checked', () => {
+    const { components } = generateRepoComponentSpecs(ROOT, ['Accordion', 'CheckboxGroup']);
+    const accordion = components.find((c) => c.name === 'Accordion')!;
+    const panels = accordion.parts.filter((p) => /^panel/.test(p.id)).map((p) => p.id);
+    expect(panels).toEqual(['panel']);
+    const group = components.find((c) => c.name === 'CheckboxGroup')!;
+    expect(group.variants[0]!.values.box).toMatchObject({ fill: 'checkbox.bg-checked' });
+  });
+
   it('calc() of tokens becomes an expression of token paths; a single token stays a token', () => {
     const files: Record<string, string> = {
       'c/Pill/Pill.tsx': `import styles from './Pill.module.css';
@@ -120,4 +181,38 @@ export const Pill = forwardRef(function Pill({ size = 'md', children }, ref) {
     expect(tag!.parts.map((p) => p.id)).toEqual(['root', 'icon', 'text']);
     expect(tag!.parts[0]!.fill).toBeUndefined();
   });
+
+  it('a menu part drawn alone takes what the popup gives its content: snug lines, as in code', () => {
+    const file = generateRepoComponentSpecs(ROOT);
+    const menuSets = file.components.filter((c) => c.component === 'Menu' && c.view === 'without-popup');
+    expect(menuSets.map((c) => c.name)).toContain('MenuGroup');
+    for (const set of menuSets)
+      for (const v of set.variants) for (const values of Object.values(v.values)) if (values.lineHeight !== undefined) expect([set.name, values.lineHeight]).toEqual([set.name, 'font.line-height.snug']);
+  });
+
+  it('width media queries read at the viewport the code images use: the page title is h1 sized at 1200 px', () => {
+    expect(SPEC_VIEWPORT_WIDTH).toBe(1200);
+    expect(mediaApplies('@media (min-width: 900px)')).toBe(true);
+    expect(mediaApplies('@media (max-width: 640px)')).toBe(false);
+    expect(mediaApplies('@media (hover: hover) and (min-width: 640px)')).toBe(true);
+    expect(mediaApplies('@media (prefers-reduced-motion: reduce)')).toBe(false);
+    const [header] = generateRepoComponentSpecs(ROOT, ['PageHeader']).components;
+    expect(header!.variants[0]!.values['title-text']).toMatchObject({ fontSize: 'typography.h1.size', lineHeight: 'typography.h1.line-height', letterSpacing: 'typography.h1.tracking' });
+  });
+
+  it('height counts the content box like min-height: a bordered table cell is its height plus its border', () => {
+    // Table was 142px in Figma for 144 in code: each bordered cell row is 1px taller than its height token.
+    const [table] = generateRepoComponentSpecs(ROOT, ['Table']).components;
+    const v = table!.variants[0]!.values;
+    expect(v.head?.height).toBe('calc(control.height.md + border-width.default)');
+    expect(v.cell?.height).toBe('calc(table.row-height + border-width.default)');
+  });
+
+  it('a button counts its border box (browsers\' own stylesheet): a NumberField stepper is its height token wide', () => {
+    // Base UI renders NumberField.Increment as a <button> (its docs say so): its 1px border is inside the width.
+    const [field] = generateRepoComponentSpecs(ROOT, ['NumberField']).components;
+    const v = field!.variants.find((x) => x.props.Size === 'md')!.values;
+    expect(v.stepper?.width).toBe('control.height.md');
+  });
 });
+

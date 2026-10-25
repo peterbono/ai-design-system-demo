@@ -1,6 +1,7 @@
 # Component change requests
 
-Designers ask, developers implement, code stays the source of truth.
+Designers ask, developers implement, code stays the source of truth. Pushed from the Figma plugin, a component change
+that needs code is a **build request**: see [BUILD-REQUESTS.md](BUILD-REQUESTS.md).
 
 ## The rule
 
@@ -69,6 +70,51 @@ bridge request create --component Button --kind new-variant --title "Add a dange
 
 `--change field=before:after` repeats; `--dry-run` prints the issue without creating it. Exit codes: 0 ok, 1 not a
 request (or Claude Code not found with `--claude`), 2 usage or setup error.
+
+## Suggestions
+
+A **suggestion** is a request with the exact change inside: a GitHub issue labeled `bridge-suggestion` whose body
+holds the readable change, the checks when it was suggested and a collapsed machine-readable block
+(`bridge.suggestion/1`). It is how token, docs, brand, revert, missing piece and Figma changes reach the code when
+`"changes"` in `bridge.config.json` is `"suggest"` (the default; `"direct"` opens branches and pull requests
+instead). The person who suggests only needs Issues write; a developer applies it with their own access.
+
+| Step | Where | What happens |
+| --- | --- | --- |
+| 1. Suggest | Studio, the Figma plugin, `bridge propose`, or Claude (`bridge_propose_token_change` and the other writing tools) | An issue titled `Tokens: darken muted text`, labeled `bridge-suggestion`, `suggestion: <kind>`, `source: <where>`, `tier: <n>` and one state label (`suggestion: needs review`) |
+| 2. Review | Studio, `bridge review 42 --approve`, or Claude (`bridge_review_suggestion`) | The owners in `bridge.config.json` approve, request changes or decline. A review is a comment bound to the version it saw: an edit of the change makes earlier approvals stale |
+| 3. Apply | `bridge apply 42`, or Claude Code with the Bridge MCP server: "Apply Bridge suggestion #42" (`bridge_apply_suggestion`) | Bridge re-applies the change on today's code, re-runs the checks and commits it on a new local branch `bridge/suggestion-42-<slug>` (nothing pushed), and says on the issue that it is being applied |
+| 4. Pull request | GitHub | The developer pushes the branch and opens a pull request whose body says `Closes #42` (`bridge suggestions link 42 --pr <n>` or `bridge_link_suggestion` records it). It goes through the usual review and CI |
+| 5. Done | GitHub | Merging closes the suggestion |
+
+Status, everywhere: **needs review**, **changes requested**, **approved** (every approval its tier needs, on the
+current version), **being applied** (an open pull request says `Closes #n`, or a developer applied it), **applied**,
+**declined** (closed as not planned), **outdated** (the code changed since and it no longer applies cleanly).
+
+For developers:
+
+```sh
+bridge suggestions                       # open suggestions, with status, kind, tier and linked pull requests
+bridge suggestions --status approved     # what is ready to apply
+bridge suggestions show 42               # the change, its checks, its version, who approved it, what is missing
+bridge apply 42 --dry-run                # the plan and the diff on today's code, nothing written
+bridge apply 42                          # one commit on a new local branch, working tree untouched, nothing pushed
+bridge apply 42 --write                  # into the working tree instead (refused over uncommitted changes)
+bridge apply 42 --patch | git am         # as a patch
+bridge suggestions link 42 --pr 57       # record the pull request that applies it
+bridge review 42 --approve               # as an owner; --request-changes or --decline with --message "..."
+```
+
+`bridge apply` stops, and writes nothing, when the approvals on the current version do not cover the tier (exit 1),
+when a check would fail on today's code or the tier went up (exit 1), when a path is unsafe or the machine-readable
+block was edited by hand (exit 1; `--accept-edited` once you checked it), or when a change conflicts with today's
+code (exit 3). Running it again on code that has the change is a no-op (exit 0). `--force-unapproved` applies
+without every approval and says so on the issue.
+
+In Claude Code with the Bridge MCP server (`claude mcp add bridge -s user -- npx -y @bridge-ds/mcp --repo <owner/name>`),
+ask "Apply Bridge suggestion #42". Claude calls `bridge_apply_suggestion` with a dry run first, shows you the plan,
+applies it on a branch, then opens the pull request that closes the issue. On a remote repo (`--repo`), the tool
+returns the files to write instead of writing them.
 
 ## Settings
 

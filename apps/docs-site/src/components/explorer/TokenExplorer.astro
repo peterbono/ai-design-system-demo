@@ -4,6 +4,9 @@
 //   mode  'read' shows no edit affordances and links to Studio; 'edit' edits cells through the token editor
 //         (draft, guardrails, tray, pull request) and brings its own editing kit.
 //   focus token path or group to preselect (?focus= or the older ?t= in the URL wins at runtime).
+//   hosted a team shell (multi-team PR 3b): no build-time token data. The page shows skeletons while
+//          scripts/explorer/team-bootstrap.ts reads the team's repo model, writes the same data blocks
+//          ExplorerData.astro embeds, fills the brand and density menus, then starts the explorer.
 import '../../styles/github.css';
 import '../../styles/editor.css';
 import '../../styles/reviews.css';
@@ -24,32 +27,45 @@ import XpKeys from './XpKeys.astro';
 import { CATEGORY_LABEL, CATEGORY_ORDER, STUDIO_TIER_NAMES, SYNTAX_LABEL, modeName } from '../../lib/explorer/format';
 import { modesOf } from '../../lib/explorer/model';
 import { tokenFiles } from '../../lib/explorer';
-import { exists, readText } from '../../lib/repo';
-import { TIER_NAMES, TIER_ORDER, buildTokenSet, layoutOptions, loadConfig } from '@bridge-ds/core';
+import { repoModel } from '../../lib/model';
+import { TIER_NAMES, TIER_ORDER, buildTokenSet, layoutOptions } from '@bridge-ds/core';
 import { Fragment as RFragment, createElement } from 'react';
+import { studioHref } from '../../lib/team-path';
 
 interface Props {
   mode: 'read' | 'edit';
   focus?: string;
+  hosted?: boolean;
 }
-const { mode, focus } = Astro.props;
+const { mode, focus, hosted = false } = Astro.props;
 // Studio (mode "edit") renders the explorer as the page itself: a page header, ONE toolbar row (filter field, type
 // chips with counts, one Options menu for collections, usage, brand and modes, columns; New token), then the table at
 // full width with flat rows. The Library (mode "read") keeps its lens and tree, card, heading and inline controls.
 const app = mode === 'edit';
 // The brand and density selectors render here, statically, from the same token set the browser builds
 // (scripts/explorer/data.ts); the script only shows, hides and selects them.
-const modes = modesOf(buildTokenSet(tokenFiles(), layoutOptions(loadConfig(exists('bridge.config.json') ? readText('bridge.config.json') : '{}'))));
+// On a team shell the menus get the team's brands and densities in the browser: one placeholder segment to clone.
+const modes = hosted ? { brands: [''], themes: [''], densities: [''] } : modesOf(buildTokenSet(tokenFiles(), layoutOptions(repoModel.config)));
 const combos = modes.brands.length * modes.themes.length;
 // Lens segments carry a count the script fills in.
 const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, createElement('span', { className: 'xp-lens-n', 'data-lens-n': '' }));
 ---
 
-<div class="xp" data-xp data-mode={mode} data-surface={app ? 'app' : 'page'} data-rows={app ? 'compact' : undefined} data-focus={focus ?? ''}>
+{
+  hosted && (
+    <div class="xp-team-wrap" data-xp-team-wrap>
+      <h1 class="st-title">Tokens</h1>
+      {/* Filled by scripts/explorer/team-bootstrap.ts: how far the read has gone (LoadProgress), then an error or nothing. */}
+      <div class="lp-wait" data-xp-team-state aria-busy="true" aria-label="Reading the team's tokens"></div>
+    </div>
+  )
+}
+<div class="xp" data-xp data-mode={mode} data-hosted-explorer={hosted ? '' : undefined} hidden={hosted || undefined} data-surface={app ? 'app' : 'page'} data-rows={app ? 'compact' : undefined} data-focus={focus ?? ''}>
   {
     app && (
       <header class="xp-apphead">
         <h1 class="st-title">Tokens</h1>
+        {hosted && <div data-xp-team-source />}
         <p class="xp-apphead-sub">
           <span class="xp-crumb" id="xp-title" data-xp-title>Tokens</span> <span class="xp-apphead-hint">Click a value to change it.</span><span class="sr-only" data-xp-count aria-live="polite"></span>
         </p>
@@ -98,15 +114,15 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
                     <span aria-hidden="true">Brand</span>
                     <SegmentedControl label="Brand" data-vanilla data-xp-brand size="sm" fullWidth defaultValue={modes.brands[0]} items={modes.brands.map((b) => ({ value: b, label: modeName(b) }))} />
                   </div>
-                  <div class="xp-opt-newbrand">
-                    <ButtonLink variant="ghost" size="sm" iconStart={Plus} href="/studio/brands/new/" title="Draft a brand in this browser. Proposing it needs GitHub.">New brand</ButtonLink>
+                  <div class="xp-opt-newbrand" data-new-brand-link>
+                    <ButtonLink variant="ghost" size="sm" iconStart={Plus} href={studioHref('brands/new/')} title="Draft a brand in this browser. Proposing it needs GitHub." data-demo-write="create a brand">New brand</ButtonLink>
                   </div>
                   <div class="xp-menu-field" data-xp-mode-field="density" hidden>
                     <span aria-hidden="true">Density</span>
                     <SegmentedControl label="Density" data-vanilla data-xp-density size="sm" fullWidth defaultValue={modes.densities[0]} items={modes.densities.map((x) => ({ value: x, label: modeName(x) }))} />
                   </div>
                   <div class="xp-combos" data-combos-field hidden>
-                    <Switch data-vanilla data-combos size="sm" label={`All ${combos} combinations`} />
+                    <Switch data-vanilla data-combos size="sm" label={hosted ? 'All combinations' : `All ${combos} combinations`} />
                   </div>
                 </div>
                 <div class="xp-menu-field">
@@ -163,7 +179,7 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
                   <SegmentedControl label="Density" data-vanilla data-xp-density size="sm" defaultValue={modes.densities[0]} items={modes.densities.map((x) => ({ value: x, label: modeName(x) }))} />
                 </div>
                 <div class="xp-combos" data-combos-field hidden>
-                  <Switch data-vanilla data-combos size="sm" label={`All ${combos} combinations`} />
+                  <Switch data-vanilla data-combos size="sm" label={hosted ? 'All combinations' : `All ${combos} combinations`} />
                 </div>
               </div>
               <div class="xp-view">
@@ -189,10 +205,12 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
   <aside class="xp-detail" aria-labelledby="xp-d-title" data-xp-detail hidden></aside>
 </div>
 
-<ExplorerData />
-{mode === 'edit' && <TokenEditorKit />}
+{!hosted && <ExplorerData />}
+{mode === 'edit' && <TokenEditorKit hosted={hosted} />}
 
 <script>
   import { initTokenExplorer } from '../../scripts/explorer';
-  initTokenExplorer();
+  import { bootstrapTeamExplorer } from '../../scripts/explorer/team-bootstrap';
+  if (document.querySelector('[data-hosted-explorer]')) void bootstrapTeamExplorer(initTokenExplorer);
+  else initTokenExplorer();
 </script>

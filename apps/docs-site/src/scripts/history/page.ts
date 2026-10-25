@@ -6,16 +6,28 @@
 import type { HistoryEntry, HistoryFilter, HistoryReport } from '@bridge-ds/core';
 import { authorsOf, countsLabel, shortDate, viewTimeline } from '../../lib/history-view';
 import { renderTokenReview } from '../reviews';
-import { currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, readRepo } from '../github-session';
+import { currentViewer, esc, ghGet, hasWorkingToken, signedInWithGitHub, initGitHubConnect, readRepo } from '../github-session';
 import { mdTitleHtml } from '../../lib/markdown';
 import { approvalNeedLabel, releasePull, type QueuePull } from '../../lib/review-queue';
 import { historySummary, parseReleaseBody, releaseCard } from '../../lib/release-view';
 import { owners, shippers } from '../pr-status';
 import { loadTeams } from '../teams';
 import { openRevertPlanner } from './planner';
-import { activeReport, DEMO_EVENT, demoOn, loadHistory, setDemo, type Loaded } from './state';
+import { activeReport, DEMO_EVENT, demoOn, loadHistory, setDemo, teamEntryReview, type Loaded } from './state';
+import { isHosted } from '../../lib/team-path';
+import { parseOverrideComment, type OverrideRecord } from '../../lib/review-rules';
+import { overrideLine } from '../../lib/history-view';
 import { onSelectPick, selectValue, setSelect } from '../../lib/select-bridge';
 import { jiraKeyOf, VOCAB, withoutJiraKey } from '../../lib/vocabulary';
+import { agentMade } from '../../lib/work-nature';
+import { displayName, paintPeople, personHtml } from '../people';
+import { markLogins } from '../../lib/people';
+import { attrUrl } from '../../lib/html';
+import { studioHref } from '../../lib/team-path';
+import { GUIDANCE_TAG, groupCountLine, isGuidanceEntry } from '../../lib/history-guidance';
+
+/** Claude made the change when its description carries an AI agent marker (lib/work-nature). */
+const agentOf = (e: HistoryEntry) => agentMade({ body: e.pr?.body ?? null });
 
 const AUTHOR = 'hs-author';
 const TIER = 'hs-tier';
@@ -24,7 +36,7 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 /** The Token filter field. The DS Input's Field gives the input its own id, so the page marks it with an attribute. */
 const tokenField = () => document.querySelector<HTMLInputElement>('[data-hs-token]')!;
 let L: Loaded | null = null;
-const BASE = '/studio/changes/?view=history';
+const BASE = studioHref('changes/?view=history');
 
 const repoUrl = () => {
   const r = L?.config.repo;
@@ -56,11 +68,10 @@ const jiraOf = (e: HistoryEntry) => jiraKeyOf(e.title) ?? jiraKeyOf(historySumma
 
 /** A row: summary and #, what approval it needed in plain words (or Demo), the date. Counts live in the detail. */
 function row(e: HistoryEntry, demo: boolean): string {
-  const num = e.pr ? ` <span class="cg-num">#${e.pr.number}</span>` : '';
   const key = jiraOf(e);
-  const tag = `<span class="cg-need">${e.bulk ? 'Import' : `${demo ? 'Demo, ' : ''}${approvalNeedLabel(e.tier)}`}</span>`;
+  const tag = `<span class="cg-need">${e.bulk ? 'Import' : `${demo ? 'Demo, ' : ''}${isGuidanceEntry(e) ? GUIDANCE_TAG : approvalNeedLabel(e.tier)}`}</span>`;
   return `<li class="cg-row"><a class="cg-row-link" href="${entryHref(e)}" data-hs-open="${esc(e.id)}">
-    <span class="cg-row-title">${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}<span class="cg-row-name" title="${esc(title(e))}">${esc(title(e))}</span>${num}</span>
+    <span class="cg-row-title">${personHtml(e.author, { agent: agentOf(e), withName: false })}${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}<span class="cg-row-name" title="${esc(title(e))}">${esc(title(e))}</span></span>
     ${tag}
     <time class="cg-date" datetime="${esc(e.date)}">${esc(dayMonth(e.date))}</time></a></li>`;
 }
@@ -83,31 +94,74 @@ function paintList() {
   // Filters follow the report on screen.
   const authors = authorsOf(entries);
   const keep = selectValue(AUTHOR);
-  setSelect(AUTHOR, { options: [{ value: '', label: 'Anyone' }, ...authors.map((a) => ({ value: a, label: a }))], value: authors.includes(keep) ? keep : '' });
+  setSelect(AUTHOR, { options: [{ value: '', label: 'Anyone' }, ...authors.map((a) => ({ value: a, label: displayName(a) }))], value: authors.includes(keep) ? keep : '' });
   const paths = [...new Set(entries.filter((e) => !e.bulk).flatMap((e) => e.changes.map((c) => c.path)))].sort();
   $('hs-paths').innerHTML = paths.map((p) => `<option value="${esc(p)}"></option>`).join('');
 
+  // No report: why (signed out on a team page, or history that could not be read), with the one way forward.
+  const note = L?.data.realNote ?? null;
+  // Nothing to filter without a report: the line and the Filter button wait for one. Signing in is offered once, by
+  // the page (the guest banner and the side bar), not again here.
+  const head = document.querySelector<HTMLElement>('.cg-hs-head');
+  if (head) head.hidden = !report;
+  if (!report && note && !demo) {
+    $('hs-filters').hidden = true;
+    tl.innerHTML = `<div class="cg-empty"><p class="cg-muted">${esc(note)}</p></div>`;
+    $('hs-none').hidden = true;
+    return;
+  }
   if (!report || !entries.length) {
-    tl.innerHTML = `<p class="cg-muted">No merged token change yet. Token changes land here once a branch from Tokens is merged.</p>`;
+    tl.innerHTML = `<p class="cg-muted">No merged change yet. Token and usage guidance changes land here once they are merged.</p>`;
     $('hs-none').hidden = true;
     return;
   }
   const groups = viewTimeline(report, filter());
+  // A capped history (a team's, read from GitHub) says so under the list, with the way to the rest.
+  const cap = !demo && report.truncated && note ? `<p class="cg-muted hs-cap">${esc(note)} <a href="${attrUrl(`${repoUrl()}/commits`)}" target="_blank" rel="noopener">See every change on GitHub<span class="sr-only"> (opens in a new tab)</span></a></p>` : '';
   $('hs-none').hidden = groups.length > 0;
   tl.innerHTML = groups
     .map((g) => {
       const name = g.version === 'Unreleased' ? 'Next release' : `Version ${g.version}`;
-      // Token changes only: the "Next release" card above counts every change, this group the token ones.
-      const facts = [`${g.items.length} token ${g.items.length === 1 ? 'change' : 'changes'}`, g.breaking ? 'breaking' : '', `${g.pending ? 'latest' : 'released'} ${shortDate(g.date)}`].filter(Boolean).join(', ');
+      // Token and usage guidance changes: the "Next release" card above counts every change, this group these ones.
+      const facts = [groupCountLine(g.items), g.breaking ? 'breaking' : '', `${g.pending ? 'latest' : 'released'} ${shortDate(g.date)}`].filter(Boolean).join(', ');
       const reviewable = g.items.filter((e) => !e.bulk);
       const imports = g.items.filter((e) => e.bulk);
       return `<section class="cg-rel" aria-label="${esc(name)}"><h2 class="cg-rel-h">${esc(name)} <span class="cg-rel-meta">${esc(facts)}</span></h2>
         <ul class="fg-card cg-list">${reviewable.map((e) => row(e, demo)).join('')}${importsRow(imports, demo)}</ul></section>`;
     })
-    .join('');
+    .join('') + cap;
+  void paintPeople(tl);
+}
+
+/** A team's entries carry no diff from the build: it is read from GitHub when the entry opens. */
+const teamDiff = (e: HistoryEntry, demo: boolean) => !demo && isHosted() && !e.bulk && Boolean(e.baseSha);
+
+/** A usage guidance change: what it changed in words, and the way to its page; no token diff, no Undo. */
+function paintGuidanceDetail(e: HistoryEntry, ref: string) {
+  const at = e.pr ? studioHref(`changes/?pr=${e.pr.number}`) : null;
+  $('hs-detail').innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${BASE}" data-hs-back>History</a><span aria-hidden="true">/</span><span>${esc(title(e))}</span></nav>
+    <header class="zone cg-pr-open">
+      <h2 class="cg-pr-title" tabindex="-1">${esc(withoutJiraKey(historySummary(e, { full: true })))}</h2>
+      <p class="cg-pr-meta"><span class="cg-who">${personHtml(e.author, { agent: agentOf(e), size: 'sm' })}<span>, ${esc(shortDate(e.date))}</span></span><span>${esc([GUIDANCE_TAG, e.version && e.version !== 'Unreleased' ? e.version : 'next release'].join(', '))}</span>${ref}</p>
+      <p class="cg-pr-state">Usage guidance changed. No token changed.</p>
+      ${at ? `<p class="cg-pr-cta"><a class="btn btn-secondary" href="${attrUrl(at)}">See the change</a></p>` : ''}
+    </header>`;
+  void paintPeople($('hs-detail'));
+}
+
+/**
+ * The developer view of an entry (the merged branch, else what landed on main): one quiet link on the author line, for
+ * a GitHub account only. A designer signed in by email has no GitHub to open it with (designers never see GitHub).
+ */
+function githubRef(e: HistoryEntry): string {
+  if (hasWorkingToken() && !signedInWithGitHub()) return '';
+  return `<a class="cg-gh" href="${attrUrl(e.pr ? (e.pr.url ?? `${repoUrl()}/pull/${e.pr.number}`) : `${repoUrl()}/commit/${e.sha}`)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}<span class="sr-only"> (opens in a new tab)</span></a>`;
 }
 
 function paintDetail(e: HistoryEntry, demo: boolean) {
+  if (!demo && isGuidanceEntry(e)) {
+    return paintGuidanceDetail(e, githubRef(e));
+  }
   const review = L!.data.reviews[`${demo ? 'demo' : 'real'}:${e.id}`];
   const diff = e.bulk
     ? `<p class="cg-muted">Imports are listed, not diffed. First ${Math.min(40, e.changes.length)} of ${e.changes.length} tokens:</p><ul class="hs-paths">${e.changes
@@ -116,22 +170,63 @@ function paintDetail(e: HistoryEntry, demo: boolean) {
         .join('')}</ul>`
     : review
       ? renderTokenReview(review)
-      : '<p class="cg-muted">No designer diff for this change.</p>';
+      : teamDiff(e, demo)
+        ? '<p class="cg-muted" role="status">Reading the token changes from GitHub</p>'
+        : '<p class="cg-muted">No designer diff for this change.</p>';
   // The developer view of it (the merged branch, else what landed on main) is one quiet link on the author line.
-  const ref = demo
-    ? '<span>Fixture change</span>'
-    : `<a class="cg-gh" href="${esc(e.pr ? (e.pr.url ?? `${repoUrl()}/pull/${e.pr.number}`) : `${repoUrl()}/commit/${e.sha}`)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}<span class="sr-only"> (opens in a new tab)</span></a>`;
+  const ref = demo ? '<span>Fixture change</span>' : githubRef(e);
   const facts = [e.bulk ? 'Import' : approvalNeedLabel(e.tier), e.breaking ? 'breaking' : '', e.version && e.version !== 'Unreleased' ? e.version : 'next release'].filter(Boolean).join(', ');
-  $('hs-detail').innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${BASE}" data-hs-back>History</a><span aria-hidden="true">/</span><span>${esc(e.pr ? `#${e.pr.number}` : title(e))}</span></nav>
+  $('hs-detail').innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${BASE}" data-hs-back>History</a><span aria-hidden="true">/</span><span>${esc(title(e))}</span></nav>
     <header class="zone cg-pr-open">
-      <h2 class="cg-pr-title" tabindex="-1">${mdTitleHtml(e.title)}</h2>
-      <p class="cg-pr-meta"><span>${esc(e.author)}, ${esc(shortDate(e.date))}</span><span>${esc(facts)}</span>${ref}</p>
-      <p class="cg-pr-state">${e.why !== e.title ? mdTitleHtml(e.why) : esc(countsLabel(e.counts))}</p>
+      <h2 class="cg-pr-title" tabindex="-1">${esc(withoutJiraKey(historySummary(e, { full: true })))}</h2>
+      <p class="cg-pr-meta"><span class="cg-who">${personHtml(e.author, { agent: agentOf(e), size: 'sm' })}<span>, ${esc(shortDate(e.date))}</span></span><span>${esc(facts)}</span>${ref}</p>
+      <p class="cg-pr-state">${e.why !== e.title && e.why.replace(/\.$/, '') !== withoutJiraKey(historySummary(e, { full: true })).replace(/\.$/, '') ? mdTitleHtml(e.why) : esc(countsLabel(e.counts))}</p>
+      <p class="cg-pr-state hs-override" data-hs-override hidden></p>
       ${e.bulk ? '' : `<p class="cg-pr-cta"><button type="button" class="btn btn-primary" data-hs-undo="${esc(e.id)}">Undo this change</button></p>`}
     </header>
     <div class="cg-secs">
       <details class="cg-sec" open><summary class="cg-sec-head"><span class="cg-sec-title">Token changes</span><span class="cg-sec-meta">${esc(countsLabel(e.counts))}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary><div class="cg-sec-body">${diff}</div></details>
     </div>`;
+  void paintPeople($('hs-detail'));
+  if (!demo && e.pr) void paintOverride(e, e.pr.number);
+  if (!review && teamDiff(e, demo) && L) {
+    const loaded = L;
+    teamEntryReview(e, loaded)
+      .then((r) => {
+        if (!r) return;
+        loaded.data.reviews[`real:${e.id}`] = r;
+        // Still on this entry: paint it again with its diff.
+        if (new URLSearchParams(location.search).get('entry') === e.id) paintDetail(e, demo);
+      })
+      .catch(() => {
+        const body = $('hs-detail').querySelector('.cg-sec-body');
+        if (body && new URLSearchParams(location.search).get('entry') === e.id) body.innerHTML = '<p class="cg-muted">GitHub did not send the token files of this change. Open it on GitHub to see them.</p>';
+      });
+  }
+}
+
+const overrides = new Map<number, Promise<OverrideRecord | null>>();
+
+/**
+ * A branch merged with the owner override: who merged it, why, and which approvals it went without, read back from
+ * the reason posted on it (core parseOverrideComment). One read per branch, kept for the page; nothing when it was
+ * an ordinary merge or GitHub cannot be read.
+ */
+async function paintOverride(e: HistoryEntry, n: number) {
+  let read = overrides.get(n);
+  if (!read) {
+    const r = readRepo();
+    read = ghGet<{ body?: string | null }[]>(`/repos/${r.owner}/${r.repo}/issues/${n}/comments?per_page=100`)
+      .then((f) => f.data.map((c) => parseOverrideComment(c.body)).filter((x): x is OverrideRecord => x !== null && x.merged).pop() ?? null)
+      .catch(() => null);
+    overrides.set(n, read);
+  }
+  const ov = await read;
+  const el = $('hs-detail').querySelector<HTMLElement>('[data-hs-override]');
+  if (!ov || !el || new URLSearchParams(location.search).get('entry') !== e.id) return;
+  el.innerHTML = overrideLine(ov, esc, (login) => personHtml(login, { size: 'sm' }));
+  el.hidden = false;
+  void paintPeople(el);
 }
 
 /** Paints the History view from the URL (?view=history, &entry=). */
@@ -146,10 +241,13 @@ export function routeHistory() {
     if (head) head.hidden = true;
     $('hs-filters').hidden = true;
     $('hs-detail').hidden = false;
+    // One Harbor zone per screen: the detail header is the zone, the next release card waits on the list.
+    $('hs-next').hidden = true;
     ($('hs-detail').querySelector('h2') as HTMLElement | null)?.focus();
   } else {
     $('hs-detail').hidden = true;
     $('hs-list-view').hidden = false;
+    $('hs-next').hidden = false;
     if (head) head.hidden = false;
     $('hs-filters').hidden = $('hs-filter-toggle').getAttribute('aria-expanded') !== 'true';
     paintList();
@@ -182,12 +280,13 @@ function paintNextRelease() {
   const viewer = hasWorkingToken() ? currentViewer()?.login : null;
   const mine = Boolean(viewer && holders.some((h) => h.toLowerCase() === viewer.toLowerCase()));
   const cta = $<HTMLAnchorElement>('hs-next-cta');
-  cta.href = `/studio/changes/?pr=${release.number}`;
+  cta.href = studioHref(`changes/?pr=${release.number}`);
   cta.dataset.openPr = String(release.number);
   cta.hidden = !mine;
   const who = $('hs-next-who');
   who.hidden = mine;
-  who.innerHTML = `${holders.length ? `${esc(at(holders))} can publish it.` : 'An owner can publish it.'} <a href="/studio/changes/?pr=${release.number}" data-open-pr="${release.number}">See what it holds</a>`;
+  who.innerHTML = markLogins(`${holders.length ? `${esc(at(holders))} can publish it.` : 'An owner can publish it.'} <a href="${studioHref(`changes/?pr=${esc(String(release.number))}`)}" data-open-pr="${esc(String(release.number))}">See what it holds</a>`);
+  void paintPeople(who);
 }
 
 function loadNextRelease() {

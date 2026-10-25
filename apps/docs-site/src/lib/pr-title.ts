@@ -7,7 +7,9 @@ import { withoutJiraKey } from './vocabulary';
  */
 export function humanTitle(title: string): string {
   const rest = withoutJiraKey(title)
-    .replace(/^[a-z]+(\([^)]*\))?!?:\s*/i, '')
+    // A lowercase type ("feat:", "tokens:") or a known capitalized one ("Exploration:") goes; a component name keeps
+    // its place: "Badge: overdue tone" (a product branch's missing piece) reads as it is.
+    .replace(/^(?:[a-z]+|Exploration|Feat|Fix|Chore|Docs|Refactor|Revert|Tokens)(\([^)]*\))?!?:\s*/, '')
     .trim();
   return rest ? rest.charAt(0).toUpperCase() + rest.slice(1) : title;
 }
