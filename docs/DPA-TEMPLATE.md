@@ -7,7 +7,7 @@
 This Data Processing Agreement ("DPA") is made between:
 
 - **[Customer legal name]**, [address], [registration number] (the "Controller" or "Customer"); and
-- **Florian Gouloubi, trading as Bridge**, [business address], [SIRET number] (the "Processor" or "Bridge").
+- **Florian Gouloubi, sole proprietor (entrepreneur individuel), trading as Bridge**, 26 rue de la Tramontane, 34680 Saint-Georges-d'Orques, France, SIRET 947 632 055 00028 (the "Processor" or "Bridge").
 
 It forms part of [the agreement or terms under which the Customer uses Bridge] (the "Agreement"), dated [date]. It applies where Bridge processes personal data on behalf of the Customer, as required by Article 28 of Regulation (EU) 2016/679 (the "GDPR").
 
