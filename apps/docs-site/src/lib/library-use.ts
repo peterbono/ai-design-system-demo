@@ -8,7 +8,7 @@ import { versionInfo } from './changelog';
 import { agentRules, approvals, reviewGates, reviewingAgentPrs, riskTiers } from './governance';
 import { buildLlmsTxt } from './llms';
 import { AI_DOC, mcpPrompts, mcpTools, safetyModel } from './mcp';
-import { GITHUB_URL, PLUGIN_URL, readJson, sourceUrl } from './repo';
+import { GITHUB_URL, PLUGIN_URL, PLUGIN_ZIP_URL, readJson, sourceUrl } from './repo';
 import { siteSnapshot } from './site-snapshot';
 import { humanDate, repoStatus } from './stats';
 
@@ -23,6 +23,7 @@ export function bridgeTools(): BridgeTools {
     prompts: mcpPrompts(),
     safety: safetyModel(),
     pluginUrl: PLUGIN_URL,
+    pluginZipUrl: PLUGIN_ZIP_URL,
     repoUrl: GITHUB_URL,
     pluginReadmeUrl: sourceUrl('apps/figma-plugin/README.md'),
     aiDoc: { label: AI_DOC, href: sourceUrl(AI_DOC) },

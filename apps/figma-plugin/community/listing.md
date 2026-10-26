@@ -86,9 +86,9 @@ must be on for that account (Figma requires it to publish).
 1. Build: from the repository root, `npm install` then `npm run plugin:build`.
 2. If the plugin is not imported yet: **Plugins > Development > Import plugin from manifest...** and pick
    `apps/figma-plugin/manifest.json`.
-3. Open any design file, then **Plugins > Development > DS Bridge** and run it once to check it opens.
+3. Open any design file, then **Plugins > Development > Bridge** and run it once to check it opens.
 4. **Plugins > Development > Manage plugins in development**, find DS Bridge, open its **...** menu and choose
-   **Publish** (on some versions the entry sits directly under **Plugins > Development > DS Bridge > Publish**).
+   **Publish** (on some versions the entry sits directly under **Plugins > Development > Bridge > Publish**).
 5. Plugin id. Done: `manifest.json` holds the published id `1693034743850648023`. For a fork, the publish dialog gives a new id
    (a long number) and asks you to put it in `manifest.json`. Do it, run `npm run plugin:build` again, and
    continue. Then commit the new id on a branch and open a PR (`fix(figma-plugin): published plugin id`), so

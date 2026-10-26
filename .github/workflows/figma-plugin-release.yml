@@ -1,0 +1,80 @@
+# Figma plugin release: builds apps/figma-plugin on every change to it on main and publishes it, ready to import in
+# Figma desktop, as bridge-figma-plugin.zip on the rolling release "figma-plugin-latest". Designers download that one
+# link (docs: /docs/figma-plugin/, PLUGIN_ZIP_URL in apps/docs-site/src/lib/repo.ts) and never need a terminal.
+# The release is never marked Latest, so the npm package releases keep that badge. Token: the run's GITHUB_TOKEN.
+
+name: Figma plugin release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/figma-plugin/**
+      # The plugin bundles @bridge-ds/core from source and reads bridge.config.json (scripts/build.mjs).
+      - packages/core/src/**
+      - packages/core/package.json
+      - bridge.config.json
+      - package-lock.json
+      - .github/workflows/figma-plugin-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: figma-plugin-release
+  cancel-in-progress: true
+
+jobs:
+  release:
+    name: Build and publish the plugin zip
+    runs-on: ubuntu-latest
+    env:
+      TAG: figma-plugin-latest
+      ZIP: bridge-figma-plugin.zip
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build the plugin
+        run: npm run plugin:build
+
+      - name: Zip what Figma loads (manifest.json, dist/code.js, dist/ui.html)
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/bridge-figma-plugin"
+          mkdir -p "$out/dist"
+          cp apps/figma-plugin/manifest.json "$out/"
+          for f in $(node -e 'const m=require("./apps/figma-plugin/manifest.json");console.log([m.main,m.ui].join(" "))'); do
+            cp "apps/figma-plugin/$f" "$out/$f"
+          done
+          (cd "$RUNNER_TEMP" && zip -r "$GITHUB_WORKSPACE/$ZIP" bridge-figma-plugin)
+          unzip -l "$ZIP"
+
+      - name: Publish to the figma-plugin-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          title="Figma plugin (latest)"
+          notes="The Bridge Figma plugin, built from ${SHA:0:7} (${SHA}). Replaced on every plugin change to main.
+
+          1. Download ${ZIP} below and unzip it.
+          2. In the Figma desktop app: Plugins > Development > Import plugin from manifest..., then pick manifest.json in the bridge-figma-plugin folder.
+          3. Run it from Plugins > Development > Bridge, then Sign in with Bridge."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            git tag -f "$TAG" "$SHA"
+            git push -f origin "refs/tags/$TAG"
+            gh release upload "$TAG" "$ZIP" --clobber
+            gh release edit "$TAG" --title "$title" --notes "$notes" --prerelease=false --latest=false
+          else
+            gh release create "$TAG" "$ZIP" --target "$SHA" --title "$title" --notes "$notes" --latest=false
+          fi

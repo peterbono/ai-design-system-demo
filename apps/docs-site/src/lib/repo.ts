@@ -42,6 +42,12 @@ export const STORYBOOK_URL = (
 /** DS Bridge Figma plugin (apps/figma-plugin). Override with PLUGIN_URL once it is published to Figma Community. */
 export const PLUGIN_URL = process.env.PLUGIN_URL || `${GITHUB_URL}/tree/${DEFAULT_BRANCH}/apps/figma-plugin`;
 
+/** The built plugin, ready to import in Figma desktop: .github/workflows/figma-plugin-release.yml publishes it on every
+ *  plugin change to main, as this asset on this rolling release. */
+export const PLUGIN_RELEASE_TAG = 'figma-plugin-latest';
+export const PLUGIN_ZIP = 'bridge-figma-plugin.zip';
+export const PLUGIN_ZIP_URL = `${GITHUB_URL}/releases/download/${PLUGIN_RELEASE_TAG}/${PLUGIN_ZIP}`;
+
 export const sourceUrl = (rel: string) => `${GITHUB_URL}/blob/${DEFAULT_BRANCH}/${rel}`;
 
 function git(args: string[]): string {

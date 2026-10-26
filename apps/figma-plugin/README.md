@@ -22,10 +22,14 @@ the pull request a Push opened (PR #4). Components are in [Storybook](https://br
 
 ## Install (Figma desktop)
 
-1. From the repo root: `npm install`, then `npm run plugin:build` (writes `apps/figma-plugin/dist/`).
+1. Download the latest build: [bridge-figma-plugin.zip](https://github.com/peterbono/ai-design-system-demo/releases/download/figma-plugin-latest/bridge-figma-plugin.zip),
+   and unzip it. `.github/workflows/figma-plugin-release.yml` rebuilds it on every plugin change to `main`.
 2. In the Figma desktop app: **Plugins > Development > Import plugin from manifest...** and pick
-   `apps/figma-plugin/manifest.json`.
-3. Run it from **Plugins > Development > DS Bridge**.
+   `bridge-figma-plugin/manifest.json`.
+3. Run it from **Plugins > Development > Bridge**.
+
+From source instead: `npm install`, then `npm run plugin:build` from the repo root (writes `apps/figma-plugin/dist/`),
+and import `apps/figma-plugin/manifest.json`.
 
 Published on Figma Community: https://www.figma.com/community/plugin/1693034743850648023 (in review since 2026-10-16). The `id` in `manifest.json` is that published id. The Community listing (copy, icon, cover,
 gallery) and the publishing steps are in [`community/`](community/listing.md).
