@@ -31,7 +31,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TAG: figma-plugin-latest
-      ZIP: bridge-figma-plugin.zip
+      # Not ZIP: zip reads $ZIP as its own default options.
+      PLUGIN_ZIP: bridge-figma-plugin.zip
     steps:
       - uses: actions/checkout@v4
 
@@ -55,8 +56,8 @@ jobs:
           for f in $(node -e 'const m=require("./apps/figma-plugin/manifest.json");console.log([m.main,m.ui].join(" "))'); do
             cp "apps/figma-plugin/$f" "$out/$f"
           done
-          (cd "$RUNNER_TEMP" && zip -r "$GITHUB_WORKSPACE/$ZIP" bridge-figma-plugin)
-          unzip -l "$ZIP"
+          (cd "$RUNNER_TEMP" && zip -r "$GITHUB_WORKSPACE/$PLUGIN_ZIP" bridge-figma-plugin)
+          unzip -l "$PLUGIN_ZIP"
 
       - name: Publish to the figma-plugin-latest release
         env:
@@ -67,14 +68,14 @@ jobs:
           title="Figma plugin (latest)"
           notes="The Bridge Figma plugin, built from ${SHA:0:7} (${SHA}). Replaced on every plugin change to main.
 
-          1. Download ${ZIP} below and unzip it.
+          1. Download ${PLUGIN_ZIP} below and unzip it.
           2. In the Figma desktop app: Plugins > Development > Import plugin from manifest..., then pick manifest.json in the bridge-figma-plugin folder.
           3. Run it from Plugins > Development > Bridge, then Sign in with Bridge."
           if gh release view "$TAG" >/dev/null 2>&1; then
             git tag -f "$TAG" "$SHA"
             git push -f origin "refs/tags/$TAG"
-            gh release upload "$TAG" "$ZIP" --clobber
+            gh release upload "$TAG" "$PLUGIN_ZIP" --clobber
             gh release edit "$TAG" --title "$title" --notes "$notes" --prerelease=false --latest=false
           else
-            gh release create "$TAG" "$ZIP" --target "$SHA" --title "$title" --notes "$notes" --latest=false
+            gh release create "$TAG" "$PLUGIN_ZIP" --target "$SHA" --title "$title" --notes "$notes" --latest=false
           fi
