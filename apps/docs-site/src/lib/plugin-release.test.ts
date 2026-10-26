@@ -11,7 +11,7 @@ const manifest = JSON.parse(readFileSync(join(ROOT, 'apps/figma-plugin/manifest.
 describe('Figma plugin download', () => {
   it('points at the asset and release the workflow publishes', () => {
     expect(workflow).toContain(`TAG: ${PLUGIN_RELEASE_TAG}`);
-    expect(workflow).toContain(`ZIP: ${PLUGIN_ZIP}`);
+    expect(workflow).toContain(`PLUGIN_ZIP: ${PLUGIN_ZIP}`);
     expect(PLUGIN_ZIP_URL).toBe(`${GITHUB_URL}/releases/download/${PLUGIN_RELEASE_TAG}/${PLUGIN_ZIP}`);
   });
 
