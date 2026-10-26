@@ -116,7 +116,7 @@ This DPA is governed by French law, and the courts of Montpellier, France, have 
 | Nature and purpose | Section 1 |
 | Duration and retention | Section 1.2 and "What Bridge stores" on the security page |
 | Customer contact for data protection | [name, email] |
-| Bridge contact for data protection | Florian Gouloubi, founder, [email] |
+| Bridge contact for data protection | Florian Gouloubi, founder, florian.gouloubi@gmail.com |
 
 ## Annex 2. Technical and organisational measures
 
