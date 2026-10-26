@@ -3,6 +3,7 @@
 import Docs from '../../layouts/Docs.astro';
 import { Link } from '@bridge-ds/react';
 import { DOCS_AUTOMATIC_MEASURE } from '../../lib/nav';
+import { GITHUB_URL, PLUGIN_ZIP_URL } from '../../lib/repo';
 
 const sections = [
   { id: 'what', label: 'What it does' },
@@ -32,17 +33,20 @@ const sections = [
 
   <section aria-labelledby="install">
     <h2 id="install">Install it</h2>
-    <p>The Figma Community listing is not live yet: it has been in review since 2026-10-16. Until then, install it from the repository in the Figma desktop app:</p>
+    <p>The Figma Community listing is not live yet: it has been in review since 2026-10-16. Until then, install it in the Figma desktop app:</p>
     <ol>
-      <li>From the repo root, run <code>npm install</code>, then <code>npm run plugin:build</code>.</li>
-      <li>In Figma, open <strong>Plugins &gt; Development &gt; Import plugin from manifest...</strong> and pick <code>apps/figma-plugin/manifest.json</code>.</li>
-      <li>Run it from <strong>Plugins &gt; Development &gt; DS Bridge</strong>.</li>
+      <li><Link href={PLUGIN_ZIP_URL}>Download the plugin</Link> and unzip it. The link always gives the latest version.</li>
+      <li>In Figma, open <strong>Plugins &gt; Development &gt; Import plugin from manifest...</strong> and pick <code>manifest.json</code> in the <code>bridge-figma-plugin</code> folder.</li>
+      <li>Run it from <strong>Plugins &gt; Development &gt; Bridge</strong>.</li>
     </ol>
+    <p>To update it, download the zip again and unzip it in the same place, replacing the old folder. Figma keeps the plugin and your sign-in.</p>
+    <p>Developers can build it from <Link href={GITHUB_URL}>the repository</Link> instead: <code>npm install</code>, then <code>npm run plugin:build</code>, and import <code>apps/figma-plugin/manifest.json</code>.</p>
   </section>
 
   <section aria-labelledby="need">
     <h2 id="need">What you need</h2>
-    <p>A fine-grained GitHub personal access token limited to your design system repository, with <strong>Contents</strong>, <strong>Pull requests</strong> and <strong>Issues</strong> set to Read and write. Paste it in the plugin's Settings tab and save.</p>
-    <p>The token stays on this computer, never in the Figma file. Settings are prefilled from <code>bridge.config.json</code>. GitHub only, no GitLab or Bitbucket.</p>
+    <p>A Bridge account in your team, the one you use in Studio. In the plugin, choose <strong>Sign in with Bridge</strong>: your browser opens Studio, you pick your team, and the plugin connects to your design system. No token to paste. When the sign-in expires, the plugin asks you to sign in again.</p>
+    <p>The sign-in stays on this computer, never in the Figma file. GitHub only, no GitLab or Bitbucket.</p>
+    <p>Developers can connect with their own fine-grained GitHub token instead, under <strong>For developers</strong> in the plugin's Settings.</p>
   </section>
 </Docs>

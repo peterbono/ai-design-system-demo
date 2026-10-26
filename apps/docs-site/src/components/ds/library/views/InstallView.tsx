@@ -130,23 +130,28 @@ export default function InstallView({ data }: { data: LibraryData }) {
           </p>
           <ol className="lib-steps">
             <li>
-              <p>{own ? 'From the repository root, build the plugin:' : <>From a clone of <Link href={bridge.repoUrl}>Bridge</Link>, build the plugin:</>}</p>
-              <CodeBlock className="cx-block" code={plugin} label="Build the plugin" />
-            </li>
-            <li>
               <p>
-                In the Figma desktop app: Plugins, Development, Import plugin from manifest, and pick <code>apps/figma-plugin/manifest.json</code>.
+                <Link href={bridge.pluginZipUrl}>Download the plugin</Link> and unzip it. It is always the latest version.
               </p>
             </li>
             <li>
               <p>
-                Run it from Plugins, Development, DS Bridge, and paste a fine-grained GitHub token in its Settings tab{repo && <>, then connect <code>{repo}</code></>}.
+                In the Figma desktop app: Plugins, Development, Import plugin from manifest, and pick <code>manifest.json</code> in the <code>bridge-figma-plugin</code> folder.
+              </p>
+            </li>
+            <li>
+              <p>
+                Run it from Plugins, Development, Bridge, then choose <strong>Sign in with Bridge</strong> and pick your team in the browser{repo && <> (<code>{repo}</code>)</>}. No token to paste.
               </p>
             </li>
           </ol>
           <p className="small muted">
-            Not in Figma Community yet: publishing needs a plugin id issued by Figma. Full guide in <Link href={bridge.pluginUrl}>apps/figma-plugin</Link>, source on{' '}
-            <Link href={bridge.repoUrl}>GitHub</Link>, details in <Link href={bridge.pluginReadmeUrl}>the plugin README</Link>.
+            The Figma Community listing is in review. Developers can also build it from a clone of <Link href={bridge.repoUrl}>Bridge</Link>:
+          </p>
+          <CodeBlock className="cx-block" code={plugin} label="Build the plugin" />
+          <p className="small muted">
+            Then import <code>apps/figma-plugin/manifest.json</code>. Full guide in <Link href={bridge.pluginUrl}>apps/figma-plugin</Link>, details in{' '}
+            <Link href={bridge.pluginReadmeUrl}>the plugin README</Link>.
           </p>
         </>
       )}

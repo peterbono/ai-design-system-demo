@@ -84,6 +84,8 @@ export interface BridgeTools {
   safety: { title: string; text: string }[];
   /** The DS Bridge Figma plugin: where its guide is, Bridge's repository and its plugin README. */
   pluginUrl: string;
+  /** The built plugin as a zip, ready to import in Figma desktop (the figma-plugin-latest release). */
+  pluginZipUrl: string;
   repoUrl: string;
   pluginReadmeUrl: string;
   /** Bridge's AI guide (docs/AI.md) and where it opens. */
