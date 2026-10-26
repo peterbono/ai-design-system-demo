@@ -7,7 +7,7 @@
 This Data Processing Agreement ("DPA") is made between:
 
 - **[Customer legal name]**, [address], [registration number] (the "Controller" or "Customer"); and
-- **[Bridge legal entity name]**, [address], [registration number] (the "Processor" or "Bridge").
+- **Florian Gouloubi, trading as Bridge**, [business address], [SIRET number] (the "Processor" or "Bridge").
 
 It forms part of [the agreement or terms under which the Customer uses Bridge] (the "Agreement"), dated [date]. It applies where Bridge processes personal data on behalf of the Customer, as required by Article 28 of Regulation (EU) 2016/679 (the "GDPR").
 
@@ -55,7 +55,7 @@ Bridge shall:
 
 ## 5. Confidentiality
 
-Bridge ensures that every person authorised to process the personal data is bound by confidentiality. [List or describe who has access to production systems.]
+Bridge ensures that every person authorised to process the personal data is bound by confidentiality. Today one person has access to production systems: the founder of Bridge, through their own accounts with Vercel, Upstash, Resend and GitHub. Bridge informs the Customer before granting production access to anyone else.
 
 ## 6. Security
 
@@ -65,7 +65,7 @@ Bridge implements the measures described in Annex 2 and keeps them at least at t
 
 7.1 The Customer gives general authorisation for Bridge to use the subprocessors listed in Annex 3.
 
-7.2 Bridge informs the Customer of any intended addition or replacement of a subprocessor at least [30] days in advance, by [updating the security page and notifying the Customer's contact by email]. The Customer may object on reasonable data protection grounds within that period; if the parties cannot agree, [the Customer may terminate the affected part of the Agreement].
+7.2 Bridge informs the Customer of any intended addition or replacement of a subprocessor at least 30 days in advance, by updating the security page and notifying the Customer's data protection contact by email. The Customer may object on reasonable data protection grounds within that period; if the parties cannot agree, the Customer may terminate the affected part of the Agreement without penalty.
 
 7.3 Bridge imposes on each subprocessor data protection obligations that offer at least the same level of protection as this DPA, and remains responsible to the Customer for their performance.
 
@@ -77,7 +77,7 @@ Bridge implements the measures described in Annex 2 and keeps them at least at t
 
 ## 9. Personal data breaches
 
-Bridge notifies the Customer without undue delay, and in any case within [number] hours, after becoming aware of a personal data breach affecting the Customer's personal data. The notice includes, as far as available, the nature of the breach, the categories and approximate number of people and records concerned, likely consequences, and the measures taken or proposed. Bridge provides further information as it becomes available.
+Bridge notifies the Customer without undue delay, and in any case within 48 hours, after becoming aware of a personal data breach affecting the Customer's personal data. The notice includes, as far as available, the nature of the breach, the categories and approximate number of people and records concerned, likely consequences, and the measures taken or proposed. Bridge provides further information as it becomes available.
 
 ## 10. Deletion or return at the end
 
@@ -87,7 +87,7 @@ The Customer's design system is not held by Bridge: it stays in the Customer's G
 
 ## 11. Audits
 
-Bridge makes available to the Customer the information necessary to demonstrate compliance with this DPA. Bridge's source code is public under the MIT license, and the security page links each statement to the code that does it. Bridge allows and contributes to audits, including inspections, by the Customer or an auditor it mandates, [with reasonable notice of at least [number] days, during business hours, at the Customer's cost, no more than once a year except after a breach].
+Bridge makes available to the Customer the information necessary to demonstrate compliance with this DPA. Bridge's source code is public under the MIT license, and the security page links each statement to the code that does it. Bridge allows and contributes to audits, including inspections, by the Customer or an auditor it mandates, with at least 30 days' notice, during business hours, at the Customer's cost, no more than once a year except after a personal data breach or at the request of a supervisory authority.
 
 Bridge holds no certification at the date of this template (no SOC 2, no ISO 27001, no penetration test report).
 
@@ -95,7 +95,7 @@ Bridge holds no certification at the date of this template (no SOC 2, no ISO 270
 
 12.1 Bridge's database (Upstash) and functions (Vercel) run in Frankfurt, Germany, and the daily backup (Vercel Blob) is kept in Paris, France. Static pages are served from Vercel's global network.
 
-12.2 Vercel Inc., Upstash Inc. and Resend Inc. are companies based in the United States. Resend's sending region is not chosen by Bridge. Where personal data is transferred, or made accessible, outside the European Economic Area, the transfer relies on [the EU-US Data Privacy Framework certification of the subprocessor, where it applies] and/or [the Standard Contractual Clauses adopted by Commission Implementing Decision (EU) 2021/914, module [three], incorporated by reference], together with the subprocessors' own data processing terms.
+12.2 Vercel Inc., Upstash Inc. and Resend Inc. are companies based in the United States. Resend's sending region is not chosen by Bridge. Where personal data is transferred, or made accessible, outside the European Economic Area, the transfer relies on the EU-US Data Privacy Framework certification of the subprocessor where it applies, and otherwise the Standard Contractual Clauses adopted by Commission Implementing Decision (EU) 2021/914, module three (processor to processor), incorporated by reference, together with the subprocessors' own data processing terms.
 
 ## 13. Liability and order of precedence
 
@@ -103,7 +103,7 @@ Liability under this DPA is governed by [the liability provisions of the Agreeme
 
 ## 14. Governing law
 
-[This DPA is governed by the law of [EU Member State], and the courts of [city] have jurisdiction.]
+This DPA is governed by French law, and the courts of Montpellier, France, have jurisdiction.
 
 ---
 
@@ -116,7 +116,7 @@ Liability under this DPA is governed by [the liability provisions of the Agreeme
 | Nature and purpose | Section 1 |
 | Duration and retention | Section 1.2 and "What Bridge stores" on the security page |
 | Customer contact for data protection | [name, email] |
-| Bridge contact for data protection | [name, email] |
+| Bridge contact for data protection | Florian Gouloubi, founder, [email] |
 
 ## Annex 2. Technical and organisational measures
 
@@ -152,4 +152,4 @@ Not subprocessors of Bridge: GitHub (the Customer's own provider, under the Cust
 
 Signed for the Customer: [name, title, date]
 
-Signed for Bridge: [name, title, date]
+Signed for Bridge: Florian Gouloubi, founder, [date]
