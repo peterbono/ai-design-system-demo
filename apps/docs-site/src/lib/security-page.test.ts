@@ -74,7 +74,16 @@ describe('Security and data page: the numbers come from the code', () => {
     expect(page).toContain('never a fork');
   });
 
+  it('says the region vercel.json sets, and links the DPA template', () => {
+    const vercel = JSON.parse(readFileSync(join(ROOT, 'apps/docs-site/vercel.json'), 'utf8')) as { regions?: string[] };
+    expect(vercel.regions).toEqual(['fra1']);
+    expect(page).toContain('<code>fra1</code> (Frankfurt)');
+    expect(page).toContain("src('docs/DPA-TEMPLATE.md')");
+    expect(readFileSync(join(ROOT, 'docs/DPA-TEMPLATE.md'), 'utf8')).toContain('Not legal advice');
+  });
+
   it('writes in the Bridge voice: no em dash', () => {
     expect(page).not.toContain('—');
+    expect(readFileSync(join(ROOT, 'docs/DPA-TEMPLATE.md'), 'utf8')).not.toContain('—');
   });
 });

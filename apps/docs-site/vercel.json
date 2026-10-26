@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "astro",
+  "regions": ["fra1"],
   "installCommand": "cd ../.. && npm ci && node packages/mcp/build.mjs",
   "buildCommand": "cd ../.. && npm run docs:build",
   "outputDirectory": "dist",
