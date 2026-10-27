@@ -39,7 +39,9 @@ const sections = [
       <li>In Figma, open <strong>Plugins &gt; Development &gt; Import plugin from manifest...</strong> and pick <code>manifest.json</code> in the <code>bridge-figma-plugin</code> folder.</li>
       <li>Run it from <strong>Plugins &gt; Development &gt; Bridge</strong>.</li>
     </ol>
-    <p>To update it, download the zip again and unzip it in the same place, replacing the old folder. Figma keeps the plugin and your sign-in.</p>
+    <h3>Update it</h3>
+    <p>Download the zip again and unzip it over the old <code>bridge-figma-plugin</code> folder, replacing its files. Nothing to import again: Figma runs the new version and keeps your sign-in.</p>
+    <p>If you imported a second copy, Figma lists Bridge twice and you can't tell which one runs. Open <strong>Plugins &gt; Development &gt; Manage plugins in development</strong> and choose <strong>Remove local version</strong> on the older one.</p>
     <p>Developers can build it from <Link href={GITHUB_URL}>the repository</Link> instead: <code>npm install</code>, then <code>npm run plugin:build</code>, and import <code>apps/figma-plugin/manifest.json</code>.</p>
   </section>
 

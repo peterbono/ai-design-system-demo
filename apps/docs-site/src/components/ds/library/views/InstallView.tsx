@@ -146,6 +146,9 @@ export default function InstallView({ data }: { data: LibraryData }) {
             </li>
           </ol>
           <p className="small muted">
+            To update it, unzip the new version over the same folder, replacing its files: nothing to import again. If Figma lists Bridge twice, remove the older copy in Plugins, Development, Manage plugins in development.
+          </p>
+          <p className="small muted">
             The Figma Community listing is in review. Developers can also build it from a clone of <Link href={bridge.repoUrl}>Bridge</Link>:
           </p>
           <CodeBlock className="cx-block" code={plugin} label="Build the plugin" />

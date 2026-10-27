@@ -70,7 +70,9 @@ jobs:
 
           1. Download ${PLUGIN_ZIP} below and unzip it.
           2. In the Figma desktop app: Plugins > Development > Import plugin from manifest..., then pick manifest.json in the bridge-figma-plugin folder.
-          3. Run it from Plugins > Development > Bridge, then Sign in with Bridge."
+          3. Run it from Plugins > Development > Bridge, then Sign in with Bridge.
+
+          To update: unzip the new zip over the same bridge-figma-plugin folder, replacing its files. Nothing to import again. If Figma lists Bridge twice, remove the older copy in Plugins > Development > Manage plugins in development (Remove local version)."
           if gh release view "$TAG" >/dev/null 2>&1; then
             git tag -f "$TAG" "$SHA"
             git push -f origin "refs/tags/$TAG"

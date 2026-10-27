@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DEFAULT_FIDELITY_RUN_FILE, type FigmaFidelityRun, REQUESTS_BRANCH, fidelityVerdict, parseFidelityRun } from '@bridge-ds/core';
-import { DIFFERS_HANDOFF_TEXT, FIX_ASKED_TEXT, FIX_NEXT_TEXT, NO_REFERENCES_HANDOFF_TEXT, differsRequestForDeveloper, fixCommand, fixPhrase, fixRequestForDeveloper, referencesRequestForDeveloper, writeFidelityRun } from '../src/sync/fix-with-claude';
+import { DIFFERS_HANDOFF_TEXT, FIX_ASKED_TEXT, FIX_NEXT_TEXT, NO_REFERENCES_HANDOFF_TEXT, differsRequestForDeveloper, fixCommand, fixPhrase, fixRequestForDeveloper, referencesRequestForDeveloper, runNeedsWrite, writeFidelityRun } from '../src/sync/fix-with-claude';
 import { FakeGitHub } from './fake-github';
 
 const run = (percent: number): FigmaFidelityRun => ({
@@ -53,4 +53,11 @@ test('a component that differs without a measure still gets a designer action: t
   assert.match(req, /"component": "TextInput"/);
   assert.match(referencesRequestForDeveloper('acme/ds'), /"Figma references" workflow once/);
   assert.doesNotMatch(req + referencesRequestForDeveloper(''), /\u2014/);
+});
+
+test('a run is written again only when it is not the one already on the requests branch', () => {
+  assert.equal(runNeedsWrite('2026-10-27T16:00:00.000Z', undefined), true, 'nothing written yet');
+  assert.equal(runNeedsWrite('2026-10-27T16:00:00.000Z', '2026-10-27T15:11:52.508Z'), true, 'a newer comparison');
+  assert.equal(runNeedsWrite('2026-10-27T15:11:52.508Z', '2026-10-27T15:11:52.508Z'), false, 'the same comparison');
+  assert.equal(runNeedsWrite(undefined, '2026-10-27T15:11:52.508Z'), false, 'no comparison on screen');
 });
